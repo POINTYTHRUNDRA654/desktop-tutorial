@@ -1,7 +1,0 @@
-{
-  "name": "Nexus Architect AI",
-  "description": "An advanced AI assistant specialized in 3D modeling, Fallout 4 modding, and system optimization using Gemini Live and Search Grounding.",
-  "requestFramePermissions": [
-    "microphone"
-  ]
-}
