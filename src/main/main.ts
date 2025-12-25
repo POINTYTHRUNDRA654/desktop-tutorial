@@ -5,13 +5,14 @@
  * Handles window creation, IPC communication, tray icon, and system integration.
  */
 
-import { app, BrowserWindow, ipcMain, Tray, Menu, globalShortcut } from 'electron';
+import { app, BrowserWindow, ipcMain, Tray, globalShortcut } from 'electron';
 import path from 'path';
 import { IPC_CHANNELS, Message, Settings } from '../shared/types';
-import { getStore, saveMessage, getMessages, getSettings, setSettings } from './store';
+import { getStore, saveMessage, getSettings, setSettings } from './store';
 
 let mainWindow: BrowserWindow | null = null;
-let tray: Tray | null = null;
+const tray: Tray | null = null;
+let isQuitting = false;
 
 // Development mode flag
 const isDev = process.env.NODE_ENV === 'development' || !app.isPackaged;
@@ -58,7 +59,7 @@ function createWindow() {
 
   // Handle window close (minimize to tray instead of closing)
   mainWindow.on('close', (event) => {
-    if (!app.isQuitting && tray) {
+    if (!isQuitting && tray) {
       event.preventDefault();
       mainWindow?.hide();
     }
@@ -90,7 +91,7 @@ function createTray() {
     {
       label: 'Quit',
       click: () => {
-        app.isQuitting = true;
+        isQuitting = true;
         app.quit();
       },
     },
@@ -249,6 +250,8 @@ app.on('window-all-closed', () => {
 });
 
 app.on('will-quit', () => {
+  // Set quitting flag so window close won't prevent quit
+  isQuitting = true;
   // Unregister all shortcuts
   globalShortcut.unregisterAll();
 });
