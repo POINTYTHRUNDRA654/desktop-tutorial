@@ -18,7 +18,8 @@ function useVoiceRecognition(onResult: (text: string) => void) {
 
   useEffect(() => {
     // Check if Web Speech API is available
-    const SpeechRecognition = window.SpeechRecognition || (window as any).webkitSpeechRecognition;
+    const SpeechRecognition = window.SpeechRecognition || 
+      (window as typeof window & { webkitSpeechRecognition?: typeof window.SpeechRecognition }).webkitSpeechRecognition;
     
     if (!SpeechRecognition) {
       console.warn('Web Speech API not supported in this browser');
