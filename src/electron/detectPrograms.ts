@@ -7,21 +7,13 @@
  * 3. Providing fallback mechanisms if registry access fails
  */
 
-import { exec } from 'child_process';
+import { spawn, exec } from 'child_process';
 import { promisify } from 'util';
 import * as fs from 'fs/promises';
 import * as path from 'path';
+import { InstalledProgram } from './types';
 
 const execAsync = promisify(exec);
-
-export interface InstalledProgram {
-  name: string;
-  displayName: string;
-  path: string;
-  icon?: string;
-  version?: string;
-  publisher?: string;
-}
 
 /**
  * Main function to detect installed programs on Windows
@@ -95,8 +87,8 @@ async function queryRegistryKeys(registryPath: string): Promise<InstalledProgram
     const { stdout } = await execAsync(`reg query "${registryPath}"`);
     const subKeys = stdout
       .split('\n')
-      .filter(line => line.trim().startsWith(registryPath))
-      .map(line => line.trim());
+      .filter((line: string) => line.trim().startsWith(registryPath))
+      .map((line: string) => line.trim());
 
     // Query each subkey for program details
     for (const subKey of subKeys) {
@@ -291,9 +283,25 @@ export async function openProgram(programPath: string): Promise<void> {
     // Verify the file exists and is executable
     await fs.access(programPath, fs.constants.X_OK);
     
-    // Launch the program
-    // Using start command to launch without waiting
-    await execAsync(`start "" "${programPath}"`);
+    // Launch the program using spawn for security (no shell interpretation)
+    // Use 'cmd.exe /c start' to launch without waiting, but with proper argument separation
+    return new Promise<void>((resolve, reject) => {
+      const child = spawn('cmd.exe', ['/c', 'start', '""', programPath], {
+        detached: true,
+        stdio: 'ignore',
+        windowsHide: true,
+      });
+
+      child.on('error', (error) => {
+        reject(new Error(`Failed to open program: ${error.message}`));
+      });
+
+      // Detach from parent process
+      child.unref();
+      
+      // Resolve immediately as program is launching
+      resolve();
+    });
   } catch (error) {
     throw new Error(`Failed to open program: ${error instanceof Error ? error.message : 'Unknown error'}`);
   }
