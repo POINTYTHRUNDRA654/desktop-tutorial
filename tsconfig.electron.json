@@ -8,6 +8,6 @@
     "lib": ["ES2022"],
     "types": ["node"]
   },
-  "include": ["src/main/**/*", "src/shared/**/*"],
+  "include": ["src/main/**/*", "src/electron/**/*", "src/shared/**/*"],
   "exclude": ["node_modules", "src/renderer"]
 }
