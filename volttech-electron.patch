@@ -1,0 +1,412 @@
+*** Begin Patch
+*** Add File: src/electron/main.ts
++import { app, BrowserWindow, ipcMain } from "electron";
++import * as path from "path";
++import fs from "fs";
++import { detectPrograms } from "./detectPrograms";
++import { openProgramSafe } from "./openProgram";
++
++function createWindow() {
++  const win = new BrowserWindow({
++    width: 1100,
++    height: 800,
++    webPreferences: {
++      preload: path.join(__dirname, "preload.js"),
++      nodeIntegration: false,
++      contextIsolation: true,
++    },
++  });
++
++  const startUrl = process.env.ELECTRON_START_URL;
++  if (startUrl) {
++    win.loadURL(startUrl);
++  } else {
++    const indexPath = path.join(__dirname, "..", "..", "external", "volttech-dist", "index.html");
++    if (fs.existsSync(indexPath)) {
++      win.loadFile(indexPath);
++    } else {
++      win.loadFile(path.join(__dirname, "..", "..", "public", "attach-programs.html"));
++    }
++  }
++}
++
++app.whenReady().then(createWindow);
++
++app.on("window-all-closed", () => {
++  if (process.platform !== "darwin") app.quit();
++});
++
++app.on("activate", () => {
++  if (BrowserWindow.getAllWindows().length === 0) createWindow();
++});
++
++ipcMain.handle("detect-programs", async () => {
++  try {
++    const results = await detectPrograms();
++    return { success: true, programs: results };
++  } catch (err: any) {
++    return { success: false, error: err?.message ?? String(err) };
++  }
++});
++
++ipcMain.handle("open-program", async (_event, programPath: string) => {
++  try {
++    const launched = await openProgramSafe(programPath);
++    return { success: launched };
++  } catch (err: any) {
++    return { success: false, error: err?.message ?? String(err) };
++  }
++});
++
+*** End Patch
+*** Begin Patch
+*** Add File: src/electron/preload.ts
++import { contextBridge, ipcRenderer } from "electron";
++
++type ProgramInfo = { name: string; path: string; source: "registry" | "filesystem" };
++
++contextBridge.exposeInMainWorld("electron", {
++  api: {
++    detectPrograms: async (): Promise<ProgramInfo[]> => {
++      const res = await ipcRenderer.invoke("detect-programs");
++      if (res && res.success) return res.programs as ProgramInfo[];
++      throw new Error(res?.error ?? "Failed to detect programs");
++    },
++    openProgram: async (programPath: string): Promise<{ success: boolean; error?: string }> => {
++      const res = await ipcRenderer.invoke("open-program", programPath);
++      return res as { success: boolean; error?: string };
++    },
++  },
++  on: (channel: string, listener: (...args: any[]) => void) => {
++    ipcRenderer.on(channel, (_event, ...args) => listener(...args));
++  },
++});
++
+*** End Patch
+*** Begin Patch
+*** Add File: src/electron/detectPrograms.ts
++import { exec } from "child_process";
++import fs from "fs";
++import path from "path";
++import util from "util";
++
++const execAsync = util.promisify(exec);
++
++export type ProgramInfo = { name: string; path: string; source: "registry" | "filesystem" };
++
++async function queryRegistryKey(key: string): Promise<string> {
++  try {
++    const { stdout } = await execAsync(`reg query "${key}"`);
++    return stdout;
++  } catch {
++    return "";
++  }
++}
++
++function parseRegUninstallOutput(output: string): ProgramInfo[] {
++  const lines = output.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
++  const results: ProgramInfo[] = [];
++
++  for (const line of lines) {
++    if (line.toLowerCase().startsWith("hkey")) {
++      results.push({ name: path.basename(line), path: line, source: "registry" });
++    }
++  }
++
++  return results;
++}
++
++async function registryUninstallPrograms(): Promise<ProgramInfo[]> {
++  const keys = [
++    'HKLM\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Uninstall',
++    'HKCU\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Uninstall',
++    'HKLM\\SOFTWARE\\WOW6432Node\\Microsoft\\Windows\\CurrentVersion\\Uninstall',
++  ];
++  const programs: ProgramInfo[] = [];
++  for (const key of keys) {
++    const out = await queryRegistryKey(key);
++    if (!out) continue;
++    const parsed = parseRegUninstallOutput(out);
++    programs.push(...parsed);
++  }
++  return programs;
++}
++
++function scanProgramFiles(): ProgramInfo[] {
++  const candidates: ProgramInfo[] = [];
++  const env = process.env;
++  const programDirs = [
++    env["ProgramFiles"],
++    env["ProgramFiles(x86)"],
++    env["ProgramW6432"],
++  ].filter(Boolean) as string[];
++
++  for (const dir of programDirs) {
++    try {
++      const entries = fs.readdirSync(dir);
++      for (const entry of entries) {
++        const full = path.join(dir, entry);
++        try {
++          const stat = fs.statSync(full);
++          if (stat.isDirectory()) {
++            const files = fs.readdirSync(full);
++            for (const f of files) {
++              if (f.toLowerCase().endsWith(".exe")) {
++                const exePath = path.join(full, f);
++                candidates.push({
++                  name: `${entry} — ${f}`,
++                  path: exePath,
++                  source: "filesystem",
++                });
++                break;
++              }
++            }
++          } else if (stat.isFile() && full.toLowerCase().endsWith(".exe")) {
++            candidates.push({ name: entry, path: full, source: "filesystem" });
++          }
++        } catch {
++        }
++      }
++    } catch {
++    }
++  }
++
++  return candidates;
++}
++
++export async function detectPrograms(): Promise<ProgramInfo[]> {
++  const results: ProgramInfo[] = [];
++
++  try {
++    const reg = await registryUninstallPrograms();
++    results.push(...reg);
++  } catch {
++  }
++
++  try {
++    const fsScan = scanProgramFiles();
++    results.push(...fsScan);
++  } catch {
++  }
++
++  const map = new Map<string, ProgramInfo>();
++  for (const p of results) {
++    try {
++      const normalized = path.normalize(p.path || p.name);
++      if (!map.has(normalized)) map.set(normalized, p);
++    } catch {
++      if (!map.has(p.path)) map.set(p.path, p);
++    }
++  }
++
++  return Array.from(map.values());
++}
++
+*** End Patch
+*** Begin Patch
+*** Add File: src/electron/openProgram.ts
++import { spawn } from "child_process";
++import path from "path";
++import fs from "fs";
++
++function isUnderProgramFiles(candidate: string): boolean {
++  const pf = process.env["ProgramFiles"] ?? "";
++  const pf86 = process.env["ProgramFiles(x86)"] ?? "";
++  const normalized = path.normalize(candidate).toLowerCase();
++  return (
++    (pf && normalized.startsWith(path.normalize(pf).toLowerCase())) ||
++    (pf86 && normalized.startsWith(path.normalize(pf86).toLowerCase()))
++  );
++}
++
++export async function openProgramSafe(programPath: string): Promise<boolean> {
++  if (!programPath || typeof programPath !== "string") {
++    throw new Error("Invalid path");
++  }
++
++  const normalized = path.normalize(programPath);
++  if (!fs.existsSync(normalized)) {
++    throw new Error("Executable does not exist");
++  }
++
++  if (!isUnderProgramFiles(normalized)) {
++    throw new Error("Launching arbitrary paths is restricted for security");
++  }
++
++  return new Promise<boolean>((resolve, reject) => {
++    try {
++      const child = spawn(normalized, [], { detached: true, stdio: "ignore" });
++      child.unref();
++      resolve(true);
++    } catch (err) {
++      reject(err);
++    }
++  });
++}
++
+*** End Patch
+*** Begin Patch
+*** Add File: public/attach-programs.html
++<!doctype html>
++<html>
++  <head>
++    <meta charset="utf-8" />
++    <title>Attach Programs — Demo</title>
++    <style>
++      body { font-family: system-ui, sans-serif; padding: 20px; }
++      button { margin: 4px; }
++      li { margin: 6px 0; }
++    </style>
++  </head>
++  <body>
++    <h1>Program discovery demo</h1>
++    <p>This demo page calls the Electron API to discover installed programs and open them. Replace this UI with your Volt Tech UI wiring.</p>
++    <button id="detect">Detect Programs</button>
++    <ul id="list"></ul>
++
++    <script>
++      const list = document.getElementById("list");
++      document.getElementById("detect").addEventListener("click", async () => {
++        list.innerHTML = "<li>Detecting…</li>";
++        try {
++          const programs = await window.electron.api.detectPrograms();
++          if (!programs || programs.length === 0) {
++            list.innerHTML = "<li>No programs found</li>";
++            return;
++          }
++          list.innerHTML = "";
++          programs.slice(0, 200).forEach(p => {
++            const li = document.createElement("li");
++            li.textContent = p.name + " — " + p.path + " (" + p.source + ")";
++            const btn = document.createElement("button");
++            btn.textContent = "Open";
++            btn.onclick = async () => {
++              const res = await window.electron.api.openProgram(p.path);
++              if (res.success) alert("Launched");
++              else alert("Failed: " + (res.error || "unknown"));
++            };
++            li.appendChild(btn);
++            list.appendChild(li);
++          });
++        } catch (err) {
++          list.innerHTML = "<li>Error: " + err.message + "</li>";
++        }
++      });
++    </script>
++  </body>
++</html>
++
+*** End Patch
+*** Begin Patch
+*** Add File: scripts/prepare-external-dist.js
++const fs = require("fs");
++const path = require("path");
++
++const distDir = path.join(__dirname, "..", "external", "volttech-dist");
++
++if (!fs.existsSync(distDir)) {
++  console.error("Required directory ./external/volttech-dist not found.");
++  console.error("Please copy the Volt Tech built output (index.html + assets) into ./external/volttech-dist before building.");
++  process.exit(1);
++}
++
++console.log("Found ./external/volttech-dist. Proceeding.");
++process.exit(0);
++
+*** End Patch
+*** Begin Patch
+*** Add File: README_ELECTRON.md
++# Electron / Windows installer (Volt Tech wrapper)
++
++This document explains how to run the Electron desktop wrapper and produce a Windows .exe installer (NSIS). This repository will load the Volt Tech built front-end from `./external/volttech-dist`.
++
++Prerequisites
++- Node.js 18+ recommended
++- Windows machine to build the NSIS installer (electron-builder produces Windows installers best when run on Windows for native signing and proper environment)
++- Ensure `./external/volttech-dist` exists and contains the built Volt Tech site (index.html + assets). You confirmed you will provide the built assets and licensed them for inclusion.
++
++Development (run with your Volt Tech dev server)
++1. Start the Volt Tech dev server (this repo uses a script named `Mossy` by convention). Example:
++   - npm run Mossy
++2. In another shell, run:
++   - npm run electron:dev
++This will start Electron and point it at the dev server (ELECTRON_START_URL).
++
++Production build (create installer)
++1. Ensure `./external/volttech-dist` contains the built Volt Tech output. If not, run your Volt Tech build and copy the output into that directory.
++2. Run:
++   - npm run electron:build
++3. After successful build, the installer (.exe) will be available in the `dist/` output directory created by electron-builder.
++
++Security notes
++- The Electron app runs with contextIsolation = true and nodeIntegration = false.
++- The front-end can call `window.electron.api.detectPrograms()` to get a list of discovered programs (Windows-only).
++- Launching a program is restricted to executables under Program Files directories by default. This is a whitelist to reduce the risk of arbitrary command execution.
++- Registry queries used for program discovery are read-only.
++
+*** End Patch
+*** Begin Patch
+*** Add File: tsconfig.json
++{
++  "compilerOptions": {
++    "target": "ES2020",
++    "module": "CommonJS",
++    "strict": true,
++    "esModuleInterop": true,
++    "outDir": "dist-electron",
++    "rootDir": "src",
++    "resolveJsonModule": true,
++    "skipLibCheck": true
++  },
++  "include": ["src/electron/**/*"]
++}
++
+*** End Patch
+*** Begin Patch
+*** Add File: package.electron.json
++{
++  "scripts": {
++    "Mossy": "echo \"placeholder: run your Volt Tech dev server here (Mossy)\"",
++    "volttech:start": "npm run Mossy",
++    "electron:dev": "concurrently \"npm:volttech:start\" \"wait-on http://localhost:3000 && ELECTRON_START_URL=http://localhost:3000 electron .\"",
++    "electron:build": "node ./scripts/prepare-external-dist.js && electron-builder --windows nsis"
++  },
++  "devDependencies": {
++    "concurrently": "^8.2.0",
++    "electron": "^26.0.0",
++    "electron-builder": "^24.6.0",
++    "wait-on": "^7.0.0",
++    "ts-node": "^10.9.1",
++    "typescript": "^5.3.2"
++  },
++  "build": {
++    "appId": "com.pointythrundra.volttech",
++    "files": [
++      "external/volttech-dist/**/*",
++      "src/electron/**/*",
++      "public/**/*",
++      "package.json"
++    ],
++    "directories": {
++      "buildResources": "build"
++    },
++    "nsis": {
++      "oneClick": false,
++      "perMachine": false,
++      "allowToChangeInstallationDirectory": true
++    },
++    "win": {
++      "target": [
++        {
++          "target": "nsis",
++          "arch": [
++            "x64"
++          ]
++        }
++      ]
++    }
++  }
++}
++
+*** End Patch
+*** End Patch
