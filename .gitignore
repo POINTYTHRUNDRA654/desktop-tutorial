@@ -18,6 +18,10 @@ dist-ssr
 release
 *.local
 
+# External front-end assets (user-provided)
+external/volttech-dist/*
+!external/volttech-dist/.gitkeep
+
 # Environment variables
 .env
 .env.local
