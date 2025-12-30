@@ -1,20 +1,21 @@
 {
-  "name": "desktop-ai-assistant",
+  "name": "volttech-desktop",
   "private": true,
   "version": "0.1.0",
-  "description": "DI AI - A cross-platform desktop AI assistant built with Electron, React, and TypeScript",
-  "main": "dist-electron/main/main.js",
+  "description": "Volt Tech Desktop - Desktop wrapper for Volt Tech web application with program detection",
+  "main": "dist-electron/electron/main.js",
   "author": "POINTYTHRUNDRA654",
   "license": "MIT",
   "scripts": {
     "dev": "concurrently \"npm run dev:vite\" \"npm run dev:electron\"",
     "dev:vite": "vite",
-    "dev:electron": "wait-on http://localhost:5173 && electron .",
+    "dev:electron": "wait-on http://localhost:5173 && cross-env ELECTRON_START_URL=http://localhost:5173 electron .",
     "build": "npm run build:vite && npm run build:electron",
     "build:vite": "vite build",
     "build:electron": "tsc -p tsconfig.electron.json",
     "start": "electron .",
     "package": "npm run build && electron-builder",
+    "package:win": "npm run build && electron-builder --win",
     "lint": "eslint . --ext .ts,.tsx",
     "format": "prettier --write \"src/**/*.{ts,tsx,json}\"",
     "test": "vitest run",
@@ -33,6 +34,7 @@
     "@typescript-eslint/parser": "^6.19.0",
     "@vitejs/plugin-react": "^4.2.1",
     "concurrently": "^8.2.2",
+    "cross-env": "^7.0.3",
     "electron": "^28.1.4",
     "electron-builder": "^24.9.1",
     "eslint": "^8.56.0",
@@ -47,23 +49,52 @@
     "wait-on": "^7.2.0"
   },
   "build": {
-    "appId": "com.desktop-ai-assistant",
-    "productName": "Desktop AI Assistant",
+    "appId": "com.volttech.desktop",
+    "productName": "Volt Tech Desktop",
     "directories": {
       "output": "release"
     },
     "files": [
       "dist/**/*",
-      "dist-electron/**/*"
+      "dist-electron/**/*",
+      "external/volttech-dist/**/*",
+      "public/**/*"
+    ],
+    "extraResources": [
+      {
+        "from": "external/volttech-dist",
+        "to": "external/volttech-dist",
+        "filter": ["**/*"]
+      },
+      {
+        "from": "public",
+        "to": "public",
+        "filter": ["**/*"]
+      }
     ],
     "mac": {
-      "target": "dmg"
+      "target": "dmg",
+      "category": "public.app-category.productivity"
     },
     "win": {
-      "target": "nsis"
+      "target": [
+        {
+          "target": "nsis",
+          "arch": ["x64", "ia32"]
+        }
+      ],
+      "icon": "build/icon.ico"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "Volt Tech Desktop"
     },
     "linux": {
-      "target": "AppImage"
+      "target": "AppImage",
+      "category": "Utility"
     }
   }
 }
