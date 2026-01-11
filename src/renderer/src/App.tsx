@@ -1,49 +1,49 @@
 import React, { useEffect, Suspense } from 'react';
 import { HashRouter, Routes, Route, Navigate, useNavigate, useLocation } from 'react-router-dom';
-import Sidebar from './components/Sidebar';
-import MossyObserver from './components/MossyObserver';
-import CommandPalette from './components/CommandPalette';
-import TutorialOverlay from './components/TutorialOverlay';
-import SystemBus from './components/SystemBus';
+import Sidebar from './Sidebar';
+import MossyObserver from './MossyObserver';
+import CommandPalette from './CommandPalette';
+import TutorialOverlay from './TutorialOverlay';
+import SystemBus from './SystemBus';
 import { Loader2, Zap } from 'lucide-react';
-import { LiveProvider } from './components/LiveContext';
+import { LiveProvider } from './LiveContext';
 
 // --- LAZY LOAD MODULES ---
 // This prevents the app from loading ALL code at startup.
 // Modules are only loaded when accessed.
-const SystemMonitor = React.lazy(() => import('./components/SystemMonitor'));
-const ChatInterface = React.lazy(() => import('./components/ChatInterface').then(module => ({ default: module.ChatInterface })));
-const LiveInterface = React.lazy(() => import('./components/LiveInterface'));
-const ImageSuite = React.lazy(() => import('./components/ImageSuite'));
-const TTSPanel = React.lazy(() => import('./components/TTSPanel'));
-const DesktopBridge = React.lazy(() => import('./components/DesktopBridge'));
-const Workshop = React.lazy(() => import('./components/Workshop'));
-const WorkflowOrchestrator = React.lazy(() => import('./components/WorkflowOrchestrator'));
-const Lorekeeper = React.lazy(() => import('./components/Lorekeeper'));
-const Holodeck = React.lazy(() => import('./components/Holodeck'));
-const TheVault = React.lazy(() => import('./components/TheVault'));
-const HyperTerminal = React.lazy(() => import('./components/HyperTerminal'));
-const TheCortex = React.lazy(() => import('./components/TheCortex'));
-const TheLens = React.lazy(() => import('./components/TheLens'));
-const TheNexus = React.lazy(() => import('./components/TheNexus'));
-const TheConduit = React.lazy(() => import('./components/TheConduit'));
-const TheSynapse = React.lazy(() => import('./components/TheSynapse'));
-const TheHive = React.lazy(() => import('./components/TheHive'));
-const TheBlueprint = React.lazy(() => import('./components/TheBlueprint'));
-const TheGenome = React.lazy(() => import('./components/TheGenome'));
-const TheReverie = React.lazy(() => import('./components/TheReverie'));
-const TheAnima = React.lazy(() => import('./components/TheAnima'));
-const TheSplicer = React.lazy(() => import('./components/TheSplicer'));
-const ThePrism = React.lazy(() => import('./components/ThePrism'));
-const TheFabric = React.lazy(() => import('./components/TheFabric'));
-const TheCatalyst = React.lazy(() => import('./components/TheCatalyst'));
-const TheCartographer = React.lazy(() => import('./components/TheCartographer'));
-const TheRegistry = React.lazy(() => import('./components/TheRegistry'));
-const TheOrganizer = React.lazy(() => import('./components/TheOrganizer'));
-const TheCrucible = React.lazy(() => import('./components/TheCrucible'));
-const TheAssembler = React.lazy(() => import('./components/TheAssembler'));
-const TheAuditor = React.lazy(() => import('./components/TheAuditor'));
-const TheScribe = React.lazy(() => import('./components/TheScribe'));
+const SystemMonitor = React.lazy(() => import('./SystemMonitor'));
+const ChatInterface = React.lazy(() => import('./ChatInterface').then(module => ({ default: module.ChatInterface })));
+const LiveInterface = React.lazy(() => import('./LiveInterface'));
+const ImageSuite = React.lazy(() => import('./ImageSuite'));
+const TTSPanel = React.lazy(() => import('./TTSPanel'));
+const DesktopBridge = React.lazy(() => import('./DesktopBridge'));
+const Workshop = React.lazy(() => import('./Workshop'));
+const WorkflowOrchestrator = React.lazy(() => import('./WorkflowOrchestrator'));
+const Lorekeeper = React.lazy(() => import('./Lorekeeper'));
+const Holodeck = React.lazy(() => import('./Holodeck'));
+const TheVault = React.lazy(() => import('./TheVault'));
+const HyperTerminal = React.lazy(() => import('./HyperTerminal'));
+const TheCortex = React.lazy(() => import('./TheCortex'));
+const TheLens = React.lazy(() => import('./TheLens'));
+const TheNexus = React.lazy(() => import('./TheNexus'));
+const TheConduit = React.lazy(() => import('./TheConduit'));
+const TheSynapse = React.lazy(() => import('./TheSynapse'));
+const TheHive = React.lazy(() => import('./TheHive'));
+const TheBlueprint = React.lazy(() => import('./TheBlueprint'));
+const TheGenome = React.lazy(() => import('./TheGenome'));
+const TheReverie = React.lazy(() => import('./TheReverie'));
+const TheAnima = React.lazy(() => import('./TheAnima'));
+const TheSplicer = React.lazy(() => import('./TheSplicer'));
+const ThePrism = React.lazy(() => import('./ThePrism'));
+const TheFabric = React.lazy(() => import('./TheFabric'));
+const TheCatalyst = React.lazy(() => import('./TheCatalyst'));
+const TheCartographer = React.lazy(() => import('./TheCartographer'));
+const TheRegistry = React.lazy(() => import('./TheRegistry'));
+const TheOrganizer = React.lazy(() => import('./TheOrganizer'));
+const TheCrucible = React.lazy(() => import('./TheCrucible'));
+const TheAssembler = React.lazy(() => import('./TheAssembler'));
+const TheAuditor = React.lazy(() => import('./TheAuditor'));
+const TheScribe = React.lazy(() => import('./TheScribe'));
 
 // Define window interface for AI Studio helpers & Custom Events
 declare global {
