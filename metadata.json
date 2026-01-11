@@ -1,0 +1,7 @@
+{
+  "name": "Mossy AI Assistant",
+  "description": "Mossy: Your step-by-step desktop companion for creative workflows, modding, and system integration.",
+  "requestFramePermissions": [
+    "microphone"
+  ]
+}
