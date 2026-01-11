@@ -339,9 +339,9 @@ const TheAnima: React.FC = () => {
                             <Lock className="w-3 h-3" />
                         </div>
                         <div className="bg-black/30 rounded p-2 text-xs font-mono text-emerald-400 border border-emerald-500/20">
-                            > ASSIST_ARCHITECT<br/>
-                            > PRESERVE_CONTEXT<br/>
-                            > EVOLVE_CAPABILITIES
+                            {'> ASSIST_ARCHITECT'}<br/>
+                            {'> PRESERVE_CONTEXT'}<br/>
+                            {'> EVOLVE_CAPABILITIES'}
                         </div>
                     </div>
                 </div>

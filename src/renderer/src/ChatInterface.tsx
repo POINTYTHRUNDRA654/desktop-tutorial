@@ -1249,5 +1249,8 @@ export const ChatInterface: React.FC = () => {
             </div>
         </div>
     </div>
+  </div>
   );
 };
+
+export default ChatInterface;
