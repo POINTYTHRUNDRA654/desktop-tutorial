@@ -1,283 +1,176 @@
-/**
- * Main Application Component
- * 
- * Chat interface with message history, input, and voice controls.
- * Demonstrates usage of window.electronAPI for IPC communication.
- */
+import React, { useEffect, Suspense } from 'react';
+import { HashRouter, Routes, Route, Navigate, useNavigate, useLocation } from 'react-router-dom';
+import Sidebar from './Sidebar';
+import MossyObserver from './MossyObserver';
+import CommandPalette from './CommandPalette';
+import TutorialOverlay from './TutorialOverlay';
+import SystemBus from './SystemBus';
+import { Loader2, Zap } from 'lucide-react';
+import { LiveProvider } from './LiveContext';
 
-import React, { useState, useEffect, useRef } from 'react';
-import type { Message, Settings } from '@shared/types';
+// --- LAZY LOAD MODULES ---
+// This prevents the app from loading ALL code at startup.
+// Modules are only loaded when accessed.
+const SystemMonitor = React.lazy(() => import('./SystemMonitor'));
+const ChatInterface = React.lazy(() => import('./ChatInterface').then(module => ({ default: module.ChatInterface })));
+const LiveInterface = React.lazy(() => import('./LiveInterface'));
+const ImageSuite = React.lazy(() => import('./ImageSuite'));
+const TTSPanel = React.lazy(() => import('./TTSPanel'));
+const DesktopBridge = React.lazy(() => import('./DesktopBridge'));
+const Workshop = React.lazy(() => import('./Workshop'));
+const WorkflowOrchestrator = React.lazy(() => import('./WorkflowOrchestrator'));
+const Lorekeeper = React.lazy(() => import('./Lorekeeper'));
+const Holodeck = React.lazy(() => import('./Holodeck'));
+const TheVault = React.lazy(() => import('./TheVault'));
+const HyperTerminal = React.lazy(() => import('./HyperTerminal'));
+const TheCortex = React.lazy(() => import('./TheCortex'));
+const TheLens = React.lazy(() => import('./TheLens'));
+const TheNexus = React.lazy(() => import('./TheNexus'));
+const TheConduit = React.lazy(() => import('./TheConduit'));
+const TheSynapse = React.lazy(() => import('./TheSynapse'));
+const TheHive = React.lazy(() => import('./TheHive'));
+const TheBlueprint = React.lazy(() => import('./TheBlueprint'));
+const TheGenome = React.lazy(() => import('./TheGenome'));
+const TheReverie = React.lazy(() => import('./TheReverie'));
+const TheAnima = React.lazy(() => import('./TheAnima'));
+const TheSplicer = React.lazy(() => import('./TheSplicer'));
+const ThePrism = React.lazy(() => import('./ThePrism'));
+const TheFabric = React.lazy(() => import('./TheFabric'));
+const TheCatalyst = React.lazy(() => import('./TheCatalyst'));
+const TheCartographer = React.lazy(() => import('./TheCartographer'));
+const TheRegistry = React.lazy(() => import('./TheRegistry'));
+const TheOrganizer = React.lazy(() => import('./TheOrganizer'));
+const TheCrucible = React.lazy(() => import('./TheCrucible'));
+const TheAssembler = React.lazy(() => import('./TheAssembler'));
+const TheAuditor = React.lazy(() => import('./TheAuditor'));
+const TheScribe = React.lazy(() => import('./TheScribe'));
 
-/**
- * Voice Recognition Hook (Web Speech API)
- * TODO: Replace or augment with backend STT for better accuracy
- */
-function useVoiceRecognition(onResult: (text: string) => void) {
-  const [isListening, setIsListening] = useState(false);
-  const recognitionRef = useRef<SpeechRecognition | null>(null);
-
-  useEffect(() => {
-    // Check if Web Speech API is available
-    const SpeechRecognition = window.SpeechRecognition || 
-      (window as typeof window & { webkitSpeechRecognition?: typeof window.SpeechRecognition }).webkitSpeechRecognition;
-    
-    if (!SpeechRecognition) {
-      console.warn('Web Speech API not supported in this browser');
-      return;
-    }
-
-    recognitionRef.current = new SpeechRecognition();
-    recognitionRef.current.continuous = false;
-    recognitionRef.current.interimResults = false;
-
-    recognitionRef.current.onresult = (event) => {
-      const transcript = event.results[0][0].transcript;
-      onResult(transcript);
-      setIsListening(false);
-    };
-
-    recognitionRef.current.onerror = (event) => {
-      console.error('Speech recognition error:', event.error);
-      setIsListening(false);
-    };
-
-    recognitionRef.current.onend = () => {
-      setIsListening(false);
-    };
-
-    return () => {
-      if (recognitionRef.current) {
-        recognitionRef.current.stop();
-      }
-    };
-  }, [onResult]);
-
-  const startListening = () => {
-    if (recognitionRef.current && !isListening) {
-      recognitionRef.current.start();
-      setIsListening(true);
-    }
-  };
-
-  const stopListening = () => {
-    if (recognitionRef.current && isListening) {
-      recognitionRef.current.stop();
-      setIsListening(false);
-    }
-  };
-
-  return { isListening, startListening, stopListening };
+// Define window interface for AI Studio helpers & Custom Events
+declare global {
+  interface Window {
+    webkitAudioContext: typeof AudioContext;
+  }
+  interface WindowEventMap {
+    'mossy-control': CustomEvent<{ action: string; payload: any }>;
+  }
 }
 
-/**
- * Text-to-Speech Hook (Web Speech Synthesis API)
- * TODO: Replace or augment with backend TTS for better quality
- */
-function useTextToSpeech() {
-  const [isSpeaking, setIsSpeaking] = useState(false);
+// Controller Component to handle AI Navigation Commands
+const NeuralController: React.FC = () => {
+  const navigate = useNavigate();
+  const location = useLocation();
 
-  const speak = (text: string, settings?: Settings) => {
-    if ('speechSynthesis' in window) {
-      // Cancel any ongoing speech
-      window.speechSynthesis.cancel();
-
-      const utterance = new SpeechSynthesisUtterance(text);
+  useEffect(() => {
+    const handleControl = (e: CustomEvent<{ action: string; payload: any }>) => {
+      const { action, payload } = e.detail;
       
-      if (settings) {
-        utterance.rate = settings.ttsRate;
-        utterance.pitch = settings.ttsPitch;
-        // Note: voice selection requires matching available voices
+      console.log(`[Neural Control] Executing: ${action}`, payload);
+
+      if (action === 'navigate') {
+        if (location.pathname !== payload.path) {
+          navigate(payload.path);
+        }
       }
+      
+      // Future expansion: 'toggle_sidebar', 'open_modal', etc.
+      if (action === 'open_palette') {
+        // Trigger command palette keyboard shortcut logic if needed
+        window.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', metaKey: true }));
+      }
+    };
 
-      utterance.onstart = () => setIsSpeaking(true);
-      utterance.onend = () => setIsSpeaking(false);
-      utterance.onerror = () => setIsSpeaking(false);
+    window.addEventListener('mossy-control', handleControl as EventListener);
+    return () => window.removeEventListener('mossy-control', handleControl as EventListener);
+  }, [navigate, location]);
 
-      window.speechSynthesis.speak(utterance);
-    } else {
-      console.warn('Text-to-Speech not supported in this browser');
-    }
-  };
+  return null;
+};
 
-  const stop = () => {
-    if ('speechSynthesis' in window) {
-      window.speechSynthesis.cancel();
-      setIsSpeaking(false);
-    }
-  };
+const ModuleLoader = () => (
+  <div className="flex h-full w-full items-center justify-center bg-forge-dark text-emerald-500">
+    <div className="flex flex-col items-center gap-4">
+      <div className="relative">
+        <div className="h-12 w-12 rounded-full border-4 border-slate-800 border-t-emerald-500 animate-spin"></div>
+        <div className="absolute inset-0 flex items-center justify-center">
+          <Zap className="w-4 h-4 fill-current animate-pulse" />
+        </div>
+      </div>
+      <span className="text-xs font-mono tracking-widest uppercase animate-pulse">Loading Module...</span>
+    </div>
+  </div>
+);
 
-  return { isSpeaking, speak, stop };
-}
-
-/**
- * Main App Component
- */
-function App() {
-  const [messages, setMessages] = useState<Message[]>([]);
-  const [inputValue, setInputValue] = useState('');
-  const [isLoading, setIsLoading] = useState(false);
-  const [settings, setSettings] = useState<Settings | null>(null);
-  const messagesEndRef = useRef<HTMLDivElement>(null);
-
-  const { isSpeaking, speak, stop: stopSpeaking } = useTextToSpeech();
-  
-  const { isListening, startListening, stopListening } = useVoiceRecognition((transcript) => {
-    setInputValue(transcript);
-  });
-
-  // Load settings on mount
+const App: React.FC = () => {
+  // Ensure API Key selection for paid features (Veo/Pro Image) if applicable
   useEffect(() => {
-    if (window.electronAPI) {
-      window.electronAPI.getSettings().then(setSettings);
-    }
+    const checkKey = async () => {
+      if (window.aistudio) {
+        const hasKey = await window.aistudio.hasSelectedApiKey();
+        if (!hasKey) {
+          try {
+             await window.aistudio.openSelectKey();
+          } catch (e) {
+             console.log("User dismissed key selection");
+          }
+        }
+      }
+    };
+    checkKey();
   }, []);
 
-  // Listen for new messages from main process
-  useEffect(() => {
-    if (!window.electronAPI) return;
-
-    const unsubscribe = window.electronAPI.onMessage((message: Message) => {
-      setMessages((prev) => [...prev, message]);
-      setIsLoading(false);
-
-      // Auto-speak assistant responses if TTS is enabled
-      if (message.role === 'assistant' && settings?.ttsEnabled) {
-        speak(message.content, settings);
-      }
-    });
-
-    return unsubscribe;
-  }, [settings, speak]);
-
-  // Auto-scroll to bottom when new messages arrive
-  useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages]);
-
-  const handleSendMessage = async (e: React.FormEvent) => {
-    e.preventDefault();
-    
-    if (!inputValue.trim() || !window.electronAPI) return;
-
-    const userMessage: Message = {
-      id: Date.now().toString(),
-      role: 'user',
-      content: inputValue.trim(),
-      timestamp: Date.now(),
-    };
-
-    setMessages((prev) => [...prev, userMessage]);
-    setInputValue('');
-    setIsLoading(true);
-
-    try {
-      await window.electronAPI.sendMessage(userMessage.content);
-    } catch (error) {
-      console.error('Failed to send message:', error);
-      setIsLoading(false);
-    }
-  };
-
-  const handleVoiceInput = () => {
-    if (isListening) {
-      stopListening();
-    } else {
-      startListening();
-    }
-  };
-
   return (
-    <div className="app">
-      <header className="app-header">
-        <h1>🤖 Desktop AI Assistant</h1>
-        <p className="subtitle">DI AI - Your personal AI companion</p>
-      </header>
-
-      <main className="chat-container">
-        <div className="messages">
-          {messages.length === 0 && (
-            <div className="empty-state">
-              <p>👋 Welcome! Start a conversation with your AI assistant.</p>
-              <p className="hint">Type a message or click the microphone to speak.</p>
-            </div>
-          )}
-          
-          {messages.map((message) => (
-            <div key={message.id} className={`message message-${message.role}`}>
-              <div className="message-avatar">
-                {message.role === 'user' ? '👤' : '🤖'}
-              </div>
-              <div className="message-content">
-                <div className="message-text">{message.content}</div>
-                <div className="message-timestamp">
-                  {new Date(message.timestamp).toLocaleTimeString()}
-                </div>
-              </div>
-            </div>
-          ))}
-          
-          {isLoading && (
-            <div className="message message-assistant">
-              <div className="message-avatar">🤖</div>
-              <div className="message-content">
-                <div className="message-text loading">Thinking...</div>
-              </div>
-            </div>
-          )}
-          
-          <div ref={messagesEndRef} />
+    <LiveProvider>
+      <HashRouter>
+        <div className="flex h-screen w-screen overflow-hidden bg-forge-dark text-slate-200">
+          <NeuralController />
+          <CommandPalette />
+          <TutorialOverlay />
+          <SystemBus />
+          <Sidebar />
+          <main className="flex-1 relative overflow-hidden bg-[#050910]">
+            <MossyObserver />
+            <Suspense fallback={<ModuleLoader />}>
+              <Routes>
+                <Route path="/" element={<TheNexus />} />
+                <Route path="/monitor" element={<SystemMonitor />} />
+                <Route path="/chat" element={<ChatInterface />} />
+                <Route path="/lens" element={<TheLens />} />
+                <Route path="/synapse" element={<TheSynapse />} />
+                <Route path="/hive" element={<TheHive />} />
+                <Route path="/blueprint" element={<TheBlueprint />} />
+                <Route path="/genome" element={<TheGenome />} />
+                <Route path="/reverie" element={<TheReverie />} />
+                <Route path="/anima" element={<TheAnima />} />
+                <Route path="/splicer" element={<TheSplicer />} />
+                <Route path="/prism" element={<ThePrism />} />
+                <Route path="/fabric" element={<TheFabric />} />
+                <Route path="/catalyst" element={<TheCatalyst />} />
+                <Route path="/cartographer" element={<TheCartographer />} />
+                <Route path="/registry" element={<TheRegistry />} />
+                <Route path="/organizer" element={<TheOrganizer />} />
+                <Route path="/crucible" element={<TheCrucible />} />
+                <Route path="/assembler" element={<TheAssembler />} />
+                <Route path="/auditor" element={<TheAuditor />} />
+                <Route path="/scribe" element={<TheScribe />} />
+                <Route path="/conduit" element={<TheConduit />} />
+                <Route path="/cortex" element={<TheCortex />} />
+                <Route path="/terminal" element={<HyperTerminal />} />
+                <Route path="/orchestrator" element={<WorkflowOrchestrator />} />
+                <Route path="/lore" element={<Lorekeeper />} />
+                <Route path="/holo" element={<Holodeck />} />
+                <Route path="/vault" element={<TheVault />} />
+                <Route path="/workshop" element={<Workshop />} />
+                <Route path="/live" element={<LiveInterface />} />
+                <Route path="/images" element={<ImageSuite />} />
+                <Route path="/tts" element={<TTSPanel />} />
+                <Route path="/bridge" element={<DesktopBridge />} />
+              </Routes>
+            </Suspense>
+          </main>
         </div>
-
-        <form className="input-form" onSubmit={handleSendMessage}>
-          <div className="input-group">
-            <input
-              type="text"
-              className="message-input"
-              placeholder="Type your message..."
-              value={inputValue}
-              onChange={(e) => setInputValue(e.target.value)}
-              disabled={isLoading}
-            />
-            
-            <button
-              type="button"
-              className={`voice-button ${isListening ? 'listening' : ''}`}
-              onClick={handleVoiceInput}
-              title={isListening ? 'Stop listening' : 'Start voice input'}
-              disabled={isLoading}
-            >
-              {isListening ? '🔴' : '🎤'}
-            </button>
-
-            {isSpeaking && (
-              <button
-                type="button"
-                className="stop-speech-button"
-                onClick={stopSpeaking}
-                title="Stop speaking"
-              >
-                🔇
-              </button>
-            )}
-
-            <button
-              type="submit"
-              className="send-button"
-              disabled={!inputValue.trim() || isLoading}
-            >
-              Send
-            </button>
-          </div>
-        </form>
-      </main>
-
-      <footer className="app-footer">
-        <p className="info-text">
-          💡 <strong>Tip:</strong> Configure your LLM API key in settings to enable AI responses.
-        </p>
-      </footer>
-    </div>
+      </HashRouter>
+    </LiveProvider>
   );
-}
+};
 
 export default App;
