@@ -1,10 +1,11 @@
-import React, { useEffect, Suspense } from 'react';
+import React, { useEffect, Suspense, useState } from 'react';
 import { HashRouter, Routes, Route, Navigate, useNavigate, useLocation } from 'react-router-dom';
 import Sidebar from './Sidebar';
 import MossyObserver from './MossyObserver';
 import CommandPalette from './CommandPalette';
 import TutorialOverlay from './TutorialOverlay';
 import SystemBus from './SystemBus';
+import MossyOnboarding from './MossyOnboarding';
 import { Loader2, Zap } from 'lucide-react';
 import { LiveProvider } from './LiveContext';
 
@@ -44,6 +45,8 @@ const TheCrucible = React.lazy(() => import('./TheCrucible'));
 const TheAssembler = React.lazy(() => import('./TheAssembler'));
 const TheAuditor = React.lazy(() => import('./TheAuditor'));
 const TheScribe = React.lazy(() => import('./TheScribe'));
+const PrivacySettings = React.lazy(() => import('./PrivacySettings'));
+const DonationSupport = React.lazy(() => import('./DonationSupport').then(module => ({ default: module.DonationSupport })));
 
 // Define window interface for AI Studio helpers & Custom Events
 declare global {
@@ -101,6 +104,11 @@ const ModuleLoader = () => (
 );
 
 const App: React.FC = () => {
+  const [showOnboarding, setShowOnboarding] = useState(() => {
+    // Check if user has completed onboarding
+    return !localStorage.getItem('mossy_onboarding_completed');
+  });
+
   // Ensure API Key selection for paid features (Veo/Pro Image) if applicable
   useEffect(() => {
     const checkKey = async () => {
@@ -117,6 +125,17 @@ const App: React.FC = () => {
     };
     checkKey();
   }, []);
+
+  if (showOnboarding) {
+    return (
+      <MossyOnboarding 
+        onComplete={() => {
+          setShowOnboarding(false);
+          localStorage.setItem('mossy_onboarding_completed', 'true');
+        }}
+      />
+    );
+  }
 
   return (
     <LiveProvider>
@@ -164,6 +183,8 @@ const App: React.FC = () => {
                 <Route path="/images" element={<ImageSuite />} />
                 <Route path="/tts" element={<TTSPanel />} />
                 <Route path="/bridge" element={<DesktopBridge />} />
+                <Route path="/settings/privacy" element={<PrivacySettings />} />
+                <Route path="/support" element={<DonationSupport />} />
               </Routes>
             </Suspense>
           </main>

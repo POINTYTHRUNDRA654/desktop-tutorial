@@ -28,9 +28,20 @@
   --shadow: 0 0 10px rgba(0, 255, 0, 0.2);
   --shadow-lg: 0 0 20px rgba(0, 255, 0, 0.3);
   --glow: 0 0 15px rgba(0, 255, 0, 0.5);
+  
+  /* Pip-Boy Mode (Amber) Colors */
+  --pipboy-primary: #e6b04a;
+  --pipboy-secondary: #b8860b;
+  --pipboy-tertiary: #8b6914;
+  --pipboy-bg-primary: #1a1410;
+  --pipboy-bg-secondary: #2a2418;
+  --pipboy-text: #ffb84d;
+  --pipboy-text-dim: #cc9033;
+  --pipboy-glow: 0 0 20px rgba(230, 176, 74, 0.6);
 }
 
 @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&display=swap');
 
 body {
   font-family: 'Orbitron', monospace;
@@ -39,6 +50,100 @@ body {
   background-color: var(--bg-primary);
   color: var(--text-primary);
   text-shadow: 0 0 5px rgba(0, 255, 0, 0.3);
+  position: relative;
+}
+
+/* Enhanced Pip-Boy Mode */
+body.pip-boy-mode {
+  background-color: var(--pipboy-bg-primary);
+  color: var(--pipboy-text);
+  font-family: 'Share Tech Mono', 'Orbitron', monospace;
+}
+
+body.pip-boy-mode::before {
+  content: '';
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  pointer-events: none;
+  background: 
+    /* Scanlines */
+    repeating-linear-gradient(
+      0deg,
+      rgba(0, 0, 0, 0.15),
+      rgba(0, 0, 0, 0.15) 1px,
+      transparent 1px,
+      transparent 2px
+    ),
+    /* Vignette effect */
+    radial-gradient(ellipse at center, transparent 0%, rgba(0, 0, 0, 0.5) 100%);
+  z-index: 9999;
+  animation: scanline-flicker 0.1s infinite;
+}
+
+body.pip-boy-mode::after {
+  content: '';
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  pointer-events: none;
+  background: radial-gradient(ellipse at center, rgba(230, 176, 74, 0.03) 0%, transparent 70%);
+  z-index: 9998;
+  animation: crt-glow 2s ease-in-out infinite alternate;
+}
+
+@keyframes scanline-flicker {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.98; }
+}
+
+@keyframes crt-glow {
+  0% { opacity: 0.8; }
+  100% { opacity: 1; }
+}
+
+/* Pip-Boy Mode Color Overrides */
+body.pip-boy-mode * {
+  text-shadow: 0 0 5px rgba(230, 176, 74, 0.4) !important;
+}
+
+body.pip-boy-mode .bg-slate-900,
+body.pip-boy-mode .bg-slate-800,
+body.pip-boy-mode [class*="bg-slate"] {
+  background-color: var(--pipboy-bg-secondary) !important;
+}
+
+body.pip-boy-mode .text-emerald-400,
+body.pip-boy-mode .text-green-400,
+body.pip-boy-mode .text-white,
+body.pip-boy-mode [class*="text-"] {
+  color: var(--pipboy-text) !important;
+}
+
+body.pip-boy-mode .border-slate-700,
+body.pip-boy-mode .border-slate-800,
+body.pip-boy-mode [class*="border-slate"] {
+  border-color: var(--pipboy-tertiary) !important;
+}
+
+body.pip-boy-mode button,
+body.pip-boy-mode input,
+body.pip-boy-mode textarea,
+body.pip-boy-mode select {
+  background-color: var(--pipboy-bg-secondary) !important;
+  color: var(--pipboy-text) !important;
+  border-color: var(--pipboy-tertiary) !important;
+}
+
+body.pip-boy-mode button:hover,
+body.pip-boy-mode input:focus,
+body.pip-boy-mode textarea:focus {
+  box-shadow: var(--pipboy-glow) !important;
+  border-color: var(--pipboy-primary) !important;
 }
 
 .app {
@@ -50,7 +155,7 @@ body {
   position: relative;
 }
 
-/* Pip-Boy Screen Effect */
+/* Enhanced Pip-Boy Screen Effect with CRT curvature */
 .app::before {
   content: '';
   position: fixed;
@@ -60,14 +165,41 @@ body {
   bottom: 0;
   pointer-events: none;
   background: 
+    /* Horizontal scanlines */
     repeating-linear-gradient(
       0deg,
       rgba(0, 0, 0, 0.15),
       rgba(0, 0, 0, 0.15) 1px,
       transparent 1px,
       transparent 2px
+    ),
+    /* Subtle vertical lines for CRT grid */
+    repeating-linear-gradient(
+      90deg,
+      rgba(0, 255, 0, 0.03),
+      rgba(0, 255, 0, 0.03) 1px,
+      transparent 1px,
+      transparent 3px
     );
   z-index: 1;
+  animation: scanline-drift 10s linear infinite;
+}
+
+@keyframes scanline-drift {
+  0% { background-position: 0 0, 0 0; }
+  100% { background-position: 0 20px, 0 0; }
+}
+
+.app::after {
+  content: '';
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  pointer-events: none;
+  background: radial-gradient(ellipse at center, transparent 0%, rgba(0, 0, 0, 0.3) 100%);
+  z-index: 0;
 }
 
 .app-header {
@@ -78,6 +210,24 @@ body {
   z-index: 10;
   border-bottom: 2px solid var(--accent-green);
   text-shadow: 0 0 10px rgba(0, 255, 0, 0.5);
+  position: relative;
+}
+
+.app-header::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 100%;
+  background: repeating-linear-gradient(
+    0deg,
+    transparent,
+    transparent 2px,
+    rgba(0, 0, 0, 0.1) 2px,
+    rgba(0, 0, 0, 0.1) 4px
+  );
+  pointer-events: none;
 }
 
 .app-header h1 {
@@ -86,6 +236,12 @@ body {
   margin-bottom: 0.25rem;
   letter-spacing: 3px;
   text-transform: uppercase;
+  animation: title-flicker 0.01s infinite;
+}
+
+@keyframes title-flicker {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.98; }
 }
 
 .subtitle {
@@ -827,4 +983,306 @@ code {
 
 .module-container {
   animation: moduleGlitch 0.6s ease-out;
+}
+/* Enhanced CRT and Pip-Boy Effects */
+.crt-screen {
+  position: relative;
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: 
+    inset 0 0 50px rgba(0, 255, 0, 0.1),
+    0 0 30px rgba(0, 255, 0, 0.3),
+    0 0 60px rgba(0, 255, 0, 0.2);
+}
+
+.crt-screen::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: repeating-linear-gradient(
+    0deg,
+    rgba(0, 0, 0, 0.15) 0px,
+    transparent 1px,
+    transparent 2px
+  );
+  pointer-events: none;
+  z-index: 10;
+}
+
+.crt-screen::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: radial-gradient(ellipse at center, transparent 50%, rgba(0, 0, 0, 0.4) 100%);
+  pointer-events: none;
+  z-index: 9;
+}
+
+/* Phosphor glow effect for text */
+.phosphor-text {
+  color: var(--text-primary);
+  text-shadow: 
+    0 0 5px currentColor,
+    0 0 10px currentColor,
+    0 0 15px currentColor,
+    0 0 20px currentColor;
+  font-family: 'Share Tech Mono', 'Courier New', monospace;
+  letter-spacing: 0.05em;
+}
+
+/* Screen flicker animation */
+@keyframes screen-flicker {
+  0% { opacity: 0.97; }
+  5% { opacity: 1; }
+  10% { opacity: 0.98; }
+  15% { opacity: 0.99; }
+  20% { opacity: 0.98; }
+  100% { opacity: 1; }
+}
+
+.crt-flicker {
+  animation: screen-flicker 0.15s infinite;
+}
+
+/* Boot-up effect */
+@keyframes crt-boot {
+  0% {
+    transform: scaleY(0);
+    opacity: 0;
+    filter: brightness(3);
+  }
+  50% {
+    transform: scaleY(1);
+    opacity: 0.8;
+    filter: brightness(2);
+  }
+  100% {
+    transform: scaleY(1);
+    opacity: 1;
+    filter: brightness(1);
+  }
+}
+
+.crt-boot-animation {
+  animation: crt-boot 0.8s ease-out;
+}
+
+/* Terminal cursor blink */
+@keyframes cursor-blink {
+  0%, 49% { opacity: 1; }
+  50%, 100% { opacity: 0; }
+}
+
+.terminal-cursor {
+  display: inline-block;
+  width: 0.6em;
+  height: 1em;
+  background: var(--text-primary);
+  animation: cursor-blink 1s infinite;
+  margin-left: 2px;
+  box-shadow: 0 0 5px var(--text-primary);
+}
+
+/* Screen static effect (subtle) */
+@keyframes static-noise {
+  0%, 100% { 
+    background-position: 0 0;
+    opacity: 0.03;
+  }
+  10% { 
+    background-position: -5% -10%;
+    opacity: 0.05;
+  }
+  20% { 
+    background-position: -15% 5%;
+    opacity: 0.04;
+  }
+  30% {
+    background-position: 7% -25%;
+    opacity: 0.03;
+  }
+  40% {
+    background-position: 20% 25%;
+    opacity: 0.05;
+  }
+  50% {
+    background-position: -25% 10%;
+    opacity: 0.04;
+  }
+  60% {
+    background-position: 15% 5%;
+    opacity: 0.03;
+  }
+  70% {
+    background-position: 0 15%;
+    opacity: 0.05;
+  }
+  80% {
+    background-position: 25% 35%;
+    opacity: 0.03;
+  }
+  90% {
+    background-position: -10% 10%;
+    opacity: 0.04;
+  }
+}
+
+.screen-static {
+  position: relative;
+}
+
+.screen-static::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' /%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.05'/%3E%3C/svg%3E");
+  pointer-events: none;
+  animation: static-noise 0.2s steps(2) infinite;
+  opacity: 0.03;
+  z-index: 100;
+}
+
+/* Retro rounded corners like Pip-Boy */
+.pipboy-frame {
+  border-radius: 16px;
+  border: 3px solid var(--border-color);
+  box-shadow: 
+    inset 0 0 20px rgba(0, 255, 0, 0.1),
+    0 0 20px rgba(0, 255, 0, 0.3);
+  background: linear-gradient(135deg, rgba(0, 0, 0, 0.8) 0%, rgba(10, 14, 10, 0.9) 100%);
+  position: relative;
+  overflow: hidden;
+}
+
+/* Tab-style navigation like Pip-Boy */
+.pipboy-tabs {
+  display: flex;
+  gap: 0;
+  background: rgba(0, 0, 0, 0.5);
+  border-bottom: 2px solid var(--accent-green);
+  padding: 0;
+}
+
+.pipboy-tab {
+  padding: 0.75rem 1.5rem;
+  border: none;
+  background: transparent;
+  color: var(--text-tertiary);
+  text-transform: uppercase;
+  letter-spacing: 2px;
+  font-size: 0.875rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s;
+  border-right: 1px solid rgba(0, 255, 0, 0.2);
+  font-family: 'Share Tech Mono', monospace;
+}
+
+.pipboy-tab:hover {
+  background: rgba(0, 255, 0, 0.1);
+  color: var(--text-secondary);
+}
+
+.pipboy-tab.active {
+  background: rgba(0, 255, 0, 0.2);
+  color: var(--text-primary);
+  text-shadow: 0 0 10px var(--text-primary);
+  box-shadow: inset 0 -3px 0 var(--accent-green);
+}
+
+/* Pip-Boy style buttons */
+.pipboy-button {
+  background: linear-gradient(135deg, rgba(0, 208, 0, 0.2) 0%, rgba(0, 128, 0, 0.1) 100%);
+  border: 2px solid var(--accent-green);
+  color: var(--text-primary);
+  padding: 0.75rem 1.5rem;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s;
+  text-shadow: 0 0 5px var(--text-primary);
+  box-shadow: 0 0 10px rgba(0, 255, 0, 0.2);
+  font-family: 'Share Tech Mono', monospace;
+}
+
+.pipboy-button:hover {
+  background: linear-gradient(135deg, rgba(0, 255, 0, 0.3) 0%, rgba(0, 208, 0, 0.2) 100%);
+  box-shadow: 0 0 20px rgba(0, 255, 0, 0.4);
+  transform: translateY(-1px);
+}
+
+.pipboy-button:active {
+  transform: translateY(0);
+  box-shadow: inset 0 0 10px rgba(0, 255, 0, 0.3);
+}
+
+/* Status indicator dots like Pip-Boy */
+.status-indicator {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--accent-green);
+  box-shadow: 0 0 10px var(--accent-green);
+  animation: pulse-glow 2s ease-in-out infinite;
+}
+
+@keyframes pulse-glow {
+  0%, 100% {
+    box-shadow: 0 0 5px var(--accent-green);
+    opacity: 1;
+  }
+  50% {
+    box-shadow: 0 0 20px var(--accent-green), 0 0 30px var(--accent-green);
+    opacity: 0.8;
+  }
+}
+
+.status-indicator.inactive {
+  background: var(--text-tertiary);
+  box-shadow: 0 0 5px var(--text-tertiary);
+  animation: none;
+}
+
+/* Holotape-style card */
+.holotape-card {
+  background: linear-gradient(135deg, rgba(0, 0, 0, 0.8) 0%, rgba(26, 31, 26, 0.9) 100%);
+  border: 2px solid var(--accent-green-dim);
+  border-radius: 8px;
+  padding: 1.5rem;
+  box-shadow: 0 0 15px rgba(0, 255, 0, 0.2);
+  position: relative;
+  overflow: hidden;
+}
+
+.holotape-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: linear-gradient(90deg, transparent, var(--accent-green), transparent);
+  box-shadow: 0 0 10px var(--accent-green);
+}
+
+.holotape-card::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: linear-gradient(90deg, transparent, var(--accent-green), transparent);
+  box-shadow: 0 0 10px var(--accent-green);
 }
