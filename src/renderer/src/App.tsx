@@ -87,15 +87,15 @@ const NeuralController: React.FC = () => {
 };
 
 const ModuleLoader = () => (
-  <div className="flex h-full w-full items-center justify-center bg-forge-dark text-emerald-500">
+  <div className="flex h-full w-full items-center justify-center bg-[#0a0e0a] text-[#00ff00]">
     <div className="flex flex-col items-center gap-4">
       <div className="relative">
-        <div className="h-12 w-12 rounded-full border-4 border-slate-800 border-t-emerald-500 animate-spin"></div>
+        <div className="h-12 w-12 rounded-full border-4 border-[#008000] border-t-[#00ff00] animate-spin" style={{ boxShadow: '0 0 15px rgba(0, 255, 0, 0.5)' }}></div>
         <div className="absolute inset-0 flex items-center justify-center">
           <Zap className="w-4 h-4 fill-current animate-pulse" />
         </div>
       </div>
-      <span className="text-xs font-mono tracking-widest uppercase animate-pulse">Loading Module...</span>
+      <span className="text-xs font-mono tracking-widest uppercase animate-pulse" style={{ textShadow: '0 0 5px rgba(0, 255, 0, 0.3)' }}>Loading Module...</span>
     </div>
   </div>
 );
@@ -121,13 +121,13 @@ const App: React.FC = () => {
   return (
     <LiveProvider>
       <HashRouter>
-        <div className="flex h-screen w-screen overflow-hidden bg-forge-dark text-slate-200">
+        <div className="flex h-screen w-screen overflow-hidden" style={{ background: 'linear-gradient(135deg, #0a0e0a 0%, #1a1f1a 100%)', color: '#00ff00' }}>
           <NeuralController />
           <CommandPalette />
           <TutorialOverlay />
           <SystemBus />
           <Sidebar />
-          <main className="flex-1 relative overflow-hidden bg-[#050910]">
+          <main className="flex-1 relative overflow-hidden" style={{ background: 'linear-gradient(135deg, #0a0e0a 0%, #1a1f1a 100%)', boxShadow: 'inset 0 0 20px rgba(0, 255, 0, 0.1)' }}>
             <MossyObserver />
             <Suspense fallback={<ModuleLoader />}>
               <Routes>
