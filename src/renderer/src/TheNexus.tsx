@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { GoogleGenAI } from "@google/genai";
-import { LayoutDashboard, Zap, Clock, Shield, Activity, Star, ArrowRight, MessageSquare, Terminal, Aperture, GitBranch, Cpu, AlertTriangle, Calendar, Bell, Gamepad2, Package, Library, Bug, Binary, BookOpen, PlayCircle, PauseCircle } from 'lucide-react';
+import { LayoutDashboard, Zap, Clock, Shield, Activity, Star, ArrowRight, MessageSquare, Terminal, Aperture, GitBranch, Cpu, AlertTriangle, Calendar, Bell, Gamepad2, Package, Library, Bug, Binary, BookOpen, PlayCircle, PauseCircle, CheckCircle2 } from 'lucide-react';
+import PipBoyHeader from './PipBoyHeader';
 
 interface Insight {
   id: string;
@@ -73,6 +74,12 @@ const TheNexus: React.FC = () => {
 
   return (
     <div className="h-full flex flex-col bg-forge-dark text-slate-200 overflow-y-auto custom-scrollbar p-8">
+      
+      {/* Pip-Boy Header */}
+      <PipBoyHeader 
+        status={bridgeStatus ? 'online' : 'offline'} 
+        title="MOSSY PIP-BOY v2.4"
+      />
       
       {/* Hero Section */}
       <div className="mb-10 flex flex-col md:flex-row justify-between items-end gap-6">
