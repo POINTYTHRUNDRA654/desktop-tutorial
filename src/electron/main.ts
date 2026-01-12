@@ -9,6 +9,7 @@ import { app, BrowserWindow, ipcMain } from 'electron';
 import path from 'path';
 import { IPC_CHANNELS } from './types';
 import { detectPrograms, openProgram } from './detectPrograms';
+import { DesktopShortcutManager } from './desktopShortcut';
 
 let mainWindow: BrowserWindow | null = null;
 
@@ -27,6 +28,7 @@ function createWindow() {
     height: 800,
     minWidth: 800,
     minHeight: 600,
+    icon: path.join(__dirname, '../../public/pipboy-icon.svg'),
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,      // Security: isolate preload context
@@ -34,7 +36,7 @@ function createWindow() {
       sandbox: true,                // Security: sandboxed renderer
     },
     show: false, // Don't show until ready
-    title: 'Volt Tech Desktop',
+    title: 'Mossy Pip-Boy - Fallout 4 Modding Assistant',
   });
 
   // Load the app based on environment
@@ -133,6 +135,26 @@ function setupIpcHandlers() {
       throw error;
     }
   });
+
+  // Desktop shortcut handlers
+  ipcMain.handle('create-desktop-shortcut', async () => {
+    try {
+      const created = DesktopShortcutManager.createDesktopShortcut();
+      return { success: created, message: created ? 'Desktop shortcut created successfully' : 'Failed to create desktop shortcut' };
+    } catch (error) {
+      console.error('Error creating desktop shortcut:', error);
+      return { success: false, message: String(error) };
+    }
+  });
+
+  ipcMain.handle('shortcut-exists', async () => {
+    try {
+      return DesktopShortcutManager.shortcutExists();
+    } catch (error) {
+      console.error('Error checking shortcut:', error);
+      return false;
+    }
+  });
 }
 
 /**
@@ -142,6 +164,11 @@ function setupIpcHandlers() {
 app.whenReady().then(() => {
   createWindow();
   setupIpcHandlers();
+
+  // Try to create desktop shortcut on first run
+  if (!DesktopShortcutManager.shortcutExists()) {
+    DesktopShortcutManager.createDesktopShortcut();
+  }
 
   app.on('activate', () => {
     // On macOS, re-create window when dock icon is clicked and no windows are open
