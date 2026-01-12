@@ -2736,7 +2736,11 @@ export const ChatInterface: React.FC = () => {
   }, [isLiveActive]);
 
   const initMossy = () => {
-      setMessages([{ id: 'init', role: 'model', text: "Welcome, **Vault Dweller**. I'm **Mossy**, your specialized AI for Fallout 4 modding and architecture.\n\nI need to scan your Pip-Boy... err, system, to check your modding tools. Ready?" }]);
+      setMessages([{ 
+          id: 'init', 
+          role: 'model', 
+          text: "👋 **Hello, Vault Dweller!**\n\nI'm **Mossy**, your dedicated AI assistant for Fallout 4 modding. Whether you're creating intricate Papyrus scripts, designing 3D meshes, building epic quests, or managing complex worldspaces, I'm here to help you bring your modding vision to life.\n\n**What I can help you with:**\n- 📜 Create and optimize Papyrus scripts\n- 🎨 Design and manage 3D meshes and NIF files\n- 📍 Build quests, dialogue systems, and worldspace design\n- 🔧 Generate documentation and manage your workflow\n- 🎯 Provide expert modding guidance and best practices\n\nLet me scan your system to check what modding tools you have installed, and then we can get started. Ready?" 
+      }]);
       setOnboardingState('init');
   };
 
