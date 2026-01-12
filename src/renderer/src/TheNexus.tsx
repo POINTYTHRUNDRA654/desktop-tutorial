@@ -3,6 +3,9 @@ import { Link } from 'react-router-dom';
 import { GoogleGenAI } from "@google/genai";
 import { LayoutDashboard, Zap, Clock, Shield, Activity, Star, ArrowRight, MessageSquare, Terminal, Aperture, GitBranch, Cpu, AlertTriangle, Calendar, Bell, Gamepad2, Package, Library, Bug, Binary, BookOpen, PlayCircle, PauseCircle, CheckCircle2 } from 'lucide-react';
 import PipBoyHeader from './PipBoyHeader';
+import AvatarCore from './AvatarCore';
+import MossyFaceAvatar from './MossyFaceAvatar';
+import { useLive } from './LiveContext';
 
 interface Insight {
   id: string;
@@ -19,6 +22,9 @@ const TheNexus: React.FC = () => {
   const [bridgeStatus, setBridgeStatus] = useState(false);
   const [systemLoad, setSystemLoad] = useState(34);
   const [tutorialState, setTutorialState] = useState<'start' | 'resume' | 'replay'>('start');
+  
+  // Get live interaction state from context
+  const { isActive, mode } = useLive();
 
   useEffect(() => {
     // 1. Time-based Greeting (Fallout Style)
@@ -81,33 +87,79 @@ const TheNexus: React.FC = () => {
         title="MOSSY PIP-BOY v2.4"
       />
       
-      {/* Hero Section */}
-      <div className="mb-10 flex flex-col md:flex-row justify-between items-end gap-6">
-          <div>
-              <div className="flex items-center gap-2 text-emerald-400 mb-2 font-mono text-xs tracking-widest uppercase">
-                  <Activity className="w-3 h-3 animate-pulse" />
-                  RobCo Termlink Active
+      {/* Hero Section with Avatar */}
+      <div className="mb-10 flex flex-col md:flex-row justify-between items-center gap-8">
+          {/* Avatar Section - Mossy's Face */}
+          <div className="flex flex-col items-center gap-4">
+              {/* Mossy Avatar - Prominent Display */}
+              <div className="relative">
+                  {/* Outer blue glow border */}
+                  <div className="absolute inset-0 bg-blue-400/30 rounded-full blur-3xl"></div>
+                  <div className="absolute inset-0 border-2 border-blue-400/50 rounded-full"></div>
+                  
+                  {/* Avatar Face Display */}
+                  <div className="relative w-40 h-40 bg-black/40 rounded-full p-2 border-2 border-blue-400/60 flex items-center justify-center overflow-hidden">
+                      <MossyFaceAvatar mode={mode as any} isActive={isActive} />
+                      
+                      {/* Status Indicator */}
+                      <div className="absolute bottom-2 right-2 w-6 h-6 bg-emerald-500 rounded-full border-2 border-emerald-300 animate-pulse flex items-center justify-center">
+                          <div className="w-2 h-2 bg-emerald-200 rounded-full"></div>
+                      </div>
+                  </div>
               </div>
-              <h1 className="text-4xl md:text-5xl font-bold text-white tracking-tight mb-2">
+              
+              {/* Mossy Label */}
+              <div className="text-center">
+                  <div className="text-blue-400 font-mono font-bold text-lg tracking-widest">MOSSY</div>
+                  <div className="text-slate-500 text-xs font-mono">AI ASSISTANT v2.4</div>
+              </div>
+          </div>
+
+          {/* Greeting and Status Section */}
+          <div className="flex-1">
+              <div className="flex items-center gap-2 text-blue-400 mb-2 font-mono text-xs tracking-widest uppercase">
+                  <Activity className="w-3 h-3 animate-pulse" />
+                  Mossy Neural Interface Active
+              </div>
+              <h1 className="text-4xl md:text-5xl font-bold text-white tracking-tight mb-2" style={{textShadow: '0 0 20px rgba(100,200,255,0.4)'}}>
                   {greeting}
               </h1>
-              <p className="text-slate-400 max-w-lg">
+              <p className="text-slate-300 max-w-lg mb-4 font-mono text-sm leading-relaxed">
+                  <span className="text-blue-300 font-bold">I'm Mossy</span>, your AI assistant dedicated to Fallout 4 modding excellence. I can help you create quests, scripts, meshes, and manage your entire mod project from concept to completion.
+              </p>
+              <p className="text-slate-500 max-w-lg mb-6 text-xs">
                   Mossy FO4 Core v2.4 online. All systems nominal.
               </p>
+              
+              {/* Quick Status Grid */}
+              <div className="grid grid-cols-2 gap-3 mb-6">
+                  <div className="bg-black/30 border border-emerald-500/30 p-3 rounded-lg">
+                      <div className="text-xs text-slate-500 uppercase font-mono mb-1">CPU Load</div>
+                      <div className="text-sm font-mono text-emerald-400">{systemLoad.toFixed(0)}%</div>
+                  </div>
+                  <div className={`bg-black/30 border p-3 rounded-lg ${bridgeStatus ? 'border-emerald-500/30' : 'border-red-500/30'}`}>
+                      <div className="text-xs text-slate-500 uppercase font-mono mb-1">Bridge</div>
+                      <div className={`text-sm font-mono ${bridgeStatus ? 'text-emerald-400' : 'text-red-400'}`}>
+                          {bridgeStatus ? 'ONLINE' : 'OFFLINE'}
+                      </div>
+                  </div>
+              </div>
           </div>
           
-          <div className="flex gap-4">
+          {/* Action Buttons */}
+          <div className="flex flex-col gap-4">
               <button 
                   onClick={startTutorial}
-                  className="bg-slate-800 hover:bg-slate-700 p-4 rounded-2xl border border-slate-700 min-w-[160px] text-left transition-colors group relative overflow-hidden"
+                  className="bg-slate-800 hover:bg-slate-700 p-4 rounded-xl border border-emerald-500/40 hover:border-emerald-400/60 min-w-[160px] text-left transition-all group relative overflow-hidden duration-300"
+                  style={{boxShadow: '0 0 15px rgba(0,255,0,0.1)'}}
               >
                   <div className="absolute right-0 top-0 p-3 opacity-10 group-hover:opacity-20 transition-opacity">
                       {tutorialState === 'resume' ? <PlayCircle className="w-12 h-12" /> : <BookOpen className="w-12 h-12" />}
                   </div>
-                  <div className="text-slate-500 text-xs uppercase font-bold mb-1 flex items-center gap-2 relative z-10">
+                  <div className="text-emerald-400 text-xs uppercase font-bold mb-1 flex items-center gap-2 relative z-10">
                       <BookOpen className="w-3 h-3" /> G.O.A.T. Orientation
                   </div>
-                  <div className="text-sm font-bold text-white group-hover:text-emerald-400 transition-colors relative z-10">
+                  <div className="text-sm font-bold text-white group-hover:text-emerald-300 transition-colors relative z-10">
                       {tutorialState === 'resume' ? 'Resume Training' : tutorialState === 'replay' ? 'Replay Training' : 'Start Training'}
                   </div>
                   <div className="text-[10px] text-slate-500 mt-1 relative z-10">
@@ -115,11 +167,11 @@ const TheNexus: React.FC = () => {
                   </div>
               </button>
 
-              <div className="bg-slate-800 p-4 rounded-2xl border border-slate-700 min-w-[140px]">
-                  <div className="text-slate-500 text-xs uppercase font-bold mb-1">Reactor Output</div>
-                  <div className="text-2xl font-mono text-emerald-400">{systemLoad.toFixed(0)}%</div>
-                  <div className="w-full bg-slate-900 h-1.5 rounded-full mt-2 overflow-hidden">
-                      <div className="bg-emerald-500 h-full transition-all duration-500" style={{width: `${systemLoad}%`}}></div>
+              <div className="bg-slate-800 p-4 rounded-xl border border-emerald-500/30 min-w-[160px]" style={{boxShadow: '0 0 10px rgba(0,255,0,0.05)'}}>
+                  <div className="text-emerald-400 text-xs uppercase font-bold mb-2 font-mono">Reactor Output</div>
+                  <div className="text-2xl font-mono text-emerald-400" style={{textShadow: '0 0 10px rgba(0,255,0,0.5)'}}>{systemLoad.toFixed(0)}%</div>
+                  <div className="w-full bg-slate-900 h-2 rounded-full mt-2 overflow-hidden border border-emerald-500/20">
+                      <div className="bg-gradient-to-r from-emerald-500 to-lime-400 h-full transition-all duration-500" style={{width: `${systemLoad}%`, boxShadow: '0 0 8px rgba(0,255,0,0.6)'}}></div>
                   </div>
               </div>
           </div>
@@ -273,10 +325,5 @@ const TheNexus: React.FC = () => {
     </div>
   );
 };
-
-// Helper icon
-const CheckCircle2 = ({ className }: { className?: string }) => (
-    <svg className={className} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><path d="m9 12 2 2 4-4"/></svg>
-);
 
 export default TheNexus;
