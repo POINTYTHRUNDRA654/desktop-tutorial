@@ -1,5 +1,6 @@
 import React, { useEffect, useRef } from 'react';
 import { useLive } from './LiveContext';
+import MossyFaceAvatar from './MossyFaceAvatar';
 
 interface AvatarCoreProps {
     className?: string;
@@ -174,7 +175,10 @@ const AvatarCore: React.FC<AvatarCoreProps> = ({ className = "w-full h-full", sh
 
     return (
         <div className={`relative flex items-center justify-center ${className}`}>
-             <canvas ref={canvasRef} className="w-full h-full absolute inset-0" />
+            {/* Fallback to SVG Face when no custom avatar */}
+            <MossyFaceAvatar mode={mode} isActive={isActive} />
+            {/* Background procedural canvas remains for subtle ambiance */}
+            <canvas ref={canvasRef} className="w-full h-full absolute inset-0" />
         </div>
     );
 };

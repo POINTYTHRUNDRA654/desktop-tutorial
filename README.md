@@ -103,6 +103,20 @@ This will:
 2. Launch Electron with hot reload enabled
 3. Open DevTools automatically
 
+#### Google GenAI API Key (TTS/Live Audio)
+
+Voice and live audio features use Google GenAI. Set a Vite env key:
+
+1. Create a `.env` file in the project root with:
+
+```
+VITE_API_KEY=your_google_genai_api_key_here
+```
+
+2. Restart `npm run dev` after adding the key.
+
+If the key is missing, the app will show “API Key Missing” and remain offline for live/TTS.
+
 ### Building
 
 Build the application for production:

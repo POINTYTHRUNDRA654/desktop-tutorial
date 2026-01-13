@@ -343,7 +343,22 @@ export const LiveProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       const outputCtx = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 24000 });
       audioContextRef.current = outputCtx;
 
-      const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+      // Resolve API key from Vite env with debug logging
+      console.log('[LiveContext] Checking API keys...');
+      console.log('[LiveContext] import.meta.env:', import.meta.env);
+      console.log('[LiveContext] VITE_API_KEY:', import.meta.env.VITE_API_KEY);
+      console.log('[LiveContext] VITE_GOOGLE_API_KEY:', import.meta.env.VITE_GOOGLE_API_KEY);
+      
+      const apiKey = import.meta.env.VITE_API_KEY || import.meta.env.VITE_GOOGLE_API_KEY;
+      
+      if (!apiKey) {
+        console.error('[LiveContext] No API key found in environment');
+        setStatus('API Key Missing');
+        setMode('idle');
+                setIsActive(false);
+                return; // Gracefully avoid throwing to keep UI responsive
+            }
+            const ai = new GoogleGenAI({ apiKey });
       setStatus('Establishing Uplink...');
       
       // Define tools - always include Blender control to allow linking attempt

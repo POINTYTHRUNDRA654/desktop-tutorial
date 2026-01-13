@@ -35,7 +35,6 @@ const CommandPalette: React.FC = () => {
         // Creative Suite
         { id: 'nav-images', title: 'Image Suite', subtitle: 'Generation & PBR Textures', icon: Image, group: 'Navigation', action: () => navigate('/images') },
         { id: 'nav-audio', title: 'Audio Studio', subtitle: 'TTS & SFX Synthesis', icon: Mic2, group: 'Navigation', action: () => navigate('/tts') },
-        { id: 'nav-fabric', title: 'The Fabric', subtitle: 'UI/UX Interface Synthesizer', icon: PenTool, group: 'Navigation', action: () => navigate('/fabric') },
         { id: 'nav-holo', title: 'The Holodeck', subtitle: 'Interactive Simulation Engine', icon: Gamepad2, group: 'Navigation', action: () => navigate('/holo') },
 
         // Logic & Code

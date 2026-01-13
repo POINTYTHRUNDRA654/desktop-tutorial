@@ -348,7 +348,15 @@ const MossyOnboarding: React.FC<{ onComplete: () => void }> = ({ onComplete }) =
 
   useEffect(() => {
     // Save settings to localStorage when they change
-    localStorage.setItem('mossy_connections', JSON.stringify(connections));
+    // Remove icon (React elements) before stringifying
+    const connectionsToSave = connections.map(c => ({
+      id: c.id,
+      name: c.name,
+      description: c.description,
+      category: c.category,
+      selected: c.selected
+    }));
+    localStorage.setItem('mossy_connections', JSON.stringify(connectionsToSave));
     localStorage.setItem('mossy_privacy_settings', JSON.stringify(privacySettings));
   }, [connections, privacySettings]);
 

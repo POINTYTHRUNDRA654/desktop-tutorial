@@ -36,7 +36,6 @@ const TheReverie = React.lazy(() => import('./TheReverie'));
 const TheAnima = React.lazy(() => import('./TheAnima'));
 const TheSplicer = React.lazy(() => import('./TheSplicer'));
 const ThePrism = React.lazy(() => import('./ThePrism'));
-const TheFabric = React.lazy(() => import('./TheFabric'));
 const TheCatalyst = React.lazy(() => import('./TheCatalyst'));
 const TheCartographer = React.lazy(() => import('./TheCartographer'));
 const TheRegistry = React.lazy(() => import('./TheRegistry'));
@@ -44,9 +43,11 @@ const TheOrganizer = React.lazy(() => import('./TheOrganizer'));
 const TheCrucible = React.lazy(() => import('./TheCrucible'));
 const TheAssembler = React.lazy(() => import('./TheAssembler'));
 const TheAuditor = React.lazy(() => import('./TheAuditor'));
-const TheScribe = React.lazy(() => import('./TheScribe'));
+const TheScribe = React.lazy(() => import('./TheScribeEnhanced').then(module => ({ default: module.TheScribe })));
 const PrivacySettings = React.lazy(() => import('./PrivacySettings'));
 const DonationSupport = React.lazy(() => import('./DonationSupport').then(module => ({ default: module.DonationSupport })));
+const QuickReference = React.lazy(() => import('./QuickReference').then(module => ({ default: module.QuickReference })));
+const ExternalToolsSettings = React.lazy(() => import('./ExternalToolsSettings'));
 
 // Define window interface for AI Studio helpers & Custom Events
 declare global {
@@ -137,6 +138,19 @@ const App: React.FC = () => {
     );
   }
 
+  // Debug: Check if Electron API is available on app start
+  React.useEffect(() => {
+    console.log('[App] Checking Electron API availability...');
+    console.log('[App] window.electron exists?', !!window.electron);
+    console.log('[App] window.electron.api exists?', !!window.electron?.api);
+    console.log('[App] window.electron.api.getSystemInfo exists?', !!window.electron?.api?.getSystemInfo);
+    if (window.electron?.api?.getSystemInfo) {
+      console.log('[App] ✓ Electron hardware detection API is available');
+    } else {
+      console.warn('[App] ⚠️ Electron API not available - running in web mode or preload failed');
+    }
+  }, []);
+
   return (
     <LiveProvider>
       <HashRouter>
@@ -152,7 +166,7 @@ const App: React.FC = () => {
               <Routes>
                 <Route path="/" element={<TheNexus />} />
                 <Route path="/monitor" element={<SystemMonitor />} />
-                <Route path="/chat" element={<ChatInterface />} />
+                <Route path="/chat" element={<Navigate to="/" replace />} />
                 <Route path="/lens" element={<TheLens />} />
                 <Route path="/synapse" element={<TheSynapse />} />
                 <Route path="/hive" element={<TheHive />} />
@@ -162,7 +176,6 @@ const App: React.FC = () => {
                 <Route path="/anima" element={<TheAnima />} />
                 <Route path="/splicer" element={<TheSplicer />} />
                 <Route path="/prism" element={<ThePrism />} />
-                <Route path="/fabric" element={<TheFabric />} />
                 <Route path="/catalyst" element={<TheCatalyst />} />
                 <Route path="/cartographer" element={<TheCartographer />} />
                 <Route path="/registry" element={<TheRegistry />} />
@@ -184,7 +197,9 @@ const App: React.FC = () => {
                 <Route path="/tts" element={<TTSPanel />} />
                 <Route path="/bridge" element={<DesktopBridge />} />
                 <Route path="/settings/privacy" element={<PrivacySettings />} />
+                <Route path="/settings/tools" element={<ExternalToolsSettings />} />
                 <Route path="/support" element={<DonationSupport />} />
+                <Route path="/reference" element={<QuickReference />} />
               </Routes>
             </Suspense>
           </main>

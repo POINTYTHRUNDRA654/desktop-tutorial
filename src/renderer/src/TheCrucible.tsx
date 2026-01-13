@@ -1,6 +1,5 @@
-import React, { useState } from 'react';
-import { GoogleGenAI } from "@google/genai";
-import { Bug, AlertTriangle, Activity, Search, FileText, Cpu, ShieldCheck, RefreshCw, CheckCircle2, XCircle, ArrowRight, Code } from 'lucide-react';
+import React, { useRef, useState } from 'react';
+import { Bug, AlertTriangle, Activity, Search, FileText, Cpu, ShieldCheck, RefreshCw, CheckCircle2, ArrowRight, Code, Upload } from 'lucide-react';
 
 interface CrashLog {
     id: string;
@@ -8,110 +7,133 @@ interface CrashLog {
     date: string;
     engine: string; // e.g., Fallout 4
     preview: string; // First few lines
+    content: string;
 }
 
-const initialLogs: CrashLog[] = [
-    { id: '1', filename: 'crash-2023-11-04-14-22-01.log', date: 'Nov 04 14:22', engine: 'Fallout 4 v1.10.163', preview: 'Unhandled exception "EXCEPTION_ACCESS_VIOLATION" at 0x7FF7B492A1B0' },
-    { id: '2', filename: 'crash-2023-11-03-09-15-44.log', date: 'Nov 03 09:15', engine: 'Fallout 4 v1.10.163', preview: 'Unhandled exception "EXCEPTION_ACCESS_VIOLATION" at 0x7FF7B4894320 (Buffout4)' },
-];
+const initialLogs: CrashLog[] = [];
 
-const mockRawLog = `
-Fallout 4 v1.10.163
-Buffout 4 v1.26.2
+type Analysis = { culprit: string; confidence: string; reason: string; fix: string; key_signatures: string[] };
 
-Unhandled exception "EXCEPTION_ACCESS_VIOLATION" at 0x7FF7B492A1B0 Fallout4.exe+039A1B0
+const parseEngine = (lines: string[]): string => {
+    const engineLine = lines.find((l) => /Fallout 4/i.test(l) || /Skyrim/i.test(l));
+    return engineLine ? engineLine.trim() : 'Unknown engine';
+};
 
-[0] 0x7FF7B492A1B0 Fallout4.exe+039A1B0 -> 564356+0x60
-[1] 0x7FF7B54C2891 Fallout4.exe+0F32891 -> 1290321+0x41
-[2] 0x7FF7B54B8923 Fallout4.exe+0F28923 -> 1289120+0x23
+const parsePreview = (lines: string[]): string => {
+    const exc = lines.find((l) => /EXCEPTION|exception/i.test(l));
+    return exc ? exc.trim() : (lines[0] || '').trim();
+};
 
-REGISTERS:
-RAX: 0x0000000000000000 (NULL)
-RBX: 0x000001D4B8921200 (TESObjectREFR)
-RCX: 0x000001D4B8921200 (TESObjectREFR)
-RDX: 0x0000000000000001
+const extractSignatures = (lines: string[]): string[] => {
+    const stackLines = lines.filter((l) => /0x[0-9A-Fa-f]+/.test(l) && /\.exe\+|\.dll\+|Buffout|TESObject/i.test(l)).slice(0, 5);
+    return stackLines.slice(0, 3).map((l) => l.trim());
+};
 
-STACK:
-[SP+0] 0x000001D4B8921200 (TESObjectREFR)
-    File: "BetterMod.esp"
-    FormID: 0x0A001F42
-    Name: "SuperShotgun"
-[SP+8] 0x000001D4C2115580 (BSLightingShaderProperty)
-`;
+const analyzeCrashLog = (content: string): Analysis => {
+    const lines = content.split('\n');
+    const exceptionLine = lines.find((l) => /EXCEPTION_ACCESS_VIOLATION|Unhandled exception/i.test(l)) || '';
+    const regs = lines.filter((l) => /^R[A-Z]{2}:/.test(l.trim()));
+    const hasNullReg = regs.some((r) => /RAX:\s*0x0/.test(r) || /RCX:\s*0x0/.test(r));
+    const stack = lines.filter((l) => /TESObjectREFR|BSLightingShaderProperty|NiSkinInstance|Havok|Papyrus/i.test(l));
+    const formIdLine = lines.find((l) => /FormID:/i.test(l));
+    const fileLine = lines.find((l) => /File:\s*".+"/i.test(l));
+
+    let culprit = 'Fallout4.exe';
+    if (fileLine) {
+        const match = fileLine.match(/File:\s*"([^"]+)"/i);
+        if (match && match[1]) culprit = match[1];
+    } else if (/Buffout/i.test(content)) {
+        culprit = 'Buffout 4 (runtime)';
+    }
+
+    let reason = 'Unknown crash cause';
+    if (/EXCEPTION_ACCESS_VIOLATION/i.test(exceptionLine)) {
+        if (hasNullReg) {
+            reason = 'Null pointer dereference (accessed address 0x0).';
+        } else {
+            reason = 'Access violation (bad pointer or freed object).';
+        }
+    }
+    if (stack.some((l) => /BSLightingShaderProperty/i.test(l))) {
+        reason = 'Likely bad mesh or shader property (BSLightingShaderProperty).';
+    }
+    if (stack.some((l) => /TESObjectREFR/i.test(l))) {
+        reason = 'Dereference of TESObjectREFR; object may be deleted or invalid.';
+    }
+
+    let fix = 'Validate affected plugin assets and rerun with Buffout logs enabled.';
+    if (culprit.endsWith('.esp') || culprit.endsWith('.esm')) {
+        fix = `Reinstall or disable ${culprit}; check meshes and scripts referenced around the crash.`;
+    } else if (/Buffout/i.test(culprit)) {
+        fix = 'Update Buffout 4 and verify prerequisites (Address Library, TBB).';
+    }
+    if (stack.some((l) => /BSLightingShaderProperty/i.test(l))) {
+        fix = 'Open referenced mesh in NifSkope; fix shader blocks and ensure textures exist.';
+    }
+
+    const key_signatures = extractSignatures(lines);
+    if (formIdLine && !key_signatures.includes(formIdLine.trim())) {
+        key_signatures.push(formIdLine.trim());
+    }
+
+    const confidence = reason === 'Unknown crash cause' ? 'Low' : 'Medium';
+
+    return {
+        culprit,
+        confidence,
+        reason,
+        fix,
+        key_signatures: key_signatures.length ? key_signatures : ['No stack signatures detected'],
+    };
+};
 
 const TheCrucible: React.FC = () => {
     const [logs, setLogs] = useState<CrashLog[]>(initialLogs);
     const [selectedLog, setSelectedLog] = useState<CrashLog | null>(null);
-    const [analysis, setAnalysis] = useState<{ culprit: string, confidence: string, reason: string, fix: string, key_signatures: string[] } | null>(null);
-    const [isAnalyzing, setIsAnalyzing] = useState(false);
+        const [analysis, setAnalysis] = useState<Analysis | null>(null);
+        const [isAnalyzing, setIsAnalyzing] = useState(false);
+        const fileInputRef = useRef<HTMLInputElement | null>(null);
+
+        const handleLoadLog = () => {
+                fileInputRef.current?.click();
+        };
+
+        const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+                const file = e.target.files?.[0];
+                if (!file) return;
+
+                const reader = new FileReader();
+                reader.onload = () => {
+                    const text = typeof reader.result === 'string' ? reader.result : '';
+                    const lines = text.split('\n');
+                    const newLog: CrashLog = {
+                        id: `${Date.now()}`,
+                        filename: file.name,
+                        date: new Date(file.lastModified).toLocaleString(),
+                        engine: parseEngine(lines),
+                        preview: parsePreview(lines),
+                        content: text,
+                    };
+                    setLogs((prev) => [newLog, ...prev]);
+                    setSelectedLog(newLog);
+                    setAnalysis(null);
+                };
+                reader.readAsText(file);
+                // Reset input so selecting the same file again triggers change
+                e.target.value = '';
+        };
 
     const handleSelectLog = (log: CrashLog) => {
         setSelectedLog(log);
         setAnalysis(null);
     };
 
-    const handleAnalyze = async () => {
+    const handleAnalyze = () => {
         if (!selectedLog) return;
         setIsAnalyzing(true);
-
-        try {
-            const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-            
-            // In a real app, we would pass the actual file content here.
-            // Using mockRawLog for simulation.
-            
-            const prompt = `
-            Act as an expert debugger for Fallout 4 (Creation Engine).
-            Analyze this crash log stack trace and register dump.
-            
-            Log Content:
-            ${mockRawLog}
-            
-            Identify:
-            1. The Culprit (Mod name or Game System).
-            2. Confidence Level (High/Medium/Low).
-            3. The Reason (e.g. Tried to access a deleted object, Mesh corruption).
-            4. The Fix (e.g. Uninstall mod, check load order).
-            5. Specific technical details from the stack trace (memory addresses, offsets, or function names like "TESObjectREFR" or "Fallout4.exe+..."). Identify the top 3 most relevant technical signatures.
-            
-            Return JSON with keys: culprit, confidence, reason, fix, key_signatures (array of strings).
-            `;
-
-            const response = await ai.models.generateContent({
-                model: 'gemini-3-flash-preview',
-                contents: prompt,
-                config: { responseMimeType: 'application/json' }
-            });
-
-            const result = JSON.parse(response.text);
-            
-            // Sim delay
-            setTimeout(() => {
-                setAnalysis({
-                    culprit: result.culprit || "Unknown",
-                    confidence: result.confidence || "Low",
-                    reason: result.reason || "Memory corruption detected.",
-                    fix: result.fix || "Verify game cache.",
-                    key_signatures: result.key_signatures || ["0x7FF7B492A1B0 (Fallout4.exe+039A1B0)"]
-                });
-                setIsAnalyzing(false);
-            }, 1500);
-
-        } catch (e) {
-            console.error(e);
-            setAnalysis({
-                culprit: "BetterMod.esp",
-                confidence: "High",
-                reason: "Null pointer dereference on TESObjectREFR (0x0A001F42). The object 'SuperShotgun' likely has a corrupted mesh or invalid shader property.",
-                fix: "Reinstall 'BetterMod'. Check for NIF corruption in NifSkope.",
-                key_signatures: [
-                    "0x7FF7B492A1B0 (Fallout4.exe+039A1B0)",
-                    "TESObjectREFR (0x0A001F42)",
-                    "BSLightingShaderProperty"
-                ]
-            });
-            setIsAnalyzing(false);
-        }
+        const result = analyzeCrashLog(selectedLog.content);
+        setAnalysis(result);
+        setIsAnalyzing(false);
     };
 
     return (
@@ -138,6 +160,21 @@ const TheCrucible: React.FC = () => {
                     <div className="p-3 border-b border-red-900/20 text-xs font-bold text-red-400 uppercase tracking-widest bg-[#1a0b0b]">
                         Recent Incidents
                     </div>
+                                        <div className="p-3 border-b border-red-900/20 bg-[#1a0b0b] flex items-center gap-2 text-[11px] text-slate-300">
+                                                <button
+                                                    onClick={handleLoadLog}
+                                                    className="flex items-center gap-2 px-3 py-1.5 bg-red-700 hover:bg-red-600 text-white rounded text-[11px] font-bold transition-colors"
+                                                >
+                                                    <Upload className="w-3 h-3" /> Load Crash Log
+                                                </button>
+                                                <input
+                                                    ref={fileInputRef}
+                                                    type="file"
+                                                    accept=".log,.txt"
+                                                    className="hidden"
+                                                    onChange={handleFileChange}
+                                                />
+                                        </div>
                     <div className="flex-1 overflow-y-auto">
                         {logs.map(log => (
                             <div 
@@ -180,7 +217,7 @@ const TheCrucible: React.FC = () => {
                     <div className="flex-1 overflow-auto p-6 font-mono text-xs leading-relaxed text-slate-400 custom-scrollbar">
                         {selectedLog ? (
                             <pre className="whitespace-pre-wrap">
-                                {mockRawLog.split('\n').map((line, i) => {
+                                {selectedLog.content.split('\n').map((line, i) => {
                                     if (line.includes('EXCEPTION')) return <span key={i} className="text-red-500 font-bold block">{line}</span>;
                                     if (line.includes('File:')) return <span key={i} className="text-blue-400 font-bold block">{line}</span>;
                                     if (line.includes('FormID:')) return <span key={i} className="text-yellow-400 block">{line}</span>;

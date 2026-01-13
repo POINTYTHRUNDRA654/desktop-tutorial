@@ -1,4 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
+import ExternalToolNotice from './components/ExternalToolNotice';
+import { Settings as SettingsIcon } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, AreaChart, Area } from 'recharts';
 import { Cpu, HardDrive, Activity, Terminal, Trash2, Search, CheckCircle2, Database, Layers, Radio, ShieldCheck, Zap, History, Archive, FileCode, XCircle, RefreshCw, Save, Clock, RotateCcw, Upload, Download, DownloadCloud, Box, Settings, Hexagon, BrainCircuit, Package, Share2, Users, Key, Globe, Lock, Link, FileText, Copy, Command, Play, HardDriveDownload, Network, Monitor, AlertTriangle, GitBranch, Map, Container } from 'lucide-react';
 
@@ -40,7 +43,6 @@ const modulesList: SystemModule[] = [
     { id: 'hive', name: 'The Hive', status: 'online', load: 72 },
     { id: 'anima', name: 'The Anima', status: 'online', load: 88 },
     { id: 'lens', name: 'The Lens', status: 'standby', load: 5 },
-    { id: 'fabric', name: 'The Fabric', status: 'standby', load: 0 },
     { id: 'prism', name: 'The Prism', status: 'online', load: 30 },
     { id: 'conduit', name: 'The Conduit', status: 'online', load: 12 },
     { id: 'blueprint', name: 'The Blueprint', status: 'standby', load: 0 },
@@ -60,6 +62,7 @@ const modulesList: SystemModule[] = [
 ];
 
 const SystemMonitor: React.FC = () => {
+    const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState<'telemetry' | 'deploy' | 'hardware'>('telemetry');
   
   // Telemetry State - Initialize from LocalStorage or Bridge
@@ -172,21 +175,9 @@ const SystemMonitor: React.FC = () => {
 
   // Chart data simulation
   useEffect(() => {
-    const interval = setInterval(() => {
-      const now = new Date();
-      const time = `${now.getHours()}:${now.getMinutes()}:${now.getSeconds()}`;
-      
-      const cpuVal = Math.min(100, Math.floor(Math.random() * 30) + 20);
-      const memVal = Math.min(100, Math.floor(Math.random() * 20) + 40);
-      const gpuVal = Math.min(100, Math.floor(Math.random() * 40) + 10);
-      const neuralVal = Math.min(100, Math.floor(Math.random() * 40) + 30);
-
-      setData(prev => {
-        const newData = [...prev, { name: time, cpu: cpuVal, memory: memVal, gpu: gpuVal, neural: neuralVal }];
-        if (newData.length > 20) newData.shift();
-        return newData;
-      });
-    }, 1000);
+    // Performance monitoring disabled - no fake random metrics
+    // Real monitoring would require Electron system APIs
+    const interval = setInterval(() => {}, 999999);
     return () => clearInterval(interval);
   }, []);
 
@@ -219,11 +210,76 @@ const SystemMonitor: React.FC = () => {
     setActiveTab('hardware');
     
     addLog("[CORE] Initiating Deep Hardware Scan...", 'info');
+    
+    console.log('[SystemMonitor] Window.electron available?', !!window.electron);
+    console.log('[SystemMonitor] Window.electron.api available?', !!window.electron?.api);
+    console.log('[SystemMonitor] getSystemInfo available?', typeof window.electron?.api?.getSystemInfo);
+
+    // Try Electron API first for real hardware info
+    if (window.electron?.api?.getSystemInfo) {
+        try {
+            addLog("[ELECTRON] Using native system detection...", 'info');
+            console.log('[SystemMonitor] Calling getSystemInfo...');
+            const sysInfo = await window.electron.api.getSystemInfo();
+            
+            console.log('[SystemMonitor] Received system info from Electron:', sysInfo);
+            console.log('[SystemMonitor] RAM check: sysInfo.ram=', sysInfo.ram, 'sysInfo.cpu=', sysInfo.cpu);
+            
+            // Check if we got an error response
+            if (sysInfo.ram === 0 || sysInfo.cpu === 'Detection Failed') {
+                console.error('[SystemMonitor] Hardware detection error detected:', {ram: sysInfo.ram, cpu: sysInfo.cpu});
+                throw new Error(`Electron detection returned error: ${(sysInfo as any).error || 'Unknown'}`);
+            }
+            
+            console.log('[SystemMonitor] Hardware check passed, proceeding with profile setup');
+            
+            setScanProgress(100);
+            addLog(`[HARDWARE] OS: ${sysInfo.os}`, 'success');
+            addLog(`[HARDWARE] CPU: ${sysInfo.cpu} (${sysInfo.cores} cores)`, 'info');
+            addLog(`[HARDWARE] GPU: ${sysInfo.gpu}`, 'info');
+            addLog(`[HARDWARE] RAM: ${sysInfo.ram} GB`, 'info');
+            if ((sysInfo as any).vram > 0) {
+                addLog(`[HARDWARE] VRAM: ${(sysInfo as any).vram} GB`, 'info');
+            }
+            if ((sysInfo as any).blenderVersion) {
+                addLog(`[SOFTWARE] Blender ${(sysInfo as any).blenderVersion} detected`, 'info');
+            }
+            if ((sysInfo as any).displayResolution) {
+                addLog(`[DISPLAY] Resolution: ${(sysInfo as any).displayResolution}`, 'info');
+            }
+            if ((sysInfo as any).storageTotalGB > 0) {
+                addLog(`[STORAGE] C: ${(sysInfo as any).storageFreeGB} GB free of ${(sysInfo as any).storageTotalGB} GB`, 'info');
+            }
+
+            const newProfile: SystemProfile = {
+                os: sysInfo.os.includes('Windows') ? 'Windows' : sysInfo.os.includes('Darwin') || sysInfo.os.includes('macOS') ? 'MacOS' : 'Linux',
+                gpu: sysInfo.gpu,
+                ram: sysInfo.ram,
+                blenderVersion: (sysInfo as any).blenderVersion || '',
+                vram: (sysInfo as any).vram || 0,
+                isLegacy: sysInfo.ram < 8 || ((sysInfo as any).vram > 0 && (sysInfo as any).vram < 4),
+                isSimulated: false
+            };
+            console.log('[SystemMonitor] Setting profile:', newProfile);
+            setProfile(newProfile);
+            localStorage.setItem('mossy_system_profile', JSON.stringify(newProfile));
+            setIsScanning(false);
+            addLog("[SCAN] Hardware detection complete!", 'success');
+            return;
+        } catch (e) {
+            console.error('[SystemMonitor] Electron API error:', e);
+            addLog(`[ELECTRON] Native detection failed: ${e instanceof Error ? e.message : 'Unknown error'}`, 'warning');
+            addLog("[ELECTRON] Trying bridge fallback...", 'warning');
+        }
+    } else {
+        addLog("[ELECTRON] API not available (web mode or API not exposed)", 'warning');
+        addLog("[BRIDGE] Attempting bridge-based detection...", 'info');
+    }
 
     // Interval variable needs to be accessible in catch block for cleanup
     let progressInt: any;
 
-    // Attempt real scan first
+    // Attempt bridge-based scan
     try {
         const controller = new AbortController();
         // 5s Timeout is sufficient for local bridge
@@ -290,16 +346,16 @@ const SystemMonitor: React.FC = () => {
 
         // For any other error (Network, Timeout, etc), use fallback
         const errorMsg = e.name === 'AbortError' ? "Connection Timed Out" : "Network Blocked/Offline";
-        addLog(`[BRIDGE] ${errorMsg}. Switching to Simulation Mode.`, 'warning');
-        addLog("[SYSTEM] Using fallback hardware profile.", 'success');
+        addLog(`[BRIDGE] ${errorMsg}. Hardware detection unavailable.`, 'warning');
+        addLog("[SYSTEM] Unable to detect hardware specs.", 'warning');
         
         const fallbackProfile: SystemProfile = {
-            os: 'Windows 11 (Simulated)',
-            gpu: 'NVIDIA RTX 4090 (High-Perf)',
-            ram: 32,
-            blenderVersion: '4.5.5',
-            vram: 24,
-            isLegacy: false,
+            os: 'Unknown OS',
+            gpu: 'Unknown GPU (Detection Failed)',
+            ram: 0,
+            blenderVersion: 'Unknown',
+            vram: 0,
+            isLegacy: true,
             isSimulated: true
         };
         setProfile(fallbackProfile);
@@ -633,6 +689,24 @@ const SystemMonitor: React.FC = () => {
                 </div>
             )}
 
+                        {/* External Modding Tools */}
+                        <div className="mb-8 animate-fade-in">
+                            <div className="flex items-center justify-between mb-3">
+                                <h3 className="text-sm font-bold text-slate-500 flex items-center gap-2 uppercase tracking-widest">
+                                    <SettingsIcon className="w-4 h-4" /> External Modding Tools
+                                </h3>
+                                <button onClick={() => navigate('/settings/tools')} className="px-3 py-1 bg-slate-800 hover:bg-slate-700 border border-slate-600 rounded text-[11px] font-bold text-slate-200 flex items-center gap-1">
+                                    <SettingsIcon className="w-3 h-3" /> Tool Settings
+                                </button>
+                            </div>
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                                <ExternalToolNotice toolKey="xeditPath" toolName="xEdit / FO4Edit" nexusUrl="https://www.nexusmods.com/fallout4/mods/2737" description="Clean plugins (ITM/UDR), resolve conflicts, and generate patches." />
+                                <ExternalToolNotice toolKey="nifSkopePath" toolName="NifSkope" nexusUrl="https://www.nexusmods.com/newvegas/mods/75969" description="Inspect and fix NIFs: materials, collision, texture paths, and more." />
+                                <ExternalToolNotice toolKey="fomodCreatorPath" toolName="FOMOD Creation Tool" nexusUrl="https://www.nexusmods.com/fallout4/mods/6821" description="Build installers for distribution. Use alongside the in-app Assembler." />
+                                <ExternalToolNotice toolKey="creationKitPath" toolName="Creation Kit" description="Author quests, worldspaces, records, scripts, and data edits." />
+                            </div>
+                        </div>
+
             {/* Module Grid */}
             <div className="mb-8">
                 <h3 className="text-sm font-bold text-slate-500 mb-3 flex items-center gap-2 uppercase tracking-widest">
@@ -792,12 +866,14 @@ const SystemMonitor: React.FC = () => {
                   )}
 
                   {profile ? (
-                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                           <div className={`bg-slate-900 p-4 rounded-lg border relative overflow-hidden ${profile.isSimulated ? 'border-yellow-600/30' : 'border-slate-700'}`}>
                               <div className="absolute top-0 right-0 p-3 opacity-10"><Cpu className="w-16 h-16 text-amber-400" /></div>
                               <div className="text-xs text-slate-500 uppercase font-bold mb-2">GPU / Graphics</div>
-                              <div className="text-lg font-bold text-white">{profile.gpu}</div>
-                              <div className="text-sm text-slate-400">{profile.vram} GB VRAM</div>
+                              <div className="text-lg font-bold text-white truncate" title={profile.gpu}>{profile.gpu}</div>
+                              <div className={`text-sm ${profile.vram > 0 ? 'text-slate-400' : 'text-slate-600'}`}>
+                                  {profile.vram > 0 ? `${profile.vram} GB VRAM` : 'VRAM Unknown'}
+                              </div>
                               {profile.isSimulated && <div className="absolute bottom-2 right-2 text-[9px] text-yellow-500 bg-yellow-900/20 px-2 rounded">SIMULATED</div>}
                           </div>
                           
@@ -805,18 +881,33 @@ const SystemMonitor: React.FC = () => {
                               <div className="absolute top-0 right-0 p-3 opacity-10"><HardDrive className="w-16 h-16 text-blue-400" /></div>
                               <div className="text-xs text-slate-500 uppercase font-bold mb-2">System Memory</div>
                               <div className="text-lg font-bold text-white">{profile.ram} GB RAM</div>
-                              <div className="text-sm text-slate-400">DDR4 / DDR5</div>
+                              <div className="text-sm text-slate-400">{profile.os}</div>
                           </div>
 
                           <div className={`bg-slate-900 p-4 rounded-lg border relative overflow-hidden ${profile.isSimulated ? 'border-yellow-600/30' : 'border-slate-700'}`}>
                               <div className="absolute top-0 right-0 p-3 opacity-10"><Box className="w-16 h-16 text-orange-400" /></div>
                               <div className="text-xs text-slate-500 uppercase font-bold mb-2">3D Software</div>
-                              <div className="text-lg font-bold text-white">{profile.blenderVersion}</div>
+                              <div className={`text-lg font-bold ${profile.blenderVersion ? 'text-white' : 'text-slate-600'}`}>
+                                  {profile.blenderVersion || 'Not Installed'}
+                              </div>
                               {profile.blenderVersion === '2.79b' && (
                                   <div className="mt-2 inline-flex items-center gap-1 text-[10px] bg-orange-900/30 text-orange-400 px-2 py-1 rounded border border-orange-500/30">
                                       <AlertTriangle className="w-3 h-3" /> Legacy Modding Mode
                                   </div>
                               )}
+                          </div>
+                          
+                          <div className={`bg-slate-900 p-4 rounded-lg border relative overflow-hidden ${profile.isSimulated ? 'border-yellow-600/30' : 'border-slate-700'}`}>
+                              <div className="absolute top-0 right-0 p-3 opacity-10"><Monitor className="w-16 h-16 text-purple-400" /></div>
+                              <div className="text-xs text-slate-500 uppercase font-bold mb-2">Display & Storage</div>
+                              <div className="text-sm text-slate-400">
+                                  {(window as any).electron?.lastSystemInfo?.displayResolution || 'Unknown Resolution'}
+                              </div>
+                              <div className="text-sm text-slate-500 mt-1">
+                                  {(window as any).electron?.lastSystemInfo?.storageFreeGB > 0 
+                                      ? `${(window as any).electron?.lastSystemInfo?.storageFreeGB} GB free`
+                                      : 'Storage Unknown'}
+                              </div>
                           </div>
                       </div>
                   ) : (
@@ -838,11 +929,23 @@ const SystemMonitor: React.FC = () => {
                           <div className="space-y-3 text-sm text-slate-300">
                               <div className="flex items-center justify-between p-2 bg-slate-900 rounded">
                                   <span>2K Texture Baking</span>
-                                  {profile.vram >= 6 ? <span className="text-emerald-400">Supported</span> : <span className="text-red-400">Low VRAM</span>}
+                                  {profile.vram >= 6 ? (
+                                      <span className="text-emerald-400">Supported</span>
+                                  ) : profile.vram > 0 ? (
+                                      <span className="text-red-400">Low VRAM</span>
+                                  ) : (
+                                      <span className="text-slate-500">VRAM Unknown</span>
+                                  )}
                               </div>
                               <div className="flex items-center justify-between p-2 bg-slate-900 rounded">
                                   <span>Neural Rendering (AI)</span>
-                                  {profile.vram >= 8 ? <span className="text-emerald-400">Supported</span> : <span className="text-yellow-400">Slow Mode</span>}
+                                  {profile.vram >= 8 ? (
+                                      <span className="text-emerald-400">Supported</span>
+                                  ) : profile.vram > 0 ? (
+                                      <span className="text-yellow-400">Slow Mode</span>
+                                  ) : (
+                                      <span className="text-slate-500">VRAM Unknown</span>
+                                  )}
                               </div>
                               <div className="flex items-center justify-between p-2 bg-slate-900 rounded">
                                   <span>Creation Kit Multitasking</span>
@@ -859,20 +962,28 @@ const SystemMonitor: React.FC = () => {
                               Assistant behavior adjusted based on detected hardware:
                           </p>
                           <ul className="space-y-2 text-xs text-slate-300 list-disc pl-4">
-                              {profile.blenderVersion === '2.79b' ? (
-                                  <>
-                                    <li className="text-orange-300">Legacy Blender knowledge active (NifTools 2.0.dev focus).</li>
-                                    <li>Preferring 'Internal' renderer tips over 'Eevee'.</li>
-                                  </>
+                              {profile.blenderVersion ? (
+                                  profile.blenderVersion === '2.79b' ? (
+                                      <>
+                                        <li className="text-orange-300">Legacy Blender knowledge active (NifTools 2.0.dev focus).</li>
+                                        <li>Preferring 'Internal' renderer tips over 'Eevee'.</li>
+                                      </>
+                                  ) : (
+                                      <>
+                                        <li className="text-blue-300">Modern Blender {profile.blenderVersion} detected (Geometry Nodes enabled).</li>
+                                        <li className="text-emerald-300">Advanced Shader Editing Enabled.</li>
+                                        <li>PyNifly integration enabled.</li>
+                                      </>
+                                  )
                               ) : (
-                                  <>
-                                    <li className="text-blue-300">Modern Blender workflow active (Geometry Nodes enabled).</li>
-                                    <li className="text-emerald-300">NifSkope Dev 11 detected: Advanced Shader Editing Enabled.</li>
-                                    <li>PyNifly integration enabled.</li>
-                                  </>
+                                  <li className="text-slate-500">Blender not detected - Generic 3D workflow guidance available.</li>
                               )}
                               {profile.ram < 16 && <li>Asset caching disabled to save RAM.</li>}
-                              <li>Local LLM inference set to {profile.vram > 8 ? 'High' : 'Low'} Precision.</li>
+                              {profile.vram > 0 ? (
+                                  <li>Local LLM inference set to {profile.vram > 8 ? 'High' : 'Low'} Precision.</li>
+                              ) : (
+                                  <li className="text-slate-500">VRAM unknown - Using conservative AI settings.</li>
+                              )}
                           </ul>
                       </div>
                   </div>

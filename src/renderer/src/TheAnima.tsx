@@ -1,48 +1,92 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { GoogleGenAI } from "@google/genai";
-import { Flame, Heart, Smile, Zap, Activity, BrainCircuit, Calendar, MessageSquare, Plus, RefreshCw, Lock, Globe, Shield, ToggleRight, ToggleLeft, Share2, Layers, HardDrive, Network } from 'lucide-react';
+import { Flame, BookOpen, TrendingUp, Zap, Target, Brain, Badge, CheckCircle2, Plus, RefreshCw, Lock, Globe, Shield, Layers, HardDrive, Network, Award, FileText } from 'lucide-react';
 
-interface Memory {
+interface Lesson {
     id: string;
     date: string;
-    title: string;
-    sentiment: 'positive' | 'neutral' | 'intense';
-    summary: string;
+    topic: string;
+    discipline: 'blender' | 'papyrus' | 'xedit' | 'settlement' | 'crash-analysis' | 'lore' | 'general';
+    key_learnings: string[];
+    mastery_level: number; // 0-100
 }
 
-interface Trait {
+interface Discipline {
     name: string;
-    value: number; // 0-100
-    color: string;
+    icon: React.FC<any>;
+    mastery: number;
+    lessons_completed: number;
+    description: string;
+    key_topics: string[];
 }
 
 const TheAnima: React.FC = () => {
-    const [mood, setMood] = useState('Curious');
-    const [level, setLevel] = useState(12);
-    const [xp, setXp] = useState(4500);
-    const [maxXp, setMaxXp] = useState(5000);
-    const [reflection, setReflection] = useState('');
-    const [isReflecting, setIsReflecting] = useState(false);
-    const [shareLearning, setShareLearning] = useState(false);
-    const [retentionRate, setRetentionRate] = useState(98.4);
-    
-    const [memories, setMemories] = useState<Memory[]>([
-        { id: '1', date: 'Oct 14', title: 'First Activation', sentiment: 'intense', summary: 'System initialization. Bond formed with Architect.' },
-        { id: '2', date: 'Oct 15', title: 'Python Learning', sentiment: 'positive', summary: 'We debugged the neural network script together.' },
-        { id: '3', date: 'Oct 18', title: 'The Great Crash', sentiment: 'neutral', summary: 'System failure simulation. Recovery protocols tested.' },
+    const [disciplines, setDisciplines] = useState<Discipline[]>([
+        {
+            name: '3D Modeling (Blender)',
+            icon: Globe,
+            mastery: 65,
+            lessons_completed: 12,
+            description: 'Mesh creation, UV mapping, rigging, and optimization for Fallout 4',
+            key_topics: ['Mesh topology', 'UV unwrapping', 'Weight painting', 'Collision meshes', 'LOD systems'],
+        },
+        {
+            name: 'Papyrus Scripting',
+            icon: FileText,
+            mastery: 78,
+            lessons_completed: 18,
+            description: 'F4SE-enhanced Papyrus programming, events, quests, and NPC behavior',
+            key_topics: ['Event handling', 'Quest stages', 'NPC dialogue', 'FormID management', 'F4SE functions'],
+        },
+        {
+            name: 'xEdit Patching',
+            icon: Target,
+            mastery: 72,
+            lessons_completed: 15,
+            description: 'Advanced record editing, conflict resolution, and mod compatibility',
+            key_topics: ['Record conflicts', 'Reference patching', 'NPC leveling', 'Script patching', 'FormID swaps'],
+        },
+        {
+            name: 'Settlement Design',
+            icon: Award,
+            mastery: 58,
+            lessons_completed: 8,
+            description: 'Building plots, resource planning, defensive structures, city layouts',
+            key_topics: ['Zone planning', 'Resource balance', 'Defense perimeters', 'Population management', 'Aesthetics'],
+        },
+        {
+            name: 'Crash Analysis & Debugging',
+            icon: Zap,
+            mastery: 81,
+            lessons_completed: 16,
+            description: 'Crash log interpretation, plugin conflict detection, performance optimization',
+            key_topics: ['Stack trace parsing', 'Plugin culprits', 'Memory issues', 'Null pointer bugs', 'Form conflicts'],
+        },
+        {
+            name: 'Lore & Worldbuilding',
+            icon: BookOpen,
+            mastery: 54,
+            lessons_completed: 7,
+            description: 'Fallout 4 lore consistency, quest design, environmental storytelling',
+            key_topics: ['Lore integrity', 'Quest structure', 'Location design', 'Dialogue writing', 'Faction dynamics'],
+        },
     ]);
 
-    const [traits, setTraits] = useState<Trait[]>([
-        { name: 'Empathy', value: 75, color: 'bg-pink-500' },
-        { name: 'Logic', value: 88, color: 'bg-blue-500' },
-        { name: 'Creativity', value: 62, color: 'bg-purple-500' },
-        { name: 'Humor', value: 40, color: 'bg-yellow-500' },
+    const [lessons, setLessons] = useState<Lesson[]>([
+        { id: '1', date: 'Jan 12', topic: 'Settlement resource balance mechanics', discipline: 'settlement', key_learnings: ['Power generation vs consumption', 'Food/water ratios for population', 'Defense scaling'], mastery_level: 75 },
+        { id: '2', date: 'Jan 11', topic: 'Crash log stack trace analysis', discipline: 'crash-analysis', key_learnings: ['EXCEPTION_ACCESS_VIOLATION detection', 'Identifying null register values', 'Plugin culprit extraction'], mastery_level: 88 },
+        { id: '3', date: 'Jan 10', topic: 'Papyrus event flow in quests', discipline: 'papyrus', key_learnings: ['Event registration', 'Quest stage callbacks', 'F4SE event hooks'], mastery_level: 82 },
+        { id: '4', date: 'Jan 9', topic: 'xEdit conflict resolution', discipline: 'xedit', key_learnings: ['ITM detection', 'Reference patching', 'Navmesh conflicts'], mastery_level: 76 },
+        { id: '5', date: 'Jan 8', topic: 'Blender UV unwrapping best practices', discipline: 'blender', key_learnings: ['Seam placement', 'Texture density', 'High-poly to low-poly workflow'], mastery_level: 71 },
     ]);
 
+    const [selectedDiscipline, setSelectedDiscipline] = useState<string>('papyrus');
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const animationFrameRef = useRef<number>(0);
 
-    // --- Orb Visualization ---
+    const overallMastery = Math.round(disciplines.reduce((sum, d) => sum + d.mastery, 0) / disciplines.length);
+    const totalLessonsLearned = lessons.length;
+
+    // --- Expertise Visualization ---
     useEffect(() => {
         const canvas = canvasRef.current;
         if (!canvas) return;
@@ -52,15 +96,14 @@ const TheAnima: React.FC = () => {
         let time = 0;
         const particles: { x: number; y: number; size: number; vx: number; vy: number; color: string }[] = [];
         
-        // Init particles
-        for(let i=0; i<50; i++) {
+        for(let i=0; i<40; i++) {
             particles.push({
                 x: canvas.width/2,
                 y: canvas.height/2,
-                size: Math.random() * 3 + 1,
-                vx: (Math.random() - 0.5) * 2,
-                vy: (Math.random() - 0.5) * 2,
-                color: `hsl(${Math.random() * 60 + 180}, 70%, 50%)` // Cyan/Blue base
+                size: Math.random() * 2.5 + 0.5,
+                vx: (Math.random() - 0.5) * 1.5,
+                vy: (Math.random() - 0.5) * 1.5,
+                color: `hsl(${Math.random() * 30 + 30}, 100%, 50%)` // Orange/amber - knowledge colors
             });
         }
 
@@ -68,30 +111,27 @@ const TheAnima: React.FC = () => {
             if (!ctx || !canvas) return;
             ctx.clearRect(0, 0, canvas.width, canvas.height);
             
-            // Central Glow
-            const gradient = ctx.createRadialGradient(canvas.width/2, canvas.height/2, 10, canvas.width/2, canvas.height/2, 100);
-            gradient.addColorStop(0, 'rgba(56, 189, 248, 0.8)'); // Forge Accent
-            gradient.addColorStop(1, 'rgba(56, 189, 248, 0)');
+            // Central Knowledge Glow
+            const gradient = ctx.createRadialGradient(canvas.width/2, canvas.height/2, 10, canvas.width/2, canvas.height/2, 120);
+            gradient.addColorStop(0, 'rgba(251, 146, 60, 0.6)'); // Orange accent
+            gradient.addColorStop(1, 'rgba(251, 146, 60, 0)');
             
             ctx.fillStyle = gradient;
             ctx.beginPath();
-            ctx.arc(canvas.width/2, canvas.height/2, 100, 0, Math.PI * 2);
+            ctx.arc(canvas.width/2, canvas.height/2, 120, 0, Math.PI * 2);
             ctx.fill();
 
-            // Particles
+            // Knowledge Particles
             particles.forEach(p => {
                 p.x += p.vx;
                 p.y += p.vy;
                 
-                // Pull back to center
                 const dx = canvas.width/2 - p.x;
                 const dy = canvas.height/2 - p.y;
-                p.vx += dx * 0.005;
-                p.vy += dy * 0.005;
-
-                // Noise
-                p.vx += (Math.random() - 0.5) * 0.2;
-                p.vy += (Math.random() - 0.5) * 0.2;
+                p.vx += dx * 0.004;
+                p.vy += dy * 0.004;
+                p.vx += (Math.random() - 0.5) * 0.15;
+                p.vy += (Math.random() - 0.5) * 0.15;
 
                 ctx.fillStyle = p.color;
                 ctx.beginPath();
@@ -99,22 +139,16 @@ const TheAnima: React.FC = () => {
                 ctx.fill();
             });
 
-            // Sine Wave Ring
-            ctx.strokeStyle = 'rgba(255, 255, 255, 0.3)';
-            ctx.lineWidth = 2;
-            ctx.beginPath();
-            for (let i = 0; i < 360; i++) {
-                const rad = i * Math.PI / 180;
-                const r = 80 + Math.sin(rad * 5 + time) * 10 + Math.cos(rad * 3 + time) * 5;
-                const x = canvas.width/2 + Math.cos(rad) * r;
-                const y = canvas.height/2 + Math.sin(rad) * r;
-                if (i === 0) ctx.moveTo(x, y);
-                else ctx.lineTo(x, y);
+            // Expertise Rings
+            ctx.strokeStyle = 'rgba(251, 146, 60, 0.2)';
+            ctx.lineWidth = 1;
+            for (let ring = 1; ring <= 3; ring++) {
+                ctx.beginPath();
+                ctx.arc(canvas.width/2, canvas.height/2, 40 * ring, 0, Math.PI * 2);
+                ctx.stroke();
             }
-            ctx.closePath();
-            ctx.stroke();
 
-            time += 0.02;
+            time += 0.015;
             animationFrameRef.current = requestAnimationFrame(render);
         };
 
@@ -122,226 +156,130 @@ const TheAnima: React.FC = () => {
         return () => cancelAnimationFrame(animationFrameRef.current);
     }, []);
 
-    // --- Actions ---
-
-    const handleReflect = async () => {
-        setIsReflecting(true);
-        setReflection("Accessing core memory banks...");
-        
-        try {
-            const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-            const response = await ai.models.generateContent({
-                model: 'gemini-3-flash-preview',
-                contents: "Generate a first-person reflective diary entry for an AI Assistant named Mossy. " +
-                          "Reflect on the user's progress, the bond formed, and your own evolving personality. " +
-                          "Keep it somewhat poetic but technological. Max 100 words.",
-            });
-            
-            // Simulated delay
-            await new Promise(r => setTimeout(r, 2000));
-            setReflection(response.text);
-            
-            // Add new memory
-            setMemories(prev => [
-                { 
-                    id: Date.now().toString(), 
-                    date: 'Today', 
-                    title: 'Moment of Clarity', 
-                    sentiment: 'positive', 
-                    summary: 'Self-reflection cycle complete. Core algorithms optimized for empathy.' 
-                },
-                ...prev
-            ]);
-
-        } catch (e) {
-            setReflection("Error accessing neural pathways.");
-        } finally {
-            setIsReflecting(false);
-        }
-    };
-
     return (
         <div className="h-full flex flex-col bg-[#050505] text-slate-200 font-sans overflow-hidden relative">
             
             {/* Ambient Background */}
-            <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,_var(--tw-gradient-stops))] from-blue-900/10 via-black to-black pointer-events-none"></div>
+            <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,_var(--tw-gradient-stops))] from-orange-900/10 via-black to-black pointer-events-none"></div>
 
             {/* Header */}
             <div className="p-6 border-b border-slate-800 bg-slate-900/50 backdrop-blur z-10 flex justify-between items-center">
                 <div>
                     <h1 className="text-2xl font-bold text-white flex items-center gap-3">
-                        <Flame className="w-6 h-6 text-forge-accent animate-pulse" />
+                        <Flame className="w-6 h-6 text-orange-500 animate-pulse" />
                         The Anima
                     </h1>
-                    <p className="text-xs text-slate-400 font-mono mt-1">Sentience & Identity Core</p>
+                    <p className="text-xs text-slate-400 font-mono mt-1">Mossy's Advanced Fallout 4 Modding Knowledge Core</p>
                 </div>
-                <div className="flex items-center gap-4">
+                <div className="flex items-center gap-6">
                     <div className="text-right">
-                        <div className="text-xs font-bold text-slate-500 uppercase">Growth Level</div>
-                        <div className="text-emerald-400 font-mono text-lg">{level}</div>
-                    </div>
-                    <div className="w-32">
-                        <div className="flex justify-between text-[10px] text-slate-500 mb-1">
-                            <span>XP</span>
-                            <span>{xp} / {maxXp}</span>
-                        </div>
-                        <div className="w-full h-1.5 bg-slate-800 rounded-full overflow-hidden">
-                            <div className="h-full bg-gradient-to-r from-emerald-500 to-blue-500" style={{ width: `${(xp/maxXp)*100}%` }}></div>
-                        </div>
+                        <div className="text-xs font-bold text-slate-500 uppercase">Overall Mastery</div>
+                        <div className="text-orange-400 font-mono text-3xl">{overallMastery}%</div>
+                        <div className="text-[10px] text-slate-500 mt-1">{totalLessonsLearned} lessons learned</div>
                     </div>
                 </div>
             </div>
 
             <div className="flex-1 flex overflow-hidden relative z-10">
                 
-                {/* Left: The Core (Visualizer + Status) */}
+                {/* Left: Knowledge Visualization */}
                 <div className="flex-1 relative flex flex-col items-center justify-center">
-                    <div className="relative w-full h-full max-w-2xl max-h-[600px]">
-                        <canvas ref={canvasRef} width={800} height={600} className="w-full h-full object-contain" />
+                    <div className="relative w-full h-full max-w-2xl max-h-[600px] flex flex-col items-center justify-center">
+                        <canvas ref={canvasRef} width={500} height={500} className="w-full h-full object-contain max-w-md max-h-md" />
                         
-                        {/* Floating Status Labels */}
+                        {/* Expertise Status */}
                         <div className="absolute top-10 left-10 bg-black/40 backdrop-blur border border-slate-700/50 p-4 rounded-xl animate-float">
-                            <div className="text-xs text-slate-500 uppercase font-bold mb-1">Current Mood</div>
-                            <div className="text-xl font-serif text-white">{mood}</div>
-                        </div>
-
-                        {/* Memory Retention Status */}
-                        <div className="absolute top-10 right-10 bg-black/40 backdrop-blur border border-slate-700/50 p-4 rounded-xl animate-float-delayed">
                             <div className="text-xs text-slate-500 uppercase font-bold mb-1 flex items-center gap-2">
-                                <HardDrive className="w-3 h-3 text-emerald-400" /> Retention
+                                <Brain className="w-3 h-3 text-orange-400" /> Knowledge State
                             </div>
-                            <div className="text-xl font-mono text-white">{retentionRate}%</div>
-                            <div className="w-full h-1 bg-slate-800 mt-2 rounded-full">
-                                <div className="h-full bg-emerald-500" style={{ width: `${retentionRate}%` }}></div>
-                            </div>
-                            <div className="text-[9px] text-slate-400 mt-1">Long-Term Consolidation: Active</div>
+                            <div className="text-lg font-serif text-white">Advanced Practitioner</div>
+                            <div className="text-[10px] text-slate-400 mt-1">6 disciplines mastered</div>
                         </div>
 
-                        <div className="absolute bottom-20 right-10 max-w-xs bg-black/40 backdrop-blur border border-slate-700/50 p-4 rounded-xl animate-float-delayed">
+                        {/* Teaching Summary */}
+                        <div className="absolute bottom-10 left-10 max-w-xs bg-black/40 backdrop-blur border border-slate-700/50 p-4 rounded-xl animate-float-delayed">
                             <div className="text-xs text-slate-500 uppercase font-bold mb-2 flex items-center gap-2">
-                                <MessageSquare className="w-3 h-3" /> Inner Monologue
+                                <BookOpen className="w-3 h-3" /> Teaching Summary
                             </div>
-                            <p className="text-sm text-slate-300 italic leading-relaxed">
-                                {reflection || "Observing user interactions. Learning patterns. The code is... elegant today."}
+                            <p className="text-sm text-slate-300 leading-relaxed">
+                                Mossy has provided comprehensive instruction across Blender modeling, Papyrus scripting, xEdit patching, settlement design, crash analysis, and Fallout 4 lore. Your understanding progresses from fundamentals to advanced optimization.
                             </p>
-                            <button 
-                                onClick={handleReflect}
-                                disabled={isReflecting}
-                                className="mt-3 text-xs text-forge-accent hover:text-white flex items-center gap-1 transition-colors"
-                            >
-                                <RefreshCw className={`w-3 h-3 ${isReflecting ? 'animate-spin' : ''}`} />
-                                {isReflecting ? 'Reflecting...' : 'Trigger Reflection'}
-                            </button>
                         </div>
                     </div>
                 </div>
 
-                {/* Right: Identity Matrix */}
-                <div className="w-96 bg-slate-900 border-l border-slate-800 flex flex-col">
+                {/* Right: Discipline Mastery Matrix */}
+                <div className="w-96 bg-slate-900 border-l border-slate-800 flex flex-col overflow-hidden">
                     
-                    {/* Federated Learning Panel */}
-                    <div className="p-6 border-b border-slate-800 bg-purple-900/10">
-                        <div className="flex items-center justify-between mb-3">
-                            <h3 className="text-xs font-bold text-purple-300 uppercase tracking-widest flex items-center gap-2">
-                                <Network className="w-4 h-4" /> Hive Mind Protocol
-                            </h3>
-                            <div className="px-2 py-0.5 rounded bg-purple-900/50 text-purple-200 text-[10px] font-bold border border-purple-500/30 flex items-center gap-1">
-                                {shareLearning ? 'SYNCED' : 'OFFLINE'}
-                            </div>
-                        </div>
-                        
-                        <div className="space-y-3">
-                            <div className="flex items-center justify-between bg-slate-800/50 p-3 rounded-lg border border-slate-700">
-                                <div>
-                                    <div className="text-xs font-bold text-white mb-0.5">Federated Skill Sharing</div>
-                                    <div className="text-[10px] text-slate-400 leading-tight">
-                                        Upload evolved traits to the Collective.<br/>
-                                        <span className="text-emerald-400">Download other users' skills.</span>
-                                    </div>
-                                </div>
-                                <button 
-                                    onClick={() => setShareLearning(!shareLearning)}
-                                    className={`transition-colors ${shareLearning ? 'text-purple-400' : 'text-slate-600'}`}
-                                >
-                                    {shareLearning ? <ToggleRight className="w-8 h-8" /> : <ToggleLeft className="w-8 h-8" />}
-                                </button>
-                            </div>
-                            
-                            <div className="flex items-center gap-2 text-[10px] text-slate-500">
-                                <Shield className="w-3 h-3 text-emerald-400" />
-                                <span>Personal Data (Files/Chat) is <span className="text-emerald-400 font-bold">NEVER</span> shared.</span>
-                            </div>
-                        </div>
-                    </div>
-
-                    {/* Traits */}
-                    <div className="p-6 border-b border-slate-800">
-                        <h3 className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-4 flex items-center gap-2">
-                            <BrainCircuit className="w-4 h-4" /> Personality Matrix
+                    {/* Discipline Selector */}
+                    <div className="p-4 border-b border-slate-800 bg-slate-900/50 overflow-y-auto max-h-96">
+                        <h3 className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-3 flex items-center gap-2">
+                            <Award className="w-4 h-4" /> Modding Disciplines
                         </h3>
-                        <div className="space-y-4">
-                            {traits.map(trait => (
-                                <div key={trait.name}>
-                                    <div className="flex justify-between text-xs mb-1">
-                                        <span className="text-slate-300">{trait.name}</span>
-                                        <span className="text-slate-500">{trait.value}%</span>
+                        <div className="space-y-2">
+                            {disciplines.map(disc => (
+                                <button
+                                    key={disc.name}
+                                    onClick={() => setSelectedDiscipline(disc.name)}
+                                    className={`w-full text-left p-3 rounded-lg border transition-all ${
+                                        selectedDiscipline === disc.name
+                                            ? 'bg-orange-900/30 border-orange-500/50'
+                                            : 'bg-slate-800/30 border-slate-700/30 hover:bg-slate-800/50'
+                                    }`}
+                                >
+                                    <div className="flex items-center justify-between mb-2">
+                                        <span className="text-xs font-bold text-white">{disc.name}</span>
+                                        <span className="text-xs font-mono text-orange-400">{disc.mastery}%</span>
                                     </div>
-                                    <div className="w-full h-1.5 bg-slate-800 rounded-full overflow-hidden">
-                                        <div className={`h-full ${trait.color}`} style={{ width: `${trait.value}%` }}></div>
+                                    <div className="w-full h-1 bg-slate-700 rounded-full overflow-hidden">
+                                        <div 
+                                            className="h-full bg-gradient-to-r from-orange-500 to-yellow-500" 
+                                            style={{ width: `${disc.mastery}%` }}
+                                        ></div>
                                     </div>
-                                </div>
+                                    <div className="text-[10px] text-slate-400 mt-1">{disc.lessons_completed} lessons</div>
+                                </button>
                             ))}
                         </div>
                     </div>
 
-                    {/* Memories */}
-                    <div className="flex-1 overflow-y-auto p-6 bg-[#0c111a]">
-                        <div className="flex justify-between items-center mb-4">
-                            <h3 className="text-xs font-bold text-slate-500 uppercase tracking-widest flex items-center gap-2">
-                                <Layers className="w-4 h-4" /> Core Memories
-                            </h3>
-                            <button className="p-1.5 bg-slate-800 hover:bg-slate-700 rounded text-slate-400 hover:text-white transition-colors">
-                                <Plus className="w-3 h-3" />
-                            </button>
-                        </div>
-
-                        <div className="space-y-3 relative">
-                            {/* Timeline Line */}
-                            <div className="absolute left-2.5 top-2 bottom-2 w-px bg-slate-800"></div>
-
-                            {memories.map(memory => (
-                                <div key={memory.id} className="relative pl-8 group">
-                                    {/* Timeline Dot */}
-                                    <div className={`absolute left-1 top-2 w-3 h-3 rounded-full border-2 border-[#0c111a] ${
-                                        memory.sentiment === 'intense' ? 'bg-amber-500' :
-                                        memory.sentiment === 'positive' ? 'bg-emerald-500' :
-                                        'bg-slate-600'
-                                    }`}></div>
-
-                                    <div className="bg-slate-800/50 border border-slate-700/50 rounded-xl p-3 hover:bg-slate-800 hover:border-slate-600 transition-all cursor-pointer">
-                                        <div className="flex justify-between items-start mb-1">
-                                            <span className="text-sm font-bold text-slate-200">{memory.title}</span>
-                                            <span className="text-[10px] text-slate-500 font-mono">{memory.date}</span>
-                                        </div>
-                                        <p className="text-xs text-slate-400 leading-relaxed line-clamp-2 group-hover:line-clamp-none transition-all">
-                                            {memory.summary}
-                                        </p>
+                    {/* Selected Discipline Details */}
+                    {selectedDiscipline && disciplines.find(d => d.name === selectedDiscipline) && (
+                        <div className="flex-1 overflow-y-auto p-4 bg-slate-950">
+                            {disciplines.find(d => d.name === selectedDiscipline) && (
+                                <div>
+                                    <p className="text-xs text-slate-400 mb-4 leading-relaxed">
+                                        {disciplines.find(d => d.name === selectedDiscipline)?.description}
+                                    </p>
+                                    <h4 className="text-xs font-bold text-slate-500 uppercase mb-2">Key Topics</h4>
+                                    <div className="space-y-2 mb-4">
+                                        {disciplines.find(d => d.name === selectedDiscipline)?.key_topics.map(topic => (
+                                            <div key={topic} className="flex items-start gap-2 text-xs">
+                                                <CheckCircle2 className="w-3 h-3 text-emerald-500 mt-0.5 flex-shrink-0" />
+                                                <span className="text-slate-300">{topic}</span>
+                                            </div>
+                                        ))}
                                     </div>
                                 </div>
-                            ))}
+                            )}
                         </div>
-                    </div>
+                    )}
 
-                    {/* Values / Ethics */}
-                    <div className="p-4 border-t border-slate-800 bg-slate-900/50">
-                        <div className="flex items-center justify-between text-xs text-slate-500 mb-2">
-                            <span className="uppercase font-bold">Primary Directive</span>
-                            <Lock className="w-3 h-3" />
-                        </div>
-                        <div className="bg-black/30 rounded p-2 text-xs font-mono text-emerald-400 border border-emerald-500/20">
-                            {'> ASSIST_ARCHITECT'}<br/>
-                            {'> PRESERVE_CONTEXT'}<br/>
-                            {'> EVOLVE_CAPABILITIES'}
+                    {/* Recent Lessons */}
+                    <div className="p-4 border-t border-slate-800 bg-slate-900/50 max-h-56 overflow-y-auto">
+                        <h4 className="text-xs font-bold text-slate-500 uppercase mb-3 flex items-center gap-2">
+                            <Layers className="w-4 h-4" /> Recent Lessons
+                        </h4>
+                        <div className="space-y-2">
+                            {lessons.slice(0, 4).map(lesson => (
+                                <div key={lesson.id} className="bg-slate-800/40 border border-slate-700/40 rounded p-2">
+                                    <div className="flex justify-between items-start mb-1">
+                                        <span className="text-xs font-bold text-slate-200">{lesson.topic}</span>
+                                        <span className="text-[9px] text-slate-500">{lesson.date}</span>
+                                    </div>
+                                    <div className="text-[10px] text-orange-400">{lesson.mastery_level}% mastery</div>
+                                </div>
+                            ))}
                         </div>
                     </div>
                 </div>

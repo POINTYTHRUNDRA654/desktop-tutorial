@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { GoogleGenAI } from "@google/genai";
-import { Folder, FileCode, FileImage, FileBox, ChevronRight, ChevronDown, Play, Save, RefreshCw, Box, Layers, Code, CheckCircle2, AlertCircle, Share2, Workflow, Plus, Zap, ArrowRight, Package, BookOpen, Copy, Lightbulb, Database } from 'lucide-react';
+import { Folder, FileCode, FileImage, FileBox, ChevronRight, ChevronDown, Play, Save, RefreshCw, Box, Layers, Code, CheckCircle2, AlertCircle, Share2, Workflow, Plus, Zap, ArrowRight, Package, BookOpen, Copy, Lightbulb, Database, Settings as SettingsIcon } from 'lucide-react';
+import ExternalToolNotice from './components/ExternalToolNotice';
+import { useNavigate } from 'react-router-dom';
 
 // --- Types ---
 interface FileNode {
@@ -539,7 +541,8 @@ const Workshop: React.FC = () => {
   const isPascalFile = selectedFile?.name.endsWith('.pas');
   const activeSnippets = isPascalFile ? xEditSnippets : papyrusSnippets;
 
-  return (
+    const navigate = useNavigate();
+    return (
     <div className="h-full flex flex-col bg-forge-dark text-slate-200 overflow-hidden">
       {/* Toolbar */}
       <div className="h-14 border-b border-slate-700 bg-forge-panel flex items-center px-4 justify-between shadow-md z-10">
@@ -550,7 +553,7 @@ const Workshop: React.FC = () => {
                   <div className="text-[10px] text-slate-500 font-normal">IDE Mode: {viewMode === 'code' ? 'Scripting' : 'Visual Graph'}</div>
               </div>
           </div>
-          <div className="flex gap-2">
+                    <div className="flex gap-2">
               <button 
                 onClick={handleDeploy}
                 className="flex items-center gap-2 px-3 py-1.5 bg-purple-900/50 hover:bg-purple-900 border border-purple-500/30 rounded text-xs text-purple-200 font-bold transition-all"
@@ -573,6 +576,12 @@ const Workshop: React.FC = () => {
                   {compiling ? <RefreshCw className="w-3 h-3 animate-spin" /> : <Play className="w-3 h-3 fill-current" />}
                   {compiling ? 'Building...' : 'Compile'}
               </button>
+                            <button 
+                                onClick={() => navigate('/settings/tools')}
+                                className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-800 hover:bg-slate-700 border border-slate-600 rounded text-xs transition-colors"
+                             >
+                                 <SettingsIcon className="w-3 h-3" /> Tool Settings
+                            </button>
           </div>
       </div>
 
@@ -622,6 +631,10 @@ const Workshop: React.FC = () => {
                               >
                                   <Workflow className="w-3 h-3" /> Loom
                               </button>
+                          </div>
+                          <div className="ml-auto flex items-center gap-2 pr-2">
+                            <ExternalToolNotice toolKey="creationKitPath" toolName="Creation Kit" description="Open your project in CK to author quests and records." />
+                            <ExternalToolNotice toolKey="xeditPath" toolName="xEdit / FO4Edit" nexusUrl="https://www.nexusmods.com/fallout4/mods/2737" description="Clean and patch plugins from this workspace." />
                           </div>
                       </div>
                   )}
@@ -717,7 +730,12 @@ const Workshop: React.FC = () => {
                   ))}
                   {(compiling || deploying) && <div className="text-forge-accent animate-pulse">_</div>}
               </div>
-          </div>
+                    </div>
+                    {/* Bottom tools area */}
+                    <div className="w-full border-t border-slate-800 bg-slate-900/70 p-3 grid grid-cols-1 md:grid-cols-2 gap-3">
+                        <ExternalToolNotice toolKey="nifSkopePath" toolName="NifSkope" nexusUrl="https://www.nexusmods.com/newvegas/mods/75969" description="Inspect meshes related to this project." />
+                        <ExternalToolNotice toolKey="fomodCreatorPath" toolName="FOMOD Creation Tool" nexusUrl="https://www.nexusmods.com/fallout4/mods/6821" description="Package this project with a FOMOD installer." />
+                    </div>
       </div>
     </div>
   );

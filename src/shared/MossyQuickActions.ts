@@ -299,7 +299,7 @@ endif`
       diagnosis: "NIF references texture that doesn't exist",
       solutions: [
         "Use nif_fix_texture_paths to auto-correct paths",
-        "Manually set paths in NifSkope",
+          "Manually set paths in NifSkope (Download: https://www.nexusmods.com/newvegas/mods/75969)",
         "Create missing DDS texture",
         "Verify texture is in correct Data folder structure"
       ]
@@ -331,7 +331,7 @@ endif`
   bestPractices: {
     
     beforeRelease: [
-      "✓ Clean ITM/UDR with xEdit",
+      "✓ Clean ITM/UDR with xEdit (Download: https://www.nexusmods.com/fallout4/mods/2737)",
       "✓ Validate all asset paths",
       "✓ Test from clean save",
       "✓ Check for conflicts",

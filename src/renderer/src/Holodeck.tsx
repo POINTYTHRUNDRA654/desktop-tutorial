@@ -1,350 +1,438 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { GoogleGenAI, Modality } from "@google/genai";
-import { Gamepad2, Play, SkipForward, RefreshCw, MessageSquare, Image as ImageIcon, Volume2, Mic2, Terminal, User, ArrowRight, Skull, MapPin, Box } from 'lucide-react';
+import { useState } from 'react';
+import { Gamepad2, Play, Pause, SkipForward, CheckCircle2, AlertTriangle, Copy, Zap, Target, BarChart3, Settings } from 'lucide-react';
 
-interface GameState {
-  location: string;
-  questStage: number;
-  inventory: string[];
-  health: number;
-  activeObjectives: string[];
+interface TestScenario {
+    id: string;
+    name: string;
+    description: string;
+    category: 'quest' | 'combat' | 'settlement' | 'npc' | 'load_order';
+    steps: TestStep[];
+    expectedOutcome: string;
+    severity: 'critical' | 'major' | 'minor';
 }
 
-interface DialogueNode {
-  speaker: string;
-  text: string;
-  options: { label: string, nextState?: Partial<GameState> }[];
+interface TestStep {
+    action: string;
+    expectedResult: string;
+    riskAreas: string[];
 }
 
-const Holodeck: React.FC = () => {
-  // --- Game Engine State ---
-  const [isPlaying, setIsPlaying] = useState(false);
-  const [loadingTurn, setLoadingTurn] = useState(false);
-  
-  const [gameState, setGameState] = useState<GameState>({
-      location: "Goodneighbor - The Third Rail",
-      questStage: 10,
-      inventory: ["Caps (150)", "10mm Pistol"],
-      health: 100,
-      activeObjectives: ["Find the contact", "Avoid MacCready"]
-  });
+interface TestRun {
+    id: string;
+    scenarioId: string;
+    timestamp: string;
+    status: 'passed' | 'failed' | 'partial';
+    issues: string[];
+    duration: number;
+}
 
-  const [narrativeLog, setNarrativeLog] = useState<{type: 'narrative' | 'dialogue', content: string, speaker?: string}[]>([]);
-  const [currentSceneImg, setCurrentSceneImg] = useState<string>("https://placehold.co/1280x720/111827/38bdf8?text=Initialize+Simulation");
-  const [currentDialogue, setCurrentDialogue] = useState<DialogueNode | null>(null);
-
-  // Audio Refs
-  const audioContextRef = useRef<AudioContext | null>(null);
-
-  // --- Engine Logic ---
-
-  const initSimulation = () => {
-      setIsPlaying(true);
-      setNarrativeLog([{
-          type: 'narrative',
-          content: "INITIALIZING HOLODECK SIMULATION [v4.2]... LOADING ASSETS... DONE."
-      }]);
-      processTurn("Start the simulation. The player enters The Third Rail bar in Goodneighbor.");
-  };
-
-  const processTurn = async (playerAction: string) => {
-      setLoadingTurn(true);
-      
-      try {
-          const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-          
-          // 1. Game Master Logic (Text)
-          const prompt = `
-          You are the AI Game Master for a Fallout 4 text adventure playtest.
-          Current State: ${JSON.stringify(gameState)}
-          Player Action: "${playerAction}"
-          
-          Output JSON with:
-          - narrative: (string) Descriptive text of what happens.
-          - speaker: (string, optional) If an NPC speaks.
-          - dialogue: (string, optional) What the NPC says.
-          - options: (array of strings) 2-3 choices for the player.
-          - stateUpdate: (object) Changes to GameState (e.g. questStage, inventory).
-          - visualPrompt: (string) A prompt to generate the background image for this scene.
-          `;
-          
-          const response = await ai.models.generateContent({
-              model: 'gemini-3-flash-preview',
-              contents: prompt,
-              config: { responseMimeType: 'application/json' }
-          });
-          
-          const result = JSON.parse(response.text);
-          
-          // Update State
-          if (result.stateUpdate) {
-              setGameState(prev => ({ ...prev, ...result.stateUpdate }));
-          }
-          
-          // Update Log
-          setNarrativeLog(prev => [
-              ...prev, 
-              { type: 'narrative', content: result.narrative },
-              ...(result.dialogue ? [{ type: 'dialogue' as const, content: result.dialogue, speaker: result.speaker }] : [])
-          ]);
-
-          // Set Choices
-          setCurrentDialogue({
-              speaker: result.speaker || "Game Master",
-              text: result.dialogue || result.narrative,
-              options: result.options.map((o: string) => ({ label: o }))
-          });
-
-          // 2. Synthesize Voice (If Dialogue exists)
-          if (result.dialogue) {
-              speakText(result.dialogue);
-          }
-
-          // 3. Generate Visual (Mocked for speed, Real on request)
-          // In a real app, we'd call the image gen here. For speed, we just set the prompt to state if we want to trigger it manually.
-          // Or we simulate it:
-          if (Math.random() > 0.7) { // Only update image occasionally to save resources/time
-              // Simulate image update
-              // setCurrentSceneImg(generatedUrl); 
-          }
-
-      } catch (e) {
-          console.error(e);
-          setNarrativeLog(prev => [...prev, { type: 'narrative', content: "SYSTEM ERROR: Simulation Desync." }]);
-      } finally {
-          setLoadingTurn(false);
-      }
-  };
-
-  const speakText = async (text: string) => {
-      try {
-        const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-        const response = await ai.models.generateContent({
-            model: 'gemini-2.5-flash-preview-tts',
-            contents: [{ parts: [{ text }] }],
-            config: {
-                responseModalities: [Modality.AUDIO],
-                speechConfig: {
-                    voiceConfig: { prebuiltVoiceConfig: { voiceName: 'Fenrir' } },
-                },
+const SAMPLE_SCENARIOS: TestScenario[] = [
+    {
+        id: 'quest-1',
+        name: 'Quest Stage Progression',
+        description: 'Verify quest stages advance correctly and triggers fire at the right times.',
+        category: 'quest',
+        steps: [
+            {
+                action: 'Start quest from terminal: StartQuest MyMod_MainQuest',
+                expectedResult: 'Quest marker appears on compass, quest added to journal with stage 10',
+                riskAreas: ['Quest stage 10 not firing', 'Alias assignments missing']
             },
-        });
+            {
+                action: 'Navigate to quest target location (FormID: 00ABCD12)',
+                expectedResult: 'On cell enter, NPC dialogue becomes available, quest updates to stage 20',
+                riskAreas: ['Cell enter trigger failed', 'Dialogue conditions incorrect', 'Alias not pointing to NPC']
+            },
+            {
+                action: 'Complete dialogue branch with NPC',
+                expectedResult: 'Quest advances to stage 30, compass marker moves to new location',
+                riskAreas: ['Script event not firing', 'FormID reference broken', 'Quest aliases corrupted']
+            },
+            {
+                action: 'Collect item at new location, return to quest giver',
+                expectedResult: 'Completing dialogue finishes quest (stage 200), rewards distributed',
+                riskAreas: ['Item not spawning', 'Leveled list conflict', 'Reward script error']
+            }
+        ],
+        expectedOutcome: 'Quest completes in under 10 minutes with all objectives tracking correctly. No log spam or CTD.',
+        severity: 'critical'
+    },
+    {
+        id: 'combat-1',
+        name: 'Weapon Balance Testing',
+        description: 'Test newly added weapon damage, attack speed, and enemy AI interactions.',
+        category: 'combat',
+        steps: [
+            {
+                action: 'Spawn custom weapon: Player.AddItem 00ABCD34 1',
+                expectedResult: 'Weapon appears in inventory with correct name, model, and textures',
+                riskAreas: ['Model path incorrect', 'Texture DDS missing or compressed wrong', 'FormID not found']
+            },
+            {
+                action: 'Equip weapon and attack training dummy at 50 ft range',
+                expectedResult: 'Damage displays as intended (25-35 DPS), attack animation plays smoothly',
+                riskAreas: ['Animation missing', 'Damage calculation script error', 'Physics misaligned']
+            },
+            {
+                action: 'Fight multiple enemies (raider level list): placeatme raider',
+                expectedResult: 'Enemy AI responds appropriately, uses cover, weapon perks proc correctly',
+                riskAreas: ['AI package issues', 'Perk script not firing', 'Critical hit formula broken']
+            },
+            {
+                action: 'Check weapon degradation and repair with weapon components',
+                expectedResult: 'Weapon degrades at 1% per hit, repairs with correct material costs',
+                riskAreas: ['Degradation formula wrong', 'Keyword missing for repairs', 'Material cost calculation fails']
+            }
+        ],
+        expectedOutcome: 'Weapon feels balanced, animations are smooth, damage numbers match design intent.',
+        severity: 'major'
+    },
+    {
+        id: 'settlement-1',
+        name: 'Settlement Object Placement',
+        description: 'Test new settlement furniture placement, physics, and workshare functionality.',
+        category: 'settlement',
+        steps: [
+            {
+                action: 'Enter settlement build mode at Sanctuary Hills',
+                expectedResult: 'New settlement objects appear in build menu under correct categories',
+                riskAreas: ['Mod object not in menu', 'Keyword assignments missing', 'Workbench keyword missing']
+            },
+            {
+                action: 'Place 5 custom objects around settlement',
+                expectedResult: 'Objects snap to grid properly, physics colliders prevent clipping',
+                riskAreas: ['NIF scale wrong (too large/small)', 'Collision shape inverted', 'Havok data corrupted']
+            },
+            {
+                action: 'Assign power to settlement (connect generator)',
+                expectedResult: 'Power flows through objects, lights animate with power state',
+                riskAreas: ['Power keyword not on objects', 'Script reference broken', 'Material swap not working']
+            },
+            {
+                action: 'Assign settlers to custom furniture (bed, workbench)',
+                expectedResult: 'NPCs navigate to objects, animations play, no clipping or floating',
+                riskAreas: ['Furniture markers missing FormID', 'AI package constraints too tight', 'NavMesh missing']
+            }
+        ],
+        expectedOutcome: 'All settlement objects place correctly, settlers use them, no performance degradation.',
+        severity: 'major'
+    },
+    {
+        id: 'npc-1',
+        name: 'Custom NPC Dialogue & Behavior',
+        description: 'Verify custom NPC greetings, dialogue trees, and AI packages work without interruption.',
+        category: 'npc',
+        steps: [
+            {
+                action: 'Spawn custom NPC: placeatme 00ABCD56',
+                expectedResult: 'NPC appears with correct race, appearance, equipment, no black face bug',
+                riskAreas: ['Head texture corrupted', 'Body mesh scale off', 'Appearance mod conflict']
+            },
+            {
+                action: 'Approach NPC from 15 ft away',
+                expectedResult: 'NPC greets player with custom dialogue, maintains conversational distance',
+                riskAreas: ['Greeting conditions wrong', 'Dialogue branch not linked', 'Voice file missing']
+            },
+            {
+                action: 'Engage in dialogue tree (3 branches, 5 total lines)',
+                expectedResult: 'All lines lip-sync properly, dialogue trees branch as scripted, quest flags set correctly',
+                riskAreas: ['Lip-sync files (.lip) missing', 'Quest stage not advancing', 'Condition functions fail']
+            },
+            {
+                action: 'Wait 24 hours in-game, observe NPC behavior',
+                expectedResult: 'NPC follows AI packages (sleep at night, work during day), pathfinds without getting stuck',
+                riskAreas: ['NavMesh doesn\'t reach furniture', 'AI package loop infinite', 'Cell loading causes despawn']
+            }
+        ],
+        expectedOutcome: 'NPC feels alive, dialogue is engaging, behavior is consistent and glitch-free.',
+        severity: 'major'
+    },
+    {
+        id: 'load_order-1',
+        name: 'Plugin Load Order & Dependency Check',
+        description: 'Verify mod loads in correct sequence, dependencies are satisfied, no FormID conflicts.',
+        category: 'load_order',
+        steps: [
+            {
+                action: 'Check plugin load order: xEdit sort plugins',
+                expectedResult: 'Dependencies load before dependents, masters before ESPs, no circular deps',
+                riskAreas: ['Master file missing from Data folder', 'FormID conflict undetected', 'Load order scrambled']
+            },
+            {
+                action: 'Scan for orphaned FormIDs: xEdit -quickautoclean',
+                expectedResult: 'No orphaned records found, all FormIDs point to valid masters, file size optimized',
+                riskAreas: ['Orphaned quest records', 'Deleted reference remains', 'Master deleted but still referenced']
+            },
+            {
+                action: 'Launch game and verify all mods load without warnings',
+                expectedResult: 'Game boots in <2 min, Buffout shows 0 critical errors, console has no FormID warnings',
+                riskAreas: ['F4SE plugin incompatible', 'Missing master file detected at launch', 'Corrupted plugin header']
+            },
+            {
+                action: 'Test save/load cycle with all mods active',
+                expectedResult: 'Save loads without errors, persistent objects remain in place, quest state preserved',
+                riskAreas: ['Unowned references cause hang', 'Save file corruption detected', 'Quest data lost']
+            }
+        ],
+        expectedOutcome: 'Mod integrates seamlessly with load order, no conflicts, no data corruption.',
+        severity: 'critical'
+    }
+];
+
+const getSeverityColor = (severity: string) => {
+    switch (severity) {
+        case 'critical': return 'bg-red-900/20 border-red-700/50 text-red-300';
+        case 'major': return 'bg-yellow-900/20 border-yellow-700/50 text-yellow-300';
+        case 'minor': return 'bg-blue-900/20 border-blue-700/50 text-blue-300';
+        default: return 'bg-slate-900/20 border-slate-700/50 text-slate-300';
+    }
+};
+
+const getCategoryIcon = (category: string) => {
+    switch (category) {
+        case 'quest': return '📜';
+        case 'combat': return '⚔️';
+        case 'settlement': return '🏗️';
+        case 'npc': return '👤';
+        case 'load_order': return '📋';
+        default: return '🎮';
+    }
+};
+
+const Holodeck = () => {
+    const [activeScenario, setActiveScenario] = useState<TestScenario | null>(SAMPLE_SCENARIOS[0]);
+    const [expandedStep, setExpandedStep] = useState<number | null>(null);
+    const [testRuns, setTestRuns] = useState<TestRun[]>([]);
+    const [copiedId, setCopiedId] = useState<string | null>(null);
+
+    const handleCopyStep = (id: string, text: string) => {
+        navigator.clipboard.writeText(text);
+        setCopiedId(id);
+        setTimeout(() => setCopiedId(null), 2000);
+    };
+
+    const simulateTestRun = (scenarioId: string) => {
+        const scenario = SAMPLE_SCENARIOS.find(s => s.id === scenarioId);
+        if (!scenario) return;
+
+        const passed = Math.random() > 0.3;
+        const newRun: TestRun = {
+            id: `run-${Date.now()}`,
+            scenarioId,
+            timestamp: new Date().toLocaleTimeString(),
+            status: passed ? 'passed' : 'failed',
+            issues: !passed ? [
+                'Quest stage 20 did not trigger on cell enter',
+                'NPC dialogue showed condition = 0 (never)',
+                'Expected FormID 00ABCD12 but got none'
+            ] : [],
+            duration: Math.floor(Math.random() * 600) + 60
+        };
         
-        const base64Audio = response.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
-        if (base64Audio) {
-            if (!audioContextRef.current) audioContextRef.current = new window.AudioContext();
-            const ctx = audioContextRef.current;
-            const binaryString = atob(base64Audio);
-            const len = binaryString.length;
-            const bytes = new Uint8Array(len);
-            for (let i = 0; i < len; i++) bytes[i] = binaryString.charCodeAt(i);
-            const dataInt16 = new Int16Array(bytes.buffer);
-            const buffer = ctx.createBuffer(1, dataInt16.length, 24000);
-            const channelData = buffer.getChannelData(0);
-            for(let i=0; i<dataInt16.length; i++) channelData[i] = dataInt16[i] / 32768.0;
-            
-            const source = ctx.createBufferSource();
-            source.buffer = buffer;
-            source.connect(ctx.destination);
-            source.start();
-        }
-      } catch (e) { console.error("TTS Failed", e); }
-  };
+        setTestRuns(prev => [newRun, ...prev]);
+    };
 
-  const handleGenerateFrame = async () => {
-      // Manually trigger image generation for current state
-      // This is a placeholder for the actual API call logic similar to ImageSuite
-      const prompt = `Fallout 4 post-apocalyptic concept art, ${gameState.location}, cinematic lighting, 4k`;
-      // Here we would call the Image API and update setCurrentSceneImg
-      alert(`[MOCK] Generating high-res render for: ${prompt}`);
-  };
+    return (
+        <div className="h-full flex flex-col bg-[#1e1e1e] text-slate-200 font-sans overflow-hidden">
+            {/* Header */}
+            <div className="p-4 border-b border-black bg-[#2d2d2d] flex justify-between items-center shadow-md">
+                <div>
+                    <h2 className="text-lg font-bold text-white flex items-center gap-2">
+                        <Gamepad2 className="w-5 h-5 text-purple-400" />
+                        Holodeck
+                    </h2>
+                    <p className="text-[10px] text-slate-400 font-mono mt-0.5">Mod Testing Simulator - Run scenarios before release</p>
+                </div>
+                <div className="flex gap-2">
+                    <button className="px-3 py-1.5 bg-black rounded border border-slate-600 hover:border-purple-500 transition-colors text-xs text-purple-400 flex items-center gap-2">
+                        <BarChart3 className="w-3 h-3" /> Report
+                    </button>
+                </div>
+            </div>
 
-  return (
-    <div className="h-full flex flex-col bg-black text-slate-200 overflow-hidden relative font-sans">
-      
-      {/* Immersive Background Layer */}
-      <div className="absolute inset-0 z-0">
-          <img 
-            src={currentSceneImg} 
-            className="w-full h-full object-cover opacity-60" 
-            alt="Scene" 
-          />
-          <div className="absolute inset-0 bg-gradient-to-t from-black via-black/50 to-transparent"></div>
-          {/* Scanlines Effect */}
-          <div className="absolute inset-0 bg-[linear-gradient(rgba(18,16,16,0)_50%,rgba(0,0,0,0.25)_50%),linear-gradient(90deg,rgba(255,0,0,0.06),rgba(0,255,0,0.02),rgba(0,0,255,0.06))] z-10 bg-[length:100%_2px,3px_100%] pointer-events-none"></div>
-      </div>
+            {/* Main Layout */}
+            <div className="flex-1 flex overflow-hidden">
+                {/* Scenarios List */}
+                <div className="w-80 border-r border-slate-800 overflow-y-auto bg-[#252526] flex flex-col">
+                    <div className="sticky top-0 p-4 border-b border-slate-800 bg-[#2d2d2d]">
+                        <h3 className="text-xs font-bold text-white uppercase tracking-wide">Test Scenarios</h3>
+                    </div>
+                    <div className="flex-1 space-y-2 p-3 overflow-y-auto">
+                        {SAMPLE_SCENARIOS.map((scenario) => (
+                            <button
+                                key={scenario.id}
+                                onClick={() => setActiveScenario(scenario)}
+                                className={`w-full text-left p-3 rounded-lg border transition-all ${
+                                    activeScenario?.id === scenario.id
+                                        ? 'bg-purple-900/30 border-purple-700/50 ring-1 ring-purple-500/50'
+                                        : 'bg-slate-800/30 border-slate-700/30 hover:border-slate-700'
+                                }`}
+                            >
+                                <div className="flex items-start justify-between gap-2 mb-1">
+                                    <span className="text-sm">{getCategoryIcon(scenario.category)}</span>
+                                    <span className={`text-[9px] font-bold uppercase px-1.5 py-0.5 rounded ${
+                                        scenario.severity === 'critical' ? 'bg-red-900/50' :
+                                        scenario.severity === 'major' ? 'bg-yellow-900/50' :
+                                        'bg-blue-900/50'
+                                    }`}>
+                                        {scenario.severity}
+                                    </span>
+                                </div>
+                                <h4 className="text-xs font-semibold text-white">{scenario.name}</h4>
+                                <p className="text-[10px] text-slate-400 mt-1 line-clamp-2">{scenario.description}</p>
+                            </button>
+                        ))}
+                    </div>
+                </div>
 
-      {/* Top HUD */}
-      <div className="relative z-20 p-6 flex justify-between items-start">
-          <div className="flex items-center gap-4 bg-black/60 backdrop-blur-md px-4 py-2 rounded-lg border border-slate-700/50">
-              <Gamepad2 className="w-6 h-6 text-emerald-400" />
-              <div>
-                  <h1 className="text-lg font-bold text-white tracking-widest uppercase">Holodeck</h1>
-                  <div className="flex items-center gap-2 text-[10px] text-slate-400 font-mono">
-                      <span className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse"></span>
-                      SIMULATION_ACTIVE
-                  </div>
-              </div>
-          </div>
-          
-          {/* Status Indicators */}
-          <div className="flex gap-4">
-              <div className="bg-black/60 backdrop-blur-md p-3 rounded-lg border border-slate-700/50 min-w-[120px]">
-                  <div className="text-[10px] text-slate-500 uppercase font-bold mb-1 flex items-center gap-1">
-                      <MapPin className="w-3 h-3" /> Location
-                  </div>
-                  <div className="text-xs font-mono text-emerald-300 truncate">{gameState.location}</div>
-              </div>
-              <div className="bg-black/60 backdrop-blur-md p-3 rounded-lg border border-slate-700/50 min-w-[100px]">
-                  <div className="text-[10px] text-slate-500 uppercase font-bold mb-1 flex items-center gap-1">
-                      <Skull className="w-3 h-3" /> Integrity
-                  </div>
-                  <div className="w-full h-1.5 bg-slate-700 rounded-full mt-1">
-                      <div className="h-full bg-emerald-500 rounded-full" style={{width: `${gameState.health}%`}}></div>
-                  </div>
-              </div>
-          </div>
-      </div>
+                {/* Main Content */}
+                <div className="flex-1 flex flex-col overflow-hidden">
+                    {activeScenario ? (
+                        <>
+                            {/* Scenario Details */}
+                            <div className="flex-1 overflow-y-auto p-6 space-y-6">
+                                {/* Header */}
+                                <div>
+                                    <div className="flex items-center justify-between mb-4">
+                                        <div>
+                                            <h3 className="text-xl font-bold text-white mb-1">{activeScenario.name}</h3>
+                                            <p className="text-sm text-slate-300">{activeScenario.description}</p>
+                                        </div>
+                                        <button
+                                            onClick={() => simulateTestRun(activeScenario.id)}
+                                            className="px-4 py-2 bg-purple-900/30 hover:bg-purple-900/50 rounded border border-purple-700/50 text-xs font-semibold text-purple-300 flex items-center gap-2 transition-colors flex-shrink-0"
+                                        >
+                                            <Play className="w-3 h-3" /> Run Test
+                                        </button>
+                                    </div>
+                                </div>
 
-      {/* Main Content Area */}
-      <div className="relative z-20 flex-1 flex flex-col justify-end p-8 pb-12 max-w-5xl mx-auto w-full">
-          
-          {/* Narrative Log (Scrollable) */}
-          <div className="flex-1 overflow-y-auto mb-6 pr-4 space-y-4 mask-gradient-top custom-scrollbar max-h-[40vh]">
-              {narrativeLog.map((log, i) => (
-                  <div key={i} className={`animate-fade-in ${log.type === 'dialogue' ? 'ml-8 border-l-2 border-emerald-500 pl-4' : ''}`}>
-                      {log.speaker && (
-                          <div className="text-xs font-bold text-emerald-400 mb-1 uppercase tracking-wider">
-                              {log.speaker}
-                          </div>
-                      )}
-                      <p className={`text-lg leading-relaxed ${log.type === 'narrative' ? 'text-slate-300 italic font-serif' : 'text-white font-medium'}`}>
-                          {log.content}
-                      </p>
-                  </div>
-              ))}
-              {loadingTurn && (
-                  <div className="flex items-center gap-2 text-slate-500 animate-pulse">
-                      <RefreshCw className="w-4 h-4 animate-spin" /> Calculating outcome...
-                  </div>
-              )}
-          </div>
+                                {/* Test Steps */}
+                                <div className="space-y-3">
+                                    <h4 className="text-xs font-bold text-slate-300 uppercase tracking-wide">Test Steps</h4>
+                                    {activeScenario.steps.map((step, idx) => (
+                                        <div
+                                            key={idx}
+                                            className="bg-slate-800/50 border border-slate-700/50 rounded-lg overflow-hidden"
+                                        >
+                                            <button
+                                                onClick={() => setExpandedStep(expandedStep === idx ? null : idx)}
+                                                className="w-full text-left p-4 hover:bg-slate-800 transition-colors flex items-start justify-between gap-3"
+                                            >
+                                                <div className="flex-1">
+                                                    <div className="flex items-center gap-2 mb-2">
+                                                        <span className="text-xs font-bold text-purple-400">Step {idx + 1}</span>
+                                                    </div>
+                                                    <p className="text-sm text-white font-medium">{step.action}</p>
+                                                </div>
+                                                <div className={`transition-transform flex-shrink-0 text-slate-500 ${expandedStep === idx ? 'rotate-180' : ''}`}>
+                                                    ▼
+                                                </div>
+                                            </button>
 
-          {/* Interaction Box */}
-          {isPlaying ? (
-              <div className="bg-black/80 backdrop-blur-xl border border-slate-700 rounded-2xl p-6 shadow-2xl">
-                  {currentDialogue && (
-                      <div className="mb-6">
-                           <div className="text-sm text-slate-400 mb-4 font-mono uppercase">
-                               <span className="text-forge-accent">Decision Point:</span> What do you do?
-                           </div>
-                           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                               {currentDialogue.options.map((option, i) => (
-                                   <button
-                                       key={i}
-                                       onClick={() => processTurn(option.label)}
-                                       disabled={loadingTurn}
-                                       className="text-left px-5 py-4 bg-slate-800/50 hover:bg-forge-accent/20 border border-slate-700 hover:border-forge-accent rounded-xl transition-all group"
-                                   >
-                                       <span className="text-slate-500 group-hover:text-forge-accent mr-3 font-mono">0{i+1}.</span>
-                                       <span className="text-slate-200 group-hover:text-white font-medium">{option.label}</span>
-                                   </button>
-                               ))}
-                               
-                               {/* Custom Input */}
-                               <div className="relative group col-span-1 md:col-span-2 mt-2">
-                                   <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                                       <Terminal className="h-4 w-4 text-slate-500 group-focus-within:text-forge-accent" />
-                                   </div>
-                                   <input 
-                                      type="text" 
-                                      placeholder="Improvise action..."
-                                      className="block w-full pl-10 pr-3 py-3 border border-slate-700 rounded-xl leading-5 bg-slate-900/50 text-slate-300 placeholder-slate-500 focus:outline-none focus:border-forge-accent focus:ring-1 focus:ring-forge-accent sm:text-sm"
-                                      onKeyDown={(e) => {
-                                          if (e.key === 'Enter') {
-                                              processTurn(e.currentTarget.value);
-                                              e.currentTarget.value = '';
-                                          }
-                                      }}
-                                   />
-                               </div>
-                           </div>
-                      </div>
-                  )}
-                  
-                  {/* Tools Strip */}
-                  <div className="flex justify-between items-center border-t border-slate-800 pt-4 mt-2">
-                       <div className="flex gap-2">
-                           <button onClick={handleGenerateFrame} className="p-2 hover:bg-slate-700 rounded text-slate-500 hover:text-white" title="Render Hi-Res Frame">
-                               <ImageIcon className="w-4 h-4" />
-                           </button>
-                           <button className="p-2 hover:bg-slate-700 rounded text-slate-500 hover:text-white" title="Replay Voice">
-                               <Volume2 className="w-4 h-4" />
-                           </button>
-                       </div>
-                       <div className="text-[10px] font-mono text-slate-600">
-                           QUEST_ID: {gameState.questStage} | SEED: 88219
-                       </div>
-                  </div>
-              </div>
-          ) : (
-              <div className="flex flex-col items-center justify-center py-12">
-                  <button 
-                      onClick={initSimulation}
-                      className="group relative inline-flex items-center justify-center px-8 py-4 font-bold text-white transition-all duration-200 bg-emerald-600 font-lg rounded-full focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-emerald-600 hover:bg-emerald-500 hover:scale-105"
-                  >
-                      <Play className="w-6 h-6 mr-2 fill-current" />
-                      Initialize Simulation
-                      <div className="absolute -inset-3 rounded-full bg-emerald-400 opacity-20 group-hover:opacity-40 blur-lg transition-opacity duration-200"></div>
-                  </button>
-                  <p className="mt-4 text-slate-500 text-sm font-mono">Load default scenario: "Goodneighbor"</p>
-              </div>
-          )}
-      </div>
+                                            {expandedStep === idx && (
+                                                <div className="border-t border-slate-700/50 bg-black/30 p-4 space-y-4">
+                                                    <div>
+                                                        <div className="text-[10px] font-semibold text-slate-300 mb-2 flex items-center gap-2">
+                                                            <CheckCircle2 className="w-3 h-3" /> Expected Result
+                                                        </div>
+                                                        <p className="text-xs text-slate-300 bg-slate-900/50 p-2 rounded border border-slate-700/50">{step.expectedResult}</p>
+                                                    </div>
 
-      {/* Right Debug Panel (Collapsible) */}
-      <div className="absolute right-0 top-20 bottom-0 w-64 bg-black/80 backdrop-blur border-l border-slate-800 p-4 transform transition-transform translate-x-full hover:translate-x-0 z-30">
-           <div className="absolute -left-8 top-1/2 -translate-y-1/2 bg-slate-800 p-2 rounded-l-lg border-l border-t border-b border-slate-600 cursor-pointer">
-               <Terminal className="w-4 h-4 text-slate-400" />
-           </div>
-           
-           <h3 className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-4">State Inspector</h3>
-           
-           <div className="space-y-4">
-               <div>
-                   <label className="text-[10px] text-slate-500 uppercase">Inventory</label>
-                   <div className="mt-1 flex flex-wrap gap-1">
-                       {gameState.inventory.map(i => (
-                           <span key={i} className="px-2 py-1 bg-slate-800 border border-slate-700 rounded text-[10px] text-slate-300">{i}</span>
-                       ))}
-                   </div>
-               </div>
-               
-               <div>
-                   <label className="text-[10px] text-slate-500 uppercase">Quest Objectives</label>
-                   <ul className="mt-1 space-y-1">
-                       {gameState.activeObjectives.map((o, i) => (
-                           <li key={i} className="flex items-start gap-2 text-xs text-slate-300">
-                               <Box className="w-3 h-3 text-forge-accent mt-0.5" />
-                               {o}
-                           </li>
-                       ))}
-                   </ul>
-               </div>
+                                                    <div>
+                                                        <div className="text-[10px] font-semibold text-slate-300 mb-2 flex items-center gap-2">
+                                                            <AlertTriangle className="w-3 h-3 text-yellow-400" /> Risk Areas
+                                                        </div>
+                                                        <div className="flex flex-wrap gap-2">
+                                                            {step.riskAreas.map((area, i) => (
+                                                                <span key={i} className="text-[9px] bg-yellow-900/30 border border-yellow-700/50 text-yellow-200 px-2 py-1 rounded">
+                                                                    {area}
+                                                                </span>
+                                                            ))}
+                                                        </div>
+                                                    </div>
 
-               <div>
-                   <label className="text-[10px] text-slate-500 uppercase">Engine Variables</label>
-                   <div className="mt-1 bg-slate-900 p-2 rounded border border-slate-800 font-mono text-[10px] text-green-400">
-                       Global_Time: 14:02<br/>
-                       Weather: Rain_Heavy<br/>
-                       Player_Faction: Neutral<br/>
-                       Stealth_Meter: 12%
-                   </div>
-               </div>
-           </div>
-      </div>
-    </div>
-  );
+                                                    <button
+                                                        onClick={() => handleCopyStep(`step-${idx}`, step.action)}
+                                                        className="w-full px-3 py-2 bg-slate-700/30 hover:bg-slate-700/50 rounded border border-slate-600/50 text-xs font-semibold text-slate-300 flex items-center justify-center gap-2 transition-colors"
+                                                    >
+                                                        {copiedId === `step-${idx}` ? (
+                                                            <>
+                                                                <CheckCircle2 className="w-3 h-3" /> Copied!
+                                                            </>
+                                                        ) : (
+                                                            <>
+                                                                <Copy className="w-3 h-3" /> Copy Command
+                                                            </>
+                                                        )}
+                                                    </button>
+                                                </div>
+                                            )}
+                                        </div>
+                                    ))}
+                                </div>
+
+                                {/* Expected Outcome */}
+                                <div className="bg-purple-900/20 border border-purple-700/50 rounded-lg p-4">
+                                    <h4 className="text-xs font-bold text-purple-300 uppercase tracking-wide mb-2 flex items-center gap-2">
+                                        <Target className="w-3 h-3" /> Expected Outcome
+                                    </h4>
+                                    <p className="text-sm text-slate-300">{activeScenario.expectedOutcome}</p>
+                                </div>
+                            </div>
+
+                            {/* Test Results Panel */}
+                            <div className="border-t border-slate-800 bg-[#252526] max-h-[35%] flex flex-col">
+                                <div className="sticky top-0 p-4 border-b border-slate-800 bg-[#2d2d2d] flex justify-between items-center">
+                                    <h4 className="text-xs font-bold text-white uppercase tracking-wide">Test Runs ({testRuns.filter(r => r.scenarioId === activeScenario.id).length})</h4>
+                                </div>
+                                <div className="flex-1 overflow-y-auto space-y-2 p-3">
+                                    {testRuns.filter(r => r.scenarioId === activeScenario.id).length === 0 ? (
+                                        <div className="text-center py-6">
+                                            <p className="text-[10px] text-slate-500">No test runs yet. Click "Run Test" above to start.</p>
+                                        </div>
+                                    ) : (
+                                        testRuns.filter(r => r.scenarioId === activeScenario.id).map((run) => (
+                                            <div
+                                                key={run.id}
+                                                className={`p-3 rounded border text-xs ${
+                                                    run.status === 'passed'
+                                                        ? 'bg-green-900/20 border-green-700/50'
+                                                        : 'bg-red-900/20 border-red-700/50'
+                                                }`}
+                                            >
+                                                <div className="flex items-center justify-between mb-1">
+                                                    <span className={`font-bold ${run.status === 'passed' ? 'text-green-300' : 'text-red-300'}`}>
+                                                        {run.status === 'passed' ? '✓ PASSED' : '✗ FAILED'}
+                                                    </span>
+                                                    <span className="text-slate-400">{run.duration}s</span>
+                                                </div>
+                                                <div className="text-[9px] text-slate-400">{run.timestamp}</div>
+                                                {run.issues.length > 0 && (
+                                                    <div className="mt-2 pt-2 border-t border-current/20 space-y-1">
+                                                        {run.issues.map((issue, i) => (
+                                                            <div key={i} className="text-[9px] text-red-300">• {issue}</div>
+                                                        ))}
+                                                    </div>
+                                                )}
+                                            </div>
+                                        ))
+                                    )}
+                                </div>
+                            </div>
+                        </>
+                    ) : (
+                        <div className="flex-1 flex items-center justify-center">
+                            <div className="text-center text-slate-500">
+                                <Gamepad2 className="w-12 h-12 mx-auto mb-3 opacity-50" />
+                                <p>Select a scenario to begin testing</p>
+                            </div>
+                        </div>
+                    )}
+                </div>
+            </div>
+        </div>
+    );
 };
 
 export default Holodeck;

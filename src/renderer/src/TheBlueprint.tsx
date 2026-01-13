@@ -1,315 +1,346 @@
-import React, { useState, useRef } from 'react';
-import { DraftingCompass, Database, Globe, Server, Cloud, Layers, FileCode, Hammer, Save, Download, Cpu, Box, Smartphone, Shield, Zap, RefreshCw, CheckCircle2, ChevronRight } from 'lucide-react';
-import { GoogleGenAI } from "@google/genai";
+import React, { useState } from 'react';
+import { DraftingCompass, Briefcase, CheckCircle2, Copy, ChevronRight, AlertCircle, FileText, Plus, Trash2 } from 'lucide-react';
 
-interface Node {
+// ============================================================================
+// MOD ARCHITECTURE PLANNER - Blueprint for Fallout 4 Mods
+// ============================================================================
+
+interface ModTemplate {
     id: string;
-    type: 'frontend' | 'backend' | 'database' | 'cloud' | 'service';
-    label: string;
-    icon: React.ElementType;
-    x: number;
-    y: number;
-    config: Record<string, string>;
+    name: string;
+    description: string;
+    structure: FileStructure[];
+    components: ModComponent[];
+    dependencies: string[];
 }
 
-interface Edge {
-    from: string;
-    to: string;
-    label?: string;
+interface FileStructure {
+    path: string;
+    type: 'folder' | 'file';
+    description: string;
 }
 
-const initialNodes: Node[] = [
-    { id: '1', type: 'frontend', label: 'React Client', icon: Globe, x: 150, y: 150, config: { framework: 'React 19', port: '3000' } },
-    { id: '2', type: 'backend', label: 'Node API', icon: Server, x: 450, y: 150, config: { runtime: 'Node 20', framework: 'Express' } },
-    { id: '3', type: 'database', label: 'Postgres DB', icon: Database, x: 450, y: 350, config: { version: '16', port: '5432' } },
-];
+interface ModComponent {
+    name: string;
+    type: string;
+    required: boolean;
+    description: string;
+}
 
-const initialEdges: Edge[] = [
-    { from: '1', to: '2', label: 'REST / JSON' },
-    { from: '2', to: '3', label: 'SQL' },
+// ============================================================================
+// MOD RECIPE DATA - Real Fallout 4 Mod Structures
+// ============================================================================
+
+const MOD_TEMPLATES: ModTemplate[] = [
+    {
+        id: 'quest',
+        name: 'Quest Mod',
+        description: 'Multi-stage quest with dialogue, scripts, and stage index',
+        structure: [
+            { path: 'MyQuestMod.esp', type: 'file', description: 'Main plugin (Master data file)' },
+            { path: 'Data/Scripts/Source/', type: 'folder', description: 'Papyrus quest scripts' },
+            { path: 'Data/Seq Files/', type: 'folder', description: 'Compiled Papyrus bytecode' },
+            { path: 'Data/Dialogue/', type: 'folder', description: 'Quest dialogue topics (optional)' },
+            { path: 'Data/Meshes/Custom/', type: 'folder', description: 'Quest-specific geometry' },
+            { path: 'Data/Textures/Custom/', type: 'folder', description: 'Quest-specific textures' },
+        ],
+        components: [
+            { name: 'Quest Record', type: 'QUST', required: true, description: 'Main quest with stages and objectives' },
+            { name: 'Aliases', type: 'ALID', required: true, description: 'References to NPCs/Items in quest' },
+            { name: 'Stages', type: 'QOBJ', required: true, description: 'Quest progression points' },
+            { name: 'Scripts', type: 'SCPT', required: false, description: 'Papyrus logic (fragments or full scripts)' },
+            { name: 'Dialogue', type: 'DIAL', required: false, description: 'Quest-specific dialogue topics' },
+            { name: 'Rewards', type: 'MISC/ARMO/WEAP', required: false, description: 'Items given on completion' },
+        ],
+        dependencies: ['Fallout4.esm'],
+    },
+    {
+        id: 'settlement',
+        name: 'Settlement Expansion',
+        description: 'New settlement workbenches, plots, and build-able objects',
+        structure: [
+            { path: 'SettlementPack.esp', type: 'file', description: 'Main plugin' },
+            { path: 'Data/Meshes/Settlement/', type: 'folder', description: 'Custom settlement objects' },
+            { path: 'Data/Textures/Settlement/', type: 'folder', description: 'Textures for custom objects' },
+            { path: 'Data/Materials/', type: 'folder', description: 'Material definitions (NIFs)' },
+            { path: 'Data/Scripts/Source/', type: 'folder', description: 'Settlement logic scripts (optional)' },
+        ],
+        components: [
+            { name: 'Workbench', type: 'FURN', required: true, description: 'Settlement workbench (Crafting/Decorating)' },
+            { name: 'Workshop Markers', type: 'WTST', required: true, description: 'Workshop settlement markers' },
+            { name: 'Build Plots', type: 'PLYM', required: false, description: 'Buildable plot objects' },
+            { name: 'Furniture', type: 'FURN', required: false, description: 'Decorative/functional furniture' },
+            { name: 'Activators', type: 'ACTI', required: false, description: 'Clickable objects (doors, gates, etc)' },
+            { name: 'Navmesh', type: 'NAVM', required: false, description: 'NPC pathfinding mesh (required for NPCs)' },
+        ],
+        dependencies: ['Fallout4.esm', 'DLCWorkshop01.esm', 'DLCWorkshop02.esm', 'DLCWorkshop03.esm'],
+    },
+    {
+        id: 'companion',
+        name: 'NPC Companion',
+        description: 'New follower with dialogue, perks, and AI packages',
+        structure: [
+            { path: 'CompanionMod.esp', type: 'file', description: 'Main plugin' },
+            { path: 'Data/Meshes/Actors/Character/', type: 'folder', description: 'Custom facial geometry (FaceGen)' },
+            { path: 'Data/Textures/Actors/Character/', type: 'folder', description: 'Character textures and head parts' },
+            { path: 'Data/Voice/', type: 'folder', description: 'Voice lines (optional, lip-synced)' },
+            { path: 'Data/Scripts/Source/', type: 'folder', description: 'Companion AI and behavior scripts' },
+        ],
+        components: [
+            { name: 'NPC Record', type: 'NPC_', required: true, description: 'Character data (race, stats, skills)' },
+            { name: 'Dialogue', type: 'DIAL', required: true, description: 'Greetings and dialogue topics' },
+            { name: 'AI Packages', type: 'PACK', required: true, description: 'Behavior routines and daily schedules' },
+            { name: 'Factions', type: 'FACT', required: false, description: 'Faction membership' },
+            { name: 'Perks', type: 'PERK', required: false, description: 'Companion-specific perks' },
+            { name: 'Combat Style', type: 'CSTL', required: false, description: 'How companion fights' },
+        ],
+        dependencies: ['Fallout4.esm'],
+    },
+    {
+        id: 'weapons',
+        name: 'Weapon/Armor Pack',
+        description: 'New weapons or armor with meshes, textures, and balancing',
+        structure: [
+            { path: 'WeaponPack.esp', type: 'file', description: 'Main plugin' },
+            { path: 'Data/Meshes/Weapons/', type: 'folder', description: 'Weapon geometry (NIF files)' },
+            { path: 'Data/Meshes/Armor/', type: 'folder', description: 'Armor geometry' },
+            { path: 'Data/Textures/Weapons/', type: 'folder', description: 'Diffuse, normal, smoothness maps' },
+            { path: 'Data/Textures/Armor/', type: 'folder', description: 'Armor textures' },
+            { path: 'Data/Scripts/Source/', type: 'folder', description: 'Enchantment/effect scripts (optional)' },
+        ],
+        components: [
+            { name: 'Weapon Record', type: 'WEAP', required: true, description: 'Weapon stats, damage, perks' },
+            { name: 'Armor Record', type: 'ARMO', required: true, description: 'Armor stats, DR, slots' },
+            { name: 'Keywords', type: 'KYWD', required: true, description: 'Categorization (Rifle, Heavy, etc)' },
+            { name: 'Models', type: 'Static', required: true, description: 'NIF mesh references' },
+            { name: 'Textures', type: 'DDS', required: true, description: 'Diffuse + Normal + Spec maps' },
+            { name: 'Crafting Recipe', type: 'COBJ', required: false, description: 'How to craft at workbench' },
+        ],
+        dependencies: ['Fallout4.esm', 'ArmorKeywords.esm'],
+    },
+    {
+        id: 'worldexpansion',
+        name: 'World Expansion',
+        description: 'New cells, cells, creatures, encounters, and environmental storytelling',
+        structure: [
+            { path: 'WorldExpansion.esp', type: 'file', description: 'Main plugin' },
+            { path: 'Data/Meshes/Cells/', type: 'folder', description: 'Cell-specific architecture and objects' },
+            { path: 'Data/Textures/Cells/', type: 'folder', description: 'Cell textures' },
+            { path: 'Data/Landscapes/', type: 'folder', description: 'Heightmaps and terrain (if expanding Tamriel)' },
+            { path: 'Data/Scripts/Source/', type: 'folder', description: 'Encounter scripting' },
+        ],
+        components: [
+            { name: 'Cell', type: 'CELL', required: true, description: 'Interior or exterior cell data' },
+            { name: 'References', type: 'REFR', required: true, description: 'Objects, NPCs, traps placed in cell' },
+            { name: 'Navmesh', type: 'NAVM', required: true, description: 'NPC pathfinding' },
+            { name: 'Creatures', type: 'CREA', required: false, description: 'Custom encounter creatures' },
+            { name: 'Traps', type: 'TRAP', required: false, description: 'Pressure plates, swinging blades, etc' },
+            { name: 'Lighting', type: 'LIGH', required: false, description: 'Light sources and effects' },
+        ],
+        dependencies: ['Fallout4.esm'],
+    },
 ];
 
 const TheBlueprint: React.FC = () => {
-    const [nodes, setNodes] = useState<Node[]>(initialNodes);
-    const [edges, setEdges] = useState<Edge[]>(initialEdges);
-    const [selectedNode, setSelectedNode] = useState<Node | null>(null);
-    const [isGenerating, setIsGenerating] = useState(false);
-    const [scaffoldResult, setScaffoldResult] = useState<string | null>(null);
+    const [selectedTemplate, setSelectedTemplate] = useState<ModTemplate>(MOD_TEMPLATES[0]);
+    const [expandedStructure, setExpandedStructure] = useState<string | null>(null);
+    const [copiedPath, setCopiedPath] = useState<string | null>(null);
 
-    // --- Actions ---
-
-    const addNode = (type: Node['type']) => {
-        const id = Date.now().toString();
-        const baseConfig = type === 'database' ? { type: 'Postgres' } : type === 'frontend' ? { framework: 'React' } : { runtime: 'Node' };
+    const handleCopyStructure = async () => {
+        const structureText = selectedTemplate.structure
+            .map(item => `${item.type === 'folder' ? '📁' : '📄'} ${item.path} - ${item.description}`)
+            .join('\n');
         
-        const newNode: Node = {
-            id,
-            type,
-            label: `New ${type.charAt(0).toUpperCase() + type.slice(1)}`,
-            icon: type === 'database' ? Database : type === 'frontend' ? Globe : type === 'cloud' ? Cloud : Server,
-            x: 100 + Math.random() * 50,
-            y: 100 + Math.random() * 50,
-            config: baseConfig
-        };
-        setNodes(prev => [...prev, newNode]);
-        setSelectedNode(newNode);
+        navigator.clipboard.writeText(structureText);
+        setCopiedPath('all');
+        setTimeout(() => setCopiedPath(null), 2000);
     };
 
-    const updateNodeConfig = (key: string, value: string) => {
-        if (!selectedNode) return;
-        const updated = { ...selectedNode, config: { ...selectedNode.config, [key]: value } };
-        setNodes(prev => prev.map(n => n.id === selectedNode.id ? updated : n));
-        setSelectedNode(updated);
-    };
-
-    const handleMaterialize = async () => {
-        setIsGenerating(true);
-        setScaffoldResult(null);
-
-        try {
-            const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-            
-            const architectureJson = JSON.stringify({ nodes, edges });
-            
-            const prompt = `
-            Act as a Senior DevOps Engineer. Analyze this system architecture: ${architectureJson}.
-            Generate a detailed project scaffolding plan.
-            Output a JSON object with:
-            1. "summary": A brief description of the stack.
-            2. "files": An array of objects { path: string, content: string } representing key config files (e.g., docker-compose.yml, package.json, schema.sql).
-            Limit file content to 5-10 lines of pseudocode or key config for brevity.
-            `;
-
-            const response = await ai.models.generateContent({
-                model: 'gemini-3-flash-preview',
-                contents: prompt,
-                config: { responseMimeType: 'application/json' }
-            });
-
-            const result = JSON.parse(response.text);
-            
-            // Artificial delay for effect
-            setTimeout(() => {
-                setScaffoldResult(JSON.stringify(result, null, 2));
-                setIsGenerating(false);
-            }, 1000);
-
-        } catch (e) {
-            console.error(e);
-            setScaffoldResult(JSON.stringify({ error: "Failed to generate scaffold plan." }));
-            setIsGenerating(false);
-        }
+    const handleCopyPath = (path: string) => {
+        navigator.clipboard.writeText(path);
+        setCopiedPath(path);
+        setTimeout(() => setCopiedPath(null), 2000);
     };
 
     return (
-        <div className="h-full flex flex-col bg-slate-950 text-slate-200 font-sans overflow-hidden">
+        <div className="h-full flex flex-col bg-[#1e1e1e] text-slate-200 font-sans overflow-hidden">
             {/* Header */}
-            <div className="p-4 border-b border-slate-800 bg-slate-900 flex justify-between items-center z-10 shadow-md">
+            <div className="p-4 border-b border-black bg-[#2d2d2d] flex justify-between items-center shadow-md">
                 <div>
-                    <h2 className="text-xl font-bold text-white flex items-center gap-2">
-                        <DraftingCompass className="w-6 h-6 text-blue-400" />
+                    <h2 className="text-lg font-bold text-white flex items-center gap-2">
+                        <DraftingCompass className="w-5 h-5 text-amber-400" />
                         The Blueprint
                     </h2>
-                    <p className="text-xs text-slate-400 font-mono mt-1">System Architecture & AI Scaffolding</p>
+                    <p className="text-[10px] text-slate-400 font-mono mt-0.5">Mod Architecture Planner v2.1.0</p>
                 </div>
-                <div className="flex gap-2">
-                    <button 
-                        onClick={handleMaterialize}
-                        disabled={isGenerating}
-                        className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-lg transition-all shadow-[0_0_15px_rgba(37,99,235,0.3)] disabled:opacity-50"
-                    >
-                        {isGenerating ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Hammer className="w-4 h-4 fill-current" />}
-                        {isGenerating ? 'Architecting...' : 'Materialize Code'}
-                    </button>
+                <div className="px-3 py-1 bg-black rounded border border-slate-600 font-mono text-xs text-amber-400">
+                    {MOD_TEMPLATES.length} Templates
                 </div>
             </div>
 
             <div className="flex-1 flex overflow-hidden">
-                {/* Palette */}
-                <div className="w-20 bg-slate-900 border-r border-slate-800 flex flex-col items-center py-4 gap-4 z-10">
-                    <button onClick={() => addNode('frontend')} className="p-3 bg-slate-800 hover:bg-blue-900/30 text-blue-400 rounded-xl transition-colors tooltip-trigger" title="Frontend">
-                        <Globe className="w-6 h-6" />
-                    </button>
-                    <button onClick={() => addNode('backend')} className="p-3 bg-slate-800 hover:bg-emerald-900/30 text-emerald-400 rounded-xl transition-colors" title="Backend">
-                        <Server className="w-6 h-6" />
-                    </button>
-                    <button onClick={() => addNode('database')} className="p-3 bg-slate-800 hover:bg-amber-900/30 text-amber-400 rounded-xl transition-colors" title="Database">
-                        <Database className="w-6 h-6" />
-                    </button>
-                    <button onClick={() => addNode('cloud')} className="p-3 bg-slate-800 hover:bg-purple-900/30 text-purple-400 rounded-xl transition-colors" title="Cloud Service">
-                        <Cloud className="w-6 h-6" />
-                    </button>
-                    <div className="h-px w-10 bg-slate-800 my-2"></div>
-                    <button className="p-3 hover:text-white text-slate-500 transition-colors" title="Settings">
-                        <Layers className="w-6 h-6" />
-                    </button>
+                {/* Left: Template List */}
+                <div className="w-64 bg-[#252526] border-r border-black flex flex-col">
+                    <div className="p-2 bg-[#333333] border-b border-black text-[10px] font-bold text-slate-300 uppercase tracking-wider">
+                        Mod Templates
+                    </div>
+                    <div className="flex-1 overflow-y-auto">
+                        {MOD_TEMPLATES.map((template) => (
+                            <div
+                                key={template.id}
+                                onClick={() => setSelectedTemplate(template)}
+                                className={`p-3 border-b border-slate-800 cursor-pointer transition-colors ${
+                                    selectedTemplate.id === template.id
+                                        ? 'bg-amber-900/30 border-l-4 border-l-amber-400'
+                                        : 'hover:bg-[#2d2d30]'
+                                }`}
+                            >
+                                <div className="font-semibold text-slate-200 text-sm">{template.name}</div>
+                                <div className="text-[10px] text-slate-500 mt-0.5">{template.description}</div>
+                                <div className="flex gap-1 mt-2">
+                                    <span className="px-1.5 py-0.5 bg-slate-800 text-[9px] text-slate-400 rounded">
+                                        {template.components.length} components
+                                    </span>
+                                    <span className="px-1.5 py-0.5 bg-slate-800 text-[9px] text-slate-400 rounded">
+                                        {template.structure.length} files
+                                    </span>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
                 </div>
 
-                {/* Canvas */}
-                <div className="flex-1 relative bg-[#0f172a] overflow-hidden">
-                    {/* Blueprint Grid Pattern */}
-                    <div className="absolute inset-0 opacity-10 pointer-events-none" 
-                         style={{ 
-                             backgroundImage: 'linear-gradient(#3b82f6 1px, transparent 1px), linear-gradient(90deg, #3b82f6 1px, transparent 1px)', 
-                             backgroundSize: '40px 40px' 
-                         }}>
+                {/* Center/Right: Template Details */}
+                <div className="flex-1 flex flex-col overflow-hidden">
+                    {/* Template Tabs */}
+                    <div className="flex border-b border-black bg-[#252526]">
+                        <button
+                            onClick={() => setExpandedStructure('structure')}
+                            className={`px-4 py-2 text-xs font-semibold border-b-2 transition-colors ${
+                                expandedStructure === 'structure'
+                                    ? 'border-amber-400 text-amber-300'
+                                    : 'border-transparent text-slate-400 hover:text-slate-300'
+                            }`}
+                        >
+                            Folder Structure
+                        </button>
+                        <button
+                            onClick={() => setExpandedStructure('components')}
+                            className={`px-4 py-2 text-xs font-semibold border-b-2 transition-colors ${
+                                expandedStructure === 'components'
+                                    ? 'border-amber-400 text-amber-300'
+                                    : 'border-transparent text-slate-400 hover:text-slate-300'
+                            }`}
+                        >
+                            Required Components
+                        </button>
+                        <button
+                            onClick={() => setExpandedStructure('dependencies')}
+                            className={`px-4 py-2 text-xs font-semibold border-b-2 transition-colors ${
+                                expandedStructure === 'dependencies'
+                                    ? 'border-amber-400 text-amber-300'
+                                    : 'border-transparent text-slate-400 hover:text-slate-300'
+                            }`}
+                        >
+                            Dependencies
+                        </button>
                     </div>
 
-                    <svg className="absolute inset-0 w-full h-full pointer-events-none">
-                        <defs>
-                            <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="28" refY="3.5" orient="auto">
-                                <polygon points="0 0, 10 3.5, 0 7" fill="#475569" />
-                            </marker>
-                        </defs>
-                        {edges.map((edge, i) => {
-                            const from = nodes.find(n => n.id === edge.from);
-                            const to = nodes.find(n => n.id === edge.to);
-                            if (!from || !to) return null;
-                            return (
-                                <g key={i}>
-                                    <line 
-                                        x1={from.x + 80} y1={from.y + 40} 
-                                        x2={to.x + 80} y2={to.y + 40} 
-                                        stroke="#475569" 
-                                        strokeWidth="2"
-                                        strokeDasharray="5,5"
-                                        markerEnd="url(#arrowhead)"
-                                    />
-                                    {edge.label && (
-                                        <text x={(from.x + to.x + 160)/2} y={(from.y + to.y + 80)/2 - 10} fill="#94a3b8" fontSize="10" textAnchor="middle" className="bg-slate-900">
-                                            {edge.label}
-                                        </text>
-                                    )}
-                                </g>
-                            );
-                        })}
-                    </svg>
-
-                    {nodes.map(node => (
-                        <div 
-                            key={node.id}
-                            className={`absolute w-40 p-4 rounded-xl border-2 backdrop-blur-sm transition-all cursor-move shadow-lg ${
-                                selectedNode?.id === node.id 
-                                ? 'border-blue-400 bg-blue-900/20 shadow-blue-900/20' 
-                                : 'border-slate-700 bg-slate-800/80 hover:border-slate-500'
-                            }`}
-                            style={{ left: node.x, top: node.y }}
-                            onClick={() => setSelectedNode(node)}
-                        >
-                            <div className="flex justify-center mb-2">
-                                <node.icon className={`w-8 h-8 ${
-                                    node.type === 'frontend' ? 'text-blue-400' : 
-                                    node.type === 'backend' ? 'text-emerald-400' :
-                                    node.type === 'database' ? 'text-amber-400' : 'text-purple-400'
-                                }`} />
-                            </div>
-                            <div className="text-center">
-                                <div className="text-xs font-bold text-slate-300 truncate">{node.label}</div>
-                                <div className="text-[10px] text-slate-500 uppercase mt-1">{node.type}</div>
-                            </div>
-                            
-                            {/* Connectors */}
-                            <div className="absolute top-1/2 -right-1 w-2 h-2 bg-slate-500 rounded-full"></div>
-                            <div className="absolute top-1/2 -left-1 w-2 h-2 bg-slate-500 rounded-full"></div>
-                        </div>
-                    ))}
-                </div>
-
-                {/* Right Panel: Properties or Results */}
-                <div className="w-80 bg-slate-900 border-l border-slate-800 flex flex-col">
-                    {scaffoldResult ? (
-                        <div className="flex-1 flex flex-col h-full">
-                            <div className="p-4 border-b border-slate-800 bg-emerald-900/20">
-                                <h3 className="text-sm font-bold text-emerald-400 flex items-center gap-2">
-                                    <CheckCircle2 className="w-4 h-4" /> Scaffolding Ready
-                                </h3>
-                            </div>
-                            <div className="flex-1 overflow-y-auto p-4 space-y-4">
-                                {(() => {
-                                    try {
-                                        const data = JSON.parse(scaffoldResult);
-                                        return (
-                                            <>
-                                                <div className="text-xs text-slate-300 italic mb-4">{data.summary}</div>
-                                                {data.files.map((file: any, i: number) => (
-                                                    <div key={i} className="bg-black rounded-lg border border-slate-800 overflow-hidden">
-                                                        <div className="px-3 py-2 border-b border-slate-800 text-xs font-mono text-blue-300 flex justify-between items-center bg-slate-900/50">
-                                                            {file.path}
-                                                            <FileCode className="w-3 h-3 text-slate-500" />
-                                                        </div>
-                                                        <pre className="p-3 text-[10px] font-mono text-slate-400 overflow-x-auto custom-scrollbar">
-                                                            {file.content}
-                                                        </pre>
-                                                    </div>
-                                                ))}
-                                            </>
-                                        );
-                                    } catch (e) { return <div className="text-red-400 text-xs">Parsing Error</div>; }
-                                })()}
-                            </div>
-                            <div className="p-4 border-t border-slate-800">
-                                <button 
-                                    onClick={() => setScaffoldResult(null)}
-                                    className="w-full py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold rounded flex items-center justify-center gap-2"
-                                >
-                                    Back to Editor
-                                </button>
-                                <button className="w-full mt-2 py-2 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold rounded flex items-center justify-center gap-2">
-                                    <Download className="w-3 h-3" /> Export Project
-                                </button>
-                            </div>
-                        </div>
-                    ) : selectedNode ? (
-                        <div className="p-6">
-                            <div className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-4">Component Config</div>
-                            
-                            <div className="space-y-4">
-                                <div>
-                                    <label className="block text-xs text-slate-400 mb-1">Label</label>
-                                    <input 
-                                        type="text" 
-                                        value={selectedNode.label} 
-                                        onChange={(e) => {
-                                            const updated = { ...selectedNode, label: e.target.value };
-                                            setNodes(prev => prev.map(n => n.id === selectedNode.id ? updated : n));
-                                            setSelectedNode(updated);
-                                        }}
-                                        className="w-full bg-slate-800 border border-slate-700 rounded px-2 py-1 text-sm text-white focus:border-blue-500 outline-none"
-                                    />
-                                </div>
-                                
-                                {Object.entries(selectedNode.config).map(([key, val]) => (
-                                    <div key={key}>
-                                        <label className="block text-xs text-slate-400 mb-1 capitalize">{key}</label>
-                                        <input 
-                                            type="text" 
-                                            value={val} 
-                                            onChange={(e) => updateNodeConfig(key, e.target.value)}
-                                            className="w-full bg-slate-800 border border-slate-700 rounded px-2 py-1 text-sm text-white focus:border-blue-500 outline-none font-mono"
-                                        />
-                                    </div>
-                                ))}
-
-                                <div className="pt-4 border-t border-slate-800">
-                                    <button 
-                                        onClick={() => {
-                                            setNodes(prev => prev.filter(n => n.id !== selectedNode.id));
-                                            setEdges(prev => prev.filter(e => e.from !== selectedNode.id && e.to !== selectedNode.id));
-                                            setSelectedNode(null);
-                                        }}
-                                        className="text-red-400 text-xs hover:underline flex items-center gap-1"
+                    {/* Content Area */}
+                    <div className="flex-1 overflow-y-auto p-4">
+                        {/* FOLDER STRUCTURE TAB */}
+                        {expandedStructure !== 'components' && expandedStructure !== 'dependencies' && (
+                            <div className="space-y-2">
+                                <div className="flex justify-between items-center mb-4">
+                                    <h3 className="font-semibold text-slate-200">Folder & File Structure</h3>
+                                    <button
+                                        onClick={handleCopyStructure}
+                                        className="p-1 hover:bg-slate-700 rounded transition-colors"
                                     >
-                                        Remove Component
+                                        {copiedPath === 'all' ? (
+                                            <CheckCircle2 className="w-4 h-4 text-green-400" />
+                                        ) : (
+                                            <Copy className="w-4 h-4 text-slate-400" />
+                                        )}
                                     </button>
                                 </div>
+                                {selectedTemplate.structure.map((item, idx) => (
+                                    <div key={idx} className="bg-[#252526] border border-slate-700 rounded p-3 hover:border-slate-600 transition-colors">
+                                        <div className="flex items-start justify-between mb-1">
+                                            <div className="flex items-center gap-2">
+                                                <span className="text-amber-400 font-mono text-sm">
+                                                    {item.type === 'folder' ? '📁' : '📄'}
+                                                </span>
+                                                <code className="text-slate-300 font-mono text-xs">{item.path}</code>
+                                            </div>
+                                            <button
+                                                onClick={() => handleCopyPath(item.path)}
+                                                className="p-1 hover:bg-slate-600 rounded transition-colors"
+                                            >
+                                                {copiedPath === item.path ? (
+                                                    <CheckCircle2 className="w-3 h-3 text-green-400" />
+                                                ) : (
+                                                    <Copy className="w-3 h-3 text-slate-500" />
+                                                )}
+                                            </button>
+                                        </div>
+                                        <p className="text-[10px] text-slate-500 pl-6">{item.description}</p>
+                                    </div>
+                                ))}
                             </div>
-                        </div>
-                    ) : (
-                        <div className="flex-1 flex flex-col items-center justify-center text-slate-600 p-6 text-center">
-                            <DraftingCompass className="w-12 h-12 mb-4 opacity-20" />
-                            <p className="text-sm">Select a component to configure properties.</p>
-                        </div>
-                    )}
+                        )}
+
+                        {/* COMPONENTS TAB */}
+                        {expandedStructure === 'components' && (
+                            <div className="space-y-3">
+                                <h3 className="font-semibold text-slate-200 mb-4">Required & Optional Components</h3>
+                                {selectedTemplate.components.map((comp, idx) => (
+                                    <div key={idx} className={`bg-[#252526] border rounded p-3 ${comp.required ? 'border-red-700/50' : 'border-slate-700'}`}>
+                                        <div className="flex items-start justify-between mb-2">
+                                            <div>
+                                                <div className="font-semibold text-slate-200 text-sm flex items-center gap-2">
+                                                    {comp.name}
+                                                    {comp.required && (
+                                                        <span className="px-1.5 py-0.5 bg-red-900/40 text-red-300 text-[8px] font-bold rounded">
+                                                            REQUIRED
+                                                        </span>
+                                                    )}
+                                                </div>
+                                                <div className="text-[10px] text-slate-500 font-mono">{comp.type}</div>
+                                            </div>
+                                        </div>
+                                        <p className="text-[10px] text-slate-400">{comp.description}</p>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+
+                        {/* DEPENDENCIES TAB */}
+                        {expandedStructure === 'dependencies' && (
+                            <div className="space-y-3">
+                                <h3 className="font-semibold text-slate-200 mb-4">Master Files & Dependencies</h3>
+                                {selectedTemplate.dependencies.length > 0 ? (
+                                    selectedTemplate.dependencies.map((dep, idx) => (
+                                        <div key={idx} className="bg-[#252526] border border-blue-700/50 rounded p-3">
+                                            <div className="flex items-center gap-2">
+                                                <Briefcase className="w-4 h-4 text-blue-400" />
+                                                <div>
+                                                    <div className="font-semibold text-slate-200 text-sm">{dep}</div>
+                                                    <div className="text-[10px] text-slate-500 mt-0.5">
+                                                        {dep === 'Fallout4.esm' && 'Base game master file - required for all mods'}
+                                                        {dep.includes('DLC') && `${dep} - DLC master file`}
+                                                        {dep === 'ArmorKeywords.esm' && 'Armor metadata - shared keywords across armor mods'}
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    ))
+                                ) : (
+                                    <div className="text-slate-500 text-sm p-4 text-center">No external dependencies</div>
+                                )}
+                            </div>
+                        )}
+                    </div>
                 </div>
             </div>
         </div>

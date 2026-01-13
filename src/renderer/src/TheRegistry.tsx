@@ -1,111 +1,97 @@
-import React, { useState } from 'react';
-import { GoogleGenAI } from "@google/genai";
-import { FileDigit, AlertTriangle, GitMerge, Microscope, Check, ShieldAlert, ArrowRight, Save, Database, Layers } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { FileDigit, AlertTriangle, Network, Plus, Trash2, ArrowRight, Database, Settings, Copy, Check } from 'lucide-react';
+
+// ============================================================================
+// LOAD ORDER MANAGER
+// ============================================================================
 
 interface Plugin {
     id: string;
     name: string;
-    index: string; // 00, 01, etc.
+    index: string;
     type: 'esm' | 'esp' | 'esl';
     author: string;
+    dependencies: string[];
+    conflicts: string[];
 }
 
-interface Record {
+// ============================================================================
+// FORM ID DATABASE
+// ============================================================================
+
+interface FormIDRecord {
     id: string;
     formId: string;
     editorId: string;
-    type: string; // WEAP, ARMO, NPC_
-    conflictStatus: 'clean' | 'override' | 'conflict' | 'critical';
+    recordType: string;
+    owningPlugin: string;
+    isConflict: boolean;
+    conflicts: string[];
 }
 
-interface DataField {
-    key: string;
-    masterValue: string;
-    overrideValue: string;
-    isConflict: boolean;
+// ============================================================================
+// PLUGIN DEPENDENCY GRAPH
+// ============================================================================
+
+interface DependencyNode {
+    pluginName: string;
+    author: string;
+    conflicts: string[];
+    dependsOn: string[];
 }
+
+// ============================================================================
+// SAMPLE DATA
+// ============================================================================
+
+const SAMPLE_PLUGINS: Plugin[] = [
+    { id: '0', name: 'Fallout4.esm', index: '00', type: 'esm', author: 'Bethesda', dependencies: [], conflicts: [] },
+    { id: '1', name: 'DLCRobot.esm', index: 'FE:000', type: 'esm', author: 'Bethesda', dependencies: ['Fallout4.esm'], conflicts: [] },
+    { id: '2', name: 'Unofficial Fallout 4 Patch.esp', index: '01', type: 'esp', author: 'Arthmoor', dependencies: ['Fallout4.esm'], conflicts: [] },
+    { id: '3', name: 'ArmorKeywords.esm', index: 'FE:001', type: 'esm', author: 'Valdacil', dependencies: ['Fallout4.esm'], conflicts: [] },
+    { id: '4', name: 'BetterWeapons.esp', index: '02', type: 'esp', author: 'Creative Clam', dependencies: ['Fallout4.esm', 'ArmorKeywords.esm'], conflicts: ['WeaponExpansion.esp'] },
+    { id: '5', name: 'ClassicNPCs.esp', index: '03', type: 'esp', author: 'naugrim04', dependencies: ['Fallout4.esm', 'Unofficial Fallout 4 Patch.esp'], conflicts: [] },
+];
+
+const SAMPLE_FORMIDS: FormIDRecord[] = [
+    { id: 'f1', formId: '00024E5E', editorId: 'Minigun', recordType: 'WEAP', owningPlugin: 'Fallout4.esm', isConflict: false, conflicts: [] },
+    { id: 'f2', formId: '0004B234', editorId: 'CombatRifle', recordType: 'WEAP', owningPlugin: 'Fallout4.esm', isConflict: true, conflicts: ['BetterWeapons.esp'] },
+    { id: 'f3', formId: '00129A88', editorId: 'PowerArmorT60', recordType: 'ARMO', owningPlugin: 'Fallout4.esm', isConflict: true, conflicts: ['BetterWeapons.esp'] },
+    { id: 'f4', formId: '000D83BF', editorId: 'Stimpack', recordType: 'ALCH', owningPlugin: 'Fallout4.esm', isConflict: false, conflicts: [] },
+    { id: 'f5', formId: '02000800', editorId: 'CombatRifleMkII', recordType: 'WEAP', owningPlugin: 'BetterWeapons.esp', isConflict: true, conflicts: ['ClassicNPCs.esp'] },
+    { id: 'f6', formId: '02000801', editorId: 'PlasmaRifleMkIII', recordType: 'WEAP', owningPlugin: 'BetterWeapons.esp', isConflict: false, conflicts: [] },
+];
+
+// ============================================================================
+// MAIN COMPONENT
+// ============================================================================
 
 const TheRegistry: React.FC = () => {
-    const [plugins, setPlugins] = useState<Plugin[]>([
-        { id: '0', name: 'Fallout4.esm', index: '00', type: 'esm', author: 'Bethesda' },
-        { id: '1', name: 'DLCRobot.esm', index: '01', type: 'esm', author: 'Bethesda' },
-        { id: '2', name: 'Unofficial Fallout 4 Patch.esp', index: '02', type: 'esp', author: 'Arthmoor' },
-        { id: '3', name: 'ArmorKeywords.esm', index: '03', type: 'esm', author: 'Valdacil' },
-        { id: '4', name: 'BetterMod.esp', index: '04', type: 'esp', author: 'User' },
-    ]);
+    const [activeTab, setActiveTab] = useState<'loadorder' | 'formids' | 'dependency'>('loadorder');
+    const [plugins, setPlugins] = useState<Plugin[]>(SAMPLE_PLUGINS);
+    const [formids, setFormids] = useState<FormIDRecord[]>(SAMPLE_FORMIDS);
+    const [selectedFormID, setSelectedFormID] = useState<FormIDRecord | null>(null);
+    const [copiedFormID, setCopiedFormID] = useState<string | null>(null);
 
-    const [records, setRecords] = useState<Record[]>([
-        { id: 'r1', formId: '0001F66B', editorId: 'Minigun', type: 'WEAP', conflictStatus: 'clean' },
-        { id: 'r2', formId: '0004B234', editorId: 'CombatRifle', type: 'WEAP', conflictStatus: 'conflict' },
-        { id: 'r3', formId: '00129A88', editorId: 'PowerArmorT60', type: 'ARMO', conflictStatus: 'override' },
-        { id: 'r4', formId: '000D83BF', editorId: 'Stimpack', type: 'ALCH', conflictStatus: 'critical' },
-    ]);
+    // Calculate conflict count
+    const conflictCount = plugins.reduce((sum, p) => sum + p.conflicts.length, 0);
+    const formidConflictCount = formids.filter(f => f.isConflict).length;
 
-    const [selectedRecord, setSelectedRecord] = useState<Record | null>(null);
-    const [recordData, setRecordData] = useState<DataField[]>([]);
-    const [analysis, setAnalysis] = useState<string | null>(null);
-    const [isAnalyzing, setIsAnalyzing] = useState(false);
-
-    // Mock data population
-    const handleSelectRecord = (rec: Record) => {
-        setSelectedRecord(rec);
-        setAnalysis(null);
-        
-        // Simulate xEdit comparison view
-        const mockFields: DataField[] = [
-            { key: 'FULL - Name', masterValue: rec.editorId, overrideValue: rec.editorId + " [Mk II]", isConflict: true },
-            { key: 'DATA - Damage', masterValue: '32', overrideValue: '45', isConflict: true },
-            { key: 'DATA - Weight', masterValue: '12.5', overrideValue: '10.0', isConflict: true },
-            { key: 'DESC - Description', masterValue: 'Standard issue rifle.', overrideValue: 'Modified for superior stopping power.', isConflict: true },
-            { key: 'KYWD - Keywords', masterValue: 'WeaponTypeRifle', overrideValue: 'WeaponTypeRifle', isConflict: false },
-        ];
-        
-        // If clean, values match
-        if (rec.conflictStatus === 'clean') {
-            mockFields.forEach(f => {
-                f.overrideValue = f.masterValue;
-                f.isConflict = false;
-            });
-        }
-
-        setRecordData(mockFields);
+    // Handle copy to clipboard
+    const handleCopyFormID = (formId: string) => {
+        navigator.clipboard.writeText(formId);
+        setCopiedFormID(formId);
+        setTimeout(() => setCopiedFormID(null), 2000);
     };
 
-    const analyzeConflict = async () => {
-        if (!selectedRecord) return;
-        setIsAnalyzing(true);
-
-        try {
-            const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-            
-            // Build a prompt that describes the conflict
-            const conflictDesc = recordData.filter(f => f.isConflict).map(f => `${f.key}: Master="${f.masterValue}" vs Plugin="${f.overrideValue}"`).join('\n');
-            
-            const prompt = `
-            Act as an expert Fallout 4 modder using xEdit.
-            Analyze this record conflict for '${selectedRecord.editorId}' (${selectedRecord.type}).
-            
-            Conflicts:
-            ${conflictDesc}
-            
-            1. Is this a dangerous conflict? (Critical/Warning/Safe)
-            2. Explain what the change does to gameplay.
-            3. Should the user keep the override?
-            `;
-
-            const response = await ai.models.generateContent({
-                model: 'gemini-3-flash-preview',
-                contents: prompt,
-            });
-
-            setAnalysis(response.text);
-
-        } catch (e) {
-            console.error(e);
-            setAnalysis("Neural link failure. Cannot analyze conflict.");
-        } finally {
-            setIsAnalyzing(false);
-        }
+    // Build dependency graph data
+    const buildDependencyGraph = (): DependencyNode[] => {
+        return plugins.map(p => ({
+            pluginName: p.name,
+            author: p.author,
+            conflicts: p.conflicts,
+            dependsOn: p.dependencies,
+        }));
     };
 
     return (
@@ -117,138 +103,233 @@ const TheRegistry: React.FC = () => {
                         <FileDigit className="w-5 h-5 text-orange-400" />
                         The Registry
                     </h2>
-                    <p className="text-[10px] text-slate-400 font-mono mt-0.5">FO4Edit Neural Interface v4.0.4</p>
+                    <p className="text-[10px] text-slate-400 font-mono mt-0.5">Mod Management Nexus v3.2.0</p>
                 </div>
                 <div className="flex gap-2">
                     <div className="px-3 py-1 bg-black rounded border border-slate-600 font-mono text-xs text-green-400">
                         Plugins: {plugins.length}
                     </div>
-                    <div className="px-3 py-1 bg-black rounded border border-slate-600 font-mono text-xs text-blue-400">
-                        Records: 14,203
+                    <div className="px-3 py-1 bg-black rounded border border-slate-600 font-mono text-xs text-red-400">
+                        Conflicts: {conflictCount + formidConflictCount}
                     </div>
                 </div>
             </div>
 
-            <div className="flex-1 flex overflow-hidden">
-                
-                {/* Left: Load Order */}
-                <div className="w-64 bg-[#252526] border-r border-black flex flex-col">
-                    <div className="p-2 bg-[#333333] border-b border-black text-[10px] font-bold text-slate-300 uppercase tracking-wider">
-                        Load Order
-                    </div>
-                    <div className="flex-1 overflow-y-auto p-2 space-y-1">
-                        {plugins.map(plugin => (
-                            <div key={plugin.id} className="flex items-center gap-2 px-2 py-1 hover:bg-[#3e3e42] rounded cursor-pointer group">
-                                <span className="font-mono text-[10px] text-slate-500 w-6">{plugin.index}</span>
-                                <span className={`text-xs truncate ${plugin.type === 'esm' ? 'text-blue-300 font-bold' : 'text-slate-300'}`}>
-                                    {plugin.name}
-                                </span>
-                            </div>
-                        ))}
-                    </div>
-                </div>
+            {/* Tabs */}
+            <div className="flex border-b border-black bg-[#252526]">
+                <button
+                    onClick={() => setActiveTab('loadorder')}
+                    className={`px-4 py-2 text-xs font-semibold border-b-2 transition-colors ${
+                        activeTab === 'loadorder' 
+                            ? 'border-orange-400 text-orange-300' 
+                            : 'border-transparent text-slate-400 hover:text-slate-300'
+                    }`}
+                >
+                    Load Order Manager
+                </button>
+                <button
+                    onClick={() => setActiveTab('formids')}
+                    className={`px-4 py-2 text-xs font-semibold border-b-2 transition-colors ${
+                        activeTab === 'formids' 
+                            ? 'border-orange-400 text-orange-300' 
+                            : 'border-transparent text-slate-400 hover:text-slate-300'
+                    }`}
+                >
+                    Form ID Database
+                </button>
+                <button
+                    onClick={() => setActiveTab('dependency')}
+                    className={`px-4 py-2 text-xs font-semibold border-b-2 transition-colors ${
+                        activeTab === 'dependency' 
+                            ? 'border-orange-400 text-orange-300' 
+                            : 'border-transparent text-slate-400 hover:text-slate-300'
+                    }`}
+                >
+                    Dependency Graph
+                </button>
+            </div>
 
-                {/* Middle: Records */}
-                <div className="w-72 bg-[#1e1e1e] border-r border-black flex flex-col">
-                    <div className="p-2 bg-[#333333] border-b border-black text-[10px] font-bold text-slate-300 uppercase tracking-wider">
-                        Object Window
-                    </div>
-                    <div className="flex-1 overflow-y-auto">
-                        <table className="w-full text-left border-collapse">
-                            <thead>
-                                <tr className="text-[10px] text-slate-500 bg-[#252526]">
-                                    <th className="p-1 pl-2 font-normal">FormID</th>
-                                    <th className="p-1 font-normal">EditorID</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {records.map(rec => (
-                                    <tr 
-                                        key={rec.id} 
-                                        onClick={() => handleSelectRecord(rec)}
-                                        className={`hover:bg-[#2a2d3e] cursor-pointer border-b border-[#2a2a2a] ${selectedRecord?.id === rec.id ? 'bg-[#094771] text-white' : ''}`}
+            <div className="flex-1 overflow-hidden">
+                {/* LOAD ORDER MANAGER TAB */}
+                {activeTab === 'loadorder' && (
+                    <div className="h-full flex flex-col overflow-hidden">
+                        <div className="flex-1 overflow-y-auto">
+                            <div className="p-4 space-y-2">
+                                {plugins.map((plugin, idx) => (
+                                    <div 
+                                        key={plugin.id} 
+                                        className="bg-[#252526] border border-slate-700 rounded p-3 hover:border-slate-600 transition-colors"
                                     >
-                                        <td className="p-1 pl-2 font-mono text-[10px] text-orange-300">{rec.formId}</td>
-                                        <td className={`p-1 text-xs flex items-center gap-2 ${
-                                            rec.conflictStatus === 'conflict' ? 'text-red-400' : 
-                                            rec.conflictStatus === 'override' ? 'text-yellow-400' : 
-                                            rec.conflictStatus === 'critical' ? 'text-red-600 font-bold' : 'text-slate-300'
-                                        }`}>
-                                            {rec.editorId}
-                                            {rec.conflictStatus !== 'clean' && <AlertTriangle className="w-3 h-3 ml-auto" />}
-                                        </td>
-                                    </tr>
-                                ))}
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-
-                {/* Right: Detail & Conflict View */}
-                <div className="flex-1 bg-[#1e1e1e] flex flex-col min-w-0">
-                    <div className="p-2 bg-[#333333] border-b border-black flex justify-between items-center">
-                        <span className="text-[10px] font-bold text-slate-300 uppercase tracking-wider">
-                            Record View: {selectedRecord ? selectedRecord.editorId : 'None'}
-                        </span>
-                        {selectedRecord && selectedRecord.conflictStatus !== 'clean' && (
-                            <button 
-                                onClick={analyzeConflict}
-                                disabled={isAnalyzing}
-                                className="flex items-center gap-1 px-3 py-1 bg-purple-700 hover:bg-purple-600 text-white rounded text-xs transition-colors shadow-sm"
-                            >
-                                <Microscope className="w-3 h-3" />
-                                {isAnalyzing ? 'Analyzing...' : 'Neural Analysis'}
-                            </button>
-                        )}
-                    </div>
-
-                    {selectedRecord ? (
-                        <div className="flex-1 overflow-y-auto p-6">
-                            {/* Comparison Table */}
-                            <div className="bg-black border border-slate-700 rounded mb-6 overflow-hidden">
-                                <div className="grid grid-cols-3 bg-[#252526] border-b border-slate-700 text-xs font-bold text-slate-400 p-2">
-                                    <div>Field</div>
-                                    <div className="flex items-center gap-2 text-blue-400"><Database className="w-3 h-3" /> Master (Fallout4.esm)</div>
-                                    <div className="flex items-center gap-2 text-orange-400"><Layers className="w-3 h-3" /> Override (BetterMod.esp)</div>
-                                </div>
-                                {recordData.map((field, i) => (
-                                    <div key={i} className={`grid grid-cols-3 text-xs p-2 border-b border-slate-800 ${field.isConflict ? 'bg-red-900/10' : ''}`}>
-                                        <div className="text-slate-500 font-mono">{field.key}</div>
-                                        <div className="text-slate-400 pl-2 border-l border-slate-800">{field.masterValue}</div>
-                                        <div className={`pl-2 border-l border-slate-800 ${field.isConflict ? 'text-red-300 font-bold' : 'text-slate-300'}`}>
-                                            {field.overrideValue}
+                                        <div className="flex items-start justify-between mb-2">
+                                            <div className="flex items-center gap-3">
+                                                <div className="w-8 h-8 bg-[#1e1e1e] border border-slate-600 rounded flex items-center justify-center font-mono text-xs text-slate-400">
+                                                    {plugin.index}
+                                                </div>
+                                                <div>
+                                                    <div className={`font-semibold ${plugin.type === 'esm' ? 'text-blue-300' : 'text-slate-200'}`}>
+                                                        {plugin.name}
+                                                    </div>
+                                                    <div className="text-[10px] text-slate-500">{plugin.author}</div>
+                                                </div>
+                                            </div>
+                                            <div className="flex items-center gap-2">
+                                                <span className={`px-2 py-1 rounded text-[10px] font-mono ${
+                                                    plugin.type === 'esm' ? 'bg-blue-900/30 text-blue-300' : 
+                                                    plugin.type === 'esl' ? 'bg-purple-900/30 text-purple-300' : 
+                                                    'bg-slate-800 text-slate-300'
+                                                }`}>
+                                                    {plugin.type}
+                                                </span>
+                                            </div>
                                         </div>
+                                        {plugin.dependencies.length > 0 && (
+                                            <div className="mb-2 pl-11">
+                                                <div className="text-[10px] text-slate-500 mb-1">Requires:</div>
+                                                <div className="flex flex-wrap gap-1">
+                                                    {plugin.dependencies.map((dep, i) => (
+                                                        <span key={i} className="px-2 py-0.5 bg-blue-900/20 text-blue-300 rounded text-[10px]">
+                                                            {dep}
+                                                        </span>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        )}
+                                        {plugin.conflicts.length > 0 && (
+                                            <div className="pl-11">
+                                                <div className="text-[10px] text-red-400 mb-1 flex items-center gap-1">
+                                                    <AlertTriangle className="w-3 h-3" /> Conflicts:
+                                                </div>
+                                                <div className="flex flex-wrap gap-1">
+                                                    {plugin.conflicts.map((conflict, i) => (
+                                                        <span key={i} className="px-2 py-0.5 bg-red-900/20 text-red-300 rounded text-[10px]">
+                                                            {conflict}
+                                                        </span>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        )}
                                     </div>
                                 ))}
                             </div>
+                        </div>
+                    </div>
+                )}
 
-                            {/* Analysis Result */}
-                            {analysis && (
-                                <div className="bg-slate-800 border border-purple-500/50 rounded-lg p-4 animate-fade-in shadow-lg">
-                                    <div className="flex items-center gap-2 text-purple-400 font-bold mb-2">
-                                        <ShieldAlert className="w-4 h-4" /> Insight Engine
+                {/* FORM ID DATABASE TAB */}
+                {activeTab === 'formids' && (
+                    <div className="h-full flex flex-col overflow-hidden">
+                        <div className="flex-1 overflow-y-auto">
+                            <div className="p-4 space-y-2">
+                                {formids.map((formid) => (
+                                    <div 
+                                        key={formid.id}
+                                        onClick={() => setSelectedFormID(formid)}
+                                        className={`bg-[#252526] border rounded p-3 cursor-pointer transition-all ${
+                                            selectedFormID?.id === formid.id 
+                                                ? 'border-orange-500 shadow-lg shadow-orange-900/30' 
+                                                : 'border-slate-700 hover:border-slate-600'
+                                        } ${formid.isConflict ? 'bg-red-900/10' : ''}`}
+                                    >
+                                        <div className="flex items-start justify-between mb-2">
+                                            <div className="flex-1">
+                                                <div className="flex items-center gap-2 mb-1">
+                                                    <div className="font-mono text-orange-300 font-semibold">
+                                                        {formid.formId}
+                                                    </div>
+                                                    <button
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            handleCopyFormID(formid.formId);
+                                                        }}
+                                                        className="p-1 hover:bg-slate-700 rounded transition-colors"
+                                                    >
+                                                        {copiedFormID === formid.formId ? (
+                                                            <Check className="w-3 h-3 text-green-400" />
+                                                        ) : (
+                                                            <Copy className="w-3 h-3 text-slate-400" />
+                                                        )}
+                                                    </button>
+                                                </div>
+                                                <div className="text-slate-300 font-semibold">{formid.editorId}</div>
+                                                <div className="text-[10px] text-slate-500">{formid.recordType} • {formid.owningPlugin}</div>
+                                            </div>
+                                            {formid.isConflict && (
+                                                <div className="px-2 py-1 bg-red-900/40 text-red-300 rounded text-[10px] font-semibold flex items-center gap-1">
+                                                    <AlertTriangle className="w-3 h-3" />
+                                                    Conflict
+                                                </div>
+                                            )}
+                                        </div>
+                                        {formid.conflicts.length > 0 && (
+                                            <div className="flex flex-wrap gap-1">
+                                                {formid.conflicts.map((conflict, i) => (
+                                                    <span key={i} className="px-2 py-0.5 bg-red-900/30 text-red-300 rounded text-[10px]">
+                                                        {conflict}
+                                                    </span>
+                                                ))}
+                                            </div>
+                                        )}
                                     </div>
-                                    <div className="text-slate-300 leading-relaxed whitespace-pre-line">
-                                        {analysis}
-                                    </div>
-                                    <div className="mt-4 flex gap-2">
-                                        <button className="px-3 py-1.5 bg-green-700 hover:bg-green-600 text-white rounded text-xs flex items-center gap-2">
-                                            <Check className="w-3 h-3" /> Accept Override
-                                        </button>
-                                        <button className="px-3 py-1.5 bg-red-700 hover:bg-red-600 text-white rounded text-xs flex items-center gap-2">
-                                            <AlertTriangle className="w-3 h-3" /> Revert to Master
-                                        </button>
-                                    </div>
-                                </div>
-                            )}
+                                ))}
+                            </div>
                         </div>
-                    ) : (
-                        <div className="flex-1 flex flex-col items-center justify-center text-slate-600">
-                            <GitMerge className="w-16 h-16 mb-4 opacity-20" />
-                            <p>Select a record to inspect conflicts.</p>
+                    </div>
+                )}
+
+                {/* DEPENDENCY GRAPH TAB */}
+                {activeTab === 'dependency' && (
+                    <div className="h-full flex flex-col overflow-hidden">
+                        <div className="flex-1 overflow-y-auto">
+                            <div className="p-4 space-y-3">
+                                {buildDependencyGraph().map((node, idx) => (
+                                    <div key={idx} className="bg-[#252526] border border-slate-700 rounded p-4">
+                                        <div className="flex items-center gap-2 mb-3">
+                                            <Network className="w-4 h-4 text-orange-400" />
+                                            <div>
+                                                <div className="font-semibold text-slate-200">{node.pluginName}</div>
+                                                <div className="text-[10px] text-slate-500">{node.author}</div>
+                                            </div>
+                                        </div>
+
+                                        {node.dependsOn.length > 0 && (
+                                            <div className="mb-3 pl-6">
+                                                <div className="text-[10px] text-slate-400 mb-2 font-semibold">DEPENDS ON:</div>
+                                                <div className="space-y-1">
+                                                    {node.dependsOn.map((dep, i) => (
+                                                        <div key={i} className="flex items-center gap-2 text-[10px]">
+                                                            <ArrowRight className="w-3 h-3 text-blue-400" />
+                                                            <span className="text-blue-300 bg-blue-900/20 px-2 py-0.5 rounded">
+                                                                {dep}
+                                                            </span>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        )}
+
+                                        {node.conflicts.length > 0 && (
+                                            <div className="pl-6">
+                                                <div className="text-[10px] text-red-400 mb-2 font-semibold flex items-center gap-1">
+                                                    <AlertTriangle className="w-3 h-3" /> CONFLICTS:
+                                                </div>
+                                                <div className="space-y-1">
+                                                    {node.conflicts.map((conflict, i) => (
+                                                        <div key={i} className="flex items-center gap-2 text-[10px]">
+                                                            <ArrowRight className="w-3 h-3 text-red-400" />
+                                                            <span className="text-red-300 bg-red-900/20 px-2 py-0.5 rounded">
+                                                                {conflict}
+                                                            </span>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        )}
+                                    </div>
+                                ))}
+                            </div>
                         </div>
-                    )}
-                </div>
+                    </div>
+                )}
             </div>
         </div>
     );
