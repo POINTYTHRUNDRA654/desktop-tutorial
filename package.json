@@ -7,8 +7,9 @@
   "author": "POINTYTHRUNDRA654",
   "license": "MIT",
   "scripts": {
-    "dev": "concurrently \"npm run dev:vite\" \"npm run dev:electron\"",
+    "dev": "concurrently \"npm run dev:vite\" \"npm run dev:tsc\" \"npm run dev:electron\"",
     "dev:vite": "vite",
+    "dev:tsc": "tsc -p tsconfig.electron.json -w",
     "dev:electron": "wait-on http://localhost:5173 && cross-env ELECTRON_START_URL=http://localhost:5173 electron .",
     "build": "npm run build:vite && npm run build:electron",
     "build:vite": "vite build",

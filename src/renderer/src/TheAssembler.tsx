@@ -1,6 +1,9 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { GoogleGenAI } from "@google/genai";
-import { Package, Plus, Trash2, Eye, Code, Wand2, RefreshCw, FileText, Layers, CheckSquare, Image as ImageIcon, ChevronRight, ChevronDown, Download } from 'lucide-react';
+import { Package, Plus, Trash2, Eye, Code, Wand2, RefreshCw, FileText, Layers, CheckSquare, Image as ImageIcon, ChevronRight, ChevronDown, Download, ExternalLink, Info, Settings } from 'lucide-react';
+import ExternalToolNotice from './components/ExternalToolNotice';
+import { useNavigate } from 'react-router-dom';
+import type { Settings as AppSettings } from '../shared/types';
 
 // --- Types ---
 type NodeType = 'page' | 'group' | 'option';
@@ -53,6 +56,26 @@ const TheAssembler: React.FC = () => {
     const [selectedId, setSelectedId] = useState<string | null>(null);
     const [viewMode, setViewMode] = useState<'editor' | 'preview' | 'xml'>('editor');
     const [isGenerating, setIsGenerating] = useState(false);
+    const [modFiles, setModFiles] = useState<string[]>([]);
+    const [modName, setModName] = useState('My Awesome Mod');
+    const [modAuthor, setModAuthor] = useState('Your Name');
+    const [modVersion, setModVersion] = useState('1.0.0');
+    const [modWebsite, setModWebsite] = useState('');
+    const [toolSettings, setToolSettings] = useState<AppSettings | null>(null);
+    const navigate = useNavigate();
+
+    useEffect(() => {
+        const init = async () => {
+            try {
+                const s = await window.electronAPI.getSettings();
+                setToolSettings(s);
+                window.electronAPI.onSettingsUpdated((ns) => setToolSettings(ns));
+            } catch (e) {
+                console.warn('[Assembler] Failed to load settings', e);
+            }
+        };
+        init();
+    }, []);
 
     // Helpers
     const findNode = (nodes: FomodNode[], id: string): FomodNode | null => {
@@ -91,6 +114,61 @@ const TheAssembler: React.FC = () => {
         };
         setStructure(recursiveDelete(structure));
         if (selectedId === id) setSelectedId(null);
+    };
+
+    // Launch external FOMOD Creation Tool
+    const handleLaunchExternalTool = async () => {
+        const toolPath = (toolSettings?.fomodCreatorPath && toolSettings.fomodCreatorPath.trim().length > 0)
+            ? toolSettings.fomodCreatorPath
+            : 'G:\\Tools\\FOMOD Creation Tool 1.7-6821-1-7\\FomodDesigner.exe';
+        try {
+            if (window.electron?.api?.openExternal) {
+                await window.electron.api.openExternal(toolPath);
+            } else {
+                alert('External tool launch requires Desktop Bridge connection.');
+            }
+        } catch (error) {
+            console.error('Failed to launch FOMOD Tool:', error);
+            const errorMsg = `Could not launch FOMOD Creation Tool.
+
+The tool was not found at:
+${toolPath}
+
+Download it from Nexus Mods:
+https://www.nexusmods.com/fallout4/mods/6821
+
+After installing, you may need to update the tool path in settings.`;
+            alert(errorMsg);
+        }
+    };
+
+    // Browse for mod files
+    const handleBrowseFiles = async () => {
+        const input = document.createElement('input');
+        input.type = 'file';
+        input.multiple = true;
+        input.webkitdirectory = true;
+        input.onchange = (e) => {
+            const files = Array.from((e.target as HTMLInputElement).files || []);
+            const filePaths = files.map(f => f.webkitRelativePath || f.name);
+            setModFiles(filePaths);
+        };
+        input.click();
+    };
+
+    // Assign files to selected option
+    const handleAssignFiles = () => {
+        if (!selectedNode || selectedNode.type !== 'option') return;
+        
+        const input = document.createElement('input');
+        input.type = 'file';
+        input.multiple = true;
+        input.onchange = (e) => {
+            const files = Array.from((e.target as HTMLInputElement).files || []);
+            const filePaths = files.map(f => f.name);
+            updateNode(selectedNode.id, { files: filePaths.map(f => ({ source: f, dest: f })) });
+        };
+        input.click();
     };
 
     const addNode = (parentId: string | null, type: NodeType) => {
@@ -172,28 +250,94 @@ const TheAssembler: React.FC = () => {
     };
 
     // --- XML Generation ---
-    const generateXML = () => {
-        let xml = `<config xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://qconsulting.ca/fo3/ModConfig5.0.xsd">\n`;
-        xml += `  <moduleName>My Mod</moduleName>\n  <installSteps order="Explicit">\n`;
+    const generateModuleConfigXML = () => {
+        let xml = `<?xml version="1.0" encoding="UTF-8"?>\n`;
+        xml += `<config xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://qconsulting.ca/fo3/ModConfig5.0.xsd">\n`;
+        xml += `  <moduleName>${modName}</moduleName>\n`;
+        xml += `  <installSteps order="Explicit">\n`;
         
         structure.forEach(page => {
-            xml += `    <installStep name="${page.name}">\n      <optionalFileGroups order="Explicit">\n`;
+            xml += `    <installStep name="${page.name}">\n`;
+            xml += `      <optionalFileGroups order="Explicit">\n`;
+            
             page.children?.forEach(group => {
-                xml += `        <group name="${group.name}" type="${group.groupType}">\n          <plugins order="Explicit">\n`;
+                xml += `        <group name="${group.name}" type="${group.groupType}">\n`;
+                xml += `          <plugins order="Explicit">\n`;
+                
                 group.children?.forEach(option => {
                     xml += `            <plugin name="${option.name}">\n`;
                     xml += `              <description>${option.description || ''}</description>\n`;
-                    if (option.imagePath) xml += `              <image path="${option.imagePath}" />\n`;
-                    xml += `              <typeDescriptor>\n                <type name="Optional"/>\n              </typeDescriptor>\n`;
+                    if (option.imagePath) {
+                        xml += `              <image path="${option.imagePath}" />\n`;
+                    }
+                    
+                    // Add file installation instructions
+                    if (option.files && option.files.length > 0) {
+                        xml += `              <files>\n`;
+                        option.files.forEach(file => {
+                            xml += `                <file source="${file.source}" destination="${file.dest}" />\n`;
+                        });
+                        xml += `              </files>\n`;
+                    }
+                    
+                    xml += `              <typeDescriptor>\n`;
+                    xml += `                <type name="Optional"/>\n`;
+                    xml += `              </typeDescriptor>\n`;
                     xml += `            </plugin>\n`;
                 });
-                xml += `          </plugins>\n        </group>\n`;
+                
+                xml += `          </plugins>\n`;
+                xml += `        </group>\n`;
             });
-            xml += `      </optionalFileGroups>\n    </installStep>\n`;
+            
+            xml += `      </optionalFileGroups>\n`;
+            xml += `    </installStep>\n`;
         });
         
-        xml += `  </installSteps>\n</config>`;
+        xml += `  </installSteps>\n`;
+        xml += `</config>`;
         return xml;
+    };
+
+    const generateInfoXML = () => {
+        let xml = `<?xml version="1.0" encoding="UTF-8"?>\n`;
+        xml += `<fomod>\n`;
+        xml += `  <Name>${modName}</Name>\n`;
+        xml += `  <Author>${modAuthor}</Author>\n`;
+        xml += `  <Version>${modVersion}</Version>\n`;
+        if (modWebsite) {
+            xml += `  <Website>${modWebsite}</Website>\n`;
+        }
+        xml += `</fomod>`;
+        return xml;
+    };
+
+    const handleExportFOMOD = () => {
+        // Create a zip-like structure (for now, just download the XMLs)
+        const moduleConfig = generateModuleConfigXML();
+        const info = generateInfoXML();
+        
+        // Download ModuleConfig.xml
+        const moduleBlob = new Blob([moduleConfig], { type: 'text/xml' });
+        const moduleUrl = URL.createObjectURL(moduleBlob);
+        const moduleLink = document.createElement('a');
+        moduleLink.href = moduleUrl;
+        moduleLink.download = 'ModuleConfig.xml';
+        moduleLink.click();
+        URL.revokeObjectURL(moduleUrl);
+        
+        // Download Info.xml
+        setTimeout(() => {
+            const infoBlob = new Blob([info], { type: 'text/xml' });
+            const infoUrl = URL.createObjectURL(infoBlob);
+            const infoLink = document.createElement('a');
+            infoLink.href = infoUrl;
+            infoLink.download = 'info.xml';
+            infoLink.click();
+            URL.revokeObjectURL(infoUrl);
+        }, 100);
+        
+        alert('FOMOD files downloaded! Place ModuleConfig.xml in /fomod/ folder and info.xml in root.');
     };
 
     // --- Renderers ---
@@ -311,6 +455,27 @@ const TheAssembler: React.FC = () => {
                 </div>
                 <div className="flex gap-2">
                     <button 
+                        onClick={() => navigate('/settings/tools')}
+                        className="px-4 py-2 bg-slate-800 hover:bg-slate-700 border border-slate-600 rounded text-xs font-bold flex items-center gap-2 transition-all"
+                        title="Configure external tool paths"
+                    >
+                        <Settings className="w-4 h-4" /> Tool Settings
+                    </button>
+                    <button 
+                        onClick={handleLaunchExternalTool}
+                        className="px-4 py-2 bg-blue-700 hover:bg-blue-600 border border-blue-500 rounded text-xs font-bold flex items-center gap-2 transition-all group relative"
+                        title="Launch FOMOD Creation Tool 1.7\n\nRequires: FOMOD Creation Tool (Download from Nexus Mods)\nhttps://www.nexusmods.com/fallout4/mods/6821"
+                    >
+                        <ExternalLink className="w-4 h-4" /> Launch Tool
+                        <Info className="w-3 h-3 text-blue-300 opacity-50 group-hover:opacity-100 transition-opacity" />
+                    </button>
+                    <button 
+                        onClick={handleExportFOMOD}
+                        className="px-4 py-2 bg-emerald-700 hover:bg-emerald-600 border border-emerald-500 rounded text-xs font-bold flex items-center gap-2 transition-all"
+                    >
+                        <Download className="w-4 h-4" /> Export FOMOD
+                    </button>
+                    <button 
                         onClick={() => setViewMode('editor')}
                         className={`px-3 py-1.5 rounded text-xs font-bold flex items-center gap-2 transition-all ${viewMode === 'editor' ? 'bg-purple-600 text-white' : 'bg-slate-800 text-slate-400 hover:text-white'}`}
                     >
@@ -330,6 +495,15 @@ const TheAssembler: React.FC = () => {
                     </button>
                 </div>
             </div>
+                        {/* External tool status */}
+                        <div className="px-4 pt-2">
+                                <ExternalToolNotice 
+                                    toolKey="fomodCreatorPath" 
+                                    toolName="FOMOD Creation Tool" 
+                                    nexusUrl="https://www.nexusmods.com/fallout4/mods/6821"
+                                    description="Use the external designer to finalize your installer. Configure the path and launch directly from here."
+                                />
+                        </div>
 
             <div className="flex-1 flex overflow-hidden">
                 {/* Left: Structure Tree */}
@@ -429,6 +603,25 @@ const TheAssembler: React.FC = () => {
                                                         className="w-full bg-slate-900 border border-slate-600 rounded p-2 text-sm text-white focus:border-purple-500 outline-none font-mono"
                                                     />
                                                 </div>
+                                                <div>
+                                                    <label className="block text-xs font-bold text-slate-500 uppercase mb-2">Files to Install</label>
+                                                    <button 
+                                                        onClick={handleAssignFiles}
+                                                        className="w-full px-3 py-2 bg-emerald-700 hover:bg-emerald-600 border border-emerald-500 rounded text-xs font-bold flex items-center justify-center gap-2 mb-2"
+                                                    >
+                                                        <Plus className="w-4 h-4" />
+                                                        Assign Files
+                                                    </button>
+                                                    {selectedNode.files && selectedNode.files.length > 0 && (
+                                                        <div className="space-y-1 max-h-24 overflow-y-auto bg-slate-900/50 border border-slate-700 rounded p-2">
+                                                            {selectedNode.files.map((file, i) => (
+                                                                <div key={i} className="text-xs text-slate-300 font-mono truncate">
+                                                                    📄 {file.source}
+                                                                </div>
+                                                            ))}
+                                                        </div>
+                                                    )}
+                                                </div>
                                             </>
                                         )}
                                     </div>
@@ -443,12 +636,15 @@ const TheAssembler: React.FC = () => {
                             <div className="w-full h-full max-w-4xl bg-[#1e1e1e] border border-slate-700 rounded-lg overflow-hidden flex flex-col shadow-2xl relative z-10">
                                 <div className="bg-[#2d2d2d] p-2 border-b border-black text-xs text-slate-400 font-mono flex justify-between items-center">
                                     <span>ModuleConfig.xml</span>
-                                    <button className="text-purple-400 hover:text-white flex items-center gap-1">
-                                        <Download className="w-3 h-3" /> Save
+                                    <button 
+                                        onClick={handleExportFOMOD}
+                                        className="text-purple-400 hover:text-white flex items-center gap-1"
+                                    >
+                                        <Download className="w-3 h-3" /> Export
                                     </button>
                                 </div>
                                 <pre className="flex-1 p-4 overflow-auto text-xs font-mono text-emerald-300 custom-scrollbar leading-relaxed">
-                                    {generateXML()}
+                                    {generateModuleConfigXML()}
                                 </pre>
                             </div>
                         ) : (

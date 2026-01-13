@@ -1,363 +1,523 @@
-import React, { useState, useRef, useEffect } from 'react';
-import { GoogleGenAI } from "@google/genai";
-import { GitBranch, User, Scroll, Sword, Play, CheckCircle2, Circle, Loader2, FileJson, Copy, Database, Wand2, Mic, Pause, Save, ArrowRight } from 'lucide-react';
+import { useMemo, useState } from 'react';
+import { GitBranch, Package, HardDrive, Play, Loader2, CheckCircle2, AlertTriangle, Database, Copy, Shield, Settings, Repeat2, ClipboardList, Download } from 'lucide-react';
 
-interface WorkflowStep {
-  id: string;
-  name: string;
-  type: 'text' | 'image' | 'audio' | 'code' | 'export';
-  status: 'pending' | 'running' | 'completed' | 'failed';
-  output?: string;
-  meta?: any;
+interface Asset {
+    id: string;
+    name: string;
+    type: 'mesh' | 'texture' | 'audio' | 'script';
+    sourcePath: string;
+    targetPath: string;
+    sizeMB: number;
+    tags: string[];
+    status: 'new' | 'in-progress' | 'processed';
+    lastUpdated: string;
+    issues?: string[];
 }
 
-interface Pipeline {
-  id: string;
-  name: string;
-  description: string;
-  icon: React.ElementType;
-  steps: WorkflowStep[];
+interface PipelineStepTemplate {
+    id: string;
+    name: string;
+    tool: string;
+    description: string;
+    command: string;
 }
 
-const WorkflowOrchestrator: React.FC = () => {
-  const [activePipeline, setActivePipeline] = useState<string | null>(null);
-  const [prompt, setPrompt] = useState('');
-  const [isRunning, setIsRunning] = useState(false);
-  const [currentSteps, setCurrentSteps] = useState<WorkflowStep[]>([]);
-  const [logs, setLogs] = useState<string[]>([]);
-  const [executionData, setExecutionData] = useState<Record<string, any>>({});
-  
-  const pipelines: Pipeline[] = [
+interface PipelineDefinition {
+    id: string;
+    name: string;
+    description: string;
+    applicable: Asset['type'][];
+    steps: PipelineStepTemplate[];
+}
+
+interface PipelineRunStep extends PipelineStepTemplate {
+    status: 'pending' | 'running' | 'completed' | 'failed';
+    output?: string;
+    notes?: string;
+    durationMs?: number;
+}
+
+interface RunLog {
+    timestamp: string;
+    message: string;
+    level: 'info' | 'warn' | 'error';
+}
+
+interface RunHistoryEntry {
+    id: string;
+    pipelineId: string;
+    durationMs: number;
+    status: 'success' | 'failed';
+    timestamp: string;
+}
+
+const ASSETS: Asset[] = [
     {
-      id: 'npc',
-      name: 'Character Forge',
-      description: 'Create a complete NPC with backstory, portrait, voice lines, and script.',
-      icon: User,
-      steps: [
-        { id: 'identity', name: 'Generate Identity', type: 'text', status: 'pending' },
-        { id: 'visual', name: 'Synthesize Portrait', type: 'image', status: 'pending' },
-        { id: 'voice', name: 'Record Dialogue', type: 'audio', status: 'pending' },
-        { id: 'script', name: 'Write Behavior Script', type: 'code', status: 'pending' },
-        { id: 'pack', name: 'Bundle Asset', type: 'export', status: 'pending' },
-      ]
+        id: 'mesh-01',
+        name: 'Railcar Static Mesh',
+        type: 'mesh',
+        sourcePath: 'D:/Fallout4Mods/Assets/meshes/railcar_high.nif',
+        targetPath: 'Data/Meshes/Workshop/Rail/railcar01.nif',
+        sizeMB: 14.2,
+        tags: ['static', 'collision', 'lod'],
+        status: 'new',
+        lastUpdated: '2026-01-10',
+        issues: ['Missing bhkCollision', 'Inconsistent scale (1.2x)']
     },
     {
-      id: 'quest',
-      name: 'Quest Weaver',
-      description: 'Generate a multi-stage quest with objectives and journal entries.',
-      icon: Scroll,
-      steps: [
-        { id: 'outline', name: 'Draft Plot Outline', type: 'text', status: 'pending' },
-        { id: 'stages', name: 'Define Quest Stages', type: 'code', status: 'pending' },
-        { id: 'dialogue', name: 'Write NPC Dialogue', type: 'text', status: 'pending' },
-        { id: 'pack', name: 'Export Quest Data', type: 'export', status: 'pending' },
-      ]
+        id: 'mesh-02',
+        name: 'Armor Chestplate',
+        type: 'mesh',
+        sourcePath: 'D:/Fallout4Mods/Assets/meshes/armor/chestplate_high.nif',
+        targetPath: 'Data/Meshes/Armor/Custom/chestplate.nif',
+        sizeMB: 9.8,
+        tags: ['armor', 'skin', 'physics'],
+        status: 'in-progress',
+        lastUpdated: '2026-01-08'
     },
     {
-      id: 'item',
-      name: 'Artifact Smith',
-      description: 'Design a legendary item with lore, stats, and texture generation.',
-      icon: Sword,
-      steps: [
-        { id: 'concept', name: 'Concept & Stats', type: 'text', status: 'pending' },
-        { id: 'texture', name: 'Generate Texture Set', type: 'image', status: 'pending' },
-        { id: 'enchant', name: 'Script Enchantment', type: 'code', status: 'pending' },
-        { id: 'pack', name: 'Compile ESP', type: 'export', status: 'pending' },
-      ]
+        id: 'tex-01',
+        name: 'Railcar Texture Set',
+        type: 'texture',
+        sourcePath: 'D:/Fallout4Mods/Assets/textures/railcar/*.png',
+        targetPath: 'Data/Textures/Workshop/Rail/railcar01_*.dds',
+        sizeMB: 88.4,
+        tags: ['albedo', 'normal', 'metal'],
+        status: 'new',
+        lastUpdated: '2026-01-11',
+        issues: ['Albedo 8K → downscale to 2K', 'Normals in BC1 (wrong compression)']
+    },
+    {
+        id: 'tex-02',
+        name: 'Armor Texture Set',
+        type: 'texture',
+        sourcePath: 'D:/Fallout4Mods/Assets/textures/armor/*.png',
+        targetPath: 'Data/Textures/Armor/Custom/armor_*.dds',
+        sizeMB: 52.1,
+        tags: ['albedo', 'normal', 'roughness'],
+        status: 'processed',
+        lastUpdated: '2026-01-05'
+    },
+    {
+        id: 'audio-01',
+        name: 'Workbench VO Lines',
+        type: 'audio',
+        sourcePath: 'D:/Fallout4Mods/Assets/audio/workbench/*.wav',
+        targetPath: 'Data/Sound/Voice/CustomWorkbench/',
+        sizeMB: 34.7,
+        tags: ['voice', 'dialogue'],
+        status: 'new',
+        lastUpdated: '2026-01-07'
+    },
+    {
+        id: 'script-01',
+        name: 'Railcar Control Script',
+        type: 'script',
+        sourcePath: 'D:/Fallout4Mods/Assets/scripts/RailcarControl.psc',
+        targetPath: 'Data/Scripts/RailcarControl.pex',
+        sizeMB: 0.4,
+        tags: ['papyrus', 'workshop'],
+        status: 'in-progress',
+        lastUpdated: '2026-01-06'
     }
-  ];
+];
 
-  const log = (msg: string) => setLogs(prev => [...prev, `[${new Date().toLocaleTimeString()}] ${msg}`]);
+const PIPELINES: PipelineDefinition[] = [
+    {
+        id: 'mesh-pipeline',
+        name: 'Mesh Processing',
+        description: 'Validate, fix physics, optimize LODs, and stage NIFs.',
+        applicable: ['mesh'],
+        steps: [
+            { id: 'validate-nif', name: 'Validate NIF', tool: 'Splicer', description: 'Check for bad normals, degenerate tris, missing bhkCollision.', command: 'splicer validate --input "{source}" --report --strict' },
+            { id: 'physics', name: 'Regenerate Physics', tool: 'Outfit Studio', description: 'Rebuild collision and Havok constraints to match mesh scale.', command: 'outfitstudio --input "{source}" --regen-physics --output "{target}"' },
+            { id: 'lod', name: 'Generate LOD', tool: 'LODGen', description: 'Create LOD meshes and place in Data/Meshes/LOD.', command: 'lodgen -o "Data/Meshes/LOD" --source "{target}"' },
+            { id: 'package', name: 'Stage to Data', tool: 'Archive2', description: 'Place final NIF into target path and prep BA2 list.', command: 'archive2 add "{target}" --list ba2_queue.txt' }
+        ]
+    },
+    {
+        id: 'texture-pipeline',
+        name: 'Texture Processing',
+        description: 'Convert, compress, and mipmap DDS textures for runtime.',
+        applicable: ['texture'],
+        steps: [
+            { id: 'audit', name: 'Audit Resolution', tool: 'ImageMagick', description: 'Downscale oversized sources to target resolution (2K).', command: 'magick mogrify -resize 2048x2048 "{source}"' },
+            { id: 'convert', name: 'Convert to DDS', tool: 'texconv', description: 'BC1 for albedo, BC5 for normals, BC3 for alpha-bearing maps.', command: 'texconv -f BC5_UNORM -o "{targetDir}" "{source}"' },
+            { id: 'mipmaps', name: 'Generate Mipmaps', tool: 'texconv', description: 'Add mip levels to prevent shimmering and reduce VRAM spikes.', command: 'texconv -m 10 -o "{targetDir}" "{target}"' },
+            { id: 'package', name: 'Stage to Data', tool: 'Archive2', description: 'Write DDS to target path and enqueue for BA2.', command: 'archive2 add "{target}" --list ba2_queue.txt' }
+        ]
+    },
+    {
+        id: 'audio-pipeline',
+        name: 'Audio Processing',
+        description: 'Normalize, convert, and stage dialogue or SFX.',
+        applicable: ['audio'],
+        steps: [
+            { id: 'normalize', name: 'Normalize Loudness', tool: 'ffmpeg', description: 'LUFS normalization for consistent playback.', command: 'ffmpeg -i "{source}" -af loudnorm "{targetDir}/normalized.wav"' },
+            { id: 'convert', name: 'Convert to XWM', tool: 'ffmpeg/xWMAEncode', description: 'Encode WAV to XWM for Fallout 4 voice pipeline.', command: 'ffmpeg -i "{targetDir}/normalized.wav" -acodec wmav2 "{target}"' },
+            { id: 'package', name: 'Stage to Data', tool: 'Archive2', description: 'Place XWM in Data/Sound/Voice and queue for BA2.', command: 'archive2 add "{target}" --list ba2_queue.txt' }
+        ]
+    },
+    {
+        id: 'script-pipeline',
+        name: 'Script Compilation',
+        description: 'Compile Papyrus scripts and stage bytecode.',
+        applicable: ['script'],
+        steps: [
+            { id: 'lint', name: 'Syntax Check', tool: 'PapyrusCompiler', description: 'Validate PSC syntax before compilation.', command: 'PapyrusCompiler.exe "{source}" -syntax' },
+            { id: 'compile', name: 'Compile to PEX', tool: 'PapyrusCompiler', description: 'Emit bytecode to Data/Scripts with import paths resolved.', command: 'PapyrusCompiler.exe "{source}" -output "{targetDir}" -import="Data/Scripts/Source"' },
+            { id: 'package', name: 'Stage to Data', tool: 'Archive2', description: 'Stage PEX for inclusion in BA2.', command: 'archive2 add "{target}" --list ba2_queue.txt' }
+        ]
+    }
+];
 
-  const selectPipeline = (id: string) => {
-    setActivePipeline(id);
-    const p = pipelines.find(p => p.id === id);
-    if (p) setCurrentSteps(p.steps.map(s => ({ ...s, status: 'pending', output: undefined })));
-    setLogs([]);
-    setExecutionData({});
-    setIsRunning(false);
-    setPrompt('');
-  };
+const formatMB = (n: number) => `${n.toFixed(1)} MB`;
 
-  const runPipeline = async () => {
-    if (!activePipeline || !prompt) return;
-    setIsRunning(true);
-    log(`Starting pipeline: ${pipelines.find(p => p.id === activePipeline)?.name}`);
-    log(`Context: "${prompt}"`);
+const WorkflowOrchestrator = () => {
+    const [assets] = useState<Asset[]>(ASSETS);
+    const [selectedAssetId, setSelectedAssetId] = useState<string | null>(assets[0]?.id ?? null);
+    const [runSteps, setRunSteps] = useState<PipelineRunStep[]>([]);
+    const [logs, setLogs] = useState<RunLog[]>([]);
+    const [isRunning, setIsRunning] = useState(false);
+    const [runHistory, setRunHistory] = useState<Record<string, RunHistoryEntry[]>>({});
 
-    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-    const steps = [...currentSteps];
-    const data: Record<string, any> = {};
+    const selectedAsset = useMemo(() => assets.find(a => a.id === selectedAssetId) || null, [assets, selectedAssetId]);
 
-    // --- EXECUTION LOOP ---
-    for (let i = 0; i < steps.length; i++) {
-        // Update UI: Set current step running
-        steps[i].status = 'running';
-        setCurrentSteps([...steps]);
-        
-        try {
-            const step = steps[i];
-            log(`Executing Step ${i+1}: ${step.name}...`);
+    const selectedPipeline = useMemo(() => {
+        if (!selectedAsset) return PIPELINES[0];
+        return PIPELINES.find(p => p.applicable.includes(selectedAsset.type)) || PIPELINES[0];
+    }, [selectedAsset]);
 
-            // --- STEP LOGIC ---
-            if (step.id === 'identity' || step.id === 'outline' || step.id === 'concept') {
-                const response = await ai.models.generateContent({
-                    model: 'gemini-3-flash-preview',
-                    contents: `Generate a structured JSON output for a ${activePipeline} based on this prompt: "${prompt}". 
-                    Include name, description, stats, and backstory/lore.`,
-                    config: { responseMimeType: 'application/json' }
-                });
-                const result = response.text;
-                data[step.id] = result;
-                steps[i].output = result;
-                log(`> Generated metadata for ${JSON.parse(result).name || 'Entity'}`);
-            }
-            
-            else if (step.type === 'image') {
-                // Simulate Image Gen for Orchestrator (Full integration requires complicated blobs)
-                // In a real app, we'd pass the blob from the previous step description
-                log(`> Sending prompt to Imagen 3...`);
-                await new Promise(r => setTimeout(r, 2000)); // Sim delay
-                steps[i].output = "https://placehold.co/600x600/1e293b/38bdf8?text=AI+Generated+Asset"; // Placeholder
-                log(`> Asset rendered: 1024x1024.png`);
-            }
+    const storageStats = useMemo(() => {
+        const total = assets.reduce((sum, a) => sum + a.sizeMB, 0);
+        const processed = assets.filter(a => a.status === 'processed').reduce((sum, a) => sum + a.sizeMB, 0);
+        return { total, processed, pending: total - processed };
+    }, [assets]);
 
-            else if (step.type === 'audio') {
-                 log(`> Synthesizing voice lines...`);
-                 await new Promise(r => setTimeout(r, 1500));
-                 steps[i].output = "(Audio Buffer Data)"; 
-                 log(`> Audio generated: 4.2s (Voice: Fenrir)`);
-            }
+    const log = (message: string, level: RunLog['level'] = 'info') => {
+        setLogs(prev => [...prev, { timestamp: new Date().toLocaleTimeString(), message, level }]);
+    };
 
-            else if (step.type === 'code') {
-                // Use context from previous steps
-                const contextData = data['identity'] || data['outline'] || data['concept'] || "{}";
-                const response = await ai.models.generateContent({
-                    model: 'gemini-3-flash-preview',
-                    contents: `Write a game script (Papyrus/Lua) for this entity: ${contextData}. 
-                    Ensure it handles OnInit and OnActivate events.`
-                });
-                steps[i].output = response.text;
-                log(`> Script compiled. 0 Errors.`);
-            }
+    const handleRun = () => {
+        if (!selectedAsset || !selectedPipeline) return;
+        setIsRunning(true);
+        setLogs([]);
+        log(`Starting pipeline '${selectedPipeline.name}' for ${selectedAsset.name}`);
 
-            else if (step.type === 'export') {
-                log(`> Packaging files...`);
-                await new Promise(r => setTimeout(r, 1000));
-                steps[i].output = JSON.stringify(data, null, 2);
-                log(`> BUNDLE COMPLETE. Saved to /Data/Generated/${activePipeline}_${Date.now()}`);
-            }
+        const steps: PipelineRunStep[] = selectedPipeline.steps.map((s) => ({ ...s, status: 'pending' as const }));
+        setRunSteps(steps);
 
-            // Success
-            steps[i].status = 'completed';
-            setCurrentSteps([...steps]);
-            setExecutionData({...data});
-
-        } catch (e) {
-            console.error(e);
-            steps[i].status = 'failed';
-            steps[i].output = "Error executing step.";
-            setCurrentSteps([...steps]);
-            log(`ERROR: Step failed. Pipeline halted.`);
-            setIsRunning(false);
-            return;
+        // Simulate sequential execution without duplicating processes
+        const executedSteps: PipelineRunStep[] = [];
+        const startTime = performance.now();
+        for (const step of steps) {
+            const durationMs = 400 + Math.floor(Math.random() * 500);
+            const targetDir = selectedAsset.targetPath.includes('/') ? selectedAsset.targetPath.slice(0, selectedAsset.targetPath.lastIndexOf('/')) : selectedAsset.targetPath;
+            const sourceDir = selectedAsset.sourcePath.includes('/') ? selectedAsset.sourcePath.slice(0, selectedAsset.sourcePath.lastIndexOf('/')) : selectedAsset.sourcePath;
+            const command = step.command
+                .replace('{source}', selectedAsset.sourcePath)
+                .replace('{target}', selectedAsset.targetPath)
+                .replace('{targetDir}', targetDir)
+                .replace('{sourceDir}', sourceDir);
+            const result: PipelineRunStep = { ...step, status: 'completed', output: `${step.tool} ✓`, notes: step.description, durationMs };
+            executedSteps.push(result);
+            log(`${step.name} completed via ${step.tool}`);
+            log(`Command: ${command}`);
         }
-    }
 
-    setIsRunning(false);
-    log(`PIPELINE FINISHED SUCCESSFULLY.`);
-  };
+        const endTime = performance.now();
+        const totalDuration = Math.max(1, Math.round(endTime - startTime));
+        setRunSteps(executedSteps);
+        log(`Pipeline finished. Asset staged to ${selectedAsset.targetPath}`);
 
-  return (
-    <div className="h-full flex flex-col bg-forge-dark text-slate-200">
-      {/* Header */}
-      <div className="p-6 border-b border-slate-700 bg-forge-panel flex justify-between items-center">
-        <div>
-           <h1 className="text-2xl font-bold text-white flex items-center gap-3">
-             <GitBranch className="w-6 h-6 text-forge-accent" />
-             The Orchestrator
-           </h1>
-           <p className="text-xs text-slate-400 font-mono mt-1">Automated Workflow Engine & Asset Pipeline</p>
-        </div>
-        <div className="flex gap-2">
-           <div className="px-3 py-1 bg-slate-800 rounded-full border border-slate-700 text-xs text-slate-400 flex items-center gap-2">
-               <Database className="w-3 h-3" />
-               Local Context: Active
-           </div>
-        </div>
-      </div>
+        const historyEntry: RunHistoryEntry = {
+            id: `run-${Date.now()}`,
+            pipelineId: selectedPipeline.id,
+            durationMs: totalDuration,
+            status: 'success',
+            timestamp: new Date().toLocaleTimeString()
+        };
 
-      <div className="flex-1 flex overflow-hidden">
-        {/* Left: Pipeline Selection */}
-        <div className="w-72 bg-slate-900 border-r border-slate-800 flex flex-col p-4 gap-4 overflow-y-auto">
-            <h3 className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-2">Select Protocol</h3>
-            {pipelines.map(p => (
-                <button
-                    key={p.id}
-                    onClick={() => selectPipeline(p.id)}
-                    disabled={isRunning}
-                    className={`text-left p-4 rounded-xl border transition-all group ${
-                        activePipeline === p.id 
-                        ? 'bg-forge-accent text-slate-900 border-forge-accent' 
-                        : 'bg-slate-800 border-slate-700 hover:border-slate-500 text-slate-300'
-                    }`}
-                >
-                    <div className="flex items-center gap-3 mb-2">
-                        <div className={`p-2 rounded-lg ${activePipeline === p.id ? 'bg-black/20 text-black' : 'bg-slate-700 text-slate-400 group-hover:text-white'}`}>
-                            <p.icon className="w-5 h-5" />
-                        </div>
-                        <span className="font-bold text-sm">{p.name}</span>
-                    </div>
-                    <div className={`text-xs ${activePipeline === p.id ? 'text-slate-800' : 'text-slate-500'}`}>
-                        {p.description}
-                    </div>
-                </button>
-            ))}
-        </div>
+        setRunHistory(prev => ({
+            ...prev,
+            [selectedAsset.id]: [historyEntry, ...(prev[selectedAsset.id] || [])].slice(0, 5)
+        }));
 
-        {/* Center: Execution Area */}
-        <div className="flex-1 flex flex-col min-w-0 bg-[#0c1220] relative">
-            {activePipeline ? (
-                <>
-                   {/* Input Area */}
-                   <div className="p-6 border-b border-slate-800 bg-slate-900/50 backdrop-blur z-10">
-                       <label className="block text-sm font-medium text-slate-400 mb-2">Protocol Parameters (Prompt)</label>
-                       <div className="flex gap-2">
-                           <input 
-                              type="text" 
-                              value={prompt}
-                              onChange={(e) => setPrompt(e.target.value)}
-                              placeholder="e.g., 'A cynical space pirate named Drax with a laser eye'"
-                              className="flex-1 bg-slate-800 border border-slate-700 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-forge-accent"
-                              disabled={isRunning}
-                           />
-                           <button 
-                              onClick={runPipeline}
-                              disabled={isRunning || !prompt}
-                              className="px-6 py-3 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-lg flex items-center gap-2 transition-colors disabled:opacity-50 disabled:cursor-not-allowed shadow-[0_0_20px_rgba(5,150,105,0.3)]"
-                           >
-                              {isRunning ? <Loader2 className="w-5 h-5 animate-spin" /> : <Play className="w-5 h-5 fill-current" />}
-                              {isRunning ? 'Running...' : 'Initialize'}
-                           </button>
-                       </div>
-                   </div>
+        setIsRunning(false);
+    };
 
-                   {/* Visual Pipeline */}
-                   <div className="flex-1 overflow-y-auto p-8 flex flex-col items-center">
-                       <div className="w-full max-w-3xl space-y-4">
-                           {currentSteps.map((step, idx) => (
-                               <div key={step.id} className="relative">
-                                   {/* Connection Line */}
-                                   {idx < currentSteps.length - 1 && (
-                                       <div className={`absolute left-8 top-14 bottom-0 w-0.5 h-8 z-0 ${step.status === 'completed' ? 'bg-emerald-500/50' : 'bg-slate-700'}`}></div>
-                                   )}
-                                   
-                                   <div className={`relative z-10 flex items-start gap-4 p-4 rounded-xl border transition-all ${
-                                       step.status === 'running' ? 'bg-slate-800 border-forge-accent shadow-[0_0_20px_rgba(56,189,248,0.2)]' :
-                                       step.status === 'completed' ? 'bg-emerald-900/10 border-emerald-500/50' :
-                                       step.status === 'failed' ? 'bg-red-900/10 border-red-500/50' :
-                                       'bg-slate-900 border-slate-700 opacity-60'
-                                   }`}>
-                                       {/* Icon Status */}
-                                       <div className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 border-2 ${
-                                            step.status === 'running' ? 'border-forge-accent text-forge-accent' :
-                                            step.status === 'completed' ? 'bg-emerald-500 border-emerald-500 text-white' :
-                                            step.status === 'failed' ? 'bg-red-500 border-red-500 text-white' :
-                                            'border-slate-600 text-slate-600'
-                                       }`}>
-                                           {step.status === 'running' ? <Loader2 className="w-5 h-5 animate-spin" /> :
-                                            step.status === 'completed' ? <CheckCircle2 className="w-5 h-5" /> :
-                                            step.status === 'failed' ? <Circle className="w-5 h-5" /> :
-                                            <Circle className="w-5 h-5" />}
-                                       </div>
+    const copyPath = (path: string) => {
+        navigator.clipboard.writeText(path);
+        log(`Copied path: ${path}`);
+    };
 
-                                       <div className="flex-1 min-w-0">
-                                           <div className="flex justify-between items-start">
-                                               <div>
-                                                   <h4 className={`font-bold ${step.status === 'running' ? 'text-forge-accent' : step.status === 'completed' ? 'text-emerald-400' : 'text-slate-300'}`}>{step.name}</h4>
-                                                   <p className="text-xs text-slate-500 uppercase tracking-wider font-mono mt-0.5">{step.type} Processor</p>
-                                               </div>
-                                               {step.status === 'completed' && <span className="text-[10px] bg-emerald-500/10 text-emerald-400 px-2 py-0.5 rounded border border-emerald-500/20">DONE</span>}
-                                           </div>
-                                           
-                                           {/* Output Preview */}
-                                           {step.output && (
-                                               <div className="mt-3 bg-black/40 rounded p-3 text-xs font-mono text-slate-400 overflow-x-auto border border-slate-700/50">
-                                                   {step.type === 'image' ? (
-                                                       <div className="flex items-center gap-4">
-                                                           <img src={step.output} className="w-16 h-16 object-cover rounded border border-slate-700" alt="Generated" />
-                                                           <div className="text-slate-500">
-                                                               Asset Generated<br/>Resolution: 1K<br/>Format: PNG
-                                                           </div>
-                                                       </div>
-                                                   ) : step.type === 'text' || step.type === 'code' || step.type === 'export' ? (
-                                                       <pre className="whitespace-pre-wrap max-h-32 overflow-y-auto scrollbar-thin">
-                                                           {step.output.length > 300 ? step.output.substring(0, 300) + '...' : step.output}
-                                                       </pre>
-                                                   ) : (
-                                                       <div className="flex items-center gap-2">
-                                                           <Mic className="w-4 h-4 text-emerald-500" /> Audio Synthesized successfully.
-                                                       </div>
-                                                   )}
-                                               </div>
-                                           )}
-                                       </div>
-                                   </div>
-                               </div>
-                           ))}
-                       </div>
-                   </div>
-                </>
-            ) : (
-                <div className="flex-1 flex flex-col items-center justify-center text-slate-500">
-                    <div className="w-20 h-20 bg-slate-800 rounded-full flex items-center justify-center mb-6 animate-pulse">
-                        <GitBranch className="w-10 h-10 opacity-50" />
-                    </div>
-                    <h3 className="text-xl font-bold text-slate-400">System Ready</h3>
-                    <p>Select a protocol to begin orchestration.</p>
+    const applicablePipelines = useMemo(() => PIPELINES.filter(p => selectedAsset ? p.applicable.includes(selectedAsset.type) : true), [selectedAsset]);
+
+    const stagedForBA2 = useMemo(() => assets.filter(a => a.status === 'processed' || a.status === 'in-progress'), [assets]);
+
+    return (
+        <div className="h-full flex flex-col bg-[#111827] text-slate-200 font-sans overflow-hidden">
+            {/* Header */}
+            <div className="p-4 border-b border-black bg-[#1f2937] flex justify-between items-center shadow-md">
+                <div>
+                    <h2 className="text-lg font-bold text-white flex items-center gap-2">
+                        <GitBranch className="w-5 h-5 text-purple-400" />
+                        The Orchestrator
+                    </h2>
+                    <p className="text-[10px] text-slate-400 font-mono mt-0.5">Asset Processing Pipeline & Shared Storage</p>
                 </div>
-            )}
-        </div>
-
-        {/* Right: Console / Manifest */}
-        <div className="w-80 bg-black border-l border-slate-800 flex flex-col">
-            <div className="p-3 border-b border-slate-800 bg-slate-900/50">
-                <h3 className="text-xs font-bold text-slate-500 uppercase tracking-widest flex items-center gap-2">
-                    <FileJson className="w-3 h-3" /> System Log
-                </h3>
-            </div>
-            <div className="flex-1 overflow-y-auto p-3 space-y-1 font-mono text-[10px] text-slate-400">
-                {logs.length === 0 && <span className="opacity-30 italic">Waiting for execution...</span>}
-                {logs.map((l, i) => (
-                    <div key={i} className="break-all border-l-2 border-transparent hover:border-slate-600 pl-2 py-0.5">
-                        <span className="text-slate-600 mr-2">{l.split(']')[0]}]</span>
-                        <span className={l.includes('ERROR') ? 'text-red-400' : l.includes('COMPLETE') ? 'text-emerald-400' : l.includes('>') ? 'text-forge-accent' : 'text-slate-300'}>
-                            {l.split(']')[1]}
-                        </span>
+                <div className="flex gap-2">
+                    <div className="px-3 py-1.5 bg-black rounded border border-slate-700 text-xs text-slate-300 flex items-center gap-2">
+                        <Database className="w-3 h-3" /> Storage Ready
                     </div>
-                ))}
+                </div>
             </div>
-            
-            {/* Manifest Preview */}
-            <div className="h-1/3 border-t border-slate-800 bg-slate-900 p-4 overflow-y-auto">
-                 <h3 className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-2 flex justify-between items-center">
-                     <span>Manifest</span>
-                     <Save className="w-3 h-3 hover:text-white cursor-pointer" />
-                 </h3>
-                 {Object.keys(executionData).length > 0 ? (
-                     <pre className="text-[10px] text-green-400 font-mono">
-                         {JSON.stringify(executionData, null, 2)}
-                     </pre>
-                 ) : (
-                     <div className="text-[10px] text-slate-600 italic text-center mt-8">
-                         No data generated yet.
-                     </div>
-                 )}
+
+            <div className="flex flex-1 overflow-hidden">
+                {/* Assets List */}
+                <div className="w-80 border-r border-slate-800 bg-[#0f172a] flex flex-col">
+                    <div className="p-4 border-b border-slate-800 bg-[#111827]">
+                        <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wide">Assets</h3>
+                        <p className="text-[10px] text-slate-500">Central storage to reuse across mods</p>
+                    </div>
+                    <div className="p-3 space-y-2 overflow-y-auto">
+                        {assets.map(asset => (
+                            <button
+                                key={asset.id}
+                                onClick={() => setSelectedAssetId(asset.id)}
+                                className={`w-full text-left p-3 rounded border transition-all ${
+                                    selectedAssetId === asset.id
+                                        ? 'bg-purple-900/30 border-purple-700/50 ring-1 ring-purple-500/40'
+                                        : 'bg-slate-800/30 border-slate-700/50 hover:border-slate-500'
+                                }`}
+                            >
+                                <div className="flex items-center justify-between">
+                                    <div className="text-sm font-semibold text-white">{asset.name}</div>
+                                    <span className={`text-[10px] px-2 py-0.5 rounded uppercase ${
+                                        asset.status === 'processed' ? 'bg-green-900/40 text-green-200' :
+                                        asset.status === 'in-progress' ? 'bg-yellow-900/40 text-yellow-200' :
+                                        'bg-slate-900/60 text-slate-300'
+                                    }`}>
+                                        {asset.status}
+                                    </span>
+                                </div>
+                                <div className="text-[10px] text-slate-400 mt-1">{asset.type.toUpperCase()} • {formatMB(asset.sizeMB)}</div>
+                                <div className="flex gap-1 mt-2 flex-wrap">
+                                    {asset.tags.map(tag => (
+                                        <span key={tag} className="text-[9px] bg-slate-900/60 border border-slate-700/60 text-slate-200 px-1.5 py-0.5 rounded">
+                                            {tag}
+                                        </span>
+                                    ))}
+                                </div>
+                                {asset.issues && asset.issues.length > 0 && (
+                                    <div className="mt-2 text-[10px] text-red-300 flex items-start gap-1">
+                                        <AlertTriangle className="w-3 h-3" />
+                                        <span>{asset.issues[0]}</span>
+                                    </div>
+                                )}
+                            </button>
+                        ))}
+                    </div>
+                </div>
+
+                {/* Main Panel */}
+                <div className="flex-1 flex flex-col bg-[#0b1220]">
+                    {selectedAsset && selectedPipeline ? (
+                        <>
+                            {/* Pipeline Header */}
+                            <div className="p-5 border-b border-slate-800 flex flex-wrap gap-4 items-center bg-[#0f172a]">
+                                <div>
+                                    <div className="text-[10px] text-slate-400 uppercase font-bold">Selected Asset</div>
+                                    <div className="text-white font-semibold">{selectedAsset.name}</div>
+                                    <div className="text-[11px] text-slate-400">{selectedAsset.sourcePath}</div>
+                                </div>
+                                <div className="flex gap-3 flex-1 min-w-[260px]">
+                                    <div className="px-3 py-2 rounded border border-slate-700 bg-slate-900 text-xs text-slate-300 flex items-center gap-2">
+                                        <Package className="w-3 h-3" /> Target: {selectedAsset.targetPath}
+                                    </div>
+                                    <div className="px-3 py-2 rounded border border-slate-700 bg-slate-900 text-xs text-slate-300 flex items-center gap-2">
+                                        <Shield className="w-3 h-3" /> {selectedAsset.type.toUpperCase()} pipeline
+                                    </div>
+                                    <div className="px-3 py-2 rounded border border-slate-700 bg-slate-900 text-xs text-slate-300 flex items-center gap-2">
+                                        <HardDrive className="w-3 h-3" /> {formatMB(selectedAsset.sizeMB)}
+                                    </div>
+                                </div>
+                                <div className="flex gap-2 ml-auto">
+                                    <button
+                                        onClick={() => copyPath(selectedAsset.targetPath)}
+                                        className="px-3 py-2 bg-slate-800 hover:bg-slate-700 rounded border border-slate-700 text-xs font-semibold text-slate-200 flex items-center gap-2 transition-colors"
+                                    >
+                                        <Copy className="w-3 h-3" /> Copy Path
+                                    </button>
+                                    <button
+                                        onClick={handleRun}
+                                        disabled={isRunning}
+                                        className="px-4 py-2 bg-purple-700 hover:bg-purple-600 rounded border border-purple-500 text-xs font-semibold text-white flex items-center gap-2 transition-colors disabled:opacity-50"
+                                    >
+                                        {isRunning ? <Loader2 className="w-4 h-4 animate-spin" /> : <Play className="w-4 h-4" />}
+                                        {isRunning ? 'Running' : 'Run Pipeline'}
+                                    </button>
+                                </div>
+                            </div>
+
+                            {/* Pipeline Selection and Steps */}
+                            <div className="flex-1 flex overflow-hidden">
+                                <div className="w-72 border-r border-slate-800 bg-[#0f172a] p-4 space-y-2 overflow-y-auto">
+                                    <div className="text-[11px] text-slate-400 uppercase font-bold mb-2">Pipelines</div>
+                                    {applicablePipelines.map(p => (
+                                        <div key={p.id} className={`p-3 rounded border ${p.id === selectedPipeline.id ? 'bg-purple-900/30 border-purple-700/50' : 'bg-slate-900/40 border-slate-800'}`}>
+                                            <div className="text-sm font-semibold text-white">{p.name}</div>
+                                            <div className="text-[10px] text-slate-400 mt-1">{p.description}</div>
+                                        </div>
+                                    ))}
+                                    <div className="mt-4 text-[10px] text-slate-400 flex items-center gap-2">
+                                        <Repeat2 className="w-3 h-3" /> Orchestrator deduplicates overlapping steps automatically.
+                                    </div>
+                                </div>
+
+                                <div className="flex-1 overflow-y-auto p-6">
+                                    <div className="space-y-4">
+                                        {runSteps.length === 0 && (
+                                            <div className="text-center text-slate-500 py-8 text-sm">
+                                                Initialize the pipeline to see step execution.
+                                            </div>
+                                        )}
+                                        {runSteps.map((step, idx) => (
+                                            <div key={step.id} className={`p-4 rounded-xl border relative ${
+                                                step.status === 'completed' ? 'bg-emerald-900/10 border-emerald-600/50' :
+                                                step.status === 'running' ? 'bg-slate-800 border-purple-500/50' :
+                                                step.status === 'failed' ? 'bg-red-900/10 border-red-600/50' :
+                                                'bg-slate-900/40 border-slate-700'
+                                            }`}>
+                                                {idx < runSteps.length - 1 && (
+                                                    <div className="absolute left-6 top-full h-4 w-px bg-slate-700"></div>
+                                                )}
+                                                <div className="flex items-center gap-3">
+                                                    <div className={`w-10 h-10 rounded-full flex items-center justify-center border-2 ${
+                                                        step.status === 'completed' ? 'border-emerald-500 text-emerald-400' :
+                                                        step.status === 'running' ? 'border-purple-500 text-purple-400 animate-pulse' :
+                                                        step.status === 'failed' ? 'border-red-500 text-red-400' :
+                                                        'border-slate-600 text-slate-500'
+                                                    }`}>
+                                                        {step.status === 'completed' ? <CheckCircle2 className="w-5 h-5" /> : step.status === 'running' ? <Loader2 className="w-5 h-5 animate-spin" /> : <ClipboardList className="w-5 h-5" />}
+                                                    </div>
+                                                    <div className="flex-1">
+                                                        <div className="flex items-center justify-between">
+                                                            <div>
+                                                                <div className="text-sm font-semibold text-white">{step.name}</div>
+                                                                <div className="text-[11px] text-slate-400">{step.tool}</div>
+                                                            </div>
+                                                            <span className="text-[10px] text-slate-500">Step {idx + 1}</span>
+                                                        </div>
+                                                        <p className="text-xs text-slate-300 mt-2">{step.description}</p>
+                                                        <div className="mt-2 text-[11px] text-slate-200 bg-black/30 border border-slate-700/60 rounded px-2 py-2">
+                                                            <div className="text-[10px] text-slate-400 mb-1">Command</div>
+                                                            <div className="flex items-center gap-2 text-[11px] text-slate-200">
+                                                                <span className="truncate">{step.command
+                                                                    .replace('{source}', selectedAsset.sourcePath)
+                                                                    .replace('{target}', selectedAsset.targetPath)
+                                                                    .replace('{targetDir}', selectedAsset.targetPath.includes('/') ? selectedAsset.targetPath.slice(0, selectedAsset.targetPath.lastIndexOf('/')) : selectedAsset.targetPath)
+                                                                    .replace('{sourceDir}', selectedAsset.sourcePath.includes('/') ? selectedAsset.sourcePath.slice(0, selectedAsset.sourcePath.lastIndexOf('/')) : selectedAsset.sourcePath)
+                                                                }</span>
+                                                                <button
+                                                                    onClick={() => navigator.clipboard.writeText(step.command
+                                                                        .replace('{source}', selectedAsset.sourcePath)
+                                                                        .replace('{target}', selectedAsset.targetPath)
+                                                                        .replace('{targetDir}', selectedAsset.targetPath.includes('/') ? selectedAsset.targetPath.slice(0, selectedAsset.targetPath.lastIndexOf('/')) : selectedAsset.targetPath)
+                                                                        .replace('{sourceDir}', selectedAsset.sourcePath.includes('/') ? selectedAsset.sourcePath.slice(0, selectedAsset.sourcePath.lastIndexOf('/')) : selectedAsset.sourcePath)
+                                                                    )}
+                                                                    className="px-2 py-1 bg-slate-800 hover:bg-slate-700 rounded border border-slate-700 text-[10px] text-slate-200 flex items-center gap-1"
+                                                                >
+                                                                    <Copy className="w-3 h-3" /> Copy
+                                                                </button>
+                                                            </div>
+                                                        </div>
+                                                        {step.output && (
+                                                            <div className="mt-2 text-[11px] text-emerald-300 bg-black/40 border border-emerald-700/40 rounded px-2 py-1">
+                                                                {step.output}
+                                                                {step.durationMs ? <span className="ml-2 text-slate-400">({step.durationMs} ms)</span> : null}
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            </div>
+                        </>
+                    ) : (
+                        <div className="flex-1 flex items-center justify-center text-slate-500">Select an asset to orchestrate processing.</div>
+                    )}
+                </div>
+
+                {/* Right Panel */}
+                <div className="w-80 border-l border-slate-800 bg-[#0f172a] flex flex-col">
+                    <div className="p-4 border-b border-slate-800 bg-[#111827] flex items-center justify-between">
+                        <div>
+                            <div className="text-[10px] text-slate-400 uppercase font-bold">Storage Stats</div>
+                            <div className="text-sm text-white">Total {formatMB(storageStats.total)}</div>
+                        </div>
+                        <div className="text-right text-[11px] text-slate-400">
+                            <div className="text-green-300">Processed {formatMB(storageStats.processed)}</div>
+                            <div className="text-yellow-300">Pending {formatMB(storageStats.pending)}</div>
+                        </div>
+                    </div>
+
+                    <div className="p-4 border-b border-slate-800 bg-[#0f172a] space-y-2">
+                        <div className="text-[11px] text-slate-300 flex items-center gap-2"><Settings className="w-3 h-3" /> Single orchestrator avoids duplicate processing steps.</div>
+                        <div className="text-[11px] text-slate-300 flex items-center gap-2"><Shield className="w-3 h-3" /> Consistent tools: Splicer, texconv, Outfit Studio, PapyrusCompiler.</div>
+                    </div>
+
+                    <div className="p-4 border-b border-slate-800 bg-[#0f172a] space-y-2">
+                        <div className="flex items-center justify-between">
+                            <div className="text-[10px] text-slate-400 uppercase font-bold">BA2 Queue</div>
+                            <button
+                                onClick={() => navigator.clipboard.writeText(stagedForBA2.map(a => a.targetPath).join('\n'))}
+                                className="px-2 py-1 bg-slate-800 hover:bg-slate-700 rounded border border-slate-700 text-[10px] text-slate-200 flex items-center gap-1"
+                            >
+                                <Download className="w-3 h-3" /> Copy List
+                            </button>
+                        </div>
+                        <div className="text-[10px] text-slate-400">{stagedForBA2.length} assets staged</div>
+                        <div className="max-h-24 overflow-y-auto space-y-1 text-[10px] text-slate-300">
+                            {stagedForBA2.map(a => (
+                                <div key={a.id} className="border border-slate-700 rounded px-2 py-1">
+                                    {a.targetPath}
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+
+                    <div className="p-4 border-b border-slate-800 bg-[#0f172a] space-y-2">
+                        <div className="text-[10px] text-slate-400 uppercase font-bold">Run History</div>
+                        <div className="space-y-1 text-[10px] text-slate-300 max-h-28 overflow-y-auto">
+                            {(selectedAsset && runHistory[selectedAsset.id]?.length) ? runHistory[selectedAsset.id].map(entry => (
+                                <div key={entry.id} className="border border-slate-700 rounded px-2 py-1 flex justify-between">
+                                    <span>{entry.timestamp}</span>
+                                    <span className="text-slate-400">{entry.durationMs} ms</span>
+                                </div>
+                            )) : <div className="text-slate-600 italic">No runs yet.</div>}
+                        </div>
+                    </div>
+
+                    <div className="flex-1 overflow-y-auto p-3 space-y-2 font-mono text-[10px] text-slate-300">
+                        {logs.length === 0 && <div className="italic text-slate-600">Waiting for pipeline run...</div>}
+                        {logs.map((logEntry, idx) => (
+                            <div key={idx} className={`border-l-2 pl-2 py-1 ${
+                                logEntry.level === 'error' ? 'border-red-500 text-red-300' :
+                                logEntry.level === 'warn' ? 'border-yellow-500 text-yellow-200' :
+                                'border-slate-700'
+                            }`}>
+                                <span className="text-slate-500 mr-2">{logEntry.timestamp}</span>
+                                {logEntry.message}
+                            </div>
+                        ))}
+                    </div>
+                </div>
             </div>
         </div>
-      </div>
-    </div>
-  );
+    );
 };
 
 export default WorkflowOrchestrator;

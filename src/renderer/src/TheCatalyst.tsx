@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
-import { GoogleGenAI } from "@google/genai";
-import { FlaskConical, Play, Plus, Trash2, Wand2, RefreshCw, Beaker, Check, AlertTriangle, Settings, ArrowRight } from 'lucide-react';
+import React, { useEffect, useState } from 'react';
+import { FlaskConical, Play, Plus, Trash2, Wand2, RefreshCw, Beaker, Check, AlertTriangle, Settings, PlugZap } from 'lucide-react';
+import type { Settings as AppSettings } from '../../shared/types';
 
 interface TestCase {
     id: string;
@@ -24,6 +24,23 @@ const TheCatalyst: React.FC = () => {
     ]);
 
     const [isOptimizing, setIsOptimizing] = useState(false);
+    const [settings, setSettings] = useState<AppSettings | null>(null);
+    const [mode, setMode] = useState<'local' | 'live'>('local');
+    const [apiStatus, setApiStatus] = useState<string>('Local-only');
+
+    useEffect(() => {
+        const init = async () => {
+            try {
+                const s = await window.electronAPI.getSettings();
+                setSettings(s);
+                window.electronAPI.onSettingsUpdated((next) => setSettings(next));
+                setApiStatus('Local-only');
+            } catch (e) {
+                setApiStatus('Settings unavailable');
+            }
+        };
+        init();
+    }, []);
 
     // Update keys when prompt changes (simple regex)
     const handlePromptChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
@@ -70,58 +87,97 @@ const TheCatalyst: React.FC = () => {
         setTestCases(prev => prev.map(t => t.id === testId ? { ...t, temperature: temp } : t));
     };
 
-    const runTests = async () => {
-        const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+    const renderPrompt = (template: string, variables: { key: string; value: string }[]) => {
+        let finalPrompt = template;
+        variables.forEach(v => {
+            finalPrompt = finalPrompt.replace(new RegExp(`{{\\s*${v.key}\\s*}}`, 'g'), v.value || `[MISSING ${v.key}]`);
+        });
+        variableKeys.forEach(k => {
+            if (!variables.find(v => v.key === k)) {
+                finalPrompt = finalPrompt.replace(new RegExp(`{{\\s*${k}\\s*}}`, 'g'), `[MISSING ${k}]`);
+            }
+        });
+        return finalPrompt;
+    };
 
-        // Run sequential for simplicity in demo (parallel in prod)
+    const synthesize = (prompt: string, temp: number) => {
+        const summary = prompt.length > 260 ? `${prompt.slice(0, 240)}…` : prompt;
+        return [
+            '--- Synthesized Prompt ---',
+            `Temperature: ${temp.toFixed(1)}`,
+            '',
+            summary,
+            '',
+            '--- Guidance ---',
+            '• Check for [MISSING var] placeholders.',
+            '• Keep instructions specific and constrained.',
+            '• Verify outputs against acceptance criteria.',
+        ].join('\n');
+    };
+
+    const callLiveModel = async (prompt: string, temp: number): Promise<string> => {
+        if (!settings) {
+            throw new Error('Settings not loaded.');
+        }
+        if (!settings.llmApiEndpoint || !settings.llmApiKey) {
+            throw new Error('Configure LLM endpoint and API key in settings.');
+        }
+        const body = {
+            model: settings.llmModel || 'gpt-3.5-turbo',
+            messages: [{ role: 'user', content: prompt }],
+            temperature: temp,
+        } as any;
+
+        const res = await fetch(settings.llmApiEndpoint, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${settings.llmApiKey}`,
+            },
+            body: JSON.stringify(body),
+        });
+
+        if (!res.ok) {
+            const text = await res.text();
+            throw new Error(`LLM request failed (${res.status}): ${text.slice(0, 200)}`);
+        }
+        const json = await res.json();
+        const content = json?.choices?.[0]?.message?.content;
+        if (!content) {
+            throw new Error('No content returned from model.');
+        }
+        return content;
+    };
+
+    const runTests = async () => {
         for (const test of testCases) {
             setTestCases(prev => prev.map(t => t.id === test.id ? { ...t, status: 'running' } : t));
-            
             try {
-                // Interpolate Variables
-                let finalPrompt = masterPrompt;
-                test.variables.forEach(v => {
-                    finalPrompt = finalPrompt.replace(new RegExp(`{{\\s*${v.key}\\s*}}`, 'g'), v.value);
-                });
-
-                // If variables missing in test case but present in prompt, fill with [MISSING]
-                variableKeys.forEach(k => {
-                    if (!test.variables.find(v => v.key === k)) {
-                        finalPrompt = finalPrompt.replace(new RegExp(`{{\\s*${k}\\s*}}`, 'g'), `[MISSING ${k}]`);
-                    }
-                });
-
-                const response = await ai.models.generateContent({
-                    model: 'gemini-3-flash-preview',
-                    contents: finalPrompt,
-                    config: {
-                        temperature: test.temperature,
-                    }
-                });
-
-                setTestCases(prev => prev.map(t => t.id === test.id ? { ...t, status: 'complete', output: response.text } : t));
-
+                const finalPrompt = renderPrompt(masterPrompt, test.variables);
+                let output = '';
+                if (mode === 'local') {
+                    output = synthesize(finalPrompt, test.temperature);
+                } else {
+                    output = await callLiveModel(finalPrompt, test.temperature);
+                }
+                setTestCases(prev => prev.map(t => t.id === test.id ? { ...t, status: 'complete', output } : t));
             } catch (e) {
-                setTestCases(prev => prev.map(t => t.id === test.id ? { ...t, status: 'error', output: 'Generation failed.' } : t));
+                const msg = e instanceof Error ? e.message : 'Generation failed.';
+                setTestCases(prev => prev.map(t => t.id === test.id ? { ...t, status: 'error', output: msg } : t));
             }
         }
     };
 
-    const optimizePrompt = async () => {
+    const optimizePrompt = () => {
         if (!masterPrompt) return;
         setIsOptimizing(true);
         try {
-            const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-            const response = await ai.models.generateContent({
-                model: 'gemini-3-flash-preview',
-                contents: `Act as a Prompt Engineer. Rewrite the following prompt to be more clear, concise, and effective for an LLM. 
-                Keep the variable syntax {{variable}} intact.
-                Original Prompt: "${masterPrompt}"
-                Return ONLY the optimized prompt text.`,
-            });
-            setMasterPrompt(response.text.trim());
-        } catch (e) {
-            console.error(e);
+            const compact = masterPrompt
+                .replace(/\s+/g, ' ')
+                .replace(/\s*:\s*/g, ': ')
+                .trim();
+            const withChecks = compact.includes('Ensure') ? compact : `${compact} Ensure outputs are concise and verifiable.`;
+            setMasterPrompt(withChecks);
         } finally {
             setIsOptimizing(false);
         }
@@ -138,12 +194,29 @@ const TheCatalyst: React.FC = () => {
                     </h1>
                     <p className="text-xs text-slate-400 font-mono mt-1">Prompt Engineering & A/B Testing Lab</p>
                 </div>
-                <button 
-                    onClick={runTests}
-                    className="flex items-center gap-2 px-6 py-3 bg-lime-600 hover:bg-lime-500 text-slate-900 font-bold rounded-xl shadow-[0_0_20px_rgba(132,204,22,0.3)] transition-all hover:scale-105"
-                >
-                    <Play className="w-5 h-5 fill-current" /> Run Experiment
-                </button>
+                <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-2 text-[11px] text-slate-300 bg-slate-800 border border-slate-700 rounded px-2 py-1">
+                        <PlugZap className={`w-3 h-3 ${mode === 'live' ? 'text-amber-400' : 'text-slate-500'}`} />
+                        <span>{mode === 'live' ? 'Live API' : 'Local-only'}</span>
+                        <label className="inline-flex items-center cursor-pointer ml-2">
+                            <input
+                              type="checkbox"
+                              className="sr-only"
+                              checked={mode === 'live'}
+                              onChange={(e) => setMode(e.target.checked ? 'live' : 'local')}
+                            />
+                            <span className="w-10 h-5 bg-slate-700 rounded-full p-1 flex items-center transition-all">
+                              <span className={`h-3 w-3 rounded-full bg-white transition-all ${mode === 'live' ? 'translate-x-5 bg-amber-400' : ''}`}></span>
+                            </span>
+                        </label>
+                    </div>
+                    <button 
+                        onClick={runTests}
+                        className="flex items-center gap-2 px-6 py-3 bg-lime-600 hover:bg-lime-500 text-slate-900 font-bold rounded-xl shadow-[0_0_20px_rgba(132,204,22,0.3)] transition-all hover:scale-105"
+                    >
+                        <Play className="w-5 h-5 fill-current" /> Run Experiment
+                    </button>
+                </div>
             </div>
 
             <div className="flex-1 flex overflow-hidden">

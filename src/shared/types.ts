@@ -38,6 +38,13 @@ export interface Settings {
   // Behavior
   autoStart: boolean;
   globalHotkey?: string;
+
+  // External Modding Tools
+  xeditPath?: string;
+  nifSkopePath?: string;
+  fomodCreatorPath?: string;
+  creationKitPath?: string;
+  blenderPath?: string;
 }
 
 /**
@@ -56,6 +63,12 @@ export const DEFAULT_SETTINGS: Settings = {
   alwaysOnTop: false,
   startMinimized: false,
   autoStart: false,
+  // Tool paths empty by default; user configures in settings
+  xeditPath: '',
+  nifSkopePath: '',
+  fomodCreatorPath: '',
+  creationKitPath: '',
+  blenderPath: '',
 };
 
 /**

@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
-import { MessageSquare, Radio, Image, Mic2, Activity, Heart, Leaf, Monitor, Wifi, WifiOff, Hammer, GitBranch, Network, Gamepad2, Container, SquareTerminal, BrainCircuit, Aperture, LayoutDashboard, Satellite, Workflow, Hexagon, DraftingCompass, Dna, Sparkles, Flame, Binary, Triangle, PenTool, FlaskConical, Map, FileDigit, Library, Bug, Package, Watch, ShieldCheck, Feather, Power, Volume2, VolumeX, Settings, Coffee } from 'lucide-react';
+import { MessageSquare, Radio, Image, Mic2, Activity, Heart, Leaf, Monitor, Wifi, WifiOff, Hammer, GitBranch, Network, Gamepad2, Container, SquareTerminal, BrainCircuit, Aperture, LayoutDashboard, Satellite, Workflow, Hexagon, DraftingCompass, Dna, Sparkles, Flame, Binary, Triangle, PenTool, FlaskConical, Map, FileDigit, Library, Bug, Package, Watch, ShieldCheck, Feather, Power, Volume2, VolumeX, Settings, Coffee, Book } from 'lucide-react';
 import { useLive } from './LiveContext';
 import AvatarCore from './AvatarCore';
 
@@ -58,7 +58,7 @@ const Sidebar: React.FC = () => {
           setMoodColor('text-red-400');
       } else if (path.includes('reverie') || path.includes('prism') || path.includes('anima')) {
           setMoodColor('text-purple-400');
-      } else if (path.includes('splicer') || path.includes('blueprint') || path.includes('fabric')) {
+      } else if (path.includes('splicer') || path.includes('blueprint')) {
           setMoodColor('text-blue-400');
       } else if (path.includes('workshop') || path.includes('assembler') || path.includes('auditor') || path.includes('scribe')) {
           setMoodColor('text-amber-400');
@@ -69,14 +69,12 @@ const Sidebar: React.FC = () => {
 
   const navItems = [
     { to: '/', icon: LayoutDashboard, label: 'The Nexus' },
-    { to: '/chat', icon: MessageSquare, label: 'Talk to Mossy' },
     { to: '/organizer', icon: Library, label: 'The Organizer' },
     { to: '/assembler', icon: Package, label: 'The Assembler' },
     { to: '/auditor', icon: ShieldCheck, label: 'The Auditor' },
     { to: '/scribe', icon: Feather, label: 'The Scribe' },
     { to: '/crucible', icon: Bug, label: 'The Crucible' },
     { to: '/catalyst', icon: FlaskConical, label: 'The Catalyst' },
-    { to: '/fabric', icon: PenTool, label: 'The Fabric' },
     { to: '/prism', icon: Triangle, label: 'The Prism' },
     { to: '/anima', icon: Flame, label: 'The Anima' },
     { to: '/reverie', icon: Sparkles, label: 'The Reverie' },
@@ -103,6 +101,7 @@ const Sidebar: React.FC = () => {
     { to: '/bridge', icon: Monitor, label: 'Desktop Bridge' },
     { to: '/settings/privacy', icon: Settings, label: 'Privacy Settings' },
     { to: '/support', icon: Coffee, label: 'Support Mossy' },
+    { to: '/reference', icon: Book, label: 'Quick Reference' },
   ];
 
   return (

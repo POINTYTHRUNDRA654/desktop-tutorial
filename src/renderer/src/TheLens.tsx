@@ -1,310 +1,379 @@
-import React, { useState, useRef, useEffect } from 'react';
-import { GoogleGenAI } from "@google/genai";
-import { Aperture, Maximize, Crosshair, RefreshCcw, MessageSquare, Zap, AlertCircle, Check, Scan, Monitor, Target, MousePointer2, AlertTriangle } from 'lucide-react';
+import { useState } from 'react';
+import { Eye, Folder, FileText, Settings, RefreshCw, AlertCircle, CheckCircle2, Copy } from 'lucide-react';
 
-interface AnalysisResult {
-    summary: string;
-    pointsOfInterest: {
-        x: number;
-        y: number;
-        label: string;
-        type: 'error' | 'info' | 'action';
-        pct?: number; // VATS percentage
-    }[];
+interface DesktopFile {
+    name: string;
+    path: string;
+    type: 'file' | 'folder';
+    size: string;
+    modified: string;
+    category: 'mod' | 'texture' | 'mesh' | 'script' | 'config' | 'other';
 }
 
-const TheLens: React.FC = () => {
-    const [activeView, setActiveView] = useState<'desktop' | 'app' | 'webcam'>('desktop');
-    const [currentImage, setCurrentImage] = useState<string | null>(null);
-    const [isAnalyzing, setIsAnalyzing] = useState(false);
-    const [analysis, setAnalysis] = useState<AnalysisResult | null>(null);
-    const [isVatsMode, setIsVatsMode] = useState(false);
-    const [bridgeStatus, setBridgeStatus] = useState<'connected' | 'disconnected'>('disconnected');
+interface SystemInfo {
+    computerName: string;
+    username: string;
+    osVersion: string;
+    totalMemory: string;
+    availableMemory: string;
+    cpuModel: string;
+}
 
-    useEffect(() => {
-        // Check initial bridge status
-        const check = localStorage.getItem('mossy_bridge_active') === 'true';
-        setBridgeStatus(check ? 'connected' : 'disconnected');
-    }, []);
+interface RecentProject {
+    name: string;
+    path: string;
+    lastModified: string;
+    files: number;
+}
 
-    const handleCapture = async () => {
-        setIsAnalyzing(true);
-        setAnalysis(null);
-        setIsVatsMode(true); 
-        
-        try {
-            // 1. TRY TO FETCH FROM REAL BRIDGE
-            let imageBase64 = '';
-            
-            try {
-                // Use 127.0.0.1 to avoid IPv6 issues
-                const response = await fetch('http://127.0.0.1:21337/capture');
-                if (!response.ok) throw new Error("Bridge refused connection");
-                const data = await response.json();
-                
-                if (data.status === 'success' && data.image) {
-                    setCurrentImage(data.image);
-                    // Extract base64 without prefix for Gemini
-                    imageBase64 = data.image.split(',')[1];
-                    setBridgeStatus('connected');
-                } else {
-                    throw new Error("Invalid response from bridge");
-                }
-            } catch (err) {
-                console.warn("Bridge capture failed, falling back to simulation.", err);
-                setBridgeStatus('disconnected');
-                // FALLBACK: Use placeholder if bridge is offline (User Experience preservation)
-                setCurrentImage('https://placehold.co/1920x1080/1e1e1e/38bdf8?text=Bridge+Offline:+Simulation+Mode');
-                
-                // We can't really analyze a placeholder effectively, but we'll simulate it for the demo flow
-                // In a real scenario, we'd stop here or alert the user.
-            }
+const SAMPLE_SYSTEM_INFO: SystemInfo = {
+    computerName: 'FORTRESS-NEXUS',
+    username: 'Modder',
+    osVersion: 'Windows 10 22H2 (Build 19045)',
+    totalMemory: '32 GB',
+    availableMemory: '18.4 GB',
+    cpuModel: 'Intel Core i9-13900K'
+};
 
-            if (!imageBase64 && bridgeStatus === 'connected') {
-                 // If we thought we were connected but failed, stop
-                 setIsAnalyzing(false);
-                 return;
-            }
+const SAMPLE_RECENT_FILES: DesktopFile[] = [
+    {
+        name: 'ArmorMod.esp',
+        path: 'D:\\Fallout4\\Data\\ArmorMod.esp',
+        type: 'file',
+        size: '2.4 MB',
+        modified: '2 hours ago',
+        category: 'mod'
+    },
+    {
+        name: 'WeaponTextures',
+        path: 'D:\\Fallout4\\Data\\textures\\weapons',
+        type: 'folder',
+        size: '145 items',
+        modified: '1 day ago',
+        category: 'texture'
+    },
+    {
+        name: 'QuestScript.psc',
+        path: 'D:\\Fallout4\\Source\\QuestScript.psc',
+        type: 'file',
+        size: '34 KB',
+        modified: '4 hours ago',
+        category: 'script'
+    },
+    {
+        name: 'armor_chest_female.nif',
+        path: 'D:\\Fallout4\\meshes\\armor\\armor_chest_female.nif',
+        type: 'file',
+        size: '1.2 MB',
+        modified: '3 days ago',
+        category: 'mesh'
+    },
+    {
+        name: 'CreatureTextures',
+        path: 'D:\\Fallout4\\Data\\textures\\creatures',
+        type: 'folder',
+        size: '89 items',
+        modified: '1 week ago',
+        category: 'texture'
+    },
+    {
+        name: 'SettlementExpansion.json',
+        path: 'D:\\Projects\\SettlementExpansion.json',
+        type: 'file',
+        size: '156 KB',
+        modified: '5 days ago',
+        category: 'config'
+    }
+];
 
-            // 2. SEND TO GEMINI (Only if we have real data or forcing simulation)
-            const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-            
-            // Build request
-            const contents: any[] = [];
-            
-            if (imageBase64) {
-                contents.push({
-                    inlineData: {
-                        mimeType: 'image/png',
-                        data: imageBase64
-                    }
-                });
-            }
-            
-            contents.push({
-                text: `You are looking at the user's screen. Analyze the visual interface.
-                Identify technical issues, code errors, or interesting UI elements.
-                
-                Return JSON:
-                {
-                    "summary": "Detailed description of what is on screen",
-                    "pointsOfInterest": [
-                        { "x": int (0-100), "y": int (0-100), "label": "Short label", "type": "error|info|action", "pct": int (0-100) }
-                    ]
-                }
-                If image is a placeholder/black, allow hallucination for demo purposes but note it.`
-            });
+const SAMPLE_RECENT_PROJECTS: RecentProject[] = [
+    {
+        name: 'Weapon Expansion Pack',
+        path: 'D:\\Fallout4 Mods\\WeaponExpansion',
+        lastModified: '2 hours ago',
+        files: 45
+    },
+    {
+        name: 'NPC Companion Suite',
+        path: 'D:\\Fallout4 Mods\\CompanionMods',
+        lastModified: '1 day ago',
+        files: 28
+    },
+    {
+        name: 'Settlement Enhancement',
+        path: 'D:\\Fallout4 Mods\\SettlementEnh',
+        lastModified: '3 days ago',
+        files: 156
+    },
+    {
+        name: 'Quest Framework',
+        path: 'D:\\Fallout4 Mods\\QuestFramework',
+        lastModified: '5 days ago',
+        files: 32
+    }
+];
 
-            // If we are in fallback mode (no base64), we just send text prompt which results in a simulated response based on the "placeholder" text usually
-            // However, Gemini Vision requires an image or it acts as text model.
-            // Let's just simulate the response if no real image to save API calls on junk data
-            
-            let result: AnalysisResult;
+const getCategoryColor = (category: string) => {
+    switch (category) {
+        case 'mod': return 'bg-purple-900/20 border-purple-700/50 text-purple-300';
+        case 'texture': return 'bg-blue-900/20 border-blue-700/50 text-blue-300';
+        case 'mesh': return 'bg-cyan-900/20 border-cyan-700/50 text-cyan-300';
+        case 'script': return 'bg-yellow-900/20 border-yellow-700/50 text-yellow-300';
+        case 'config': return 'bg-green-900/20 border-green-700/50 text-green-300';
+        default: return 'bg-slate-900/20 border-slate-700/50 text-slate-300';
+    }
+};
 
-            if (imageBase64) {
-                const response = await ai.models.generateContent({
-                    model: 'gemini-3-pro-image-preview', // Vision model
-                    contents: contents,
-                    config: { responseMimeType: 'application/json' }
-                });
-                result = JSON.parse(response.text);
-            } else {
-                // Simulation Fallback
-                await new Promise(r => setTimeout(r, 2000));
-                result = {
-                    summary: "Bridge Connection Unavailable. I cannot see your screen. Please run 'mossy_server.py' to enable visual uplinks. Displaying simulation data.",
-                    pointsOfInterest: [
-                        { x: 50, y: 50, label: "Connection Error", type: 'error', pct: 0 }
-                    ]
-                };
-            }
+const TheLens = () => {
+    const [activeTab, setActiveTab] = useState<'overview' | 'files' | 'projects' | 'system'>('overview');
+    const [copiedPath, setCopiedPath] = useState<string | null>(null);
 
-            setAnalysis(result);
-
-        } catch (e) {
-            console.error("Analysis Failed", e);
-            setAnalysis({
-                summary: "Visual Cortex Error. The image could not be processed.",
-                pointsOfInterest: []
-            });
-        } finally {
-            setIsAnalyzing(false);
-        }
+    const handleCopyPath = (path: string) => {
+        navigator.clipboard.writeText(path);
+        setCopiedPath(path);
+        setTimeout(() => setCopiedPath(null), 2000);
     };
 
     return (
-        <div className="h-full flex flex-col bg-forge-dark text-slate-200 font-sans">
+        <div className="h-full flex flex-col bg-[#1e1e1e] text-slate-200 font-sans overflow-hidden">
             {/* Header */}
-            <div className="p-4 border-b border-slate-700 bg-forge-panel flex justify-between items-center z-10 shadow-md">
-                <div className="flex items-center gap-3">
-                    <div className="p-2 bg-emerald-500/10 rounded-lg border border-emerald-500/20">
-                        <Aperture className="w-6 h-6 text-emerald-400" />
-                    </div>
-                    <div>
-                        <h2 className="text-lg font-bold text-white">The Lens</h2>
-                        <p className="text-xs text-slate-400 font-mono">Visual Context Analysis & UI Overlay</p>
-                    </div>
+            <div className="p-4 border-b border-black bg-[#2d2d2d] flex justify-between items-center shadow-md">
+                <div>
+                    <h2 className="text-lg font-bold text-white flex items-center gap-2">
+                        <Eye className="w-5 h-5 text-cyan-400" />
+                        The Lens
+                    </h2>
+                    <p className="text-[10px] text-slate-400 font-mono mt-0.5">Desktop Bridge v1.0 - System & File Monitoring</p>
                 </div>
-                <div className="flex items-center gap-4">
-                     <div className={`flex items-center gap-2 px-3 py-1.5 rounded text-xs font-bold border ${
-                         bridgeStatus === 'connected' ? 'bg-emerald-900/20 border-emerald-500/50 text-emerald-400' : 'bg-red-900/20 border-red-500/50 text-red-400'
-                     }`}>
-                         {bridgeStatus === 'connected' ? <Check className="w-3 h-3"/> : <AlertTriangle className="w-3 h-3"/>}
-                         {bridgeStatus === 'connected' ? 'EYES ONLINE' : 'BLIND (NO BRIDGE)'}
-                     </div>
-                     <div className="flex bg-slate-800 rounded-lg p-1 border border-slate-700">
-                         <button 
-                             onClick={() => setActiveView('desktop')}
-                             className={`px-3 py-1.5 rounded text-xs font-bold flex items-center gap-2 transition-all ${activeView === 'desktop' ? 'bg-slate-600 text-white' : 'text-slate-400 hover:text-slate-200'}`}
-                         >
-                             <Maximize className="w-4 h-4" /> Full Desktop
-                         </button>
-                     </div>
+                <div className="flex gap-2">
+                    <button className="px-3 py-1.5 bg-black rounded border border-slate-600 hover:border-cyan-500 transition-colors text-xs text-cyan-400 flex items-center gap-2">
+                        <RefreshCw className="w-3 h-3" /> Refresh
+                    </button>
+                    <div className="px-3 py-1 bg-cyan-900/20 rounded border border-cyan-700/50 font-mono text-xs text-cyan-300 flex items-center gap-1.5">
+                        <CheckCircle2 className="w-3 h-3" /> Bridge Active
+                    </div>
                 </div>
             </div>
 
-            <div className="flex-1 flex overflow-hidden">
-                {/* Main Viewport */}
-                <div className="flex-1 bg-black relative flex items-center justify-center overflow-hidden">
-                    {/* Background Grid */}
-                    <div 
-                        className="absolute inset-0 opacity-20 pointer-events-none" 
-                        style={{ backgroundImage: 'radial-gradient(#334155 1px, transparent 1px)', backgroundSize: '40px 40px' }}
-                    />
-                    
-                    {/* VATS Overlay - Global Tint */}
-                    {isVatsMode && currentImage && (
-                        <div className="absolute inset-0 bg-[#16f342] opacity-10 mix-blend-overlay pointer-events-none z-20 animate-pulse-slow"></div>
-                    )}
-                    
-                    {currentImage ? (
-                        <div className="relative max-w-[90%] max-h-[90%] border border-slate-700 shadow-2xl rounded-lg overflow-hidden group">
-                            <img 
-                                src={currentImage} 
-                                alt="Analysis Target" 
-                                className={`w-full h-full object-contain block transition-all duration-1000 ${isVatsMode ? 'contrast-125 sepia brightness-110' : ''}`} 
-                            />
-                            
-                            {/* Scanning Effect */}
-                            {isAnalyzing && (
-                                <div className="absolute inset-0 z-10 bg-emerald-500/5 overflow-hidden">
-                                    <div className="w-full h-1 bg-emerald-500/50 shadow-[0_0_15px_#10b981] animate-scan-down"></div>
-                                    <div className="absolute top-10 left-10 text-[#16f342] font-mono text-xl font-bold animate-blink">V.A.T.S. ENGAGED</div>
-                                </div>
-                            )}
+            {/* Tab Navigation */}
+            <div className="flex border-b border-slate-800 bg-[#252526] px-4">
+                {(['overview', 'files', 'projects', 'system'] as const).map((tab) => (
+                    <button
+                        key={tab}
+                        onClick={() => setActiveTab(tab)}
+                        className={`px-4 py-3 text-xs font-semibold border-b-2 transition-all capitalize ${
+                            activeTab === tab
+                                ? 'border-cyan-400 text-cyan-300'
+                                : 'border-transparent text-slate-400 hover:text-slate-300'
+                        }`}
+                    >
+                        {tab}
+                    </button>
+                ))}
+            </div>
 
-                            {/* Overlays */}
-                            {!isAnalyzing && analysis && analysis.pointsOfInterest.map((poi, i) => (
-                                <div 
-                                    key={i} 
-                                    className="absolute animate-fade-in"
-                                    style={{ left: `${poi.x}%`, top: `${poi.y}%` }}
-                                >
-                                    {/* VATS Box */}
-                                    <div className="relative group/box cursor-pointer">
-                                        <div className="absolute -top-12 -left-8 bg-[#000] border-2 border-[#16f342] text-[#16f342] px-2 py-1 font-mono text-sm font-bold shadow-[0_0_10px_#16f342]">
-                                            {poi.pct}%
-                                        </div>
-                                        <div className={`w-16 h-16 border-2 border-[#16f342] -translate-x-1/2 -translate-y-1/2 bg-[#16f342]/10 hover:bg-[#16f342]/20 transition-colors`}>
-                                            <div className="absolute top-0 left-0 w-2 h-2 border-t-2 border-l-2 border-[#16f342]"></div>
-                                            <div className="absolute top-0 right-0 w-2 h-2 border-t-2 border-r-2 border-[#16f342]"></div>
-                                            <div className="absolute bottom-0 left-0 w-2 h-2 border-b-2 border-l-2 border-[#16f342]"></div>
-                                            <div className="absolute bottom-0 right-0 w-2 h-2 border-b-2 border-r-2 border-[#16f342]"></div>
-                                        </div>
-                                        
-                                        {/* Label Box */}
-                                        <div className={`absolute top-10 left-1/2 -translate-x-1/2 whitespace-nowrap px-3 py-1.5 bg-black/80 border border-[#16f342] text-[#16f342] text-xs font-bold shadow-xl backdrop-blur-md opacity-0 group-hover/box:opacity-100 transition-opacity z-30`}>
-                                            <div className="flex items-center gap-2">
-                                                {poi.type === 'error' ? <AlertCircle className="w-3 h-3" /> :
-                                                 poi.type === 'action' ? <MousePointer2 className="w-3 h-3" /> :
-                                                 <Check className="w-3 h-3" />}
-                                                {poi.label}
+            {/* Content Area */}
+            <div className="flex-1 overflow-y-auto">
+                {activeTab === 'overview' && (
+                    <div className="p-6 space-y-6">
+                        {/* System Status */}
+                        <div className="bg-[#252526] border border-slate-800 rounded-lg p-4">
+                            <h3 className="text-sm font-bold text-white mb-3 flex items-center gap-2">
+                                <Settings className="w-4 h-4 text-cyan-400" /> System Status
+                            </h3>
+                            <div className="grid grid-cols-2 gap-3 text-xs">
+                                <div className="bg-[#1e1e1e] p-2 rounded border border-slate-700">
+                                    <div className="text-slate-400">Computer</div>
+                                    <div className="text-white font-mono">{SAMPLE_SYSTEM_INFO.computerName}</div>
+                                </div>
+                                <div className="bg-[#1e1e1e] p-2 rounded border border-slate-700">
+                                    <div className="text-slate-400">OS</div>
+                                    <div className="text-white font-mono">{SAMPLE_SYSTEM_INFO.osVersion}</div>
+                                </div>
+                                <div className="bg-[#1e1e1e] p-2 rounded border border-slate-700">
+                                    <div className="text-slate-400">Memory Available</div>
+                                    <div className="text-cyan-300 font-mono">{SAMPLE_SYSTEM_INFO.availableMemory} / {SAMPLE_SYSTEM_INFO.totalMemory}</div>
+                                </div>
+                                <div className="bg-[#1e1e1e] p-2 rounded border border-slate-700">
+                                    <div className="text-slate-400">CPU</div>
+                                    <div className="text-white font-mono text-[9px]">{SAMPLE_SYSTEM_INFO.cpuModel}</div>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Recent Files */}
+                        <div className="bg-[#252526] border border-slate-800 rounded-lg p-4">
+                            <h3 className="text-sm font-bold text-white mb-3 flex items-center gap-2">
+                                <FileText className="w-4 h-4 text-cyan-400" /> Recent Modding Files
+                            </h3>
+                            <div className="space-y-2">
+                                {SAMPLE_RECENT_FILES.slice(0, 4).map((file, idx) => (
+                                    <div
+                                        key={idx}
+                                        className={`flex items-center justify-between p-2 rounded border cursor-pointer hover:bg-slate-800/50 transition-colors ${getCategoryColor(file.category)}`}
+                                    >
+                                        <div className="flex items-center gap-2 min-w-0">
+                                            {file.type === 'folder' ? (
+                                                <Folder className="w-4 h-4 flex-shrink-0" />
+                                            ) : (
+                                                <FileText className="w-4 h-4 flex-shrink-0" />
+                                            )}
+                                            <div className="min-w-0">
+                                                <div className="text-xs font-semibold truncate">{file.name}</div>
+                                                <div className="text-[9px] text-slate-500">{file.modified}</div>
                                             </div>
                                         </div>
+                                        <button
+                                            onClick={() => handleCopyPath(file.path)}
+                                            className="ml-2 p-1 hover:bg-black/30 rounded flex-shrink-0"
+                                        >
+                                            {copiedPath === file.path ? (
+                                                <CheckCircle2 className="w-3 h-3 text-green-400" />
+                                            ) : (
+                                                <Copy className="w-3 h-3 opacity-50 hover:opacity-100" />
+                                            )}
+                                        </button>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+
+                        {/* Quick Links */}
+                        <div className="bg-[#252526] border border-slate-800 rounded-lg p-4">
+                            <h3 className="text-sm font-bold text-white mb-3 flex items-center gap-2">
+                                <AlertCircle className="w-4 h-4 text-cyan-400" /> Quick Stats
+                            </h3>
+                            <div className="grid grid-cols-3 gap-3 text-xs">
+                                <div className="bg-[#1e1e1e] p-3 rounded border border-slate-700 text-center">
+                                    <div className="text-2xl font-bold text-cyan-400">4</div>
+                                    <div className="text-slate-400 mt-1">Active Projects</div>
+                                </div>
+                                <div className="bg-[#1e1e1e] p-3 rounded border border-slate-700 text-center">
+                                    <div className="text-2xl font-bold text-purple-400">156</div>
+                                    <div className="text-slate-400 mt-1">Total Mod Files</div>
+                                </div>
+                                <div className="bg-[#1e1e1e] p-3 rounded border border-slate-700 text-center">
+                                    <div className="text-2xl font-bold text-blue-400">1.2 GB</div>
+                                    <div className="text-slate-400 mt-1">Disk Usage</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                )}
+
+                {activeTab === 'files' && (
+                    <div className="p-6">
+                        <div className="space-y-2">
+                            {SAMPLE_RECENT_FILES.map((file, idx) => (
+                                <div
+                                    key={idx}
+                                    className={`flex items-center justify-between p-3 rounded border ${getCategoryColor(file.category)} hover:bg-slate-800/50 transition-colors`}
+                                >
+                                    <div className="flex items-center gap-3 min-w-0">
+                                        {file.type === 'folder' ? (
+                                            <Folder className="w-4 h-4 flex-shrink-0" />
+                                        ) : (
+                                            <FileText className="w-4 h-4 flex-shrink-0" />
+                                        )}
+                                        <div className="min-w-0">
+                                            <div className="text-sm font-semibold truncate">{file.name}</div>
+                                            <div className="text-xs text-slate-400">{file.path}</div>
+                                            <div className="text-[10px] text-slate-500 mt-1">{file.size} · {file.modified}</div>
+                                        </div>
+                                    </div>
+                                    <button
+                                        onClick={() => handleCopyPath(file.path)}
+                                        className="ml-2 p-1.5 hover:bg-black/30 rounded flex-shrink-0"
+                                    >
+                                        {copiedPath === file.path ? (
+                                            <CheckCircle2 className="w-4 h-4 text-green-400" />
+                                        ) : (
+                                            <Copy className="w-4 h-4 opacity-50 hover:opacity-100" />
+                                        )}
+                                    </button>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                )}
+
+                {activeTab === 'projects' && (
+                    <div className="p-6">
+                        <div className="space-y-3">
+                            {SAMPLE_RECENT_PROJECTS.map((project, idx) => (
+                                <div
+                                    key={idx}
+                                    className="bg-[#252526] border border-slate-800 rounded-lg p-4 hover:border-cyan-600/50 transition-colors"
+                                >
+                                    <div className="flex items-start justify-between mb-2">
+                                        <div>
+                                            <h4 className="font-semibold text-white flex items-center gap-2">
+                                                <Folder className="w-4 h-4 text-cyan-400" />
+                                                {project.name}
+                                            </h4>
+                                            <p className="text-xs text-slate-400 mt-1 font-mono">{project.path}</p>
+                                        </div>
+                                        <button
+                                            onClick={() => handleCopyPath(project.path)}
+                                            className="p-1.5 hover:bg-slate-700 rounded"
+                                        >
+                                            {copiedPath === project.path ? (
+                                                <CheckCircle2 className="w-4 h-4 text-green-400" />
+                                            ) : (
+                                                <Copy className="w-4 h-4 text-slate-400 opacity-50 hover:opacity-100" />
+                                            )}
+                                        </button>
+                                    </div>
+                                    <div className="flex items-center gap-4 text-xs text-slate-400">
+                                        <span>📁 {project.files} files</span>
+                                        <span>⏱️ {project.lastModified}</span>
                                     </div>
                                 </div>
                             ))}
                         </div>
-                    ) : (
-                        <div className="text-slate-600 flex flex-col items-center gap-4">
-                             <Scan className="w-16 h-16 opacity-20" />
-                             <p>Waiting for visual stream...</p>
-                             {bridgeStatus === 'disconnected' && (
-                                 <p className="text-xs text-red-400 bg-red-900/20 px-3 py-1 rounded border border-red-900/50">
-                                     Bridge Offline. Please run 'mossy_server.py'.
-                                 </p>
-                             )}
+                    </div>
+                )}
+
+                {activeTab === 'system' && (
+                    <div className="p-6 space-y-4">
+                        <div className="bg-[#252526] border border-slate-800 rounded-lg p-4">
+                            <h3 className="text-sm font-bold text-white mb-3">System Information</h3>
+                            <div className="space-y-3 text-sm">
+                                <div className="flex justify-between p-2 bg-[#1e1e1e] rounded border border-slate-700">
+                                    <span className="text-slate-400">Computer Name</span>
+                                    <span className="text-white font-mono">{SAMPLE_SYSTEM_INFO.computerName}</span>
+                                </div>
+                                <div className="flex justify-between p-2 bg-[#1e1e1e] rounded border border-slate-700">
+                                    <span className="text-slate-400">Username</span>
+                                    <span className="text-white font-mono">{SAMPLE_SYSTEM_INFO.username}</span>
+                                </div>
+                                <div className="flex justify-between p-2 bg-[#1e1e1e] rounded border border-slate-700">
+                                    <span className="text-slate-400">OS Version</span>
+                                    <span className="text-white font-mono text-xs">{SAMPLE_SYSTEM_INFO.osVersion}</span>
+                                </div>
+                                <div className="flex justify-between p-2 bg-[#1e1e1e] rounded border border-slate-700">
+                                    <span className="text-slate-400">CPU</span>
+                                    <span className="text-white font-mono text-xs">{SAMPLE_SYSTEM_INFO.cpuModel}</span>
+                                </div>
+                                <div className="flex justify-between p-2 bg-[#1e1e1e] rounded border border-slate-700">
+                                    <span className="text-slate-400">Total Memory</span>
+                                    <span className="text-cyan-300 font-mono">{SAMPLE_SYSTEM_INFO.totalMemory}</span>
+                                </div>
+                                <div className="flex justify-between p-2 bg-[#1e1e1e] rounded border border-slate-700">
+                                    <span className="text-slate-400">Available Memory</span>
+                                    <span className="text-green-300 font-mono">{SAMPLE_SYSTEM_INFO.availableMemory}</span>
+                                </div>
+                            </div>
                         </div>
-                    )}
-                </div>
 
-                {/* Right Control Panel */}
-                <div className="w-80 bg-slate-900 border-l border-slate-800 flex flex-col">
-                    <div className="p-4 border-b border-slate-800">
-                        <label className="text-xs font-bold text-slate-500 uppercase block mb-2">Operation Mode</label>
-                        <div className="text-sm text-slate-300 bg-black/30 p-2 rounded mb-4">
-                            {activeView === 'desktop' ? 'Full Desktop Capture' : 'Active Window Only'}
+                        <div className="bg-blue-900/10 border border-blue-700/30 rounded-lg p-4">
+                            <h4 className="text-sm font-semibold text-blue-300 mb-2 flex items-center gap-2">
+                                <AlertCircle className="w-4 h-4" /> Bridge Status
+                            </h4>
+                            <p className="text-xs text-blue-200">The Lens is connected to the desktop. File paths are monitored and system information is current.</p>
                         </div>
-                        
-                        <button 
-                            onClick={handleCapture}
-                            disabled={isAnalyzing}
-                            className="w-full mt-2 py-3 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-lg flex items-center justify-center gap-2 transition-all shadow-lg shadow-emerald-900/20 disabled:opacity-50"
-                        >
-                            {isAnalyzing ? <RefreshCcw className="w-4 h-4 animate-spin" /> : <Crosshair className="w-4 h-4" />}
-                            {isAnalyzing ? 'Scanning...' : 'Capture Vision'}
-                        </button>
                     </div>
-
-                    <div className="flex-1 overflow-y-auto p-4">
-                         <h3 className="text-xs font-bold text-slate-500 uppercase mb-3 flex items-center gap-2">
-                             <Zap className="w-3 h-3" /> Intelligence Feed
-                         </h3>
-                         
-                         {analysis ? (
-                             <div className="space-y-4 animate-fade-in">
-                                 <div className="bg-slate-800/50 border border-slate-700 rounded-lg p-3 text-sm text-slate-300 leading-relaxed">
-                                     <div className="flex items-start gap-2 mb-2">
-                                         <MessageSquare className="w-4 h-4 text-emerald-400 mt-1 shrink-0" />
-                                         <span className="font-bold text-emerald-400">Mossy:</span>
-                                     </div>
-                                     {analysis.summary}
-                                 </div>
-
-                                 <div className="space-y-2">
-                                     {analysis.pointsOfInterest.map((poi, i) => (
-                                         <div key={i} className={`p-3 rounded-lg border flex items-center gap-3 transition-colors cursor-pointer hover:bg-opacity-20 ${
-                                             poi.type === 'error' ? 'bg-red-900/10 border-red-500/30 hover:bg-red-900' :
-                                             poi.type === 'action' ? 'bg-emerald-900/10 border-emerald-500/30 hover:bg-emerald-900' :
-                                             'bg-blue-900/10 border-blue-500/30 hover:bg-blue-900'
-                                         }`}>
-                                             <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 ${
-                                                 poi.type === 'error' ? 'bg-red-500/20 text-red-400' :
-                                                 poi.type === 'action' ? 'bg-emerald-500/20 text-emerald-400' :
-                                                 'bg-blue-500/20 text-blue-400'
-                                             }`}>
-                                                 {i + 1}
-                                             </div>
-                                             <div>
-                                                 <div className="text-xs font-bold text-slate-200">{poi.label}</div>
-                                                 <div className="text-[10px] text-slate-500 uppercase">{poi.type} | {poi.pct}%</div>
-                                             </div>
-                                             <Target className="w-4 h-4 text-slate-600 ml-auto" />
-                                         </div>
-                                     ))}
-                                 </div>
-                             </div>
-                         ) : (
-                             <div className="text-center text-slate-600 text-xs mt-10">
-                                 Capture a window to begin visual analysis.
-                             </div>
-                         )}
-                    </div>
-                    
-                    <div className="p-3 border-t border-slate-800 bg-black/20 text-[10px] text-slate-500 text-center font-mono">
-                         VISION MODEL: GEMINI-3-PRO
-                    </div>
-                </div>
+                )}
             </div>
         </div>
     );

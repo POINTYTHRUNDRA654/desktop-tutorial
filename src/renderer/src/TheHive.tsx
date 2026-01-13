@@ -1,275 +1,485 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { Hexagon, Play, Pause, Bot, MessageSquare, Terminal, RefreshCw, Cpu, Activity, Send, CheckCircle2, Shield, Search } from 'lucide-react';
-import { GoogleGenAI } from "@google/genai";
+import React, { useState, useEffect } from 'react';
+import { Hexagon, Plus, Trash2, GitBranch, CheckCircle2, AlertTriangle, Download, Upload, Package, Zap, Wrench, Play, StopCircle, Clock, FileText, Copy } from 'lucide-react';
 
-interface Agent {
+interface ModProject {
     id: string;
-    role: string;
     name: string;
-    status: 'idle' | 'thinking' | 'working' | 'waiting' | 'done';
-    task: string;
-    load: number; // 0-100
-    icon: React.ElementType;
-    color: string;
+    description: string;
+    version: string;
+    type: 'quest' | 'settlement' | 'dungeon' | 'npc' | 'location' | 'overhaul';
+    status: 'development' | 'testing' | 'ready' | 'released';
+    author: string;
+    files: string[];
+    dependencies: Dependency[];
+    created: number;
 }
 
-interface Log {
-    id: string;
-    from: string;
-    to: string;
-    message: string;
-    timestamp: string;
+interface Dependency {
+    name: string;
+    version: string;
+    required: boolean;
 }
+
+interface BuildStep {
+    id: string;
+    name: string;
+    command: string;
+    status: 'pending' | 'running' | 'success' | 'failed';
+    duration: number;
+}
+
+interface BuildPipeline {
+    id: string;
+    projectId: string;
+    steps: BuildStep[];
+    version: string;
+    createdAt: number;
+}
+
+const SAMPLE_PROJECTS: ModProject[] = [
+    {
+        id: '1',
+        name: 'The Lost Vault',
+        description: 'Comprehensive quest mod with 8 new quest lines and 15 NPCs',
+        version: '1.2.1',
+        type: 'quest',
+        status: 'released',
+        author: 'You',
+        files: ['QuestScript.psc', 'DialogueScript.psc', 'RewardScript.psc', 'manifest.json'],
+        dependencies: [
+            { name: 'F4SE', version: '0.6.23', required: true },
+            { name: 'AWKCR', version: '1.0', required: false }
+        ],
+        created: Date.now() - 86400000 * 30
+    },
+    {
+        id: '2',
+        name: 'Commonwealth Defense Force',
+        description: 'Settlement expansion with new buildings, defenses, and garrison system',
+        version: '0.9.0',
+        type: 'settlement',
+        status: 'testing',
+        author: 'You',
+        files: ['SettlementSetup.psc', 'BuildingRegistry.psc', 'DefenseLogic.psc'],
+        dependencies: [
+            { name: 'F4SE', version: '0.6.23', required: true }
+        ],
+        created: Date.now() - 86400000 * 7
+    }
+];
+
+const BUILD_STEPS: BuildStep[] = [
+    { id: '1', name: 'Compile Papyrus Scripts', command: 'papyrus-compile', status: 'success', duration: 2500 },
+    { id: '2', name: 'Validate xEdit Records', command: 'xedit-validate', status: 'success', duration: 1800 },
+    { id: '3', name: 'Check NIF Meshes', command: 'nif-verify', status: 'success', duration: 3200 },
+    { id: '4', name: 'Package Assets', command: 'zip-bundle', status: 'success', duration: 1200 },
+    { id: '5', name: 'Generate Changelog', command: 'git-diff', status: 'success', duration: 800 }
+];
 
 const TheHive: React.FC = () => {
-    const [directive, setDirective] = useState('');
-    const [isActive, setIsActive] = useState(false);
-    const [agents, setAgents] = useState<Agent[]>([
-        { id: '1', role: 'Architect', name: 'Alpha-1', status: 'idle', task: 'Awaiting directive...', load: 5, icon: Bot, color: 'text-purple-400' },
-        { id: '2', role: 'Engineer', name: 'Beta-Dev', status: 'idle', task: 'Standby', load: 2, icon: Terminal, color: 'text-emerald-400' },
-        { id: '3', role: 'Designer', name: 'Gamma-UX', status: 'idle', task: 'Standby', load: 3, icon: Activity, color: 'text-pink-400' },
-        { id: '4', role: 'Researcher', name: 'Delta-Search', status: 'idle', task: 'Standby', load: 1, icon: Search, color: 'text-blue-400' },
-    ]);
-    const [logs, setLogs] = useState<Log[]>([
-        { id: '0', from: 'System', to: 'All', message: 'Swarm Cluster initialized. Nodes 1-4 online.', timestamp: new Date().toLocaleTimeString() }
-    ]);
-    
-    const logsEndRef = useRef<HTMLDivElement>(null);
+    const [activeTab, setActiveTab] = useState<'projects' | 'build' | 'deploy'>('projects');
+    const [projects, setProjects] = useState<ModProject[]>(SAMPLE_PROJECTS);
+    const [buildPipelines, setBuildPipelines] = useState<BuildPipeline[]>([]);
+    const [selectedProject, setSelectedProject] = useState<ModProject | null>(projects[0]);
+    const [newProjectName, setNewProjectName] = useState('');
+    const [buildRunning, setBuildRunning] = useState(false);
 
-    // Auto-scroll logs
+    // Load from localStorage
     useEffect(() => {
-        logsEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-    }, [logs]);
+        const saved = localStorage.getItem('hive_projects');
+        if (saved) setProjects(JSON.parse(saved));
+    }, []);
 
-    // Simulation Loop
     useEffect(() => {
-        if (!isActive) return;
+        localStorage.setItem('hive_projects', JSON.stringify(projects));
+    }, [projects]);
 
-        const interval = setInterval(() => {
-            setAgents(prev => prev.map(a => {
-                // Fluctuate load based on status
-                if (a.status === 'thinking' || a.status === 'working') {
-                    return { ...a, load: Math.min(100, Math.max(20, a.load + (Math.random() * 20 - 10))) };
-                }
-                return { ...a, load: Math.max(0, a.load - 5) };
-            }));
-
-            // Random Chat Simulation based on directive
-            if (Math.random() > 0.6) {
-                simulateAgentChat();
-            }
-        }, 1500);
-
-        return () => clearInterval(interval);
-    }, [isActive, directive]);
-
-    const simulateAgentChat = () => {
-        const activeAgents = agents.filter(a => a.status !== 'idle');
-        if (activeAgents.length < 2) return;
-
-        const sender = activeAgents[Math.floor(Math.random() * activeAgents.length)];
-        const receiver = activeAgents.find(a => a.id !== sender.id) || activeAgents[0];
-        
-        const topics = [
-            "Optimizing vector path...",
-            "Requesting API schema validation.",
-            "Visual assets compiled. Transferring...",
-            "Code block verified. Running tests...",
-            "Memory buffer at 80%. Garbage collection advised.",
-            "Cross-referencing documentation...",
-            "User constraint detected. Adjusting parameters."
-        ];
-        
-        const msg = topics[Math.floor(Math.random() * topics.length)];
-
-        setLogs(prev => [...prev, {
+    const addProject = () => {
+        if (!newProjectName) return;
+        const newProject: ModProject = {
             id: Date.now().toString(),
-            from: sender.role,
-            to: receiver.role,
-            message: msg,
-            timestamp: new Date().toLocaleTimeString()
-        }]);
+            name: newProjectName,
+            description: 'New mod project',
+            version: '0.1.0',
+            type: 'quest',
+            status: 'development',
+            author: 'You',
+            files: ['main.psc'],
+            dependencies: [{ name: 'F4SE', version: '0.6.23', required: true }],
+            created: Date.now()
+        };
+        setProjects([...projects, newProject]);
+        setSelectedProject(newProject);
+        setNewProjectName('');
     };
 
-    const handleExecute = async () => {
-        if (!directive.trim()) return;
-        setIsActive(true);
-        setLogs(prev => [...prev, { id: 'dir', from: 'User', to: 'Architect', message: `Directive: ${directive}`, timestamp: new Date().toLocaleTimeString() }]);
+    const deleteProject = (id: string) => {
+        setProjects(projects.filter(p => p.id !== id));
+        if (selectedProject?.id === id) setSelectedProject(projects[0] || null);
+    };
 
-        // 1. Architect analyzes
-        setAgents(prev => prev.map(a => a.role === 'Architect' ? { ...a, status: 'thinking', task: 'Analyzing directive...' } : a));
-        
-        setTimeout(() => {
-            setLogs(prev => [...prev, { id: Date.now().toString(), from: 'Architect', to: 'All', message: 'Directive decomposed. Assigning sub-tasks.', timestamp: new Date().toLocaleTimeString() }]);
-            
-            // 2. Distribute tasks
-            setAgents(prev => prev.map(a => {
-                if (a.role === 'Architect') return { ...a, status: 'working', task: 'Orchestrating workflow' };
-                if (a.role === 'Engineer') return { ...a, status: 'working', task: 'Generating boilerplate code' };
-                if (a.role === 'Designer') return { ...a, status: 'thinking', task: 'Synthesizing UI concepts' };
-                if (a.role === 'Researcher') return { ...a, status: 'working', task: 'Fetching documentation' };
-                return a;
-            }));
+    const startBuild = () => {
+        if (!selectedProject) return;
+        setBuildRunning(true);
+
+        // Simulate build process
+        const newPipeline: BuildPipeline = {
+            id: Date.now().toString(),
+            projectId: selectedProject.id,
+            steps: BUILD_STEPS.map(s => ({ ...s, status: 'pending' as const })),
+            version: selectedProject.version,
+            createdAt: Date.now()
+        };
+        setBuildPipelines([newPipeline, ...buildPipelines]);
+
+        // Animate steps
+        let stepIndex = 0;
+        const interval = setInterval(() => {
+            if (stepIndex < BUILD_STEPS.length) {
+                setBuildPipelines(prev => {
+                    const updated = [...prev];
+                    updated[0].steps[stepIndex] = { ...updated[0].steps[stepIndex], status: 'running' };
+                    return updated;
+                });
+
+                setTimeout(() => {
+                    setBuildPipelines(prev => {
+                        const updated = [...prev];
+                        updated[0].steps[stepIndex] = { ...updated[0].steps[stepIndex], status: 'success' };
+                        return updated;
+                    });
+                }, BUILD_STEPS[stepIndex].duration);
+
+                stepIndex++;
+            } else {
+                clearInterval(interval);
+                setBuildRunning(false);
+            }
         }, 2000);
     };
 
-    const handleStop = () => {
-        setIsActive(false);
-        setAgents(prev => prev.map(a => ({ ...a, status: 'idle', task: 'Standby', load: 0 })));
-        setLogs(prev => [...prev, { id: Date.now().toString(), from: 'System', to: 'All', message: 'Swarm execution halted.', timestamp: new Date().toLocaleTimeString() }]);
-    };
-
     return (
-        <div className="h-full flex flex-col bg-forge-dark text-slate-200 overflow-hidden font-sans">
+        <div className="h-full flex flex-col bg-[#050505] text-slate-200 font-sans relative overflow-hidden">
+            {/* Background */}
+            <div className="absolute inset-0 bg-gradient-to-br from-blue-900/10 via-black to-black pointer-events-none"></div>
+
             {/* Header */}
-            <div className="p-6 border-b border-slate-700 bg-forge-panel flex justify-between items-center z-10 shadow-md">
-                <div>
-                    <h2 className="text-xl font-bold text-white flex items-center gap-2">
-                        <Hexagon className="w-6 h-6 text-forge-accent" />
-                        The Hive
-                    </h2>
-                    <p className="text-xs text-slate-400 font-mono mt-1">Multi-Agent Swarm Intelligence & Delegation</p>
-                </div>
-                <div className="flex items-center gap-4">
-                    <div className="flex items-center gap-2 text-xs font-mono text-slate-400 bg-slate-800 px-3 py-1.5 rounded-full border border-slate-700">
-                        <div className={`w-2 h-2 rounded-full ${isActive ? 'bg-emerald-500 animate-pulse' : 'bg-slate-500'}`}></div>
-                        {isActive ? 'SWARM ACTIVE' : 'SWARM IDLE'}
+            <div className="relative z-10 p-6 border-b border-slate-800 bg-slate-900/50 backdrop-blur">
+                <div className="flex justify-between items-center mb-4">
+                    <div>
+                        <h1 className="text-2xl font-bold text-white flex items-center gap-3">
+                            <Hexagon className="w-6 h-6 text-blue-400 animate-pulse" />
+                            The Hive
+                        </h1>
+                        <p className="text-xs text-slate-400 font-mono mt-1">Mod Project Manager & Build Coordinator</p>
                     </div>
+                </div>
+
+                {/* Tab Navigation */}
+                <div className="flex gap-2 border-t border-slate-800 pt-4">
+                    {[
+                        { id: 'projects', label: 'Projects', icon: '📦' },
+                        { id: 'build', label: 'Build Pipeline', icon: '⚙️' },
+                        { id: 'deploy', label: 'Deployment', icon: '🚀' }
+                    ].map(tab => (
+                        <button
+                            key={tab.id}
+                            onClick={() => setActiveTab(tab.id as any)}
+                            className={`px-4 py-2 text-sm font-bold uppercase tracking-wider flex items-center gap-2 border-b-2 transition-colors ${
+                                activeTab === tab.id
+                                    ? 'border-blue-400 text-blue-300'
+                                    : 'border-transparent text-slate-500 hover:text-slate-300'
+                            }`}
+                        >
+                            <span>{tab.icon}</span> {tab.label}
+                        </button>
+                    ))}
                 </div>
             </div>
 
-            <div className="flex-1 flex overflow-hidden">
-                {/* Left: Agent Grid */}
-                <div className="flex-1 bg-[#0b111a] p-8 overflow-y-auto relative">
-                     {/* Background Grid */}
-                    <div className="absolute inset-0 opacity-10 pointer-events-none" style={{ backgroundImage: 'radial-gradient(#38bdf8 1px, transparent 1px)', backgroundSize: '40px 40px' }} />
-
-                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 relative z-10 max-w-4xl mx-auto">
-                        {agents.map(agent => (
-                            <div 
-                                key={agent.id} 
-                                className={`bg-slate-900/80 backdrop-blur border rounded-2xl p-6 transition-all duration-500 ${
-                                    agent.status !== 'idle' ? 'border-forge-accent shadow-[0_0_20px_rgba(56,189,248,0.15)]' : 'border-slate-800'
-                                }`}
-                            >
-                                <div className="flex justify-between items-start mb-4">
-                                    <div className="flex items-center gap-3">
-                                        <div className={`p-3 rounded-xl bg-slate-800 border border-slate-700 ${agent.color}`}>
-                                            <agent.icon className="w-6 h-6" />
-                                        </div>
-                                        <div>
-                                            <h3 className="font-bold text-white text-lg">{agent.role}</h3>
-                                            <div className="text-xs text-slate-500 font-mono">ID: {agent.name}</div>
-                                        </div>
-                                    </div>
-                                    <div className={`text-[10px] font-bold uppercase px-2 py-1 rounded border ${
-                                        agent.status === 'working' ? 'bg-emerald-900/30 text-emerald-400 border-emerald-500/30' :
-                                        agent.status === 'thinking' ? 'bg-yellow-900/30 text-yellow-400 border-yellow-500/30' :
-                                        'bg-slate-800 text-slate-500 border-slate-700'
-                                    }`}>
-                                        {agent.status}
-                                    </div>
-                                </div>
-                                
-                                <div className="mb-4">
-                                    <div className="text-xs text-slate-500 mb-1 font-mono uppercase">Current Process</div>
-                                    <div className={`text-sm font-medium ${agent.status === 'idle' ? 'text-slate-600' : 'text-slate-200'}`}>
-                                        {agent.task}
-                                        {agent.status !== 'idle' && <span className="animate-pulse ml-1">_</span>}
-                                    </div>
+            {/* Content */}
+            <div className="flex-1 overflow-auto relative z-10">
+                {activeTab === 'projects' && (
+                    <div className="p-8 max-w-6xl mx-auto">
+                        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                            {/* Projects List */}
+                            <div className="lg:col-span-2">
+                                <div className="flex justify-between items-center mb-6">
+                                    <h2 className="text-sm font-bold text-blue-400 uppercase tracking-widest">Active Projects</h2>
+                                    <span className="text-xs text-slate-500">{projects.length} total</span>
                                 </div>
 
-                                <div className="space-y-2">
-                                    <div className="flex justify-between text-xs text-slate-500">
-                                        <span>Neural Load</span>
-                                        <span>{agent.load.toFixed(0)}%</span>
-                                    </div>
-                                    <div className="w-full h-1.5 bg-slate-800 rounded-full overflow-hidden">
-                                        <div 
-                                            className={`h-full transition-all duration-300 ${
-                                                agent.load > 80 ? 'bg-red-500' : agent.load > 50 ? 'bg-yellow-500' : 'bg-emerald-500'
-                                            }`} 
-                                            style={{ width: `${agent.load}%` }}
-                                        />
-                                    </div>
+                                <div className="space-y-4">
+                                    {projects.map(proj => (
+                                        <div
+                                            key={proj.id}
+                                            onClick={() => setSelectedProject(proj)}
+                                            className={`p-6 rounded-lg border-2 cursor-pointer transition-all ${
+                                                selectedProject?.id === proj.id
+                                                    ? 'bg-blue-900/20 border-blue-500/50'
+                                                    : 'bg-slate-800/40 border-slate-700 hover:border-slate-600'
+                                            }`}
+                                        >
+                                            <div className="flex justify-between items-start mb-3">
+                                                <div>
+                                                    <h3 className="font-bold text-white text-lg">{proj.name}</h3>
+                                                    <p className="text-sm text-slate-400">{proj.description}</p>
+                                                </div>
+                                                <button
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        deleteProject(proj.id);
+                                                    }}
+                                                    className="p-2 text-slate-500 hover:text-red-400 transition-colors"
+                                                >
+                                                    <Trash2 className="w-4 h-4" />
+                                                </button>
+                                            </div>
+
+                                            <div className="grid grid-cols-4 gap-4 text-sm mb-3">
+                                                <div>
+                                                    <span className="text-slate-500">Version</span>
+                                                    <div className="font-mono text-slate-300">{proj.version}</div>
+                                                </div>
+                                                <div>
+                                                    <span className="text-slate-500">Type</span>
+                                                    <div className="text-slate-300">{proj.type}</div>
+                                                </div>
+                                                <div>
+                                                    <span className="text-slate-500">Files</span>
+                                                    <div className="text-slate-300">{proj.files.length}</div>
+                                                </div>
+                                                <div>
+                                                    <span className="text-slate-500">Status</span>
+                                                    <div className={`font-bold ${
+                                                        proj.status === 'released' ? 'text-emerald-400' :
+                                                        proj.status === 'testing' ? 'text-yellow-400' :
+                                                        'text-blue-400'
+                                                    }`}>{proj.status}</div>
+                                                </div>
+                                            </div>
+
+                                            <div className="flex gap-2">
+                                                {proj.dependencies.map((dep, i) => (
+                                                    <span key={i} className="text-[10px] bg-slate-700 text-slate-300 px-2 py-1 rounded">
+                                                        {dep.name} {dep.required ? '●' : '○'}
+                                                    </span>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    ))}
                                 </div>
                             </div>
-                        ))}
-                    </div>
-                </div>
 
-                {/* Right: Comms Log */}
-                <div className="w-96 bg-slate-900 border-l border-slate-800 flex flex-col">
-                    <div className="p-4 border-b border-slate-800 flex justify-between items-center">
-                        <span className="text-xs font-bold text-slate-500 uppercase tracking-widest flex items-center gap-2">
-                             <MessageSquare className="w-3 h-3" /> Inter-Agent Comms
-                        </span>
-                        <div className="text-[10px] text-slate-600 font-mono">CH: ENCRYPTED</div>
-                    </div>
-                    
-                    <div className="flex-1 overflow-y-auto p-4 space-y-4">
-                        {logs.map((log) => (
-                            <div key={log.id} className="animate-fade-in">
-                                <div className="flex items-center gap-2 mb-1">
-                                    <span className={`text-xs font-bold ${
-                                        log.from === 'User' ? 'text-white' :
-                                        log.from === 'System' ? 'text-slate-500' :
-                                        log.from === 'Architect' ? 'text-purple-400' :
-                                        'text-forge-accent'
-                                    }`}>
-                                        {log.from}
-                                    </span>
-                                    {log.to !== 'All' && (
-                                        <>
-                                            <span className="text-[10px] text-slate-600">to</span>
-                                            <span className="text-xs font-bold text-slate-400">{log.to}</span>
-                                        </>
-                                    )}
-                                    <span className="text-[10px] text-slate-700 ml-auto font-mono">{log.timestamp}</span>
-                                </div>
-                                <div className={`text-sm p-3 rounded-lg border ${
-                                    log.from === 'System' ? 'bg-transparent border-transparent text-slate-500 italic px-0' :
-                                    log.from === 'User' ? 'bg-slate-800 border-slate-700 text-slate-200' :
-                                    'bg-slate-800/50 border-slate-700/50 text-slate-300'
-                                }`}>
-                                    {log.message}
-                                </div>
+                            {/* New Project Form */}
+                            <div className="bg-slate-800/40 border border-slate-700 rounded-lg p-6">
+                                <h3 className="font-bold text-white mb-4 flex items-center gap-2">
+                                    <Plus className="w-4 h-4" /> New Project
+                                </h3>
+                                <input
+                                    type="text"
+                                    placeholder="Project name..."
+                                    value={newProjectName}
+                                    onChange={(e) => setNewProjectName(e.target.value)}
+                                    className="w-full bg-slate-900 border border-slate-700 rounded p-2 text-white text-sm mb-3 focus:outline-none focus:border-blue-500"
+                                    onKeyDown={(e) => e.key === 'Enter' && addProject()}
+                                />
+                                <button
+                                    onClick={addProject}
+                                    disabled={!newProjectName}
+                                    className="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-2 rounded transition-colors disabled:opacity-50"
+                                >
+                                    Create Project
+                                </button>
+
+                                {selectedProject && (
+                                    <>
+                                        <div className="mt-6 pt-6 border-t border-slate-700">
+                                            <h4 className="font-bold text-slate-300 mb-4 text-sm">Project Files</h4>
+                                            <div className="space-y-2">
+                                                {selectedProject.files.map((file, i) => (
+                                                    <div key={i} className="flex items-center justify-between text-sm text-slate-400 bg-slate-900/50 p-2 rounded">
+                                                        <span className="font-mono text-[11px]">{file}</span>
+                                                        <Copy className="w-3 h-3 hover:text-white cursor-pointer" />
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    </>
+                                )}
                             </div>
-                        ))}
-                        <div ref={logsEndRef} />
-                    </div>
-
-                    {/* Input Area */}
-                    <div className="p-4 bg-black border-t border-slate-800">
-                        <div className="flex gap-2">
-                            <input 
-                                type="text"
-                                disabled={isActive}
-                                value={directive}
-                                onChange={(e) => setDirective(e.target.value)}
-                                placeholder="Enter Swarm Directive (e.g., 'Research and prototype a login page')..."
-                                className="flex-1 bg-slate-900 border border-slate-700 rounded-lg px-4 py-3 text-sm focus:outline-none focus:border-forge-accent disabled:opacity-50"
-                                onKeyDown={(e) => e.key === 'Enter' && handleExecute()}
-                            />
-                            {isActive ? (
-                                <button 
-                                    onClick={handleStop}
-                                    className="px-4 bg-red-900/30 hover:bg-red-900/50 border border-red-500/30 text-red-400 rounded-lg"
-                                >
-                                    <Pause className="w-5 h-5" />
-                                </button>
-                            ) : (
-                                <button 
-                                    onClick={handleExecute}
-                                    disabled={!directive}
-                                    className="px-4 bg-forge-accent hover:bg-sky-400 text-slate-900 rounded-lg disabled:opacity-50"
-                                >
-                                    <Play className="w-5 h-5 fill-current" />
-                                </button>
-                            )}
                         </div>
                     </div>
-                </div>
+                )}
+
+                {activeTab === 'build' && (
+                    <div className="p-8 max-w-4xl mx-auto">
+                        <div className="mb-6">
+                            <h2 className="text-sm font-bold text-blue-400 uppercase tracking-widest mb-4">Build Pipeline</h2>
+                            {selectedProject ? (
+                                <div className="bg-slate-800/40 border border-slate-700 rounded-lg p-6">
+                                    <div className="flex justify-between items-center mb-6">
+                                        <div>
+                                            <h3 className="font-bold text-white text-lg">{selectedProject.name}</h3>
+                                            <p className="text-sm text-slate-400">v{selectedProject.version}</p>
+                                        </div>
+                                        <button
+                                            onClick={startBuild}
+                                            disabled={buildRunning}
+                                            className="flex items-center gap-2 bg-blue-600 hover:bg-blue-500 text-white font-bold px-4 py-2 rounded transition-colors disabled:opacity-50"
+                                        >
+                                            {buildRunning ? <StopCircle className="w-4 h-4" /> : <Play className="w-4 h-4" />}
+                                            {buildRunning ? 'Building...' : 'Start Build'}
+                                        </button>
+                                    </div>
+
+                                    {/* Build Steps */}
+                                    <div className="space-y-3">
+                                        {BUILD_STEPS.map((step, i) => (
+                                            <div key={step.id} className="bg-slate-900/50 border border-slate-700 rounded-lg p-4">
+                                                <div className="flex items-center gap-3 mb-3">
+                                                    {step.status === 'success' && <CheckCircle2 className="w-5 h-5 text-emerald-400" />}
+                                                    {step.status === 'running' && <Zap className="w-5 h-5 text-blue-400 animate-pulse" />}
+                                                    {step.status === 'pending' && <Clock className="w-5 h-5 text-slate-600" />}
+                                                    <span className="font-bold text-white">{step.name}</span>
+                                                    <span className={`text-[10px] ml-auto ${
+                                                        step.status === 'success' ? 'text-emerald-400' :
+                                                        step.status === 'running' ? 'text-blue-400' :
+                                                        'text-slate-500'
+                                                    }`}>
+                                                        {step.status.toUpperCase()}
+                                                    </span>
+                                                </div>
+                                                <div className="flex items-center gap-3 text-[11px]">
+                                                    <span className="font-mono text-slate-500">$ {step.command}</span>
+                                                    {step.status === 'success' && (
+                                                        <span className="ml-auto text-slate-600">{step.duration}ms</span>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            ) : (
+                                <div className="text-center py-12 text-slate-500">
+                                    <p>Select a project to view its build pipeline</p>
+                                </div>
+                            )}
+                        </div>
+
+                        {/* Build History */}
+                        {buildPipelines.length > 0 && (
+                            <div>
+                                <h3 className="text-sm font-bold text-blue-400 uppercase tracking-widest mb-4">Build History</h3>
+                                <div className="space-y-3">
+                                    {buildPipelines.slice(0, 5).map(pipeline => (
+                                        <div key={pipeline.id} className="bg-slate-800/40 border border-slate-700 rounded-lg p-4">
+                                            <div className="flex justify-between items-start">
+                                                <div>
+                                                    <div className="font-bold text-white">Build v{pipeline.version}</div>
+                                                    <div className="text-xs text-slate-500 font-mono">
+                                                        {new Date(pipeline.createdAt).toLocaleString()}
+                                                    </div>
+                                                </div>
+                                                <div className="flex items-center gap-2">
+                                                    <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+                                                    <span className="text-xs text-emerald-400">Success</span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                )}
+
+                {activeTab === 'deploy' && (
+                    <div className="p-8 max-w-4xl mx-auto">
+                        <h2 className="text-sm font-bold text-blue-400 uppercase tracking-widest mb-6">Deployment Manager</h2>
+                        {selectedProject ? (
+                            <div className="grid gap-6">
+                                {/* Release Package */}
+                                <div className="bg-slate-800/40 border border-slate-700 rounded-lg p-6">
+                                    <h3 className="font-bold text-white mb-4 flex items-center gap-2">
+                                        <Package className="w-5 h-5 text-blue-400" /> Release Package
+                                    </h3>
+                                    <div className="grid grid-cols-2 gap-4 mb-6">
+                                        <div>
+                                            <span className="text-slate-500 text-sm">Current Version</span>
+                                            <div className="font-mono text-white text-lg">{selectedProject.version}</div>
+                                        </div>
+                                        <div>
+                                            <span className="text-slate-500 text-sm">Status</span>
+                                            <div className={`font-bold text-lg ${
+                                                selectedProject.status === 'released' ? 'text-emerald-400' :
+                                                selectedProject.status === 'testing' ? 'text-yellow-400' :
+                                                'text-blue-400'
+                                            }`}>
+                                                {selectedProject.status}
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div className="flex gap-3">
+                                        <button className="flex items-center gap-2 bg-blue-600 hover:bg-blue-500 text-white font-bold px-4 py-2 rounded transition-colors">
+                                            <Package className="w-4 h-4" /> Generate Package
+                                        </button>
+                                        <button className="flex items-center gap-2 bg-slate-700 hover:bg-slate-600 text-white font-bold px-4 py-2 rounded transition-colors">
+                                            <Download className="w-4 h-4" /> Download
+                                        </button>
+                                    </div>
+                                </div>
+
+                                {/* Version Control */}
+                                <div className="bg-slate-800/40 border border-slate-700 rounded-lg p-6">
+                                    <h3 className="font-bold text-white mb-4 flex items-center gap-2">
+                                        <GitBranch className="w-5 h-5 text-blue-400" /> Version History
+                                    </h3>
+                                    <div className="space-y-2 text-sm">
+                                        <div className="flex justify-between items-center p-3 bg-slate-900/50 rounded">
+                                            <div>
+                                                <div className="font-bold text-white">v{selectedProject.version}</div>
+                                                <div className="text-xs text-slate-500">Current Release</div>
+                                            </div>
+                                            <span className="text-emerald-400 font-bold">Live</span>
+                                        </div>
+                                        <div className="flex justify-between items-center p-3 bg-slate-900/50 rounded">
+                                            <div>
+                                                <div className="font-bold text-white">v1.2.0</div>
+                                                <div className="text-xs text-slate-500">2 weeks ago</div>
+                                            </div>
+                                            <span className="text-slate-500 text-xs">Archive</span>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* Deployment Checklist */}
+                                <div className="bg-slate-800/40 border border-slate-700 rounded-lg p-6">
+                                    <h3 className="font-bold text-white mb-4">Pre-Release Checklist</h3>
+                                    <div className="space-y-3">
+                                        {[
+                                            'All scripts compile successfully',
+                                            'Mesh files validate without errors',
+                                            'Dependencies documented',
+                                            'Changelog generated',
+                                            'Version number bumped',
+                                            'Readme updated'
+                                        ].map((item, i) => (
+                                            <label key={i} className="flex items-center gap-3 cursor-pointer">
+                                                <input type="checkbox" className="w-4 h-4 rounded" />
+                                                <span className="text-slate-300">{item}</span>
+                                            </label>
+                                        ))}
+                                    </div>
+                                </div>
+                            </div>
+                        ) : (
+                            <div className="text-center py-12 text-slate-500">
+                                <p>Select a project to manage deployments</p>
+                            </div>
+                        )}
+                    </div>
+                )}
             </div>
         </div>
     );

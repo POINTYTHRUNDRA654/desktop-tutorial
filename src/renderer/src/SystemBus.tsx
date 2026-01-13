@@ -3,8 +3,24 @@ import React, { useEffect, useRef } from 'react';
 const SystemBus: React.FC = () => {
     // We use a ref to prevent overlapping polls if one takes too long
     const isPolling = useRef(false);
+    const hasLoggedInfo = useRef(false);
 
     useEffect(() => {
+        // Inform user once about bridge status on first load
+        if (!hasLoggedInfo.current) {
+            hasLoggedInfo.current = true;
+            const bridgeActive = localStorage.getItem('mossy_bridge_active') === 'true';
+            if (!bridgeActive) {
+                console.info(
+                    '%c🔌 Desktop Bridge Offline',
+                    'color: #3b82f6; font-weight: bold; font-size: 12px;',
+                    '\n\nThe Desktop Bridge (optional) connects Mossy to Blender and local files.',
+                    '\nTo enable: Go to Desktop Bridge in the sidebar and follow setup instructions.',
+                    '\n\nMossy works perfectly without it - all core features are available!\n'
+                );
+            }
+        }
+
         const handleLog = (source: string, event: string, status: 'ok' | 'warn' | 'err' | 'success') => {
             const newLog = {
                 id: Date.now().toString() + Math.random(),
@@ -45,21 +61,27 @@ const SystemBus: React.FC = () => {
         window.addEventListener('mossy-control', handleControl as EventListener);
 
         // --- GLOBAL BRIDGE HEARTBEAT ---
-        // Polls the local python server every 2 seconds to check if it's alive.
-        // This allows Chat, Lens, and Sidebar to know the real status.
+        // Polls the local python server every 5 seconds to check if it's alive.
+        // Reduced frequency to minimize console noise when bridge is offline.
         const heartbeat = setInterval(async () => {
             if (isPolling.current) return;
             isPolling.current = true;
 
             try {
                 const controller = new AbortController();
-                const timeoutId = setTimeout(() => controller.abort(), 1500); // 1.5s timeout
+                const timeoutId = setTimeout(() => controller.abort(), 2000); // 2s timeout
+                
+                // Suppress fetch errors in console (expected when bridge is offline)
+                const originalError = console.error;
+                console.error = () => {};
                 
                 // USE 127.0.0.1 to avoid localhost IPv6 issues
                 const response = await fetch('http://127.0.0.1:21337/health', { 
                     signal: controller.signal,
                     method: 'GET',
                     mode: 'cors' // Important for local dev
+                }).finally(() => {
+                    console.error = originalError; // Restore console.error
                 });
                 
                 clearTimeout(timeoutId);
@@ -88,6 +110,7 @@ const SystemBus: React.FC = () => {
                 }
             } catch (e: any) {
                 // Silently handle connection failures - expected when bridge isn't running
+                // Don't spam console with errors
                 const wasUp = localStorage.getItem('mossy_bridge_active') === 'true';
                 
                 // Only mark as down if we are certain it's not just a transient network hiccup
@@ -100,7 +123,7 @@ const SystemBus: React.FC = () => {
             } finally {
                 isPolling.current = false;
             }
-        }, 2000);
+        }, 5000); // Check every 5 seconds instead of 2
 
         return () => {
             clearInterval(heartbeat);
