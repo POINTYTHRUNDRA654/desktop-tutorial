@@ -1,472 +1,365 @@
-import React, { useState, useRef, useEffect } from 'react';
-import { GoogleGenAI } from "@google/genai";
-import { Binary, Search, Eye, Cpu, Zap, FileCode, AlertTriangle, CheckCircle2, RefreshCw, Upload, Download, Scan, Boxes, Settings2, Activity, Network, Box, Cuboid } from 'lucide-react';
+import { useState } from 'react';
+import { AlertTriangle, AlertCircle, Eye, Copy, CheckCircle2 } from 'lucide-react';
 
-interface HavokNode {
+interface AssetIssue {
     id: string;
-    type: string; // hkpRigidBody, hkaSkeleton
-    name: string;
-    properties: { key: string; value: string }[];
-    children?: string[]; // IDs
+    title: string;
+    category: 'Geometry' | 'Texture' | 'Material' | 'Physics';
+    severity: 'error' | 'warning' | 'info';
+    description: string;
+    solution: string;
+    tools: string[];
 }
 
-const TheSplicer: React.FC = () => {
-    const [fileName, setFileName] = useState<string | null>(null);
-    const [bytes, setBytes] = useState<Uint8Array | null>(null);
-    const [cursor, setCursor] = useState<number | null>(null);
-    const [viewMode, setViewMode] = useState<'hex' | 'havok' | 'render'>('hex');
-    const [havokNodes, setHavokNodes] = useState<HavokNode[]>([]);
-    
-    // AI Analysis
-    const [isAnalyzing, setIsAnalyzing] = useState(false);
-    const [analysisResult, setAnalysisResult] = useState<string | null>(null);
-    const [structureMap, setStructureMap] = useState<{ start: number; end: number; label: string; color: string }[]>([]);
+interface ValidatorReport {
+    fileName: string;
+    timestamp: string;
+    issueType: string;
+    totalChecks: number;
+    passCount: number;
+    issues: AssetIssue[];
+}
 
-    const fileInputRef = useRef<HTMLInputElement>(null);
-    const canvasRef = useRef<HTMLCanvasElement>(null);
+const COMMON_ISSUES: Record<string, AssetIssue> = {
+    'duplicate_vertices': {
+        id: 'duplicate_vertices',
+        title: 'Duplicate Vertices Detected',
+        category: 'Geometry',
+        severity: 'error',
+        description: 'The mesh contains vertices at identical coordinates. This increases polygon count without visual benefit.',
+        solution: 'Use xEdit\'s "Remove Duplicate Vertices" or Blender\'s Mesh > Cleanup > Merge by Distance.',
+        tools: ['xEdit', 'Blender', 'Outfit Studio']
+    },
+    'degenerate_triangles': {
+        id: 'degenerate_triangles',
+        title: 'Degenerate Triangles',
+        category: 'Geometry',
+        severity: 'error',
+        description: 'Found triangles with zero area or where all vertices are collinear. These waste geometry and cause rendering issues.',
+        solution: 'Delete degenerate triangles in Blender using Mesh > Cleanup or select and delete.',
+        tools: ['Blender', 'Meshlab', 'xEdit']
+    },
+    'inverted_normals': {
+        id: 'inverted_normals',
+        title: 'Inverted Face Normals',
+        category: 'Geometry',
+        severity: 'error',
+        description: 'Some face normals point inward instead of outward. This causes incorrect lighting and visibility culling.',
+        solution: 'In Blender: Select All > Mesh > Normals > Recalculate Outside.',
+        tools: ['Blender', 'Meshlab']
+    },
+    'missing_normals': {
+        id: 'missing_normals',
+        title: 'Missing Vertex Normals',
+        category: 'Geometry',
+        severity: 'error',
+        description: 'The mesh has no vertex normals defined. Lighting will be flat or incorrect.',
+        solution: 'Blender: Select All > Mesh > Normals > Recalculate Outside, then Shade Smooth.',
+        tools: ['Blender', 'Meshlab']
+    },
+    'bad_uvs': {
+        id: 'bad_uvs',
+        title: 'Invalid UV Mapping',
+        category: 'Texture',
+        severity: 'warning',
+        description: 'UV coordinates are outside 0-1 range, overlapping, or inverted. Textures will display incorrectly.',
+        solution: 'In Blender: UV Editing > Select All > UV > Pack Islands or Unwrap > Smart UV Project.',
+        tools: ['Blender', 'Substance Painter']
+    },
+    'extreme_scale': {
+        id: 'extreme_scale',
+        title: 'Extreme Geometry Scale',
+        category: 'Geometry',
+        severity: 'warning',
+        description: 'Geometry has very large or very small vertices. This can cause floating-point precision errors.',
+        solution: 'In Blender: Select All > Scale to ~100 units for regular objects. Use Ctrl+A to Apply Scale.',
+        tools: ['Blender']
+    },
+    'too_many_bones': {
+        id: 'too_many_bones',
+        title: 'Excessive Bone Weights',
+        category: 'Geometry',
+        severity: 'warning',
+        description: 'Vertices are influenced by too many bones (>4 is problematic). This impacts performance.',
+        solution: 'Use Blender\'s Armature > Limit Bones per Vertex, or remove low-influence bones.',
+        tools: ['Blender', 'Outfit Studio']
+    },
+    'physics_mismatch': {
+        id: 'physics_mismatch',
+        title: 'Physics Collider Mismatch',
+        category: 'Physics',
+        severity: 'error',
+        description: 'Havok physics shape doesn\'t match visual geometry. Actor may clip through objects.',
+        solution: 'Regenerate physics in Outfit Studio or xEdit\'s Havok Data Extractor.',
+        tools: ['xEdit', 'Outfit Studio']
+    },
+    'missing_normal_map': {
+        id: 'missing_normal_map',
+        title: 'Missing Normal Map',
+        category: 'Texture',
+        severity: 'warning',
+        description: 'Material references a normal map that doesn\'t exist in the file system.',
+        solution: 'Create normal map in Substance 3D Painter or Blender, or remove the material reference.',
+        tools: ['Substance 3D Painter', 'Blender']
+    },
+    'resolution_mismatch': {
+        id: 'resolution_mismatch',
+        title: 'Texture Resolution Mismatch',
+        category: 'Texture',
+        severity: 'warning',
+        description: 'Texture dimensions are not powers of 2 (e.g., 1024x1024) or differ significantly between maps.',
+        solution: 'Resize textures in an image editor to 1024x1024, 2048x2048, or 4096x4096 (power of 2).',
+        tools: ['Photoshop', 'GIMP', 'Paint.NET']
+    },
+    'bad_compression': {
+        id: 'bad_compression',
+        title: 'Improper Texture Compression',
+        category: 'Texture',
+        severity: 'info',
+        description: 'Textures use inefficient or incorrect compression formats. May impact performance.',
+        solution: 'Convert to DXT1 (opaque) or DXT5 (transparency) using xEdit\'s DDS export.',
+        tools: ['xEdit', 'NVIDIA Texture Tools']
+    },
+    'alpha_channel_issue': {
+        id: 'alpha_channel_issue',
+        title: 'Problematic Alpha Channel',
+        category: 'Texture',
+        severity: 'warning',
+        description: 'Alpha channel is present but not needed, or vice versa. Wastes memory or causes visibility issues.',
+        solution: 'Remove or add alpha in image editor. Use DXT1 without alpha, DXT5 with alpha.',
+        tools: ['Photoshop', 'GIMP']
+    },
+    'missing_material': {
+        id: 'missing_material',
+        title: 'Missing Material Assignment',
+        category: 'Material',
+        severity: 'error',
+        description: 'Geometry has no material assigned. Will appear black or white in-game.',
+        solution: 'In Blender: Shader Editor > Add material. Or export and assign in Outfit Studio.',
+        tools: ['Blender', 'Outfit Studio']
+    },
+    'deprecated_shader': {
+        id: 'deprecated_shader',
+        title: 'Deprecated Shader Type',
+        category: 'Material',
+        severity: 'warning',
+        description: 'Uses old shader (BS_Default) instead of modern PBR shaders. Will look dated.',
+        solution: 'Update to MLO_SkinShader, BS_LegacyShader, or other current shaders in xEdit.',
+        tools: ['xEdit']
+    }
+};
 
-    // Initial dummy data
-    useEffect(() => {
-        if (!bytes) {
-            // Simulated generic header
-            const str = "Havok Content Tools 2014.1.0";
-            const dummy = new Uint8Array(256);
-            for(let i=0; i<str.length; i++) dummy[i] = str.charCodeAt(i);
-            for(let i=str.length; i<256; i++) dummy[i] = Math.floor(Math.random() * 256);
-            
-            setBytes(dummy);
-            setFileName("skeleton_physics.hkx");
-            // Auto-detect Havok mode for demo
-            setViewMode('havok');
-            setHavokNodes([
-                { id: 'root', type: 'hkRootLevelContainer', name: 'Root', properties: [], children: ['phys', 'anim'] },
-                { id: 'phys', type: 'hkpPhysicsData', name: 'Physics Data', properties: [], children: ['sys'] },
-                { id: 'sys', type: 'hkpPhysicsSystem', name: 'System 01', properties: [], children: ['rb1', 'rb2', 'c1'] },
-                { id: 'rb1', type: 'hkpRigidBody', name: 'Pelvis', properties: [{key: 'Mass', value: '15.0'}, {key: 'Friction', value: '0.5'}], children: [] },
-                { id: 'rb2', type: 'hkpRigidBody', name: 'Thigh_L', properties: [{key: 'Mass', value: '8.0'}, {key: 'Friction', value: '0.5'}], children: [] },
-                { id: 'c1', type: 'hkpConstraintInstance', name: 'Hip_Joint_L', properties: [{key: 'Type', value: 'BallAndSocket'}], children: [] },
-                { id: 'anim', type: 'hkaAnimationContainer', name: 'Anim Data', properties: [], children: [] },
-            ]);
+const SAMPLE_REPORTS: ValidatorReport[] = [
+    {
+        fileName: 'armor_chest_female.nif',
+        timestamp: '2024-01-15 14:32:05',
+        issueType: 'Outfit/Armor',
+        totalChecks: 24,
+        passCount: 19,
+        issues: [
+            COMMON_ISSUES['inverted_normals'],
+            COMMON_ISSUES['bad_uvs'],
+            COMMON_ISSUES['missing_normal_map'],
+            COMMON_ISSUES['too_many_bones'],
+        ]
+    },
+    {
+        fileName: 'sword_daedric.nif',
+        timestamp: '2024-01-15 13:12:47',
+        issueType: 'Weapon',
+        totalChecks: 18,
+        passCount: 17,
+        issues: [
+            COMMON_ISSUES['physics_mismatch'],
+        ]
+    },
+    {
+        fileName: 'building_door_01.nif',
+        timestamp: '2024-01-15 11:45:22',
+        issueType: 'Architecture',
+        totalChecks: 30,
+        passCount: 25,
+        issues: [
+            COMMON_ISSUES['duplicate_vertices'],
+            COMMON_ISSUES['extreme_scale'],
+            COMMON_ISSUES['missing_material'],
+            COMMON_ISSUES['resolution_mismatch'],
+            COMMON_ISSUES['alpha_channel_issue'],
+        ]
+    }
+];
+
+const TheSplicer = () => {
+    const [reports] = useState<ValidatorReport[]>(SAMPLE_REPORTS);
+    const [selectedReport, setSelectedReport] = useState<ValidatorReport | null>(SAMPLE_REPORTS[0]);
+    const [copiedId, setCopiedId] = useState<string | null>(null);
+
+    const handleCopySolution = (issueId: string) => {
+        const issue = selectedReport?.issues.find(i => i.id === issueId);
+        if (issue) {
+            navigator.clipboard.writeText(issue.solution);
+            setCopiedId(issueId);
+            setTimeout(() => setCopiedId(null), 2000);
         }
-    }, []);
-
-    // 3D Render Loop
-    useEffect(() => {
-        if (viewMode !== 'render' || !canvasRef.current) return;
-        const canvas = canvasRef.current;
-        const ctx = canvas.getContext('2d');
-        if (!ctx) return;
-
-        let frameId: number;
-        let rot = 0;
-
-        const drawCube = (rotation: number) => {
-            // Resize logic
-            canvas.width = canvas.parentElement?.clientWidth || 400;
-            canvas.height = canvas.parentElement?.clientHeight || 400;
-            
-            const cx = canvas.width / 2;
-            const cy = canvas.height / 2;
-            const size = 100;
-
-            ctx.clearRect(0, 0, canvas.width, canvas.height);
-            ctx.fillStyle = '#0f172a'; // Match bg
-            ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-            // NIF-like shape (Diamond)
-            const vertices = [
-                {x: 0, y: -1.5, z: 0}, 
-                {x: 1, y: 0, z: 1}, {x: 1, y: 0, z: -1}, {x: -1, y: 0, z: -1}, {x: -1, y: 0, z: 1},
-                {x: 0, y: 1.5, z: 0}
-            ];
-
-            const rotated = vertices.map(v => {
-                let x = v.x * Math.cos(rotation) - v.z * Math.sin(rotation);
-                let z = v.x * Math.sin(rotation) + v.z * Math.cos(rotation);
-                
-                let y = v.y * Math.cos(rotation * 0.5) - z * Math.sin(rotation * 0.5);
-                z = v.y * Math.sin(rotation * 0.5) + z * Math.cos(rotation * 0.5);
-                
-                const scale = 300 / (300 + z * 50);
-                return { x: cx + x * size * scale, y: cy + y * size * scale };
-            });
-
-            // Connect lines
-            ctx.strokeStyle = '#38bdf8'; // Forge Accent
-            ctx.lineWidth = 1.5;
-            
-            const lines = [
-                [0,1], [0,2], [0,3], [0,4], // Top to mid
-                [5,1], [5,2], [5,3], [5,4], // Bot to mid
-                [1,2], [2,3], [3,4], [4,1]  // Mid ring
-            ];
-
-            ctx.beginPath();
-            lines.forEach(([i1, i2]) => {
-                ctx.moveTo(rotated[i1].x, rotated[i1].y);
-                ctx.lineTo(rotated[i2].x, rotated[i2].y);
-            });
-            ctx.stroke();
-            
-            // Add Vertices
-            ctx.fillStyle = '#fff';
-            rotated.forEach(p => {
-                ctx.beginPath();
-                ctx.arc(p.x, p.y, 3, 0, Math.PI * 2);
-                ctx.fill();
-            });
-        };
-
-        const render = () => {
-            rot += 0.01;
-            drawCube(rot);
-            frameId = requestAnimationFrame(render);
-        };
-        render();
-
-        return () => cancelAnimationFrame(frameId);
-    }, [viewMode]);
-
-    const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-        const file = e.target.files?.[0];
-        if (!file) return;
-        
-        setFileName(file.name);
-        const reader = new FileReader();
-        reader.onload = (event) => {
-            if (event.target?.result) {
-                const buffer = event.target.result as ArrayBuffer;
-                const uint8 = new Uint8Array(buffer).subarray(0, 1024);
-                setBytes(uint8);
-                
-                // Simple heuristic for view mode
-                if (file.name.endsWith('.hkx') || file.name.endsWith('.xml')) {
-                    setViewMode('havok');
-                } else if (file.name.endsWith('.nif')) {
-                    setViewMode('render');
-                } else {
-                    setViewMode('hex');
-                }
-                
-                setAnalysisResult(null);
-                setStructureMap([]);
-            }
-        };
-        reader.readAsArrayBuffer(file);
-    };
-
-    const handleOptimizeHavok = async () => {
-        setIsAnalyzing(true);
-        try {
-            const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-            const prompt = `
-                Act as Havok Physics Engine Expert.
-                Analyze this physics setup:
-                RigidBodies: Pelvis (Mass 15), Thigh_L (Mass 8).
-                Constraints: Hip_Joint_L (BallAndSocket).
-                
-                Suggest optimizations for a Ragdoll in Fallout 4.
-                Return a JSON object with:
-                1. "suggestion": Technical advice.
-                2. "optimizedProperties": Array of objects { id, key, value } with new values.
-            `;
-            
-            const response = await ai.models.generateContent({
-                model: 'gemini-3-flash-preview',
-                contents: prompt,
-                config: { responseMimeType: 'application/json' }
-            });
-            
-            const result = JSON.parse(response.text);
-            setAnalysisResult(result.suggestion);
-            
-            // Apply mock updates
-            if (result.optimizedProperties) {
-                const newNodes = [...havokNodes];
-                // Simple update logic simulation
-                setHavokNodes(newNodes);
-            }
-        } catch (e) {
-            console.error(e);
-            setAnalysisResult("Optimization failed.");
-        } finally {
-            setIsAnalyzing(false);
-        }
-    };
-
-    const handleByteClick = (byteIndex: number) => {
-        setCursor(byteIndex);
-    };
-
-    const getByteStyle = (index: number) => {
-        const map = structureMap.find(m => index >= m.start && index < m.end);
-        return map ? map.color : '';
-    };
-
-    const renderHavokTree = (nodes: HavokNode[], parentId: string | null = null, depth = 0) => {
-        // Find nodes that are children of this parent (or root if null)
-        // Our simple structure uses 'children' array IDs. 
-        // We'll traverse based on the initial root 'root'.
-        
-        if (parentId === null) {
-            const root = nodes.find(n => n.id === 'root');
-            return root ? renderHavokTree(nodes, 'root', 0) : null;
-        }
-
-        const node = nodes.find(n => n.id === parentId);
-        if (!node) return null;
-
-        return (
-            <div key={node.id} className="ml-4 border-l border-slate-700 pl-2">
-                <div className="flex items-center gap-2 py-1 text-sm group cursor-pointer hover:text-white">
-                    {node.type.includes('RigidBody') ? <Box className="w-4 h-4 text-orange-400" /> :
-                     node.type.includes('Constraint') ? <Network className="w-4 h-4 text-blue-400" /> :
-                     <Boxes className="w-4 h-4 text-slate-500" />}
-                    
-                    <span className="font-bold text-slate-300 group-hover:text-forge-accent">{node.name}</span>
-                    <span className="text-[10px] text-slate-600 bg-black/30 px-1 rounded">{node.type}</span>
-                </div>
-                
-                {/* Properties inline for leaf nodes */}
-                {node.properties.length > 0 && (
-                    <div className="ml-6 grid grid-cols-2 gap-x-4 gap-y-1 text-[10px] text-slate-500 mb-1">
-                        {node.properties.map((p, i) => (
-                            <div key={i} className="flex justify-between border-b border-slate-800">
-                                <span>{p.key}</span>
-                                <span className="text-emerald-500 font-mono">{p.value}</span>
-                            </div>
-                        ))}
-                    </div>
-                )}
-
-                {node.children?.map(childId => renderHavokTree(nodes, childId, depth + 1))}
-            </div>
-        );
     };
 
     return (
-        <div className="h-full flex flex-col bg-[#050505] text-slate-200 font-mono overflow-hidden relative">
+        <div className="h-full flex flex-col bg-[#1e1e1e] text-slate-200 font-sans overflow-hidden">
             {/* Header */}
-            <div className="p-4 border-b border-slate-800 bg-slate-900 flex justify-between items-center z-10 shadow-md">
+            <div className="p-4 border-b border-black bg-[#2d2d2d] flex justify-between items-center shadow-md">
                 <div>
-                    <h2 className="text-xl font-bold text-white flex items-center gap-3">
-                        <Binary className="w-6 h-6 text-forge-accent" />
+                    <h2 className="text-lg font-bold text-white flex items-center gap-2">
+                        <AlertTriangle className="w-5 h-5 text-red-400" />
                         The Splicer
                     </h2>
-                    <p className="text-xs text-slate-400 mt-1">Binary Surgeon & Havok Tools</p>
+                    <p className="text-[10px] text-slate-400 font-mono mt-0.5">Asset Validator v2.0.0</p>
                 </div>
-                
-                {/* View Toggles */}
-                <div className="flex bg-slate-800 p-1 rounded-lg border border-slate-700">
-                    <button 
-                        onClick={() => setViewMode('hex')}
-                        className={`px-4 py-1.5 rounded text-xs font-bold transition-all ${viewMode === 'hex' ? 'bg-slate-600 text-white' : 'text-slate-400 hover:text-slate-200'}`}
-                    >
-                        Raw Hex
-                    </button>
-                    <button 
-                        onClick={() => setViewMode('havok')}
-                        className={`px-4 py-1.5 rounded text-xs font-bold transition-all flex items-center gap-2 ${viewMode === 'havok' ? 'bg-orange-600 text-white' : 'text-slate-400 hover:text-slate-200'}`}
-                    >
-                        <Activity className="w-3 h-3" /> Physics
-                    </button>
-                    <button 
-                        onClick={() => setViewMode('render')}
-                        className={`px-4 py-1.5 rounded text-xs font-bold transition-all flex items-center gap-2 ${viewMode === 'render' ? 'bg-purple-600 text-white' : 'text-slate-400 hover:text-slate-200'}`}
-                    >
-                        <Cuboid className="w-3 h-3" /> Holo-Render
-                    </button>
-                </div>
-
                 <div className="flex gap-2">
-                    <input type="file" ref={fileInputRef} className="hidden" onChange={handleFileUpload} />
-                    <button 
-                        onClick={() => fileInputRef.current?.click()}
-                        className="flex items-center gap-2 px-3 py-1.5 bg-slate-800 hover:bg-slate-700 border border-slate-600 rounded text-xs font-bold transition-colors"
-                    >
-                        <Upload className="w-3 h-3" /> Load File
-                    </button>
-                    <button 
-                        className="flex items-center gap-2 px-3 py-1.5 bg-slate-800 hover:bg-slate-700 border border-slate-600 rounded text-xs font-bold transition-colors"
-                    >
-                        <Download className="w-3 h-3" /> Dump
-                    </button>
+                    <div className="px-3 py-1 bg-black rounded border border-slate-600 font-mono text-xs text-red-400">
+                        Reports: {reports.length}
+                    </div>
                 </div>
             </div>
 
             <div className="flex-1 flex overflow-hidden">
-                {/* Main Content Area */}
-                <div className="flex-1 bg-black overflow-y-auto p-4 relative custom-scrollbar">
-                    {viewMode === 'hex' ? (
-                        bytes ? (
-                            <div className="grid grid-cols-[auto_1fr_auto] gap-x-6 text-sm font-mono leading-6">
-                                {/* Offsets */}
-                                <div className="text-slate-600 select-none text-right">
-                                    {Array.from({ length: Math.ceil(bytes.length / 16) }).map((_, i) => (
-                                        <div key={i}>{(i * 16).toString(16).padStart(8, '0').toUpperCase()}</div>
-                                    ))}
+                {/* Left: Report List */}
+                <div className="w-72 bg-[#252526] border-r border-black flex flex-col">
+                    <div className="p-3 border-b border-black text-[10px] font-bold text-slate-300 uppercase tracking-wider bg-[#333333]">
+                        Validation Reports
+                    </div>
+                    <div className="flex-1 overflow-y-auto">
+                        {reports.map((report) => {
+                            const errorCount = report.issues.filter(i => i.severity === 'error').length;
+                            const warningCount = report.issues.filter(i => i.severity === 'warning').length;
+                            return (
+                                <div
+                                    key={report.fileName}
+                                    onClick={() => setSelectedReport(report)}
+                                    className={`p-3 border-b border-slate-800 cursor-pointer transition-colors ${
+                                        selectedReport?.fileName === report.fileName
+                                            ? 'bg-red-900/30 border-l-4 border-l-red-400'
+                                            : 'hover:bg-[#2d2d30]'
+                                    }`}
+                                >
+                                    <div className="font-semibold text-slate-200 text-sm truncate">{report.fileName}</div>
+                                    <div className="text-[10px] text-slate-500 mt-1">{report.timestamp}</div>
+                                    <div className="flex items-center gap-2 mt-2">
+                                        {errorCount > 0 && (
+                                            <span className="px-2 py-0.5 bg-red-900/40 text-red-300 text-[9px] font-bold rounded flex items-center gap-1">
+                                                <AlertTriangle className="w-3 h-3" /> {errorCount} Errors
+                                            </span>
+                                        )}
+                                        {warningCount > 0 && (
+                                            <span className="px-2 py-0.5 bg-yellow-900/40 text-yellow-300 text-[9px] font-bold rounded flex items-center gap-1">
+                                                <AlertCircle className="w-3 h-3" /> {warningCount}
+                                            </span>
+                                        )}
+                                        <span className="px-2 py-0.5 bg-green-900/40 text-green-300 text-[9px] font-bold rounded">
+                                            {report.passCount}/{report.totalChecks} ✓
+                                        </span>
+                                    </div>
                                 </div>
+                            );
+                        })}
+                    </div>
+                </div>
 
-                                {/* Hex Bytes */}
-                                <div className="text-slate-300">
-                                    {Array.from({ length: Math.ceil(bytes.length / 16) }).map((_, row) => (
-                                        <div key={row} className="flex gap-2">
-                                            {Array.from({ length: 16 }).map((_, col) => {
-                                                const idx = row * 16 + col;
-                                                if (idx >= bytes.length) return null;
-                                                const byteVal = bytes[idx];
-                                                const hex = byteVal.toString(16).padStart(2, '0').toUpperCase();
-                                                const isActive = cursor === idx;
-                                                const structStyle = getByteStyle(idx);
+                {/* Center/Right: Validation Details */}
+                <div className="flex-1 flex flex-col overflow-hidden">
+                    {selectedReport ? (
+                        <>
+                            {/* Report Header */}
+                            <div className="p-4 border-b border-black bg-[#252526]">
+                                <h3 className="font-bold text-slate-200 text-lg">{selectedReport.fileName}</h3>
+                                <p className="text-[10px] text-slate-500 mt-1">{selectedReport.timestamp}</p>
+                                <div className="mt-2 flex items-center gap-2">
+                                    <div className="flex-1 h-2 bg-slate-800 rounded overflow-hidden">
+                                        <div
+                                            className="h-full bg-green-600"
+                                            style={{ width: `${(selectedReport.passCount / selectedReport.totalChecks) * 100}%` }}
+                                        ></div>
+                                    </div>
+                                    <span className="text-[10px] font-bold text-slate-400">
+                                        {selectedReport.passCount}/{selectedReport.totalChecks} checks passed
+                                    </span>
+                                </div>
+                            </div>
 
-                                                return (
-                                                    <span 
-                                                        key={idx}
-                                                        onClick={() => handleByteClick(idx)}
-                                                        className={`cursor-pointer hover:bg-slate-700 px-0.5 rounded transition-colors ${isActive ? 'bg-forge-accent text-black font-bold' : structStyle}`}
+                            {/* Issues List */}
+                            <div className="flex-1 overflow-y-auto p-4 space-y-3">
+                                {selectedReport.issues.length > 0 ? (
+                                    selectedReport.issues.map((issue) => (
+                                        <div
+                                            key={issue.id}
+                                            className={`border rounded-lg p-4 ${
+                                                issue.severity === 'error'
+                                                    ? 'bg-red-900/20 border-red-700/50'
+                                                    : issue.severity === 'warning'
+                                                    ? 'bg-yellow-900/20 border-yellow-700/50'
+                                                    : 'bg-blue-900/20 border-blue-700/50'
+                                            }`}
+                                        >
+                                            <div className="flex items-start justify-between mb-2">
+                                                <div className="flex items-start gap-2">
+                                                    {issue.severity === 'error' && (
+                                                        <AlertTriangle className="w-4 h-4 text-red-400 flex-shrink-0 mt-0.5" />
+                                                    )}
+                                                    {issue.severity === 'warning' && (
+                                                        <AlertCircle className="w-4 h-4 text-yellow-400 flex-shrink-0 mt-0.5" />
+                                                    )}
+                                                    {issue.severity === 'info' && (
+                                                        <Eye className="w-4 h-4 text-blue-400 flex-shrink-0 mt-0.5" />
+                                                    )}
+                                                    <div>
+                                                        <div className="font-semibold text-slate-200">{issue.title}</div>
+                                                        <div className="text-[10px] text-slate-500 mt-1">{issue.category}</div>
+                                                    </div>
+                                                </div>
+                                            </div>
+
+                                            <p className="text-[10px] text-slate-400 mb-2 pl-6">{issue.description}</p>
+
+                                            <div className="pl-6">
+                                                <div className="text-[10px] font-semibold text-slate-300 mb-1">Solution:</div>
+                                                <p className="text-[10px] text-slate-400 mb-2">{issue.solution}</p>
+                                                <div className="flex items-center justify-between">
+                                                    <div className="flex gap-1 flex-wrap">
+                                                        {issue.tools.map((tool, idx) => (
+                                                            <span key={idx} className="px-1.5 py-0.5 bg-slate-800 text-[9px] text-slate-300 rounded">
+                                                                {tool}
+                                                            </span>
+                                                        ))}
+                                                    </div>
+                                                    <button
+                                                        onClick={() => handleCopySolution(issue.id)}
+                                                        className="p-1 hover:bg-slate-700 rounded transition-colors"
                                                     >
-                                                        {hex}
-                                                    </span>
-                                                );
-                                            })}
+                                                        {copiedId === issue.id ? (
+                                                            <CheckCircle2 className="w-3 h-3 text-green-400" />
+                                                        ) : (
+                                                            <Copy className="w-3 h-3 text-slate-400" />
+                                                        )}
+                                                    </button>
+                                                </div>
+                                            </div>
                                         </div>
-                                    ))}
-                                </div>
-
-                                {/* ASCII Decode */}
-                                <div className="text-slate-500 border-l border-slate-800 pl-4">
-                                    {Array.from({ length: Math.ceil(bytes.length / 16) }).map((_, row) => (
-                                        <div key={row} className="whitespace-pre">
-                                            {Array.from({ length: 16 }).map((_, col) => {
-                                                const idx = row * 16 + col;
-                                                if (idx >= bytes.length) return null;
-                                                const byteVal = bytes[idx];
-                                                const char = byteVal >= 32 && byteVal <= 126 ? String.fromCharCode(byteVal) : '.';
-                                                const isActive = cursor === idx;
-                                                return (
-                                                    <span key={idx} className={`${isActive ? 'text-forge-accent font-bold' : ''}`}>
-                                                        {char}
-                                                    </span>
-                                                );
-                                            }).join('')}
-                                        </div>
-                                    ))}
-                                </div>
+                                    ))
+                                ) : (
+                                    <div className="text-center py-8">
+                                        <CheckCircle2 className="w-12 h-12 mx-auto mb-2 text-green-400 opacity-50" />
+                                        <p className="text-slate-500 text-sm">No issues found!</p>
+                                    </div>
+                                )}
                             </div>
-                        ) : (
-                            <div className="flex flex-col items-center justify-center h-full text-slate-600">
-                                <FileCode className="w-16 h-16 mb-4 opacity-20" />
-                                <p>No file loaded.</p>
-                            </div>
-                        )
-                    ) : viewMode === 'render' ? (
-                        <div className="h-full flex flex-col relative">
-                            <div className="absolute top-2 left-2 z-10 bg-black/50 p-2 rounded text-xs text-slate-400">
-                                Render Mode: Wireframe
-                            </div>
-                            <canvas ref={canvasRef} className="w-full h-full bg-[#0f172a] rounded-lg shadow-inner" />
-                        </div>
+                        </>
                     ) : (
-                        // Havok Structure View
-                        <div className="h-full flex flex-col">
-                            <div className="flex items-center gap-2 mb-4 p-2 bg-orange-900/10 border border-orange-500/20 rounded text-orange-200 text-xs">
-                                <Activity className="w-4 h-4" />
-                                <span>Havok Content Tools 2014.1 Interop Layer Active</span>
-                            </div>
-                            <div className="flex-1 overflow-auto">
-                                {renderHavokTree(havokNodes)}
+                        <div className="flex-1 flex items-center justify-center text-slate-600">
+                            <div className="text-center">
+                                <AlertTriangle className="w-16 h-16 mx-auto mb-4 opacity-20" />
+                                <p>No report selected</p>
                             </div>
                         </div>
                     )}
-                </div>
-
-                {/* Right: Inspector Panel */}
-                <div className="w-80 bg-slate-900 border-l border-slate-800 flex flex-col">
-                    <div className="p-4 border-b border-slate-800 bg-slate-900/50">
-                        <h3 className="text-xs font-bold text-slate-500 uppercase tracking-widest flex items-center gap-2">
-                            <Search className="w-3 h-3" /> {viewMode === 'hex' ? 'Data Inspector' : viewMode === 'render' ? 'Mesh Stats' : 'Physics Properties'}
-                        </h3>
-                    </div>
-
-                    <div className="p-4 flex-1 overflow-y-auto">
-                        {viewMode === 'hex' && cursor !== null && bytes ? (
-                            <div className="space-y-6">
-                                <div className="space-y-1">
-                                    <div className="text-xs text-slate-500">Offset</div>
-                                    <div className="text-xl font-bold text-white">0x{cursor.toString(16).toUpperCase()}</div>
-                                    <div className="text-xs text-slate-500">Decimal: {cursor}</div>
-                                </div>
-
-                                <div className="space-y-2">
-                                    <div className="flex justify-between text-xs border-b border-slate-800 pb-1">
-                                        <span className="text-slate-400">Int8</span>
-                                        <span className="text-emerald-400">{bytes[cursor]}</span>
-                                    </div>
-                                    <div className="flex justify-between text-xs border-b border-slate-800 pb-1">
-                                        <span className="text-slate-400">UInt8</span>
-                                        <span className="text-emerald-400">{bytes[cursor]}</span>
-                                    </div>
-                                    <div className="flex justify-between text-xs border-b border-slate-800 pb-1">
-                                        <span className="text-slate-400">Char</span>
-                                        <span className="text-emerald-400">'{String.fromCharCode(bytes[cursor])}'</span>
-                                    </div>
-                                </div>
-                            </div>
-                        ) : viewMode === 'render' ? (
-                            <div className="space-y-4 text-xs">
-                                <div>
-                                    <div className="text-slate-500 uppercase font-bold mb-1">Geometry</div>
-                                    <div className="bg-slate-800 p-2 rounded">
-                                        <div className="flex justify-between"><span>Vertices</span><span className="text-white">6</span></div>
-                                        <div className="flex justify-between"><span>Triangles</span><span className="text-white">8</span></div>
-                                        <div className="flex justify-between"><span>Strips</span><span className="text-white">0</span></div>
-                                    </div>
-                                </div>
-                                <div>
-                                    <div className="text-slate-500 uppercase font-bold mb-1">Material</div>
-                                    <div className="bg-slate-800 p-2 rounded">
-                                        <div>Shader: <span className="text-purple-400">PBR_MetalRough</span></div>
-                                        <div>Flags: <span className="text-emerald-400">TwoSided, CastShadow</span></div>
-                                    </div>
-                                </div>
-                            </div>
-                        ) : viewMode === 'havok' ? (
-                            <div className="space-y-6">
-                                <div className="bg-slate-800 p-3 rounded-lg border border-slate-700">
-                                    <div className="text-xs font-bold text-slate-400 mb-2">Simulation Stats</div>
-                                    <div className="space-y-1 text-[10px]">
-                                        <div className="flex justify-between"><span>Bodies</span><span className="text-white">2</span></div>
-                                        <div className="flex justify-between"><span>Constraints</span><span className="text-white">1</span></div>
-                                        <div className="flex justify-between"><span>Version</span><span className="text-orange-400">hk_2014</span></div>
-                                    </div>
-                                </div>
-
-                                <div className="pt-4 border-t border-slate-800">
-                                    <button 
-                                        onClick={handleOptimizeHavok}
-                                        disabled={isAnalyzing}
-                                        className="w-full py-2 bg-orange-600 hover:bg-orange-500 text-white font-bold rounded flex items-center justify-center gap-2 transition-colors disabled:opacity-50"
-                                    >
-                                        {isAnalyzing ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Settings2 className="w-4 h-4" />}
-                                        {isAnalyzing ? 'Calculating...' : 'Optimize Inertia'}
-                                    </button>
-                                    
-                                    {analysisResult && (
-                                        <div className="mt-4 bg-slate-800 border border-slate-700 rounded p-3 text-xs text-slate-300 leading-relaxed animate-fade-in">
-                                            <div className="flex items-center gap-2 mb-1 text-orange-400 font-bold">
-                                                <Eye className="w-3 h-3" /> Report
-                                            </div>
-                                            {analysisResult}
-                                        </div>
-                                    )}
-                                </div>
-                            </div>
-                        ) : (
-                            <div className="text-center text-slate-600 text-xs mt-10">
-                                Select data to inspect.
-                            </div>
-                        )}
-                    </div>
                 </div>
             </div>
         </div>
