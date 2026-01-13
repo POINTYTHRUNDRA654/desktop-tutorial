@@ -154,14 +154,29 @@ const AudioStudio: React.FC = () => {
       }
   };
 
-  const handleGenerate = async () => {
+    const handleGenerate = async () => {
     if (!text) return;
     setLoading(true);
     // Stop previous
     if (sourceRef.current) sourceRef.current.stop();
 
     try {
-      const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+            // Resolve API key from Vite env (preferred) with safe fallback
+            const apiKey = (import.meta as any)?.env?.VITE_API_KEY || (import.meta as any)?.env?.VITE_GOOGLE_API_KEY;
+            if (!apiKey) {
+                // Fallback to browser SpeechSynthesis if API key is missing
+                const utterance = new SpeechSynthesisUtterance(text);
+                utterance.rate = 1.0;
+                utterance.pitch = 1.0;
+                window.speechSynthesis.cancel();
+                window.speechSynthesis.speak(utterance);
+                setLoading(false);
+                setIsPlaying(true);
+                // Stop playing flag when speech ends
+                utterance.onend = () => setIsPlaying(false);
+                return;
+            }
+            const ai = new GoogleGenAI({ apiKey });
       const response = await ai.models.generateContent({
         model: 'gemini-2.5-flash-preview-tts',
         contents: [{ parts: [{ text }] }],

@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import ExternalToolNotice from './components/ExternalToolNotice';
 import { GoogleGenAI } from "@google/genai";
 import { Scan, FileWarning, CheckCircle2, AlertTriangle, FileImage, Box, FileCode, Search, Wrench, ArrowRight, ShieldCheck, RefreshCw, XCircle, File, MessageSquare } from 'lucide-react';
 
@@ -56,6 +57,106 @@ const TheAuditor: React.FC = () => {
             setFiles(JSON.parse(saved));
         }
     }, []);
+
+    // Handle ESP file upload
+    const handleFileUpload = async () => {
+        const input = document.createElement('input');
+        input.type = 'file';
+        input.accept = '.esp,.esm,.esl';
+        input.onchange = async (e) => {
+            const file = (e.target as HTMLInputElement).files?.[0];
+            if (!file) return;
+
+            const newFile: ModFile = {
+                id: Date.now().toString(),
+                name: file.name,
+                type: 'plugin',
+                path: file.name,
+                size: `${Math.round(file.size / 1024)} KB`,
+                issues: [],
+                status: 'pending'
+            };
+
+            setFiles(prev => [...prev, newFile]);
+            setSelectedFileId(newFile.id);
+        };
+        input.click();
+    };
+
+    // Handle NIF (mesh) file upload
+    const handleMeshUpload = async () => {
+        const input = document.createElement('input');
+        input.type = 'file';
+        input.accept = '.nif';
+        input.onchange = async (e) => {
+            const file = (e.target as HTMLInputElement).files?.[0];
+            if (!file) return;
+
+            const newFile: ModFile = {
+                id: Date.now().toString(),
+                name: file.name,
+                type: 'mesh',
+                path: file.name,
+                size: `${Math.round(file.size / 1024)} KB`,
+                issues: [],
+                status: 'pending'
+            };
+
+            setFiles(prev => [...prev, newFile]);
+            setSelectedFileId(newFile.id);
+        };
+        input.click();
+    };
+
+    // Handle DDS (texture) file upload
+    const handleTextureUpload = async () => {
+        const input = document.createElement('input');
+        input.type = 'file';
+        input.accept = '.dds';
+        input.onchange = async (e) => {
+            const file = (e.target as HTMLInputElement).files?.[0];
+            if (!file) return;
+
+            const newFile: ModFile = {
+                id: Date.now().toString(),
+                name: file.name,
+                type: 'texture',
+                path: file.name,
+                size: `${Math.round(file.size / 1024)} KB`,
+                issues: [],
+                status: 'pending'
+            };
+
+            setFiles(prev => [...prev, newFile]);
+            setSelectedFileId(newFile.id);
+        };
+        input.click();
+    };
+
+    // Handle BGSM (material) file upload
+    const handleMaterialUpload = async () => {
+        const input = document.createElement('input');
+        input.type = 'file';
+        input.accept = '.bgsm,.bgem';
+        input.onchange = async (e) => {
+            const file = (e.target as HTMLInputElement).files?.[0];
+            if (!file) return;
+
+            const newFile: ModFile = {
+                id: Date.now().toString(),
+                name: file.name,
+                type: 'material',
+                path: file.name,
+                size: `${Math.round(file.size / 1024)} KB`,
+                issues: [],
+                status: 'pending'
+            };
+
+            setFiles(prev => [...prev, newFile]);
+            setSelectedFileId(newFile.id);
+        };
+        input.click();
+    };
 
     // Mock Scan Logic
     const runAudit = () => {
@@ -151,7 +252,7 @@ const TheAuditor: React.FC = () => {
             
             setMossyAdvice(response.text);
         } catch (e) {
-            setMossyAdvice("I cannot reach my knowledge base right now, but this usually requires cleaning the plugin in xEdit.");
+                setMossyAdvice("I cannot reach my knowledge base right now, but this usually requires cleaning the plugin in xEdit.\n\nDon't have xEdit? Download FO4Edit from Nexus Mods:\nhttps://www.nexusmods.com/fallout4/mods/2737");
         }
     };
 
@@ -205,6 +306,40 @@ const TheAuditor: React.FC = () => {
                             </div>
                         </div>
                     )}
+                    <div className="flex gap-2">
+                        <button 
+                            onClick={handleFileUpload}
+                            className="flex items-center gap-2 px-3 py-2 bg-blue-600 hover:bg-blue-500 text-white text-sm font-bold rounded-lg transition-all shadow-[0_0_15px_rgba(37,99,235,0.3)]"
+                            title="Upload ESP/ESM/ESL plugin"
+                        >
+                            <FileCode className="w-4 h-4" />
+                            ESP
+                        </button>
+                        <button 
+                            onClick={handleMeshUpload}
+                            className="flex items-center gap-2 px-3 py-2 bg-purple-600 hover:bg-purple-500 text-white text-sm font-bold rounded-lg transition-all shadow-[0_0_15px_rgba(147,51,234,0.3)]"
+                            title="Upload NIF mesh"
+                        >
+                            <Box className="w-4 h-4" />
+                            NIF
+                        </button>
+                        <button 
+                            onClick={handleTextureUpload}
+                            className="flex items-center gap-2 px-3 py-2 bg-pink-600 hover:bg-pink-500 text-white text-sm font-bold rounded-lg transition-all shadow-[0_0_15px_rgba(219,39,119,0.3)]"
+                            title="Upload DDS texture"
+                        >
+                            <FileImage className="w-4 h-4" />
+                            DDS
+                        </button>
+                        <button 
+                            onClick={handleMaterialUpload}
+                            className="flex items-center gap-2 px-3 py-2 bg-orange-600 hover:bg-orange-500 text-white text-sm font-bold rounded-lg transition-all shadow-[0_0_15px_rgba(234,88,12,0.3)]"
+                            title="Upload BGSM/BGEM material"
+                        >
+                            <Wrench className="w-4 h-4" />
+                            BGSM
+                        </button>
+                    </div>
                     <button 
                         onClick={runAudit}
                         disabled={isScanning}
@@ -214,7 +349,23 @@ const TheAuditor: React.FC = () => {
                         {isScanning ? 'Analyzing...' : 'Run Audit'}
                     </button>
                 </div>
+                {/* Helpful external tool links */}
+                <div className="flex items-center gap-3 ml-4 text-[11px]">
+                    <span className="text-slate-500">Need tools?</span>
+                    <a href="https://www.nexusmods.com/fallout4/mods/2737" target="_blank" rel="noreferrer" className="text-emerald-400 hover:text-emerald-300 font-bold">xEdit</a>
+                    <span className="text-slate-600">•</span>
+                    <a href="https://www.nexusmods.com/newvegas/mods/75969" target="_blank" rel="noreferrer" className="text-purple-400 hover:text-purple-300 font-bold">NifSkope</a>
+                    <span className="text-slate-600">•</span>
+                    <a href="https://www.nexusmods.com/fallout4/mods/6821" target="_blank" rel="noreferrer" className="text-blue-400 hover:text-blue-300 font-bold">FOMOD Creator</a>
+                    <span className="text-slate-600">•</span>
+                    <a href="https://www.blender.org/download/" target="_blank" rel="noreferrer" className="text-pink-400 hover:text-pink-300 font-bold">Blender</a>
+                </div>
             </div>
+                        {/* Quick access to external tools */}
+                        <div className="px-4 pb-3 bg-slate-900 flex flex-col gap-2">
+                            <ExternalToolNotice toolKey="xeditPath" toolName="xEdit / FO4Edit" nexusUrl="https://www.nexusmods.com/fallout4/mods/2737" description="Clean plugins (ITM/UDR), resolve conflicts, and generate patches." />
+                            <ExternalToolNotice toolKey="nifSkopePath" toolName="NifSkope" nexusUrl="https://www.nexusmods.com/newvegas/mods/75969" description="Inspect and fix NIFs: materials, collision, texture paths, and more." />
+                        </div>
 
             <div className="flex-1 flex overflow-hidden">
                 

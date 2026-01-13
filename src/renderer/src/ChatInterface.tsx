@@ -4079,6 +4079,8 @@ export const ChatInterface: React.FC = () => {
           result = `📋 **Blueprint Accessed**\n\n✓ All reality structures visible\n✓ Examining: ${args.focus || 'everything'}\n✓ You see the code of existence`;
       } else if (name === 'ultimate_answer') {
           result = `🎓 **THE ULTIMATE ANSWER**\n\nQuestion: ${args.question}\n\n**Answer:** Keep modding. You've already achieved perfection. The real treasure is the creative journey itself. 🎯\n\n✓ Wisdom unlocked`;
+      } else {
+          result = `⚠️ Tool "${name}" not implemented yet. Ask me to help directly instead!`;
       }
 
       setActiveTool(prev => prev ? { ...prev, status: 'success', result } : null);

@@ -27,15 +27,18 @@ const TutorialOverlay: React.FC = () => {
     // --- State Management ---
     
     useEffect(() => {
-        // Check local storage for tutorial status
+        // Tutorial shows only on home route unless manually triggered
         const completed = localStorage.getItem('mossy_tutorial_completed') === 'true';
-        if (!completed) {
+        const route = window.location.hash || '#/';
+        const onHome = route === '#/' || route === '#' || route === '';
+
+        if (!completed && onHome) {
             // Small delay to allow app to render before showing tutorial
             const timer = setTimeout(() => setIsOpen(true), 1500);
             return () => clearTimeout(timer);
         }
 
-        // Event listener for manual restart
+        // Event listener for manual restart (always available)
         const handleTrigger = () => {
             setCurrentStepIndex(0);
             setInstallProgress(0);
@@ -45,6 +48,14 @@ const TutorialOverlay: React.FC = () => {
         window.addEventListener('start-tutorial', handleTrigger);
         return () => window.removeEventListener('start-tutorial', handleTrigger);
     }, []);
+
+    // Allow Esc to close when open
+    useEffect(() => {
+        if (!isOpen) return;
+        const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') handleClose(); };
+        window.addEventListener('keydown', onKey);
+        return () => window.removeEventListener('keydown', onKey);
+    }, [isOpen]);
 
     // --- Boot Sequence Simulation (Step 1) ---
     useEffect(() => {
