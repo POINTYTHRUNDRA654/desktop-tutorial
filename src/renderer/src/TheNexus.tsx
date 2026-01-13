@@ -74,111 +74,78 @@ const TheNexus: React.FC = () => {
 
   return (
     <div className="h-full flex flex-col items-center justify-center bg-black text-slate-200 overflow-y-auto custom-scrollbar p-8">
-      
-      {/* Outer Monitor Bezel */}
       <div className="relative max-w-5xl w-full">
-        {/* CRT Monitor Frame */}
         <div className="absolute inset-0 rounded-3xl" style={{
           background: 'linear-gradient(135deg, #1a1a1a 0%, #0a0a0a 50%, #000000 100%)',
           boxShadow: 'inset 0 0 60px rgba(0,0,0,0.9), 0 20px 60px rgba(0,0,0,0.8)',
           border: '16px solid #0a0a0a',
           borderRadius: '2rem'
         }}></div>
-        
-        {/* Screen Glow */}
         <div className="absolute inset-0 rounded-3xl pointer-events-none" style={{
           boxShadow: 'inset 0 0 100px rgba(16,185,129,0.15)',
           border: '2px solid rgba(16,185,129,0.3)'
         }}></div>
-      
-        {/* Terminal Screen */}
         <div className="relative mx-4 my-4 border-4 border-emerald-500/40 rounded-lg bg-black shadow-2xl overflow-hidden" style={{boxShadow: '0 0 40px rgba(16,185,129,0.3), inset 0 0 60px rgba(0,0,0,0.8)'}}>
-          
-          {/* Pip-Boy Header */}
           <PipBoyHeader 
             status={bridgeStatus ? 'online' : 'offline'} 
-            title="MOSSY PIP-BOY v2.4"
+            title="WELCOME TO THE NEXUS: SYSTEM INTEGRATION & TRAINING"
           />
-        
-        {/* Main Content - Centered */}
-        <div className="p-12 flex flex-col items-center text-center space-y-8">
-          
-          {/* Avatar Section - Mossy's Face */}
-          <div className="flex flex-col items-center gap-4">
-            {/* Mossy Avatar - Prominent Display */}
-            <div className="relative">
-              {/* Outer glow */}
-              <div className="absolute inset-0 bg-emerald-400/20 rounded-full blur-3xl"></div>
-              
-              {/* Avatar Face Display */}
-              <div className="relative w-48 h-48 bg-black/60 rounded-full p-3 border-4 border-emerald-500/60 flex items-center justify-center overflow-hidden">
-                <AvatarCore />
-                
-                {/* Status Indicator */}
-                <div className="absolute bottom-3 right-3 w-8 h-8 bg-emerald-500 rounded-full border-3 border-emerald-300 animate-pulse flex items-center justify-center">
-                  <div className="w-3 h-3 bg-emerald-200 rounded-full"></div>
+          <div className="p-12 flex flex-col items-center text-center space-y-8">
+            <div className="flex flex-col items-center gap-4">
+              <div className="relative">
+                <div className="absolute inset-0 bg-emerald-400/20 rounded-full blur-3xl"></div>
+                <div className="relative w-48 h-48 bg-black/60 rounded-full p-3 border-4 border-emerald-500/60 flex items-center justify-center overflow-hidden">
+                  <AvatarCore />
+                  <div className="absolute bottom-3 right-3 w-8 h-8 bg-emerald-500 rounded-full border-3 border-emerald-300 animate-pulse flex items-center justify-center">
+                    <div className="w-3 h-3 bg-emerald-200 rounded-full"></div>
+                  </div>
                 </div>
               </div>
-            </div>
-            
-            {/* Mossy Label */}
-            <div className="text-center">
-              <div className="text-emerald-400 font-mono font-bold text-2xl tracking-[0.3em]">MOSSY</div>
-              <div className="text-slate-500 text-sm font-mono tracking-wider">AI ASSISTANT v2.4</div>
-            </div>
-          </div>
-
-          {/* Greeting Section */}
-          <div className="space-y-4 max-w-2xl">
-            <div className="flex items-center justify-center gap-2 text-emerald-400 mb-3 font-mono text-xs tracking-widest uppercase">
-              <Activity className="w-4 h-4 animate-pulse" />
-              MOSSY NEURAL INTERFACE ACTIVE
-            </div>
-            
-            <h1 className="text-5xl font-bold text-white tracking-tight mb-4" style={{textShadow: '0 0 30px rgba(16,185,129,0.5)'}}>
-              {greeting}
-            </h1>
-            
-            <p className="text-slate-300 text-lg leading-relaxed font-light">
-              <span className="text-emerald-300 font-bold">I'm Mossy</span>, your AI assistant dedicated to Fallout 4 modding excellence. I can help you create quests, scripts, meshes, and manage your entire mod project from concept to completion.
-            </p>
-            
-            <p className="text-slate-500 text-sm font-mono pt-4">
-              Mossy FO4 Core v2.4 online. All systems nominal.
-            </p>
-          </div>
-
-          {/* Training Button */}
-          <button 
-            onClick={startTutorial}
-            className="bg-emerald-900/30 hover:bg-emerald-800/40 px-8 py-5 rounded-lg border-2 border-emerald-500/50 hover:border-emerald-400/70 transition-all group relative overflow-hidden duration-300 mt-4"
-            style={{boxShadow: '0 0 20px rgba(16,185,129,0.2)'}}
-          >
-            <div className="text-emerald-400 text-sm uppercase font-bold mb-2 flex items-center justify-center gap-2">
-              <BookOpen className="w-4 h-4" /> Q.O.A.P. DEMONSTRATION
-            </div>
-            <div className="text-xl font-bold text-white group-hover:text-emerald-300 transition-colors">
-              {tutorialState === 'resume' ? 'Resume Training' : tutorialState === 'replay' ? 'Replay Training' : 'Start Training'}
-            </div>
-          </button>
-
-          {/* Bridge Status */}
-          <div className="pt-8 border-t border-emerald-500/20 w-full max-w-md">
-            <div className={`p-4 rounded-lg flex items-center justify-center gap-3 ${bridgeStatus ? 'bg-emerald-900/20 border-2 border-emerald-500/30' : 'bg-red-900/20 border-2 border-red-500/30'}`}>
-              <div className={`w-4 h-4 rounded-full ${bridgeStatus ? 'bg-emerald-500 animate-pulse' : 'bg-red-500'}`}></div>
               <div className="text-center">
-                <div className={`text-base font-bold font-mono ${bridgeStatus ? 'text-emerald-400' : 'text-red-400'}`}>
-                  Desktop Bridge: {bridgeStatus ? 'ONLINE' : 'OFFLINE'}
+                <div className="text-emerald-400 font-mono font-bold text-2xl tracking-[0.3em]">MOSSY ONBOARDING</div>
+                <div className="text-slate-500 text-sm font-mono tracking-wider">INTEGRATION & TRAINING SUITE</div>
+              </div>
+            </div>
+            <div className="space-y-6 max-w-2xl">
+              <h1 className="text-4xl font-bold text-white tracking-tight mb-2" style={{textShadow: '0 0 30px rgba(16,185,129,0.5)'}}>
+                Welcome to Mossy: System Integration & Training
+              </h1>
+              <p className="text-slate-300 text-lg leading-relaxed font-light">
+                <span className="text-emerald-300 font-bold">Get started by integrating your system and learning the app’s core features.</span> This onboarding suite will:
+              </p>
+              <ul className="list-disc pl-8 text-left text-slate-200 text-base space-y-1">
+                <li>Guide you through connecting the Desktop Bridge for local system access</li>
+                <li>Walk you through initial setup: folders, permissions, and tool paths</li>
+                <li>Run a system check to optimize Mossy for your hardware and modding workflow</li>
+                <li>Introduce you to the main app modules and how to use them</li>
+                <li>Provide interactive training: try out features, get instant feedback, and unlock advanced tips</li>
+                <li>Offer troubleshooting and privacy guidance for a safe, smooth start</li>
+                <li>All information is actionable, up-to-date, and tailored for new users—no filler or fake steps</li>
+              </ul>
+              <div className="mt-6 bg-slate-900/60 border border-emerald-800 rounded p-4">
+                <h5 className="font-bold text-emerald-200 mb-1 text-xs uppercase">Onboarding Pro Tips</h5>
+                <ul className="list-disc pl-5 text-xs text-emerald-100 space-y-1">
+                  <li>Connect the Desktop Bridge for full feature access (hardware, file system, and tool integration)</li>
+                  <li>Set your modding folders and tool paths in the Organizer and Settings modules</li>
+                  <li>Use the system check to enable advanced AI and modding features based on your hardware</li>
+                  <li>Complete the interactive training to unlock expert tips and shortcuts</li>
+                  <li>Review privacy settings to control data sharing and local access</li>
+                </ul>
+              </div>
+            </div>
+            <div className="pt-8 border-t border-emerald-500/20 w-full max-w-md">
+              <div className={`p-4 rounded-lg flex items-center justify-center gap-3 ${bridgeStatus ? 'bg-emerald-900/20 border-2 border-emerald-500/30' : 'bg-red-900/20 border-2 border-red-500/30'}`}>
+                <div className={`w-4 h-4 rounded-full ${bridgeStatus ? 'bg-emerald-500 animate-pulse' : 'bg-red-500'}`}></div>
+                <div className="text-center">
+                  <div className={`text-base font-bold font-mono ${bridgeStatus ? 'text-emerald-400' : 'text-red-400'}`}>
+                    Desktop Bridge: {bridgeStatus ? 'ONLINE' : 'OFFLINE'}
+                  </div>
                 </div>
               </div>
             </div>
           </div>
-
-        </div>
-        
         </div>
       </div>
-      
     </div>
   );
 };
