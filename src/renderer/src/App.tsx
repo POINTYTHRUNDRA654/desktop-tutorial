@@ -6,8 +6,10 @@ import CommandPalette from './CommandPalette';
 import TutorialOverlay from './TutorialOverlay';
 import SystemBus from './SystemBus';
 import MossyOnboarding from './MossyOnboarding';
+
 import { Loader2, Zap } from 'lucide-react';
 import { LiveProvider } from './LiveContext';
+import AvatarOverlay from './AvatarOverlay';
 
 // --- LAZY LOAD MODULES ---
 // This prevents the app from loading ALL code at startup.
@@ -265,6 +267,8 @@ const App: React.FC = () => {
               </Routes>
             </Suspense>
           </main>
+
+          <AvatarOverlay />
         </div>
       </HashRouter>
     </LiveProvider>
