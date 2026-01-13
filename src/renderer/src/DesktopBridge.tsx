@@ -372,7 +372,9 @@ pause
               return true;
           }
       } catch (e) {
-          addLog('Bridge', 'Connection failed - is the server running?', 'err');
+          console.error('[DesktopBridge] testBridgeConnection failed', e);
+          const message = e instanceof Error ? e.message : 'Unknown error';
+          addLog('Bridge', `Connection failed: ${message}`, 'err');
           setBridgeConnected(false);
       } finally {
           setTestingBridge(false);
@@ -390,7 +392,9 @@ pause
               return data;
           }
       } catch (e) {
-          addLog('Hardware', 'Failed to fetch specs', 'err');
+          console.error('[DesktopBridge] fetchHardwareInfo failed', e);
+          const message = e instanceof Error ? e.message : 'Unknown error';
+          addLog('Hardware', `Failed to fetch specs: ${message}`, 'err');
       }
       return null;
   };
@@ -406,7 +410,9 @@ pause
               return data.image;
           }
       } catch (e) {
-          addLog('Vision', 'Screen capture failed', 'err');
+          console.error('[DesktopBridge] captureScreen failed', e);
+          const message = e instanceof Error ? e.message : 'Unknown error';
+          addLog('Vision', `Screen capture failed: ${message}`, 'err');
       }
       return null;
   };
@@ -423,7 +429,9 @@ pause
               return true;
           }
       } catch (e) {
-          addLog('Clipboard', 'Failed to set clipboard', 'err');
+          console.error('[DesktopBridge] setClipboard failed', e);
+          const message = e instanceof Error ? e.message : 'Unknown error';
+          addLog('Clipboard', `Failed to set clipboard: ${message}`, 'err');
       }
       return false;
   };
@@ -443,7 +451,9 @@ pause
               return data.files;
           }
       } catch (e) {
-          addLog('Files', 'Directory scan failed', 'err');
+          console.error('[DesktopBridge] listFiles failed', e);
+          const message = e instanceof Error ? e.message : 'Unknown error';
+          addLog('Files', `Directory scan failed: ${message}`, 'err');
       }
       return [];
   };
