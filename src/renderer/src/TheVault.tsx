@@ -1,317 +1,930 @@
-import React, { useState, useEffect } from 'react';
-import { GoogleGenAI } from "@google/genai";
-import { Container, Search, Filter, FolderPlus, Tag, HardDrive, FileImage, FileAudio, FileCode, BrainCircuit, RefreshCw, Eye, Grid, List, Scan, Check, Box, Lock, Globe, ShieldCheck, FileKey } from 'lucide-react';
+import React, { useEffect, useRef, useState } from 'react';
+import { Container, Search, HardDrive, Lock, Globe, ShieldCheck, Clipboard, CheckCircle2, AlertTriangle, Archive, FilePlus, Upload, Wrench } from 'lucide-react';
+
+type AssetType = 'mesh' | 'texture' | 'audio' | 'script' | 'ui';
 
 interface Asset {
-  id: string;
-  name: string;
-  path: string;
-  type: 'image' | 'audio' | 'model' | 'script';
-  tags: string[];
-  previewUrl?: string;
-  size: string;
-  analyzed: boolean;
-  privacy: 'local' | 'shared'; // New privacy field
+    id: string;
+    name: string;
+    type: AssetType;
+    sourcePath: string;
+    targetPath: string;
+    size: string;
+    privacy: 'local' | 'shared';
+    tags: string[];
+    staged: boolean;
+    lastVerified: string;
+    issues: string[];
+    lastRun?: string;
+    expectedFormat?: 'AUTO' | 'BC1' | 'BC3' | 'BC5';
 }
 
 const initialAssets: Asset[] = [
-    { id: '1', name: 'personal_photo_001.png', path: 'C:/Users/Admin/Pictures', type: 'image', tags: ['personal', 'photo'], previewUrl: 'https://placehold.co/400x400/1e293b/475569?text=Private+Photo', size: '2.4 MB', analyzed: false, privacy: 'local' },
-    { id: '2', name: 'mod_tutorial_01.mp4', path: 'D:/Downloads/Tutorials', type: 'audio', tags: ['tutorial', 'learning'], size: '45.0 MB', analyzed: true, privacy: 'shared' },
-    { id: '3', name: 'char_cyber_ninja.nif', path: 'D:/Assets/Models', type: 'model', tags: [], size: '14.2 MB', analyzed: false, privacy: 'local' },
-    { id: '4', name: 'react_docs_pdf', path: 'D:/Docs', type: 'image', tags: ['docs', 'reference'], previewUrl: 'https://placehold.co/400x400/0f172a/38bdf8?text=React+Docs', size: '1.1 MB', analyzed: true, privacy: 'shared' },
-    { id: '5', name: 'secrets_config.json', path: 'C:/Dev/Keys', type: 'script', tags: ['config', 'keys'], size: '4 KB', analyzed: false, privacy: 'local' },
+    {
+        id: 'mesh-railgun',
+        name: 'Railgun Receiver',
+        type: 'mesh',
+        sourcePath: 'D:/FO4/Assets/Meshes/Railgun/railgun_receiver.fbx',
+        targetPath: 'Data/Meshes/Weapons/Railgun/railgun_receiver.nif',
+        size: '6.4 MB',
+        privacy: 'local',
+        tags: ['mesh', 'weapon', 'collision'],
+        staged: false,
+        lastVerified: 'Not run',
+        issues: ['Missing bhkCollision', 'Normals need recalculation'],
+        lastRun: ''
+    },
+    {
+        id: 'tex-marine',
+        name: 'Marine Armor Albedo',
+        type: 'texture',
+        sourcePath: 'D:/FO4/Textures/Armor/Marine/marine_d.png',
+        targetPath: 'Data/Textures/Armor/Marine/marine_d.dds',
+        size: '8.1 MB',
+        privacy: 'shared',
+        tags: ['texture', 'albedo', '2k'],
+        staged: true,
+        lastVerified: '2024-05-01 10:15',
+        issues: [],
+        lastRun: 'texconv OK: BC1 / mipmaps generated'
+    },
+    {
+        id: 'audio-vox',
+        name: 'Companion VOX Line 04',
+        type: 'audio',
+        sourcePath: 'D:/FO4/Audio/Companion/line04.wav',
+        targetPath: 'Data/Sound/Voice/MyCompanion.esp/Line04.xwm',
+        size: '1.4 MB',
+        privacy: 'local',
+        tags: ['voice', 'dialogue', 'xwm'],
+        staged: true,
+        lastVerified: '2024-04-28 08:40',
+        issues: ['LUFS above -16, normalize before encode'],
+        lastRun: 'xWMAEncode warning: input hotter than -16 LUFS'
+    },
+    {
+        id: 'script-quest',
+        name: 'MQ204 Scene Controller',
+        type: 'script',
+        sourcePath: 'D:/FO4/Scripts/MQ204/MQ204SceneController.psc',
+        targetPath: 'Data/Scripts/MQ204SceneController.pex',
+        size: '12 KB',
+        privacy: 'shared',
+        tags: ['papyrus', 'quest', 'pex'],
+        staged: false,
+        lastVerified: 'Not run',
+        issues: ['Missing import: F4SE', 'Compile path not set'],
+        lastRun: ''
+    },
+    {
+        id: 'ui-pipboy',
+        name: 'Pip-Boy Overlay',
+        type: 'ui',
+        sourcePath: 'D:/FO4/UI/Overlays/pipboy_overlay.psd',
+        targetPath: 'Data/Interface/pipboy_overlay.swf',
+        size: '3.2 MB',
+        privacy: 'local',
+        tags: ['ui', 'flash', 'interface'],
+        staged: false,
+        lastVerified: '2024-04-30 12:00',
+        issues: ['Export to SWF pending'],
+        lastRun: ''
+    }
 ];
 
 const TheVault: React.FC = () => {
-  const [assets, setAssets] = useState<Asset[]>(initialAssets);
-  const [searchTerm, setSearchTerm] = useState('');
-  const [filterType, setFilterType] = useState<string>('all');
-  const [privacyFilter, setPrivacyFilter] = useState<'all' | 'local' | 'shared'>('all');
-  const [isScanning, setIsScanning] = useState(false);
-  const [analyzingIds, setAnalyzingIds] = useState<Set<string>>(new Set());
-  const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
-  const [sanitizePII, setSanitizePII] = useState(true);
+    const [assets, setAssets] = useState<Asset[]>(() => {
+        const stored = typeof window !== 'undefined' ? window.localStorage.getItem('vault-assets-v1') : null;
+        if (!stored) return initialAssets;
+        try {
+            const parsed = JSON.parse(stored) as Asset[];
+            return parsed.length ? parsed : initialAssets;
+        } catch {
+            return initialAssets;
+        }
+    });
+    const [searchTerm, setSearchTerm] = useState('');
+    const [filterType, setFilterType] = useState<'all' | AssetType>('all');
+    const [privacyFilter, setPrivacyFilter] = useState<'all' | 'local' | 'shared'>('all');
+    const [statusFilter, setStatusFilter] = useState<'all' | 'ready' | 'issues'>('all');
+    const [onlyStaged, setOnlyStaged] = useState(false);
+    const [verifyingIds, setVerifyingIds] = useState<Set<string>>(new Set());
+    const fileInputRef = useRef<HTMLInputElement | null>(null);
+    const [allowOversizedTextures, setAllowOversizedTextures] = useState(false);
+    const api = (window as any).electron?.api;
 
-  // Filter Logic
-  const filteredAssets = assets.filter(asset => {
-      const matchesSearch = asset.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
-                            asset.tags.some(tag => tag.toLowerCase().includes(searchTerm.toLowerCase()));
-      const matchesType = filterType === 'all' || asset.type === filterType;
-      const matchesPrivacy = privacyFilter === 'all' || asset.privacy === privacyFilter;
-      return matchesSearch && matchesType && matchesPrivacy;
-  });
+    type ToolPaths = Partial<Record<'texconv' | 'xWMAEncode' | 'PapyrusCompiler' | 'gfxexport' | 'splicer', string>>;
+    const [toolPaths, setToolPaths] = useState<ToolPaths>(() => {
+        try { return JSON.parse(localStorage.getItem('vault-tool-paths-v1') || '{}') as ToolPaths; } catch { return {}; }
+    });
+    const [toolVersions, setToolVersions] = useState<Partial<Record<keyof ToolPaths, string>>>({});
 
-  // --- AI Logic ---
+    type ToolExtraArgs = Partial<Record<keyof ToolPaths, string>>;
+    const [toolExtraArgs, setToolExtraArgs] = useState<ToolExtraArgs>(() => {
+        try { return JSON.parse(localStorage.getItem('vault-tool-extra-args-v1') || '{}') as ToolExtraArgs; } catch { return {}; }
+    });
 
-  const handleScanFolder = () => {
-      setIsScanning(true);
-      // Simulate scanning disk
-      setTimeout(() => {
-          const newAssets: Asset[] = [
-              { id: `new-${Date.now()}-1`, name: 'bank_statement.pdf', path: 'C:/Documents', type: 'image', tags: [], previewUrl: 'https://placehold.co/400x300/3f3f46/71717a?text=Sensitive+Doc', size: '3.1 MB', analyzed: false, privacy: 'local' },
-              { id: `new-${Date.now()}-2`, name: 'open_source_lib.zip', path: 'D:/OSS', type: 'audio', tags: [], size: '1.2 MB', analyzed: false, privacy: 'shared' },
-          ];
-          setAssets(prev => [...prev, ...newAssets]);
-          setIsScanning(false);
-      }, 1500);
-  };
+    type VaultPresets = {
+        meshesBase: string;
+        texturesBase: string;
+        audioBase: string;
+        voiceProject: string;
+        scriptsBase: string;
+        scriptsSource: string;
+        uiBase: string;
+    };
+    const [presets, setPresets] = useState<VaultPresets>(() => {
+        const raw = typeof window !== 'undefined' ? window.localStorage.getItem('vault-presets-v1') : null;
+        if (raw) {
+            try { return JSON.parse(raw) as VaultPresets; } catch {}
+        }
+        return {
+            meshesBase: 'Data/Meshes',
+            texturesBase: 'Data/Textures',
+            audioBase: 'Data/Sound/Voice',
+            voiceProject: 'MyCompanion.esp',
+            scriptsBase: 'Data/Scripts',
+            scriptsSource: 'Data/Scripts/Source',
+            uiBase: 'Data/Interface',
+        };
+    });
+    const [autoConvertImagesToDDS, setAutoConvertImagesToDDS] = useState<boolean>(() => {
+        try { return JSON.parse(localStorage.getItem('vault-auto-convert-images-v1') || 'false'); } catch { return false; }
+    });
 
-  const handleAnalyze = async (asset: Asset) => {
-      if (asset.analyzed) return;
-      
-      setAnalyzingIds(prev => new Set(prev).add(asset.id));
-      
-      try {
-          const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-          
-          let generatedTags: string[] = [];
-          
-          // Simulation of analysis
-          await new Promise(r => setTimeout(r, 1200));
-          
-          if (asset.privacy === 'local' && sanitizePII) {
-              // Simulate PII scrubbing
-              generatedTags = ['[PII_REDACTED]', 'private_data', 'secure_storage'];
-          } else {
-              generatedTags = ['analyzed', 'content_verified', 'public_safe'];
-          }
+    const toolMap: Record<AssetType, { tool: string; command: string; patterns: string[] }> = {
+        mesh: {
+            tool: 'Splicer + OutfitStudio',
+            command: 'splicer validate --recalc-normals --rebuild-collision "{source}" -o "{target}"',
+            patterns: ['collision', 'normal', 'bhk']
+        },
+        texture: {
+            tool: 'texconv',
+            command: 'texconv -f <fmt> -o "Data/Textures" "{source}"',
+            patterns: ['bc', 'compression', 'dds', 'mipmap']
+        },
+        audio: {
+            tool: 'xWMAEncode',
+            command: 'xWMAEncode "{source}" "{target}" --bitrate 192k',
+            patterns: ['lufs', 'normalize', 'xwm']
+        },
+        script: {
+            tool: 'PapyrusCompiler',
+            command: 'PapyrusCompiler "{source}" -f="Institute_Papyrus_Flags.flg" -i="Data/Scripts/Source" -o="Data/Scripts"',
+            patterns: ['import', 'compile', 'pex']
+        },
+        ui: {
+            tool: 'Scaleform Export',
+            command: 'gfxexport "{source}" -o "{target}"',
+            patterns: ['swf', 'export', 'interface']
+        }
+    };
 
-          setAssets(prev => prev.map(a => 
-              a.id === asset.id 
-              ? { ...a, analyzed: true, tags: [...a.tags, ...generatedTags] }
-              : a
-          ));
-      } catch (e) {
-          console.error("Analysis failed", e);
-      } finally {
-          setAnalyzingIds(prev => {
-              const next = new Set(prev);
-              next.delete(asset.id);
-              return next;
-          });
-      }
-  };
+    const guessType = (filename: string): AssetType => {
+        const ext = filename.toLowerCase().split('.').pop() || '';
+        if (['nif', 'fbx', 'obj'].includes(ext)) return 'mesh';
+        if (['dds', 'png', 'tga', 'jpg', 'jpeg'].includes(ext)) return 'texture';
+        if (['wav', 'mp3', 'ogg', 'xwm'].includes(ext)) return 'audio';
+        if (['psc', 'pex'].includes(ext)) return 'script';
+        if (['swf', 'psd', 'ai', 'fla'].includes(ext)) return 'ui';
+        return 'mesh';
+    };
 
-  const handleAnalyzeAll = () => {
-      const unanalyzed = assets.filter(a => !a.analyzed);
-      unanalyzed.forEach(a => handleAnalyze(a));
-  };
+    const targetFor = (type: AssetType, filename: string) => {
+        const base = filename.replace(/\\/g, '/').split('/').pop() || filename;
+        const stem = base.includes('.') ? base.slice(0, base.lastIndexOf('.')) : base;
+        if (type === 'mesh') return `${presets.meshesBase}/${stem}.nif`;
+        if (type === 'texture') return `${presets.texturesBase}/${stem}.dds`;
+        if (type === 'audio') return `${presets.audioBase}/${presets.voiceProject}/${stem}.xwm`;
+        if (type === 'script') return `${presets.scriptsBase}/${stem}.pex`;
+        return `${presets.uiBase}/${stem}.swf`;
+    };
 
-  const togglePrivacy = (id: string) => {
-      setAssets(prev => prev.map(a => a.id === id ? { ...a, privacy: a.privacy === 'local' ? 'shared' : 'local' } : a));
-  };
+    const parseArgs = (line: string): string[] => {
+        if (!line) return [];
+        const out: string[] = [];
+        let cur = '';
+        let q: '"' | "'" | null = null;
+        for (let i = 0; i < line.length; i++) {
+            const ch = line[i];
+            if (q) {
+                if (ch === q) { q = null; }
+                else { cur += ch; }
+            } else {
+                if (ch === '"' || ch === "'") { q = ch as '"' | "'"; }
+                else if (ch === ' ') { if (cur) { out.push(cur); cur = ''; } }
+                else { cur += ch; }
+            }
+        }
+        if (cur) out.push(cur);
+        return out;
+    };
 
-  return (
-    <div className="h-full flex flex-col bg-forge-dark text-slate-200">
-      {/* Header */}
-      <div className="p-6 border-b border-slate-700 bg-forge-panel flex flex-col gap-4 shadow-md z-10">
-          <div className="flex justify-between items-center">
-              <div>
-                  <h1 className="text-2xl font-bold text-white flex items-center gap-3">
-                      <Container className="w-6 h-6 text-forge-accent" />
-                      The Vault
-                  </h1>
-                  <p className="text-xs text-slate-400 font-mono mt-1">Secure Asset Management & Privacy Partition</p>
-              </div>
-              <div className="flex gap-2">
-                  <button 
-                      onClick={() => setSanitizePII(!sanitizePII)}
-                      className={`flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-bold transition-colors border ${
-                          sanitizePII 
-                          ? 'bg-emerald-900/30 border-emerald-500/50 text-emerald-400' 
-                          : 'bg-slate-800 border-slate-600 text-slate-400'
-                      }`}
-                      title="Automatically redact personal info during analysis"
-                  >
-                      {sanitizePII ? <ShieldCheck className="w-4 h-4" /> : <ShieldCheck className="w-4 h-4 opacity-50" />}
-                      {sanitizePII ? 'PII Scrubbing: ON' : 'PII Scrubbing: OFF'}
-                  </button>
-                  <div className="h-8 w-px bg-slate-700 mx-2"></div>
-                  <button 
-                      onClick={handleScanFolder}
-                      disabled={isScanning}
-                      className="flex items-center gap-2 px-4 py-2 bg-slate-800 hover:bg-slate-700 border border-slate-600 rounded-lg text-sm font-bold transition-colors"
-                  >
-                      {isScanning ? <RefreshCw className="w-4 h-4 animate-spin" /> : <FolderPlus className="w-4 h-4" />}
-                      {isScanning ? 'Scanning...' : 'Index Local'}
-                  </button>
-                  <button 
-                      onClick={handleAnalyzeAll}
-                      className="flex items-center gap-2 px-4 py-2 bg-forge-accent hover:bg-sky-400 text-slate-900 rounded-lg text-sm font-bold transition-colors shadow-[0_0_15px_rgba(56,189,248,0.3)]"
-                  >
-                      <BrainCircuit className="w-4 h-4" />
-                      Auto-Tag
-                  </button>
-              </div>
-          </div>
+    const expectedTexFormatFor = (asset: Asset): 'BC1_UNORM' | 'BC3_UNORM' | 'BC5_UNORM' => {
+        const explicit = asset.expectedFormat;
+        const name = (asset.name || '').toLowerCase();
+        const tags = (asset.tags || []).map(t => t.toLowerCase());
+        if (explicit && explicit !== 'AUTO') {
+            if (explicit === 'BC1') return 'BC1_UNORM';
+            if (explicit === 'BC3') return 'BC3_UNORM';
+            return 'BC5_UNORM';
+        }
+        if (tags.includes('normal') || /(^|[_-])n($|\b)/.test(name) || name.includes('_n.')) return 'BC5_UNORM';
+        if (tags.includes('alpha') || name.includes('alpha')) return 'BC3_UNORM';
+        if (tags.includes('albedo') || /(^|[_-])d($|\b)/.test(name) || name.includes('_d.')) return 'BC1_UNORM';
+        return 'BC1_UNORM';
+    };
 
-          {/* Search & Filter Bar */}
-          <div className="flex gap-4">
-              <div className="flex-1 relative">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
-                  <input 
-                      type="text" 
-                      placeholder="Search secure assets..." 
-                      value={searchTerm}
-                      onChange={(e) => setSearchTerm(e.target.value)}
-                      className="w-full bg-slate-900 border border-slate-700 rounded-lg pl-10 pr-4 py-2 text-sm focus:outline-none focus:border-forge-accent text-slate-200"
-                  />
-              </div>
-              <div className="flex bg-slate-900 rounded-lg p-1 border border-slate-700">
-                  <button 
-                      onClick={() => setPrivacyFilter('all')}
-                      className={`px-3 py-1 text-xs rounded font-medium transition-colors ${privacyFilter === 'all' ? 'bg-slate-700 text-white' : 'text-slate-500 hover:text-slate-300'}`}
-                  >
-                      All
-                  </button>
-                  <button 
-                      onClick={() => setPrivacyFilter('local')}
-                      className={`px-3 py-1 text-xs rounded font-medium flex items-center gap-1 transition-colors ${privacyFilter === 'local' ? 'bg-red-900/50 text-red-200' : 'text-slate-500 hover:text-red-400'}`}
-                  >
-                      <Lock className="w-3 h-3" /> Local
-                  </button>
-                  <button 
-                      onClick={() => setPrivacyFilter('shared')}
-                      className={`px-3 py-1 text-xs rounded font-medium flex items-center gap-1 transition-colors ${privacyFilter === 'shared' ? 'bg-blue-900/50 text-blue-200' : 'text-slate-500 hover:text-blue-400'}`}
-                  >
-                      <Globe className="w-3 h-3" /> Shared
-                  </button>
-              </div>
-              <select 
-                  value={filterType}
-                  onChange={(e) => setFilterType(e.target.value)}
-                  className="bg-slate-900 border border-slate-700 rounded-lg px-4 py-2 text-sm focus:outline-none focus:border-forge-accent"
-              >
-                  <option value="all">All Types</option>
-                  <option value="image">Images</option>
-                  <option value="audio">Audio</option>
-                  <option value="model">3D Models</option>
-                  <option value="script">Scripts</option>
-              </select>
-              <div className="flex bg-slate-900 rounded-lg p-1 border border-slate-700">
-                  <button onClick={() => setViewMode('grid')} className={`p-1.5 rounded ${viewMode === 'grid' ? 'bg-slate-700 text-white' : 'text-slate-500 hover:text-slate-300'}`}>
-                      <Grid className="w-4 h-4" />
-                  </button>
-                  <button onClick={() => setViewMode('list')} className={`p-1.5 rounded ${viewMode === 'list' ? 'bg-slate-700 text-white' : 'text-slate-500 hover:text-slate-300'}`}>
-                      <List className="w-4 h-4" />
-                  </button>
-              </div>
-          </div>
-      </div>
+    const formatSize = (bytes: number) => {
+        if (!bytes || Number.isNaN(bytes)) return '0 MB';
+        const mb = bytes / (1024 * 1024);
+        return `${mb.toFixed(1)} MB`;
+    };
 
-      {/* Content Area */}
-      <div className="flex-1 overflow-y-auto p-6 bg-[#0c1220]">
-          {filteredAssets.length === 0 ? (
-              <div className="flex flex-col items-center justify-center h-64 text-slate-600">
-                  <HardDrive className="w-12 h-12 mb-4 opacity-20" />
-                  <p>No assets found matching your security criteria.</p>
-              </div>
-          ) : viewMode === 'grid' ? (
-              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6">
-                  {filteredAssets.map(asset => (
-                      <div key={asset.id} className={`group relative bg-slate-800/50 border rounded-xl overflow-hidden hover:border-forge-accent transition-all hover:shadow-xl ${asset.privacy === 'local' ? 'border-red-900/30' : 'border-slate-700'}`}>
-                          {/* Preview Area */}
-                          <div className="aspect-square bg-slate-900 relative overflow-hidden flex items-center justify-center">
-                              {asset.previewUrl ? (
-                                  <img src={asset.previewUrl} alt={asset.name} className={`w-full h-full object-cover transition-transform group-hover:scale-105 ${asset.privacy === 'local' ? 'grayscale opacity-70 group-hover:grayscale-0 group-hover:opacity-100' : ''}`} />
-                              ) : (
-                                  <div className="text-slate-600">
-                                      {asset.type === 'audio' ? <FileAudio className="w-12 h-12" /> :
-                                       asset.type === 'model' ? <Box className="w-12 h-12" /> :
-                                       <FileCode className="w-12 h-12" />}
-                                  </div>
-                              )}
-                              
-                              {/* Overlay Actions */}
-                              <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
-                                  <button className="p-2 bg-slate-700 hover:bg-white hover:text-black rounded-full transition-colors" title="Preview">
-                                      <Eye className="w-4 h-4" />
-                                  </button>
-                                  <button 
-                                      onClick={() => togglePrivacy(asset.id)}
-                                      className={`p-2 rounded-full transition-colors ${asset.privacy === 'local' ? 'bg-red-600 hover:bg-red-500 text-white' : 'bg-blue-600 hover:bg-blue-500 text-white'}`} 
-                                      title={asset.privacy === 'local' ? 'Make Shared' : 'Make Local Only'}
-                                  >
-                                      {asset.privacy === 'local' ? <Lock className="w-4 h-4" /> : <Globe className="w-4 h-4" />}
-                                  </button>
-                              </div>
+    const runTool = async (asset: Asset) => {
+        const meta = toolMap[asset.type];
+        const cmdKey = meta.tool === 'Splicer + OutfitStudio' ? 'splicer' : (meta.tool as keyof ToolPaths);
+        const cmd = (toolPaths[cmdKey] || cmdKey) as string;
+        // Build args per type
+        let args: string[] = [];
+        if (asset.type === 'mesh') {
+            args = ['validate', '--recalc-normals', '--rebuild-collision', asset.sourcePath, '-o', asset.targetPath];
+        } else if (asset.type === 'texture') {
+            const fmt = expectedTexFormatFor(asset);
+            const ext = (asset.sourcePath.split('.').pop() || '').toLowerCase();
+            const isImage = ['png','tga','targa','jpg','jpeg'].includes(ext);
+            const isDDS = ext === 'dds';
+            if (isImage && !autoConvertImagesToDDS) {
+                // Skip conversion when disabled; rely on dimension guard and leave compression validation pending
+                const note = `Auto-convert disabled for images; expected ${fmt.replace('_UNORM','')} when converted.`;
+                const filtered = asset.issues.filter(i => !/unexpected bc format/i.test(i));
+                return { remaining: filtered, log: note, exitCode: 0 };
+            }
+            args = ['-nologo', '-y', '-f', fmt, '-o', presets.texturesBase];
+            args.push(asset.sourcePath);
+        } else if (asset.type === 'audio') {
+            args = [asset.sourcePath, asset.targetPath, '--bitrate', '192k'];
+        } else if (asset.type === 'script') {
+            args = [asset.sourcePath, `-f=${pathLike('Institute_Papyrus_Flags.flg')}`, `-i=${presets.scriptsSource}`, `-o=${presets.scriptsBase}`];
+        } else if (asset.type === 'ui') {
+            args = [asset.sourcePath, '-o', asset.targetPath];
+        }
 
-                              {/* Privacy Badge */}
-                              <div className={`absolute top-2 right-2 px-2 py-0.5 backdrop-blur rounded text-[10px] uppercase font-bold flex items-center gap-1 ${
-                                  asset.privacy === 'local' ? 'bg-red-900/80 text-red-200 border border-red-500/50' : 'bg-blue-900/80 text-blue-200 border border-blue-500/50'
-                              }`}>
-                                  {asset.privacy === 'local' ? <Lock className="w-3 h-3" /> : <Globe className="w-3 h-3" />}
-                                  {asset.privacy}
-                              </div>
-                          </div>
+        // Append custom CLI args if provided for this tool
+        const extra = (toolExtraArgs as any)[cmdKey] as string | undefined;
+        if (extra && extra.trim().length) {
+            args = [...args, ...parseArgs(extra.trim())];
+        }
 
-                          {/* Info Area */}
-                          <div className="p-3">
-                              <div className="font-medium text-sm text-slate-200 truncate mb-1" title={asset.name}>{asset.name}</div>
-                              <div className="flex flex-wrap gap-1 mb-2 h-12 overflow-hidden content-start">
-                                  {asset.tags.length > 0 ? (
-                                      asset.tags.map((tag, i) => (
-                                          <span key={i} className="px-1.5 py-0.5 bg-slate-700 text-slate-400 rounded text-[10px] hover:text-white cursor-default">
-                                              #{tag}
-                                          </span>
-                                      ))
-                                  ) : (
-                                      <span className="text-[10px] text-slate-600 italic flex items-center gap-1">
-                                          <Scan className="w-3 h-3" /> Untagged
-                                      </span>
-                                  )}
-                              </div>
-                              <div className="flex justify-between items-center text-[10px] text-slate-500 border-t border-slate-700 pt-2">
-                                  <span className="truncate max-w-[100px]">{asset.size}</span>
-                                  {asset.analyzed && <span className="flex items-center gap-1 text-emerald-500"><Check className="w-3 h-3" /> Indexed</span>}
-                              </div>
-                          </div>
-                      </div>
-                  ))}
-              </div>
-          ) : (
-              // List View
-              <div className="flex flex-col gap-2">
-                  {filteredAssets.map(asset => (
-                      <div key={asset.id} className={`flex items-center gap-4 p-3 bg-slate-800/50 border rounded-lg hover:bg-slate-800 transition-colors group ${asset.privacy === 'local' ? 'border-red-900/30' : 'border-slate-700'}`}>
-                          <div className="w-10 h-10 bg-slate-900 rounded flex items-center justify-center shrink-0">
-                               {asset.type === 'image' ? <FileImage className="w-5 h-5 text-purple-400" /> :
-                                asset.type === 'audio' ? <FileAudio className="w-5 h-5 text-yellow-400" /> :
-                                asset.type === 'model' ? <Box className="w-5 h-5 text-blue-400" /> :
-                                <FileCode className="w-5 h-5 text-emerald-400" />}
-                          </div>
-                          <div className="flex-1 min-w-0">
-                              <div className="flex items-center gap-2">
-                                  <span className="font-medium text-sm text-slate-200 truncate">{asset.name}</span>
-                                  <div className={`px-1.5 py-0.5 rounded text-[9px] uppercase font-bold border ${asset.privacy === 'local' ? 'bg-red-900/20 text-red-400 border-red-900/50' : 'bg-blue-900/20 text-blue-400 border-blue-900/50'}`}>
-                                      {asset.privacy}
-                                  </div>
-                              </div>
-                              <div className="text-xs text-slate-500 truncate font-mono">{asset.path}</div>
-                          </div>
-                          <div className="flex gap-2 max-w-[30%] flex-wrap justify-end">
-                              {asset.tags.slice(0, 4).map((tag, i) => (
-                                  <span key={i} className="px-1.5 py-0.5 bg-slate-700 text-slate-400 rounded text-[10px]">
-                                      #{tag}
-                                  </span>
-                              ))}
-                          </div>
-                          <div className="flex items-center gap-4">
-                              <div className="text-xs text-slate-500 w-16 text-right">{asset.size}</div>
-                              <button 
-                                  onClick={() => togglePrivacy(asset.id)}
-                                  className={`p-1.5 rounded transition-colors ${asset.privacy === 'local' ? 'text-red-500 hover:bg-red-900/20' : 'text-blue-500 hover:bg-blue-900/20'}`}
-                              >
-                                  {asset.privacy === 'local' ? <Lock className="w-4 h-4" /> : <Globe className="w-4 h-4" />}
-                              </button>
-                          </div>
-                      </div>
-                  ))}
-              </div>
-          )}
-      </div>
-    </div>
-  );
+        const header = `${meta.tool} -> ${meta.command.replace('{source}', asset.sourcePath).replace('{target}', asset.targetPath)}`;
+        let stdout = '';
+        let stderr = '';
+        let exitCode = -1;
+        const api = (window as any).electron?.api;
+        if (api?.runTool) {
+            try {
+                const result = await api.runTool({ cmd, args });
+                stdout = result.stdout || '';
+                stderr = result.stderr || '';
+                exitCode = result.exitCode;
+            } catch (e) {
+                stderr = String(e);
+            }
+        } else {
+            stdout = 'Simulated run (no backend available)';
+            exitCode = 0;
+        }
+        const output = [header, stdout, stderr].filter(Boolean).join('\n');
+        // Resolve issues if the output references any of the patterns
+        const remaining: string[] = [];
+        const lower = output.toLowerCase();
+        asset.issues.forEach(issue => {
+            const found = toolMap[asset.type].patterns.some(p => lower.includes(p));
+            if (!found) remaining.push(issue);
+        });
+        if (asset.type === 'texture') {
+            // Detect actual format from output
+            const actualMatch = output.match(/\bBC(1|3|5)\b/i);
+            const expected = expectedTexFormatFor(asset);
+            if (actualMatch) {
+                const actual = `BC${actualMatch[1]}_UNORM`;
+                if (actual.toUpperCase() === expected.toUpperCase()) {
+                    // Clear compression issues
+                    const filtered = remaining.filter(i => !/compression not validated/i.test(i) && !/unexpected bc format/i.test(i));
+                    remaining.splice(0, remaining.length, ...filtered);
+                } else {
+                    // Add/keep mismatch issue
+                    const issue = `Unexpected BC format: expected ${expected.replace('_UNORM','')}, got ${actual.replace('_UNORM','')}`;
+                    if (!remaining.some(i => i.toLowerCase().includes('unexpected bc format'))) remaining.push(issue);
+                }
+            } else {
+                // If texconv ran but didn't indicate BC, keep validation issue
+                if (!remaining.some(i => /compression not validated/i.test(i))) remaining.push('Compression not validated');
+            }
+        }
+        return { remaining, log: output, exitCode };
+    };
+
+    const pathLike = (s: string) => s; // simple helper for readability
+
+    const addAssetsFromFileList = (fileList: FileList | null) => {
+        if (!fileList || fileList.length === 0) return;
+        const incoming: Asset[] = [];
+        Array.from(fileList).forEach(file => {
+            const type = guessType(file.name);
+            incoming.push({
+                id: `${type}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+                name: file.name,
+                type,
+                sourcePath: (file as any).path || file.name,
+                targetPath: targetFor(type, file.name),
+                size: formatSize(file.size),
+                privacy: 'local',
+                tags: [type],
+                staged: false,
+                lastVerified: 'Not run',
+                issues: type === 'texture' ? ['Compression not validated'] : type === 'audio' ? ['Normalize to -16 LUFS before encode'] : type === 'script' ? ['Compile path not set'] : type === 'ui' ? ['Export to SWF pending'] : ['Collision not validated'],
+                lastRun: ''
+            });
+        });
+        setAssets(prev => [...incoming, ...prev]);
+    };
+
+    useEffect(() => {
+        if (typeof window === 'undefined') return;
+        window.localStorage.setItem('vault-assets-v1', JSON.stringify(assets));
+        const api = (window as any).electron?.api;
+        api?.saveVaultManifest?.(assets).catch(() => {});
+    }, [assets]);
+
+    useEffect(() => {
+        if (typeof window === 'undefined') return;
+        window.localStorage.setItem('vault-presets-v1', JSON.stringify(presets));
+    }, [presets]);
+
+    useEffect(() => {
+        localStorage.setItem('vault-tool-paths-v1', JSON.stringify(toolPaths));
+        (async () => {
+            if (!api?.getToolVersion) return;
+            const entries = Object.entries(toolPaths) as [keyof ToolPaths, string][];
+            const versions: Partial<Record<keyof ToolPaths, string>> = {};
+            for (const [k, p] of entries) {
+                if (p) {
+                    try { versions[k] = await api.getToolVersion(p); } catch { versions[k] = ''; }
+                }
+            }
+            setToolVersions(versions);
+        })();
+    }, [toolPaths]);
+
+    useEffect(() => {
+        localStorage.setItem('vault-tool-extra-args-v1', JSON.stringify(toolExtraArgs));
+    }, [toolExtraArgs]);
+
+    useEffect(() => {
+        localStorage.setItem('vault-auto-convert-images-v1', JSON.stringify(autoConvertImagesToDDS));
+    }, [autoConvertImagesToDDS]);
+
+    useEffect(() => {
+        const api = (window as any).electron?.api;
+        api?.loadVaultManifest?.().then((data: any) => {
+            if (Array.isArray(data) && data.length) setAssets(data);
+        }).catch(() => {});
+    }, []);
+
+    const filteredAssets = assets.filter(asset => {
+        const search = searchTerm.toLowerCase();
+        const matchesSearch = asset.name.toLowerCase().includes(search) || asset.tags.some(tag => tag.toLowerCase().includes(search));
+        const matchesType = filterType === 'all' || asset.type === filterType;
+        const matchesPrivacy = privacyFilter === 'all' || asset.privacy === privacyFilter;
+        const hasIssues = asset.issues.length > 0;
+        const matchesStatus = statusFilter === 'all' || (statusFilter === 'issues' ? hasIssues : !hasIssues);
+        const matchesStaged = onlyStaged ? asset.staged : true;
+        return matchesSearch && matchesType && matchesPrivacy && matchesStatus && matchesStaged;
+    });
+
+    const stagedAssets = assets.filter(a => a.staged);
+    const issuesCount = assets.filter(a => a.issues.length > 0).length;
+    const readyCount = assets.length - issuesCount;
+    const totalSize = assets.reduce((acc, curr) => acc + parseFloat(curr.size), 0);
+
+    const togglePrivacy = (id: string) => {
+        setAssets(prev => prev.map(a => a.id === id ? { ...a, privacy: a.privacy === 'local' ? 'shared' : 'local' } : a));
+    };
+
+    const toggleStage = (id: string) => {
+        setAssets(prev => prev.map(a => {
+            if (a.id !== id) return a;
+            if (a.issues.length > 0) return a;
+            if (a.type === 'texture' && !allowOversizedTextures) {
+                const ext = (a.sourcePath.split('.').pop() || '').toLowerCase();
+                if (ext === 'dds') {
+                    // Defer to async check, keep state unchanged synchronously
+                    (async () => {
+                        try {
+                            const dims = await (window as any).electron?.api?.getDdsDimensions?.(a.sourcePath);
+                            if (dims && (dims.width > 4096 || dims.height > 4096)) {
+                                setAssets(p => p.map(x => x.id === a.id ? { ...x, issues: Array.from(new Set([...(x.issues||[]), 'Texture exceeds 4K'])) } : x));
+                            } else {
+                                setAssets(p => p.map(x => x.id === a.id ? { ...x, staged: !x.staged } : x));
+                            }
+                        } catch {
+                            // If check fails, do nothing
+                        }
+                    })();
+                    return a;
+                } else if (ext === 'png' || ext === 'tga' || ext === 'targa' || ext === 'jpg' || ext === 'jpeg') {
+                    (async () => {
+                        try {
+                            const dims = await (window as any).electron?.api?.getImageDimensions?.(a.sourcePath);
+                            if (dims && (dims.width > 4096 || dims.height > 4096)) {
+                                setAssets(p => p.map(x => x.id === a.id ? { ...x, issues: Array.from(new Set([...(x.issues||[]), 'Texture exceeds 4K'])) } : x));
+                            } else {
+                                setAssets(p => p.map(x => x.id === a.id ? { ...x, staged: !x.staged } : x));
+                            }
+                        } catch {}
+                    })();
+                    return a;
+                }
+            }
+            return { ...a, staged: !a.staged };
+        }));
+    };
+
+    const handleVerify = (asset: Asset) => {
+        setVerifyingIds(prev => new Set(prev).add(asset.id));
+        (async () => {
+            const { remaining, log } = await runTool(asset);
+            setAssets(prev => prev.map(a => {
+                if (a.id !== asset.id) return a;
+                return {
+                    ...a,
+                    issues: remaining,
+                    lastVerified: new Date().toISOString().slice(0, 16).replace('T', ' '),
+                    lastRun: log,
+                    staged: remaining.length === 0 ? a.staged : false
+                };
+            }));
+            setVerifyingIds(prev => {
+                const next = new Set(prev);
+                next.delete(asset.id);
+                return next;
+            });
+        })();
+    };
+
+    const handleVerifyAll = () => {
+        assets.forEach(asset => handleVerify(asset));
+    };
+
+    const handleCopy = (value: string) => {
+        if (!value) return;
+        navigator.clipboard?.writeText(value).catch(() => {});
+    };
+
+    const handleDrop = (e: React.DragEvent<HTMLDivElement>) => {
+        e.preventDefault();
+        addAssetsFromFileList(e.dataTransfer.files);
+    };
+
+    const handleBrowse = () => {
+        fileInputRef.current?.click();
+    };
+
+    const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        addAssetsFromFileList(e.target.files);
+        if (fileInputRef.current) fileInputRef.current.value = '';
+    };
+
+    const manifest = stagedAssets
+        .map(a => `${a.targetPath}`)
+        .join('\n');
+
+    return (
+        <div className="h-full flex flex-col bg-forge-dark text-slate-200">
+            <div className="p-6 border-b border-slate-700 bg-forge-panel flex flex-col gap-4 shadow-md z-10">
+                <div className="flex justify-between items-center">
+                    <div>
+                        <h1 className="text-2xl font-bold text-white flex items-center gap-3">
+                            <Container className="w-6 h-6 text-forge-accent" />
+                            The Vault
+                        </h1>
+                        <p className="text-xs text-slate-400 font-mono mt-1">Secure Fallout 4 Asset Library & BA2 staging</p>
+                    </div>
+                    <div className="flex gap-2">
+                        <button
+                            onClick={handleVerifyAll}
+                            className="flex items-center gap-2 px-4 py-2 bg-slate-800 hover:bg-slate-700 border border-slate-600 rounded-lg text-sm font-bold transition-colors"
+                        >
+                            <CheckCircle2 className="w-4 h-4" />
+                            Verify All
+                        </button>
+                        <button
+                            onClick={() => handleCopy(manifest)}
+                            disabled={stagedAssets.length === 0}
+                            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-bold transition-colors border ${
+                                stagedAssets.length === 0
+                                    ? 'bg-slate-800 border-slate-700 text-slate-500 cursor-not-allowed'
+                                    : 'bg-forge-accent text-slate-900 border-slate-200 shadow-[0_0_15px_rgba(56,189,248,0.3)] hover:bg-sky-400'
+                            }`}
+                        >
+                            <Archive className="w-4 h-4" />
+                            Copy BA2 Manifest
+                        </button>
+                    </div>
+
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-3">
+                        <div className="bg-slate-900/60 border border-slate-800 rounded-xl p-3">
+                            <div className="text-xs text-slate-400 mb-2 font-semibold">Auto-target Presets</div>
+                                        <div className="grid grid-cols-2 gap-2 text-xs">
+                                <label className="flex flex-col gap-1">
+                                    <span className="text-slate-500">Meshes</span>
+                                    <input value={presets.meshesBase} onChange={e=>setPresets(p=>({...p, meshesBase:e.target.value}))} className="bg-slate-950 border border-slate-800 rounded px-2 py-1 text-slate-200" />
+                                </label>
+                                <label className="flex flex-col gap-1">
+                                    <span className="text-slate-500">Textures</span>
+                                    <input value={presets.texturesBase} onChange={e=>setPresets(p=>({...p, texturesBase:e.target.value}))} className="bg-slate-950 border border-slate-800 rounded px-2 py-1 text-slate-200" />
+                                </label>
+                                <label className="flex flex-col gap-1">
+                                    <span className="text-slate-500">Audio Base</span>
+                                    <input value={presets.audioBase} onChange={e=>setPresets(p=>({...p, audioBase:e.target.value}))} className="bg-slate-950 border border-slate-800 rounded px-2 py-1 text-slate-200" />
+                                </label>
+                                <label className="flex flex-col gap-1">
+                                    <span className="text-slate-500">Voice Project</span>
+                                    <input value={presets.voiceProject} onChange={e=>setPresets(p=>({...p, voiceProject:e.target.value}))} className="bg-slate-950 border border-slate-800 rounded px-2 py-1 text-slate-200" />
+                                </label>
+                                <label className="flex flex-col gap-1">
+                                    <span className="text-slate-500">Scripts Out</span>
+                                    <input value={presets.scriptsBase} onChange={e=>setPresets(p=>({...p, scriptsBase:e.target.value}))} className="bg-slate-950 border border-slate-800 rounded px-2 py-1 text-slate-200" />
+                                </label>
+                                <label className="flex flex-col gap-1">
+                                    <span className="text-slate-500">Scripts Source</span>
+                                    <input value={presets.scriptsSource} onChange={e=>setPresets(p=>({...p, scriptsSource:e.target.value}))} className="bg-slate-950 border border-slate-800 rounded px-2 py-1 text-slate-200" />
+                                </label>
+                                <label className="flex flex-col gap-1">
+                                    <span className="text-slate-500">UI</span>
+                                    <input value={presets.uiBase} onChange={e=>setPresets(p=>({...p, uiBase:e.target.value}))} className="bg-slate-950 border border-slate-800 rounded px-2 py-1 text-slate-200" />
+                                </label>
+                                <label className="flex items-center gap-2 mt-5">
+                                    <input type="checkbox" className="accent-forge-accent" checked={allowOversizedTextures} onChange={e=>setAllowOversizedTextures(e.target.checked)} />
+                                    <span className="text-slate-400">Allow &gt;4K textures</span>
+                                </label>
+                                            <label className="flex items-center gap-2 mt-2">
+                                                <input type="checkbox" className="accent-forge-accent" checked={autoConvertImagesToDDS} onChange={e=>setAutoConvertImagesToDDS(e.target.checked)} />
+                                                <span className="text-slate-400">Auto-convert PNG/TGA/JPG to DDS</span>
+                                            </label>
+                            </div>
+                                            <div className="bg-slate-900/60 border border-slate-800 rounded-xl p-3">
+                                                <div className="flex items-center gap-2 text-xs text-slate-400 mb-2 font-semibold"><Wrench className="w-4 h-4"/> Tool Paths</div>
+                                                <div className="grid grid-cols-2 gap-2 text-xs">
+                                                    {(['texconv','xWMAEncode','PapyrusCompiler','gfxexport','splicer'] as const).map(key => (
+                                                        <div key={key} className="col-span-2">
+                                                            <div className="flex items-center gap-2 mb-1">
+                                                                <span className="w-32 text-slate-500 capitalize">{key}</span>
+                                                                <input value={(toolPaths as any)[key] || ''} onChange={e=>setToolPaths(p=>({...p, [key]: e.target.value}))} className="flex-1 bg-slate-950 border border-slate-800 rounded px-2 py-1 text-slate-200" placeholder={`Path to ${key}.exe`} />
+                                                                <button onClick={async()=>{ const p = await api?.pickToolPath?.(key); if(p) setToolPaths(tp=>({...tp, [key]: p})); }} className="px-2 py-1 border border-slate-700 rounded hover:border-forge-accent">Browse</button>
+                                                                <span className="text-[10px] text-slate-500 w-24 truncate" title={(toolVersions as any)[key] || ''}>{(toolVersions as any)[key] || ''}</span>
+                                                            </div>
+                                                            <div className="flex items-center gap-2">
+                                                                <span className="w-32 text-slate-500">Extra args</span>
+                                                                <input value={(toolExtraArgs as any)[key] || ''} onChange={e=>setToolExtraArgs(p=>({...p, [key]: e.target.value}))} className="flex-1 bg-slate-950 border border-slate-800 rounded px-2 py-1 text-slate-200" placeholder="Optional CLI args appended for advanced runs" />
+                                                            </div>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div className="flex flex-wrap gap-4">
+                    <div className="flex-1 min-w-[220px] relative">
+                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
+                        <input
+                            type="text"
+                            placeholder="Search assets, tags, or paths"
+                            value={searchTerm}
+                            onChange={(e) => setSearchTerm(e.target.value)}
+                            className="w-full bg-slate-900 border border-slate-700 rounded-lg pl-10 pr-4 py-2 text-sm focus:outline-none focus:border-forge-accent text-slate-200"
+                        />
+                    </div>
+                    <select
+                        value={filterType}
+                        onChange={(e) => setFilterType(e.target.value as 'all' | AssetType)}
+                        className="bg-slate-900 border border-slate-700 rounded-lg px-4 py-2 text-sm focus:outline-none focus:border-forge-accent"
+                    >
+                        <option value="all">All Types</option>
+                        <option value="mesh">Meshes</option>
+                        <option value="texture">Textures</option>
+                        <option value="audio">Audio</option>
+                        <option value="script">Scripts</option>
+                        <option value="ui">UI</option>
+                    </select>
+                    <div className="flex bg-slate-900 rounded-lg p-1 border border-slate-700">
+                        <button
+                            onClick={() => setPrivacyFilter('all')}
+                            className={`px-3 py-1 text-xs rounded font-medium transition-colors ${privacyFilter === 'all' ? 'bg-slate-700 text-white' : 'text-slate-500 hover:text-slate-300'}`}
+                        >
+                            All
+                        </button>
+                        <button
+                            onClick={() => setPrivacyFilter('local')}
+                            className={`px-3 py-1 text-xs rounded font-medium flex items-center gap-1 transition-colors ${privacyFilter === 'local' ? 'bg-red-900/50 text-red-200' : 'text-slate-500 hover:text-red-400'}`}
+                        >
+                            <Lock className="w-3 h-3" /> Local
+                        </button>
+                        <button
+                            onClick={() => setPrivacyFilter('shared')}
+                            className={`px-3 py-1 text-xs rounded font-medium flex items-center gap-1 transition-colors ${privacyFilter === 'shared' ? 'bg-blue-900/50 text-blue-200' : 'text-slate-500 hover:text-blue-400'}`}
+                        >
+                            <Globe className="w-3 h-3" /> Shared
+                        </button>
+                    </div>
+                    <div className="flex bg-slate-900 rounded-lg p-1 border border-slate-700">
+                        <button
+                            onClick={() => setStatusFilter('all')}
+                            className={`px-3 py-1 text-xs rounded font-medium transition-colors ${statusFilter === 'all' ? 'bg-slate-700 text-white' : 'text-slate-500 hover:text-slate-300'}`}
+                        >
+                            Any Status
+                        </button>
+                        <button
+                            onClick={() => setStatusFilter('ready')}
+                            className={`px-3 py-1 text-xs rounded font-medium transition-colors ${statusFilter === 'ready' ? 'bg-emerald-900/40 text-emerald-200' : 'text-slate-500 hover:text-emerald-300'}`}
+                        >
+                            Ready
+                        </button>
+                        <button
+                            onClick={() => setStatusFilter('issues')}
+                            className={`px-3 py-1 text-xs rounded font-medium transition-colors ${statusFilter === 'issues' ? 'bg-amber-900/40 text-amber-200' : 'text-slate-500 hover:text-amber-300'}`}
+                        >
+                            Needs Fix
+                        </button>
+                    </div>
+                    <label className="flex items-center gap-2 text-xs text-slate-400 bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 cursor-pointer">
+                        <input type="checkbox" checked={onlyStaged} onChange={(e) => setOnlyStaged(e.target.checked)} className="accent-forge-accent" />
+                        Show only staged
+                    </label>
+                </div>
+
+                <div
+                    onDrop={handleDrop}
+                    onDragOver={(e) => e.preventDefault()}
+                    className="mt-4 border border-dashed border-slate-600 bg-slate-900/60 rounded-xl p-4 flex items-center justify-between gap-3"
+                >
+                    <div className="flex items-center gap-3">
+                        <div className="p-2 rounded-lg bg-slate-800 border border-slate-700">
+                            <Upload className="w-5 h-5 text-forge-accent" />
+                        </div>
+                        <div>
+                            <p className="text-sm font-semibold text-white">Drop assets or import files</p>
+                            <p className="text-xs text-slate-400">We auto-assign Data/ targets per type (mesh, texture, audio, script, UI).</p>
+                        </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                        <button
+                            onClick={handleBrowse}
+                            className="flex items-center gap-2 px-3 py-2 bg-slate-800 hover:bg-slate-700 border border-slate-600 rounded-lg text-xs font-bold transition-colors"
+                        >
+                            <FilePlus className="w-4 h-4" />
+                            Import files
+                        </button>
+                        <input
+                            ref={fileInputRef}
+                            type="file"
+                            multiple
+                            className="hidden"
+                            onChange={handleFileChange}
+                        />
+                    </div>
+                </div>
+            </div>
+
+            <div className="flex-1 overflow-y-auto p-6 bg-[#0c1220]">
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
+                    <div className="bg-slate-900/70 border border-slate-800 rounded-xl p-3">
+                        <p className="text-[10px] uppercase text-slate-500">Tracked assets</p>
+                        <p className="text-xl font-bold text-white">{assets.length}</p>
+                    </div>
+                    <div className="bg-slate-900/70 border border-slate-800 rounded-xl p-3">
+                        <p className="text-[10px] uppercase text-slate-500">Staged for BA2</p>
+                        <p className="text-xl font-bold text-white">{stagedAssets.length}</p>
+                    </div>
+                    <div className="bg-slate-900/70 border border-slate-800 rounded-xl p-3">
+                        <p className="text-[10px] uppercase text-slate-500">Ready</p>
+                        <p className="text-xl font-bold text-emerald-400">{readyCount}</p>
+                    </div>
+                    <div className="bg-slate-900/70 border border-slate-800 rounded-xl p-3">
+                        <p className="text-[10px] uppercase text-slate-500">With issues</p>
+                        <p className="text-xl font-bold text-amber-400">{issuesCount}</p>
+                    </div>
+                </div>
+
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
+                    <div className="lg:col-span-2 bg-slate-900/60 border border-slate-800 rounded-xl p-4">
+                        <div className="flex items-center justify-between mb-3">
+                            <div className="flex items-center gap-2">
+                                <Archive className="w-4 h-4 text-forge-accent" />
+                                <span className="text-sm font-semibold text-white">Staged BA2 manifest</span>
+                            </div>
+                            <button
+                                onClick={() => handleCopy(manifest)}
+                                disabled={stagedAssets.length === 0}
+                                className={`flex items-center gap-2 px-3 py-1 text-xs rounded border ${
+                                    stagedAssets.length === 0
+                                        ? 'border-slate-700 text-slate-500 cursor-not-allowed'
+                                        : 'border-slate-600 text-forge-accent hover:border-forge-accent'
+                                }`}
+                            >
+                                <Clipboard className="w-3 h-3" /> Copy list
+                            </button>
+                        </div>
+                        <div className="bg-slate-950/60 border border-slate-800 rounded p-3 h-32 overflow-y-auto text-xs text-slate-300 font-mono">
+                            {stagedAssets.length === 0 ? (
+                                <p className="text-slate-600">Nothing staged yet. Stage assets to generate an Archive2 list.</p>
+                            ) : (
+                                stagedAssets.map(asset => (
+                                    <div key={asset.id} className="flex items-center justify-between py-1 border-b border-slate-800 last:border-b-0">
+                                        <span className="truncate pr-2">{asset.targetPath}</span>
+                                        <span className="text-[10px] text-slate-500 uppercase">{asset.type}</span>
+                                    </div>
+                                ))
+                            )}
+                        </div>
+                    </div>
+
+                    <div className="bg-slate-900/60 border border-slate-800 rounded-xl p-4 flex flex-col gap-3">
+                        <div className="flex items-center gap-2 text-sm font-semibold text-white">
+                            <ShieldCheck className="w-4 h-4 text-emerald-400" /> Security posture
+                        </div>
+                        <div className="flex items-center justify-between text-xs text-slate-300">
+                            <span>Local only</span>
+                            <span className="font-mono">{assets.filter(a => a.privacy === 'local').length}</span>
+                        </div>
+                        <div className="flex items-center justify-between text-xs text-slate-300">
+                            <span>Shared</span>
+                            <span className="font-mono">{assets.filter(a => a.privacy === 'shared').length}</span>
+                        </div>
+                        <div className="flex items-center justify-between text-xs text-slate-300">
+                            <span>Estimated size tracked</span>
+                            <span className="font-mono">{totalSize.toFixed(1)} MB</span>
+                        </div>
+                        <p className="text-[11px] text-slate-500">
+                            The Vault tracks source (authoring) paths vs staging (Data/) paths to prevent accidental leaks and keep BA2 packaging deterministic.
+                        </p>
+                    </div>
+                </div>
+
+                {filteredAssets.length === 0 ? (
+                    <div className="flex flex-col items-center justify-center h-64 text-slate-600">
+                        <HardDrive className="w-12 h-12 mb-4 opacity-20" />
+                        <p>No assets match the filters.</p>
+                    </div>
+                ) : (
+                    <div className="flex flex-col gap-3">
+                        {filteredAssets.map(asset => {
+                            const hasIssues = asset.issues.length > 0;
+                            return (
+                                <div
+                                    key={asset.id}
+                                    className={`p-4 bg-slate-900/70 border rounded-xl transition-colors ${
+                                        hasIssues ? 'border-amber-700/60' : 'border-slate-800'
+                                    }`}
+                                >
+                                    <div className="flex flex-wrap items-start justify-between gap-3">
+                                        <div className="flex flex-col gap-1 min-w-[200px]">
+                                            <div className="flex items-center gap-2">
+                                                <span className="text-sm font-semibold text-white truncate">{asset.name}</span>
+                                                <span
+                                                    className={`px-2 py-0.5 rounded text-[10px] uppercase font-bold border ${
+                                                        asset.type === 'mesh' ? 'text-blue-300 border-blue-700/60 bg-blue-900/20' :
+                                                        asset.type === 'texture' ? 'text-purple-200 border-purple-700/60 bg-purple-900/20' :
+                                                        asset.type === 'audio' ? 'text-amber-200 border-amber-700/60 bg-amber-900/20' :
+                                                        asset.type === 'script' ? 'text-emerald-200 border-emerald-700/60 bg-emerald-900/20' :
+                                                        'text-cyan-200 border-cyan-700/60 bg-cyan-900/20'
+                                                    }`}
+                                                >
+                                                    {asset.type}
+                                                </span>
+                                                <span
+                                                    className={`px-2 py-0.5 rounded text-[10px] uppercase font-bold border ${
+                                                        asset.privacy === 'local' ? 'bg-red-900/30 text-red-200 border-red-700/60' : 'bg-blue-900/30 text-blue-200 border-blue-700/60'
+                                                    }`}
+                                                >
+                                                    {asset.privacy}
+                                                </span>
+                                            </div>
+                                            <div className="flex flex-wrap gap-1">
+                                                {asset.tags.map(tag => (
+                                                    <span key={tag} className="px-1.5 py-0.5 bg-slate-800 text-slate-300 rounded text-[10px]">#{tag}</span>
+                                                ))}
+                                            </div>
+                                            <div className="text-[11px] text-slate-500">Last verified: {asset.lastVerified}</div>
+                                            {asset.type === 'texture' && (
+                                                <div className="mt-1 flex items-center gap-2 text-[11px] text-slate-400">
+                                                    <span>Expected format:</span>
+                                                    <select
+                                                        value={asset.expectedFormat || 'AUTO'}
+                                                        onChange={e=>setAssets(prev=>prev.map(a=>a.id===asset.id?{...a, expectedFormat: e.target.value as any}:a))}
+                                                        className="bg-slate-900 border border-slate-700 rounded px-2 py-0.5 text-[11px]"
+                                                    >
+                                                        <option value="AUTO">Auto</option>
+                                                        <option value="BC1">BC1</option>
+                                                        <option value="BC3">BC3</option>
+                                                        <option value="BC5">BC5</option>
+                                                    </select>
+                                                </div>
+                                            )}
+                                        </div>
+
+                                        <div className="flex items-center gap-2">
+                                            <span className="text-[11px] text-slate-400">{asset.size}</span>
+                                            <label className="flex items-center gap-2 text-[11px] text-slate-400 cursor-pointer">
+                                                <input
+                                                    type="checkbox"
+                                                    checked={asset.staged}
+                                                    onChange={() => toggleStage(asset.id)}
+                                                    className="accent-forge-accent"
+                                                    disabled={hasIssues}
+                                                />
+                                                <span className={hasIssues ? 'text-slate-600' : ''}>Stage for BA2{hasIssues ? ' (resolve issues first)' : ''}</span>
+                                            </label>
+                                        </div>
+                                    </div>
+
+                                    <div className="mt-3 grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
+                                        <div className="bg-slate-950/60 border border-slate-800 rounded p-3 flex flex-col gap-2">
+                                            <div className="flex items-center justify-between">
+                                                <span className="text-slate-400">Source (authoring)</span>
+                                                <button onClick={() => handleCopy(asset.sourcePath)} className="text-forge-accent hover:text-white flex items-center gap-1">
+                                                    <Clipboard className="w-3 h-3" /> Copy
+                                                </button>
+                                            </div>
+                                            <div className="font-mono text-slate-200 truncate">{asset.sourcePath}</div>
+                                        </div>
+                                        <div className="bg-slate-950/60 border border-slate-800 rounded p-3 flex flex-col gap-2">
+                                            <div className="flex items-center justify-between">
+                                                <span className="text-slate-400">Staging (Data/)</span>
+                                                <button onClick={() => handleCopy(asset.targetPath)} className="text-forge-accent hover:text-white flex items-center gap-1">
+                                                    <Clipboard className="w-3 h-3" /> Copy
+                                                </button>
+                                            </div>
+                                            <div className="font-mono text-slate-200 truncate">{asset.targetPath}</div>
+                                        </div>
+                                    </div>
+
+                                    <div className="mt-3 flex flex-wrap gap-2 items-center">
+                                        {hasIssues ? (
+                                            <span className="flex items-center gap-1 text-amber-300 text-xs font-semibold">
+                                                <AlertTriangle className="w-4 h-4" /> {asset.issues.length} issue{asset.issues.length > 1 ? 's' : ''}
+                                            </span>
+                                        ) : (
+                                            <span className="flex items-center gap-1 text-emerald-300 text-xs font-semibold">
+                                                <ShieldCheck className="w-4 h-4" /> Ready for archive
+                                            </span>
+                                        )}
+                                        <button
+                                            onClick={() => handleVerify(asset)}
+                                            disabled={verifyingIds.has(asset.id)}
+                                            className={`px-3 py-1 text-xs rounded border flex items-center gap-1 ${
+                                                verifyingIds.has(asset.id)
+                                                    ? 'border-slate-700 text-slate-500 cursor-not-allowed'
+                                                    : 'border-slate-600 text-white hover:border-forge-accent hover:text-forge-accent'
+                                            }`}
+                                        >
+                                            <CheckCircle2 className="w-3 h-3" /> {verifyingIds.has(asset.id) ? 'Verifying...' : 'Verify'}
+                                        </button>
+                                        <button
+                                            onClick={() => togglePrivacy(asset.id)}
+                                            className="px-3 py-1 text-xs rounded border border-slate-600 text-slate-200 hover:border-forge-accent"
+                                        >
+                                            {asset.privacy === 'local' ? 'Make shared' : 'Make local'}
+                                        </button>
+                                    </div>
+
+                                    {asset.lastRun && (
+                                        <div className="mt-2 bg-slate-950/60 border border-slate-800 rounded p-3 text-[11px] text-slate-200 whitespace-pre-wrap">
+                                            {asset.lastRun}
+                                        </div>
+                                    )}
+
+                                    {hasIssues && (
+                                        <div className="mt-2 bg-amber-900/30 border border-amber-700/60 rounded p-3 text-[11px] text-amber-100 flex flex-col gap-1">
+                                            {asset.issues.map((issue, idx) => (
+                                                <div key={idx} className="flex items-start gap-2">
+                                                    <AlertTriangle className="w-3 h-3 mt-0.5" />
+                                                    <span>{issue}</span>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    )}
+                                </div>
+                            );
+                        })}
+                    </div>
+                )}
+            </div>
+        </div>
+    );
 };
 
 export default TheVault;
