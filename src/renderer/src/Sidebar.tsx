@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
-import { MessageSquare, Radio, Image, Mic2, Activity, Heart, Leaf, Monitor, Wifi, WifiOff, Hammer, GitBranch, Network, Gamepad2, Container, SquareTerminal, BrainCircuit, Aperture, LayoutDashboard, Satellite, Workflow, Hexagon, DraftingCompass, Dna, Sparkles, Flame, Binary, Triangle, PenTool, FlaskConical, Map, FileDigit, Library, Bug, Package, Watch, ShieldCheck, Feather, Power, Volume2, VolumeX, Settings, Coffee, Book } from 'lucide-react';
+import { MessageSquare, Radio, Image, Mic2, Activity, Heart, Leaf, Monitor, Wifi, WifiOff, Hammer, GitBranch, Network, Gamepad2, Container, SquareTerminal, BrainCircuit, Aperture, LayoutDashboard, Satellite, Workflow, Hexagon, DraftingCompass, Dna, Sparkles, Flame, Binary, Triangle, PenTool, FlaskConical, Map, FileDigit, Library, Bug, Package, Watch, ShieldCheck, Feather, Power, Volume2, VolumeX, Settings, Coffee, Book, Code, Wand2, Archive, Eye, Save, List, FileCode as FileCodeIcon, Bot, Box, Gauge, Zap, GitMerge, Clock, Share2, Bone, CheckCircle2, AlertCircle, BookOpen } from 'lucide-react';
 import { useLive } from './LiveContext';
 import AvatarCore from './AvatarCore';
 
@@ -102,6 +102,35 @@ const Sidebar: React.FC = () => {
     { to: '/settings/privacy', icon: Settings, label: 'Privacy Settings' },
     { to: '/support', icon: Coffee, label: 'Support Mossy' },
     { to: '/reference', icon: Book, label: 'Quick Reference' },
+    { to: '/script-analyzer', icon: Code, label: 'Script Analyzer' },
+    { to: '/template-generator', icon: Wand2, label: 'Template Generator' },
+    { to: '/ba2-manager', icon: Archive, label: 'BA2 Manager' },
+    { to: '/file-watcher', icon: Eye, label: 'File Watcher' },
+    { to: '/save-parser', icon: Save, label: 'Save Parser' },
+    { to: '/voice-commands', icon: Mic2, label: 'Voice Commands' },
+    { to: '/load-order', icon: List, label: 'Load Order' },
+    { to: '/auto-compiler', icon: FileCodeIcon, label: 'Auto Compiler' },
+    { to: '/ai-copilot', icon: Bot, label: 'AI Copilot' },
+    { to: '/conflict-graph', icon: Network, label: 'Conflict Graph' },
+    { to: '/3d-viewer', icon: Box, label: '3D Viewer' },
+    { to: '/performance', icon: Gauge, label: 'Performance' },
+    { to: '/optimizer', icon: Zap, label: 'Asset Optimizer' },
+    { to: '/game-monitor', icon: Activity, label: 'Game Monitor' },
+    { to: '/quest-editor', icon: GitBranch, label: 'Quest Editor' },
+    { to: '/patch-gen', icon: GitMerge, label: 'Patch Generator' },
+    { to: '/backups', icon: Clock, label: 'Backups' },
+    { to: '/distribution', icon: Share2, label: 'Distribution' },
+    { to: '/animation-guide', icon: Book, label: 'Animation Guide' },
+    { to: '/skeleton-reference', icon: Bone, label: 'Skeleton Reference' },
+    { to: '/animation-validator', icon: CheckCircle2, label: 'Animation Validator' },
+    { to: '/rigging-checklist', icon: PenTool, label: 'Rigging Checklist' },
+    { to: '/export-settings', icon: Settings, label: 'Export Settings Helper' },
+    { to: '/rigging-mistakes', icon: AlertCircle, label: 'Rigging Mistakes' },
+    { to: '/precombine-prp', icon: Hammer, label: 'Precombine & PRP Guide' },
+    { to: '/precombine-checker', icon: CheckCircle2, label: 'Precombine Checker' },
+    { to: '/leveled-list-injection', icon: List, label: 'Leveled List Injection' },
+    { to: '/quest-authoring', icon: BookOpen, label: 'Quest Mod Authoring' },
+    { to: '/quest-automation', icon: Wand2, label: 'Quest Mod Automation' },
   ];
 
   return (

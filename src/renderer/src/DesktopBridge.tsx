@@ -56,6 +56,15 @@ const DesktopBridge: React.FC = () => {
   const [bridgeVersion, setBridgeVersion] = useState<string | null>(null);
   const [showHelp, setShowHelp] = useState(false);
   
+  // Real bridge testing state
+  const [testingBridge, setTestingBridge] = useState(false);
+  const [hardwareInfo, setHardwareInfo] = useState<any>(null);
+  const [screenshot, setScreenshot] = useState<string | null>(null);
+  const [clipboardText, setClipboardText] = useState('');
+  const [filePath, setFilePath] = useState('C:\\');
+  const [fileList, setFileList] = useState<any[]>([]);
+  const [activeTab, setActiveTab] = useState<'setup' | 'hardware' | 'vision' | 'clipboard' | 'files'>('setup');
+  
   useEffect(() => {
       logEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [logs]);
@@ -347,225 +356,492 @@ pause
       }));
   };
 
+  // === REAL BRIDGE API TESTING FUNCTIONS ===
+  
+  const testBridgeConnection = async () => {
+      setTestingBridge(true);
+      try {
+          const response = await fetch('http://127.0.0.1:21337/health');
+          if (response.ok) {
+              const data = await response.json();
+              addLog('Bridge', `Connected! Version ${data.version}`, 'success');
+              setBridgeConnected(true);
+              setBridgeVersion(data.version);
+              localStorage.setItem('mossy_bridge_active', 'true');
+              localStorage.setItem('mossy_bridge_version', data.version);
+              return true;
+          }
+      } catch (e) {
+          addLog('Bridge', 'Connection failed - is the server running?', 'err');
+          setBridgeConnected(false);
+      } finally {
+          setTestingBridge(false);
+      }
+      return false;
+  };
+
+  const fetchHardwareInfo = async () => {
+      try {
+          const response = await fetch('http://127.0.0.1:21337/hardware');
+          if (response.ok) {
+              const data = await response.json();
+              setHardwareInfo(data);
+              addLog('Hardware', 'System specs retrieved', 'success');
+              return data;
+          }
+      } catch (e) {
+          addLog('Hardware', 'Failed to fetch specs', 'err');
+      }
+      return null;
+  };
+
+  const captureScreen = async () => {
+      try {
+          addLog('Vision', 'Requesting screenshot...', 'ok');
+          const response = await fetch('http://127.0.0.1:21337/capture');
+          if (response.ok) {
+              const data = await response.json();
+              setScreenshot(data.image);
+              addLog('Vision', `Captured ${data.resolution}`, 'success');
+              return data.image;
+          }
+      } catch (e) {
+          addLog('Vision', 'Screen capture failed', 'err');
+      }
+      return null;
+  };
+
+  const setClipboard = async (text: string) => {
+      try {
+          const response = await fetch('http://127.0.0.1:21337/clipboard', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ text })
+          });
+          if (response.ok) {
+              addLog('Clipboard', 'Text copied to system clipboard', 'success');
+              return true;
+          }
+      } catch (e) {
+          addLog('Clipboard', 'Failed to set clipboard', 'err');
+      }
+      return false;
+  };
+
+  const listFiles = async (path: string) => {
+      try {
+          addLog('Files', `Scanning ${path}...`, 'ok');
+          const response = await fetch('http://127.0.0.1:21337/files', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ path })
+          });
+          if (response.ok) {
+              const data = await response.json();
+              setFileList(data.files);
+              addLog('Files', `Found ${data.files.length} items`, 'success');
+              return data.files;
+          }
+      } catch (e) {
+          addLog('Files', 'Directory scan failed', 'err');
+      }
+      return [];
+  };
+
   const isOutdated = bridgeConnected && (!bridgeVersion || !bridgeVersion.startsWith('5.'));
 
   return (
-    <div className="h-full bg-[#050910] p-8 overflow-y-auto font-sans text-slate-200">
-      <div className="max-w-6xl mx-auto flex flex-col h-full">
-        {/* Header */}
-        <div className="flex items-center justify-between mb-8 border-b border-slate-800 pb-6">
-            <div>
-                <h2 className="text-3xl font-bold text-white flex items-center gap-3">
-                    <Monitor className="w-8 h-8 text-emerald-400" />
-                    Neural Interconnect
-                </h2>
-                <div className="flex items-center gap-4 mt-2">
-                    <p className="text-slate-400 font-mono text-sm">
-                        Localhost Bridge Service <span className="text-slate-600">|</span> Port: 21337
-                    </p>
-                    <div className="flex items-center gap-2 bg-slate-900 px-2 py-1 rounded border border-slate-800">
-                        <div className={`w-2 h-2 rounded-full ${bridgeConnected ? 'bg-emerald-500 animate-pulse' : 'bg-red-500'}`}></div>
-                        <span className="text-[10px] font-bold text-slate-400 uppercase">
-                            {bridgeConnected ? 'BRIDGE ONLINE' : 'BRIDGE OFFLINE'}
-                        </span>
-                    </div>
-                    {bridgeConnected && bridgeVersion && (
-                        <div className="text-[10px] font-mono text-slate-500">v{bridgeVersion}</div>
-                    )}
-                </div>
-            </div>
-        </div>
+    <div className="h-full bg-[#050910] overflow-hidden flex flex-col">
+      {/* Header */}
+      <div className="p-6 border-b border-slate-800 bg-slate-900 flex justify-between items-center">
+          <div>
+              <h2 className="text-2xl font-bold text-white flex items-center gap-3">
+                  <Monitor className="w-6 h-6 text-emerald-400" />
+                  Desktop Bridge
+              </h2>
+              <p className="text-sm text-slate-400 mt-1">Local system integration - Port 21337</p>
+          </div>
+          <div className="flex items-center gap-4">
+              <div className="flex items-center gap-2 bg-slate-900 px-3 py-2 rounded-lg border border-slate-800">
+                  <div className={`w-2 h-2 rounded-full ${bridgeConnected ? 'bg-emerald-500 animate-pulse' : 'bg-red-500'}`}></div>
+                  <span className="text-xs font-bold text-slate-300 uppercase">
+                      {bridgeConnected ? 'ONLINE' : 'OFFLINE'}
+                  </span>
+              </div>
+              {bridgeConnected && bridgeVersion && (
+                  <div className="text-xs font-mono text-slate-500 bg-slate-900 px-2 py-1 rounded border border-slate-800">
+                      v{bridgeVersion}
+                  </div>
+              )}
+              <button
+                  onClick={testBridgeConnection}
+                  disabled={testingBridge}
+                  className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white font-bold rounded-lg text-sm flex items-center gap-2 transition-colors"
+              >
+                  {testingBridge ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Zap className="w-4 h-4" />}
+                  {testingBridge ? 'Testing...' : 'Test Connection'}
+              </button>
+          </div>
+      </div>
 
-        {isOutdated && (
-            <div className="mb-6 bg-red-900/20 border border-red-500/50 rounded-xl p-4 flex items-center gap-4 animate-bounce">
-                <AlertTriangle className="w-8 h-8 text-red-500" />
-                <div>
-                    <h3 className="font-bold text-white">UPDATE REQUIRED</h3>
-                    <p className="text-sm text-red-200">
-                        You are connected to an old version of <code>mossy_server.py</code> (v{bridgeVersion || '?'}). 
-                        Hardware scanning and new features will not work.
-                        <br/>
-                        <strong>Action:</strong> Click "Get Server (.py)" below and overwrite your existing file.
-                    </p>
-                </div>
-            </div>
-        )}
+      {isOutdated && (
+          <div className="mx-6 mt-6 bg-red-900/20 border border-red-500/50 rounded-xl p-4 flex items-center gap-4 animate-bounce">
+              <AlertTriangle className="w-8 h-8 text-red-500" />
+              <div>
+                  <h3 className="font-bold text-white">UPDATE REQUIRED</h3>
+                  <p className="text-sm text-red-200">
+                      You are connected to version {bridgeVersion || '?'}. Hardware scanning requires v5.0+.
+                      <br/>
+                      <strong>Action:</strong> Download the new server script below.
+                  </p>
+              </div>
+          </div>
+      )}
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 flex-1 min-h-0">
-            {/* Left Column: Driver Grid */}
-            <div className="lg:col-span-2 space-y-6 overflow-y-auto pr-2 custom-scrollbar">
-                
-                {/* PYTHON SERVER CARD */}
-                <div className={`rounded-xl border p-6 relative overflow-hidden transition-all duration-500 ${
-                    bridgeConnected ? 'bg-emerald-900/10 border-emerald-500/50 shadow-[0_0_30px_rgba(16,185,129,0.15)]' : 'bg-slate-900 border-slate-700'
-                }`}>
-                    <div className="relative z-10">
-                        <div className="flex justify-between items-start mb-4">
-                            <div>
-                                <h3 className="text-xl font-bold text-white flex items-center gap-2">
-                                    <Server className={`w-6 h-6 ${bridgeConnected ? 'text-emerald-400' : 'text-slate-400'}`} />
-                                    Desktop Server Core
-                                </h3>
-                                <p className="text-sm text-slate-400 mt-1">This script gives Mossy eyes (screenshots) and hands (clipboard).</p>
-                            </div>
-                            <div className={`px-3 py-1 rounded-full text-xs font-bold border ${
-                                bridgeConnected 
-                                ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/50' 
-                                : 'bg-red-500/10 text-red-400 border-red-500/30'
-                            }`}>
-                                {bridgeConnected ? 'CONNECTED' : 'DISCONNECTED'}
-                            </div>
-                        </div>
+      {/* Tab Navigation */}
+      <div className="flex border-b border-slate-800 bg-slate-900 px-6 pt-4 gap-1">
+          {[
+              { id: 'setup', icon: Download, label: 'Setup' },
+              { id: 'hardware', icon: Cpu, label: 'Hardware' },
+              { id: 'vision', icon: Eye, label: 'Vision' },
+              { id: 'clipboard', icon: Clipboard, label: 'Clipboard' },
+              { id: 'files', icon: FolderOpen, label: 'Files' }
+          ].map(tab => (
+              <button
+                  key={tab.id}
+                  onClick={() => setActiveTab(tab.id as any)}
+                  className={`px-6 py-3 rounded-t-lg font-bold text-sm transition-colors flex items-center gap-2 ${
+                      activeTab === tab.id
+                      ? 'bg-slate-800 text-white border-t border-x border-slate-700'
+                      : 'text-slate-400 hover:text-white hover:bg-slate-800/50'
+                  }`}
+              >
+                  <tab.icon className="w-4 h-4" />
+                  {tab.label}
+              </button>
+          ))}
+      </div>
 
-                        <div className="space-y-4">
-                            {bridgeConnected ? (
-                                <div className="p-4 bg-emerald-900/10 border border-emerald-500/20 rounded text-sm text-emerald-300">
-                                    <div className="flex items-center gap-2 mb-2 font-bold"><CheckCircle2 className="w-4 h-4"/> System Active</div>
-                                    <p className="text-xs opacity-80">Python bridge is responding. Telemetry streaming.</p>
-                                    <div className="mt-2 pt-2 border-t border-emerald-500/20 text-xs">
-                                        <button onClick={handleDownloadServer} className="underline hover:text-white flex items-center gap-1">
-                                            <RefreshCw className="w-3 h-3"/> Re-download Server Script (v5.0)
-                                        </button>
-                                    </div>
-                                </div>
-                            ) : (
-                                <div className="p-4 bg-black/40 rounded-lg border border-slate-700/50 text-sm text-slate-300">
-                                    <div className="flex justify-between items-center mb-2">
-                                        <h4 className="font-bold text-white flex items-center gap-2"><Clipboard className="w-4 h-4"/> Easy Installation</h4>
-                                        <button onClick={() => setShowHelp(!showHelp)} className="text-xs text-blue-400 hover:text-white flex items-center gap-1">
-                                            <HelpCircle className="w-3 h-3" /> Troubleshooting
-                                        </button>
-                                    </div>
-                                    <ol className="list-decimal pl-4 space-y-2 text-slate-400">
-                                        <li>Download both files below to a new folder.</li>
-                                        <li>Double-click <strong>start_mossy.bat</strong>.</li>
-                                        <li>Wait for the "BRIDGE ONLINE" status above to turn green.</li>
-                                    </ol>
-                                    
-                                    {showHelp && (
-                                        <div className="mt-4 p-3 bg-red-900/20 border border-red-500/30 rounded text-xs text-slate-300">
-                                            <strong className="text-red-400 flex items-center gap-1 mb-1"><AlertTriangle className="w-3 h-3"/> "Python is not recognized"?</strong>
-                                            <p className="mb-2">Your computer doesn't know where Python is installed.</p>
-                                            <ul className="list-disc pl-4 space-y-1">
-                                                <li>Reinstall Python from <a href="https://python.org" target="_blank" className="text-blue-400 hover:underline">python.org</a>.</li>
-                                                <li><strong>IMPORTANT:</strong> Check the box <strong>"Add Python to PATH"</strong> at the bottom of the installer.</li>
-                                                <li>Then try running the .bat file again.</li>
-                                            </ul>
-                                        </div>
-                                    )}
-                                </div>
-                            )}
-                            
-                            <div className="flex flex-col sm:flex-row gap-3">
-                                <button 
-                                    onClick={handleDownloadServer}
-                                    className="flex-1 py-3 bg-slate-800 hover:bg-slate-700 border border-slate-600 rounded-lg font-bold text-sm text-white flex items-center justify-center gap-2 transition-colors"
-                                >
-                                    <Download className="w-4 h-4" /> 1. Get Server (.py)
-                                </button>
-                                <button 
-                                    onClick={handleDownloadBatch}
-                                    className="flex-1 py-3 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-lg text-sm flex items-center justify-center gap-2 transition-colors shadow-lg"
-                                >
-                                    <FileType className="w-4 h-4" /> 2. Get Launcher (.bat)
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                </div>
+      {/* Tab Content */}
+      <div className="flex-1 overflow-y-auto p-6 bg-slate-900/30">
+          {activeTab === 'setup' && (
+              <div className="max-w-4xl mx-auto space-y-6">
+                  {/* Setup Instructions */}
+                  <div className={`rounded-xl border p-6 ${
+                      bridgeConnected ? 'bg-emerald-900/10 border-emerald-500/50' : 'bg-slate-900 border-slate-700'
+                  }`}>
+                      <h3 className="text-xl font-bold text-white flex items-center gap-2 mb-4">
+                          <Server className={bridgeConnected ? 'text-emerald-400' : 'text-slate-400'} />
+                          Python Server Setup
+                      </h3>
+                      
+                      {bridgeConnected ? (
+                          <div className="p-4 bg-emerald-900/10 border border-emerald-500/20 rounded">
+                              <div className="flex items-center gap-2 mb-2 font-bold text-emerald-400">
+                                  <CheckCircle2 className="w-5 h-5"/> Bridge Active
+                              </div>
+                              <p className="text-sm text-emerald-300">Python server is responding on port 21337. All systems operational.</p>
+                          </div>
+                      ) : (
+                          <div className="space-y-4">
+                              <div className="p-4 bg-black/40 rounded-lg border border-slate-700">
+                                  <h4 className="font-bold text-white mb-3 flex items-center gap-2">
+                                      <Keyboard className="w-4 h-4"/> Quick Start
+                                  </h4>
+                                  <ol className="list-decimal pl-5 space-y-2 text-sm text-slate-300">
+                                      <li>Download both files using the buttons below</li>
+                                      <li>Save them to a new folder (e.g., <code className="bg-slate-800 px-2 py-0.5 rounded">C:\Mossy</code>)</li>
+                                      <li>Double-click <strong>start_mossy.bat</strong></li>
+                                      <li>Wait for console to show "Running on http://127.0.0.1:21337"</li>
+                                      <li>Click "Test Connection" above</li>
+                                  </ol>
+                              </div>
 
-                <div className="flex justify-between items-center mb-2 mt-6">
-                    <h3 className="text-sm font-bold text-slate-400 uppercase tracking-widest flex items-center gap-2">
-                        <Layers className="w-4 h-4" /> Standard Drivers
-                    </h3>
-                </div>
-                
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    {drivers.map(driver => (
-                        <div 
-                            key={driver.id}
-                            className={`relative overflow-hidden rounded-xl border transition-all p-4 group ${
-                                driver.status === 'active' 
-                                ? 'bg-slate-900 border-emerald-500/50' 
-                                : 'bg-slate-950 border-slate-800 opacity-60 hover:opacity-100'
-                            }`}
-                        >
-                            <div className="flex justify-between items-center mb-2">
-                                <div className="flex items-center gap-3">
-                                    <div className={`p-2 rounded-lg ${driver.status === 'active' ? 'bg-emerald-500/20 text-emerald-400' : 'bg-slate-800 text-slate-500'}`}>
-                                        <driver.icon className="w-5 h-5" />
-                                    </div>
-                                    <div>
-                                        <div className="font-bold text-white text-sm">{driver.name}</div>
-                                        <div className="text-[10px] text-slate-500">v{driver.version}</div>
-                                    </div>
-                                </div>
-                                <button 
-                                    onClick={() => toggleDriver(driver.id)}
-                                    className={`p-1.5 rounded border transition-colors ${driver.status === 'active' ? 'text-emerald-400 border-emerald-500/30' : 'text-slate-500 border-slate-700 hover:text-white'}`}
-                                >
-                                    <Power className="w-4 h-4" />
-                                </button>
-                            </div>
-                        </div>
-                    ))}
-                </div>
-            </div>
+                              <div className="flex flex-col sm:flex-row gap-3">
+                                  <button 
+                                      onClick={handleDownloadServer}
+                                      className="flex-1 py-3 bg-slate-800 hover:bg-slate-700 border border-slate-600 rounded-lg font-bold text-white flex items-center justify-center gap-2 transition-colors"
+                                  >
+                                      <Download className="w-5 h-5" /> 1. Download Server (.py)
+                                  </button>
+                                  <button 
+                                      onClick={handleDownloadBatch}
+                                      className="flex-1 py-3 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-lg flex items-center justify-center gap-2 transition-colors shadow-lg"
+                                  >
+                                      <FileType className="w-5 h-5" /> 2. Download Launcher (.bat)
+                                  </button>
+                              </div>
 
-            {/* Right: Telemetry & Log */}
-            <div className="flex flex-col gap-6">
-                <div className="bg-slate-900/50 border border-slate-800 rounded-2xl p-6">
-                    <h3 className="text-sm font-bold text-slate-400 uppercase tracking-widest mb-4 flex items-center gap-2">
-                        <Shield className="w-4 h-4" /> Security Protocols
-                    </h3>
-                    <div className="space-y-3">
-                        <div className="flex items-center gap-3 text-sm text-slate-300">
-                            <CheckCircle2 className="w-4 h-4 text-emerald-500" />
-                            <span>Localhost Loopback Only</span>
-                        </div>
-                        <div className="flex items-center gap-3 text-sm text-slate-300">
-                            <CheckCircle2 className="w-4 h-4 text-emerald-500" />
-                            <span>Clipboard Access Granted</span>
-                        </div>
-                    </div>
-                </div>
+                              {showHelp && (
+                                  <div className="p-4 bg-red-900/20 border border-red-500/30 rounded">
+                                      <h5 className="font-bold text-red-400 flex items-center gap-2 mb-2">
+                                          <AlertTriangle className="w-4 h-4"/> Common Issues
+                                      </h5>
+                                      <div className="space-y-3 text-sm text-slate-300">
+                                          <div>
+                                              <strong>"Python is not recognized"</strong>
+                                              <p className="text-xs text-slate-400 mt-1">
+                                                  Python isn't installed or not in PATH. Download from <a href="https://python.org" target="_blank" className="text-blue-400 hover:underline">python.org</a> and check "Add Python to PATH" during install.
+                                              </p>
+                                          </div>
+                                          <div>
+                                              <strong>"Permission denied" or "Already in use"</strong>
+                                              <p className="text-xs text-slate-400 mt-1">
+                                                  Port 21337 is blocked. Check Windows Firewall or close any other app using that port.
+                                              </p>
+                                          </div>
+                                      </div>
+                                  </div>
+                              )}
 
-                <div className="flex-1 bg-black border border-slate-800 rounded-2xl flex flex-col overflow-hidden shadow-2xl">
-                    <div className="p-3 border-b border-slate-800 bg-slate-900/50 flex justify-between items-center">
-                        <span className="text-xs font-bold text-slate-500 uppercase flex items-center gap-2">
-                            <Activity className="w-3 h-3" /> Event Log
-                        </span>
-                        <div className="flex items-center gap-1.5">
-                            <div className={`w-1.5 h-1.5 rounded-full ${bridgeConnected ? 'bg-emerald-500 animate-pulse' : 'bg-red-500'}`}></div>
-                            <span className={`text-[10px] ${bridgeConnected ? 'text-emerald-500' : 'text-red-500'}`}>{bridgeConnected ? 'LIVE' : 'OFFLINE'}</span>
-                        </div>
-                    </div>
-                    <div className="flex-1 overflow-y-auto p-4 space-y-2 font-mono text-[10px]">
-                        {logs.length === 0 && (
-                            <div className="text-slate-700 italic text-center mt-10">Awaiting traffic...</div>
-                        )}
-                        {logs.map(log => (
-                            <div key={log.id} className="flex gap-3 animate-fade-in">
-                                <span className="text-slate-600 shrink-0">[{log.timestamp}]</span>
-                                <span className={`font-bold shrink-0 w-20 truncate ${
-                                    log.status === 'err' ? 'text-red-500' : 
-                                    log.status === 'success' ? 'text-emerald-400' : 'text-blue-400'
-                                }`}>{log.source}</span>
-                                <span className={`break-all ${
-                                    log.status === 'warn' ? 'text-yellow-400' :
-                                    log.status === 'err' ? 'text-red-400' :
-                                    log.status === 'success' ? 'text-emerald-400' :
-                                    'text-slate-300'
-                                }`}>
-                                    {log.event}
-                                </span>
-                            </div>
-                        ))}
-                        <div ref={logEndRef} />
-                    </div>
-                </div>
-            </div>
-        </div>
+                              <button
+                                  onClick={() => setShowHelp(!showHelp)}
+                                  className="text-sm text-blue-400 hover:text-white flex items-center gap-1"
+                              >
+                                  <HelpCircle className="w-4 h-4" />
+                                  {showHelp ? 'Hide' : 'Show'} Troubleshooting
+                              </button>
+                          </div>
+                      )}
+                  </div>
+
+                  {/* Event Log */}
+                  <div className="bg-black border border-slate-800 rounded-xl flex flex-col overflow-hidden h-96">
+                      <div className="p-3 border-b border-slate-800 bg-slate-900/50 flex justify-between items-center">
+                          <span className="text-xs font-bold text-slate-500 uppercase flex items-center gap-2">
+                              <Activity className="w-4 h-4" /> Event Log
+                          </span>
+                          <div className="flex items-center gap-2">
+                              <div className={`w-2 h-2 rounded-full ${bridgeConnected ? 'bg-emerald-500 animate-pulse' : 'bg-red-500'}`}></div>
+                              <span className={`text-[10px] ${bridgeConnected ? 'text-emerald-400' : 'text-red-400'}`}>
+                                  {bridgeConnected ? 'LIVE' : 'OFFLINE'}
+                              </span>
+                          </div>
+                      </div>
+                      <div className="flex-1 overflow-y-auto p-4 space-y-2 font-mono text-xs">
+                          {logs.length === 0 && (
+                              <div className="text-slate-700 italic text-center mt-20">No events yet...</div>
+                          )}
+                          {logs.map(log => (
+                              <div key={log.id} className="flex gap-3 animate-fade-in">
+                                  <span className="text-slate-600 shrink-0">[{log.timestamp}]</span>
+                                  <span className={`font-bold shrink-0 w-20 ${
+                                      log.status === 'err' ? 'text-red-400' :
+                                      log.status === 'success' ? 'text-emerald-400' :
+                                      'text-blue-400'
+                                  }`}>{log.source}</span>
+                                  <span className={`break-all ${
+                                      log.status === 'warn' ? 'text-yellow-400' :
+                                      log.status === 'err' ? 'text-red-400' :
+                                      log.status === 'success' ? 'text-emerald-400' :
+                                      'text-slate-300'
+                                  }`}>{log.event}</span>
+                              </div>
+                          ))}
+                          <div ref={logEndRef} />
+                      </div>
+                  </div>
+              </div>
+          )}
+
+          {activeTab === 'hardware' && (
+              <div className="max-w-4xl mx-auto">
+                  <div className="bg-slate-900 border border-slate-700 rounded-xl p-6">
+                      <div className="flex justify-between items-start mb-6">
+                          <div>
+                              <h3 className="text-xl font-bold text-white flex items-center gap-2">
+                                  <Cpu className="w-6 h-6 text-amber-400" />
+                                  System Hardware Detection
+                              </h3>
+                              <p className="text-sm text-slate-400 mt-1">Read real hardware specs from your PC</p>
+                          </div>
+                          <button
+                              onClick={fetchHardwareInfo}
+                              disabled={!bridgeConnected}
+                              className="px-4 py-2 bg-amber-600 hover:bg-amber-500 disabled:opacity-30 disabled:cursor-not-allowed text-white font-bold rounded-lg flex items-center gap-2 transition-colors"
+                          >
+                              <RefreshCw className="w-4 h-4" />
+                              Scan Hardware
+                          </button>
+                      </div>
+
+                      {!bridgeConnected && (
+                          <div className="text-center py-12 text-slate-500">
+                              <Cpu className="w-16 h-16 mx-auto mb-4 opacity-20" />
+                              <p>Bridge must be online to scan hardware</p>
+                              <p className="text-xs mt-2">Go to Setup tab and start the server</p>
+                          </div>
+                      )}
+
+                      {hardwareInfo && (
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                              <div className="bg-slate-800 p-4 rounded-lg border border-slate-700">
+                                  <div className="text-xs text-slate-500 uppercase font-bold mb-2">Operating System</div>
+                                  <div className="text-lg font-bold text-white">{hardwareInfo.os}</div>
+                              </div>
+                              <div className="bg-slate-800 p-4 rounded-lg border border-slate-700">
+                                  <div className="text-xs text-slate-500 uppercase font-bold mb-2">CPU</div>
+                                  <div className="text-lg font-bold text-white truncate" title={hardwareInfo.cpu}>{hardwareInfo.cpu}</div>
+                              </div>
+                              <div className="bg-slate-800 p-4 rounded-lg border border-slate-700">
+                                  <div className="text-xs text-slate-500 uppercase font-bold mb-2">RAM</div>
+                                  <div className="text-lg font-bold text-white">{hardwareInfo.ram} GB</div>
+                              </div>
+                              <div className="bg-slate-800 p-4 rounded-lg border border-slate-700">
+                                  <div className="text-xs text-slate-500 uppercase font-bold mb-2">GPU</div>
+                                  <div className="text-lg font-bold text-white truncate" title={hardwareInfo.gpu}>{hardwareInfo.gpu}</div>
+                              </div>
+                              <div className="bg-slate-800 p-4 rounded-lg border border-slate-700">
+                                  <div className="text-xs text-slate-500 uppercase font-bold mb-2">Python Version</div>
+                                  <div className="text-lg font-bold text-white">{hardwareInfo.python}</div>
+                              </div>
+                              <div className="bg-slate-800 p-4 rounded-lg border border-slate-700">
+                                  <div className="text-xs text-slate-500 uppercase font-bold mb-2">Status</div>
+                                  <div className="text-lg font-bold text-emerald-400">{hardwareInfo.status}</div>
+                              </div>
+                          </div>
+                      )}
+                  </div>
+              </div>
+          )}
+
+          {activeTab === 'vision' && (
+              <div className="max-w-5xl mx-auto">
+                  <div className="bg-slate-900 border border-slate-700 rounded-xl p-6">
+                      <div className="flex justify-between items-start mb-6">
+                          <div>
+                              <h3 className="text-xl font-bold text-white flex items-center gap-2">
+                                  <Eye className="w-6 h-6 text-blue-400" />
+                                  Screen Capture
+                              </h3>
+                              <p className="text-sm text-slate-400 mt-1">Take screenshots for Mossy to analyze</p>
+                          </div>
+                          <button
+                              onClick={captureScreen}
+                              disabled={!bridgeConnected}
+                              className="px-4 py-2 bg-blue-600 hover:bg-blue-500 disabled:opacity-30 disabled:cursor-not-allowed text-white font-bold rounded-lg flex items-center gap-2 transition-colors"
+                          >
+                              <Eye className="w-4 h-4" />
+                              Capture Now
+                          </button>
+                      </div>
+
+                      {!bridgeConnected && (
+                          <div className="text-center py-12 text-slate-500">
+                              <Eye className="w-16 h-16 mx-auto mb-4 opacity-20" />
+                              <p>Bridge must be online to capture screenshots</p>
+                          </div>
+                      )}
+
+                      {screenshot && (
+                          <div className="bg-black rounded-lg border border-slate-700 overflow-hidden">
+                              <img src={screenshot} alt="Screenshot" className="w-full" />
+                          </div>
+                      )}
+                  </div>
+              </div>
+          )}
+
+          {activeTab === 'clipboard' && (
+              <div className="max-w-3xl mx-auto">
+                  <div className="bg-slate-900 border border-slate-700 rounded-xl p-6">
+                      <h3 className="text-xl font-bold text-white flex items-center gap-2 mb-6">
+                          <Clipboard className="w-6 h-6 text-purple-400" />
+                          System Clipboard Control
+                      </h3>
+
+                      {!bridgeConnected && (
+                          <div className="text-center py-12 text-slate-500">
+                              <Clipboard className="w-16 h-16 mx-auto mb-4 opacity-20" />
+                              <p>Bridge must be online to control clipboard</p>
+                          </div>
+                      )}
+
+                      {bridgeConnected && (
+                          <div className="space-y-4">
+                              <textarea
+                                  value={clipboardText}
+                                  onChange={(e) => setClipboardText(e.target.value)}
+                                  placeholder="Enter text to copy to system clipboard..."
+                                  className="w-full h-32 bg-slate-800 border border-slate-700 rounded-lg p-4 text-slate-200 focus:ring-2 focus:ring-purple-500 focus:border-transparent resize-none"
+                              />
+                              <button
+                                  onClick={() => setClipboard(clipboardText)}
+                                  disabled={!clipboardText}
+                                  className="w-full py-3 bg-purple-600 hover:bg-purple-500 disabled:opacity-30 disabled:cursor-not-allowed text-white font-bold rounded-lg flex items-center justify-center gap-2 transition-colors"
+                              >
+                                  <Clipboard className="w-5 h-5" />
+                                  Copy to System Clipboard
+                              </button>
+                              <p className="text-xs text-slate-500 text-center">
+                                  This sends the text to your Windows clipboard. You can paste it anywhere with Ctrl+V.
+                              </p>
+                          </div>
+                      )}
+                  </div>
+              </div>
+          )}
+
+          {activeTab === 'files' && (
+              <div className="max-w-5xl mx-auto">
+                  <div className="bg-slate-900 border border-slate-700 rounded-xl p-6">
+                      <h3 className="text-xl font-bold text-white flex items-center gap-2 mb-6">
+                          <FolderOpen className="w-6 h-6 text-green-400" />
+                          File System Browser
+                      </h3>
+
+                      {!bridgeConnected && (
+                          <div className="text-center py-12 text-slate-500">
+                              <FolderOpen className="w-16 h-16 mx-auto mb-4 opacity-20" />
+                              <p>Bridge must be online to browse files</p>
+                          </div>
+                      )}
+
+                      {bridgeConnected && (
+                          <div className="space-y-4">
+                              <div className="flex gap-2">
+                                  <input
+                                      type="text"
+                                      value={filePath}
+                                      onChange={(e) => setFilePath(e.target.value)}
+                                      placeholder="Enter directory path..."
+                                      className="flex-1 bg-slate-800 border border-slate-700 rounded-lg px-4 py-2 text-slate-200 focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                                  />
+                                  <button
+                                      onClick={() => listFiles(filePath)}
+                                      className="px-6 py-2 bg-green-600 hover:bg-green-500 text-white font-bold rounded-lg flex items-center gap-2 transition-colors"
+                                  >
+                                      <Search className="w-4 h-4" />
+                                      Browse
+                                  </button>
+                              </div>
+
+                              {fileList.length > 0 && (
+                                  <div className="bg-slate-800 border border-slate-700 rounded-lg divide-y divide-slate-700 max-h-96 overflow-y-auto">
+                                      {fileList.map((file, idx) => (
+                                          <div key={idx} className="flex items-center gap-3 p-3 hover:bg-slate-700/50 transition-colors">
+                                              {file.is_dir ? (
+                                                  <FolderOpen className="w-5 h-5 text-yellow-400" />
+                                              ) : (
+                                                  <HardDrive className="w-5 h-5 text-blue-400" />
+                                              )}
+                                              <div className="flex-1 min-w-0">
+                                                  <div className="text-sm font-bold text-white truncate">{file.name}</div>
+                                                  {!file.is_dir && (
+                                                      <div className="text-xs text-slate-500">
+                                                          {(file.size / 1024).toFixed(2)} KB
+                                                      </div>
+                                                  )}
+                                              </div>
+                                          </div>
+                                      ))}
+                                  </div>
+                              )}
+                          </div>
+                      )}
+                  </div>
+              </div>
+          )}
       </div>
     </div>
   );
