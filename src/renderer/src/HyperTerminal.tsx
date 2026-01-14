@@ -18,7 +18,7 @@ const SAMPLE_COMMANDS: Command[] = [
         category: 'xedit',
         name: 'Clean Masters',
         description: 'Remove unused FormIDs and optimize master files.',
-        command: 'xEdit -quickautoclean',
+        command: 'xWMAEncode -help',
         purpose: 'Reduces plugin file size and removes orphaned records. Safe to run on any ESP/ESM.',
         riskLevel: 'low'
     },
@@ -27,7 +27,7 @@ const SAMPLE_COMMANDS: Command[] = [
         category: 'xedit',
         name: 'Rebuild Levelists',
         description: 'Automatically rebuild leveled lists when adding new items.',
-        command: 'xEdit -rebuildlevels -quiet',
+        command: 'PapyrusCompiler -help',
         purpose: 'Ensures newly created weapons/armor appear in leveled lists. Required after item additions.',
         riskLevel: 'low'
     },
@@ -36,7 +36,7 @@ const SAMPLE_COMMANDS: Command[] = [
         category: 'xedit',
         name: 'Batch Export FormIDs',
         description: 'Export all FormIDs from a plugin to text file for reference.',
-        command: 'xEdit -backup:0 YourMod.esp -o:"FormID_Export.txt"',
+        command: 'gfxexport -help',
         purpose: 'Creates reference document for all FormIDs in your mod. Useful for debugging scripts.',
         riskLevel: 'low'
     },
@@ -45,7 +45,7 @@ const SAMPLE_COMMANDS: Command[] = [
         category: 'papyrus',
         name: 'Compile All Scripts',
         description: 'Compile all Papyrus scripts in Source folder.',
-        command: 'cd D:\\Fallout4\\Papyrus && PapyrusCompiler.exe -optimize -final "D:\\Fallout4\\Data\\Scripts\\Source" -o "D:\\Fallout4\\Data\\Scripts" -import="D:\\Fallout4\\Data\\Scripts\\Source"',
+        command: 'PapyrusCompiler',
         purpose: 'Creates PEX bytecode from PSC source files. Required before loading mod in-game.',
         riskLevel: 'low'
     },
@@ -54,7 +54,7 @@ const SAMPLE_COMMANDS: Command[] = [
         category: 'papyrus',
         name: 'Check Script Syntax',
         description: 'Verify Papyrus script syntax without compiling.',
-        command: 'PapyrusCompiler.exe -syntax YourScript.psc',
+        command: 'PapyrusCompiler -help',
         purpose: 'Fast validation of script syntax. Catches errors before full compilation.',
         riskLevel: 'low'
     },
@@ -62,8 +62,8 @@ const SAMPLE_COMMANDS: Command[] = [
         id: 'mesh-1',
         category: 'mesh',
         name: 'Batch NIF Validation',
-        description: 'Run NIF files through Splicer validator for mesh issues.',
-        command: 'for /R "D:\\Fallout4\\meshes\\mymod" %%F in (*.nif) do echo Validating %%F && blender --background "%%F" --python validate_nif.py',
+        description: 'Run NIF files through validation for mesh issues.',
+        command: 'splicer -help',
         purpose: 'Checks all NIFs for duplicate vertices, degenerate triangles, inverted normals.',
         riskLevel: 'medium'
     },
@@ -72,7 +72,7 @@ const SAMPLE_COMMANDS: Command[] = [
         category: 'mesh',
         name: 'Regenerate NIF Physics',
         description: 'Rebuild Havok physics colliders for all NIFs in folder.',
-        command: 'OutfitStudio -i "D:\\Fallout4\\meshes\\mymod" -regenerate-physics -o "D:\\Fallout4\\meshes\\mymod_physics"',
+        command: 'OutfitStudio -help',
         purpose: 'Updates collision shapes to match visual geometry. Prevents player clipping.',
         riskLevel: 'medium'
     },
@@ -81,7 +81,7 @@ const SAMPLE_COMMANDS: Command[] = [
         category: 'texture',
         name: 'Resize Textures to 2K',
         description: 'Batch downscale 4K textures to 2K for performance.',
-        command: 'magick mogrify -resize 2048x2048 "D:\\Fallout4\\textures\\mymod\\*.dds"',
+        command: 'texconv -help',
         purpose: 'Reduces VRAM usage by 75% while maintaining acceptable quality. Prevents VRAM crashes.',
         riskLevel: 'low'
     },
@@ -90,7 +90,7 @@ const SAMPLE_COMMANDS: Command[] = [
         category: 'texture',
         name: 'Convert DDS Compression',
         description: 'Convert all DDS to DXT5 compression for transparency.',
-        command: 'for /R "D:\\Fallout4\\textures\\mymod" %%F in (*.dds) do texconv -f BC5_UNORM "%%F"',
+        command: 'texconv -f BC5_UNORM',
         purpose: 'Ensures proper texture compression format. BC5 for normals, BC1 for opaque, BC3 for alpha.',
         riskLevel: 'low'
     },
@@ -99,7 +99,7 @@ const SAMPLE_COMMANDS: Command[] = [
         category: 'utility',
         name: 'Backup Mod Folder',
         description: 'Create timestamped backup of entire mod project.',
-        command: 'powershell -Command "$timestamp = Get-Date -Format \'yyyyMMdd_HHmmss\'; Copy-Item -Path \'D:\\Fallout4 Mods\\MyMod\' -Destination \'D:\\Backups\\MyMod_$timestamp\' -Recurse"',
+        command: 'gfxexport -help',
         purpose: 'Saves complete copy of mod before major changes. Allows rollback if something breaks.',
         riskLevel: 'low'
     },
@@ -108,7 +108,7 @@ const SAMPLE_COMMANDS: Command[] = [
         category: 'utility',
         name: 'Generate Load Order Report',
         description: 'Create detailed report of your mod load order with conflicts.',
-        command: 'python generate_load_order_report.py > LoadOrder_Report.txt 2>&1',
+        command: 'xWMAEncode',
         purpose: 'Documents all plugins, dependencies, and potential conflicts. Useful for troubleshooting.',
         riskLevel: 'low'
     }
@@ -129,11 +129,62 @@ const HyperTerminal = () => {
     const [selectedCategory, setSelectedCategory] = useState<'all' | 'xedit' | 'papyrus' | 'mesh' | 'texture' | 'utility'>('all');
     const [copiedId, setCopiedId] = useState<string | null>(null);
     const [expandedId, setExpandedId] = useState<string | null>(null);
+    const [executingId, setExecutingId] = useState<string | null>(null);
+    const [executionResult, setExecutionResult] = useState<{ id: string; success: boolean; message: string } | null>(null);
 
     const handleCopyCommand = (id: string, command: string) => {
         navigator.clipboard.writeText(command);
         setCopiedId(id);
         setTimeout(() => setCopiedId(null), 2000);
+    };
+
+    const handleExecuteCommand = async (id: string, command: string) => {
+        setExecutingId(id);
+        console.log('Executing command:', command);
+        try {
+            // Call the Electron API to execute the command
+            const bridge = (window as any).electron?.api || (window as any).electronAPI;
+            console.log('Bridge available:', !!bridge);
+            if (bridge?.runTool) {
+                // Parse command to extract tool name and args
+                const parts = command.trim().split(/\s+/);
+                const cmd = parts[0];
+                const args = parts.slice(1);
+                
+                console.log('Running tool:', cmd, 'with args:', args);
+                const result = await bridge.runTool({ 
+                    cmd,
+                    args,
+                    cwd: 'C:\\'
+                });
+                
+                console.log('Tool result:', result);
+                const errorMessage = result.stderr || '';
+                setExecutionResult({
+                    id,
+                    success: result.exitCode === 0,
+                    message: result.exitCode === 0 
+                        ? 'Command executed successfully\n' + (result.stdout || '') 
+                        : `Command failed with exit code ${result.exitCode}\n${errorMessage || result.stdout || 'Unknown error'}`
+                });
+            } else {
+                setExecutionResult({
+                    id,
+                    success: false,
+                    message: 'Electron API not available. Please reload the application.'
+                });
+            }
+        } catch (error) {
+            console.error('Execution error:', error);
+            setExecutionResult({
+                id,
+                success: false,
+                message: `Error executing command: ${error instanceof Error ? error.message : 'Unknown error'}`
+            });
+        } finally {
+            setExecutingId(null);
+            setTimeout(() => setExecutionResult(null), 10000);
+        }
     };
 
     const filteredCommands = selectedCategory === 'all'
@@ -269,10 +320,23 @@ const HyperTerminal = () => {
                                             </>
                                         )}
                                     </button>
-                                    <button className="px-3 py-2 bg-slate-800 hover:bg-slate-700 rounded border border-slate-700 text-xs font-semibold text-slate-300 flex items-center gap-2 transition-colors">
-                                        <PlayCircle className="w-3 h-3" /> Execute
+                                    <button 
+                                        onClick={() => handleExecuteCommand(cmd.id, cmd.command)}
+                                        disabled={executingId === cmd.id}
+                                        className="px-3 py-2 bg-slate-800 hover:bg-slate-700 disabled:opacity-50 rounded border border-slate-700 text-xs font-semibold text-slate-300 flex items-center gap-2 transition-colors"
+                                    >
+                                        <PlayCircle className="w-3 h-3" /> {executingId === cmd.id ? 'Executing...' : 'Execute'}
                                     </button>
                                 </div>
+                                {executionResult?.id === cmd.id && (
+                                    <div className={`mt-3 p-3 rounded border text-xs whitespace-pre-wrap ${
+                                        executionResult.success 
+                                            ? 'bg-green-900/30 border-green-700/50 text-green-300'
+                                            : 'bg-red-900/30 border-red-700/50 text-red-300'
+                                    }`}>
+                                        {executionResult.message}
+                                    </div>
+                                )}
                             </div>
                         )}
                     </div>

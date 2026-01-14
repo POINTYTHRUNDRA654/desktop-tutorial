@@ -55,6 +55,8 @@ const IPC_CHANNELS = {
   FOMOD_ANALYZE_STRUCTURE: 'fomod-analyze-structure',
   FOMOD_VALIDATE_XML: 'fomod-validate-xml',
   FOMOD_EXPORT_PACKAGE: 'fomod-export-package',
+  // Auditor
+  AUDITOR_ANALYZE_ESP: 'auditor-analyze-esp',
 } as const;
 
 /**
@@ -157,6 +159,13 @@ const electronAPI = {
   /** Open file picker to choose tool path */
   pickToolPath: (toolName: string): Promise<string> => {
     return ipcRenderer.invoke(IPC_CHANNELS.VAULT_PICK_TOOL_PATH, toolName);
+  },
+
+  /**
+   * Auditor: Analyze ESP/ESM file
+   */
+  analyzeEsp: (filePath: string): Promise<{ success: boolean; fileSize?: number; recordCount?: number; issues?: any[]; error?: string }> => {
+    return ipcRenderer.invoke(IPC_CHANNELS.AUDITOR_ANALYZE_ESP, filePath);
   },
 
   /**
