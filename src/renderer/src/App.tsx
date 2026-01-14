@@ -26,6 +26,8 @@ const WorkflowOrchestrator = React.lazy(() => import('./WorkflowOrchestrator'));
 const Lorekeeper = React.lazy(() => import('./Lorekeeper'));
 const Holodeck = React.lazy(() => import('./Holodeck'));
 const TheVault = React.lazy(() => import('./TheVault'));
+const MossyMemoryVault = React.lazy(() => import('./MossyMemoryVault'));
+const NeuralLink = React.lazy(() => import('./NeuralLink'));
 const TheNexus = React.lazy(() => import('./TheNexus'));
 const TheAssembler = React.lazy(() => import('./TheAssembler'));
 const TheAuditor = React.lazy(() => import('./TheAuditor'));
@@ -172,6 +174,8 @@ const App: React.FC = () => {
                 <Route path="/lore" element={<Lorekeeper />} />
                 <Route path="/holo" element={<Holodeck />} />
                 <Route path="/vault" element={<TheVault />} />
+                <Route path="/memory-vault" element={<MossyMemoryVault />} />
+                <Route path="/neural-link" element={<NeuralLink />} />
                 <Route path="/workshop" element={<Workshop />} />
                 <Route path="/live" element={<ErrorBoundary><VoiceChat /></ErrorBoundary>} />
                 <Route path="/images" element={<ImageSuite />} />

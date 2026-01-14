@@ -71,7 +71,7 @@ const SAMPLE_SCENARIOS: TestScenario[] = [
             {
                 action: 'Equip weapon and attack training dummy at 50 ft range',
                 expectedResult: 'Damage displays as intended (25-35 DPS), attack animation plays smoothly',
-                riskAreas: ['Animation missing', 'Damage calculation script error', 'Physics misaligned']
+                 riskAreas: ['Animation missing', 'Damage calculation script error', 'Physics misaligned']
             },
             {
                 action: 'Fight multiple enemies (raider level list): placeatme raider',

@@ -3,7 +3,7 @@ import { Mic, MicOff, Volume2, VolumeX, Phone, PhoneOff, AlertCircle } from 'luc
 import { useLive } from './LiveContext';
 
 const VoiceChat: React.FC = () => {
-  const { isActive, isMuted, toggleMute, disconnect, mode, connect } = useLive();
+  const { isActive, isMuted, toggleMute, disconnect, mode, connect, transcription } = useLive();
   const [isConnecting, setIsConnecting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [debugLog, setDebugLog] = useState<string[]>([]);
@@ -73,7 +73,10 @@ const VoiceChat: React.FC = () => {
           </div>
           <h2 className={`text-xl font-bold ${getStatusColor()}`}>{getStatusText()}</h2>
           <p className="text-xs text-slate-500 mt-2 font-mono">Mode: {mode}</p>
-          {isActive && <p className="text-slate-400 text-sm mt-2">Say something to Mossy...</p>}
+          {transcription && (
+            <p className="text-sm text-emerald-400 italic mt-3 max-w-sm mx-auto">"{transcription}"</p>
+          )}
+          {isActive && !transcription && <p className="text-slate-400 text-sm mt-2">Say something to Mossy...</p>}
         </div>
 
         {/* Controls */}

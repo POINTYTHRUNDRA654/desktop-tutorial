@@ -75,6 +75,8 @@ const Sidebar: React.FC = () => {
     { to: '/holo', icon: Gamepad2, label: 'The Holodeck' },
     { to: '/orchestrator', icon: GitBranch, label: 'The Orchestrator' },
     { to: '/vault', icon: Container, label: 'The Vault' },
+    { to: '/memory-vault', icon: BrainCircuit, label: 'Memory Vault' },
+    { to: '/neural-link', icon: Zap, label: 'Neural Link' },
     { to: '/lore', icon: Network, label: 'The Lorekeeper' },
     { to: '/workshop', icon: Hammer, label: 'The Workshop' },
     { to: '/images', icon: Image, label: 'Image Studio' },

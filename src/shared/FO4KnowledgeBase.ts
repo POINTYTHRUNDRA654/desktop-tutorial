@@ -66,7 +66,7 @@ Event OnDeath(Actor akKiller)
     endif
 EndEvent`,
 
-    mcmMenu: `Scriptname MyModMCM extends Quest
+    mcmMenu: \`Scriptname MyModMCM extends Quest
 
 ; MCM Properties
 GlobalVariable Property Setting_EnableFeature Auto
@@ -82,7 +82,34 @@ Function SetSettingFloat(string setting, float value)
     if setting == "DamageMultiplier"
         Setting_DamageMultiplier.SetValue(value)
     endif
-EndFunction`
+EndFunction\`
+  },
+
+  // === EXTERNAL TOOL SCRIPTS ===
+  toolScripts: {
+    blenderStandardsFix: \`
+import bpy
+
+# Mossy's Fallout 4 Standards Alignment Script
+# Source: Modern Fallout 4 Modding Standards (2025)
+
+def align_to_standards():
+    # 1. Set Scene Units to Metric / 1.0 Unit Scale
+    bpy.context.scene.unit_settings.system = 'METRIC'
+    bpy.context.scene.unit_settings.scale_length = 1.0
+    
+    # 2. Set Framerate to 30 FPS (Fallout 4 Standard)
+    bpy.context.scene.render.fps = 30
+    
+    # 3. Inform the user
+    print("Mossy: Alignment Complete.")
+    print("- Scale: 1.0")
+    print("- FPS: 30")
+    print("- Physics: Ready for Havok 2010.2.0-r1 export")
+
+if __name__ == "__main__":
+    align_to_standards()
+\`
   },
 
   // === COMMON PAPYRUS PATTERNS ===
@@ -412,6 +439,74 @@ end.`
         "Bake lighting where possible"
       ]
     }
+  },
+
+  // === BLENDER TO FALLOUT 4 WORKFLOW ===
+  blenderToFO4: {
+    requiredTools: [
+      "Blender 4.1+ (Latest recommended)",
+      "Havok Content Tools 2014 (64-bit)",
+      "PyNifly (Import/Export NIFs directly)",
+      "FBX Importer for Fallout 4",
+      "F4AK_HKXPackUI (Animation packing)",
+      "Autodesk FBX Converter (Archive builds)"
+    ],
+
+    sceneSetup: {
+      units: "Meters",
+      scale: 1.0,
+      orientation: "Z Up, Y Forward",
+      fps: 30,
+      armatureTransform: "Must be applied (Scale 1.0, Rotation 0,0,0)"
+    },
+
+    meshWorkflow: [
+      "Create geometry in Blender",
+      "UV Map (ensure no overlapping unless intentional)",
+      "Assign Material Names (will match BGSM names in NifSkope)",
+      "Vertex Colors: Use for sub-material masking or transparency",
+      "Export as NIF via PyNifly or FBX then import to NifSkope"
+    ],
+
+    riggingSkinning: {
+      skeletonNames: {
+        human: "Root -> COM -> Pelvis -> Spine01/02/03 -> Neck -> Head",
+        weapon: "Root -> Trigger -> Slide -> Magazine -> Bolt",
+        creature: "Follow extracted reference skeleton (HKX -> FBX)"
+      },
+      rules: [
+        "Do NOT rename deform bones from vanilla skeletons",
+        "Weight painting: Max 4 bones per vertex (engine limit)",
+        "Normalization: Ensure weights sum to 1.0",
+        "Bone Roll: Keep consistent with vanilla (usually Y down the bone)",
+        "Root Bone: Keep at 0,0,0 coordinate"
+      ]
+    },
+
+    animationWorkflow: {
+      steps: [
+        "Import vanilla skeleton (HKX -> FBX -> Blender)",
+        "Create Action in Action Editor/NLA",
+        "Add Pose Markers for annotations (Hit, Footstep, EventX)",
+        "Export FBX with 'Only Deform Bones' and 'Bake Animation'",
+        "Convert FBX to HKX using Havok Content Tools (2010.2.0-r1 build profile)",
+        "Pack HKX with HKXPackUI for final game use"
+      ],
+      annotations: [
+        "Hit: Trigger damage/impact",
+        "FootstepL/R: SFX/VFX for feet",
+        "SoundPlay: Trigger specific sound by ID",
+        "GraphEvent: Send event to behavior graph"
+      ]
+    },
+
+    nifSkopeCleanup: [
+      "Verify BSTriShape block type",
+      "Link BGSM/BGEM material files",
+      "Sanitize -> Reorder Blocks",
+      "Sanitize -> Update Tangents/Space",
+      "Check bhkCollisionObject for physics"
+    ]
   }
 };
 

@@ -26,6 +26,7 @@ const IPC_CHANNELS = {
   OPEN_PROGRAM: 'open-program',
   OPEN_EXTERNAL: 'open-external',
   GET_TOOL_VERSION: 'get-tool-version',
+  GET_RUNNING_PROCESSES: 'get-running-processes',
   GET_SETTINGS: 'get-settings',
   SET_SETTINGS: 'set-settings',
   SETTINGS_UPDATED: 'settings-updated',
@@ -69,6 +70,13 @@ const electronAPI = {
    */
   detectPrograms: (): Promise<InstalledProgram[]> => {
     return ipcRenderer.invoke(IPC_CHANNELS.DETECT_PROGRAMS);
+  },
+
+  /**
+   * Get currently running modding tools
+   */
+  getRunningProcesses: (): Promise<any[]> => {
+    return ipcRenderer.invoke(IPC_CHANNELS.GET_RUNNING_PROCESSES);
   },
 
   /**
