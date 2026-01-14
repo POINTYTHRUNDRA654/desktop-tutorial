@@ -302,6 +302,32 @@ const TheHive: React.FC = () => {
                                     Create Project
                                 </button>
 
+                                <div className="mt-8">
+                                    <h4 className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-4">Beginner Blueprints</h4>
+                                    <div className="space-y-2">
+                                        {[
+                                            { name: 'My First Quest', type: 'quest', desc: 'Pre-configured with start-up script and dialogue branch.' },
+                                            { name: 'Settlement Item', type: 'location', desc: 'Workshop-ready asset template with collision setup.' },
+                                            { name: 'NPC Companion', type: 'npc', desc: 'AI package and follower script skeleton.' }
+                                        ].map((bp, i) => (
+                                            <button
+                                                key={i}
+                                                onClick={() => {
+                                                    setNewProjectName(bp.name);
+                                                    // Manual trigger logic would go here
+                                                }}
+                                                className="w-full text-left p-3 rounded bg-slate-900/40 border border-slate-700/50 hover:bg-slate-700/30 hover:border-blue-500/50 transition-all group"
+                                            >
+                                                <div className="font-bold text-xs text-white group-hover:text-blue-400">{bp.name}</div>
+                                                <div className="text-[10px] text-slate-500 mt-1">{bp.desc}</div>
+                                            </button>
+                                        ))}
+                                    </div>
+                                    <p className="text-[10px] text-slate-600 mt-4 italic">
+                                        * Blueprints automatically apply FO4 community standards (30FPS/1.0Scale).
+                                    </p>
+                                </div>
+
                                 {selectedProject && (
                                     <>
                                         <div className="mt-6 pt-6 border-t border-slate-700">
