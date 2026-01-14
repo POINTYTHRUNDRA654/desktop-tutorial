@@ -148,7 +148,7 @@ const QUIPS: Record<string, string[]> = {
         "Remember: houses don't produce resources, but they increase settler capacity.",
         "The grid is 20x15 - plenty of space for a full city plan."
     ],
-    '/cortex': [
+    '/analyzer': [
         "The Cortex analyzes your entire modding setup and recommends solutions to prevent crashes, improve performance, and resolve conflicts.",
         "Decisions tab shows actionable recommendations sorted by severity - critical issues affect stability, warnings affect functionality, info is educational.",
         "Pay attention to load order recommendations - plugins depend on their dependencies loading first. Wrong order breaks quests and causes CTDs.",
@@ -177,7 +177,7 @@ const QUIPS: Record<string, string[]> = {
         "Start in Local mode to iterate fast, then validate with Live mode.",
         "Temperature between 0.0-0.3 is deterministic, 0.7-1.0 is creative."
     ],
-    '/scribe': [
+    '/theScribe': [
         "I validate Papyrus, xEdit scripts, and Blender Python in real-time.",
         "For Papyrus: check that Event/Function/If/While blocks are properly paired.",
         "ScriptName must match your filename, and extends must be a valid base type.",
@@ -242,11 +242,11 @@ const QUIPS: Record<string, string[]> = {
         "Use the size readout to spot oversized textures before they bloat your archive — downscale in the Splicer first."
     ],
     '/cortex': [
-        "Neural processing hub - make decisions here.",
+        "Asset staging hub - make decisions here.",
         "Pattern matching across your entire modding workflow.",
         "I can suggest optimizations based on your patterns."
     ],
-    '/lens': [
+    '/lensOptical': [
         "Visual analysis tools at your disposal.",
         "Inspect textures, meshes, and material properties.",
         "Compare before and after modifications."

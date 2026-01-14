@@ -1,0 +1,235 @@
+# Mossy v3.0 - Quick Start Guide
+
+**Welcome to Mossy!** This guide will get you up and running in 5 minutes.
+
+## What is Mossy?
+
+Mossy is a professional Fallout 4 modding assistant with:
+- 🤖 **Gemini AI** - Chat with an AI trained on FO4 modding knowledge
+- 🔍 **Asset Analysis** - Validate NIF, DDS, and ESP files
+- 🎨 **PBR Generation** - Create texture maps automatically  
+- 🛠️ **Tools Integration** - Detect and launch your modding tools
+- 📊 **System Monitoring** - Track CPU/RAM/GPU usage
+- 🎮 **Game Testing** - Configure and launch Fallout 4 for testing
+
+## ⚡ Quick Setup (5 minutes)
+
+### Step 1: Get Google Gemini API Key
+
+1. Go to [Google AI Studio](https://aistudio.google.com/app/apikey)
+2. Click "Get API Key"
+3. Create a new API key
+4. Copy the key
+
+### Step 2: Install Mossy
+
+```bash
+# Clone repository
+git clone https://github.com/POINTYTHRUNDRA654/desktop-tutorial.git
+cd desktop-tutorial
+
+# Install dependencies
+npm install
+```
+
+### Step 3: Set API Key
+
+Create `.env.local` file in the project root:
+
+```
+VITE_API_KEY=your_api_key_here
+```
+
+Replace `your_api_key_here` with the key from Step 1.
+
+### Step 4: Run Mossy
+
+```bash
+npm run dev
+```
+
+Mossy opens automatically with hot reload enabled.
+
+## 🎯 First Time User
+
+When you launch Mossy for the first time:
+
+1. **See the UI** - You'll see the main Mossy interface
+2. **Chat with Mossy** - Type a message to start talking with the AI
+3. **Explore Modules** - Click on different tools in the sidebar
+4. **Set Your Path** - In "The Scribe", set your tool installation paths
+
+## 🔍 Key Features Explained
+
+### 1. Chat Interface (Mossy)
+- **Talk to AI** - Natural conversation with Gemini
+- **Voice Input/Output** - Use your microphone
+- **Custom Avatar** - Upload custom avatar image
+- **Real-time Status** - See if Mossy is listening, processing, or speaking
+
+### 2. The Auditor (File Analysis)
+Go to **The Auditor** to analyze your mod files:
+
+**ESP Files:**
+- Reads TES4 header
+- Counts records
+- Checks file size (max 250MB)
+
+**NIF Files:**
+- Counts vertices and triangles
+- Lists texture paths
+- Detects hardcoded absolute paths (C:\, D:\)
+- Warns if too complex (>100k vertices, >50k triangles)
+
+**DDS Files:**
+- Detects format (BC1, BC3, BC7, A8R8G8B8, etc.)
+- Checks resolution
+- Validates power-of-2 dimensions
+- Warns if too large (4K+)
+
+### 3. Image Suite (PBR Maps)
+Generate texture maps from a base image:
+
+1. **Select Image** - Choose your base texture
+2. **Generate Maps** - Creates:
+   - Normal map (from edges)
+   - Roughness map (from luminance)
+   - Height map (grayscale)
+   - Metallic map (edge detection)
+   - AO map (luminance variance)
+
+### 4. Desktop Bridge (Tools)
+Mossy automatically detects:
+- ✅ Blender
+- ✅ Creation Kit
+- ✅ xEdit
+- ✅ LOOT
+- ✅ And more...
+
+Click "Launch" to open any installed tool.
+
+### 5. System Monitor
+Real-time stats:
+- CPU usage %
+- RAM usage GB
+- GPU VRAM available
+- System info
+
+### 6. Workshop
+For Papyrus scripting:
+- Set your Papyrus compiler path
+- Compile scripts (.psc)
+- View output and errors
+
+### 7. The Assembler
+Create FOMOD installers:
+1. Create steps
+2. Add plugin groups
+3. Set conditional logic
+4. Export as standard FOMOD
+
+### 8. Holodeck
+Test your mod in Fallout 4:
+1. Configure game path
+2. Set load order
+3. Click "Launch Game"
+4. Monitor console output
+
+## 🎨 Customize Mossy
+
+### Change Avatar
+1. Go to Chat interface
+2. Find the avatar section
+3. Click "Upload Avatar"
+4. Select your image
+
+### Set Tool Paths
+1. Go to **The Scribe**
+2. Set paths to your:
+   - Blender executable
+   - Creation Kit
+   - xEdit
+   - Papyrus compiler
+   - etc.
+
+## 🔧 Troubleshooting
+
+### "API Key Missing"
+- Check `.env.local` file exists
+- Verify you put `VITE_API_KEY=` not `API_KEY=`
+- Restart app: `npm run dev`
+
+### Tools Not Detected
+- Click "Detect Programs" in Desktop Bridge
+- Or manually set paths in The Scribe
+
+### Files Won't Analyze
+- Make sure file paths are correct
+- Try smaller files first
+- Check file format is supported (ESP, NIF, DDS)
+
+## 📚 Module Overview
+
+| Module | Purpose | Status |
+|--------|---------|--------|
+| Mossy Chat | AI conversation | ✅ Working |
+| The Auditor | File analysis | ✅ Working |
+| Image Suite | Texture generation | ✅ Working |
+| Desktop Bridge | Tool detection | ✅ Working |
+| System Monitor | Performance stats | ✅ Working |
+| The Vault | Asset management | ✅ Working |
+| The Scribe | Code editor | ✅ Working |
+| Workshop | Papyrus tools | ✅ Working |
+| The Assembler | FOMOD creation | ✅ Working |
+| Holodeck | Game testing | ✅ Working |
+| Lorekeeper | Modding guides | ✅ Working |
+| TTSPanel | Text-to-speech | ✅ Working |
+
+## ❌ What's NOT Included
+
+We removed 30+ fake modules to keep Mossy clean and trustworthy. These were removed:
+
+- Demo modules with hardcoded sample data
+- Non-functional UI mockups
+- Tools that claimed features they didn't have
+- Fake AI capabilities
+
+**Why?** Real > Fake. One working tool beats 10 fake ones.
+
+## 🚀 Build for Release
+
+When ready to release:
+
+```bash
+# Build for production
+npm run build
+
+# Create Windows installer
+npm run package:win
+```
+
+Creates `release/Mossy-Setup-3.0.0.exe`
+
+## 📖 Documentation
+
+- [Full README](README.md) - Architecture and features
+- [User Guide](USER_GUIDE.md) - Detailed feature documentation
+- [Privacy Settings](PRIVACY_ARCHITECTURE.md) - Data privacy details
+
+## 💬 Support
+
+For issues:
+1. Check Troubleshooting section above
+2. Review error messages in DevTools (Ctrl+Shift+I)
+3. Check `.env.local` setup
+
+## 🎉 You're Ready!
+
+You now have Mossy set up and ready to use. Start by:
+
+1. **Chat with Mossy** - Ask about FO4 modding
+2. **Analyze a File** - Try The Auditor on one of your mods
+3. **Generate a Map** - Create PBR maps in Image Suite
+4. **Launch a Tool** - Use Desktop Bridge to launch Blender
+
+Happy modding! 🚀

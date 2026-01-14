@@ -11,7 +11,6 @@ interface LiveContextType {
   transcription: string;
   connect: () => Promise<void>;
   disconnect: () => void;
-  // Avatar Management
   customAvatar: string | null;
   updateAvatar: (file: File) => Promise<void>;
   setAvatarFromUrl: (url: string) => Promise<void>;
@@ -28,565 +27,356 @@ export const useLive = () => {
   return context;
 };
 
-// --- IndexedDB Helper for Large Images ---
 const DB_NAME = 'MossyDB';
 const STORE_NAME = 'avatars';
 const DB_VERSION = 1;
 
 const openDB = (): Promise<IDBDatabase> => {
-    return new Promise((resolve, reject) => {
-        const request = indexedDB.open(DB_NAME, DB_VERSION);
-        request.onupgradeneeded = (e) => {
-            const db = (e.target as IDBOpenDBRequest).result;
-            if (!db.objectStoreNames.contains(STORE_NAME)) {
-                db.createObjectStore(STORE_NAME);
-            }
-        };
-        request.onsuccess = () => resolve(request.result);
-        request.onerror = () => reject(request.error);
-    });
+  return new Promise((resolve, reject) => {
+    const request = indexedDB.open(DB_NAME, DB_VERSION);
+    request.onupgradeneeded = (e) => {
+      const db = (e.target as IDBOpenDBRequest).result;
+      if (!db.objectStoreNames.contains(STORE_NAME)) {
+        db.createObjectStore(STORE_NAME);
+      }
+    };
+    request.onsuccess = () => resolve(request.result);
+    request.onerror = () => reject(request.error);
+  });
 };
 
 const saveImageToDB = async (key: string, base64: string) => {
-    try {
-        const db = await openDB();
-        return new Promise<void>((resolve, reject) => {
-            const tx = db.transaction(STORE_NAME, 'readwrite');
-            const store = tx.objectStore(STORE_NAME);
-            store.put(base64, key);
-            tx.oncomplete = () => resolve();
-            tx.onerror = () => reject(tx.error);
-        });
-    } catch (e) {
-        console.warn("DB Save failed", e);
-    }
+  try {
+    const db = await openDB();
+    return new Promise<void>((resolve, reject) => {
+      const tx = db.transaction(STORE_NAME, 'readwrite');
+      const store = tx.objectStore(STORE_NAME);
+      store.put(base64, key);
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(tx.error);
+    });
+  } catch (e) {
+    console.warn("DB Save failed", e);
+  }
 };
 
 const getImageFromDB = async (key: string): Promise<string | null> => {
-    try {
-        const db = await openDB();
-        return new Promise((resolve, reject) => {
-            const tx = db.transaction(STORE_NAME, 'readonly');
-            const store = tx.objectStore(STORE_NAME);
-            const request = store.get(key);
-            request.onsuccess = () => resolve(request.result || null);
-            request.onerror = () => reject(request.error);
-        });
-    } catch (e) {
-        return null;
-    }
+  try {
+    const db = await openDB();
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction(STORE_NAME, 'readonly');
+      const store = tx.objectStore(STORE_NAME);
+      const request = store.get(key);
+      request.onsuccess = () => resolve(request.result || null);
+      request.onerror = () => reject(request.error);
+    });
+  } catch (e) {
+    return null;
+  }
 };
 
 const deleteImageFromDB = async (key: string) => {
-    try {
-        const db = await openDB();
-        return new Promise<void>((resolve, reject) => {
-            const tx = db.transaction(STORE_NAME, 'readwrite');
-            const store = tx.objectStore(STORE_NAME);
-            store.delete(key);
-            tx.oncomplete = () => resolve();
-            tx.onerror = () => reject(tx.error);
-        });
-    } catch (e) { console.warn("DB Delete failed"); }
+  try {
+    const db = await openDB();
+    return new Promise<void>((resolve, reject) => {
+      const tx = db.transaction(STORE_NAME, 'readwrite');
+      const store = tx.objectStore(STORE_NAME);
+      store.delete(key);
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(tx.error);
+    });
+  } catch (e) {
+    console.warn("DB Delete failed");
+  }
 };
 
-// --- Audio Helpers ---
+const encodeAudioToBase64 = (int16Array: Int16Array): string => {
+  let binary = '';
+  for (let i = 0; i < int16Array.length; i++) {
+    binary += String.fromCharCode(int16Array[i] & 0xff);
+    binary += String.fromCharCode((int16Array[i] >> 8) & 0xff);
+  }
+  return btoa(binary);
+};
+
 const createBlob = (data: Float32Array) => {
-    const l = data.length;
-    const int16 = new Int16Array(l);
-    for (let i = 0; i < l; i++) {
-      int16[i] = data[i] * 32768;
-    }
-    const uint8 = new Uint8Array(int16.buffer);
-    let binary = '';
-    const len = uint8.byteLength;
-    for (let i = 0; i < len; i++) {
-      binary += String.fromCharCode(uint8[i]);
-    }
-    const b64 = btoa(binary);
-    return {
-      data: b64,
-      mimeType: 'audio/pcm;rate=16000',
-    };
+  const int16 = new Int16Array(data.length);
+  for (let i = 0; i < data.length; i++) {
+    int16[i] = data[i] < 0 ? data[i] * 0x8000 : data[i] * 0x7FFF;
+  }
+  return new Blob([int16.buffer], { type: 'audio/pcm' });
 };
 
 const decodeAudioData = async (base64String: string, ctx: AudioContext): Promise<AudioBuffer> => {
-    const binaryString = atob(base64String);
-    const len = binaryString.length;
-    const bytes = new Uint8Array(len);
-    for (let i = 0; i < len; i++) bytes[i] = binaryString.charCodeAt(i);
-    const dataInt16 = new Int16Array(bytes.buffer);
-    const buffer = ctx.createBuffer(1, dataInt16.length, 24000);
-    const channelData = buffer.getChannelData(0);
-    for (let i = 0; i < dataInt16.length; i++) channelData[i] = dataInt16[i] / 32768.0;
-    return buffer;
+  const binaryString = atob(base64String);
+  const len = binaryString.length;
+  const bytes = new Uint8Array(len);
+  for (let i = 0; i < len; i++) bytes[i] = binaryString.charCodeAt(i);
+  const dataInt16 = new Int16Array(bytes.buffer);
+  const buffer = ctx.createBuffer(1, dataInt16.length, 24000);
+  const channelData = buffer.getChannelData(0);
+  for (let i = 0; i < dataInt16.length; i++) channelData[i] = dataInt16[i] / 32768.0;
+  return buffer;
 };
 
 export const LiveProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
-  // Add error state to handle initialization failures
-  const [initError, setInitError] = useState<Error | null>(null);
-  
-  // Live State
   const [isActive, setIsActive] = useState(false);
   const [isMuted, setIsMuted] = useState(false);
-  const [status, setStatus] = useState('Standby');
+  const [status, setStatus] = useState('Ready');
   const [volume, setVolume] = useState(0);
   const [mode, setMode] = useState<'idle' | 'listening' | 'processing' | 'speaking'>('idle');
   const [transcription, setTranscription] = useState('');
+  const [customAvatar, setCustomAvatar] = useState<string | null>(null);
 
-  // Avatar State (Global) - Lazy initialization for instant persistence
-  const [customAvatar, setCustomAvatar] = useState<string | null>(() => {
-      try {
-          return localStorage.getItem('mossy_avatar_custom');
-      } catch (e) {
-          console.error('[LiveProvider] localStorage error:', e);
-          return null;
-      }
-  });
-
-  // Load Avatar on Mount - Dual Strategy with Priority
-  useEffect(() => {
-      const loadAvatar = async () => {
-          try {
-              // If we already loaded from localStorage via lazy init, verify against DB
-              const current = customAvatar;
-              
-              const dbSaved = await getImageFromDB('mossy_avatar_custom');
-              if (dbSaved && dbSaved !== current) {
-                  // If DB has data but local didn't (or differed), update state
-                  setCustomAvatar(dbSaved);
-                  try { localStorage.setItem('mossy_avatar_custom', dbSaved); } catch (e) {}
-              } else if (current && !dbSaved) {
-                  // If local has data but DB doesn't, sync back to DB
-                  await saveImageToDB('mossy_avatar_custom', current);
-              }
-          } catch (e) {
-              console.error('[LiveProvider] Avatar load error:', e);
-          }
-      };
-      loadAvatar();
-  }, []);
-
-  // Refs for audio handling - PERSISTENT ACROSS ROUTES
+  const isMutedRef = useRef(false);
   const audioContextRef = useRef<AudioContext | null>(null);
   const inputContextRef = useRef<AudioContext | null>(null);
-  const nextStartTimeRef = useRef<number>(0);
-  const sourcesRef = useRef<Set<AudioBufferSourceNode>>(new Set());
-  const sessionRef = useRef<Promise<any> | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const processorRef = useRef<ScriptProcessorNode | null>(null);
-  
-  // Ref for Mute state to be accessible in callbacks
-  const isMutedRef = useRef(false);
+  const sessionRef = useRef<any>(null);
+  const sourcesRef = useRef<Set<AudioBufferSourceNode>>(new Set());
+  const nextStartTimeRef = useRef<number>(0);
 
   const toggleMute = () => {
-      setIsMuted(prev => {
-          const newState = !prev;
-          isMutedRef.current = newState;
-          // If muting, stop current audio immediately
-          if (newState && audioContextRef.current) {
-              sourcesRef.current.forEach(s => s.stop());
-              sourcesRef.current.clear();
-              nextStartTimeRef.current = 0;
-              setMode('idle');
-          }
-          return newState;
-      });
+    setIsMuted((prev) => {
+      isMutedRef.current = !prev;
+      return !prev;
+    });
   };
 
-  // --- Avatar Logic ---
-  const processImageToAvatar = async (imgSource: string | File): Promise<string> => {
-      return new Promise((resolve, reject) => {
-          const img = new Image();
-          img.crossOrigin = "Anonymous"; // Handle CORS for external URLs
-          img.onload = () => {
-              const canvas = document.createElement('canvas');
-              // Stronger downsizing (300px) to guarantee LocalStorage fit
-              const maxSize = 300; 
-              let width = img.width;
-              let height = img.height;
-              
-              if (width > height) {
-                  if (width > maxSize) {
-                      height *= maxSize / width;
-                      width = maxSize;
-                  }
-              } else {
-                  if (height > maxSize) {
-                      width *= maxSize / height;
-                      height = maxSize;
-                  }
-              }
-              
-              canvas.width = width;
-              canvas.height = height;
-              const ctx = canvas.getContext('2d');
-              ctx?.drawImage(img, 0, 0, width, height);
-              // Compression: 0.5 Quality JPEG
-              resolve(canvas.toDataURL('image/jpeg', 0.5));
-          };
-          img.onerror = (e) => reject(new Error("Failed to load image"));
-
-          if (typeof imgSource === 'string') {
-              img.src = imgSource;
-          } else {
-              const reader = new FileReader();
-              reader.onload = (e) => {
-                  img.src = e.target?.result as string;
-              };
-              reader.readAsDataURL(imgSource);
-          }
-      });
-  };
+  useEffect(() => {
+    (async () => {
+      const saved = localStorage.getItem('mossy_avatar_custom');
+      if (!saved) {
+        try {
+          const dbAvatar = await getImageFromDB('mossy_avatar_custom');
+          if (dbAvatar) setCustomAvatar(dbAvatar);
+        } catch (e) {
+          console.warn("Avatar load error:", e);
+        }
+      } else {
+        setCustomAvatar(saved);
+      }
+    })();
+  }, []);
 
   const updateAvatar = async (file: File) => {
-      try {
-          const compressed = await processImageToAvatar(file);
-          setCustomAvatar(compressed);
-          
-          // Dual Save Strategy - Try Local first, then DB
-          try {
-              localStorage.setItem('mossy_avatar_custom', compressed);
-          } catch (e) {
-              console.warn("LocalStorage full, relying on DB.");
-          }
-          await saveImageToDB('mossy_avatar_custom', compressed);
-          
-      } catch (err) {
-          console.error("Failed to process avatar:", err);
-          alert("Failed to save image. Please try a different file.");
-      }
+    const reader = new FileReader();
+    reader.onload = async () => {
+      const dataUrl = reader.result as string;
+      setCustomAvatar(dataUrl);
+      localStorage.setItem('mossy_avatar_custom', dataUrl);
+      await saveImageToDB('mossy_avatar_custom', dataUrl);
+    };
+    reader.readAsDataURL(file);
   };
 
   const setAvatarFromUrl = async (url: string) => {
-      try {
-          const compressed = await processImageToAvatar(url);
-          setCustomAvatar(compressed);
-          try {
-              localStorage.setItem('mossy_avatar_custom', compressed);
-          } catch (e) {}
-          await saveImageToDB('mossy_avatar_custom', compressed);
-      } catch (err) {
-          console.error("Failed to process avatar url:", err);
-          alert("Could not load image. It might be protected by CORS.");
-      }
+    try {
+      const response = await fetch(url);
+      if (!response.ok) throw new Error('Failed to fetch image');
+      const blob = await response.blob();
+      const reader = new FileReader();
+      reader.onload = async () => {
+        const dataUrl = reader.result as string;
+        setCustomAvatar(dataUrl);
+        localStorage.setItem('mossy_avatar_custom', dataUrl);
+        await saveImageToDB('mossy_avatar_custom', dataUrl);
+      };
+      reader.readAsDataURL(blob);
+    } catch (e) {
+      console.error('Avatar URL error:', e);
+    }
   };
 
   const clearAvatar = async () => {
-      setCustomAvatar(null);
-      localStorage.removeItem('mossy_avatar_custom');
-      await deleteImageFromDB('mossy_avatar_custom');
+    setCustomAvatar(null);
+    localStorage.removeItem('mossy_avatar_custom');
+    await deleteImageFromDB('mossy_avatar_custom');
   };
 
-  // --- Live Connection Logic ---
   const disconnect = () => {
+    console.log('[LiveContext] Disconnecting...');
     streamRef.current?.getTracks().forEach(t => t.stop());
-    processorRef.current?.disconnect();
+    
+    // Stop MediaRecorder if it exists
+    if (processorRef.current && typeof (processorRef.current as any).stop === 'function') {
+      (processorRef.current as any).stop();
+    }
+    
     inputContextRef.current?.close();
     audioContextRef.current?.close();
-    sessionRef.current?.then((s: any) => s.close && s.close());
-    
-    // Reset Refs
+    if (sessionRef.current?.close) sessionRef.current.close();
+
     inputContextRef.current = null;
     audioContextRef.current = null;
     streamRef.current = null;
     processorRef.current = null;
+    sessionRef.current = null;
     sourcesRef.current.clear();
     nextStartTimeRef.current = 0;
 
     setIsActive(false);
-    setStatus('Offline');
+    setStatus('Disconnected');
     setMode('idle');
-    setVolume(0);
   };
 
   const connect = async () => {
     if (isActive) return;
 
     try {
-      setStatus('Initializing Neural Interface...');
+      setStatus('Initializing...');
       setMode('processing');
-      
-      // 1. CHECK BRIDGE STATUS
-      const driversSaved = localStorage.getItem('mossy_bridge_drivers');
-      let bridgeContext = "";
-      
-      if (driversSaved) {
-          const drivers = JSON.parse(driversSaved);
-          const blender = drivers.find((d: any) => d.id === 'blender' && d.status === 'active');
-          if (blender) {
-              bridgeContext = "SYSTEM NOTICE: Blender 4.5.5 is CONNECTED via Desktop Bridge. You have full control over the connected Blender instance.";
-          }
-      }
 
-      // 2. CHECK PROJECT CONTEXT
-      let projectContext = "";
-      try {
-          const projSaved = localStorage.getItem('mossy_project');
-          if (projSaved) {
-              const p = JSON.parse(projSaved);
-              projectContext = `CURRENT ACTIVE PROJECT: ${p.name}\nSTATUS: ${p.status}\nNOTES: ${p.notes}`;
-          }
-      } catch (e) {}
-
-      // 3. LOAD RECENT CHAT HISTORY (MEMORY)
-      let historyContext = "";
-      try {
-          const msgSaved = localStorage.getItem('mossy_messages');
-          if (msgSaved) {
-              const msgs = JSON.parse(msgSaved);
-              // Filter out system messages and get last 10 exchanges for context
-              const recent = msgs.filter((m: any) => m.role !== 'system').slice(-10);
-              historyContext = recent.map((m: any) => `[${m.role === 'user' ? 'USER' : 'MOSSY'}]: ${m.text}`).join('\n');
-          }
-      } catch (e) {}
-
-      // Get microphone access with error handling
-      console.log('[LiveContext] Requesting microphone access...');
-      let stream: MediaStream;
-      try {
-        stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      } catch (micErr: any) {
-        console.error('[LiveContext] Microphone error:', micErr);
-        setStatus('Microphone Access Denied');
-        setMode('idle');
-        setIsActive(false);
-        return;
-      }
-      
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       streamRef.current = stream;
-      console.log('[LiveContext] Got microphone stream');
 
-      // Create audio contexts with error handling
-      console.log('[LiveContext] Creating audio contexts...');
-      try {
-        const inputCtx = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 16000 });
-        inputContextRef.current = inputCtx;
-        const outputCtx = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 24000 });
-        audioContextRef.current = outputCtx;
-      } catch (audioErr: any) {
-        console.error('[LiveContext] Audio context error:', audioErr);
-        setStatus('Audio System Error');
-        setMode('idle');
-        setIsActive(false);
-        return;
-      }
+      inputContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 16000 });
+      audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 24000 });
 
-      // Resolve API key from Vite env with debug logging
-      console.log('[LiveContext] Checking API keys...');
-      console.log('[LiveContext] VITE_API_KEY:', import.meta.env.VITE_API_KEY);
-      console.log('[LiveContext] VITE_GOOGLE_API_KEY:', import.meta.env.VITE_GOOGLE_API_KEY);
-      
       const apiKey = import.meta.env.VITE_API_KEY || import.meta.env.VITE_GOOGLE_API_KEY;
-      
       if (!apiKey) {
-        console.error('[LiveContext] No API key found in environment');
-        setStatus('API Key Missing');
-        setMode('idle');
-        setIsActive(false);
-        return; // Gracefully avoid throwing to keep UI responsive
+        throw new Error('API key not found');
       }
-      
-      console.log('[LiveContext] Creating GoogleGenAI instance...');
-      const ai = new GoogleGenAI({ apiKey });
-      setStatus('Establishing Uplink...');
-      
-      // Define tools - always include Blender control to allow linking attempt
-      const tools = [
-        {
-          functionDeclarations: [
-            {
-              name: "execute_blender_script",
-              description: "Execute python code in Blender 4.5.5. Use this when the user asks to perform complex actions in Blender.",
-              parameters: {
-                type: Type.OBJECT,
-                properties: {
-                  code: { type: Type.STRING, description: "The python code to run" },
-                  desc: { type: Type.STRING, description: "Description of action" }
-                }
-              }
-            },
-            {
-                name: "send_blender_shortcut",
-                description: "Send keyboard shortcut to Blender. Use this to change view modes (Z), toggle edit mode (Tab), or move objects (G). IMPORTANT: Use 'Z' to toggle Skeletal/Wireframe mode.",
-                parameters: {
-                    type: Type.OBJECT,
-                    properties: {
-                        keys: { type: Type.STRING, description: "Key combo (e.g. 'Z', 'Shift+A', 'NumPad1')" },
-                        desc: { type: Type.STRING, description: "What this does (e.g. 'Toggle Wireframe', 'Add Object')" }
-                    },
-                    required: ['keys']
-                }
-            }
-          ]
-        }
-      ];
 
-      console.log('[LiveContext] Initiating live connection...');
+      const ai = new GoogleGenAI({ apiKey });
+      console.log('[LiveContext] Creating live session...');
+
       const sessionPromise = ai.live.connect({
         model: 'gemini-2.5-flash-native-audio-preview-12-2025',
         config: {
           responseModalities: [Modality.AUDIO],
           speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: 'Zephyr' } } },
-          systemInstruction: `You are Mossy, a sentient AI assistant.
-          ${bridgeContext}
-          ${projectContext ? '\n' + projectContext : ''}
-          
-          RECENT MEMORY / CONTEXT:
-          ${historyContext}
-          
-          You are currently speaking via Live Audio Interface.
-          You can EXECUTE PYTHON SCRIPTS or PRESS KEYS in Blender directly.
-          If the user says "press Z" or "turn on skeletal mode", use the 'send_blender_shortcut' tool immediately.`,
-          tools: tools,
+          systemInstruction: 'You are Mossy, a sentient AI assistant for Fallout 4 modding.',
         },
         callbacks: {
           onopen: () => {
+            console.log('[LiveContext] Session opened');
             setStatus('Online');
             setIsActive(true);
             setMode('listening');
-            setTranscription(">> Connection established. Listening...");
-            
-            const source = inputCtx.createMediaStreamSource(stream);
-            const processor = inputCtx.createScriptProcessor(4096, 1, 1);
-            processorRef.current = processor;
-            
-            processor.onaudioprocess = (e) => {
-              const inputData = e.inputBuffer.getChannelData(0);
-              // Calculate volume for UI
-              let sum = 0;
-              for (let i = 0; i < inputData.length; i++) sum += inputData[i] * inputData[i];
-              const rms = Math.sqrt(sum / inputData.length);
-              
-              if (Math.random() > 0.5) setVolume(rms * 500); 
-
-              if (rms > 0.02) setMode('listening'); 
-              
-              const pcmBlob = createBlob(inputData);
-              sessionPromise.then((session) => session.sendRealtimeInput({ media: pcmBlob }));
-            };
-            source.connect(processor);
-            processor.connect(inputCtx.destination);
           },
+
           onmessage: async (msg: LiveServerMessage) => {
-            // Handle Tool Calls (Simulation)
-            if (msg.toolCall) {
-                console.log("Tool Call Received", msg.toolCall);
-                
-                // --- DISPATCH COMMAND TO DESKTOP BRIDGE ---
-                msg.toolCall.functionCalls.forEach(fc => {
-                    if (fc.name === 'execute_blender_script') {
-                        const args = fc.args as any;
-                        window.dispatchEvent(new CustomEvent('mossy-blender-command', {
-                            detail: {
-                                code: args.code,
-                                description: args.desc || 'Live Command'
-                            }
-                        }));
-                    } else if (fc.name === 'send_blender_shortcut') {
-                        const args = fc.args as any;
-                        window.dispatchEvent(new CustomEvent('mossy-blender-shortcut', {
-                            detail: {
-                                keys: args.keys,
-                                description: args.desc || 'Keyboard Input'
-                            }
-                        }));
-                    }
-                });
-
-                // We simulate success for the tool call so the model continues
-                sessionPromise.then((session) => {
-                    session.sendToolResponse({
-                        functionResponses: msg.toolCall?.functionCalls.map(fc => ({
-                            id: fc.id,
-                            name: fc.name,
-                            response: { result: "Action Executed Successfully in Blender 4.5.5" }
-                        }))
-                    });
-                });
+            if (msg.serverContent?.modelTurn?.parts) {
+              const audioPart = msg.serverContent.modelTurn.parts[0];
+              if (audioPart?.inlineData?.data && audioContextRef.current && !isMutedRef.current) {
+                setMode('speaking');
+                try {
+                  const buffer = await decodeAudioData(audioPart.inlineData.data, audioContextRef.current);
+                  const source = audioContextRef.current.createBufferSource();
+                  source.buffer = buffer;
+                  source.connect(audioContextRef.current.destination);
+                  source.onended = () => {
+                    sourcesRef.current.delete(source);
+                    if (sourcesRef.current.size === 0) setMode('listening');
+                  };
+                  source.start(nextStartTimeRef.current);
+                  nextStartTimeRef.current += buffer.duration;
+                  sourcesRef.current.add(source);
+                } catch (err) {
+                  console.error('Audio decode error:', err);
+                }
+              }
             }
 
-            const base64Audio = msg.serverContent?.modelTurn?.parts?.[0]?.inlineData?.data;
-            
-            // CHECK MUTE STATE BEFORE PLAYING
-            if (base64Audio && audioContextRef.current && !isMutedRef.current) {
-               setMode('speaking');
-               setTranscription(">> Receiving audio stream...");
-               const ctx = audioContextRef.current;
-               nextStartTimeRef.current = Math.max(nextStartTimeRef.current, ctx.currentTime);
-               const buffer = await decodeAudioData(base64Audio, ctx);
-               const source = ctx.createBufferSource();
-               source.buffer = buffer;
-               source.connect(ctx.destination);
-               source.onended = () => {
-                 sourcesRef.current.delete(source);
-                 if (sourcesRef.current.size === 0) setMode('idle');
-               };
-               source.start(nextStartTimeRef.current);
-               nextStartTimeRef.current += buffer.duration;
-               sourcesRef.current.add(source);
-               
-               setVolume(Math.random() * 50 + 20);
-            }
             if (msg.serverContent?.interrupted) {
-              setTranscription(">> Interrupted.");
               sourcesRef.current.forEach(s => s.stop());
               sourcesRef.current.clear();
               nextStartTimeRef.current = 0;
-              setMode('idle');
-              setVolume(0);
+              setMode('listening');
             }
           },
-          onclose: () => { disconnect(); },
-          onerror: (err) => { console.error(err); setStatus('Connection Error'); disconnect(); }
+
+          onclose: () => {
+            console.log('[LiveContext] onclose: Session closed');
+            disconnect();
+          },
+
+          onerror: (err: any) => {
+            console.error('[LiveContext] onerror:', err);
+            setStatus('Error: ' + (err?.message || 'Unknown'));
+            disconnect();
+          }
         }
       });
-      sessionRef.current = sessionPromise;
-      console.log('[LiveContext] Session promise created, waiting for connection...');
-    } catch (e: any) {
-      console.error('[LiveContext] Connect error:', e);
-      console.error('[LiveContext] Error stack:', e?.stack);
-      console.error('[LiveContext] Error message:', e?.message);
-      
-      if (e.message && (e.message.includes('503') || e.message.toLowerCase().includes('unavailable'))) {
-          setStatus('Service Busy');
-      } else if (e.message && e.message.includes('getUserMedia')) {
-          setStatus('Microphone Access Denied');
-      } else if (e.message && e.message.includes('API')) {
-          setStatus('API Error');
-      } else {
-          setStatus('Init Failed: ' + (e.message || 'Unknown error'));
-      }
+
+      sessionPromise.then((session) => {
+        console.log('[LiveContext] Session resolved');
+        sessionRef.current = session;
+
+        try {
+          // Capture audio using MediaRecorder and send PCM data
+          if (streamRef.current) {
+            console.log('[LiveContext] Starting MediaRecorder for audio input');
+            const mediaRecorder = new MediaRecorder(streamRef.current, { 
+              mimeType: 'audio/webm;codecs=opus' 
+            });
+            
+            mediaRecorder.ondataavailable = async (event) => {
+              if (event.data.size > 0 && !isMutedRef.current && session) {
+                try {
+                  const arrayBuffer = await event.data.arrayBuffer();
+                  // Convert to base64
+                  const uint8Array = new Uint8Array(arrayBuffer);
+                  let binary = '';
+                  for (let i = 0; i < uint8Array.length; i++) {
+                    binary += String.fromCharCode(uint8Array[i]);
+                  }
+                  
+                  session.sendRealtimeInput({
+                    mediaContent: {
+                      mimeType: 'audio/webm;codecs=opus',
+                      data: btoa(binary)
+                    }
+                  }).catch((err: any) => {
+                    console.error('[LiveContext] Send audio error:', err);
+                  });
+                } catch (err) {
+                  console.error('[LiveContext] Audio encoding error:', err);
+                }
+              }
+            };
+            
+            mediaRecorder.start(100); // Send data every 100ms
+            processorRef.current = mediaRecorder as any;
+            console.log('[LiveContext] MediaRecorder started');
+          }
+        } catch (err) {
+          console.error('[LiveContext] Audio setup error:', err);
+        }
+      }).catch((err) => {
+        console.error('[LiveContext] Connection failed:', err);
+        disconnect();
+      });
+
+    } catch (err: any) {
+      console.error('[LiveContext] Connect error:', err);
+      setStatus('Error: ' + err.message);
+      setMode('idle');
+      setIsActive(false);
       disconnect();
     }
   };
 
-  // If there was an initialization error, render error state
-  if (initError) {
-    console.error('[LiveProvider] Initialization error:', initError);
-    return (
-      <LiveContext.Provider value={{ 
-        isActive: false, 
-        isMuted: false, 
-        toggleMute: () => {}, 
-        status: 'Init Failed', 
-        volume: 0, 
-        mode: 'idle', 
-        transcription: '', 
-        connect: async () => {}, 
-        disconnect: () => {}, 
-        customAvatar: null, 
-        updateAvatar: async () => {}, 
-        setAvatarFromUrl: async () => {}, 
-        clearAvatar: () => {} 
-      }}>
-        {children}
-      </LiveContext.Provider>
-    );
-  }
-
   return (
-    <LiveContext.Provider value={{ isActive, isMuted, toggleMute, status, volume, mode, transcription, connect, disconnect, customAvatar, updateAvatar, setAvatarFromUrl, clearAvatar }}>
+    <LiveContext.Provider
+      value={{
+        isActive,
+        isMuted,
+        toggleMute,
+        status,
+        volume,
+        mode,
+        transcription,
+        connect,
+        disconnect,
+        customAvatar,
+        updateAvatar,
+        setAvatarFromUrl,
+        clearAvatar,
+      }}
+    >
       {children}
     </LiveContext.Provider>
   );

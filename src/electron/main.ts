@@ -466,17 +466,31 @@ function setupIpcHandlers() {
       const base = path.basename(payload.cmd).replace(/\.(exe|bat|cmd)$/i, '');
       if (!allowed.has(base)) throw new Error(`Command not allowed: ${base}`);
 
-      const child = spawn(payload.cmd, payload.args ?? [], {
-        cwd: payload.cwd || process.cwd(),
-        shell: false,
-        windowsHide: true,
+      return new Promise((resolve) => {
+        try {
+          const child = spawn(payload.cmd, payload.args ?? [], {
+            cwd: payload.cwd || process.cwd(),
+            shell: false,
+            windowsHide: true,
+          });
+          
+          let stdout = '';
+          let stderr = '';
+          
+          child.on('error', (err) => {
+            resolve({ exitCode: -1, stdout: '', stderr: `Failed to execute command: ${err.message}` });
+          });
+          
+          if (child.stdout) child.stdout.on('data', d => (stdout += d.toString()));
+          if (child.stderr) child.stderr.on('data', d => (stderr += d.toString()));
+          
+          child.on('close', (code) => {
+            resolve({ exitCode: code ?? -1, stdout, stderr });
+          });
+        } catch (err: any) {
+          resolve({ exitCode: -1, stdout: '', stderr: `Error spawning process: ${err.message}` });
+        }
       });
-      let stdout = '';
-      let stderr = '';
-      child.stdout.on('data', d => (stdout += d.toString()));
-      child.stderr.on('data', d => (stderr += d.toString()));
-      const exitCode: number = await new Promise(resolve => child.on('close', code => resolve(code ?? -1)));
-      return { exitCode, stdout, stderr };
     } catch (e: any) {
       return { exitCode: -1, stdout: '', stderr: String(e?.message || e) };
     }
@@ -618,6 +632,71 @@ function setupIpcHandlers() {
     });
     if (result.canceled || !result.filePaths?.length) return '';
     return result.filePaths[0];
+  });
+
+  // --- Auditor: Analyze ESP/ESM files ---
+  ipcMain.handle(IPC_CHANNELS.AUDITOR_ANALYZE_ESP, async (_event, filePath: string) => {
+    try {
+      if (!fs.existsSync(filePath)) {
+        return { success: false, error: 'File not found' };
+      }
+
+      const stats = fs.statSync(filePath);
+      const buffer = fs.readFileSync(filePath);
+      
+      // Check if it's a valid ESP/ESM file (TES4 header)
+      const magic = buffer.toString('ascii', 0, 4);
+      if (magic !== 'TES4') {
+        return { success: false, error: 'Not a valid ESP/ESM file (missing TES4 header)' };
+      }
+
+      // Read basic header information
+      const fileSize = stats.size;
+      const recordCount = buffer.readUInt32LE(20); // Approximate record count from header
+      
+      // Check for common issues
+      const issues: any[] = [];
+      
+      // Issue: File size check
+      if (fileSize > 250 * 1024 * 1024) {
+        issues.push({
+          id: 'esp-size',
+          severity: 'error',
+          message: 'ESP file exceeds 250MB limit',
+          technicalDetails: `File size: ${(fileSize / 1024 / 1024).toFixed(2)}MB. ESP files have a 250MB limit in Fallout 4.`,
+          fixAvailable: false
+        });
+      } else if (fileSize > 200 * 1024 * 1024) {
+        issues.push({
+          id: 'esp-size-warning',
+          severity: 'warning',
+          message: 'ESP file approaching size limit',
+          technicalDetails: `File size: ${(fileSize / 1024 / 1024).toFixed(2)}MB. Consider optimizing or splitting the plugin.`,
+          fixAvailable: false
+        });
+      }
+
+      // Issue: Large record count (approximate)
+      if (recordCount > 100000) {
+        issues.push({
+          id: 'esp-records',
+          severity: 'warning',
+          message: 'Very large number of records',
+          technicalDetails: `Approximately ${recordCount} records. Large plugins can cause performance issues.`,
+          fixAvailable: false
+        });
+      }
+
+      return {
+        success: true,
+        fileSize,
+        recordCount,
+        issues,
+        isValid: true
+      };
+    } catch (e: any) {
+      return { success: false, error: String(e?.message || e) };
+    }
   });
 
   // --- Workshop: Browse directory and list files ---

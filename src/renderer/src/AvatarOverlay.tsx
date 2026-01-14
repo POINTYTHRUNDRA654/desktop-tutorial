@@ -4,7 +4,31 @@ import { useLive } from './LiveContext';
 
 // Floating overlay for persistent avatar presence
 const AvatarOverlay: React.FC = () => {
-  const { mode, isActive } = useLive();
+  const { mode, isActive, connect, disconnect } = useLive();
+
+  const handleClick = async () => {
+    console.log('[AvatarOverlay] Avatar clicked, isActive:', isActive);
+    try {
+      if (!connect || !disconnect) {
+        console.error('[AvatarOverlay] Connect or disconnect functions not available');
+        alert('Voice chat functions not available. Please refresh the app.');
+        return;
+      }
+      
+      if (isActive) {
+        console.log('[AvatarOverlay] Calling disconnect...');
+        disconnect();
+      } else {
+        console.log('[AvatarOverlay] Calling connect...');
+        await connect();
+        console.log('[AvatarOverlay] Connect completed successfully');
+      }
+    } catch (err: any) {
+      console.error('[AvatarOverlay] Click handler error:', err);
+      console.error('[AvatarOverlay] Error stack:', err?.stack);
+      alert(`Voice chat error: ${err?.message || 'Unknown error'}`);
+    }
+  };
 
   // Animate or highlight when avatar is active or speaking
   const borderColor = mode === 'speaking' ? '#00ff99' : '#00d000';
@@ -12,6 +36,7 @@ const AvatarOverlay: React.FC = () => {
 
   return (
     <div
+      onClick={handleClick}
       style={{
         position: 'fixed',
         bottom: 32,
@@ -30,7 +55,7 @@ const AvatarOverlay: React.FC = () => {
         cursor: 'pointer',
         userSelect: 'none',
       }}
-      title="Mossy is with you!"
+      title={isActive ? "Click to disconnect" : "Click to start live voice chat"}
     >
       <AvatarCore showRings={false} className="w-full h-full" />
     </div>

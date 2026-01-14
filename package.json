@@ -1,8 +1,8 @@
 {
-  "name": "volttech-desktop",
+  "name": "mossy-desktop",
   "private": true,
-  "version": "0.1.0",
-  "description": "Volt Tech Desktop - Desktop wrapper for Volt Tech web application with program detection",
+  "version": "3.0.0",
+  "description": "Mossy v3.0 - Production-ready Fallout 4 modding assistant with AI, file analysis, asset optimization, and tool integration",
   "main": "dist-electron/electron/main.js",
   "author": "POINTYTHRUNDRA654",
   "license": "MIT",
