@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { GoogleGenAI } from "@google/genai";
+// import { GoogleGenAI } from "@google/genai"; // DISABLED - ES module import broken
 import { LayoutDashboard, Zap, Clock, Shield, Activity, Star, ArrowRight, MessageSquare, Terminal, Aperture, GitBranch, Cpu, AlertTriangle, Calendar, Bell, Gamepad2, Package, Library, Bug, Binary, BookOpen, PlayCircle, PauseCircle, CheckCircle2 } from 'lucide-react';
 import PipBoyHeader from './PipBoyHeader';
 import AvatarCore from './AvatarCore';

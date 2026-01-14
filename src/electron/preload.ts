@@ -26,6 +26,9 @@ const IPC_CHANNELS = {
   OPEN_PROGRAM: 'open-program',
   OPEN_EXTERNAL: 'open-external',
   GET_TOOL_VERSION: 'get-tool-version',
+  GET_SETTINGS: 'get-settings',
+  SET_SETTINGS: 'set-settings',
+  SETTINGS_UPDATED: 'settings-updated',
   VAULT_RUN_TOOL: 'vault-run-tool',
   VAULT_SAVE_MANIFEST: 'vault-save-manifest',
   VAULT_LOAD_MANIFEST: 'vault-load-manifest',
@@ -64,6 +67,27 @@ const electronAPI = {
    */
   detectPrograms: (): Promise<InstalledProgram[]> => {
     return ipcRenderer.invoke(IPC_CHANNELS.DETECT_PROGRAMS);
+  },
+
+  /**
+   * Get settings from Electron store
+   */
+  getSettings: (): Promise<any> => {
+    return ipcRenderer.invoke(IPC_CHANNELS.GET_SETTINGS);
+  },
+
+  /**
+   * Update settings in Electron store
+   */
+  setSettings: (settings: any): Promise<void> => {
+    return ipcRenderer.invoke(IPC_CHANNELS.SET_SETTINGS, settings);
+  },
+
+  /**
+   * Listen for settings updates
+   */
+  onSettingsUpdated: (callback: (settings: any) => void): void => {
+    ipcRenderer.on(IPC_CHANNELS.SETTINGS_UPDATED, (_event, settings) => callback(settings));
   },
 
   /**
@@ -271,10 +295,13 @@ const electronAPI = {
 /**
  * Expose the API to the renderer process via contextBridge
  * This makes it available as window.electron.api in the renderer
+ * Also exposed as window.electronAPI for compatibility
  */
 contextBridge.exposeInMainWorld('electron', {
   api: electronAPI,
 });
+
+contextBridge.exposeInMainWorld('electronAPI', electronAPI);
 
 /**
  * Security Notes:
