@@ -15,30 +15,29 @@ export const BlenderAnimationGuide: React.FC = () => {
   const sections: Section[] = [
     {
       id: 'overview',
-      title: 'Fallout 4 Animation Pipeline Overview',
+      title: 'Fallout 4 Animation Pipeline Overview (2026 Standards)',
       icon: <BookOpen className="w-5 h-5" />,
-      content: `The Fallout 4 animation pipeline requires specific workflows:\n\n1. Blender (3.x+) → Animation creation/rigging\n2. NifSkope → Export to NIF format\n3. Fallout 4 → In-engine testing\n\nKey constraint: FO4 uses a FIXED skeleton (you cannot add/remove bones)\nKey requirement: All animations must match FO4 skeleton EXACTLY`,
+      content: `The modern Fallout 4 animation pipeline uses Blender 4.1+: \n\n1. Blender (4.1+) → Animation creation using PyNifly or FBX\n2. Havok Content Tools 2014 → Build HKX (2010.2.0-r1)\n3. HKXPackUI → Pack for Fallout 4\n\nKey constraint: Do NOT rename deform bones in vanilla skeletons.\nKey requirement: All animations must be 30 FPS for correct game playback.`,
       steps: [
-        'Import FO4 skeleton rig into Blender',
-        'Create animation on the skeleton',
-        'Validate bone hierarchy and names',
-        'Export to NIF format via custom script',
-        'Import into Fallout 4 and test'
+        'Import FO4 skeleton rig into Blender via PyNifly',
+        'Create animation at 30 FPS',
+        'Annotate events with Pose Markers',
+        'Export as FBX with Only Deform Bones',
+        'Build HKX for FO4 2010.2.0-r1 profile'
       ]
     },
     {
       id: 'import-skeleton',
       title: 'Importing FO4 Skeleton into Blender',
       icon: <Zap className="w-5 h-5" />,
-      content: `Steps to import the Fallout 4 skeleton:\n\n1. Source: Extract skeleton from vanilla game (usually CME_Rigging.nif)\n2. Tool: Use Better Blender 3 Add-on (B3DAN)\n3. Process:\n   - Install B3DAN Blender add-on\n   - File → Import → NetImmerse/Gamebryo (.nif)\n   - Select skeleton NIF from game files\n   - Set scale: 0.1 (FO4 uses 10x Blender scale)\n\n4. Result: Full skeleton with bone names, constraints, shape keys\n\nCommon issue: Importing at wrong scale causes animations to look stretched/compressed`,
+      content: `Steps to import the Fallout 4 skeleton:\n\n1. Tool: Use PyNifly (latest release)\n2. Process:\n   - File → Import → NetImmerse/Gamebryo (.nif)\n   - Select skeleton NIF from Data\\Meshes\\Actors\\Character\\_Skeleton.nif\n   - Set Scale: 1.0 (PyNifly uses Meters natively)\n\n3. Result: Full skeleton with bone names and constraints\n\nCommon issue: Using 0.1 scale with modern exporters. Stick to 1.0 (Meters) for Blender 4.x.`,
       steps: [
-        'Download Better Blender 3 add-on',
-        'Enable add-on in Blender preferences',
-        'Navigate to FO4 data\\meshes\\actors\\character (locate skeleton)',
+        'Download and install PyNifly Blender plugin',
+        'Navigate to FO4 data\\meshes\\actors\\character',
         'File → Import → NIF',
         'Select skeleton.nif',
-        'Verify scale setting: 0.1',
-        'Import and confirm all 60+ bones present'
+        'Verify scale setting: 1.0 (Meters)',
+        'Import and confirm all bones (Root, COM, Pelvis, etc.)'
       ]
     },
     {
@@ -76,51 +75,40 @@ export const BlenderAnimationGuide: React.FC = () => {
       id: 'animation-creation',
       title: 'Creating Animations',
       icon: <CheckCircle className="w-5 h-5" />,
-      content: `Step-by-step animation workflow:\n\n1. Setup:\n   - Import skeleton (already rigged)\n   - Set timeline length: Your animation duration (e.g., 60 frames = 2.5 sec at 24fps)\n   - Frame rate: Set to 24 fps (Fallout 4 standard)\n\n2. Keyframing:\n   - Select armature (not mesh)\n   - Switch to Pose mode (Tab)\n   - Rotate bones to create keyframes\n   - Press 'i' to insert keyframe at each pose\n   - Move to next frame (arrow key or frame number)\n   - Adjust bone rotation and keyframe again\n\n3. Loop handling:\n   - First frame should match last frame (for looping animations)\n   - Check your animation curves in Graph Editor\n   - Add ease-in/ease-out curves for smooth transitions\n\n4. Common pitfall: Animating root bone → will offset character position in-game\n   Solution: Only animate NPC Root or lower bones`,
+      content: `Step-by-step animation workflow:\n\n1. Setup:\n   - Import skeleton (already rigged)\n   - Set timeline length: Your animation duration (e.g., 90 frames = 3.0 sec at 30fps)\n   - Frame rate: Set to 30 fps (Fallout 4 Standard)\n\n2. Keyframing:\n   - Select armature (not mesh)\n   - Switch to Pose mode (Tab)\n   - Rotate bones to create keyframes\n   - Press 'i' to insert keyframe at each pose\n\n3. Annotations:\n   - Add Pose Markers (Shift+Alt+M) for annotations\n   - Common: "Hit" for impact, "FootstepL" for audio\n\n4. Common pitfall: Animating root bone → will offset character position in-game.\n   Solution: Animate NPC Root for movement, keep Root at origin.`,
       steps: [
         'Set timeline: 1 - [frame count]',
-        'Set frame rate: 24 fps (Output → FPS: 24)',
+        'Set frame rate: 30 fps (Output → FPS: 30)',
         'Select armature, Tab to Pose mode',
-        'Press Play to preview',
-        'Create first pose',
-        'Press \'i\' on each bone to insert keyframe',
-        'Move timeline forward',
-        'Adjust bones and keyframe again',
-        'Repeat until animation complete',
-        'For loop: make first frame = last frame',
-        'Preview in timeline'
+        'Create poses and keyframe (I)',
+        'Add Pose Markers for annotations',
+        'Verify first and last frames match for loops'
       ]
     },
     {
       id: 'nif-export',
-      title: 'Exporting to NIF Format',
+      title: 'Exporting to HKX/NIF',
       icon: <Zap className="w-5 h-5" />,
-      content: `Exporting animations from Blender to NIF:\n\n1. Prep:\n   - Select ONLY the armature (not the mesh)\n   - Make sure all keyframes are baked\n   - Check timeline: No timeline data outside animation range\n\n2. Export process:\n   - File → Export → NetImmerse/Gamebryo (.nif)\n   - Location: FO4 data\\meshes\\animations\\[modname]\n   - Settings:\n     ✓ Export animation: YES\n     ✓ Animation: [your_animation_name]\n     ✓ Scale: 0.1 (match import scale)\n     ✓ Export skeleton: NO (if exporting animation only)\n\n3. Naming:\n   - Animation filename should match bone groups\n   - Example: idle.nif, idle_happy.nif, attack_left.nif\n\n4. Verification:\n   - Open exported NIF in NifSkope\n   - Check animation list (NiAnimationData)\n   - Verify bone transforms exist\n   - Check no extra bones were included`,
+      content: `Exporting from Blender 4.1 to Fallout 4:\n\n1. Prep:\n   - Select Armature\n   - Ensure all keyframes are on deform bones\n\n2. Export process:\n   - File → Export → FBX (.fbx)\n   - Settings:\n     ✓ Only Deform Bones: YES\n     ✓ Bake Animation: YES\n     ✓ Scale: 1.0\n\n3. Havok Build:\n   - Open Havok Content Tools 2014\n   - File → Import FBX\n   - Filter: Export to HKX\n   - Profile: Fallout 4 (2010.2.0-r1)\n\n4. Verification:\n   - Open final HKX in HKXPackUI\n   - Check for annotation list`,
       steps: [
-        'Select armature only (deselect mesh)',
-        'Bake all keyframes (Object → Bake Animation)',
-        'File → Export → NIF',
-        'Choose export directory',
-        'Settings: Animation=YES, Scale=0.1',
-        'Export',
-        'Open in NifSkope to verify',
-        'Check NiAnimationData node',
-        'Test in-game'
+        'Select armature',
+        'File → Export → FBX',
+        'Check Only Deform Bones',
+        'Open Havok Content Tools',
+        'Build as HKX for FO4 profile',
+        'Pack using HKXPackUI'
       ]
     },
     {
       id: 'validation',
       title: 'Validation Checklist',
       icon: <CheckCircle className="w-5 h-5" />,
-      content: `Before importing into Fallout 4, verify:\n\n✓ Bone names: Exact match to FO4 skeleton (case-sensitive)\n✓ No extra bones: Only 60+ original FO4 bones\n✓ Scale: All export at 0.1 scale\n✓ Root bone: Not animated (world anchor)\n✓ NPC Root: Drives movement only (not rotation)\n✓ Loop detection: First frame = last frame (if looping animation)\n✓ Frame rate: 24 fps\n✓ Keyframes: No gaps or floating keyframes outside range\n✓ Weight painting: No bones with zero influence on mesh\n✓ NIF export: Animation data present in NifSkope\n✓ File location: Correct path in Data\\Meshes\\Animations\\`,
+      content: `Before importing into Fallout 4, verify:\n\n✓ Bone names: Exact match to FO4 skeleton (case-sensitive)\n✓ No extra bones: Only deform bones exported\n✓ Scale: 1.0 (Meters)\n✓ Root bone: at 0,0,0\n✓ NPC Root: check for correct movement translation\n✓ Loop detection: First frame = last frame (if looping)\n✓ Frame rate: 30 fps\n✓ Weight painting: Normalization check (Sum = 1.0)\n✓ HKX Build: Using profile 2010.2.0-r1`,
       steps: [
-        'Run validation tool (see Animation Validator)',
-        'Fix any errors reported',
-        'Export to NIF',
-        'Open NIF in NifSkope',
-        'Expand NiAnimationData',
-        'Verify bone controllers exist',
-        'Test in Creation Kit',
+        'Run Mossy Animation Validator',
+        'Fix any weight normalization errors',
+        'Export to FBX',
+        'Check annotations in HKXPackUI',
         'Test in-game on actual character'
       ]
     },
@@ -128,20 +116,19 @@ export const BlenderAnimationGuide: React.FC = () => {
       id: 'common-errors',
       title: 'Common Errors & Solutions',
       icon: <AlertCircle className="w-5 h-5" />,
-      content: `Problem: Animation doesn't play in-game\nSolution: Check NifSkope for NiAnimationData node. If missing, re-export with "Export Animation = YES"\n\nProblem: Bones distort / mesh looks wrong\nSolution: Weight painting issue. Switch to Weight Paint mode, select problem bone, repaint influence smoothly\n\nProblem: Character moves wrong position\nSolution: You animated Root or NPC Root position. Only animate NPC Root rotation, not translation\n\nProblem: Animation loops badly (jerky transition)\nSolution: First frame ≠ last frame. Copy first frame pose to last frame\n\nProblem: NIF export fails\nSolution: Check for duplicate bone names or non-standard bones. Delete any custom bones added\n\nProblem: Missing bones in skeleton\nSolution: Re-import skeleton, ensure scale = 0.1. Some bones are children and not visible at root\n\nProblem: Animation is too fast/slow in-game\nSolution: Fallout 4 plays at 24 fps. If your animation is 30 fps, re-frame it to 24 fps`
+      content: `Problem: Animation plays too fast/slow\nSolution: Check scene FPS. FO4 expects 30 FPS. Re-bake animations at 30 FPS.\n\nProblem: Mesh explodes or stretches\nSolution: Weight normalization error or extra bones. Ensure sum of weights is 1.0 and export ONLY deform bones.\n\nProblem: Character stays static\nSolution: Missing annotations or incorrect HKX build profile. Use 2010.2.0-r1.\n\nProblem: T-Pose in-game\nSolution: Skeleton mismatch. Ensure armature wasn't renamed and bone hierarchy is intact.\n\nProblem: FBX Import fails in Havok\nSolution: Use Binary FBX 2014/2015 format instead of ASCII.`
     },
     {
       id: 'tools',
-      title: 'Required Tools & Add-ons',
+      title: 'Required Production Tools (2026)',
       icon: <Zap className="w-5 h-5" />,
-      content: `Essential tools for FO4 animation rigging:\n\n1. Blender 3.x+ (free, open source)\n   - Download: blender.org\n   - Recommended: 3.6 LTS (stable)\n\n2. Better Blender 3 Add-on (B3DAN)\n   - Purpose: NIF import/export\n   - Download: Nexus Mods (search "Better Blender 3")\n   - Install: Extract to Blender\\scripts\\addons\n\n3. NifSkope (free)\n   - Purpose: Verify NIF structure\n   - Download: Nexus Mods\n   - Use: Open exported animations to validate\n\n4. Creation Kit (free, Bethesda)\n   - Purpose: In-editor animation testing\n   - Download: Steam (Fallout 4 Tools)\n   - Use: Import animation NIF, test on character\n\n5. Optional: Animation Validator (Mossy built-in)\n   - Checks for common rigging errors before export`,
+      content: `Essential tools for modern FO4 modding:\n\n1. Blender 4.1+\n   - Support for modern geometry and PBR workflows.\n\n2. PyNifly Blender Add-on\n   - Best-in-class NIF import/export for modern Blender.\n\n3. Havok Content Tools 2014 (64-bit)\n   - Required for converting FBX to HKX animations.\n\n4. HKXPackUI\n   - Required for packing animations into the final format.\n\n5. BAE (Bethesda Archive Extractor)\n   - For extracting vanilla assets to use as references.`,
       steps: [
-        'Download Blender 3.6 LTS',
-        'Install Better Blender 3 add-on',
-        'Download NifSkope',
-        'Download Creation Kit from Steam',
-        'Set up project folder structure',
-        'Create test animation'
+        'Install Blender 4.1+',
+        'Enable PyNifly in Preferences',
+        'Set up Havok Content Tools paths',
+        'Extract skeleton.nif for reference',
+        'Begin first project at 30 FPS'
       ]
     }
   ];

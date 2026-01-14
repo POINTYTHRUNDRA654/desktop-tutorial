@@ -1,6 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { MessageSquare, Send, Sparkles, FileCode, HelpCircle, Lightbulb, Bot } from 'lucide-react';
 import { getCompatibilityTips, getModByName, checkConflicts, generateTailoredConflicts } from './PopularModsKnowledge';
+import { FO4KnowledgeBase } from '../../shared/FO4KnowledgeBase';
+import { LocalAIEngine } from './LocalAIEngine';
+import { getFullSystemInstruction } from './MossyBrain';
 
 interface Message {
   id: string;
@@ -73,27 +76,54 @@ export const AICopilot: React.FC = () => {
     addMessage('user', userMessage);
     setThinking(true);
 
-    // Simulate AI response (in real implementation, this calls Claude API)
-    setTimeout(() => {
-      const response = generateResponse(userMessage);
-      addMessage('assistant', response.content, response.context);
+    // Record action for ML pattern learning
+    LocalAIEngine.recordAction('chat_query', { query: userMessage });
+
+    try {
+      // Check if user is asking for FO4 specific knowledge first (Hybrid Engine)
+      const staticResponse = generateResponse(userMessage);
+      
+      // If we have a local ML service, use it for smarter, non-fake responses
+      const ollamaActive = await LocalAIEngine.checkOllama();
+      
+      if (ollamaActive) {
+        const sysPrompt = getFullSystemInstruction("You are currently using the LOCAL OLLAMA ENGINE for real machine learning. No simulated responses allowed.");
+        const localResponse = await LocalAIEngine.generateResponse(userMessage, sysPrompt);
+        
+        // Combine static knowledge with ML intelligence
+        if (staticResponse.content.includes("I detected") || staticResponse.content === "") {
+             addMessage('assistant', localResponse.content, localResponse.context);
+        } else {
+             const mergedContent = `**[Local ML Analysis]**\n${localResponse.content}\n\n---\n**[Reference Knowledge]**\n${staticResponse.content}`;
+             addMessage('assistant', mergedContent, { ...staticResponse.context, source: 'hybrid_ml' });
+        }
+      } else {
+        // Fallback to static responses if Ollama is missing
+        addMessage('assistant', staticResponse.content, staticResponse.context);
+      }
+    } catch (error) {
+       addMessage('assistant', "I encountered an error connecting to my local neural networks. Please ensure your AI services (Ollama) are running.");
+    } finally {
       setThinking(false);
-    }, 1500);
+    }
   };
 
   const generateResponse = (query: string): { content: string; context?: any } => {
     const lowerQuery = query.toLowerCase();
 
-    // Animation/Rigging help
+    // Animation/Rigging help (Enhanced with real knowledge from FO4KnowledgeBase)
     if (lowerQuery.includes('animation') || lowerQuery.includes('rigging') || lowerQuery.includes('skeleton') || lowerQuery.includes('blender') && (lowerQuery.includes('anim') || lowerQuery.includes('rig'))) {
+      const blenderInfo = FO4KnowledgeBase.blenderToFO4;
+      const toolsList = blenderInfo.requiredTools.map(t => `- ${t}`).join('\n');
+      const rulesList = blenderInfo.riggingSkinning.rules.map(r => `- ${r}`).join('\n');
+
       return {
-        content: `Great question! Animation and skeletal rigging is one of the most challenging aspects of Fallout 4 modding. I've prepared comprehensive tools to help:\n\n📚 **Blender Animation Guide** - Complete pipeline from Blender to FO4\n- Setup and bone naming conventions\n- Custom character rigging\n- Weight painting techniques\n- Animation creation workflow\n- NIF export settings\n- Common errors and solutions\n\n🦴 **Skeleton Reference** - Interactive FO4 bone hierarchy\n- Visual bone structure (60+ bones)\n- Weightable vs non-weightable bones\n- Weight painting tips per bone\n- Search and filter bones\n\n✅ **Animation Validator** - Pre-export checklist\n- Skeleton structure validation\n- Weight painting quality checks\n- Export settings verification\n- NifSkope inspection guide\n- In-game testing steps\n\n📋 **Custom Rigging Checklist** - Step-by-step walkthrough\n- 9 phases from setup to in-game testing\n- Detailed instructions for each step\n- Tips and solutions for common issues\n- Save progress as you work\n\n⚙️ **Export Settings Helper** - Exact settings for every scenario\n- 4 export scenarios with correct checkbox settings\n- Pre-export checklist\n- Common mistakes for each scenario\n- Master mistake reference\n\n🚨 **Rigging Mistakes Gallery** - Learn from others' errors\n- 12 documented rigging mistakes\n- Visual symptoms and root causes\n- Step-by-step fixes\n- Prevention tips\n\nStart with the Blender Animation Guide for overview, use Export Settings Helper when ready to export, check Mistakes Gallery if something goes wrong!`,
+        content: `I have extensive knowledge of the Blender 4.1 to Fallout 4 workflow! For creating mods and animations, you should follow these production-grade standards:\n\n### 🛠️ Required Production Tools\n${toolsList}\n\n### 📐 Scene Configuration\n- **Units:** ${blenderInfo.sceneSetup.units}\n- **Scale:** ${blenderInfo.sceneSetup.scale}\n- **FPS:** ${blenderInfo.sceneSetup.fps}\n- **Orientation:** ${blenderInfo.sceneSetup.orientation}\n\n### 🦴 Rigging & Skinning Rules\n${rulesList}\n\n### 🔄 Standard Workflow\n1. **Setup:** Use Meters and 1.0 scale with Z Up.\n2. **Import:** Use PyNifly to bring in the vanilla skeleton (${blenderInfo.riggingSkinning.skeletonNames.human}).\n3. **Animate:** Use Pose Markers for event annotations like "Hit" or "Footstep".\n4. **Export:** Export via PyNifly or FBX (2010.2.0-r1 build profile).\n\nWould you like me to walk you through a specific part of this pipeline, such as setting up the skeleton or configuring Havok annotations?`,
         context: {
           suggestions: [
             { label: 'Blender Animation Guide', route: '/animation-guide' },
             { label: 'Skeleton Reference', route: '/skeleton-reference' },
-            { label: 'Export Settings Helper', route: '/export-settings' },
-            { label: 'Rigging Mistakes Gallery', route: '/rigging-mistakes' }
+            { label: 'Export Settings Helper', route: '/export-settings' }
           ]
         }
       };
