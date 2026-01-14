@@ -3088,6 +3088,35 @@ export const ChatInterface: React.FC = () => {
       } else if (name === 'control_interface') {
           window.dispatchEvent(new CustomEvent('mossy-control', { detail: { action: args.action, payload: { path: args.target } } }));
           result = `Navigating to ${args.target}`;
+      } else if (name === 'hive_create_project') {
+          try {
+              const savedProjects = localStorage.getItem('hive_projects');
+              const projects = savedProjects ? JSON.parse(savedProjects) : [];
+              
+              const newProject = {
+                  id: Date.now().toString(),
+                  name: args.name,
+                  description: args.description,
+                  version: args.version || '0.1.0',
+                  type: args.type || 'quest',
+                  status: 'development',
+                  author: 'You',
+                  files: ['main.psc'],
+                  dependencies: [{ name: 'F4SE', version: '0.6.23', required: true }],
+                  created: Date.now(),
+                  workspacePath: `C:/Games/Fallout 4/Data/Mossy/${args.name.replace(/\s+/g, '_')}`
+              };
+
+              projects.push(newProject);
+              localStorage.setItem('hive_projects', JSON.stringify(projects));
+              
+              // Notify components that projects have changed
+              window.dispatchEvent(new CustomEvent('hive-projects-updated'));
+              
+              result = `**Project Created in The Hive!**\n\n**Name:** ${args.name}\n**Type:** ${args.type}\n**Status:** In Development\n\nI have initialized the workspace. You can now access this project in 'The Hive' module for build management and deployment.`;
+          } catch (e) {
+              result = `**Error:** Failed to create project in The Hive. ${e}`;
+          }
       } else if (name === 'scan_hardware') {
           const newProfile: SystemProfile = { os: 'Windows', gpu: 'NVIDIA RTX 4090', ram: 64, blenderVersion: '4.5.5', isLegacy: false };
           setProfile(newProfile);

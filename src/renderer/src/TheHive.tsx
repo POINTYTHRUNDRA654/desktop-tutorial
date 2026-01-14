@@ -12,6 +12,7 @@ interface ModProject {
     files: string[];
     dependencies: Dependency[];
     created: number;
+    workspacePath?: string;
 }
 
 interface Dependency {
@@ -85,9 +86,17 @@ const TheHive: React.FC = () => {
     const [buildRunning, setBuildRunning] = useState(false);
 
     // Load from localStorage
-    useEffect(() => {
+    const loadProjects = () => {
         const saved = localStorage.getItem('hive_projects');
         if (saved) setProjects(JSON.parse(saved));
+    };
+
+    useEffect(() => {
+        loadProjects();
+
+        // Listen for external updates (e.g. from Mossy AI)
+        window.addEventListener('hive-projects-updated', loadProjects);
+        return () => window.removeEventListener('hive-projects-updated', loadProjects);
     }, []);
 
     useEffect(() => {
@@ -106,7 +115,8 @@ const TheHive: React.FC = () => {
             author: 'You',
             files: ['main.psc'],
             dependencies: [{ name: 'F4SE', version: '0.6.23', required: true }],
-            created: Date.now()
+            created: Date.now(),
+            workspacePath: `C:/Games/Fallout 4/Data/Mossy/${newProjectName.replace(/\s+/g, '_')}`
         };
         setProjects([...projects, newProject]);
         setSelectedProject(newProject);
