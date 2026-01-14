@@ -24,6 +24,7 @@ export const IPC_CHANNELS = {
   OPEN_PROGRAM: 'open-program',
   OPEN_EXTERNAL: 'open-external',
   GET_TOOL_VERSION: 'get-tool-version',
+  GET_RUNNING_PROCESSES: 'get-running-processes',
   // Vault integration
   VAULT_RUN_TOOL: 'vault-run-tool',
   VAULT_SAVE_MANIFEST: 'vault-save-manifest',
@@ -64,6 +65,7 @@ export interface ElectronAPI {
   openProgram: (path: string) => Promise<void>;
   openExternal: (path: string) => Promise<void>;
   getToolVersion: (path: string) => Promise<string>;
+  getRunningProcesses: () => Promise<any[]>;
   getSystemInfo: () => Promise<{os: string; cpu: string; gpu: string; ram: number; cores: number; arch: string; vram?: number; blenderVersion?: string; storageFreeGB?: number; storageTotalGB?: number; displayResolution?: string}>;
   // Vault
   runTool: (payload: { cmd: string; args?: string[]; cwd?: string }) => Promise<{ exitCode: number; stdout: string; stderr: string }>;

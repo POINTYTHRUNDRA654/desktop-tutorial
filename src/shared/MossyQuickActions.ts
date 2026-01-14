@@ -68,6 +68,24 @@ export const MossyQuickActions = {
     "sort load order": {
       tools: ["loot_sort_load_order"],
       followUp: "Running LOOT to optimize load order..."
+    },
+
+    "import animation": {
+      tools: ["blender_import_fbx"],
+      params: { type: "animation", fps: 30 },
+      followUp: "Importing animation rig at 30 FPS. Ensure scene units are in Meters."
+    },
+
+    "export mesh": {
+      tools: ["blender_export_nif"],
+      params: { type: "BSTriShape", applyTransform: true },
+      followUp: "Exporting mesh as BSTriShape. Verifying vertex weights and material names..."
+    },
+
+    "setup rig": {
+      tools: ["blender_setup_skeleton"],
+      params: { skeleton: "human" },
+      followUp: "Setting up standard Fallout 4 human skeleton (Root/COM/Pelvis)..."
     }
   },
 

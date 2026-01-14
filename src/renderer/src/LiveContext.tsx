@@ -1,5 +1,7 @@
 import React, { createContext, useContext, useState, useRef, useEffect, ReactNode } from 'react';
 import { GoogleGenAI, LiveServerMessage, Modality, Type } from '@google/genai';
+import { getFullSystemInstruction, toolDeclarations } from './MossyBrain';
+import { executeMossyTool } from './MossyTools';
 
 interface LiveContextType {
   isActive: boolean;
@@ -15,6 +17,11 @@ interface LiveContextType {
   updateAvatar: (file: File) => Promise<void>;
   setAvatarFromUrl: (url: string) => Promise<void>;
   clearAvatar: () => void;
+  // Shared Brain State
+  cortexMemory: any[];
+  setCortexMemory: (val: any[]) => void;
+  projectData: any | null;
+  setProjectData: (val: any) => void;
 }
 
 const LiveContext = createContext<LiveContextType | undefined>(undefined);
@@ -121,12 +128,22 @@ const decodeAudioData = async (base64String: string, ctx: AudioContext): Promise
 
 export const LiveProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [isActive, setIsActive] = useState(false);
+  const isActiveRef = useRef(false);
   const [isMuted, setIsMuted] = useState(false);
   const [status, setStatus] = useState('Ready');
   const [volume, setVolume] = useState(0);
   const [mode, setMode] = useState<'idle' | 'listening' | 'processing' | 'speaking'>('idle');
   const [transcription, setTranscription] = useState('');
   const [customAvatar, setCustomAvatar] = useState<string | null>(null);
+
+  // Cortex & Project Tracking
+  const [cortexMemory, setCortexMemory] = useState<any[]>([]);
+  const [projectData, setProjectData] = useState<any | null>(null);
+
+  const setLiveActive = (val: boolean) => {
+    setIsActive(val);
+    isActiveRef.current = val;
+  };
 
   const isMutedRef = useRef(false);
   const audioContextRef = useRef<AudioContext | null>(null);
@@ -216,7 +233,7 @@ export const LiveProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     sourcesRef.current.clear();
     nextStartTimeRef.current = 0;
 
-    setIsActive(false);
+    setLiveActive(false);
     setStatus('Disconnected');
     setMode('idle');
   };
@@ -243,110 +260,230 @@ export const LiveProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       console.log('[LiveContext] Creating live session...');
 
       const sessionPromise = ai.live.connect({
-        model: 'gemini-2.5-flash-native-audio-preview-12-2025',
+        model: 'gemini-2.0-flash-exp',
         config: {
           responseModalities: [Modality.AUDIO],
           speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: 'Zephyr' } } },
-          systemInstruction: 'You are Mossy, a sentient AI assistant for Fallout 4 modding.',
+          tools: toolDeclarations as any,
+          systemInstruction: { parts: [{ text: getFullSystemInstruction(cortexMemory) }] },
         },
         callbacks: {
           onopen: () => {
             console.log('[LiveContext] Session opened');
             setStatus('Online');
-            setIsActive(true);
+            setLiveActive(true);
             setMode('listening');
           },
 
           onmessage: async (msg: LiveServerMessage) => {
+            console.log('[LiveContext] Message received:', msg);
+
+            if (msg.toolCall) {
+              console.log('[LiveContext] Tool call received:', msg.toolCall);
+              const responses: any[] = [];
+              
+              for (const call of msg.toolCall.functionCalls) {
+                const { name, args, id } = call;
+                try {
+                  const isBlenderLinked = localStorage.getItem('mossy_blender_active') === 'true';
+                  // Mock context for tool execution
+                  const toolContext = {
+                    isBlenderLinked,
+                    setProfile: () => {},
+                    setProjectData,
+                    setProjectContext: () => {},
+                    setShowProjectPanel: () => {}
+                  };
+                  
+                  const { result, error } = await executeMossyTool(name, args, toolContext);
+                  responses.push({
+                    name,
+                    id,
+                    response: { result: error || result }
+                  });
+                } catch (err) {
+                  responses.push({
+                    name,
+                    id,
+                    response: { result: `Error: ${err}` }
+                  });
+                }
+              }
+
+              if (responses.length > 0 && sessionRef.current) {
+                sessionRef.current.sendToolResponse({
+                  functionResponses: responses
+                });
+              }
+            }
+            
+            if (msg.serverContent?.userContent?.parts) {
+              const text = msg.serverContent.userContent.parts
+                .map(p => p.text)
+                .filter(Boolean)
+                .join(' ');
+              if (text) {
+                console.log('[LiveContext] User transcription:', text);
+                setTranscription(text);
+              }
+            }
+
             if (msg.serverContent?.modelTurn?.parts) {
-              const audioPart = msg.serverContent.modelTurn.parts[0];
+              const audioPart = msg.serverContent.modelTurn.parts.find(p => p.inlineData?.data);
+              const textPart = msg.serverContent.modelTurn.parts.find(p => p.text);
+              
+              if (textPart?.text) {
+                console.log('[LiveContext] Model text:', textPart.text);
+              }
+
               if (audioPart?.inlineData?.data && audioContextRef.current && !isMutedRef.current) {
                 setMode('speaking');
                 try {
-                  const buffer = await decodeAudioData(audioPart.inlineData.data, audioContextRef.current);
-                  const source = audioContextRef.current.createBufferSource();
+                  const ctx = audioContextRef.current;
+                  if (ctx.state === 'suspended') await ctx.resume();
+                  
+                  const buffer = await decodeAudioData(audioPart.inlineData.data, ctx);
+                  const source = ctx.createBufferSource();
                   source.buffer = buffer;
-                  source.connect(audioContextRef.current.destination);
+                  source.connect(ctx.destination);
+                  
                   source.onended = () => {
                     sourcesRef.current.delete(source);
                     if (sourcesRef.current.size === 0) setMode('listening');
                   };
+                  
+                  const now = ctx.currentTime;
+                  if (nextStartTimeRef.current < now) {
+                    nextStartTimeRef.current = now + 0.05;
+                  }
+                  
                   source.start(nextStartTimeRef.current);
                   nextStartTimeRef.current += buffer.duration;
                   sourcesRef.current.add(source);
                 } catch (err) {
-                  console.error('Audio decode error:', err);
+                  console.error('[LiveContext] Audio decode error:', err);
                 }
               }
             }
 
             if (msg.serverContent?.interrupted) {
-              sourcesRef.current.forEach(s => s.stop());
+              console.log('[LiveContext] Session interrupted');
+              sourcesRef.current.forEach(s => {
+                try { s.stop(); } catch(e) {}
+              });
               sourcesRef.current.clear();
               nextStartTimeRef.current = 0;
               setMode('listening');
             }
           },
 
-          onclose: () => {
-            console.log('[LiveContext] onclose: Session closed');
+          onclose: (ev) => {
+            console.log('[LiveContext] Session closed:', ev.code, ev.reason);
             disconnect();
           },
 
-          onerror: (err: any) => {
-            console.error('[LiveContext] onerror:', err);
-            setStatus('Error: ' + (err?.message || 'Unknown'));
+          onerror: (err) => {
+            console.error('[LiveContext] Session error:', err);
             disconnect();
           }
         }
       });
 
-      sessionPromise.then((session) => {
-        console.log('[LiveContext] Session resolved');
+      sessionPromise.then(async (session) => {
         sessionRef.current = session;
+        console.log('[LiveContext] Session object acquired');
 
         try {
-          // Capture audio using MediaRecorder and send PCM data
-          if (streamRef.current) {
-            console.log('[LiveContext] Starting MediaRecorder for audio input');
-            const mediaRecorder = new MediaRecorder(streamRef.current, { 
-              mimeType: 'audio/webm;codecs=opus' 
-            });
+          if (streamRef.current && inputContextRef.current) {
+            const ctx = inputContextRef.current;
+            if (ctx.state === 'suspended') await ctx.resume();
             
-            mediaRecorder.ondataavailable = async (event) => {
-              if (event.data.size > 0 && !isMutedRef.current && session) {
-                try {
-                  const arrayBuffer = await event.data.arrayBuffer();
-                  // Convert to base64
-                  const uint8Array = new Uint8Array(arrayBuffer);
-                  let binary = '';
-                  for (let i = 0; i < uint8Array.length; i++) {
-                    binary += String.fromCharCode(uint8Array[i]);
+            const source = ctx.createMediaStreamSource(streamRef.current);
+            
+            try {
+              console.log('[LiveContext] Attempting AudioWorklet capture from: /audio-processor.js');
+              await ctx.audioWorklet.addModule('/audio-processor.js');
+              const workletNode = new AudioWorkletNode(ctx, 'audio-processor');
+              
+              workletNode.port.onmessage = async (event) => {
+                const floatData = event.data;
+                if (!sessionRef.current || isMutedRef.current || !isActiveRef.current) return;
+
+                // Ensure context is running (sometimes browsers suspend if idle)
+                if (ctx.state === 'suspended') await ctx.resume();
+
+                let sum = 0;
+                for (let i = 0; i < floatData.length; i++) sum += floatData[i] * floatData[i];
+                const vol = Math.sqrt(sum / floatData.length) * 100;
+                setVolume(vol);
+
+                if (vol > 0.1) {
+                  console.log('[LiveContext] Sending audio chunk (Worklet), volume:', vol.toFixed(2));
+                  const int16 = new Int16Array(floatData.length);
+                  for (let i = 0; i < floatData.length; i++) {
+                    int16[i] = floatData[i] < 0 ? floatData[i] * 0x8000 : floatData[i] * 0x7FFF;
                   }
-                  
-                  session.sendRealtimeInput({
-                    mediaContent: {
-                      mimeType: 'audio/webm;codecs=opus',
-                      data: btoa(binary)
+                  const base64 = encodeAudioToBase64(int16);
+
+                  const result = session.sendRealtimeInput({
+                    media: {
+                      data: base64,
+                      mimeType: 'audio/pcm;rate=16000'
                     }
-                  }).catch((err: any) => {
-                    console.error('[LiveContext] Send audio error:', err);
                   });
-                } catch (err) {
-                  console.error('[LiveContext] Audio encoding error:', err);
+                  if (result && typeof result.catch === 'function') result.catch(() => {});
                 }
-              }
-            };
-            
-            mediaRecorder.start(100); // Send data every 100ms
-            processorRef.current = mediaRecorder as any;
-            console.log('[LiveContext] MediaRecorder started');
+              };
+
+              const silence = ctx.createGain();
+              silence.gain.value = 0;
+              source.connect(workletNode);
+              workletNode.connect(silence);
+              silence.connect(ctx.destination);
+              processorRef.current = workletNode as any;
+              console.log('[LiveContext] AudioWorklet active');
+
+            } catch (workletErr) {
+              console.warn('[LiveContext] Fallback to Polling:', workletErr);
+              const analyser = ctx.createAnalyser();
+              analyser.fftSize = 2048;
+              source.connect(analyser);
+              
+              const buffer = new Float32Array(analyser.fftSize);
+              const poll = async () => {
+                if (!isActiveRef.current || !sessionRef.current) return;
+                
+                if (ctx.state === 'suspended') await ctx.resume();
+
+                analyser.getFloatTimeDomainData(buffer);
+                let sum = 0;
+                for (let i = 0; i < buffer.length; i++) sum += buffer[i] * buffer[i];
+                const vol = Math.sqrt(sum / buffer.length) * 100;
+                setVolume(vol);
+                
+                if (vol > 0.1 && !isMutedRef.current) {
+                  console.log('[LiveContext] Sending audio chunk, volume:', vol.toFixed(2));
+                  const int16 = new Int16Array(buffer.length);
+                  for (let i = 0; i < buffer.length; i++) {
+                    int16[i] = buffer[i] < 0 ? buffer[i] * 0x8000 : buffer[i] * 0x7FFF;
+                  }
+                  const base64 = encodeAudioToBase64(int16);
+                  const result = session.sendRealtimeInput({
+                    media: { data: base64, mimeType: 'audio/pcm;rate=16000' }
+                  });
+                  if (result && typeof result.catch === 'function') result.catch(() => {});
+                }
+                setTimeout(poll, 128);
+              };
+              poll();
+              processorRef.current = { disconnect: () => source.disconnect() } as any;
+            }
           }
         } catch (err) {
-          console.error('[LiveContext] Audio setup error:', err);
+          console.error('[LiveContext] Audio setup fail:', err);
         }
       }).catch((err) => {
-        console.error('[LiveContext] Connection failed:', err);
+        console.error('[LiveContext] Session start fail:', err);
         disconnect();
       });
 
@@ -354,7 +491,7 @@ export const LiveProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       console.error('[LiveContext] Connect error:', err);
       setStatus('Error: ' + err.message);
       setMode('idle');
-      setIsActive(false);
+      setLiveActive(false);
       disconnect();
     }
   };

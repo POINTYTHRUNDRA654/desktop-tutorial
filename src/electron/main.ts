@@ -10,6 +10,7 @@ import path from 'path';
 import os from 'os';
 import { IPC_CHANNELS } from './types';
 import { detectPrograms, openProgram } from './detectPrograms';
+import { getRunningModdingTools } from './processMonitor';
 import { DesktopShortcutManager } from './desktopShortcut';
 import fs from 'fs';
 import { spawn } from 'child_process';
@@ -133,6 +134,16 @@ function setupIpcHandlers() {
     } catch (error) {
       console.error('Error detecting programs:', error);
       throw error;
+    }
+  });
+
+  // Get running processes handler
+  ipcMain.handle(IPC_CHANNELS.GET_RUNNING_PROCESSES, async () => {
+    try {
+      return await getRunningModdingTools();
+    } catch (error) {
+      console.error('Error getting running processes:', error);
+      return [];
     }
   });
 

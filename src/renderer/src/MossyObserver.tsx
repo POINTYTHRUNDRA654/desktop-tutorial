@@ -207,6 +207,13 @@ const QUIPS: Record<string, string[]> = {
         "Expected BC format selector auto-infers from asset type: normals→BC5, albedo→BC1, alpha→BC3.",
         "Auto-convert toggle on PNG/TGA/JPG→DDS keeps source flexibility while ensuring DDS output when needed."
     ],
+    '/neural-link': [
+        "Neural Link established. I'm monitoring your active modding tools.",
+        "Blender is open? Remember: 1.0 scale and 30 FPS.",
+        "Creation Kit detected. Don't forget to save frequently—and watch for deleted references.",
+        "xEdit link is active. I can help resolve record conflicts in real-time.",
+        "I'm pulse-checking your system resources to ensure stability during asset heavy loads."
+    ],
     '/lorekeeper': [
         "The Lorekeeper manages LOD generation and precombine optimization for large worldspace performance.",
         "LOD assets track source NIF, target directory, LOD pass (lod0-4), texture reduction %, and billboard settings.",

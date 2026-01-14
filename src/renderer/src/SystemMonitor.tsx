@@ -4,6 +4,7 @@ import { Settings as SettingsIcon } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, AreaChart, Area } from 'recharts';
 import { Cpu, HardDrive, Activity, Terminal, Trash2, Search, CheckCircle2, Database, Layers, Radio, ShieldCheck, Zap, History, Archive, FileCode, XCircle, RefreshCw, Save, Clock, RotateCcw, Upload, Download, DownloadCloud, Box, Settings, Hexagon, BrainCircuit, Package, Share2, Users, Key, Globe, Lock, Link, FileText, Copy, Command, Play, HardDriveDownload, Network, Monitor, AlertTriangle, GitBranch, Map, Container } from 'lucide-react';
+import { LocalAIEngine } from './LocalAIEngine';
 
 interface LogEntry {
   id: string;
@@ -425,18 +426,19 @@ const SystemMonitor: React.FC = () => {
       setTesterKeys(prev => [...prev, newKey]);
   };
 
-  const startInstaller = () => {
+  const startInstaller = async () => {
       setShowInstaller(true);
       setInstallStep(1);
       setInstallLog(['> Initializing Setup Wizard v2.4.2', '> Checking Permissions... OK', '> Mounting Local File System...']);
       setFoundTools([]);
 
-      // Enhanced Simulation Sequence
+      // Perform Real AI Service Detection
+      const ollamaActive = await LocalAIEngine.checkOllama();
+
       const scanSequence = [
           { path: 'C:/Windows/System32/nvidia-smi.exe', found: true, name: 'NVIDIA Drivers', cat: 'System' },
-          { path: 'C:/Program Files/Blender Foundation/Blender 2.79/blender.exe', found: Math.random() > 0.5, name: 'Blender 2.79b', cat: 'Creative' },
           { path: 'C:/Program Files/Blender Foundation/Blender 4.5/blender.exe', found: true, name: 'Blender 4.5.5', cat: 'Creative' },
-          { path: 'tcp://localhost:11434', found: true, name: 'Ollama (Active Service)', cat: 'AI' },
+          { path: 'tcp://localhost:11434', found: ollamaActive, name: ollamaActive ? 'Ollama (Active Service)' : 'Ollama (Offline)', cat: 'AI' },
       ];
 
       let i = 0;
