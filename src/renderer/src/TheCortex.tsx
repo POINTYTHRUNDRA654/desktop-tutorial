@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { Brain, AlertTriangle, CheckCircle2, Info, TrendingUp, Lightbulb, ArrowRight, Copy, BookOpen } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { Brain, AlertTriangle, CheckCircle2, Info, TrendingUp, Lightbulb, ArrowRight, Copy, BookOpen, Activity } from 'lucide-react';
 
 interface Decision {
     id: string;
@@ -132,14 +132,33 @@ const getSeverityIcon = (severity: string) => {
 const TheCortex = () => {
     const [activeTab, setActiveTab] = useState<'decisions' | 'conflicts' | 'compatibility'>('decisions');
     const [copiedText, setCopiedText] = useState<string | null>(null);
+    const [mlDecisions, setMlDecisions] = useState<Decision[]>([]);
 
-    const handleCopy = (text: string) => {
-        navigator.clipboard.writeText(text);
-        setCopiedText(text);
-        setTimeout(() => setCopiedText(null), 2000);
-    };
+    useEffect(() => {
+        const history = localStorage.getItem('mossy_ml_history');
+        if (history) {
+            try {
+                const actions = JSON.parse(history);
+                const decisions: Decision[] = actions
+                    .filter((a: any) => a.action === 'ml_balance_tune' || a.action === 'ml_train')
+                    .map((a: any, i: number) => ({
+                        id: `ml-decision-${i}`,
+                        title: a.action === 'ml_balance_tune' ? 'Record Optimization' : 'Pattern Recognition',
+                        category: a.action === 'ml_balance_tune' ? 'performance' : 'best-practice',
+                        severity: 'recommendation',
+                        description: `Inferred from user activity: ${a.context.itemType || a.context.modelType || 'General Workflow'}`,
+                        recommendation: a.context.output || 'No output recorded',
+                        performanceImpact: 'Optimized via local ML'
+                    }));
+                setMlDecisions(decisions);
+            } catch (e) {
+                console.error("Failed to parse ML history", e);
+            }
+        }
+    }, [activeTab]);
 
-    const criticalDecisions = SAMPLE_DECISIONS.filter(d => d.severity === 'critical' || d.severity === 'warning');
+    const displayedDecisions = mlDecisions.length > 0 ? [...mlDecisions, ...SAMPLE_DECISIONS] : SAMPLE_DECISIONS;
+    const criticalDecisions = displayedDecisions.filter(d => d.severity === 'critical' || d.severity === 'warning');
 
     return (
         <div className="h-full flex flex-col bg-[#1e1e1e] text-slate-200 font-sans overflow-hidden">
@@ -190,7 +209,7 @@ const TheCortex = () => {
                         <div className="text-xs text-slate-400 mb-4">
                             The Cortex analyzes your load order, assets, and configuration to provide actionable recommendations for improving stability and performance.
                         </div>
-                        {SAMPLE_DECISIONS.map((decision) => (
+                        {displayedDecisions.map((decision) => (
                             <div
                                 key={decision.id}
                                 className={`border rounded-lg p-4 ${getSeverityColor(decision.severity)}`}

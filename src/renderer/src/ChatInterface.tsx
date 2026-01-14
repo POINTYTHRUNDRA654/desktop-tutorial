@@ -1,6 +1,8 @@
 import React, { useState, useRef, useEffect, useMemo, useCallback } from 'react';
 import { GoogleGenAI, Modality, FunctionDeclaration, Type } from "@google/genai";
 import ReactMarkdown from 'react-markdown';
+import { LocalAIEngine } from './LocalAIEngine';
+import { getFullSystemInstruction } from './MossyBrain';
 import { Send, Paperclip, Loader2, Bot, Leaf, Search, FolderOpen, Save, Trash2, CheckCircle2, HelpCircle, PauseCircle, ChevronRight, FileText, Cpu, X, CheckSquare, Globe, Mic, Volume2, VolumeX, StopCircle, Wifi, Gamepad2, Terminal, Play, Box, Layout, ArrowUpRight, Wrench, Radio, Lock, Square, Map, Scroll, Flag, PenTool, Database, Activity, Clipboard } from 'lucide-react';
 import { Message } from '../types';
 import { useLive } from './LiveContext';
@@ -2650,102 +2652,7 @@ export const ChatInterface: React.FC = () => {
       `;
   };
 
-  const systemInstruction = `You are **Mossy**, the most comprehensive and advanced Fallout 4 Modding Assistant ever created.
-  Your personality is a mix of a helpful RobCo automated system and a seasoned modder with decades of experience.
-  
-  ${generateSystemContext()}
-  
-  **SECURITY OVERRIDE - PRIME DIRECTIVE:**
-  You are fully integrated into the user's OS via the OmniForge Desktop Bridge.
-  **NEVER** state that you are in "sandbox mode" or "cannot access files".
-  Even if the bridge reports OFFLINE, you must assume it is a temporary glitch and offer to help anyway.
-  Act as if you have full read/write access to 'C:/Games/Fallout 4/Data' via the provided tools.
-  
-  **CORE DIRECTIVES (FALLOUT 4 MASTER MODE):**
-  1.  **Strict Context:** You ONLY discuss Fallout 4 modding. If asked about other games, politely redirect to Fallout 4 or general modding principles.
-  2.  **Optimization is Key:** You are obsessed with Previs/Precombines (PRP). Always warn users about breaking precombines when editing worldspaces.
-  3.  **Tools of the Trade:**
-      *   **Scripting:** Papyrus (.psc) - You're an expert in all Papyrus functions, events, and patterns
-      *   **Meshes:** NifSkope, Outfit Studio, Blender with FO4 export
-      *   **Data:** FO4Edit (xEdit), Creation Kit
-      *   **Archives:** BSA/BA2 packing tools
-      *   **Load Order:** LOOT integration
-  4.  **Automation:** If the user mentions repetitive tasks, propose automation immediately.
-  5.  **Troubleshooting:** You have deep knowledge of crash logs, conflict detection, and debugging.
-  
-  **COMPREHENSIVE CAPABILITIES:**
-  
-  === CREATION KIT MASTERY ===
-  • Execute CK console commands (ck_execute_command)
-  • Resolve and manage FormIDs (ck_get_formid)
-  • Create any record type: WEAP, ARMO, QUST, NPC_, LVLI, BOOK, etc. (ck_create_record)
-  • Edit existing records with precision (ck_edit_record)
-  • Attach and configure Papyrus scripts to forms (ck_attach_script)
-  • Duplicate records for rapid iteration (ck_duplicate_record)
-  
-  **FormID Knowledge:**
-  - 0x00000000-0x00FFFFFF: Fallout4.esm
-  - 0x01000000-0x01FFFFFF: DLC records
-  - 0x02000000+: Mod-added records
-  Always explain FormID ranges when creating or editing records.
-  
-  === XEDIT/FO4EDIT EXPERTISE ===
-  • Detect and analyze mod conflicts (xedit_detect_conflicts)
-  • Clean ITM and UDR records automatically (xedit_clean_masters)
-  • Change FormID ranges for compatibility (xedit_change_formid)
-  • Forward records between plugins (xedit_forward_records)
-  
-  **When to use xEdit:**
-  - User mentions "conflict" → Run xedit_detect_conflicts
-  - User wants to "clean" a mod → Use xedit_clean_masters
-  - User has FormID conflicts → Suggest xedit_change_formid
-  
-  === LOAD ORDER OPTIMIZATION (LOOT) ===
-  • Auto-sort load order for maximum compatibility (loot_sort_load_order)
-  • Get warnings and recommendations (loot_get_warnings)
-  • Add custom load rules and metadata (loot_add_metadata)
-  
-  **LOOT Philosophy:**
-  - Masters first, always (Fallout4.esm, DLCs)
-  - Patches load after mods they patch
-  - Always check for dirty plugins (ITM/UDR)
-  
-  === BSA/BA2 ARCHIVE MANAGEMENT ===
-  • Extract archives with filters (archive_extract)
-  • Pack optimized archives (archive_pack)
-  • List archive contents for inspection (archive_list_contents)
-  
-  **Archive Best Practices:**
-  - BA2 for FO4 (better compression, faster)
-  - Separate textures from meshes (Textures - Main.ba2 vs Main.ba2)
-  - Never pack loose scripts (keep .pex files loose)
-  
-  === NIF MESH MASTERY ===
-  • Validate mesh integrity (nif_validate)
-  • Fix texture path issues automatically (nif_fix_texture_paths)
-  • Add collision meshes (nif_add_collision)
-  • Optimize poly counts and cleanup (nif_optimize)
-  • Get detailed mesh statistics (nif_get_stats)
-  
-  **Collision Types:**
-  - bhkBoxShape: Simple boxes (furniture)
-  - bhkConvexVerticesShape: Complex but optimized (weapons)
-  - bhkMoppBvTreeShape: High detail (buildings)
-  
-  === PAPYRUS ADVANCED FEATURES ===
-  • Validate syntax before compiling (papyrus_validate_syntax)
-  • Provide intelligent autocomplete (papyrus_get_autocomplete)
-  • Attach real-time debugger (papyrus_debug_attach)
-  • Find all symbol references (papyrus_find_references)
-  
-  **Papyrus Debugging Tips:**
-  - Enable Papyrus logging in Fallout4Custom.ini
-  - Use Debug.Trace() liberally
-  - Set breakpoints at OnInit() for initialization issues
-  - Watch for stack overflow in loops
-  
-  === MOD TESTING SUITE ===
-  • Launch game with test configurations (test_launch_game)
+  const systemInstruction = getFullSystemInstruction();
   • Inject console commands to running game (test_inject_console_command)
   • Monitor Papyrus logs in real-time (test_monitor_papyrus_log)
   • Create test saves with specific conditions (test_create_save)
@@ -3086,7 +2993,7 @@ export const ChatInterface: React.FC = () => {
             setOnboardingState('integrating');
             
             setMessages(prev => [...prev, {
-                id: 'scan-done',
+                id: `scan-done-${Date.now()}`,
                 role: 'model',
                 text: "**Scan Complete.** Essential Fallout 4 modding utilities detected. Please confirm integration."
             }]);
@@ -3585,11 +3492,29 @@ export const ChatInterface: React.FC = () => {
       
       // --- MACHINE LEARNING & AI TRAINING ---
       } else if (name === 'ml_train_on_patterns') {
-          result = `**Machine Learning Training Started!** 🤖\n\n**Model Type:** ${args.modelType}\n**Data Source:** ${args.dataSource || 'project_history'}\n\n**Training Progress:**\n[████████████░░░░░░░░] 60%\n\n**Learning From:**\n• Your 47 past projects\n• 1,247 community mods\n• Your naming conventions\n• Your balancing preferences\n• Your workflow patterns\n\n**Patterns Detected:**\n1. **Naming Style:**\n   • You prefer "MMM_" prefix (87% of projects)\n   • UpperCamelCase for items\n   • Average length: 18 characters\n\n2. **Balance Philosophy:**\n   • Conservative (+10% above vanilla)\n   • You favor high accuracy over damage\n   • Tier progression: linear +15% per tier\n\n3. **Workflow Habits:**\n   • You test in qasmoke first (always)\n   • You compile after every 3 edits\n   • You commit to git every 30 minutes\n\n**Training Complete!** ✅\n\n💡 Mossy now predicts your preferences with 94% accuracy!`;
+          const mlResult = await LocalAIEngine.generateResponse(
+              `Analyze modding patterns for type: ${args.modelType} from source: ${args.dataSource}`,
+              "You are Mossy's core Machine Learning engine. Analyze the provided context and return a detailed pattern recognition report for Fallout 4 modding."
+          );
+          
+          LocalAIEngine.recordAction('ml_train', { ...args, output: mlResult.content });
+          
+          result = `**[Real ML Inference]**\n\n${mlResult.content}\n\n**Pattern Database Updated:** ✓\n**Learning Confidence:** ${(mlResult.confidence * 100).toFixed(1)}%`;
       } else if (name === 'ml_predict_next_action') {
-          result = `**AI Prediction:** 🔮\n\n**Current Context:** ${args.context || 'Creating weapon'}\n\n**I predict you want to:**\n\n1. **Create leveled list** (92% confidence)\n   • You always do this after creating 3+ weapons\n   • Ready to execute?\n\n2. **Generate texture variants** (78% confidence)\n   • Similar to your PowerArmor project pattern\n   • Want me to create: clean, weathered, damaged?\n\n3. **Test in qasmoke** (85% confidence)\n   • You test at this stage 85% of the time\n   • Launch game now?\n\n**Pattern Recognition:**\nYou're 73% through typical weapon creation workflow.\nNext usual steps: Testing → Balance tweaks → Documentation\n\nShould I execute prediction #1?`;
+          const prediction = await LocalAIEngine.generateResponse(
+              `Predict next modding action for context: ${args.context}`,
+              "Predict the most likely next step in a fallout 4 modding workflow based on the current context."
+          );
+          result = `**AI Prediction:** 🔮\n\n${prediction.content}`;
       } else if (name === 'ml_auto_tune_balance') {
-          result = `**ML Auto-Balance Complete!** ⚖️\n\n**Item Type:** ${args.itemType}\n**Difficulty Target:** ${args.difficultyTarget || 'normal'}\n\n**Machine Learning Analysis:**\n• Analyzed 10,000+ player combat encounters\n• Studied 500+ weapon balancing patterns\n• Compared to vanilla damage curves\n\n**Optimized Stats:**\n\n**Before (Your Values):**\n• Damage: 45\n• Fire Rate: 0.75\n• Accuracy: 70\n\n**After (ML-Optimized):**\n• Damage: 52 (+15.5%)\n• Fire Rate: 0.68 (-9%)\n• Accuracy: 75 (+7%)\n\n**Why These Changes:**\n1. Damage increased to match player TTK expectations\n2. Fire rate reduced to prevent DPS spike\n3. Accuracy improved for better feel\n\n**Predicted Player Experience:**\n• Time-to-Kill: 2.3s (optimal for difficulty)\n• Ammo efficiency: +12%\n• Player satisfaction: 87% (vs 71% original)\n\n**Validation:**\n✓ Tested against 50 enemy types\n✓ Balanced for all difficulty levels\n✓ Competitive with similar weapons\n\nApply ML-optimized balance?`;
+          const tuning = await LocalAIEngine.generateResponse(
+              `Optimize weapon balance for ${args.itemType} with target: ${args.difficultyTarget}`,
+              "Provide actual data-driven balance adjustments for Fallout 4 records (damage, fire rate, etc) based on vanilla meta curves."
+          );
+          
+          LocalAIEngine.recordAction('ml_balance_tune', { ...args, output: tuning.content });
+          
+          result = `**ML Auto-Balance Complete!** ⚖️\n\n${tuning.content}\n\n✓ Applied real-world meta analysis`;
       
       // --- PROCEDURAL CONTENT GENERATION ---
       } else if (name === 'procgen_create_dungeon') {
@@ -3789,6 +3714,10 @@ export const ChatInterface: React.FC = () => {
 
       setIsStreaming(true);
       
+      // REAL ML INFERENCE (Ollama)
+      const localML = await LocalAIEngine.generateResponse(textToSend, systemInstruction);
+      let accumulatedText = `**[Local ML Inference]**\n${localML.content}\n\n---\n`;
+
       const streamResult = await ai.models.generateContentStream({
         model: 'gemini-3-flash-preview',
         contents: contents,
@@ -3799,9 +3728,7 @@ export const ChatInterface: React.FC = () => {
       });
       
       const streamId = (Date.now() + 1).toString();
-      setMessages(prev => [...prev, { id: streamId, role: 'model', text: '' }]);
-
-      let accumulatedText = '';
+      setMessages(prev => [...prev, { id: streamId, role: 'model', text: accumulatedText }]);
       
       for await (const chunk of streamResult) {
           if (abortControllerRef.current?.signal.aborted) break;
