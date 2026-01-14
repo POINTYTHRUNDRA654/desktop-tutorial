@@ -69,6 +69,7 @@ const Sidebar: React.FC = () => {
 
   const navItems = [
     { to: '/', icon: LayoutDashboard, label: 'The Nexus' },
+    { to: '/journey', icon: Sparkles, label: 'Modding Journey' },
     { to: '/assembler', icon: Package, label: 'The Assembler' },
     { to: '/auditor', icon: ShieldCheck, label: 'The Auditor' },
     { to: '/scribe', icon: Feather, label: 'The Scribe' },

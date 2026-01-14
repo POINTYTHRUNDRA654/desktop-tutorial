@@ -48,6 +48,7 @@ const PrecombineAndPRPGuide = React.lazy(() => import('./PrecombineAndPRPGuide')
 const PrecombineChecker = React.lazy(() => import('./PrecombineChecker').then(module => ({ default: module.PrecombineChecker })));
 const LeveledListInjectionGuide = React.lazy(() => import('./LeveledListInjectionGuide').then(module => ({ default: module.LeveledListInjectionGuide })));
 const QuestModAuthoringGuide = React.lazy(() => import('./QuestModAuthoringGuide').then(module => ({ default: module.QuestModAuthoringGuide })));
+const ModdingJourney = React.lazy(() => import('./ModdingJourney'));
 
 // Define window interface for AI Studio helpers & Custom Events
 declare global {
@@ -199,6 +200,7 @@ const App: React.FC = () => {
                 <Route path="/leveled-list-injection" element={<LeveledListInjectionGuide />} />
                 <Route path="/quest-mod-authoring-guide" element={<QuestModAuthoringGuide />} />
                 <Route path="/quest-authoring" element={<QuestModAuthoringGuide />} />
+                <Route path="/journey" element={<ModdingJourney />} />
 
               </Routes>
             </Suspense>
