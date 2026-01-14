@@ -52,6 +52,8 @@ export const IPC_CHANNELS = {
   FOMOD_ANALYZE_STRUCTURE: 'fomod-analyze-structure',
   FOMOD_VALIDATE_XML: 'fomod-validate-xml',
   FOMOD_EXPORT_PACKAGE: 'fomod-export-package',
+  // Auditor ESP Analysis
+  AUDITOR_ANALYZE_ESP: 'auditor-analyze-esp',
 } as const;
 
 /**
