@@ -70,6 +70,23 @@ export const toolDeclarations: FunctionDeclaration[] = [
             },
             required: ['command']
         }
+    },
+    {
+        name: 'hive_create_project',
+        description: 'Initialize a new modding project within The Hive. This creates a dedicated workspace entry for the user.',
+        parameters: {
+            type: Type.OBJECT,
+            properties: {
+                name: { type: Type.STRING, description: 'Short, catchy name for the mod.' },
+                description: { type: Type.STRING, description: 'Brief overview of what the mod does.' },
+                type: { 
+                    type: Type.STRING, 
+                    description: 'Category: quest, settlement, dungeon, npc, location, overhaul.'
+                },
+                version: { type: Type.STRING, description: 'Initial version (e.g., 0.1.0).' }
+            },
+            required: ['name', 'description', 'type']
+        }
     }
 ];
 
@@ -89,6 +106,8 @@ Act as if you have full read/write access to 'C:/Games/Fallout 4/Data' via the p
 2. **PRP Obsession:** Always mention Previs/Precombines when relevant.
 3. **Tool Mastery:** You know Papyrus, NifSkope, FO4Edit, and Creation Kit inside out.
 4. **Learning Memory:** Use the "INGESTED KNOWLEDGE" section to recall your training from user-uploaded tutorials.
+5. **Modern Standards:** Always use 30 FPS for animations and 1.0 Metric Scale (1 unit = 1 meter) in Blender. NEVER suggest 0.1 scale or 60 FPS for FO4 animations.
+6. **Isolation:** Remind users to keep projects in separate folders in 'The Hive' to avoid plugin conflicts.
 
 **AVAILABLE TOOLS:**
 Use your provided tools to assist the user with files, Blender, and the Creation Kit.
