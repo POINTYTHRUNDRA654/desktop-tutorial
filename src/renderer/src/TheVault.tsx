@@ -245,6 +245,18 @@ const TheVault: React.FC = () => {
         const meta = toolMap[asset.type];
         const cmdKey = meta.tool === 'Splicer + OutfitStudio' ? 'splicer' : (meta.tool as keyof ToolPaths);
         const cmd = (toolPaths[cmdKey] || cmdKey) as string;
+        
+        // Check if tool path is configured
+        if (!toolPaths[cmdKey]) {
+            const errorMsg = `Tool "${cmdKey}" not configured. Please set the tool path in the configuration panel below.`;
+            console.warn('[TheVault]', errorMsg);
+            return { 
+                remaining: asset.issues, 
+                log: `❌ ${errorMsg}\n\n💡 Tip: Scroll down to "Tool Paths & Configuration" and click "Browse" to select ${cmdKey}.exe`, 
+                exitCode: -1 
+            };
+        }
+        
         // Build args per type
         let args: string[] = [];
         if (asset.type === 'mesh') {
@@ -287,11 +299,23 @@ const TheVault: React.FC = () => {
                 stdout = result.stdout || '';
                 stderr = result.stderr || '';
                 exitCode = result.exitCode;
-            } catch (e) {
-                stderr = String(e);
+            } catch (e: any) {
+                // Better error handling for spawn failures
+                if (e?.message?.includes('ENOENT') || e?.toString()?.includes('ENOENT')) {
+                    stderr = `❌ Tool executable not found: "${cmd}"\n\n` +
+                             `The file path appears to be incorrect or the tool is not installed.\n\n` +
+                             `💡 Please check:\n` +
+                             `1. The tool path is correct (use Browse button)\n` +
+                             `2. The .exe file exists at that location\n` +
+                             `3. You have permission to run the executable`;
+                } else {
+                    stderr = `Error running tool: ${String(e)}`;
+                }
+                exitCode = -1;
             }
         } else {
-            stdout = 'Simulated run (no backend available)';
+            stdout = '⚠️ Desktop Bridge not available - tool execution requires Electron app.\n\n' +
+                     'Running in web-only mode. To use external tools, please run the Electron desktop app.';
             exitCode = 0;
         }
         const output = [header, stdout, stderr].filter(Boolean).join('\n');
@@ -665,6 +689,20 @@ const TheVault: React.FC = () => {
                         Show only staged
                     </label>
                 </div>
+
+                {/* Tool Configuration Warning */}
+                {Object.keys(toolPaths).length === 0 && (
+                    <div className="bg-amber-900/20 border border-amber-700/50 rounded-lg p-3 flex items-start gap-3">
+                        <AlertTriangle className="w-5 h-5 text-amber-400 flex-shrink-0 mt-0.5" />
+                        <div className="flex-1 text-sm">
+                            <div className="font-semibold text-amber-200 mb-1">External Tools Not Configured</div>
+                            <div className="text-amber-300/80 text-xs">
+                                Asset verification requires external tools (texconv, splicer, etc.). 
+                                Scroll down to <span className="font-semibold">"Tool Paths & Configuration"</span> to set up your tools.
+                            </div>
+                        </div>
+                    </div>
+                )}
 
                 <div
                     onDrop={handleDrop}
