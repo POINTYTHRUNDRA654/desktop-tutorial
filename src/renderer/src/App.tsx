@@ -16,8 +16,8 @@ import AvatarOverlay from './AvatarOverlay';
 // This prevents the app from loading ALL code at startup.
 // Modules are only loaded when accessed.
 const SystemMonitor = React.lazy(() => import('./SystemMonitor'));
-const ChatInterface = React.lazy(() => import('./ChatInterface').then(module => ({ default: module.ChatInterface })));
-const LiveInterface = React.lazy(() => import('./LiveInterface'));
+const ChatInterface = React.lazy(() => import('./ChatInterface'));
+const VoiceChat = React.lazy(() => import('./VoiceChat'));
 const ImageSuite = React.lazy(() => import('./ImageSuite'));
 const TTSPanel = React.lazy(() => import('./TTSPanel'));
 const DesktopBridge = React.lazy(() => import('./DesktopBridge'));
@@ -26,24 +26,7 @@ const WorkflowOrchestrator = React.lazy(() => import('./WorkflowOrchestrator'));
 const Lorekeeper = React.lazy(() => import('./Lorekeeper'));
 const Holodeck = React.lazy(() => import('./Holodeck'));
 const TheVault = React.lazy(() => import('./TheVault'));
-const HyperTerminal = React.lazy(() => import('./HyperTerminal'));
-const TheCortex = React.lazy(() => import('./TheCortex'));
-const TheLens = React.lazy(() => import('./TheLens'));
 const TheNexus = React.lazy(() => import('./TheNexus'));
-const TheConduit = React.lazy(() => import('./TheConduit'));
-const TheSynapse = React.lazy(() => import('./TheSynapse'));
-const TheHive = React.lazy(() => import('./TheHive'));
-const TheBlueprint = React.lazy(() => import('./TheBlueprint'));
-const TheGenome = React.lazy(() => import('./TheGenome'));
-const TheReverie = React.lazy(() => import('./TheReverie'));
-const TheAnima = React.lazy(() => import('./TheAnima'));
-const TheSplicer = React.lazy(() => import('./TheSplicer'));
-const ThePrism = React.lazy(() => import('./ThePrism'));
-const TheCatalyst = React.lazy(() => import('./TheCatalyst'));
-const TheCartographer = React.lazy(() => import('./TheCartographer'));
-const TheRegistry = React.lazy(() => import('./TheRegistry'));
-const TheOrganizer = React.lazy(() => import('./TheOrganizer'));
-const TheCrucible = React.lazy(() => import('./TheCrucible'));
 const TheAssembler = React.lazy(() => import('./TheAssembler'));
 const TheAuditor = React.lazy(() => import('./TheAuditor'));
 const TheScribe = React.lazy(() => import('./TheScribeEnhanced').then(module => ({ default: module.TheScribe })));
@@ -52,23 +35,6 @@ const DonationSupport = React.lazy(() => import('./DonationSupport').then(module
 const QuickReference = React.lazy(() => import('./QuickReference').then(module => ({ default: module.QuickReference })));
 const ScriptAnalyzer = React.lazy(() => import('./ScriptAnalyzer').then(module => ({ default: module.ScriptAnalyzer })));
 const TemplateGenerator = React.lazy(() => import('./TemplateGenerator').then(module => ({ default: module.TemplateGenerator })));
-const BA2Manager = React.lazy(() => import('./BA2Manager').then(module => ({ default: module.BA2Manager })));
-const FileWatcher = React.lazy(() => import('./FileWatcher').then(module => ({ default: module.FileWatcher })));
-const SaveGameParser = React.lazy(() => import('./SaveGameParser').then(module => ({ default: module.SaveGameParser })));
-const VoiceCommands = React.lazy(() => import('./VoiceCommands').then(module => ({ default: module.VoiceCommands })));
-const LoadOrderAnalyzer = React.lazy(() => import('./LoadOrderAnalyzer').then(module => ({ default: module.LoadOrderAnalyzer })));
-const AutoCompiler = React.lazy(() => import('./AutoCompiler').then(module => ({ default: module.AutoCompiler })));
-const AICopilot = React.lazy(() => import('./AICopilot').then(module => ({ default: module.AICopilot })));
-const PopularModsDatabase = React.lazy(() => import('./PopularModsDatabase').then(module => ({ default: module.PopularModsDatabase })));
-const ConflictGraph = React.lazy(() => import('./ConflictGraph').then(module => ({ default: module.ConflictGraph })));
-const AssetViewer3D = React.lazy(() => import('./AssetViewer3D').then(module => ({ default: module.AssetViewer3D })));
-const PerformancePredictor = React.lazy(() => import('./PerformancePredictor').then(module => ({ default: module.PerformancePredictor })));
-const AssetOptimizer = React.lazy(() => import('./AssetOptimizer').then(module => ({ default: module.AssetOptimizer })));
-const LiveGameMonitor = React.lazy(() => import('./LiveGameMonitor').then(module => ({ default: module.LiveGameMonitor })));
-const QuestEditor = React.lazy(() => import('./QuestEditor').then(module => ({ default: module.QuestEditor })));
-const PatchGenerator = React.lazy(() => import('./PatchGenerator').then(module => ({ default: module.PatchGenerator })));
-const BackupManager = React.lazy(() => import('./BackupManager').then(module => ({ default: module.BackupManager })));
-const ModDistribution = React.lazy(() => import('./ModDistribution').then(module => ({ default: module.ModDistribution })));
 const ExternalToolsSettings = React.lazy(() => import('./ExternalToolsSettings'));
 const BlenderAnimationGuide = React.lazy(() => import('./BlenderAnimationGuide').then(module => ({ default: module.BlenderAnimationGuide })));
 const SkeletonReference = React.lazy(() => import('./SkeletonReference').then(module => ({ default: module.SkeletonReference })));
@@ -80,7 +46,6 @@ const PrecombineAndPRPGuide = React.lazy(() => import('./PrecombineAndPRPGuide')
 const PrecombineChecker = React.lazy(() => import('./PrecombineChecker').then(module => ({ default: module.PrecombineChecker })));
 const LeveledListInjectionGuide = React.lazy(() => import('./LeveledListInjectionGuide').then(module => ({ default: module.LeveledListInjectionGuide })));
 const QuestModAuthoringGuide = React.lazy(() => import('./QuestModAuthoringGuide').then(module => ({ default: module.QuestModAuthoringGuide })));
-const QuestModAutomationSuite = React.lazy(() => import('./QuestModAutomationSuite').then(module => ({ default: module.QuestModAutomationSuite })));
 
 // Define window interface for AI Studio helpers & Custom Events
 declare global {
@@ -197,35 +162,18 @@ const App: React.FC = () => {
             <MossyObserver />
             <Suspense fallback={<ModuleLoader />}>
               <Routes>
-                <Route path="/" element={<TheNexus />} />
+                <Route path="/" element={<ErrorBoundary><ChatInterface /></ErrorBoundary>} />
                 <Route path="/monitor" element={<SystemMonitor />} />
                 <Route path="/chat" element={<Navigate to="/" replace />} />
-                <Route path="/lens" element={<TheLens />} />
-                <Route path="/synapse" element={<TheSynapse />} />
-                <Route path="/hive" element={<TheHive />} />
-                <Route path="/blueprint" element={<TheBlueprint />} />
-                <Route path="/genome" element={<TheGenome />} />
-                <Route path="/reverie" element={<TheReverie />} />
-                <Route path="/anima" element={<TheAnima />} />
-                <Route path="/splicer" element={<TheSplicer />} />
-                <Route path="/prism" element={<ThePrism />} />
-                <Route path="/catalyst" element={<TheCatalyst />} />
-                <Route path="/cartographer" element={<TheCartographer />} />
-                <Route path="/registry" element={<TheRegistry />} />
-                <Route path="/organizer" element={<TheOrganizer />} />
-                <Route path="/crucible" element={<TheCrucible />} />
                 <Route path="/assembler" element={<TheAssembler />} />
                 <Route path="/auditor" element={<TheAuditor />} />
                 <Route path="/scribe" element={<TheScribe />} />
-                <Route path="/conduit" element={<TheConduit />} />
-                <Route path="/cortex" element={<TheCortex />} />
-                <Route path="/terminal" element={<HyperTerminal />} />
                 <Route path="/orchestrator" element={<WorkflowOrchestrator />} />
                 <Route path="/lore" element={<Lorekeeper />} />
                 <Route path="/holo" element={<Holodeck />} />
                 <Route path="/vault" element={<TheVault />} />
                 <Route path="/workshop" element={<Workshop />} />
-                <Route path="/live" element={<ErrorBoundary><LiveInterface /></ErrorBoundary>} />
+                <Route path="/live" element={<ErrorBoundary><VoiceChat /></ErrorBoundary>} />
                 <Route path="/images" element={<ImageSuite />} />
                 <Route path="/tts" element={<TTSPanel />} />
                 <Route path="/bridge" element={<DesktopBridge />} />
@@ -235,23 +183,7 @@ const App: React.FC = () => {
                 <Route path="/reference" element={<QuickReference />} />
                 <Route path="/script-analyzer" element={<ScriptAnalyzer />} />
                 <Route path="/template-generator" element={<TemplateGenerator />} />
-                <Route path="/ba2-manager" element={<BA2Manager />} />
-                <Route path="/file-watcher" element={<FileWatcher />} />
-                <Route path="/save-parser" element={<SaveGameParser />} />
-                <Route path="/voice-commands" element={<VoiceCommands />} />
-                <Route path="/load-order" element={<LoadOrderAnalyzer />} />
-                <Route path="/auto-compiler" element={<AutoCompiler />} />
-                <Route path="/ai-copilot" element={<AICopilot />} />
-                <Route path="/popular-mods" element={<PopularModsDatabase />} />
-                <Route path="/conflict-graph" element={<ConflictGraph />} />
-                <Route path="/3d-viewer" element={<AssetViewer3D />} />
-                <Route path="/performance" element={<PerformancePredictor />} />
-                <Route path="/optimizer" element={<AssetOptimizer />} />
-                <Route path="/game-monitor" element={<LiveGameMonitor />} />
-                <Route path="/quest-editor" element={<QuestEditor />} />
-                <Route path="/patch-gen" element={<PatchGenerator />} />
-                <Route path="/backups" element={<BackupManager />} />
-                <Route path="/distribution" element={<ModDistribution />} />
+
                 <Route path="/animation-guide" element={<BlenderAnimationGuide />} />
                 <Route path="/skeleton-reference" element={<SkeletonReference />} />
                 <Route path="/animation-validator" element={<AnimationValidator />} />
@@ -263,13 +195,12 @@ const App: React.FC = () => {
                 <Route path="/leveled-list-injection" element={<LeveledListInjectionGuide />} />
                 <Route path="/quest-mod-authoring-guide" element={<QuestModAuthoringGuide />} />
                 <Route path="/quest-authoring" element={<QuestModAuthoringGuide />} />
-                <Route path="/automation-suite" element={<QuestModAutomationSuite />} />
-                <Route path="/quest-automation" element={<QuestModAutomationSuite />} />
+
               </Routes>
             </Suspense>
+            <AvatarOverlay />
           </main>
 
-          <AvatarOverlay />
         </div>
       </HashRouter>
     </LiveProvider>
