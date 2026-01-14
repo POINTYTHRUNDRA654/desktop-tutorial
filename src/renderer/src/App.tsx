@@ -6,6 +6,7 @@ import CommandPalette from './CommandPalette';
 import TutorialOverlay from './TutorialOverlay';
 import SystemBus from './SystemBus';
 import MossyOnboarding from './MossyOnboarding';
+import ErrorBoundary from './ErrorBoundary';
 
 import { Loader2, Zap } from 'lucide-react';
 import { LiveProvider } from './LiveContext';
@@ -224,7 +225,7 @@ const App: React.FC = () => {
                 <Route path="/holo" element={<Holodeck />} />
                 <Route path="/vault" element={<TheVault />} />
                 <Route path="/workshop" element={<Workshop />} />
-                <Route path="/live" element={<LiveInterface />} />
+                <Route path="/live" element={<ErrorBoundary><LiveInterface /></ErrorBoundary>} />
                 <Route path="/images" element={<ImageSuite />} />
                 <Route path="/tts" element={<TTSPanel />} />
                 <Route path="/bridge" element={<DesktopBridge />} />

@@ -8,7 +8,7 @@
   "license": "MIT",
   "scripts": {
     "dev": "concurrently \"npm run dev:vite\" \"npm run dev:tsc\" \"npm run dev:electron\"",
-    "dev:vite": "vite",
+    "dev:vite": "vite --port 5173",
     "dev:tsc": "tsc -p tsconfig.electron.json -w",
     "dev:electron": "wait-on http://localhost:5173 && cross-env ELECTRON_START_URL=http://localhost:5173 electron .",
     "build": "npm run build:vite && npm run build:electron",
@@ -23,14 +23,15 @@
     "test:watch": "vitest"
   },
   "dependencies": {
+    "@google/genai": "^0.2.0",
+    "lowdb": "^7.0.1",
+    "lucide-react": "^0.400.0",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
-    "lowdb": "^7.0.1",
+    "react-markdown": "^9.0.1",
     "react-router-dom": "^6.21.3",
     "recharts": "^2.10.4",
-    "lucide-react": "^0.400.0",
-    "@google/genai": "^0.2.0",
-    "react-markdown": "^9.0.1"
+    "sharp": "^0.34.5"
   },
   "devDependencies": {
     "@types/node": "^20.11.0",
@@ -70,12 +71,16 @@
       {
         "from": "external/volttech-dist",
         "to": "external/volttech-dist",
-        "filter": ["**/*"]
+        "filter": [
+          "**/*"
+        ]
       },
       {
         "from": "public",
         "to": "public",
-        "filter": ["**/*"]
+        "filter": [
+          "**/*"
+        ]
       }
     ],
     "mac": {
@@ -86,7 +91,10 @@
       "target": [
         {
           "target": "nsis",
-          "arch": ["x64", "ia32"]
+          "arch": [
+            "x64",
+            "ia32"
+          ]
         }
       ],
       "icon": "build/icon.ico"

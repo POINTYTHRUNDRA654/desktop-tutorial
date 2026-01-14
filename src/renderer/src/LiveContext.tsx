@@ -123,6 +123,9 @@ const decodeAudioData = async (base64String: string, ctx: AudioContext): Promise
 };
 
 export const LiveProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
+  // Add error state to handle initialization failures
+  const [initError, setInitError] = useState<Error | null>(null);
+  
   // Live State
   const [isActive, setIsActive] = useState(false);
   const [isMuted, setIsMuted] = useState(false);
@@ -136,6 +139,7 @@ export const LiveProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       try {
           return localStorage.getItem('mossy_avatar_custom');
       } catch (e) {
+          console.error('[LiveProvider] localStorage error:', e);
           return null;
       }
   });
@@ -143,10 +147,10 @@ export const LiveProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   // Load Avatar on Mount - Dual Strategy with Priority
   useEffect(() => {
       const loadAvatar = async () => {
-          // If we already loaded from localStorage via lazy init, verify against DB
-          const current = customAvatar;
-          
           try {
+              // If we already loaded from localStorage via lazy init, verify against DB
+              const current = customAvatar;
+              
               const dbSaved = await getImageFromDB('mossy_avatar_custom');
               if (dbSaved && dbSaved !== current) {
                   // If DB has data but local didn't (or differed), update state
@@ -156,7 +160,9 @@ export const LiveProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
                   // If local has data but DB doesn't, sync back to DB
                   await saveImageToDB('mossy_avatar_custom', current);
               }
-          } catch (e) {}
+          } catch (e) {
+              console.error('[LiveProvider] Avatar load error:', e);
+          }
       };
       loadAvatar();
   }, []);
@@ -335,17 +341,39 @@ export const LiveProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           }
       } catch (e) {}
 
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      // Get microphone access with error handling
+      console.log('[LiveContext] Requesting microphone access...');
+      let stream: MediaStream;
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      } catch (micErr: any) {
+        console.error('[LiveContext] Microphone error:', micErr);
+        setStatus('Microphone Access Denied');
+        setMode('idle');
+        setIsActive(false);
+        return;
+      }
+      
       streamRef.current = stream;
+      console.log('[LiveContext] Got microphone stream');
 
-      const inputCtx = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 16000 });
-      inputContextRef.current = inputCtx;
-      const outputCtx = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 24000 });
-      audioContextRef.current = outputCtx;
+      // Create audio contexts with error handling
+      console.log('[LiveContext] Creating audio contexts...');
+      try {
+        const inputCtx = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 16000 });
+        inputContextRef.current = inputCtx;
+        const outputCtx = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 24000 });
+        audioContextRef.current = outputCtx;
+      } catch (audioErr: any) {
+        console.error('[LiveContext] Audio context error:', audioErr);
+        setStatus('Audio System Error');
+        setMode('idle');
+        setIsActive(false);
+        return;
+      }
 
       // Resolve API key from Vite env with debug logging
       console.log('[LiveContext] Checking API keys...');
-      console.log('[LiveContext] import.meta.env:', import.meta.env);
       console.log('[LiveContext] VITE_API_KEY:', import.meta.env.VITE_API_KEY);
       console.log('[LiveContext] VITE_GOOGLE_API_KEY:', import.meta.env.VITE_GOOGLE_API_KEY);
       
@@ -355,10 +383,12 @@ export const LiveProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         console.error('[LiveContext] No API key found in environment');
         setStatus('API Key Missing');
         setMode('idle');
-                setIsActive(false);
-                return; // Gracefully avoid throwing to keep UI responsive
-            }
-            const ai = new GoogleGenAI({ apiKey });
+        setIsActive(false);
+        return; // Gracefully avoid throwing to keep UI responsive
+      }
+      
+      console.log('[LiveContext] Creating GoogleGenAI instance...');
+      const ai = new GoogleGenAI({ apiKey });
       setStatus('Establishing Uplink...');
       
       // Define tools - always include Blender control to allow linking attempt
@@ -392,6 +422,7 @@ export const LiveProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         }
       ];
 
+      console.log('[LiveContext] Initiating live connection...');
       const sessionPromise = ai.live.connect({
         model: 'gemini-2.5-flash-native-audio-preview-12-2025',
         config: {
@@ -511,16 +542,48 @@ export const LiveProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         }
       });
       sessionRef.current = sessionPromise;
+      console.log('[LiveContext] Session promise created, waiting for connection...');
     } catch (e: any) {
-      console.error(e);
+      console.error('[LiveContext] Connect error:', e);
+      console.error('[LiveContext] Error stack:', e?.stack);
+      console.error('[LiveContext] Error message:', e?.message);
+      
       if (e.message && (e.message.includes('503') || e.message.toLowerCase().includes('unavailable'))) {
           setStatus('Service Busy');
+      } else if (e.message && e.message.includes('getUserMedia')) {
+          setStatus('Microphone Access Denied');
+      } else if (e.message && e.message.includes('API')) {
+          setStatus('API Error');
       } else {
-          setStatus('Init Failed');
+          setStatus('Init Failed: ' + (e.message || 'Unknown error'));
       }
       disconnect();
     }
   };
+
+  // If there was an initialization error, render error state
+  if (initError) {
+    console.error('[LiveProvider] Initialization error:', initError);
+    return (
+      <LiveContext.Provider value={{ 
+        isActive: false, 
+        isMuted: false, 
+        toggleMute: () => {}, 
+        status: 'Init Failed', 
+        volume: 0, 
+        mode: 'idle', 
+        transcription: '', 
+        connect: async () => {}, 
+        disconnect: () => {}, 
+        customAvatar: null, 
+        updateAvatar: async () => {}, 
+        setAvatarFromUrl: async () => {}, 
+        clearAvatar: () => {} 
+      }}>
+        {children}
+      </LiveContext.Provider>
+    );
+  }
 
   return (
     <LiveContext.Provider value={{ isActive, isMuted, toggleMute, status, volume, mode, transcription, connect, disconnect, customAvatar, updateAvatar, setAvatarFromUrl, clearAvatar }}>

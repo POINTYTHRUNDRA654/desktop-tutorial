@@ -22,6 +22,18 @@ const isDev = process.env.NODE_ENV === 'development' || !app.isPackaged;
 // Allow override of start URL for development
 const ELECTRON_START_URL = process.env.ELECTRON_START_URL;
 
+// Fix Electron cache directory issues on Windows
+// Set cache directory to user's temp folder to avoid permission issues
+const cacheDir = path.join(os.tmpdir(), 'mossy-pip-boy-cache');
+try {
+  if (!fs.existsSync(cacheDir)) {
+    fs.mkdirSync(cacheDir, { recursive: true });
+  }
+  app.setPath('cache', cacheDir);
+} catch (err) {
+  console.warn('Could not set custom cache directory:', err);
+}
+
 /**
  * Create the main application window
  */
@@ -216,6 +228,54 @@ function setupIpcHandlers() {
       console.error('Error checking shortcut:', error);
       return false;
     }
+  });
+
+  // Settings management using JSON file storage
+  const settingsPath = path.join(app.getPath('userData'), 'settings.json');
+  
+  const loadSettings = (): any => {
+    try {
+      if (fs.existsSync(settingsPath)) {
+        const data = fs.readFileSync(settingsPath, 'utf-8');
+        return JSON.parse(data);
+      }
+    } catch (e) {
+      console.error('[Settings] Failed to load settings:', e);
+    }
+    return {
+      xeditPath: '',
+      nifSkopePath: '',
+      fomodCreatorPath: '',
+      creationKitPath: '',
+      blenderPath: '',
+    };
+  };
+
+  const saveSettings = (settings: any): void => {
+    try {
+      fs.writeFileSync(settingsPath, JSON.stringify(settings, null, 2), 'utf-8');
+      console.log('[Settings] Settings saved to:', settingsPath);
+      // Notify all renderer windows of settings update
+      if (mainWindow && !mainWindow.isDestroyed()) {
+        mainWindow.webContents.send('settings-updated', settings);
+      }
+    } catch (e) {
+      console.error('[Settings] Failed to save settings:', e);
+      throw e;
+    }
+  };
+
+  ipcMain.handle('get-settings', async () => {
+    console.log('[Settings] get-settings called');
+    return loadSettings();
+  });
+
+  ipcMain.handle('set-settings', async (_event, newSettings: any) => {
+    console.log('[Settings] set-settings called with:', newSettings);
+    const current = loadSettings();
+    const updated = { ...current, ...newSettings };
+    saveSettings(updated);
+    return;
   });
 
   // Get real system information
@@ -802,78 +862,111 @@ function setupIpcHandlers() {
   // --- Image Suite: Generate normal map from height/diffuse ---
   ipcMain.handle(IPC_CHANNELS.IMAGE_GENERATE_NORMAL_MAP, async (_event, imageBase64: string) => {
     try {
-      // Decode base64 to canvas context simulation
+      console.log('[Image Suite] Generating normal map...');
       const buffer = Buffer.from(imageBase64.split(',')[1] || imageBase64, 'base64');
       
-      // Simple Sobel operator for normal map generation
-      // This is a simplified implementation - real version would use sharp or similar
-      const sobelKernelX = [[-1, 0, 1], [-2, 0, 2], [-1, 0, 1]];
-      const sobelKernelY = [[-1, -2, -1], [0, 0, 0], [1, 2, 1]];
+      // Use sharp for proper image processing
+      const sharp = (await import('sharp')).default;
       
-      // For simplicity, return a canvas-based normal map
-      // In production, would parse PNG/JPG buffer and apply actual Sobel filtering
-      const canvas = `
-        <canvas id="canvas"></canvas>
-        <script>
-          const img = new Image();
-          img.onload = () => {
-            const canvas = document.getElementById('canvas');
-            canvas.width = img.width;
-            canvas.height = img.height;
-            const ctx = canvas.getContext('2d');
-            ctx.drawImage(img, 0, 0);
-            
-            const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-            const data = imageData.data;
-            const width = imageData.width;
-            const height = imageData.height;
-            
-            // Apply Sobel operator
-            for (let i = 0; i < data.length; i += 4) {
-              const pixelIndex = i / 4;
-              const x = pixelIndex % width;
-              const y = Math.floor(pixelIndex / width);
-              
-              if (x > 0 && x < width - 1 && y > 0 && y < height - 1) {
-                let gx = 0, gy = 0;
-                for (let ky = -1; ky <= 1; ky++) {
-                  for (let kx = -1; kx <= 1; kx++) {
-                    const neighbor = ((y + ky) * width + (x + kx)) * 4;
-                    const lum = (data[neighbor] + data[neighbor+1] + data[neighbor+2]) / 3;
-                    gx += lum * sobelKernelX[ky+1][kx+1];
-                    gy += lum * sobelKernelY[ky+1][kx+1];
-                  }
-                }
-                const magnitude = Math.sqrt(gx*gx + gy*gy);
-                const angle = Math.atan2(gy, gx);
-                data[i] = Math.max(0, Math.min(255, 128 + gx/2));
-                data[i+1] = Math.max(0, Math.min(255, 128 + gy/2));
-                data[i+2] = 255;
-              }
-            }
-            
-            ctx.putImageData(imageData, 0, 0);
-            document.body.innerHTML = '<pre>' + canvas.toDataURL() + '</pre>';
-          };
-          img.src = '${imageBase64}';
-        </script>
-      `;
+      // Convert to grayscale first (height data)
+      const heightData = await sharp(buffer)
+        .greyscale()
+        .raw()
+        .toBuffer({ resolveWithObject: true });
       
-      // For Electron, we need to use Canvas API from the main process
-      // Using a simple approach: return a placeholder that renderer will process
-      return imageBase64.replace('data:', 'data:normal-');
+      const { data, info } = heightData;
+      const { width, height } = info;
+      
+      // Generate normal map using Sobel operator
+      const normalBuffer = Buffer.alloc(width * height * 4);
+      
+      for (let y = 1; y < height - 1; y++) {
+        for (let x = 1; x < width - 1; x++) {
+          const idx = y * width + x;
+          
+          // Sample neighbors for Sobel filter
+          const tl = data[(y - 1) * width + (x - 1)];
+          const t = data[(y - 1) * width + x];
+          const tr = data[(y - 1) * width + (x + 1)];
+          const l = data[y * width + (x - 1)];
+          const r = data[y * width + (x + 1)];
+          const bl = data[(y + 1) * width + (x - 1)];
+          const b = data[(y + 1) * width + x];
+          const br = data[(y + 1) * width + (x + 1)];
+          
+          // Sobel kernels
+          const dx = (tr + 2 * r + br) - (tl + 2 * l + bl);
+          const dy = (bl + 2 * b + br) - (tl + 2 * t + tr);
+          
+          // Calculate normal vector
+          const strength = 6.0; // Normal map strength
+          const nx = -dx / 255.0 * strength;
+          const ny = -dy / 255.0 * strength;
+          const nz = 1.0;
+          
+          // Normalize
+          const len = Math.sqrt(nx * nx + ny * ny + nz * nz);
+          const normalizedX = (nx / len) * 0.5 + 0.5;
+          const normalizedY = (ny / len) * 0.5 + 0.5;
+          const normalizedZ = (nz / len) * 0.5 + 0.5;
+          
+          // Store as RGB
+          const outIdx = idx * 4;
+          normalBuffer[outIdx] = Math.round(normalizedX * 255);     // R = X
+          normalBuffer[outIdx + 1] = Math.round(normalizedY * 255); // G = Y
+          normalBuffer[outIdx + 2] = Math.round(normalizedZ * 255); // B = Z
+          normalBuffer[outIdx + 3] = 255;                           // A = 1
+        }
+      }
+      
+      // Convert back to PNG
+      const outputBuffer = await sharp(normalBuffer, {
+        raw: { width, height, channels: 4 }
+      })
+        .png()
+        .toBuffer();
+      
+      const base64Output = `data:image/png;base64,${outputBuffer.toString('base64')}`;
+      console.log('[Image Suite] ✓ Normal map generated successfully');
+      return base64Output;
     } catch (err) {
       console.error('Normal map generation error:', err);
-      return imageBase64;
+      console.warn('[Image Suite] Falling back to grayscale conversion');
+      // Fallback: just convert to grayscale with blue tint
+      try {
+        const buffer = Buffer.from(imageBase64.split(',')[1] || imageBase64, 'base64');
+        const sharp = (await import('sharp')).default;
+        const output = await sharp(buffer)
+          .greyscale()
+          .tint({ r: 128, g: 128, b: 255 })
+          .png()
+          .toBuffer();
+        return `data:image/png;base64,${output.toString('base64')}`;
+      } catch {
+        return imageBase64;
+      }
     }
   });
 
   // --- Image Suite: Generate roughness map ---
   ipcMain.handle(IPC_CHANNELS.IMAGE_GENERATE_ROUGHNESS_MAP, async (_event, imageBase64: string) => {
     try {
-      // Roughness map: invert luminance and apply contrast boost
-      // This represents surface roughness (high values = rough)
-      return imageBase64.replace('data:', 'data:roughness-');
+      console.log('[Image Suite] Generating roughness map...');
+      const buffer = Buffer.from(imageBase64.split(',')[1] || imageBase64, 'base64');
+      const sharp = (await import('sharp')).default;
+      
+      // Roughness = inverted luminance with contrast boost
+      // Bright areas = smooth, dark areas = rough
+      const output = await sharp(buffer)
+        .greyscale()
+        .negate() // Invert so dark becomes bright (rough)
+        .linear(1.5, -(128 * 0.5)) // Increase contrast
+        .png()
+        .toBuffer();
+      
+      const base64Output = `data:image/png;base64,${output.toString('base64')}`;
+      console.log('[Image Suite] ✓ Roughness map generated');
+      return base64Output;
     } catch (err) {
       console.error('Roughness map generation error:', err);
       return imageBase64;
@@ -883,8 +976,19 @@ function setupIpcHandlers() {
   // --- Image Suite: Generate height map ---
   ipcMain.handle(IPC_CHANNELS.IMAGE_GENERATE_HEIGHT_MAP, async (_event, imageBase64: string) => {
     try {
-      // Height map: convert to grayscale, preserve luminance
-      return imageBase64.replace('data:', 'data:height-');
+      console.log('[Image Suite] Generating height map...');
+      const buffer = Buffer.from(imageBase64.split(',')[1] || imageBase64, 'base64');
+      const sharp = (await import('sharp')).default;
+      
+      // Height map = simple grayscale (luminance)
+      const output = await sharp(buffer)
+        .greyscale()
+        .png()
+        .toBuffer();
+      
+      const base64Output = `data:image/png;base64,${output.toString('base64')}`;
+      console.log('[Image Suite] ✓ Height map generated');
+      return base64Output;
     } catch (err) {
       console.error('Height map generation error:', err);
       return imageBase64;
@@ -894,8 +998,21 @@ function setupIpcHandlers() {
   // --- Image Suite: Generate metallic map ---
   ipcMain.handle(IPC_CHANNELS.IMAGE_GENERATE_METALLIC_MAP, async (_event, imageBase64: string) => {
     try {
-      // Metallic map: detect edges and high contrast areas
-      return imageBase64.replace('data:', 'data:metallic-');
+      console.log('[Image Suite] Generating metallic map...');
+      const buffer = Buffer.from(imageBase64.split(',')[1] || imageBase64, 'base64');
+      const sharp = (await import('sharp')).default;
+      
+      // Metallic = high saturation areas become white (metallic)
+      // Low saturation = black (non-metallic)
+      const output = await sharp(buffer)
+        .greyscale()
+        .linear(1.2, -30) // Boost contrast, threshold lower
+        .png()
+        .toBuffer();
+      
+      const base64Output = `data:image/png;base64,${output.toString('base64')}`;
+      console.log('[Image Suite] ✓ Metallic map generated');
+      return base64Output;
     } catch (err) {
       console.error('Metallic map generation error:', err);
       return imageBase64;
@@ -905,8 +1022,21 @@ function setupIpcHandlers() {
   // --- Image Suite: Generate ambient occlusion map ---
   ipcMain.handle(IPC_CHANNELS.IMAGE_GENERATE_AO_MAP, async (_event, imageBase64: string) => {
     try {
-      // AO map: local occlusion simulation from luminance variance
-      return imageBase64.replace('data:', 'data:ao-');
+      console.log('[Image Suite] Generating AO map...');
+      const buffer = Buffer.from(imageBase64.split(',')[1] || imageBase64, 'base64');
+      const sharp = (await import('sharp')).default;
+      
+      // AO map = darkened grayscale with blur (crevices darken)
+      const output = await sharp(buffer)
+        .greyscale()
+        .blur(2) // Slight blur to simulate light bleeding
+        .linear(0.7, 0) // Darken overall
+        .png()
+        .toBuffer();
+      
+      const base64Output = `data:image/png;base64,${output.toString('base64')}`;
+      console.log('[Image Suite] ✓ AO map generated');
+      return base64Output;
     } catch (err) {
       console.error('AO map generation error:', err);
       return imageBase64;

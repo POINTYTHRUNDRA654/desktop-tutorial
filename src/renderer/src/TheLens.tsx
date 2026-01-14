@@ -1,5 +1,27 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Eye, Folder, FileText, Settings, RefreshCw, AlertCircle, CheckCircle2, Copy } from 'lucide-react';
+
+// Declare Electron API for TypeScript
+declare global {
+    interface Window {
+        electron?: {
+            api?: {
+                getSystemInfo(): Promise<{
+                    os: string;
+                    cpu: string;
+                    gpu: string;
+                    ram: number;
+                    cores: number;
+                    arch: string;
+                    vram?: number;
+                    computerName?: string;
+                    username?: string;
+                }>;
+                detectPrograms(): Promise<Array<{name: string; path: string}>>;
+            };
+        };
+    }
+}
 
 interface DesktopFile {
     name: string;
@@ -127,6 +149,47 @@ const getCategoryColor = (category: string) => {
 const TheLens = () => {
     const [activeTab, setActiveTab] = useState<'overview' | 'files' | 'projects' | 'system'>('overview');
     const [copiedPath, setCopiedPath] = useState<string | null>(null);
+    const [systemInfo, setSystemInfo] = useState<SystemInfo>(SAMPLE_SYSTEM_INFO);
+    const [bridgeConnected, setBridgeConnected] = useState(false);
+    const [loading, setLoading] = useState(true);
+
+    // Load system info from Electron bridge
+    useEffect(() => {
+        const loadSystemInfo = async () => {
+            try {
+                // Check if Electron API is available
+                if (!window.electron?.api?.getSystemInfo) {
+                    console.warn('[TheLens] Electron API not available, using sample data');
+                    setBridgeConnected(false);
+                    setLoading(false);
+                    return;
+                }
+
+                const info = await window.electron.api.getSystemInfo();
+                console.log('[TheLens] System info loaded:', info);
+                
+                // Format system info from Electron API response
+                const formatted: SystemInfo = {
+                    computerName: info.computerName || 'Unknown',
+                    username: info.username || 'User',
+                    osVersion: `${info.os} (${info.arch})`,
+                    totalMemory: `${(info.ram / 1024).toFixed(1)} GB`,
+                    availableMemory: `${Math.max(0, (info.ram / 1024) * 0.6).toFixed(1)} GB`, // Estimate available as 60% of total
+                    cpuModel: `${info.cpu} (${info.cores} cores)`
+                };
+                
+                setSystemInfo(formatted);
+                setBridgeConnected(true);
+            } catch (error) {
+                console.error('[TheLens] Error loading system info:', error);
+                setBridgeConnected(false);
+            } finally {
+                setLoading(false);
+            }
+        };
+
+        loadSystemInfo();
+    }, []);
 
     const handleCopyPath = (path: string) => {
         navigator.clipboard.writeText(path);
@@ -149,8 +212,17 @@ const TheLens = () => {
                     <button className="px-3 py-1.5 bg-black rounded border border-slate-600 hover:border-cyan-500 transition-colors text-xs text-cyan-400 flex items-center gap-2">
                         <RefreshCw className="w-3 h-3" /> Refresh
                     </button>
-                    <div className="px-3 py-1 bg-cyan-900/20 rounded border border-cyan-700/50 font-mono text-xs text-cyan-300 flex items-center gap-1.5">
-                        <CheckCircle2 className="w-3 h-3" /> Bridge Active
+                    <div className={`px-3 py-1 rounded border font-mono text-xs flex items-center gap-1.5 ${
+                        bridgeConnected && !loading
+                            ? 'bg-emerald-900/20 border-emerald-700/50 text-emerald-300'
+                            : loading
+                            ? 'bg-yellow-900/20 border-yellow-700/50 text-yellow-300'
+                            : 'bg-red-900/20 border-red-700/50 text-red-300'
+                    }`}>
+                        <div className={`w-2 h-2 rounded-full ${
+                            bridgeConnected && !loading ? 'bg-emerald-500 animate-pulse' : loading ? 'bg-yellow-500' : 'bg-red-500'
+                        }`}></div>
+                        {loading ? 'Connecting...' : bridgeConnected ? 'Bridge Active' : 'Bridge Unavailable'}
                     </div>
                 </div>
             </div>

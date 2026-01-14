@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Save, TestTube2, Wrench, FileCog, Swords, Package, ExternalLink, Play, Palette } from 'lucide-react';
+import { Save, TestTube2, Wrench, FileCog, Swords, Package, ExternalLink, Play, Palette, FolderOpen } from 'lucide-react';
 import type { Settings } from '../../shared/types';
 
 const ExternalToolsSettings: React.FC = () => {
@@ -62,6 +62,23 @@ const ExternalToolsSettings: React.FC = () => {
     }
   };
 
+  const browsePath = async (toolKey: keyof Settings, toolName: string) => {
+    try {
+      const bridge = (window as any).electron?.api || (window as any).electronAPI;
+      if (bridge?.pickToolPath) {
+        const path = await bridge.pickToolPath(toolName);
+        if (path) {
+          handleChange(toolKey, path);
+        }
+      } else {
+        alert('File picker requires the Desktop Bridge (Electron).');
+      }
+    } catch (e) {
+      console.error('Failed to pick tool path:', e);
+      alert(`Could not open file picker for ${toolName}. Check that Electron is running.`);
+    }
+  };
+
   return (
     <div className="h-full flex flex-col bg-[#0d1117] text-slate-200 font-sans overflow-hidden">
       <div className="p-4 border-b border-slate-700 bg-slate-900 flex justify-between items-center z-10 shadow-md">
@@ -90,6 +107,7 @@ const ExternalToolsSettings: React.FC = () => {
           </div>
           <input value={draft.xeditPath || ''} onChange={(e) => handleChange('xeditPath', e.target.value)} placeholder="C:\\Tools\\xEdit\\FO4Edit.exe" className="w-full bg-slate-800 border border-slate-700 rounded px-3 py-2 text-sm text-white" />
           <div className="mt-2 flex gap-2">
+            <button onClick={() => browsePath('xeditPath', 'xEdit')} className="px-3 py-1 bg-slate-700 hover:bg-slate-600 border border-slate-600 rounded text-[11px] font-bold flex items-center gap-1"><FolderOpen className="w-3 h-3" /> Browse</button>
             <button onClick={() => testLaunch(draft.xeditPath, 'xEdit')} className="px-3 py-1 bg-emerald-700 hover:bg-emerald-600 border border-emerald-500 rounded text-[11px] font-bold flex items-center gap-1"><Play className="w-3 h-3" /> Test Launch</button>
           </div>
         </div>
@@ -105,6 +123,7 @@ const ExternalToolsSettings: React.FC = () => {
           </div>
           <input value={draft.nifSkopePath || ''} onChange={(e) => handleChange('nifSkopePath', e.target.value)} placeholder="C:\\Tools\\NifSkope\\NifSkope.exe" className="w-full bg-slate-800 border border-slate-700 rounded px-3 py-2 text-sm text-white" />
           <div className="mt-2 flex gap-2">
+            <button onClick={() => browsePath('nifSkopePath', 'NifSkope')} className="px-3 py-1 bg-slate-700 hover:bg-slate-600 border border-slate-600 rounded text-[11px] font-bold flex items-center gap-1"><FolderOpen className="w-3 h-3" /> Browse</button>
             <button onClick={() => testLaunch(draft.nifSkopePath, 'NifSkope')} className="px-3 py-1 bg-emerald-700 hover:bg-emerald-600 border border-emerald-500 rounded text-[11px] font-bold flex items-center gap-1"><Play className="w-3 h-3" /> Test Launch</button>
           </div>
         </div>
@@ -120,6 +139,7 @@ const ExternalToolsSettings: React.FC = () => {
           </div>
           <input value={draft.fomodCreatorPath || ''} onChange={(e) => handleChange('fomodCreatorPath', e.target.value)} placeholder="G:\\Tools\\FOMOD Creation Tool 1.7-6821-1-7\\FomodDesigner.exe" className="w-full bg-slate-800 border border-slate-700 rounded px-3 py-2 text-sm text-white" />
           <div className="mt-2 flex gap-2">
+            <button onClick={() => browsePath('fomodCreatorPath', 'FOMOD Creator')} className="px-3 py-1 bg-slate-700 hover:bg-slate-600 border border-slate-600 rounded text-[11px] font-bold flex items-center gap-1"><FolderOpen className="w-3 h-3" /> Browse</button>
             <button onClick={() => testLaunch(draft.fomodCreatorPath, 'FOMOD Creator')} className="px-3 py-1 bg-emerald-700 hover:bg-emerald-600 border border-emerald-500 rounded text-[11px] font-bold flex items-center gap-1"><Play className="w-3 h-3" /> Test Launch</button>
           </div>
         </div>
@@ -135,6 +155,7 @@ const ExternalToolsSettings: React.FC = () => {
           </div>
           <input value={draft.creationKitPath || ''} onChange={(e) => handleChange('creationKitPath', e.target.value)} placeholder="C:\\Program Files (x86)\\Bethesda\\CreationKit.exe" className="w-full bg-slate-800 border border-slate-700 rounded px-3 py-2 text-sm text-white" />
           <div className="mt-2 flex gap-2">
+            <button onClick={() => browsePath('creationKitPath', 'Creation Kit')} className="px-3 py-1 bg-slate-700 hover:bg-slate-600 border border-slate-600 rounded text-[11px] font-bold flex items-center gap-1"><FolderOpen className="w-3 h-3" /> Browse</button>
             <button onClick={() => testLaunch(draft.creationKitPath, 'Creation Kit')} className="px-3 py-1 bg-emerald-700 hover:bg-emerald-600 border border-emerald-500 rounded text-[11px] font-bold flex items-center gap-1"><Play className="w-3 h-3" /> Test Launch</button>
           </div>
         </div>
@@ -148,8 +169,9 @@ const ExternalToolsSettings: React.FC = () => {
               <a href="https://www.blender.org/download/" target="_blank" rel="noreferrer" className="text-[11px] text-blue-400 hover:text-blue-300 inline-flex items-center gap-1"><ExternalLink className="w-3 h-3" /> Official download</a>
             </div>
           </div>
-          <input value={draft.blenderPath || ''} onChange={(e) => handleChange('blenderPath', e.target.value)} placeholder="C:\\Program Files\\Blender Foundation\\Blender 4.1\\blender.exe" className="w-full bg-slate-800 border border-slate-700 rounded px-3 py-2 text-sm text-white" />
+          <input value={draft.blenderPath || ''} onChange={(e) => handleChange('blenderPath', e.target.value)} placeholder="C:\\Program Files\\Blender Foundation\\Blender 4.5\\blender.exe" className="w-full bg-slate-800 border border-slate-700 rounded px-3 py-2 text-sm text-white" />
           <div className="mt-2 flex gap-2">
+            <button onClick={() => browsePath('blenderPath', 'Blender')} className="px-3 py-1 bg-slate-700 hover:bg-slate-600 border border-slate-600 rounded text-[11px] font-bold flex items-center gap-1"><FolderOpen className="w-3 h-3" /> Browse</button>
             <button onClick={() => testLaunch(draft.blenderPath, 'Blender')} className="px-3 py-1 bg-emerald-700 hover:bg-emerald-600 border border-emerald-500 rounded text-[11px] font-bold flex items-center gap-1"><Play className="w-3 h-3" /> Test Launch</button>
           </div>
         </div>
