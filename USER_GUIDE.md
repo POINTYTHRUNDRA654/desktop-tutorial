@@ -6,30 +6,21 @@ Mossy is your AI companion for Fallout 4 modding. This guide will help you get s
 
 ## First Launch - The Onboarding Tutorial
 
-When you download and launch Mossy for the first time, you'll see a comprehensive 4-step tutorial. **You must complete this to use Mossy** - but don't worry, it only takes 2-3 minutes and is designed to set you up for success.
+When you download and launch Mossy for the first time, you'll see a comprehensive 6-step tutorial. **You must complete this to use Mossy** - but don't worry, it only takes a few minutes and is designed to set you up for success.
 
 ### Step 1: Welcome to Mossy
-This introductory step introduces Mossy and explains what you'll be setting up:
-- An overview of the 4 setup steps
-- A promise that privacy and security are top priorities
-- What Mossy can help you with
+Introduction to Mossy and the new Hybrid AI architecture. Choose between Google Gemini or local Ollama for your AI brain.
 
-**What you need to do:** Just click Next to continue.
+### Step 2: Neural Link Integration
+Mossy now monitors your desktop. Select which modding tools you use (Blender, CK, xEdit) to enable the Neural Link bridge.
 
-### Step 2: Connect Your Tools
-Select which modding tools you have installed. This helps Mossy provide better assistance tailored to your setup.
+### Step 3: Memory Vault Calibration
+Learn how to upload your own tutorials and PDF guides to Mossy's local RAG memory. This "digestion" process allows Mossy to answer questions using your private sources.
 
-**Available Tools:**
-- **Creation Kit** - For worldspace and quest editing
-- **xEdit** - Advanced record editor and cleaning
-- **Blender** - 3D modeling and mesh creation
-- **NifSkope** - NIF file editing and optimization
-- **Papyrus Compiler** - Script compilation
-- **Wrye Bash** - Mod management
+### Step 4: Connecting Your Tools
+Confirm the installation paths for your core utilities. Mossy uses these to launch tools and validate your assets.
 
-**What you need to do:** Click on each tool you have installed to select it. You can change these later in Settings.
-
-### Step 3: Your Privacy Settings
+### Step 5: Your Privacy Settings
 This is the most important step. **You have complete control over your data.**
 
 #### What Gets Stored Locally (Always)
@@ -72,15 +63,15 @@ If you want to help other Mossy users, you can optionally share anonymized insig
 
 **What you need to do:** Review each setting. Toggle ON any that you want to participate in. If you prefer complete privacy, just leave them all OFF. ✅
 
-### Step 4: You're All Set!
-Confirms your setup is complete and shows you next steps.
+### Step 6: You're All Set!
+Calibration complete. Confirms your setup is finished and shows you next steps.
 
 **What you'll see:**
-- Count of tools connected
+- Neural Link status (Active/Inactive)
+- Memory Vault digestion summary
 - Confirmation that data is secure
-- Guide for creating your first project
 
-**What you need to do:** Click "Start Using Mossy" to launch the app.
+**What you need to do:** Click "Start Using Mossy" to launch the hub.
 
 ## After Onboarding
 

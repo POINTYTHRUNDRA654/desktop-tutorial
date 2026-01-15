@@ -154,7 +154,7 @@ const NeuralLink: React.FC = () => {
                         
                         <div className="space-y-4">
                             {mossyThoughts.map((thought, idx) => (
-                                <div key={idx} className="flex gap-3 animate-in slide-in-from-left duration-300" style={{ animationDelay: \`\${idx * 150}ms\` }}>
+                                <div key={idx} className="flex gap-3 animate-in slide-in-from-left duration-300" style={{ animationDelay: `${idx * 150}ms` }}>
                                     <div className="mt-1">
                                         <div className="w-1 h-3 bg-blue-400 rounded-full" />
                                     </div>

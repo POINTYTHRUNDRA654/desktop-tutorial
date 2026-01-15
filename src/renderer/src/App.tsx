@@ -7,6 +7,8 @@ import TutorialOverlay from './TutorialOverlay';
 import SystemBus from './SystemBus';
 import MossyOnboarding from './MossyOnboarding';
 import ErrorBoundary from './ErrorBoundary';
+import PipBoyFrame from './PipBoyFrame';
+import PipBoyStartup from './PipBoyStartup';
 
 import { Loader2, Zap } from 'lucide-react';
 import { LiveProvider } from './LiveContext';
@@ -106,6 +108,7 @@ const ModuleLoader = () => (
 );
 
 const App: React.FC = () => {
+  const [hasBooted, setHasBooted] = useState(false);
   const [showOnboarding, setShowOnboarding] = useState(() => {
     // Check if user has completed onboarding
     return !localStorage.getItem('mossy_onboarding_completed');
@@ -128,17 +131,6 @@ const App: React.FC = () => {
     checkKey();
   }, []);
 
-  if (showOnboarding) {
-    return (
-      <MossyOnboarding 
-        onComplete={() => {
-          setShowOnboarding(false);
-          localStorage.setItem('mossy_onboarding_completed', 'true');
-        }}
-      />
-    );
-  }
-
   // Debug: Check if Electron API is available on app start
   React.useEffect(() => {
     console.log('[App] Checking Electron API availability...');
@@ -152,10 +144,26 @@ const App: React.FC = () => {
     }
   }, []);
 
-  return (
-    <LiveProvider>
+  // Determine what to display based on state
+  const renderAppContent = () => {
+    if (!hasBooted) {
+      return <PipBoyStartup onComplete={() => setHasBooted(true)} />;
+    }
+
+    if (showOnboarding) {
+      return (
+        <MossyOnboarding 
+          onComplete={() => {
+            setShowOnboarding(false);
+            localStorage.setItem('mossy_onboarding_completed', 'true');
+          }}
+        />
+      );
+    }
+
+    return (
       <HashRouter>
-        <div className="flex h-screen w-screen overflow-hidden" style={{ background: 'linear-gradient(135deg, #0a0e0a 0%, #1a1f1a 100%)', color: '#00ff00' }}>
+        <div className="flex h-full w-full overflow-hidden" style={{ background: 'linear-gradient(135deg, #0a0e0a 0%, #1a1f1a 100%)', color: '#00ff00' }}>
           <NeuralController />
           <CommandPalette />
           <TutorialOverlay />
@@ -165,9 +173,9 @@ const App: React.FC = () => {
             <MossyObserver />
             <Suspense fallback={<ModuleLoader />}>
               <Routes>
-                <Route path="/" element={<ErrorBoundary><ChatInterface /></ErrorBoundary>} />
+                <Route path="/" element={<ErrorBoundary><TheNexus /></ErrorBoundary>} />
                 <Route path="/monitor" element={<SystemMonitor />} />
-                <Route path="/chat" element={<Navigate to="/" replace />} />
+                <Route path="/chat" element={<ErrorBoundary><ChatInterface /></ErrorBoundary>} />
                 <Route path="/assembler" element={<TheAssembler />} />
                 <Route path="/auditor" element={<TheAuditor />} />
                 <Route path="/scribe" element={<TheScribe />} />
@@ -201,15 +209,23 @@ const App: React.FC = () => {
                 <Route path="/quest-mod-authoring-guide" element={<QuestModAuthoringGuide />} />
                 <Route path="/quest-authoring" element={<QuestModAuthoringGuide />} />
                 <Route path="/journey" element={<ModdingJourney />} />
-
               </Routes>
             </Suspense>
             <AvatarOverlay />
           </main>
-
         </div>
       </HashRouter>
-    </LiveProvider>
+    );
+  };
+
+  return (
+    <ErrorBoundary>
+      <LiveProvider>
+        <PipBoyFrame>
+          {renderAppContent()}
+        </PipBoyFrame>
+      </LiveProvider>
+    </ErrorBoundary>
   );
 };
 

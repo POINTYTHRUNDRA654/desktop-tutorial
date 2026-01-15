@@ -15,7 +15,9 @@ const ModdingJourney: React.FC = () => {
         { id: '2', title: 'The First Scan', desc: 'Complete a hardware and software environment audit.', unlocked: false, category: 'foundation' },
         { id: '3', title: 'Script Initiate', desc: 'Compile your first Papyrus script via The Hive.', unlocked: false, category: 'scripting' },
         { id: '4', title: 'Mesh Master', desc: 'Optimize a 3D model using the 1.0 Metric Scale protocol.', unlocked: false, category: 'modeling' },
-        { id: '5', title: 'Nexus Scholar', desc: 'Add 5 custom tutorials to the Mossy Memory Vault.', unlocked: false, category: 'foundation' }
+        { id: '5', title: 'Nexus Scholar', desc: 'Add 5 custom tutorials to the Mossy Memory Vault.', unlocked: false, category: 'foundation' },
+        { id: '6', title: 'Vault Talker', desc: 'Send 10 messages to Mossy for guidance.', unlocked: false, category: 'foundation' },
+        { id: '7', title: 'Bridge Technician', desc: 'Execute 5 system-linked tools via the Desktop Bridge.', unlocked: false, category: 'foundation' }
     ]);
 
     useEffect(() => {
@@ -28,6 +30,11 @@ const ModdingJourney: React.FC = () => {
             if (ach.id === '1' && history.some((h: any) => h.action === 'neural_link')) return { ...ach, unlocked: true };
             if (ach.id === '2' && profile) return { ...ach, unlocked: true };
             if (ach.id === '5' && vault && JSON.parse(vault).length >= 5) return { ...ach, unlocked: true };
+            
+            // New achievements
+            if (ach.id === '6' && history.filter((h: any) => h.action === 'chat_message').length >= 10) return { ...ach, unlocked: true };
+            if (ach.id === '7' && history.filter((h: any) => h.action === 'tool_execution').length >= 5) return { ...ach, unlocked: true };
+            
             return ach;
         }));
     }, []);

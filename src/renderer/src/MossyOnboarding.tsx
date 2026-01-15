@@ -34,16 +34,53 @@ const MossyOnboarding: React.FC<{ onComplete: () => void }> = ({ onComplete }) =
       id: 'nexus',
       title: 'The Nexus',
       icon: React.createElement(Shield, { className: "w-12 h-12 text-emerald-400" }),
-      description: 'Onboarding, training, and system checks',
+      description: 'Onboarding, training, and neural calibration',
       content: (
         <div className="space-y-6">
           <p className="text-slate-400">
-            The Nexus is your first stop: it guides you through onboarding, system integration, and interactive training. Here you’ll learn how to use every module and unlock advanced features.
+            The Nexus is your command center. It handles onboarding, system calibration, and connects Mossy to your local modding environment.
           </p>
           <ul className="list-disc pl-6 text-slate-300 text-sm space-y-1">
-            <li>Step-by-step onboarding and system setup</li>
-            <li>Interactive training: try features, get instant feedback</li>
-            <li>Unlock pro tips and advanced workflows</li>
+            <li>Step-by-step calibration and system hardware scanning</li>
+            <li>Permission-based implementation protocol (Mossy always asks first)</li>
+            <li>Neural Link activation for real-time tool monitoring</li>
+            <li>Memory Vault ingestion for custom project knowledge</li>
+          </ul>
+        </div>
+      )
+    },
+    {
+      id: 'neural-link',
+      title: 'Neural Link',
+      description: 'Active process monitoring and tool alignment',
+      icon: React.createElement(Zap, { className: "w-12 h-12 text-yellow-400" }),
+      content: (
+        <div className="space-y-6">
+          <p className="text-slate-400">
+            Mossy now integrates directly with your desktop. The Neural Link monitors programs like Blender, xEdit, and the Creation Kit to provide real-time advice and fix scripts.
+          </p>
+          <ul className="list-disc pl-6 text-slate-300 text-sm space-y-1">
+            <li>Real-time detection of modding tools</li>
+            <li>Automatic alignment scripts (1.0 Scale / 30 FPS fixes)</li>
+            <li>Session-aware assistance based on your active window</li>
+          </ul>
+        </div>
+      )
+    },
+    {
+      id: 'memory-vault',
+      title: 'Memory Vault',
+      description: 'Ingest custom knowledge and private documentation',
+      icon: React.createElement(BrainCircuit, { className: "w-12 h-12 text-blue-400" }),
+      content: (
+        <div className="space-y-6">
+          <p className="text-slate-400">
+            Train Mossy on your specific project notes and tutorials. The Memory Vault uses RAG (Retrieval-Augmented Generation) to give Mossy access to your private data.
+          </p>
+          <ul className="list-disc pl-6 text-slate-300 text-sm space-y-1">
+            <li>Upload custom .txt and .md tutorials</li>
+            <li>Neural digestion for instant knowledge integration</li>
+            <li>100% local and private context processing</li>
           </ul>
         </div>
       )
@@ -144,6 +181,10 @@ const MossyOnboarding: React.FC<{ onComplete: () => void }> = ({ onComplete }) =
               <div className="flex gap-3">
                 <CheckCircle2 className="w-4 h-4 text-emerald-400 flex-shrink-0 mt-0.5" />
                 <span>Ready to start your first advanced project!</span>
+              </div>
+              <div className="flex gap-3">
+                <Shield className="w-4 h-4 text-emerald-400 flex-shrink-0 mt-0.5" />
+                <span>Permission-first protocol active: Mossy will always ask before syncing or modifying files.</span>
               </div>
             </div>
           </div>

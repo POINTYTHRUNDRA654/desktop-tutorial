@@ -5,59 +5,45 @@
 ## What is Mossy?
 
 Mossy is a professional Fallout 4 modding assistant with:
-- 🤖 **Gemini AI** - Chat with an AI trained on FO4 modding knowledge
+- 🤖 **Hybrid AI** - Use Google Gemini (Live) or Ollama (Local/Private)
+- 🧠 **Memory Vault** - Feed Mossy custom tutorials to create your own modding RAG
+- 🔗 **Neural Link** - Real-time monitoring of Blender, Creation Kit, and xEdit
 - 🔍 **Asset Analysis** - Validate NIF, DDS, and ESP files
 - 🎨 **PBR Generation** - Create texture maps automatically  
 - 🛠️ **Tools Integration** - Detect and launch your modding tools
-- 📊 **System Monitoring** - Track CPU/RAM/GPU usage
 - 🎮 **Game Testing** - Configure and launch Fallout 4 for testing
 
 ## ⚡ Quick Setup (5 minutes)
 
-### Step 1: Get Google Gemini API Key
+### Step 1: Choose Your Brain
 
+#### Option A: Google Gemini (Live Voice & Fast)
 1. Go to [Google AI Studio](https://aistudio.google.com/app/apikey)
-2. Click "Get API Key"
-3. Create a new API key
-4. Copy the key
+2. Create a new API key and copy it.
+3. In Mossy, go to **Settings > Privacy** and paste your key.
+
+#### Option B: Ollama (Local & 100% Private)
+1. Install [Ollama](https://ollama.com/)
+2. Run `ollama run llama3` in your terminal.
+3. Mossy will automatically detect the local service on port 11434.
 
 ### Step 2: Install Mossy
+... (existing steps) ...
 
-```bash
-# Clone repository
-git clone https://github.com/POINTYTHRUNDRA654/desktop-tutorial.git
-cd desktop-tutorial
+### Step 3: Train Mossy (Optional but Recommended)
+Go to **Memory Vault** and upload any `.txt` or `.md` tutorials you have. Mossy will "digest" these and use them to answer your questions.
 
-# Install dependencies
-npm install
-```
-
-### Step 3: Set API Key
-
-Create `.env.local` file in the project root:
-
-```
-VITE_API_KEY=your_api_key_here
-```
-
-Replace `your_api_key_here` with the key from Step 1.
-
-### Step 4: Run Mossy
-
-```bash
-npm run dev
-```
-
-Mossy opens automatically with hot reload enabled.
+### Step 4: Link Your Tools
+Launch Blender or the Creation Kit. Mossy's **Neural Link** will pulse green when it detects them, enabling real-time advice.
 
 ## 🎯 First Time User
 
 When you launch Mossy for the first time:
 
-1. **See the UI** - You'll see the main Mossy interface
-2. **Chat with Mossy** - Type a message to start talking with the AI
-3. **Explore Modules** - Click on different tools in the sidebar
-4. **Set Your Path** - In "The Scribe", set your tool installation paths
+1. **Visit The Nexus** - Complete the onboarding calibration.
+2. **Open Neural Link** - See which modding tools Mossy is currently watching.
+3. **Check the Vault** - Stage your assets for BA2 packaging.
+4. **Try the Scribe** - Edit your scripts with real-time Papyrus validation.
 
 ## 🔍 Key Features Explained
 

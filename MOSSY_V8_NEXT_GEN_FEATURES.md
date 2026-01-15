@@ -20,7 +20,7 @@ Wave 6 represents the most **revolutionary** update to Mossy yet, introducing te
 2. **AI Voice Acting Generation** (3 tools) - Clone voices, generate dialogue
 3. **Neural Network Testing** (3 tools) - 1000+ AI combat simulations
 4. **Photogrammetry Pipeline** (3 tools) - Photos → 3D game assets
-5. **Cross-Game Mod Porting** (3 tools) - FO4 ↔ Skyrim/Starfield
+5. **Legacy Asset Adaptation** (3 tools) - Adapt exterior assets TO Fallout 4
 6. **Blockchain Authentication** (2 tools) - Cryptographic mod verification
 7. **Community Bug Bounty** (3 tools) - Reward testers for finding bugs
 8. **Automated Legal Compliance** (3 tools) - Copyright/EULA scanning
@@ -1453,21 +1453,21 @@ C:/ModAssets/RustyToolbox/
 
 ---
 
-## 🎮 CATEGORY 5: CROSS-GAME MOD PORTING
+## 🎮 CATEGORY 5: LEGACY ASSET ADAPTATION
 
-**Port mods between Fallout 4, Skyrim, and Starfield automatically.**
+**Adapt exterior assets and legacy mod content TO Fallout 4 formats.**
 
-### Why Cross-Game Porting?
+### Why Asset Adaptation?
 
-**Manual Porting:**
-- Time: 20-40 hours per mod
+**Manual Adaptation:**
+- Time: 20-40 hours per set
 - Difficulty: Requires engine expertise
 - Success Rate: 40-60%
 - Asset Conversion: Manual, error-prone
 
-**AI-Assisted Porting:**
+**AI-Assisted Adaptation:**
 - Time: 2-4 hours
-- Difficulty: Automated analysis + conversion
+- Difficulty: Automated analysis + conversion TO FO4 standards
 - Success Rate: 52-78% (depending on target)
 - Asset Conversion: Automated with validation
 
