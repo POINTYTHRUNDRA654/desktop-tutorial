@@ -51,47 +51,13 @@ export const AutoCompiler: React.FC = () => {
         pollCompilations();
       }
     } catch (error) {
-      // Demo mode
-      simulateCompilations();
+      setWatching(false);
+      alert('Connection Failed: Watching requires a running Desktop Bridge server.');
     }
   };
 
   const stopWatching = () => {
     setWatching(false);
-  };
-
-  const simulateCompilations = () => {
-    // Add example compilations
-    setTimeout(() => {
-      const example: CompilationResult = {
-        file: 'MyQuestScript.psc',
-        success: false,
-        time: new Date(),
-        errors: [
-          'Line 45: variable "questStage" is undefined',
-          'Line 67: type mismatch in assignment to variable "playerRef"'
-        ],
-        warnings: [
-          'Line 23: local variable "tempInt" is never used'
-        ],
-        output: 'Starting 1 compile threads for 1 files...\nCompiling "MyQuestScript"...\nMyQuestScript.psc(45,12): variable "questStage" is undefined\nMyQuestScript.psc(67,8): type mismatch in assignment\nNo output generated for MyQuestScript.psc, compilation failed.'
-      };
-
-      setCompilations(prev => [example, ...prev].slice(0, 20));
-    }, 2000);
-
-    setTimeout(() => {
-      const success: CompilationResult = {
-        file: 'WorkingScript.psc',
-        success: true,
-        time: new Date(),
-        errors: [],
-        warnings: [],
-        output: 'Starting 1 compile threads for 1 files...\nCompiling "WorkingScript"...\nCompilation succeeded.\nBatch compile of 1 files finished. 1 succeeded, 0 failed.'
-      };
-
-      setCompilations(prev => [success, ...prev].slice(0, 20));
-    }, 5000);
   };
 
   const pollCompilations = () => {

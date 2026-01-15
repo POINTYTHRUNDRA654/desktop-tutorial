@@ -40,13 +40,11 @@ const SystemBus: React.FC = () => {
         };
 
         const handleBlenderCmd = (e: CustomEvent) => {
-            handleLog('Blender', `Remote CMD: ${e.detail.description}`, 'warn');
-            // Simulate execution time
-            setTimeout(() => handleLog('Blender', 'Script executed. Scene Updated.', 'success'), 1000);
+            handleLog('Blender', `Remote CMD Sent: ${e.detail.description}`, 'ok');
         };
 
         const handleShortcut = (e: CustomEvent) => {
-            handleLog('Blender', `Keystroke: [ ${e.detail.keys} ] - ${e.detail.description}`, 'warn');
+            handleLog('Blender', `Keystroke Sent: [ ${e.detail.keys} ] - ${e.detail.description}`, 'ok');
         };
 
         // Standard Control Event Handler
@@ -71,22 +69,26 @@ const SystemBus: React.FC = () => {
                 const controller = new AbortController();
                 const timeoutId = setTimeout(() => controller.abort(), 2000); // 2s timeout
                 
-                // Suppress fetch errors in console (expected when bridge is offline)
-                const originalError = console.error;
-                console.error = () => {};
-                
-                // USE 127.0.0.1 to avoid localhost IPv6 issues
-                const response = await fetch('http://127.0.0.1:21337/health', { 
-                    signal: controller.signal,
-                    method: 'GET',
-                    mode: 'cors' // Important for local dev
-                }).finally(() => {
-                    console.error = originalError; // Restore console.error
-                });
+                // Try IP first, then Localhost if needed
+                let response;
+                try {
+                    response = await fetch('http://127.0.0.1:21337/health', { 
+                        signal: controller.signal,
+                        method: 'GET',
+                        mode: 'cors'
+                    });
+                } catch (e) {
+                    // Fallback to localhost if IP fails (IPv6 issues etc)
+                    response = await fetch('http://localhost:21337/health', {
+                        signal: controller.signal,
+                        method: 'GET',
+                        mode: 'cors'
+                    });
+                }
                 
                 clearTimeout(timeoutId);
 
-                if (response.ok) {
+                if (response && response.ok) {
                     const data = await response.json();
                     if (data.status === 'online') {
                         // Bridge is UP

@@ -21,44 +21,18 @@ interface FomodNode {
     isExpanded?: boolean;
 }
 
-const initialStructure: FomodNode[] = [
-    {
-        id: 'page1', type: 'page', name: 'Install Options', isExpanded: true, children: [
-            {
-                id: 'grp1', type: 'group', name: 'Texture Resolution', groupType: 'SelectExactlyOne', isExpanded: true, children: [
-                    { id: 'opt1', type: 'option', name: '2K Textures', description: 'Recommended for most users.', imagePath: 'Images/2k_preview.png' },
-                    { id: 'opt2', type: 'option', name: '4K Textures', description: 'For high-end systems only.', imagePath: 'Images/4k_preview.png' }
-                ]
-            },
-            {
-                id: 'grp2', type: 'group', name: 'Optional Patches', groupType: 'SelectAny', isExpanded: true, children: [
-                    { id: 'opt3', type: 'option', name: 'Darker Nights Patch', description: 'Compatibility for Darker Nights.', imagePath: '' },
-                    { id: 'opt4', type: 'option', name: 'ENB Light Patch', description: 'Adds complex particle lights.', imagePath: '' }
-                ]
-            }
-        ]
-    }
-];
+const initialStructure: FomodNode[] = [];
 
-const mockFiles = [
-    "Textures/Weapons/Rifle_2k_d.dds",
-    "Textures/Weapons/Rifle_2k_n.dds",
-    "Textures/Weapons/Rifle_4k_d.dds",
-    "Textures/Weapons/Rifle_4k_n.dds",
-    "Meshes/Weapons/Rifle.nif",
-    "MyMod.esp",
-    "Patches/MyMod_DarkerNights.esp",
-    "Patches/MyMod_ENB.esp"
-];
+const modFiles: string[] = [];
 
 const TheAssembler: React.FC = () => {
-    const [structure, setStructure] = useState<FomodNode[]>(initialStructure);
+    const [structure, setStructure] = useState<FomodNode[]>([]);
     const [selectedId, setSelectedId] = useState<string | null>(null);
     const [viewMode, setViewMode] = useState<'editor' | 'preview' | 'xml'>('editor');
     const [isGenerating, setIsGenerating] = useState(false);
     const [modFiles, setModFiles] = useState<string[]>([]);
-    const [modName, setModName] = useState('My Awesome Mod');
-    const [modAuthor, setModAuthor] = useState('Your Name');
+    const [modName, setModName] = useState('New Mod Project');
+    const [modAuthor, setModAuthor] = useState('User');
     const [modVersion, setModVersion] = useState('1.0.0');
     const [modWebsite, setModWebsite] = useState('');
     const [toolSettings, setToolSettings] = useState<AppSettings | null>(null);

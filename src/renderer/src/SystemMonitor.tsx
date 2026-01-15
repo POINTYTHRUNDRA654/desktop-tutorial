@@ -28,7 +28,6 @@ interface SystemProfile {
     blenderVersion: string;
     vram: number; // GB
     isLegacy: boolean;
-    isSimulated?: boolean; // Added flag
 }
 
 interface SystemModule {
@@ -257,8 +256,7 @@ const SystemMonitor: React.FC = () => {
                 ram: sysInfo.ram,
                 blenderVersion: (sysInfo as any).blenderVersion || '',
                 vram: (sysInfo as any).vram || 0,
-                isLegacy: sysInfo.ram < 8 || ((sysInfo as any).vram > 0 && (sysInfo as any).vram < 4),
-                isSimulated: false
+                isLegacy: sysInfo.ram < 8 || ((sysInfo as any).vram > 0 && (sysInfo as any).vram < 4)
             };
             console.log('[SystemMonitor] Setting profile:', newProfile);
             setProfile(newProfile);
@@ -314,10 +312,10 @@ const SystemMonitor: React.FC = () => {
                 os: data.os.includes('Windows') ? 'Windows' : data.os.includes('Darwin') ? 'MacOS' : 'Linux',
                 gpu: data.gpu || 'Generic Adapter',
                 ram: data.ram || 16,
-                // These are inferred or defaults since python can't easily detect blender version without specific paths
-                blenderVersion: '4.5.5', 
-                vram: 8, // Estimate
-                isLegacy: false
+                // Blender version detection via bridge
+                blenderVersion: data.blenderVersion || 'Not Detected', 
+                vram: data.vram || 8, // Use data from bridge if available
+                isLegacy: data.ram < 8
             };
             setProfile(newProfile);
             setIsScanning(false);
@@ -334,7 +332,7 @@ const SystemMonitor: React.FC = () => {
         
         // --- FAIL-SAFE FALLBACK ---
         // If we are here, the bridge is likely blocked by browser security (CORS/PNA) or just offline.
-        // Instead of erroring out, we switch to Simulation Mode so the user can continue working.
+        // We set a minimum profile status so the UI doesn't crash, but functionality will remain locked.
         
         if (e.message === "OUTDATED_SERVER") {
             setScanError("Bridge Script Outdated. Please update 'mossy_server.py'.");
@@ -350,13 +348,12 @@ const SystemMonitor: React.FC = () => {
         addLog("[SYSTEM] Unable to detect hardware specs.", 'warning');
         
         const fallbackProfile: SystemProfile = {
-            os: 'Unknown OS',
-            gpu: 'Unknown GPU (Detection Failed)',
+            os: 'Bridge Disconnected',
+            gpu: 'N/A',
             ram: 0,
-            blenderVersion: 'Unknown',
+            blenderVersion: 'N/A',
             vram: 0,
-            isLegacy: true,
-            isSimulated: true
+            isLegacy: true
         };
         setProfile(fallbackProfile);
         setIsScanning(false);
@@ -429,7 +426,7 @@ const SystemMonitor: React.FC = () => {
   const startInstaller = async () => {
       setShowInstaller(true);
       setInstallStep(1);
-      setInstallLog(['> Initializing Setup Wizard v2.4.2', '> Checking Permissions... OK', '> Mounting Local File System...']);
+      setInstallLog(['> Initializing Bridge Connection...', '> Checking Desktop Bridge Status...', '> Reading Local Environment...']);
       setFoundTools([]);
 
       // Perform Real AI Service Detection
@@ -519,8 +516,8 @@ const SystemMonitor: React.FC = () => {
                               <Package className="w-6 h-6 text-emerald-400" />
                           </div>
                           <div>
-                              <h2 className="text-xl font-bold text-white">OmniForge Setup Wizard</h2>
-                              <p className="text-xs text-slate-400">Deep System Analysis & Bridge Configuration</p>
+                              <h2 className="text-xl font-bold text-white">Desktop Bridge Connection</h2>
+                              <p className="text-xs text-slate-400">System Link & Local Verification</p>
                           </div>
                       </div>
                       {installStep === 3 && (
@@ -903,24 +900,23 @@ const SystemMonitor: React.FC = () => {
 
                   {profile ? (
                       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                          <div className={`bg-slate-900 p-4 rounded-lg border relative overflow-hidden ${profile.isSimulated ? 'border-yellow-600/30' : 'border-slate-700'}`}>
+                          <div className="bg-slate-900 p-4 rounded-lg border border-slate-700 relative overflow-hidden">
                               <div className="absolute top-0 right-0 p-3 opacity-10"><Cpu className="w-16 h-16 text-amber-400" /></div>
                               <div className="text-xs text-slate-500 uppercase font-bold mb-2">GPU / Graphics</div>
                               <div className="text-lg font-bold text-white truncate" title={profile.gpu}>{profile.gpu}</div>
                               <div className={`text-sm ${profile.vram > 0 ? 'text-slate-400' : 'text-slate-600'}`}>
                                   {profile.vram > 0 ? `${profile.vram} GB VRAM` : 'VRAM Unknown'}
                               </div>
-                              {profile.isSimulated && <div className="absolute bottom-2 right-2 text-[9px] text-yellow-500 bg-yellow-900/20 px-2 rounded">SIMULATED</div>}
                           </div>
                           
-                          <div className={`bg-slate-900 p-4 rounded-lg border relative overflow-hidden ${profile.isSimulated ? 'border-yellow-600/30' : 'border-slate-700'}`}>
+                          <div className="bg-slate-900 p-4 rounded-lg border border-slate-700 relative overflow-hidden">
                               <div className="absolute top-0 right-0 p-3 opacity-10"><HardDrive className="w-16 h-16 text-blue-400" /></div>
                               <div className="text-xs text-slate-500 uppercase font-bold mb-2">System Memory</div>
                               <div className="text-lg font-bold text-white">{profile.ram} GB RAM</div>
                               <div className="text-sm text-slate-400">{profile.os}</div>
                           </div>
 
-                          <div className={`bg-slate-900 p-4 rounded-lg border relative overflow-hidden ${profile.isSimulated ? 'border-yellow-600/30' : 'border-slate-700'}`}>
+                          <div className="bg-slate-900 p-4 rounded-lg border border-slate-700 relative overflow-hidden">
                               <div className="absolute top-0 right-0 p-3 opacity-10"><Box className="w-16 h-16 text-orange-400" /></div>
                               <div className="text-xs text-slate-500 uppercase font-bold mb-2">3D Software</div>
                               <div className={`text-lg font-bold ${profile.blenderVersion ? 'text-white' : 'text-slate-600'}`}>
@@ -933,7 +929,7 @@ const SystemMonitor: React.FC = () => {
                               )}
                           </div>
                           
-                          <div className={`bg-slate-900 p-4 rounded-lg border relative overflow-hidden ${profile.isSimulated ? 'border-yellow-600/30' : 'border-slate-700'}`}>
+                          <div className="bg-slate-900 p-4 rounded-lg border border-slate-700 relative overflow-hidden">
                               <div className="absolute top-0 right-0 p-3 opacity-10"><Monitor className="w-16 h-16 text-purple-400" /></div>
                               <div className="text-xs text-slate-500 uppercase font-bold mb-2">Display & Storage</div>
                               <div className="text-sm text-slate-400">
@@ -1139,7 +1135,7 @@ const SystemMonitor: React.FC = () => {
                                   onClick={startInstaller}
                                   className="p-3 bg-purple-600 hover:bg-purple-500 rounded-lg flex items-center justify-center gap-2 text-sm font-bold text-white transition-colors shadow-lg shadow-purple-900/20"
                               >
-                                  <HardDriveDownload className="w-4 h-4" /> Launch Connection Wizard
+                                  <HardDriveDownload className="w-4 h-4" /> Initialize System Link
                               </button>
 
                               <button 
