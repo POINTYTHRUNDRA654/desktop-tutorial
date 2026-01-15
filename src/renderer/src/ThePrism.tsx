@@ -43,7 +43,7 @@ const ThePrism: React.FC = () => {
         // Reset Shards
         setShards(prev => prev.map(s => ({ ...s, content: '', status: 'thinking' })));
 
-        const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+        const ai = new GoogleGenAI({ apiKey: (import.meta.env.VITE_API_KEY || import.meta.env.VITE_GOOGLE_API_KEY || "") });
 
         // 1. Parallel Generation for Shards
         const shardPrompts = {
@@ -54,12 +54,12 @@ const ThePrism: React.FC = () => {
 
         const generateShard = async (shardId: 'logic' | 'creative' | 'critic') => {
             try {
-                const response = await ai.models.generateContent({
-                    model: 'gemini-3-flash-preview', // Fast model for shards
-                    contents: shardPrompts[shardId],
-                });
-                setShards(prev => prev.map(s => s.id === shardId ? { ...s, content: response.text, status: 'complete' } : s));
-                return response.text;
+                const model = ai.getGenerativeModel({ model: 'gemini-1.5-flash' });
+                const result = await model.generateContent(shardPrompts[shardId]);
+                const response = await result.response;
+                const text = response.text();
+                setShards(prev => prev.map(s => s.id === shardId ? { ...s, content: text, status: 'complete' } : s));
+                return text;
             } catch (e) {
                 setShards(prev => prev.map(s => s.id === shardId ? { ...s, content: 'Data corrupted.', status: 'complete' } : s));
                 return '';
@@ -88,12 +88,11 @@ const ThePrism: React.FC = () => {
             Format with Markdown.
             `;
 
-            const finalResponse = await ai.models.generateContent({
-                model: 'gemini-3-pro-preview', // Smart model for synthesis
-                contents: finalPrompt,
-            });
+            const model = ai.getGenerativeModel({ model: 'gemini-1.5-flash' });
+            const result = await model.generateContent(finalPrompt);
+            const response = await result.response;
 
-            setSynthesis(finalResponse.text);
+            setSynthesis(response.text());
             setSynthesisStatus('complete');
 
         } catch (e) {

@@ -30,7 +30,7 @@ const TheScribe: React.FC = () => {
     const handleGenerate = async () => {
         setIsGenerating(true);
         try {
-            const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+            const ai = new GoogleGenAI({ apiKey: (import.meta.env.VITE_API_KEY || import.meta.env.VITE_GOOGLE_API_KEY || "") });
             
             let prompt = "";
             let systemContext = `You are "The Scribe", a documentation assistant for Fallout 4 mods. Mod Name: "${modName}". Version: "${version}".`;
@@ -57,12 +57,11 @@ const TheScribe: React.FC = () => {
                 Make it atmospheric, mentioning specific Fallout 4 locations or factions if relevant (Institute, Brotherhood, Railroad).`;
             }
 
-            const response = await ai.models.generateContent({
-                model: 'gemini-3-flash-preview',
-                contents: prompt,
-            });
+            const model = ai.getGenerativeModel({ model: 'gemini-1.5-flash' });
+            const result = await model.generateContent(prompt);
+            const response = await result.response;
 
-            setGeneratedContent(response.text);
+            setGeneratedContent(response.text());
 
         } catch (e) {
             setGeneratedContent("Error: Ink pot empty. (AI Generation Failed)");
