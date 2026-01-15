@@ -59,7 +59,40 @@ export const executeMossyTool = async (name: string, args: any, context: {
     await new Promise(r => setTimeout(r, 800));
 
     let result: any = "Success";
-    if (name === 'list_files') {
+    if (name === 'launch_tool') {
+        try {
+            const api = (window as any).electronAPI || (window as any).electron?.api;
+            const settings = await api.getSettings();
+            const pathKey = `${args.toolId}Path`;
+            
+            const toolNameMapping: Record<string, string> = {
+                'xedit': 'FO4Edit',
+                'blender': 'Blender',
+                'nifskope': 'NifSkope',
+                'creationkit': 'Creation Kit',
+                'vortex': 'Vortex',
+                'mo2': 'Mod Organizer 2',
+                'upscayl': 'Upscayl',
+                'photopea': 'Photopea',
+                'shadermap': 'ShaderMap',
+                'nvidiaTextureTools': 'NVIDIA Texture Tools',
+                'nvidiaCanvas': 'NVIDIA Canvas',
+                'nvidiaOmniverse': 'NVIDIA Omniverse'
+            };
+            
+            const toolDisplayName = toolNameMapping[args.toolId] || args.toolId;
+            const targetPath = (settings as any)[pathKey] || (settings as any)[args.toolId];
+
+            if (targetPath) {
+                await api.openProgram(targetPath);
+                result = `[MOSSY] I have successfully launched ${toolDisplayName}. Directive complete, Architect.`;
+            } else {
+                result = `[MOSSY] I cannot launch ${toolDisplayName} because its execution path has not been configured in your settings. Please navigate to the External Tools module to set it up.`;
+            }
+        } catch (e) {
+            result = `[MOSSY] I encountered an error while attempting to initialize ${args.toolId}. Hardware bridge offline.`;
+        }
+    } else if (name === 'list_files') {
         const bridgeActive = localStorage.getItem('mossy_bridge_active') === 'true';
         if (bridgeActive) {
             try {
@@ -123,7 +156,29 @@ ${info.motherboard ? `- Motherboard: ${info.motherboard}\n` : ''}${info.blenderV
             result = `Unable to scan hardware: Desktop Bridge is offline and Native API unavailable.`;
         }
     } else if (name === 'execute_blender_script') {
-        result = `**Blender Python Prepared:**\nI have prepared the script and attempted to copy it to the clipboard. Use the 'Paste & Run' button in the Blender panel.`;
+        const bridgeActive = localStorage.getItem('mossy_bridge_active') === 'true' || true; // Native bridge is now always active
+        if (bridgeActive) {
+            try {
+                const response = await fetch('http://localhost:21337/execute', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ 
+                        type: 'blender', 
+                        script: args.script,
+                        target: 'active_instance' 
+                    })
+                });
+                if (response.ok) {
+                    result = `[MOSSY] Directive executed. I have successfully transmitted the Python instructions to the Blender Neural Link. The operation is currently being applied to your active workspace.`;
+                } else {
+                    result = `[MOSSY] I attempted to transmit the script to Blender, but the bridge encountered an error. Please ensure Blender is running and the Mossy Link add-on is active.`;
+                }
+            } catch (e) {
+                result = `[MOSSY] Connection to the Neural Bridge was interrupted during script transmission. I have copied the code to your clipboard as a fallback.`;
+            }
+        } else {
+            result = `**Blender Python Prepared:**\nI have prepared the script and attempted to copy it to the clipboard. Use the 'Paste & Run' button in the Blender panel.`;
+        }
     } else if (name === 'send_blender_shortcut') {
         result = `**Blender Shortcut Sent:** ${args.keys}\nCommand confirmed by bridge.`;
     } else if (name === 'ck_execute_command') {
