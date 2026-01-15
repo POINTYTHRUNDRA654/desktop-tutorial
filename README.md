@@ -13,12 +13,19 @@
 
 ### Core Modules
 
-#### 🤖 **Mossy Chat Interface** (Google Gemini AI)
+#### 🤖 **Mossy AI Engine** (Hybrid Intelligence)
 - Real-time voice conversation with Gemini Live API
+- **Local ML Inference** - Support for Ollama (Llama 3) for private, offline assistance
+- **Memory Vault (RAG)** - Ingest custom tutorials and documentation to expand Mossy's "brain"
 - Custom avatar support with image uploads
 - Mode detection: listening, processing, speaking
-- Fallout 4 modding knowledge base
+- Fallout 4 modding knowledge base (Modern 2025 Standards)
 - Text and voice input/output
+
+#### 🧠 **Neural Link** (Direct Tool Integration)
+- **Active Process Monitoring** - Monitors Blender, Creation Kit, xEdit, and NifSkope in real-time
+- **Session Awareness** - Mossy adjusts advice based on which tool you have active
+- **Standards Alignment** - One-click generation of alignment scripts (1.0 Scale / 30 FPS) for Blender
 
 #### 🔍 **The Auditor** (Asset Analysis)
 - **ESP file analysis** - TES4 header validation, record counting, file size limits
@@ -80,12 +87,13 @@
 
 ## ✨ Key Features
 
-- ✅ **Real Gemini AI Integration** - Actual API calls, user-configurable API keys
+- ✅ **Hybrid AI Integration** - Choose between Google Gemini or local Ollama (Llama 3)
+- ✅ **Memory Vault (RAG)** - Upload your own PDF/Text tutorials to train Mossy on your specific needs
+- ✅ **Active Neural Link** - Real-time monitoring of your modding tools (Blender, CK, xEdit)
+- ✅ **Modern Standards** - Built-in support for Blender 4.1 metrics (1.0 scale, 30 FPS)
 - ✅ **Production Asset Analysis** - Real binary format reading for NIF/DDS/ESP
 - ✅ **Advanced Image Processing** - Real Sobel operators and image algorithms
 - ✅ **Zero Fake Features** - Everything is functional and tested
-- ✅ **Lean & Fast** - Only necessary modules, no bloat
-- ✅ **Professional Tools** - Industry-standard file format support
 - ✅ **Real IPC Bridge** - Direct Electron API access for system operations
 
 ## 🏗️ Architecture

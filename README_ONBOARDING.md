@@ -5,11 +5,13 @@
 ## 📋 Quick Start
 
 ### For Users
-Users downloading Mossy will see a beautiful 4-step onboarding tutorial on first launch:
-1. **Welcome** - Meet Mossy and learn what's coming
-2. **Connect Tools** - Select your modding tools
-3. **Privacy Settings** - Choose what to share (default: nothing)
-4. **You're Set!** - Start using Mossy
+Users downloading Mossy will see a beautiful 6-step onboarding tutorial on first launch:
+1. **Welcome** - Meet Mossy and her new Hybrid AI (Local + Live).
+2. **Neural Link Calibration** - Establish direct communication with your desktop modding tools.
+3. **Memory Vault Ingestion** - Train Mossy on your private documentation and tutorials.
+4. **Connect Tools** - Select your installed modding utilities.
+5. **Privacy Settings** - Choose what to share (default: nothing).
+6. **You're Set!** - Start using Mossy.
 
 **Privacy by default:** All data stays local. Users must opt-in to share anything.
 
@@ -97,15 +99,15 @@ npm run dev
 
 | Metric | Value |
 |--------|-------|
-| Components Created | 2 |
-| Components Modified | 2 |
-| Lines of Code (Components) | 840+ |
-| Documentation Files | 6 |
-| Documentation Lines | 2,000+ |
+| Components Created | 4 |
+| Components Modified | 4 |
+| Lines of Code (Components) | 1,200+ |
+| Documentation Files | 8 |
+| Documentation Lines | 2,500+ |
 | Build Time | 7.16 seconds |
 | Build Status | ✅ SUCCESS |
 | Privacy Settings | 7 configurable options |
-| Onboarding Steps | 4 |
+| Onboarding Steps | 6 |
 | Available Tools | 6 |
 
 ## 🔒 Privacy Philosophy
@@ -183,10 +185,12 @@ location.reload();
 User's Computer (Always Protected)
 │
 ├─ MossyOnboarding (first launch)
-│  ├─ Step 1: Welcome
-│  ├─ Step 2: Select Tools
-│  ├─ Step 3: Privacy Settings
-│  └─ Step 4: Confirm Setup
+│  ├─ Step 1: Welcome (Hybrid AI)
+│  ├─ Step 2: Neural Link Calibration
+│  ├─ Step 3: Memory Vault (RAG)
+│  ├─ Step 4: Select Tools
+│  ├─ Step 5: Privacy Settings
+│  └─ Step 6: Confirm Setup
 │
 ├─ PrivacySettings (accessible anytime)
 │  ├─ View configured settings

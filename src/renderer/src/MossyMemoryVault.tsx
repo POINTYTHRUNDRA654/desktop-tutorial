@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Book, Upload, Trash2, Search, Brain, FileText, CheckCircle2, Loader2, Sparkles, Database, Plus, X } from 'lucide-react';
+import { Book, Upload, Trash2, Search, Brain, FileText, CheckCircle2, Loader2, Sparkles, Database, Plus, X, Activity } from 'lucide-react';
 import { LocalAIEngine } from './LocalAIEngine';
 
 interface MemoryItem {
