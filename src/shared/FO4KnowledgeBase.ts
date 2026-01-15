@@ -507,6 +507,30 @@ end.`
       "Sanitize -> Update Tangents/Space",
       "Check bhkCollisionObject for physics"
     ]
+  },
+
+  // === TOOL DEFINITIONS (PREVENT HALLUCINATION) ===
+  professionalTools: {
+    nvidiaCanvas: {
+      type: "Desktop Application",
+      purpose: "AI-powered landscape and texture painting. Uses GauGAN to turn brushstrokes into photorealistic DDS textures for modding.",
+      status: "Professional Content Creation Software"
+    },
+    nvidiaOmniverse: {
+      type: "Desktop Application / Platform",
+      purpose: "Real-time 3D design collaboration and simulation platform. Used for advanced lighting, RTX Remixing, and USD-based asset pipelines.",
+      status: "Professional 3D Engine & Platform"
+    },
+    upscayl: {
+      type: "Desktop Application",
+      purpose: "AI Image Upscaler. Essential for upscaling 0.5k/1k vanilla Fallout 4 textures to 2k/4k using neural networks.",
+      status: "Professional Image Utility"
+    },
+    shaderMap: {
+      type: "Desktop Application",
+      purpose: "Texture map generator. Converts diffuse images into normal, displacement, specular, and AO maps.",
+      status: "Professional Material Authoring Tool"
+    }
   }
 };
 

@@ -53,7 +53,10 @@ export const PipBoyStartup: React.FC<{ onComplete: () => void }> = ({ onComplete
     } else {
       // All steps complete
       const finalTimer = setTimeout(() => {
-        onComplete();
+        setLogs(prev => [...prev, "[MOSSY] Neural network stable. I am ready, Architect."]);
+        setTimeout(() => {
+            onComplete();
+        }, 1500);
       }, 1000);
       return () => clearTimeout(finalTimer);
     }
