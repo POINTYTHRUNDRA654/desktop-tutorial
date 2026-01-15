@@ -128,9 +128,10 @@ export const executeMossyTool = async (name: string, args: any, context: {
         result = `Navigating to ${args.target}`;
     } else if (name === 'scan_hardware') {
         const bridgeActive = localStorage.getItem('mossy_bridge_active') === 'true';
-        if (bridgeActive || window.electron?.api?.getSystemInfo) {
+        const api = (window as any).electron?.api || (window as any).electronAPI;
+        if (bridgeActive || api?.getSystemInfo) {
             try {
-                const info = await window.electron.api.getSystemInfo();
+                const info = await api.getSystemInfo();
                 result = `Hardware scan complete. Detected:
 - CPU: ${info.cpu}
 - GPU: ${info.gpu}

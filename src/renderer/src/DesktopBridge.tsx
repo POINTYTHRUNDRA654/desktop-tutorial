@@ -658,7 +658,7 @@ if __name__ == "__main__":
       return [];
   };
 
-  const isOutdated = bridgeConnected && (!bridgeVersion || !bridgeVersion.startsWith('5.'));
+  const isOutdated = bridgeConnected && (!bridgeVersion || parseInt(bridgeVersion.split('.')[0]) < 5);
 
   return (
     <div className="h-full bg-[#050910] overflow-hidden flex flex-col">
