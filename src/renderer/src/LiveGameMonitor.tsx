@@ -56,19 +56,18 @@ export const LiveGameMonitor: React.FC = () => {
 
   const connectToGame = async () => {
     try {
-      const response = await fetch('http://localhost:21337/game/connect', {
+      const resp = await fetch('http://localhost:21337/game/connect', {
         method: 'POST'
       });
 
-      if (response.ok) {
+      if (resp.ok) {
         setConnected(true);
       } else {
-        throw new Error('Connection failed');
+        const data = await resp.json();
+        alert(`Connection to Fallout 4 Bridge failed: ${data.message || 'Is the F4SE plugin installed?'}`);
       }
     } catch (error) {
-      // Demo mode
-      setConnected(true);
-      startDemoMetrics();
+      alert('Volt Bridge not detected. Please ensure you have launched the game through the F4SE loader with the Mossy Live Bridge plugin enabled.');
     }
   };
 
@@ -83,72 +82,13 @@ export const LiveGameMonitor: React.FC = () => {
       if (response.ok) {
         const data = await response.json();
         setMetrics(data);
+      } else {
+        // Lost connection
+        setConnected(false);
       }
     } catch (error) {
-      // Demo continues
+      setConnected(false);
     }
-  };
-
-  const startDemoMetrics = () => {
-    let frameCount = 0;
-    
-    const interval = setInterval(() => {
-      frameCount++;
-      
-      const baseFps = 58 + Math.sin(frameCount * 0.05) * 4;
-      const demoMetrics: GameMetrics = {
-        fps: Math.floor(baseFps),
-        frameTime: 1000 / baseFps,
-        vram: { 
-          used: 3200 + Math.sin(frameCount * 0.1) * 200, 
-          total: 8192 
-        },
-        ram: { 
-          used: 12800 + Math.sin(frameCount * 0.08) * 400, 
-          total: 16384 
-        },
-        scriptTime: 5.2 + Math.sin(frameCount * 0.15) * 2,
-        scriptCount: 342,
-        activeScripts: [
-          { name: 'QuestScript_MainQuest', time: 2.1, calls: 120, percentage: 40 },
-          { name: 'SpawnerScript_Enemies', time: 1.3, calls: 85, percentage: 25 },
-          { name: 'WeatherController', time: 0.9, calls: 60, percentage: 17 },
-          { name: 'PlayerTracker', time: 0.6, calls: 120, percentage: 11 },
-          { name: 'LightingManager', time: 0.3, calls: 30, percentage: 7 }
-        ],
-        consoleLog: metrics?.consoleLog || [],
-        variables: [
-          { script: 'QuestScript_MainQuest', variable: 'Stage', value: '50', type: 'Int' },
-          { script: 'QuestScript_MainQuest', variable: 'IsActive', value: 'True', type: 'Bool' },
-          { script: 'PlayerTracker', variable: 'LastLocation', value: 'CommonwealthCell04', type: 'String' }
-        ]
-      };
-
-      // Random console messages
-      if (frameCount % 50 === 0) {
-        const messages = [
-          { level: 'info' as const, message: 'Save game created: Save 42' },
-          { level: 'warning' as const, message: 'Script warning: Property "MyRef" not found on SpawnerScript' },
-          { level: 'error' as const, message: 'Cannot call GetDistance() on a None reference' },
-          { level: 'info' as const, message: 'Quest stage advanced: MainQuest stage 50' }
-        ];
-        
-        const randomMsg = messages[Math.floor(Math.random() * messages.length)];
-        demoMetrics.consoleLog = [
-          ...demoMetrics.consoleLog.slice(-50),
-          {
-            timestamp: new Date().toLocaleTimeString(),
-            ...randomMsg
-          }
-        ];
-      } else {
-        demoMetrics.consoleLog = metrics?.consoleLog || [];
-      }
-
-      setMetrics(demoMetrics);
-    }, 100);
-
-    return () => clearInterval(interval);
   };
 
   const addWatch = () => {
@@ -224,10 +164,10 @@ export const LiveGameMonitor: React.FC = () => {
             <p className="text-slate-400 mb-6">Launch Fallout 4 and click Connect to start monitoring</p>
             <button
               onClick={connectToGame}
-              className="px-6 py-3 bg-green-600 hover:bg-green-500 text-white font-bold rounded-lg flex items-center gap-2 mx-auto transition-colors"
+              className="px-6 py-3 bg-violet-600 hover:bg-violet-500 text-white font-bold rounded-lg flex items-center gap-2 mx-auto transition-colors"
             >
-              <Play className="w-5 h-5" />
-              Start Demo Mode
+              <Zap className="w-5 h-5" />
+              Establish Neural Link
             </button>
           </div>
         </div>

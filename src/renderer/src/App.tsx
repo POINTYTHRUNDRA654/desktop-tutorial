@@ -182,7 +182,7 @@ const App: React.FC = () => {
                 <Route path="/orchestrator" element={<WorkflowOrchestrator />} />
                 <Route path="/lore" element={<Lorekeeper />} />
                 <Route path="/holo" element={<Holodeck />} />
-                <Route path="/vault" element={<TheVault />} />
+                <Route path="/vault" element={<ErrorBoundary><TheVault /></ErrorBoundary>} />
                 <Route path="/memory-vault" element={<MossyMemoryVault />} />
                 <Route path="/neural-link" element={<NeuralLink />} />
                 <Route path="/workshop" element={<Workshop />} />
