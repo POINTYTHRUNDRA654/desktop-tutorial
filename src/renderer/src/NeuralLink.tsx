@@ -75,9 +75,9 @@ const NeuralLink: React.FC = () => {
     };
 
     const injectBlenderFix = async () => {
-        const script = FO4KnowledgeBase.toolScripts.blenderStandardsFix;
-        // Simulate writing and instruction
-        alert("Mossy has generated a Neural Integration Script for Blender:\\n\\n" + script + "\\n\\nPlease paste this into the Text Editor in Blender and click 'Run Script' to align your project with Fallout 4 standards (1.0 Scale, 30 FPS).");
+        window.dispatchEvent(new CustomEvent('mossy-control', { 
+            detail: { action: 'navigate', payload: { path: '/bridge' } } 
+        }));
     };
 
     return (
@@ -171,16 +171,17 @@ const NeuralLink: React.FC = () => {
                         <div className="bg-yellow-500/10 border border-yellow-500/30 rounded-xl p-4">
                             <div className="flex items-center gap-2 mb-3">
                                 <Zap size={18} className="text-yellow-400" />
-                                <h3 className="text-sm font-semibold text-yellow-200">Blender Quick Injection</h3>
+                                <h3 className="text-sm font-semibold text-yellow-200">Blender Integration Add-on</h3>
                             </div>
-                            <p className="text-xs text-yellow-200/60 mb-3">
-                                Alignment detected as potential conflict. Inject standards script?
+                            <p className="text-xs text-yellow-200/60 mb-3 leading-relaxed">
+                                I can execute scripts directly in your Blender scene. 
+                                Install the <strong>Mossy Link Add-on</strong> from the Desktop Bridge to enable this.
                             </p>
                             <button 
                                 onClick={injectBlenderFix}
                                 className="w-full py-2 bg-yellow-500/20 hover:bg-yellow-500/30 text-yellow-400 rounded-lg border border-yellow-500/30 transition-all text-xs font-bold"
                             >
-                                GENERATE STANDARDS SCRIPT
+                                VIEW SETUP INSTRUCTIONS
                             </button>
                         </div>
                     )}
