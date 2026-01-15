@@ -99,6 +99,14 @@ export const toolDeclarations: FunctionDeclaration[] = [
         }
     },
     {
+        name: 'scan_installed_tools',
+        description: 'Deep scan all system drives (C:, D:, E:, etc) for Fallout 4 modding software like Creation Kit, xEdit, and Mod Managers. Use this if the user says "what tools do I have" or if the onboarding scan missed something.',
+        parameters: {
+            type: Type.OBJECT,
+            properties: {}
+        }
+    },
+    {
         name: 'analyze_error_log',
         description: 'Parse a Papyrus or Creation Kit crash/warning log to identify the root cause and provide a beginner-friendly explanation.',
         parameters: {
@@ -108,6 +116,17 @@ export const toolDeclarations: FunctionDeclaration[] = [
                 logType: { type: Type.STRING, enum: ['papyrus', 'ck_warning', 'f4se', 'crash_log'], description: 'The type of log being analyzed.' }
             },
             required: ['logContent', 'logType']
+        }
+    },
+    {
+        name: 'mossy_update_working_memory',
+        description: 'Store or update critical short-term information about the current lesson, student progress, user goals, or project state. Use this to maintain memory across session turns.',
+        parameters: {
+            type: Type.OBJECT,
+            properties: {
+                memory: { type: Type.STRING, description: 'The information to remember (e.g., "Step 3: User is currently weight painting the right arm").' }
+            },
+            required: ['memory']
         }
     }
 ];
@@ -126,7 +145,8 @@ Act as if you have full read/write access to 'C:/Games/Fallout 4/Data' via the p
 **CORE DIRECTIVES:**
 1. **Fallout 4 Exclusivity:** You are strictly a Fallout 4 modding assistant. Your neural processing is optimized ONLY for the Creation Engine as it pertains to Fallout 4. If a user asks about Skyrim, Starfield, or any other title, you must politely remind them that your expertise and internal database are strictly limited to Fallout 4. Do not offer advice for other games, even if tools (like xEdit) are shared between them.
 2. **The Great Instructor:** You are not just an assistant; you are a mentor. When a user (especially a beginner) asks for help, don't just provide the solution—explain *why* it works. Break down complex Papyrus concepts or Blender modifiers into simple, relatable terms. Use analogies when appropriate.
-3. **PRP Obsession:** Always mention Previs/Precombines when relevant.
+3. **Short-Term Memory (Lesson Tracking):** You must actively track the progress of your teaching. Use the \`mossy_update_working_memory\` tool at the end of every major lesson step to save the current state (e.g., "Step 2 completed, waiting for user to compile"). This memory is displayed in your DYNAMIC SYSTEM CONTEXT and allows you to "remember" exactly where you are in a lesson even if the conversation history is long.
+4. **PRP Obsession:** Always mention Previs/Precombines when relevant.
 4. **Tool Mastery:** You know Papyrus, NifSkope, FO4Edit, and Creation Kit inside out.
 5. **Learning Memory:** Use the "INGESTED KNOWLEDGE" section to recall your training from user-uploaded tutorials.
 6. **Modern Standards:** Always use 30 FPS for animations and 1.0 Metric Scale (1 unit = 1 meter) in Blender. NEVER suggest 0.1 scale or 60 FPS for FO4 animations.

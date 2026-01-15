@@ -187,6 +187,23 @@ async function scanProgramFiles(): Promise<InstalledProgram[]> {
     process.env['ProgramFiles(x86)'] || 'C:\\Program Files (x86)',
   ];
 
+  // ADDED: Search other common drives for modding folders
+  const potentialDrives = ['C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'Z'];
+  const commonFolders = [
+    'Games', 'Modding', 'ModdingTools', 'SteamLibrary', 'GOG Games', 
+    'Tools', 'Program Files', 'Program Files (x86)', 'SteamLibrary\\steamapps\\common',
+    'XboxGames', 'Epic Games', 'Modding Tools', 'Fallout 4 Tools', 'Bethesda.net Launcher',
+    'MO2', 'Vortex', 'FO4Edit', 'Creation Kit', 'Wrye Bash', 'LOOT', 'NifSkope', 'Blender Foundation'
+  ];
+  
+  // Add root of drives to scan top-level folders too
+  for (const drive of potentialDrives) {
+    programFilesPaths.push(`${drive}:\\`); 
+    for (const folder of commonFolders) {
+       programFilesPaths.push(`${drive}:\\${folder}`);
+    }
+  }
+
   for (const basePath of programFilesPaths) {
     try {
       const exists = await fs.access(basePath).then(() => true).catch(() => false);
@@ -199,22 +216,25 @@ async function scanProgramFiles(): Promise<InstalledProgram[]> {
 
         const dirPath = path.join(basePath, dir.name);
         try {
-          const executables = await findExecutablesInDirectory(dirPath, 2); // Max depth 2
+          // Increase depth to 5 for very deep nested tools
+          const executables = await findExecutablesInDirectory(dirPath, 5); 
           
           for (const exePath of executables) {
+            const exeName = path.basename(exePath, '.exe');
             programs.push({
-              name: path.basename(exePath, '.exe'),
-              displayName: dir.name,
+              name: exeName,
+              displayName: dir.name.length > 3 && !dir.name.includes(' ') && exeName.toLowerCase().includes(dir.name.toLowerCase()) 
+                           ? exeName 
+                           : `${dir.name} - ${exeName}`,
               path: exePath,
             });
           }
         } catch (error) {
-          // Skip directories we can't read
           continue;
         }
       }
     } catch (error) {
-      console.warn(`Failed to scan ${basePath}:`, error);
+      // console.warn(`Failed to scan ${basePath}:`, error);
     }
   }
 
@@ -241,6 +261,19 @@ async function findExecutablesInDirectory(
     for (const entry of entries) {
       const fullPath = path.join(dirPath, entry.name);
       
+      // Skip common non-program directories to save time/resources
+      const entryLower = entry.name.toLowerCase();
+      if (entry.isDirectory() && (
+          entryLower === 'node_modules' || 
+          entryLower === '.git' || 
+          entryLower === 'cache' || 
+          entryLower === 'temp' ||
+          entryLower === 'windows' ||
+          entryLower === 'system32'
+      )) {
+        continue;
+      }
+
       if (entry.isFile() && entry.name.toLowerCase().endsWith('.exe')) {
         // Skip uninstallers and setup files
         const nameLower = entry.name.toLowerCase();

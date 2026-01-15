@@ -45,6 +45,17 @@ export interface Settings {
   fomodCreatorPath?: string;
   creationKitPath?: string;
   blenderPath?: string;
+  lootPath?: string;
+  vortexPath?: string;
+  mo2Path?: string;
+  wryeBashPath?: string;
+  bodySlidePath?: string;
+  outfitStudioPath?: string;
+  baePath?: string;
+  gimpPath?: string;
+  archive2Path?: string;
+  pjmScriptPath?: string;
+  f4sePath?: string;
 }
 
 /**
@@ -69,6 +80,17 @@ export const DEFAULT_SETTINGS: Settings = {
   fomodCreatorPath: '',
   creationKitPath: '',
   blenderPath: '',
+  lootPath: '',
+  vortexPath: '',
+  mo2Path: '',
+  wryeBashPath: '',
+  bodySlidePath: '',
+  outfitStudioPath: '',
+  baePath: '',
+  gimpPath: '',
+  archive2Path: '',
+  pjmScriptPath: '',
+  f4sePath: '',
 };
 
 /**

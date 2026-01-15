@@ -30,10 +30,9 @@ Mossy is an AI assistant with **60+ tools** covering every aspect of Fallout 4 m
 - Find symbol references across project
 
 ### Testing
-- Launch game with test configurations
-- Inject console commands to running game
-- Monitor Papyrus logs in real-time
-- Create test saves with specific conditions
+- **Initialize System Link:** Connect to the Desktop Bridge for real-time game interaction
+- **Live Monitoring:** Watch the game's Papyrus log files directly from the dashboard
+- **Real Metrics:** Monitor exact CPU/GPU performance impact (No simulated data)
 
 ### Release Preparation
 - Generate documentation (README, changelog)

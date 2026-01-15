@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Save, TestTube2, Wrench, FileCog, Swords, Package, ExternalLink, Play, Palette, FolderOpen } from 'lucide-react';
+import { Save, TestTube2, Wrench, FileCog, Swords, Package, ExternalLink, Play, Palette, FolderOpen, ShieldCheck, Zap, Archive, Image as ImageIcon, Terminal } from 'lucide-react';
 import type { Settings } from '../../shared/types';
 
 const ExternalToolsSettings: React.FC = () => {
@@ -18,6 +18,17 @@ const ExternalToolsSettings: React.FC = () => {
           fomodCreatorPath: s.fomodCreatorPath || '',
           creationKitPath: s.creationKitPath || '',
           blenderPath: s.blenderPath || '',
+          lootPath: s.lootPath || '',
+          vortexPath: s.vortexPath || '',
+          mo2Path: s.mo2Path || '',
+          wryeBashPath: s.wryeBashPath || '',
+          bodySlidePath: s.bodySlidePath || '',
+          outfitStudioPath: s.outfitStudioPath || '',
+          baePath: s.baePath || '',
+          gimpPath: s.gimpPath || '',
+          archive2Path: s.archive2Path || '',
+          pjmScriptPath: s.pjmScriptPath || '',
+          f4sePath: s.f4sePath || '',
         });
       } catch (e) {
         console.warn('[ExternalToolsSettings] Failed to load settings', e);
@@ -173,6 +184,166 @@ const ExternalToolsSettings: React.FC = () => {
           <div className="mt-2 flex gap-2">
             <button onClick={() => browsePath('blenderPath', 'Blender')} className="px-3 py-1 bg-slate-700 hover:bg-slate-600 border border-slate-600 rounded text-[11px] font-bold flex items-center gap-1"><FolderOpen className="w-3 h-3" /> Browse</button>
             <button onClick={() => testLaunch(draft.blenderPath, 'Blender')} className="px-3 py-1 bg-emerald-700 hover:bg-emerald-600 border border-emerald-500 rounded text-[11px] font-bold flex items-center gap-1"><Play className="w-3 h-3" /> Test Launch</button>
+          </div>
+        </div>
+
+        {/* LOOT */}
+        <div className="bg-slate-900 border border-slate-800 rounded-xl p-4">
+          <div className="flex items-center gap-2 mb-2">
+            <ShieldCheck className="w-5 h-5 text-emerald-400" />
+            <div>
+              <div className="text-sm font-bold text-white">LOOT</div>
+              <a href="https://loot.github.io/" target="_blank" rel="noreferrer" className="text-[11px] text-blue-400 hover:text-blue-300 inline-flex items-center gap-1"><ExternalLink className="w-3 h-3" /> Official Site</a>
+            </div>
+          </div>
+          <input value={draft.lootPath || ''} onChange={(e) => handleChange('lootPath', e.target.value)} placeholder="C:\\Tools\\LOOT\\LOOT.exe" className="w-full bg-slate-800 border border-slate-700 rounded px-3 py-2 text-sm text-white" />
+          <div className="mt-2 flex gap-2">
+            <button onClick={() => browsePath('lootPath', 'LOOT')} className="px-3 py-1 bg-slate-700 hover:bg-slate-600 border border-slate-600 rounded text-[11px] font-bold flex items-center gap-1"><FolderOpen className="w-3 h-3" /> Browse</button>
+            <button onClick={() => testLaunch(draft.lootPath, 'LOOT')} className="px-3 py-1 bg-emerald-700 hover:bg-emerald-600 border border-emerald-500 rounded text-[11px] font-bold flex items-center gap-1"><Play className="w-3 h-3" /> Test Launch</button>
+          </div>
+        </div>
+
+        {/* Mod Organizer 2 */}
+        <div className="bg-slate-900 border border-slate-800 rounded-xl p-4">
+          <div className="flex items-center gap-2 mb-2">
+            <Package className="w-5 h-5 text-blue-500" />
+            <div>
+              <div className="text-sm font-bold text-white">Mod Organizer 2</div>
+              <a href="https://www.nexusmods.com/skyrimspecialedition/mods/6194" target="_blank" rel="noreferrer" className="text-[11px] text-blue-400 hover:text-blue-300 inline-flex items-center gap-1"><ExternalLink className="w-3 h-3" /> Download from Nexus Mods</a>
+            </div>
+          </div>
+          <input value={draft.mo2Path || ''} onChange={(e) => handleChange('mo2Path', e.target.value)} placeholder="C:\\Modding\\MO2\\ModOrganizer.exe" className="w-full bg-slate-800 border border-slate-700 rounded px-3 py-2 text-sm text-white" />
+          <div className="mt-2 flex gap-2">
+            <button onClick={() => browsePath('mo2Path', 'Mod Organizer 2')} className="px-3 py-1 bg-slate-700 hover:bg-slate-600 border border-slate-600 rounded text-[11px] font-bold flex items-center gap-1"><FolderOpen className="w-3 h-3" /> Browse</button>
+            <button onClick={() => testLaunch(draft.mo2Path, 'Mod Organizer 2')} className="px-3 py-1 bg-emerald-700 hover:bg-emerald-600 border border-emerald-500 rounded text-[11px] font-bold flex items-center gap-1"><Play className="w-3 h-3" /> Test Launch</button>
+          </div>
+        </div>
+
+        {/* Vortex */}
+        <div className="bg-slate-900 border border-slate-800 rounded-xl p-4">
+          <div className="flex items-center gap-2 mb-2">
+            <Zap className="w-5 h-5 text-orange-400" />
+            <div>
+              <div className="text-sm font-bold text-white">Vortex</div>
+              <a href="https://www.nexusmods.com/about/vortex/" target="_blank" rel="noreferrer" className="text-[11px] text-blue-400 hover:text-blue-300 inline-flex items-center gap-1"><ExternalLink className="w-3 h-3" /> Official Site</a>
+            </div>
+          </div>
+          <input value={draft.vortexPath || ''} onChange={(e) => handleChange('vortexPath', e.target.value)} placeholder="C:\\Program Files\\Nexus Mod Manager\\Vortex.exe" className="w-full bg-slate-800 border border-slate-700 rounded px-3 py-2 text-sm text-white" />
+          <div className="mt-2 flex gap-2">
+            <button onClick={() => browsePath('vortexPath', 'Vortex')} className="px-3 py-1 bg-slate-700 hover:bg-slate-600 border border-slate-600 rounded text-[11px] font-bold flex items-center gap-1"><FolderOpen className="w-3 h-3" /> Browse</button>
+            <button onClick={() => testLaunch(draft.vortexPath, 'Vortex')} className="px-3 py-1 bg-emerald-700 hover:bg-emerald-600 border border-emerald-500 rounded text-[11px] font-bold flex items-center gap-1"><Play className="w-3 h-3" /> Test Launch</button>
+          </div>
+        </div>
+
+        {/* F4SE */}
+        <div className="bg-slate-900 border border-slate-800 rounded-xl p-4">
+          <div className="flex items-center gap-2 mb-2">
+            <Terminal className="w-5 h-5 text-red-400" />
+            <div>
+              <div className="text-sm font-bold text-white">F4SE Loader</div>
+              <a href="https://f4se.silverlock.org/" target="_blank" rel="noreferrer" className="text-[11px] text-blue-400 hover:text-blue-300 inline-flex items-center gap-1"><ExternalLink className="w-3 h-3" /> Official Site</a>
+            </div>
+          </div>
+          <input value={draft.f4sePath || ''} onChange={(e) => handleChange('f4sePath', e.target.value)} placeholder="C:\\Games\\SteamLibrary\\steamapps\\common\\Fallout 4\\f4se_loader.exe" className="w-full bg-slate-800 border border-slate-700 rounded px-3 py-2 text-sm text-white" />
+          <div className="mt-2 flex gap-2">
+            <button onClick={() => browsePath('f4sePath', 'F4SE')} className="px-3 py-1 bg-slate-700 hover:bg-slate-600 border border-slate-600 rounded text-[11px] font-bold flex items-center gap-1"><FolderOpen className="w-3 h-3" /> Browse</button>
+            <button onClick={() => testLaunch(draft.f4sePath, 'F4SE')} className="px-3 py-1 bg-emerald-700 hover:bg-emerald-600 border border-emerald-500 rounded text-[11px] font-bold flex items-center gap-1"><Play className="w-3 h-3" /> Test Launch</button>
+          </div>
+        </div>
+
+        {/* BodySlide / Outfit Studio */}
+        <div className="bg-slate-900 border border-slate-800 rounded-xl p-4">
+          <div className="flex items-center gap-2 mb-2">
+            <Palette className="w-5 h-5 text-pink-400" />
+            <div>
+              <div className="text-sm font-bold text-white">BodySlide & Outfit Studio</div>
+              <a href="https://www.nexusmods.com/fallout4/mods/25" target="_blank" rel="noreferrer" className="text-[11px] text-blue-400 hover:text-blue-300 inline-flex items-center gap-1"><ExternalLink className="w-3 h-3" /> Download from Nexus Mods</a>
+            </div>
+          </div>
+          <input value={draft.bodySlidePath || ''} onChange={(e) => handleChange('bodySlidePath', e.target.value)} placeholder="C:\\Tools\\BodySlide\\BodySlide.exe" className="w-full bg-slate-800 border border-slate-700 rounded px-3 py-2 text-sm text-white" />
+          <div className="mt-2 flex gap-2">
+            <button onClick={() => browsePath('bodySlidePath', 'BodySlide')} className="px-3 py-1 bg-slate-700 hover:bg-slate-600 border border-slate-600 rounded text-[11px] font-bold flex items-center gap-1"><FolderOpen className="w-3 h-3" /> Browse</button>
+            <button onClick={() => testLaunch(draft.bodySlidePath, 'BodySlide')} className="px-3 py-1 bg-emerald-700 hover:bg-emerald-600 border border-emerald-500 rounded text-[11px] font-bold flex items-center gap-1"><Play className="w-3 h-3" /> Test Launch</button>
+          </div>
+        </div>
+
+        {/* BAE - Bethesda Archive Extractor */}
+        <div className="bg-slate-900 border border-slate-800 rounded-xl p-4">
+          <div className="flex items-center gap-2 mb-2">
+            <Archive className="w-5 h-5 text-amber-500" />
+            <div>
+              <div className="text-sm font-bold text-white">B.A.E. (Archive Extractor)</div>
+              <a href="https://www.nexusmods.com/fallout4/mods/78" target="_blank" rel="noreferrer" className="text-[11px] text-blue-400 hover:text-blue-300 inline-flex items-center gap-1"><ExternalLink className="w-3 h-3" /> Download from Nexus Mods</a>
+            </div>
+          </div>
+          <input value={draft.baePath || ''} onChange={(e) => handleChange('baePath', e.target.value)} placeholder="C:\\Tools\\BAE\\BAE.exe" className="w-full bg-slate-800 border border-slate-700 rounded px-3 py-2 text-sm text-white" />
+          <div className="mt-2 flex gap-2">
+            <button onClick={() => browsePath('baePath', 'BAE')} className="px-3 py-1 bg-slate-700 hover:bg-slate-600 border border-slate-600 rounded text-[11px] font-bold flex items-center gap-1"><FolderOpen className="w-3 h-3" /> Browse</button>
+            <button onClick={() => testLaunch(draft.baePath, 'BAE')} className="px-3 py-1 bg-emerald-700 hover:bg-emerald-600 border border-emerald-500 rounded text-[11px] font-bold flex items-center gap-1"><Play className="w-3 h-3" /> Test Launch</button>
+          </div>
+        </div>
+
+        {/* GIMP / Photopea (Local if applicable) */}
+        <div className="bg-slate-900 border border-slate-800 rounded-xl p-4">
+          <div className="flex items-center gap-2 mb-2">
+            <ImageIcon className="w-5 h-5 text-indigo-400" />
+            <div>
+              <div className="text-sm font-bold text-white">Texture Editor (GIMP/Photoshop)</div>
+              <span className="text-[11px] text-slate-400">Used for DDS editing and texture creation</span>
+            </div>
+          </div>
+          <input value={draft.gimpPath || ''} onChange={(e) => handleChange('gimpPath', e.target.value)} placeholder="C:\\Program Files\\GIMP 2\\bin\\gimp-2.10.exe" className="w-full bg-slate-800 border border-slate-700 rounded px-3 py-2 text-sm text-white" />
+          <div className="mt-2 flex gap-2">
+            <button onClick={() => browsePath('gimpPath', 'Texture Editor')} className="px-3 py-1 bg-slate-700 hover:bg-slate-600 border border-slate-600 rounded text-[11px] font-bold flex items-center gap-1"><FolderOpen className="w-3 h-3" /> Browse</button>
+            <button onClick={() => testLaunch(draft.gimpPath, 'Texture Editor')} className="px-3 py-1 bg-emerald-700 hover:bg-emerald-600 border border-emerald-500 rounded text-[11px] font-bold flex items-center gap-1"><Play className="w-3 h-3" /> Test Launch</button>
+          </div>
+        </div>
+
+        {/* Archive2 */}
+        <div className="bg-slate-900 border border-slate-800 rounded-xl p-4">
+          <div className="flex items-center gap-2 mb-2">
+            <Archive className="w-5 h-5 text-yellow-400" />
+            <div>
+              <div className="text-sm font-bold text-white">Archive2 (Official CK Tool)</div>
+              <span className="text-[11px] text-slate-400">Located in FO4 Tools folder</span>
+            </div>
+          </div>
+          <input value={draft.archive2Path || ''} onChange={(e) => handleChange('archive2Path', e.target.value)} placeholder="C:\\Games\\SteamLibrary\\steamapps\\common\\Fallout 4\\Tools\\Archive2\\Archive2.exe" className="w-full bg-slate-800 border border-slate-700 rounded px-3 py-2 text-sm text-white" />
+          <div className="mt-2 flex gap-2">
+            <button onClick={() => browsePath('archive2Path', 'Archive2')} className="px-3 py-1 bg-slate-700 hover:bg-slate-600 border border-slate-600 rounded text-[11px] font-bold flex items-center gap-1"><FolderOpen className="w-3 h-3" /> Browse</button>
+            <button onClick={() => testLaunch(draft.archive2Path, 'Archive2')} className="px-3 py-1 bg-emerald-700 hover:bg-emerald-600 border border-emerald-500 rounded text-[11px] font-bold flex items-center gap-1"><Play className="w-3 h-3" /> Test Launch</button>
+          </div>
+        </div>
+
+        {/* Wrye Bash */}
+        <div className="bg-slate-900 border border-slate-800 rounded-xl p-4">
+          <div className="flex items-center gap-2 mb-2">
+            <ShieldCheck className="w-5 h-5 text-cyan-400" />
+            <div>
+              <div className="text-sm font-bold text-white">Wrye Bash</div>
+              <a href="https://www.nexusmods.com/fallout4/mods/22562" target="_blank" rel="noreferrer" className="text-[11px] text-blue-400 hover:text-blue-300 inline-flex items-center gap-1"><ExternalLink className="w-3 h-3" /> Download from Nexus Mods</a>
+            </div>
+          </div>
+          <input value={draft.wryeBashPath || ''} onChange={(e) => handleChange('wryeBashPath', e.target.value)} placeholder="C:\\Games\\SteamLibrary\\steamapps\\common\\Fallout 4\\Mbash.exe" className="w-full bg-slate-800 border border-slate-700 rounded px-3 py-2 text-sm text-white" />
+          <div className="mt-2 flex gap-2">
+            <button onClick={() => browsePath('wryeBashPath', 'Wrye Bash')} className="px-3 py-1 bg-slate-700 hover:bg-slate-600 border border-slate-600 rounded text-[11px] font-bold flex items-center gap-1"><FolderOpen className="w-3 h-3" /> Browse</button>
+            <button onClick={() => testLaunch(draft.wryeBashPath, 'Wrye Bash')} className="px-3 py-1 bg-emerald-700 hover:bg-emerald-600 border border-emerald-500 rounded text-[11px] font-bold flex items-center gap-1"><Play className="w-3 h-3" /> Test Launch</button>
+          </div>
+        </div>
+
+        {/* PJM Scripts */}
+        <div className="bg-slate-900 border border-slate-800 rounded-xl p-4">
+          <div className="flex items-center gap-2 mb-2">
+            <Terminal className="w-5 h-5 text-emerald-500" />
+            <div>
+              <div className="text-sm font-bold text-white">PJM Precombine Scripts</div>
+              <span className="text-[11px] text-slate-400">Path to xEdit script folder for PJM tools</span>
+            </div>
+          </div>
+          <input value={draft.pjmScriptPath || ''} onChange={(e) => handleChange('pjmScriptPath', e.target.value)} placeholder="C:\\Tools\\xEdit\\Edit Scripts" className="w-full bg-slate-800 border border-slate-700 rounded px-3 py-2 text-sm text-white" />
+          <div className="mt-2 flex gap-2">
+            <button onClick={() => browsePath('pjmScriptPath', 'PJM Scripts')} className="px-3 py-1 bg-slate-700 hover:bg-slate-600 border border-slate-600 rounded text-[11px] font-bold flex items-center gap-1"><FolderOpen className="w-3 h-3" /> Browse</button>
+            <button onClick={() => testLaunch(draft.pjmScriptPath, 'PJM Scripts')} className="px-3 py-1 bg-emerald-700 hover:bg-emerald-600 border border-emerald-500 rounded text-[11px] font-bold flex items-center gap-1"><Play className="w-3 h-3" /> Folder Open</button>
           </div>
         </div>
       </div>
