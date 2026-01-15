@@ -362,8 +362,41 @@ const TheLens = () => {
                                 <div className="flex justify-between p-2 bg-[#1e1e1e] rounded border border-slate-700">
                                     <span className="text-slate-400">Available Memory</span>
                                     <span className="text-green-300 font-mono">{systemInfo.availableMemory}</span>
-                                </div>
-                            </div>
+                                </div>                                {(systemInfo as any).gpu && (
+                                    <div className="flex justify-between p-2 bg-[#1e1e1e] rounded border border-slate-700">
+                                        <span className="text-slate-400">GPU</span>
+                                        <span className="text-amber-400 font-mono text-xs text-right">{(systemInfo as any).gpu}</span>
+                                    </div>
+                                )}
+                                {(systemInfo as any).vram && (
+                                    <div className="flex justify-between p-2 bg-[#1e1e1e] rounded border border-slate-700">
+                                        <span className="text-slate-400">VRAM</span>
+                                        <span className="text-cyan-300 font-mono">{(systemInfo as any).vram} GB</span>
+                                    </div>
+                                )}
+                                {(systemInfo as any).motherboard && (
+                                    <div className="flex justify-between p-2 bg-[#1e1e1e] rounded border border-slate-700">
+                                        <span className="text-slate-400">Motherboard</span>
+                                        <span className="text-slate-300 font-mono text-[10px]">{(systemInfo as any).motherboard}</span>
+                                    </div>
+                                )}
+                                {(systemInfo as any).displayResolution && (
+                                    <div className="flex justify-between p-2 bg-[#1e1e1e] rounded border border-slate-700">
+                                        <span className="text-slate-400">Resolution</span>
+                                        <span className="text-slate-300 font-mono">{ (systemInfo as any).displayResolution }</span>
+                                    </div>
+                                )}
+                                {(systemInfo as any).storageDrives && (systemInfo as any).storageDrives.length > 0 && (
+                                    <div className="p-2 bg-[#1e1e1e] rounded border border-slate-700 space-y-1">
+                                        <div className="text-slate-400 text-xs mb-1 font-semibold">Storage Drives</div>
+                                        {(systemInfo as any).storageDrives.map((drive: any) => (
+                                            <div key={drive.device} className="flex justify-between text-[11px]">
+                                                <span className="text-slate-500">{drive.device}</span>
+                                                <span className="text-white font-mono">{drive.free}GB / {drive.total}GB</span>
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}                            </div>
                         </div>
 
                         <div className="bg-blue-900/10 border border-blue-700/30 rounded-lg p-4">

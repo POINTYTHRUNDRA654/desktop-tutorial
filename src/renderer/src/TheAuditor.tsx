@@ -154,7 +154,7 @@ const TheAuditor: React.FC = () => {
         input.click();
     };
 
-    // Mock Scan Logic
+    // Start Audit Analysis
     const runAudit = () => {
         setIsScanning(true);
         setScanProgress(0);

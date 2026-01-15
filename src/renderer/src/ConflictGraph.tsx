@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Network, ZoomIn, ZoomOut, Maximize2, AlertTriangle, Info } from 'lucide-react';
+import { Network, ZoomIn, ZoomOut, Maximize2, AlertTriangle, Info, RefreshCw } from 'lucide-react';
 
 interface ModNode {
   id: string;
@@ -48,34 +48,12 @@ export const ConflictGraph: React.FC = () => {
         throw new Error('Bridge offline');
       }
     } catch (error) {
-      // Demo data
-      generateDemoGraph();
+      console.warn('Conflict Bridge offline. Showing connection required state.');
+      setNodes([]);
+      setEdges([]);
     } finally {
       setLoading(false);
     }
-  };
-
-  const generateDemoGraph = () => {
-    const demoNodes: ModNode[] = [
-      { id: '0', name: 'Fallout4.esm', type: 'master', x: 400, y: 100, conflicts: [], overrides: [] },
-      { id: '1', name: 'DLCRobot.esm', type: 'master', x: 200, y: 200, conflicts: [], overrides: ['0'] },
-      { id: '2', name: 'DLCCoast.esm', type: 'master', x: 600, y: 200, conflicts: [], overrides: ['0'] },
-      { id: '3', name: 'UFO4P.esp', type: 'plugin', x: 400, y: 300, conflicts: [], overrides: ['0', '1', '2'] },
-      { id: '4', name: 'WeaponMods.esp', type: 'plugin', x: 200, y: 400, conflicts: ['5'], overrides: ['0'] },
-      { id: '5', name: 'BalancedWeapons.esp', type: 'plugin', x: 600, y: 400, conflicts: ['4'], overrides: ['0'] },
-      { id: '6', name: 'Settlement.esp', type: 'plugin', x: 400, y: 500, conflicts: [], overrides: ['0', '1'] },
-      { id: '7', name: 'Graphics.esp', type: 'plugin', x: 100, y: 300, conflicts: [], overrides: ['0'] },
-      { id: '8', name: 'LightMod.esl', type: 'light', x: 700, y: 300, conflicts: [], overrides: [] }
-    ];
-
-    const demoEdges: ConflictEdge[] = [
-      { from: '4', to: '5', severity: 'high', records: ['WEAP:0001F669', 'WEAP:0001F66A', 'WEAP:000E5881'] },
-      { from: '3', to: '4', severity: 'low', records: ['WEAP:0001F669'] },
-      { from: '3', to: '5', severity: 'low', records: ['WEAP:0001F66A'] }
-    ];
-
-    setNodes(demoNodes);
-    setEdges(demoEdges);
   };
 
   const drawGraph = () => {
@@ -246,6 +224,24 @@ export const ConflictGraph: React.FC = () => {
       <div className="flex-1 flex gap-4 p-6">
         {/* Canvas */}
         <div className="flex-1 bg-slate-950 border border-slate-700 rounded-xl overflow-hidden relative">
+          {nodes.length === 0 && !loading && (
+            <div className="absolute inset-0 z-10 flex flex-col items-center justify-center bg-slate-950/90 backdrop-blur-sm">
+              <Network className="w-16 h-16 text-slate-700 mb-4 animate-pulse" />
+              <h3 className="text-xl font-bold text-white mb-2">Bridge Connection Required</h3>
+              <p className="text-slate-400 text-center max-w-sm mb-6 px-4">
+                Real-time conflict analysis requires the Volt Bridge to be active. 
+                Please launch Fallout 4 via F4SE and ensure the bridge plugin is loaded.
+              </p>
+              <button 
+                onClick={loadLoadOrder}
+                className="px-6 py-2 bg-cyan-600 hover:bg-cyan-500 text-white font-bold rounded-lg transition-all flex items-center gap-2"
+              >
+                <RefreshCw className="w-4 h-4" />
+                Attempt Sync
+              </button>
+            </div>
+          )}
+          
           <canvas
             ref={canvasRef}
             width={1200}

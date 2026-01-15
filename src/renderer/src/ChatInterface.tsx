@@ -2640,8 +2640,11 @@ export const ChatInterface: React.FC = () => {
                 const displayNameLower = prog.displayName.toLowerCase();
                 
                 if (moddingKeywords.some(kw => nameLower.includes(kw) || displayNameLower.includes(kw))) {
-                    // Check if already added via manual settings to avoid duplicates
-                    if (!foundApps.some(app => app.path === prog.path || app.name.toLowerCase() === prog.displayName.toLowerCase())) {
+                    // Improved de-duplication: If we find a better version (e.g. non-C drive), use it.
+                    const existingIndex = foundApps.findIndex(app => app.name.toLowerCase() === prog.displayName.toLowerCase());
+                    const isNonCDrive = prog.path && !prog.path.startsWith('C:');
+                    
+                    if (existingIndex === -1) {
                         foundApps.push({
                             id: Math.random().toString(36).substr(2, 9),
                             name: prog.displayName.length > 3 ? prog.displayName : prog.name,
@@ -2653,6 +2656,9 @@ export const ChatInterface: React.FC = () => {
                             checked: true,
                             path: prog.path
                         });
+                    } else if (isNonCDrive && foundApps[existingIndex].path?.startsWith('C:')) {
+                        // Replace stale C: drive entry with the real modding drive entry
+                        foundApps[existingIndex].path = prog.path;
                     }
                 }
             });
@@ -2676,12 +2682,10 @@ export const ChatInterface: React.FC = () => {
             });
         }
 
-        // 3. Fallback to essential fallbacks if NOTHING found
+        // 3. Fallback to essential message if NOTHING found
         if (foundApps.length === 0 && !isSilent) {
-            foundApps.push(
-                { id: 'f1', name: 'Creation Kit', category: 'Manual', checked: false },
-                { id: 'f2', name: 'FO4Edit', category: 'Manual', checked: false }
-            );
+            // No fake apps added here anymore.
+            console.log("No tools found during scan.");
         }
 
         if (progressInterval) clearInterval(progressInterval);
@@ -2793,7 +2797,22 @@ export const ChatInterface: React.FC = () => {
 
       let result = "Success";
       if (name === 'list_files') {
-          result = `Files in ${args.path}:\n- QuestScript.psc\n- Main.ba2\n- Textures/`;
+          try {
+              if (window.electron?.api?.browseDirectory) {
+                  const files = await window.electron.api.browseDirectory(args.path || 'C:\\');
+                  if (files && files.length > 0) {
+                      result = `**Files in ${args.path || 'root'}:**\n` + 
+                          files.slice(0, 20).map((f: any) => `- [${f.type === 'folder' ? 'DIR' : 'FILE'}] ${f.name}`).join('\n') +
+                          (files.length > 20 ? `\n... (and ${files.length - 20} more)` : '');
+                  } else {
+                      result = `No files found in ${args.path || 'directory'}.`;
+                  }
+              } else {
+                  result = "Error: Directory browsing API unavailable.";
+              }
+          } catch (e) {
+              result = `Error listing files: ${e instanceof Error ? e.message : 'Unknown error'}`;
+          }
       } else if (name === 'generate_papyrus_script') {
           result = `**Papyrus Script Generated:** ${args.scriptName}.psc\n\n\`\`\`papyrus\n${args.code}\n\`\`\``;
       } else if (name === 'check_previs_status') {
@@ -2833,35 +2852,45 @@ export const ChatInterface: React.FC = () => {
       } else if (name === 'scan_hardware') {
           let realInfo = null;
           try {
-              const response = await fetch('http://127.0.0.1:21337/hardware');
-              if (response.ok) {
-                  realInfo = await response.json();
+              // Try Electron native API first (most reliable)
+              if (window.electron?.api?.getSystemInfo) {
+                  realInfo = await window.electron.api.getSystemInfo();
+              } else {
+                  // Fallback to bridge port if in web mode
+                  const response = await fetch('http://127.0.0.1:21337/hardware');
+                  if (response.ok) {
+                      realInfo = await response.json();
+                  }
               }
           } catch (e) {}
 
-          if (realInfo && realInfo.status === 'success') {
-              const newProfile: SystemProfile = { 
+          if (realInfo && (realInfo.status === 'success' || realInfo.cpu)) {
+              const newProfile = { 
                   os: realInfo.os, 
                   gpu: realInfo.gpu, 
                   ram: realInfo.ram, 
-                  blenderVersion: realInfo.python ? `(Python ${realInfo.python})` : 'Detected', 
+                  vram: realInfo.vram,
+                  motherboard: realInfo.motherboard,
+                  storageDrives: realInfo.storageDrives,
+                  blenderVersion: realInfo.blenderVersion || realInfo.python || 'Detected', 
                   isLegacy: false 
               };
-              setProfile(newProfile);
+              setProfile(newProfile as any);
               localStorage.setItem('mossy_system_profile', JSON.stringify(newProfile));
               
-              result = `**System Scan Complete (Live Data)**\n\n**Detected Environment:**\n- **OS:** ${realInfo.os}\n- **GPU:** ${realInfo.gpu}\n- **RAM:** ${realInfo.ram}GB\n- **Blender Link:** Active via Desktop Bridge\n\n✓ *Environment variables updated. I am now synced with your hardware specifications.*`;
+              result = `**System Scan Complete (Live Data)**\n\n**Detected Environment:**\n- **OS:** ${realInfo.os}\n- **CPU:** ${realInfo.cpu}\n- **GPU:** ${realInfo.gpu}\n- **RAM:** ${realInfo.ram}GB\n${realInfo.vram ? `- **VRAM:** ${realInfo.vram}GB\n` : ''}${realInfo.motherboard ? `- **Motherboard:** ${realInfo.motherboard}\n` : ''}- **Blender:** ${newProfile.blenderVersion}`;
+              
+              if (realInfo.storageDrives && realInfo.storageDrives.length > 0) {
+                  result += `\n- **Drives detected:** ${realInfo.storageDrives.length}\n`;
+                  realInfo.storageDrives.forEach((d: any) => {
+                      result += `  * ${d.device} [${d.free}GB free of ${d.total}GB]\n`;
+                  });
+              }
+              
+              result += `\n✓ *Environment variables updated. I am now synced with your full hardware specifications.*`;
           } else {
-              // Fallback to basic detection if bridge is offline
-              const newProfile: SystemProfile = { 
-                  os: 'Windows (Detected)', 
-                  gpu: 'Search Pending...', 
-                  ram: 16, 
-                  blenderVersion: 'Linked', 
-                  isLegacy: true 
-              };
-              setProfile(newProfile);
-              result = `**System Scan Partial**\n\nI couldn't contact the Desktop Bridge for detailed hardware specs. Please ensure the Bridge is running for a full neural sync.\n\n**Basic Info:**\n- **OS:** Windows\n- **RAM:** 16GB (Estimated)\n- **Status:** Legacy Mode`;
+              // No bridge fallback - don't fake data
+              result = `**System Scan Failed**\n\nI was unable to verify your hardware. Please ensure the **Desktop Bridge Service** is active and that Mossy is connected. Without a bridge, I cannot give accurate advice based on your local system state.`;
           }
       } else if (name === 'scan_installed_tools') {
           try {
