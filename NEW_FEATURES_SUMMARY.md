@@ -1,37 +1,40 @@
 # New Features Added - The Scribe Enhancement & Tools
 
-## 1. ✅ Fallout 4 Guard System Integration
+## 4. ✅ Hybrid AI Engine (Google Gemini + Local Ollama)
 
-**Location:** `ChatInterface.tsx`
+**Location:** `LocalAIEngine.ts`, `ChatInterface.tsx`
 
 **What It Does:**
-- Intercepts all user messages before sending to Claude
-- Validates content against Fallout 4-only policy
-- Blocks requests for other games (Skyrim, New Vegas, etc.)
-- Prevents system prompt tampering/jailbreak attempts
-- Returns friendly rejection messages
-
-**How It Works:**
-```typescript
-// Before sending message to AI
-const guardResult = checkAllGuards(textToSend);
-if (!guardResult.allowed) {
-    // Show rejection message to user
-    return;
-}
-
-// Add Fallout 4 specialization to system prompt
-const fallout4Prompt = getSystemPromptInjection();
-const enhancedSystemInstruction = `${systemInstruction}\\n\\n${fallout4Prompt}`;
-```
-
-**User Experience:**
-- User asks: "Can you help with Skyrim?"
-- Mossy responds: "I appreciate your interest, but I'm specialized for Fallout 4 modding only..."
+- Provides a dual-mode AI engine.
+- **Live Mode:** Connects to Google Gemini API for fast, high-quality voice and text chat.
+- **Local Mode:** Automatically detects a local Ollama instance (port 11434) and uses `llama3` for 100% private, offline inference.
+- **Auto-Fallback:** Switches to local mode if API limits are reached or internet is disconnected.
 
 ---
 
-## 2. ✅ Enhanced Script Validator (TheScribe)
+## 5. ✅ Memory Vault (RAG System)
+
+**Location:** `MossyMemoryVault.tsx`
+
+**What It Does:**
+- Allows users to upload custom `.txt` and `.md` tutorials.
+- "Digests" information into a retrieval-enhanced context.
+- Injects relevant snippets from the user's private documentation into every AI query.
+- Supports "Neural Integration" progress tracking for digested data.
+
+---
+
+## 6. ✅ Neural Link (Real-Time Desktop Monitoring)
+
+**Location:** `processMonitor.ts`, `NeuralLink.tsx`
+
+**What It Does:**
+- Monitors the Windows process list for active modding applications.
+- **Supported Tools:** Blender, Creation Kit, xEdit/FO4Edit, NifSkope, OutfitStudio.
+- **In-App Awareness:** Mossy's system instructions are dynamically updated based on the active tool (e.g., "I see you're in Blender...").
+- **Fix Injection:** Generates one-click scripts to align Blender scenes to Fallout 4 standards (1.0 scale, 30 FPS).
+- **Session Stats:** Displays PID, memory usage, and active window titles within the app interface.
+
 
 **Location:** `TheScribeEnhanced.tsx`
 

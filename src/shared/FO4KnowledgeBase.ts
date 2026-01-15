@@ -66,7 +66,7 @@ Event OnDeath(Actor akKiller)
     endif
 EndEvent`,
 
-    mcmMenu: \`Scriptname MyModMCM extends Quest
+    mcmMenu: `Scriptname MyModMCM extends Quest
 
 ; MCM Properties
 GlobalVariable Property Setting_EnableFeature Auto
@@ -82,12 +82,12 @@ Function SetSettingFloat(string setting, float value)
     if setting == "DamageMultiplier"
         Setting_DamageMultiplier.SetValue(value)
     endif
-EndFunction\`
+EndFunction`
   },
 
   // === EXTERNAL TOOL SCRIPTS ===
   toolScripts: {
-    blenderStandardsFix: \`
+    blenderStandardsFix: `
 import bpy
 
 # Mossy's Fallout 4 Standards Alignment Script
@@ -109,7 +109,7 @@ def align_to_standards():
 
 if __name__ == "__main__":
     align_to_standards()
-\`
+`
   },
 
   // === COMMON PAPYRUS PATTERNS ===
