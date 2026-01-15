@@ -146,12 +146,11 @@ const CommandPalette: React.FC = () => {
         setIsThinking(true);
         setAiResult(null);
         try {
-            const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-            const response = await ai.models.generateContent({
-                model: 'gemini-3-flash-preview',
-                contents: `User Quick Query from Command Palette: "${prompt}". Provide a concise, helpful answer (max 3 sentences).`,
-            });
-            setAiResult(response.text);
+            const ai = new GoogleGenAI({ apiKey: (import.meta.env.VITE_API_KEY || import.meta.env.VITE_GOOGLE_API_KEY || "") });
+            const model = ai.getGenerativeModel({ model: 'gemini-1.5-flash' });
+            const result = await model.generateContent(`User Quick Query from Command Palette: "${prompt}". Provide a concise, helpful answer (max 3 sentences).`);
+            const response = await result.response;
+            setAiResult(response.text());
         } catch (e) {
             setAiResult("Connection Error.");
         } finally {

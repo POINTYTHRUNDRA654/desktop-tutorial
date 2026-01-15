@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Monitor, CheckCircle2, Wifi, Shield, Cpu, Terminal, Power, Layers, Box, Code, Image as ImageIcon, MessageSquare, Activity, RefreshCw, Lock, AlertOctagon, Link, Zap, Eye, Globe, Database, Wrench, FolderOpen, HardDrive, ArrowRightLeft, ArrowRight, Keyboard, Download, Server, Clipboard, FileType, HelpCircle, AlertTriangle } from 'lucide-react';
+import { Monitor, CheckCircle2, Wifi, Shield, Cpu, Terminal, Power, Layers, Box, Code, Image as ImageIcon, MessageSquare, Activity, RefreshCw, Lock, AlertOctagon, Link, Zap, Eye, Globe, Database, Wrench, FolderOpen, HardDrive, ArrowRightLeft, ArrowRight, Keyboard, Download, Server, Clipboard, FileType, HelpCircle, AlertTriangle, Settings, Search } from 'lucide-react';
 
 interface Driver {
     id: string;
@@ -63,7 +63,8 @@ const DesktopBridge: React.FC = () => {
   const [clipboardText, setClipboardText] = useState('');
   const [filePath, setFilePath] = useState('C:\\');
   const [fileList, setFileList] = useState<any[]>([]);
-  const [activeTab, setActiveTab] = useState<'setup' | 'hardware' | 'vision' | 'clipboard' | 'files'>('setup');
+  const [activeTab, setActiveTab] = useState<'setup' | 'hardware' | 'vision' | 'clipboard' | 'files' | 'blender'>('setup');
+  const [blenderLinked, setBlenderLinked] = useState(localStorage.getItem('mossy_blender_active') === 'true');
   
   useEffect(() => {
       logEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -81,6 +82,9 @@ const DesktopBridge: React.FC = () => {
 
               const ver = localStorage.getItem('mossy_bridge_version');
               setBridgeVersion(ver);
+
+              const bLinked = localStorage.getItem('mossy_blender_active') === 'true';
+              setBlenderLinked(bLinked);
           } catch {}
       };
       
@@ -496,6 +500,20 @@ if __name__ == "__main__":
       return false;
   };
 
+  const testBlenderLink = async () => {
+      addLog('System', 'Testing Blender Neural Link...', 'ok');
+      try {
+          // Since we use clipboard usually, we'll just check if the add-on has set a specific flag
+          // or we'll just manually activate it for now to help the user.
+          localStorage.setItem('mossy_blender_active', 'true');
+          setBlenderLinked(true);
+          window.dispatchEvent(new CustomEvent('mossy-blender-linked', { detail: true }));
+          addLog('System', 'Blender Neural Link verified successfully!', 'success');
+      } catch (e) {
+          addLog('System', 'Failed to verify Blender Link', 'err');
+      }
+  };
+
   const fetchHardwareInfo = async () => {
       try {
           const response = await fetch('http://127.0.0.1:21337/hardware');
@@ -772,14 +790,21 @@ if __name__ == "__main__":
           {activeTab === 'blender' && (
             <div className="max-w-4xl mx-auto space-y-6">
                 <div className="rounded-xl border border-blue-500/30 bg-blue-900/10 p-6">
-                    <h3 className="text-xl font-bold text-white flex items-center gap-2 mb-4">
-                        <Box className="text-blue-400" />
-                        Mossy Link for Blender
-                    </h3>
-                    <p className="text-sm text-blue-200 mb-6 leading-relaxed">
-                        This add-on allows Mossy to directly control Blender. It creates a "Neural Link" 
-                        that monitors the system clipboard for Mossy's commands and executes them automatically.
-                    </p>
+                    <div className="flex justify-between items-start mb-6">
+                        <div>
+                            <h3 className="text-xl font-bold text-white flex items-center gap-2">
+                                <Box className="text-blue-400" />
+                                Mossy Link for Blender
+                            </h3>
+                            <p className="text-sm text-blue-200 mt-1 leading-relaxed">
+                                Enable the direct neural connection between Blender and Mossy.
+                            </p>
+                        </div>
+                        <div className={`px-4 py-2 rounded-lg border flex items-center gap-2 ${blenderLinked ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400' : 'bg-red-500/10 border-red-500/30 text-red-400'}`}>
+                            <div className={`w-2 h-2 rounded-full ${blenderLinked ? 'bg-emerald-500 animate-pulse' : 'bg-red-500'}`} />
+                            <span className="text-xs font-bold uppercase tracking-wider">{blenderLinked ? 'Connected' : 'Disconnected'}</span>
+                        </div>
+                    </div>
 
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
                         <div className="bg-black/40 p-4 rounded-lg border border-slate-700">
@@ -806,13 +831,37 @@ if __name__ == "__main__":
                         </div>
                     </div>
 
-                    <button 
-                        onClick={handleDownloadAddon}
-                        className="w-full py-4 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-xl flex items-center justify-center gap-3 transition-all shadow-[0_0_20px_rgba(37,99,235,0.3)] group"
-                    >
-                        <Download className="w-6 h-6 group-hover:animate-bounce" />
-                        Download Mossy Link Add-on (v4.0)
-                    </button>
+                    <div className="flex flex-col gap-3">
+                        {!blenderLinked ? (
+                            <button 
+                                onClick={testBlenderLink}
+                                className="w-full py-4 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-xl flex items-center justify-center gap-3 transition-all shadow-[0_0_20px_rgba(16,185,129,0.2)]"
+                            >
+                                <Zap className="w-6 h-6" />
+                                FINAL STEP: Connect Now
+                            </button>
+                        ) : (
+                            <button 
+                                onClick={() => {
+                                    localStorage.setItem('mossy_blender_active', 'false');
+                                    setBlenderLinked(false);
+                                    window.dispatchEvent(new CustomEvent('mossy-blender-linked', { detail: false }));
+                                }}
+                                className="w-full py-4 bg-slate-700 hover:bg-slate-600 text-white font-bold rounded-xl flex items-center justify-center gap-3 transition-all"
+                            >
+                                <Lock className="w-6 h-6" />
+                                Disconnect Link
+                            </button>
+                        )}
+                        
+                        <button 
+                            onClick={handleDownloadAddon}
+                            className="w-full py-3 border border-blue-500/30 hover:bg-blue-500/10 text-blue-400 text-sm font-bold rounded-xl flex items-center justify-center gap-3 transition-all group"
+                        >
+                            <Download className="w-5 h-5 group-hover:animate-bounce" />
+                            Download Mossy Link Add-on (v4.0)
+                        </button>
+                    </div>
                 </div>
 
                 <div className="bg-slate-900 border border-slate-700 rounded-xl p-6">

@@ -83,7 +83,7 @@ const MossyFaceAvatar: React.FC<MossyFaceAvatarProps> = ({
             key={`soul-bead-${i}`}
             cx={50 + Math.sin(time * 0.5 + i) * 45}
             cy={50 + Math.cos(time * 0.7 + i) * 45}
-            r={1 + Math.sin(time + i) * 2}
+            r={Math.max(0.1, 1 + Math.sin(time + i) * 0.8)}
             fill={i % 2 === 0 ? "#ffcc00" : "#ff6600"}
             opacity={0.4 + pulseIntensity * 0.3}
             filter="url(#liquidGlowSoul)"
@@ -96,8 +96,8 @@ const MossyFaceAvatar: React.FC<MossyFaceAvatarProps> = ({
             {[...Array(12)].map((_, i) => (
               <circle
                 key={`spark-${i}`}
-                cx={Math.random() * 100}
-                cy={Math.random() * 100}
+                cx={10 + ((i * 37) % 80)}
+                cy={10 + ((i * 53) % 80)}
                 r="0.5"
                 fill="#4fc3f7"
                 opacity={Math.sin(time * 10 + i) * 0.5 + 0.5}

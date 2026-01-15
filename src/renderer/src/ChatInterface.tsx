@@ -2454,6 +2454,8 @@ export const ChatInterface: React.FC = () => {
     window.addEventListener('mossy-memory-update', checkState);
     window.addEventListener('mossy-bridge-connected', checkState);
     window.addEventListener('mossy-driver-update', checkState);
+    window.addEventListener('mossy-blender-linked', checkState);
+    window.addEventListener('storage', checkState);
     
     // Initial Load
     try {
@@ -2572,15 +2574,19 @@ export const ChatInterface: React.FC = () => {
       const cleanText = textToSpeak.replace(/[*#]/g, '').substring(0, 500); 
       setIsPlayingAudio(true);
       try {
-        const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-        const response = await ai.models.generateContent({
-            model: 'gemini-2.5-flash-preview-tts',
-            contents: [{ parts: [{ text: cleanText }] }],
-            config: {
+        const apiKey = import.meta.env.VITE_API_KEY || import.meta.env.VITE_GOOGLE_API_KEY || "";
+        const ai = new GoogleGenAI({ apiKey });
+        const model = ai.getGenerativeModel({ model: 'gemini-1.5-flash' });
+        
+        const result = await model.generateContent({
+            contents: [{ role: 'user', parts: [{ text: cleanText }] }],
+            generationConfig: {
                 responseModalities: [Modality.AUDIO],
                 speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: 'Kore' } } },
             },
         });
+        
+        const response = await result.response;
         const base64Audio = response.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
         if (!base64Audio) throw new Error("No audio returned");
 
@@ -2607,13 +2613,14 @@ export const ChatInterface: React.FC = () => {
 
   // --- CHAT LOGIC ---
   const generateSystemContext = () => {
+    try {
       let hardwareCtx = "Hardware: Unknown";
       if (profile) {
           hardwareCtx = `**Spec:** ${profile.gpu} | ${profile.ram}GB RAM | Blender ${profile.blenderVersion}`;
       }
       
       let scanContext = "";
-      if (scannedFiles.length > 0) {
+      if (scannedFiles && scannedFiles.length > 0) {
           scanContext += "\n**THE AUDITOR - RECENT SCAN RESULTS:**\n";
           scannedFiles.forEach((f: any) => {
               scanContext += `- File: ${f.name} (Status: ${f.status.toUpperCase()})\n`;
@@ -2626,7 +2633,7 @@ export const ChatInterface: React.FC = () => {
       }
       
       let learnedCtx = "";
-      if (cortexMemory.length > 0) {
+      if (cortexMemory && cortexMemory.length > 0) {
           const learnedItems = cortexMemory
               .filter((s: any) => s.status === 'indexed')
               .map((s: any) => `- [${s.type.toUpperCase()}] ${s.name}: ${s.summary || 'Content ingested.'}`)
@@ -2642,18 +2649,21 @@ export const ChatInterface: React.FC = () => {
           : "**BLENDER LINK: OFFLINE**\n(If the user asks to control Blender, tell them to go to the Desktop Bridge and install the 'Mossy Link v4.0' add-on first.)";
 
       return `
-      **CONTEXT: FALLOUT 4 MODDING**
+      **DYNAMIC SYSTEM CONTEXT:**
       **Desktop Bridge:** ${bridgeStatus}
       ${blenderContext}
-      **Project:** ${projectData ? projectData.name : "None"}
-      **Tools:** ${detectedApps.filter(a => a.checked).map(a => a.name).join(', ') || "None"}
+      **Project Status:** ${projectData ? projectData.name : "None"}
+      **Detected Tools:** ${(detectedApps || []).filter(a => a.checked).map(a => a.name).join(', ') || "None"}
       ${hardwareCtx}
       ${scanContext}
       ${learnedCtx}
       `;
+    } catch (e) {
+      console.error("Context Error:", e);
+      return "Context: Error gathering system telemetry.";
+    }
   };
 
-  const systemInstruction = getFullSystemInstruction();
   const scrollToBottom = () => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   useEffect(scrollToBottom, [messages, scanProgress, onboardingState, activeTool, isStreaming]);
 
@@ -3428,8 +3438,13 @@ export const ChatInterface: React.FC = () => {
     }
 
     try {
-      const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-      let contents: any[] = [];
+      console.log("[Mossy] Initializing AI Session...");
+      const apiKey = import.meta.env.VITE_API_KEY || import.meta.env.VITE_GOOGLE_API_KEY || "";
+      if (!apiKey) {
+          throw new Error("No API Key found. Please add VITE_API_KEY to your .env file.");
+      }
+
+      const ai = new GoogleGenAI({ apiKey });
       
       const history = messages
         .filter(m => m.role !== 'system' && !m.text.includes("Scan Complete")) 
@@ -3439,8 +3454,6 @@ export const ChatInterface: React.FC = () => {
             if (parts.length === 0) parts.push({ text: "[Image Uploaded]" });
             return { role: m.role, parts };
         });
-      
-      contents = [...history];
 
       const userParts = [];
       if (selectedFile) {
@@ -3452,59 +3465,71 @@ export const ChatInterface: React.FC = () => {
         userParts.push({ inlineData: { mimeType: selectedFile.type, data: base64.split(',')[1] } });
       }
       userParts.push({ text: textToSend });
-      contents.push({ role: 'user', parts: userParts });
+      
+      const contents = [...history, { role: 'user', parts: userParts }];
 
       const toolsConfig = [{ functionDeclarations: toolDeclarations }];
-
       setIsStreaming(true);
       
-      // REAL ML INFERENCE (Ollama)
-      const localML = await LocalAIEngine.generateResponse(textToSend, systemInstruction);
-      let accumulatedText = `**[Local ML Inference]**\n${localML.content}\n\n---\n`;
-
-      const streamResult = await ai.models.generateContentStream({
-        model: 'gemini-3-flash-preview',
-        contents: contents,
-        config: {
-          systemInstruction: systemInstruction,
-          tools: toolsConfig,
-        },
+      const dynamicInstruction = getFullSystemInstruction(generateSystemContext());
+      
+      const model = ai.getGenerativeModel({ 
+        model: 'gemini-1.5-flash',
+        systemInstruction: dynamicInstruction, // Use simple string format
+        tools: toolsConfig
       });
-      
+
       const streamId = (Date.now() + 1).toString();
-      setMessages(prev => [...prev, { id: streamId, role: 'model', text: accumulatedText }]);
+      setMessages(prev => [...prev, { id: streamId, role: 'model', text: "..Establishing Neural Uplink.." }]);
+
+      let localThoughtText = "";
+      let aiResponseText = "";
+
+      const updateUI = () => {
+          const fullText = localThoughtText + aiResponseText;
+          setMessages(prev => prev.map(m => m.id === streamId ? { ...m, text: fullText || "..Processing.." } : m));
+      };
+
+      // Start local ML in parallel (Non-blocking)
+      LocalAIEngine.generateResponse(textToSend, dynamicInstruction)
+        .then(res => {
+            localThoughtText = `**[Local Inference]**\n${res.content}\n\n---\n`;
+            updateUI();
+        })
+        .catch(e => console.warn("Local ML failed", e));
+
+      console.log("[Mossy] Starting Content Stream...");
+      const streamResult = await model.generateContentStream({ contents });
       
-      for await (const chunk of streamResult) {
+      for await (const chunk of streamResult.stream) {
           if (abortControllerRef.current?.signal.aborted) break;
           
-          const chunkText = chunk.text || '';
-          accumulatedText += chunkText;
+          let chunkText = "";
+          try {
+              chunkText = chunk.text();
+              aiResponseText += chunkText;
+              updateUI();
+          } catch (e) {
+              // Not a text chunk (likely a function call)
+          }
           
-          const calls = chunk.functionCalls;
-          
+          const calls = chunk.functionCalls();
           if (calls && calls.length > 0) {
               for (const call of calls) {
-                  console.log("Executing Tool Call from Stream:", call.name);
+                  console.log("[Mossy] Executing Tool:", call.name);
                   const result = await executeTool(call.name, call.args);
                   
+                  aiResponseText += `\n\n[System: Executed ${call.name}]\n`;
                   setMessages(prev => prev.map(m => m.id === streamId ? { 
                       ...m, 
-                      text: accumulatedText,
                       toolCall: { toolName: call.name, args: call.args } 
                   } : m));
-
-                  if (result.startsWith("**Error:**")) {
-                      accumulatedText += `\n\n${result}\n`;
-                  } else {
-                      accumulatedText += `\n\n[System: Executed ${call.name}]\n`;
-                  }
+                  updateUI();
               }
           }
-
-          setMessages(prev => prev.map(m => m.id === streamId ? { ...m, text: accumulatedText } : m));
       }
 
-      if (isVoiceEnabled && accumulatedText) speakText(accumulatedText);
+      if (isVoiceEnabled && aiResponseText) speakText(aiResponseText);
 
     } catch (error) {
       console.error(error);

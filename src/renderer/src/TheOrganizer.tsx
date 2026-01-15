@@ -157,7 +157,7 @@ const TheOrganizer: React.FC = () => {
         setAnalysisResult(null);
 
         try {
-            const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+            const ai = new GoogleGenAI({ apiKey: (import.meta.env.VITE_API_KEY || import.meta.env.VITE_GOOGLE_API_KEY || "") });
             
             const modList = mods.map(m => `${m.name} [Category: ${m.category}]`).join('\n');
             
@@ -176,13 +176,14 @@ const TheOrganizer: React.FC = () => {
             Return JSON: array of mod names in correct order.
             `;
 
-            const response = await ai.models.generateContent({
-                model: 'gemini-3-flash-preview',
-                contents: prompt,
-                config: { responseMimeType: 'application/json' }
+            const model = ai.getGenerativeModel({ 
+                model: 'gemini-1.5-flash',
+                generationConfig: { responseMimeType: 'application/json' }
             });
+            const result = await model.generateContent(prompt);
+            const response = await result.response;
 
-            const sortedNames: string[] = JSON.parse(response.text);
+            const sortedNames: string[] = JSON.parse(response.text());
             
             setMods(prev => {
                 const newMods = [...prev];

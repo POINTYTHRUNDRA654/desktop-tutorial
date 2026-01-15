@@ -201,7 +201,7 @@ After installing, you may need to update the tool path in settings.`;
     const handleAutoGenerate = async () => {
         setIsGenerating(true);
         try {
-            const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+            const ai = new GoogleGenAI({ apiKey: (import.meta.env.VITE_API_KEY || import.meta.env.VITE_GOOGLE_API_KEY || "") });
             
             const prompt = `
             Act as a FOMOD installer architect.
@@ -219,14 +219,16 @@ After installing, you may need to update the tool path in settings.`;
             Do not include file paths mapping, just the visual structure.
             `;
 
-            const response = await ai.models.generateContent({
-                model: 'gemini-3-flash-preview',
-                contents: prompt,
-                config: { responseMimeType: 'application/json' }
+            const model = ai.getGenerativeModel({ 
+                model: 'gemini-1.5-flash',
+                generationConfig: { responseMimeType: 'application/json' }
             });
+            const result = await model.generateContent(prompt);
+            const response = await result.response;
+            const text = response.text();
 
             // Clean markdown fences if present
-            let cleanJson = response.text.replace(/```json/g, '').replace(/```/g, '').trim();
+            let cleanJson = text.replace(/```json/g, '').replace(/```/g, '').trim();
             const generated = JSON.parse(cleanJson);
             
             // Add IDs and visual state
