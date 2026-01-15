@@ -66,9 +66,27 @@ export default PrivacySettings
 
 ---
 
+### 3. `/src/renderer/src/MossyMemoryVault.tsx`
+**Type:** React Component  
+**Purpose:** RAG-based knowledge ingestion system
+
+---
+
+### 4. `/src/renderer/src/NeuralLink.tsx`
+**Type:** React Component  
+**Purpose:** Real-time process monitoring dashboard
+
+---
+
+### 5. `/src/electron/processMonitor.ts`
+**Type:** Node.js/Electron Service  
+**Purpose:** Windows process list polling
+
+---
+
 ## MODIFIED COMPONENTS
 
-### 3. `/src/renderer/src/App.tsx`
+### 6. `/src/renderer/src/App.tsx`
 **Changes Made:**
 
 **Import additions:**

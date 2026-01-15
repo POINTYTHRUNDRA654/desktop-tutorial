@@ -68,7 +68,7 @@ const Sidebar: React.FC = () => {
   }, [location]);
 
   const navItems = [
-    { to: '/', icon: LayoutDashboard, label: 'The Nexus' },
+    { to: '/', icon: LayoutDashboard, label: 'Mossy.Space' },
     { to: '/journey', icon: Sparkles, label: 'Modding Journey' },
     { to: '/assembler', icon: Package, label: 'The Assembler' },
     { to: '/auditor', icon: ShieldCheck, label: 'The Auditor' },
@@ -83,7 +83,7 @@ const Sidebar: React.FC = () => {
     { to: '/images', icon: Image, label: 'Image Studio' },
     { to: '/tts', icon: Mic2, label: 'Audio Studio' },
     { to: '/monitor', icon: Activity, label: 'System Map' },
-    { to: '/live', icon: Radio, label: 'Live Voice' },
+    { to: '/live', icon: Radio, label: 'Live Synapse' },
     { to: '/bridge', icon: Monitor, label: 'Desktop Bridge' },
     { to: '/settings/privacy', icon: Settings, label: 'Privacy Settings' },
     { to: '/support', icon: Coffee, label: 'Support Mossy' },
@@ -116,8 +116,8 @@ const Sidebar: React.FC = () => {
         </div>
         
         <div className="overflow-hidden flex-1">
-          <h1 className="text-xl font-bold text-white tracking-tighter leading-none">
-            MOSSY<span className={`transition-colors duration-500 ${moodColor}`}>.AI</span>
+          <h1 className="text-xl font-black italic text-white tracking-tighter leading-none">
+            MOSSY<span className={`transition-colors duration-500 ${moodColor}`}>.SPACE</span>
           </h1>
           <div className="flex items-center gap-1.5 mt-1.5">
              {bridgeConnected ? (

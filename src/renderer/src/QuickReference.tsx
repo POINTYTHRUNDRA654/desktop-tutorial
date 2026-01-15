@@ -100,6 +100,18 @@ export const QuickReference: React.FC = () => {
       ]
     },
     {
+      id: 'mossy-standards',
+      title: 'Mossy\'s FO4 Standards',
+      icon: Palette,
+      items: [
+        { name: 'Animation Rate', description: 'ALWAYS use 30 FPS for Fallout 4 animations.', example: '30 FPS', category: 'Animation' },
+        { name: 'Metric Scale', description: 'Use 1.0 Scale (1 unit = 1 meter) in Blender.', example: '1.0 Scale', category: 'Modeling' },
+        { name: 'Previs/Precombines', description: 'Never disable precombines. Rebuild them if you edit cells.', category: 'Optimization' },
+        { name: 'Project Isolation', description: 'Keep each mod in its own folder in The Hive.', category: 'Workflow' },
+        { name: 'ESPFE / ESL', description: 'Use ESL-flagged ESPs for small mods to save plugin slots.', category: 'Core' },
+      ]
+    },
+    {
       id: 'formids',
       title: 'FormID Ranges',
       icon: Hash,

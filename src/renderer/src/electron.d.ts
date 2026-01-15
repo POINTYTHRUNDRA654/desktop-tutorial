@@ -1,6 +1,7 @@
 // Type definitions for Electron API exposed via preload
 interface ElectronAPI {
   detectPrograms: () => Promise<any[]>;
+  getRunningProcesses: () => Promise<any[]>;
   openProgram: (path: string) => Promise<void>;
   getSystemInfo: () => Promise<{
     os: string;

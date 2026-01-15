@@ -31,8 +31,8 @@ const AvatarOverlay: React.FC = () => {
   };
 
   // Animate or highlight when avatar is active or speaking
-  const borderColor = mode === 'speaking' ? '#00ff99' : '#00d000';
-  const boxShadow = isActive ? '0 0 24px #00ff99, 0 0 8px #00d000' : '0 0 8px #00d000';
+  const borderColor = mode === 'speaking' ? '#60a5fa' : '#3b82f644';
+  const boxShadow = isActive ? '0 0 30px rgba(59,130,246,0.4)' : '0 0 10px rgba(59,130,246,0.1)';
 
   return (
     <div
@@ -42,11 +42,11 @@ const AvatarOverlay: React.FC = () => {
         bottom: 32,
         right: 32,
         zIndex: 1000,
-        width: 72,
-        height: 72,
+        width: 80,
+        height: 80,
         borderRadius: '50%',
-        background: 'rgba(10,20,10,0.95)',
-        border: `2.5px solid ${borderColor}`,
+        background: 'rgba(15,23,42,0.95)',
+        border: `2px solid ${borderColor}`,
         boxShadow,
         display: 'flex',
         alignItems: 'center',

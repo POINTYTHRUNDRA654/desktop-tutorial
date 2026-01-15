@@ -1,5 +1,6 @@
 import React from 'react';
 import { Shield, Cpu, Code2 } from 'lucide-react';
+import AvatarCore from './AvatarCore';
 
 interface MossyIdentityProps {
   mode?: 'compact' | 'full';
@@ -14,7 +15,7 @@ const MossyIdentity: React.FC<MossyIdentityProps> = ({ mode = 'full', className 
   if (mode === 'compact') {
     return (
       <div className={`flex items-center gap-2 ${className}`}>
-        <div className="w-2 h-2 bg-blue-400 rounded-full animate-pulse"></div>
+        <AvatarCore className="w-6 h-6" />
         <span className="font-mono font-bold text-blue-400 text-sm">MOSSY AI</span>
       </div>
     );
@@ -24,9 +25,12 @@ const MossyIdentity: React.FC<MossyIdentityProps> = ({ mode = 'full', className 
     <div className={`bg-black/40 border border-blue-400/40 rounded-xl p-6 backdrop-blur ${className}`} style={{boxShadow: '0 0 15px rgba(100,200,255,0.1)'}}>
       {/* Header */}
       <div className="flex items-start justify-between mb-4">
-        <div>
-          <div className="text-blue-400 font-mono font-bold text-lg tracking-widest mb-1">MOSSY</div>
-          <div className="text-slate-500 text-xs uppercase font-mono tracking-wider">Neural AI Assistant</div>
+        <div className="flex gap-4">
+          <AvatarCore className="w-16 h-16 border-2" />
+          <div>
+            <div className="text-blue-400 font-mono font-bold text-lg tracking-widest mb-1">MOSSY</div>
+            <div className="text-slate-500 text-xs uppercase font-mono tracking-wider">Neural AI Assistant</div>
+          </div>
         </div>
         <div className="w-3 h-3 bg-blue-400 rounded-full animate-pulse"></div>
       </div>
