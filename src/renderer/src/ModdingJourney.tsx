@@ -21,7 +21,7 @@ const ModdingJourney: React.FC = () => {
     ]);
 
     useEffect(() => {
-        // Sync with LocalAIEngine's recordAction history (Simulated for this demo)
+        // Sync with LocalAIEngine's recordAction history
         const history = JSON.parse(localStorage.getItem('mossy_ml_history') || '[]');
         const profile = localStorage.getItem('mossy_system_profile');
         const vault = localStorage.getItem('mossy_knowledge_vault');

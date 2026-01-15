@@ -4,6 +4,11 @@ export interface Message {
   text: string;
   isThinking?: boolean;
   images?: string[];
+  toolCall?: {
+    toolName: string;
+    args: any;
+  };
+  toolResult?: any;
   sources?: Array<{
     title: string;
     uri: string;

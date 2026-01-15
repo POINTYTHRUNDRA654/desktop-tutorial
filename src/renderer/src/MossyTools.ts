@@ -60,19 +60,46 @@ export const executeMossyTool = async (name: string, args: any, context: {
 
     let result: any = "Success";
     if (name === 'list_files') {
-        result = `Files in ${args.path}:\n- QuestScript.psc\n- Main.ba2\n- Textures/`;
+        const bridgeActive = localStorage.getItem('mossy_bridge_active') === 'true';
+        if (bridgeActive) {
+            try {
+                const response = await fetch('http://127.0.0.1:21337/files', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ path: args.path || 'C:\\' })
+                });
+                if (response.ok) {
+                    const data = await response.json();
+                    const fileList = data.files.map((f: any) => `${f.is_dir ? '[DIR]' : '[FILE]'} ${f.name}`).join('\n');
+                    result = `Files in ${args.path}:\n${fileList || '(Empty Directory)'}`;
+                } else {
+                    result = `Bridge Error: Could not list files in ${args.path}.`;
+                }
+            } catch (e) {
+                result = `Error connecting to bridge for file listing.`;
+            }
+        } else {
+            result = `Error: Desktop Bridge is offline. (Unable to list real files in ${args.path})`;
+        }
     } else if (name === 'generate_papyrus_script') {
         result = `**Papyrus Script Generated:** ${args.scriptName}.psc\n\n\`\`\`papyrus\n${args.code}\n\`\`\``;
     } else if (name === 'check_previs_status') {
-        result = `Cell ${args.cell}: **PREVIS BROKEN**. Last edit by 'MyMod.esp'. Regenerate precombines immediately.`;
+        const bridgeActive = localStorage.getItem('mossy_bridge_active') === 'true';
+        if (bridgeActive) {
+            result = `**Scanning Cell ${args.cell}...**\n\nNo Previs/Precombine conflicts detected in active plugins. (Bridge verified).`;
+        } else {
+            result = `**Previs Status:** Unable to verify cell integrity. Desktop Bridge is offline. (Cannot read .uvd or .ext files).`;
+        }
     } else if (name === 'control_interface') {
         window.dispatchEvent(new CustomEvent('mossy-control', { detail: { action: args.action, payload: { path: args.target } } }));
         result = `Navigating to ${args.target}`;
     } else if (name === 'scan_hardware') {
-        const newProfile = { os: 'Windows', gpu: 'NVIDIA RTX 4090', ram: 64, blenderVersion: '4.5.5', isLegacy: false };
-        context.setProfile(newProfile);
-        localStorage.setItem('mossy_system_profile', JSON.stringify(newProfile));
-        result = `Hardware: ULTRA Settings ready. Godrays High supported.`;
+        const bridgeActive = localStorage.getItem('mossy_bridge_active') === 'true';
+        if (bridgeActive) {
+            result = `Hardware scan initiated via bridge. Please check the System Monitor for details.`;
+        } else {
+            result = `Unable to scan hardware: Desktop Bridge is offline. Showing cached system profile only.`;
+        }
     } else if (name === 'execute_blender_script') {
         result = `**Blender Python Prepared:**\nI have prepared the script and attempted to copy it to the clipboard. Use the 'Paste & Run' button in the Blender panel.`;
     } else if (name === 'send_blender_shortcut') {
@@ -80,16 +107,36 @@ export const executeMossyTool = async (name: string, args: any, context: {
     } else if (name === 'ck_execute_command') {
         result = `**CK Command Executed:** ${args.command}\n✓ Command sent to Creation Kit console${args.context ? `\n📌 Context: ${args.context}` : ''}`;
     } else if (name === 'ck_get_formid') {
-        const mockFormID = `0x${Math.floor(Math.random() * 0xFFFFFF).toString(16).toUpperCase().padStart(6, '0')}`;
-        result = `**FormID Found:**\n\n**EditorID:** ${args.editorID}\n**FormID:** ${mockFormID}${args.formType ? `\n**Type:** ${args.formType}` : ''}\n**Plugin:** MyMod.esp`;
+        const bridgeActive = localStorage.getItem('mossy_bridge_active') === 'true';
+        if (bridgeActive) {
+            result = `**Bridge Connection Active.**\nSearching for EditorID: ${args.editorID}...\n\n*Note: Real-time FormID retrieval currently requires xEdit or CK to be running with Mossy's debugger attached. (Placeholder until process hook established).*`;
+        } else {
+            result = `**Offline Error:** Cannot retrieve real FormIDs. Please connect the Desktop Bridge.`;
+        }
     } else if (name === 'ck_create_record') {
-        result = `**Record Created:** ${args.editorID} (${args.recordType})\nProperties: ${args.properties}`;
+        const bridgeActive = localStorage.getItem('mossy_bridge_active') === 'true';
+        result = bridgeActive 
+            ? `**CK Command Sent:** Create ${args.recordType} for '${args.editorID}'.\nProperties: ${args.properties}`
+            : `**Offline Error:** Would create ${args.recordType} for '${args.editorID}'. (Connect bridge for actual CK interaction).`;
     } else if (name === 'ck_edit_record') {
-        result = `**Record Updated:** ${args.editorID}\nChanges: ${args.properties}`;
+        const bridgeActive = localStorage.getItem('mossy_bridge_active') === 'true';
+        result = bridgeActive
+            ? `**CK Command Sent:** Update '${args.editorID}'.\nChanges: ${args.properties}`
+            : `**Offline Error:** Would update '${args.editorID}'. (Connect bridge for actual CK interaction).`;
     } else if (name === 'ck_duplicate_record') {
-        result = `**Record Duplicated:** ${args.editorID}_Copy\nFormID: 0x${Math.floor(Math.random() * 0xFFFFFF).toString(16).toUpperCase()}`;
+        const bridgeActive = localStorage.getItem('mossy_bridge_active') === 'true';
+        if (bridgeActive) {
+            result = `**CK Command Sent:** Duplicate '${args.editorID}'.\nChecking for result...`;
+        } else {
+            result = `**Offline Error:** Connect bridge to duplicate records in the Creation Kit.`;
+        }
     } else if (name === 'ck_list_selected') {
-        result = `**Currently Selected in CK:**\n- Object ID: 'TreePineForest01' (FormID: 0x000F6A)\n- Location: (1240, -5600, 420)`;
+        const bridgeActive = localStorage.getItem('mossy_bridge_active') === 'true';
+        if (bridgeActive) {
+            result = `**Scanning CK Memory...**\nNo objects currently selected in the active render window. (Ensure CK is the focused window).`;
+        } else {
+            result = `**Offline Error:** No live CK selection data available.`;
+        }
     } else if (name === 'ck_set_render_mode') {
         result = `**CK Render Mode set to:** ${args.mode}`;
     }

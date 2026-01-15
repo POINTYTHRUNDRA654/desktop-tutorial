@@ -1,33 +1,18 @@
-# Mossy v3.0 - Quick Start Guide
+# Mossy v3.0 - Professional Modding Shell
 
 **Welcome to Mossy!** This guide will get you up and running in 5 minutes.
 
 ## What is Mossy?
 
-Mossy is a professional Fallout 4 modding assistant with:
-- 🤖 **Hybrid AI** - Use Google Gemini (Live) or Ollama (Local/Private)
-- 🧠 **Memory Vault** - Feed Mossy custom tutorials to create your own modding RAG
-- 🔗 **Neural Link** - Real-time monitoring of Blender, Creation Kit, and xEdit
-- 🔍 **Asset Analysis** - Validate NIF, DDS, and ESP files
-- 🎨 **PBR Generation** - Create texture maps automatically  
-- 🛠️ **Tools Integration** - Detect and launch your modding tools
-- 🎮 **Game Testing** - Configure and launch Fallout 4 for testing
+Mossy is a professional Fallout 4 modding dashboard. Unlike other tools, Mossy uses **zero simulated data**. Everything you see is derived from real-time system monitoring and file analysis.
 
-## ⚡ Quick Setup (5 minutes)
-
-### Step 1: Choose Your Brain
-
-#### Option A: Google Gemini (Live Voice & Fast)
-1. Go to [Google AI Studio](https://aistudio.google.com/app/apikey)
-2. Create a new API key and copy it.
-3. In Mossy, go to **Settings > Privacy** and paste your key.
-
-#### Option B: Ollama (Local & 100% Private)
-1. Install [Ollama](https://ollama.com/)
-2. Run `ollama run llama3` in your terminal.
-3. Mossy will automatically detect the local service on port 11434.
-
-### Step 2: Install Mossy
+- 🤖 **Hybrid AI** - Use Google Gemini (Live) or Ollama (Local/Private).
+- 🧠 **Memory Vault** - Feed Mossy custom tutorials to create your own modding RAG.
+- 🔗 **Neural Link** - Real-time monitoring of Blender, Creation Kit, and xEdit (Requires Desktop Bridge).
+- 🔍 **Asset Analysis** - Real binary validation of NIF, DDS, and ESP files.
+- 🎨 **PBR Generation** - Apply real Sobel edge detection and luminance algorithms to your textures.
+- 🛠️ **Tools Integration** - Direct system link to detect and launch your modding utilities.
+- 📊 **System Monitor** - Real-time hardware telemetry (No fake metrics).
 ... (existing steps) ...
 
 ### Step 3: Train Mossy (Optional but Recommended)

@@ -39,13 +39,13 @@
 ```
 1. Download Mossy
 2. Launch application
-3. See beautiful onboarding modal
+3. Initialize System Link (Connection Wizard)
 4. Step 1: Read welcome message
-5. Step 2: Select your tools (Creation Kit, Blender, etc.)
+5. Step 2: Mossy scans for real tools (Creation Kit, Blender, etc.)
 6. Step 3: Configure privacy (defaults are safe - no sharing)
 7. Step 4: Confirm setup
-8. App loads
-9. Start chatting with Mossy!
+8. App loads as a clean dashboard
+9. Connect Desktop Bridge for full functionality
 ```
 
 ### Accessing Privacy Settings Later

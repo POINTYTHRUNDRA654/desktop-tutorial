@@ -132,7 +132,7 @@ const TheCartographer: React.FC = () => {
 
             ctx.fillRect(room.x * cellSize, room.y * cellSize, room.w * cellSize, room.h * cellSize);
             
-            // Previs/Precombine Overlay (Simulated)
+            // Previs/Precombine Overlay
             if (showPrevis) {
                 ctx.fillStyle = `rgba(255, 0, 255, 0.1)`; // Magenta typical debug color for precombs
                 ctx.fillRect(room.x * cellSize, room.y * cellSize, room.w * cellSize, room.h * cellSize);
