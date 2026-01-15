@@ -58,6 +58,7 @@ const ExternalToolsSettings: React.FC = () => {
       await window.electronAPI.setSettings(draft);
       const updated = await window.electronAPI.getSettings();
       setSettings(updated);
+      alert("[MOSSY] Configuration protocols updated, Architect. Your workspace is now synced with your external toolchain.");
     } catch (e) {
       console.error('Failed to save settings', e);
       alert('Failed to save settings.');

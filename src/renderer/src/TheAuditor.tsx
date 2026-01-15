@@ -367,6 +367,8 @@ const TheAuditor: React.FC = () => {
         // BROADCAST TO SHARED MEMORY
         localStorage.setItem('mossy_scan_auditor', JSON.stringify(updatedFiles));
         window.dispatchEvent(new Event('mossy-memory-update'));
+
+        setMossyAdvice("Audit complete, Architect. I have categorized all discrepancies in the list above.");
     };
 
     const getMossyAdvice = async (issue: AuditIssue) => {
