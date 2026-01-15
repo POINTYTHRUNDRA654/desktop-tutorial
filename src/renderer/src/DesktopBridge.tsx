@@ -333,6 +333,120 @@ pause
       addLog('System', 'Generated improved start_mossy.bat', 'success');
   };
 
+  const handleDownloadAddon = () => {
+    const addonCode = `
+import bpy
+import os
+import time
+import json
+
+bl_info = {
+    "name": "Mossy Link",
+    "author": "POINTYTHRUNDRA654",
+    "version": (4, 0, 0),
+    "blender": (3, 6, 0),
+    "location": "View3D > Sidebar > Mossy",
+    "description": "Neural Link for Mossy AI Assistant",
+    "category": "System",
+}
+
+class MOSSY_PT_Panel(bpy.types.Panel):
+    bl_label = "Mossy Neural Link"
+    bl_idname = "MOSSY_PT_Panel"
+    bl_space_type = 'VIEW_3D'
+    bl_region_type = 'UI'
+    bl_category = 'Mossy'
+
+    def draw(self, context):
+        layout = self.layout
+        scene = context.scene
+        
+        row = layout.row()
+        row.prop(scene, "mossy_link_active", text="Sync Enabled", toggle=True, icon='RADIOBUT_ON' if scene.mossy_link_active else 'RADIOBUT_OFF')
+        
+        if scene.mossy_link_active:
+            box = layout.box()
+            box.label(text="Status: Connected", icon='WORLD')
+            box.label(text="Listening for commands...", icon='MICROPHONE')
+            
+            row = layout.row()
+            row.operator("mossy.align_standards", text="Align Standards", icon='CHECKMARK')
+            
+            if scene.mossy_last_cmd:
+                box = layout.box()
+                box.label(text="Last Task:", icon='EDIT')
+                box.label(text=scene.mossy_last_cmd)
+        else:
+            layout.label(text="Link is Offline")
+            layout.label(text="Please enable to receive Mossy's thoughts.")
+
+class MOSSY_OT_AlignStandards(bpy.types.Operator):
+    bl_idname = "mossy.align_standards"
+    bl_label = "Align to FO4 Standards"
+    
+    def execute(self, context):
+        bpy.context.scene.unit_settings.system = 'METRIC'
+        bpy.context.scene.unit_settings.scale_length = 1.0
+        bpy.context.scene.render.fps = 30
+        self.report({'INFO'}, "Mossy: Aligned to FO4 Standards (1.0 Scale, 30 FPS)")
+        return {'FINISHED'}
+
+def mossy_clipboard_monitor():
+    if not bpy.context.scene.mossy_link_active:
+        return 1.0
+        
+    try:
+        # Check clipboard
+        clip = bpy.context.window_manager.clipboard
+        if clip.startswith("MOSSY_CMD:"):
+            cmd = clip.replace("MOSSY_CMD:", "", 1)
+            bpy.context.window_manager.clipboard = "" # Clear immediately
+            
+            bpy.context.scene.mossy_last_cmd = cmd[:30] + "..." if len(cmd) > 30 else cmd
+            
+            if cmd == "MOSSY_CUBE":
+                bpy.ops.mesh.primitive_cube_add(size=2, location=(0,0,0))
+            else:
+                # Execute the raw python script from Mossy
+                exec(cmd, globals())
+            
+    except Exception as e:
+        print(f"Mossy Link Error: {e}")
+        
+    return 0.5 
+
+def register():
+    bpy.utils.register_class(MOSSY_PT_Panel)
+    bpy.utils.register_class(MOSSY_OT_AlignStandards)
+    bpy.types.Scene.mossy_link_active = bpy.props.BoolProperty(name="Mossy Link Active", default=False)
+    bpy.types.Scene.mossy_last_cmd = bpy.props.StringProperty(name="Last Command", default="")
+    
+    if not bpy.app.timers.is_registered(mossy_clipboard_monitor):
+        bpy.app.timers.register(mossy_clipboard_monitor)
+
+def unregister():
+    bpy.utils.unregister_class(MOSSY_PT_Panel)
+    bpy.utils.unregister_class(MOSSY_OT_AlignStandards)
+    del bpy.types.Scene.mossy_link_active
+    del bpy.types.Scene.mossy_last_cmd
+    
+    if bpy.app.timers.is_registered(mossy_clipboard_monitor):
+        bpy.app.timers.unregister(mossy_clipboard_monitor)
+
+if __name__ == "__main__":
+    register()
+    `;
+    const blob = new Blob([addonCode], { type: 'text/x-python' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'mossy_link.py'; 
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    addLog('System', 'Generated Blender Add-on (mossy_link.py) v4.0', 'success');
+  };
+
   const addLog = (source: string, event: string, status: 'ok' | 'warn' | 'err' | 'success' = 'ok') => {
       const newLog = {
           id: Date.now().toString() + Math.random(),
@@ -512,6 +626,7 @@ pause
       <div className="flex border-b border-slate-800 bg-slate-900 px-6 pt-4 gap-1">
           {[
               { id: 'setup', icon: Download, label: 'Setup' },
+              { id: 'blender', icon: Box, label: 'Blender Link' },
               { id: 'hardware', icon: Cpu, label: 'Hardware' },
               { id: 'vision', icon: Eye, label: 'Vision' },
               { id: 'clipboard', icon: Clipboard, label: 'Clipboard' },
@@ -652,6 +767,64 @@ pause
                       </div>
                   </div>
               </div>
+          )}
+
+          {activeTab === 'blender' && (
+            <div className="max-w-4xl mx-auto space-y-6">
+                <div className="rounded-xl border border-blue-500/30 bg-blue-900/10 p-6">
+                    <h3 className="text-xl font-bold text-white flex items-center gap-2 mb-4">
+                        <Box className="text-blue-400" />
+                        Mossy Link for Blender
+                    </h3>
+                    <p className="text-sm text-blue-200 mb-6 leading-relaxed">
+                        This add-on allows Mossy to directly control Blender. It creates a "Neural Link" 
+                        that monitors the system clipboard for Mossy's commands and executes them automatically.
+                    </p>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+                        <div className="bg-black/40 p-4 rounded-lg border border-slate-700">
+                            <h4 className="font-bold text-white mb-2 flex items-center gap-2 text-sm">
+                                <CheckCircle2 className="w-4 h-4 text-emerald-400"/> Key Capabilities
+                            </h4>
+                            <ul className="text-xs text-slate-300 space-y-2">
+                                <li>• One-click FO4 Standards Alignment</li>
+                                <li>• Automated Mesh Generation</li>
+                                <li>• Animation Batch Processing</li>
+                                <li>• Real-time Scene Analysis</li>
+                            </ul>
+                        </div>
+                        <div className="bg-black/40 p-4 rounded-lg border border-slate-700">
+                            <h4 className="font-bold text-white mb-2 flex items-center gap-2 text-sm">
+                                <Settings className="w-4 h-4 text-blue-400"/> Installation
+                            </h4>
+                            <ol className="text-xs text-slate-300 space-y-2 list-decimal pl-4">
+                                <li>Download <strong>mossy_link.py</strong> below</li>
+                                <li>In Blender: <em>Edit &gt; Preferences &gt; Add-ons</em></li>
+                                <li>Click <strong>Install...</strong> and select the file</li>
+                                <li>Enable "System: Mossy Link" checkbox</li>
+                            </ol>
+                        </div>
+                    </div>
+
+                    <button 
+                        onClick={handleDownloadAddon}
+                        className="w-full py-4 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-xl flex items-center justify-center gap-3 transition-all shadow-[0_0_20px_rgba(37,99,235,0.3)] group"
+                    >
+                        <Download className="w-6 h-6 group-hover:animate-bounce" />
+                        Download Mossy Link Add-on (v4.0)
+                    </button>
+                </div>
+
+                <div className="bg-slate-900 border border-slate-700 rounded-xl p-6">
+                  <h4 className="font-bold text-white mb-4 flex items-center gap-2">
+                      <Zap className="w-4 h-4 text-yellow-400"/> Pro Tip: Automated Workflows
+                  </h4>
+                  <p className="text-xs text-slate-400 italic">
+                      "Once enabled, you can say things like 'Mossy, align my Blender scene to Fallout 4' 
+                      or 'Create a test cube in Blender' and I'll execute the code through the link."
+                  </p>
+                </div>
+            </div>
           )}
 
           {activeTab === 'hardware' && (
