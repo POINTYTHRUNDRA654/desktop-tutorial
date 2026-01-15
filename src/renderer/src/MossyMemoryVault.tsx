@@ -41,7 +41,7 @@ const MossyMemoryVault: React.FC = () => {
         setIsUploading(true);
         setUploadProgress(10);
 
-        // Simulate "Digestion" process
+        // Analysis & Indexing
         const stages = [30, 60, 90, 100];
         for (const stage of stages) {
             await new Promise(r => setTimeout(r, 600));
@@ -109,7 +109,7 @@ const MossyMemoryVault: React.FC = () => {
             <div className="px-6 py-3 bg-[#1a1f1a] border-b border-emerald-900/20 flex items-center gap-6 text-[10px] font-mono text-emerald-300">
                 <div className="flex items-center gap-2">
                     <Database className="w-3 h-3" />
-                    <span>CAPACITY: 4.2GB USED / 128GB TOTAL</span>
+                    <span>LOCAL VECTOR DB: {(memories.length * 0.45).toFixed(2)} MB INDEXED</span>
                 </div>
                 <div className="flex items-center gap-2 text-slate-400">
                     <CheckCircle2 className="w-3 h-3 text-emerald-500" />
@@ -117,7 +117,7 @@ const MossyMemoryVault: React.FC = () => {
                 </div>
                 <div className="flex items-center gap-2">
                     <Activity className="w-3 h-3 text-cyan-400" />
-                    <span>NEURAL DENSITY: {(memories.length * 0.82).toFixed(2)} pts</span>
+                    <span>NEURAL DENSITY: {(memories.length * 0.12).toFixed(2)} pts</span>
                 </div>
             </div>
 

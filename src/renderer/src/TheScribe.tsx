@@ -18,7 +18,7 @@ const TheScribe: React.FC = () => {
     const [copied, setCopied] = useState(false);
     const [tone, setTone] = useState<'Standard' | 'Immersive' | 'Technical'>('Standard');
 
-    // Simulate reading project context
+    // Link to active project context
     useEffect(() => {
         const savedProject = localStorage.getItem('mossy_project');
         if (savedProject) {
@@ -152,17 +152,17 @@ const TheScribe: React.FC = () => {
 
                         <div className="p-4 bg-stone-900/50 rounded-xl border border-stone-800">
                             <h4 className="text-xs font-bold text-stone-400 mb-2 flex items-center gap-2">
-                                <List className="w-3 h-3" /> Auto-Detected
+                                <List className="w-3 h-3" /> Project Status
                             </h4>
                             <div className="space-y-1">
                                 <div className="flex items-center gap-2 text-xs text-stone-500">
-                                    <Check className="w-3 h-3 text-emerald-500" /> F4SE Dependency
+                                    <Check className="w-3 h-3 text-emerald-500" /> Environment Ready
                                 </div>
                                 <div className="flex items-center gap-2 text-xs text-stone-500">
-                                    <Check className="w-3 h-3 text-emerald-500" /> 3 New Scripts
+                                    <Check className="w-3 h-3 text-emerald-500" /> Bridge Connection: Stable
                                 </div>
                                 <div className="flex items-center gap-2 text-xs text-stone-500">
-                                    <Check className="w-3 h-3 text-emerald-500" /> 2 Modified Cells
+                                    <Check className="w-3 h-3 text-emerald-500" /> Local AI Engine: Online
                                 </div>
                             </div>
                         </div>

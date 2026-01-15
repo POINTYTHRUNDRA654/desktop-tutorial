@@ -82,7 +82,7 @@ const Sidebar: React.FC = () => {
     { to: '/workshop', icon: Hammer, label: 'The Workshop' },
     { to: '/images', icon: Image, label: 'Image Studio' },
     { to: '/tts', icon: Mic2, label: 'Audio Studio' },
-    { to: '/monitor', icon: Activity, label: 'System Map' },
+    { to: '/monitor', icon: Activity, label: 'System Monitor' },
     { to: '/live', icon: Radio, label: 'Live Synapse' },
     { to: '/bridge', icon: Monitor, label: 'Desktop Bridge' },
     { to: '/settings/privacy', icon: Settings, label: 'Privacy Settings' },

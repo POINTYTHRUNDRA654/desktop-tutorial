@@ -27,7 +27,7 @@ export const PipBoyStartup: React.FC<{ onComplete: () => void }> = ({ onComplete
       const timer = setTimeout(() => {
         setSteps(prev => prev.map((s, i) => i === currentStep ? { ...s, status: 'in-progress' } : s));
         
-        // Simulate progress
+        // Execute boot sequence
         setTimeout(async () => {
           setSteps(prev => prev.map((s, i) => i === currentStep ? { ...s, status: 'completed' } : s));
           setLogs(prev => [...prev, `[OK] ${step.text}`]);

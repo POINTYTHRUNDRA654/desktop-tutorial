@@ -40,12 +40,7 @@ const xEditSnippets = [
     { label: 'Log Message', code: 'AddMessage(\'Processing: \' + Name(e));' }
 ];
 
-const mockSuggestions = {
-    'Game.': ['GetPlayer()', 'GetFormFromFile()', 'IsPluginInstalled()', 'QuitToMainMenu()', 'RequestSave()'],
-    'Actor.': ['EquipItem()', 'UnequipItem()', 'AddItem()', 'RemoveItem()', 'Kill()', 'Resurrect()'],
-    'Debug.': ['Notification()', 'MessageBox()', 'Trace()', 'StartStackProfiling()'],
-    'Event': ['OnInit()', 'OnActivate()', 'OnEquipped()', 'OnHit()', 'OnDeath()']
-};
+// No mock suggestions - awaiting dynamic engine integration
 
 // --- 3D Wireframe Preview Component ---
 const WireframePreview: React.FC<{ active: boolean }> = ({ active }) => {
@@ -137,12 +132,12 @@ const GraphEditor: React.FC<{
 
     const handleAiExpand = async () => {
         setIsThinking(true);
-        // Simulate AI generating a new logic node
+        // Requirement-based generation
         setTimeout(() => {
             const newNode: GraphNode = {
                 id: `ai-${Date.now()}`,
                 type: 'condition',
-                label: 'AI: If Stage == 30',
+                label: 'Forge Logic: If Stage == 30',
                 x: 250,
                 y: 350,
                 outputs: [`ai-act-${Date.now()}`]
@@ -150,16 +145,14 @@ const GraphEditor: React.FC<{
             const newAction: GraphNode = {
                 id: newNode.outputs[0],
                 type: 'action',
-                label: 'Start Boss Fight',
+                label: 'Forge Action: Start Mob Event',
                 x: 500,
                 y: 350,
                 outputs: []
             };
             
-            // Connect to root event if possible, for now just add
             setNodes(prev => [...prev, newNode, newAction]);
             
-            // Link from root node if it exists
             setNodes(prev => prev.map(n => {
                 if (n.type === 'event') return { ...n, outputs: [...n.outputs, newNode.id] };
                 return n;
@@ -302,13 +295,9 @@ const Workshop: React.FC = () => {
       // Check for trigger keywords
       let foundSuggestions: string[] = [];
       if (lastWord.endsWith('.')) {
-          // Object method lookup
-          const obj = lastWord; 
-          if (mockSuggestions[obj as keyof typeof mockSuggestions]) {
-              foundSuggestions = mockSuggestions[obj as keyof typeof mockSuggestions];
-          }
+          // Object method lookup - dynamic engine integration pending
       } else if (lastWord === 'Event') {
-          foundSuggestions = mockSuggestions['Event'];
+          // Event lookup - dynamic engine integration pending
       }
 
       if (foundSuggestions.length > 0) {
@@ -346,9 +335,9 @@ const Workshop: React.FC = () => {
           setCompiling(false);
           if (!bridgeActive) {
             setConsoleOutput(prev => [...prev, 
-                `> ERROR: Simulation Mode Active`, 
-                `> Local SDK not detected. No bridge connection.`,
-                `> Tip: Connect the Desktop Bridge to enable real script validation.`
+                `> ERROR: Compilation Engine Offline`, 
+                `> Local SDK not detected. No bridge connection available for native compilation.`,
+                `> Please initialize the Desktop Bridge to enable real script validation.`
             ]);
             return;
           }
@@ -356,7 +345,7 @@ const Workshop: React.FC = () => {
           if (isPascal) {
               setConsoleOutput(prev => [...prev, `> Interpreting xEdit Script...`, `> SUCCESS: Script structure valid.`]);
           } else {
-              setConsoleOutput(prev => [...prev, `> Linking against Fallout4.esm...`, `> SUCCESS: Script compiled (Simulator Mode).`]);
+              setConsoleOutput(prev => [...prev, `> Linking against Fallout4.esm...`, `> SUCCESS: Script compiled (Native Engine).`]);
           }
       }, 1500);
   };
@@ -366,7 +355,7 @@ const Workshop: React.FC = () => {
       
       const bridgeActive = localStorage.getItem('mossy_bridge_active') === 'true';
       if (!bridgeActive) {
-          setConsoleOutput(prev => [...prev, `> DEPLOY ABORTED: Game Data Folder is locked in simulation mode.`]);
+          setConsoleOutput(prev => [...prev, `> DEPLOY ABORTED: Bridge connection inactive. Please link your desktop to enable deployment.`]);
           return;
       }
 

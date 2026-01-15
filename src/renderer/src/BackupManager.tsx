@@ -40,59 +40,13 @@ export const BackupManager: React.FC = () => {
   }, [autoBackup, backupInterval]);
 
   const loadSnapshots = () => {
-    // Load from localStorage or generate demo
     const saved = localStorage.getItem('mossy_snapshots');
     if (saved) {
       const parsed = JSON.parse(saved);
       setSnapshots(parsed.map((s: any) => ({ ...s, timestamp: new Date(s.timestamp) })));
     } else {
-      generateDemoSnapshots();
+      setSnapshots([]);
     }
-  };
-
-  const generateDemoSnapshots = () => {
-    const now = Date.now();
-    const demoSnapshots: Snapshot[] = [
-      {
-        id: '1',
-        name: 'Auto Snapshot',
-        timestamp: new Date(now - 3600000),
-        type: 'auto',
-        size: '45 MB',
-        files: 127,
-        description: 'Hourly backup'
-      },
-      {
-        id: '2',
-        name: 'Before Compile',
-        timestamp: new Date(now - 7200000),
-        type: 'pre-compile',
-        size: '43 MB',
-        files: 125,
-        description: 'Pre-compilation snapshot'
-      },
-      {
-        id: '3',
-        name: 'Working Version',
-        timestamp: new Date(now - 86400000),
-        type: 'manual',
-        size: '42 MB',
-        files: 123,
-        description: 'Manual save before major changes'
-      },
-      {
-        id: '4',
-        name: 'Pre-Launch',
-        timestamp: new Date(now - 172800000),
-        type: 'pre-launch',
-        size: '41 MB',
-        files: 120,
-        description: 'Before game test'
-      }
-    ];
-
-    setSnapshots(demoSnapshots);
-    localStorage.setItem('mossy_snapshots', JSON.stringify(demoSnapshots));
   };
 
   const checkGitStatus = async () => {
@@ -156,15 +110,19 @@ export const BackupManager: React.FC = () => {
     if (!confirm) return;
 
     try {
-      await fetch('http://localhost:21337/backup/restore', {
+      const response = await fetch('http://localhost:21337/backup/restore', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ snapshotId: snapshot.id })
       });
 
-      alert('Restored successfully!');
+      if (response.ok) {
+        alert('Restored successfully!');
+      } else {
+        throw new Error('Restore failed');
+      }
     } catch (error) {
-      alert(`Restore initiated for: ${snapshot.name}\n\n(Demo mode - requires Desktop Bridge)`);
+      alert(`Bridge Offline: Could not restore snapshot. Please ensure the Desktop Bridge is running.`);
     }
   };
 
@@ -197,16 +155,29 @@ export const BackupManager: React.FC = () => {
 
   const gitPush = async () => {
     try {
-      await fetch('http://localhost:21337/git/push', { method: 'POST' });
-      alert('Pushed to remote!');
-      checkGitStatus();
+      const response = await fetch('http://localhost:21337/git/push', { method: 'POST' });
+      if (response.ok) {
+        alert('Pushed to remote!');
+        checkGitStatus();
+      } else {
+        throw new Error('Push failed');
+      }
     } catch (error) {
-      alert('Git push initiated\n\n(Demo mode - requires Desktop Bridge)');
+      alert('Bridge Offline: Could not push to Git. Please ensure the Desktop Bridge is running.');
     }
   };
 
-  const exportSnapshot = (snapshot: Snapshot) => {
-    alert(`Export snapshot: ${snapshot.name}\n\nThis would create a .zip file with all mod files from this point in time.`);
+  const exportSnapshot = async (snapshot: Snapshot) => {
+    try {
+      const response = await fetch(`http://localhost:21337/backup/export/${snapshot.id}`);
+      if (response.ok) {
+        alert(`Snapshot "${snapshot.name}" exported as ZIP.`);
+      } else {
+        throw new Error('Export failed');
+      }
+    } catch (error) {
+       alert(`Bridge Offline: Could not export snapshot. Please ensure the Desktop Bridge is running.`);
+    }
   };
 
   const getTypeColor = (type: Snapshot['type']) => {

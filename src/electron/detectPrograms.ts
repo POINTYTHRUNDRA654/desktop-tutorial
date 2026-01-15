@@ -45,19 +45,24 @@ export async function detectPrograms(): Promise<InstalledProgram[]> {
     console.error('File system scan failed:', error);
   }
 
-  return Array.from(programs.values()).sort((a, b) => 
-    a.displayName.localeCompare(b.displayName)
-  );
+  return Array.from(programs.values())
+    .filter(p => {
+        const pathLower = p.path.toLowerCase();
+        // Eliminate typical installer/helper noise that isn't the primary tool
+        return !pathLower.includes('unins') && 
+               !pathLower.includes('helper') && 
+               !pathLower.includes('crashpad') &&
+               !pathLower.includes('redist');
+    })
+    .sort((a, b) => a.displayName.localeCompare(b.displayName));
 }
 
 /**
  * Get installed programs from Windows Registry
- * Queries both HKLM and HKCU Uninstall registry keys
  */
 async function getRegistryPrograms(): Promise<InstalledProgram[]> {
   const programs: InstalledProgram[] = [];
   
-  // Registry paths to check
   const registryPaths = [
     'HKLM\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Uninstall',
     'HKLM\\SOFTWARE\\WOW6432Node\\Microsoft\\Windows\\CurrentVersion\\Uninstall',
@@ -67,7 +72,15 @@ async function getRegistryPrograms(): Promise<InstalledProgram[]> {
   for (const registryPath of registryPaths) {
     try {
       const items = await queryRegistryKeys(registryPath);
-      programs.push(...items);
+      // Validate paths before adding
+      for (const item of items) {
+          try {
+              await fs.access(item.path);
+              programs.push(item);
+          } catch {
+              // Path doesn't exist, skip stale entry
+          }
+      }
     } catch (error) {
       console.warn(`Failed to query registry path ${registryPath}:`, error);
     }
@@ -161,6 +174,21 @@ async function queryRegistryKey(keyPath: string): Promise<InstalledProgram | nul
       return null;
     }
 
+    // NEW: Verify the file actually exists on disk. 
+    // This prevents stale registry entries (e.g. from an old C: drive install) from polluting the list.
+    try {
+      await fs.access(executablePath);
+    } catch {
+      // If we can't access it, try to see if it's quoted or has extra args
+      const cleanPath = executablePath.replace(/"/g, '').trim();
+      try {
+        await fs.access(cleanPath);
+        executablePath = cleanPath;
+      } catch {
+        return null; // Truly not found
+      }
+    }
+
     return {
       name: path.basename(executablePath, '.exe'),
       displayName,
@@ -185,27 +213,46 @@ async function scanProgramFiles(): Promise<InstalledProgram[]> {
   const programFilesPaths = [
     process.env['ProgramFiles'] || 'C:\\Program Files',
     process.env['ProgramFiles(x86)'] || 'C:\\Program Files (x86)',
+    path.join(os.homedir(), 'AppData', 'Local'),
+    path.join(os.homedir(), 'AppData', 'Roaming'),
   ];
 
-  // ADDED: Search other common drives for modding folders
+  // Search other common drives for modding folders
+  // We'll be more aggressive about finding these
   const potentialDrives = ['C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'Z'];
   const commonFolders = [
     'Games', 'Modding', 'ModdingTools', 'SteamLibrary', 'GOG Games', 
     'Tools', 'Program Files', 'Program Files (x86)', 'SteamLibrary\\steamapps\\common',
     'XboxGames', 'Epic Games', 'Modding Tools', 'Fallout 4 Tools', 'Bethesda.net Launcher',
-    'MO2', 'Vortex', 'FO4Edit', 'Creation Kit', 'Wrye Bash', 'LOOT', 'NifSkope', 'Blender Foundation'
+    'MO2', 'Vortex', 'FO4Edit', 'Creation Kit', 'Wrye Bash', 'LOOT', 'NifSkope', 'Blender Foundation',
+    'Modding\\Tools', 'GameTools', 'Utility', 'Utilities'
   ];
   
-  // Add root of drives to scan top-level folders too
+  // Add root of drives and then the folders
   for (const drive of potentialDrives) {
-    programFilesPaths.push(`${drive}:\\`); 
-    for (const folder of commonFolders) {
-       programFilesPaths.push(`${drive}:\\${folder}`);
+    const driveRoot = `${drive}:\\`;
+    // Skip drives that don't exist to save time
+    try {
+      const driveStats = await fs.stat(driveRoot).catch(() => null);
+      if (!driveStats) continue;
+      
+      programFilesPaths.push(driveRoot); 
+      for (const folder of commonFolders) {
+         programFilesPaths.push(path.join(driveRoot, folder));
+      }
+    } catch {
+      continue;
     }
   }
 
-  for (const basePath of programFilesPaths) {
+  // De-duplicate scan paths
+  const uniquePaths = Array.from(new Set(programFilesPaths.map(p => p.toLowerCase())));
+  
+  for (const normalizedPath of uniquePaths) {
     try {
+      // Find the original casing for the path
+      const basePath = programFilesPaths.find(p => p.toLowerCase() === normalizedPath) || normalizedPath;
+      
       const exists = await fs.access(basePath).then(() => true).catch(() => false);
       if (!exists) continue;
 
@@ -217,15 +264,27 @@ async function scanProgramFiles(): Promise<InstalledProgram[]> {
         const dirPath = path.join(basePath, dir.name);
         try {
           // Increase depth to 5 for very deep nested tools
-          const executables = await findExecutablesInDirectory(dirPath, 5); 
+          // But only for directories that look like tool containers
+          const entryLower = dir.name.toLowerCase();
+          const isInteresting = [
+            'blender', 'creation', 'edit', 'organizer', 'vortex', 'nif', 'body', 
+            'loot', 'wrye', 'archive', 'gimp', 'photo', 'script', 'f4se', 'fallout',
+            'tools', 'modding', 'steam', 'gog', 'epic',
+            'upscayl', 'shadermap', 'nvidia', 'autodesk', 'fbx', 'photodemon', 
+            'unwrap', 'nifutils', 'omniverse', 'spin3d', 'canvas', 'texture'
+          ].some(kw => entryLower.includes(kw));
+
+          const executables = await findExecutablesInDirectory(dirPath, isInteresting ? 5 : 2); 
           
           for (const exePath of executables) {
             const exeName = path.basename(exePath, '.exe');
+            const displayName = dir.name.length > 3 && !dir.name.includes(' ') && exeName.toLowerCase().includes(dir.name.toLowerCase()) 
+                           ? exeName 
+                           : `${dir.name} - ${exeName}`;
+            
             programs.push({
               name: exeName,
-              displayName: dir.name.length > 3 && !dir.name.includes(' ') && exeName.toLowerCase().includes(dir.name.toLowerCase()) 
-                           ? exeName 
-                           : `${dir.name} - ${exeName}`,
+              displayName: displayName,
               path: exePath,
             });
           }
@@ -234,7 +293,7 @@ async function scanProgramFiles(): Promise<InstalledProgram[]> {
         }
       }
     } catch (error) {
-      // console.warn(`Failed to scan ${basePath}:`, error);
+      // Skip inaccessible paths
     }
   }
 

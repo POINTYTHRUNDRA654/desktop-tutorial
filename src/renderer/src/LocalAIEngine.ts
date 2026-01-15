@@ -34,19 +34,62 @@ export const LocalAIEngine = {
     const customKnowledge = localStorage.getItem('mossy_knowledge_vault');
     let injectedContext = "";
     
-    // Inject Process Awareness
+    // Inject Process & Hardware Awareness
     if (typeof window.electron?.api?.getRunningProcesses === 'function') {
         try {
             const processes = await window.electron.api.getRunningProcesses();
             const blenderLinked = localStorage.getItem('mossy_blender_active') === 'true';
             const detectedApps = JSON.parse(localStorage.getItem('mossy_apps') || '[]');
+            const systemProfileRaw = localStorage.getItem('mossy_system_profile');
+            let userSettings: any = null;
+            
+            try {
+                if (window.electronAPI?.getSettings) {
+                    userSettings = await window.electronAPI.getSettings();
+                }
+            } catch (e) {}
 
-            if (processes.length > 0 || blenderLinked || detectedApps.length > 0) {
+            if (processes.length > 0 || blenderLinked || detectedApps.length > 0 || systemProfileRaw || userSettings) {
                 injectedContext += "\n### SYSTEM & TOOL CAPABILITIES:\n";
+                
+                if (userSettings) {
+                    injectedContext += "- [USER CONFIGURED TOOLS]:\n";
+                    if (userSettings.xeditPath) injectedContext += `  * xEdit: ${userSettings.xeditPath}\n`;
+                    if (userSettings.nifSkopePath) injectedContext += `  * NifSkope: ${userSettings.nifSkopePath}\n`;
+                    if (userSettings.creationKitPath) injectedContext += `  * Creation Kit: ${userSettings.creationKitPath}\n`;
+                    if (userSettings.blenderPath) injectedContext += `  * Blender: ${userSettings.blenderPath}\n`;
+                    if (userSettings.mo2Path) injectedContext += `  * MO2: ${userSettings.mo2Path}\n`;
+                    if (userSettings.vortexPath) injectedContext += `  * Vortex: ${userSettings.vortexPath}\n`;
+                    if (userSettings.upscaylPath) injectedContext += `  * Upscayl: ${userSettings.upscaylPath}\n`;
+                    if (userSettings.photopeaPath) injectedContext += `  * Photopea: ${userSettings.photopeaPath}\n`;
+                    if (userSettings.shaderMapPath) injectedContext += `  * ShaderMap: ${userSettings.shaderMapPath}\n`;
+                    if (userSettings.nvidiaTextureToolsPath) injectedContext += `  * NVIDIA Texture Tools: ${userSettings.nvidiaTextureToolsPath}\n`;
+                    if (userSettings.autodeskFbxPath) injectedContext += `  * FBX Converter: ${userSettings.autodeskFbxPath}\n`;
+                    if (userSettings.photoDemonPath) injectedContext += `  * PhotoDemon: ${userSettings.photoDemonPath}\n`;
+                    if (userSettings.unWrap3Path) injectedContext += `  * UnWrap3: ${userSettings.unWrap3Path}\n`;
+                    if (userSettings.nifUtilsSuitePath) injectedContext += `  * NifUtilsSuite: ${userSettings.nifUtilsSuitePath}\n`;
+                    if (userSettings.nvidiaOmniversePath) injectedContext += `  * NVIDIA Omniverse: ${userSettings.nvidiaOmniversePath}\n`;
+                    if (userSettings.spin3dPath) injectedContext += `  * Spin3D: ${userSettings.spin3dPath}\n`;
+                    if (userSettings.nvidiaCanvasPath) injectedContext += `  * NVIDIA Canvas: ${userSettings.nvidiaCanvasPath}\n`;
+                }
+
+                if (systemProfileRaw) {
+                    const profile = JSON.parse(systemProfileRaw);
+                    injectedContext += `- [HARDWARE]: ${profile.cpu}, ${profile.gpu}, ${profile.ram}GB RAM`;
+                    if (profile.vram) injectedContext += `, ${profile.vram}GB VRAM`;
+                    if (profile.motherboard) injectedContext += `, MB: ${profile.motherboard}`;
+                    if (profile.os) injectedContext += ` (${profile.os})`;
+                    injectedContext += "\n";
+                    
+                    if (profile.storageDrives && profile.storageDrives.length > 0) {
+                        injectedContext += "- [STORAGE]: " + profile.storageDrives.map((d: any) => `${d.device} (${d.free}GB/${d.total}GB)`).join(", ") + "\n";
+                    }
+                }
+
                 if (blenderLinked) injectedContext += "- [STATUS] Blender Neural Link: ACTIVE\n";
                 
                 if (detectedApps.length > 0) {
-                    injectedContext += "- [INSTALLED TOOLS]: " + detectedApps.map((a: any) => a.name).join(", ") + "\n";
+                    injectedContext += "- [INSTALLED TOOLS]: " + detectedApps.map((a: any) => `${a.name} (${a.path || 'Manual Link'})`).join(", ") + "\n";
                 }
 
                 if (processes.length > 0) {

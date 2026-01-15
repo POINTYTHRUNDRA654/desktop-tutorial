@@ -129,8 +129,34 @@ const electronAPI = {
    * Get real system information
    * @returns Promise resolving to system specs
    */
-  getSystemInfo: (): Promise<{os: string; cpu: string; gpu: string; ram: number; cores: number; arch: string; vram?: number; blenderVersion?: string; storageFreeGB?: number; storageTotalGB?: number; displayResolution?: string}> => {
+  getSystemInfo: (): Promise<{
+    os: string; 
+    cpu: string; 
+    gpu: string; 
+    ram: number; 
+    cores: number; 
+    arch: string; 
+    vram?: number; 
+    blenderVersion?: string; 
+    storageFreeGB?: number; 
+    storageTotalGB?: number; 
+    displayResolution?: string;
+    allGpus?: string[];
+    storageDrives?: Array<{device: string, free: number, total: number}>;
+    motherboard?: string;
+    username?: string;
+    computerName?: string;
+  }> => {
     return ipcRenderer.invoke('get-system-info');
+  },
+
+  getPerformance: (): Promise<{
+    cpu: number;
+    mem: number;
+    freeMemGB: number;
+    totalMemGB: number;
+  }> => {
+    return ipcRenderer.invoke('get-performance');
   },
 
   /**

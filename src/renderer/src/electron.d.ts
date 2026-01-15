@@ -15,6 +15,14 @@ interface ElectronAPI {
     storageFreeGB?: number;
     storageTotalGB?: number;
     displayResolution?: string;
+    motherboard?: string;
+    storageDrives?: Array<{device: string, free: number, total: number}>;
+  }>;
+  getPerformance: () => Promise<{
+    cpu: number;
+    mem: number;
+    freeMemGB: number;
+    totalMemGB: number;
   }>;
 }
 

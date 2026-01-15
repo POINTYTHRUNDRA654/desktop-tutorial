@@ -179,7 +179,7 @@ After installing, you may need to update the tool path in settings.`;
             
             const prompt = `
             Act as a FOMOD installer architect.
-            I have these files in my mod folder: ${JSON.stringify(mockFiles)}.
+            I have these files in my mod folder: ${JSON.stringify(modFiles)}.
             
             Analyze the filenames to determine logical grouping (e.g. Resolution options, Patches).
             Generate a JSON structure representing the FOMOD pages/groups/options.
@@ -503,7 +503,7 @@ After installing, you may need to update the tool path in settings.`;
                             <Wand2 className="w-3 h-3" /> Auto-Assemble
                         </h4>
                         <div className="text-[10px] text-slate-500 mb-2">
-                            Detected {mockFiles.length} files in workspace.
+                            Detected {modFiles.length} files in workspace.
                         </div>
                         <button 
                             onClick={handleAutoGenerate}

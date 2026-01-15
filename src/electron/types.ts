@@ -66,7 +66,24 @@ export interface ElectronAPI {
   openExternal: (path: string) => Promise<void>;
   getToolVersion: (path: string) => Promise<string>;
   getRunningProcesses: () => Promise<any[]>;
-  getSystemInfo: () => Promise<{os: string; cpu: string; gpu: string; ram: number; cores: number; arch: string; vram?: number; blenderVersion?: string; storageFreeGB?: number; storageTotalGB?: number; displayResolution?: string}>;
+  getSystemInfo: () => Promise<{
+    os: string; 
+    cpu: string; 
+    gpu: string; 
+    ram: number; 
+    cores: number; 
+    arch: string; 
+    vram?: number; 
+    blenderVersion?: string; 
+    storageFreeGB?: number; 
+    storageTotalGB?: number; 
+    displayResolution?: string;
+    allGpus?: string[];
+    storageDrives?: Array<{device: string, free: number, total: number}>;
+    motherboard?: string;
+    username?: string;
+    computerName?: string;
+  }>;
   // Vault
   runTool: (payload: { cmd: string; args?: string[]; cwd?: string }) => Promise<{ exitCode: number; stdout: string; stderr: string }>;
   saveVaultManifest: (assets: unknown) => Promise<{ ok: boolean; file?: string; error?: string }>;

@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Save, TestTube2, Wrench, FileCog, Swords, Package, ExternalLink, Play, Palette, FolderOpen, ShieldCheck, Zap, Archive, Image as ImageIcon, Terminal } from 'lucide-react';
+import { Save, TestTube2, Wrench, FileCog, Swords, Package, ExternalLink, Play, Palette, FolderOpen, ShieldCheck, Zap, Archive, Image as ImageIcon, Terminal, Maximize2, RefreshCw } from 'lucide-react';
 import type { Settings } from '../../shared/types';
 
 const ExternalToolsSettings: React.FC = () => {
@@ -29,6 +29,17 @@ const ExternalToolsSettings: React.FC = () => {
           archive2Path: s.archive2Path || '',
           pjmScriptPath: s.pjmScriptPath || '',
           f4sePath: s.f4sePath || '',
+          upscaylPath: s.upscaylPath || '',
+          photopeaPath: s.photopeaPath || '',
+          shaderMapPath: s.shaderMapPath || '',
+          nvidiaTextureToolsPath: s.nvidiaTextureToolsPath || '',
+          autodeskFbxPath: s.autodeskFbxPath || '',
+          photoDemonPath: s.photoDemonPath || '',
+          unWrap3Path: s.unWrap3Path || '',
+          nifUtilsSuitePath: s.nifUtilsSuitePath || '',
+          nvidiaOmniversePath: s.nvidiaOmniversePath || '',
+          spin3dPath: s.spin3dPath || '',
+          nvidiaCanvasPath: s.nvidiaCanvasPath || '',
         });
       } catch (e) {
         console.warn('[ExternalToolsSettings] Failed to load settings', e);
@@ -90,6 +101,66 @@ const ExternalToolsSettings: React.FC = () => {
     }
   };
 
+  const autoDetect = () => {
+    try {
+        const appsRaw = localStorage.getItem('mossy_apps');
+        if (!appsRaw) {
+            alert("No scan data found. Please run a 'Full System Scan' in the System Monitor first.");
+            return;
+        }
+        
+        const apps = JSON.parse(appsRaw);
+        const newDraft = { ...draft };
+        let foundCount = 0;
+
+        const mappings: Record<string, keyof Settings> = {
+            'blender': 'blenderPath',
+            'creation kit': 'creationKitPath',
+            'creationkit': 'creationKitPath',
+            'fo4edit': 'xeditPath',
+            'xedit': 'xeditPath',
+            'nifskope': 'nifSkopePath',
+            'vortex': 'vortexPath',
+            'mod organizer': 'mo2Path',
+            'bodySlide': 'bodySlidePath',
+            'outfit studio': 'bodySlidePath',
+            'f4se': 'f4sePath',
+            'loot': 'lootPath',
+            'gimp': 'gimpPath',
+            'upscayl': 'upscaylPath',
+            'photopea': 'photopeaPath',
+            'shadermap': 'shaderMapPath',
+            'nvidia texture tools': 'nvidiaTextureToolsPath',
+            'fbx converter': 'autodeskFbxPath',
+            'photodemon': 'photoDemonPath',
+            'unwrap3': 'unWrap3Path',
+            'nifutils': 'nifUtilsSuitePath',
+            'omniverse': 'nvidiaOmniversePath',
+            'spin3d': 'spin3dPath',
+            'nvidia canvas': 'nvidiaCanvasPath'
+        };
+
+        apps.forEach((app: any) => {
+            const nameLower = app.name.toLowerCase();
+            for (const [key, field] of Object.entries(mappings)) {
+                if (nameLower.includes(key) && !newDraft[field]) {
+                    newDraft[field] = app.path;
+                    foundCount++;
+                }
+            }
+        });
+
+        setDraft(newDraft);
+        if (foundCount > 0) {
+            alert(`Auto-detected ${foundCount} tools from your recent system scan. Don't forget to Save!`);
+        } else {
+            alert("Could not match any tools from the scan. You may need to set them manually.");
+        }
+    } catch (e) {
+        alert("Error during auto-detection.");
+    }
+  };
+
   return (
     <div className="h-full flex flex-col bg-[#0d1117] text-slate-200 font-sans overflow-hidden">
       <div className="p-4 border-b border-slate-700 bg-slate-900 flex justify-between items-center z-10 shadow-md">
@@ -100,8 +171,11 @@ const ExternalToolsSettings: React.FC = () => {
           <p className="text-xs text-slate-400 font-mono mt-1">Configure paths to common modding tools</p>
         </div>
         <div className="flex gap-2">
+          <button onClick={autoDetect} className="px-4 py-2 bg-purple-900/40 hover:bg-purple-800/60 border border-purple-500 rounded text-xs font-bold flex items-center gap-2 transition-all">
+            <Zap className="w-4 h-4" /> Auto-Detect from Scan
+          </button>
           <button onClick={save} disabled={saving} className="px-4 py-2 bg-emerald-700 hover:bg-emerald-600 border border-emerald-500 rounded text-xs font-bold flex items-center gap-2 transition-all disabled:opacity-50">
-            <Save className="w-4 h-4" /> Save
+            <Save className="w-4 h-4" /> Save Settings
           </button>
         </div>
       </div>
@@ -116,7 +190,7 @@ const ExternalToolsSettings: React.FC = () => {
               <a href="https://www.nexusmods.com/fallout4/mods/2737" target="_blank" rel="noreferrer" className="text-[11px] text-blue-400 hover:text-blue-300 inline-flex items-center gap-1"><ExternalLink className="w-3 h-3" /> Download from Nexus Mods</a>
             </div>
           </div>
-          <input value={draft.xeditPath || ''} onChange={(e) => handleChange('xeditPath', e.target.value)} placeholder="C:\\Tools\\xEdit\\FO4Edit.exe" className="w-full bg-slate-800 border border-slate-700 rounded px-3 py-2 text-sm text-white" />
+          <input value={draft.xeditPath || ''} onChange={(e) => handleChange('xeditPath', e.target.value)} placeholder="C:\\Path\\To\\FO4Edit.exe" className="w-full bg-slate-800 border border-slate-700 rounded px-3 py-2 text-sm text-white" />
           <div className="mt-2 flex gap-2">
             <button onClick={() => browsePath('xeditPath', 'xEdit')} className="px-3 py-1 bg-slate-700 hover:bg-slate-600 border border-slate-600 rounded text-[11px] font-bold flex items-center gap-1"><FolderOpen className="w-3 h-3" /> Browse</button>
             <button onClick={() => testLaunch(draft.xeditPath, 'xEdit')} className="px-3 py-1 bg-emerald-700 hover:bg-emerald-600 border border-emerald-500 rounded text-[11px] font-bold flex items-center gap-1"><Play className="w-3 h-3" /> Test Launch</button>
@@ -132,7 +206,7 @@ const ExternalToolsSettings: React.FC = () => {
               <a href="https://www.nexusmods.com/newvegas/mods/75969" target="_blank" rel="noreferrer" className="text-[11px] text-blue-400 hover:text-blue-300 inline-flex items-center gap-1"><ExternalLink className="w-3 h-3" /> Download from Nexus Mods</a>
             </div>
           </div>
-          <input value={draft.nifSkopePath || ''} onChange={(e) => handleChange('nifSkopePath', e.target.value)} placeholder="C:\\Tools\\NifSkope\\NifSkope.exe" className="w-full bg-slate-800 border border-slate-700 rounded px-3 py-2 text-sm text-white" />
+          <input value={draft.nifSkopePath || ''} onChange={(e) => handleChange('nifSkopePath', e.target.value)} placeholder="C:\\Path\\To\\NifSkope.exe" className="w-full bg-slate-800 border border-slate-700 rounded px-3 py-2 text-sm text-white" />
           <div className="mt-2 flex gap-2">
             <button onClick={() => browsePath('nifSkopePath', 'NifSkope')} className="px-3 py-1 bg-slate-700 hover:bg-slate-600 border border-slate-600 rounded text-[11px] font-bold flex items-center gap-1"><FolderOpen className="w-3 h-3" /> Browse</button>
             <button onClick={() => testLaunch(draft.nifSkopePath, 'NifSkope')} className="px-3 py-1 bg-emerald-700 hover:bg-emerald-600 border border-emerald-500 rounded text-[11px] font-bold flex items-center gap-1"><Play className="w-3 h-3" /> Test Launch</button>
@@ -148,7 +222,7 @@ const ExternalToolsSettings: React.FC = () => {
               <a href="https://www.nexusmods.com/fallout4/mods/6821" target="_blank" rel="noreferrer" className="text-[11px] text-blue-400 hover:text-blue-300 inline-flex items-center gap-1"><ExternalLink className="w-3 h-3" /> Download from Nexus Mods</a>
             </div>
           </div>
-          <input value={draft.fomodCreatorPath || ''} onChange={(e) => handleChange('fomodCreatorPath', e.target.value)} placeholder="G:\\Tools\\FOMOD Creation Tool 1.7-6821-1-7\\FomodDesigner.exe" className="w-full bg-slate-800 border border-slate-700 rounded px-3 py-2 text-sm text-white" />
+          <input value={draft.fomodCreatorPath || ''} onChange={(e) => handleChange('fomodCreatorPath', e.target.value)} placeholder="C:\\Path\\To\\FomodDesigner.exe" className="w-full bg-slate-800 border border-slate-700 rounded px-3 py-2 text-sm text-white" />
           <div className="mt-2 flex gap-2">
             <button onClick={() => browsePath('fomodCreatorPath', 'FOMOD Creator')} className="px-3 py-1 bg-slate-700 hover:bg-slate-600 border border-slate-600 rounded text-[11px] font-bold flex items-center gap-1"><FolderOpen className="w-3 h-3" /> Browse</button>
             <button onClick={() => testLaunch(draft.fomodCreatorPath, 'FOMOD Creator')} className="px-3 py-1 bg-emerald-700 hover:bg-emerald-600 border border-emerald-500 rounded text-[11px] font-bold flex items-center gap-1"><Play className="w-3 h-3" /> Test Launch</button>
@@ -164,7 +238,7 @@ const ExternalToolsSettings: React.FC = () => {
               <span className="text-[11px] text-slate-400">Available via Bethesda.net launcher / Steam tools</span>
             </div>
           </div>
-          <input value={draft.creationKitPath || ''} onChange={(e) => handleChange('creationKitPath', e.target.value)} placeholder="C:\\Program Files (x86)\\Bethesda\\CreationKit.exe" className="w-full bg-slate-800 border border-slate-700 rounded px-3 py-2 text-sm text-white" />
+          <input value={draft.creationKitPath || ''} onChange={(e) => handleChange('creationKitPath', e.target.value)} placeholder="C:\\Path\\To\\CreationKit.exe" className="w-full bg-slate-800 border border-slate-700 rounded px-3 py-2 text-sm text-white" />
           <div className="mt-2 flex gap-2">
             <button onClick={() => browsePath('creationKitPath', 'Creation Kit')} className="px-3 py-1 bg-slate-700 hover:bg-slate-600 border border-slate-600 rounded text-[11px] font-bold flex items-center gap-1"><FolderOpen className="w-3 h-3" /> Browse</button>
             <button onClick={() => testLaunch(draft.creationKitPath, 'Creation Kit')} className="px-3 py-1 bg-emerald-700 hover:bg-emerald-600 border border-emerald-500 rounded text-[11px] font-bold flex items-center gap-1"><Play className="w-3 h-3" /> Test Launch</button>
@@ -180,7 +254,7 @@ const ExternalToolsSettings: React.FC = () => {
               <a href="https://www.blender.org/download/" target="_blank" rel="noreferrer" className="text-[11px] text-blue-400 hover:text-blue-300 inline-flex items-center gap-1"><ExternalLink className="w-3 h-3" /> Official download</a>
             </div>
           </div>
-          <input value={draft.blenderPath || ''} onChange={(e) => handleChange('blenderPath', e.target.value)} placeholder="C:\\Program Files\\Blender Foundation\\Blender 4.5\\blender.exe" className="w-full bg-slate-800 border border-slate-700 rounded px-3 py-2 text-sm text-white" />
+          <input value={draft.blenderPath || ''} onChange={(e) => handleChange('blenderPath', e.target.value)} placeholder="C:\\Path\\To\\blender.exe" className="w-full bg-slate-800 border border-slate-700 rounded px-3 py-2 text-sm text-white" />
           <div className="mt-2 flex gap-2">
             <button onClick={() => browsePath('blenderPath', 'Blender')} className="px-3 py-1 bg-slate-700 hover:bg-slate-600 border border-slate-600 rounded text-[11px] font-bold flex items-center gap-1"><FolderOpen className="w-3 h-3" /> Browse</button>
             <button onClick={() => testLaunch(draft.blenderPath, 'Blender')} className="px-3 py-1 bg-emerald-700 hover:bg-emerald-600 border border-emerald-500 rounded text-[11px] font-bold flex items-center gap-1"><Play className="w-3 h-3" /> Test Launch</button>
@@ -196,7 +270,7 @@ const ExternalToolsSettings: React.FC = () => {
               <a href="https://loot.github.io/" target="_blank" rel="noreferrer" className="text-[11px] text-blue-400 hover:text-blue-300 inline-flex items-center gap-1"><ExternalLink className="w-3 h-3" /> Official Site</a>
             </div>
           </div>
-          <input value={draft.lootPath || ''} onChange={(e) => handleChange('lootPath', e.target.value)} placeholder="C:\\Tools\\LOOT\\LOOT.exe" className="w-full bg-slate-800 border border-slate-700 rounded px-3 py-2 text-sm text-white" />
+          <input value={draft.lootPath || ''} onChange={(e) => handleChange('lootPath', e.target.value)} placeholder="C:\\Path\\To\\LOOT.exe" className="w-full bg-slate-800 border border-slate-700 rounded px-3 py-2 text-sm text-white" />
           <div className="mt-2 flex gap-2">
             <button onClick={() => browsePath('lootPath', 'LOOT')} className="px-3 py-1 bg-slate-700 hover:bg-slate-600 border border-slate-600 rounded text-[11px] font-bold flex items-center gap-1"><FolderOpen className="w-3 h-3" /> Browse</button>
             <button onClick={() => testLaunch(draft.lootPath, 'LOOT')} className="px-3 py-1 bg-emerald-700 hover:bg-emerald-600 border border-emerald-500 rounded text-[11px] font-bold flex items-center gap-1"><Play className="w-3 h-3" /> Test Launch</button>
@@ -212,7 +286,7 @@ const ExternalToolsSettings: React.FC = () => {
               <a href="https://www.nexusmods.com/skyrimspecialedition/mods/6194" target="_blank" rel="noreferrer" className="text-[11px] text-blue-400 hover:text-blue-300 inline-flex items-center gap-1"><ExternalLink className="w-3 h-3" /> Download from Nexus Mods</a>
             </div>
           </div>
-          <input value={draft.mo2Path || ''} onChange={(e) => handleChange('mo2Path', e.target.value)} placeholder="C:\\Modding\\MO2\\ModOrganizer.exe" className="w-full bg-slate-800 border border-slate-700 rounded px-3 py-2 text-sm text-white" />
+          <input value={draft.mo2Path || ''} onChange={(e) => handleChange('mo2Path', e.target.value)} placeholder="C:\\Path\\To\\ModOrganizer.exe" className="w-full bg-slate-800 border border-slate-700 rounded px-3 py-2 text-sm text-white" />
           <div className="mt-2 flex gap-2">
             <button onClick={() => browsePath('mo2Path', 'Mod Organizer 2')} className="px-3 py-1 bg-slate-700 hover:bg-slate-600 border border-slate-600 rounded text-[11px] font-bold flex items-center gap-1"><FolderOpen className="w-3 h-3" /> Browse</button>
             <button onClick={() => testLaunch(draft.mo2Path, 'Mod Organizer 2')} className="px-3 py-1 bg-emerald-700 hover:bg-emerald-600 border border-emerald-500 rounded text-[11px] font-bold flex items-center gap-1"><Play className="w-3 h-3" /> Test Launch</button>
@@ -228,7 +302,7 @@ const ExternalToolsSettings: React.FC = () => {
               <a href="https://www.nexusmods.com/about/vortex/" target="_blank" rel="noreferrer" className="text-[11px] text-blue-400 hover:text-blue-300 inline-flex items-center gap-1"><ExternalLink className="w-3 h-3" /> Official Site</a>
             </div>
           </div>
-          <input value={draft.vortexPath || ''} onChange={(e) => handleChange('vortexPath', e.target.value)} placeholder="C:\\Program Files\\Nexus Mod Manager\\Vortex.exe" className="w-full bg-slate-800 border border-slate-700 rounded px-3 py-2 text-sm text-white" />
+          <input value={draft.vortexPath || ''} onChange={(e) => handleChange('vortexPath', e.target.value)} placeholder="C:\\Path\\To\\Vortex.exe" className="w-full bg-slate-800 border border-slate-700 rounded px-3 py-2 text-sm text-white" />
           <div className="mt-2 flex gap-2">
             <button onClick={() => browsePath('vortexPath', 'Vortex')} className="px-3 py-1 bg-slate-700 hover:bg-slate-600 border border-slate-600 rounded text-[11px] font-bold flex items-center gap-1"><FolderOpen className="w-3 h-3" /> Browse</button>
             <button onClick={() => testLaunch(draft.vortexPath, 'Vortex')} className="px-3 py-1 bg-emerald-700 hover:bg-emerald-600 border border-emerald-500 rounded text-[11px] font-bold flex items-center gap-1"><Play className="w-3 h-3" /> Test Launch</button>
@@ -244,7 +318,7 @@ const ExternalToolsSettings: React.FC = () => {
               <a href="https://f4se.silverlock.org/" target="_blank" rel="noreferrer" className="text-[11px] text-blue-400 hover:text-blue-300 inline-flex items-center gap-1"><ExternalLink className="w-3 h-3" /> Official Site</a>
             </div>
           </div>
-          <input value={draft.f4sePath || ''} onChange={(e) => handleChange('f4sePath', e.target.value)} placeholder="C:\\Games\\SteamLibrary\\steamapps\\common\\Fallout 4\\f4se_loader.exe" className="w-full bg-slate-800 border border-slate-700 rounded px-3 py-2 text-sm text-white" />
+          <input value={draft.f4sePath || ''} onChange={(e) => handleChange('f4sePath', e.target.value)} placeholder="C:\\Path\\To\\f4se_loader.exe" className="w-full bg-slate-800 border border-slate-700 rounded px-3 py-2 text-sm text-white" />
           <div className="mt-2 flex gap-2">
             <button onClick={() => browsePath('f4sePath', 'F4SE')} className="px-3 py-1 bg-slate-700 hover:bg-slate-600 border border-slate-600 rounded text-[11px] font-bold flex items-center gap-1"><FolderOpen className="w-3 h-3" /> Browse</button>
             <button onClick={() => testLaunch(draft.f4sePath, 'F4SE')} className="px-3 py-1 bg-emerald-700 hover:bg-emerald-600 border border-emerald-500 rounded text-[11px] font-bold flex items-center gap-1"><Play className="w-3 h-3" /> Test Launch</button>
@@ -260,7 +334,7 @@ const ExternalToolsSettings: React.FC = () => {
               <a href="https://www.nexusmods.com/fallout4/mods/25" target="_blank" rel="noreferrer" className="text-[11px] text-blue-400 hover:text-blue-300 inline-flex items-center gap-1"><ExternalLink className="w-3 h-3" /> Download from Nexus Mods</a>
             </div>
           </div>
-          <input value={draft.bodySlidePath || ''} onChange={(e) => handleChange('bodySlidePath', e.target.value)} placeholder="C:\\Tools\\BodySlide\\BodySlide.exe" className="w-full bg-slate-800 border border-slate-700 rounded px-3 py-2 text-sm text-white" />
+          <input value={draft.bodySlidePath || ''} onChange={(e) => handleChange('bodySlidePath', e.target.value)} placeholder="C:\\Path\\To\\BodySlide.exe" className="w-full bg-slate-800 border border-slate-700 rounded px-3 py-2 text-sm text-white" />
           <div className="mt-2 flex gap-2">
             <button onClick={() => browsePath('bodySlidePath', 'BodySlide')} className="px-3 py-1 bg-slate-700 hover:bg-slate-600 border border-slate-600 rounded text-[11px] font-bold flex items-center gap-1"><FolderOpen className="w-3 h-3" /> Browse</button>
             <button onClick={() => testLaunch(draft.bodySlidePath, 'BodySlide')} className="px-3 py-1 bg-emerald-700 hover:bg-emerald-600 border border-emerald-500 rounded text-[11px] font-bold flex items-center gap-1"><Play className="w-3 h-3" /> Test Launch</button>
@@ -276,7 +350,7 @@ const ExternalToolsSettings: React.FC = () => {
               <a href="https://www.nexusmods.com/fallout4/mods/78" target="_blank" rel="noreferrer" className="text-[11px] text-blue-400 hover:text-blue-300 inline-flex items-center gap-1"><ExternalLink className="w-3 h-3" /> Download from Nexus Mods</a>
             </div>
           </div>
-          <input value={draft.baePath || ''} onChange={(e) => handleChange('baePath', e.target.value)} placeholder="C:\\Tools\\BAE\\BAE.exe" className="w-full bg-slate-800 border border-slate-700 rounded px-3 py-2 text-sm text-white" />
+          <input value={draft.baePath || ''} onChange={(e) => handleChange('baePath', e.target.value)} placeholder="C:\\Path\\To\\BAE.exe" className="w-full bg-slate-800 border border-slate-700 rounded px-3 py-2 text-sm text-white" />
           <div className="mt-2 flex gap-2">
             <button onClick={() => browsePath('baePath', 'BAE')} className="px-3 py-1 bg-slate-700 hover:bg-slate-600 border border-slate-600 rounded text-[11px] font-bold flex items-center gap-1"><FolderOpen className="w-3 h-3" /> Browse</button>
             <button onClick={() => testLaunch(draft.baePath, 'BAE')} className="px-3 py-1 bg-emerald-700 hover:bg-emerald-600 border border-emerald-500 rounded text-[11px] font-bold flex items-center gap-1"><Play className="w-3 h-3" /> Test Launch</button>
@@ -292,7 +366,7 @@ const ExternalToolsSettings: React.FC = () => {
               <span className="text-[11px] text-slate-400">Used for DDS editing and texture creation</span>
             </div>
           </div>
-          <input value={draft.gimpPath || ''} onChange={(e) => handleChange('gimpPath', e.target.value)} placeholder="C:\\Program Files\\GIMP 2\\bin\\gimp-2.10.exe" className="w-full bg-slate-800 border border-slate-700 rounded px-3 py-2 text-sm text-white" />
+          <input value={draft.gimpPath || ''} onChange={(e) => handleChange('gimpPath', e.target.value)} placeholder="C:\\Path\\To\\gimp-2.10.exe" className="w-full bg-slate-800 border border-slate-700 rounded px-3 py-2 text-sm text-white" />
           <div className="mt-2 flex gap-2">
             <button onClick={() => browsePath('gimpPath', 'Texture Editor')} className="px-3 py-1 bg-slate-700 hover:bg-slate-600 border border-slate-600 rounded text-[11px] font-bold flex items-center gap-1"><FolderOpen className="w-3 h-3" /> Browse</button>
             <button onClick={() => testLaunch(draft.gimpPath, 'Texture Editor')} className="px-3 py-1 bg-emerald-700 hover:bg-emerald-600 border border-emerald-500 rounded text-[11px] font-bold flex items-center gap-1"><Play className="w-3 h-3" /> Test Launch</button>
@@ -308,10 +382,106 @@ const ExternalToolsSettings: React.FC = () => {
               <span className="text-[11px] text-slate-400">Located in FO4 Tools folder</span>
             </div>
           </div>
-          <input value={draft.archive2Path || ''} onChange={(e) => handleChange('archive2Path', e.target.value)} placeholder="C:\\Games\\SteamLibrary\\steamapps\\common\\Fallout 4\\Tools\\Archive2\\Archive2.exe" className="w-full bg-slate-800 border border-slate-700 rounded px-3 py-2 text-sm text-white" />
+          <input value={draft.archive2Path || ''} onChange={(e) => handleChange('archive2Path', e.target.value)} placeholder="C:\\Path\\To\\Archive2.exe" className="w-full bg-slate-800 border border-slate-700 rounded px-3 py-2 text-sm text-white" />
           <div className="mt-2 flex gap-2">
             <button onClick={() => browsePath('archive2Path', 'Archive2')} className="px-3 py-1 bg-slate-700 hover:bg-slate-600 border border-slate-600 rounded text-[11px] font-bold flex items-center gap-1"><FolderOpen className="w-3 h-3" /> Browse</button>
             <button onClick={() => testLaunch(draft.archive2Path, 'Archive2')} className="px-3 py-1 bg-emerald-700 hover:bg-emerald-600 border border-emerald-500 rounded text-[11px] font-bold flex items-center gap-1"><Play className="w-3 h-3" /> Test Launch</button>
+          </div>
+        </div>
+
+        {/* Upscayl */}
+        <div className="bg-slate-900 border border-slate-800 rounded-xl p-4">
+          <div className="flex items-center gap-2 mb-2">
+            <Zap className="w-5 h-5 text-indigo-400" />
+            <div>
+              <div className="text-sm font-bold text-white">Upscayl (AI Image Upscaler)</div>
+              <span className="text-[11px] text-slate-400">Free, open-source AI upscaling tool</span>
+            </div>
+          </div>
+          <input value={draft.upscaylPath || ''} onChange={(e) => handleChange('upscaylPath', e.target.value)} placeholder="C:\\Path\\To\\Upscayl.exe" className="w-full bg-slate-800 border border-slate-700 rounded px-3 py-2 text-sm text-white" />
+          <div className="mt-2 flex gap-2">
+            <button onClick={() => browsePath('upscaylPath', 'Upscayl')} className="px-3 py-1 bg-slate-700 hover:bg-slate-600 border border-slate-600 rounded text-[11px] font-bold flex items-center gap-1"><FolderOpen className="w-3 h-3" /> Browse</button>
+            <button onClick={() => testLaunch(draft.upscaylPath, 'Upscayl')} className="px-3 py-1 bg-emerald-700 hover:bg-emerald-600 border border-emerald-500 rounded text-[11px] font-bold flex items-center gap-1"><Play className="w-3 h-3" /> Test Launch</button>
+          </div>
+        </div>
+
+        {/* NVIDIA Texture Tools */}
+        <div className="bg-slate-900 border border-slate-800 rounded-xl p-4">
+          <div className="flex items-center gap-2 mb-2">
+            <ImageIcon className="w-5 h-5 text-green-400" />
+            <div>
+              <div className="text-sm font-bold text-white">NVIDIA Texture Tools Exporter</div>
+              <span className="text-[11px] text-slate-400">Professional DDS creation & compression</span>
+            </div>
+          </div>
+          <input value={draft.nvidiaTextureToolsPath || ''} onChange={(e) => handleChange('nvidiaTextureToolsPath', e.target.value)} placeholder="C:\\Path\\To\\nvcompress.exe" className="w-full bg-slate-800 border border-slate-700 rounded px-3 py-2 text-sm text-white" />
+          <div className="mt-2 flex gap-2">
+            <button onClick={() => browsePath('nvidiaTextureToolsPath', 'NVIDIA Texture Tools')} className="px-3 py-1 bg-slate-700 hover:bg-slate-600 border border-slate-600 rounded text-[11px] font-bold flex items-center gap-1"><FolderOpen className="w-3 h-3" /> Browse</button>
+            <button onClick={() => testLaunch(draft.nvidiaTextureToolsPath, 'NVIDIA Texture Tools')} className="px-3 py-1 bg-emerald-700 hover:bg-emerald-600 border border-emerald-500 rounded text-[11px] font-bold flex items-center gap-1"><Play className="w-3 h-3" /> Test Launch</button>
+          </div>
+        </div>
+
+        {/* ShaderMap 4 */}
+        <div className="bg-slate-900 border border-slate-800 rounded-xl p-4">
+          <div className="flex items-center gap-2 mb-2">
+            <Palette className="w-5 h-5 text-orange-400" />
+            <div>
+              <div className="text-sm font-bold text-white">ShaderMap 4</div>
+              <span className="text-[11px] text-slate-400">Generate Normal, AO, and Displacement maps</span>
+            </div>
+          </div>
+          <input value={draft.shaderMapPath || ''} onChange={(e) => handleChange('shaderMapPath', e.target.value)} placeholder="C:\\Path\\To\\ShaderMap 4.exe" className="w-full bg-slate-800 border border-slate-700 rounded px-3 py-2 text-sm text-white" />
+          <div className="mt-2 flex gap-2">
+            <button onClick={() => browsePath('shaderMapPath', 'ShaderMap 4')} className="px-3 py-1 bg-slate-700 hover:bg-slate-600 border border-slate-600 rounded text-[11px] font-bold flex items-center gap-1"><FolderOpen className="w-3 h-3" /> Browse</button>
+            <button onClick={() => testLaunch(draft.shaderMapPath, 'ShaderMap 4')} className="px-3 py-1 bg-emerald-700 hover:bg-emerald-600 border border-emerald-500 rounded text-[11px] font-bold flex items-center gap-1"><Play className="w-3 h-3" /> Test Launch</button>
+          </div>
+        </div>
+
+        {/* Autodesk FBX Converter */}
+        <div className="bg-slate-900 border border-slate-800 rounded-xl p-4">
+          <div className="flex items-center gap-2 mb-2">
+            <Package className="w-5 h-5 text-blue-400" />
+            <div>
+              <div className="text-sm font-bold text-white">Autodesk FBX Converter</div>
+              <span className="text-[11px] text-slate-400">Convert 3D files to legacy FBX for modding</span>
+            </div>
+          </div>
+          <input value={draft.autodeskFbxPath || ''} onChange={(e) => handleChange('autodeskFbxPath', e.target.value)} placeholder="C:\\Path\\To\\FBXConverter.exe" className="w-full bg-slate-800 border border-slate-700 rounded px-3 py-2 text-sm text-white" />
+          <div className="mt-2 flex gap-2">
+            <button onClick={() => browsePath('autodeskFbxPath', 'Autodesk FBX Converter')} className="px-3 py-1 bg-slate-700 hover:bg-slate-600 border border-slate-600 rounded text-[11px] font-bold flex items-center gap-1"><FolderOpen className="w-3 h-3" /> Browse</button>
+            <button onClick={() => testLaunch(draft.autodeskFbxPath, 'Autodesk FBX Converter')} className="px-3 py-1 bg-emerald-700 hover:bg-emerald-600 border border-emerald-500 rounded text-[11px] font-bold flex items-center gap-1"><Play className="w-3 h-3" /> Test Launch</button>
+          </div>
+        </div>
+
+        {/* NVIDIA Omniverse */}
+        <div className="bg-slate-900 border border-slate-800 rounded-xl p-4">
+          <div className="flex items-center gap-2 mb-2">
+            <Zap className="w-5 h-5 text-green-500" />
+            <div>
+              <div className="text-sm font-bold text-white">NVIDIA Omniverse</div>
+              <span className="text-[11px] text-slate-400">Advanced 3D collaboration & simulation</span>
+            </div>
+          </div>
+          <input value={draft.nvidiaOmniversePath || ''} onChange={(e) => handleChange('nvidiaOmniversePath', e.target.value)} placeholder="C:\\Path\\To\\Omniverse.exe" className="w-full bg-slate-800 border border-slate-700 rounded px-3 py-2 text-sm text-white" />
+          <div className="mt-2 flex gap-2">
+            <button onClick={() => browsePath('nvidiaOmniversePath', 'NVIDIA Omniverse')} className="px-3 py-1 bg-slate-700 hover:bg-slate-600 border border-slate-600 rounded text-[11px] font-bold flex items-center gap-1"><FolderOpen className="w-3 h-3" /> Browse</button>
+            <button onClick={() => testLaunch(draft.nvidiaOmniversePath, 'NVIDIA Omniverse')} className="px-3 py-1 bg-emerald-700 hover:bg-emerald-600 border border-emerald-500 rounded text-[11px] font-bold flex items-center gap-1"><Play className="w-3 h-3" /> Test Launch</button>
+          </div>
+        </div>
+
+        {/* NifUtilsSuite */}
+        <div className="bg-slate-900 border border-slate-800 rounded-xl p-4">
+          <div className="flex items-center gap-2 mb-2">
+            <Wrench className="w-5 h-5 text-amber-600" />
+            <div>
+              <div className="text-sm font-bold text-white">NifUtilsSuite</div>
+              <span className="text-[11px] text-slate-400">Essential tools for NIF file manipulation</span>
+            </div>
+          </div>
+          <input value={draft.nifUtilsSuitePath || ''} onChange={(e) => handleChange('nifUtilsSuitePath', e.target.value)} placeholder="C:\\Path\\To\\NifUtilsSuite.exe" className="w-full bg-slate-800 border border-slate-700 rounded px-3 py-2 text-sm text-white" />
+          <div className="mt-2 flex gap-2">
+            <button onClick={() => browsePath('nifUtilsSuitePath', 'NifUtilsSuite')} className="px-3 py-1 bg-slate-700 hover:bg-slate-600 border border-slate-600 rounded text-[11px] font-bold flex items-center gap-1"><FolderOpen className="w-3 h-3" /> Browse</button>
+            <button onClick={() => testLaunch(draft.nifUtilsSuitePath, 'NifUtilsSuite')} className="px-3 py-1 bg-emerald-700 hover:bg-emerald-600 border border-emerald-500 rounded text-[11px] font-bold flex items-center gap-1"><Play className="w-3 h-3" /> Test Launch</button>
           </div>
         </div>
 
@@ -328,6 +498,86 @@ const ExternalToolsSettings: React.FC = () => {
           <div className="mt-2 flex gap-2">
             <button onClick={() => browsePath('wryeBashPath', 'Wrye Bash')} className="px-3 py-1 bg-slate-700 hover:bg-slate-600 border border-slate-600 rounded text-[11px] font-bold flex items-center gap-1"><FolderOpen className="w-3 h-3" /> Browse</button>
             <button onClick={() => testLaunch(draft.wryeBashPath, 'Wrye Bash')} className="px-3 py-1 bg-emerald-700 hover:bg-emerald-600 border border-emerald-500 rounded text-[11px] font-bold flex items-center gap-1"><Play className="w-3 h-3" /> Test Launch</button>
+          </div>
+        </div>
+
+        {/* Photopea (PWA/Local) */}
+        <div className="bg-slate-900 border border-slate-800 rounded-xl p-4">
+          <div className="flex items-center gap-2 mb-2">
+            <ExternalLink className="w-5 h-5 text-blue-400" />
+            <div>
+              <div className="text-sm font-bold text-white">Photopea</div>
+              <span className="text-[11px] text-slate-400">Desktop wrapper or local shortcut</span>
+            </div>
+          </div>
+          <input value={draft.photopeaPath || ''} onChange={(e) => handleChange('photopeaPath', e.target.value)} placeholder="C:\\Path\\To\\Photopea.exe" className="w-full bg-slate-800 border border-slate-700 rounded px-3 py-2 text-sm text-white" />
+          <div className="mt-2 flex gap-2">
+            <button onClick={() => browsePath('photopeaPath', 'Photopea')} className="px-3 py-1 bg-slate-700 hover:bg-slate-600 border border-slate-600 rounded text-[11px] font-bold flex items-center gap-1"><FolderOpen className="w-3 h-3" /> Browse</button>
+            <button onClick={() => testLaunch(draft.photopeaPath, 'Photopea')} className="px-3 py-1 bg-emerald-700 hover:bg-emerald-600 border border-emerald-500 rounded text-[11px] font-bold flex items-center gap-1"><Play className="w-3 h-3" /> Test Launch</button>
+          </div>
+        </div>
+
+        {/* PhotoDemon */}
+        <div className="bg-slate-900 border border-slate-800 rounded-xl p-4">
+          <div className="flex items-center gap-2 mb-2">
+            <Palette className="w-5 h-5 text-red-500" />
+            <div>
+              <div className="text-sm font-bold text-white">PhotoDemon</div>
+              <span className="text-[11px] text-slate-400">Portable photo editor</span>
+            </div>
+          </div>
+          <input value={draft.photoDemonPath || ''} onChange={(e) => handleChange('photoDemonPath', e.target.value)} placeholder="C:\\Path\\To\\PhotoDemon.exe" className="w-full bg-slate-800 border border-slate-700 rounded px-3 py-2 text-sm text-white" />
+          <div className="mt-2 flex gap-2">
+            <button onClick={() => browsePath('photoDemonPath', 'PhotoDemon')} className="px-3 py-1 bg-slate-700 hover:bg-slate-600 border border-slate-600 rounded text-[11px] font-bold flex items-center gap-1"><FolderOpen className="w-3 h-3" /> Browse</button>
+            <button onClick={() => testLaunch(draft.photoDemonPath, 'PhotoDemon')} className="px-3 py-1 bg-emerald-700 hover:bg-emerald-600 border border-emerald-500 rounded text-[11px] font-bold flex items-center gap-1"><Play className="w-3 h-3" /> Test Launch</button>
+          </div>
+        </div>
+
+        {/* UnWrap3 */}
+        <div className="bg-slate-900 border border-slate-800 rounded-xl p-4">
+          <div className="flex items-center gap-2 mb-2">
+            <Maximize2 className="w-5 h-5 text-yellow-500" />
+            <div>
+              <div className="text-sm font-bold text-white">UnWrap3</div>
+              <span className="text-[11px] text-slate-400">UV Unwrapping tool</span>
+            </div>
+          </div>
+          <input value={draft.unWrap3Path || ''} onChange={(e) => handleChange('unWrap3Path', e.target.value)} placeholder="C:\\Path\\To\\UnWrap3.exe" className="w-full bg-slate-800 border border-slate-700 rounded px-3 py-2 text-sm text-white" />
+          <div className="mt-2 flex gap-2">
+            <button onClick={() => browsePath('unWrap3Path', 'UnWrap3')} className="px-3 py-1 bg-slate-700 hover:bg-slate-600 border border-slate-600 rounded text-[11px] font-bold flex items-center gap-1"><FolderOpen className="w-3 h-3" /> Browse</button>
+            <button onClick={() => testLaunch(draft.unWrap3Path, 'UnWrap3')} className="px-3 py-1 bg-emerald-700 hover:bg-emerald-600 border border-emerald-500 rounded text-[11px] font-bold flex items-center gap-1"><Play className="w-3 h-3" /> Test Launch</button>
+          </div>
+        </div>
+
+        {/* Spin 3D Mesh Converter */}
+        <div className="bg-slate-900 border border-slate-800 rounded-xl p-4">
+          <div className="flex items-center gap-2 mb-2">
+            <RefreshCw className="w-5 h-5 text-violet-400" />
+            <div>
+              <div className="text-sm font-bold text-white">Spin 3D</div>
+              <span className="text-[11px] text-slate-400">Mesh file converter</span>
+            </div>
+          </div>
+          <input value={draft.spin3dPath || ''} onChange={(e) => handleChange('spin3dPath', e.target.value)} placeholder="C:\\Path\\To\\spin3d.exe" className="w-full bg-slate-800 border border-slate-700 rounded px-3 py-2 text-sm text-white" />
+          <div className="mt-2 flex gap-2">
+            <button onClick={() => browsePath('spin3dPath', 'Spin 3D')} className="px-3 py-1 bg-slate-700 hover:bg-slate-600 border border-slate-600 rounded text-[11px] font-bold flex items-center gap-1"><FolderOpen className="w-3 h-3" /> Browse</button>
+            <button onClick={() => testLaunch(draft.spin3dPath, 'Spin 3D')} className="px-3 py-1 bg-emerald-700 hover:bg-emerald-600 border border-emerald-500 rounded text-[11px] font-bold flex items-center gap-1"><Play className="w-3 h-3" /> Test Launch</button>
+          </div>
+        </div>
+
+        {/* NVIDIA Canvas */}
+        <div className="bg-slate-900 border border-slate-800 rounded-xl p-4">
+          <div className="flex items-center gap-2 mb-2">
+            <Palette className="w-5 h-5 text-green-300" />
+            <div>
+              <div className="text-sm font-bold text-white">NVIDIA Canvas</div>
+              <span className="text-[11px] text-slate-400">AI-powered landscape painting</span>
+            </div>
+          </div>
+          <input value={draft.nvidiaCanvasPath || ''} onChange={(e) => handleChange('nvidiaCanvasPath', e.target.value)} placeholder="C:\\Path\\To\\Canvas.exe" className="w-full bg-slate-800 border border-slate-700 rounded px-3 py-2 text-sm text-white" />
+          <div className="mt-2 flex gap-2">
+            <button onClick={() => browsePath('nvidiaCanvasPath', 'NVIDIA Canvas')} className="px-3 py-1 bg-slate-700 hover:bg-slate-600 border border-slate-600 rounded text-[11px] font-bold flex items-center gap-1"><FolderOpen className="w-3 h-3" /> Browse</button>
+            <button onClick={() => testLaunch(draft.nvidiaCanvasPath, 'NVIDIA Canvas')} className="px-3 py-1 bg-emerald-700 hover:bg-emerald-600 border border-emerald-500 rounded text-[11px] font-bold flex items-center gap-1"><Play className="w-3 h-3" /> Test Launch</button>
           </div>
         </div>
 

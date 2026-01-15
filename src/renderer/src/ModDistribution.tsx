@@ -141,11 +141,7 @@ Please ask before using assets from this mod.
         throw new Error('Upload failed');
       }
     } catch (error) {
-      // Demo mode
-      setTimeout(() => {
-        setPublished(true);
-        alert(`Mock publication to ${platform.toUpperCase()} successful!\n\nIn production, this would:\n- Upload mod files\n- Create mod page\n- Upload screenshots\n- Set metadata\n- Publish or save as draft`);
-      }, 2000);
+      alert(`Publication failed: Could not connect to the publishing bridge on port 21337. Ensure your server is active.`);
     } finally {
       setPublishing(false);
     }

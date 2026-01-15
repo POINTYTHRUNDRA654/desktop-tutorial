@@ -56,6 +56,17 @@ export interface Settings {
   archive2Path?: string;
   pjmScriptPath?: string;
   f4sePath?: string;
+  upscaylPath?: string;
+  photopeaPath?: string;
+  shaderMapPath?: string;
+  nvidiaTextureToolsPath?: string;
+  autodeskFbxPath?: string;
+  photoDemonPath?: string;
+  unWrap3Path?: string;
+  nifUtilsSuitePath?: string;
+  nvidiaOmniversePath?: string;
+  spin3dPath?: string;
+  nvidiaCanvasPath?: string;
 }
 
 /**
@@ -91,6 +102,17 @@ export const DEFAULT_SETTINGS: Settings = {
   archive2Path: '',
   pjmScriptPath: '',
   f4sePath: '',
+  upscaylPath: '',
+  photopeaPath: '',
+  shaderMapPath: '',
+  nvidiaTextureToolsPath: '',
+  autodeskFbxPath: '',
+  photoDemonPath: '',
+  unWrap3Path: '',
+  nifUtilsSuitePath: '',
+  nvidiaOmniversePath: '',
+  spin3dPath: '',
+  nvidiaCanvasPath: '',
 };
 
 /**

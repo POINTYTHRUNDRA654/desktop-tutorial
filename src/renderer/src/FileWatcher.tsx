@@ -46,40 +46,14 @@ export const FileWatcher: React.FC = () => {
         pollForChanges();
       }
     } catch (error) {
-      // Fallback: simulate watching
-      simulateWatching();
+      console.error('File watcher connection failed:', error);
+      alert('Connection Failed: The Desktop Bridge is not responding on port 21337. File watching requires the active VoltTech Wrapper.');
+      setWatching(false);
     }
   };
 
   const stopWatching = () => {
     setWatching(false);
-  };
-
-  const simulateWatching = () => {
-    // Demo mode: show example detected files
-    const exampleFiles: WatchedFile[] = [
-      {
-        path: 'Data\\Scripts\\Source\\MyQuestScript.psc',
-        type: 'script',
-        lastModified: new Date(),
-        suggestion: 'Would you like me to analyze this script for errors?'
-      },
-      {
-        path: 'Data\\Meshes\\Armor\\CustomArmor.nif',
-        type: 'mesh',
-        lastModified: new Date(Date.now() - 60000),
-        suggestion: 'Check collision and triangle count?'
-      },
-      {
-        path: 'Data\\Textures\\Armor\\CustomArmor_d.dds',
-        type: 'texture',
-        lastModified: new Date(Date.now() - 120000),
-        suggestion: 'Optimize texture size and format?'
-      }
-    ];
-
-    setRecentFiles(exampleFiles);
-    generateSuggestions(exampleFiles);
   };
 
   const pollForChanges = () => {
