@@ -14,7 +14,10 @@ export const LocalAIEngine = {
    */
   async checkOllama(): Promise<boolean> {
     try {
-      const response = await fetch('http://localhost:11434/api/tags');
+      const controller = new AbortController();
+      const id = setTimeout(() => controller.abort(), 2000); // 2s timeout
+      const response = await fetch('http://localhost:11434/api/tags', { signal: controller.signal });
+      clearTimeout(id);
       return response.ok;
     } catch (e) {
       return false;
@@ -57,15 +60,19 @@ export const LocalAIEngine = {
 
     if (isLocalActive) {
       try {
+        const controller = new AbortController();
+        const id = setTimeout(() => controller.abort(), 10000); // 10s timeout for generation
         const response = await fetch('http://localhost:11434/api/generate', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
+          signal: controller.signal,
           body: JSON.stringify({
             model: 'llama3', 
             prompt: `${systemInstruction}${injectedContext}\n\nUser Question: ${query}\n\nMossy's Response:`,
             stream: false
           })
         });
+        clearTimeout(id);
 
         if (response.ok) {
           const data = await response.json();

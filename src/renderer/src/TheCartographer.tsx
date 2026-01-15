@@ -208,7 +208,7 @@ const TheCartographer: React.FC = () => {
         setSelectedRoom(null);
 
         try {
-            const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+            const ai = new GoogleGenAI({ apiKey: (import.meta.env.VITE_API_KEY || import.meta.env.VITE_GOOGLE_API_KEY || "") });
             
             const systemPrompt = `
             You are a Level Design Architect AI. 
@@ -223,13 +223,14 @@ const TheCartographer: React.FC = () => {
             5. environment: object { lighting: 'Dark'|'Dim'|'Bright'|'Strobe'|'Emergency', atmosphere: 'Clean'|'Dusty'|'Radioactive'|'Foggy'|'Void', audioTrack: string, gravity: float (default 1.0), hazardLevel: int (0-10) }.
             `;
 
-            const response = await ai.models.generateContent({
-                model: 'gemini-3-flash-preview',
-                contents: systemPrompt,
-                config: { responseMimeType: 'application/json' }
+            const model = ai.getGenerativeModel({ 
+                model: 'gemini-1.5-flash',
+                generationConfig: { responseMimeType: 'application/json' }
             });
+            const result = await model.generateContent(systemPrompt);
+            const response = await result.response;
 
-            const data = JSON.parse(response.text);
+            const data = JSON.parse(response.text());
             setLevelData(data);
             
             // BROADCAST TO SHARED MEMORY

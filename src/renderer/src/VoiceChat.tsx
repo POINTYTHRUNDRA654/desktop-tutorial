@@ -30,6 +30,7 @@ const VoiceChat: React.FC = () => {
   };
 
   const getStatusText = () => {
+    if (error) return 'CONNECTION ERROR';
     if (!isActive) return 'SYSTEM IDLE';
     if (mode === 'speaking') return 'SYNAPTIC UPLINK ACTIVE';
     if (mode === 'listening') return 'PROCESSING VOCAL INPUT...';
