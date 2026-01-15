@@ -26,158 +26,7 @@ interface TestRun {
     duration: number;
 }
 
-const SAMPLE_SCENARIOS: TestScenario[] = [
-    {
-        id: 'quest-1',
-        name: 'Quest Stage Progression',
-        description: 'Verify quest stages advance correctly and triggers fire at the right times.',
-        category: 'quest',
-        steps: [
-            {
-                action: 'Start quest from terminal: StartQuest MyMod_MainQuest',
-                expectedResult: 'Quest marker appears on compass, quest added to journal with stage 10',
-                riskAreas: ['Quest stage 10 not firing', 'Alias assignments missing']
-            },
-            {
-                action: 'Navigate to quest target location (FormID: 00ABCD12)',
-                expectedResult: 'On cell enter, NPC dialogue becomes available, quest updates to stage 20',
-                riskAreas: ['Cell enter trigger failed', 'Dialogue conditions incorrect', 'Alias not pointing to NPC']
-            },
-            {
-                action: 'Complete dialogue branch with NPC',
-                expectedResult: 'Quest advances to stage 30, compass marker moves to new location',
-                riskAreas: ['Script event not firing', 'FormID reference broken', 'Quest aliases corrupted']
-            },
-            {
-                action: 'Collect item at new location, return to quest giver',
-                expectedResult: 'Completing dialogue finishes quest (stage 200), rewards distributed',
-                riskAreas: ['Item not spawning', 'Leveled list conflict', 'Reward script error']
-            }
-        ],
-        expectedOutcome: 'Quest completes in under 10 minutes with all objectives tracking correctly. No log spam or CTD.',
-        severity: 'critical'
-    },
-    {
-        id: 'combat-1',
-        name: 'Weapon Balance Testing',
-        description: 'Test newly added weapon damage, attack speed, and enemy AI interactions.',
-        category: 'combat',
-        steps: [
-            {
-                action: 'Spawn custom weapon: Player.AddItem 00ABCD34 1',
-                expectedResult: 'Weapon appears in inventory with correct name, model, and textures',
-                riskAreas: ['Model path incorrect', 'Texture DDS missing or compressed wrong', 'FormID not found']
-            },
-            {
-                action: 'Equip weapon and attack training dummy at 50 ft range',
-                expectedResult: 'Damage displays as intended (25-35 DPS), attack animation plays smoothly',
-                 riskAreas: ['Animation missing', 'Damage calculation script error', 'Physics misaligned']
-            },
-            {
-                action: 'Fight multiple enemies (raider level list): placeatme raider',
-                expectedResult: 'Enemy AI responds appropriately, uses cover, weapon perks proc correctly',
-                riskAreas: ['AI package issues', 'Perk script not firing', 'Critical hit formula broken']
-            },
-            {
-                action: 'Check weapon degradation and repair with weapon components',
-                expectedResult: 'Weapon degrades at 1% per hit, repairs with correct material costs',
-                riskAreas: ['Degradation formula wrong', 'Keyword missing for repairs', 'Material cost calculation fails']
-            }
-        ],
-        expectedOutcome: 'Weapon feels balanced, animations are smooth, damage numbers match design intent.',
-        severity: 'major'
-    },
-    {
-        id: 'settlement-1',
-        name: 'Settlement Object Placement',
-        description: 'Test new settlement furniture placement, physics, and workshare functionality.',
-        category: 'settlement',
-        steps: [
-            {
-                action: 'Enter settlement build mode at Sanctuary Hills',
-                expectedResult: 'New settlement objects appear in build menu under correct categories',
-                riskAreas: ['Mod object not in menu', 'Keyword assignments missing', 'Workbench keyword missing']
-            },
-            {
-                action: 'Place 5 custom objects around settlement',
-                expectedResult: 'Objects snap to grid properly, physics colliders prevent clipping',
-                riskAreas: ['NIF scale wrong (too large/small)', 'Collision shape inverted', 'Havok data corrupted']
-            },
-            {
-                action: 'Assign power to settlement (connect generator)',
-                expectedResult: 'Power flows through objects, lights animate with power state',
-                riskAreas: ['Power keyword not on objects', 'Script reference broken', 'Material swap not working']
-            },
-            {
-                action: 'Assign settlers to custom furniture (bed, workbench)',
-                expectedResult: 'NPCs navigate to objects, animations play, no clipping or floating',
-                riskAreas: ['Furniture markers missing FormID', 'AI package constraints too tight', 'NavMesh missing']
-            }
-        ],
-        expectedOutcome: 'All settlement objects place correctly, settlers use them, no performance degradation.',
-        severity: 'major'
-    },
-    {
-        id: 'npc-1',
-        name: 'Custom NPC Dialogue & Behavior',
-        description: 'Verify custom NPC greetings, dialogue trees, and AI packages work without interruption.',
-        category: 'npc',
-        steps: [
-            {
-                action: 'Spawn custom NPC: placeatme 00ABCD56',
-                expectedResult: 'NPC appears with correct race, appearance, equipment, no black face bug',
-                riskAreas: ['Head texture corrupted', 'Body mesh scale off', 'Appearance mod conflict']
-            },
-            {
-                action: 'Approach NPC from 15 ft away',
-                expectedResult: 'NPC greets player with custom dialogue, maintains conversational distance',
-                riskAreas: ['Greeting conditions wrong', 'Dialogue branch not linked', 'Voice file missing']
-            },
-            {
-                action: 'Engage in dialogue tree (3 branches, 5 total lines)',
-                expectedResult: 'All lines lip-sync properly, dialogue trees branch as scripted, quest flags set correctly',
-                riskAreas: ['Lip-sync files (.lip) missing', 'Quest stage not advancing', 'Condition functions fail']
-            },
-            {
-                action: 'Wait 24 hours in-game, observe NPC behavior',
-                expectedResult: 'NPC follows AI packages (sleep at night, work during day), pathfinds without getting stuck',
-                riskAreas: ['NavMesh doesn\'t reach furniture', 'AI package loop infinite', 'Cell loading causes despawn']
-            }
-        ],
-        expectedOutcome: 'NPC feels alive, dialogue is engaging, behavior is consistent and glitch-free.',
-        severity: 'major'
-    },
-    {
-        id: 'load_order-1',
-        name: 'Plugin Load Order & Dependency Check',
-        description: 'Verify mod loads in correct sequence, dependencies are satisfied, no FormID conflicts.',
-        category: 'load_order',
-        steps: [
-            {
-                action: 'Check plugin load order: xEdit sort plugins',
-                expectedResult: 'Dependencies load before dependents, masters before ESPs, no circular deps',
-                riskAreas: ['Master file missing from Data folder', 'FormID conflict undetected', 'Load order scrambled']
-            },
-            {
-                action: 'Scan for orphaned FormIDs: xEdit -quickautoclean',
-                expectedResult: 'No orphaned records found, all FormIDs point to valid masters, file size optimized',
-                riskAreas: ['Orphaned quest records', 'Deleted reference remains', 'Master deleted but still referenced']
-            },
-            {
-                action: 'Launch game and verify all mods load without warnings',
-                expectedResult: 'Game boots in <2 min, Buffout shows 0 critical errors, console has no FormID warnings',
-                riskAreas: ['F4SE plugin incompatible', 'Missing master file detected at launch', 'Corrupted plugin header']
-            },
-            {
-                action: 'Test save/load cycle with all mods active',
-                expectedResult: 'Save loads without errors, persistent objects remain in place, quest state preserved',
-                riskAreas: ['Unowned references cause hang', 'Save file corruption detected', 'Quest data lost']
-            }
-        ],
-        expectedOutcome: 'Mod integrates seamlessly with load order, no conflicts, no data corruption.',
-        severity: 'critical'
-    }
-];
+const TEST_SCENARIOS: TestScenario[] = [];
 
 const getSeverityColor = (severity: string) => {
     switch (severity) {
@@ -200,7 +49,7 @@ const getCategoryIcon = (category: string) => {
 };
 
 const Holodeck = () => {
-    const [activeScenario, setActiveScenario] = useState<TestScenario | null>(SAMPLE_SCENARIOS[0]);
+    const [activeScenario, setActiveScenario] = useState<TestScenario | null>(null);
     const [expandedStep, setExpandedStep] = useState<number | null>(null);
     const [testRuns, setTestRuns] = useState<TestRun[]>([]);
     const [copiedId, setCopiedId] = useState<string | null>(null);
@@ -212,7 +61,7 @@ const Holodeck = () => {
     };
 
     const simulateTestRun = (scenarioId: string) => {
-        const scenario = SAMPLE_SCENARIOS.find(s => s.id === scenarioId);
+        const scenario = TEST_SCENARIOS.find(s => s.id === scenarioId);
         if (!scenario) return;
 
         const passed = Math.random() > 0.3;
@@ -258,7 +107,7 @@ const Holodeck = () => {
                         <h3 className="text-xs font-bold text-white uppercase tracking-wide">Test Scenarios</h3>
                     </div>
                     <div className="flex-1 space-y-2 p-3 overflow-y-auto">
-                        {SAMPLE_SCENARIOS.map((scenario) => (
+                        {TEST_SCENARIOS.map((scenario) => (
                             <button
                                 key={scenario.id}
                                 onClick={() => setActiveScenario(scenario)}

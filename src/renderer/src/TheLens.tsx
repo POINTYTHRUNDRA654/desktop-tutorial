@@ -48,92 +48,18 @@ interface RecentProject {
     files: number;
 }
 
-const SAMPLE_SYSTEM_INFO: SystemInfo = {
-    computerName: 'FORTRESS-NEXUS',
-    username: 'Modder',
-    osVersion: 'Windows 10 22H2 (Build 19045)',
-    totalMemory: '32 GB',
-    availableMemory: '18.4 GB',
-    cpuModel: 'Intel Core i9-13900K'
+const EMPTY_SYSTEM_INFO: SystemInfo = {
+    computerName: 'OFFLINE',
+    username: 'Unauthorized',
+    osVersion: 'Unknown',
+    totalMemory: '0 GB',
+    availableMemory: '0 GB',
+    cpuModel: 'No Signal'
 };
 
-const SAMPLE_RECENT_FILES: DesktopFile[] = [
-    {
-        name: 'ArmorMod.esp',
-        path: 'D:\\Fallout4\\Data\\ArmorMod.esp',
-        type: 'file',
-        size: '2.4 MB',
-        modified: '2 hours ago',
-        category: 'mod'
-    },
-    {
-        name: 'WeaponTextures',
-        path: 'D:\\Fallout4\\Data\\textures\\weapons',
-        type: 'folder',
-        size: '145 items',
-        modified: '1 day ago',
-        category: 'texture'
-    },
-    {
-        name: 'QuestScript.psc',
-        path: 'D:\\Fallout4\\Source\\QuestScript.psc',
-        type: 'file',
-        size: '34 KB',
-        modified: '4 hours ago',
-        category: 'script'
-    },
-    {
-        name: 'armor_chest_female.nif',
-        path: 'D:\\Fallout4\\meshes\\armor\\armor_chest_female.nif',
-        type: 'file',
-        size: '1.2 MB',
-        modified: '3 days ago',
-        category: 'mesh'
-    },
-    {
-        name: 'CreatureTextures',
-        path: 'D:\\Fallout4\\Data\\textures\\creatures',
-        type: 'folder',
-        size: '89 items',
-        modified: '1 week ago',
-        category: 'texture'
-    },
-    {
-        name: 'SettlementExpansion.json',
-        path: 'D:\\Projects\\SettlementExpansion.json',
-        type: 'file',
-        size: '156 KB',
-        modified: '5 days ago',
-        category: 'config'
-    }
-];
+const RECENT_FILES: DesktopFile[] = [];
 
-const SAMPLE_RECENT_PROJECTS: RecentProject[] = [
-    {
-        name: 'Weapon Expansion Pack',
-        path: 'D:\\Fallout4 Mods\\WeaponExpansion',
-        lastModified: '2 hours ago',
-        files: 45
-    },
-    {
-        name: 'NPC Companion Suite',
-        path: 'D:\\Fallout4 Mods\\CompanionMods',
-        lastModified: '1 day ago',
-        files: 28
-    },
-    {
-        name: 'Settlement Enhancement',
-        path: 'D:\\Fallout4 Mods\\SettlementEnh',
-        lastModified: '3 days ago',
-        files: 156
-    },
-    {
-        name: 'Quest Framework',
-        path: 'D:\\Fallout4 Mods\\QuestFramework',
-        lastModified: '5 days ago',
-        files: 32
-    }
-];
+const RECENT_PROJECTS: RecentProject[] = [];
 
 const getCategoryColor = (category: string) => {
     switch (category) {
@@ -149,7 +75,7 @@ const getCategoryColor = (category: string) => {
 const TheLens = () => {
     const [activeTab, setActiveTab] = useState<'overview' | 'files' | 'projects' | 'system'>('overview');
     const [copiedPath, setCopiedPath] = useState<string | null>(null);
-    const [systemInfo, setSystemInfo] = useState<SystemInfo>(SAMPLE_SYSTEM_INFO);
+    const [systemInfo, setSystemInfo] = useState<SystemInfo>(EMPTY_SYSTEM_INFO);
     const [bridgeConnected, setBridgeConnected] = useState(false);
     const [loading, setLoading] = useState(true);
 
@@ -159,7 +85,7 @@ const TheLens = () => {
             try {
                 // Check if Electron API is available
                 if (!window.electron?.api?.getSystemInfo) {
-                    console.warn('[TheLens] Electron API not available, using sample data');
+                    console.warn('[TheLens] Bridge offline, waiting for connection...');
                     setBridgeConnected(false);
                     setLoading(false);
                     return;
@@ -173,8 +99,8 @@ const TheLens = () => {
                     computerName: info.computerName || 'Unknown',
                     username: info.username || 'User',
                     osVersion: `${info.os} (${info.arch})`,
-                    totalMemory: `${(info.ram / 1024).toFixed(1)} GB`,
-                    availableMemory: `${Math.max(0, (info.ram / 1024) * 0.6).toFixed(1)} GB`, // Estimate available as 60% of total
+                    totalMemory: `${info.ram} GB`,
+                    availableMemory: `${(info.ram * 0.6).toFixed(1)} GB`, // Estimate available as 60% of total
                     cpuModel: `${info.cpu} (${info.cores} cores)`
                 };
                 
@@ -256,19 +182,19 @@ const TheLens = () => {
                             <div className="grid grid-cols-2 gap-3 text-xs">
                                 <div className="bg-[#1e1e1e] p-2 rounded border border-slate-700">
                                     <div className="text-slate-400">Computer</div>
-                                    <div className="text-white font-mono">{SAMPLE_SYSTEM_INFO.computerName}</div>
+                                    <div className="text-white font-mono">{systemInfo.computerName}</div>
                                 </div>
                                 <div className="bg-[#1e1e1e] p-2 rounded border border-slate-700">
                                     <div className="text-slate-400">OS</div>
-                                    <div className="text-white font-mono">{SAMPLE_SYSTEM_INFO.osVersion}</div>
+                                    <div className="text-white font-mono">{systemInfo.osVersion}</div>
                                 </div>
                                 <div className="bg-[#1e1e1e] p-2 rounded border border-slate-700">
                                     <div className="text-slate-400">Memory Available</div>
-                                    <div className="text-cyan-300 font-mono">{SAMPLE_SYSTEM_INFO.availableMemory} / {SAMPLE_SYSTEM_INFO.totalMemory}</div>
+                                    <div className="text-cyan-300 font-mono">{systemInfo.availableMemory} / {systemInfo.totalMemory}</div>
                                 </div>
                                 <div className="bg-[#1e1e1e] p-2 rounded border border-slate-700">
                                     <div className="text-slate-400">CPU</div>
-                                    <div className="text-white font-mono text-[9px]">{SAMPLE_SYSTEM_INFO.cpuModel}</div>
+                                    <div className="text-white font-mono text-[9px]">{systemInfo.cpuModel}</div>
                                 </div>
                             </div>
                         </div>
@@ -279,7 +205,7 @@ const TheLens = () => {
                                 <FileText className="w-4 h-4 text-cyan-400" /> Recent Modding Files
                             </h3>
                             <div className="space-y-2">
-                                {SAMPLE_RECENT_FILES.slice(0, 4).map((file, idx) => (
+                                {RECENT_FILES.length > 0 ? RECENT_FILES.slice(0, 4).map((file, idx) => (
                                     <div
                                         key={idx}
                                         className={`flex items-center justify-between p-2 rounded border cursor-pointer hover:bg-slate-800/50 transition-colors ${getCategoryColor(file.category)}`}
@@ -306,7 +232,9 @@ const TheLens = () => {
                                             )}
                                         </button>
                                     </div>
-                                ))}
+                                )) : (
+                                    <div className="text-center py-4 text-slate-500 text-xs italic">No recently analyzed files in this session.</div>
+                                )}
                             </div>
                         </div>
 
@@ -336,7 +264,7 @@ const TheLens = () => {
                 {activeTab === 'files' && (
                     <div className="p-6">
                         <div className="space-y-2">
-                            {SAMPLE_RECENT_FILES.map((file, idx) => (
+                            {RECENT_FILES.map((file, idx) => (
                                 <div
                                     key={idx}
                                     className={`flex items-center justify-between p-3 rounded border ${getCategoryColor(file.category)} hover:bg-slate-800/50 transition-colors`}
@@ -372,7 +300,7 @@ const TheLens = () => {
                 {activeTab === 'projects' && (
                     <div className="p-6">
                         <div className="space-y-3">
-                            {SAMPLE_RECENT_PROJECTS.map((project, idx) => (
+                            {RECENT_PROJECTS.map((project, idx) => (
                                 <div
                                     key={idx}
                                     className="bg-[#252526] border border-slate-800 rounded-lg p-4 hover:border-cyan-600/50 transition-colors"
@@ -413,27 +341,27 @@ const TheLens = () => {
                             <div className="space-y-3 text-sm">
                                 <div className="flex justify-between p-2 bg-[#1e1e1e] rounded border border-slate-700">
                                     <span className="text-slate-400">Computer Name</span>
-                                    <span className="text-white font-mono">{SAMPLE_SYSTEM_INFO.computerName}</span>
+                                    <span className="text-white font-mono">{systemInfo.computerName}</span>
                                 </div>
                                 <div className="flex justify-between p-2 bg-[#1e1e1e] rounded border border-slate-700">
                                     <span className="text-slate-400">Username</span>
-                                    <span className="text-white font-mono">{SAMPLE_SYSTEM_INFO.username}</span>
+                                    <span className="text-white font-mono">{systemInfo.username}</span>
                                 </div>
                                 <div className="flex justify-between p-2 bg-[#1e1e1e] rounded border border-slate-700">
                                     <span className="text-slate-400">OS Version</span>
-                                    <span className="text-white font-mono text-xs">{SAMPLE_SYSTEM_INFO.osVersion}</span>
+                                    <span className="text-white font-mono text-xs">{systemInfo.osVersion}</span>
                                 </div>
                                 <div className="flex justify-between p-2 bg-[#1e1e1e] rounded border border-slate-700">
                                     <span className="text-slate-400">CPU</span>
-                                    <span className="text-white font-mono text-xs">{SAMPLE_SYSTEM_INFO.cpuModel}</span>
+                                    <span className="text-white font-mono text-xs">{systemInfo.cpuModel}</span>
                                 </div>
                                 <div className="flex justify-between p-2 bg-[#1e1e1e] rounded border border-slate-700">
                                     <span className="text-slate-400">Total Memory</span>
-                                    <span className="text-cyan-300 font-mono">{SAMPLE_SYSTEM_INFO.totalMemory}</span>
+                                    <span className="text-cyan-300 font-mono">{systemInfo.totalMemory}</span>
                                 </div>
                                 <div className="flex justify-between p-2 bg-[#1e1e1e] rounded border border-slate-700">
                                     <span className="text-slate-400">Available Memory</span>
-                                    <span className="text-green-300 font-mono">{SAMPLE_SYSTEM_INFO.availableMemory}</span>
+                                    <span className="text-green-300 font-mono">{systemInfo.availableMemory}</span>
                                 </div>
                             </div>
                         </div>

@@ -25,7 +25,7 @@ interface Mod {
         overwrites: string[]; // IDs of mods this one overwrites
         overwrittenBy: string[]; // IDs of mods that overwrite this one
     };
-    files: string[]; // Simulated file list
+    files: string[]; // Actual file list from scan
     // Quest Mod Specifics
     questData?: {
         storyArc: QuestStage[];
@@ -42,96 +42,18 @@ interface Utility {
     path?: string;
 }
 
-const initialMods: Mod[] = [
-    { 
-        id: 'dlc', name: 'DLC: Automatron', version: '1.0', category: 'DLC', enabled: true, priority: 0, 
-        conflicts: { overwrites: [], overwrittenBy: [] }, 
-        files: ['DLCRobot.esm', 'DLCRobot - Main.ba2'] 
-    },
-    { 
-        id: 'ufo4p', name: 'Unofficial Fallout 4 Patch', version: '2.1.5', category: 'Bug Fixes', enabled: true, priority: 1, 
-        conflicts: { overwrites: [], overwrittenBy: ['texture_opt'] }, 
-        files: ['Unofficial Fallout 4 Patch.esp', 'Unofficial Fallout 4 Patch - Main.ba2'] 
-    },
-    { 
-        id: 'ppf', name: 'PPF.esm', version: '4.0', category: 'Framework', enabled: true, priority: 2, 
-        conflicts: { overwrites: [], overwrittenBy: [] }, 
-        files: ['PPF.esm'] 
-    },
-    { 
-        id: 'cbbe', name: 'Caliente\'s Beautiful Bodies Enhancer', version: '2.6.3', category: 'Models/Textures', enabled: true, priority: 3, 
-        conflicts: { overwrites: [], overwrittenBy: ['skin_texture'] }, 
-        files: ['Meshes/Character/Female/FemaleBody.nif', 'Textures/Actors/Character/BaseHumanFemale/FemaleBody_d.dds'] 
-    },
-    { 
-        id: 'vivid', name: 'Vivid Fallout - All in One', version: '1.9', category: 'Environment', enabled: true, priority: 4, 
-        conflicts: { overwrites: [], overwrittenBy: ['better_roads'] }, 
-        files: ['Textures/Landscape/Ground/Dirt01_d.dds', 'Textures/Landscape/Roads/Road01_d.dds'] 
-    },
-    { 
-        id: 'better_roads', name: 'Better Roads', version: '1.0', category: 'Environment', enabled: true, priority: 5, 
-        conflicts: { overwrites: ['vivid'], overwrittenBy: [] }, 
-        files: ['Textures/Landscape/Roads/Road01_d.dds'] // This conflicts with vivid
-    },
-    { 
-        id: 'skin_texture', name: 'Valkyr Female Face Texture', version: '1.0', category: 'Models/Textures', enabled: true, priority: 6, 
-        conflicts: { overwrites: ['cbbe'], overwrittenBy: [] }, 
-        files: ['Textures/Actors/Character/BaseHumanFemale/FemaleHead_d.dds'] 
-    },
-    { 
-        id: 'tales_commonwealth', name: 'Tales from the Commonwealth', version: '3.02', category: 'Quest', enabled: true, priority: 50,
-        conflicts: { overwrites: [], overwrittenBy: [] },
-        files: ['3DNPC_FO4.esp', '3DNPC_FO4 - Main.ba2', '3DNPC_FO4 - Textures.ba2'],
-        questData: {
-            storyArc: [
-                { id: 10, log: "Listen to the radio broadcast.", completed: true },
-                { id: 20, log: "Find Birdie at the Dugout Inn.", completed: false },
-                { id: 30, log: "Retrieve the stolen holotape.", completed: false },
-                { id: 40, log: "Decide Birdie's fate.", completed: false }
-            ],
-            locations: [
-                { cell: "DiamondCityDugoutInn", refId: "xx001A2B", coords: "Interior" },
-                { cell: "Wilderness", refId: "xx004F33", coords: "-12, 18" },
-                { cell: "GoodneighborWarehouses", refId: "xx009C11", coords: "Interior" }
-            ]
-        }
-    },
-    { 
-        id: 'sim_settlements_2', name: 'Sim Settlements 2', version: '3.3.4', category: 'Quest', enabled: true, priority: 51,
-        conflicts: { overwrites: [], overwrittenBy: [] },
-        files: ['SS2.esm', 'SS2 - Main.ba2'],
-        questData: {
-            storyArc: [
-                { id: 10, log: "Meet the Stranger in Concord.", completed: true },
-                { id: 15, log: "Build a Recruitment Beacon.", completed: true },
-                { id: 20, log: "Construct 5 Residential Plots.", completed: true },
-                { id: 30, log: "Defend Sanctuary from Raiders.", completed: false }
-            ],
-            locations: [
-                { cell: "ConcordExt", refId: "xx000888", coords: "-10, -8" },
-                { cell: "SanctuaryHillsWorld", refId: "xx000999", coords: "-15, 22" }
-            ]
-        }
-    },
-    { 
-        id: 'prp', name: 'Previsibines Repair Pack (PRP)', version: '0.69.8', category: 'Optimization', enabled: true, priority: 99, 
-        conflicts: { overwrites: ['vivid', 'better_roads'], overwrittenBy: [] }, 
-        files: ['PRP.esp', 'PRP-Compat.esp'] 
-    },
-];
-
-const initialUtilities: Utility[] = [
-    { id: 'f4se', name: 'F4SE', description: 'Script Extender', isInstalled: true, isRequired: true, path: 'Fallout 4/f4se_loader.exe' },
-    { id: 'ck', name: 'Creation Kit', description: 'Official Editor', isInstalled: false, isRequired: false },
-    { id: 'xedit', name: 'FO4Edit', description: 'Conflict Resolution', isInstalled: true, isRequired: true, path: 'Tools/FO4Edit.exe' },
-    { id: 'bodyslide', name: 'BodySlide', description: 'Mesh Generator', isInstalled: true, isRequired: true, path: 'Tools/BodySlide x64.exe' },
-    { id: 'nifskope', name: 'NifSkope 2.0 Dev 11', description: 'NIF Mesh Editor (Modern)', isInstalled: false, isRequired: false },
-    { id: 'loot', name: 'LOOT', description: 'Load Order Tool', isInstalled: false, isRequired: false },
+const essentialUtilities: Utility[] = [
+    { id: 'f4se', name: 'Fallout 4 Script Extender (F4SE)', description: 'Essential for most advanced mods.', isRequired: true, isInstalled: false },
+    { id: 'ck', name: 'Creation Kit', description: 'The official editor for Fallout 4.', isRequired: true, isInstalled: false },
+    { id: 'xedit', name: 'FO4Edit (xEdit)', description: 'The swiss-army knife for cleaning and conflict resolution.', isRequired: true, isInstalled: false },
+    { id: 'bodyslide', name: 'BodySlide', description: 'Mesh and character generation tool.', isInstalled: false, isRequired: true },
+    { id: 'nifskope', name: 'NifSkope', description: 'NIF Mesh Editor (Modern).', isInstalled: false, isRequired: false },
+    { id: 'loot', name: 'LOOT', description: 'Load Order Optimisation Tool.', isInstalled: false, isRequired: false },
 ];
 
 const TheOrganizer: React.FC = () => {
-    const [mods, setMods] = useState<Mod[]>(initialMods);
-    const [utilities, setUtilities] = useState<Utility[]>(initialUtilities);
+    const [mods, setMods] = useState<Mod[]>([]);
+    const [utilities, setUtilities] = useState<Utility[]>(essentialUtilities);
     const [selectedModId, setSelectedModId] = useState<string | null>(null);
     const [filter, setFilter] = useState('');
     const [isSorting, setIsSorting] = useState(false);
@@ -140,11 +62,31 @@ const TheOrganizer: React.FC = () => {
 
     const selectedMod = mods.find(m => m.id === selectedModId);
 
-    // Simulate scanning on load
+    // Detect tools and mods from local storage
     useEffect(() => {
-        const bridgeActive = localStorage.getItem('mossy_bridge_active') === 'true';
-        if (bridgeActive) {
-            setUtilities(prev => prev.map(u => ({...u, isInstalled: Math.random() > 0.3})));
+        const savedApps = localStorage.getItem('mossy_apps');
+        if (savedApps) {
+            try {
+                const detected = JSON.parse(savedApps);
+                setUtilities(prev => prev.map(u => {
+                    const match = detected.find((app: any) => 
+                        app.displayName.toLowerCase().includes(u.name.toLowerCase()) ||
+                        app.name.toLowerCase().includes(u.id.toLowerCase())
+                    );
+                    return { ...u, isInstalled: !!match, path: match?.path };
+                }));
+            } catch (e) {
+                console.error("Failed to parse mossy_apps in Organizer", e);
+            }
+        }
+
+        const storedMods = localStorage.getItem('mossy_mods_list');
+        if (storedMods) {
+            try {
+                setMods(JSON.parse(storedMods));
+            } catch (e) {
+                setMods([]);
+            }
         }
     }, []);
 
@@ -153,6 +95,10 @@ const TheOrganizer: React.FC = () => {
     };
 
     const handleSort = async () => {
+        if (mods.length === 0) {
+            setAnalysisResult("No mods detected to sort.");
+            return;
+        }
         setIsSorting(true);
         setAnalysisResult(null);
 
@@ -195,11 +141,11 @@ const TheOrganizer: React.FC = () => {
                 return newMods.map((m, i) => ({ ...m, priority: i }));
             });
             
-            setAnalysisResult("Load order sorted. Quest priorities optimized.");
+            setAnalysisResult("Load order sorted via Neural Engine.");
 
         } catch (e) {
             console.error(e);
-            setAnalysisResult("Sort failed. Neural network timeout.");
+            setAnalysisResult("Sort failed. Bridge or AI connection issue.");
         } finally {
             setIsSorting(false);
         }
@@ -293,7 +239,7 @@ const TheOrganizer: React.FC = () => {
 
                             {/* Header Row */}
                             <div className="grid grid-cols-[40px_1fr_100px_40px] bg-[#333333] text-[10px] text-slate-300 font-bold border-b border-black p-1 select-none">
-                                <div className="text-center">Priority</div>
+                                <div className="text-center">Order</div>
                                 <div className="pl-2">Mod Name</div>
                                 <div>Category</div>
                                 <div className="text-center">Flags</div>
@@ -301,7 +247,7 @@ const TheOrganizer: React.FC = () => {
 
                             {/* Mod Rows */}
                             <div className="flex-1 overflow-y-auto custom-scrollbar">
-                                {displayedMods.map((mod) => (
+                                {displayedMods.length > 0 ? displayedMods.map((mod) => (
                                     <div 
                                         key={mod.id}
                                         onClick={() => setSelectedModId(mod.id)}
@@ -330,7 +276,11 @@ const TheOrganizer: React.FC = () => {
                                             {mod.conflicts.overwrittenBy.length > 0 && <span className="text-red-500 text-[10px] font-bold">-</span>}
                                         </div>
                                     </div>
-                                ))}
+                                )) : (
+                                    <div className="p-8 text-center text-slate-500 italic">
+                                        No mods detected. Run a scan or start the Bridge.
+                                    </div>
+                                )}
                             </div>
                             
                             <div className="p-1 bg-[#333333] border-t border-black text-[10px] text-slate-400 text-center">
@@ -398,7 +348,7 @@ const TheOrganizer: React.FC = () => {
                                             <>
                                                 <div>
                                                     <h4 className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-2 flex items-center gap-2">
-                                                        <ArrowDown className="w-3 h-3 text-red-500" /> Overwritten By (Loser)
+                                                        <ArrowDown className="w-3 h-3 text-red-500" /> Overwritten By
                                                     </h4>
                                                     {selectedMod.conflicts.overwrittenBy.length > 0 ? (
                                                         <div className="space-y-1">
@@ -410,13 +360,13 @@ const TheOrganizer: React.FC = () => {
                                                             ))}
                                                         </div>
                                                     ) : (
-                                                        <div className="text-xs text-slate-600 italic">No mods overwrite this one.</div>
+                                                        <div className="text-xs text-slate-600 italic">No overwrites detected.</div>
                                                     )}
                                                 </div>
 
                                                 <div>
                                                     <h4 className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-2 flex items-center gap-2">
-                                                        <ArrowUp className="w-3 h-3 text-green-500" /> Overwrites (Winner)
+                                                        <ArrowUp className="w-3 h-3 text-green-500" /> Overwrites
                                                     </h4>
                                                     {selectedMod.conflicts.overwrites.length > 0 ? (
                                                         <div className="space-y-1">
@@ -434,15 +384,17 @@ const TheOrganizer: React.FC = () => {
 
                                                 <div>
                                                     <h4 className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-2 flex items-center gap-2">
-                                                        <Database className="w-3 h-3" /> VFS Preview
+                                                        <Database className="w-3 h-3" /> File Information
                                                     </h4>
                                                     <div className="bg-black border border-slate-700 rounded p-2 text-[10px] font-mono text-slate-400 overflow-x-auto">
-                                                        {selectedMod.files.map((f, i) => (
+                                                        {selectedMod.files && selectedMod.files.length > 0 ? selectedMod.files.map((f, i) => (
                                                             <div key={i} className="flex items-center gap-1">
                                                                 <File className="w-3 h-3 text-slate-600" />
                                                                 {f}
                                                             </div>
-                                                        ))}
+                                                        )) : (
+                                                            <div className="text-slate-600 italic">No files mapped for this entry.</div>
+                                                        )}
                                                     </div>
                                                 </div>
                                             </>
@@ -489,7 +441,7 @@ const TheOrganizer: React.FC = () => {
                                         ) : (
                                             tool.isRequired && (
                                                 <div className="px-2 py-1 rounded bg-yellow-900/30 text-yellow-400 text-xs font-bold border border-yellow-500/30">
-                                                    Recommended
+                                                    Required
                                                 </div>
                                             )
                                         )}
@@ -504,7 +456,7 @@ const TheOrganizer: React.FC = () => {
                                         </div>
                                     ) : (
                                         <button className="w-full py-2 flex items-center justify-center gap-2 bg-slate-700 hover:bg-slate-600 text-slate-200 rounded text-xs font-bold transition-colors">
-                                            <Download className="w-3 h-3" /> Find Download
+                                            <Download className="w-3 h-3" /> Find Tool
                                         </button>
                                     )}
                                 </div>

@@ -87,26 +87,14 @@ export const BA2Manager: React.FC = () => {
         const data = await response.json();
         setFiles(data.files);
         setArchiveInfo(data.info);
+      } else {
+        throw new Error('Listing failed');
       }
     } catch (error) {
       console.error('BA2 listing failed:', error);
-      // Fallback: Show example data for demonstration
-      const mockFiles: BA2File[] = [
-        { name: 'Textures/Armor/PowerArmor/T51_d.dds', size: 5242880, compressed: 2621440, ratio: '50%' },
-        { name: 'Textures/Armor/PowerArmor/T51_n.dds', size: 5242880, compressed: 3145728, ratio: '60%' },
-        { name: 'Meshes/Armor/PowerArmor/T51Helmet.nif', size: 163840, compressed: 81920, ratio: '50%' },
-        { name: 'Materials/Armor/PowerArmor/T51.bgsm', size: 2048, compressed: 1024, ratio: '50%' },
-      ];
-      
-      setFiles(mockFiles);
-      setArchiveInfo({
-        totalFiles: 4,
-        totalSize: 10651648,
-        compressedSize: 5850112,
-        compressionRatio: '55%'
-      });
-      
-      alert('Bridge offline - showing example data.\n\nTo use real BA2 archives:\n1. Start Desktop Bridge server\n2. Install: pip install ba2toolkit');
+      setFiles([]);
+      setArchiveInfo(null);
+      alert('Bridge offline - real data unavailable.\n\nTo use real BA2 archives:\n1. Start Desktop Bridge server\n2. Install: pip install ba2toolkit');
     } finally {
       setLoading(false);
     }

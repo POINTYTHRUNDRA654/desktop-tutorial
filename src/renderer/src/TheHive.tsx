@@ -37,58 +37,32 @@ interface BuildPipeline {
     createdAt: number;
 }
 
-const SAMPLE_PROJECTS: ModProject[] = [
-    {
-        id: '1',
-        name: 'The Lost Vault',
-        description: 'Comprehensive quest mod with 8 new quest lines and 15 NPCs',
-        version: '1.2.1',
-        type: 'quest',
-        status: 'released',
-        author: 'You',
-        files: ['QuestScript.psc', 'DialogueScript.psc', 'RewardScript.psc', 'manifest.json'],
-        dependencies: [
-            { name: 'F4SE', version: '0.6.23', required: true },
-            { name: 'AWKCR', version: '1.0', required: false }
-        ],
-        created: Date.now() - 86400000 * 30
-    },
-    {
-        id: '2',
-        name: 'Commonwealth Defense Force',
-        description: 'Settlement expansion with new buildings, defenses, and garrison system',
-        version: '0.9.0',
-        type: 'settlement',
-        status: 'testing',
-        author: 'You',
-        files: ['SettlementSetup.psc', 'BuildingRegistry.psc', 'DefenseLogic.psc'],
-        dependencies: [
-            { name: 'F4SE', version: '0.6.23', required: true }
-        ],
-        created: Date.now() - 86400000 * 7
-    }
-];
-
 const BUILD_STEPS: BuildStep[] = [
-    { id: '1', name: 'Compile Papyrus Scripts', command: 'papyrus-compile', status: 'success', duration: 2500 },
-    { id: '2', name: 'Validate xEdit Records', command: 'xedit-validate', status: 'success', duration: 1800 },
-    { id: '3', name: 'Check NIF Meshes', command: 'nif-verify', status: 'success', duration: 3200 },
-    { id: '4', name: 'Package Assets', command: 'zip-bundle', status: 'success', duration: 1200 },
-    { id: '5', name: 'Generate Changelog', command: 'git-diff', status: 'success', duration: 800 }
+    { id: '1', name: 'Compile Papyrus Scripts', command: 'papyrus-compile', status: 'pending', duration: 0 },
+    { id: '2', name: 'Validate xEdit Records', command: 'xedit-validate', status: 'pending', duration: 0 },
+    { id: '3', name: 'Check NIF Meshes', command: 'nif-verify', status: 'pending', duration: 0 },
+    { id: '4', name: 'Package Assets', command: 'zip-bundle', status: 'pending', duration: 0 },
+    { id: '5', name: 'Generate Changelog', command: 'git-diff', status: 'pending', duration: 0 }
 ];
 
 const TheHive: React.FC = () => {
     const [activeTab, setActiveTab] = useState<'projects' | 'build' | 'deploy'>('projects');
-    const [projects, setProjects] = useState<ModProject[]>(SAMPLE_PROJECTS);
+    const [projects, setProjects] = useState<ModProject[]>([]);
     const [buildPipelines, setBuildPipelines] = useState<BuildPipeline[]>([]);
-    const [selectedProject, setSelectedProject] = useState<ModProject | null>(projects[0]);
+    const [selectedProject, setSelectedProject] = useState<ModProject | null>(null);
     const [newProjectName, setNewProjectName] = useState('');
     const [buildRunning, setBuildRunning] = useState(false);
 
     // Load from localStorage
     const loadProjects = () => {
         const saved = localStorage.getItem('hive_projects');
-        if (saved) setProjects(JSON.parse(saved));
+        if (saved) {
+            const parsed = JSON.parse(saved);
+            setProjects(parsed);
+            if (parsed.length > 0 && !selectedProject) {
+                setSelectedProject(parsed[0]);
+            }
+        }
     };
 
     useEffect(() => {
@@ -100,7 +74,9 @@ const TheHive: React.FC = () => {
     }, []);
 
     useEffect(() => {
-        localStorage.setItem('hive_projects', JSON.stringify(projects));
+        if (projects.length > 0) {
+            localStorage.setItem('hive_projects', JSON.stringify(projects));
+        }
     }, [projects]);
 
     const addProject = () => {
@@ -112,9 +88,9 @@ const TheHive: React.FC = () => {
             version: '0.1.0',
             type: 'quest',
             status: 'development',
-            author: 'You',
-            files: ['main.psc'],
-            dependencies: [{ name: 'F4SE', version: '0.6.23', required: true }],
+            author: 'User',
+            files: [],
+            dependencies: [],
             created: Date.now(),
             workspacePath: `C:/Games/Fallout 4/Data/Mossy/${newProjectName.replace(/\s+/g, '_')}`
         };
@@ -125,29 +101,53 @@ const TheHive: React.FC = () => {
 
     const deleteProject = (id: string) => {
         setProjects(projects.filter(p => p.id !== id));
-        if (selectedProject?.id === id) setSelectedProject(projects[0] || null);
+        if (selectedProject?.id === id) {
+            const remaining = projects.filter(p => p.id !== id);
+            setSelectedProject(remaining[0] || null);
+        }
     };
 
-    const startBuild = () => {
+    const startBuild = async () => {
         if (!selectedProject) return;
+        
+        const bridgeActive = localStorage.getItem('mossy_bridge_active') === 'true';
+        if (!bridgeActive) {
+            alert('Bridge Offline: Build pipelines require a running Desktop Bridge server.');
+            return;
+        }
+
         setBuildRunning(true);
 
-        // Simulate build process
         const newPipeline: BuildPipeline = {
             id: Date.now().toString(),
             projectId: selectedProject.id,
-            steps: BUILD_STEPS.map(s => ({ ...s, status: 'pending' as const })),
+            steps: BUILD_STEPS.map(s => ({ ...s, status: 'running' as const })),
             version: selectedProject.version,
             createdAt: Date.now()
         };
         setBuildPipelines([newPipeline, ...buildPipelines]);
 
-        // Animate steps
-        let stepIndex = 0;
-        const interval = setInterval(() => {
-            if (stepIndex < BUILD_STEPS.length) {
-                setBuildPipelines(prev => {
-                    const updated = [...prev];
+        try {
+            const response = await fetch('http://localhost:21337/build/start', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ project: selectedProject })
+            });
+            
+            if (!response.ok) throw new Error('Build failed');
+            
+            // In a real app, you'd poll the status here
+        } catch (error) {
+            setBuildPipelines(prev => prev.map(p => 
+                p.id === newPipeline.id 
+                ? { ...p, steps: p.steps.map(s => ({ ...s, status: 'failed' })) }
+                : p
+            ));
+        } finally {
+            setBuildRunning(false);
+        }
+    };
+
                     updated[0].steps[stepIndex] = { ...updated[0].steps[stepIndex], status: 'running' };
                     return updated;
                 });

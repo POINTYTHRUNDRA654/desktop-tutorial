@@ -134,38 +134,14 @@ const Lorekeeper: React.FC = () => {
   const [newPresetName, setNewPresetName] = useState('');
   const api = (window as any).electron?.api;
 
-  // Sample LOD tasks
-  const initialLODAssets: LODAsset[] = [
-    {
-      id: 'lod-01', name: 'Concord Cathedral', sourceNif: 'Data/Meshes/Concord/Cathedral.nif', lodPass: 'lod0', 
-      targetDir: 'Data/Meshes/Concord/LOD', textureReduction: 50, billboardMode: 'none', mergeChance: 0,
-      priority: 'high', status: 'pending', outputFiles: []
-    },
-    {
-      id: 'lod-02', name: 'Commonwealth Trees (Dense)', sourceNif: 'Data/Meshes/Landscape/Trees_Dense.nif', lodPass: 'lod1',
-      targetDir: 'Data/Meshes/Landscape/LOD', textureReduction: 75, billboardMode: 'auto', mergeChance: 60,
-      priority: 'normal', status: 'pending', outputFiles: []
-    }
-  ];
-  
-  const initialPrecombines: PrecombineJob[] = [
-    {
-      id: 'prp-01', name: 'Boston Interior (Downtown)', cellRange: '00000000-0000FFFF', interiorCells: true, 
-      includeStatics: true, includeDynamic: false, prpMode: true, billboardFallback: true,
-      status: 'pending', outputBA2: ''
-    }
-  ];
-
   useEffect(() => {
     const stored = localStorage.getItem('lorekeeper-lod-assets');
     if (stored) {
       try {
         setLodAssets(JSON.parse(stored));
       } catch {
-        setLodAssets(initialLODAssets);
+        setLodAssets([]);
       }
-    } else {
-      setLodAssets(initialLODAssets);
     }
 
     const storedPrecombines = localStorage.getItem('lorekeeper-precombines');
@@ -173,10 +149,8 @@ const Lorekeeper: React.FC = () => {
       try {
         setPrecombineJobs(JSON.parse(storedPrecombines));
       } catch {
-        setPrecombineJobs(initialPrecombines);
+        setPrecombineJobs([]);
       }
-    } else {
-      setPrecombineJobs(initialPrecombines);
     }
   }, []);
 

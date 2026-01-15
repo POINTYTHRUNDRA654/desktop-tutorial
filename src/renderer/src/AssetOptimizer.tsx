@@ -65,39 +65,9 @@ export const AssetOptimizer: React.FC = () => {
         throw new Error('Optimization failed');
       }
     } catch (error) {
-      // Demo mode
-      simulateOptimization(jobId, type);
-    }
-  };
-
-  const simulateOptimization = async (jobId: string, type: string) => {
-    const steps = [
-      'Scanning directory...',
-      'Analyzing file types...',
-      'Processing textures...',
-      'Compressing meshes...',
-      'Optimizing scripts...',
-      'Generating mipmaps...',
-      'Packing archive...',
-      'Complete!'
-    ];
-
-    for (let i = 0; i < steps.length; i++) {
-      await new Promise(resolve => setTimeout(resolve, 800));
-      
-      setJobs(prev => prev.map(job => {
-        if (job.id !== jobId) return job;
-        
-        return {
-          ...job,
-          progress: ((i + 1) / steps.length) * 100,
-          filesProcessed: Math.floor(((i + 1) / steps.length) * 45),
-          totalFiles: 45,
-          status: i === steps.length - 1 ? 'complete' : 'processing',
-          details: [...job.details, steps[i]],
-          savedSpace: `${Math.floor(((i + 1) / steps.length) * 280)} MB`
-        };
-      }));
+      setJobs(prev => prev.map(job => 
+        job.id === jobId ? { ...job, status: 'error', details: ['Bridge Offline: Asset Optimization requires a running Desktop Bridge server.'] } : job
+      ));
     }
   };
 

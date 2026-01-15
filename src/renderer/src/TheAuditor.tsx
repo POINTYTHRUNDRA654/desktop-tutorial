@@ -21,24 +21,7 @@ interface ModFile {
     status: 'clean' | 'warning' | 'error' | 'pending';
 }
 
-const initialFiles: ModFile[] = [
-    {
-        id: '1', name: 'MyMod.esp', type: 'plugin', path: 'Data/MyMod.esp', size: '14 KB', status: 'pending',
-        issues: [] 
-    },
-    {
-        id: '2', name: 'Rifle_Reciever.nif', type: 'mesh', path: 'Data/Meshes/Weapons/Rifle/Receiver.nif', size: '450 KB', status: 'pending',
-        issues: []
-    },
-    {
-        id: '3', name: 'Rifle_Main_d.dds', type: 'texture', path: 'Data/Textures/Weapons/Rifle/Main_d.dds', size: '21 MB', status: 'pending',
-        issues: []
-    },
-    {
-        id: '4', name: 'Glow_Sight.bgsm', type: 'material', path: 'Data/Materials/Weapons/Rifle/Glow.bgsm', size: '2 KB', status: 'pending',
-        issues: []
-    }
-];
+const initialFiles: ModFile[] = [];
 
 const TheAuditor: React.FC = () => {
     const [files, setFiles] = useState<ModFile[]>(initialFiles);

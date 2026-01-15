@@ -38,12 +38,29 @@ export const LocalAIEngine = {
     if (typeof window.electron?.api?.getRunningProcesses === 'function') {
         try {
             const processes = await window.electron.api.getRunningProcesses();
-            if (processes.length > 0) {
-                injectedContext += "\n### ACTIVE MODDING SESSION MONITORING:\n";
-                injectedContext += processes.map((p: any) => `- ${p.name} (Window: ${p.windowTitle || 'N/A'})`).join("\n");
-                injectedContext += "\n\n";
+            const blenderLinked = localStorage.getItem('mossy_blender_active') === 'true';
+            const detectedApps = JSON.parse(localStorage.getItem('mossy_apps') || '[]');
+
+            if (processes.length > 0 || blenderLinked || detectedApps.length > 0) {
+                injectedContext += "\n### SYSTEM & TOOL CAPABILITIES:\n";
+                if (blenderLinked) injectedContext += "- [STATUS] Blender Neural Link: ACTIVE\n";
+                
+                if (detectedApps.length > 0) {
+                    injectedContext += "- [INSTALLED TOOLS]: " + detectedApps.map((a: any) => a.name).join(", ") + "\n";
+                }
+
+                if (processes.length > 0) {
+                    injectedContext += "- [RUNNING NOW]: " + processes.map((p: any) => p.name).join(", ") + "\n";
+                }
+                injectedContext += "\n";
             }
         } catch (e) {}
+    }
+
+    // Inject Working Memory (Persistence)
+    const workingMemory = localStorage.getItem('mossy_working_memory');
+    if (workingMemory) {
+        injectedContext += `\n### WORKING MEMORY (LONG-TERM CONTEXT):\n${workingMemory}\n`;
     }
 
     if (customKnowledge) {
@@ -83,9 +100,9 @@ export const LocalAIEngine = {
       }
     }
 
-    // Fallback to "Legacy" (actually simulated now but we should make it real)
+    // Fallback message when local LLM is unavailable
     return {
-      content: "I detected Ollama is offline or not configured. Please start Ollama or check your settings for 'No Fake Stuff' mode. (Falling back to Knowledge Base search for now)."
+      content: "Mossy is currently in Passive Mode because no local AI backend (like Ollama) was detected at localhost:11434. Please ensure Ollama is running to enable deep reasoning, or use the Desktop Bridge to sync your Fallout 4 installation data."
     };
   },
 

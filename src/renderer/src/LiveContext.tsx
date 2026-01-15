@@ -154,7 +154,7 @@ export const LiveProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const audioContextRef = useRef<AudioContext | null>(null);
   const inputContextRef = useRef<AudioContext | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
-  const processorRef = useRef<ScriptProcessorNode | null>(null);
+  const processorRef = useRef<any>(null); // Changed from ScriptProcessorNode to any for AudioWorklet support
   const sessionRef = useRef<any>(null);
   const sourcesRef = useRef<Set<AudioBufferSourceNode>>(new Set());
   const nextStartTimeRef = useRef<number>(0);

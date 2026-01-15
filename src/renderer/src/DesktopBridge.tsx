@@ -102,6 +102,31 @@ const DesktopBridge: React.FC = () => {
       };
   }, []);
 
+  // Process Heartbeat - Automatically detect Blender/Tools
+  useEffect(() => {
+    const heartbeat = async () => {
+      const isBlenderRunning = await checkBlenderProcess();
+      const currentStatus = localStorage.getItem('mossy_blender_active') === 'true';
+      
+      if (isBlenderRunning !== currentStatus) {
+        localStorage.setItem('mossy_blender_active', isBlenderRunning ? 'true' : 'false');
+        setBlenderLinked(isBlenderRunning);
+        window.dispatchEvent(new CustomEvent('mossy-blender-linked', { detail: isBlenderRunning }));
+        
+        if (isBlenderRunning) {
+          addLog('System', 'Blender detected! Neural Link established.', 'success');
+        } else {
+          addLog('System', 'Blender closed. Neural Link disconnected.', 'warn');
+        }
+      }
+    };
+
+    const interval = setInterval(heartbeat, 5000); // Check every 5 seconds
+    heartbeat(); // Initial check
+    
+    return () => clearInterval(interval);
+  }, [blenderLinked]);
+
   // --- PYTHON SERVER GENERATOR ---
   const handleDownloadServer = () => {
       const serverCode = `
@@ -478,39 +503,82 @@ if __name__ == "__main__":
   
   const testBridgeConnection = async () => {
       setTestingBridge(true);
-      try {
-          const response = await fetch('http://127.0.0.1:21337/health');
-          if (response.ok) {
-              const data = await response.json();
-              addLog('Bridge', `Connected! Version ${data.version}`, 'success');
-              setBridgeConnected(true);
-              setBridgeVersion(data.version);
-              localStorage.setItem('mossy_bridge_active', 'true');
-              localStorage.setItem('mossy_bridge_version', data.version);
-              return true;
+      addLog('Bridge', 'Testing connectivity to port 21337...', 'ok');
+      
+      const targets = ['http://127.0.0.1:21337/health', 'http://localhost:21337/health'];
+      let success = false;
+
+      for (const url of targets) {
+          try {
+              const controller = new AbortController();
+              const timeoutId = setTimeout(() => controller.abort(), 1500); // Fast fail
+
+              const response = await fetch(url, { 
+                  signal: controller.signal,
+                  mode: 'cors' 
+              });
+              
+              clearTimeout(timeoutId);
+
+              if (response.ok) {
+                  const data = await response.json();
+                  addLog('Bridge', `Connected via ${url.includes('127.0.0.1') ? 'IP' : 'Localhost'}! (v${data.version})`, 'success');
+                  setBridgeConnected(true);
+                  setBridgeVersion(data.version);
+                  localStorage.setItem('mossy_bridge_active', 'true');
+                  localStorage.setItem('mossy_bridge_version', data.version);
+                  success = true;
+                  break;
+              }
+          } catch (e) {
+              console.warn(`[DesktopBridge] Fetch to ${url} failed`, e);
           }
-      } catch (e) {
-          console.error('[DesktopBridge] testBridgeConnection failed', e);
-          const message = e instanceof Error ? e.message : 'Unknown error';
-          addLog('Bridge', `Connection failed: ${message}`, 'err');
-          setBridgeConnected(false);
-      } finally {
-          setTestingBridge(false);
       }
-      return false;
+
+      if (!success) {
+          addLog('Bridge', 'Connection failed: All endpoints unreachable.', 'err');
+          addLog('Bridge', 'TROUBLESHOOTING: 1. Is Python server running? 2. Check Firewall. 3. Try running as Admin.', 'warn');
+          setBridgeConnected(false);
+      }
+      
+      setTestingBridge(false);
+      return success;
+  };
+
+  const checkBlenderProcess = async () => {
+    if (typeof window.electron?.api?.getRunningProcesses === 'function') {
+      try {
+        const processes = await window.electron.api.getRunningProcesses();
+        return processes.some((p: any) => 
+          p.name.toLowerCase().includes('blender') || 
+          (p.windowTitle && p.windowTitle.toLowerCase().includes('blender'))
+        );
+      } catch (e) {
+        console.error('Error checking for Blender process:', e);
+        return false;
+      }
+    }
+    return false;
   };
 
   const testBlenderLink = async () => {
-      addLog('System', 'Testing Blender Neural Link...', 'ok');
-      try {
-          // Since we use clipboard usually, we'll just check if the add-on has set a specific flag
-          // or we'll just manually activate it for now to help the user.
+      addLog('System', 'Scanning for Blender process...', 'ok');
+      
+      const isBlenderRunning = await checkBlenderProcess();
+      
+      if (isBlenderRunning) {
           localStorage.setItem('mossy_blender_active', 'true');
           setBlenderLinked(true);
           window.dispatchEvent(new CustomEvent('mossy-blender-linked', { detail: true }));
-          addLog('System', 'Blender Neural Link verified successfully!', 'success');
-      } catch (e) {
-          addLog('System', 'Failed to verify Blender Link', 'err');
+          addLog('System', 'Blender process detected and Neural Link verified!', 'success');
+      } else {
+          localStorage.setItem('mossy_blender_active', 'false');
+          setBlenderLinked(false);
+          window.dispatchEvent(new CustomEvent('mossy-blender-linked', { detail: false }));
+          addLog('System', 'Blender is not currently running. Please open Blender and try again.', 'warn');
+          
+          // Instruction for user
+          addLog('System', 'Ensure you have the "mossy_link.py" add-on installed and running in Blender.', 'ok');
       }
   };
 

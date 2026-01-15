@@ -12,92 +12,62 @@ interface Command {
     riskLevel: 'low' | 'medium' | 'high';
 }
 
-const SAMPLE_COMMANDS: Command[] = [
+const FALLOUT4_TOOLSET_COMMANDS: Command[] = [
     {
         id: 'xedit-1',
         category: 'xedit',
         name: 'Clean Masters',
-        description: 'Remove unused FormIDs and optimize master files.',
-        command: 'xWMAEncode -help',
-        purpose: 'Reduces plugin file size and removes orphaned records. Safe to run on any ESP/ESM.',
+        description: 'Remove unused master files from plugin header.',
+        command: '-o:"C:\\Games\\Fallout 4\\Data\\YourMod.esp" -cleanmasters',
+        purpose: 'Reduces dependency bloat by removing masters that lack actual record references.',
         riskLevel: 'low'
     },
     {
         id: 'xedit-2',
         category: 'xedit',
-        name: 'Rebuild Levelists',
-        description: 'Automatically rebuild leveled lists when adding new items.',
-        command: 'PapyrusCompiler -help',
-        purpose: 'Ensures newly created weapons/armor appear in leveled lists. Required after item additions.',
-        riskLevel: 'low'
-    },
-    {
-        id: 'xedit-3',
-        category: 'xedit',
-        name: 'Batch Export FormIDs',
-        description: 'Export all FormIDs from a plugin to text file for reference.',
-        command: 'gfxexport -help',
-        purpose: 'Creates reference document for all FormIDs in your mod. Useful for debugging scripts.',
+        name: 'Generate LOD',
+        description: 'Command line LOD generation via xEdit.',
+        command: '-LODGen:1',
+        purpose: 'Used in automation to trigger LOD generation without manual menu clicking.',
         riskLevel: 'low'
     },
     {
         id: 'papyrus-1',
         category: 'papyrus',
-        name: 'Compile All Scripts',
-        description: 'Compile all Papyrus scripts in Source folder.',
-        command: 'PapyrusCompiler',
-        purpose: 'Creates PEX bytecode from PSC source files. Required before loading mod in-game.',
-        riskLevel: 'low'
-    },
-    {
-        id: 'papyrus-2',
-        category: 'papyrus',
-        name: 'Check Script Syntax',
-        description: 'Verify Papyrus script syntax without compiling.',
-        command: 'PapyrusCompiler -help',
-        purpose: 'Fast validation of script syntax. Catches errors before full compilation.',
+        name: 'Compile Script',
+        description: 'Command line Papyrus compilation.',
+        command: 'PapyrusCompiler.exe "Source\\Scripts\\YourScript.psc" -f="C:\\Games\\Fallout 4\\Data\\Scripts\\Source\\Fallout4_Papyrus_Flags.flg"',
+        purpose: 'Compiles a single script from source to PEX.',
         riskLevel: 'low'
     },
     {
         id: 'mesh-1',
         category: 'mesh',
-        name: 'Batch NIF Validation',
-        description: 'Run NIF files through validation for mesh issues.',
-        command: 'splicer -help',
-        purpose: 'Checks all NIFs for duplicate vertices, degenerate triangles, inverted normals.',
-        riskLevel: 'medium'
-    },
-    {
-        id: 'mesh-2',
-        category: 'mesh',
-        name: 'Regenerate NIF Physics',
-        description: 'Rebuild Havok physics colliders for all NIFs in folder.',
-        command: 'OutfitStudio -help',
-        purpose: 'Updates collision shapes to match visual geometry. Prevents player clipping.',
+        name: 'NIF Validate',
+        description: 'Validate NIF integrity (requires command line build of NifSkope/libnif)',
+        command: 'nif-validate --recursive "C:\\Games\\Fallout 4\\Data\\meshes"',
+        purpose: 'Fast validation of mesh integrity.',
         riskLevel: 'medium'
     },
     {
         id: 'texture-1',
         category: 'texture',
-        name: 'Resize Textures to 2K',
-        description: 'Batch downscale 4K textures to 2K for performance.',
-        command: 'texconv -help',
-        purpose: 'Reduces VRAM usage by 75% while maintaining acceptable quality. Prevents VRAM crashes.',
-        riskLevel: 'low'
-    },
-    {
-        id: 'texture-2',
-        category: 'texture',
-        name: 'Convert DDS Compression',
-        description: 'Convert all DDS to DXT5 compression for transparency.',
-        command: 'texconv -f BC5_UNORM',
-        purpose: 'Ensures proper texture compression format. BC5 for normals, BC1 for opaque, BC3 for alpha.',
+        name: 'Compress to BC7',
+        description: 'Hardware accelerated texture compression via TexConv.',
+        command: 'texconv.exe -f BC7_UNORM -y "C:\\Path\\To\\Textures\\*.dds"',
+        purpose: 'Converts uncompressed or old textures to modern BC7 for high fidelity and compression.',
         riskLevel: 'low'
     },
     {
         id: 'utility-1',
         category: 'utility',
-        name: 'Backup Mod Folder',
+        name: 'Backup Data',
+        description: 'Fast CLI backup of Data folder.',
+        command: 'robocopy "C:\\Games\\Fallout 4\\Data" "D:\\Backups" /MIR /MT:8',
+        purpose: 'Parallel file copy for modding backups.',
+        riskLevel: 'low'
+    }
+];
         description: 'Create timestamped backup of entire mod project.',
         command: 'gfxexport -help',
         purpose: 'Saves complete copy of mod before major changes. Allows rollback if something breaks.',
@@ -188,9 +158,8 @@ const HyperTerminal = () => {
     };
 
     const filteredCommands = selectedCategory === 'all'
-        ? SAMPLE_COMMANDS
-        : SAMPLE_COMMANDS.filter(cmd => cmd.category === selectedCategory);
-
+        ? FALLOUT4_TOOLSET_COMMANDS
+        : FALLOUT4_TOOLSET_COMMANDS.filter(cmd => cmd.category === selectedCategory);
     const categories = [
         { id: 'xedit', label: 'xEdit', color: 'text-purple-400' },
         { id: 'papyrus', label: 'Papyrus', color: 'text-yellow-400' },
@@ -227,10 +196,10 @@ const HyperTerminal = () => {
                             : 'bg-slate-800/50 text-slate-400 border border-slate-700 hover:text-slate-300'
                     }`}
                 >
-                    All ({SAMPLE_COMMANDS.length})
+                    All ({FALLOUT4_TOOLSET_COMMANDS.length})
                 </button>
-                {categories.map((cat) => {
-                    const count = SAMPLE_COMMANDS.filter(cmd => cmd.category === cat.id).length;
+                {categories.map(cat => {
+                    const count = FALLOUT4_TOOLSET_COMMANDS.filter(cmd => cmd.category === cat.id).length;
                     return (
                         <button
                             key={cat.id}

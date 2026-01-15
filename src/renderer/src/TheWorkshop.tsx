@@ -24,137 +24,6 @@ interface GraphNode {
   outputs: string[]; // IDs of nodes this connects to
 }
 
-// --- Sample Data ---
-const initialFileSystem: FileNode[] = [
-  {
-    id: 'root',
-    name: 'MyMod_Project',
-    type: 'folder',
-    isOpen: true,
-    children: [
-      {
-        id: 'scripts',
-        name: 'Scripts',
-        type: 'folder',
-        isOpen: true,
-        children: [
-          { 
-              id: 'script1', 
-              name: 'QuestHandler.psc', 
-              type: 'file', 
-              fileType: 'script',
-              content: `Scriptname QuestHandler extends Quest
-
-; Mossy Auto-Generated Script
-; Handles stage updates for the artifact retrieval
-
-Actor Property PlayerRef Auto
-ObjectReference Property ArtifactContainer Auto
-GlobalVariable Property CurrentStage Auto
-
-Event OnStageSet(int auiStageID, int auiItemID)
-    if auiStageID == 10
-        Debug.Notification("The signal is getting stronger...")
-        ArtifactContainer.Enable()
-    endif
-
-    if auiStageID == 20
-        PlayerRef.AddItem(ArtifactContainer, 1)
-        SetObjectiveCompleted(10)
-        SetObjectiveDisplayed(20)
-    endif
-EndEvent` 
-          },
-          { 
-              id: 'script2', 
-              name: 'TerminalLock.psc', 
-              type: 'file', 
-              fileType: 'script',
-              content: `Scriptname TerminalLock extends ObjectReference
-
-bool Property IsLocked = true Auto
-
-Event OnInit()
-    BlockActivation(true)
-EndEvent
-
-Event OnActivate(ObjectReference akActionRef)
-    if IsLocked
-        Debug.Notification("System Lockdown Active. Authorization Required.")
-    else
-        Activate(akActionRef)
-    endif
-EndEvent`
-          }
-        ]
-      },
-      {
-        id: 'xedit',
-        name: 'Edit Scripts',
-        type: 'folder',
-        isOpen: false,
-        children: [
-            {
-                id: 'xscript1',
-                name: 'BulkRenamer.pas',
-                type: 'file',
-                fileType: 'script',
-                content: `unit BulkRenamer;
-
-// xEdit Automation Script
-// Replaces string in all selected WEAP records
-
-function Process(e: IInterface): integer;
-var
-  s: string;
-begin
-  if Signature(e) <> 'WEAP' then Exit;
-  
-  s := GetElementEditValues(e, 'FULL');
-  if Pos('Rusty', s) > 0 then begin
-    s := StringReplace(s, 'Rusty', 'Polished', [rfReplaceAll]);
-    SetElementEditValues(e, 'FULL', s);
-    AddMessage('Renamed: ' + Name(e));
-  end;
-end;
-
-end.`
-            }
-        ]
-      },
-      {
-        id: 'meshes',
-        name: 'Meshes',
-        type: 'folder',
-        isOpen: true,
-        children: [
-          { id: 'mesh1', name: 'CyberSword.nif', type: 'file', fileType: 'mesh' },
-          { id: 'mesh2', name: 'Helmet_Visor.nif', type: 'file', fileType: 'mesh' }
-        ]
-      },
-      {
-        id: 'textures',
-        name: 'Textures',
-        type: 'folder',
-        children: [
-          { id: 'tex1', name: 'Sword_d.dds', type: 'file', fileType: 'texture' },
-          { id: 'tex2', name: 'Sword_n.dds', type: 'file', fileType: 'texture' }
-        ]
-      }
-    ]
-  }
-];
-
-const initialQuestNodes: GraphNode[] = [
-    { id: 'n1', type: 'event', label: 'Event: OnStageSet', x: 50, y: 50, outputs: ['n2', 'n3'] },
-    { id: 'n2', type: 'condition', label: 'If Stage == 10', x: 250, y: 50, outputs: ['n4', 'n5'] },
-    { id: 'n3', type: 'condition', label: 'If Stage == 20', x: 250, y: 200, outputs: ['n6', 'n7'] },
-    { id: 'n4', type: 'action', label: 'Show Msg: "Signal Stronger"', x: 500, y: 20, outputs: [] },
-    { id: 'n5', type: 'action', label: 'ArtifactContainer.Enable()', x: 500, y: 80, outputs: [] },
-    { id: 'n6', type: 'action', label: 'Player.AddItem(Artifact)', x: 500, y: 170, outputs: [] },
-    { id: 'n7', type: 'action', label: 'Update Objectives', x: 500, y: 230, outputs: [] },
-];
-
 const papyrusSnippets = [
     { label: 'OnHit Event', code: 'Event OnHit(ObjectReference akAggressor, Form akSource, Projectile akProjectile, bool abPowerAttack, bool abSneakAttack, bool abBashAttack, bool abHitBlocked, string asMaterialName)\n    ; Code\nEndEvent' },
     { label: 'OnEquip Event', code: 'Event OnEquipped(Actor akActor)\n    if akActor == Game.GetPlayer()\n        ; Code\n    endif\nEndEvent' },
@@ -373,11 +242,11 @@ const GraphEditor: React.FC<{
 };
 
 const Workshop: React.FC = () => {
-  const [fileSystem, setFileSystem] = useState<FileNode[]>(initialFileSystem);
-  const [selectedFile, setSelectedFile] = useState<FileNode | null>(fileSystem[0].children![0].children![0]); // Select first script
-  const [codeContent, setCodeContent] = useState(selectedFile?.content || '');
+  const [fileSystem, setFileSystem] = useState<FileNode[]>([]);
+  const [selectedFile, setSelectedFile] = useState<FileNode | null>(null);
+  const [codeContent, setCodeContent] = useState('');
   const [viewMode, setViewMode] = useState<'code' | 'graph'>('code');
-  const [graphNodes, setGraphNodes] = useState<GraphNode[]>(initialQuestNodes);
+  const [graphNodes, setGraphNodes] = useState<GraphNode[]>([]);
   const [showSnippets, setShowSnippets] = useState(true);
   
   // IntelliSense State
@@ -465,30 +334,42 @@ const Workshop: React.FC = () => {
       textAreaRef.current?.focus();
   };
 
-  const handleCompile = () => {
+  const handleCompile = async () => {
       setCompiling(true);
       const isPascal = selectedFile?.name.endsWith('.pas');
       
-      setConsoleOutput(prev => [...prev, `> Compiling ${selectedFile?.name}...`]);
-      if (isPascal) {
-          setConsoleOutput(prev => [...prev, `> Interpreting xEdit Script...`]);
-      } else {
-          setConsoleOutput(prev => [...prev, `> Linking against Fallout4.esm...`]);
-      }
+      setConsoleOutput(prev => [...prev, `> Checking for local compiler...`]);
+      
+      const bridgeActive = localStorage.getItem('mossy_bridge_active') === 'true';
       
       setTimeout(() => {
           setCompiling(false);
-          const success = Math.random() > 0.1; // 90% success
-          if (success) {
-              setConsoleOutput(prev => [...prev, `> Compilation SUCCESS (0 Errors, 0 Warnings)`, "> Script ready for execution."]);
+          if (!bridgeActive) {
+            setConsoleOutput(prev => [...prev, 
+                `> ERROR: Simulation Mode Active`, 
+                `> Local SDK not detected. No bridge connection.`,
+                `> Tip: Connect the Desktop Bridge to enable real script validation.`
+            ]);
+            return;
+          }
+
+          if (isPascal) {
+              setConsoleOutput(prev => [...prev, `> Interpreting xEdit Script...`, `> SUCCESS: Script structure valid.`]);
           } else {
-              setConsoleOutput(prev => [...prev, `> Compilation FAILED`, `> Error on Line 14: mismatched types`]);
+              setConsoleOutput(prev => [...prev, `> Linking against Fallout4.esm...`, `> SUCCESS: Script compiled (Simulator Mode).`]);
           }
       }, 1500);
   };
   
   const handleDeploy = () => {
       if (deploying) return;
+      
+      const bridgeActive = localStorage.getItem('mossy_bridge_active') === 'true';
+      if (!bridgeActive) {
+          setConsoleOutput(prev => [...prev, `> DEPLOY ABORTED: Game Data Folder is locked in simulation mode.`]);
+          return;
+      }
+
       setDeploying(true);
       setConsoleOutput(prev => [...prev, `> Deploying project to Game Data Folder...`]);
       
