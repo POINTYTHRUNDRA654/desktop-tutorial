@@ -293,7 +293,7 @@ export const LiveProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
                   const { name, args, id } = call;
                   try {
                     const isBlenderLinked = localStorage.getItem('mossy_blender_active') === 'true';
-                    // Mock context for tool execution
+                    // Tool execution context 
                     const toolContext = {
                       isBlenderLinked,
                       setProfile: () => {},

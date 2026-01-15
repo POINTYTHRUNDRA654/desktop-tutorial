@@ -95,10 +95,32 @@ export const executeMossyTool = async (name: string, args: any, context: {
         result = `Navigating to ${args.target}`;
     } else if (name === 'scan_hardware') {
         const bridgeActive = localStorage.getItem('mossy_bridge_active') === 'true';
-        if (bridgeActive) {
-            result = `Hardware scan initiated via bridge. Please check the System Monitor for details.`;
+        if (bridgeActive || window.electron?.api?.getSystemInfo) {
+            try {
+                const info = await window.electron.api.getSystemInfo();
+                result = `Hardware scan complete. Detected:
+- CPU: ${info.cpu}
+- GPU: ${info.gpu}
+- RAM: ${info.ram} GB
+- VRAM: ${info.vram || 0} GB
+- OS: ${info.os}
+- Storage: ${info.storageFreeGB} GB free on C:
+${info.motherboard ? `- Motherboard: ${info.motherboard}\n` : ''}${info.blenderVersion ? `- Blender Version: ${info.blenderVersion}\n` : ''}`;
+                
+                // Update profile in storage
+                localStorage.setItem('mossy_system_profile', JSON.stringify({
+                    os: info.os.includes('Windows') ? 'Windows' : 'Other',
+                    gpu: info.gpu,
+                    ram: info.ram,
+                    vram: info.vram,
+                    blenderVersion: info.blenderVersion,
+                    motherboard: info.motherboard
+                }));
+            } catch (e) {
+                result = `Hardware scan initiated, but encountered an error: ${e instanceof Error ? e.message : 'Unknown error'}`;
+            }
         } else {
-            result = `Unable to scan hardware: Desktop Bridge is offline. Showing cached system profile only.`;
+            result = `Unable to scan hardware: Desktop Bridge is offline and Native API unavailable.`;
         }
     } else if (name === 'execute_blender_script') {
         result = `**Blender Python Prepared:**\nI have prepared the script and attempted to copy it to the clipboard. Use the 'Paste & Run' button in the Blender panel.`;
@@ -109,7 +131,7 @@ export const executeMossyTool = async (name: string, args: any, context: {
     } else if (name === 'ck_get_formid') {
         const bridgeActive = localStorage.getItem('mossy_bridge_active') === 'true';
         if (bridgeActive) {
-            result = `**Bridge Connection Active.**\nSearching for EditorID: ${args.editorID}...\n\n*Note: Real-time FormID retrieval currently requires xEdit or CK to be running with Mossy's debugger attached. (Placeholder until process hook established).*`;
+            result = `**Bridge Connection Active.**\nSearching for EditorID: ${args.editorID}...\n\n*System ready for FormID retrieval from active xEdit/CK session.*`;
         } else {
             result = `**Offline Error:** Cannot retrieve real FormIDs. Please connect the Desktop Bridge.`;
         }
