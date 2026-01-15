@@ -14,8 +14,10 @@ import { getRunningModdingTools } from './processMonitor';
 import { DesktopShortcutManager } from './desktopShortcut';
 import fs from 'fs';
 import { spawn } from 'child_process';
+import { BridgeServer } from './BridgeServer';
 
 let mainWindow: BrowserWindow | null = null;
+const bridge = new BridgeServer();
 
 // Development mode flag
 const isDev = process.env.NODE_ENV === 'development' || !app.isPackaged;
@@ -1212,6 +1214,7 @@ function setupIpcHandlers() {
 app.whenReady().then(() => {
   createWindow();
   setupIpcHandlers();
+  bridge.start();
 
   // Try to create desktop shortcut on first run
   if (!DesktopShortcutManager.shortcutExists()) {

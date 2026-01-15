@@ -50,27 +50,27 @@ export const LocalAIEngine = {
             } catch (e) {}
 
             if (processes.length > 0 || blenderLinked || detectedApps.length > 0 || systemProfileRaw || userSettings) {
-                injectedContext += "\n### SYSTEM & TOOL CAPABILITIES:\n";
+                injectedContext += "\n### INSTALLED SOFTWARE & CREATIVE PIPELINE:\n";
                 
                 if (userSettings) {
-                    injectedContext += "- [USER CONFIGURED TOOLS]:\n";
-                    if (userSettings.xeditPath) injectedContext += `  * xEdit: ${userSettings.xeditPath}\n`;
-                    if (userSettings.nifSkopePath) injectedContext += `  * NifSkope: ${userSettings.nifSkopePath}\n`;
-                    if (userSettings.creationKitPath) injectedContext += `  * Creation Kit: ${userSettings.creationKitPath}\n`;
-                    if (userSettings.blenderPath) injectedContext += `  * Blender: ${userSettings.blenderPath}\n`;
-                    if (userSettings.mo2Path) injectedContext += `  * MO2: ${userSettings.mo2Path}\n`;
-                    if (userSettings.vortexPath) injectedContext += `  * Vortex: ${userSettings.vortexPath}\n`;
-                    if (userSettings.upscaylPath) injectedContext += `  * Upscayl: ${userSettings.upscaylPath}\n`;
-                    if (userSettings.photopeaPath) injectedContext += `  * Photopea: ${userSettings.photopeaPath}\n`;
-                    if (userSettings.shaderMapPath) injectedContext += `  * ShaderMap: ${userSettings.shaderMapPath}\n`;
-                    if (userSettings.nvidiaTextureToolsPath) injectedContext += `  * NVIDIA Texture Tools: ${userSettings.nvidiaTextureToolsPath}\n`;
-                    if (userSettings.autodeskFbxPath) injectedContext += `  * FBX Converter: ${userSettings.autodeskFbxPath}\n`;
-                    if (userSettings.photoDemonPath) injectedContext += `  * PhotoDemon: ${userSettings.photoDemonPath}\n`;
-                    if (userSettings.unWrap3Path) injectedContext += `  * UnWrap3: ${userSettings.unWrap3Path}\n`;
-                    if (userSettings.nifUtilsSuitePath) injectedContext += `  * NifUtilsSuite: ${userSettings.nifUtilsSuitePath}\n`;
-                    if (userSettings.nvidiaOmniversePath) injectedContext += `  * NVIDIA Omniverse: ${userSettings.nvidiaOmniversePath}\n`;
-                    if (userSettings.spin3dPath) injectedContext += `  * Spin3D: ${userSettings.spin3dPath}\n`;
-                    if (userSettings.nvidiaCanvasPath) injectedContext += `  * NVIDIA Canvas: ${userSettings.nvidiaCanvasPath}\n`;
+                    injectedContext += "- [DESKTOP APPLICATIONS - CONFIGURED]:\n";
+                    if (userSettings.xeditPath) injectedContext += `  * xEdit (Editor): ${userSettings.xeditPath}\n`;
+                    if (userSettings.nifSkopePath) injectedContext += `  * NifSkope (Mesh Viewer): ${userSettings.nifSkopePath}\n`;
+                    if (userSettings.creationKitPath) injectedContext += `  * Creation Kit (Engine): ${userSettings.creationKitPath}\n`;
+                    if (userSettings.blenderPath) injectedContext += `  * Blender (3D Suite): ${userSettings.blenderPath}\n`;
+                    if (userSettings.mo2Path) injectedContext += `  * Mod Organizer 2 (Manager): ${userSettings.mo2Path}\n`;
+                    if (userSettings.vortexPath) injectedContext += `  * Vortex (Manager): ${userSettings.vortexPath}\n`;
+                    if (userSettings.upscaylPath) injectedContext += `  * Upscayl (AI Upscaler): ${userSettings.upscaylPath}\n`;
+                    if (userSettings.photopeaPath) injectedContext += `  * Photopea (Image Editor): ${userSettings.photopeaPath}\n`;
+                    if (userSettings.shaderMapPath) injectedContext += `  * ShaderMap (Material Gen): ${userSettings.shaderMapPath}\n`;
+                    if (userSettings.nvidiaTextureToolsPath) injectedContext += `  * NVIDIA Texture Tools (DDS Export): ${userSettings.nvidiaTextureToolsPath}\n`;
+                    if (userSettings.autodeskFbxPath) injectedContext += `  * FBX Converter (Media SDK): ${userSettings.autodeskFbxPath}\n`;
+                    if (userSettings.photoDemonPath) injectedContext += `  * PhotoDemon (Photo Editor): ${userSettings.photoDemonPath}\n`;
+                    if (userSettings.unWrap3Path) injectedContext += `  * UnWrap3 (UV Tool): ${userSettings.unWrap3Path}\n`;
+                    if (userSettings.nifUtilsSuitePath) injectedContext += `  * NifUtilsSuite (Mesh Tool): ${userSettings.nifUtilsSuitePath}\n`;
+                    if (userSettings.nvidiaOmniversePath) injectedContext += `  * NVIDIA Omniverse (3D Platform): ${userSettings.nvidiaOmniversePath}\n`;
+                    if (userSettings.spin3dPath) injectedContext += `  * Spin3D (3D Converter): ${userSettings.spin3dPath}\n`;
+                    if (userSettings.nvidiaCanvasPath) injectedContext += `  * NVIDIA Canvas (AI Painting): ${userSettings.nvidiaCanvasPath}\n`;
                 }
 
                 if (systemProfileRaw) {
@@ -89,11 +89,11 @@ export const LocalAIEngine = {
                 if (blenderLinked) injectedContext += "- [STATUS] Blender Neural Link: ACTIVE\n";
                 
                 if (detectedApps.length > 0) {
-                    injectedContext += "- [INSTALLED TOOLS]: " + detectedApps.map((a: any) => `${a.name} (${a.path || 'Manual Link'})`).join(", ") + "\n";
+                    injectedContext += "- [INSTALLED TOOLS & SOFTWARE]: " + detectedApps.map((a: any) => `${a.name} (Desktop Program)`).join(", ") + "\n";
                 }
 
                 if (processes.length > 0) {
-                    injectedContext += "- [RUNNING NOW]: " + processes.map((p: any) => p.name).join(", ") + "\n";
+                    injectedContext += "- [RUNNING NOW (SYSTEM PROCESSES)]: " + processes.map((p: any) => `${p.name} (Active Application)`).join(", ") + "\n";
                 }
                 injectedContext += "\n";
             }

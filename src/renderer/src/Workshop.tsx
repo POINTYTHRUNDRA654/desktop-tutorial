@@ -70,7 +70,7 @@ const Workshop: React.FC = () => {
       });
       
       setFileTree(sorted);
-      setConsoleOutput(prev => [...prev, `> Browsed: ${path}`]);
+      setConsoleOutput(prev => [...prev, `[MOSSY] Browsing complete. Directory structure for ${path} mapped, Architect.`]);
     } catch (err) {
       setConsoleOutput(prev => [...prev, `> Error browsing directory: ${err}`]);
     } finally {
@@ -143,9 +143,9 @@ const Workshop: React.FC = () => {
       setCompileResult(result);
       
       if (result.exitCode === 0) {
-        setConsoleOutput(prev => [...prev, '> Compilation SUCCESS', '> Output: Papyrus script compiled']);
+        setConsoleOutput(prev => [...prev, '[MOSSY] Compilation SUCCESS. The script is now optimized and ready for deployment.', '> Output: Papyrus script compiled']);
       } else {
-        setConsoleOutput(prev => [...prev, `> Compilation FAILED (exit code ${result.exitCode})`, result.stderr || result.stdout]);
+        setConsoleOutput(prev => [...prev, `[MOSSY] Compilation FAILED. I detected errors in the logic flow.`, result.stderr || result.stdout]);
       }
     } catch (err) {
       setConsoleOutput(prev => [...prev, `> Compilation error: ${err}`]);

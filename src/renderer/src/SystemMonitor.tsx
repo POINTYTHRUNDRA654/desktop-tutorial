@@ -292,7 +292,7 @@ const SystemMonitor: React.FC = () => {
             setProfile(newProfile);
             localStorage.setItem('mossy_system_profile', JSON.stringify(newProfile));
             setIsScanning(false);
-            addLog("[SCAN] Hardware detection complete!", 'success');
+            addLog("[MOSSY] Hardware analysis complete, Architect. Your system map is now live.", 'success');
             return;
         } catch (e) {
             console.error('[SystemMonitor] Electron API error:', e);
