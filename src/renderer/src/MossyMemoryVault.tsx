@@ -57,6 +57,12 @@ const MossyMemoryVault: React.FC = () => {
         for (let i = 0; i < files.length; i++) {
             const file = files[i];
             
+            // Check if it's a PDF
+            if (file.name.endsWith('.pdf') || file.type === 'application/pdf') {
+                alert('📄 PDF detected! Please copy the text from the PDF and paste it directly into the text area instead.\n\nTip: Open the PDF, select all text (Ctrl+A), copy (Ctrl+C), then paste (Ctrl+V) here.');
+                return;
+            }
+            
             // Check if file is text-based
             if (file.type.startsWith('text/') || file.name.endsWith('.md') || file.name.endsWith('.txt') || file.name.endsWith('.json')) {
                 const reader = new FileReader();
@@ -73,6 +79,8 @@ const MossyMemoryVault: React.FC = () => {
                 
                 reader.readAsText(file);
                 break; // Only process first text file
+            } else {
+                alert(`❌ Unsupported file type: ${file.name}\n\nSupported: .txt, .md, .json\nFor PDFs: Copy and paste the text instead.`);
             }
         }
     };
@@ -276,14 +284,37 @@ const MossyMemoryVault: React.FC = () => {
 
             {/* Upload Modal */}
             {showUploadModal && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-fade-in">
+                <div 
+                    className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-fade-in"
+                    onClick={(e) => {
+                        if (e.target === e.currentTarget) {
+                            setShowUploadModal(false);
+                            setNewTitle('');
+                            setNewContent('');
+                            setNewTags('');
+                        }
+                    }}
+                    onKeyDown={(e) => {
+                        if (e.key === 'Escape') {
+                            setShowUploadModal(false);
+                            setNewTitle('');
+                            setNewContent('');
+                            setNewTags('');
+                        }
+                    }}
+                >
                     <div className="bg-[#141814] border border-emerald-500/30 w-full max-w-2xl rounded-2xl shadow-2xl shadow-emerald-500/10 overflow-hidden transform animate-scale-in">
                         <div className="p-6 border-b border-emerald-900/30 flex justify-between items-center bg-[#1a1f1a]">
                             <div className="flex items-center gap-3">
                                 <Plus className="text-emerald-400 w-5 h-5" />
                                 <h3 className="text-lg font-bold text-white uppercase tracking-tight">Expand Neural Memory</h3>
                             </div>
-                            <button onClick={() => setShowUploadModal(false)} className="text-slate-500 hover:text-white transition-colors">
+                            <button onClick={() => {
+                                setShowUploadModal(false);
+                                setNewTitle('');
+                                setNewContent('');
+                                setNewTags('');
+                            }} className="text-slate-500 hover:text-white transition-colors">
                                 <X className="w-5 h-5" />
                             </button>
                         </div>
@@ -373,7 +404,12 @@ const MossyMemoryVault: React.FC = () => {
 
                         <div className="p-6 bg-[#1a1f1a] border-t border-emerald-900/30 flex justify-end gap-3">
                             <button 
-                                onClick={() => setShowUploadModal(false)}
+                                onClick={() => {
+                                    setShowUploadModal(false);
+                                    setNewTitle('');
+                                    setNewContent('');
+                                    setNewTags('');
+                                }}
                                 className="px-5 py-2 text-sm text-slate-400 hover:text-white font-medium transition-colors"
                                 disabled={isUploading}
                             >
