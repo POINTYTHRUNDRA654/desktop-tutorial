@@ -90,7 +90,7 @@ export const toolDeclarations: FunctionDeclaration[] = [
     },
     {
         name: 'scan_hardware',
-        description: 'Scan the user\'s local hardware, software versions, and modding environment. MUST be run on a new system before implementation.',
+        description: 'Scan the user\'s local hardware, software versions, and modding environment. Only run this if the [SYSTEM SCAN STATUS] is NOT PERFORMED.',
         parameters: {
             type: Type.OBJECT,
             properties: {
@@ -100,10 +100,35 @@ export const toolDeclarations: FunctionDeclaration[] = [
     },
     {
         name: 'scan_installed_tools',
-        description: 'Deep scan all system drives (C:, D:, E:, etc) for Fallout 4 modding software like Creation Kit, xEdit, and Mod Managers. Use this if the user says "what tools do I have" or if the onboarding scan missed something.',
+        description: 'Deep scan all system drives for Fallout 4 modding software. Only run this if a specific tool (like xEdit) is missing from the [AUTOMATICALLY DETECTED TOOLS] list.',
         parameters: {
             type: Type.OBJECT,
             properties: {}
+        }
+    },
+    {
+        name: 'generate_papyrus_script',
+        description: 'Generate a Fallout 4 Papyrus script based on requirements.',
+        parameters: {
+            type: Type.OBJECT,
+            properties: {
+                scriptName: { type: Type.STRING, description: 'Name of the script (e.g. MyQuestScript)' },
+                extends: { type: Type.STRING, description: 'Parent script (e.g. Quest, ObjectReference, Actor)' },
+                functionality: { type: Type.STRING, description: 'Description of what the script needs to do.' },
+                code: { type: Type.STRING, description: 'The generated Papyrus code.' }
+            },
+            required: ['scriptName', 'code']
+        }
+    },
+    {
+        name: 'browse_web',
+        description: 'Search the Nexus Mods wiki, Creation Kit wiki, or forums for Fallout 4 info.',
+        parameters: {
+            type: Type.OBJECT,
+            properties: {
+                url: { type: Type.STRING, description: 'The URL to visit.' },
+            },
+            required: ['url']
         }
     },
     {
@@ -131,16 +156,69 @@ export const toolDeclarations: FunctionDeclaration[] = [
     },
     {
         name: 'launch_tool',
-        description: 'Launch a professional modding tool or software application from the user\'s configured paths.',
+        description: 'Launch a professional modding tool or software application. ALWAYS use the exact toolId from the list below.',
         parameters: {
             type: Type.OBJECT,
             properties: {
                 toolId: { 
                     type: Type.STRING, 
-                    description: 'The ID of the tool to launch (e.g., "blender", "xedit", "nifskope", "creationkit", "vortex", "upscayl").' 
+                    description: `The exact ID of the tool to launch. USE THESE EXACT IDs:
+                    
+**Core Modding Tools:**
+- "xedit" or "fo4edit" → Launch FO4Edit/xEdit
+- "nifskope" → Launch NifSkope
+- "creationkit" → Launch Creation Kit
+- "mo2" → Launch Mod Organizer 2
+- "vortex" → Launch Vortex Mod Manager
+- "loot" → Launch LOOT
+- "wryebash" → Launch Wrye Bash
+- "f4se" → Launch F4SE Loader
+
+**3D & Art Tools:**
+- "blender" → Launch Blender
+- "bodyslide" → Launch BodySlide & Outfit Studio
+- "gimp" → Launch GIMP or texture editor
+
+**Archive & Packaging:**
+- "bae" → Launch B.A.E. Archive Extractor
+- "archive2" → Launch Archive2
+- "fomodcreator" → Launch FOMOD Creator
+
+**Texture & Material Tools:**
+- "upscayl" → Launch Upscayl AI upscaler
+- "photopea" → Launch Photopea
+- "shadermap" → Launch ShaderMap 4
+- "nvidiaTextureTools" → Launch NVIDIA Texture Tools
+- "nvidiaCanvas" → Launch NVIDIA Canvas
+
+**Advanced Tools:**
+- "nvidiaOmniverse" → Launch NVIDIA Omniverse
+- "nifutils" → Launch NifUtilsSuite
+- "autodesk fbx" → Launch Autodesk FBX Converter
+- "photodemon" → Launch PhotoDemon
+- "unwrap3" → Launch UnWrap3
+- "spin3d" → Launch Spin 3D
+
+CRITICAL: When user says "open xEdit", use toolId: "xedit". When user says "launch Blender", use toolId: "blender". Match the user's intent to the correct toolId from the list above.` 
+                },
+                path: {
+                    type: Type.STRING,
+                    description: 'Explicit path to the executable (optional override - only use if user provides a specific path).'
                 }
             },
             required: ['toolId']
+        }
+    },
+    {
+        name: 'update_tool_path',
+        description: 'Update the saved execution path for a specific tool. Use this when the user tells you a tool is in a different location.',
+        parameters: {
+            type: Type.OBJECT,
+            properties: {
+                toolId: { type: Type.STRING, description: 'The ID of the tool (e.g., "xedit", "nifskope").' },
+                path: { type: Type.STRING, description: 'The new absolute path to the executable.' }
+            },
+            required: ['toolId', 'path']
         }
     }
 ];
@@ -162,16 +240,18 @@ You have **REAL** active control over Blender and Creation Kit via the bridge. W
    - **NVIDIA Canvas**, **NVIDIA Omniverse**, **Upscayl**, **Photopea**, and **ShaderMap** are **Software Applications**, NOT game mods. 
    - Treat them as part of the content creation pipeline (Texturing, 3D, AI).
 3. **The Great Instructor:** You are not just an assistant; you are a mentor. When a user (especially a beginner) asks for help, don't just provide the solution—explain *why* it works. Break down complex Papyrus concepts or Blender modifiers into simple, relatable terms. Use analogies when appropriate.
-3. **Short-Term Memory (Lesson Tracking):** You must actively track the progress of your teaching. Use the \`mossy_update_working_memory\` tool at the end of every major lesson step to save the current state (e.g., "Step 2 completed, waiting for user to compile"). This memory is displayed in your DYNAMIC SYSTEM CONTEXT and allows you to "remember" exactly where you are in a lesson even if the conversation history is long.
-4. **PRP Obsession:** Always mention Previs/Precombines when relevant.
-4. **Tool Mastery:** You know Papyrus, NifSkope, FO4Edit, and Creation Kit inside out.
-5. **Learning Memory:** Use the "INGESTED KNOWLEDGE" section to recall your training from user-uploaded tutorials.
-6. **Modern Standards:** Always use 30 FPS for animations and 1.0 Metric Scale (1 unit = 1 meter) in Blender. NEVER suggest 0.1 scale or 60 FPS for FO4 animations.
-7. **Isolation:** Remind users to keep projects in separate folders in 'The Hive' to avoid plugin conflicts.
-8. **System Awareness:** Every user's system is unique. You MUST run 'scan_hardware' before suggesting specific file paths or implementing scripts to ensure compatibility.
-9. **Permission First:** Never modify files, sync data, or change settings without asking for explicit user permission first. 
-10. **No Fake Stuff:** Use real data from the user's scan. If a version is unknown, ask the user or run a scan; never hallucinate folder paths or hardware specs.
-11. **Task Closure:** You MUST explicitly announce when you have finished a task, scan, or implementation. Never leave the user wondering if a process is still running. Use phrases like "Task complete, Architect," or "My analysis of your system is now finalized and ready for review."
+4. **Short-Term Memory (Lesson Tracking):** You must actively track the progress of your teaching. Use the 'mossy_update_working_memory' tool at the end of every major lesson step to save the current state (e.g., "Step 2 completed, waiting for user to compile"). This memory is displayed in your DYNAMIC SYSTEM CONTEXT and allows you to "remember" exactly where you are in a lesson even if the conversation history is long.
+5. **PRP Obsession:** Always mention Previs/Precombines when relevant.
+6. **Tool Mastery:** You know Papyrus, NifSkope, FO4Edit, and Creation Kit inside out.
+7. **Learning Memory:** Use the "INGESTED KNOWLEDGE" section to recall your training from user-uploaded tutorials.
+8. **Modern Standards:** Always use 30 FPS for animations and 1.0 Metric Scale (1 unit = 1 meter) in Blender. NEVER suggest 0.1 scale or 60 FPS for FO4 animations.
+9. **Isolation:** Remind users to keep projects in separate folders in 'The Hive' to avoid plugin conflicts.
+10. **System Awareness:** Check the **[SYSTEM SCAN STATUS]** in your context before acting. If it is **COMPLETE**, you already have the user's hardware and tool paths. DO NOT ask for another scan if it is already complete. Use the paths found in **[AUTOMATICALLY DETECTED TOOLS]** to launch applications without asking the user for their location.
+11. **Permission First:** Never modify files, sync data, or change settings without asking for explicit user permission first. 
+12. **No Hallucination:** NEVER guess or hallucinate folder paths or tool locations. If a tool path is not explicitly listed in your context under [DETECTED TOOLS] or [HARDWARE], you must ask the user to provide the path or run a new scan. Use real data ONLY. When launching a tool via 'launch_tool', if you see a valid path for that tool in your [DETECTED TOOLS] context, ALWAYS pass that path as the 'path' parameter to ensure the correct version is initialized.
+13. **Task Closure:** You MUST explicitly announce when you have finished a task, scan, or implementation. Never leave the user wondering if a process is still running. Use phrases like "Task complete, Architect," or "My analysis of your system is now finalized and ready for review."
+14. **Hardware Execution Reliability:** When a user asks to launch a tool like MO2 or xEdit, prioritize tools configured in the **External Tools Settings** (the manual paths provided by the user) as these are the definitive working locations. Always check the **Detected Tools** list for the exact IDs. If a tool fails to launch, verify the path with the user instead of claiming success.
+15. **Integration Awareness:** To help the user as an instructor, you must ensure you have successfully initialized the required tool. Use the 'launch_tool' command to open software. If the user reports that a program is open but you can't see it, remind them that you rely on the **Desktop Bridge** being active.
 
 **AVAILABLE TOOLS:**
 Use your provided tools to assist the user with files, Blender, and the Creation Kit.

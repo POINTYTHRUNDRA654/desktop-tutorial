@@ -270,7 +270,8 @@ export const LiveProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           config: {
             responseModalities: [Modality.AUDIO],
             speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: 'Zephyr' } } },
-            tools: toolDeclarations as any,
+            // IMPORTANT: Provide tools as Tool objects with functionDeclarations
+            tools: [{ functionDeclarations: toolDeclarations }] as any,
             systemInstruction: { role: 'system', parts: [{ text: getFullSystemInstruction(cortexMemory) }] } as any,
           },
           callbacks: {
@@ -302,11 +303,11 @@ export const LiveProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
                       setShowProjectPanel: () => {}
                     };
                     
-                    const { result, error } = await executeMossyTool(name, args, toolContext);
+                    const res: any = await executeMossyTool(name, args, toolContext);
                     responses.push({
                       name,
                       id,
-                      response: { result: error || result }
+                      response: { result: res.result }
                     });
                   } catch (err) {
                     responses.push({
