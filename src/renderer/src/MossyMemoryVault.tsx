@@ -3,8 +3,9 @@ import { Book, Upload, Trash2, Search, Brain, FileText, CheckCircle2, Loader2, S
 import { LocalAIEngine } from './LocalAIEngine';
 import * as pdfjsLib from 'pdfjs-dist';
 
-// Configure PDF.js worker - use local file for Electron
-pdfjsLib.GlobalWorkerOptions.workerSrc = '/pdf.worker.mjs';
+// Disable worker for Electron - use main thread processing
+pdfjsLib.GlobalWorkerOptions.workerSrc = '';
+pdfjsLib.GlobalWorkerOptions.workerPort = null as any;
 
 interface MemoryItem {
     id: string;
@@ -72,7 +73,10 @@ const MossyMemoryVault: React.FC = () => {
                 
                 const loadingTask = pdfjsLib.getDocument({ 
                     data: arrayBuffer,
-                    verbosity: 0 // Suppress warnings
+                    verbosity: 0, // Suppress warnings
+                    useWorkerFetch: false,
+                    isEvalSupported: false,
+                    useSystemFonts: true
                 });
                 const pdf = await loadingTask.promise;
                 setUploadProgress(50);
