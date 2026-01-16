@@ -56,6 +56,48 @@ const MossyMemoryVault: React.FC = () => {
 
         const file = files[0]; // Process only first file
         
+        // Check if it's a video
+        if (file.type.startsWith('video/') || /\.(mp4|webm|mov|avi|mkv|flv)$/i.test(file.name)) {
+            try {
+                setIsUploading(true);
+                setUploadProgress(10);
+                
+                // Get OpenAI API key from localStorage
+                const apiKey = localStorage.getItem('openai_api_key');
+                if (!apiKey) {
+                    setIsUploading(false);
+                    setUploadProgress(0);
+                    alert('❌ OpenAI API Key Required\n\nTo transcribe videos, please:\n1. Get an API key from https://platform.openai.com/api-keys\n2. Add it in Settings → Privacy & Data');
+                    return;
+                }
+                
+                const arrayBuffer = await file.arrayBuffer();
+                setUploadProgress(30);
+                
+                // Use IPC to transcribe video in main process
+                const result = await (window as any).electron?.api?.transcribeVideo(arrayBuffer, apiKey, file.name);
+                setUploadProgress(90);
+                
+                if (result?.success) {
+                    const fileName = file.name.replace(/\.[^/.]+$/, '');
+                    setNewTitle(fileName + ' (Video Transcript)');
+                    setNewContent(result.text.trim());
+                    setUploadProgress(100);
+                    setIsUploading(false);
+                    setUploadProgress(0);
+                    setShowUploadModal(true);
+                } else {
+                    throw new Error(result?.error || 'Video transcription failed');
+                }
+            } catch (error: any) {
+                setIsUploading(false);
+                setUploadProgress(0);
+                console.error('Video transcription error:', error);
+                alert(`❌ Transcription failed: ${error.message}\n\nPlease check:\n1. Your OpenAI API key is valid\n2. The video file is not corrupted\n3. You have internet connection`);
+            }
+            return;
+        }
+        
         // Check if it's a PDF
         if (file.name.endsWith('.pdf') || file.type === 'application/pdf') {
             try {
@@ -112,7 +154,7 @@ const MossyMemoryVault: React.FC = () => {
             
             reader.readAsText(file);
         } else {
-            alert(`❌ Unsupported file type: ${file.name}\n\nSupported: .pdf, .txt, .md, .json`);
+            alert(`❌ Unsupported file type: ${file.name}\n\nSupported: .pdf, .txt, .md, .json, .mp4, .webm, .mov, .avi`);
         }
     };
 
@@ -411,7 +453,7 @@ const MossyMemoryVault: React.FC = () => {
                                 >
                                     <textarea 
                                         rows={8}
-                                        placeholder="Paste the tutorial here, or drag & drop PDFs/text files. Mossy will analyze this to provide better answers."
+                                        placeholder="Paste the tutorial here, or drag & drop PDFs/videos/text files. Mossy will analyze this to provide better answers."
                                         className="w-full bg-transparent border-0 py-3 px-4 text-sm text-white focus:outline-none font-mono resize-none relative z-10 placeholder-slate-500"
                                         value={newContent}
                                         onChange={(e) => setNewContent(e.target.value)}
