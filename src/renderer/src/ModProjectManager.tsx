@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Plus, ChevronRight, FileText, Trash2, Settings, CheckCircle2, Clock, AlertCircle, TrendingUp, FolderOpen, Zap } from 'lucide-react';
-import { ModProjectStorage } from '../services/ModProjectStorage';
-import type { ModProject, ModProjectListItem, CreateModProjectInput, ModType } from '../types/ModProject';
+import { ModProjectStorage } from './services/ModProjectStorage';
+import type { ModProject, ModProjectListItem, CreateModProjectInput, ModType } from './types/ModProject';
 
 interface CreateModalState {
   isOpen: boolean;
