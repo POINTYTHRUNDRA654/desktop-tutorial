@@ -333,6 +333,14 @@ const electronAPI = {
   fomodExportPackage: (outputPath: string, structure: any, files: any[]): Promise<{ success: boolean; path?: string; error?: string }> => {
     return ipcRenderer.invoke(IPC_CHANNELS.FOMOD_EXPORT_PACKAGE, outputPath, structure, files);
   },
+
+  /**
+   * PDF Parser: Extract text from PDF file
+   * Runs in main process with Node.js pdf-parse library
+   */
+  parsePDF: (arrayBuffer: ArrayBuffer): Promise<{ success: boolean; text?: string; error?: string }> => {
+    return ipcRenderer.invoke('parse-pdf', arrayBuffer);
+  },
 };
 
 /**
