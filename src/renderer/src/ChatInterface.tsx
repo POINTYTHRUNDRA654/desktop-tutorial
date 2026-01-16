@@ -670,6 +670,19 @@ export const ChatInterface: React.FC = () => {
           }
       }
       
+      // Get current mod project info
+      let modContext = "";
+      try {
+          const { ModProjectStorage } = require('./services/ModProjectStorage');
+          const currentMod = ModProjectStorage.getCurrentMod();
+          if (currentMod) {
+              const stats = ModProjectStorage.getProjectStats(currentMod.id);
+              modContext = `\n**CURRENT MOD PROJECT:** "${currentMod.name}"\n- Type: ${currentMod.type} | Status: ${currentMod.status}\n- Progress: ${currentMod.completionPercentage}% | Steps: ${stats.completedSteps}/${stats.totalSteps}\n- Version: ${currentMod.version}\n(Provide context-aware guidance for this specific mod.)`;
+          }
+      } catch (e) {
+          // ModProjectStorage not available, skip
+      }
+      
       const bridgeStatus = isBridgeActive ? "ONLINE" : "OFFLINE";
       const blenderContext = isBlenderLinked 
           ? "**BLENDER LINK: ACTIVE (v4.0 Clipboard Relay)**\nYou can execute Python scripts in Blender.\nIMPORTANT: Tell the user they MUST click the 'Run Command' button that appears in the chat to execute the script." 
@@ -696,7 +709,7 @@ export const ChatInterface: React.FC = () => {
       ${blenderContext}
       ${settingsCtx}
       **Short-Term Working Memory:** ${workingMemory}
-      **Project Status:** ${projectData ? projectData.name : "None"}
+      **Project Status:** ${projectData ? projectData.name : "None"}${modContext}
       **Detected Tools:** ${(detectedApps || []).filter(a => a.path).map(a => `${a.name} [ID: ${a.id}] (Path: ${a.path})`).join(', ') || "None"}
       ${hardwareCtx}
       ${scanContext}

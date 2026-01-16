@@ -599,6 +599,100 @@ I now have the precise execution paths for these tools saved in my neural cache.
         }
     } else if (name === 'ck_set_render_mode') {
         result = `**CK Render Mode set to:** ${args.mode}`;
+    } else if (name === 'create_mod_project') {
+        // Import ModProjectStorage here to avoid circular dependencies
+        const { ModProjectStorage } = await import('./services/ModProjectStorage');
+        try {
+            const newProject = ModProjectStorage.createModProject({
+                name: args.name,
+                description: args.description,
+                type: args.type,
+                author: args.author,
+            });
+            ModProjectStorage.setCurrentMod(newProject.id);
+            result = `✅ **Mod Project Created: "${newProject.name}"**\n\nYour new ${args.type} mod is ready to track!\n\n**Project Details:**\n- ID: ${newProject.id}\n- Type: ${args.type}\n- Author: ${args.author}\n- Version: ${newProject.version}\n\nYou can now add steps to plan and track your progress. Use 'add_mod_step' to get started!`;
+        } catch (e) {
+            result = `❌ Error creating mod project: ${e}`;
+        }
+    } else if (name === 'add_mod_step') {
+        const { ModProjectStorage } = await import('./services/ModProjectStorage');
+        try {
+            const step = ModProjectStorage.addStep(args.projectId, {
+                title: args.title,
+                description: args.description,
+                priority: args.priority || 'medium',
+                estimatedHours: args.estimatedHours,
+            });
+            if (!step) {
+                result = `❌ Project not found. Make sure you created a mod project first.`;
+            } else {
+                result = `✅ **Step Added: "${step.title}"**\n\n- Priority: ${step.priority}\n- Status: pending\n${args.estimatedHours ? `- Estimated: ${args.estimatedHours} hours\n` : ''}\nYou can update the status as you work on this step.`;
+            }
+        } catch (e) {
+            result = `❌ Error adding step: ${e}`;
+        }
+    } else if (name === 'update_mod_step') {
+        const { ModProjectStorage } = await import('./services/ModProjectStorage');
+        try {
+            const step = ModProjectStorage.updateStep(args.projectId, args.stepId, {
+                status: args.status,
+                notes: args.notes,
+                actualHours: args.actualHours,
+            });
+            if (!step) {
+                result = `❌ Step or project not found.`;
+            } else {
+                result = `✅ **Step Updated: "${step.title}"**\n\n- New Status: ${step.status}\n${args.notes ? `- Notes: ${args.notes}\n` : ''}${args.actualHours ? `- Actual Hours: ${args.actualHours}\n` : ''}`;
+            }
+        } catch (e) {
+            result = `❌ Error updating step: ${e}`;
+        }
+    } else if (name === 'get_mod_status') {
+        const { ModProjectStorage } = await import('./services/ModProjectStorage');
+        try {
+            const projectId = args.projectId || ModProjectStorage.getCurrentModId();
+            if (!projectId) {
+                result = `❌ No mod project selected. Create a project first using 'create_mod_project'.`;
+            } else {
+                const project = ModProjectStorage.getProject(projectId);
+                const stats = ModProjectStorage.getProjectStats(projectId);
+                if (!project || !stats) {
+                    result = `❌ Project not found.`;
+                } else {
+                    result = `📊 **${project.name} - Project Status**\n\n**Progress:** ${project.completionPercentage}% complete\n**Status:** ${project.status}\n**Version:** ${project.version}\n\n**Steps:**\n- Total: ${stats.totalSteps}\n- Completed: ${stats.completedSteps}\n- In Progress: ${stats.inProgressSteps}\n- Pending: ${stats.pendingSteps}\n- Blocked: ${stats.blockedSteps}\n\n**Time:**\n- Estimated: ${Math.round(stats.totalEstimatedHours)} hours\n- Actual: ${Math.round(stats.totalActualHours)} hours`;
+                }
+            }
+        } catch (e) {
+            result = `❌ Error fetching mod status: ${e}`;
+        }
+    } else if (name === 'list_mod_projects') {
+        const { ModProjectStorage } = await import('./services/ModProjectStorage');
+        try {
+            const projects = ModProjectStorage.getProjectListItems();
+            if (projects.length === 0) {
+                result = `📦 **No mod projects yet.** Use 'create_mod_project' to start your first mod!`;
+            } else {
+                const projectList = projects.map(p => 
+                    `• **${p.name}** (${p.type}) - v${p.version}\n  Status: ${p.status} | Progress: ${p.completionPercentage}% | Steps: ${p.completedStepCount}/${p.stepCount}`
+                ).join('\n');
+                result = `📦 **Your Mod Projects:**\n\n${projectList}`;
+            }
+        } catch (e) {
+            result = `❌ Error listing projects: ${e}`;
+        }
+    } else if (name === 'set_current_mod') {
+        const { ModProjectStorage } = await import('./services/ModProjectStorage');
+        try {
+            const success = ModProjectStorage.setCurrentMod(args.projectId);
+            if (!success) {
+                result = `❌ Project not found.`;
+            } else {
+                const project = ModProjectStorage.getProject(args.projectId);
+                result = `✅ **Active Mod Set: "${project?.name}"**\n\nI'll now provide context-aware advice for this mod. Use 'add_mod_step' to continue planning.`;
+            }
+        } catch (e) {
+            result = `❌ Error setting current mod: ${e}`;
+        }
     }
 
     return { result };
