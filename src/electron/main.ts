@@ -15,7 +15,36 @@ import { DesktopShortcutManager } from './desktopShortcut';
 import fs from 'fs';
 import { spawn, exec } from 'child_process';
 import { BridgeServer } from './BridgeServer';
-import * as pdfParse from 'pdf-parse';
+
+// Polyfill DOMMatrix for pdf-parse compatibility
+if (typeof (global as any).DOMMatrix === 'undefined') {
+  (global as any).DOMMatrix = class DOMMatrix {
+    constructor(init?: any) {
+      this.a = 1; this.b = 0; this.c = 0; this.d = 1; this.e = 0; this.f = 0;
+      if (Array.isArray(init)) {
+        [this.a, this.b, this.c, this.d, this.e, this.f] = init;
+      }
+    }
+    a = 1; b = 0; c = 0; d = 1; e = 0; f = 0;
+    m11 = 1; m12 = 0; m13 = 0; m14 = 0;
+    m21 = 0; m22 = 1; m23 = 0; m24 = 0;
+    m31 = 0; m32 = 0; m33 = 1; m34 = 0;
+    m41 = 0; m42 = 0; m43 = 0; m44 = 1;
+    is2D = true;
+    isIdentity = true;
+    multiply() { return this; }
+    translate() { return this; }
+    scale() { return this; }
+    rotate() { return this; }
+    skewX() { return this; }
+    skewY() { return this; }
+    inverse() { return this; }
+    transformPoint() { return { x: 0, y: 0 }; }
+    toFloat32Array() { return new Float32Array([1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1]); }
+    toFloat64Array() { return new Float64Array([1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1]); }
+    toString() { return 'DOMMatrix()'; }
+  };
+}
 
 let mainWindow: BrowserWindow | null = null;
 const bridge = new BridgeServer();
@@ -145,8 +174,14 @@ function setupIpcHandlers() {
   ipcMain.handle('parse-pdf', async (_event, arrayBuffer: ArrayBuffer) => {
     try {
       const buffer = Buffer.from(arrayBuffer);
-      const data = await (pdfParse as any).default(buffer);
-      return { success: true, text: data.text };
+      
+      // Dynamic import for ESM module
+      const pdfParseModule = await import('pdf-parse');
+      const PDFParse = pdfParseModule.PDFParse;
+      
+      const pdfParser = new PDFParse({ data: buffer });
+      const result = await pdfParser.getText();
+      return { success: true, text: result.text };
     } catch (error: any) {
       console.error('PDF parsing error:', error);
       return { success: false, error: error.message || 'Failed to parse PDF' };
