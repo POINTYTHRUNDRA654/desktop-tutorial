@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Book, Upload, Trash2, Search, Brain, FileText, CheckCircle2, Loader2, Sparkles, Database, Plus, X, Activity, Cloud, Files } from 'lucide-react';
 import { LocalAIEngine } from './LocalAIEngine';
+import * as pdfjsLib from 'pdfjs-dist';
 
 interface MemoryItem {
     id: string;
@@ -56,16 +57,55 @@ const MossyMemoryVault: React.FC = () => {
 
         const file = files[0]; // Process only first file
         
-        // Check if it's a PDF - provide instructions for manual copy
+        // Check if it's a PDF
         if (file.name.endsWith('.pdf') || file.type === 'application/pdf') {
-            const fileName = file.name.replace(/\.pdf$/i, '');
-            setNewTitle(fileName);
-            setShowUploadModal(true);
-            
-            // Show helpful instructions
-            setTimeout(() => {
-                alert(`📄 PDF Detected: "${file.name}"\n\n✅ Title auto-filled!\n\nTo add the content:\n1. Open the PDF in your PDF reader\n2. Select all text (Ctrl+A)\n3. Copy (Ctrl+C)\n4. Paste (Ctrl+V) into the text field below\n\nThen click "Start Digestion" to save!`);
-            }, 100);
+            try {
+                setIsUploading(true);
+                setUploadProgress(10);
+                
+                const arrayBuffer = await file.arrayBuffer();
+                setUploadProgress(30);
+                
+                // Use legacy PDF.js (no worker needed)
+                const loadingTask = pdfjsLib.getDocument({
+                    data: arrayBuffer,
+                    useWorkerFetch: false,
+                    isEvalSupported: false,
+                    useSystemFonts: true
+                });
+                
+                const pdf = await loadingTask.promise;
+                setUploadProgress(50);
+                
+                let fullText = '';
+                for (let i = 1; i <= pdf.numPages; i++) {
+                    const page = await pdf.getPage(i);
+                    const textContent = await page.getTextContent();
+                    const pageText = textContent.items.map((item: any) => item.str).join(' ');
+                    fullText += pageText + '\n\n';
+                    setUploadProgress(50 + Math.floor((i / pdf.numPages) * 40));
+                }
+                
+                const fileName = file.name.replace(/\.pdf$/i, '');
+                setNewTitle(fileName);
+                setNewContent(fullText.trim());
+                setUploadProgress(100);
+                setIsUploading(false);
+                setUploadProgress(0);
+                setShowUploadModal(true);
+            } catch (error: any) {
+                setIsUploading(false);
+                setUploadProgress(0);
+                console.error('PDF error:', error);
+                
+                // Fallback to manual copy/paste
+                const fileName = file.name.replace(/\.pdf$/i, '');
+                setNewTitle(fileName);
+                setShowUploadModal(true);
+                setTimeout(() => {
+                    alert(`❌ Auto-extraction failed.\n\nPlease:\n1. Open "${file.name}"\n2. Select all (Ctrl+A) & copy (Ctrl+C)\n3. Paste (Ctrl+V) below`);
+                }, 100);
+            }
             return;
         }
         
