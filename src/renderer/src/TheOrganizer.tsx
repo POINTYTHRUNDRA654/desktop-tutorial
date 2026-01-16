@@ -69,10 +69,23 @@ const TheOrganizer: React.FC = () => {
             try {
                 const detected = JSON.parse(savedApps);
                 setUtilities(prev => prev.map(u => {
-                    const match = detected.find((app: any) => 
-                        app.displayName.toLowerCase().includes(u.name.toLowerCase()) ||
-                        app.name.toLowerCase().includes(u.id.toLowerCase())
-                    );
+                    const match = detected.find((app: any) => {
+                        const appName = (app.name || '').toLowerCase();
+                        const appDisp = (app.displayName || '').toLowerCase();
+                        const targetId = u.id.toLowerCase();
+                        // Simplify target name for better matching (e.g. "FO4Edit (xEdit)" -> "fo4edit")
+                        const simplifiedTargetName = u.name.toLowerCase().split(' ')[0].replace(/[^a-z0-9]/g, '');
+
+                        // MUST HAVE A PATH to be considered "installed" for the dashboard
+                        if (!app.path) return false;
+
+                        return appDisp.includes(targetId) || 
+                               appName.includes(targetId) || 
+                               appDisp.includes(simplifiedTargetName) ||
+                               appName.includes(simplifiedTargetName) ||
+                               // Handle "fo4xedit" and other variations
+                               (targetId === 'xedit' && (appDisp.includes('edit') || appName.includes('edit') || appDisp.includes('xedit')));
+                    });
                     return { ...u, isInstalled: !!match, path: match?.path };
                 }));
             } catch (e) {
@@ -89,6 +102,34 @@ const TheOrganizer: React.FC = () => {
             }
         }
     }, []);
+
+    const handleLaunchUtility = async (path?: string, name?: string) => {
+        if (!path) return;
+        const api = (window as any).electron?.api || (window as any).electronAPI;
+        
+        // Use openProgram for tools as it has better fallbacks in main.ts
+        if (api?.openProgram) {
+            try {
+                const result = await api.openProgram(path);
+                if (!result.success) {
+                    alert(`Error launching ${name}: ${result.error || 'The executable could not be started.'}`);
+                }
+            } catch (e) {
+                alert(`Bridge error launching ${name}: ${e instanceof Error ? e.message : 'Unknown error'}`);
+            }
+        } else if (api?.openExternal) {
+            try {
+                await api.openExternal(path);
+            } catch (e) {
+                alert(`Error launching ${name}: ${e instanceof Error ? e.message : 'Unknown error'}`);
+            }
+        } else {
+            console.error("No Electron API found for launching");
+        }
+    };
+            alert("Desktop Bridge not available.");
+        }
+    };
 
     const handleToggle = (id: string) => {
         setMods(prev => prev.map(m => m.id === id ? { ...m, enabled: !m.enabled } : m));
@@ -451,8 +492,16 @@ const TheOrganizer: React.FC = () => {
                                     <p className="text-sm text-slate-400 mb-4 h-10">{tool.description}</p>
                                     
                                     {tool.isInstalled ? (
-                                        <div className="text-xs font-mono text-slate-500 break-all bg-black/30 p-2 rounded border border-slate-700">
-                                            Path: {tool.path}
+                                        <div className="space-y-3">
+                                            <div className="text-[10px] font-mono text-slate-500 break-all bg-black/30 p-2 rounded border border-slate-700">
+                                                Path: {tool.path}
+                                            </div>
+                                            <button 
+                                                onClick={() => handleLaunchUtility(tool.path, tool.name)}
+                                                className="w-full py-2 flex items-center justify-center gap-2 bg-emerald-700/40 hover:bg-emerald-600/60 text-emerald-400 rounded text-xs font-bold border border-emerald-500/30 transition-all"
+                                            >
+                                                <Play className="w-3 h-3" /> Launch Utility
+                                            </button>
                                         </div>
                                     ) : (
                                         <button className="w-full py-2 flex items-center justify-center gap-2 bg-slate-700 hover:bg-slate-600 text-slate-200 rounded text-xs font-bold transition-colors">
