@@ -51,22 +51,28 @@ const MossyMemoryVault: React.FC = () => {
         e.stopPropagation();
         setIsDragActive(false);
 
-        const files = e.dataTransfer.files;
+        const files = e.dataTransfer?.files;
+        if (!files || files.length === 0) return;
+
         for (let i = 0; i < files.length; i++) {
             const file = files[i];
-            const reader = new FileReader();
             
-            reader.onload = async (event) => {
-                const content = event.target?.result as string;
-                const fileName = file.name.replace(/\.[^/.]+$/, '');
+            // Check if file is text-based
+            if (file.type.startsWith('text/') || file.name.endsWith('.md') || file.name.endsWith('.txt') || file.name.endsWith('.json')) {
+                const reader = new FileReader();
                 
-                setNewTitle(fileName);
-                setNewContent(content);
-                setShowUploadModal(true);
-            };
-            
-            if (file.type.startsWith('text/') || file.name.endsWith('.md') || file.name.endsWith('.txt')) {
+                reader.onload = (event) => {
+                    const content = event.target?.result as string;
+                    if (content) {
+                        const fileName = file.name.replace(/\.[^/.]+$/, '');
+                        setNewTitle(fileName);
+                        setNewContent(content);
+                        setShowUploadModal(true);
+                    }
+                };
+                
                 reader.readAsText(file);
+                break; // Only process first text file
             }
         }
     };
@@ -76,8 +82,8 @@ const MossyMemoryVault: React.FC = () => {
         e.stopPropagation();
         setIsDragActive(false);
 
-        const text = e.dataTransfer.getData('text/plain');
-        if (text) {
+        const text = e.dataTransfer?.getData('text/plain');
+        if (text && text.length > 0) {
             setNewContent(text);
             setShowUploadModal(true);
         }
@@ -138,11 +144,14 @@ const MossyMemoryVault: React.FC = () => {
                     onDragOver={handleDrag}
                     onDrop={(e) => {
                         handleDropFiles(e);
-                        handleDropText(e);
+                        if (!e.dataTransfer?.files?.length) {
+                            handleDropText(e);
+                        }
                     }}
-                    className="fixed inset-0 z-40 bg-emerald-500/20 border-4 border-dashed border-emerald-400 flex items-center justify-center backdrop-blur-sm pointer-events-none"
+                    className="fixed inset-0 z-40 bg-emerald-500/20 border-4 border-dashed border-emerald-400 flex items-center justify-center backdrop-blur-sm"
+                    style={{ pointerEvents: 'auto' }}
                 >
-                    <div className="text-center">
+                    <div className="text-center pointer-events-none">
                         <Cloud className="w-16 h-16 text-emerald-400 mb-4 mx-auto animate-bounce" />
                         <h3 className="text-2xl font-bold text-emerald-300 mb-2">Drop Knowledge Here</h3>
                         <p className="text-emerald-200 text-sm">Paste text, drop files, or drag tutorials</p>
@@ -211,7 +220,9 @@ const MossyMemoryVault: React.FC = () => {
                 onDragOver={handleDrag}
                 onDrop={(e) => {
                     handleDropFiles(e);
-                    handleDropText(e);
+                    if (!e.dataTransfer?.files?.length) {
+                        handleDropText(e);
+                    }
                 }}
             >
                 {filteredMemories.length === 0 ? (
