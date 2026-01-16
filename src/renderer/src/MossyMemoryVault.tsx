@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Book, Upload, Trash2, Search, Brain, FileText, CheckCircle2, Loader2, Sparkles, Database, Plus, X, Activity, Cloud, Files } from 'lucide-react';
 import { LocalAIEngine } from './LocalAIEngine';
-import * as pdfjsLib from 'pdfjs-dist';
 
 interface MemoryItem {
     id: string;
@@ -66,33 +65,21 @@ const MossyMemoryVault: React.FC = () => {
                 const arrayBuffer = await file.arrayBuffer();
                 setUploadProgress(30);
                 
-                // Use legacy PDF.js (no worker needed)
-                const loadingTask = pdfjsLib.getDocument({
-                    data: arrayBuffer,
-                    useWorkerFetch: false,
-                    isEvalSupported: false,
-                    useSystemFonts: true
-                });
+                // Use IPC to parse PDF in main process
+                const result = await (window as any).electron?.invoke('parse-pdf', arrayBuffer);
+                setUploadProgress(90);
                 
-                const pdf = await loadingTask.promise;
-                setUploadProgress(50);
-                
-                let fullText = '';
-                for (let i = 1; i <= pdf.numPages; i++) {
-                    const page = await pdf.getPage(i);
-                    const textContent = await page.getTextContent();
-                    const pageText = textContent.items.map((item: any) => item.str).join(' ');
-                    fullText += pageText + '\n\n';
-                    setUploadProgress(50 + Math.floor((i / pdf.numPages) * 40));
+                if (result?.success) {
+                    const fileName = file.name.replace(/\.pdf$/i, '');
+                    setNewTitle(fileName);
+                    setNewContent(result.text.trim());
+                    setUploadProgress(100);
+                    setIsUploading(false);
+                    setUploadProgress(0);
+                    setShowUploadModal(true);
+                } else {
+                    throw new Error(result?.error || 'PDF parsing failed');
                 }
-                
-                const fileName = file.name.replace(/\.pdf$/i, '');
-                setNewTitle(fileName);
-                setNewContent(fullText.trim());
-                setUploadProgress(100);
-                setIsUploading(false);
-                setUploadProgress(0);
-                setShowUploadModal(true);
             } catch (error: any) {
                 setIsUploading(false);
                 setUploadProgress(0);
