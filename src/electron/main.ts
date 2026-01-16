@@ -15,6 +15,7 @@ import { DesktopShortcutManager } from './desktopShortcut';
 import fs from 'fs';
 import { spawn, exec } from 'child_process';
 import { BridgeServer } from './BridgeServer';
+import * as pdfParse from 'pdf-parse';
 
 let mainWindow: BrowserWindow | null = null;
 const bridge = new BridgeServer();
@@ -140,6 +141,18 @@ function createWindow() {
  * Setup IPC handlers for renderer communication
  */
 function setupIpcHandlers() {
+  // PDF parsing handler (runs in main process with Node.js)
+  ipcMain.handle('parse-pdf', async (_event, arrayBuffer: ArrayBuffer) => {
+    try {
+      const buffer = Buffer.from(arrayBuffer);
+      const data = await (pdfParse as any).default(buffer);
+      return { success: true, text: data.text };
+    } catch (error: any) {
+      console.error('PDF parsing error:', error);
+      return { success: false, error: error.message || 'Failed to parse PDF' };
+    }
+  });
+
   // Program detection handler
   ipcMain.handle(IPC_CHANNELS.DETECT_PROGRAMS, async () => {
     try {
