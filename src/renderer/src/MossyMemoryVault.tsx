@@ -1,6 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { Book, Upload, Trash2, Search, Brain, FileText, CheckCircle2, Loader2, Sparkles, Database, Plus, X, Activity, Cloud, Files } from 'lucide-react';
 import { LocalAIEngine } from './LocalAIEngine';
+import * as pdfjsLib from 'pdfjs-dist';
+
+// Configure PDF.js worker
+pdfjsLib.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.js`;
 
 interface MemoryItem {
     id: string;
@@ -54,34 +58,51 @@ const MossyMemoryVault: React.FC = () => {
         const files = e.dataTransfer?.files;
         if (!files || files.length === 0) return;
 
-        for (let i = 0; i < files.length; i++) {
-            const file = files[i];
-            
-            // Check if it's a PDF
-            if (file.name.endsWith('.pdf') || file.type === 'application/pdf') {
-                alert('📄 PDF detected! Please copy the text from the PDF and paste it directly into the text area instead.\n\nTip: Open the PDF, select all text (Ctrl+A), copy (Ctrl+C), then paste (Ctrl+V) here.');
-                return;
-            }
-            
-            // Check if file is text-based
-            if (file.type.startsWith('text/') || file.name.endsWith('.md') || file.name.endsWith('.txt') || file.name.endsWith('.json')) {
-                const reader = new FileReader();
+        const file = files[0]; // Process only first file
+        
+        // Check if it's a PDF
+        if (file.name.endsWith('.pdf') || file.type === 'application/pdf') {
+            try {
+                const arrayBuffer = await file.arrayBuffer();
+                const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
                 
-                reader.onload = (event) => {
-                    const content = event.target?.result as string;
-                    if (content) {
-                        const fileName = file.name.replace(/\.[^/.]+$/, '');
-                        setNewTitle(fileName);
-                        setNewContent(content);
-                        setShowUploadModal(true);
-                    }
-                };
+                let fullText = '';
+                // Extract text from all pages
+                for (let i = 1; i <= pdf.numPages; i++) {
+                    const page = await pdf.getPage(i);
+                    const textContent = await page.getTextContent();
+                    const pageText = textContent.items.map((item: any) => item.str).join(' ');
+                    fullText += pageText + '\n\n';
+                }
                 
-                reader.readAsText(file);
-                break; // Only process first text file
-            } else {
-                alert(`❌ Unsupported file type: ${file.name}\n\nSupported: .txt, .md, .json\nFor PDFs: Copy and paste the text instead.`);
+                const fileName = file.name.replace(/\.pdf$/i, '');
+                setNewTitle(fileName);
+                setNewContent(fullText.trim());
+                setShowUploadModal(true);
+            } catch (error) {
+                console.error('PDF parsing error:', error);
+                alert('❌ Failed to read PDF. The file might be corrupted or encrypted.\n\nTry opening it and copying the text manually.');
             }
+            return;
+        }
+        
+        // Check if file is text-based
+        if (file.type.startsWith('text/') || file.name.endsWith('.md') || file.name.endsWith('.txt') || file.name.endsWith('.json')) {
+            const reader = new FileReader();
+            
+            reader.onload = (event) => {
+                const content = event.target?.result as string;
+                if (content) {
+                    const fileName = file.name.replace(/\.[^/.]+$/, '');
+                    setNewTitle(fileName);
+                    setNewContent(content);
+                    setShowUploadModal(true);
+                }
+            };
+            
+            reader.readAsText(file);
+        } else {
+            alert(`❌ Unsupported file type: ${file.name}\n\nSupported: .pdf, .txt, .md, .json`);
         }
     };
 
@@ -356,7 +377,7 @@ const MossyMemoryVault: React.FC = () => {
                                 >
                                     <textarea 
                                         rows={8}
-                                        placeholder="Paste the tutorial here, or drag & drop text files. Mossy will analyze this to provide better answers."
+                                        placeholder="Paste the tutorial here, or drag & drop PDFs/text files. Mossy will analyze this to provide better answers."
                                         className="w-full bg-transparent border-0 py-3 px-4 text-sm text-white focus:outline-none font-mono resize-none relative z-10 placeholder-slate-500"
                                         value={newContent}
                                         onChange={(e) => setNewContent(e.target.value)}
