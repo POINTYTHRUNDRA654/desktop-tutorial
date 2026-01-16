@@ -3,8 +3,8 @@ import { Book, Upload, Trash2, Search, Brain, FileText, CheckCircle2, Loader2, S
 import { LocalAIEngine } from './LocalAIEngine';
 import * as pdfjsLib from 'pdfjs-dist';
 
-// Configure PDF.js worker - use https to avoid mixed content issues
-pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.js`;
+// Configure PDF.js worker - use local file for Electron
+pdfjsLib.GlobalWorkerOptions.workerSrc = '/pdf.worker.mjs';
 
 interface MemoryItem {
     id: string;
