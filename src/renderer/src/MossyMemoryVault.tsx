@@ -3,8 +3,8 @@ import { Book, Upload, Trash2, Search, Brain, FileText, CheckCircle2, Loader2, S
 import { LocalAIEngine } from './LocalAIEngine';
 import * as pdfjsLib from 'pdfjs-dist';
 
-// Configure PDF.js worker
-pdfjsLib.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.js`;
+// Configure PDF.js worker - use https to avoid mixed content issues
+pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.js`;
 
 interface MemoryItem {
     id: string;
@@ -63,25 +63,48 @@ const MossyMemoryVault: React.FC = () => {
         // Check if it's a PDF
         if (file.name.endsWith('.pdf') || file.type === 'application/pdf') {
             try {
+                // Show loading indicator
+                setIsUploading(true);
+                setUploadProgress(10);
+                
                 const arrayBuffer = await file.arrayBuffer();
-                const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+                setUploadProgress(30);
+                
+                const loadingTask = pdfjsLib.getDocument({ 
+                    data: arrayBuffer,
+                    verbosity: 0 // Suppress warnings
+                });
+                const pdf = await loadingTask.promise;
+                setUploadProgress(50);
                 
                 let fullText = '';
+                const totalPages = pdf.numPages;
+                
                 // Extract text from all pages
-                for (let i = 1; i <= pdf.numPages; i++) {
+                for (let i = 1; i <= totalPages; i++) {
                     const page = await pdf.getPage(i);
                     const textContent = await page.getTextContent();
                     const pageText = textContent.items.map((item: any) => item.str).join(' ');
                     fullText += pageText + '\n\n';
+                    
+                    // Update progress
+                    setUploadProgress(50 + Math.floor((i / totalPages) * 40));
                 }
+                
+                setUploadProgress(100);
                 
                 const fileName = file.name.replace(/\.pdf$/i, '');
                 setNewTitle(fileName);
                 setNewContent(fullText.trim());
+                setIsUploading(false);
+                setUploadProgress(0);
                 setShowUploadModal(true);
-            } catch (error) {
+            } catch (error: any) {
+                setIsUploading(false);
+                setUploadProgress(0);
                 console.error('PDF parsing error:', error);
-                alert('❌ Failed to read PDF. The file might be corrupted or encrypted.\n\nTry opening it and copying the text manually.');
+                const errorMsg = error.message || error.toString();
+                alert(`❌ PDF Error: ${errorMsg}\n\nThe PDF may be:\n- Image-based (scanned document)\n- Password protected\n- Using unsupported features\n\nTry opening it and copying the text manually.`);
             }
             return;
         }
@@ -184,6 +207,30 @@ const MossyMemoryVault: React.FC = () => {
                         <Cloud className="w-16 h-16 text-emerald-400 mb-4 mx-auto animate-bounce" />
                         <h3 className="text-2xl font-bold text-emerald-300 mb-2">Drop Knowledge Here</h3>
                         <p className="text-emerald-200 text-sm">Paste text, drop files, or drag tutorials</p>
+                    </div>
+                </div>
+            )}
+
+            {/* PDF Processing Overlay */}
+            {isUploading && !showUploadModal && (
+                <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center">
+                    <div className="bg-[#141814] border border-emerald-500/30 rounded-2xl p-8 max-w-md w-full mx-4 shadow-2xl shadow-emerald-500/10">
+                        <div className="text-center space-y-4">
+                            <Loader2 className="w-12 h-12 text-emerald-400 mx-auto animate-spin" />
+                            <h3 className="text-xl font-bold text-white">Processing PDF...</h3>
+                            <div className="space-y-2">
+                                <div className="flex justify-between text-xs text-slate-400">
+                                    <span>Extracting text</span>
+                                    <span>{uploadProgress}%</span>
+                                </div>
+                                <div className="w-full bg-slate-900 rounded-full h-2 overflow-hidden border border-white/5">
+                                    <div 
+                                        className="bg-emerald-500 h-full transition-all duration-300 shadow-[0_0_10px_rgba(16,185,129,0.5)]"
+                                        style={{ width: `${uploadProgress}%` }}
+                                    />
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 </div>
             )}
