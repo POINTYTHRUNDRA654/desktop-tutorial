@@ -66,7 +66,7 @@ const MossyMemoryVault: React.FC = () => {
                 setUploadProgress(30);
                 
                 // Use IPC to parse PDF in main process
-                const result = await (window as any).electron?.invoke('parse-pdf', arrayBuffer);
+                const result = await (window as any).electron?.api?.parsePDF(arrayBuffer);
                 setUploadProgress(90);
                 
                 if (result?.success) {
