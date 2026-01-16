@@ -251,3 +251,5 @@ export class ModProjectStorage {
     };
   }
 }
+
+export { ModProjectStorage };
