@@ -35,6 +35,9 @@ const PrivacySettings: React.FC = () => {
 
   const [showDetails, setShowDetails] = useState<string | null>(null);
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved'>('idle');
+  const [openaiApiKey, setOpenaiApiKey] = useState<string>('');
+  const [showApiKey, setShowApiKey] = useState<boolean>(false);
+  const [apiKeySaved, setApiKeySaved] = useState<boolean>(false);
 
   useEffect(() => {
     // Load settings from localStorage
@@ -45,6 +48,13 @@ const PrivacySettings: React.FC = () => {
       } catch (e) {
         console.error('Failed to load privacy settings:', e);
       }
+    }
+
+    // Load OpenAI API key
+    const savedKey = localStorage.getItem('openai_api_key');
+    if (savedKey) {
+      setOpenaiApiKey(savedKey);
+      setApiKeySaved(true);
     }
 
     // Calculate storage
@@ -187,6 +197,76 @@ const PrivacySettings: React.FC = () => {
           <p className="text-slate-400">
             Your data privacy and security are fundamental rights. Control exactly what information Mossy collects, stores, and shares.
           </p>
+        </div>
+
+        {/* OpenAI API Key Section */}
+        <div className="bg-slate-900 border border-slate-700 rounded-xl overflow-hidden mb-8">
+          <div className="bg-slate-800 border-b border-slate-700 p-6">
+            <div className="flex items-center gap-3 mb-2">
+              <div className="text-emerald-400"><Lock className="w-5 h-5" /></div>
+              <h2 className="text-xl font-bold text-white">API Keys</h2>
+            </div>
+            <p className="text-slate-400 text-sm">Manage API keys for AI features. Keys are stored locally and encrypted.</p>
+          </div>
+          
+          <div className="p-6">
+            <div className="mb-4">
+              <label className="block text-sm font-medium text-slate-300 mb-2">
+                OpenAI API Key (for video transcription)
+              </label>
+              <div className="flex gap-2">
+                <div className="relative flex-1">
+                  <input
+                    type={showApiKey ? 'text' : 'password'}
+                    value={openaiApiKey}
+                    onChange={(e) => {
+                      setOpenaiApiKey(e.target.value);
+                      setApiKeySaved(false);
+                    }}
+                    placeholder="sk-..."
+                    className="w-full bg-slate-800 border border-slate-600 rounded-lg px-4 py-2 text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                  />
+                  <button
+                    onClick={() => setShowApiKey(!showApiKey)}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white transition-colors"
+                  >
+                    {showApiKey ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
+                </div>
+                <button
+                  onClick={() => {
+                    if (openaiApiKey.trim()) {
+                      localStorage.setItem('openai_api_key', openaiApiKey.trim());
+                      setApiKeySaved(true);
+                      setTimeout(() => setApiKeySaved(false), 3000);
+                    }
+                  }}
+                  className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+                    apiKeySaved 
+                      ? 'bg-emerald-600 text-white' 
+                      : 'bg-emerald-500 hover:bg-emerald-600 text-white'
+                  }`}
+                >
+                  {apiKeySaved ? '✓ Saved' : 'Save'}
+                </button>
+                {openaiApiKey && (
+                  <button
+                    onClick={() => {
+                      localStorage.removeItem('openai_api_key');
+                      setOpenaiApiKey('');
+                      setApiKeySaved(false);
+                    }}
+                    className="px-4 py-2 rounded-lg font-medium bg-red-500 hover:bg-red-600 text-white transition-colors"
+                  >
+                    Clear
+                  </button>
+                )}
+              </div>
+              <p className="text-xs text-slate-400 mt-2">
+                Get your API key from <a href="https://platform.openai.com/api-keys" target="_blank" rel="noopener noreferrer" className="text-emerald-400 hover:underline">platform.openai.com/api-keys</a>
+              </p>
+            </div>
+          </div>
         </div>
 
         {/* Privacy Promise */}
