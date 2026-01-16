@@ -26,8 +26,6 @@
     "@google/genai": "^0.2.0",
     "lowdb": "^7.0.1",
     "lucide-react": "^0.400.0",
-    "pdfjs-dist": "^5.4.530",
-    "pdfjs-dist-es5": "^2.13.216",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
     "react-markdown": "^9.0.1",
