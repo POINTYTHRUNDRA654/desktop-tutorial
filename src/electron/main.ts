@@ -15,6 +15,13 @@ import { DesktopShortcutManager } from './desktopShortcut';
 import fs from 'fs';
 import { spawn, exec } from 'child_process';
 import { BridgeServer } from './BridgeServer';
+import ffmpeg from 'fluent-ffmpeg';
+import ffmpegInstaller from '@ffmpeg-installer/ffmpeg';
+import https from 'https';
+import FormData from 'form-data';
+
+// Set ffmpeg path
+ffmpeg.setFfmpegPath(ffmpegInstaller.path);
 
 // Polyfill DOMMatrix for pdf-parse compatibility
 if (typeof (global as any).DOMMatrix === 'undefined') {
@@ -185,6 +192,97 @@ function setupIpcHandlers() {
     } catch (error: any) {
       console.error('PDF parsing error:', error);
       return { success: false, error: error.message || 'Failed to parse PDF' };
+    }
+  });
+
+  // Video transcription handler (runs in main process with Node.js)
+  ipcMain.handle('transcribe-video', async (_event, arrayBuffer: ArrayBuffer, apiKey: string, filename: string) => {
+    let tempVideoPath: string | null = null;
+    let tempAudioPath: string | null = null;
+
+    try {
+      // Save video to temp file
+      const buffer = Buffer.from(arrayBuffer);
+      const ext = path.extname(filename) || '.mp4';
+      tempVideoPath = path.join(os.tmpdir(), `mossy-video-${Date.now()}${ext}`);
+      tempAudioPath = path.join(os.tmpdir(), `mossy-audio-${Date.now()}.mp3`);
+      
+      fs.writeFileSync(tempVideoPath, buffer);
+      console.log('Video saved to temp:', tempVideoPath);
+
+      // Extract audio using ffmpeg
+      await new Promise<void>((resolve, reject) => {
+        ffmpeg(tempVideoPath!)
+          .output(tempAudioPath!)
+          .audioCodec('libmp3lame')
+          .audioBitrate('128k')
+          .on('end', () => {
+            console.log('Audio extracted successfully');
+            resolve();
+          })
+          .on('error', (err: Error) => {
+            console.error('FFmpeg error:', err);
+            reject(err);
+          })
+          .run();
+      });
+
+      // Read audio file
+      const audioBuffer = fs.readFileSync(tempAudioPath);
+      console.log('Audio file size:', audioBuffer.length, 'bytes');
+
+      // Send to OpenAI Whisper API
+      const formData = new FormData();
+      formData.append('file', audioBuffer, {
+        filename: 'audio.mp3',
+        contentType: 'audio/mpeg',
+      });
+      formData.append('model', 'whisper-1');
+
+      const transcription = await new Promise<string>((resolve, reject) => {
+        const options = {
+          hostname: 'api.openai.com',
+          path: '/v1/audio/transcriptions',
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${apiKey}`,
+            ...formData.getHeaders(),
+          },
+        };
+
+        const req = https.request(options, (res) => {
+          let data = '';
+          res.on('data', (chunk) => { data += chunk; });
+          res.on('end', () => {
+            try {
+              const json = JSON.parse(data);
+              if (json.error) {
+                reject(new Error(json.error.message || 'Transcription failed'));
+              } else {
+                resolve(json.text);
+              }
+            } catch (e) {
+              reject(new Error('Failed to parse API response'));
+            }
+          });
+        });
+
+        req.on('error', reject);
+        formData.pipe(req);
+      });
+
+      return { success: true, text: transcription };
+    } catch (error: any) {
+      console.error('Video transcription error:', error);
+      return { success: false, error: error.message || 'Failed to transcribe video' };
+    } finally {
+      // Clean up temp files
+      if (tempVideoPath && fs.existsSync(tempVideoPath)) {
+        try { fs.unlinkSync(tempVideoPath); } catch (e) { console.warn('Failed to delete temp video:', e); }
+      }
+      if (tempAudioPath && fs.existsSync(tempAudioPath)) {
+        try { fs.unlinkSync(tempAudioPath); } catch (e) { console.warn('Failed to delete temp audio:', e); }
+      }
     }
   });
 
