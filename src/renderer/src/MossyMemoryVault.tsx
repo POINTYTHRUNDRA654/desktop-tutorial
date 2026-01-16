@@ -307,7 +307,16 @@ const MossyMemoryVault: React.FC = () => {
                                     onDragEnter={handleDrag}
                                     onDragLeave={handleDrag}
                                     onDragOver={handleDrag}
-                                    onDrop={handleDropText}
+                                    onDrop={(e) => {
+                                        e.preventDefault();
+                                        e.stopPropagation();
+                                        setIsDragActive(false);
+                                        if (e.dataTransfer?.files?.length) {
+                                            handleDropFiles(e);
+                                        } else {
+                                            handleDropText(e);
+                                        }
+                                    }}
                                     className={`relative border-2 border-dashed rounded-xl transition-all ${
                                         isDragActive 
                                             ? 'border-emerald-400 bg-emerald-500/10 shadow-lg shadow-emerald-500/20' 
