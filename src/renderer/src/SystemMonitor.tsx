@@ -114,6 +114,40 @@ const SystemMonitor: React.FC = () => {
   const installLogRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   
+  const addLog = (msg: string, type: 'info' | 'warning' | 'error' | 'archive' | 'success' = 'info') => {
+      const newLog: LogEntry = {
+          id: Math.random().toString(36).substr(2, 9),
+          time: new Date().toLocaleTimeString(),
+          msg,
+          type
+      };
+      setLogs(prev => [newLog, ...prev.slice(0, 49)]);
+  };
+
+  const handleLaunchApp = async (path: string, name: string) => {
+    if (!path || path === 'LINKED_VIA_BRIDGE') return;
+    const api = (window as any).electron?.api || (window as any).electronAPI;
+    if (api?.openProgram) {
+        try {
+            const result = await api.openProgram(path);
+            if (result.success) {
+                addLog(`Launched ${name} from ${path}`, 'success');
+            } else {
+                addLog(`Failed to launch ${name}: ${result.error || 'The system bridge reported a failure.'}`, 'error');
+            }
+        } catch (e) {
+            addLog(`Failed to launch ${name}: ${e instanceof Error ? e.message : 'Unknown error'}`, 'error');
+        }
+    } else if (api?.openExternal) {
+        try {
+            await api.openExternal(path);
+            addLog(`Launched ${name} from ${path}`, 'success');
+        } catch (e) {
+            addLog(`Failed to launch ${name}: ${e instanceof Error ? e.message : 'Unknown error'}`, 'error');
+        }
+    }
+  };
+
   useEffect(() => {
       if (profile) localStorage.setItem('mossy_system_profile', JSON.stringify(profile));
   }, [profile]);
@@ -203,18 +237,6 @@ const SystemMonitor: React.FC = () => {
           installLogRef.current.scrollTop = installLogRef.current.scrollHeight;
       }
   }, [installLog]);
-
-  const addLog = (msg: string, type: 'info' | 'warning' | 'error' | 'archive' | 'success' = 'info') => {
-    setLogs(prev => {
-        const newEntry = {
-            id: Date.now().toString() + Math.random(),
-            time: new Date().toLocaleTimeString(),
-            msg: msg,
-            type
-        };
-        return [...prev, newEntry].slice(-50);
-    });
-  };
 
   const startScan = async () => {
     if (isScanning) return;
@@ -463,7 +485,7 @@ const SystemMonitor: React.FC = () => {
           // Perform REAL Tool Detection
           const apps = window.electron?.api?.detectPrograms ? await window.electron.api.detectPrograms() : [];
           const moddingKeywords = [
-            'blender', 'creation', 'xedit', 'fo4edit', 'vortex', 'organizer', 'loot', 'nifskope', 
+            'blender', 'creation', 'xedit', 'fo4edit', 'fo4xedit', 'edit', 'vortex', 'organizer', 'loot', 'nifskope', 
             'bodyslide', 'f4se', 'upscayl', 'shadermap', 'nvidia', 'fbx', 'photodemon', 'unwrap', 
             'nifutils', 'omniverse', 'spin3d'
           ];
@@ -494,9 +516,13 @@ const SystemMonitor: React.FC = () => {
                   
                   // SAVE REAL DATA FOR AI CONTEXT
                   localStorage.setItem('mossy_apps', JSON.stringify(moddingTools.map(t => ({
+                      id: `scan-${Math.random().toString(36).substr(2, 5)}`,
                       name: t.displayName,
+                      displayName: t.displayName,
                       path: t.path,
-                      version: t.displayVersion
+                      version: t.displayVersion,
+                      checked: true,
+                      category: 'Tool'
                   }))));
 
                   if (realSystem) {
@@ -513,7 +539,7 @@ const SystemMonitor: React.FC = () => {
                   }
                   
                   setTimeout(() => {
-                      setInstallLog(prev => [...prev, '> Verification Complete.', '> Initializing Neural Interface...']);
+                      setInstallLog(prev => [...prev, '> Verification Complete.', '> Initializing Neural Interface...', '> Task Complete, Architect. Your system profile is ready.']);
                       setInstallStep(3);
                       localStorage.setItem('mossy_bridge_active', 'true');
                       window.dispatchEvent(new CustomEvent('mossy-bridge-connected'));
@@ -720,9 +746,13 @@ const SystemMonitor: React.FC = () => {
                     </h3>
                     <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
                         {integrations.map(app => (
-                            <div key={app.id} className="bg-slate-800 border border-slate-700 p-3 rounded-lg flex flex-col justify-between shadow-sm hover:border-forge-accent transition-colors h-full">
+                            <div 
+                                key={app.id} 
+                                onClick={() => handleLaunchApp(app.path, app.name)}
+                                className="bg-slate-800 border border-slate-700 p-3 rounded-lg flex flex-col justify-between shadow-sm hover:border-forge-accent transition-colors h-full cursor-pointer group"
+                            >
                                 <div className="flex items-start gap-3 mb-2">
-                                    <div className={`p-1.5 rounded text-slate-300 ${app.category === 'AI' ? 'bg-red-900/30' : 'bg-slate-900'}`}>
+                                    <div className={`p-1.5 rounded text-slate-300 transition-colors ${app.category === 'AI' ? 'bg-red-900/30 group-hover:bg-red-800/40' : 'bg-slate-900 group-hover:bg-slate-700'}`}>
                                         {app.category === 'AI' ? <BrainCircuit className="w-4 h-4 text-red-400" /> : <Box className="w-4 h-4" />}
                                     </div>
                                     <div className="min-w-0">
@@ -730,9 +760,12 @@ const SystemMonitor: React.FC = () => {
                                         <div className="text-[10px] text-slate-500 uppercase truncate">{app.category}</div>
                                     </div>
                                 </div>
-                                <div className="flex items-center gap-1.5 px-2 py-1 bg-emerald-900/20 rounded border border-emerald-500/30 w-fit">
-                                    <div className="w-1 h-1 rounded-full bg-emerald-500 animate-pulse"></div>
-                                    <span className="text-[9px] font-bold text-emerald-400 uppercase">Linked</span>
+                                <div className="flex items-center justify-between">
+                                    <div className="flex items-center gap-1.5 px-2 py-1 bg-emerald-900/20 rounded border border-emerald-500/30 w-fit">
+                                        <div className="w-1 h-1 rounded-full bg-emerald-500 animate-pulse"></div>
+                                        <span className="text-[9px] font-bold text-emerald-400 uppercase">Linked</span>
+                                    </div>
+                                    <Play className="w-3 h-3 text-slate-500 opacity-0 group-hover:opacity-100 transition-opacity" />
                                 </div>
                             </div>
                         ))}
