@@ -155,6 +155,91 @@ export const toolDeclarations: FunctionDeclaration[] = [
         }
     },
     {
+        name: 'create_mod_project',
+        description: 'Create a new mod project in The Hive for tracking and organization. This initializes a dedicated workspace for a mod with separate tracking.',
+        parameters: {
+            type: Type.OBJECT,
+            properties: {
+                name: { type: Type.STRING, description: 'The name of the mod (e.g., "Plasma Rifle Overhaul", "My Custom Quest").' },
+                description: { type: Type.STRING, description: 'What the mod does and your vision for it.' },
+                type: { 
+                    type: Type.STRING, 
+                    enum: ['weapon', 'armor', 'quest', 'settlement', 'gameplay', 'texture', 'mesh', 'script', 'other'],
+                    description: 'The type of mod: weapon, armor, quest, settlement, gameplay, texture, mesh, script, or other.' 
+                },
+                author: { type: Type.STRING, description: 'Your name or username.' }
+            },
+            required: ['name', 'type', 'author']
+        }
+    },
+    {
+        name: 'add_mod_step',
+        description: 'Add a new step to an existing mod project. Use this to track individual tasks within a mod.',
+        parameters: {
+            type: Type.OBJECT,
+            properties: {
+                projectId: { type: Type.STRING, description: 'The ID of the mod project (returned from create_mod_project or shown in the Mod Projects list).' },
+                title: { type: Type.STRING, description: 'Name of the step (e.g., "Model the barrel", "Write quest script", "Texture UV mapping").' },
+                description: { type: Type.STRING, description: 'Detailed description of what this step involves.' },
+                priority: { 
+                    type: Type.STRING, 
+                    enum: ['low', 'medium', 'high'],
+                    description: 'Priority level for this step.' 
+                },
+                estimatedHours: { type: Type.DOUBLE, description: 'Estimated hours needed to complete this step.' }
+            },
+            required: ['projectId', 'title']
+        }
+    },
+    {
+        name: 'update_mod_step',
+        description: 'Update the status or details of a mod step. Use this to mark steps as completed, in-progress, or blocked.',
+        parameters: {
+            type: Type.OBJECT,
+            properties: {
+                projectId: { type: Type.STRING, description: 'The ID of the mod project.' },
+                stepId: { type: Type.STRING, description: 'The ID of the step to update.' },
+                status: { 
+                    type: Type.STRING, 
+                    enum: ['pending', 'in-progress', 'completed', 'blocked'],
+                    description: 'The new status for this step.' 
+                },
+                notes: { type: Type.STRING, description: 'Add notes or comments about the step progress.' },
+                actualHours: { type: Type.DOUBLE, description: 'Hours actually spent on this step (updates when step is completed).' }
+            },
+            required: ['projectId', 'stepId']
+        }
+    },
+    {
+        name: 'get_mod_status',
+        description: 'Get the current status and progress of a mod project, including all steps and their statuses.',
+        parameters: {
+            type: Type.OBJECT,
+            properties: {
+                projectId: { type: Type.STRING, description: 'The ID of the mod project. If omitted, returns the current active mod.' }
+            }
+        }
+    },
+    {
+        name: 'list_mod_projects',
+        description: 'List all mod projects with their status, completion percentage, and step counts. Use this to see what mods you\'re working on.',
+        parameters: {
+            type: Type.OBJECT,
+            properties: {}
+        }
+    },
+    {
+        name: 'set_current_mod',
+        description: 'Set which mod project is currently active. This tells Mossy which mod you\'re focusing on so context-aware advice can be provided.',
+        parameters: {
+            type: Type.OBJECT,
+            properties: {
+                projectId: { type: Type.STRING, description: 'The ID of the mod project to make active.' }
+            },
+            required: ['projectId']
+        }
+    },
+    {
         name: 'launch_tool',
         description: 'Launch a professional modding tool or software application. ALWAYS use the exact toolId from the list below.',
         parameters: {
