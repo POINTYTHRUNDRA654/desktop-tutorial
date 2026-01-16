@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Book, Upload, Trash2, Search, Brain, FileText, CheckCircle2, Loader2, Sparkles, Database, Plus, X, Activity } from 'lucide-react';
+import { Book, Upload, Trash2, Search, Brain, FileText, CheckCircle2, Loader2, Sparkles, Database, Plus, X, Activity, Cloud, Files } from 'lucide-react';
 import { LocalAIEngine } from './LocalAIEngine';
 
 interface MemoryItem {
@@ -21,6 +21,7 @@ const MossyMemoryVault: React.FC = () => {
     const [newTitle, setNewTitle] = useState('');
     const [newContent, setNewContent] = useState('');
     const [newTags, setNewTags] = useState('');
+    const [isDragActive, setIsDragActive] = useState(false);
 
     useEffect(() => {
         const stored = localStorage.getItem('mossy_knowledge_vault');
@@ -34,6 +35,53 @@ const MossyMemoryVault: React.FC = () => {
         // Broadcast to other components if needed
         window.dispatchEvent(new Event('mossy-knowledge-updated'));
     }, [memories]);
+
+    const handleDrag = (e: React.DragEvent) => {
+        e.preventDefault();
+        e.stopPropagation();
+        if (e.type === "dragenter" || e.type === "dragover") {
+            setIsDragActive(true);
+        } else if (e.type === "dragleave") {
+            setIsDragActive(false);
+        }
+    };
+
+    const handleDropFiles = async (e: React.DragEvent) => {
+        e.preventDefault();
+        e.stopPropagation();
+        setIsDragActive(false);
+
+        const files = e.dataTransfer.files;
+        for (let i = 0; i < files.length; i++) {
+            const file = files[i];
+            const reader = new FileReader();
+            
+            reader.onload = async (event) => {
+                const content = event.target?.result as string;
+                const fileName = file.name.replace(/\.[^/.]+$/, '');
+                
+                setNewTitle(fileName);
+                setNewContent(content);
+                setShowUploadModal(true);
+            };
+            
+            if (file.type.startsWith('text/') || file.name.endsWith('.md') || file.name.endsWith('.txt')) {
+                reader.readAsText(file);
+            }
+        }
+    };
+
+    const handleDropText = (e: React.DragEvent) => {
+        e.preventDefault();
+        e.stopPropagation();
+        setIsDragActive(false);
+
+        const text = e.dataTransfer.getData('text/plain');
+        if (text) {
+            setNewContent(text);
+            setShowUploadModal(true);
+        }
+    };
 
     const handleUpload = async () => {
         if (!newTitle || !newContent) return;
@@ -82,6 +130,26 @@ const MossyMemoryVault: React.FC = () => {
 
     return (
         <div className="h-full flex flex-col bg-[#0f120f] text-slate-200 font-sans overflow-hidden">
+            {/* Drag and Drop Overlay */}
+            {isDragActive && (
+                <div 
+                    onDragEnter={handleDrag}
+                    onDragLeave={handleDrag}
+                    onDragOver={handleDrag}
+                    onDrop={(e) => {
+                        handleDropFiles(e);
+                        handleDropText(e);
+                    }}
+                    className="fixed inset-0 z-40 bg-emerald-500/20 border-4 border-dashed border-emerald-400 flex items-center justify-center backdrop-blur-sm pointer-events-none"
+                >
+                    <div className="text-center">
+                        <Cloud className="w-16 h-16 text-emerald-400 mb-4 mx-auto animate-bounce" />
+                        <h3 className="text-2xl font-bold text-emerald-300 mb-2">Drop Knowledge Here</h3>
+                        <p className="text-emerald-200 text-sm">Paste text, drop files, or drag tutorials</p>
+                    </div>
+                </div>
+            )}
+
             {/* Header */}
             <div className="p-6 border-b border-emerald-900/30 bg-[#141814] flex justify-between items-center shadow-lg">
                 <div className="flex items-center gap-3">
@@ -136,7 +204,16 @@ const MossyMemoryVault: React.FC = () => {
             </div>
 
             {/* Content Area */}
-            <div className="flex-1 overflow-y-auto p-6 space-y-4">
+            <div 
+                className="flex-1 overflow-y-auto p-6 space-y-4"
+                onDragEnter={handleDrag}
+                onDragLeave={handleDrag}
+                onDragOver={handleDrag}
+                onDrop={(e) => {
+                    handleDropFiles(e);
+                    handleDropText(e);
+                }}
+            >
                 {filteredMemories.length === 0 ? (
                     <div className="h-full flex flex-col items-center justify-center text-center opacity-40 py-20">
                         <Book className="w-16 h-16 mb-4 text-slate-600" />
@@ -215,14 +292,32 @@ const MossyMemoryVault: React.FC = () => {
 
                             <div className="space-y-2">
                                 <label className="text-[10px] font-bold text-emerald-500 uppercase tracking-widest pl-1">Knowledge Content (Tutorial / Info / Snippet)</label>
-                                <textarea 
-                                    rows={8}
-                                    placeholder="Paste the tutorial or information here. Mossy will analyze this to provide better answers in the chat."
-                                    className="w-full bg-[#0f120f] border border-emerald-900/40 rounded-xl py-3 px-4 text-sm text-white focus:outline-none focus:border-emerald-500/50 focus:ring-1 focus:ring-emerald-500/20 font-mono resize-none shadow-inner"
-                                    value={newContent}
-                                    onChange={(e) => setNewContent(e.target.value)}
-                                    disabled={isUploading}
-                                />
+                                <div 
+                                    onDragEnter={handleDrag}
+                                    onDragLeave={handleDrag}
+                                    onDragOver={handleDrag}
+                                    onDrop={handleDropText}
+                                    className={`relative border-2 border-dashed rounded-xl transition-all ${
+                                        isDragActive 
+                                            ? 'border-emerald-400 bg-emerald-500/10 shadow-lg shadow-emerald-500/20' 
+                                            : 'border-emerald-900/40 bg-[#0f120f]'
+                                    }`}
+                                >
+                                    <textarea 
+                                        rows={8}
+                                        placeholder="Paste the tutorial here, or drag & drop text files. Mossy will analyze this to provide better answers."
+                                        className="w-full bg-transparent border-0 py-3 px-4 text-sm text-white focus:outline-none font-mono resize-none relative z-10 placeholder-slate-500"
+                                        value={newContent}
+                                        onChange={(e) => setNewContent(e.target.value)}
+                                        disabled={isUploading}
+                                    />
+                                    {!newContent && (
+                                        <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none opacity-50">
+                                            <Files className="w-8 h-8 text-emerald-400 mb-2" />
+                                            <p className="text-xs text-slate-400">Drop files here or paste text</p>
+                                        </div>
+                                    )}
+                                </div>
                             </div>
 
                             <div className="space-y-2">
