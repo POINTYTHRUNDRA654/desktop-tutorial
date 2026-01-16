@@ -1,11 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Book, Upload, Trash2, Search, Brain, FileText, CheckCircle2, Loader2, Sparkles, Database, Plus, X, Activity, Cloud, Files } from 'lucide-react';
 import { LocalAIEngine } from './LocalAIEngine';
-import * as pdfjsLib from 'pdfjs-dist';
-
-// Disable worker for Electron - use main thread processing
-pdfjsLib.GlobalWorkerOptions.workerSrc = '';
-pdfjsLib.GlobalWorkerOptions.workerPort = null as any;
 
 interface MemoryItem {
     id: string;
@@ -61,55 +56,16 @@ const MossyMemoryVault: React.FC = () => {
 
         const file = files[0]; // Process only first file
         
-        // Check if it's a PDF
+        // Check if it's a PDF - provide instructions for manual copy
         if (file.name.endsWith('.pdf') || file.type === 'application/pdf') {
-            try {
-                // Show loading indicator
-                setIsUploading(true);
-                setUploadProgress(10);
-                
-                const arrayBuffer = await file.arrayBuffer();
-                setUploadProgress(30);
-                
-                const loadingTask = pdfjsLib.getDocument({ 
-                    data: arrayBuffer,
-                    verbosity: 0, // Suppress warnings
-                    useWorkerFetch: false,
-                    isEvalSupported: false,
-                    useSystemFonts: true
-                });
-                const pdf = await loadingTask.promise;
-                setUploadProgress(50);
-                
-                let fullText = '';
-                const totalPages = pdf.numPages;
-                
-                // Extract text from all pages
-                for (let i = 1; i <= totalPages; i++) {
-                    const page = await pdf.getPage(i);
-                    const textContent = await page.getTextContent();
-                    const pageText = textContent.items.map((item: any) => item.str).join(' ');
-                    fullText += pageText + '\n\n';
-                    
-                    // Update progress
-                    setUploadProgress(50 + Math.floor((i / totalPages) * 40));
-                }
-                
-                setUploadProgress(100);
-                
-                const fileName = file.name.replace(/\.pdf$/i, '');
-                setNewTitle(fileName);
-                setNewContent(fullText.trim());
-                setIsUploading(false);
-                setUploadProgress(0);
-                setShowUploadModal(true);
-            } catch (error: any) {
-                setIsUploading(false);
-                setUploadProgress(0);
-                console.error('PDF parsing error:', error);
-                const errorMsg = error.message || error.toString();
-                alert(`❌ PDF Error: ${errorMsg}\n\nThe PDF may be:\n- Image-based (scanned document)\n- Password protected\n- Using unsupported features\n\nTry opening it and copying the text manually.`);
-            }
+            const fileName = file.name.replace(/\.pdf$/i, '');
+            setNewTitle(fileName);
+            setShowUploadModal(true);
+            
+            // Show helpful instructions
+            setTimeout(() => {
+                alert(`📄 PDF Detected: "${file.name}"\n\n✅ Title auto-filled!\n\nTo add the content:\n1. Open the PDF in your PDF reader\n2. Select all text (Ctrl+A)\n3. Copy (Ctrl+C)\n4. Paste (Ctrl+V) into the text field below\n\nThen click "Start Digestion" to save!`);
+            }, 100);
             return;
         }
         
