@@ -52,29 +52,10 @@ export const LocalAIEngine = {
             if (processes.length > 0 || blenderLinked || detectedApps.length > 0 || systemProfileRaw || userSettings) {
                 injectedContext += "\n### INSTALLED SOFTWARE & CREATIVE PIPELINE:\n";
                 
-                if (userSettings) {
-                    injectedContext += "- [DESKTOP APPLICATIONS - CONFIGURED]:\n";
-                    if (userSettings.xeditPath) injectedContext += `  * xEdit (Editor): ${userSettings.xeditPath}\n`;
-                    if (userSettings.nifSkopePath) injectedContext += `  * NifSkope (Mesh Viewer): ${userSettings.nifSkopePath}\n`;
-                    if (userSettings.creationKitPath) injectedContext += `  * Creation Kit (Engine): ${userSettings.creationKitPath}\n`;
-                    if (userSettings.blenderPath) injectedContext += `  * Blender (3D Suite): ${userSettings.blenderPath}\n`;
-                    if (userSettings.mo2Path) injectedContext += `  * Mod Organizer 2 (Manager): ${userSettings.mo2Path}\n`;
-                    if (userSettings.vortexPath) injectedContext += `  * Vortex (Manager): ${userSettings.vortexPath}\n`;
-                    if (userSettings.upscaylPath) injectedContext += `  * Upscayl (AI Upscaler): ${userSettings.upscaylPath}\n`;
-                    if (userSettings.photopeaPath) injectedContext += `  * Photopea (Image Editor): ${userSettings.photopeaPath}\n`;
-                    if (userSettings.shaderMapPath) injectedContext += `  * ShaderMap (Material Gen): ${userSettings.shaderMapPath}\n`;
-                    if (userSettings.nvidiaTextureToolsPath) injectedContext += `  * NVIDIA Texture Tools (DDS Export): ${userSettings.nvidiaTextureToolsPath}\n`;
-                    if (userSettings.autodeskFbxPath) injectedContext += `  * FBX Converter (Media SDK): ${userSettings.autodeskFbxPath}\n`;
-                    if (userSettings.photoDemonPath) injectedContext += `  * PhotoDemon (Photo Editor): ${userSettings.photoDemonPath}\n`;
-                    if (userSettings.unWrap3Path) injectedContext += `  * UnWrap3 (UV Tool): ${userSettings.unWrap3Path}\n`;
-                    if (userSettings.nifUtilsSuitePath) injectedContext += `  * NifUtilsSuite (Mesh Tool): ${userSettings.nifUtilsSuitePath}\n`;
-                    if (userSettings.nvidiaOmniversePath) injectedContext += `  * NVIDIA Omniverse (3D Platform): ${userSettings.nvidiaOmniversePath}\n`;
-                    if (userSettings.spin3dPath) injectedContext += `  * Spin3D (3D Converter): ${userSettings.spin3dPath}\n`;
-                    if (userSettings.nvidiaCanvasPath) injectedContext += `  * NVIDIA Canvas (AI Painting): ${userSettings.nvidiaCanvasPath}\n`;
-                }
-
+                // --- HARDWARE STATUS ---
                 if (systemProfileRaw) {
                     const profile = JSON.parse(systemProfileRaw);
+                    injectedContext += `- [SYSTEM SCAN STATUS]: COMPLETE\n`;
                     injectedContext += `- [HARDWARE]: ${profile.cpu}, ${profile.gpu}, ${profile.ram}GB RAM`;
                     if (profile.vram) injectedContext += `, ${profile.vram}GB VRAM`;
                     if (profile.motherboard) injectedContext += `, MB: ${profile.motherboard}`;
@@ -84,12 +65,27 @@ export const LocalAIEngine = {
                     if (profile.storageDrives && profile.storageDrives.length > 0) {
                         injectedContext += "- [STORAGE]: " + profile.storageDrives.map((d: any) => `${d.device} (${d.free}GB/${d.total}GB)`).join(", ") + "\n";
                     }
+                } else {
+                    injectedContext += `- [SYSTEM SCAN STATUS]: NOT PERFORMED. (Please run scan_hardware first)\n`;
+                }
+
+                if (userSettings) {
+                    injectedContext += "- [DESKTOP APPLICATIONS - CONFIGURED]:\n";
+                    if (userSettings.xeditPath) injectedContext += `  * xEdit: ${userSettings.xeditPath}\n`;
+                    if (userSettings.nifSkopePath) injectedContext += `  * NifSkope: ${userSettings.nifSkopePath}\n`;
+                    if (userSettings.creationKitPath) injectedContext += `  * Creation Kit: ${userSettings.creationKitPath}\n`;
+                    if (userSettings.blenderPath) injectedContext += `  * Blender: ${userSettings.blenderPath}\n`;
+                    if (userSettings.mo2Path) injectedContext += `  * Mod Organizer 2: ${userSettings.mo2Path}\n`;
+                    if (userSettings.vortexPath) injectedContext += `  * Vortex: ${userSettings.vortexPath}\n`;
                 }
 
                 if (blenderLinked) injectedContext += "- [STATUS] Blender Neural Link: ACTIVE\n";
                 
                 if (detectedApps.length > 0) {
-                    injectedContext += "- [INSTALLED TOOLS & SOFTWARE]: " + detectedApps.map((a: any) => `${a.name} (Desktop Program)`).join(", ") + "\n";
+                    injectedContext += "- [AUTOMATICALLY DETECTED TOOLS]:\n";
+                    detectedApps.forEach((a: any) => {
+                        injectedContext += `  * ${a.name} (Path: ${a.path})\n`;
+                    });
                 }
 
                 if (processes.length > 0) {

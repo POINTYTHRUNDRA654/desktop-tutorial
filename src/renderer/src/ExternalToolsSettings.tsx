@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Save, TestTube2, Wrench, FileCog, Swords, Package, ExternalLink, Play, Palette, FolderOpen, ShieldCheck, Zap, Archive, Image as ImageIcon, Terminal, Maximize2, RefreshCw } from 'lucide-react';
+import { executeMossyTool } from './MossyTools';
 import type { Settings } from '../../shared/types';
 
 const ExternalToolsSettings: React.FC = () => {
@@ -55,50 +56,150 @@ const ExternalToolsSettings: React.FC = () => {
   const save = async () => {
     setSaving(true);
     try {
+      // Validate all paths before saving
+      const issues: string[] = [];
+      const toolNames: Record<string, string> = {
+        xeditPath: 'xEdit',
+        mo2Path: 'Mod Organizer 2',
+        blenderPath: 'Blender',
+        nifSkopePath: 'NifSkope',
+        creationKitPath: 'Creation Kit',
+      };
+
+      for (const [key, label] of Object.entries(toolNames)) {
+        const path = (draft as any)[key];
+        if (path && path.trim() !== '') {
+          if (!path.toLowerCase().endsWith('.exe')) {
+            issues.push(`${label}: Must be a .exe file (you have: ${path})`);
+          }
+        }
+      }
+
+      if (issues.length > 0) {
+        alert(`❌ Configuration issues found:\n\n${issues.join('\n')}\n\nPlease fix these before saving.`);
+        setSaving(false);
+        return;
+      }
+
       await window.electronAPI.setSettings(draft);
       const updated = await window.electronAPI.getSettings();
       setSettings(updated);
-      alert("[MOSSY] Configuration protocols updated, Architect. Your workspace is now synced with your external toolchain.");
+      
+      // Broadcast settings update to all components
+      window.dispatchEvent(new CustomEvent('mossy-settings-updated', { detail: updated }));
+      console.log('[ExternalToolsSettings] Saved settings and broadcast update:', updated);
+      
+      alert("✅ [MOSSY] Configuration protocols updated, Architect. Your workspace is now synced with your external toolchain.");
     } catch (e) {
       console.error('Failed to save settings', e);
-      alert('Failed to save settings.');
+      alert(`❌ Failed to save settings: ${String(e)}`);
     } finally {
       setSaving(false);
     }
   };
 
+  // Calls the same launch_tool Mossy uses for end-to-end parity
+  const aiLaunchTest = async (toolId: string, label: string) => {
+    try {
+      console.log(`[AILaunchTest] Initiating for ${toolId}`);
+      const res: any = await executeMossyTool('launch_tool', { toolId }, {
+        isBlenderLinked: localStorage.getItem('mossy_blender_active') === 'true',
+        setProfile: () => {},
+        setProjectData: () => {},
+        setProjectContext: () => {},
+        setShowProjectPanel: () => {}
+      });
+      console.log('[AILaunchTest] Result:', res);
+      const msg = typeof res?.result === 'string' ? res.result : JSON.stringify(res);
+      if (res?.success === false) {
+        alert(`❌ AI Launch failed for ${label}\n\n${res?.result || res?.error || 'Unknown error'}`);
+      } else {
+        alert(`✅ AI Launch executed for ${label}.\n\n${msg || 'Process initialized.'}`);
+      }
+    } catch (e) {
+      console.error('[AILaunchTest] Exception', e);
+      alert(`❌ AI Launch exception for ${label}:\n${String(e)}`);
+    }
+  };
+
   const testLaunch = async (path?: string, label?: string) => {
-    if (!path) {
-      alert('Path not set.');
+    console.log(`[TestLaunch] Called for ${label} with path:`, path);
+    
+    if (!path || path.trim() === '') {
+      console.warn(`[TestLaunch] Path is empty for ${label}`);
+      alert(`❌ No path configured for ${label || 'this tool'}.\n\nPlease:\n1. Click "Browse" to select the executable\n2. Click "Save Settings"\n3. Then try "Test Launch" again`);
       return;
     }
+
+    console.log(`[TestLaunch] Path validation passed. Path length: ${path.length}`);
+    
     try {
       const bridge = (window as any).electron?.api;
-      if (bridge?.openExternal) {
+      console.log(`[TestLaunch] Bridge available?`, !!bridge);
+      console.log(`[TestLaunch] openProgram available?`, !!bridge?.openProgram);
+      
+      if (bridge?.openProgram) {
+        console.log(`[TestLaunch] Calling openProgram with:`, path);
+        const result: any = await bridge.openProgram(path);
+        console.log(`[TestLaunch] Result from openProgram:`, result);
+        
+        if (result && result.success === false) {
+           const errorMsg = `❌ Could not launch ${label || 'tool'}:\n\n${result.error || 'Unknown error'}\n\nPath was: ${path}`;
+           console.error(`[TestLaunch]`, errorMsg);
+           alert(errorMsg);
+        } else if (result && result.success === true) {
+          const msg = `✅ Successfully launched ${label || 'tool'}!`;
+          console.log(`[TestLaunch]`, msg);
+          alert(msg);
+        }
+      } else if (bridge?.openExternal) {
+        console.log(`[TestLaunch] Using openExternal fallback`);
         await bridge.openExternal(path);
       } else {
+        console.error(`[TestLaunch] No bridge methods available`);
         alert('Launching external tools requires the Desktop Bridge (Electron).');
       }
     } catch (e) {
-      console.error('Failed to launch tool:', e);
-      alert(`Could not launch ${label || 'tool'}. Check the configured path.`);
+      console.error('[TestLaunch] Exception:', e);
+      alert(`❌ Could not launch ${label || 'tool'}. Check the configured path: ${path}\n\nError: ${String(e)}`);
     }
   };
 
   const browsePath = async (toolKey: keyof Settings, toolName: string) => {
+    console.log(`[BrowsePath] Opening file picker for ${toolName}`);
     try {
       const bridge = (window as any).electron?.api || (window as any).electronAPI;
+      console.log(`[BrowsePath] Bridge available?`, !!bridge);
+      console.log(`[BrowsePath] pickToolPath available?`, !!bridge?.pickToolPath);
+      
       if (bridge?.pickToolPath) {
-        const path = await bridge.pickToolPath(toolName);
-        if (path) {
-          handleChange(toolKey, path);
+        console.log(`[BrowsePath] Calling pickToolPath...`);
+        const selectedPath = await bridge.pickToolPath(toolName);
+        console.log(`[BrowsePath] User selected:`, selectedPath);
+        
+        if (selectedPath) {
+          console.log(`[BrowsePath] Checking if path ends with .exe:`, selectedPath.toLowerCase().endsWith('.exe'));
+          
+          // Validate that the selected path is an executable
+          if (!selectedPath.toLowerCase().endsWith('.exe')) {
+            const msg = `❌ Invalid selection.\n\nPlease select a .exe file.\n\nYou selected: ${selectedPath}`;
+            console.error(`[BrowsePath]`, msg);
+            alert(msg);
+            return;
+          }
+          console.log(`[BrowsePath] Path validation passed. Saving: ${selectedPath}`);
+          handleChange(toolKey, selectedPath);
+        } else {
+          console.log(`[BrowsePath] User cancelled file picker`);
         }
       } else {
-        alert('File picker requires the Desktop Bridge (Electron).');
+        const msg = 'File picker requires the Desktop Bridge (Electron).';
+        console.error(`[BrowsePath]`, msg);
+        alert(msg);
       }
     } catch (e) {
-      console.error('Failed to pick tool path:', e);
-      alert(`Could not open file picker for ${toolName}. Check that Electron is running.`);
+      console.error('[BrowsePath] Exception:', e);
+      alert(`❌ File picker failed: ${String(e)}`);
     }
   };
 
@@ -142,6 +243,10 @@ const ExternalToolsSettings: React.FC = () => {
         };
 
         apps.forEach((app: any) => {
+            // CRITICAL: Only accept valid executable paths
+            if (!app.path || typeof app.path !== 'string') return;
+            if (!app.path.toLowerCase().endsWith('.exe')) return;
+            
             const nameLower = app.name.toLowerCase();
             for (const [key, field] of Object.entries(mappings)) {
                 if (nameLower.includes(key) && !newDraft[field]) {
@@ -160,6 +265,20 @@ const ExternalToolsSettings: React.FC = () => {
     } catch (e) {
         alert("Error during auto-detection.");
     }
+  };
+
+  const getPathStatusStyle = (path?: string) => {
+    if (!path || path.trim() === '') {
+      return 'bg-red-950 border-red-700 text-slate-400';
+    }
+    return 'bg-slate-800 border-emerald-600 text-white';
+  };
+
+  const getPathStatusIcon = (path?: string) => {
+    if (!path || path.trim() === '') {
+      return '⚠️ NOT SET';
+    }
+    return '✅ CONFIGURED';
   };
 
   return (
@@ -181,20 +300,37 @@ const ExternalToolsSettings: React.FC = () => {
         </div>
       </div>
 
-      <div className="flex-1 overflow-auto p-6 grid grid-cols-1 md:grid-cols-2 gap-6">
+      <div className="flex-1 overflow-auto p-6">
+        <div className="mb-6 p-4 bg-blue-900/30 border border-blue-700 rounded-lg text-sm text-blue-300">
+          <strong>📌 Quick Start:</strong> Each tool below shows its configuration status (✅ CONFIGURED or ⚠️ NOT SET). 
+          <ol className="mt-2 ml-4 space-y-1 list-decimal">
+            <li>Click <strong>Browse</strong> next to any tool to select its executable</li>
+            <li>Click <strong>Save Settings</strong> to save your configuration</li>
+            <li>Use <strong>Test Launch</strong> to verify the tool launches correctly</li>
+          </ol>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         {/* xEdit / FO4Edit */}
         <div className="bg-slate-900 border border-slate-800 rounded-xl p-4">
           <div className="flex items-center gap-2 mb-2">
             <Swords className="w-5 h-5 text-emerald-400" />
             <div>
-              <div className="text-sm font-bold text-white">xEdit / FO4Edit</div>
+              <div className="text-sm font-bold text-white flex items-center gap-2">
+                xEdit / FO4Edit
+                <span className={`text-[10px] px-2 py-0.5 rounded font-mono ${draft.xeditPath ? 'bg-green-900 text-green-300' : 'bg-red-900 text-red-300'}`}>
+                  {getPathStatusIcon(draft.xeditPath)}
+                </span>
+              </div>
               <a href="https://www.nexusmods.com/fallout4/mods/2737" target="_blank" rel="noreferrer" className="text-[11px] text-blue-400 hover:text-blue-300 inline-flex items-center gap-1"><ExternalLink className="w-3 h-3" /> Download from Nexus Mods</a>
             </div>
           </div>
-          <input value={draft.xeditPath || ''} onChange={(e) => handleChange('xeditPath', e.target.value)} placeholder="C:\\Path\\To\\FO4Edit.exe" className="w-full bg-slate-800 border border-slate-700 rounded px-3 py-2 text-sm text-white" />
+          <input value={draft.xeditPath || ''} onChange={(e) => handleChange('xeditPath', e.target.value)} placeholder="Click Browse to select FO4Edit.exe" title={draft.xeditPath || 'No path configured'} className={`w-full rounded px-3 py-2 text-xs border font-mono ${getPathStatusStyle(draft.xeditPath)}`} />
+          {draft.xeditPath && <div className="mt-1 text-[10px] text-slate-500 font-mono break-all">📁 {draft.xeditPath}</div>}
           <div className="mt-2 flex gap-2">
             <button onClick={() => browsePath('xeditPath', 'xEdit')} className="px-3 py-1 bg-slate-700 hover:bg-slate-600 border border-slate-600 rounded text-[11px] font-bold flex items-center gap-1"><FolderOpen className="w-3 h-3" /> Browse</button>
             <button onClick={() => testLaunch(draft.xeditPath, 'xEdit')} className="px-3 py-1 bg-emerald-700 hover:bg-emerald-600 border border-emerald-500 rounded text-[11px] font-bold flex items-center gap-1"><Play className="w-3 h-3" /> Test Launch</button>
+            <button onClick={() => aiLaunchTest('xedit', 'xEdit')} className="px-3 py-1 bg-sky-700 hover:bg-sky-600 border border-sky-500 rounded text-[11px] font-bold flex items-center gap-1"><Zap className="w-3 h-3" /> AI Launch Test</button>
           </div>
         </div>
 
@@ -211,6 +347,7 @@ const ExternalToolsSettings: React.FC = () => {
           <div className="mt-2 flex gap-2">
             <button onClick={() => browsePath('nifSkopePath', 'NifSkope')} className="px-3 py-1 bg-slate-700 hover:bg-slate-600 border border-slate-600 rounded text-[11px] font-bold flex items-center gap-1"><FolderOpen className="w-3 h-3" /> Browse</button>
             <button onClick={() => testLaunch(draft.nifSkopePath, 'NifSkope')} className="px-3 py-1 bg-emerald-700 hover:bg-emerald-600 border border-emerald-500 rounded text-[11px] font-bold flex items-center gap-1"><Play className="w-3 h-3" /> Test Launch</button>
+            <button onClick={() => aiLaunchTest('nifskope', 'NifSkope')} className="px-3 py-1 bg-sky-700 hover:bg-sky-600 border border-sky-500 rounded text-[11px] font-bold flex items-center gap-1"><Zap className="w-3 h-3" /> AI Launch Test</button>
           </div>
         </div>
 
@@ -227,6 +364,7 @@ const ExternalToolsSettings: React.FC = () => {
           <div className="mt-2 flex gap-2">
             <button onClick={() => browsePath('fomodCreatorPath', 'FOMOD Creator')} className="px-3 py-1 bg-slate-700 hover:bg-slate-600 border border-slate-600 rounded text-[11px] font-bold flex items-center gap-1"><FolderOpen className="w-3 h-3" /> Browse</button>
             <button onClick={() => testLaunch(draft.fomodCreatorPath, 'FOMOD Creator')} className="px-3 py-1 bg-emerald-700 hover:bg-emerald-600 border border-emerald-500 rounded text-[11px] font-bold flex items-center gap-1"><Play className="w-3 h-3" /> Test Launch</button>
+            <button onClick={() => aiLaunchTest('fomodcreator', 'FOMOD Creator')} className="px-3 py-1 bg-sky-700 hover:bg-sky-600 border border-sky-500 rounded text-[11px] font-bold flex items-center gap-1"><Zap className="w-3 h-3" /> AI Launch Test</button>
           </div>
         </div>
 
@@ -243,6 +381,7 @@ const ExternalToolsSettings: React.FC = () => {
           <div className="mt-2 flex gap-2">
             <button onClick={() => browsePath('creationKitPath', 'Creation Kit')} className="px-3 py-1 bg-slate-700 hover:bg-slate-600 border border-slate-600 rounded text-[11px] font-bold flex items-center gap-1"><FolderOpen className="w-3 h-3" /> Browse</button>
             <button onClick={() => testLaunch(draft.creationKitPath, 'Creation Kit')} className="px-3 py-1 bg-emerald-700 hover:bg-emerald-600 border border-emerald-500 rounded text-[11px] font-bold flex items-center gap-1"><Play className="w-3 h-3" /> Test Launch</button>
+            <button onClick={() => aiLaunchTest('creationkit', 'Creation Kit')} className="px-3 py-1 bg-sky-700 hover:bg-sky-600 border border-sky-500 rounded text-[11px] font-bold flex items-center gap-1"><Zap className="w-3 h-3" /> AI Launch Test</button>
           </div>
         </div>
 
@@ -259,6 +398,7 @@ const ExternalToolsSettings: React.FC = () => {
           <div className="mt-2 flex gap-2">
             <button onClick={() => browsePath('blenderPath', 'Blender')} className="px-3 py-1 bg-slate-700 hover:bg-slate-600 border border-slate-600 rounded text-[11px] font-bold flex items-center gap-1"><FolderOpen className="w-3 h-3" /> Browse</button>
             <button onClick={() => testLaunch(draft.blenderPath, 'Blender')} className="px-3 py-1 bg-emerald-700 hover:bg-emerald-600 border border-emerald-500 rounded text-[11px] font-bold flex items-center gap-1"><Play className="w-3 h-3" /> Test Launch</button>
+            <button onClick={() => aiLaunchTest('blender', 'Blender')} className="px-3 py-1 bg-sky-700 hover:bg-sky-600 border border-sky-500 rounded text-[11px] font-bold flex items-center gap-1"><Zap className="w-3 h-3" /> AI Launch Test</button>
           </div>
         </div>
 
@@ -275,6 +415,7 @@ const ExternalToolsSettings: React.FC = () => {
           <div className="mt-2 flex gap-2">
             <button onClick={() => browsePath('lootPath', 'LOOT')} className="px-3 py-1 bg-slate-700 hover:bg-slate-600 border border-slate-600 rounded text-[11px] font-bold flex items-center gap-1"><FolderOpen className="w-3 h-3" /> Browse</button>
             <button onClick={() => testLaunch(draft.lootPath, 'LOOT')} className="px-3 py-1 bg-emerald-700 hover:bg-emerald-600 border border-emerald-500 rounded text-[11px] font-bold flex items-center gap-1"><Play className="w-3 h-3" /> Test Launch</button>
+            <button onClick={() => aiLaunchTest('loot', 'LOOT')} className="px-3 py-1 bg-sky-700 hover:bg-sky-600 border border-sky-500 rounded text-[11px] font-bold flex items-center gap-1"><Zap className="w-3 h-3" /> AI Launch Test</button>
           </div>
         </div>
 
@@ -283,14 +424,21 @@ const ExternalToolsSettings: React.FC = () => {
           <div className="flex items-center gap-2 mb-2">
             <Package className="w-5 h-5 text-blue-500" />
             <div>
-              <div className="text-sm font-bold text-white">Mod Organizer 2</div>
+              <div className="text-sm font-bold text-white flex items-center gap-2">
+                Mod Organizer 2
+                <span className={`text-[10px] px-2 py-0.5 rounded font-mono ${draft.mo2Path ? 'bg-green-900 text-green-300' : 'bg-red-900 text-red-300'}`}>
+                  {getPathStatusIcon(draft.mo2Path)}
+                </span>
+              </div>
               <a href="https://www.nexusmods.com/skyrimspecialedition/mods/6194" target="_blank" rel="noreferrer" className="text-[11px] text-blue-400 hover:text-blue-300 inline-flex items-center gap-1"><ExternalLink className="w-3 h-3" /> Download from Nexus Mods</a>
             </div>
           </div>
-          <input value={draft.mo2Path || ''} onChange={(e) => handleChange('mo2Path', e.target.value)} placeholder="C:\\Path\\To\\ModOrganizer.exe" className="w-full bg-slate-800 border border-slate-700 rounded px-3 py-2 text-sm text-white" />
+          <input value={draft.mo2Path || ''} onChange={(e) => handleChange('mo2Path', e.target.value)} placeholder="Click Browse to select ModOrganizer.exe" title={draft.mo2Path || 'No path configured'} className={`w-full rounded px-3 py-2 text-xs border font-mono ${getPathStatusStyle(draft.mo2Path)}`} />
+          {draft.mo2Path && <div className="mt-1 text-[10px] text-slate-500 font-mono break-all">📁 {draft.mo2Path}</div>}
           <div className="mt-2 flex gap-2">
             <button onClick={() => browsePath('mo2Path', 'Mod Organizer 2')} className="px-3 py-1 bg-slate-700 hover:bg-slate-600 border border-slate-600 rounded text-[11px] font-bold flex items-center gap-1"><FolderOpen className="w-3 h-3" /> Browse</button>
             <button onClick={() => testLaunch(draft.mo2Path, 'Mod Organizer 2')} className="px-3 py-1 bg-emerald-700 hover:bg-emerald-600 border border-emerald-500 rounded text-[11px] font-bold flex items-center gap-1"><Play className="w-3 h-3" /> Test Launch</button>
+            <button onClick={() => aiLaunchTest('mo2', 'Mod Organizer 2')} className="px-3 py-1 bg-sky-700 hover:bg-sky-600 border border-sky-500 rounded text-[11px] font-bold flex items-center gap-1"><Zap className="w-3 h-3" /> AI Launch Test</button>
           </div>
         </div>
 
@@ -307,6 +455,7 @@ const ExternalToolsSettings: React.FC = () => {
           <div className="mt-2 flex gap-2">
             <button onClick={() => browsePath('vortexPath', 'Vortex')} className="px-3 py-1 bg-slate-700 hover:bg-slate-600 border border-slate-600 rounded text-[11px] font-bold flex items-center gap-1"><FolderOpen className="w-3 h-3" /> Browse</button>
             <button onClick={() => testLaunch(draft.vortexPath, 'Vortex')} className="px-3 py-1 bg-emerald-700 hover:bg-emerald-600 border border-emerald-500 rounded text-[11px] font-bold flex items-center gap-1"><Play className="w-3 h-3" /> Test Launch</button>
+            <button onClick={() => aiLaunchTest('vortex', 'Vortex')} className="px-3 py-1 bg-sky-700 hover:bg-sky-600 border border-sky-500 rounded text-[11px] font-bold flex items-center gap-1"><Zap className="w-3 h-3" /> AI Launch Test</button>
           </div>
         </div>
 
@@ -323,6 +472,7 @@ const ExternalToolsSettings: React.FC = () => {
           <div className="mt-2 flex gap-2">
             <button onClick={() => browsePath('f4sePath', 'F4SE')} className="px-3 py-1 bg-slate-700 hover:bg-slate-600 border border-slate-600 rounded text-[11px] font-bold flex items-center gap-1"><FolderOpen className="w-3 h-3" /> Browse</button>
             <button onClick={() => testLaunch(draft.f4sePath, 'F4SE')} className="px-3 py-1 bg-emerald-700 hover:bg-emerald-600 border border-emerald-500 rounded text-[11px] font-bold flex items-center gap-1"><Play className="w-3 h-3" /> Test Launch</button>
+            <button onClick={() => aiLaunchTest('f4se', 'F4SE Loader')} className="px-3 py-1 bg-sky-700 hover:bg-sky-600 border border-sky-500 rounded text-[11px] font-bold flex items-center gap-1"><Zap className="w-3 h-3" /> AI Launch Test</button>
           </div>
         </div>
 
@@ -339,6 +489,7 @@ const ExternalToolsSettings: React.FC = () => {
           <div className="mt-2 flex gap-2">
             <button onClick={() => browsePath('bodySlidePath', 'BodySlide')} className="px-3 py-1 bg-slate-700 hover:bg-slate-600 border border-slate-600 rounded text-[11px] font-bold flex items-center gap-1"><FolderOpen className="w-3 h-3" /> Browse</button>
             <button onClick={() => testLaunch(draft.bodySlidePath, 'BodySlide')} className="px-3 py-1 bg-emerald-700 hover:bg-emerald-600 border border-emerald-500 rounded text-[11px] font-bold flex items-center gap-1"><Play className="w-3 h-3" /> Test Launch</button>
+            <button onClick={() => aiLaunchTest('bodyslide', 'BodySlide & Outfit Studio')} className="px-3 py-1 bg-sky-700 hover:bg-sky-600 border border-sky-500 rounded text-[11px] font-bold flex items-center gap-1"><Zap className="w-3 h-3" /> AI Launch Test</button>
           </div>
         </div>
 
@@ -355,6 +506,7 @@ const ExternalToolsSettings: React.FC = () => {
           <div className="mt-2 flex gap-2">
             <button onClick={() => browsePath('baePath', 'BAE')} className="px-3 py-1 bg-slate-700 hover:bg-slate-600 border border-slate-600 rounded text-[11px] font-bold flex items-center gap-1"><FolderOpen className="w-3 h-3" /> Browse</button>
             <button onClick={() => testLaunch(draft.baePath, 'BAE')} className="px-3 py-1 bg-emerald-700 hover:bg-emerald-600 border border-emerald-500 rounded text-[11px] font-bold flex items-center gap-1"><Play className="w-3 h-3" /> Test Launch</button>
+            <button onClick={() => aiLaunchTest('bae', 'B.A.E.')} className="px-3 py-1 bg-sky-700 hover:bg-sky-600 border border-sky-500 rounded text-[11px] font-bold flex items-center gap-1"><Zap className="w-3 h-3" /> AI Launch Test</button>
           </div>
         </div>
 
@@ -371,6 +523,7 @@ const ExternalToolsSettings: React.FC = () => {
           <div className="mt-2 flex gap-2">
             <button onClick={() => browsePath('gimpPath', 'Texture Editor')} className="px-3 py-1 bg-slate-700 hover:bg-slate-600 border border-slate-600 rounded text-[11px] font-bold flex items-center gap-1"><FolderOpen className="w-3 h-3" /> Browse</button>
             <button onClick={() => testLaunch(draft.gimpPath, 'Texture Editor')} className="px-3 py-1 bg-emerald-700 hover:bg-emerald-600 border border-emerald-500 rounded text-[11px] font-bold flex items-center gap-1"><Play className="w-3 h-3" /> Test Launch</button>
+            <button onClick={() => aiLaunchTest('gimp', 'Texture Editor')} className="px-3 py-1 bg-sky-700 hover:bg-sky-600 border border-sky-500 rounded text-[11px] font-bold flex items-center gap-1"><Zap className="w-3 h-3" /> AI Launch Test</button>
           </div>
         </div>
 
@@ -387,6 +540,7 @@ const ExternalToolsSettings: React.FC = () => {
           <div className="mt-2 flex gap-2">
             <button onClick={() => browsePath('archive2Path', 'Archive2')} className="px-3 py-1 bg-slate-700 hover:bg-slate-600 border border-slate-600 rounded text-[11px] font-bold flex items-center gap-1"><FolderOpen className="w-3 h-3" /> Browse</button>
             <button onClick={() => testLaunch(draft.archive2Path, 'Archive2')} className="px-3 py-1 bg-emerald-700 hover:bg-emerald-600 border border-emerald-500 rounded text-[11px] font-bold flex items-center gap-1"><Play className="w-3 h-3" /> Test Launch</button>
+            <button onClick={() => aiLaunchTest('archive2', 'Archive2')} className="px-3 py-1 bg-sky-700 hover:bg-sky-600 border border-sky-500 rounded text-[11px] font-bold flex items-center gap-1"><Zap className="w-3 h-3" /> AI Launch Test</button>
           </div>
         </div>
 
@@ -403,6 +557,7 @@ const ExternalToolsSettings: React.FC = () => {
           <div className="mt-2 flex gap-2">
             <button onClick={() => browsePath('upscaylPath', 'Upscayl')} className="px-3 py-1 bg-slate-700 hover:bg-slate-600 border border-slate-600 rounded text-[11px] font-bold flex items-center gap-1"><FolderOpen className="w-3 h-3" /> Browse</button>
             <button onClick={() => testLaunch(draft.upscaylPath, 'Upscayl')} className="px-3 py-1 bg-emerald-700 hover:bg-emerald-600 border border-emerald-500 rounded text-[11px] font-bold flex items-center gap-1"><Play className="w-3 h-3" /> Test Launch</button>
+            <button onClick={() => aiLaunchTest('upscayl', 'Upscayl')} className="px-3 py-1 bg-sky-700 hover:bg-sky-600 border border-sky-500 rounded text-[11px] font-bold flex items-center gap-1"><Zap className="w-3 h-3" /> AI Launch Test</button>
           </div>
         </div>
 
@@ -419,6 +574,7 @@ const ExternalToolsSettings: React.FC = () => {
           <div className="mt-2 flex gap-2">
             <button onClick={() => browsePath('nvidiaTextureToolsPath', 'NVIDIA Texture Tools')} className="px-3 py-1 bg-slate-700 hover:bg-slate-600 border border-slate-600 rounded text-[11px] font-bold flex items-center gap-1"><FolderOpen className="w-3 h-3" /> Browse</button>
             <button onClick={() => testLaunch(draft.nvidiaTextureToolsPath, 'NVIDIA Texture Tools')} className="px-3 py-1 bg-emerald-700 hover:bg-emerald-600 border border-emerald-500 rounded text-[11px] font-bold flex items-center gap-1"><Play className="w-3 h-3" /> Test Launch</button>
+            <button onClick={() => aiLaunchTest('nvidiaTextureTools', 'NVIDIA Texture Tools')} className="px-3 py-1 bg-sky-700 hover:bg-sky-600 border border-sky-500 rounded text-[11px] font-bold flex items-center gap-1"><Zap className="w-3 h-3" /> AI Launch Test</button>
           </div>
         </div>
 
@@ -435,6 +591,7 @@ const ExternalToolsSettings: React.FC = () => {
           <div className="mt-2 flex gap-2">
             <button onClick={() => browsePath('shaderMapPath', 'ShaderMap 4')} className="px-3 py-1 bg-slate-700 hover:bg-slate-600 border border-slate-600 rounded text-[11px] font-bold flex items-center gap-1"><FolderOpen className="w-3 h-3" /> Browse</button>
             <button onClick={() => testLaunch(draft.shaderMapPath, 'ShaderMap 4')} className="px-3 py-1 bg-emerald-700 hover:bg-emerald-600 border border-emerald-500 rounded text-[11px] font-bold flex items-center gap-1"><Play className="w-3 h-3" /> Test Launch</button>
+            <button onClick={() => aiLaunchTest('shadermap', 'ShaderMap 4')} className="px-3 py-1 bg-sky-700 hover:bg-sky-600 border border-sky-500 rounded text-[11px] font-bold flex items-center gap-1"><Zap className="w-3 h-3" /> AI Launch Test</button>
           </div>
         </div>
 
@@ -451,6 +608,7 @@ const ExternalToolsSettings: React.FC = () => {
           <div className="mt-2 flex gap-2">
             <button onClick={() => browsePath('autodeskFbxPath', 'Autodesk FBX Converter')} className="px-3 py-1 bg-slate-700 hover:bg-slate-600 border border-slate-600 rounded text-[11px] font-bold flex items-center gap-1"><FolderOpen className="w-3 h-3" /> Browse</button>
             <button onClick={() => testLaunch(draft.autodeskFbxPath, 'Autodesk FBX Converter')} className="px-3 py-1 bg-emerald-700 hover:bg-emerald-600 border border-emerald-500 rounded text-[11px] font-bold flex items-center gap-1"><Play className="w-3 h-3" /> Test Launch</button>
+            <button onClick={() => aiLaunchTest('autodesk fbx', 'Autodesk FBX Converter')} className="px-3 py-1 bg-sky-700 hover:bg-sky-600 border border-sky-500 rounded text-[11px] font-bold flex items-center gap-1"><Zap className="w-3 h-3" /> AI Launch Test</button>
           </div>
         </div>
 
@@ -467,6 +625,7 @@ const ExternalToolsSettings: React.FC = () => {
           <div className="mt-2 flex gap-2">
             <button onClick={() => browsePath('nvidiaOmniversePath', 'NVIDIA Omniverse')} className="px-3 py-1 bg-slate-700 hover:bg-slate-600 border border-slate-600 rounded text-[11px] font-bold flex items-center gap-1"><FolderOpen className="w-3 h-3" /> Browse</button>
             <button onClick={() => testLaunch(draft.nvidiaOmniversePath, 'NVIDIA Omniverse')} className="px-3 py-1 bg-emerald-700 hover:bg-emerald-600 border border-emerald-500 rounded text-[11px] font-bold flex items-center gap-1"><Play className="w-3 h-3" /> Test Launch</button>
+            <button onClick={() => aiLaunchTest('nvidia omniverse', 'NVIDIA Omniverse')} className="px-3 py-1 bg-sky-700 hover:bg-sky-600 border border-sky-500 rounded text-[11px] font-bold flex items-center gap-1"><Zap className="w-3 h-3" /> AI Launch Test</button>
           </div>
         </div>
 
@@ -483,6 +642,7 @@ const ExternalToolsSettings: React.FC = () => {
           <div className="mt-2 flex gap-2">
             <button onClick={() => browsePath('nifUtilsSuitePath', 'NifUtilsSuite')} className="px-3 py-1 bg-slate-700 hover:bg-slate-600 border border-slate-600 rounded text-[11px] font-bold flex items-center gap-1"><FolderOpen className="w-3 h-3" /> Browse</button>
             <button onClick={() => testLaunch(draft.nifUtilsSuitePath, 'NifUtilsSuite')} className="px-3 py-1 bg-emerald-700 hover:bg-emerald-600 border border-emerald-500 rounded text-[11px] font-bold flex items-center gap-1"><Play className="w-3 h-3" /> Test Launch</button>
+            <button onClick={() => aiLaunchTest('nifutils', 'NifUtilsSuite')} className="px-3 py-1 bg-sky-700 hover:bg-sky-600 border border-sky-500 rounded text-[11px] font-bold flex items-center gap-1"><Zap className="w-3 h-3" /> AI Launch Test</button>
           </div>
         </div>
 
@@ -499,6 +659,7 @@ const ExternalToolsSettings: React.FC = () => {
           <div className="mt-2 flex gap-2">
             <button onClick={() => browsePath('wryeBashPath', 'Wrye Bash')} className="px-3 py-1 bg-slate-700 hover:bg-slate-600 border border-slate-600 rounded text-[11px] font-bold flex items-center gap-1"><FolderOpen className="w-3 h-3" /> Browse</button>
             <button onClick={() => testLaunch(draft.wryeBashPath, 'Wrye Bash')} className="px-3 py-1 bg-emerald-700 hover:bg-emerald-600 border border-emerald-500 rounded text-[11px] font-bold flex items-center gap-1"><Play className="w-3 h-3" /> Test Launch</button>
+            <button onClick={() => aiLaunchTest('wryebash', 'Wrye Bash')} className="px-3 py-1 bg-sky-700 hover:bg-sky-600 border border-sky-500 rounded text-[11px] font-bold flex items-center gap-1"><Zap className="w-3 h-3" /> AI Launch Test</button>
           </div>
         </div>
 
@@ -515,6 +676,7 @@ const ExternalToolsSettings: React.FC = () => {
           <div className="mt-2 flex gap-2">
             <button onClick={() => browsePath('photopeaPath', 'Photopea')} className="px-3 py-1 bg-slate-700 hover:bg-slate-600 border border-slate-600 rounded text-[11px] font-bold flex items-center gap-1"><FolderOpen className="w-3 h-3" /> Browse</button>
             <button onClick={() => testLaunch(draft.photopeaPath, 'Photopea')} className="px-3 py-1 bg-emerald-700 hover:bg-emerald-600 border border-emerald-500 rounded text-[11px] font-bold flex items-center gap-1"><Play className="w-3 h-3" /> Test Launch</button>
+            <button onClick={() => aiLaunchTest('photopea', 'Photopea')} className="px-3 py-1 bg-sky-700 hover:bg-sky-600 border border-sky-500 rounded text-[11px] font-bold flex items-center gap-1"><Zap className="w-3 h-3" /> AI Launch Test</button>
           </div>
         </div>
 
@@ -531,6 +693,7 @@ const ExternalToolsSettings: React.FC = () => {
           <div className="mt-2 flex gap-2">
             <button onClick={() => browsePath('photoDemonPath', 'PhotoDemon')} className="px-3 py-1 bg-slate-700 hover:bg-slate-600 border border-slate-600 rounded text-[11px] font-bold flex items-center gap-1"><FolderOpen className="w-3 h-3" /> Browse</button>
             <button onClick={() => testLaunch(draft.photoDemonPath, 'PhotoDemon')} className="px-3 py-1 bg-emerald-700 hover:bg-emerald-600 border border-emerald-500 rounded text-[11px] font-bold flex items-center gap-1"><Play className="w-3 h-3" /> Test Launch</button>
+            <button onClick={() => aiLaunchTest('photodemon', 'PhotoDemon')} className="px-3 py-1 bg-sky-700 hover:bg-sky-600 border border-sky-500 rounded text-[11px] font-bold flex items-center gap-1"><Zap className="w-3 h-3" /> AI Launch Test</button>
           </div>
         </div>
 
@@ -596,6 +759,7 @@ const ExternalToolsSettings: React.FC = () => {
             <button onClick={() => browsePath('pjmScriptPath', 'PJM Scripts')} className="px-3 py-1 bg-slate-700 hover:bg-slate-600 border border-slate-600 rounded text-[11px] font-bold flex items-center gap-1"><FolderOpen className="w-3 h-3" /> Browse</button>
             <button onClick={() => testLaunch(draft.pjmScriptPath, 'PJM Scripts')} className="px-3 py-1 bg-emerald-700 hover:bg-emerald-600 border border-emerald-500 rounded text-[11px] font-bold flex items-center gap-1"><Play className="w-3 h-3" /> Folder Open</button>
           </div>
+        </div>
         </div>
       </div>
     </div>

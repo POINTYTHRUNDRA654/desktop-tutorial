@@ -178,7 +178,7 @@ function setupIpcHandlers() {
   });
 
   ipcMain.handle(IPC_CHANNELS.SET_SETTINGS, async (event, newSettings: Partial<Settings>) => {
-    const updatedSettings = setSettings(newSettings);
+    const updatedSettings = await setSettings(newSettings);
     
     // Apply settings that affect window
     if (mainWindow) {

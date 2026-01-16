@@ -11,6 +11,7 @@ import { spawn, exec } from 'child_process';
 import { promisify } from 'util';
 import * as fs from 'fs/promises';
 import * as path from 'path';
+import * as os from 'os';
 import { InstalledProgram } from './types';
 
 const execAsync = promisify(exec);
@@ -224,7 +225,7 @@ async function scanProgramFiles(): Promise<InstalledProgram[]> {
     'Games', 'Modding', 'ModdingTools', 'SteamLibrary', 'GOG Games', 
     'Tools', 'Program Files', 'Program Files (x86)', 'SteamLibrary\\steamapps\\common',
     'XboxGames', 'Epic Games', 'Modding Tools', 'Fallout 4 Tools', 'Bethesda.net Launcher',
-    'MO2', 'Vortex', 'FO4Edit', 'Creation Kit', 'Wrye Bash', 'LOOT', 'NifSkope', 'Blender Foundation',
+    'MO2', 'Vortex', 'FO4Edit', 'FO4xEdit', 'Creation Kit', 'Wrye Bash', 'LOOT', 'NifSkope', 'Blender Foundation',
     'Modding\\Tools', 'GameTools', 'Utility', 'Utilities'
   ];
   
@@ -267,7 +268,7 @@ async function scanProgramFiles(): Promise<InstalledProgram[]> {
           // But only for directories that look like tool containers
           const entryLower = dir.name.toLowerCase();
           const isInteresting = [
-            'blender', 'creation', 'edit', 'organizer', 'vortex', 'nif', 'body', 
+            'blender', 'creation', 'edit', 'xedit', 'fo4edit', 'organizer', 'vortex', 'nif', 'body', 
             'loot', 'wrye', 'archive', 'gimp', 'photo', 'script', 'f4se', 'fallout',
             'tools', 'modding', 'steam', 'gog', 'epic',
             'upscayl', 'shadermap', 'nvidia', 'autodesk', 'fbx', 'photodemon', 

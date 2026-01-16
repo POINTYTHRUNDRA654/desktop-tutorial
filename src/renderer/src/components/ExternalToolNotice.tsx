@@ -48,7 +48,12 @@ const ExternalToolNotice: React.FC<ExternalToolNoticeProps> = ({
     setLaunching(true);
     try {
       const bridge = (window as any).electron?.api;
-      if (bridge?.openExternal) {
+      if (bridge?.openProgram) {
+        const result: any = await bridge.openProgram(path);
+        if (result && result.success === false) {
+           alert(`Could not launch ${toolName}: ${result.error || 'Unknown error'}`);
+        }
+      } else if (bridge?.openExternal) {
         await bridge.openExternal(path);
       } else {
         alert('Launching external tools requires the Desktop Bridge (Electron).');

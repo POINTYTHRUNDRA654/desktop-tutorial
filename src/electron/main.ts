@@ -5,15 +5,15 @@
  * Handles window creation, IPC communication for program detection and launching.
  */
 
-import { app, BrowserWindow, ipcMain, dialog } from 'electron';
+import { app, BrowserWindow, ipcMain, dialog, shell } from 'electron';
 import path from 'path';
 import os from 'os';
 import { IPC_CHANNELS } from './types';
-import { detectPrograms, openProgram } from './detectPrograms';
+import { detectPrograms } from './detectPrograms';
 import { getRunningModdingTools } from './processMonitor';
 import { DesktopShortcutManager } from './desktopShortcut';
 import fs from 'fs';
-import { spawn } from 'child_process';
+import { spawn, exec } from 'child_process';
 import { BridgeServer } from './BridgeServer';
 
 let mainWindow: BrowserWindow | null = null;
@@ -122,6 +122,18 @@ function createWindow() {
   mainWindow.on('closed', () => {
     mainWindow = null;
   });
+
+  // Enable DevTools with F12 or Ctrl+Shift+I
+  mainWindow.webContents.on('before-input-event', (event, input) => {
+    if (input.control && input.shift && input.key.toLowerCase() === 'i') {
+      mainWindow?.webContents.toggleDevTools();
+      event.preventDefault();
+    }
+    if (input.key === 'F12') {
+      mainWindow?.webContents.toggleDevTools();
+      event.preventDefault();
+    }
+  });
 }
 
 /**
@@ -154,13 +166,94 @@ function setupIpcHandlers() {
     try {
       // Validate input
       if (!programPath || typeof programPath !== 'string') {
+        console.error(`[Main] OPEN_PROGRAM: Invalid programPath - ${programPath}`);
         throw new Error('Invalid program path');
       }
       
-      await openProgram(programPath);
-    } catch (error) {
+      console.log(`[Main] OPEN_PROGRAM: Checking if ${programPath} exists...`);
+      
+      // Use synchronous check for existence since we're already in a try/catch
+      if (!fs.existsSync(programPath)) {
+          console.error(`[Main] OPEN_PROGRAM: Program NOT FOUND at: ${programPath}`);
+          return { success: false, error: `Executable not found at ${programPath}. Please verify the path.` };
+      }
+
+      console.log(`[Main] OPEN_PROGRAM: File exists. Path is valid.`);
+      console.log(`[Main] OPEN_PROGRAM: Attempting to open program: ${programPath}`);
+      
+      // FOR EXECUTABLES: Use Windows 'start' command which is most reliable for GUI apps
+      if (programPath.toLowerCase().endsWith('.exe')) {
+          try {
+              const programDir = path.dirname(programPath);
+              const programFile = path.basename(programPath);
+
+              console.log(`[Main] OPEN_PROGRAM: Launching ${programFile} from directory: ${programDir}`);
+              console.log(`[Main] OPEN_PROGRAM: Full path: ${programPath}`);
+
+              // Method 1: Try Electron's shell.openPath first (most reliable)
+              const shellError = await shell.openPath(programPath);
+              
+              if (shellError) {
+                  console.warn(`[Main] OPEN_PROGRAM: shell.openPath returned error: ${shellError}`);
+                  console.log(`[Main] OPEN_PROGRAM: Trying fallback method with spawn...`);
+                  
+                  // Method 2: Fallback to direct spawn with shell: true
+                  const child = spawn(`"${programPath}"`, [], {
+                      cwd: programDir,
+                      detached: true,
+                      shell: true,
+                      stdio: 'ignore'
+                  });
+                  
+                  child.unref();
+                  console.log(`[Main] OPEN_PROGRAM: ✓ Fallback spawn completed`);
+                  return { success: true, method: 'spawn-shell-fallback' };
+              } else {
+                  console.log(`[Main] OPEN_PROGRAM: ✓ SUCCESS - Program launched via shell.openPath`);
+                  return { success: true, method: 'shell-openPath' };
+              }
+          } catch (e: any) {
+              console.error(`[Main] OPEN_PROGRAM: ✗ CRITICAL FAILURE:`, e);
+              return { success: false, error: e.message || 'Bridge exception' };
+          }
+      }
+      
+      // Handle URLs via openExternal
+      if (/^https?:\/\//i.test(programPath)) {
+        try {
+          await shell.openExternal(programPath);
+          console.log(`[Main] OPEN_PROGRAM: ✓ SUCCESS - Opened URL via shell.openExternal`);
+          return { success: true, method: 'shell-openExternal' };
+        } catch (e: any) {
+          console.error(`[Main] OPEN_PROGRAM: Failed to open URL: ${e?.message || e}`);
+          return { success: false, error: e?.message || 'Failed to open URL' };
+        }
+      }
+
+      // Use shell.openPath for non-exe files or directories
+      const error = await shell.openPath(programPath);
+      
+      if (error) {
+        console.warn(`[Main] shell.openPath failed: ${error}. Falling back to standard exec.`);
+        
+        return new Promise((resolve) => {
+          const quotedPath = `"${programPath}"`;
+          exec(`start "" ${quotedPath}`, (err) => {
+            if (err) {
+              console.error(`[Main] Final fallback exec failed: ${err}`);
+              resolve({ success: false, error: err.message });
+            } else {
+              console.log(`[Main] Fallback exec successful for: ${programPath}`);
+              resolve({ success: true, method: 'exec' });
+            }
+          });
+        });
+      }
+      
+      return { success: true, method: 'shell' };
+    } catch (error: any) {
       console.error('Error opening program:', error);
-      throw error;
+      return { success: false, error: error.message || 'Unknown error' };
     }
   });
 
@@ -255,12 +348,32 @@ function setupIpcHandlers() {
     } catch (e) {
       console.error('[Settings] Failed to load settings:', e);
     }
+    // Return comprehensive default settings with all tool paths
     return {
       xeditPath: '',
       nifSkopePath: '',
       fomodCreatorPath: '',
       creationKitPath: '',
       blenderPath: '',
+      lootPath: '',
+      vortexPath: '',
+      mo2Path: '',
+      wryeBashPath: '',
+      bodySlidePath: '',
+      outfitStudioPath: '',
+      baePath: '',
+      gimpPath: '',
+      archive2Path: '',
+      pjmScriptPath: '',
+      f4sePath: '',
+      upscaylPath: '',
+      photopeaPath: '',
+      shaderMapPath: '',
+      nvidiaTextureToolsPath: '',
+      nvidiaCanvasPath: '',
+      nvidiaOmniversePath: '',
+      autodeskFbxPath: '',
+      nifUtilsSuitePath: '',
     };
   };
 
@@ -328,31 +441,40 @@ function setupIpcHandlers() {
 
   ipcMain.handle('get-system-info', async () => {
     console.log('[Main] get-system-info IPC handler called');
+    const { exec } = require('child_process');
+    const util = require('util');
+    const execAsync = util.promisify(exec);
+    
+    const safeExec = async (cmd: string, timeout = 5000) => {
+        try {
+            const { stdout } = await execAsync(cmd, { timeout, encoding: 'utf-8' });
+            return stdout;
+        } catch (e) {
+            console.error(`[Main] Command failed: ${cmd}`, e);
+            return '';
+        }
+    };
+
     try {
       const cpus = os.cpus();
       const totalMem = os.totalmem();
       const platform = os.platform();
       const release = os.release();
-      const { execSync } = require('child_process');
       
       // Get Friendly OS Name
       let osFriendly = `${platform} ${release}`;
       if (platform === 'win32') {
-        try {
-          const osWmic = execSync('wmic os get Caption /value', { encoding: 'utf-8' });
-          const osMatch = osWmic.match(/Caption=(.+)/);
-          if (osMatch) {
+        const osWmic = await safeExec('wmic os get Caption /value');
+        const osMatch = osWmic.match(/Caption=(.+)/);
+        if (osMatch) {
             osFriendly = osMatch[1].trim();
-          } else {
-             // Fallback to build check if Caption fails
-             const major = parseInt(release.split('.')[0], 10);
-             const build = parseInt(release.split('.')[2] || '0', 10);
-             if (major === 10) {
-                 osFriendly = build >= 22000 ? 'Windows 11' : 'Windows 10';
-             }
-          }
-        } catch (e) {
-          console.error('[Main] OS detection failed:', e);
+        } else {
+            // Fallback to build check if Caption fails
+            const major = parseInt(release.split('.')[0], 10);
+            const build = parseInt(release.split('.')[2] || '0', 10);
+            if (major === 10) {
+                osFriendly = build >= 22000 ? 'Windows 11' : 'Windows 10';
+            }
         }
       }
 
@@ -361,14 +483,10 @@ function setupIpcHandlers() {
       // Get Motherboard info
       let motherboard = 'Unknown Motherboard';
       if (platform === 'win32') {
-        try {
-          const mbWmic = execSync('wmic baseboard get product,manufacturer', { encoding: 'utf-8' });
-          const mbLines = mbWmic.split('\n').map((l: string) => l.trim()).filter((l: string) => l && !l.includes('Manufacturer') && !l.includes('Product'));
-          if (mbLines.length > 0) {
-            motherboard = mbLines[0];
-          }
-        } catch (e) {
-          console.error('[Main] Motherboard detection failed:', e);
+        const mbWmic = await safeExec('wmic baseboard get product,manufacturer');
+        const mbLines = mbWmic.split('\n').map((l: string) => l.trim()).filter((l: string) => l && !l.includes('Manufacturer') && !l.includes('Product'));
+        if (mbLines.length > 0) {
+          motherboard = mbLines[0];
         }
       }
 
@@ -377,39 +495,30 @@ function setupIpcHandlers() {
       let allDetectedGPUs: string[] = [];
       let vramGB = 0;
       if (platform === 'win32') {
-        try {
-          console.log('[Main] Attempting GPU detection via WMIC...');
-          
-          // Get GPU names
-          const wmic = execSync('wmic path win32_VideoController get name', { encoding: 'utf-8' });
-          allDetectedGPUs = wmic.split('\n')
-            .map((line: string) => line.trim())
-            .filter((line: string) => line && !line.includes('Name'));
-          
-          console.log('[Main] All detected GPUs:', allDetectedGPUs);
-          
-          if (allDetectedGPUs.length > 0) {
-            gpuInfo = allDetectedGPUs.join(' + ');
-          }
-          
-          // Get VRAM (AdapterRAM is in bytes)
-          try {
-            const vramWmic = execSync('wmic path win32_VideoController get AdapterRAM', { encoding: 'utf-8' });
-            const vramLines = vramWmic.split('\n')
-              .map((line: string) => line.trim())
-              .filter((line: string) => line && !line.includes('AdapterRAM') && line !== '0');
-            
-            if (vramLines.length > 0) {
-              const vramBytes = vramLines.reduce((acc, curr) => acc + parseInt(curr, 10), 0);
-              vramGB = Math.round(vramBytes / (1024 ** 3)); // Convert to GB
-              console.log('[Main] Detected total VRAM:', vramGB, 'GB');
-            }
-          } catch (e) {
-            console.error('[Main] VRAM detection failed:', e);
-          }
-        } catch (e) {
-          console.error('[Main] GPU detection failed:', e);
-          gpuInfo = 'GPU Detection Failed';
+        console.log('[Main] Attempting GPU detection via WMIC...');
+        
+        // Get GPU names
+        const wmic = await safeExec('wmic path win32_VideoController get name');
+        allDetectedGPUs = wmic.split('\n')
+          .map((line: string) => line.trim())
+          .filter((line: string) => line && !line.includes('Name'));
+        
+        console.log('[Main] All detected GPUs:', allDetectedGPUs);
+        
+        if (allDetectedGPUs.length > 0) {
+          gpuInfo = allDetectedGPUs.join(' + ');
+        }
+        
+        // Get VRAM (AdapterRAM is in bytes)
+        const vramWmic = await safeExec('wmic path win32_VideoController get AdapterRAM');
+        const vramLines = vramWmic.split('\n')
+          .map((line: string) => line.trim())
+          .filter((line: string) => line && !line.includes('AdapterRAM') && line !== '0');
+        
+        if (vramLines.length > 0) {
+          const vramBytes = vramLines.reduce((acc: number, curr: string) => acc + parseInt(curr, 10), 0);
+          vramGB = Math.round(vramBytes / (1024 ** 3)); // Convert to GB
+          console.log('[Main] Detected total VRAM:', vramGB, 'GB');
         }
       } else if (platform === 'darwin') {
         gpuInfo = 'Metal GPU (macOS)';
@@ -456,23 +565,19 @@ function setupIpcHandlers() {
       // Get ALL storage space
       let storageDrives: Array<{device: string, free: number, total: number}> = [];
       if (platform === 'win32') {
-        try {
-          const storageWmic = execSync('wmic logicaldisk get DeviceID,FreeSpace,Size', { encoding: 'utf-8' });
-          const rows = storageWmic.split('\n').filter((l: string) => l.trim() && !l.includes('DeviceID'));
-          for (const row of rows) {
-              const parts = row.trim().split(/\s+/);
-              if (parts.length >= 3) {
-                  storageDrives.push({
-                      device: parts[0],
-                      free: Math.round(parseInt(parts[1], 10) / (1024 ** 3)),
-                      total: Math.round(parseInt(parts[2], 10) / (1024 ** 3))
-                  });
-              }
-          }
-          console.log('[Main] Detected drives:', storageDrives);
-        } catch (e) {
-          console.error('[Main] Storage detection failed:', e);
+        const storageWmic = await safeExec('wmic logicaldisk get DeviceID,FreeSpace,Size');
+        const rows = storageWmic.split('\n').filter((l: string) => l.trim() && !l.includes('DeviceID'));
+        for (const row of rows) {
+            const parts = row.trim().split(/\s+/);
+            if (parts.length >= 3) {
+                storageDrives.push({
+                    device: parts[0],
+                    free: Math.round(parseInt(parts[1], 10) / (1024 ** 3)),
+                    total: Math.round(parseInt(parts[2], 10) / (1024 ** 3))
+                });
+            }
         }
+        console.log('[Main] Detected drives:', storageDrives);
       }
       
       // Get display resolution
@@ -1236,6 +1341,11 @@ app.on('window-all-closed', () => {
   }
 });
 
+app.on('will-quit', () => {
+    console.log('[MOSSY] Shutting down Neural Bridge...');
+    bridge.stop();
+});
+
 // Handle second instance (ensure single instance)
 const gotTheLock = app.requestSingleInstanceLock();
 
@@ -1250,3 +1360,12 @@ if (!gotTheLock) {
     }
   });
 }
+
+// Global Crash Protection
+process.on('uncaughtException', (error) => {
+    console.error('[CRITICAL] Uncaught Exception:', error);
+});
+
+process.on('unhandledRejection', (reason) => {
+    console.error('[CRITICAL] Unhandled Rejection:', reason);
+});

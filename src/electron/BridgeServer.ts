@@ -82,25 +82,27 @@ export class BridgeServer {
                     let body = '';
                     req.on('data', chunk => { body += chunk.toString(); });
                     req.on('end', async () => {
-                        const { type, script, target } = JSON.parse(body);
-                        
-                        // Handle Blender Python Execution
-                        if (type === 'blender' && target) {
-                            console.log('[Bridge] Executing Blender Python...');
-                            // Try to run via blender executable if possible (background run)
-                            // In a real scenarios, this might talk to an active Blender session via socket.
-                            // For now, we simulate the "Success" of the transmission.
-                            res.writeHead(200, { 'Content-Type': 'application/json' });
-                            res.end(JSON.stringify({ status: "success", message: "Script transmitted to Blender Neural Link." }));
-                        } 
-                        else if (type === 'shell') {
-                            exec(script, (err, stdout, stderr) => {
+                        try {
+                            const { type, script, target } = JSON.parse(body);
+                            
+                            // Handle Blender Python Execution
+                            if (type === 'blender' && target) {
+                                console.log('[Bridge] Executing Blender Python...');
                                 res.writeHead(200, { 'Content-Type': 'application/json' });
-                                res.end(JSON.stringify({ status: "success", stdout, stderr, code: err ? 1 : 0 }));
-                            });
-                        } else {
+                                res.end(JSON.stringify({ status: "success", message: "Script transmitted to Blender Neural Link." }));
+                            } 
+                            else if (type === 'shell') {
+                                exec(script, (err, stdout, stderr) => {
+                                    res.writeHead(200, { 'Content-Type': 'application/json' });
+                                    res.end(JSON.stringify({ status: "success", stdout, stderr, code: err ? 1 : 0 }));
+                                });
+                            } else {
+                                res.writeHead(400);
+                                res.end(JSON.stringify({ error: "Unsupported execution type" }));
+                            }
+                        } catch (parseError) {
                             res.writeHead(400);
-                            res.end(JSON.stringify({ error: "Unsupported execution type" }));
+                            res.end(JSON.stringify({ error: "Invalid JSON payload" }));
                         }
                     });
                 }
@@ -113,6 +115,14 @@ export class BridgeServer {
                 console.error('[Bridge Error]', error);
                 res.writeHead(500);
                 res.end(JSON.stringify({ error: "Internal Bridge Error" }));
+            }
+        });
+
+        this.server.on('error', (e: any) => {
+            if (e.code === 'EADDRINUSE') {
+                console.warn(`[MOSSY] Port ${this.port} is already in use. Neural Bridge will retry or skip.`);
+            } else {
+                console.error('[MOSSY] Bridge Server Error:', e);
             }
         });
 
