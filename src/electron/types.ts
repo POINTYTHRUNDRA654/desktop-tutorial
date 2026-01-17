@@ -55,6 +55,7 @@ export const IPC_CHANNELS = {
   FOMOD_EXPORT_PACKAGE: 'fomod-export-package',
   // Auditor ESP Analysis
   AUDITOR_ANALYZE_ESP: 'auditor-analyze-esp',
+  AUDITOR_PICK_ESP_FILE: 'auditor-pick-esp-file',
 } as const;
 
 /**
@@ -112,6 +113,9 @@ export interface ElectronAPI {
   fomodAnalyzeStructure: (files: string[]) => Promise<any>;
   fomodValidateXML: (xml: string) => Promise<{ valid: boolean; errors: string[] }>;
   fomodExportPackage: (outputPath: string, structure: any, files: any[]) => Promise<{ success: boolean; path?: string; error?: string }>;
+  // Auditor
+  analyzeEsp: (filePath: string) => Promise<{ success: boolean; fileSize?: number; recordCount?: number; issues?: any[]; error?: string }>;
+  pickEspFile: () => Promise<string>;
 }
 
 /**

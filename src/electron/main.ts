@@ -1065,6 +1065,20 @@ function setupIpcHandlers() {
     return result.filePaths[0];
   });
 
+  // --- Auditor: Pick ESP/ESM file via native dialog ---
+  ipcMain.handle(IPC_CHANNELS.AUDITOR_PICK_ESP_FILE, async (_event) => {
+    const result = await dialog.showOpenDialog({
+      title: 'Select ESP/ESM Plugin File',
+      properties: ['openFile'],
+      filters: [
+        { name: 'Fallout Plugins', extensions: ['esp', 'esm', 'esl'] },
+        { name: 'All Files', extensions: ['*'] },
+      ],
+    });
+    if (result.canceled || !result.filePaths?.length) return '';
+    return result.filePaths[0];
+  });
+
   // --- Auditor: Analyze ESP/ESM files ---
   ipcMain.handle(IPC_CHANNELS.AUDITOR_ANALYZE_ESP, async (_event, filePath: string) => {
     try {
