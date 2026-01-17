@@ -542,6 +542,44 @@ Directive complete, Architect. My neural matrix has been updated with your syste
 
 Your error has been logged. You can export detailed logs from **Settings > Privacy Settings > Export Mossy Error Logs**.`;
         }
+    } else if (name === 'get_scan_results') {
+        try {
+            const cachedApps = JSON.parse(localStorage.getItem('mossy_apps') || '[]');
+            const lastScan = localStorage.getItem('mossy_last_scan');
+            
+            if (!cachedApps || cachedApps.length === 0) {
+                result = `**No scan results found.** I haven't scanned your system yet. Please ask me to "Run a deep scan" or "Scan my system" to detect installed software.`;
+            } else {
+                const scanDate = lastScan ? new Date(lastScan).toLocaleString() : 'Unknown time';
+                const aiApps = cachedApps.filter((a: any) => {
+                    const name = (a.name || a.displayName || '').toLowerCase();
+                    return name.includes('ai') || 
+                           name.includes('chatgpt') || 
+                           name.includes('claude') || 
+                           name.includes('gemini') || 
+                           name.includes('copilot') ||
+                           name.includes('gpt') ||
+                           name.includes('ollama') ||
+                           name.includes('local') ||
+                           name.includes('neural') ||
+                           name.includes('llm');
+                });
+                
+                const appList = cachedApps.map((a: any) => `- **${a.name}**${a.version ? ` (v${a.version})` : ''}\n  📍 ${a.path}`).join('\n');
+                
+                result = `**📊 System Scan Results**
+
+**Last Scan:** ${scanDate}
+**Total Applications Detected:** ${cachedApps.length}
+
+${aiApps.length > 0 ? `**AI & Machine Learning Tools (${aiApps.length}):**\n${aiApps.map((a: any) => `- **${a.name}** 📍 ${a.path}`).join('\n')}\n\n` : ''}**All Detected Applications:**
+${appList}
+
+I can now integrate with these tools to enhance my capabilities and provide you with seamless workflows. Which of these applications would you like me to help you with?`;
+            }
+        } catch (e: any) {
+            result = `**Error retrieving scan results:** ${e instanceof Error ? e.message : 'Unknown error'}. Please run a fresh scan.`;
+        }
     } else if (name === 'scan_installed_tools') {
         const api = (window as any).electron?.api || (window as any).electronAPI;
         if (api?.detectPrograms) {

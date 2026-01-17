@@ -99,6 +99,14 @@ export const toolDeclarations: FunctionDeclaration[] = [
         }
     },
     {
+        name: 'get_scan_results',
+        description: 'Retrieve the results from the most recent hardware scan. Use this when the user asks about detected software, apps, AI tools, modding tools, or what\'s installed on their system. This shows cached scan results from localStorage.',
+        parameters: {
+            type: Type.OBJECT,
+            properties: {}
+        }
+    },
+    {
         name: 'scan_installed_tools',
         description: 'Deep scan all system drives for Fallout 4 modding software. Only run this if a specific tool (like xEdit) is missing from the [AUTOMATICALLY DETECTED TOOLS] list.',
         parameters: {
