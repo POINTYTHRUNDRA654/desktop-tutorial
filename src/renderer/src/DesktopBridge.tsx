@@ -366,18 +366,86 @@ pause
     const addonCode = `
 import bpy
 import os
-import time
+import socket
 import json
+import threading
+import time
 
 bl_info = {
     "name": "Mossy Link",
     "author": "POINTYTHRUNDRA654",
-    "version": (4, 0, 0),
-    "blender": (3, 6, 0),
+    "version": (5, 0, 0),
+    "blender": (4, 0, 0),
     "location": "View3D > Sidebar > Mossy",
-    "description": "Neural Link for Mossy AI Assistant",
+    "description": "Neural Link for Mossy AI Assistant - Socket-based communication",
     "category": "System",
+    "support": "COMMUNITY"
 }
+
+# Global socket server
+MOSSY_SERVER = None
+MOSSY_PORT = 9999
+MOSSY_HOST = '127.0.0.1'
+
+class MossySocketServer:
+    def __init__(self, host=MOSSY_HOST, port=MOSSY_PORT):
+        self.host = host
+        self.port = port
+        self.socket = None
+        self.running = False
+        self.thread = None
+        
+    def start(self):
+        try:
+            self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            self.socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+            self.socket.bind((self.host, self.port))
+            self.socket.listen(1)
+            self.running = True
+            self.thread = threading.Thread(target=self._accept_connections, daemon=True)
+            self.thread.start()
+            print(f"[Mossy Link] Server listening on {self.host}:{self.port}")
+        except Exception as e:
+            print(f"[Mossy Link] Failed to start server: {e}")
+    
+    def _accept_connections(self):
+        while self.running:
+            try:
+                self.socket.settimeout(1.0)
+                client, addr = self.socket.accept()
+                print(f"[Mossy Link] Connection from {addr}")
+                self._handle_client(client)
+            except socket.timeout:
+                continue
+            except Exception as e:
+                if self.running:
+                    print(f"[Mossy Link] Server error: {e}")
+    
+    def _handle_client(self, client):
+        try:
+            data = client.recv(1024).decode('utf-8')
+            if data.startswith('EXECUTE:'):
+                script = data.replace('EXECUTE:', '', 1)
+                result = self._execute_script(script)
+                client.send(result.encode('utf-8'))
+            elif data == 'PING':
+                client.send(b'PONG')
+            client.close()
+        except Exception as e:
+            print(f"[Mossy Link] Client error: {e}")
+    
+    def _execute_script(self, script):
+        try:
+            # Execute in Blender context
+            exec(script, {'bpy': bpy, 'D': bpy.data, 'C': bpy.context})
+            return "SUCCESS"
+        except Exception as e:
+            return f"ERROR: {str(e)}"
+    
+    def stop(self):
+        self.running = False
+        if self.socket:
+            self.socket.close()
 
 class MOSSY_PT_Panel(bpy.types.Panel):
     bl_label = "Mossy Neural Link"
@@ -391,76 +459,67 @@ class MOSSY_PT_Panel(bpy.types.Panel):
         scene = context.scene
         
         row = layout.row()
-        row.prop(scene, "mossy_link_active", text="Sync Enabled", toggle=True, icon='RADIOBUT_ON' if scene.mossy_link_active else 'RADIOBUT_OFF')
+        row.prop(scene, "mossy_link_active", text="Link Status", toggle=True)
         
         if scene.mossy_link_active:
             box = layout.box()
-            box.label(text="Status: Connected", icon='WORLD')
-            box.label(text="Listening for commands...", icon='MICROPHONE')
-            
-            row = layout.row()
-            row.operator("mossy.align_standards", text="Align Standards", icon='CHECKMARK')
-            
-            if scene.mossy_last_cmd:
-                box = layout.box()
-                box.label(text="Last Task:", icon='EDIT')
-                box.label(text=scene.mossy_last_cmd)
+            box.label(text="✓ Connected", icon='WORLD')
+            box.label(text=f"Port: {MOSSY_PORT}", icon='NETWORK_DRIVE')
+            box.label(text="Ready for commands...", icon='PLAY')
         else:
-            layout.label(text="Link is Offline")
-            layout.label(text="Please enable to receive Mossy's thoughts.")
+            layout.label(text="✗ Link Offline", icon='ERROR')
 
-class MOSSY_OT_AlignStandards(bpy.types.Operator):
-    bl_idname = "mossy.align_standards"
-    bl_label = "Align to FO4 Standards"
+class MOSSY_OT_TestConnection(bpy.types.Operator):
+    bl_idname = "mossy.test_connection"
+    bl_label = "Test Mossy Connection"
     
     def execute(self, context):
-        bpy.context.scene.unit_settings.system = 'METRIC'
-        bpy.context.scene.unit_settings.scale_length = 1.0
-        bpy.context.scene.render.fps = 30
-        self.report({'INFO'}, "Mossy: Aligned to FO4 Standards (1.0 Scale, 30 FPS)")
-        return {'FINISHED'}
+        try:
+            sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            sock.settimeout(2)
+            sock.connect((MOSSY_HOST, MOSSY_PORT))
+            sock.send(b'PING')
+            response = sock.recv(1024).decode('utf-8')
+            sock.close()
+            
+            if response == 'PONG':
+                self.report({'INFO'}, 'Mossy Link: Connection successful!')
+                return {'FINISHED'}
+        except Exception as e:
+            self.report({'ERROR'}, f'Mossy Link: {str(e)}')
+            return {'CANCELLED'}
 
-def mossy_clipboard_monitor():
-    if not bpy.context.scene.mossy_link_active:
-        return 1.0
-        
-    try:
-        # Check clipboard
-        clip = bpy.context.window_manager.clipboard
-        if clip.startswith("MOSSY_CMD:"):
-            cmd = clip.replace("MOSSY_CMD:", "", 1)
-            bpy.context.window_manager.clipboard = "" # Clear immediately
-            
-            bpy.context.scene.mossy_last_cmd = cmd[:30] + "..." if len(cmd) > 30 else cmd
-            
-            if cmd == "MOSSY_CUBE":
-                bpy.ops.mesh.primitive_cube_add(size=2, location=(0,0,0))
-            else:
-                # Execute the raw python script from Mossy
-                exec(cmd, globals())
-            
-    except Exception as e:
-        print(f"Mossy Link Error: {e}")
-        
-    return 0.5 
+def update_mossy_link_active(scene):
+    global MOSSY_SERVER
+    if scene.mossy_link_active:
+        if MOSSY_SERVER is None:
+            MOSSY_SERVER = MossySocketServer()
+            MOSSY_SERVER.start()
+    else:
+        if MOSSY_SERVER is not None:
+            MOSSY_SERVER.stop()
+            MOSSY_SERVER = None
 
 def register():
     bpy.utils.register_class(MOSSY_PT_Panel)
-    bpy.utils.register_class(MOSSY_OT_AlignStandards)
-    bpy.types.Scene.mossy_link_active = bpy.props.BoolProperty(name="Mossy Link Active", default=False)
-    bpy.types.Scene.mossy_last_cmd = bpy.props.StringProperty(name="Last Command", default="")
-    
-    if not bpy.app.timers.is_registered(mossy_clipboard_monitor):
-        bpy.app.timers.register(mossy_clipboard_monitor)
+    bpy.utils.register_class(MOSSY_OT_TestConnection)
+    bpy.types.Scene.mossy_link_active = bpy.props.BoolProperty(
+        name="Mossy Link Active",
+        default=False,
+        update=update_mossy_link_active
+    )
+    print("[Mossy Link] Add-on registered successfully!")
 
 def unregister():
-    bpy.utils.unregister_class(MOSSY_PT_Panel)
-    bpy.utils.unregister_class(MOSSY_OT_AlignStandards)
-    del bpy.types.Scene.mossy_link_active
-    del bpy.types.Scene.mossy_last_cmd
+    global MOSSY_SERVER
+    if MOSSY_SERVER is not None:
+        MOSSY_SERVER.stop()
+        MOSSY_SERVER = None
     
-    if bpy.app.timers.is_registered(mossy_clipboard_monitor):
-        bpy.app.timers.unregister(mossy_clipboard_monitor)
+    bpy.utils.unregister_class(MOSSY_PT_Panel)
+    bpy.utils.unregister_class(MOSSY_OT_TestConnection)
+    del bpy.types.Scene.mossy_link_active
+    print("[Mossy Link] Add-on unregistered.")
 
 if __name__ == "__main__":
     register()
