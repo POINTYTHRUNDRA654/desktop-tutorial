@@ -59,6 +59,9 @@ const IPC_CHANNELS = {
   // Auditor
   AUDITOR_ANALYZE_ESP: 'auditor-analyze-esp',
   AUDITOR_PICK_ESP_FILE: 'auditor-pick-esp-file',
+  AUDITOR_PICK_NIF_FILE: 'auditor-pick-nif-file',
+  AUDITOR_PICK_DDS_FILE: 'auditor-pick-dds-file',
+  AUDITOR_PICK_BGSM_FILE: 'auditor-pick-bgsm-file',
 } as const;
 
 /**
@@ -208,6 +211,27 @@ const electronAPI = {
    */
   pickEspFile: (): Promise<string> => {
     return ipcRenderer.invoke(IPC_CHANNELS.AUDITOR_PICK_ESP_FILE);
+  },
+
+  /**
+   * Auditor: Pick NIF mesh file via native file dialog
+   */
+  pickNifFile: (): Promise<string> => {
+    return ipcRenderer.invoke(IPC_CHANNELS.AUDITOR_PICK_NIF_FILE);
+  },
+
+  /**
+   * Auditor: Pick DDS texture file via native file dialog
+   */
+  pickDdsFile: (): Promise<string> => {
+    return ipcRenderer.invoke(IPC_CHANNELS.AUDITOR_PICK_DDS_FILE);
+  },
+
+  /**
+   * Auditor: Pick BGSM material file via native file dialog
+   */
+  pickBgsmFile: (): Promise<string> => {
+    return ipcRenderer.invoke(IPC_CHANNELS.AUDITOR_PICK_BGSM_FILE);
   },
 
   /**
