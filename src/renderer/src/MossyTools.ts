@@ -1,4 +1,5 @@
 import { Type } from '@google/genai';
+import { logMossyError, getErrorReport } from './MossyErrorReporter';
 
 export const sanitizeBlenderScript = (rawScript: string): string => {
     if (rawScript.includes('primitive_cube_add') || rawScript.includes('create_cube')) {
@@ -447,7 +448,18 @@ ${fallout4Apps.length > 0 ? '\nFallout 4 Locations:\n' + fallout4Apps.map(a => `
 Directive complete, Architect. My neural matrix has been updated with your system configuration.`;
             }
         } catch (e) {
-            result = `[MOSSY] Scan encountered an issue: ${e instanceof Error ? e.message : 'Unknown error'}. I may need manual configuration in Settings.`;
+            const errorMsg = e instanceof Error ? e.message : 'Unknown error';
+            const errorReport = await logMossyError(
+                'scan_hardware',
+                e,
+                { 
+                  detectProgramsAvailable: !!window.electron?.api?.detectPrograms,
+                  electronAPIAvailable: !!(window as any).electronAPI
+                },
+                'User requested hardware scan',
+                'Check that Electron IPC bridge is properly initialized'
+            );
+            result = getErrorReport('scan_hardware', errorReport.filename);
         }
     } else if (name === 'scan_installed_tools') {
         const api = (window as any).electron?.api || (window as any).electronAPI;
@@ -500,10 +512,24 @@ ${moddingTools.map((t: any) => `- ${t.displayName}`).join('\n')}
 
 I now have the precise execution paths for these tools saved in my neural cache.`;
             } catch (e) {
-                result = `Deep scan failed: ${e instanceof Error ? e.message : 'Unknown error'}`;
+                const errorReport = await logMossyError(
+                    'scan_installed_tools',
+                    e,
+                    { detectProgramsAvailable: !!api?.detectPrograms },
+                    'User requested deep system scan',
+                    'Verify Electron IPC bridge and detectPrograms function'
+                );
+                result = getErrorReport('scan_installed_tools', errorReport.filename);
             }
         } else {
-            result = `Native program detection API is unavailable.`;
+            const errorReport = await logMossyError(
+                'scan_installed_tools',
+                'Native program detection API is unavailable',
+                { electronAPIAvailable: !!api },
+                'User requested deep system scan',
+                'Ensure electron preload.ts exposes detectPrograms via contextBridge'
+            );
+            result = getErrorReport('scan_installed_tools', errorReport.filename);
         }
     } else if (name === 'execute_blender_script') {
         const bridgeActive = localStorage.getItem('mossy_bridge_active') === 'true' || true; // Native bridge is now always active
