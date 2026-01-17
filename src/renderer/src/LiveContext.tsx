@@ -354,7 +354,15 @@ DO NOT say "I cannot integrate" - you CAN by launching programs and providing ex
             speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: 'Zephyr' } } },
             // IMPORTANT: Provide tools as Tool objects with functionDeclarations
             tools: [{ functionDeclarations: toolDeclarations }] as any,
-            systemInstruction: { role: 'system', parts: [{ text: getFullSystemInstruction(cortexMemory + '\n' + detectedProgramsContext) }] } as any,
+            systemInstruction: { role: 'system', parts: [{ text: getFullSystemInstruction((cortexMemory || []).join?.(' ') + '\n' + detectedProgramsContext + '\n' +
+              '**OMNIFORGE MODULES (Built-in):**\n' +
+              '• Image Studio (/images): PBR Map Synthesizer and Format Converter. Fallout 4 profile uses: _d → BC7, _n → BC5, _s → BC5.\n' +
+              '• The Auditor (/auditor): Scans ESP/ESM, NIF, DDS, BGSM; reports issues and basic auto-fixes.\n' +
+              '• The Vault (/vault): Asset library + BA2 staging; presets; external tool paths (texconv, xWMAEncode, PapyrusCompiler, gfxexport, splicer).\n' +
+              '• Workshop (/workshop): File browser and editor; Papyrus compile.\n' +
+              '• Holodeck (/holodeck): Automated mod validator with live game monitoring.\n' +
+              '• System Monitor (/system): Hardware/tools scan and Desktop Bridge status.\n' +
+              '• The Scribe (/scribe): Documentation assistant.') }] } as any,
           },
           callbacks: {
             onopen: () => {
