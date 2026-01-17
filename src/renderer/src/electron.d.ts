@@ -3,6 +3,7 @@ interface ElectronAPI {
   detectPrograms: () => Promise<any[]>;
   getRunningProcesses: () => Promise<any[]>;
   openProgram: (path: string) => Promise<void>;
+  saveFile: (content: string, filename: string) => Promise<string>;
   getSystemInfo: () => Promise<{
     os: string;
     cpu: string;
@@ -30,4 +31,5 @@ interface Window {
   electron?: {
     api?: ElectronAPI;
   };
+  electronAPI?: ElectronAPI;
 }
