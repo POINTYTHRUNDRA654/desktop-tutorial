@@ -115,6 +115,14 @@ export const toolDeclarations: FunctionDeclaration[] = [
         }
     },
     {
+        name: 'export_error_logs',
+        description: 'Export all error logs as a downloadable file that the user can read and reference later. Use this when the user asks for the error report, wants to save it, or needs to reference it.',
+        parameters: {
+            type: Type.OBJECT,
+            properties: {}
+        }
+    },
+    {
         name: 'generate_papyrus_script',
         description: 'Generate a Fallout 4 Papyrus script based on requirements.',
         parameters: {
