@@ -355,6 +355,14 @@ const electronAPI = {
   ): Promise<{ success: boolean; text?: string; error?: string }> => {
     return ipcRenderer.invoke('transcribe-video', arrayBuffer, apiKey, filename, projectId, organizationId);
   },
+
+  /**
+   * Save file to user's system (with dialog to choose location)
+   * Used for exporting error reports, logs, etc.
+   */
+  saveFile: (content: string, filename: string): Promise<string> => {
+    return ipcRenderer.invoke('save-file', content, filename);
+  },
 };
 
 /**

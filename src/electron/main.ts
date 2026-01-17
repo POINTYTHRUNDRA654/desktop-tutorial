@@ -1565,6 +1565,30 @@ function setupIpcHandlers() {
       return sourceBase64;
     }
   });
+
+  // Save file handler (with save dialog)
+  ipcMain.handle('save-file', async (_event, content: string, filename: string) => {
+    try {
+      const { filePath } = await dialog.showSaveDialog({
+        defaultPath: path.join(os.homedir(), 'Downloads', filename),
+        filters: [
+          { name: 'Text Files', extensions: ['txt'] },
+          { name: 'All Files', extensions: ['*'] },
+        ],
+      });
+
+      if (filePath) {
+        fs.writeFileSync(filePath, content, 'utf-8');
+        console.log('[SaveFile] File saved to:', filePath);
+        return filePath;
+      } else {
+        throw new Error('Save dialog cancelled');
+      }
+    } catch (err: any) {
+      console.error('File save error:', err);
+      throw new Error(err?.message || 'Failed to save file');
+    }
+  });
 }
 
 /**
