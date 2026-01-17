@@ -1158,7 +1158,8 @@ export const ChatInterface: React.FC = () => {
           if (calls && calls.length > 0) {
               for (const call of calls) {
                   console.log("[Mossy] Executing Tool:", call.name);
-                  const result = await executeTool(call.name, call.args);
+                  const toolResponse = await executeTool(call.name, call.args);
+                  const result = toolResponse?.result || toolResponse; // Extract result property
                   
                   aiResponseText += `\n\n[System: Executed ${call.name}]\n`;
                   setMessages(prev => prev.map(m => m.id === streamId ? { 
