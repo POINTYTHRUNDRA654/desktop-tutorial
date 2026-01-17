@@ -26,6 +26,7 @@ const initialFiles: ModFile[] = [];
 const TheAuditor: React.FC = () => {
     const [files, setFiles] = useState<ModFile[]>(initialFiles);
     const [selectedFileId, setSelectedFileId] = useState<string | null>(null);
+    const [selectedIssueId, setSelectedIssueId] = useState<string | null>(null);
     const [isScanning, setIsScanning] = useState(false);
     const [scanProgress, setScanProgress] = useState(0);
     const [mossyAdvice, setMossyAdvice] = useState<string | null>(null);
@@ -76,77 +77,101 @@ const TheAuditor: React.FC = () => {
 
     // Handle NIF (mesh) file upload
     const handleMeshUpload = async () => {
-        const input = document.createElement('input');
-        input.type = 'file';
-        input.accept = '.nif';
-        input.onchange = async (e) => {
-            const file = (e.target as HTMLInputElement).files?.[0];
-            if (!file) return;
+        try {
+            const bridge = (window as any).electron?.api || (window as any).electronAPI;
+            if (!bridge) {
+                alert('File browser not available. Please use the desktop app.');
+                return;
+            }
 
+            // Use Electron's file dialog to pick NIF file
+            const filePath = await bridge.pickNifFile();
+            if (!filePath) return; // User canceled
+
+            const fileName = filePath.split(/[\\\/]/).pop() || 'Unknown';
+            
             const newFile: ModFile = {
                 id: Date.now().toString(),
-                name: file.name,
+                name: fileName,
                 type: 'mesh',
-                path: file.name,
-                size: `${Math.round(file.size / 1024)} KB`,
+                path: filePath,
+                size: 'Analyzing...',
                 issues: [],
                 status: 'pending'
             };
 
             setFiles(prev => [...prev, newFile]);
             setSelectedFileId(newFile.id);
-        };
-        input.click();
+        } catch (error) {
+            console.error('File upload error:', error);
+            alert('Failed to load file. Please try again.');
+        }
     };
 
     // Handle DDS (texture) file upload
     const handleTextureUpload = async () => {
-        const input = document.createElement('input');
-        input.type = 'file';
-        input.accept = '.dds';
-        input.onchange = async (e) => {
-            const file = (e.target as HTMLInputElement).files?.[0];
-            if (!file) return;
+        try {
+            const bridge = (window as any).electron?.api || (window as any).electronAPI;
+            if (!bridge) {
+                alert('File browser not available. Please use the desktop app.');
+                return;
+            }
 
+            // Use Electron's file dialog to pick DDS file
+            const filePath = await bridge.pickDdsFile();
+            if (!filePath) return; // User canceled
+
+            const fileName = filePath.split(/[\\\/]/).pop() || 'Unknown';
+            
             const newFile: ModFile = {
                 id: Date.now().toString(),
-                name: file.name,
+                name: fileName,
                 type: 'texture',
-                path: file.name,
-                size: `${Math.round(file.size / 1024)} KB`,
+                path: filePath,
+                size: 'Analyzing...',
                 issues: [],
                 status: 'pending'
             };
 
             setFiles(prev => [...prev, newFile]);
             setSelectedFileId(newFile.id);
-        };
-        input.click();
+        } catch (error) {
+            console.error('File upload error:', error);
+            alert('Failed to load file. Please try again.');
+        }
     };
 
     // Handle BGSM (material) file upload
     const handleMaterialUpload = async () => {
-        const input = document.createElement('input');
-        input.type = 'file';
-        input.accept = '.bgsm,.bgem';
-        input.onchange = async (e) => {
-            const file = (e.target as HTMLInputElement).files?.[0];
-            if (!file) return;
+        try {
+            const bridge = (window as any).electron?.api || (window as any).electronAPI;
+            if (!bridge) {
+                alert('File browser not available. Please use the desktop app.');
+                return;
+            }
 
+            // Use Electron's file dialog to pick BGSM file
+            const filePath = await bridge.pickBgsmFile();
+            if (!filePath) return; // User canceled
+
+            const fileName = filePath.split(/[\\\/]/).pop() || 'Unknown';
+            
             const newFile: ModFile = {
                 id: Date.now().toString(),
-                name: file.name,
+                name: fileName,
                 type: 'material',
-                path: file.name,
-                size: `${Math.round(file.size / 1024)} KB`,
+                path: filePath,
+                size: 'Analyzing...',
                 issues: [],
                 status: 'pending'
             };
 
             setFiles(prev => [...prev, newFile]);
             setSelectedFileId(newFile.id);
-        };
-        input.click();
+        } catch (error) {
+            console.error('File upload error:', error);
+            alert('Failed to load file. Please try again.');
+        }
     };
 
     // Start Audit Analysis
@@ -389,6 +414,7 @@ const TheAuditor: React.FC = () => {
     };
 
     const getMossyAdvice = async (issue: AuditIssue) => {
+        setSelectedIssueId(issue.id);
         setMossyAdvice("Analyzing issue...");
         try {
             const settings = await window.electronAPI.getSettings();
@@ -688,7 +714,7 @@ const TheAuditor: React.FC = () => {
 
                 {/* Right: Mossy's Desk (Contextual Help) */}
                 <div className="w-80 bg-slate-900 border-l border-slate-800 flex flex-col p-6 shadow-2xl relative overflow-hidden">
-                    <div className="absolute top-0 right-0 w-64 h-64 bg-emerald-500/5 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2 pointer-events-none"></div>
+                    <div className="absolute bottom-0 right-0 w-48 h-48 bg-emerald-500/5 rounded-full blur-3xl translate-y-1/3 translate-x-1/3 pointer-events-none"></div>
                     
                     <h3 className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-6 flex items-center gap-2 relative z-10">
                         <Scan className="w-4 h-4 text-emerald-400" /> Analysis Log
@@ -708,8 +734,16 @@ const TheAuditor: React.FC = () => {
                                     <button className="flex-1 py-2 bg-slate-800 hover:bg-slate-700 rounded text-xs text-slate-400 transition-colors">
                                         Ignore Rule
                                     </button>
-                                    <button className="flex-1 py-2 bg-emerald-900/30 hover:bg-emerald-900/50 text-emerald-400 border border-emerald-500/30 rounded text-xs transition-colors flex items-center justify-center gap-2">
-                                        Apply Fix <ArrowRight className="w-3 h-3" />
+                                    <button 
+                                        onClick={() => {
+                                            if (selectedFileId && selectedIssueId) {
+                                                handleAutoFix(selectedFileId, selectedIssueId);
+                                            }
+                                        }}
+                                        disabled={isFixing || !selectedIssueId}
+                                        className="flex-1 py-2 bg-emerald-900/30 hover:bg-emerald-900/50 disabled:opacity-50 text-emerald-400 border border-emerald-500/30 rounded text-xs transition-colors flex items-center justify-center gap-2"
+                                    >
+                                        {isFixing ? 'Fixing...' : ''}Apply Fix <ArrowRight className="w-3 h-3" />
                                     </button>
                                 </div>
                             </div>
