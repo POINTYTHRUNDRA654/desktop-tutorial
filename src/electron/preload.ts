@@ -346,8 +346,14 @@ const electronAPI = {
    * Video Transcriber: Extract and transcribe audio from video files
    * Runs in main process with ffmpeg and OpenAI Whisper API
    */
-  transcribeVideo: (arrayBuffer: ArrayBuffer, apiKey: string, filename: string): Promise<{ success: boolean; text?: string; error?: string }> => {
-    return ipcRenderer.invoke('transcribe-video', arrayBuffer, apiKey, filename);
+  transcribeVideo: (
+    arrayBuffer: ArrayBuffer,
+    apiKey: string,
+    filename: string,
+    projectId?: string,
+    organizationId?: string,
+  ): Promise<{ success: boolean; text?: string; error?: string }> => {
+    return ipcRenderer.invoke('transcribe-video', arrayBuffer, apiKey, filename, projectId, organizationId);
   },
 };
 
