@@ -286,15 +286,17 @@ export const LiveProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             onmessage: async (msg: LiveServerMessage) => {
               console.log('[LiveContext] Message received:', msg);
 
-              if (msg.toolCall) {
+              if (msg.toolCall?.functionCalls) {
                 console.log('[LiveContext] Tool call received:', msg.toolCall);
+                const functionCalls = msg.toolCall.functionCalls;
+                
+                // Process all tool calls and collect responses
                 const responses: any[] = [];
                 
-                for (const call of msg.toolCall.functionCalls) {
+                for (const call of functionCalls) {
                   const { name, args, id } = call;
                   try {
                     const isBlenderLinked = localStorage.getItem('mossy_blender_active') === 'true';
-                    // Tool execution context 
                     const toolContext = {
                       isBlenderLinked,
                       setProfile: () => {},
@@ -303,25 +305,64 @@ export const LiveProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
                       setShowProjectPanel: () => {}
                     };
                     
+                    console.log(`[LiveContext] Executing tool: ${name} with ID: ${id}`);
                     const res: any = await executeMossyTool(name, args, toolContext);
-                    responses.push({
-                      name,
-                      id,
-                      response: { result: res.result }
-                    });
+                    console.log(`[LiveContext] Tool ${name} completed, result:`, res);
+                    
+                    // Format response exactly as Google expects
+                    const response = {
+                      id: String(id), // Ensure ID is string
+                      name: String(name), // Ensure name is string
+                      response: {
+                        output: res?.result ? String(res.result) : 'Operation completed'
+                      }
+                    };
+                    
+                    responses.push(response);
+                    console.log('[LiveContext] Added response:', response);
                   } catch (err) {
+                    console.error(`[LiveContext] Tool ${name} failed:`, err);
                     responses.push({
-                      name,
-                      id,
-                      response: { result: `Error: ${err}` }
+                      id: String(id),
+                      name: String(name),
+                      response: {
+                        output: `Error: ${err instanceof Error ? err.message : String(err)}`
+                      }
                     });
                   }
                 }
 
-                if (responses.length > 0 && sessionRef.current) {
-                  sessionRef.current.sendToolResponse({
-                    functionResponses: responses
-                  });
+                // Validate and send responses
+                if (responses.length > 0) {
+                  console.log('[LiveContext] Prepared responses array:', JSON.stringify(responses, null, 2));
+                  console.log('[LiveContext] Response count:', responses.length);
+                  console.log('[LiveContext] Session exists:', !!sessionRef.current);
+                  
+                  if (sessionRef.current) {
+                    try {
+                      // Double-check the format before sending
+                      const validResponses = responses.every(r => 
+                        r && r.id && r.name && r.response && typeof r.response.output === 'string'
+                      );
+                      
+                      if (!validResponses) {
+                        console.error('[LiveContext] Invalid response format detected!', responses);
+                      } else {
+                        console.log('[LiveContext] All responses valid, sending to Google...');
+                        await sessionRef.current.sendToolResponse({
+                          functionResponses: responses
+                        });
+                        console.log('[LiveContext] ✓ Tool responses sent successfully!');
+                      }
+                    } catch (sendError) {
+                      console.error('[LiveContext] ❌ Error sending tool response:', sendError);
+                      console.error('[LiveContext] Failed responses:', responses);
+                    }
+                  } else {
+                    console.error('[LiveContext] Session is null, cannot send responses');
+                  }
+                } else {
+                  console.warn('[LiveContext] No responses to send (responses array is empty)');
                 }
               }
               
