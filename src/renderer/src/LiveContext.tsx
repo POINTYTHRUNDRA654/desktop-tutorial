@@ -12,7 +12,7 @@ interface LiveContextType {
   mode: 'idle' | 'listening' | 'processing' | 'speaking';
   transcription: string;
   connect: () => Promise<void>;
-  disconnect: () => void;
+  disconnect: (manual?: boolean) => void;
   customAvatar: string | null;
   updateAvatar: (file: File) => Promise<void>;
   setAvatarFromUrl: (url: string) => Promise<void>;
@@ -26,7 +26,7 @@ interface LiveContextType {
   isLiveActive: boolean;
   isLiveMuted: boolean;
   toggleLiveMute: () => void;
-  disconnectLive: () => void;
+  disconnectLive: (manual?: boolean) => void;
 }
 
 const LiveContext = createContext<LiveContextType | undefined>(undefined);
@@ -156,8 +156,16 @@ export const LiveProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const streamRef = useRef<MediaStream | null>(null);
   const processorRef = useRef<any>(null); // Changed from ScriptProcessorNode to any for AudioWorklet support
   const sessionRef = useRef<any>(null);
+  const sessionReadyRef = useRef<boolean>(false);
   const sourcesRef = useRef<Set<AudioBufferSourceNode>>(new Set());
   const nextStartTimeRef = useRef<number>(0);
+  const keepaliveRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const reconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const reconnectAttemptsRef = useRef<number>(0);
+  const failureTimestampsRef = useRef<number[]>([]); // track rapid failures to avoid infinite thrash
+  const isConnectingRef = useRef<boolean>(false);
+  const manualDisconnectRef = useRef<boolean>(false);
+  const lastActivityRef = useRef<number>(Date.now());
 
   const toggleMute = () => {
     setIsMuted((prev) => {
@@ -181,6 +189,31 @@ export const LiveProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       }
     })();
   }, []);
+
+  // Restore persisted memory/project so reconnects keep context
+  useEffect(() => {
+    try {
+      const storedCortex = localStorage.getItem('mossy_cortex_memory');
+      if (storedCortex) setCortexMemory(JSON.parse(storedCortex));
+    } catch (e) {
+      console.warn('Cortex memory restore failed', e);
+    }
+
+    try {
+      const storedProject = localStorage.getItem('mossy_project_data');
+      if (storedProject) setProjectData(JSON.parse(storedProject));
+    } catch (e) {
+      console.warn('Project data restore failed', e);
+    }
+  }, []);
+
+  useEffect(() => {
+    try { localStorage.setItem('mossy_cortex_memory', JSON.stringify(cortexMemory || [])); } catch {}
+  }, [cortexMemory]);
+
+  useEffect(() => {
+    try { projectData ? localStorage.setItem('mossy_project_data', JSON.stringify(projectData)) : localStorage.removeItem('mossy_project_data'); } catch {}
+  }, [projectData]);
 
   const updateAvatar = async (file: File) => {
     const reader = new FileReader();
@@ -217,8 +250,22 @@ export const LiveProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     await deleteImageFromDB('mossy_avatar_custom');
   };
 
-  const disconnect = () => {
+  const disconnect = (manual = false) => {
     console.log('[LiveContext] Disconnecting...');
+    manualDisconnectRef.current = manual;
+    isConnectingRef.current = false;
+    sessionReadyRef.current = false;
+
+    // Stop keepalive/reconnect timers
+    if (keepaliveRef.current) {
+      clearInterval(keepaliveRef.current);
+      keepaliveRef.current = null;
+    }
+    if (reconnectTimerRef.current) {
+      clearTimeout(reconnectTimerRef.current);
+      reconnectTimerRef.current = null;
+    }
+
     streamRef.current?.getTracks().forEach(t => t.stop());
     
     // Stop MediaRecorder if it exists
@@ -226,7 +273,7 @@ export const LiveProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       (processorRef.current as any).stop();
     }
     
-    // Stop keepalive interval
+    // Stop legacy keepalive interval stored on session
     if ((sessionRef.current as any)?._keepaliveInterval) {
       clearInterval((sessionRef.current as any)._keepaliveInterval);
       console.log('[LiveContext] Keepalive interval cleared');
@@ -249,8 +296,46 @@ export const LiveProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     setMode('idle');
   };
 
+  const scheduleReconnect = (reason: string) => {
+    if (manualDisconnectRef.current) return; // User requested disconnect
+    if (reconnectTimerRef.current) return;   // Already scheduled
+
+    // Record failure and stop if flapping too hard
+    const now = Date.now();
+    failureTimestampsRef.current = failureTimestampsRef.current.filter(t => now - t < 2 * 60 * 1000);
+    failureTimestampsRef.current.push(now);
+    if (failureTimestampsRef.current.length >= 5) {
+      console.warn('[LiveContext] Too many rapid failures; pausing auto-reconnect. Reason:', reason);
+      setStatus('Reconnection paused (too many failures). Click connect to retry.');
+      return;
+    }
+
+    const attempt = reconnectAttemptsRef.current;
+    const delay = Math.min(1000 * Math.pow(2, attempt), 15000); // 1s,2s,4s,8s,15s cap
+    reconnectAttemptsRef.current = attempt + 1;
+    console.warn(`[LiveContext] Scheduling reconnect in ${delay} ms (attempt ${attempt + 1}). Reason: ${reason}`);
+    setStatus(`Reconnecting... (${attempt + 1})`);
+
+    reconnectTimerRef.current = setTimeout(() => {
+      reconnectTimerRef.current = null;
+      connect().catch((err) => console.error('[LiveContext] Reconnect failed:', err));
+    }, delay);
+  };
+
   const connect = async () => {
-    if (isActive) return;
+    if (isActive || isConnectingRef.current) return;
+    // Ensure we never spawn a second live session (prevents double voice)
+    if (sessionRef.current) {
+      disconnect(true);
+    }
+    // Stop any lingering audio sources from a prior session
+    sourcesRef.current.forEach((s) => { try { s.stop(); } catch { /* noop */ } });
+    sourcesRef.current.clear();
+    nextStartTimeRef.current = 0;
+    isConnectingRef.current = true;
+    manualDisconnectRef.current = false;
+    reconnectAttemptsRef.current = 0;
+    lastActivityRef.current = Date.now();
 
     return new Promise<void>(async (resolve, reject) => {
       try {
@@ -347,6 +432,28 @@ DO NOT say "I cannot integrate" - you CAN by launching programs and providing ex
             console.error('[LiveContext] Error building detected programs context:', err);
         }
 
+        // Pull recent chat so reconnections keep short-term context
+        let recentChatContext = '';
+        try {
+          const storedMessages = localStorage.getItem('mossy_messages');
+          if (storedMessages) {
+            const msgs = JSON.parse(storedMessages) as any[];
+            const trimmed = msgs
+              .filter((m: any) => m?.role === 'user' || m?.role === 'model')
+              .slice(-10);
+            const lines = trimmed.map((m: any) => {
+              const role = m.role === 'user' ? 'User' : 'Mossy';
+              const text = (m.text || '').replace(/\s+/g, ' ').trim().slice(0, 400);
+              return `${role}: ${text}`;
+            });
+            if (lines.length > 0) {
+              recentChatContext = `[RECENT CHAT]\n${lines.join('\n')}`;
+            }
+          }
+        } catch (err) {
+          console.warn('[LiveContext] Failed to load recent chat context:', err);
+        }
+
         const sessionPromise = ai.live.connect({
           model: 'gemini-2.0-flash-exp',
           config: {
@@ -362,7 +469,8 @@ DO NOT say "I cannot integrate" - you CAN by launching programs and providing ex
               '• Workshop (/workshop): File browser and editor; Papyrus compile.\n' +
               '• Holodeck (/holodeck): Automated mod validator with live game monitoring.\n' +
               '• System Monitor (/system): Hardware/tools scan and Desktop Bridge status.\n' +
-              '• The Scribe (/scribe): Documentation assistant.') }] } as any,
+              '• The Scribe (/scribe): Documentation assistant.\n' +
+              recentChatContext) }] } as any,
           },
           callbacks: {
             onopen: () => {
@@ -370,32 +478,35 @@ DO NOT say "I cannot integrate" - you CAN by launching programs and providing ex
               setStatus('Online');
               setLiveActive(true);
               setMode('listening');
+              isConnectingRef.current = false;
+              reconnectAttemptsRef.current = 0;
+              failureTimestampsRef.current = [];
+              lastActivityRef.current = Date.now();
+              sessionReadyRef.current = true;
               
               // START KEEPALIVE MECHANISM to prevent disconnection during long operations
               console.log('[LiveContext] Starting keepalive mechanism...');
-              const keepaliveInterval = setInterval(async () => {
-                if (sessionRef.current) {
-                  try {
-                    // Send a silent heartbeat to keep connection alive
-                    // This prevents timeout during long-running tool operations like scans
-                    console.log('[LiveContext] Sending keepalive signal...');
-                    await sessionRef.current.send([{ text: '[SYSTEM] Keepalive signal' }]);
-                  } catch (err) {
-                    console.warn('[LiveContext] Keepalive signal failed (connection may be closing):', err);
-                    clearInterval(keepaliveInterval);
-                  }
+              if (keepaliveRef.current) clearInterval(keepaliveRef.current);
+              keepaliveRef.current = setInterval(async () => {
+                if (!sessionRef.current || !sessionReadyRef.current) return;
+                if (typeof sessionRef.current.send !== 'function') {
+                  // Some SDK builds expose sendRealtimeInput only; skip keepalive instead of forcing reconnect.
+                  return;
                 }
-              }, 15000); // Send keepalive every 15 seconds
-              
-              // Store the interval ID so we can clear it on disconnect
-              if (sessionRef.current) {
-                (sessionRef.current as any)._keepaliveInterval = keepaliveInterval;
-              }
+                try {
+                  await sessionRef.current.send([{ text: '[SYSTEM] Keepalive signal' }]);
+                  lastActivityRef.current = Date.now();
+                } catch (err) {
+                  console.warn('[LiveContext] Keepalive signal failed (connection may be closing):', err);
+                  scheduleReconnect('keepalive-failed');
+                }
+              }, 12000); // Slightly under common idle timeouts
               
               resolve();
             },
 
             onmessage: async (msg: LiveServerMessage) => {
+              lastActivityRef.current = Date.now();
               console.log('[LiveContext] Message received:', msg);
 
               if (msg.toolCall?.functionCalls) {
@@ -567,7 +678,26 @@ DO NOT say "I cannot integrate" - you CAN by launching programs and providing ex
 
             onclose: (ev) => {
               console.log('[LiveContext] Session closed:', ev.code, ev.reason);
+              sessionReadyRef.current = false;
+              const reason = `code=${ev.code} reason=${ev.reason}`;
+              // Graceful close (1000): stop auto-reconnect; user can reconnect manually
+              if (ev.code === 1000) {
+                manualDisconnectRef.current = true;
+                setStatus('Link closed. Tap Connect to resume.');
+                disconnect(true);
+                reject(new Error(`Session closed (clean): ${ev.reason || ''}`));
+                return;
+              }
+              // Quota/1011: pause auto-reconnect and surface status
+              if (ev.code === 1011 || /quota/i.test(ev.reason || '')) {
+                manualDisconnectRef.current = true;
+                setStatus('Quota exceeded; please wait or switch model. Auto-reconnect paused.');
+                disconnect(true);
+                reject(new Error(`Session closed (quota): ${ev.reason || ''}`));
+                return;
+              }
               disconnect();
+              scheduleReconnect(reason || 'unknown-close');
               reject(new Error(`Session closed: ${ev.reason}`));
             },
 
@@ -577,9 +707,25 @@ DO NOT say "I cannot integrate" - you CAN by launching programs and providing ex
               console.error('[LiveContext] Error message:', err?.message);
               console.error('[LiveContext] Error stack:', err?.stack);
               console.error('[LiveContext] Full error object:', err);
+              sessionReadyRef.current = false;
+              if (err?.message && /quota/i.test(err.message)) {
+                manualDisconnectRef.current = true;
+                setStatus('Quota exceeded; please wait or switch model. Auto-reconnect paused.');
+                disconnect(true);
+                reject(err);
+                return;
+              }
               
               setStatus(`Connection Lost: ${err?.message || 'Unknown error'}`);
               disconnect();
+              // If socket already closed cleanly, don't auto-retry
+              if (err?.message && /CLOSING or CLOSED/i.test(err.message)) {
+                manualDisconnectRef.current = true;
+                setStatus('Link closed. Tap Connect to resume.');
+                reject(err);
+                return;
+              }
+              scheduleReconnect(err?.message || 'unknown-error');
               reject(err);
             }
           }
@@ -588,6 +734,7 @@ DO NOT say "I cannot integrate" - you CAN by launching programs and providing ex
         sessionPromise.then(async (session) => {
           sessionRef.current = session;
           console.log('[LiveContext] Session object acquired');
+          sessionReadyRef.current = true;
 
           try {
             if (streamRef.current && inputContextRef.current) {
@@ -603,7 +750,7 @@ DO NOT say "I cannot integrate" - you CAN by launching programs and providing ex
                 
                 workletNode.port.onmessage = async (event) => {
                   const floatData = event.data;
-                  if (!sessionRef.current || isMutedRef.current || !isActiveRef.current) return;
+                  if (!sessionRef.current || !sessionReadyRef.current || isMutedRef.current || !isActiveRef.current) return;
 
                   // Ensure context is running (sometimes browsers suspend if idle)
                   if (ctx.state === 'suspended') await ctx.resume();
@@ -622,7 +769,7 @@ DO NOT say "I cannot integrate" - you CAN by launching programs and providing ex
                     const base64 = encodeAudioToBase64(int16);
 
                     // Check if session is still connected before sending
-                    if (sessionRef.current && isActiveRef.current) {
+                    if (sessionRef.current && sessionReadyRef.current && isActiveRef.current && typeof session.sendRealtimeInput === 'function') {
                       try {
                         const result = session.sendRealtimeInput({
                           media: {
@@ -654,7 +801,7 @@ DO NOT say "I cannot integrate" - you CAN by launching programs and providing ex
                 
                 const buffer = new Float32Array(analyser.fftSize);
                 const poll = async () => {
-                  if (!isActiveRef.current || !sessionRef.current) return;
+                  if (!isActiveRef.current || !sessionRef.current || !sessionReadyRef.current) return;
                   
                   if (ctx.state === 'suspended') await ctx.resume();
 
@@ -673,7 +820,7 @@ DO NOT say "I cannot integrate" - you CAN by launching programs and providing ex
                     const base64 = encodeAudioToBase64(int16);
                     
                     // Check if session is still connected before sending
-                    if (sessionRef.current && isActiveRef.current) {
+                    if (sessionRef.current && sessionReadyRef.current && isActiveRef.current && typeof session.sendRealtimeInput === 'function') {
                       try {
                         const result = session.sendRealtimeInput({
                           media: { data: base64, mimeType: 'audio/pcm;rate=16000' }
@@ -696,6 +843,7 @@ DO NOT say "I cannot integrate" - you CAN by launching programs and providing ex
         }).catch((err) => {
           console.error('[LiveContext] Session start fail:', err);
           disconnect();
+          scheduleReconnect(err?.message || 'connect-failed');
           reject(err);
         });
 
@@ -705,6 +853,7 @@ DO NOT say "I cannot integrate" - you CAN by launching programs and providing ex
         setMode('idle');
         setLiveActive(false);
         disconnect();
+        scheduleReconnect(err?.message || 'connect-error');
         reject(err);
       }
     });
@@ -721,7 +870,7 @@ DO NOT say "I cannot integrate" - you CAN by launching programs and providing ex
         mode,
         transcription,
         connect,
-        disconnect,
+        disconnect: (manual?: boolean) => disconnect(manual),
         customAvatar,
         updateAvatar,
         setAvatarFromUrl,
@@ -733,7 +882,7 @@ DO NOT say "I cannot integrate" - you CAN by launching programs and providing ex
         isLiveActive: isActive,
         isLiveMuted: isMuted,
         toggleLiveMute: toggleMute,
-        disconnectLive: disconnect
+        disconnectLive: (manual?: boolean) => disconnect(manual ?? true)
       }}
     >
       {children}

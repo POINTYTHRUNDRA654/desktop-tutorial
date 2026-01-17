@@ -245,28 +245,60 @@ const ExternalToolsSettings: React.FC = () => {
             'vita canvas': 'nvidiaCanvasPath'
         };
 
+        console.log('[ExternalToolsSettings] Auto-detect: Loaded', apps.length, 'apps from localStorage');
+        console.log('[ExternalToolsSettings] First 3 apps structure:', JSON.stringify(apps.slice(0, 3), null, 2));
+
         apps.forEach((app: any) => {
-            // CRITICAL: Only accept valid executable paths
-            if (!app.path || typeof app.path !== 'string') return;
-            if (!app.path.toLowerCase().endsWith('.exe')) return;
+            // Match by displayName or name
+            const appName = (app.displayName || app.name || '').toLowerCase();
             
-            const nameLower = app.name.toLowerCase();
+            // Try to use app.path if available; otherwise skip (can't auto-set without a path)
+            if (!app.path || typeof app.path !== 'string') {
+                if (appName) console.log('[ExternalToolsSettings] Skipping', appName, '(no valid path)');
+                return;
+            }
+            
+            // Accept .exe or direct folder paths (for portables)
+            const pathLower = app.path.toLowerCase();
+            const isExePath = pathLower.endsWith('.exe');
+            if (!isExePath) {
+                if (appName) console.log('[ExternalToolsSettings] Skipping', appName, '(not an .exe):', app.path);
+                return;
+            }
+            
+            // Extract exe filename without extension (e.g., "blender.exe" -> "blender")
+            const exeBasename = app.path.split('\\').pop()?.split('/').pop()?.toLowerCase().replace(/\.exe$/, '') || '';
+            
+            // Log every app with valid path for inspection
+            console.log('[ExternalToolsSettings] Checking app:', { name: appName, exe: exeBasename, path: app.path });
+            
+            // Try matching against appName first, then exeBasename
+            let matched = false;
             for (const [key, field] of Object.entries(mappings)) {
-                if (nameLower.includes(key) && !newDraft[field]) {
+                if (appName.includes(key) || exeBasename.includes(key)) {
+                    console.log('[ExternalToolsSettings]   ✓ MATCHED "' + key + '" → ' + field);
                     newDraft[field] = app.path;
                     foundCount++;
+                    matched = true;
+                    break;
                 }
+            }
+            if (!matched) {
+                console.log('[ExternalToolsSettings]   No mapping matched for:', appName || exeBasename);
             }
         });
 
         setDraft(newDraft);
+        console.log('[ExternalToolsSettings] Auto-detect complete: found', foundCount, 'tools');
+        
         if (foundCount > 0) {
             alert(`Auto-detected ${foundCount} tools from your recent system scan. Don't forget to Save!`);
         } else {
-            alert("Could not match any tools from the scan. You may need to set them manually.");
+            alert(`No matching tools found (scanned ${apps.length} programs). You may need to set them manually.`);
         }
     } catch (e) {
-        alert("Error during auto-detection.");
+        console.error('[ExternalToolsSettings] Auto-detect error:', e);
+        alert("Error during auto-detection: " + String(e));
     }
   };
 
