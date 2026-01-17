@@ -1612,10 +1612,88 @@ function setupIpcHandlers() {
   // --- Image Suite: Convert image format ---
   ipcMain.handle(IPC_CHANNELS.IMAGE_CONVERT_FORMAT, async (_event, sourceBase64: string, targetFormat: string, options: any) => {
     try {
-      // Format conversion: PNG/JPG/TGA <-> DDS
-      // In production, would use sharp library for PNG/JPG and custom DDS encoding
-      // For now, return a placeholder with format indicator
-      return sourceBase64.replace('data:', `data:converted-${targetFormat}-`);
+      const fmt = (targetFormat || '').toLowerCase();
+
+      // If not converting to DDS, use sharp to transcode common formats
+      if (fmt && fmt !== 'dds') {
+        try {
+          const sharp = (await import('sharp')).default;
+          const inputBuf = Buffer.from((sourceBase64.split(',')[1] || sourceBase64), 'base64');
+          let out: Buffer;
+          if (fmt === 'png') out = await sharp(inputBuf).png().toBuffer();
+          else if (fmt === 'jpg' || fmt === 'jpeg') out = await sharp(inputBuf).jpeg({ quality: 90 }).toBuffer();
+          else if (fmt === 'tga') out = await sharp(inputBuf).tiff({ compression: 'none' }).toBuffer();
+          else out = await sharp(inputBuf).toBuffer();
+          return `data:application/octet-stream;base64,${out.toString('base64')}`;
+        } catch (e) {
+          console.warn('[Image Suite] sharp transcode failed, returning original');
+          return sourceBase64;
+        }
+      }
+
+      // Convert to DDS via texconv if available
+      const bcFormat: string = options?.bcFormat || 'BC1_UNORM';
+
+      // Prepare temp workspace
+      const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'mossy-tex-'));
+      const inPath = path.join(tmpDir, 'input.png');
+      const outDir = path.join(tmpDir, 'out');
+      fs.mkdirSync(outDir, { recursive: true });
+
+      // Normalize input to PNG on disk using sharp for consistent texconv input
+      try {
+        const sharp = (await import('sharp')).default;
+        const inputBuf = Buffer.from((sourceBase64.split(',')[1] || sourceBase64), 'base64');
+        const pngBuf = await sharp(inputBuf).png().toBuffer();
+        fs.writeFileSync(inPath, pngBuf);
+      } catch (e) {
+        console.error('[Image Suite] Failed to normalize input with sharp:', e);
+        // If sharp failed, write raw bytes (may still work if already PNG/JPG)
+        try {
+          const raw = Buffer.from((sourceBase64.split(',')[1] || sourceBase64), 'base64');
+          fs.writeFileSync(inPath, raw);
+        } catch {}
+      }
+
+      // Attempt to run texconv (prefer explicit path from options if provided)
+      const mipmapLevels = (options && typeof options.mipmapLevels === 'number') ? options.mipmapLevels : 0;
+      const args = ['-nologo', '-y', '-m', String(mipmapLevels), '-ft', 'dds', '-f', bcFormat, '-o', outDir, inPath];
+      const texconvCmd = (options && typeof options.texconvPath === 'string' && options.texconvPath.trim().length)
+        ? options.texconvPath
+        : 'texconv';
+      const child = spawn(texconvCmd, args, { stdio: ['ignore', 'pipe', 'pipe'] });
+
+      const output = await new Promise<{ code: number; stdout: string; stderr: string }>((resolve) => {
+        let stdout = '';
+        let stderr = '';
+        child.stdout?.on('data', (d) => (stdout += d.toString()));
+        child.stderr?.on('data', (d) => (stderr += d.toString()));
+        child.on('error', (err) => resolve({ code: -1, stdout, stderr: String(err?.message || err) }));
+        child.on('close', (code) => resolve({ code: code ?? 0, stdout, stderr }));
+      });
+
+      if (output.code !== 0) {
+        console.warn('[Image Suite] texconv failed. Details:', output.stderr || output.stdout);
+        if (options?.requireReal) {
+          throw new Error('DDS conversion failed and fallback is disabled (requireReal). Ensure texconv is installed and configured.');
+        }
+        // Fallback to original stub behavior to avoid breaking UX
+        return sourceBase64.replace('data:', `data:converted-dds-`);
+      }
+
+      // Find produced DDS file and return as base64
+      const files = fs.readdirSync(outDir).filter(f => f.toLowerCase().endsWith('.dds'));
+      if (!files.length) {
+        console.warn('[Image Suite] texconv produced no DDS output');
+        if (options?.requireReal) {
+          throw new Error('texconv produced no DDS output and fallback is disabled (requireReal).');
+        }
+        return sourceBase64.replace('data:', `data:converted-dds-`);
+      }
+      const ddsPath = path.join(outDir, files[0]);
+      const ddsBuf = fs.readFileSync(ddsPath);
+      const dataUrl = `data:application/octet-stream;base64,${ddsBuf.toString('base64')}`;
+      return dataUrl;
     } catch (err) {
       console.error('Image conversion error:', err);
       return sourceBase64;

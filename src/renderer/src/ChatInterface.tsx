@@ -721,11 +721,24 @@ export const ChatInterface: React.FC = () => {
           }).join('\n')
         : "\n**FALLOUT 4 NOT DETECTED** - User may need to manually specify game folder in External Tools Settings.";
 
+            // Expose first-class app modules so Mossy "knows herself"
+            const appFeatures = `\n**OMNIFORGE MODULES (Built-in):**\n` +
+                [
+                    "• Image Studio (/images): PBR Map Synthesizer and Format Converter. Fallout 4 profile uses: _d → BC7, _n → BC5, _s → BC5.",
+                    "• The Auditor (/auditor): Scans ESP/ESM, NIF, DDS, BGSM with native file pickers; reports issues and basic auto-fixes.",
+                    "• The Vault (/vault): Asset library + BA2 staging, presets, and external tool paths (texconv, xWMAEncode, PapyrusCompiler, gfxexport, splicer).",
+                    "• Workshop (/workshop): Real file browser and editor; Papyrus compile via configured compiler path.",
+                    "• Holodeck (/holodeck): Automated mod validator; integrates with Neural Link to monitor live gameplay.",
+                    "• System Monitor (/system): Hardware and tools scan, Desktop Bridge status, launch helpers.",
+                    "• The Scribe (/scribe): Documentation and readme assistant (Gemini-backed)."
+                ].join('\n');
+
       return `
       **DYNAMIC SYSTEM CONTEXT:**
       **Desktop Bridge:** ${bridgeStatus}
       ${blenderContext}
-      ${settingsCtx}${gameFolderInfo}
+            ${settingsCtx}${gameFolderInfo}
+            ${appFeatures}
       **Short-Term Working Memory:** ${workingMemory}
       **Project Status:** ${projectData ? projectData.name : "None"}${modContext}
       **Detected Tools:** ${(detectedApps || []).filter(a => a.path).map(a => `${a.name} [ID: ${a.id}] (Path: ${a.path})`).join(', ') || "None"}
