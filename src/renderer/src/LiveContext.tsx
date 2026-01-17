@@ -147,6 +147,21 @@ export const LiveProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       if (event.message && event.message.includes('WebSocket is already in CLOSING or CLOSED state')) {
         // We're handling this in our catch blocks, suppress console error
         event.preventDefault();
+        
+        // If we're in a live session and getting socket errors, trigger proactive reconnect
+        if (isActiveRef.current && sessionRef.current) {
+          console.log('[LiveContext] WebSocket error detected; triggering proactive reconnect');
+          // Schedule a reconnect but don't disconnect yet (keep audio flowing)
+          const sessionAge = Date.now() - sessionStartTimeRef.current;
+          const FIVE_MINUTES = 5 * 60 * 1000;
+          
+          // If session is older than 5 min and we're seeing errors, reconnect sooner
+          if (sessionAge > FIVE_MINUTES) {
+            console.log('[LiveContext] Session age:', Math.round(sessionAge / 1000), 'sec - reconnecting to prevent quota');
+            disconnect(false, false);
+            scheduleReconnect('socket-degradation-detected');
+          }
+        }
       }
     };
     
@@ -174,6 +189,8 @@ export const LiveProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const nextStartTimeRef = useRef<number>(0);
   const keepaliveRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const reconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const sessionHealthCheckRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const sessionStartTimeRef = useRef<number>(0);
   const reconnectAttemptsRef = useRef<number>(0);
   const failureTimestampsRef = useRef<number[]>([]); // track rapid failures to avoid infinite thrash
   const isConnectingRef = useRef<boolean>(false);
@@ -310,6 +327,10 @@ export const LiveProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     if (reconnectTimerRef.current) {
       clearTimeout(reconnectTimerRef.current);
       reconnectTimerRef.current = null;
+    }
+    if (sessionHealthCheckRef.current) {
+      clearInterval(sessionHealthCheckRef.current);
+      sessionHealthCheckRef.current = null;
     }
 
     streamRef.current?.getTracks().forEach(t => t.stop());
@@ -568,6 +589,27 @@ DO NOT say "I cannot integrate" - you CAN by launching programs and providing ex
                   scheduleReconnect('keepalive-failed');
                 }
               }, 12000); // Slightly under common idle timeouts
+              
+              // START PROACTIVE SESSION HEALTH CHECK
+              // Reconnect every 8 minutes to avoid quota/resource exhaustion on long sessions
+              // Google's live API has resource limits; proactively refresh before hitting them
+              console.log('[LiveContext] Starting proactive session health check (8 min refresh)...');
+              sessionStartTimeRef.current = Date.now();
+              if (sessionHealthCheckRef.current) clearInterval(sessionHealthCheckRef.current);
+              sessionHealthCheckRef.current = setInterval(async () => {
+                if (!isActiveRef.current || !sessionRef.current) return;
+                
+                const sessionAge = Date.now() - sessionStartTimeRef.current;
+                const EIGHT_MINUTES = 8 * 60 * 1000;
+                
+                if (sessionAge >= EIGHT_MINUTES) {
+                  console.log('[LiveContext] ⚠️ Session is 8+ minutes old; proactively reconnecting to avoid quota');
+                  console.log('[LiveContext] Current session age:', Math.round(sessionAge / 1000), 'seconds');
+                  // Preserve messages, do graceful reconnect
+                  disconnect(false, false); // Preserve buffer, not manual
+                  scheduleReconnect('proactive-health-refresh');
+                }
+              }, 30000); // Check every 30 seconds
               
               resolve();
             },
