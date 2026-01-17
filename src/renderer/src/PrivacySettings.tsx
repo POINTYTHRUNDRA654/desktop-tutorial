@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Lock, Database, Share2, Shield, Settings as SettingsIcon, AlertCircle, CheckCircle2, Eye, EyeOff } from 'lucide-react';
+import { exportErrorLogs } from './MossyErrorReporter';
 
 interface PrivacySettings {
   keepLocalOnly: boolean;
@@ -416,6 +417,13 @@ const PrivacySettings: React.FC = () => {
               >
                 <Database className="w-4 h-4" />
                 Export My Data
+              </button>
+              <button
+                onClick={() => exportErrorLogs()}
+                className="w-full px-4 py-3 rounded-lg bg-orange-900/30 hover:bg-orange-900/50 text-orange-300 text-sm font-bold transition-colors border border-orange-700/50 flex items-center justify-center gap-2"
+              >
+                <AlertCircle className="w-4 h-4" />
+                Export Mossy Error Logs
               </button>
               <button
                 onClick={handleDeleteAllData}
