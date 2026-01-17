@@ -790,9 +790,23 @@ DO NOT say "I cannot integrate" - you CAN by launching programs and providing ex
                             mimeType: 'audio/pcm;rate=16000'
                           }
                         });
-                        if (result && typeof result.catch === 'function') result.catch(() => {});
-                      } catch (err) {
-                        console.warn('[LiveContext] Failed to send audio (connection may be closing):', err);
+                        if (result && typeof result.catch === 'function') {
+                          result.catch((err: any) => {
+                            if (err?.message?.includes('CLOSING or CLOSED')) {
+                              console.log('[LiveContext] WebSocket closed during send, scheduling reconnect');
+                              sessionReadyRef.current = false;
+                              scheduleReconnect('socket-closed-during-send');
+                            }
+                          });
+                        }
+                      } catch (err: any) {
+                        if (err?.message?.includes('CLOSING or CLOSED')) {
+                          console.log('[LiveContext] WebSocket closed during send, scheduling reconnect');
+                          sessionReadyRef.current = false;
+                          scheduleReconnect('socket-closed-during-send');
+                        } else {
+                          console.warn('[LiveContext] Failed to send audio (connection may be closing):', err);
+                        }
                       }
                     }
                   }
@@ -838,9 +852,23 @@ DO NOT say "I cannot integrate" - you CAN by launching programs and providing ex
                         const result = sessionRef.current.sendRealtimeInput({
                           media: { data: base64, mimeType: 'audio/pcm;rate=16000' }
                         });
-                        if (result && typeof result.catch === 'function') result.catch(() => {});
-                      } catch (err) {
-                        console.warn('[LiveContext] Failed to send audio (connection may be closing):', err);
+                        if (result && typeof result.catch === 'function') {
+                          result.catch((err: any) => {
+                            if (err?.message?.includes('CLOSING or CLOSED')) {
+                              console.log('[LiveContext] WebSocket closed during send (polling), scheduling reconnect');
+                              sessionReadyRef.current = false;
+                              scheduleReconnect('socket-closed-during-send');
+                            }
+                          });
+                        }
+                      } catch (err: any) {
+                        if (err?.message?.includes('CLOSING or CLOSED')) {
+                          console.log('[LiveContext] WebSocket closed during send (polling), scheduling reconnect');
+                          sessionReadyRef.current = false;
+                          scheduleReconnect('socket-closed-during-send');
+                        } else {
+                          console.warn('[LiveContext] Failed to send audio (polling, connection may be closing):', err);
+                        }
                       }
                     }
                   }
