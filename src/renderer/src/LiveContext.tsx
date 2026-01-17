@@ -506,6 +506,12 @@ DO NOT say "I cannot integrate" - you CAN by launching programs and providing ex
             },
 
             onmessage: async (msg: LiveServerMessage) => {
+              // Guard: if session closed while this callback was queued, skip processing
+              if (!sessionRef.current) {
+                console.warn('[LiveContext] ⚠️ Ignoring message: session already closed');
+                return;
+              }
+              
               lastActivityRef.current = Date.now();
               console.log('[LiveContext] Message received:', msg);
 
@@ -677,25 +683,32 @@ DO NOT say "I cannot integrate" - you CAN by launching programs and providing ex
             },
 
             onclose: (ev) => {
-              console.log('[LiveContext] Session closed:', ev.code, ev.reason);
+              console.log('[LiveContext] ❌ Session closed:', ev.code, ev.reason);
+              console.log('[LiveContext] Close event details:', { code: ev.code, reason: ev.reason, wasClean: ev.wasClean });
               sessionReadyRef.current = false;
               const reason = `code=${ev.code} reason=${ev.reason}`;
+              
               // Graceful close (1000): stop auto-reconnect; user can reconnect manually
               if (ev.code === 1000) {
+                console.log('[LiveContext] Clean close (1000) detected; stopping auto-reconnect');
                 manualDisconnectRef.current = true;
                 setStatus('Link closed. Tap Connect to resume.');
                 disconnect(true);
                 reject(new Error(`Session closed (clean): ${ev.reason || ''}`));
                 return;
               }
+              
               // Quota/1011: pause auto-reconnect and surface status
               if (ev.code === 1011 || /quota/i.test(ev.reason || '')) {
+                console.log('[LiveContext] Quota/1011 error detected; pausing auto-reconnect');
                 manualDisconnectRef.current = true;
                 setStatus('Quota exceeded; please wait or switch model. Auto-reconnect paused.');
                 disconnect(true);
                 reject(new Error(`Session closed (quota): ${ev.reason || ''}`));
                 return;
               }
+              
+              console.log('[LiveContext] Unexpected close code:', ev.code, '- scheduling reconnect');
               disconnect();
               scheduleReconnect(reason || 'unknown-close');
               reject(new Error(`Session closed: ${ev.reason}`));
