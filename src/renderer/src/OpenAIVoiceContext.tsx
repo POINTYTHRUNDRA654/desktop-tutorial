@@ -181,11 +181,11 @@ export const OpenAIVoiceProvider: React.FC<{ children: ReactNode }> = ({ childre
     try {
       setStatus('Initializing...');
       
-      let apiKey = localStorage.getItem('openai_api_key');
-      if (!apiKey) {
-        apiKey = prompt('Enter your OpenAI API key:');
-        if (!apiKey) throw new Error('API key required');
-        localStorage.setItem('openai_api_key', apiKey);
+      // Use embedded API key - users don't need to provide their own
+      const apiKey = 'YOUR_OPENAI_API_KEY_HERE'; // Replace with your actual OpenAI API key
+      
+      if (!apiKey || apiKey === 'YOUR_OPENAI_API_KEY_HERE') {
+        throw new Error('OpenAI API key not configured. Please add your key to OpenAIVoiceContext.tsx');
       }
 
       openaiRef.current = new OpenAI({ apiKey, dangerouslyAllowBrowser: true });
