@@ -782,9 +782,9 @@ DO NOT say "I cannot integrate" - you CAN by launching programs and providing ex
                     const base64 = encodeAudioToBase64(int16);
 
                     // Check if session is still connected before sending
-                    if (sessionRef.current && sessionReadyRef.current && isActiveRef.current && typeof session.sendRealtimeInput === 'function') {
+                    if (sessionRef.current && sessionReadyRef.current && isActiveRef.current && typeof sessionRef.current.sendRealtimeInput === 'function') {
                       try {
-                        const result = session.sendRealtimeInput({
+                        const result = sessionRef.current.sendRealtimeInput({
                           media: {
                             data: base64,
                             mimeType: 'audio/pcm;rate=16000'
@@ -833,9 +833,9 @@ DO NOT say "I cannot integrate" - you CAN by launching programs and providing ex
                     const base64 = encodeAudioToBase64(int16);
                     
                     // Check if session is still connected before sending
-                    if (sessionRef.current && sessionReadyRef.current && isActiveRef.current && typeof session.sendRealtimeInput === 'function') {
+                    if (sessionRef.current && sessionReadyRef.current && isActiveRef.current && typeof sessionRef.current.sendRealtimeInput === 'function') {
                       try {
-                        const result = session.sendRealtimeInput({
+                        const result = sessionRef.current.sendRealtimeInput({
                           media: { data: base64, mimeType: 'audio/pcm;rate=16000' }
                         });
                         if (result && typeof result.catch === 'function') result.catch(() => {});
