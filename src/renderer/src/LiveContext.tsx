@@ -226,6 +226,12 @@ export const LiveProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       (processorRef.current as any).stop();
     }
     
+    // Stop keepalive interval
+    if ((sessionRef.current as any)?._keepaliveInterval) {
+      clearInterval((sessionRef.current as any)._keepaliveInterval);
+      console.log('[LiveContext] Keepalive interval cleared');
+    }
+    
     inputContextRef.current?.close();
     audioContextRef.current?.close();
     if (sessionRef.current?.close) sessionRef.current.close();
@@ -265,6 +271,82 @@ export const LiveProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         const ai = new GoogleGenAI({ apiKey });
         console.log('[LiveContext] Creating live session...');
 
+        // BUILD DETECTED PROGRAMS CONTEXT FOR MOSSY
+        let detectedProgramsContext = '';
+        try {
+            const scanSummary = localStorage.getItem('mossy_scan_summary');
+            const allApps = localStorage.getItem('mossy_all_detected_apps');
+            const lastScan = localStorage.getItem('mossy_last_scan');
+            
+            console.log('[LiveContext] Building detected programs context...');
+            console.log('[LiveContext] scanSummary exists?', !!scanSummary);
+            console.log('[LiveContext] allApps exists?', !!allApps);
+            
+            if (scanSummary && allApps) {
+                const summary = JSON.parse(scanSummary);
+                const apps = JSON.parse(allApps) || [];
+                
+                console.log('[LiveContext] Parsed summary:', summary);
+                console.log('[LiveContext] Total apps:', apps.length);
+                
+                // Build a concise list of important programs
+                const nvidiaApps = apps.filter((a: any) => 
+                    (a.displayName || a.name || '').toLowerCase().match(/nvidia|geforce|cuda|rtx/)
+                );
+                const aiApps = apps.filter((a: any) => 
+                    (a.displayName || a.name || '').toLowerCase().match(/luma|ollama|comfy|stable|kobold|jan/)
+                );
+                const fo4Apps = apps.filter((a: any) => 
+                    (a.displayName || a.name || '').toLowerCase().match(/fallout|fo4/)
+                );
+                
+                console.log('[LiveContext] NVIDIA apps:', nvidiaApps.length);
+                console.log('[LiveContext] AI apps:', aiApps.length);
+                console.log('[LiveContext] FO4 apps:', fo4Apps.length);
+                
+                detectedProgramsContext = `
+[SYSTEM SCAN STATUS: COMPLETE]
+[SCAN TIME: ${lastScan || 'Recently'}]
+[TOTAL PROGRAMS DETECTED: ${apps.length}]
+
+[AUTOMATICALLY DETECTED TOOLS - YOU HAVE ACCESS TO THESE]
+NVIDIA Ecosystem (${nvidiaApps.length} tools):
+${nvidiaApps.slice(0, 10).map(a => `  • ${a.displayName || a.name}`).join('\n')}
+${nvidiaApps.length > 10 ? `  • ...and ${nvidiaApps.length - 10} more NVIDIA tools` : ''}
+
+AI/ML Tools (${aiApps.length} tools):
+${aiApps.length > 0 ? aiApps.map(a => `  • ${a.displayName || a.name}`).join('\n') : '  • None detected'}
+
+Fallout 4 (${fo4Apps.length} installations):
+${fo4Apps.length > 0 ? fo4Apps.map(a => `  • ${a.displayName || a.name}\n    Path: ${a.path}`).join('\n') : '  • Not installed'}
+
+[INSTRUCTION] 
+When the user asks "what tools do I have" or "what can you integrate with", reference these SPECIFIC programs by name.
+Tell them you can see their ${nvidiaApps.length} NVIDIA tools, ${aiApps.length} AI tools, and ${apps.length} total programs.
+
+HOW YOU INTEGRATE:
+• **Launch programs**: Use the launch_program tool to open NVIDIA Canvas, Luma, GIMP, or any detected tool
+• **Recommend workflows**: Suggest which tools to use for specific modding tasks
+• **Guide usage**: Explain how to use detected tools for Fallout 4 modding
+• **Provide paths**: Tell users where their tools are installed (paths are in the data above)
+• **Multi-tool workflows**: Create step-by-step processes, launching tools as needed
+
+EXAMPLE WORKFLOW:
+User: "I need to create a new texture"
+You: "I'll open NVIDIA Canvas for you to generate the base texture. [launch_program Canvas] Once you've created something, we can enhance it in GIMP and convert to DDS for Fallout 4."
+
+When user asks about integration, DEMONSTRATE by actually launching tools and guiding them through the process.
+DO NOT say "I cannot integrate" - you CAN by launching programs and providing expert guidance.
+`;
+                
+                console.log('[LiveContext] Built detected programs context:', detectedProgramsContext);
+            } else {
+                console.warn('[LiveContext] No scan data found in localStorage');
+            }
+        } catch (err) {
+            console.error('[LiveContext] Error building detected programs context:', err);
+        }
+
         const sessionPromise = ai.live.connect({
           model: 'gemini-2.0-flash-exp',
           config: {
@@ -272,7 +354,7 @@ export const LiveProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: 'Zephyr' } } },
             // IMPORTANT: Provide tools as Tool objects with functionDeclarations
             tools: [{ functionDeclarations: toolDeclarations }] as any,
-            systemInstruction: { role: 'system', parts: [{ text: getFullSystemInstruction(cortexMemory) }] } as any,
+            systemInstruction: { role: 'system', parts: [{ text: getFullSystemInstruction(cortexMemory + '\n' + detectedProgramsContext) }] } as any,
           },
           callbacks: {
             onopen: () => {
@@ -280,6 +362,28 @@ export const LiveProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
               setStatus('Online');
               setLiveActive(true);
               setMode('listening');
+              
+              // START KEEPALIVE MECHANISM to prevent disconnection during long operations
+              console.log('[LiveContext] Starting keepalive mechanism...');
+              const keepaliveInterval = setInterval(async () => {
+                if (sessionRef.current) {
+                  try {
+                    // Send a silent heartbeat to keep connection alive
+                    // This prevents timeout during long-running tool operations like scans
+                    console.log('[LiveContext] Sending keepalive signal...');
+                    await sessionRef.current.send([{ text: '[SYSTEM] Keepalive signal' }]);
+                  } catch (err) {
+                    console.warn('[LiveContext] Keepalive signal failed (connection may be closing):', err);
+                    clearInterval(keepaliveInterval);
+                  }
+                }
+              }, 15000); // Send keepalive every 15 seconds
+              
+              // Store the interval ID so we can clear it on disconnect
+              if (sessionRef.current) {
+                (sessionRef.current as any)._keepaliveInterval = keepaliveInterval;
+              }
+              
               resolve();
             },
 
@@ -334,35 +438,62 @@ export const LiveProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
                 // Validate and send responses
                 if (responses.length > 0) {
-                  console.log('[LiveContext] Prepared responses array:', JSON.stringify(responses, null, 2));
+                  console.log('[LiveContext] ============ TOOL RESPONSE DEBUG ============');
                   console.log('[LiveContext] Response count:', responses.length);
+                  console.log('[LiveContext] Responses array:', JSON.stringify(responses, null, 2));
                   console.log('[LiveContext] Session exists:', !!sessionRef.current);
                   
                   if (sessionRef.current) {
                     try {
-                      // Double-check the format before sending
-                      const validResponses = responses.every(r => 
-                        r && r.id && r.name && r.response && typeof r.response.output === 'string'
+                      // Validate each response thoroughly
+                      const validationResults = responses.map((r, idx) => ({
+                        index: idx,
+                        hasId: !!r.id,
+                        hasName: !!r.name,
+                        hasResponse: !!r.response,
+                        hasOutput: !!r.response?.output,
+                        outputType: typeof r.response?.output,
+                        fullResponse: r
+                      }));
+                      
+                      console.log('[LiveContext] Validation results:', validationResults);
+                      
+                      const allValid = responses.every(r => 
+                        r && 
+                        typeof r.id === 'string' && r.id.length > 0 &&
+                        typeof r.name === 'string' && r.name.length > 0 &&
+                        r.response && 
+                        typeof r.response.output === 'string'
                       );
                       
-                      if (!validResponses) {
-                        console.error('[LiveContext] Invalid response format detected!', responses);
-                      } else {
-                        console.log('[LiveContext] All responses valid, sending to Google...');
-                        await sessionRef.current.sendToolResponse({
-                          functionResponses: responses
-                        });
-                        console.log('[LiveContext] ✓ Tool responses sent successfully!');
+                      if (!allValid) {
+                        console.error('[LiveContext] ❌ Invalid response format detected!');
+                        console.error('[LiveContext] Failed validation check');
+                        return;
                       }
+                      
+                      console.log('[LiveContext] ✓ All responses passed validation');
+                      console.log('[LiveContext] Calling sendToolResponse with:', {
+                        functionResponses: responses.length === 1 ? responses[0] : responses
+                      });
+                      
+                      // SDK expects: { functionResponses: FunctionResponse | FunctionResponse[] }
+                      await sessionRef.current.sendToolResponse({
+                        functionResponses: responses.length === 1 ? responses[0] : responses
+                      });
+                      
+                      console.log('[LiveContext] ✓✓✓ Tool responses sent successfully!');
                     } catch (sendError) {
-                      console.error('[LiveContext] ❌ Error sending tool response:', sendError);
-                      console.error('[LiveContext] Failed responses:', responses);
+                      console.error('[LiveContext] ❌❌❌ Error sending tool response:', sendError);
+                      console.error('[LiveContext] Error stack:', sendError instanceof Error ? sendError.stack : 'No stack');
+                      console.error('[LiveContext] Failed responses:', JSON.stringify(responses, null, 2));
                     }
                   } else {
-                    console.error('[LiveContext] Session is null, cannot send responses');
+                    console.error('[LiveContext] ❌ Session is null, cannot send responses');
                   }
                 } else {
-                  console.warn('[LiveContext] No responses to send (responses array is empty)');
+                  console.warn('[LiveContext] ⚠️ No responses to send (responses array is empty)');
+                  console.warn('[LiveContext] Tool calls received:', msg.toolCall?.functionCalls?.length || 0);
                 }
               }
               
@@ -433,7 +564,13 @@ export const LiveProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             },
 
             onerror: (err) => {
-              console.error('[LiveContext] Session error:', err);
+              console.error('[LiveContext] ❌ CRITICAL SESSION ERROR:', err);
+              console.error('[LiveContext] Error type:', err?.constructor?.name);
+              console.error('[LiveContext] Error message:', err?.message);
+              console.error('[LiveContext] Error stack:', err?.stack);
+              console.error('[LiveContext] Full error object:', err);
+              
+              setStatus(`Connection Lost: ${err?.message || 'Unknown error'}`);
               disconnect();
               reject(err);
             }
@@ -476,13 +613,20 @@ export const LiveProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
                     }
                     const base64 = encodeAudioToBase64(int16);
 
-                    const result = session.sendRealtimeInput({
-                      media: {
-                        data: base64,
-                        mimeType: 'audio/pcm;rate=16000'
+                    // Check if session is still connected before sending
+                    if (sessionRef.current && isActiveRef.current) {
+                      try {
+                        const result = session.sendRealtimeInput({
+                          media: {
+                            data: base64,
+                            mimeType: 'audio/pcm;rate=16000'
+                          }
+                        });
+                        if (result && typeof result.catch === 'function') result.catch(() => {});
+                      } catch (err) {
+                        console.warn('[LiveContext] Failed to send audio (connection may be closing):', err);
                       }
-                    });
-                    if (result && typeof result.catch === 'function') result.catch(() => {});
+                    }
                   }
                 };
 
@@ -519,10 +663,18 @@ export const LiveProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
                       int16[i] = buffer[i] < 0 ? buffer[i] * 0x8000 : buffer[i] * 0x7FFF;
                     }
                     const base64 = encodeAudioToBase64(int16);
-                    const result = session.sendRealtimeInput({
-                      media: { data: base64, mimeType: 'audio/pcm;rate=16000' }
-                    });
-                    if (result && typeof result.catch === 'function') result.catch(() => {});
+                    
+                    // Check if session is still connected before sending
+                    if (sessionRef.current && isActiveRef.current) {
+                      try {
+                        const result = session.sendRealtimeInput({
+                          media: { data: base64, mimeType: 'audio/pcm;rate=16000' }
+                        });
+                        if (result && typeof result.catch === 'function') result.catch(() => {});
+                      } catch (err) {
+                        console.warn('[LiveContext] Failed to send audio (connection may be closing):', err);
+                      }
+                    }
                   }
                   setTimeout(poll, 128);
                 };

@@ -239,7 +239,10 @@ const ExternalToolsSettings: React.FC = () => {
             'nifutils': 'nifUtilsSuitePath',
             'omniverse': 'nvidiaOmniversePath',
             'spin3d': 'spin3dPath',
-            'nvidia canvas': 'nvidiaCanvasPath'
+            'nvidia canvas': 'nvidiaCanvasPath',
+            'canvas': 'nvidiaCanvasPath',
+            'vita': 'nvidiaCanvasPath',
+            'vita canvas': 'nvidiaCanvasPath'
         };
 
         apps.forEach((app: any) => {
@@ -519,7 +522,7 @@ const ExternalToolsSettings: React.FC = () => {
               <span className="text-[11px] text-slate-400">Used for DDS editing and texture creation</span>
             </div>
           </div>
-          <input value={draft.gimpPath || ''} onChange={(e) => handleChange('gimpPath', e.target.value)} placeholder="C:\\Path\\To\\gimp-2.10.exe" className="w-full bg-slate-800 border border-slate-700 rounded px-3 py-2 text-sm text-white" />
+          <input value={draft.gimpPath || ''} onChange={(e) => handleChange('gimpPath', e.target.value)} placeholder="C:\\Program Files\\GIMP 3\\bin\\gimp-3.0.exe or C:\\Program Files\\GIMP 2\\bin\\gimp-2.10.exe" className="w-full bg-slate-800 border border-slate-700 rounded px-3 py-2 text-sm text-white" />
           <div className="mt-2 flex gap-2">
             <button onClick={() => browsePath('gimpPath', 'Texture Editor')} className="px-3 py-1 bg-slate-700 hover:bg-slate-600 border border-slate-600 rounded text-[11px] font-bold flex items-center gap-1"><FolderOpen className="w-3 h-3" /> Browse</button>
             <button onClick={() => testLaunch(draft.gimpPath, 'Texture Editor')} className="px-3 py-1 bg-emerald-700 hover:bg-emerald-600 border border-emerald-500 rounded text-[11px] font-bold flex items-center gap-1"><Play className="w-3 h-3" /> Test Launch</button>
@@ -734,11 +737,11 @@ const ExternalToolsSettings: React.FC = () => {
           <div className="flex items-center gap-2 mb-2">
             <Palette className="w-5 h-5 text-green-300" />
             <div>
-              <div className="text-sm font-bold text-white">NVIDIA Canvas</div>
-              <span className="text-[11px] text-slate-400">AI-powered landscape painting</span>
+              <div className="text-sm font-bold text-white">NVIDIA Canvas <span className="text-slate-500 text-xs">(Vita Canvas)</span></div>
+              <span className="text-[11px] text-slate-400">AI-powered landscape painting - Look for NVIDIACanvas.exe</span>
             </div>
           </div>
-          <input value={draft.nvidiaCanvasPath || ''} onChange={(e) => handleChange('nvidiaCanvasPath', e.target.value)} placeholder="C:\\Path\\To\\Canvas.exe" className="w-full bg-slate-800 border border-slate-700 rounded px-3 py-2 text-sm text-white" />
+          <input value={draft.nvidiaCanvasPath || ''} onChange={(e) => handleChange('nvidiaCanvasPath', e.target.value)} placeholder="C:\\Program Files\\NVIDIA Corporation\\NVIDIA Canvas\\NVIDIACanvas.exe" className="w-full bg-slate-800 border border-slate-700 rounded px-3 py-2 text-sm text-white" />
           <div className="mt-2 flex gap-2">
             <button onClick={() => browsePath('nvidiaCanvasPath', 'NVIDIA Canvas')} className="px-3 py-1 bg-slate-700 hover:bg-slate-600 border border-slate-600 rounded text-[11px] font-bold flex items-center gap-1"><FolderOpen className="w-3 h-3" /> Browse</button>
             <button onClick={() => testLaunch(draft.nvidiaCanvasPath, 'NVIDIA Canvas')} className="px-3 py-1 bg-emerald-700 hover:bg-emerald-600 border border-emerald-500 rounded text-[11px] font-bold flex items-center gap-1"><Play className="w-3 h-3" /> Test Launch</button>

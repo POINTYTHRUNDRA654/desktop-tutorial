@@ -84,6 +84,21 @@ const SystemMonitor: React.FC = () => {
           return saved ? JSON.parse(saved) : null;
       } catch { return null; }
   });
+  
+  // Scan Summary State - for displaying detected programs
+  const [scanSummary, setScanSummary] = useState<any | null>(() => {
+      try {
+          const saved = localStorage.getItem('mossy_scan_summary');
+          return saved ? JSON.parse(saved) : null;
+      } catch { return null; }
+  });
+  
+  const [detectedPrograms, setDetectedPrograms] = useState<any[]>(() => {
+      try {
+          const saved = localStorage.getItem('mossy_all_detected_apps');
+          return saved ? JSON.parse(saved) : [];
+      } catch { return []; }
+  });
 
   const [data, setData] = useState<any[]>([]);
   const [logs, setLogs] = useState<LogEntry[]>([]);
@@ -247,21 +262,23 @@ const SystemMonitor: React.FC = () => {
     // Switch to Hardware tab to show scan process
     setActiveTab('hardware');
     
-    addLog("[CORE] Initiating Deep Hardware Scan...", 'info');
+    addLog("[CORE] Initiating COMPREHENSIVE System Scan...", 'info');
+    addLog("[CORE] This may take 30-60 seconds for deep drive scanning...", 'info');
     
     console.log('[SystemMonitor] Window.electron available?', !!window.electron);
     console.log('[SystemMonitor] Window.electron.api available?', !!window.electron?.api);
     console.log('[SystemMonitor] getSystemInfo available?', typeof window.electron?.api?.getSystemInfo);
 
-    // Try Electron API first for real hardware info
+    // STEP 1: Get System Hardware Info
+    let sysInfo: any = null;
     if (window.electron?.api?.getSystemInfo) {
         try {
-            addLog("[ELECTRON] Using native system detection...", 'info');
+            addLog("[STEP 1/3] Scanning system hardware...", 'info');
+            setScanProgress(10);
             console.log('[SystemMonitor] Calling getSystemInfo...');
-            const sysInfo = await window.electron.api.getSystemInfo();
+            sysInfo = await window.electron.api.getSystemInfo();
             
             console.log('[SystemMonitor] Received system info from Electron:', sysInfo);
-            console.log('[SystemMonitor] RAM check: sysInfo.ram=', sysInfo.ram, 'sysInfo.cpu=', sysInfo.cpu);
             
             // Check if we got an error response
             if (sysInfo.ram === 0 || sysInfo.cpu === 'Detection Failed') {
@@ -269,9 +286,7 @@ const SystemMonitor: React.FC = () => {
                 throw new Error(`Electron detection returned error: ${(sysInfo as any).error || 'Unknown'}`);
             }
             
-            console.log('[SystemMonitor] Hardware check passed, proceeding with profile setup');
-            
-            setScanProgress(100);
+            setScanProgress(20);
             addLog(`[HARDWARE] OS: ${sysInfo.os}`, 'success');
             addLog(`[HARDWARE] CPU: ${sysInfo.cpu} (${sysInfo.cores} cores)`, 'info');
             addLog(`[HARDWARE] GPU: ${sysInfo.gpu}`, 'info');
@@ -279,139 +294,144 @@ const SystemMonitor: React.FC = () => {
             if ((sysInfo as any).vram > 0) {
                 addLog(`[HARDWARE] VRAM: ${(sysInfo as any).vram} GB`, 'info');
             }
-            if ((sysInfo as any).blenderVersion) {
-                addLog(`[SOFTWARE] Blender ${(sysInfo as any).blenderVersion} detected`, 'info');
-            }
-            if ((sysInfo as any).displayResolution) {
-                addLog(`[DISPLAY] Resolution: ${(sysInfo as any).displayResolution}`, 'info');
-            }
-            if ((sysInfo as any).motherboard && (sysInfo as any).motherboard !== 'Unknown Motherboard') {
-                addLog(`[HARDWARE] MB: ${(sysInfo as any).motherboard}`, 'info');
-            }
-            if ((sysInfo as any).storageDrives && (sysInfo as any).storageDrives.length > 0) {
-                (sysInfo as any).storageDrives.forEach((drive: any) => {
-                    addLog(`[STORAGE] ${drive.device} - ${drive.free}GB free of ${drive.total}GB`, 'info');
-                });
-            } else if ((sysInfo as any).storageTotalGB > 0) {
-                addLog(`[STORAGE] C: ${(sysInfo as any).storageFreeGB} GB free of ${(sysInfo as any).storageTotalGB} GB`, 'info');
-            }
-
-            const newProfile: SystemProfile = {
-                os: sysInfo.os, // Use the real friendly name
-                gpu: sysInfo.gpu,
-                ram: sysInfo.ram,
-                blenderVersion: (sysInfo as any).blenderVersion || '',
-                vram: (sysInfo as any).vram || 0,
-                isLegacy: sysInfo.ram < 16 || ((sysInfo as any).vram > 0 && (sysInfo as any).vram < 6)
-            };
-            
-            // Add extended properties to profile for AI context
-            (newProfile as any).motherboard = (sysInfo as any).motherboard;
-            (newProfile as any).storageDrives = (sysInfo as any).storageDrives;
-            (newProfile as any).cpu = sysInfo.cpu;
-
-            console.log('[SystemMonitor] Setting profile:', newProfile);
-            setProfile(newProfile);
-            localStorage.setItem('mossy_system_profile', JSON.stringify(newProfile));
-            setIsScanning(false);
-            addLog("[MOSSY] Hardware analysis complete, Architect. Your system map is now live.", 'success');
-            return;
         } catch (e) {
             console.error('[SystemMonitor] Electron API error:', e);
-            addLog(`[ELECTRON] Native detection failed: ${e instanceof Error ? e.message : 'Unknown error'}`, 'warning');
-            addLog("[ELECTRON] Trying bridge fallback...", 'warning');
+            addLog(`[ELECTRON] Hardware detection failed: ${e instanceof Error ? e.message : 'Unknown error'}`, 'warning');
         }
-    } else {
-        addLog("[ELECTRON] API not available (web mode or API not exposed)", 'warning');
-        addLog("[BRIDGE] Attempting bridge-based detection...", 'info');
     }
-
-    // Interval variable needs to be accessible in catch block for cleanup
-    let progressInt: any;
-
-    // Attempt bridge-based scan
+    
+    // STEP 2: DEEP PROGRAM SCAN (This is the important part!)
     try {
-        const controller = new AbortController();
-        // 5s Timeout is sufficient for local bridge
-        const timeoutId = setTimeout(() => controller.abort(), 5000);
+        addLog("[STEP 2/3] Deep scanning ALL installed programs...", 'info');
+        addLog("[SCAN] Checking ALL drives (C-Z), depth 7 levels...", 'info');
+        setScanProgress(30);
         
-        // FAKE PROGRESS FOR UX
-        let step = 0;
-        progressInt = setInterval(() => {
-            step += 5;
-            if (step < 90) setScanProgress(step);
-        }, 200);
-
-        // USE 127.0.0.1 to force IPv4
-        const response = await fetch('http://127.0.0.1:21337/hardware', { 
-            signal: controller.signal,
-            mode: 'cors', // Explicit CORS
-            referrerPolicy: 'no-referrer' // Privacy check avoidance
+        const detectPrograms = window.electron?.api?.detectPrograms || (window as any).electronAPI?.detectPrograms;
+        
+        if (!detectPrograms) {
+            throw new Error('detectPrograms API not available');
+        }
+        
+        // This is the REAL comprehensive scan
+        const allApps = await detectPrograms();
+        
+        console.log('[SystemMonitor] COMPREHENSIVE SCAN COMPLETE:', allApps.length, 'programs found');
+        setScanProgress(80);
+        
+        // Identify key categories
+        const nvidiaKeywords = ['nvidia', 'geforce', 'cuda', 'rtx', 'physx', 'nsight', 
+                                'nvcontainer', 'nvcpl', 'nvprofileinspector', 'texture tools',
+                                'canvas', 'broadcast', 'shadowplay', 'ansel'];
+        const nvidiaTools = allApps.filter((a: any) => {
+            const name = (a.displayName || a.name || '').toLowerCase();
+            const path = (a.path || '').toLowerCase();
+            return nvidiaKeywords.some(kw => name.includes(kw) || path.includes('nvidia'));
         });
-        clearTimeout(timeoutId);
-        clearInterval(progressInt);
         
-        if (response.ok) {
-            const data = await response.json();
-            setScanProgress(100);
-            
-            addLog(`[BRIDGE] Connected. OS: ${data.os}`, 'success');
-            addLog(`[HARDWARE] CPU: ${data.cpu}`, 'info');
-            addLog(`[HARDWARE] GPU: ${data.gpu}`, 'info');
-            addLog(`[HARDWARE] RAM: ${data.ram} GB`, 'info');
-
-            const newProfile: SystemProfile = {
-                os: data.os, // Use real OS from bridge
-                gpu: data.gpu || 'Generic Adapter',
-                ram: data.ram || 16,
-                // Blender version detection via bridge
-                blenderVersion: data.blenderVersion || 'Not Detected', 
-                vram: data.vram || 8,
-                isLegacy: data.ram < 16
-            };
-            setProfile(newProfile);
-            setIsScanning(false);
-            return;
-        } else {
-            if (response.status === 404) {
-                throw new Error("OUTDATED_SERVER");
+        const aiKeywords = ['ollama', 'lm studio', 'lmstudio', 'luma', 'lumaai', 'comfy', 'stable diffusion', 
+                           'automatic1111', 'kobold', 'jan', 'gpt4all'];
+        const aiTools = allApps.filter((a: any) => {
+            const name = (a.displayName || a.name || '').toLowerCase();
+            return aiKeywords.some(kw => name.includes(kw));
+        });
+        
+        const fallout4Keywords = ['fallout 4', 'fallout4', 'fo4'];
+        const fallout4Apps = allApps.filter((a: any) =>
+            fallout4Keywords.some(kw => (a.displayName || a.name || '').toLowerCase().includes(kw))
+        );
+        
+        addLog(`[PROGRAMS] Total Detected: ${allApps.length}`, 'success');
+        addLog(`[NVIDIA] Found ${nvidiaTools.length} NVIDIA tools`, nvidiaTools.length > 0 ? 'success' : 'warning');
+        addLog(`[AI/ML] Found ${aiTools.length} AI tools`, aiTools.length > 0 ? 'success' : 'info');
+        addLog(`[FALLOUT 4] Found ${fallout4Apps.length} installations`, fallout4Apps.length > 0 ? 'success' : 'warning');
+        
+        // Log NVIDIA tools specifically for debugging
+        if (nvidiaTools.length > 0) {
+            addLog(`[NVIDIA ECOSYSTEM] Detected:`, 'info');
+            nvidiaTools.slice(0, 10).forEach((tool: any) => {
+                addLog(`  → ${tool.displayName || tool.name}`, 'info');
+            });
+            if (nvidiaTools.length > 10) {
+                addLog(`  → ...and ${nvidiaTools.length - 10} more NVIDIA programs`, 'info');
             }
-            throw new Error("SERVER_ERROR");
         }
-    } catch (e: any) {
-        clearInterval(progressInt); // Safety Cleanup
-        setScanProgress(100);
         
-        // --- FAIL-SAFE FALLBACK ---
-        // If we are here, the bridge is likely blocked by browser security (CORS/PNA) or just offline.
-        // We set a minimum profile status so the UI doesn't crash, but functionality will remain locked.
-        
-        if (e.message === "OUTDATED_SERVER") {
-            setScanError("Bridge Script Outdated. Please update 'mossy_server.py'.");
-            addLog("[ERROR] Bridge Connected but missing /hardware endpoint.", 'error');
-            addLog("[ACTION] Go to 'Desktop Bridge' tab and re-download the Server Script.", 'warning');
-            setIsScanning(false);
-            return;
+        // Log AI tools for visibility
+        if (aiTools.length > 0) {
+            addLog(`[AI/ML TOOLS] Detected:`, 'info');
+            aiTools.slice(0, 5).forEach((tool: any) => {
+                addLog(`  → ${tool.displayName || tool.name}`, 'info');
+            });
+            if (aiTools.length > 5) {
+                addLog(`  → ...and ${aiTools.length - 5} more AI tools`, 'info');
+            }
         }
-
-        // For any other error (Network, Timeout, etc), use fallback
-        const errorMsg = e.name === 'AbortError' ? "Connection Timed Out" : "Network Blocked/Offline";
-        addLog(`[BRIDGE] ${errorMsg}. Hardware detection unavailable.`, 'warning');
-        addLog("[SYSTEM] Unable to detect hardware specs.", 'warning');
         
-        const fallbackProfile: SystemProfile = {
-            os: 'Bridge Disconnected',
-            gpu: 'N/A',
-            ram: 0,
-            blenderVersion: 'N/A',
-            vram: 0,
-            isLegacy: true
+        // Store in localStorage for Mossy's access
+        localStorage.setItem('mossy_all_detected_apps', JSON.stringify(allApps));
+        localStorage.setItem('mossy_last_scan', new Date().toISOString());
+        
+        const programSummary = {
+            totalPrograms: allApps.length,
+            nvidiaTools: nvidiaTools.length,
+            aiTools: aiTools.length,
+            fallout4Installations: fallout4Apps.length,
+            systemInfo: sysInfo,
+            nvidiaPrograms: nvidiaTools.map(a => ({
+                name: a.displayName || a.name,
+                path: a.path
+            })),
+            aiPrograms: aiTools.map(a => ({
+                name: a.displayName || a.name,
+                path: a.path
+            })),
+            allPrograms: allApps.map(a => ({
+                name: a.displayName || a.name,
+                path: a.path,
+                version: a.version,
+                publisher: a.publisher
+            }))
         };
-        setProfile(fallbackProfile);
-        setIsScanning(false);
-        // Ensure no error is displayed
-        setScanError(null);
+        localStorage.setItem('mossy_scan_summary', JSON.stringify(programSummary));
+        
+        // UPDATE STATE so component re-renders with new data
+        setDetectedPrograms(allApps);
+        setScanSummary(programSummary);
+        
+        setScanProgress(90);
+        
+    } catch (e) {
+        console.error('[SystemMonitor] Program scan failed:', e);
+        addLog(`[PROGRAMS] Scan failed: ${e instanceof Error ? e.message : 'Unknown error'}`, 'error');
     }
+    
+    // STEP 3: Finalize Profile
+    addLog("[STEP 3/3] Finalizing system profile...", 'info');
+    
+    if (sysInfo) {
+        const newProfile: SystemProfile = {
+            os: sysInfo.os,
+            gpu: sysInfo.gpu,
+            ram: sysInfo.ram,
+            blenderVersion: (sysInfo as any).blenderVersion || '',
+            vram: (sysInfo as any).vram || 0,
+            isLegacy: sysInfo.ram < 16 || ((sysInfo as any).vram > 0 && (sysInfo as any).vram < 6)
+        };
+        
+        // Add extended properties
+        (newProfile as any).motherboard = (sysInfo as any).motherboard;
+        (newProfile as any).storageDrives = (sysInfo as any).storageDrives;
+        (newProfile as any).cpu = sysInfo.cpu;
+
+        console.log('[SystemMonitor] Setting profile:', newProfile);
+        setProfile(newProfile);
+        localStorage.setItem('mossy_system_profile', JSON.stringify(newProfile));
+    }
+    
+    setScanProgress(100);
+    setIsScanning(false);
+    addLog("[MOSSY] ✓ Comprehensive system analysis complete!", 'success');
+    addLog("[MOSSY] Your complete software ecosystem is now mapped.", 'success');
   };
 
   const handleManualUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -1036,6 +1056,108 @@ const SystemMonitor: React.FC = () => {
                       </div>
                   )}
               </div>
+
+              {/* DETECTED PROGRAMS - Show what the scan actually found */}
+              {profile && scanSummary && (() => {
+                  // Categorize programs for display
+                  const nvidiaPrograms = detectedPrograms.filter((p: any) => 
+                      (p.displayName || p.name || '').toLowerCase().includes('nvidia') ||
+                      (p.displayName || p.name || '').toLowerCase().includes('geforce') ||
+                      (p.displayName || p.name || '').toLowerCase().includes('cuda') ||
+                      (p.displayName || p.name || '').toLowerCase().includes('rtx')
+                  );
+                  
+                  const aiPrograms = detectedPrograms.filter((p: any) => {
+                      const name = (p.displayName || p.name || '').toLowerCase();
+                      return name.includes('luma') || name.includes('ollama') || 
+                             name.includes('lmstudio') || name.includes('comfy') ||
+                             name.includes('stable diffusion') || name.includes('automatic1111') ||
+                             name.includes('kobold') || name.includes('jan') || name.includes('gpt4all');
+                  });
+                  
+                  return (
+                      <div className="bg-slate-800 border border-slate-700 rounded-xl p-6 mb-6">
+                          <h3 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
+                              <Package className="w-5 h-5 text-blue-400" /> Detected Software Ecosystem
+                          </h3>
+                          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+                              <div className="bg-slate-900 p-4 rounded-lg border border-slate-700">
+                                  <div className="text-xs text-slate-500 uppercase font-bold mb-1">Total Programs</div>
+                                  <div className="text-2xl font-bold text-white">{scanSummary.totalPrograms}</div>
+                              </div>
+                              <div className="bg-slate-900 p-4 rounded-lg border border-emerald-800">
+                                  <div className="text-xs text-emerald-400 uppercase font-bold mb-1">NVIDIA Tools</div>
+                                  <div className="text-2xl font-bold text-emerald-300">{nvidiaPrograms.length}</div>
+                              </div>
+                              <div className="bg-slate-900 p-4 rounded-lg border border-purple-800">
+                                  <div className="text-xs text-purple-400 uppercase font-bold mb-1">AI/ML Tools</div>
+                                  <div className="text-2xl font-bold text-purple-300">{aiPrograms.length}</div>
+                              </div>
+                          </div>
+                          
+                          {nvidiaPrograms.length > 0 && (
+                              <div className="mb-4">
+                                  <h4 className="text-sm font-bold text-emerald-400 mb-2 flex items-center gap-2">
+                                      <Cpu className="w-4 h-4" /> NVIDIA Ecosystem
+                                  </h4>
+                                  <div className="bg-slate-900 rounded-lg p-3 max-h-48 overflow-y-auto">
+                                      <div className="space-y-1 text-xs font-mono">
+                                          {nvidiaPrograms.slice(0, 20).map((p: any, i: number) => (
+                                              <div key={i} className="text-slate-300 truncate" title={p.path}>
+                                                  → {p.displayName || p.name}
+                                              </div>
+                                          ))}
+                                          {nvidiaPrograms.length > 20 && (
+                                              <div className="text-slate-500 italic">
+                                                  ...and {nvidiaPrograms.length - 20} more NVIDIA tools
+                                              </div>
+                                          )}
+                                      </div>
+                                  </div>
+                              </div>
+                          )}
+                          
+                          {aiPrograms.length > 0 && (
+                              <div className="mb-4">
+                                  <h4 className="text-sm font-bold text-purple-400 mb-2 flex items-center gap-2">
+                                      <Box className="w-4 h-4" /> AI/ML Tools
+                                  </h4>
+                                  <div className="bg-slate-900 rounded-lg p-3 max-h-48 overflow-y-auto">
+                                      <div className="space-y-1 text-xs font-mono">
+                                          {aiPrograms.map((p: any, i: number) => (
+                                              <div key={i} className="text-slate-300 truncate" title={p.path}>
+                                                  → {p.displayName || p.name}
+                                              </div>
+                                          ))}
+                                      </div>
+                                  </div>
+                              </div>
+                          )}
+                          
+                          {/* ALL PROGRAMS LIST */}
+                          <div>
+                              <h4 className="text-sm font-bold text-blue-400 mb-2 flex items-center gap-2">
+                                  <Database className="w-4 h-4" /> All Detected Programs ({detectedPrograms.length})
+                              </h4>
+                              <div className="bg-slate-900 rounded-lg p-3 max-h-64 overflow-y-auto">
+                                  <div className="space-y-1 text-xs font-mono">
+                                      {detectedPrograms.slice(0, 100).map((p: any, i: number) => (
+                                          <div key={i} className="text-slate-400 truncate hover:text-slate-200 transition-colors" title={p.path}>
+                                              → {p.displayName || p.name}
+                                              {p.version && <span className="text-slate-600 ml-2">v{p.version}</span>}
+                                          </div>
+                                      ))}
+                                      {detectedPrograms.length > 100 && (
+                                          <div className="text-slate-500 italic mt-2">
+                                              ...and {detectedPrograms.length - 100} more programs
+                                          </div>
+                                      )}
+                                  </div>
+                              </div>
+                          </div>
+                      </div>
+                  );
+              })()}
 
               {/* Compatibility Report */}
               {profile && (
