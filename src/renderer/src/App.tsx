@@ -9,6 +9,7 @@ import MossyOnboarding from './MossyOnboarding';
 import ErrorBoundary from './ErrorBoundary';
 import PipBoyFrame from './PipBoyFrame';
 import PipBoyStartup from './PipBoyStartup';
+import { FirstRunOnboarding } from './FirstRunOnboarding';
 
 import { Loader2, Zap } from 'lucide-react';
 import { LiveProvider } from './LiveContext';
@@ -110,10 +111,31 @@ const ModuleLoader = () => (
 
 const App: React.FC = () => {
   const [hasBooted, setHasBooted] = useState(false);
+  const [showFirstRun, setShowFirstRun] = useState(() => {
+    // Check if user has completed first-run onboarding
+    return !localStorage.getItem('mossy_onboarding_complete');
+  });
   const [showOnboarding, setShowOnboarding] = useState(() => {
     // Check if user has completed onboarding
     return !localStorage.getItem('mossy_onboarding_completed');
   });
+
+  // Reset to first-run state (useful for testing)
+  const resetToFirstRun = () => {
+    localStorage.removeItem('mossy_onboarding_complete');
+    localStorage.removeItem('mossy_all_detected_apps');
+    localStorage.removeItem('mossy_scan_summary');
+    localStorage.removeItem('mossy_tool_preferences');
+    localStorage.removeItem('mossy_integrated_tools');
+    localStorage.removeItem('mossy_last_scan');
+    setShowFirstRun(true);
+    setHasBooted(true);
+  };
+
+  // Expose reset function globally for testing
+  React.useEffect(() => {
+    (window as any).__resetMossyOnboarding = resetToFirstRun;
+  }, []);
 
   // Ensure API Key selection for paid features (Veo/Pro Image) if applicable
   useEffect(() => {
@@ -149,6 +171,16 @@ const App: React.FC = () => {
   const renderAppContent = () => {
     if (!hasBooted) {
       return <PipBoyStartup onComplete={() => setHasBooted(true)} />;
+    }
+
+    if (showFirstRun) {
+      return (
+        <FirstRunOnboarding 
+          onComplete={() => {
+            setShowFirstRun(false);
+          }} 
+        />
+      );
     }
 
     if (showOnboarding) {
