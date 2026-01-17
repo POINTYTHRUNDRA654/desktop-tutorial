@@ -489,9 +489,9 @@ class MOSSY_OT_TestConnection(bpy.types.Operator):
             self.report({'ERROR'}, f'Mossy Link: {str(e)}')
             return {'CANCELLED'}
 
-def update_mossy_link_active(scene):
+def update_mossy_link_active(self, context):
     global MOSSY_SERVER
-    if scene.mossy_link_active:
+    if self.mossy_link_active:
         if MOSSY_SERVER is None:
             MOSSY_SERVER = MossySocketServer()
             MOSSY_SERVER.start()
@@ -501,25 +501,43 @@ def update_mossy_link_active(scene):
             MOSSY_SERVER = None
 
 def register():
+    # Register classes first
     bpy.utils.register_class(MOSSY_PT_Panel)
     bpy.utils.register_class(MOSSY_OT_TestConnection)
+    
+    # Clean up any existing property from old version
+    if hasattr(bpy.types.Scene, 'mossy_link_active'):
+        try:
+            del bpy.types.Scene.mossy_link_active
+        except:
+            pass
+    
+    # Register property after classes
     bpy.types.Scene.mossy_link_active = bpy.props.BoolProperty(
         name="Mossy Link Active",
+        description="Enable Mossy Neural Link socket server",
         default=False,
         update=update_mossy_link_active
     )
-    print("[Mossy Link] Add-on registered successfully!")
+    print("[Mossy Link] Add-on v5.0 registered successfully!")
 
 def unregister():
     global MOSSY_SERVER
+    # Stop server before unregistering
     if MOSSY_SERVER is not None:
         MOSSY_SERVER.stop()
         MOSSY_SERVER = None
     
-    bpy.utils.unregister_class(MOSSY_PT_Panel)
+    # Delete property before unregistering classes
+    if hasattr(bpy.types.Scene, 'mossy_link_active'):
+        try:
+            del bpy.types.Scene.mossy_link_active
+        except:
+            pass
+    
     bpy.utils.unregister_class(MOSSY_OT_TestConnection)
-    del bpy.types.Scene.mossy_link_active
-    print("[Mossy Link] Add-on unregistered.")
+    bpy.utils.unregister_class(MOSSY_PT_Panel)
+    print("[Mossy Link] Add-on v5.0 unregistered.")
 
 if __name__ == "__main__":
     register()
