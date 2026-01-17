@@ -170,7 +170,7 @@ const App: React.FC = () => {
           <TutorialOverlay />
           <SystemBus />
           <Sidebar />
-          <main className="flex-1 relative overflow-hidden" style={{ background: 'linear-gradient(135deg, #0a0e0a 0%, #1a1f1a 100%)', boxShadow: 'inset 0 0 20px rgba(0, 255, 0, 0.1)' }}>
+          <main className="flex-1 relative overflow-y-auto overflow-x-hidden" style={{ background: 'linear-gradient(135deg, #0a0e0a 0%, #1a1f1a 100%)', boxShadow: 'inset 0 0 20px rgba(0, 255, 0, 0.1)' }}>
             <MossyObserver />
             <Suspense fallback={<ModuleLoader />}>
               <Routes>
