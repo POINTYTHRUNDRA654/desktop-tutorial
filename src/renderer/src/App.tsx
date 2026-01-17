@@ -13,6 +13,7 @@ import { FirstRunOnboarding } from './FirstRunOnboarding';
 
 import { Loader2, Zap } from 'lucide-react';
 import { LiveProvider } from './LiveContext';
+import { OpenAIVoiceProvider } from './OpenAIVoiceContext';
 import AvatarOverlay from './AvatarOverlay';
 
 // --- LAZY LOAD MODULES ---
@@ -255,9 +256,11 @@ const App: React.FC = () => {
   return (
     <ErrorBoundary>
       <LiveProvider>
-        <PipBoyFrame>
-          {renderAppContent()}
-        </PipBoyFrame>
+        <OpenAIVoiceProvider>
+          <PipBoyFrame>
+            {renderAppContent()}
+          </PipBoyFrame>
+        </OpenAIVoiceProvider>
       </LiveProvider>
     </ErrorBoundary>
   );
