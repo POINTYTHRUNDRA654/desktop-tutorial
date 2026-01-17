@@ -1057,13 +1057,15 @@ For more help, visit: Settings > Diagnostic Tools > Run Diagnostics
                 if (api?.saveFile) {
                     try {
                         const savedPath = await api.saveFile(reportContent, filename);
-                        result = `**✓ Error report saved!** The file **${filename}** has been saved to your system. You can now review it at your own pace.
+                        result = `**✓ Error report saved!** The file has been saved to your **Downloads** folder as **${filename}**.
 
 **Report Contents:**
 - Latest error with full details
 - All previous errors (${errorLogs.length - 1} additional)
 - Suggested fixes and troubleshooting steps
-- System context information`;
+- System context information
+
+You can now review it, share it with support, or keep it for reference.`;
                     } catch (e) {
                         console.log('[MOSSY] Electron save failed, trying browser download');
                         // Fall through to browser download
