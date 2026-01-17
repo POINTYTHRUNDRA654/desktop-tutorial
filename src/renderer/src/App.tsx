@@ -35,6 +35,7 @@ const TheAssembler = React.lazy(() => import('./TheAssembler'));
 const TheAuditor = React.lazy(() => import('./TheAuditor'));
 const TheScribe = React.lazy(() => import('./TheScribeEnhanced').then(module => ({ default: module.TheScribe })));
 const PrivacySettings = React.lazy(() => import('./PrivacySettings'));
+const DiagnosticTools = React.lazy(() => import('./DiagnosticTools'));
 const DonationSupport = React.lazy(() => import('./DonationSupport').then(module => ({ default: module.DonationSupport })));
 const QuickReference = React.lazy(() => import('./QuickReference').then(module => ({ default: module.QuickReference })));
 const ScriptAnalyzer = React.lazy(() => import('./ScriptAnalyzer').then(module => ({ default: module.ScriptAnalyzer })));
@@ -191,6 +192,7 @@ const App: React.FC = () => {
                 <Route path="/tts" element={<TTSPanel />} />
                 <Route path="/bridge" element={<DesktopBridge />} />
                 <Route path="/settings/privacy" element={<PrivacySettings />} />
+                <Route path="/diagnostics" element={<DiagnosticTools />} />
                 <Route path="/settings/tools" element={<ExternalToolsSettings />} />
                 <Route path="/support" element={<DonationSupport />} />
                 <Route path="/reference" element={<QuickReference />} />

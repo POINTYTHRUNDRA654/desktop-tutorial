@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
-import { MessageSquare, Radio, Image, Mic2, Activity, Heart, Leaf, Monitor, Wifi, WifiOff, Hammer, GitBranch, Network, Gamepad2, Container, SquareTerminal, BrainCircuit, Aperture, LayoutDashboard, Satellite, Workflow, Hexagon, DraftingCompass, Dna, Sparkles, Flame, Binary, Triangle, PenTool, FlaskConical, Map, FileDigit, Library, Bug, Package, Watch, ShieldCheck, Feather, Power, Volume2, VolumeX, Settings, Coffee, Book, Code, Wand2, Archive, Eye, Save, List, FileCode as FileCodeIcon, Bot, Box, Gauge, Zap, GitMerge, Clock, Share2, Bone, CheckCircle2, AlertCircle, BookOpen } from 'lucide-react';
+import { MessageSquare, Radio, Image, Mic2, Activity, Heart, Leaf, Monitor, Wifi, WifiOff, Hammer, GitBranch, Network, Gamepad2, Container, SquareTerminal, BrainCircuit, Aperture, LayoutDashboard, Satellite, Workflow, Hexagon, DraftingCompass, Dna, Sparkles, Flame, Binary, Triangle, PenTool, FlaskConical, Map, FileDigit, Library, Bug, Package, Watch, ShieldCheck, Feather, Power, Volume2, VolumeX, Settings, Coffee, Book, Code, Wand2, Archive, Eye, Save, List, FileCode as FileCodeIcon, Bot, Box, Gauge, Zap, GitMerge, Clock, Share2, Bone, CheckCircle2, AlertCircle, BookOpen, Wrench } from 'lucide-react';
 import { useLive } from './LiveContext';
 import AvatarCore from './AvatarCore';
 
@@ -86,6 +86,7 @@ const Sidebar: React.FC = () => {
     { to: '/live', icon: Radio, label: 'Live Synapse' },
     { to: '/bridge', icon: Monitor, label: 'Desktop Bridge' },
     { to: '/settings/privacy', icon: Settings, label: 'Privacy Settings' },
+    { to: '/diagnostics', icon: Wrench, label: 'Diagnostic Tools' },
     { to: '/support', icon: Coffee, label: 'Support Mossy' },
     { to: '/reference', icon: Book, label: 'Quick Reference' },
     { to: '/script-analyzer', icon: Code, label: 'Script Analyzer' },
