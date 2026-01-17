@@ -647,6 +647,95 @@ ${previousErrors.length > 0 ? `**Previous Errors:** ${previousErrors.map(e => `$
         } catch (e) {
             result = `**Error retrieving logs:** ${e instanceof Error ? e.message : 'Unknown error'}`;
         }
+    } else if (name === 'export_error_logs') {
+        try {
+            const errorLogs = JSON.parse(localStorage.getItem('mossy_error_logs') || '[]');
+            
+            if (errorLogs.length === 0) {
+                result = `**No error logs to export.** There haven't been any errors recorded yet.`;
+            } else {
+                // Create formatted error report
+                const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+                const filename = `mossy-error-report-${timestamp}.txt`;
+                
+                let reportContent = `MOSSY ERROR REPORT
+Generated: ${new Date().toLocaleString()}
+Total Errors: ${errorLogs.length}
+
+================================
+LATEST ERROR (MOST RECENT)
+================================
+`;
+                
+                const latestError = errorLogs[errorLogs.length - 1];
+                reportContent += `
+Timestamp: ${latestError.timestamp}
+Tool: ${latestError.toolName}
+Error Message: ${latestError.errorMessage}
+
+Context:
+${latestError.context ? Object.entries(latestError.context).map(([k, v]) => `  ${k}: ${v}`).join('\n') : '  (no context available)'}
+
+Suggested Fix: ${latestError.suggestedFix || '(see stack trace for details)'}
+
+User Action: ${latestError.userAction || '(automatic error logging)'}
+
+Stack Trace:
+${latestError.errorStack || '(no stack available)'}
+`;
+                
+                if (errorLogs.length > 1) {
+                    reportContent += `
+================================
+PREVIOUS ERRORS (${errorLogs.length - 1} total)
+================================
+`;
+                    errorLogs.slice(0, -1).forEach((error, idx) => {
+                        reportContent += `\n${idx + 1}. ${error.toolName} at ${error.timestamp}
+   Message: ${error.errorMessage}
+   Suggested Fix: ${error.suggestedFix || 'N/A'}
+`;
+                    });
+                }
+                
+                reportContent += `
+
+================================
+TROUBLESHOOTING STEPS
+================================
+1. Review the error message and suggested fix above
+2. Check the Diagnostic Tools in Settings to verify system APIs
+3. If the problem persists, restart the application
+4. Check that all required system dependencies are installed
+5. Review system logs in the Diagnostic Tools panel
+
+For more help, visit: Settings > Diagnostic Tools > Run Diagnostics
+`;
+                
+                // Create and trigger download
+                const blob = new Blob([reportContent], { type: 'text/plain' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = filename;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+                
+                result = `**✓ Error report exported!** The file **${filename}** has been saved to your Downloads folder. You can now review it at your own pace.
+
+**Report Contents:**
+- Latest error with full details
+- All previous errors (${errorLogs.length - 1} additional)
+- Suggested fixes and troubleshooting steps
+- System context information
+
+Open the file in any text editor to read the complete diagnostic report.`;
+            }
+        } catch (e) {
+            result = `**Export failed:** ${e instanceof Error ? e.message : 'Unknown error'}. Please try again.`;
+        }
     } else if (name === 'execute_blender_script') {
         const bridgeActive = localStorage.getItem('mossy_bridge_active') === 'true' || true; // Native bridge is now always active
         if (bridgeActive) {
