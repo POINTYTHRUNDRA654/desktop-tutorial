@@ -410,7 +410,10 @@ export const executeMossyTool = async (name: string, args: any, context: {
         result = `Navigating to ${args.target}`;
     } else if (name === 'scan_hardware') {
         try {
-            // Call the same detectPrograms that ChatInterface uses
+            console.log('[MOSSY SCAN] Starting hardware scan...');
+            
+            // Step 1: Check if detectPrograms exists
+            console.log('[MOSSY SCAN] Step 1: Checking for detectPrograms function...');
             const detectPrograms = typeof window.electron?.api?.detectPrograms === 'function' 
                 ? window.electron.api.detectPrograms 
                 : typeof window.electronAPI?.detectPrograms === 'function'
@@ -418,9 +421,19 @@ export const executeMossyTool = async (name: string, args: any, context: {
                 : null;
 
             if (!detectPrograms) {
-                result = `[MOSSY] Scan request received, but hardware detection is not available yet. Please check Settings > About for manual tool configuration.`;
+                console.error('[MOSSY SCAN] ❌ detectPrograms function not found');
+                console.error('[MOSSY SCAN] window.electron?.api exists:', !!(window as any).electron?.api);
+                console.error('[MOSSY SCAN] window.electronAPI exists:', !!(window as any).electronAPI);
+                
+                result = `[MOSSY] Scan request received, but hardware detection is not available yet. Please check Diagnostic Tools (in Settings) to see which APIs are available.`;
             } else {
+                console.log('[MOSSY SCAN] ✓ detectPrograms function found');
+                
+                // Step 2: Call detectPrograms
+                console.log('[MOSSY SCAN] Step 2: Calling detectPrograms()...');
                 const apps = await detectPrograms();
+                console.log('[MOSSY SCAN] ✓ detectPrograms returned:', apps?.length || 0, 'programs');
+                
                 const moddingKeywords = [
                     'blender', 'creationkit', 'fo4edit', 'xedit', 'sseedit', 'tes5edit', 'fnvedit', 'tes4edit', 
                     'modorganizer', 'vortex', 'nifskope', 'bodyslide', 'f4se', 'loot', 'wryebash', 'outfitstudio', 
@@ -428,17 +441,26 @@ export const executeMossyTool = async (name: string, args: any, context: {
                     'fallout', 'morrowind', 'oblivion', 'skyrim', 'starfield', 'game', 'mod'
                 ];
                 
+                // Step 3: Filter for modding tools
+                console.log('[MOSSY SCAN] Step 3: Filtering for modding tools...');
                 const moddingTools = (apps || []).filter((a: any) => 
                     moddingKeywords.some(kw => (a.displayName || a.name || '').toLowerCase().includes(kw))
                 );
+                console.log('[MOSSY SCAN] ✓ Filtered to', moddingTools.length, 'modding tools');
 
-                // Cache the results
+                // Step 4: Cache the results
+                console.log('[MOSSY SCAN] Step 4: Caching results to localStorage...');
                 localStorage.setItem('mossy_apps', JSON.stringify(moddingTools || []));
                 localStorage.setItem('mossy_last_scan', new Date().toISOString());
+                console.log('[MOSSY SCAN] ✓ Results cached');
 
+                // Step 5: Detect Fallout 4
+                console.log('[MOSSY SCAN] Step 5: Detecting Fallout 4 installations...');
                 const fallout4Apps = (moddingTools || []).filter((a: any) =>
                     (a.displayName || a.name || '').toLowerCase().includes('fallout 4')
                 );
+                console.log('[MOSSY SCAN] ✓ Found', fallout4Apps.length, 'Fallout 4 installations');
+                console.log('[MOSSY SCAN] ✓ Scan complete!');
 
                 result = `[MOSSY] System scan complete. Analysis:
 - Total Tools Detected: ${moddingTools.length}
@@ -448,16 +470,18 @@ ${fallout4Apps.length > 0 ? '\nFallout 4 Locations:\n' + fallout4Apps.map(a => `
 Directive complete, Architect. My neural matrix has been updated with your system configuration.`;
             }
         } catch (e) {
+            console.error('[MOSSY SCAN] ❌ Error during scan:', e);
             const errorMsg = e instanceof Error ? e.message : 'Unknown error';
             const errorReport = await logMossyError(
                 'scan_hardware',
                 e,
                 { 
                   detectProgramsAvailable: !!window.electron?.api?.detectPrograms,
-                  electronAPIAvailable: !!(window as any).electronAPI
+                  electronAPIAvailable: !!(window as any).electronAPI,
+                  consoleErrorsAbove: 'Check console (F12) for [MOSSY SCAN] debug logs'
                 },
                 'User requested hardware scan',
-                'Check that Electron IPC bridge is properly initialized'
+                'Check Diagnostic Tools (Settings > Diagnostic Tools) to verify all APIs are available'
             );
             result = getErrorReport('scan_hardware', errorReport.filename);
         }
