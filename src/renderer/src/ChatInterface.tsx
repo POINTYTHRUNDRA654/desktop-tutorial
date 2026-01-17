@@ -420,15 +420,22 @@ export const ChatInterface: React.FC = () => {
              const lastScan = localStorage.getItem('mossy_last_scan');
              const now = Date.now();
              const oneDay = 24 * 60 * 60 * 1000;
+             const hasApps = localStorage.getItem('mossy_apps');
 
-             // Only periodic silent scan if we've finished onboarding
-             if (onboardingState !== 'init' && onboardingState !== 'scanning' && onboardingState !== 'integrating') {
+             // If no scan data exists, always run scan (critical for onboarding)
+             if (!hasApps) {
+                console.log('[ChatInterface] No scan data found; running auto-scan...');
+                if (onboardingState === 'init') {
+                    performSystemScan(); // Full visible scan on init
+                } else {
+                    performSystemScan(true); // Silent scan if already onboarded
+                }
+             } 
+             // Otherwise, periodic silent scan if we've finished onboarding
+             else if (onboardingState !== 'init' && onboardingState !== 'scanning' && onboardingState !== 'integrating') {
                 if (!lastScan || (now - parseInt(lastScan)) > oneDay) {
                     performSystemScan(true); // Silent background refresh
                 }
-             } else if (onboardingState === 'init') {
-                const hasApps = localStorage.getItem('mossy_apps');
-                if (!hasApps) performSystemScan();
              }
         }
 
