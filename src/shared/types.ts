@@ -48,6 +48,9 @@ export interface Settings {
   lootPath?: string;
   vortexPath?: string;
   mo2Path?: string;
+  
+  // Game Paths
+  fallout4Path?: string;
   wryeBashPath?: string;
   bodySlidePath?: string;
   outfitStudioPath?: string;
