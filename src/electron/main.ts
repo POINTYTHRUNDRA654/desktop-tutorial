@@ -19,6 +19,7 @@ import ffmpeg from 'fluent-ffmpeg';
 import ffmpegInstaller from '@ffmpeg-installer/ffmpeg';
 import https from 'https';
 import FormData from 'form-data';
+import OpenAI from 'openai';
 
 // Set ffmpeg path
 ffmpeg.setFfmpegPath(ffmpegInstaller.path);
@@ -196,7 +197,14 @@ function setupIpcHandlers() {
   });
 
   // Video transcription handler (runs in main process with Node.js)
-  ipcMain.handle('transcribe-video', async (_event, arrayBuffer: ArrayBuffer, apiKey: string, filename: string) => {
+  ipcMain.handle('transcribe-video', async (
+    _event,
+    arrayBuffer: ArrayBuffer,
+    apiKey: string,
+    filename: string,
+    projectId?: string,
+    organizationId?: string,
+  ) => {
     let tempVideoPath: string | null = null;
     let tempAudioPath: string | null = null;
 
@@ -208,7 +216,7 @@ function setupIpcHandlers() {
       tempAudioPath = path.join(os.tmpdir(), `mossy-audio-${Date.now()}.mp3`);
       
       fs.writeFileSync(tempVideoPath, buffer);
-      console.log('Video saved to temp:', tempVideoPath);
+      console.log('[Transcription] Video saved to temp:', tempVideoPath);
 
       // Extract audio using ffmpeg
       await new Promise<void>((resolve, reject) => {
@@ -229,49 +237,150 @@ function setupIpcHandlers() {
 
       // Read audio file
       const audioBuffer = fs.readFileSync(tempAudioPath);
-      console.log('Audio file size:', audioBuffer.length, 'bytes');
+      console.log('[Transcription] Audio file size:', audioBuffer.length, 'bytes');
 
-      // Send to OpenAI Whisper API
-      const formData = new FormData();
-      formData.append('file', audioBuffer, {
-        filename: 'audio.mp3',
-        contentType: 'audio/mpeg',
-      });
-      formData.append('model', 'whisper-1');
+      // Local whisper.cpp fallback helper
+      const transcribeLocalWhisper = async () => {
+        const baseDir = app.isPackaged ? process.resourcesPath : app.getAppPath();
+        const parentDir = path.dirname(baseDir); // Check parent directory too
+        const whisperCandidates = [
+          path.join(baseDir, 'external', 'whisper', 'whisper-cli.exe'),
+          path.join(baseDir, 'external', 'whisper', 'main.exe'),
+          path.join(baseDir, 'whisper', 'whisper-cli.exe'),
+          path.join(process.cwd(), 'external', 'whisper', 'whisper-cli.exe'),
+          path.join(parentDir, 'external', 'whisper', 'whisper-cli.exe'), // Parent directory
+        ];
+        const modelCandidates = [
+          path.join(baseDir, 'external', 'whisper', 'ggml-base.en.bin'),
+          path.join(baseDir, 'whisper', 'ggml-base.en.bin'),
+          path.join(process.cwd(), 'external', 'whisper', 'ggml-base.en.bin'),
+          path.join(parentDir, 'external', 'whisper', 'ggml-base.en.bin'), // Parent directory
+        ];
 
-      const transcription = await new Promise<string>((resolve, reject) => {
-        const options = {
-          hostname: 'api.openai.com',
-          path: '/v1/audio/transcriptions',
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${apiKey}`,
-            ...formData.getHeaders(),
-          },
-        };
+        const whisperBin = whisperCandidates.find(fs.existsSync);
+        const modelPath = modelCandidates.find(fs.existsSync);
 
-        const req = https.request(options, (res) => {
-          let data = '';
-          res.on('data', (chunk) => { data += chunk; });
-          res.on('end', () => {
-            try {
-              const json = JSON.parse(data);
-              if (json.error) {
-                reject(new Error(json.error.message || 'Transcription failed'));
-              } else {
-                resolve(json.text);
-              }
-            } catch (e) {
-              reject(new Error('Failed to parse API response'));
-            }
+        console.log('[Transcription] Searching for whisper binary in:', whisperCandidates);
+        console.log('[Transcription] Found whisper binary:', whisperBin);
+        console.log('[Transcription] Found model:', modelPath);
+
+        if (!whisperBin) {
+          throw new Error('Local Whisper binary not found. Place whisper-cli.exe or main.exe in external/whisper/');
+        }
+        if (!modelPath) {
+          throw new Error('Whisper model ggml-base.en.bin not found. Place it in external/whisper/');
+        }
+
+        const outPrefix = path.join(os.tmpdir(), `mossy-whisper-${Date.now()}`);
+        const args = ['-m', modelPath, '-f', tempAudioPath!, '-otxt', '-of', outPrefix, '-np', '1'];
+
+        console.log('[Transcription] Running local whisper:', whisperBin, args.join(' '));
+
+        await new Promise<void>((resolve, reject) => {
+          const child = spawn(whisperBin, args, { stdio: ['ignore', 'pipe', 'pipe'] });
+          let stderr = '';
+          child.stderr?.on('data', (d) => { stderr += d.toString(); });
+          child.on('error', reject);
+          child.on('close', (code) => {
+            if (code === 0) return resolve();
+            reject(new Error(`whisper.cpp exited with code ${code}: ${stderr}`));
           });
         });
 
-        req.on('error', reject);
-        formData.pipe(req);
-      });
+        const txtPath = `${outPrefix}.txt`;
+        if (!fs.existsSync(txtPath)) {
+          throw new Error('whisper.cpp did not produce a transcript file');
+        }
+        const text = fs.readFileSync(txtPath, 'utf-8').trim();
+        console.log('[Transcription] ✓ Local whisper success');
+        return text;
+      };
 
-      return { success: true, text: transcription };
+      // Decide path: if no key, go local; else try SDK then fallback to local on 401
+      let transcription = '';
+
+      if (!apiKey) {
+        transcription = await transcribeLocalWhisper();
+        return { success: true, text: transcription };
+      }
+
+      try {
+        console.log('[Transcription] Attempting SDK transcription...');
+        const client = new OpenAI({
+          apiKey,
+          organization: organizationId,
+          project: projectId,
+        });
+        const result = await client.audio.transcriptions.create({
+          file: fs.createReadStream(tempAudioPath),
+          model: 'whisper-1',
+        });
+        transcription = (result as any)?.text ?? '';
+        console.log('[Transcription] ✓ Success via SDK:', transcription.substring(0, 100));
+        return { success: true, text: transcription };
+      } catch (sdkErr: any) {
+        const msg = sdkErr?.message || '';
+        console.warn('[Transcription] SDK failed:', msg);
+        if (/401|Incorrect API key/i.test(msg)) {
+          console.log('[Transcription] Falling back to local whisper due to auth error');
+          transcription = await transcribeLocalWhisper();
+          return { success: true, text: transcription };
+        }
+
+        // If SDK failed for other reasons, try HTTP as a last resort
+        try {
+          console.warn('[Transcription] Trying HTTP fallback...');
+          const formData = new FormData();
+          formData.append('file', audioBuffer, {
+            filename: 'audio.mp3',
+            contentType: 'audio/mpeg',
+          });
+          formData.append('model', 'whisper-1');
+
+          transcription = await new Promise<string>((resolve, reject) => {
+            const options = {
+              hostname: 'api.openai.com',
+              path: '/v1/audio/transcriptions',
+              method: 'POST',
+              headers: {
+                'Authorization': `Bearer ${apiKey}`,
+                ...formData.getHeaders(),
+              },
+            };
+
+            const req = https.request(options, (res) => {
+              let data = '';
+              res.on('data', (chunk) => { data += chunk; });
+              res.on('end', () => {
+                try {
+                  const json = JSON.parse(data);
+                  if (json.error) {
+                    const status = res.statusCode || 0;
+                    const errMsg: string = json.error.message || 'Transcription failed';
+                    const maskedMsg = errMsg.replace(/(sk-[a-z0-9_-]{10,})/gi, (m) => m.slice(0, 10) + '…');
+                    const enriched = `[${status}] ${maskedMsg}`;
+                    reject(new Error(enriched));
+                  } else {
+                    resolve(json.text);
+                  }
+                } catch (e) {
+                  reject(new Error('Failed to parse API response'));
+                }
+              });
+            });
+
+            req.on('error', reject);
+            formData.pipe(req);
+          });
+
+          return { success: true, text: transcription };
+        } catch (httpErr: any) {
+          // HTTP also failed, fallback to local whisper
+          console.warn('[Transcription] HTTP also failed, falling back to local whisper');
+          transcription = await transcribeLocalWhisper();
+          return { success: true, text: transcription };
+        }
+      }
     } catch (error: any) {
       console.error('Video transcription error:', error);
       return { success: false, error: error.message || 'Failed to transcribe video' };
