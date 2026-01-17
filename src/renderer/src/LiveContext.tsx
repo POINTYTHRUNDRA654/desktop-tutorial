@@ -147,21 +147,6 @@ export const LiveProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       if (event.message && event.message.includes('WebSocket is already in CLOSING or CLOSED state')) {
         // We're handling this in our catch blocks, suppress console error
         event.preventDefault();
-        
-        // If we're in a live session and getting socket errors, trigger proactive reconnect
-        if (isActiveRef.current && sessionRef.current) {
-          console.log('[LiveContext] WebSocket error detected; triggering proactive reconnect');
-          // Schedule a reconnect but don't disconnect yet (keep audio flowing)
-          const sessionAge = Date.now() - sessionStartTimeRef.current;
-          const TWO_POINT_FIVE_MINUTES = 2.5 * 60 * 1000;
-          
-          // If session is older than 2.5 min and we're seeing errors, reconnect sooner
-          if (sessionAge > TWO_POINT_FIVE_MINUTES) {
-            console.log('[LiveContext] Session age:', Math.round(sessionAge / 1000), 'sec - reconnecting to prevent quota');
-            disconnect(false, false);
-            scheduleReconnect('socket-degradation-detected');
-          }
-        }
       }
     };
     
@@ -588,28 +573,12 @@ DO NOT say "I cannot integrate" - you CAN by launching programs and providing ex
                   console.warn('[LiveContext] Keepalive signal failed (connection may be closing):', err);
                   scheduleReconnect('keepalive-failed');
                 }
-              }, 12000); // Slightly under common idle timeouts
+              }, 3000); // Every 3 seconds - aggressive keepalive to stay ahead of idle timeouts
               
-              // START PROACTIVE SESSION HEALTH CHECK
-              // Reconnect every 3 minutes to stay well ahead of Google's resource limits
-              // Google's live API has hard resource limits around 5 minutes; we refresh at 3 to be safe
-              console.log('[LiveContext] Starting proactive session health check (3 min refresh)...');
+              // REMOVED: Proactive reconnection was causing user interruption at 3 minutes
+              // Instead: Rely on keepalive (3s) + degradation detection to maintain connection
+              // Let the session live as long as possible before hard disconnect
               sessionStartTimeRef.current = Date.now();
-              if (sessionHealthCheckRef.current) clearInterval(sessionHealthCheckRef.current);
-              sessionHealthCheckRef.current = setInterval(async () => {
-                if (!isActiveRef.current || !sessionRef.current) return;
-                
-                const sessionAge = Date.now() - sessionStartTimeRef.current;
-                const THREE_MINUTES = 3 * 60 * 1000;
-                
-                if (sessionAge >= THREE_MINUTES) {
-                  console.log('[LiveContext] ⚠️ Session is 3+ minutes old; proactively reconnecting to prevent quota');
-                  console.log('[LiveContext] Current session age:', Math.round(sessionAge / 1000), 'seconds');
-                  // Preserve messages, do graceful reconnect
-                  disconnect(false, false); // Preserve buffer, not manual
-                  scheduleReconnect('proactive-health-refresh');
-                }
-              }, 30000); // Check every 30 seconds
               
               resolve();
             },
