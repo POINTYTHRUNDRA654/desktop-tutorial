@@ -89,6 +89,18 @@ export const toolDeclarations: FunctionDeclaration[] = [
         }
     },
     {
+        name: 'launch_program',
+        description: 'Launch a detected program by name or path. Use this to open NVIDIA tools, AI tools, modding software, or any other detected application. Check [AUTOMATICALLY DETECTED TOOLS] for available programs.',
+        parameters: {
+            type: Type.OBJECT,
+            properties: {
+                programName: { type: Type.STRING, description: 'The name of the program to launch (e.g., "NVIDIA Canvas", "Luma AI", "GIMP", "xEdit"). Will search detected programs for a match.' },
+                reason: { type: Type.STRING, description: 'Brief explanation of why you\'re launching this tool (for user context).' }
+            },
+            required: ['programName', 'reason']
+        }
+    },
+    {
         name: 'scan_hardware',
         description: 'Scan the user\'s local hardware, software versions, and modding environment. Only run this if the [SYSTEM SCAN STATUS] is NOT PERFORMED.',
         parameters: {

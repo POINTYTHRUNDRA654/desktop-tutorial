@@ -106,6 +106,9 @@ export const executeMossyTool = async (name: string, args: any, context: {
                 'nvidiaTextureTools': 'nvidiaTextureToolsPath',
                 'nvidia canvas': 'nvidiaCanvasPath',
                 'nvidiaCanvas': 'nvidiaCanvasPath',
+                'canvas': 'nvidiaCanvasPath',
+                'vita': 'nvidiaCanvasPath',
+                'vita canvas': 'nvidiaCanvasPath',
                 'nvidia omniverse': 'nvidiaOmniversePath',
                 'nvidiaOmniverse': 'nvidiaOmniversePath',
                 'blender': 'blenderPath',
@@ -139,7 +142,13 @@ export const executeMossyTool = async (name: string, args: any, context: {
                 'shadermap': 'ShaderMap',
                 'nvidiaTextureTools': 'NVIDIA Texture Tools',
                 'nvidiaCanvas': 'NVIDIA Canvas',
+                'canvas': 'NVIDIA Canvas',
+                'vita': 'NVIDIA Canvas',
+                'vita canvas': 'NVIDIA Canvas',
+                'nvidia canvas': 'NVIDIA Canvas',
                 'nvidiaOmniverse': 'NVIDIA Omniverse',
+                'omniverse': 'NVIDIA Omniverse',
+                'nvidia omniverse': 'NVIDIA Omniverse',
                 'f4se': 'F4SE Loader',
                 'wryebash': 'Wrye Bash',
                 'bae': 'B.A.E. Archive Extractor',
@@ -173,7 +182,15 @@ export const executeMossyTool = async (name: string, args: any, context: {
                 'photodemon': ['photodemon', 'photo demon'],
                 'unwrap3': ['unwrap3', 'un-wrap3'],
                 'nifutils': ['nifutils', 'nif utils'],
-                'spin3d': ['spin3d']
+                'spin3d': ['spin3d'],
+                'canvas': ['nvidia canvas', 'nvidiacanvas', 'canvas', 'vita', 'vita canvas'],
+                'nvidia canvas': ['nvidia canvas', 'nvidiacanvas', 'canvas', 'vita', 'vita canvas'],
+                'nvidiacanvas': ['nvidia canvas', 'nvidiacanvas', 'canvas', 'vita', 'vita canvas'],
+                'vita': ['nvidia canvas', 'nvidiacanvas', 'canvas', 'vita', 'vita canvas'],
+                'gimp': ['gimp', 'gnu image manipulation program'],
+                'blender': ['blender'],
+                'nvidia omniverse': ['omniverse', 'nvidia omniverse'],
+                'omniverse': ['omniverse', 'nvidia omniverse']
             };
             
             const currentAliases = toolAliases[toolId] || [toolId];
@@ -269,7 +286,11 @@ export const executeMossyTool = async (name: string, args: any, context: {
                 const hasScanCache = detectedApps && detectedApps.length > 0;
                 
                 let suggestion = '';
-                if (!hasScanCache) {
+                
+                // Special case for NVIDIA Canvas (Vita)
+                if (toolId === 'canvas' || toolId === 'vita' || toolId === 'nvidiacanvas' || args.toolId.toLowerCase().includes('canvas')) {
+                    suggestion = `\n\n**⚠️ NVIDIA Canvas (Vita Canvas) Not Found**\n\nNVIDIA Canvas requires:\n• NVIDIA RTX GPU (20 series or newer)\n• Installed from: https://www.nvidia.com/en-us/studio/canvas/\n\nDefault install location:\n\`C:\\Program Files\\NVIDIA Corporation\\NVIDIA Canvas\\NVIDIACanvas.exe\`\n\n**To configure manually:**\n1. Go to **External Tools** settings (⚙️)\n2. Find **"NVIDIA Canvas (Vita Canvas)"**\n3. Click **Browse** and select \`NVIDIACanvas.exe\`\n4. Click **Save Settings**\n\n**Not installed?** Download from NVIDIA's website (requires RTX GPU).`;
+                } else if (!hasScanCache) {
                     suggestion = `\n\n**⚠️ ACTION REQUIRED:**\nYour system hasn't been scanned yet. To use ${toolDisplayName}:\n\n1. Go to the **External Tools** settings (click the wrench icon)\n2. Click **Browse** next to "${toolDisplayName}"\n3. Find and select the ${toolDisplayName} executable\n4. Click **Save Settings**\n\nAlternatively, click **System Scan** in Desktop Bridge to auto-detect all tools.`;
                 } else {
                     suggestion = `\n\n**⚠️ ${toolDisplayName} Not Found**\n\n${toolDisplayName} was not found during the system scan. Please manually configure it:\n\n1. Go to **External Tools** settings\n2. Click **Browse** next to "${toolDisplayName}"\n3. Navigate to your ${toolDisplayName} installation folder\n4. Select the main executable (.exe file)\n5. Click **Save Settings**`;
@@ -408,83 +429,343 @@ export const executeMossyTool = async (name: string, args: any, context: {
     } else if (name === 'control_interface') {
         window.dispatchEvent(new CustomEvent('mossy-control', { detail: { action: args.action, payload: { path: args.target } } }));
         result = `Navigating to ${args.target}`;
+    } else if (name === 'launch_program') {
+        try {
+            const programName = args.programName;
+            const reason = args.reason || 'Opening requested tool';
+            
+            console.log(`[MOSSY LAUNCH] Attempting to launch: "${programName}"`);
+            console.log(`[MOSSY LAUNCH] Reason: ${reason}`);
+            
+            // FIRST: Try to match against configured settings (Manual tools in External Tools)
+            const api = (window as any).electronAPI || (window as any).electron?.api;
+            let settingsMatch = null;
+            let settingsPath = null;
+            
+            if (api) {
+                try {
+                    const settings = await api.getSettings();
+                    const searchLower = programName.toLowerCase().trim();
+                    
+                    // Helper function to convert camelCase to lowercase with spaces
+                    const camelToSpace = (str: string) => {
+                        return str.replace(/([a-z])([A-Z])/g, '$1 $2').toLowerCase();
+                    };
+                    const searchWithSpaces = camelToSpace(searchLower);
+                    
+                    // Define mappings from common names to settings keys
+                    const settingsMapping: Record<string, { key: string; displayName: string }> = {
+                        // NVIDIA Tools
+                        'canvas': { key: 'nvidiaCanvasPath', displayName: 'NVIDIA Canvas' },
+                        'nvidia canvas': { key: 'nvidiaCanvasPath', displayName: 'NVIDIA Canvas' },
+                        'nvidiacanvas': { key: 'nvidiaCanvasPath', displayName: 'NVIDIA Canvas' },
+                        'vita': { key: 'nvidiaCanvasPath', displayName: 'NVIDIA Canvas' },
+                        'vita canvas': { key: 'nvidiaCanvasPath', displayName: 'NVIDIA Canvas' },
+                        'omniverse': { key: 'nvidiaOmniversePath', displayName: 'NVIDIA Omniverse' },
+                        'nvidia omniverse': { key: 'nvidiaOmniversePath', displayName: 'NVIDIA Omniverse' },
+                        'nvidia texture tools': { key: 'nvidiaTextureToolsPath', displayName: 'NVIDIA Texture Tools' },
+                        'nvidiatexturetools': { key: 'nvidiaTextureToolsPath', displayName: 'NVIDIA Texture Tools' },
+                        'texture tools': { key: 'nvidiaTextureToolsPath', displayName: 'NVIDIA Texture Tools' },
+                        'texture exporter': { key: 'nvidiaTextureToolsPath', displayName: 'NVIDIA Texture Tools' },
+                        
+                        // Fallout Modding Tools
+                        'xedit': { key: 'xeditPath', displayName: 'xEdit' },
+                        'fo4edit': { key: 'xeditPath', displayName: 'FO4Edit' },
+                        'fo4xedit': { key: 'xeditPath', displayName: 'FO4xEdit' },
+                        'edit': { key: 'xeditPath', displayName: 'xEdit' },
+                        'nifskope': { key: 'nifSkopePath', displayName: 'NifSkope' },
+                        'nif skope': { key: 'nifSkopePath', displayName: 'NifSkope' },
+                        'creation kit': { key: 'creationKitPath', displayName: 'Creation Kit' },
+                        'creationkit': { key: 'creationKitPath', displayName: 'Creation Kit' },
+                        'ck': { key: 'creationKitPath', displayName: 'Creation Kit' },
+                        
+                        // Mod Management
+                        'vortex': { key: 'vortexPath', displayName: 'Vortex' },
+                        'mod organizer': { key: 'mo2Path', displayName: 'Mod Organizer 2' },
+                        'mod organizer 2': { key: 'mo2Path', displayName: 'Mod Organizer 2' },
+                        'mo2': { key: 'mo2Path', displayName: 'Mod Organizer 2' },
+                        'modorganizer': { key: 'mo2Path', displayName: 'Mod Organizer 2' },
+                        'loot': { key: 'lootPath', displayName: 'LOOT' },
+                        
+                        // 3D/Texture Tools
+                        'blender': { key: 'blenderPath', displayName: 'Blender' },
+                        'gimp': { key: 'gimpPath', displayName: 'GIMP' },
+                        'photopea': { key: 'photopeaPath', displayName: 'Photopea' },
+                        'upscayl': { key: 'upscaylPath', displayName: 'Upscayl' },
+                        'shadermap': { key: 'shaderMapPath', displayName: 'ShaderMap' },
+                        'shader map': { key: 'shaderMapPath', displayName: 'ShaderMap' },
+                        
+                        // Body/Outfit Tools
+                        'bodyslide': { key: 'bodySlidePath', displayName: 'BodySlide' },
+                        'body slide': { key: 'bodySlidePath', displayName: 'BodySlide' },
+                        'outfit studio': { key: 'bodySlidePath', displayName: 'Outfit Studio' },
+                        'outfitstudio': { key: 'bodySlidePath', displayName: 'Outfit Studio' },
+                        
+                        // Utility Tools
+                        'wrye bash': { key: 'wryeBashPath', displayName: 'Wrye Bash' },
+                        'wryebash': { key: 'wryeBashPath', displayName: 'Wrye Bash' },
+                        'bae': { key: 'baePath', displayName: 'B.A.E.' },
+                        'archive extractor': { key: 'baePath', displayName: 'B.A.E.' },
+                        'archive2': { key: 'archive2Path', displayName: 'Archive2' },
+                        'archive 2': { key: 'archive2Path', displayName: 'Archive 2' },
+                        'fomod creator': { key: 'fomodCreatorPath', displayName: 'FOMOD Creator' },
+                        'fomodcreator': { key: 'fomodCreatorPath', displayName: 'FOMOD Creator' },
+                        'fomod': { key: 'fomodCreatorPath', displayName: 'FOMOD Creator' },
+                        
+                        // Conversion/Export
+                        'autodesk fbx': { key: 'autodeskFbxPath', displayName: 'Autodesk FBX Converter' },
+                        'fbx converter': { key: 'autodeskFbxPath', displayName: 'Autodesk FBX Converter' },
+                        'fbx': { key: 'autodeskFbxPath', displayName: 'Autodesk FBX Converter' },
+                        
+                        // Asset Tools
+                        'photodemon': { key: 'photoDemonPath', displayName: 'PhotoDemon' },
+                        'photo demon': { key: 'photoDemonPath', displayName: 'PhotoDemon' },
+                        'unwrap3': { key: 'unWrap3Path', displayName: 'Unwrap3' },
+                        'un-wrap3': { key: 'unWrap3Path', displayName: 'Unwrap3' },
+                        'nifutils': { key: 'nifUtilsSuitePath', displayName: 'NifUtils Suite' },
+                        'nif utils': { key: 'nifUtilsSuitePath', displayName: 'NifUtils Suite' },
+                        'spin3d': { key: 'spin3dPath', displayName: 'Spin3D' },
+                        'spin 3d': { key: 'spin3dPath', displayName: 'Spin3D' },
+                        
+                        // F4SE
+                        'f4se': { key: 'f4sePath', displayName: 'F4SE Loader' },
+                        'f4se loader': { key: 'f4sePath', displayName: 'F4SE Loader' },
+                    };
+                    
+                    // Try exact match first, then try converted camelCase version
+                    let mapping = settingsMapping[searchLower] || settingsMapping[searchWithSpaces];
+                    if (mapping) {
+                        const path = settings[mapping.key];
+                        if (path && path.length > 3) {
+                            settingsMatch = mapping.displayName;
+                            settingsPath = path;
+                            console.log(`[MOSSY LAUNCH] ✓ Found in settings: ${settingsMatch} -> ${settingsPath}`);
+                        }
+                    }
+                } catch (err) {
+                    console.warn(`[MOSSY LAUNCH] Settings check failed:`, err);
+                }
+            }
+            
+            // If we found a settings match, launch it directly
+            if (settingsPath && api?.openProgram) {
+                try {
+                    console.log(`[MOSSY LAUNCH] Launching from settings: ${settingsPath}`);
+                    console.log(`[MOSSY LAUNCH] Path exists check...`);
+                    
+                    await api.openProgram(settingsPath);
+                    console.log(`[MOSSY LAUNCH] ✓ Program launch command sent successfully`);
+                    result = `[MOSSY] ✅ Launched **${settingsMatch}**\n\n${reason}\n\nThe program should open in a few seconds.`;
+                    return { success: true, result };
+                } catch (launchErr) {
+                    console.error(`[MOSSY LAUNCH] Settings launch failed:`, launchErr);
+                    const errorMsg = launchErr instanceof Error ? launchErr.message : String(launchErr);
+                    result = `[MOSSY] ⚠️ Could not launch **${settingsMatch}**\n\n**Error:** ${errorMsg}\n\n**Path:** ${settingsPath}\n\nPlease check the path in External Tools settings.`;
+                    return { success: false, result };
+                }
+            }
+            
+            // FALLBACK: Search detected programs cache
+            const allApps = JSON.parse(localStorage.getItem('mossy_all_detected_apps') || '[]');
+            
+            if (allApps.length === 0) {
+                result = `[MOSSY] No programs detected yet. Please run a system scan first via System Monitor → Hardware → Detect Hardware.`;
+            } else {
+                // Smart fuzzy matching with scoring system
+                const searchTerm = programName.toLowerCase().trim();
+                
+                // Score each program based on match quality
+                const scored = allApps.map((app: any) => {
+                    const name = (app.displayName || app.name || '').toLowerCase();
+                    let score = 0;
+                    
+                    // Exact full name match = 1000 points
+                    if (name === searchTerm) {
+                        score = 1000;
+                    }
+                    // Exact word match at the end = 800 points (Canvas in "NVIDIA Canvas")
+                    else if (name.endsWith(searchTerm) || name.split(' ').some(word => word === searchTerm)) {
+                        score = 800;
+                    }
+                    // Starts with search term = 600 points
+                    else if (name.startsWith(searchTerm)) {
+                        score = 600;
+                    }
+                    // Contains search term as complete word = 400 points
+                    else if (name.split(' ').some(word => word.includes(searchTerm)) || name.split('-').some(word => word.includes(searchTerm))) {
+                        score = 400;
+                    }
+                    // Contains search term = 100 points
+                    else if (name.includes(searchTerm)) {
+                        score = 100;
+                    }
+                    
+                    return { app, score };
+                }).filter(item => item.score > 0)
+                 .sort((a, b) => b.score - a.score);
+                
+                console.log(`[MOSSY LAUNCH] Scored matches for "${programName}":`, scored.slice(0, 3).map(s => ({ name: s.app.displayName, score: s.score })));
+                
+                if (scored.length === 0) {
+                    result = `[MOSSY] Could not find "${programName}" in detected programs. Try asking me "what tools do I have?" to see available programs.`;
+                } else {
+                    const targetApp = scored[0].app;
+                    const targetPath = targetApp.path;
+                    
+                    console.log(`[MOSSY LAUNCH] Launching: ${targetApp.displayName || targetApp.name}`);
+                    console.log(`[MOSSY LAUNCH] Path: ${targetPath}`);
+                    
+                    // Use Electron IPC to launch the program
+                    const launchApi = (window as any).electron?.api?.openProgram || 
+                                     (window as any).electronAPI?.openProgram;
+                    
+                    console.log(`[MOSSY LAUNCH] Checking API availability...`);
+                    console.log(`[MOSSY LAUNCH] window.electron exists?`, !!(window as any).electron);
+                    console.log(`[MOSSY LAUNCH] window.electron.api exists?`, !!(window as any).electron?.api);
+                    console.log(`[MOSSY LAUNCH] openProgram exists?`, !!launchApi);
+                    
+                    if (launchApi) {
+                        try {
+                            console.log(`[MOSSY LAUNCH] Calling openProgram...`);
+                            await launchApi(targetPath);
+                            console.log(`[MOSSY LAUNCH] openProgram call succeeded`);
+                            result = `[MOSSY] ✅ Launched **${targetApp.displayName || targetApp.name}**\n\n${reason}\n\nThe program should open in a few seconds.`;
+                        } catch (launchErr) {
+                            console.error(`[MOSSY LAUNCH] Launch failed:`, launchErr);
+                            result = `[MOSSY] ⚠️ Could not launch "${targetApp.displayName || targetApp.name}". Error: ${launchErr}`;
+                        }
+                    } else {
+                        console.error(`[MOSSY LAUNCH] Launch API not available!`);
+                        console.error(`[MOSSY LAUNCH] Window object keys:`, Object.keys(window as any).filter(k => k.includes('electron')));
+                        result = `[MOSSY] ⚠️ Launch capability not available. Found "${targetApp.displayName || targetApp.name}" at:\n${targetPath}\n\nPlease open it manually.`;
+                    }
+                    
+                    // If there are other close matches, mention them
+                    if (scored.length > 1 && scored[0].score >= 600) {
+                        const otherMatches = scored.slice(1, 3);
+                        if (otherMatches.some(m => m.score >= 400)) {
+                            console.log(`[MOSSY LAUNCH] Other close matches:`, otherMatches.map(m => ({ name: m.app.displayName, score: m.score })));
+                        }
+                    }
+                }
+            }
+        } catch (error) {
+            console.error('[MOSSY LAUNCH] Error:', error);
+            result = `Error launching program: ${error}`;
+        }
     } else if (name === 'scan_hardware') {
         try {
             console.log('[MOSSY SCAN] Starting universal program scan...');
             
-            // Step 1: Check if detectPrograms exists
-            console.log('[MOSSY SCAN] Step 1: Checking for detectPrograms function...');
-            const detectPrograms = typeof window.electron?.api?.detectPrograms === 'function' 
-                ? window.electron.api.detectPrograms 
-                : typeof window.electronAPI?.detectPrograms === 'function'
-                ? window.electronAPI.detectPrograms
-                : null;
-
-            if (!detectPrograms) {
-                console.error('[MOSSY SCAN] ❌ detectPrograms function not found');
-                console.error('[MOSSY SCAN] window.electron?.api exists:', !!(window as any).electron?.api);
-                console.error('[MOSSY SCAN] window.electronAPI exists:', !!(window as any).electronAPI);
+            // OPTIMIZATION: Check if we have RECENT cached results from SystemMonitor
+            const lastScan = localStorage.getItem('mossy_last_scan');
+            const cachedApps = localStorage.getItem('mossy_all_detected_apps');
+            const cachedSummary = localStorage.getItem('mossy_scan_summary');
+            
+            const lastScanTime = lastScan ? new Date(lastScan).getTime() : 0;
+            const minutesSinceLastScan = (Date.now() - lastScanTime) / (1000 * 60);
+            // ⚠️ CRITICAL: If scan is less than 10 minutes old, ALWAYS reuse cached (Live API timeout = 30sec)
+            const shouldReuseCached = cachedApps && minutesSinceLastScan < 10; 
+            
+            console.log('[MOSSY SCAN] Last scan was', minutesSinceLastScan.toFixed(1), 'minutes ago');
+            console.log('[MOSSY SCAN] Using cached results?', shouldReuseCached);
+            
+            let allApps: any[] = [];
+            let systemInfo: any = null;
+            
+            if (shouldReuseCached) {
+                // ✅ FAST PATH: Reuse cached results (instant, no timeout risk)
+                console.log('[MOSSY SCAN] ✓ Using cached scan results (fresh)');
+                allApps = JSON.parse(cachedApps!);
                 
-                result = `[MOSSY] Scan request received, but hardware detection is not available yet. Please check Diagnostic Tools (in Settings) to see which APIs are available.`;
+                const summary = JSON.parse(cachedSummary || '{}');
+                systemInfo = summary.systemInfo;
+                
+                result = `[MOSSY] 🔄 **USING CACHED SYSTEM ANALYSIS** (${minutesSinceLastScan.toFixed(1)} min old)
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+📊 **DETECTION SUMMARY**
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+✓ Total Programs Scanned: **${allApps.length}**
+✓ Analysis cached from System Monitor scan
+`;
             } else {
-                console.log('[MOSSY SCAN] ✓ detectPrograms function found');
+                // ❌ SLOW PATH: Run full scan (only if cache is VERY old or missing)
+                // This should rarely happen during voice chat
+                console.log('[MOSSY SCAN] ⚠️ Starting DEEP scan (cache is stale or missing)...');
+                console.log('[MOSSY SCAN] ⚠️ WARNING: This may take 30-60 seconds and could disconnect Live API!');
                 
-                // Step 2: Call detectPrograms (NO FILTERING - we want EVERYTHING)
-                console.log('[MOSSY SCAN] Step 2: Calling detectPrograms()...');
-                const allApps = await detectPrograms();
-                console.log('[MOSSY SCAN] ✓ detectPrograms returned:', allApps?.length || 0, 'programs');
-                
-                // Step 2.5: Get system hardware info
-                console.log('[MOSSY SCAN] Step 2.5: Getting system hardware info...');
-                let systemInfo: any = null;
-                try {
-                    const getSystemInfo = (window as any).electron?.api?.getSystemInfo || (window as any).electronAPI?.getSystemInfo;
-                    if (getSystemInfo) {
-                        systemInfo = await getSystemInfo();
-                        console.log('[MOSSY SCAN] ✓ System info retrieved:', systemInfo);
-                    }
-                } catch (sysError) {
-                    console.warn('[MOSSY SCAN] ⚠️ Could not get system info:', sysError);
-                }
-                
-                // Step 3: Store ALL detected programs for AI analysis
-                console.log('[MOSSY SCAN] Step 3: Storing all detected programs for analysis...');
-                try {
-                    // Store complete app list with all fields for AI analysis
-                    localStorage.setItem('mossy_all_detected_apps', JSON.stringify(allApps || []));
-                    localStorage.setItem('mossy_last_scan', new Date().toISOString());
-                    if (systemInfo) {
-                        localStorage.setItem('mossy_system_info', JSON.stringify(systemInfo));
-                    }
-                    console.log('[MOSSY SCAN] ✓ All programs stored (total:', allApps?.length || 0, 'programs)');
-                } catch (storageError) {
-                    console.warn('[MOSSY SCAN] ⚠️ Storage warning:', storageError);
-                }
+                // Step 1: Check if detectPrograms exists
+                const detectPrograms = typeof window.electron?.api?.detectPrograms === 'function' 
+                    ? window.electron.api.detectPrograms 
+                    : typeof window.electronAPI?.detectPrograms === 'function'
+                    ? window.electronAPI.detectPrograms
+                    : null;
 
-                // Step 4: Identify Fallout 4 installations
+                if (!detectPrograms) {
+                    console.error('[MOSSY SCAN] ❌ detectPrograms function not found');
+                    
+                    result = `[MOSSY] Scan request received, but hardware detection is not available yet. Please check System Monitor > Hardware to run a scan.`;
+
+                } else {
+                    console.log('[MOSSY SCAN] ✓ detectPrograms function found - calling...');
+                    allApps = await detectPrograms();
+                    console.log('[MOSSY SCAN] ✓ detectPrograms returned:', allApps?.length || 0, 'programs');
+                    
+                    // Get system hardware info
+                    try {
+                        const getSystemInfo = (window as any).electron?.api?.getSystemInfo || (window as any).electronAPI?.getSystemInfo;
+                        if (getSystemInfo) {
+                            systemInfo = await getSystemInfo();
+                            console.log('[MOSSY SCAN] ✓ System info retrieved');
+                        }
+                    } catch (sysError) {
+                        console.warn('[MOSSY SCAN] ⚠️ Could not get system info:', sysError);
+                    }
+                    
+                    // Store results for future reuse
+                    try {
+                        localStorage.setItem('mossy_all_detected_apps', JSON.stringify(allApps || []));
+                        localStorage.setItem('mossy_last_scan', new Date().toISOString());
+                        if (systemInfo) {
+                            localStorage.setItem('mossy_system_info', JSON.stringify(systemInfo));
+                        }
+                        console.log('[MOSSY SCAN] ✓ Results cached for future use');
+                    } catch (storageError) {
+                        console.warn('[MOSSY SCAN] ⚠️ Storage warning:', storageError);
+                    }
+                }
+            }
+            
+            if (allApps.length > 0) {
+                // Identify program categories
                 console.log('[MOSSY SCAN] Step 4: Detecting Fallout 4 installations...');
                 const fallout4Keywords = ['fallout 4', 'fallout4', 'fo4'];
                 const fallout4Apps = (allApps || []).filter((a: any) =>
                     fallout4Keywords.some(kw => (a.displayName || a.name || '').toLowerCase().includes(kw))
                 );
-                console.log('[MOSSY SCAN] ✓ Found', fallout4Apps.length, 'Fallout 4 installations');
                 
-                // Step 5: Detect AI tools (CRITICAL for first impression!)
                 console.log('[MOSSY SCAN] Step 5: Detecting AI/ML tools...');
+                const nvidiaKeywords = ['nvidia', 'geforce', 'cuda', 'rtx', 'physx', 'nsight', 'nvcontainer'];
+                const nvidiaTools = (allApps || []).filter((a: any) => {
+                    const name = (a.displayName || a.name || '').toLowerCase();
+                    const path = (a.path || '').toLowerCase();
+                    return nvidiaKeywords.some(kw => name.includes(kw) || path.includes('nvidia'));
+                });
+                
                 const aiKeywords = ['ollama', 'lm studio', 'lmstudio', 'luma', 'lumaai', 'comfy', 'stable diffusion', 
-                                   'automatic1111', 'kobold', 'jan', 'gpt4all', 'nvidia', 'cuda'];
+                                   'automatic1111', 'kobold', 'jan', 'gpt4all'];
                 const aiTools = (allApps || []).filter((a: any) => {
                     const name = (a.displayName || a.name || '').toLowerCase();
                     return aiKeywords.some(kw => name.includes(kw));
                 });
-                console.log('[MOSSY SCAN] ✓ Found', aiTools.length, 'AI/ML tools');
                 
-                // Step 6: Create a comprehensive summary
-                console.log('[MOSSY SCAN] Step 6: Creating comprehensive summary...');
+                // Create comprehensive summary
                 const programSummary = {
-                    totalPrograms: allApps?.length || 0,
-                    fallout4Installations: fallout4Apps.length,
+                    totalPrograms: allApps.length,
+                    nvidiaTools: nvidiaTools.length,
                     aiTools: aiTools.length,
+                    fallout4Installations: fallout4Apps.length,
                     systemInfo: systemInfo,
                     allPrograms: (allApps || []).map(a => ({
                         name: a.displayName || a.name,
@@ -494,83 +775,34 @@ export const executeMossyTool = async (name: string, args: any, context: {
                     }))
                 };
                 localStorage.setItem('mossy_scan_summary', JSON.stringify(programSummary));
+
+                // Build CONCISE result message to avoid timeout
+                if (!shouldReuseCached) {
+                    result = `[MOSSY] 🔍 **SYSTEM SCAN COMPLETE**
+
+📊 **TOTALS:** ${allApps.length} programs | ${nvidiaTools.length} NVIDIA tools | ${aiTools.length} AI tools | ${fallout4Apps.length} FO4 installations
+`;
+                }
                 
-                console.log('[MOSSY SCAN] ✓ Scan complete!');
-
-                // Build impressive first-impression result
-                let scanResult = `[MOSSY] 🔍 **COMPREHENSIVE SYSTEM ANALYSIS COMPLETE**
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-📊 **DETECTION SUMMARY**
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-✓ Total Programs Scanned: **${allApps?.length || 0}**
-✓ AI/ML Tools Found: **${aiTools.length}**
-✓ Fallout 4 Installations: **${fallout4Apps.length}**
-`;
-
-                // Add system hardware info if available
+                // Add BRIEF hardware info
                 if (systemInfo) {
-                    scanResult += `
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-🖥️ **SYSTEM HARDWARE**
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-• CPU: ${systemInfo.cpuModel || systemInfo.cpu || 'Unknown'}
-• RAM: ${systemInfo.totalMemory || systemInfo.ram || 'Unknown'}
-• GPU: ${systemInfo.gpu || systemInfo.gpuInfo || 'Unknown'}
-• OS: ${systemInfo.os || systemInfo.osFriendly || 'Unknown'}
-`;
+                    result += `🖥️ **HARDWARE:** ${systemInfo.cpu || 'CPU'} | ${systemInfo.ram || '?'}GB RAM | ${systemInfo.gpu || 'GPU'}\n`;
                 }
 
-                // Add AI capabilities if detected
+                // Add KEY tools only (top 5 max)
+                if (nvidiaTools.length > 0) {
+                    result += `\n🟢 **NVIDIA:** ${nvidiaTools.slice(0, 5).map(a => a.displayName || a.name).join(', ')}${nvidiaTools.length > 5 ? ` +${nvidiaTools.length - 5} more` : ''}`;
+                }
+
                 if (aiTools.length > 0) {
-                    scanResult += `
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-🤖 **AI/ML TOOLS DETECTED**
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-${aiTools.map(a => `✓ ${a.displayName || a.name}`).join('\n')}
-
-💡 These tools can enhance your modding workflow with AI-powered texture generation, upscaling, and content creation!
-`;
+                    result += `\n🟣 **AI TOOLS:** ${aiTools.slice(0, 5).map(a => a.displayName || a.name).join(', ')}${aiTools.length > 5 ? ` +${aiTools.length - 5} more` : ''}`;
                 }
 
-                // Add Fallout 4 installations
                 if (fallout4Apps.length > 0) {
-                    scanResult += `
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-🎮 **FALLOUT 4 INSTALLATIONS**
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-${fallout4Apps.map(a => `✓ ${a.displayName || a.name}\n  📍 ${a.path}`).join('\n')}
-`;
-                } else {
-                    scanResult += `
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-⚠️ **FALLOUT 4 NOT DETECTED**
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-No Fallout 4 installation found. Please install Fallout 4 to unlock full modding features.
-`;
+                    result += `\n🎮 **FALLOUT 4:** ${fallout4Apps.length} installation(s) detected`;
                 }
 
-                scanResult += `
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-💡 **WHAT'S NEXT?**
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-My neural matrix now has complete visibility into your system. I can:
-
-• Suggest tools for ANY modding task (textures, meshes, scripting)
-• Integrate AI capabilities into your workflow
-• Provide personalized recommendations based on YOUR setup
-• Launch and configure tools directly
-
-**Try asking me:**
-- "What programs can I use to create textures?"
-- "Show me my 3D modeling tools"
-- "How can I use my AI tools for modding?"
-- "Launch [program name]"
-
-Your system profile is locked in. Let's build something amazing! 🚀
-`;
-
-                result = scanResult;
+                result += `\n\n✅ **System profile loaded.** Ask me about specific tools or capabilities!`;
             }
         } catch (error) {
             console.error('[MOSSY SCAN] Error during scan:', error);

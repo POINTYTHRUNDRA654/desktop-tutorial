@@ -46,6 +46,19 @@ export async function detectPrograms(): Promise<InstalledProgram[]> {
     console.error('File system scan failed:', error);
   }
 
+  // SPECIAL: Check for commonly-requested programs that might be missed
+  try {
+    const specialPrograms = await findSpecialPrograms();
+    specialPrograms.forEach(prog => {
+      const key = prog.path.toLowerCase();
+      if (!programs.has(key)) {
+        programs.set(key, prog);
+      }
+    });
+  } catch (error) {
+    console.warn('Special programs scan failed:', error);
+  }
+
   return Array.from(programs.values())
     .filter(p => {
         const pathLower = p.path.toLowerCase();
@@ -217,6 +230,9 @@ async function scanProgramFiles(): Promise<InstalledProgram[]> {
     path.join(os.homedir(), 'AppData', 'Local'),
     path.join(os.homedir(), 'AppData', 'Roaming'),
     path.join(os.homedir(), 'AppData', 'Local', 'Programs'),
+    path.join(os.homedir(), 'Desktop'),
+    path.join(os.homedir(), 'Documents'),
+    path.join(os.homedir(), 'Downloads'),
     path.join(os.homedir(), 'scoop', 'apps'),
     path.join(os.homedir(), '.ollama'),
     path.join(os.homedir(), '.lmstudio'),
@@ -231,6 +247,8 @@ async function scanProgramFiles(): Promise<InstalledProgram[]> {
   const commonFolders = [
     // Standard Windows
     'Program Files', 'Program Files (x86)', 'Programs', 'Apps', 'Software', 'Applications',
+    // User paths
+    'Desktop', 'Documents', 'Downloads', 'Users',
     // AI & ML Tools (CRITICAL - First impression!)
     'AI', 'ML', 'LLM', 'Ollama', 'LM Studio', 'LMStudio', 'Luma', 'LumaAI', 'ComfyUI', 
     'Stable Diffusion', 'StableDiffusion', 'Automatic1111', 'A1111', 'Text-Generation-WebUI',
@@ -310,6 +328,34 @@ async function scanProgramFiles(): Promise<InstalledProgram[]> {
     }
   }
 
+  // BONUS: Scan Desktop for shortcuts (.lnk files) that might point to programs
+  try {
+    const desktopPath = path.join(os.homedir(), 'Desktop');
+    const desktopExists = await fs.access(desktopPath).then(() => true).catch(() => false);
+    if (desktopExists) {
+      const desktopItems = await fs.readdir(desktopPath, { withFileTypes: true });
+      for (const item of desktopItems) {
+        // Look for executable files directly on Desktop (portable programs)
+        if (item.isFile() && item.name.toLowerCase().endsWith('.exe')) {
+          const exePath = path.join(desktopPath, item.name);
+          try {
+            await fs.access(exePath);
+            const exeName = path.basename(exePath, '.exe');
+            programs.push({
+              name: exeName,
+              displayName: `${exeName} (Desktop)`,
+              path: exePath,
+            });
+          } catch {
+            // Skip if file is not accessible
+          }
+        }
+      }
+    }
+  } catch (error) {
+    // Silent fail if Desktop scan doesn't work
+  }
+
   return programs;
 }
 
@@ -385,8 +431,8 @@ export async function openProgram(programPath: string): Promise<void> {
   }
 
   try {
-    // Verify the file exists and is executable
-    await fs.access(programPath, fs.constants.X_OK);
+    // Verify the file exists (Windows doesn't use X_OK reliably)
+    await fs.access(programPath, fs.constants.F_OK);
     
     // Launch the program using spawn for security (no shell interpretation)
     // Use 'cmd.exe /c start' to launch without waiting, but with proper argument separation
@@ -408,9 +454,94 @@ export async function openProgram(programPath: string): Promise<void> {
       resolve();
     });
   } catch (error) {
-    throw new Error(`Failed to open program: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    throw new Error(`Failed to open program at "${programPath}": ${error instanceof Error ? error.message : 'Unknown error'}`);
   }
 }
+
+/**
+ * Find special high-priority programs that users commonly request
+ * Checks known installation paths for programs like NVIDIA Canvas, Blender, etc.
+ */
+async function findSpecialPrograms(): Promise<InstalledProgram[]> {
+  const programs: InstalledProgram[] = [];
+  
+  // Define common installation paths for special programs
+  const specialPaths = [
+    // NVIDIA Canvas (Vita Canvas)
+    {
+      paths: [
+        'C:\\Program Files\\NVIDIA Corporation\\NVIDIA Canvas\\NVIDIACanvas.exe',
+        'C:\\Program Files (x86)\\NVIDIA Corporation\\NVIDIA Canvas\\NVIDIACanvas.exe',
+        'C:\\Program Files\\NVIDIA\\Canvas\\NVIDIACanvas.exe',
+      ],
+      displayName: 'NVIDIA Canvas (Vita)',
+      name: 'NVIDIACanvas'
+    },
+    // NVIDIA Omniverse
+    {
+      paths: [
+        'C:\\Program Files\\NVIDIA Corporation\\Omniverse\\Launcher\\omniverse-launcher.exe',
+        'C:\\Users\\Public\\NVIDIA\\Omniverse\\Launcher\\omniverse-launcher.exe',
+      ],
+      displayName: 'NVIDIA Omniverse',
+      name: 'Omniverse'
+    },
+    // Blender (common locations)
+    {
+      paths: [
+        'C:\\Program Files\\Blender Foundation\\Blender 4.2\\blender.exe',
+        'C:\\Program Files\\Blender Foundation\\Blender 4.1\\blender.exe',
+        'C:\\Program Files\\Blender Foundation\\Blender 4.0\\blender.exe',
+        'C:\\Program Files\\Blender Foundation\\Blender 3.6\\blender.exe',
+        'C:\\Program Files\\Blender Foundation\\Blender\\blender.exe',
+      ],
+      displayName: 'Blender',
+      name: 'blender'
+    },
+    // GIMP 3.x (PRIORITIZE newer versions)
+    {
+      paths: [
+        'C:\\Program Files\\GIMP 3\\bin\\gimp-3.0.exe',
+        'C:\\Program Files\\GIMP 3\\bin\\gimp.exe',
+        'C:\\Program Files (x86)\\GIMP 3\\bin\\gimp-3.0.exe',
+        'C:\\Program Files\\GIMP\\bin\\gimp-3.0.exe',
+      ],
+      displayName: 'GIMP 3',
+      name: 'gimp'
+    },
+    // GIMP 2.x (fallback only if GIMP 3 not found)
+    {
+      paths: [
+        'C:\\Program Files\\GIMP 2\\bin\\gimp-2.10.exe',
+        'C:\\Program Files\\GIMP 2\\bin\\gimp-2.99.exe',
+        'C:\\Program Files (x86)\\GIMP 2\\bin\\gimp-2.10.exe',
+      ],
+      displayName: 'GIMP 2',
+      name: 'gimp'
+    },
+  ];
+
+  // Check each special program path
+  for (const special of specialPaths) {
+    for (const testPath of special.paths) {
+      try {
+        await fs.access(testPath);
+        // File exists! Add it
+        programs.push({
+          name: special.name,
+          displayName: special.displayName,
+          path: testPath,
+        });
+        break; // Found it, no need to check other paths for this program
+      } catch {
+        // File doesn't exist, try next path
+      }
+    }
+  }
+
+  return programs;
+}
+
 /**
  * Get comprehensive system information for AI/modding capabilities
  * This helps Mossy understand what the user's system can handle
