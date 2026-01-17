@@ -50,23 +50,18 @@ const TheAuditor: React.FC = () => {
                 return;
             }
 
-            // Use Electron's dialog to get actual file path
-            const result = await bridge.browseDirectory();
-            if (!result || result.length === 0) return;
+            // Use Electron's file dialog to pick ESP file
+            const filePath = await bridge.pickEspFile();
+            if (!filePath) return; // User canceled
 
-            const file = result[0]; // Get first selected file
-            if (!file.path) return;
-
-            const fileName = file.name;
-            const filePath = file.path;
-            const stats = await window.electronAPI.getSettings(); // Just to test connection
+            const fileName = filePath.split(/[\\\/]/).pop() || 'Unknown';
             
             const newFile: ModFile = {
                 id: Date.now().toString(),
                 name: fileName,
                 type: 'plugin',
-                path: filePath, // Store actual file path
-                size: 'Unknown',
+                path: filePath,
+                size: 'Analyzing...',
                 issues: [],
                 status: 'pending'
             };

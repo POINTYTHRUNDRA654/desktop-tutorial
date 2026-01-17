@@ -58,6 +58,7 @@ const IPC_CHANNELS = {
   FOMOD_EXPORT_PACKAGE: 'fomod-export-package',
   // Auditor
   AUDITOR_ANALYZE_ESP: 'auditor-analyze-esp',
+  AUDITOR_PICK_ESP_FILE: 'auditor-pick-esp-file',
 } as const;
 
 /**
@@ -200,6 +201,13 @@ const electronAPI = {
    */
   analyzeEsp: (filePath: string): Promise<{ success: boolean; fileSize?: number; recordCount?: number; issues?: any[]; error?: string }> => {
     return ipcRenderer.invoke(IPC_CHANNELS.AUDITOR_ANALYZE_ESP, filePath);
+  },
+
+  /**
+   * Auditor: Pick ESP/ESM file via native file dialog
+   */
+  pickEspFile: (): Promise<string> => {
+    return ipcRenderer.invoke(IPC_CHANNELS.AUDITOR_PICK_ESP_FILE);
   },
 
   /**
