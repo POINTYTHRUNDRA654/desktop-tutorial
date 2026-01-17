@@ -180,6 +180,32 @@ export const LiveProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const manualDisconnectRef = useRef<boolean>(false);
   const lastActivityRef = useRef<number>(Date.now());
 
+  // Live session message buffer for preserving context across interrupts
+  const liveSessionMessages = useRef<Array<{role: string, text: string, timestamp: number}>>([]);
+  
+  // Save live message to buffer immediately
+  const saveLiveMessage = (role: 'user' | 'model', text: string) => {
+    if (!text || text.length < 3) return; // Skip very short messages
+    liveSessionMessages.current.push({
+      role,
+      text: text.trim(),
+      timestamp: Date.now()
+    });
+    // Keep last 30 exchanges (user+model pairs)
+    if (liveSessionMessages.current.length > 60) {
+      liveSessionMessages.current = liveSessionMessages.current.slice(-60);
+    }
+    // Also save to localStorage for persistence
+    try {
+      const existing = JSON.parse(localStorage.getItem('mossy_messages') || '[]');
+      existing.push({ role, text: text.trim(), timestamp: new Date().toISOString() });
+      if (existing.length > 100) existing.shift();
+      localStorage.setItem('mossy_messages', JSON.stringify(existing));
+    } catch (e) {
+      console.warn('[LiveContext] Failed to save message to localStorage:', e);
+    }
+  };
+
   const toggleMute = () => {
     setIsMuted((prev) => {
       isMutedRef.current = !prev;
@@ -268,6 +294,13 @@ export const LiveProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     manualDisconnectRef.current = manual;
     isConnectingRef.current = false;
     sessionReadyRef.current = false;
+
+    // Clear live session buffer only if manually disconnecting
+    // On auto-reconnect (interrupts), keep the buffer for context continuity
+    if (manual) {
+      console.log('[LiveContext] Manual disconnect - clearing live session buffer');
+      liveSessionMessages.current = [];
+    }
 
     // Stop keepalive/reconnect timers
     if (keepaliveRef.current) {
@@ -449,19 +482,40 @@ DO NOT say "I cannot integrate" - you CAN by launching programs and providing ex
         let recentChatContext = '';
         try {
           const storedMessages = localStorage.getItem('mossy_messages');
+          let msgs: any[] = [];
           if (storedMessages) {
-            const msgs = JSON.parse(storedMessages) as any[];
-            const trimmed = msgs
-              .filter((m: any) => m?.role === 'user' || m?.role === 'model')
-              .slice(-10);
-            const lines = trimmed.map((m: any) => {
-              const role = m.role === 'user' ? 'User' : 'Mossy';
-              const text = (m.text || '').replace(/\s+/g, ' ').trim().slice(0, 400);
-              return `${role}: ${text}`;
-            });
-            if (lines.length > 0) {
-              recentChatContext = `[RECENT CHAT]\n${lines.join('\n')}`;
+            msgs = JSON.parse(storedMessages) as any[];
+          }
+          
+          // Add live session messages from this session
+          const liveMessages = liveSessionMessages.current.map(m => ({
+            role: m.role,
+            text: m.text,
+            timestamp: new Date(m.timestamp).toISOString()
+          }));
+          
+          // Combine and deduplicate (prefer live messages)
+          const allMessages = [...msgs, ...liveMessages];
+          const uniqueMessages = allMessages.reduce((acc, msg) => {
+            // Use text+role as key to dedupe
+            const key = `${msg.role}:${msg.text?.substring(0, 100)}`;
+            if (!acc.has(key)) {
+              acc.set(key, msg);
             }
+            return acc;
+          }, new Map());
+          
+          const trimmed = Array.from(uniqueMessages.values())
+            .filter((m: any) => m?.role === 'user' || m?.role === 'model')
+            .slice(-20); // Increased from 10 to 20 for better context
+          
+          const lines = trimmed.map((m: any) => {
+            const role = m.role === 'user' ? 'User' : 'Mossy';
+            const text = (m.text || '').replace(/\s+/g, ' ').trim().slice(0, 400);
+            return `${role}: ${text}`;
+          });
+          if (lines.length > 0) {
+            recentChatContext = `[RECENT CHAT - Last ${lines.length} exchanges]\n${lines.join('\n')}`;
           }
         } catch (err) {
           console.warn('[LiveContext] Failed to load recent chat context:', err);
@@ -643,6 +697,8 @@ DO NOT say "I cannot integrate" - you CAN by launching programs and providing ex
                 if (text) {
                   console.log('[LiveContext] User transcription:', text);
                   setTranscription(text);
+                  // Save user message immediately
+                  saveLiveMessage('user', text);
                 }
               }
 
@@ -652,6 +708,8 @@ DO NOT say "I cannot integrate" - you CAN by launching programs and providing ex
                 
                 if (textPart?.text) {
                   console.log('[LiveContext] Model text:', textPart.text);
+                  // Save model response immediately
+                  saveLiveMessage('model', textPart.text);
                 }
 
                 if (audioPart?.inlineData?.data && audioContextRef.current && !isMutedRef.current) {
