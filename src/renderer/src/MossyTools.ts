@@ -479,7 +479,8 @@ ${fallout4Apps.length > 0 ? '\nFallout 4 Locations:\n' + fallout4Apps.map(a => `
 
 Directive complete, Architect. My neural matrix has been updated with your system configuration.`;
             }
-        } catch (e) {
+        } catch (err: any) {
+            const e = err;
             console.error('[MOSSY SCAN] ❌ Error during scan:', e);
             const errorMsg = e instanceof Error ? e.message : 'Unknown error';
             const errorStack = e instanceof Error ? e.stack : '';
@@ -591,7 +592,8 @@ Detected Tools:
 ${moddingTools.map((t: any) => `- ${t.displayName}`).join('\n')}
 
 I now have the precise execution paths for these tools saved in my neural cache.`;
-            } catch (e) {
+            } catch (err: any) {
+                const e = err;
                 const errorReport = await logMossyError(
                     'scan_installed_tools',
                     e,
@@ -635,7 +637,7 @@ ${latestError.context ? `**Context Details:**\n${Object.entries(latestError.cont
 ${latestError.errorStack ? `**Technical Details (Stack Trace):**\n\`\`\`\n${latestError.errorStack.substring(0, 500)}\n\`\`\`\n` : ''}
 
 **Total Errors Logged:** ${errorLogs.length}
-${previousErrors.length > 0 ? `**Previous Errors:** ${previousErrors.map(e => `${e.toolName} (${new Date(e.timestamp).toLocaleTimeString()})`).join(', ')}` : ''}
+${previousErrors.length > 0 ? `**Previous Errors:** ${previousErrors.map((e: any) => `${e.toolName} (${new Date(e.timestamp).toLocaleTimeString()})`).join(', ')}` : ''}
 
 **Next Steps:**
 1. Review the "Suggested Fix" above
@@ -690,7 +692,7 @@ ${latestError.errorStack || '(no stack available)'}
 PREVIOUS ERRORS (${errorLogs.length - 1} total)
 ================================
 `;
-                    errorLogs.slice(0, -1).forEach((error, idx) => {
+                    errorLogs.slice(0, -1).forEach((error: any, idx: number) => {
                         reportContent += `\n${idx + 1}. ${error.toolName} at ${error.timestamp}
    Message: ${error.errorMessage}
    Suggested Fix: ${error.suggestedFix || 'N/A'}
