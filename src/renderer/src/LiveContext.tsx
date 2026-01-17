@@ -557,45 +557,14 @@ DO NOT say "I cannot integrate" - you CAN by launching programs and providing ex
               lastActivityRef.current = Date.now();
               sessionReadyRef.current = true;
               
-              // START KEEPALIVE MECHANISM to prevent disconnection during long operations
-              console.log('[LiveContext] Starting keepalive mechanism...');
-              if (keepaliveRef.current) clearInterval(keepaliveRef.current);
-              keepaliveRef.current = setInterval(async () => {
-                if (!sessionRef.current || !sessionReadyRef.current) return;
-                if (typeof sessionRef.current.send !== 'function') {
-                  // Some SDK builds expose sendRealtimeInput only; skip keepalive instead of forcing reconnect.
-                  return;
-                }
-                try {
-                  await sessionRef.current.send([{ text: '[SYSTEM] Keepalive signal' }]);
-                  lastActivityRef.current = Date.now();
-                } catch (err) {
-                  console.warn('[LiveContext] Keepalive signal failed (connection may be closing):', err);
-                  scheduleReconnect('keepalive-failed');
-                }
-              }, 3000); // Every 3 seconds - aggressive keepalive to stay ahead of idle timeouts
+              // DISABLED KEEPALIVE: These artificial ping messages were likely interfering with Google's API
+              // The API has its own keep-alive; adding ours on top was causing issues
+              // Let the connection work naturally - if it dies, we reconnect gracefully
               
-              // START SMART RECONNECTION TIMER
-              // Google's live API has a hard ~5 minute resource limit
-              // Accept this and proactively reconnect at 4.5 minutes SILENTLY
-              // User never notices because context flows seamlessly
-              console.log('[LiveContext] Starting smart reconnection timer (4.5 min)...');
+              // DISABLED PROACTIVE RECONNECT: Forcing disconnect at 4.5 min was interrupting user
+              // New strategy: Let Google close the connection naturally, then immediately reconnect
+              // This way the timing is based on actual session limits, not arbitrary timers
               sessionStartTimeRef.current = Date.now();
-              if (sessionHealthCheckRef.current) clearInterval(sessionHealthCheckRef.current);
-              sessionHealthCheckRef.current = setInterval(async () => {
-                if (!isActiveRef.current || !sessionRef.current) return;
-                
-                const sessionAge = Date.now() - sessionStartTimeRef.current;
-                const FOUR_POINT_FIVE_MINUTES = 4.5 * 60 * 1000;
-                
-                if (sessionAge >= FOUR_POINT_FIVE_MINUTES) {
-                  console.log('[LiveContext] ⏱️ Session is 4.5+ minutes old (approaching Google quota); silent reconnect');
-                  console.log('[LiveContext] Current session age:', Math.round(sessionAge / 1000), 'seconds');
-                  // This will trigger onclose -> scheduleReconnect -> reconnect with FULL context
-                  disconnect(false, false); // Preserve buffer, not manual
-                  scheduleReconnect('proactive-quota-avoidance');
-                }
-              }, 10000); // Check every 10 seconds
               
               resolve();
             },
