@@ -141,6 +141,19 @@ export const LiveProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const [transcription, setTranscription] = useState('');
   const [customAvatar, setCustomAvatar] = useState<string | null>(null);
 
+  // Global error handler to suppress known WebSocket errors that we're handling
+  useEffect(() => {
+    const handleError = (event: ErrorEvent) => {
+      if (event.message && event.message.includes('WebSocket is already in CLOSING or CLOSED state')) {
+        // We're handling this in our catch blocks, suppress console error
+        event.preventDefault();
+      }
+    };
+    
+    window.addEventListener('error', handleError);
+    return () => window.removeEventListener('error', handleError);
+  }, []);
+
   // Cortex & Project Tracking
   const [cortexMemory, setCortexMemory] = useState<any[]>([]);
   const [projectData, setProjectData] = useState<any | null>(null);
@@ -781,32 +794,39 @@ DO NOT say "I cannot integrate" - you CAN by launching programs and providing ex
                     }
                     const base64 = encodeAudioToBase64(int16);
 
-                    // Check if session is still connected before sending
-                    if (sessionRef.current && sessionReadyRef.current && isActiveRef.current && typeof sessionRef.current.sendRealtimeInput === 'function') {
-                      try {
-                        const result = sessionRef.current.sendRealtimeInput({
-                          media: {
-                            data: base64,
-                            mimeType: 'audio/pcm;rate=16000'
+                    // Pre-check: if anything looks wrong, abort this send
+                    if (!sessionRef.current || !sessionReadyRef.current || !isActiveRef.current) {
+                      return; // Don't even try to send
+                    }
+
+                    if (typeof sessionRef.current.sendRealtimeInput !== 'function') {
+                      console.warn('[LiveContext] sendRealtimeInput is not a function, socket may be closing');
+                      return;
+                    }
+
+                    try {
+                      const result = sessionRef.current.sendRealtimeInput({
+                        media: {
+                          data: base64,
+                          mimeType: 'audio/pcm;rate=16000'
+                        }
+                      });
+                      if (result && typeof result.catch === 'function') {
+                        result.catch((err: any) => {
+                          if (err?.message?.includes('CLOSING or CLOSED')) {
+                            console.log('[LiveContext] WebSocket closed during send, scheduling reconnect');
+                            sessionReadyRef.current = false;
+                            scheduleReconnect('socket-closed-during-send');
                           }
                         });
-                        if (result && typeof result.catch === 'function') {
-                          result.catch((err: any) => {
-                            if (err?.message?.includes('CLOSING or CLOSED')) {
-                              console.log('[LiveContext] WebSocket closed during send, scheduling reconnect');
-                              sessionReadyRef.current = false;
-                              scheduleReconnect('socket-closed-during-send');
-                            }
-                          });
-                        }
-                      } catch (err: any) {
-                        if (err?.message?.includes('CLOSING or CLOSED')) {
-                          console.log('[LiveContext] WebSocket closed during send, scheduling reconnect');
-                          sessionReadyRef.current = false;
-                          scheduleReconnect('socket-closed-during-send');
-                        } else {
-                          console.warn('[LiveContext] Failed to send audio (connection may be closing):', err);
-                        }
+                      }
+                    } catch (err: any) {
+                      if (err?.message?.includes('CLOSING or CLOSED')) {
+                        console.log('[LiveContext] WebSocket closed during send, scheduling reconnect');
+                        sessionReadyRef.current = false;
+                        scheduleReconnect('socket-closed-during-send');
+                      } else {
+                        console.warn('[LiveContext] Failed to send audio (connection may be closing):', err);
                       }
                     }
                   }
@@ -846,31 +866,40 @@ DO NOT say "I cannot integrate" - you CAN by launching programs and providing ex
                     }
                     const base64 = encodeAudioToBase64(int16);
                     
+                    // Pre-check: if anything looks wrong, abort this send
+                    if (!sessionRef.current || !sessionReadyRef.current || !isActiveRef.current) {
+                      return; // Don't even try to send
+                    }
+
+                    if (typeof sessionRef.current.sendRealtimeInput !== 'function') {
+                      console.warn('[LiveContext] sendRealtimeInput is not a function, socket may be closing');
+                      return;
+                    }
+
                     // Check if session is still connected before sending
-                    if (sessionRef.current && sessionReadyRef.current && isActiveRef.current && typeof sessionRef.current.sendRealtimeInput === 'function') {
-                      try {
-                        const result = sessionRef.current.sendRealtimeInput({
-                          media: { data: base64, mimeType: 'audio/pcm;rate=16000' }
+                    try {
+                      const result = sessionRef.current.sendRealtimeInput({
+                        media: { data: base64, mimeType: 'audio/pcm;rate=16000' }
+                      });
+                      if (result && typeof result.catch === 'function') {
+                        result.catch((err: any) => {
+                          if (err?.message?.includes('CLOSING or CLOSED')) {
+                            console.log('[LiveContext] WebSocket closed during send (polling), scheduling reconnect');
+                            sessionReadyRef.current = false;
+                            scheduleReconnect('socket-closed-during-send');
+                          }
                         });
-                        if (result && typeof result.catch === 'function') {
-                          result.catch((err: any) => {
-                            if (err?.message?.includes('CLOSING or CLOSED')) {
-                              console.log('[LiveContext] WebSocket closed during send (polling), scheduling reconnect');
-                              sessionReadyRef.current = false;
-                              scheduleReconnect('socket-closed-during-send');
-                            }
-                          });
-                        }
-                      } catch (err: any) {
-                        if (err?.message?.includes('CLOSING or CLOSED')) {
-                          console.log('[LiveContext] WebSocket closed during send (polling), scheduling reconnect');
-                          sessionReadyRef.current = false;
-                          scheduleReconnect('socket-closed-during-send');
-                        } else {
-                          console.warn('[LiveContext] Failed to send audio (polling, connection may be closing):', err);
-                        }
+                      }
+                    } catch (err: any) {
+                      if (err?.message?.includes('CLOSING or CLOSED')) {
+                        console.log('[LiveContext] WebSocket closed during send (polling), scheduling reconnect');
+                        sessionReadyRef.current = false;
+                        scheduleReconnect('socket-closed-during-send');
+                      } else {
+                        console.warn('[LiveContext] Failed to send audio (polling, connection may be closing):', err);
                       }
                     }
+                  }
                   }
                   setTimeout(poll, 128);
                 };
