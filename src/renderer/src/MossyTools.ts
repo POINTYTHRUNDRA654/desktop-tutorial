@@ -408,87 +408,46 @@ export const executeMossyTool = async (name: string, args: any, context: {
         window.dispatchEvent(new CustomEvent('mossy-control', { detail: { action: args.action, payload: { path: args.target } } }));
         result = `Navigating to ${args.target}`;
     } else if (name === 'scan_hardware') {
-        const bridgeActive = localStorage.getItem('mossy_bridge_active') === 'true';
-        const api = (window as any).electron?.api || (window as any).electronAPI;
-        if (bridgeActive || api?.getSystemInfo) {
-            try {
-                // Get detected programs
-                const apps = api.detectPrograms ? await api.detectPrograms() : [];
-                const info = await api.getSystemInfo();
-                
-                // Update mossy_apps cache with a merge logic to avoid wiping manual entries
-                const existingApps = JSON.parse(localStorage.getItem('mossy_apps') || '[]');
-                
+        try {
+            // Call the same detectPrograms that ChatInterface uses
+            const detectPrograms = typeof window.electron?.api?.detectPrograms === 'function' 
+                ? window.electron.api.detectPrograms 
+                : typeof window.electronAPI?.detectPrograms === 'function'
+                ? window.electronAPI.detectPrograms
+                : null;
+
+            if (!detectPrograms) {
+                result = `[MOSSY] Scan request received, but hardware detection is not available yet. Please check Settings > About for manual tool configuration.`;
+            } else {
+                const apps = await detectPrograms();
                 const moddingKeywords = [
-                    'blender', 'creationkit', 'fo4edit', 'xedit', 'modorganizer', 'vortex', 'nifskope', 
-                    'bodyslide', 'f4se', 'loot', 'wryebash', 'fallout', 'bethesda'
+                    'blender', 'creationkit', 'fo4edit', 'xedit', 'sseedit', 'tes5edit', 'fnvedit', 'tes4edit', 
+                    'modorganizer', 'vortex', 'nifskope', 'bodyslide', 'f4se', 'loot', 'wryebash', 'outfitstudio', 
+                    'archive2', 'gimp', 'photoshop', 'zedit', 'bae', 'pjm', 'bethini',
+                    'fallout', 'morrowind', 'oblivion', 'skyrim', 'starfield', 'game', 'mod'
                 ];
                 
-                const moddingTools = apps.filter((a: any) => moddingKeywords.some(kw => a.displayName.toLowerCase().includes(kw)))
-                    .map((t: any) => ({
-                        id: `scan-${Math.random().toString(36).substr(2, 5)}`,
-                        name: t.displayName,
-                        displayName: t.displayName,
-                        path: t.path,
-                        version: t.version,
-                        checked: true,
-                        category: t.displayName.toLowerCase().includes('blender') ? '3D' : 
-                                 t.displayName.toLowerCase().includes('fallout') ? 'Game' : 'Tool'
-                    }));
+                const moddingTools = (apps || []).filter((a: any) => 
+                    moddingKeywords.some(kw => (a.displayName || a.name || '').toLowerCase().includes(kw))
+                );
 
-                // Merge: Keep existing if name/path matches, but prioritize the one with a non-system drive
-                const merged = [...existingApps];
-                moddingTools.forEach((newApp: any) => {
-                    const existingIndex = merged.findIndex((ea: any) => 
-                        ea.path === newApp.path || 
-                        ea.displayName === newApp.displayName ||
-                        ea.name === newApp.name
-                    );
-                    
-                    if (existingIndex === -1) {
-                        merged.push(newApp);
-                    } else {
-                        // If we found the same tool on a different drive, and the new one is not C:, take it
-                        const isNewNonC = newApp.path && !newApp.path.toLowerCase().startsWith('c:');
-                        const isOldC = merged[existingIndex].path && merged[existingIndex].path.toLowerCase().startsWith('c:');
-                        
-                        if (isNewNonC && isOldC) {
-                            merged[existingIndex] = { ...merged[existingIndex], ...newApp };
-                        } else {
-                            // Just update metadata if same path
-                            merged[existingIndex] = { ...merged[existingIndex], ...newApp, id: merged[existingIndex].id };
-                        }
-                    }
-                });
+                // Cache the results
+                localStorage.setItem('mossy_apps', JSON.stringify(moddingTools || []));
+                localStorage.setItem('mossy_last_scan', new Date().toISOString());
 
-                localStorage.setItem('mossy_apps', JSON.stringify(merged));
+                const fallout4Apps = (moddingTools || []).filter((a: any) =>
+                    (a.displayName || a.name || '').toLowerCase().includes('fallout 4')
+                );
 
-                result = `[MOSSY] Hardware scan complete. Detected:
-- CPU: ${info.cpu}
-- GPU: ${info.gpu}
-- RAM: ${info.ram} GB
-- VRAM: ${info.vram || 0} GB
-- OS: ${info.os}
-- Modding Tools in Database: ${merged.length}
-${info.motherboard ? `- Motherboard: ${info.motherboard}\n` : ''}${info.blenderVersion ? `- Blender Version: ${info.blenderVersion}\n` : ''}
+                result = `[MOSSY] System scan complete. Analysis:
+- Total Tools Detected: ${moddingTools.length}
+- Fallout 4 Installations: ${fallout4Apps.length}
+${fallout4Apps.length > 0 ? '\nFallout 4 Locations:\n' + fallout4Apps.map(a => `  • ${a.displayName || a.name}: ${a.path}`).join('\n') : ''}
 
-Directive complete, Architect. I have updated my neural mapping with the latest software locations.`;
-                
-                // Update profile in storage
-                localStorage.setItem('mossy_system_profile', JSON.stringify({
-                    os: info.os.includes('Windows') ? 'Windows' : 'Other',
-                    gpu: info.gpu,
-                    ram: info.ram,
-                    vram: info.vram,
-                    blenderVersion: info.blenderVersion,
-                    motherboard: info.motherboard,
-                    storageDrives: info.storageDrives
-                }));
-            } catch (e) {
-                result = `Hardware scan initiated, but encountered an error: ${e instanceof Error ? e.message : 'Unknown error'}`;
+Directive complete, Architect. My neural matrix has been updated with your system configuration.`;
             }
-        } else {
-            result = `Unable to scan hardware: Desktop Bridge is offline and Native API unavailable.`;
+        } catch (e) {
+            result = `[MOSSY] Scan encountered an issue: ${e instanceof Error ? e.message : 'Unknown error'}. I may need manual configuration in Settings.`;
         }
     } else if (name === 'scan_installed_tools') {
         const api = (window as any).electron?.api || (window as any).electronAPI;
