@@ -22,6 +22,9 @@ const MossyMemoryVault: React.FC = () => {
     const [newContent, setNewContent] = useState('');
     const [newTags, setNewTags] = useState('');
     const [isDragActive, setIsDragActive] = useState(false);
+    const [showApiKeyModal, setShowApiKeyModal] = useState(false);
+    const [apiKeyInput, setApiKeyInput] = useState('');
+    const [pendingFile, setPendingFile] = useState<File | null>(null);
 
     useEffect(() => {
         const stored = localStorage.getItem('mossy_knowledge_vault');
@@ -46,6 +49,61 @@ const MossyMemoryVault: React.FC = () => {
         }
     };
 
+    const handleVideoFile = async (file: File) => {
+        try {
+            setIsUploading(true);
+            setUploadProgress(10);
+            
+            // Get OpenAI API key from localStorage - try multiple possible key names
+            const apiKey = localStorage.getItem('openai_api_key') 
+                || localStorage.getItem('OPENAI_API_KEY')
+                || localStorage.getItem('openaiApiKey');
+            
+            if (!apiKey) {
+                setIsUploading(false);
+                setUploadProgress(0);
+                setPendingFile(file);
+                setShowApiKeyModal(true);
+                return;
+            }
+            
+            const arrayBuffer = await file.arrayBuffer();
+            setUploadProgress(30);
+            
+            // Use IPC to transcribe video in main process
+            const projectId = localStorage.getItem('openai_project_id') || undefined;
+            const organizationId = localStorage.getItem('openai_org_id') || undefined;
+            const result = await (window as any).electron?.api?.transcribeVideo(arrayBuffer, apiKey, file.name, projectId, organizationId);
+            setUploadProgress(90);
+            
+            if (result?.success) {
+                const fileName = file.name.replace(/\.[^/.]+$/, '');
+                setNewTitle(fileName + ' (Video Transcript)');
+                setNewContent(result.text.trim());
+                setUploadProgress(100);
+                setIsUploading(false);
+                setUploadProgress(0);
+                setShowUploadModal(true);
+            } else {
+                throw new Error(result?.error || 'Video transcription failed');
+            }
+        } catch (error: any) {
+            setIsUploading(false);
+            setUploadProgress(0);
+            console.error('Video transcription error:', error);
+            
+            // Check if it's an auth error or missing local whisper
+            const errorMsg = error.message || '';
+            if (errorMsg.includes('401') || errorMsg.includes('Incorrect API key')) {
+                alert(`❌ Video transcription failed\n\n🔑 Your OpenAI API key has an issue (401 error)\n\n💡 Solutions:\n\n1. LOCAL (Recommended):\n   • Download whisper.cpp.exe from: https://github.com/ggerganov/whisper.cpp/releases\n   • Download ggml-base.en.bin from: https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-base.en.bin\n   • Place both in: external/whisper/\n   • Try uploading the video again (no API key needed!)\n\n2. CLOUD:\n   • Get a fresh API key from: https://platform.openai.com/api-keys\n   • Make sure billing is set up\n   • Update key in Privacy Settings`);
+            } else if (errorMsg.includes('whisper') || errorMsg.includes('not found')) {
+                alert(`❌ Video transcription failed\n\n📁 Missing local transcription files\n\nTo transcribe videos offline:\n1. Download whisper.cpp.exe from: https://github.com/ggerganov/whisper.cpp/releases\n2. Download ggml-base.en.bin (~150MB) from: https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-base.en.bin\n3. Create folder: external/whisper/\n4. Place both files there\n5. Try again!\n\nOr add an OpenAI API key in Privacy Settings for cloud transcription.`);
+            } else {
+                alert(`❌ Transcription failed: ${errorMsg}\n\nPlease check:\n1. Video file is not corrupted\n2. Internet connection (for cloud transcription)\n3. Whisper files in external/whisper/ (for offline)`);
+            }
+        }
+    };
+
     const handleDropFiles = async (e: React.DragEvent) => {
         e.preventDefault();
         e.stopPropagation();
@@ -58,43 +116,7 @@ const MossyMemoryVault: React.FC = () => {
         
         // Check if it's a video
         if (file.type.startsWith('video/') || /\.(mp4|webm|mov|avi|mkv|flv)$/i.test(file.name)) {
-            try {
-                setIsUploading(true);
-                setUploadProgress(10);
-                
-                // Get OpenAI API key from localStorage
-                const apiKey = localStorage.getItem('openai_api_key');
-                if (!apiKey) {
-                    setIsUploading(false);
-                    setUploadProgress(0);
-                    alert('❌ OpenAI API Key Required\n\nTo transcribe videos, please:\n1. Get an API key from https://platform.openai.com/api-keys\n2. Add it in Settings → Privacy & Data');
-                    return;
-                }
-                
-                const arrayBuffer = await file.arrayBuffer();
-                setUploadProgress(30);
-                
-                // Use IPC to transcribe video in main process
-                const result = await (window as any).electron?.api?.transcribeVideo(arrayBuffer, apiKey, file.name);
-                setUploadProgress(90);
-                
-                if (result?.success) {
-                    const fileName = file.name.replace(/\.[^/.]+$/, '');
-                    setNewTitle(fileName + ' (Video Transcript)');
-                    setNewContent(result.text.trim());
-                    setUploadProgress(100);
-                    setIsUploading(false);
-                    setUploadProgress(0);
-                    setShowUploadModal(true);
-                } else {
-                    throw new Error(result?.error || 'Video transcription failed');
-                }
-            } catch (error: any) {
-                setIsUploading(false);
-                setUploadProgress(0);
-                console.error('Video transcription error:', error);
-                alert(`❌ Transcription failed: ${error.message}\n\nPlease check:\n1. Your OpenAI API key is valid\n2. The video file is not corrupted\n3. You have internet connection`);
-            }
+            handleVideoFile(file);
             return;
         }
         
@@ -300,6 +322,24 @@ const MossyMemoryVault: React.FC = () => {
                 <div className="flex items-center gap-2">
                     <Activity className="w-3 h-3 text-cyan-400" />
                     <span>NEURAL DENSITY: {(memories.length * 0.12).toFixed(2)} pts</span>
+                </div>
+            </div>
+
+            {/* Video Transcription Setup Notice */}
+            <div className="mx-6 mt-4 mb-2 p-3 bg-blue-500/10 border border-blue-500/30 rounded-lg">
+                <div className="flex items-start gap-3">
+                    <FileText className="w-4 h-4 text-blue-400 mt-0.5 flex-shrink-0" />
+                    <div className="text-xs text-slate-300 space-y-1">
+                        <div className="font-semibold text-blue-300">📹 Video Transcription Setup</div>
+                        <div className="text-slate-400">
+                            For offline video transcription, place these in <code className="px-1 py-0.5 bg-slate-800 rounded text-emerald-400 font-mono text-[10px]">external/whisper/</code>:
+                        </div>
+                        <ul className="list-disc list-inside space-y-0.5 text-[11px] text-slate-400 ml-1">
+                            <li><code className="text-cyan-400 font-mono">whisper.cpp.exe</code> - Get from <a href="https://github.com/ggerganov/whisper.cpp/releases" target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:underline">whisper.cpp releases</a></li>
+                            <li><code className="text-cyan-400 font-mono">ggml-base.en.bin</code> - Download from <a href="https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-base.en.bin" target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:underline">HuggingFace</a> (~150MB)</li>
+                        </ul>
+                        <div className="text-[10px] text-slate-500 mt-1">Or add an OpenAI API key for cloud transcription (optional)</div>
+                    </div>
                 </div>
             </div>
 
@@ -519,6 +559,71 @@ const MossyMemoryVault: React.FC = () => {
                             >
                                 {isUploading ? 'Digesting...' : 'Start Digestion'}
                                 {!isUploading && <Sparkles className="w-4 h-4" />}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* API Key Modal */}
+            {showApiKeyModal && (
+                <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center backdrop-blur-sm">
+                    <div className="bg-slate-900 border border-emerald-500/30 rounded-2xl p-8 max-w-md w-full mx-4 shadow-2xl shadow-emerald-500/10">
+                        <div className="flex items-center gap-3 mb-6">
+                            <Activity className="w-6 h-6 text-emerald-400" />
+                            <h2 className="text-2xl font-bold text-white">OpenAI API Key Required</h2>
+                        </div>
+                        
+                        <p className="text-slate-300 mb-6 text-sm leading-relaxed">
+                            To transcribe videos, you need an OpenAI API key. Get one from <a href="https://platform.openai.com/api-keys" target="_blank" rel="noopener noreferrer" className="text-emerald-400 hover:text-emerald-300 underline">platform.openai.com/api-keys</a>
+                        </p>
+                        
+                        <div className="mb-6">
+                            <label className="block text-sm font-semibold text-slate-200 mb-2">Paste your API Key (sk-proj-...)</label>
+                            <input 
+                                type="password" 
+                                value={apiKeyInput}
+                                onChange={(e) => setApiKeyInput(e.target.value)}
+                                placeholder="sk-proj-..."
+                                className="w-full px-4 py-3 bg-slate-800 border border-slate-700 rounded-lg text-white placeholder-slate-500 focus:border-emerald-500 focus:outline-none transition-colors"
+                            />
+                        </div>
+                        
+                        <div className="flex gap-3">
+                            <button 
+                                onClick={() => {
+                                    setShowApiKeyModal(false);
+                                    setApiKeyInput('');
+                                    setPendingFile(null);
+                                }}
+                                className="flex-1 px-4 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg transition-colors font-semibold text-sm"
+                            >
+                                Cancel
+                            </button>
+                            <button 
+                                onClick={() => {
+                                    if (apiKeyInput.trim()) {
+                                        const trimmed = apiKeyInput.trim();
+                                        localStorage.setItem('openai_api_key', trimmed);
+                                        // If it's a project key, prompt for optional project id via simple detection
+                                        if (trimmed.startsWith('sk-proj-')) {
+                                            const pid = prompt('Optional: Enter your OpenAI Project ID (starts with "proj_...") if your key requires it. Leave blank to skip.');
+                                            if (pid && pid.trim()) {
+                                                localStorage.setItem('openai_project_id', pid.trim());
+                                            }
+                                        }
+                                        setShowApiKeyModal(false);
+                                        setApiKeyInput('');
+                                        // Retry with the newly saved key
+                                        if (pendingFile) {
+                                            handleVideoFile(pendingFile);
+                                        }
+                                    }
+                                }}
+                                disabled={!apiKeyInput.trim()}
+                                className="flex-1 px-4 py-2.5 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-40 disabled:cursor-not-allowed text-white rounded-lg transition-colors font-semibold text-sm"
+                            >
+                                Save & Continue
                             </button>
                         </div>
                     </div>
