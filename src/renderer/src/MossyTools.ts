@@ -611,6 +611,42 @@ I now have the precise execution paths for these tools saved in my neural cache.
             );
             result = getErrorReport('scan_installed_tools', errorReport.filename);
         }
+    } else if (name === 'get_error_report') {
+        try {
+            const errorLogs = JSON.parse(localStorage.getItem('mossy_error_logs') || '[]');
+            
+            if (errorLogs.length === 0) {
+                result = `**No error logs found.** There haven't been any errors recorded yet. If you encounter an issue, it will be logged here automatically.`;
+            } else {
+                // Get the most recent error
+                const latestError = errorLogs[errorLogs.length - 1];
+                const previousErrors = errorLogs.slice(0, -1);
+                
+                result = `**📋 Error Report (Most Recent)**
+
+**Timestamp:** ${latestError.timestamp}
+**Tool:** ${latestError.toolName}
+**Error Message:** ${latestError.errorMessage}
+
+${latestError.suggestedFix ? `**Suggested Fix:** ${latestError.suggestedFix}\n` : ''}
+${latestError.userAction ? `**User Action:** ${latestError.userAction}\n` : ''}
+${latestError.context ? `**Context Details:**\n${Object.entries(latestError.context).map(([k, v]) => `- ${k}: ${v}`).join('\n')}\n` : ''}
+
+${latestError.errorStack ? `**Technical Details (Stack Trace):**\n\`\`\`\n${latestError.errorStack.substring(0, 500)}\n\`\`\`\n` : ''}
+
+**Total Errors Logged:** ${errorLogs.length}
+${previousErrors.length > 0 ? `**Previous Errors:** ${previousErrors.map(e => `${e.toolName} (${new Date(e.timestamp).toLocaleTimeString()})`).join(', ')}` : ''}
+
+**Next Steps:**
+1. Review the "Suggested Fix" above
+2. Follow the troubleshooting steps provided
+3. Go to **Settings > Diagnostic Tools** to verify system APIs
+4. Export the full diagnostic report from **Settings > Diagnostic Tools > Export Full Diagnostic Report**
+5. Share the diagnostic report with your assistant for detailed analysis`;
+            }
+        } catch (e) {
+            result = `**Error retrieving logs:** ${e instanceof Error ? e.message : 'Unknown error'}`;
+        }
     } else if (name === 'execute_blender_script') {
         const bridgeActive = localStorage.getItem('mossy_bridge_active') === 'true' || true; // Native bridge is now always active
         if (bridgeActive) {
