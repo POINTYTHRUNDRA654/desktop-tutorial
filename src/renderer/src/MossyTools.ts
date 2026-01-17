@@ -724,24 +724,20 @@ For more help, visit: Settings > Diagnostic Tools > Run Diagnostics
 - All previous errors (${errorLogs.length - 1} additional)
 - Suggested fixes and troubleshooting steps
 - System context information`;
-                        return;
                     } catch (e) {
                         console.log('[MOSSY] Electron save failed, trying browser download');
-                    }
-                }
-                
-                // Fallback: Create and trigger browser download
-                const blob = new Blob([reportContent], { type: 'text/plain' });
-                const url = URL.createObjectURL(blob);
-                const a = document.createElement('a');
-                a.href = url;
-                a.download = filename;
-                document.body.appendChild(a);
-                a.click();
-                document.body.removeChild(a);
-                URL.revokeObjectURL(url);
-                
-                result = `**✓ Error report exported!** The file **${filename}** has been saved. You can now review it at your own pace.
+                        // Fall through to browser download
+                        const blob = new Blob([reportContent], { type: 'text/plain' });
+                        const url = URL.createObjectURL(blob);
+                        const a = document.createElement('a');
+                        a.href = url;
+                        a.download = filename;
+                        document.body.appendChild(a);
+                        a.click();
+                        document.body.removeChild(a);
+                        URL.revokeObjectURL(url);
+                        
+                        result = `**✓ Error report exported!** The file **${filename}** has been saved. You can now review it at your own pace.
 
 **Report Contents:**
 - Latest error with full details
@@ -750,6 +746,29 @@ For more help, visit: Settings > Diagnostic Tools > Run Diagnostics
 - System context information
 
 Check your Downloads folder or the location where files are saved.`;
+                    }
+                } else {
+                    // No Electron API - use browser download
+                    const blob = new Blob([reportContent], { type: 'text/plain' });
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = filename;
+                    document.body.appendChild(a);
+                    a.click();
+                    document.body.removeChild(a);
+                    URL.revokeObjectURL(url);
+                    
+                    result = `**✓ Error report exported!** The file **${filename}** has been saved. You can now review it at your own pace.
+
+**Report Contents:**
+- Latest error with full details
+- All previous errors (${errorLogs.length - 1} additional)
+- Suggested fixes and troubleshooting steps
+- System context information
+
+Check your Downloads folder or the location where files are saved.`;
+                }
             }
         } catch (e) {
             result = `**Export failed:** ${e instanceof Error ? e.message : 'Unknown error'}. The error logs may still be available in Settings > Privacy Settings > Export Mossy Error Logs.`;
