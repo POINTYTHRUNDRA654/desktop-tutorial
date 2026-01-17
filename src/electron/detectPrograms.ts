@@ -218,19 +218,36 @@ async function scanProgramFiles(): Promise<InstalledProgram[]> {
     path.join(os.homedir(), 'AppData', 'Roaming'),
     path.join(os.homedir(), 'AppData', 'Local', 'Programs'),
     path.join(os.homedir(), 'scoop', 'apps'),
+    path.join(os.homedir(), '.ollama'),
+    path.join(os.homedir(), '.lmstudio'),
     'C:\\ProgramData',
+    'C:\\AI',
+    'C:\\ML',
   ];
 
   // Search other common drives for program folders
-  // AGGRESSIVE SCAN - check all drives and common installation folders
-  const potentialDrives = ['C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P', 'Z'];
+  // ULTRA COMPREHENSIVE SCAN - First impression matters!
+  const potentialDrives = ['C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z'];
   const commonFolders = [
-    'Program Files', 'Program Files (x86)', 'Programs', 'Apps', 'Software',
+    // Standard Windows
+    'Program Files', 'Program Files (x86)', 'Programs', 'Apps', 'Software', 'Applications',
+    // AI & ML Tools (CRITICAL - First impression!)
+    'AI', 'ML', 'LLM', 'Ollama', 'LM Studio', 'LMStudio', 'Luma', 'LumaAI', 'ComfyUI', 
+    'Stable Diffusion', 'StableDiffusion', 'Automatic1111', 'A1111', 'Text-Generation-WebUI',
+    'Koboldcpp', 'KoboldAI', 'Oobabooga', 'Jan', 'AnythingLLM', 'GPT4All',
+    'NVIDIA', 'NVIDIA Corporation', 'NVIDIA AI', 'CUDA', 'cuDNN',
+    // Gaming & Modding
     'Games', 'Modding', 'ModdingTools', 'Tools', 'Utilities', 'GameTools',
-    'SteamLibrary', 'SteamLibrary\\steamapps\\common',
-    'GOG Games', 'Epic Games', 'XboxGames',
-    'Blender Foundation', 'Adobe', 'Autodesk', 'NVIDIA Corporation',
-    'Development', 'SDK', 'IDE'
+    'SteamLibrary', 'SteamLibrary\\steamapps\\common', 'Steam', 'steamapps',
+    'GOG Games', 'Epic Games', 'XboxGames', 'Origin Games', 'Uplay',
+    // Creative Software
+    'Blender Foundation', 'Blender', 'Adobe', 'Autodesk', 'Substance', 'Quixel',
+    'DaVinci Resolve', 'OBS Studio', 'GIMP', 'Krita', 'Inkscape',
+    // Development
+    'Development', 'Dev', 'SDK', 'IDE', 'Python', 'Node', 'npm', 'Anaconda', 'Miniconda',
+    'Visual Studio', 'JetBrains', 'VSCode', 'Code',
+    // Package Managers
+    'Chocolatey', 'scoop', 'winget'
   ];
   
   // Add root of drives and then the folders
@@ -393,4 +410,89 @@ export async function openProgram(programPath: string): Promise<void> {
   } catch (error) {
     throw new Error(`Failed to open program: ${error instanceof Error ? error.message : 'Unknown error'}`);
   }
+}
+/**
+ * Get comprehensive system information for AI/modding capabilities
+ * This helps Mossy understand what the user's system can handle
+ */
+export async function getSystemInfo(): Promise<{
+  cpu: string;
+  ram: string;
+  gpu: string[];
+  os: string;
+  aiCapabilities: string[];
+  pythonVersions: string[];
+  nodeVersion: string | null;
+}> {
+  const systemInfo: any = {
+    cpu: os.cpus()[0]?.model || 'Unknown CPU',
+    ram: `${Math.round(os.totalmem() / (1024 ** 3))} GB`,
+    gpu: [],
+    os: `${os.platform()} ${os.release()}`,
+    aiCapabilities: [],
+    pythonVersions: [],
+    nodeVersion: null,
+  };
+
+  try {
+    // Detect GPU using wmic
+    const { stdout: gpuOutput } = await execAsync('wmic path win32_VideoController get name');
+    systemInfo.gpu = gpuOutput
+      .split('\n')
+      .slice(1)
+      .map(line => line.trim())
+      .filter(line => line && line !== 'Name');
+  } catch (error) {
+    console.warn('Failed to detect GPU:', error);
+  }
+
+  try {
+    // Check for CUDA (NVIDIA AI capability)
+    const cudaPath = process.env['CUDA_PATH'];
+    if (cudaPath) {
+      systemInfo.aiCapabilities.push('NVIDIA CUDA');
+    }
+  } catch (error) {
+    // Silent fail
+  }
+
+  try {
+    // Detect Python installations
+    const pythonCommands = ['python', 'python3', 'py'];
+    for (const cmd of pythonCommands) {
+      try {
+        const { stdout } = await execAsync(`${cmd} --version`);
+        const version = stdout.trim();
+        if (version && !systemInfo.pythonVersions.includes(version)) {
+          systemInfo.pythonVersions.push(version);
+        }
+      } catch {
+        // Try next command
+      }
+    }
+  } catch (error) {
+    // Silent fail
+  }
+
+  try {
+    // Detect Node.js
+    const { stdout } = await execAsync('node --version');
+    systemInfo.nodeVersion = stdout.trim();
+  } catch (error) {
+    // Silent fail
+  }
+
+  // Check for AI-specific capabilities based on GPU
+  const gpuLower = systemInfo.gpu.join(' ').toLowerCase();
+  if (gpuLower.includes('nvidia') && gpuLower.includes('rtx')) {
+    systemInfo.aiCapabilities.push('RTX Tensor Cores (AI Acceleration)');
+  }
+  if (gpuLower.includes('nvidia') && (gpuLower.includes('4090') || gpuLower.includes('4080') || gpuLower.includes('3090'))) {
+    systemInfo.aiCapabilities.push('High-End AI Inference');
+  }
+  if (gpuLower.includes('amd') && gpuLower.includes('rx')) {
+    systemInfo.aiCapabilities.push('AMD GPU Compute');
+  }
+
+  return systemInfo;
 }
