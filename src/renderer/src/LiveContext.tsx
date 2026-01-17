@@ -900,7 +900,6 @@ DO NOT say "I cannot integrate" - you CAN by launching programs and providing ex
                       }
                     }
                   }
-                  }
                   setTimeout(poll, 128);
                 };
                 poll();
