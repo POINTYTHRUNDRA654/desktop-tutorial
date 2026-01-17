@@ -4,7 +4,14 @@ import { useLive } from './LiveContext';
 import AvatarCore from './AvatarCore';
 
 const VoiceChat: React.FC = () => {
-  const { isActive, isMuted, toggleMute, disconnect, mode, connect, transcription } = useLive();
+  let liveContext: any = null;
+  try {
+    liveContext = useLive();
+  } catch (err) {
+    console.warn('[VoiceChat] LiveContext not available, using fallback');
+    liveContext = { isActive: false, isMuted: false, toggleMute: () => {}, disconnect: () => {}, mode: 'disconnected', connect: () => {}, transcription: '' };
+  }
+  const { isActive, isMuted, toggleMute, disconnect, mode, connect, transcription } = liveContext;
   const [isConnecting, setIsConnecting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
