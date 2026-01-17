@@ -448,11 +448,21 @@ export const executeMossyTool = async (name: string, args: any, context: {
                 );
                 console.log('[MOSSY SCAN] ✓ Filtered to', moddingTools.length, 'modding tools');
 
-                // Step 4: Cache the results
+                // Step 4: Cache the results (limit to prevent localStorage overflow)
                 console.log('[MOSSY SCAN] Step 4: Caching results to localStorage...');
-                localStorage.setItem('mossy_apps', JSON.stringify(moddingTools || []));
-                localStorage.setItem('mossy_last_scan', new Date().toISOString());
-                console.log('[MOSSY SCAN] ✓ Results cached');
+                try {
+                    // Store only essential fields to save space
+                    const minimalTools = moddingTools.slice(0, 500).map((t: any) => ({
+                        name: t.displayName || t.name,
+                        path: t.path,
+                        version: t.version
+                    }));
+                    localStorage.setItem('mossy_apps', JSON.stringify(minimalTools));
+                    localStorage.setItem('mossy_last_scan', new Date().toISOString());
+                    console.log('[MOSSY SCAN] ✓ Results cached (stored', minimalTools.length, 'tools)');
+                } catch (storageError) {
+                    console.warn('[MOSSY SCAN] ⚠️ Storage warning:', storageError);
+                }
 
                 // Step 5: Detect Fallout 4
                 console.log('[MOSSY SCAN] Step 5: Detecting Fallout 4 installations...');

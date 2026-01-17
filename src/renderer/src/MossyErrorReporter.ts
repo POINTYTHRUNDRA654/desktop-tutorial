@@ -33,23 +33,17 @@ export const logMossyError = async (
       suggestedFix,
     };
 
-    // Try to send to backend to write file
-    try {
-      const response = await fetch(API_ENDPOINT, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(errorLog),
-      });
+    // Try to send to backend to write file (no await, fire and forget)
+    fetch(API_ENDPOINT, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(errorLog),
+    }).catch(() => {
+      // Silently fail if backend not available
+      console.log('[MOSSY] Backend error log not available, using localStorage');
+    });
 
-      if (response.ok) {
-        const data = await response.json();
-        return { success: true, filename: data.filename, message: data.message };
-      }
-    } catch (fetchError) {
-      console.warn('Could not send error to backend:', fetchError);
-    }
-
-    // Fallback: Store in localStorage for manual export
+    // Always store in localStorage regardless of backend
     const errorLogs = JSON.parse(localStorage.getItem('mossy_error_logs') || '[]');
     errorLogs.push(errorLog);
     
@@ -61,7 +55,7 @@ export const logMossyError = async (
 
     return {
       success: true,
-      message: `Error logged locally (${errorLogs.length} total). Use Settings > Export Error Logs to download.`,
+      message: `Error logged locally (${errorLogs.length} total). Use Settings > Privacy Settings > Export Error Logs to download.`,
     };
   } catch (e) {
     console.error('Failed to log Mossy error:', e);
