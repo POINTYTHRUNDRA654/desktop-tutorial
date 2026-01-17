@@ -434,12 +434,28 @@ export const executeMossyTool = async (name: string, args: any, context: {
                 const allApps = await detectPrograms();
                 console.log('[MOSSY SCAN] ✓ detectPrograms returned:', allApps?.length || 0, 'programs');
                 
+                // Step 2.5: Get system hardware info
+                console.log('[MOSSY SCAN] Step 2.5: Getting system hardware info...');
+                let systemInfo: any = null;
+                try {
+                    const getSystemInfo = (window as any).electron?.api?.getSystemInfo || (window as any).electronAPI?.getSystemInfo;
+                    if (getSystemInfo) {
+                        systemInfo = await getSystemInfo();
+                        console.log('[MOSSY SCAN] ✓ System info retrieved:', systemInfo);
+                    }
+                } catch (sysError) {
+                    console.warn('[MOSSY SCAN] ⚠️ Could not get system info:', sysError);
+                }
+                
                 // Step 3: Store ALL detected programs for AI analysis
                 console.log('[MOSSY SCAN] Step 3: Storing all detected programs for analysis...');
                 try {
                     // Store complete app list with all fields for AI analysis
                     localStorage.setItem('mossy_all_detected_apps', JSON.stringify(allApps || []));
                     localStorage.setItem('mossy_last_scan', new Date().toISOString());
+                    if (systemInfo) {
+                        localStorage.setItem('mossy_system_info', JSON.stringify(systemInfo));
+                    }
                     console.log('[MOSSY SCAN] ✓ All programs stored (total:', allApps?.length || 0, 'programs)');
                 } catch (storageError) {
                     console.warn('[MOSSY SCAN] ⚠️ Storage warning:', storageError);
@@ -453,11 +469,23 @@ export const executeMossyTool = async (name: string, args: any, context: {
                 );
                 console.log('[MOSSY SCAN] ✓ Found', fallout4Apps.length, 'Fallout 4 installations');
                 
-                // Step 5: Create a summary of all programs grouped by type
-                console.log('[MOSSY SCAN] Step 5: Creating program summary...');
+                // Step 5: Detect AI tools (CRITICAL for first impression!)
+                console.log('[MOSSY SCAN] Step 5: Detecting AI/ML tools...');
+                const aiKeywords = ['ollama', 'lm studio', 'lmstudio', 'luma', 'lumaai', 'comfy', 'stable diffusion', 
+                                   'automatic1111', 'kobold', 'jan', 'gpt4all', 'nvidia', 'cuda'];
+                const aiTools = (allApps || []).filter((a: any) => {
+                    const name = (a.displayName || a.name || '').toLowerCase();
+                    return aiKeywords.some(kw => name.includes(kw));
+                });
+                console.log('[MOSSY SCAN] ✓ Found', aiTools.length, 'AI/ML tools');
+                
+                // Step 6: Create a comprehensive summary
+                console.log('[MOSSY SCAN] Step 6: Creating comprehensive summary...');
                 const programSummary = {
                     totalPrograms: allApps?.length || 0,
                     fallout4Installations: fallout4Apps.length,
+                    aiTools: aiTools.length,
+                    systemInfo: systemInfo,
                     allPrograms: (allApps || []).map(a => ({
                         name: a.displayName || a.name,
                         path: a.path,
@@ -469,20 +497,80 @@ export const executeMossyTool = async (name: string, args: any, context: {
                 
                 console.log('[MOSSY SCAN] ✓ Scan complete!');
 
-                result = `[MOSSY] Universal system scan complete. I've catalogued your entire software ecosystem for intelligent integration analysis.
+                // Build impressive first-impression result
+                let scanResult = `[MOSSY] 🔍 **COMPREHENSIVE SYSTEM ANALYSIS COMPLETE**
 
-📊 SCAN RESULTS:
-- Total Programs Detected: ${allApps?.length || 0}
-- Fallout 4 Installations: ${fallout4Apps.length}
-${fallout4Apps.length > 0 ? '\n🎮 FALLOUT 4 LOCATIONS:\n' + fallout4Apps.map(a => `  • ${a.displayName || a.name}: ${a.path}`).join('\n') : '\n⚠️ No Fallout 4 installation detected. Please install Fallout 4 for modding features.'}
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+📊 **DETECTION SUMMARY**
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+✓ Total Programs Scanned: **${allApps?.length || 0}**
+✓ AI/ML Tools Found: **${aiTools.length}**
+✓ Fallout 4 Installations: **${fallout4Apps.length}**
+`;
 
-💡 NEXT STEPS:
-I've analyzed all ${allApps?.length || 0} programs on your system. I can now intelligently suggest how each tool could integrate with Fallout 4 modding workflows. Ask me:
+                // Add system hardware info if available
+                if (systemInfo) {
+                    scanResult += `
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+🖥️ **SYSTEM HARDWARE**
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+• CPU: ${systemInfo.cpuModel || systemInfo.cpu || 'Unknown'}
+• RAM: ${systemInfo.totalMemory || systemInfo.ram || 'Unknown'}
+• GPU: ${systemInfo.gpu || systemInfo.gpuInfo || 'Unknown'}
+• OS: ${systemInfo.os || systemInfo.osFriendly || 'Unknown'}
+`;
+                }
+
+                // Add AI capabilities if detected
+                if (aiTools.length > 0) {
+                    scanResult += `
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+🤖 **AI/ML TOOLS DETECTED**
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+${aiTools.map(a => `✓ ${a.displayName || a.name}`).join('\n')}
+
+💡 These tools can enhance your modding workflow with AI-powered texture generation, upscaling, and content creation!
+`;
+                }
+
+                // Add Fallout 4 installations
+                if (fallout4Apps.length > 0) {
+                    scanResult += `
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+🎮 **FALLOUT 4 INSTALLATIONS**
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+${fallout4Apps.map(a => `✓ ${a.displayName || a.name}\n  📍 ${a.path}`).join('\n')}
+`;
+                } else {
+                    scanResult += `
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+⚠️ **FALLOUT 4 NOT DETECTED**
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+No Fallout 4 installation found. Please install Fallout 4 to unlock full modding features.
+`;
+                }
+
+                scanResult += `
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+💡 **WHAT'S NEXT?**
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+My neural matrix now has complete visibility into your system. I can:
+
+• Suggest tools for ANY modding task (textures, meshes, scripting)
+• Integrate AI capabilities into your workflow
+• Provide personalized recommendations based on YOUR setup
+• Launch and configure tools directly
+
+**Try asking me:**
 - "What programs can I use to create textures?"
-- "Which of my installed tools could help with 3D modeling?"
-- "Show me all my available image editors"
+- "Show me my 3D modeling tools"
+- "How can I use my AI tools for modding?"
+- "Launch [program name]"
 
-My neural matrix has been updated with your complete system profile. Ready for intelligent integration suggestions.`;
+Your system profile is locked in. Let's build something amazing! 🚀
+`;
+
+                result = scanResult;
             }
         } catch (error) {
             console.error('[MOSSY SCAN] Error during scan:', error);

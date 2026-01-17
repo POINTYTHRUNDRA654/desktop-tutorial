@@ -9,7 +9,7 @@ import { app, BrowserWindow, ipcMain, dialog, shell } from 'electron';
 import path from 'path';
 import os from 'os';
 import { IPC_CHANNELS } from './types';
-import { detectPrograms } from './detectPrograms';
+import { detectPrograms, getSystemInfo } from './detectPrograms';
 import { getRunningModdingTools } from './processMonitor';
 import { DesktopShortcutManager } from './desktopShortcut';
 import fs from 'fs';
