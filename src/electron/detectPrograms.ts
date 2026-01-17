@@ -216,17 +216,21 @@ async function scanProgramFiles(): Promise<InstalledProgram[]> {
     process.env['ProgramFiles(x86)'] || 'C:\\Program Files (x86)',
     path.join(os.homedir(), 'AppData', 'Local'),
     path.join(os.homedir(), 'AppData', 'Roaming'),
+    path.join(os.homedir(), 'AppData', 'Local', 'Programs'),
+    path.join(os.homedir(), 'scoop', 'apps'),
+    'C:\\ProgramData',
   ];
 
-  // Search other common drives for modding folders
-  // We'll be more aggressive about finding these
-  const potentialDrives = ['C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'Z'];
+  // Search other common drives for program folders
+  // AGGRESSIVE SCAN - check all drives and common installation folders
+  const potentialDrives = ['C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P', 'Z'];
   const commonFolders = [
-    'Games', 'Modding', 'ModdingTools', 'SteamLibrary', 'GOG Games', 
-    'Tools', 'Program Files', 'Program Files (x86)', 'SteamLibrary\\steamapps\\common',
-    'XboxGames', 'Epic Games', 'Modding Tools', 'Fallout 4 Tools', 'Bethesda.net Launcher',
-    'MO2', 'Vortex', 'FO4Edit', 'FO4xEdit', 'Creation Kit', 'Wrye Bash', 'LOOT', 'NifSkope', 'Blender Foundation',
-    'Modding\\Tools', 'GameTools', 'Utility', 'Utilities'
+    'Program Files', 'Program Files (x86)', 'Programs', 'Apps', 'Software',
+    'Games', 'Modding', 'ModdingTools', 'Tools', 'Utilities', 'GameTools',
+    'SteamLibrary', 'SteamLibrary\\steamapps\\common',
+    'GOG Games', 'Epic Games', 'XboxGames',
+    'Blender Foundation', 'Adobe', 'Autodesk', 'NVIDIA Corporation',
+    'Development', 'SDK', 'IDE'
   ];
   
   // Add root of drives and then the folders
@@ -264,18 +268,9 @@ async function scanProgramFiles(): Promise<InstalledProgram[]> {
 
         const dirPath = path.join(basePath, dir.name);
         try {
-          // Increase depth to 5 for very deep nested tools
-          // But only for directories that look like tool containers
-          const entryLower = dir.name.toLowerCase();
-          const isInteresting = [
-            'blender', 'creation', 'edit', 'xedit', 'fo4edit', 'organizer', 'vortex', 'nif', 'body', 
-            'loot', 'wrye', 'archive', 'gimp', 'photo', 'script', 'f4se', 'fallout',
-            'tools', 'modding', 'steam', 'gog', 'epic',
-            'upscayl', 'shadermap', 'nvidia', 'autodesk', 'fbx', 'photodemon', 
-            'unwrap', 'nifutils', 'omniverse', 'spin3d', 'canvas', 'texture'
-          ].some(kw => entryLower.includes(kw));
-
-          const executables = await findExecutablesInDirectory(dirPath, isInteresting ? 5 : 2); 
+          // DEEP SCAN: Go up to depth 7 to catch deeply nested programs
+          // No filtering - scan everything equally deep
+          const executables = await findExecutablesInDirectory(dirPath, 7); 
           
           for (const exePath of executables) {
             const exeName = path.basename(exePath, '.exe');
@@ -306,7 +301,7 @@ async function scanProgramFiles(): Promise<InstalledProgram[]> {
  */
 async function findExecutablesInDirectory(
   dirPath: string, 
-  maxDepth: number = 1,
+  maxDepth: number = 7,
   currentDepth: number = 0
 ): Promise<string[]> {
   const executables: string[] = [];
