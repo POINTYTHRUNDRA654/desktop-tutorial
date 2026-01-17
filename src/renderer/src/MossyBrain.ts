@@ -107,6 +107,14 @@ export const toolDeclarations: FunctionDeclaration[] = [
         }
     },
     {
+        name: 'get_error_report',
+        description: 'Retrieve and display the most recent error report that was logged when a scan or operation failed. Use this when the user asks "what went wrong" or "show me the error".',
+        parameters: {
+            type: Type.OBJECT,
+            properties: {}
+        }
+    },
+    {
         name: 'generate_papyrus_script',
         description: 'Generate a Fallout 4 Papyrus script based on requirements.',
         parameters: {
