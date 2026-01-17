@@ -114,9 +114,9 @@ const DesktopBridge: React.FC = () => {
         window.dispatchEvent(new CustomEvent('mossy-blender-linked', { detail: isBlenderRunning }));
         
         if (isBlenderRunning) {
-          addLog('System', 'Blender detected! Neural Link established.', 'success');
+          addLog('System', 'Blender add-on connected! (Port 9999 active)', 'success');
         } else {
-          addLog('System', 'Blender closed. Neural Link disconnected.', 'warn');
+          addLog('System', 'Blender add-on disconnected. (Enable toggle in Blender)', 'warn');
         }
       }
     };
@@ -623,15 +623,13 @@ if __name__ == "__main__":
   };
 
   const checkBlenderProcess = async () => {
-    if (typeof window.electron?.api?.getRunningProcesses === 'function') {
+    // Check if socket on port 9999 is listening (addon is active)
+    if (typeof window.electron?.api?.checkBlenderAddon === 'function') {
       try {
-        const processes = await window.electron.api.getRunningProcesses();
-        return processes.some((p: any) => 
-          p.name.toLowerCase().includes('blender') || 
-          (p.windowTitle && p.windowTitle.toLowerCase().includes('blender'))
-        );
+        const result = await window.electron.api.checkBlenderAddon();
+        return result.connected === true;
       } catch (e) {
-        console.error('Error checking for Blender process:', e);
+        console.error('Error checking for Blender addon socket:', e);
         return false;
       }
     }
@@ -639,7 +637,7 @@ if __name__ == "__main__":
   };
 
   const testBlenderLink = async () => {
-      addLog('System', 'Scanning for Blender process...', 'ok');
+      addLog('System', 'Checking Blender add-on socket (port 9999)...', 'ok');
       
       const isBlenderRunning = await checkBlenderProcess();
       
@@ -647,15 +645,15 @@ if __name__ == "__main__":
           localStorage.setItem('mossy_blender_active', 'true');
           setBlenderLinked(true);
           window.dispatchEvent(new CustomEvent('mossy-blender-linked', { detail: true }));
-          addLog('System', 'Blender process detected and Neural Link verified!', 'success');
+          addLog('System', 'Blender add-on socket connected! Neural Link verified!', 'success');
       } else {
           localStorage.setItem('mossy_blender_active', 'false');
           setBlenderLinked(false);
           window.dispatchEvent(new CustomEvent('mossy-blender-linked', { detail: false }));
-          addLog('System', 'Blender is not currently running. Please open Blender and try again.', 'warn');
+          addLog('System', 'Blender add-on not responding on port 9999.', 'warn');
           
           // Instruction for user
-          addLog('System', 'Ensure you have the "mossy_link.py" add-on installed and running in Blender.', 'ok');
+          addLog('System', 'Make sure: 1) Blender is open, 2) Add-on is installed, 3) Toggle is ON in Mossy panel', 'ok');
       }
   };
 
