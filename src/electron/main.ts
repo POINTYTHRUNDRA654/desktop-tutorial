@@ -1079,6 +1079,48 @@ function setupIpcHandlers() {
     return result.filePaths[0];
   });
 
+  // --- Auditor: Pick NIF mesh file via native dialog ---
+  ipcMain.handle(IPC_CHANNELS.AUDITOR_PICK_NIF_FILE, async (_event) => {
+    const result = await dialog.showOpenDialog({
+      title: 'Select NIF Mesh File',
+      properties: ['openFile'],
+      filters: [
+        { name: 'NIF Mesh Files', extensions: ['nif'] },
+        { name: 'All Files', extensions: ['*'] },
+      ],
+    });
+    if (result.canceled || !result.filePaths?.length) return '';
+    return result.filePaths[0];
+  });
+
+  // --- Auditor: Pick DDS texture file via native dialog ---
+  ipcMain.handle(IPC_CHANNELS.AUDITOR_PICK_DDS_FILE, async (_event) => {
+    const result = await dialog.showOpenDialog({
+      title: 'Select DDS Texture File',
+      properties: ['openFile'],
+      filters: [
+        { name: 'DDS Texture Files', extensions: ['dds'] },
+        { name: 'All Files', extensions: ['*'] },
+      ],
+    });
+    if (result.canceled || !result.filePaths?.length) return '';
+    return result.filePaths[0];
+  });
+
+  // --- Auditor: Pick BGSM material file via native dialog ---
+  ipcMain.handle(IPC_CHANNELS.AUDITOR_PICK_BGSM_FILE, async (_event) => {
+    const result = await dialog.showOpenDialog({
+      title: 'Select BGSM/BGEM Material File',
+      properties: ['openFile'],
+      filters: [
+        { name: 'Material Files', extensions: ['bgsm', 'bgem'] },
+        { name: 'All Files', extensions: ['*'] },
+      ],
+    });
+    if (result.canceled || !result.filePaths?.length) return '';
+    return result.filePaths[0];
+  });
+
   // --- Auditor: Analyze ESP/ESM files ---
   ipcMain.handle(IPC_CHANNELS.AUDITOR_ANALYZE_ESP, async (_event, filePath: string) => {
     try {

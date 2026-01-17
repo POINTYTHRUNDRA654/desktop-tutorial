@@ -308,5 +308,6 @@ import {
   Zap,
   AlertCircle,
   Layers,
-  Package
+  Package,
+  BrainCircuit
 } from 'lucide-react';

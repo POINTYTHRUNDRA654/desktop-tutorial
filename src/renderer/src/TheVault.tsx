@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Container, Search, HardDrive, Lock, Globe, ShieldCheck, Clipboard, CheckCircle2, AlertTriangle, Archive, FilePlus, Upload, Wrench } from 'lucide-react';
+import { Container, Search, HardDrive, Lock, Globe, ShieldCheck, Clipboard, CheckCircle2, AlertTriangle, Archive, FilePlus, Upload, Wrench, ChevronDown } from 'lucide-react';
 
 type AssetType = 'mesh' | 'texture' | 'audio' | 'script' | 'ui';
 
@@ -39,6 +39,7 @@ const TheVault: React.FC = () => {
     const [onlyStaged, setOnlyStaged] = useState(false);
     const [verifyingIds, setVerifyingIds] = useState<Set<string>>(new Set());
     const fileInputRef = useRef<HTMLInputElement | null>(null);
+    const [expandConfig, setExpandConfig] = useState(false);
     const [allowOversizedTextures, setAllowOversizedTextures] = useState(false);
     const api = (window as any).electron?.api;
 
@@ -487,7 +488,16 @@ const TheVault: React.FC = () => {
                     </div>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-3">
+                <button 
+                    onClick={() => setExpandConfig(!expandConfig)}
+                    className="flex items-center gap-2 text-sm font-semibold text-slate-300 hover:text-white transition-colors py-2"
+                >
+                    <ChevronDown className={`w-4 h-4 transition-transform ${expandConfig ? 'rotate-180' : ''}`} />
+                    Configuration (Presets & Tools)
+                </button>
+
+                {expandConfig && (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-3 max-h-96 overflow-y-auto">
                         <div className="bg-slate-900/60 border border-slate-800 rounded-xl p-3">
                             <div className="text-xs text-slate-400 mb-2 font-semibold">Auto-target Presets</div>
                                         <div className="grid grid-cols-2 gap-2 text-xs">
@@ -548,7 +558,8 @@ const TheVault: React.FC = () => {
                                                 </div>
                                             </div>
                         </div>
-                    </div>
+                        </div>
+                        )}
 
                 <div className="flex flex-wrap gap-4">
                     <div className="flex-1 min-w-[220px] relative">

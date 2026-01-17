@@ -52,7 +52,8 @@ const Workshop: React.FC = () => {
     'Ready for input.'
   ]);
 
-  const api = (window as any).electron?.api;
+  // Support both electron.api and electronAPI for bridge calls
+  const api = (window as any).electron?.api || (window as any).electronAPI;
 
   // Browse directory and load files
   const browseDirectory = async (dirPath?: string) => {
@@ -247,22 +248,31 @@ const Workshop: React.FC = () => {
             {fileTree.length === 0 ? (
               <div className="text-xs text-slate-500 p-2">No files loaded. Browse a directory above.</div>
             ) : (
-              fileTree.map(entry => (
-                <div
-                  key={entry.path}
-                  className={`flex items-center gap-2 py-1 px-2 cursor-pointer hover:bg-slate-800 rounded transition-colors ${
-                    selectedFile?.path === entry.path ? 'bg-slate-800 text-forge-accent' : 'text-slate-400'
-                  }`}
-                  onClick={() => entry.type === 'file' ? openFile(entry) : null}
-                >
-                  {entry.type === 'folder' ? (
-                    <Folder className="w-4 h-4 text-emerald-500" />
-                  ) : (
-                    renderFileIcon(entry.fileType)
-                  )}
-                  <span className="text-xs font-mono truncate">{entry.name}</span>
-                </div>
-              ))
+              fileTree.map((entry) => {
+                const isFolder = entry.type?.toLowerCase() === 'folder';
+                return (
+                  <div
+                    key={entry.path}
+                    className={`flex items-center gap-2 py-1 px-2 cursor-pointer hover:bg-slate-800 rounded transition-colors ${
+                      selectedFile?.path === entry.path ? 'bg-slate-800 text-forge-accent' : 'text-slate-400'
+                    }`}
+                    onClick={() => {
+                      if (isFolder) {
+                        browseDirectory(entry.path);
+                      } else {
+                        openFile(entry);
+                      }
+                    }}
+                  >
+                    {isFolder ? (
+                      <Folder className="w-4 h-4 text-emerald-500" />
+                    ) : (
+                      renderFileIcon(entry.fileType)
+                    )}
+                    <span className="text-xs font-mono truncate">{entry.name}</span>
+                  </div>
+                );
+              })
             )}
           </div>
         </div>

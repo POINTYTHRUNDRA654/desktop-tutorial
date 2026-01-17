@@ -56,6 +56,9 @@ export const IPC_CHANNELS = {
   // Auditor ESP Analysis
   AUDITOR_ANALYZE_ESP: 'auditor-analyze-esp',
   AUDITOR_PICK_ESP_FILE: 'auditor-pick-esp-file',
+  AUDITOR_PICK_NIF_FILE: 'auditor-pick-nif-file',
+  AUDITOR_PICK_DDS_FILE: 'auditor-pick-dds-file',
+  AUDITOR_PICK_BGSM_FILE: 'auditor-pick-bgsm-file',
 } as const;
 
 /**
@@ -116,6 +119,9 @@ export interface ElectronAPI {
   // Auditor
   analyzeEsp: (filePath: string) => Promise<{ success: boolean; fileSize?: number; recordCount?: number; issues?: any[]; error?: string }>;
   pickEspFile: () => Promise<string>;
+  pickNifFile: () => Promise<string>;
+  pickDdsFile: () => Promise<string>;
+  pickBgsmFile: () => Promise<string>;
 }
 
 /**
