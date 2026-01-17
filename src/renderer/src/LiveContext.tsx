@@ -153,10 +153,10 @@ export const LiveProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           console.log('[LiveContext] WebSocket error detected; triggering proactive reconnect');
           // Schedule a reconnect but don't disconnect yet (keep audio flowing)
           const sessionAge = Date.now() - sessionStartTimeRef.current;
-          const FIVE_MINUTES = 5 * 60 * 1000;
+          const TWO_POINT_FIVE_MINUTES = 2.5 * 60 * 1000;
           
-          // If session is older than 5 min and we're seeing errors, reconnect sooner
-          if (sessionAge > FIVE_MINUTES) {
+          // If session is older than 2.5 min and we're seeing errors, reconnect sooner
+          if (sessionAge > TWO_POINT_FIVE_MINUTES) {
             console.log('[LiveContext] Session age:', Math.round(sessionAge / 1000), 'sec - reconnecting to prevent quota');
             disconnect(false, false);
             scheduleReconnect('socket-degradation-detected');
@@ -591,19 +591,19 @@ DO NOT say "I cannot integrate" - you CAN by launching programs and providing ex
               }, 12000); // Slightly under common idle timeouts
               
               // START PROACTIVE SESSION HEALTH CHECK
-              // Reconnect every 8 minutes to avoid quota/resource exhaustion on long sessions
-              // Google's live API has resource limits; proactively refresh before hitting them
-              console.log('[LiveContext] Starting proactive session health check (8 min refresh)...');
+              // Reconnect every 3 minutes to stay well ahead of Google's resource limits
+              // Google's live API has hard resource limits around 5 minutes; we refresh at 3 to be safe
+              console.log('[LiveContext] Starting proactive session health check (3 min refresh)...');
               sessionStartTimeRef.current = Date.now();
               if (sessionHealthCheckRef.current) clearInterval(sessionHealthCheckRef.current);
               sessionHealthCheckRef.current = setInterval(async () => {
                 if (!isActiveRef.current || !sessionRef.current) return;
                 
                 const sessionAge = Date.now() - sessionStartTimeRef.current;
-                const EIGHT_MINUTES = 8 * 60 * 1000;
+                const THREE_MINUTES = 3 * 60 * 1000;
                 
-                if (sessionAge >= EIGHT_MINUTES) {
-                  console.log('[LiveContext] ⚠️ Session is 8+ minutes old; proactively reconnecting to avoid quota');
+                if (sessionAge >= THREE_MINUTES) {
+                  console.log('[LiveContext] ⚠️ Session is 3+ minutes old; proactively reconnecting to prevent quota');
                   console.log('[LiveContext] Current session age:', Math.round(sessionAge / 1000), 'seconds');
                   // Preserve messages, do graceful reconnect
                   disconnect(false, false); // Preserve buffer, not manual
