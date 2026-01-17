@@ -990,6 +990,7 @@ ${previousErrors.length > 0 ? `**Previous Errors:** ${previousErrors.map((e: any
     } else if (name === 'export_error_logs') {
         try {
             const errorLogs = JSON.parse(localStorage.getItem('mossy_error_logs') || '[]');
+            console.log('[MOSSY] export_error_logs called, found', errorLogs.length, 'errors');
             
             if (errorLogs.length === 0) {
                 result = `**No error logs to export.** There haven't been any errors recorded yet.`;
@@ -1056,7 +1057,9 @@ For more help, visit: Settings > Diagnostic Tools > Run Diagnostics
                 const api = window.electron?.api || window.electronAPI;
                 if (api?.saveFile) {
                     try {
+                        console.log('[MOSSY] Calling api.saveFile with:', { filename, contentLength: reportContent.length });
                         const savedPath = await api.saveFile(reportContent, filename);
+                        console.log('[MOSSY] File saved successfully to:', savedPath);
                         result = `**✓ Error report saved!** The file has been saved to your **Downloads** folder as **${filename}**.
 
 **Report Contents:**
@@ -1067,7 +1070,8 @@ For more help, visit: Settings > Diagnostic Tools > Run Diagnostics
 
 You can now review it, share it with support, or keep it for reference.`;
                     } catch (e) {
-                        console.log('[MOSSY] Electron save failed, trying browser download');
+                        console.error('[MOSSY] Electron save failed:', e);
+                        console.log('[MOSSY] Falling back to browser download');
                         // Fall through to browser download
                         const blob = new Blob([reportContent], { type: 'text/plain' });
                         const url = URL.createObjectURL(blob);
@@ -1113,6 +1117,7 @@ Check your Downloads folder or the location where files are saved.`;
                 }
             }
         } catch (e) {
+            console.error('[MOSSY] export_error_logs caught error:', e);
             result = `**Export failed:** ${e instanceof Error ? e.message : 'Unknown error'}. The error logs may still be available in Settings > Privacy Settings > Export Mossy Error Logs.`;
         }
     } else if (name === 'execute_blender_script') {
