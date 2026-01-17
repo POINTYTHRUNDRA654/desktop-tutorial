@@ -410,7 +410,7 @@ export const executeMossyTool = async (name: string, args: any, context: {
         result = `Navigating to ${args.target}`;
     } else if (name === 'scan_hardware') {
         try {
-            console.log('[MOSSY SCAN] Starting hardware scan...');
+            console.log('[MOSSY SCAN] Starting universal program scan...');
             
             // Step 1: Check if detectPrograms exists
             console.log('[MOSSY SCAN] Step 1: Checking for detectPrograms function...');
@@ -429,118 +429,64 @@ export const executeMossyTool = async (name: string, args: any, context: {
             } else {
                 console.log('[MOSSY SCAN] ✓ detectPrograms function found');
                 
-                // Step 2: Call detectPrograms
+                // Step 2: Call detectPrograms (NO FILTERING - we want EVERYTHING)
                 console.log('[MOSSY SCAN] Step 2: Calling detectPrograms()...');
-                const apps = await detectPrograms();
-                console.log('[MOSSY SCAN] ✓ detectPrograms returned:', apps?.length || 0, 'programs');
+                const allApps = await detectPrograms();
+                console.log('[MOSSY SCAN] ✓ detectPrograms returned:', allApps?.length || 0, 'programs');
                 
-                const moddingKeywords = [
-                    'blender', 'creationkit', 'fo4edit', 'xedit', 'sseedit', 'tes5edit', 'fnvedit', 'tes4edit', 
-                    'modorganizer', 'vortex', 'nifskope', 'bodyslide', 'f4se', 'loot', 'wryebash', 'outfitstudio', 
-                    'archive2', 'gimp', 'photoshop', 'zedit', 'bae', 'pjm', 'bethini',
-                    'fallout', 'morrowind', 'oblivion', 'skyrim', 'starfield', 'game', 'mod'
-                ];
-                
-                // Step 3: Filter for modding tools
-                console.log('[MOSSY SCAN] Step 3: Filtering for modding tools...');
-                const moddingTools = (apps || []).filter((a: any) => 
-                    moddingKeywords.some(kw => (a.displayName || a.name || '').toLowerCase().includes(kw))
-                );
-                console.log('[MOSSY SCAN] ✓ Filtered to', moddingTools.length, 'modding tools');
-
-                // Step 4: Cache the results (limit to prevent localStorage overflow)
-                console.log('[MOSSY SCAN] Step 4: Caching results to localStorage...');
+                // Step 3: Store ALL detected programs for AI analysis
+                console.log('[MOSSY SCAN] Step 3: Storing all detected programs for analysis...');
                 try {
-                    // Store only essential fields to save space
-                    const minimalTools = moddingTools.slice(0, 500).map((t: any) => ({
-                        name: t.displayName || t.name,
-                        path: t.path,
-                        version: t.version
-                    }));
-                    localStorage.setItem('mossy_apps', JSON.stringify(minimalTools));
+                    // Store complete app list with all fields for AI analysis
+                    localStorage.setItem('mossy_all_detected_apps', JSON.stringify(allApps || []));
                     localStorage.setItem('mossy_last_scan', new Date().toISOString());
-                    console.log('[MOSSY SCAN] ✓ Results cached (stored', minimalTools.length, 'tools)');
+                    console.log('[MOSSY SCAN] ✓ All programs stored (total:', allApps?.length || 0, 'programs)');
                 } catch (storageError) {
                     console.warn('[MOSSY SCAN] ⚠️ Storage warning:', storageError);
                 }
 
-                // Step 5: Detect Fallout 4
-                console.log('[MOSSY SCAN] Step 5: Detecting Fallout 4 installations...');
-                const fallout4Apps = (moddingTools || []).filter((a: any) =>
-                    (a.displayName || a.name || '').toLowerCase().includes('fallout 4')
+                // Step 4: Identify Fallout 4 installations
+                console.log('[MOSSY SCAN] Step 4: Detecting Fallout 4 installations...');
+                const fallout4Keywords = ['fallout 4', 'fallout4', 'fo4'];
+                const fallout4Apps = (allApps || []).filter((a: any) =>
+                    fallout4Keywords.some(kw => (a.displayName || a.name || '').toLowerCase().includes(kw))
                 );
                 console.log('[MOSSY SCAN] ✓ Found', fallout4Apps.length, 'Fallout 4 installations');
+                
+                // Step 5: Create a summary of all programs grouped by type
+                console.log('[MOSSY SCAN] Step 5: Creating program summary...');
+                const programSummary = {
+                    totalPrograms: allApps?.length || 0,
+                    fallout4Installations: fallout4Apps.length,
+                    allPrograms: (allApps || []).map(a => ({
+                        name: a.displayName || a.name,
+                        path: a.path,
+                        version: a.version,
+                        publisher: a.publisher
+                    }))
+                };
+                localStorage.setItem('mossy_scan_summary', JSON.stringify(programSummary));
+                
                 console.log('[MOSSY SCAN] ✓ Scan complete!');
 
-                result = `[MOSSY] System scan complete. Analysis:
-- Total Tools Detected: ${moddingTools.length}
+                result = `[MOSSY] Universal system scan complete. I've catalogued your entire software ecosystem for intelligent integration analysis.
+
+📊 SCAN RESULTS:
+- Total Programs Detected: ${allApps?.length || 0}
 - Fallout 4 Installations: ${fallout4Apps.length}
-${fallout4Apps.length > 0 ? '\nFallout 4 Locations:\n' + fallout4Apps.map(a => `  • ${a.displayName || a.name}: ${a.path}`).join('\n') : ''}
+${fallout4Apps.length > 0 ? '\n🎮 FALLOUT 4 LOCATIONS:\n' + fallout4Apps.map(a => `  • ${a.displayName || a.name}: ${a.path}`).join('\n') : '\n⚠️ No Fallout 4 installation detected. Please install Fallout 4 for modding features.'}
 
-Directive complete, Architect. My neural matrix has been updated with your system configuration.`;
+💡 NEXT STEPS:
+I've analyzed all ${allApps?.length || 0} programs on your system. I can now intelligently suggest how each tool could integrate with Fallout 4 modding workflows. Ask me:
+- "What programs can I use to create textures?"
+- "Which of my installed tools could help with 3D modeling?"
+- "Show me all my available image editors"
+
+My neural matrix has been updated with your complete system profile. Ready for intelligent integration suggestions.`;
             }
-        } catch (err: any) {
-            const e = err;
-            console.error('[MOSSY SCAN] ❌ Error during scan:', e);
-            const errorMsg = e instanceof Error ? e.message : 'Unknown error';
-            const errorStack = e instanceof Error ? e.stack : '';
-            
-            // Determine which step failed and provide specific guidance
-            let stepFailed = 'Unknown';
-            let suggestion = '';
-            
-            if (errorStack?.includes('detectPrograms')) {
-                stepFailed = 'Program Detection (Step 2)';
-                suggestion = 'The system program scanner failed. This may indicate a permission issue or corrupted system registry.';
-            } else if (errorStack?.includes('JSON.stringify')) {
-                stepFailed = 'Data Storage (Step 4)';
-                suggestion = 'Too many programs detected (2,371 is a lot!). Storage quota exceeded. Clearing cache may help.';
-            } else if (errorStack?.includes('localStorage')) {
-                stepFailed = 'Local Storage (Step 4)';
-                suggestion = 'Your browser\'s local storage is full or disabled. Free up space or enable storage in Privacy Settings.';
-            } else {
-                stepFailed = errorMsg.substring(0, 100);
-                suggestion = 'An unexpected error occurred during the scan process.';
-            }
-            
-            // Log the error
-            const errorReport = await logMossyError(
-                'scan_hardware',
-                e,
-                { 
-                  detectProgramsAvailable: !!window.electron?.api?.detectPrograms,
-                  electronAPIAvailable: !!(window as any).electronAPI,
-                  stepFailed,
-                  errorMessage: errorMsg.substring(0, 200)
-                },
-                'User requested hardware scan',
-                suggestion
-            );
-            
-            // Give Mossy detailed error message for user
-            result = `**🔴 Hardware Scan Failed**
-
-**Error Location:** ${stepFailed}
-**Reason:** ${suggestion}
-
-**Error Details:** ${errorMsg.substring(0, 150)}
-
-**📋 Troubleshooting Steps:**
-1. **Check System APIs:** Go to **Settings > Diagnostic Tools** and click "Run All Checks"
-   - This shows which system APIs are available
-   
-2. **Test Program Detection:** In Diagnostic Tools, click "Test detectPrograms()" to see if basic detection works
-   
-3. **Clear Browser Cache:** Your browser cache may be corrupt. Try:
-   - Ctrl+Shift+Delete to open Clear Browsing Data
-   - Clear all data and reload
-   
-4. **Export Diagnostics:** Go to **Settings > Diagnostic Tools** and export the full diagnostic report
-   - Share this with your assistant for detailed diagnosis
-
-5. **Check Console Logs:** Open DevTools (F12) and look for **[MOSSY SCAN]** logs to see exactly where it failed
-
-Your error has been logged. You can export detailed logs from **Settings > Privacy Settings > Export Mossy Error Logs**.`;
+        } catch (error) {
+            console.error('[MOSSY SCAN] Error during scan:', error);
+            result = `Error during scan: ${error}`;
         }
     } else if (name === 'get_scan_results') {
         try {
@@ -579,6 +525,40 @@ I can now integrate with these tools to enhance my capabilities and provide you 
             }
         } catch (e: any) {
             result = `**Error retrieving scan results:** ${e instanceof Error ? e.message : 'Unknown error'}. Please run a fresh scan.`;
+        }
+    } else if (name === 'analyze_detected_programs') {
+        try {
+            // Get all detected programs from the universal scan
+            const allDetectedApps = JSON.parse(localStorage.getItem('mossy_all_detected_apps') || '[]');
+            const category = args?.category || 'all';
+            const findUsableFor = args?.findUsableFor || '';
+
+            if (!allDetectedApps || allDetectedApps.length === 0) {
+                result = `No program database available. Please run a **full system scan** first by asking me to "scan my system" or "detect all my programs".`;
+            } else {
+                // Categorize programs by intelligent analysis
+                const categorized = categorizeProgramsByFunction(allDetectedApps);
+                
+                // Filter by requested category
+                let filtered = allDetectedApps;
+                if (category !== 'all') {
+                    filtered = allDetectedApps.filter((app: any) => 
+                        categorizeProgramsByFunction([app])[0]?.category?.toLowerCase() === category.toLowerCase()
+                    );
+                }
+
+                // If looking for specific purpose, filter further
+                if (findUsableFor) {
+                    filtered = filtered.filter((app: any) => 
+                        matchProgramToPurpose(app, findUsableFor)
+                    );
+                }
+
+                const summary = buildProgramAnalysisSummary(filtered, category, findUsableFor, categorized);
+                result = summary;
+            }
+        } catch (e: any) {
+            result = `**Error analyzing programs:** ${e instanceof Error ? e.message : 'Unknown error'}`;
         }
     } else if (name === 'scan_installed_tools') {
         const api = (window as any).electron?.api || (window as any).electronAPI;
@@ -972,3 +952,123 @@ Check your Downloads folder or the location where files are saved.`;
 
     return { result };
 };
+/**
+ * Categorize programs by their likely function
+ */
+function categorizeProgramsByFunction(apps: any[]): any[] {
+    const categoryKeywords: { [key: string]: string[] } = {
+        '3D Modeling': ['blender', 'maya', '3dsmax', 'cinema4d', 'zbrush', 'sculptris', 'fusion360', '3d'],
+        'Texture Editing': ['photoshop', 'gimp', 'krita', 'clip studio', 'substance', 'affinity', 'paint', 'texturing'],
+        'Mesh Tools': ['meshlab', 'meshmixer', 'simplify3d', 'nifskope', 'nif'],
+        'Modding Tools': ['xedit', 'tes5edit', 'fo4edit', 'fo4xedit', 'creation kit', 'creationkit', 'loot', 'wrye bash', 'bodyslide', 'outfit studio'],
+        'Mod Managers': ['vortex', 'modorganizer', 'mo2', 'nmm', 'fomm'],
+        'Scripting': ['python', 'visual studio', 'vscode', 'sublime', 'notepad++', 'atom', 'code editor', 'ide'],
+        'Media': ['premiere', 'davinci', 'ffmpeg', 'handbrake', 'audacity', 'video', 'audio', 'media'],
+        'AI & ML': ['chatgpt', 'claude', 'gemini', 'copilot', 'ollama', 'neural', 'ai', 'llm', 'tensorflow', 'pytorch'],
+        'Utilities': ['7zip', 'winrar', 'total commander', 'everything', 'cleanup', 'optimization'],
+    };
+
+    return apps.map((app: any) => {
+        const appName = (app.displayName || app.name || '').toLowerCase();
+        let category = 'Other';
+        
+        for (const [cat, keywords] of Object.entries(categoryKeywords)) {
+            if (keywords.some(kw => appName.includes(kw))) {
+                category = cat;
+                break;
+            }
+        }
+        
+        return { ...app, category };
+    });
+}
+
+/**
+ * Match a program to a specific modding purpose
+ */
+function matchProgramToPurpose(app: any, purpose: string): boolean {
+    const appName = (app.displayName || app.name || '').toLowerCase();
+    const purposeLower = purpose.toLowerCase();
+    
+    const purposeKeywords: { [key: string]: string[] } = {
+        'texture': ['photoshop', 'gimp', 'krita', 'substance', 'texture', 'paint', 'affinity'],
+        '3d modeling': ['blender', 'maya', '3dsmax', 'cinema4d', '3d'],
+        'mesh': ['blender', 'meshlab', 'nifskope', 'mesh'],
+        'weight painting': ['blender', 'bodyslide', 'outfit'],
+        'scripting': ['python', 'visual studio', 'vscode', 'code', 'editor', 'ide'],
+        'modding': ['xedit', 'tes5', 'fo4edit', 'creation kit', 'loot', 'wrye'],
+        'mod management': ['vortex', 'organizer', 'nmm'],
+        'compression': ['7zip', 'winrar', 'archive'],
+        'video': ['premiere', 'davinci', 'ffmpeg', 'handbrake'],
+        'audio': ['audacity', 'reaper', 'ableton'],
+    };
+    
+    for (const [purpose, keywords] of Object.entries(purposeKeywords)) {
+        if (purposeLower.includes(purpose)) {
+            return keywords.some(kw => appName.includes(kw));
+        }
+    }
+    
+    // Fallback: just check if any keyword from the purpose appears in the app name
+    return appName.includes(purposeLower);
+}
+
+/**
+ * Build a comprehensive summary of program analysis
+ */
+function buildProgramAnalysisSummary(programs: any[], category: string, findUsableFor: string, categorized: any[]): string {
+    if (programs.length === 0) {
+        if (findUsableFor) {
+            return `❌ **No programs found** that could be used for "${findUsableFor}". Your current setup doesn't have a tool for this, but I can recommend one!`;
+        }
+        return `❌ **No programs found** in the "${category}" category.`;
+    }
+
+    const categoryBreakdown = categorized.reduce((acc: any, app: any) => {
+        if (!acc[app.category]) acc[app.category] = [];
+        acc[app.category].push(app);
+        return acc;
+    }, {});
+
+    let summary = `✅ **Program Analysis Complete - ${programs.length} Tools Found**\n\n`;
+
+    if (findUsableFor) {
+        summary += `**🎯 Tools for "${findUsableFor}":**\n\n`;
+        programs.forEach((p: any) => {
+            summary += `- **${p.displayName || p.name}**${p.version ? ` (v${p.version})` : ''}\n  📍 ${p.path}\n`;
+        });
+    } else if (category !== 'all') {
+        summary += `**Category: ${category}**\n\n`;
+        programs.forEach((p: any) => {
+            summary += `- **${p.displayName || p.name}**${p.version ? ` (v${p.version})` : ''}\n`;
+        });
+    } else {
+        summary += `**📊 All Programs by Category:**\n\n`;
+        Object.entries(categoryBreakdown).forEach(([cat, apps]: [string, any]) => {
+            summary += `**${cat}** (${apps.length})\n`;
+            apps.slice(0, 5).forEach((app: any) => {
+                summary += `  - ${app.displayName || app.name}\n`;
+            });
+            if (apps.length > 5) {
+                summary += `  ... and ${apps.length - 5} more\n`;
+            }
+            summary += '\n';
+        });
+    }
+
+    summary += `\n💡 **Integration Tips:**\n`;
+    if (programs.some((p: any) => (p.displayName || p.name).toLowerCase().includes('blender'))) {
+        summary += `- Use **Blender** for 3D asset creation and weight painting\n`;
+    }
+    if (programs.some((p: any) => (p.displayName || p.name).toLowerCase().includes('xedit') || (p.displayName || p.name).toLowerCase().includes('fo4edit'))) {
+        summary += `- Use **xEdit/FO4Edit** for modifying ESPs and handling conflicts\n`;
+    }
+    if (programs.some((p: any) => (p.displayName || p.name).toLowerCase().includes('photoshop') || (p.displayName || p.name).toLowerCase().includes('gimp') || (p.displayName || p.name).toLowerCase().includes('krita'))) {
+        summary += `- Use your image editor for texture creation and enhancement\n`;
+    }
+    if (programs.some((p: any) => (p.displayName || p.name).toLowerCase().includes('vortex') || (p.displayName || p.name).toLowerCase().includes('organizer'))) {
+        summary += `- Use your mod manager to test and organize your mods\n`;
+    }
+
+    return summary;
+}
