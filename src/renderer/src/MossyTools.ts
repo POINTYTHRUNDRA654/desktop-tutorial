@@ -482,18 +482,64 @@ Directive complete, Architect. My neural matrix has been updated with your syste
         } catch (e) {
             console.error('[MOSSY SCAN] ❌ Error during scan:', e);
             const errorMsg = e instanceof Error ? e.message : 'Unknown error';
+            const errorStack = e instanceof Error ? e.stack : '';
+            
+            // Determine which step failed and provide specific guidance
+            let stepFailed = 'Unknown';
+            let suggestion = '';
+            
+            if (errorStack?.includes('detectPrograms')) {
+                stepFailed = 'Program Detection (Step 2)';
+                suggestion = 'The system program scanner failed. This may indicate a permission issue or corrupted system registry.';
+            } else if (errorStack?.includes('JSON.stringify')) {
+                stepFailed = 'Data Storage (Step 4)';
+                suggestion = 'Too many programs detected (2,371 is a lot!). Storage quota exceeded. Clearing cache may help.';
+            } else if (errorStack?.includes('localStorage')) {
+                stepFailed = 'Local Storage (Step 4)';
+                suggestion = 'Your browser\'s local storage is full or disabled. Free up space or enable storage in Privacy Settings.';
+            } else {
+                stepFailed = errorMsg.substring(0, 100);
+                suggestion = 'An unexpected error occurred during the scan process.';
+            }
+            
+            // Log the error
             const errorReport = await logMossyError(
                 'scan_hardware',
                 e,
                 { 
                   detectProgramsAvailable: !!window.electron?.api?.detectPrograms,
                   electronAPIAvailable: !!(window as any).electronAPI,
-                  consoleErrorsAbove: 'Check console (F12) for [MOSSY SCAN] debug logs'
+                  stepFailed,
+                  errorMessage: errorMsg.substring(0, 200)
                 },
                 'User requested hardware scan',
-                'Check Diagnostic Tools (Settings > Diagnostic Tools) to verify all APIs are available'
+                suggestion
             );
-            result = getErrorReport('scan_hardware', errorReport.filename);
+            
+            // Give Mossy detailed error message for user
+            result = `**🔴 Hardware Scan Failed**
+
+**Error Location:** ${stepFailed}
+**Reason:** ${suggestion}
+
+**Error Details:** ${errorMsg.substring(0, 150)}
+
+**📋 Troubleshooting Steps:**
+1. **Check System APIs:** Go to **Settings > Diagnostic Tools** and click "Run All Checks"
+   - This shows which system APIs are available
+   
+2. **Test Program Detection:** In Diagnostic Tools, click "Test detectPrograms()" to see if basic detection works
+   
+3. **Clear Browser Cache:** Your browser cache may be corrupt. Try:
+   - Ctrl+Shift+Delete to open Clear Browsing Data
+   - Clear all data and reload
+   
+4. **Export Diagnostics:** Go to **Settings > Diagnostic Tools** and export the full diagnostic report
+   - Share this with your assistant for detailed diagnosis
+
+5. **Check Console Logs:** Open DevTools (F12) and look for **[MOSSY SCAN]** logs to see exactly where it failed
+
+Your error has been logged. You can export detailed logs from **Settings > Privacy Settings > Export Mossy Error Logs**.`;
         }
     } else if (name === 'scan_installed_tools') {
         const api = (window as any).electron?.api || (window as any).electronAPI;
