@@ -289,16 +289,16 @@ export const LiveProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     await deleteImageFromDB('mossy_avatar_custom');
   };
 
-  const disconnect = (manual = false) => {
+  const disconnect = (manual = false, shouldClearBuffer = true) => {
     console.log('[LiveContext] Disconnecting...');
     manualDisconnectRef.current = manual;
     isConnectingRef.current = false;
     sessionReadyRef.current = false;
 
-    // Clear live session buffer only if manually disconnecting
-    // On auto-reconnect (interrupts), keep the buffer for context continuity
-    if (manual) {
-      console.log('[LiveContext] Manual disconnect - clearing live session buffer');
+    // Clear live session buffer only on user-initiated disconnect
+    // Keep buffer on error-based disconnects for context recovery
+    if (shouldClearBuffer) {
+      console.log('[LiveContext] Clearing live session buffer');
       liveSessionMessages.current = [];
     }
 
@@ -764,7 +764,7 @@ DO NOT say "I cannot integrate" - you CAN by launching programs and providing ex
                 console.log('[LiveContext] Clean close (1000) detected; stopping auto-reconnect');
                 manualDisconnectRef.current = true;
                 setStatus('Link closed. Tap Connect to resume.');
-                disconnect(true);
+                disconnect(true, true); // Clear buffer on user-initiated close
                 reject(new Error(`Session closed (clean): ${ev.reason || ''}`));
                 return;
               }
@@ -774,13 +774,13 @@ DO NOT say "I cannot integrate" - you CAN by launching programs and providing ex
                 console.log('[LiveContext] Quota/1011 error detected; pausing auto-reconnect');
                 manualDisconnectRef.current = true;
                 setStatus('Quota exceeded; please wait or switch model. Auto-reconnect paused.');
-                disconnect(true);
+                disconnect(true, false); // Preserve buffer on quota error
                 reject(new Error(`Session closed (quota): ${ev.reason || ''}`));
                 return;
               }
               
               console.log('[LiveContext] Unexpected close code:', ev.code, '- scheduling reconnect');
-              disconnect();
+              disconnect(false, false); // Preserve buffer on unexpected errors
               scheduleReconnect(reason || 'unknown-close');
               reject(new Error(`Session closed: ${ev.reason}`));
             },
@@ -795,13 +795,13 @@ DO NOT say "I cannot integrate" - you CAN by launching programs and providing ex
               if (err?.message && /quota/i.test(err.message)) {
                 manualDisconnectRef.current = true;
                 setStatus('Quota exceeded; please wait or switch model. Auto-reconnect paused.');
-                disconnect(true);
+                disconnect(true, false); // Preserve buffer on quota error
                 reject(err);
                 return;
               }
               
               setStatus(`Connection Lost: ${err?.message || 'Unknown error'}`);
-              disconnect();
+              disconnect(false, false); // Preserve buffer on errors
               // If socket already closed cleanly, don't auto-retry
               if (err?.message && /CLOSING or CLOSED/i.test(err.message)) {
                 manualDisconnectRef.current = true;
@@ -969,7 +969,7 @@ DO NOT say "I cannot integrate" - you CAN by launching programs and providing ex
           }
         }).catch((err) => {
           console.error('[LiveContext] Session start fail:', err);
-          disconnect();
+          disconnect(false, false); // Preserve buffer on connection errors
           scheduleReconnect(err?.message || 'connect-failed');
           reject(err);
         });
@@ -979,7 +979,7 @@ DO NOT say "I cannot integrate" - you CAN by launching programs and providing ex
         setStatus('Error: ' + err.message);
         setMode('idle');
         setLiveActive(false);
-        disconnect();
+        disconnect(false, false); // Preserve buffer on connection errors
         scheduleReconnect(err?.message || 'connect-error');
         reject(err);
       }
