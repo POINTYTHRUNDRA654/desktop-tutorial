@@ -178,6 +178,33 @@ function createWindow() {
  * Setup IPC handlers for renderer communication
  */
 function setupIpcHandlers() {
+  // Check if Blender Mossy Link add-on is running
+  ipcMain.handle('check-blender-addon', async (_event) => {
+    try {
+      const net = require('net');
+      return new Promise((resolve) => {
+        const socket = new net.Socket();
+        const timeout = setTimeout(() => {
+          socket.destroy();
+          resolve({ connected: false, error: 'Connection timeout' });
+        }, 1000);
+        
+        socket.connect(9999, '127.0.0.1', () => {
+          clearTimeout(timeout);
+          socket.destroy();
+          resolve({ connected: true, port: 9999 });
+        });
+        
+        socket.on('error', () => {
+          clearTimeout(timeout);
+          resolve({ connected: false, error: 'Blender add-on not listening on port 9999' });
+        });
+      });
+    } catch (err: any) {
+      return { connected: false, error: err.message };
+    }
+  });
+
   // PDF parsing handler (runs in main process with Node.js)
   ipcMain.handle('parse-pdf', async (_event, arrayBuffer: ArrayBuffer) => {
     try {
