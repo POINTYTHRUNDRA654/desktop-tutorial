@@ -692,6 +692,7 @@ export const ChatInterface: React.FC = () => {
       if (formalSettings) {
           const s = formalSettings;
           settingsCtx = "\n**USER OVERRIDE SETTINGS (HIGHEST PRIORITY):**\n" +
+            (s.fallout4Path ? `- **Fallout 4 Game Folder:** ${s.fallout4Path}\n` : "") +
             (s.mo2Path ? `- MO2/ModOrganizer: ${s.mo2Path}\n` : "") +
             (s.xeditPath ? `- FO4Edit/XEdit: ${s.xeditPath}\n` : "") +
             (s.wryeBashPath ? `- Wrye Bash: ${s.wryeBashPath}\n` : "") +
@@ -703,11 +704,28 @@ export const ChatInterface: React.FC = () => {
             (s.blenderPath ? `- Blender: ${s.blenderPath}\n` : "");
       }
 
+      // Extract ALL Fallout 4 game paths from detected apps (user may have multiple installations)
+      const fallout4Apps = (detectedApps || []).filter((a: any) => 
+        a.name.toLowerCase().includes('fallout 4') || 
+        a.displayName?.toLowerCase().includes('fallout 4') ||
+        a.path?.toLowerCase().includes('fallout 4')
+      );
+      const gameFolderInfo = fallout4Apps.length > 0
+        ? `\n**FALLOUT 4 INSTALLATIONS (${fallout4Apps.length} found):**\n` + 
+          fallout4Apps.map((app: any, idx: number) => {
+            const driveLetter = app.path?.charAt(0).toUpperCase() || '?';
+            const installType = app.path?.toLowerCase().includes('steam') ? '[STEAM]' :
+                               app.path?.toLowerCase().includes('gog') ? '[GOG]' :
+                               app.path?.toLowerCase().includes('xbox') || app.path?.toLowerCase().includes('microsoft') ? '[XBOX/MS STORE]' : '';
+            return `  ${idx + 1}. ${installType} ${driveLetter}: drive - ${app.path}\n     Data folder: ${app.path}\\Data`;
+          }).join('\n')
+        : "\n**FALLOUT 4 NOT DETECTED** - User may need to manually specify game folder in External Tools Settings.";
+
       return `
       **DYNAMIC SYSTEM CONTEXT:**
       **Desktop Bridge:** ${bridgeStatus}
       ${blenderContext}
-      ${settingsCtx}
+      ${settingsCtx}${gameFolderInfo}
       **Short-Term Working Memory:** ${workingMemory}
       **Project Status:** ${projectData ? projectData.name : "None"}${modContext}
       **Detected Tools:** ${(detectedApps || []).filter(a => a.path).map(a => `${a.name} [ID: ${a.id}] (Path: ${a.path})`).join(', ') || "None"}

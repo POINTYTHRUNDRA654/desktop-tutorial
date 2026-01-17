@@ -412,10 +412,17 @@ export const executeMossyTool = async (name: string, args: any, context: {
         const api = (window as any).electron?.api || (window as any).electronAPI;
         if (bridgeActive || api?.getSystemInfo) {
             try {
+                // Get detected programs
+                const apps = api.detectPrograms ? await api.detectPrograms() : [];
                 const info = await api.getSystemInfo();
                 
                 // Update mossy_apps cache with a merge logic to avoid wiping manual entries
                 const existingApps = JSON.parse(localStorage.getItem('mossy_apps') || '[]');
+                
+                const moddingKeywords = [
+                    'blender', 'creationkit', 'fo4edit', 'xedit', 'modorganizer', 'vortex', 'nifskope', 
+                    'bodyslide', 'f4se', 'loot', 'wryebash', 'fallout', 'bethesda'
+                ];
                 
                 const moddingTools = apps.filter((a: any) => moddingKeywords.some(kw => a.displayName.toLowerCase().includes(kw)))
                     .map((t: any) => ({
@@ -425,7 +432,8 @@ export const executeMossyTool = async (name: string, args: any, context: {
                         path: t.path,
                         version: t.version,
                         checked: true,
-                        category: t.displayName.toLowerCase().includes('blender') ? '3D' : 'Tool'
+                        category: t.displayName.toLowerCase().includes('blender') ? '3D' : 
+                                 t.displayName.toLowerCase().includes('fallout') ? 'Game' : 'Tool'
                     }));
 
                 // Merge: Keep existing if name/path matches, but prioritize the one with a non-system drive
