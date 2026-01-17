@@ -180,6 +180,7 @@ const TheAuditor: React.FC = () => {
             console.log('Analyzing file:', f.name, 'Type:', f.name.split('.').pop());
             const newIssues: AuditIssue[] = [];
             let status: ModFile['status'] = 'clean';
+            let fileSize = f.size; // Keep existing size as default
 
             if (f.name.endsWith('.esp') || f.name.endsWith('.esm')) {
                 try {
@@ -190,12 +191,21 @@ const TheAuditor: React.FC = () => {
                         const result = await bridge.analyzeEsp(f.path);
                         console.log('ESP analysis result:', result);
                         
-                        if (result.success && result.issues) {
-                            newIssues.push(...result.issues);
-                            if (newIssues.some(i => i.severity === 'error')) {
-                                status = 'error';
-                            } else if (newIssues.length > 0) {
-                                status = 'warning';
+                        if (result.success) {
+                            // Update file size from analysis
+                            if (result.fileSize) {
+                                fileSize = `${(result.fileSize / 1024 / 1024).toFixed(2)} MB`;
+                            }
+                            
+                            if (result.issues && result.issues.length > 0) {
+                                newIssues.push(...result.issues);
+                                if (newIssues.some(i => i.severity === 'error')) {
+                                    status = 'error';
+                                } else {
+                                    status = 'warning';
+                                }
+                            } else {
+                                status = 'clean';
                             }
                         } else if (!result.success) {
                             newIssues.push({
@@ -237,6 +247,12 @@ const TheAuditor: React.FC = () => {
                     const bridge = (window as any).electron?.api || (window as any).electronAPI;
                     if (bridge?.workshopReadNifInfo && f.path) {
                         const nifInfo = await bridge.workshopReadNifInfo(f.path);
+                        
+                        // Update file size if returned
+                        if (nifInfo.fileSize) {
+                            fileSize = `${(nifInfo.fileSize / 1024).toFixed(2)} KB`;
+                        }
+                        
                         if (nifInfo.success && nifInfo.data) {
                             // Check vertex count (>100k = performance issue)
                             if (nifInfo.data.vertexCount > 100000) {
@@ -297,6 +313,12 @@ const TheAuditor: React.FC = () => {
                     const bridge = (window as any).electron?.api || (window as any).electronAPI;
                     if (bridge?.vaultGetDdsDimensions && f.path) {
                         const ddsInfo = await bridge.vaultGetDdsDimensions(f.path);
+                        
+                        // Update file size if returned
+                        if (ddsInfo.fileSize) {
+                            fileSize = `${(ddsInfo.fileSize / 1024).toFixed(2)} KB`;
+                        }
+                        
                         if (ddsInfo.success && ddsInfo.data) {
                             const { width, height, format } = ddsInfo.data;
                             const resolution = width * height;
@@ -358,7 +380,7 @@ const TheAuditor: React.FC = () => {
                 status = 'clean';
             }
 
-            return { ...f, issues: newIssues, status };
+            return { ...f, issues: newIssues, status, size: fileSize };
         }));
 
         console.log('Updated files after analysis:', updatedFiles);
