@@ -202,7 +202,7 @@ export const toolDeclarations: FunctionDeclaration[] = [
                     enum: ['low', 'medium', 'high'],
                     description: 'Priority level for this step.' 
                 },
-                estimatedHours: { type: Type.DOUBLE, description: 'Estimated hours needed to complete this step.' }
+                estimatedHours: { type: Type.NUMBER, description: 'Estimated hours needed to complete this step.' }
             },
             required: ['projectId', 'title']
         }
@@ -221,7 +221,7 @@ export const toolDeclarations: FunctionDeclaration[] = [
                     description: 'The new status for this step.' 
                 },
                 notes: { type: Type.STRING, description: 'Add notes or comments about the step progress.' },
-                actualHours: { type: Type.DOUBLE, description: 'Hours actually spent on this step (updates when step is completed).' }
+                actualHours: { type: Type.NUMBER, description: 'Hours actually spent on this step (updates when step is completed).' }
             },
             required: ['projectId', 'stepId']
         }
