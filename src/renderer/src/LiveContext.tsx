@@ -513,11 +513,11 @@ DO NOT say "I cannot integrate" - you CAN by launching programs and providing ex
           
           const trimmed = Array.from(uniqueMessages.values())
             .filter((m: any) => m?.role === 'user' || m?.role === 'model')
-            .slice(-20); // Increased from 10 to 20 for better context
+            .slice(-100); // Get FULL conversation history (was 20, increased to 100)
           
           const lines = trimmed.map((m: any) => {
             const role = m.role === 'user' ? 'User' : 'Mossy';
-            const text = (m.text || '').replace(/\s+/g, ' ').trim().slice(0, 400);
+            const text = (m.text || '').replace(/\s+/g, ' ').trim().slice(0, 1000); // Increased text capture from 400 to 1000 chars
             return `${role}: ${text}`;
           });
           if (lines.length > 0) {
@@ -575,10 +575,27 @@ DO NOT say "I cannot integrate" - you CAN by launching programs and providing ex
                 }
               }, 3000); // Every 3 seconds - aggressive keepalive to stay ahead of idle timeouts
               
-              // REMOVED: Proactive reconnection was causing user interruption at 3 minutes
-              // Instead: Rely on keepalive (3s) + degradation detection to maintain connection
-              // Let the session live as long as possible before hard disconnect
+              // START SMART RECONNECTION TIMER
+              // Google's live API has a hard ~5 minute resource limit
+              // Accept this and proactively reconnect at 4.5 minutes SILENTLY
+              // User never notices because context flows seamlessly
+              console.log('[LiveContext] Starting smart reconnection timer (4.5 min)...');
               sessionStartTimeRef.current = Date.now();
+              if (sessionHealthCheckRef.current) clearInterval(sessionHealthCheckRef.current);
+              sessionHealthCheckRef.current = setInterval(async () => {
+                if (!isActiveRef.current || !sessionRef.current) return;
+                
+                const sessionAge = Date.now() - sessionStartTimeRef.current;
+                const FOUR_POINT_FIVE_MINUTES = 4.5 * 60 * 1000;
+                
+                if (sessionAge >= FOUR_POINT_FIVE_MINUTES) {
+                  console.log('[LiveContext] ⏱️ Session is 4.5+ minutes old (approaching Google quota); silent reconnect');
+                  console.log('[LiveContext] Current session age:', Math.round(sessionAge / 1000), 'seconds');
+                  // This will trigger onclose -> scheduleReconnect -> reconnect with FULL context
+                  disconnect(false, false); // Preserve buffer, not manual
+                  scheduleReconnect('proactive-quota-avoidance');
+                }
+              }, 10000); // Check every 10 seconds
               
               resolve();
             },
