@@ -108,7 +108,7 @@ export const toolDeclarations: FunctionDeclaration[] = [
     },
     {
         name: 'get_error_report',
-        description: 'Retrieve and display the most recent error report that was logged when a scan or operation failed. Use this when the user asks "what went wrong" or "show me the error".',
+        description: 'Retrieve and display the most recent error report that was logged when a scan or operation failed. Use this when the user asks "what went wrong", "show me the error", or wants to see diagnostic information. This will display the error message with troubleshooting steps.',
         parameters: {
             type: Type.OBJECT,
             properties: {}
@@ -116,7 +116,7 @@ export const toolDeclarations: FunctionDeclaration[] = [
     },
     {
         name: 'export_error_logs',
-        description: 'Export all error logs as a downloadable file that the user can read and reference later. Use this when the user asks for the error report, wants to save it, or needs to reference it.',
+        description: 'Export all error logs as a downloadable file. Use this when the user explicitly asks to "download", "export", or "save" the error report. This creates a .txt file the user can open later.',
         parameters: {
             type: Type.OBJECT,
             properties: {}
