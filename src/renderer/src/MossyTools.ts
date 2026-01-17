@@ -712,7 +712,25 @@ TROUBLESHOOTING STEPS
 For more help, visit: Settings > Diagnostic Tools > Run Diagnostics
 `;
                 
-                // Create and trigger download
+                // Try to use Electron API to save file
+                const api = window.electron?.api || window.electronAPI;
+                if (api?.saveFile) {
+                    try {
+                        const savedPath = await api.saveFile(reportContent, filename);
+                        result = `**✓ Error report saved!** The file **${filename}** has been saved to your system. You can now review it at your own pace.
+
+**Report Contents:**
+- Latest error with full details
+- All previous errors (${errorLogs.length - 1} additional)
+- Suggested fixes and troubleshooting steps
+- System context information`;
+                        return;
+                    } catch (e) {
+                        console.log('[MOSSY] Electron save failed, trying browser download');
+                    }
+                }
+                
+                // Fallback: Create and trigger browser download
                 const blob = new Blob([reportContent], { type: 'text/plain' });
                 const url = URL.createObjectURL(blob);
                 const a = document.createElement('a');
@@ -723,7 +741,7 @@ For more help, visit: Settings > Diagnostic Tools > Run Diagnostics
                 document.body.removeChild(a);
                 URL.revokeObjectURL(url);
                 
-                result = `**✓ Error report exported!** The file **${filename}** has been saved to your Downloads folder. You can now review it at your own pace.
+                result = `**✓ Error report exported!** The file **${filename}** has been saved. You can now review it at your own pace.
 
 **Report Contents:**
 - Latest error with full details
@@ -731,10 +749,10 @@ For more help, visit: Settings > Diagnostic Tools > Run Diagnostics
 - Suggested fixes and troubleshooting steps
 - System context information
 
-Open the file in any text editor to read the complete diagnostic report.`;
+Check your Downloads folder or the location where files are saved.`;
             }
         } catch (e) {
-            result = `**Export failed:** ${e instanceof Error ? e.message : 'Unknown error'}. Please try again.`;
+            result = `**Export failed:** ${e instanceof Error ? e.message : 'Unknown error'}. The error logs may still be available in Settings > Privacy Settings > Export Mossy Error Logs.`;
         }
     } else if (name === 'execute_blender_script') {
         const bridgeActive = localStorage.getItem('mossy_bridge_active') === 'true' || true; // Native bridge is now always active
