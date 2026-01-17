@@ -1142,34 +1142,58 @@ export const ChatInterface: React.FC = () => {
       console.log("[Mossy] Starting Content Stream...");
       const streamResult = await model.generateContentStream({ contents });
       
-      for await (const chunk of streamResult.stream) {
-          if (abortControllerRef.current?.signal.aborted) break;
-          
-          let chunkText = "";
-          try {
-              chunkText = chunk.text();
-              aiResponseText += chunkText;
-              updateUI();
-          } catch (e) {
-              // Not a text chunk (likely a function call)
-          }
-          
-          const calls = chunk.functionCalls();
-          if (calls && calls.length > 0) {
-              for (const call of calls) {
-                  console.log("[Mossy] Executing Tool:", call.name);
-                  const toolResponse = await executeTool(call.name, call.args);
-                  const result = toolResponse?.result || toolResponse; // Extract result property
+      try {
+          for await (const chunk of streamResult.stream) {
+              if (abortControllerRef.current?.signal.aborted) break;
+              
+              try {
+                  let chunkText = "";
+                  try {
+                      chunkText = chunk.text();
+                      aiResponseText += chunkText;
+                      updateUI();
+                  } catch (e) {
+                      // Not a text chunk (likely a function call)
+                  }
                   
-                  aiResponseText += `\n\n[System: Executed ${call.name}]\n`;
-                  setMessages(prev => prev.map(m => m.id === streamId ? { 
-                      ...m, 
-                      toolCall: { toolName: call.name, args: call.args },
-                      toolResult: result 
-                  } : m));
-                  updateUI();
+                  const calls = chunk.functionCalls();
+                  if (calls && calls.length > 0) {
+                      for (const call of calls) {
+                          try {
+                              console.log("[Mossy] Executing Tool:", call.name);
+                              const toolResponse = await executeTool(call.name, call.args);
+                              const result = toolResponse?.result || toolResponse; // Extract result property
+                              
+                              aiResponseText += `\n\n[System: Executed ${call.name}]\n`;
+                              setMessages(prev => prev.map(m => m.id === streamId ? { 
+                                  ...m, 
+                                  toolCall: { toolName: call.name, args: call.args },
+                                  toolResult: result 
+                              } : m));
+                              updateUI();
+                          } catch (toolError: any) {
+                              console.error("[Mossy] Tool execution error:", toolError);
+                              const errorMsg = toolError instanceof Error ? toolError.message : String(toolError);
+                              aiResponseText += `\n\n[System: Tool ${call.name} failed - ${errorMsg}]\n`;
+                              setMessages(prev => prev.map(m => m.id === streamId ? { 
+                                  ...m, 
+                                  toolCall: { toolName: call.name, args: call.args },
+                                  toolResult: `Error executing ${call.name}: ${errorMsg}` 
+                              } : m));
+                              updateUI();
+                          }
+                      }
+                  }
+              } catch (chunkError: any) {
+                  console.error("[Mossy] Chunk processing error (continuing stream):", chunkError);
+                  // Continue processing remaining chunks instead of crashing
               }
           }
+      } catch (streamError: any) {
+          console.error("[Mossy] Stream error:", streamError);
+          const streamErrMsg = streamError instanceof Error ? streamError.message : String(streamError);
+          aiResponseText += `\n\n[Stream interrupted: ${streamErrMsg}]`;
+          updateUI();
       }
 
       if (isVoiceEnabled && aiResponseText) speakText(aiResponseText);
