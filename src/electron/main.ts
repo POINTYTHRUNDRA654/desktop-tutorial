@@ -1703,23 +1703,21 @@ function setupIpcHandlers() {
   // Save file handler (with save dialog)
   ipcMain.handle('save-file', async (_event, content: string, filename: string) => {
     try {
-      const { filePath } = await dialog.showSaveDialog({
-        defaultPath: path.join(os.homedir(), 'Downloads', filename),
-        filters: [
-          { name: 'Text Files', extensions: ['txt'] },
-          { name: 'All Files', extensions: ['*'] },
-        ],
-      });
-
-      if (filePath) {
-        fs.writeFileSync(filePath, content, 'utf-8');
-        console.log('[SaveFile] File saved to:', filePath);
-        return filePath;
-      } else {
-        throw new Error('Save dialog cancelled');
+      // Default to Downloads folder first (silent, no dialog)
+      const downloadsPath = path.join(os.homedir(), 'Downloads');
+      const filePath = path.join(downloadsPath, filename);
+      
+      // Ensure Downloads folder exists
+      if (!fs.existsSync(downloadsPath)) {
+        fs.mkdirSync(downloadsPath, { recursive: true });
       }
+      
+      // Write file directly to Downloads
+      fs.writeFileSync(filePath, content, 'utf-8');
+      console.log('[SaveFile] File saved directly to:', filePath);
+      return filePath;
     } catch (err: any) {
-      console.error('File save error:', err);
+      console.error('[SaveFile] Error:', err);
       throw new Error(err?.message || 'Failed to save file');
     }
   });
