@@ -513,11 +513,11 @@ DO NOT say "I cannot integrate" - you CAN by launching programs and providing ex
           
           const trimmed = Array.from(uniqueMessages.values())
             .filter((m: any) => m?.role === 'user' || m?.role === 'model')
-            .slice(-20); // Increased from 10 to 20 for better context
+            .slice(-100); // Get FULL conversation history (was 20, increased to 100)
           
           const lines = trimmed.map((m: any) => {
             const role = m.role === 'user' ? 'User' : 'Mossy';
-            const text = (m.text || '').replace(/\s+/g, ' ').trim().slice(0, 400);
+            const text = (m.text || '').replace(/\s+/g, ' ').trim().slice(0, 1000); // Increased text capture from 400 to 1000 chars
             return `${role}: ${text}`;
           });
           if (lines.length > 0) {
@@ -557,27 +557,13 @@ DO NOT say "I cannot integrate" - you CAN by launching programs and providing ex
               lastActivityRef.current = Date.now();
               sessionReadyRef.current = true;
               
-              // START KEEPALIVE MECHANISM to prevent disconnection during long operations
-              console.log('[LiveContext] Starting keepalive mechanism...');
-              if (keepaliveRef.current) clearInterval(keepaliveRef.current);
-              keepaliveRef.current = setInterval(async () => {
-                if (!sessionRef.current || !sessionReadyRef.current) return;
-                if (typeof sessionRef.current.send !== 'function') {
-                  // Some SDK builds expose sendRealtimeInput only; skip keepalive instead of forcing reconnect.
-                  return;
-                }
-                try {
-                  await sessionRef.current.send([{ text: '[SYSTEM] Keepalive signal' }]);
-                  lastActivityRef.current = Date.now();
-                } catch (err) {
-                  console.warn('[LiveContext] Keepalive signal failed (connection may be closing):', err);
-                  scheduleReconnect('keepalive-failed');
-                }
-              }, 3000); // Every 3 seconds - aggressive keepalive to stay ahead of idle timeouts
+              // DISABLED KEEPALIVE: These artificial ping messages were likely interfering with Google's API
+              // The API has its own keep-alive; adding ours on top was causing issues
+              // Let the connection work naturally - if it dies, we reconnect gracefully
               
-              // REMOVED: Proactive reconnection was causing user interruption at 3 minutes
-              // Instead: Rely on keepalive (3s) + degradation detection to maintain connection
-              // Let the session live as long as possible before hard disconnect
+              // DISABLED PROACTIVE RECONNECT: Forcing disconnect at 4.5 min was interrupting user
+              // New strategy: Let Google close the connection naturally, then immediately reconnect
+              // This way the timing is based on actual session limits, not arbitrary timers
               sessionStartTimeRef.current = Date.now();
               
               resolve();
