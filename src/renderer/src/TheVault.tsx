@@ -115,7 +115,7 @@ const TheVault: React.FC = () => {
         if (['nif', 'fbx', 'obj'].includes(ext)) return 'mesh';
         if (['dds', 'png', 'tga', 'jpg', 'jpeg'].includes(ext)) return 'texture';
         if (['wav', 'mp3', 'ogg', 'xwm'].includes(ext)) return 'audio';
-        if (['psc', 'pex'].includes(ext)) return 'script';
+        if (['psc', 'pex', 'bat', 'cmd'].includes(ext)) return 'script';
         if (['swf', 'psd', 'ai', 'fla'].includes(ext)) return 'ui';
         return 'mesh';
     };
@@ -123,10 +123,15 @@ const TheVault: React.FC = () => {
     const targetFor = (type: AssetType, filename: string) => {
         const base = filename.replace(/\\/g, '/').split('/').pop() || filename;
         const stem = base.includes('.') ? base.slice(0, base.lastIndexOf('.')) : base;
+        const ext = base.toLowerCase().split('.').pop() || '';
         if (type === 'mesh') return `${presets.meshesBase}/${stem}.nif`;
         if (type === 'texture') return `${presets.texturesBase}/${stem}.dds`;
         if (type === 'audio') return `${presets.audioBase}/${presets.voiceProject}/${stem}.xwm`;
-        if (type === 'script') return `${presets.scriptsBase}/${stem}.pex`;
+        if (type === 'script') {
+            // Keep .bat/.cmd files as-is
+            if (['bat', 'cmd'].includes(ext)) return `${presets.scriptsBase}/${base}`;
+            return `${presets.scriptsBase}/${stem}.pex`;
+        }
         return `${presets.uiBase}/${stem}.swf`;
     };
 
@@ -286,6 +291,20 @@ const TheVault: React.FC = () => {
         const incoming: Asset[] = [];
         Array.from(fileList).forEach(file => {
             const type = guessType(file.name);
+            const ext = file.name.toLowerCase().split('.').pop() || '';
+            let issues: string[] = [];
+            if (type === 'texture') issues = ['Compression not validated'];
+            else if (type === 'audio') issues = ['Normalize to -16 LUFS before encode'];
+            else if (type === 'script') {
+                if (['bat', 'cmd'].includes(ext)) {
+                    issues = ['Ready for knowledge ingestion'];
+                } else {
+                    issues = ['Compile path not set'];
+                }
+            }
+            else if (type === 'ui') issues = ['Export to SWF pending'];
+            else issues = ['Collision not validated'];
+            
             incoming.push({
                 id: `${type}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
                 name: file.name,
@@ -297,7 +316,7 @@ const TheVault: React.FC = () => {
                 tags: [type],
                 staged: false,
                 lastVerified: 'Not run',
-                issues: type === 'texture' ? ['Compression not validated'] : type === 'audio' ? ['Normalize to -16 LUFS before encode'] : type === 'script' ? ['Compile path not set'] : type === 'ui' ? ['Export to SWF pending'] : ['Collision not validated'],
+                issues,
                 lastRun: ''
             });
         });
@@ -670,6 +689,7 @@ const TheVault: React.FC = () => {
                             ref={fileInputRef}
                             type="file"
                             multiple
+                            accept=".nif,.fbx,.obj,.dds,.png,.tga,.jpg,.jpeg,.wav,.mp3,.ogg,.xwm,.psc,.pex,.bat,.cmd,.swf,.psd,.ai,.fla"
                             className="hidden"
                             onChange={handleFileChange}
                         />
