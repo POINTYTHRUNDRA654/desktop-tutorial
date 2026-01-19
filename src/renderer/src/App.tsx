@@ -217,7 +217,7 @@ const App: React.FC = () => {
                 <Route path="/lore" element={<Lorekeeper />} />
                 <Route path="/holo" element={<Holodeck />} />
                 <Route path="/vault" element={<ErrorBoundary><TheVault /></ErrorBoundary>} />
-                <Route path="/memory-vault" element={<MossyMemoryVault />} />
+                <Route path="/memory-vault" element={<ErrorBoundary><MossyMemoryVault /></ErrorBoundary>} />
                 <Route path="/neural-link" element={<NeuralLink />} />
                 <Route path="/workshop" element={<Workshop />} />
                 <Route path="/live" element={<ErrorBoundary><VoiceChat /></ErrorBoundary>} />

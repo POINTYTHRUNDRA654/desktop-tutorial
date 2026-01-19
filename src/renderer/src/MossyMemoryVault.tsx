@@ -161,7 +161,7 @@ const MossyMemoryVault: React.FC = () => {
         }
         
         // Check if file is text-based
-        if (file.type.startsWith('text/') || file.name.endsWith('.md') || file.name.endsWith('.txt') || file.name.endsWith('.json')) {
+        if (file.type.startsWith('text/') || file.name.endsWith('.md') || file.name.endsWith('.txt') || file.name.endsWith('.json') || file.name.endsWith('.bat') || file.name.endsWith('.cmd')) {
             const reader = new FileReader();
             
             reader.onload = (event) => {
@@ -176,7 +176,7 @@ const MossyMemoryVault: React.FC = () => {
             
             reader.readAsText(file);
         } else {
-            alert(`❌ Unsupported file type: ${file.name}\n\nSupported: .pdf, .txt, .md, .json, .mp4, .webm, .mov, .avi`);
+            alert(`❌ Unsupported file type: ${file.name}\n\nSupported: .pdf, .txt, .md, .json, .bat, .cmd, .mp4, .webm, .mov, .avi`);
         }
     };
 
@@ -224,7 +224,7 @@ const MossyMemoryVault: React.FC = () => {
         setNewTags('');
 
         // Record for ML tracking
-        LocalAIEngine.recordAction('knowledge_ingested', { title: newItem.title, tags: newItem.tags });
+        LocalAIEngine.recordAction('knowledge_ingested', { title: newItem.title, tags: newItem.tags }).catch(() => {});
     };
 
     const deleteMemory = (id: string) => {

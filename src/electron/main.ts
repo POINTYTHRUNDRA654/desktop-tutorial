@@ -1237,11 +1237,19 @@ function setupIpcHandlers() {
   // --- Workshop: Read file content ---
   ipcMain.handle(IPC_CHANNELS.WORKSHOP_READ_FILE, async (_event, filePath: string) => {
     try {
-      const content = fs.readFileSync(filePath, 'utf-8');
-      return content;
+      // Try UTF-8 first
+      try {
+        const content = fs.readFileSync(filePath, 'utf-8');
+        return content;
+      } catch (utf8Err) {
+        // Fallback to latin1 (windows-1252) for .bat/.cmd/.txt files that might use non-UTF8 encoding
+        console.warn('UTF-8 decode failed, trying latin1:', utf8Err);
+        const content = fs.readFileSync(filePath, 'latin1');
+        return content;
+      }
     } catch (err) {
       console.error('Workshop read error:', err);
-      return '';
+      throw new Error(`Failed to read file: ${filePath}. ${err instanceof Error ? err.message : String(err)}`);
     }
   });
 
