@@ -507,6 +507,20 @@ export const ChatInterface: React.FC = () => {
         window.removeEventListener('mossy-memory-update', checkState);
         window.removeEventListener('mossy-bridge-connected', checkState);
         window.removeEventListener('mossy-driver-update', checkState);
+        
+        // MEMORY LEAK FIX: Clean up audio resources on unmount
+        if (activeSourceRef.current) {
+            try {
+                activeSourceRef.current.stop();
+                activeSourceRef.current.disconnect();
+            } catch (e) {
+                // Already stopped
+            }
+        }
+        if (audioContextRef.current) {
+            audioContextRef.current.close();
+            audioContextRef.current = null;
+        }
     };
   }, []);
 
@@ -575,7 +589,12 @@ export const ChatInterface: React.FC = () => {
 
   const stopAudio = () => {
       if (activeSourceRef.current) {
-          activeSourceRef.current.stop();
+          try {
+              activeSourceRef.current.stop();
+              activeSourceRef.current.disconnect();
+          } catch (e) {
+              // Already stopped/disconnected
+          }
           activeSourceRef.current = null;
       }
       setIsPlayingAudio(false);
@@ -592,14 +611,82 @@ export const ChatInterface: React.FC = () => {
           alert("Audio receptors damaged. (Browser not supported)");
           return;
       }
+      
       const recognition = new SpeechRecognition();
       recognition.continuous = false;
       recognition.interimResults = false;
       recognition.lang = 'en-US';
-      recognition.onstart = () => setIsListening(true);
-      recognition.onresult = (event: any) => setInputText(prev => prev + (prev ? ' ' : '') + event.results[0][0].transcript);
-      recognition.onerror = () => setIsListening(false);
-      recognition.onend = () => setIsListening(false);
+      
+      // LATENCY FIX: Manual silence detection to stop recording immediately instead of waiting 1-2s
+      let audioContext: AudioContext | null = null;
+      let analyser: AnalyserNode | null = null;
+      let mediaStream: MediaStream | null = null;
+      let silenceTimer: ReturnType<typeof setTimeout> | null = null;
+      let silenceDuration = 0;
+      const SILENCE_THRESHOLD = 0.01; // Very quiet threshold
+      const SILENCE_DURATION_MS = 500; // 500ms of silence to trigger stop
+      
+      const setupSilenceDetection = async () => {
+          try {
+              mediaStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+              audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
+              analyser = audioContext.createAnalyser();
+              analyser.fftSize = 2048;
+              
+              const source = audioContext.createMediaStreamSource(mediaStream);
+              source.connect(analyser);
+              
+              const buffer = new Uint8Array(analyser.frequencyBinCount);
+              const checkSilence = () => {
+                  if (!analyser) return;
+                  analyser.getByteFrequencyData(buffer);
+                  
+                  const average = buffer.reduce((a, b) => a + b) / buffer.length;
+                  const normalized = average / 255;
+                  
+                  if (normalized < SILENCE_THRESHOLD) {
+                      silenceDuration += 50; // Check interval ~50ms
+                      if (silenceDuration >= SILENCE_DURATION_MS) {
+                          console.log('[ChatInterface] Silence detected - stopping speech recognition');
+                          recognition.abort();
+                          return;
+                      }
+                  } else {
+                      silenceDuration = 0; // Reset if user speaks again
+                  }
+                  
+                  silenceTimer = setTimeout(checkSilence, 50);
+              };
+              
+              silenceTimer = setTimeout(checkSilence, 50);
+          } catch (err) {
+              console.warn('[ChatInterface] Silence detection setup failed:', err);
+          }
+      };
+      
+      recognition.onstart = () => {
+          setIsListening(true);
+          setupSilenceDetection(); // Start monitoring for silence
+      };
+      
+      recognition.onresult = (event: any) => {
+          setInputText(prev => prev + (prev ? ' ' : '') + event.results[0][0].transcript);
+      };
+      
+      recognition.onerror = () => {
+          setIsListening(false);
+          if (silenceTimer) clearTimeout(silenceTimer);
+          if (mediaStream) mediaStream.getTracks().forEach(t => t.stop());
+          if (audioContext) audioContext.close();
+      };
+      
+      recognition.onend = () => {
+          setIsListening(false);
+          if (silenceTimer) clearTimeout(silenceTimer);
+          if (mediaStream) mediaStream.getTracks().forEach(t => t.stop());
+          if (audioContext) audioContext.close();
+      };
+      
       recognition.start();
   };
 
@@ -624,23 +711,99 @@ export const ChatInterface: React.FC = () => {
         const base64Audio = response.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
         if (!base64Audio) throw new Error("No audio returned");
 
-        if (!audioContextRef.current) audioContextRef.current = new (window.AudioContext || window.webkitAudioContext)();
+        // MEMORY LEAK FIX: Reuse existing AudioContext or create if needed
+        if (!audioContextRef.current) {
+            audioContextRef.current = new (window.AudioContext || window.webkitAudioContext)();
+        }
         const ctx = audioContextRef.current;
         
+        // MEMORY LEAK FIX: Resume context if suspended
+        if (ctx.state === 'suspended') {
+            await ctx.resume();
+        }
+        
+        // PERFORMANCE FIX: Non-blocking audio decode - simpler approach
+        // Only use async chunking for very large audio (>10MB)
         const binaryString = atob(base64Audio);
-        const len = binaryString.length;
-        const bytes = new Uint8Array(len);
-        for (let i = 0; i < len; i++) bytes[i] = binaryString.charCodeAt(i);
-        const dataInt16 = new Int16Array(bytes.buffer);
-        const buffer = ctx.createBuffer(1, dataInt16.length, 24000);
-        const channelData = buffer.getChannelData(0);
-        for(let i=0; i<dataInt16.length; i++) channelData[i] = dataInt16[i] / 32768.0;
+        const audioLen = binaryString.length;
+        
+        let buffer: AudioBuffer;
+        
+        if (audioLen > 10 * 1024 * 1024) {
+            // Large audio - use async chunking with efficient byte extraction
+            buffer = await new Promise<AudioBuffer>((resolve, reject) => {
+                try {
+                    const bytes = new Uint8Array(audioLen);
+                    const chunkSize = 65536;
+                    let offset = 0;
+                    
+                    const processChunk = () => {
+                        const end = Math.min(offset + chunkSize, audioLen);
+                        for (let i = offset; i < end; i++) {
+                            bytes[i] = binaryString.charCodeAt(i) & 0xFF;
+                        }
+                        offset = end;
+                        
+                        if (offset < audioLen) {
+                            setTimeout(processChunk, 0);
+                        } else {
+                            const dataInt16 = new Int16Array(bytes.buffer);
+                            const audioBuffer = ctx.createBuffer(1, dataInt16.length, 24000);
+                            const channelData = audioBuffer.getChannelData(0);
+                            
+                            let sampleOffset = 0;
+                            const sampleChunkSize = 32768;
+                            
+                            const processSamples = () => {
+                                const sampleEnd = Math.min(sampleOffset + sampleChunkSize, dataInt16.length);
+                                for (let i = sampleOffset; i < sampleEnd; i++) {
+                                    channelData[i] = dataInt16[i] / 32768.0;
+                                }
+                                sampleOffset = sampleEnd;
+                                
+                                if (sampleOffset < dataInt16.length) {
+                                    setTimeout(processSamples, 0);
+                                } else {
+                                    resolve(audioBuffer);
+                                }
+                            };
+                            
+                            processSamples();
+                        }
+                    };
+                    
+                    processChunk();
+                } catch (err) {
+                    reject(err);
+                }
+            });
+        } else {
+            // Normal audio size - sync is fine, with efficient byte extraction
+            const bytes = new Uint8Array(audioLen);
+            for (let i = 0; i < audioLen; i++) {
+                bytes[i] = binaryString.charCodeAt(i) & 0xFF;
+            }
+            const dataInt16 = new Int16Array(bytes.buffer);
+            buffer = ctx.createBuffer(1, dataInt16.length, 24000);
+            const channelData = buffer.getChannelData(0);
+            for (let i = 0; i < dataInt16.length; i++) channelData[i] = dataInt16[i] / 32768.0;
+        }
 
         const source = ctx.createBufferSource();
         source.buffer = buffer;
         source.connect(ctx.destination);
         activeSourceRef.current = source;
-        source.onended = () => { setIsPlayingAudio(false); activeSourceRef.current = null; };
+        
+        // MEMORY LEAK FIX: Properly disconnect source after playback
+        source.onended = () => { 
+            try {
+                source.disconnect();
+            } catch (e) {
+                // Already disconnected
+            }
+            setIsPlayingAudio(false); 
+            activeSourceRef.current = null; 
+        };
         source.start();
       } catch (e) { console.error("TTS Error", e); setIsPlayingAudio(false); }
   };
@@ -651,6 +814,40 @@ export const ChatInterface: React.FC = () => {
       let hardwareCtx = "Hardware: Unknown";
       if (profile) {
           hardwareCtx = `**Spec:** ${profile.gpu} | ${profile.ram}GB RAM | Blender ${profile.blenderVersion}`;
+      }
+      
+      // Load Memory Vault knowledge for context
+      let knowledgeVaultContext = "";
+      try {
+          const knowledgeStr = typeof window !== 'undefined' ? window.localStorage.getItem('mossy_knowledge_vault') : null;
+          if (knowledgeStr) {
+              const knowledge = JSON.parse(knowledgeStr);
+              if (Array.isArray(knowledge) && knowledge.length > 0) {
+                  const knowledgeItems = knowledge
+                      .map((item: any) => `[${item.tags?.join(', ') || 'general'}] ${item.title}: ${item.content.substring(0, 200)}${item.content.length > 200 ? '...' : ''}`)
+                      .join('\n');
+                  knowledgeVaultContext = `\n**MOSSY'S KNOWLEDGE VAULT (${knowledge.length} items - CRITICAL CONTEXT):**\n${knowledgeItems}`;
+              }
+          }
+      } catch (e) {
+          console.warn('[ChatInterface] Failed to load memory vault:', e);
+      }
+      
+      // Load vault assets for context
+      let vaultContext = "";
+      try {
+          const vaultAssetsStr = typeof window !== 'undefined' ? window.localStorage.getItem('vault-assets-v1') : null;
+          if (vaultAssetsStr) {
+              const vaultAssets = JSON.parse(vaultAssetsStr);
+              if (Array.isArray(vaultAssets) && vaultAssets.length > 0) {
+                  const assetSummary = vaultAssets
+                      .map((a: any) => `- ${a.name} (${a.type}${a.type === 'script' && (a.name.toLowerCase().endsWith('.bat') || a.name.toLowerCase().endsWith('.cmd')) ? ' - batch script' : ''})`)
+                      .join('\n');
+                  vaultContext = `\n**VAULT ASSETS (Ready for Ingestion):**\n${assetSummary}`;
+              }
+          }
+      } catch (e) {
+          console.warn('[ChatInterface] Failed to load vault assets:', e);
       }
       
       let scanContext = "";
@@ -748,6 +945,8 @@ export const ChatInterface: React.FC = () => {
             ${appFeatures}
       **Short-Term Working Memory:** ${workingMemory}
       **Project Status:** ${projectData ? projectData.name : "None"}${modContext}
+      ${knowledgeVaultContext}
+      ${vaultContext}
       **Detected Tools:** ${(detectedApps || []).filter(a => a.path).map(a => `${a.name} [ID: ${a.id}] (Path: ${a.path})`).join(', ') || "None"}
       ${hardwareCtx}
       ${scanContext}
