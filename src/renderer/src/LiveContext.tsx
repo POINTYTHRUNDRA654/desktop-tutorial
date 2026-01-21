@@ -265,6 +265,10 @@ export const LiveProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const [cortexMemory, setCortexMemory] = useState<any[]>([]);
   const [projectData, setProjectData] = useState<any | null>(null);
 
+  const MIN_SEND_VOLUME = 5.0;      // raise threshold to reduce background noise (was 2.0)
+  const MIN_SEND_INTERVAL_MS = 220; // throttle sends to ~200-250ms cadence
+  const SILENCE_THRESHOLD_MS = 1500; // Stop sending after 1.5s of silence to signal turn end
+
   const setLiveActive = (val: boolean) => {
     setIsActive(val);
     isActiveRef.current = val;
@@ -284,12 +288,16 @@ export const LiveProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const sessionHealthCheckRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const sessionStartTimeRef = useRef<number>(0);
   const reconnectAttemptsRef = useRef<number>(0);
+  const reconnectPauseRef = useRef<{ until: number; reason: string } | null>(null);
   const failureTimestampsRef = useRef<number[]>([]); // track rapid failures to avoid infinite thrash
   const isConnectingRef = useRef<boolean>(false);
   const manualDisconnectRef = useRef<boolean>(false);
   const lastActivityRef = useRef<number>(Date.now());
   const pollingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const audioBufferRef = useRef<Float32Array | null>(null); // Reusable buffer to prevent memory leak
+  const lastSendRef = useRef<number>(0);
+  const lastSpeechRef = useRef<number>(Date.now()); // Track last time user actually spoke (vol > threshold)
+    const cooldownUntilRef = useRef<number>(0);
 
   // Live session message buffer for preserving context across interrupts
   const liveSessionMessages = useRef<Array<{role: string, text: string, timestamp: number}>>([]);
@@ -485,8 +493,9 @@ export const LiveProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   };
 
   const scheduleReconnect = (reason: string) => {
-    if (manualDisconnectRef.current) return; // User requested disconnect
-    if (reconnectTimerRef.current) return;   // Already scheduled
+    if (manualDisconnectRef.current) return;
+    if (isReconnectPaused()) return;
+    if (reconnectTimerRef.current) return;
 
     // Record failure and stop if flapping too hard
     const now = Date.now();
@@ -498,8 +507,12 @@ export const LiveProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       return;
     }
 
+    if (now < cooldownUntilRef.current) return;
+
     const attempt = reconnectAttemptsRef.current;
-    const delay = Math.min(1000 * Math.pow(2, attempt), 15000); // 1s,2s,4s,8s,15s cap
+    const base = Math.min(1000 * Math.pow(2, attempt), 15000); // 1s,2s,4s,8s,15s cap
+    const jitter = Math.floor(Math.random() * 500);
+    const delay = base + jitter;
     reconnectAttemptsRef.current = attempt + 1;
     console.warn(`[LiveContext] Scheduling reconnect in ${delay} ms (attempt ${attempt + 1}). Reason: ${reason}`);
     setStatus(`Reconnecting... (${attempt + 1})`);
@@ -510,7 +523,34 @@ export const LiveProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }, delay);
   };
 
+  const pauseReconnect = (reason: string, ms: number) => {
+    reconnectPauseRef.current = { until: Date.now() + ms, reason };
+    // Kill any pending reconnect timer immediately
+    if (reconnectTimerRef.current) {
+      clearTimeout(reconnectTimerRef.current);
+      reconnectTimerRef.current = null;
+    }
+    setStatus(`Reconnect paused: ${reason}. Try again later.`);
+  };
+
+  const isReconnectPaused = () => {
+    const p = reconnectPauseRef.current;
+    if (!p) return false;
+    if (Date.now() >= p.until) {
+      reconnectPauseRef.current = null;
+      return false;
+    }
+    return true;
+  };
+
   const connect = async () => {
+    if (isReconnectPaused()) {
+      const p = reconnectPauseRef.current!;
+      const secs = Math.ceil((p.until - Date.now()) / 1000);
+      setStatus(`Reconnect paused (${p.reason}). Wait ${secs}s then try again.`);
+      return;
+    }
+
     if (isActive || isConnectingRef.current) return;
     // Ensure we never spawn a second live session (prevents double voice)
     if (sessionRef.current) {
@@ -523,6 +563,7 @@ export const LiveProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     isConnectingRef.current = true;
     manualDisconnectRef.current = false;
     reconnectAttemptsRef.current = 0;
+    failureTimestampsRef.current = [];
     lastActivityRef.current = Date.now();
 
     return new Promise<void>(async (resolve, reject) => {
@@ -536,13 +577,21 @@ export const LiveProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         inputContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 16000 });
         audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 24000 });
 
+        // Temporarily use direct API key (ephemeral token to be re-enabled after testing)
         const apiKey = import.meta.env.VITE_API_KEY || import.meta.env.VITE_GOOGLE_API_KEY;
+        console.log('[LiveContext] API key available:', !!apiKey);
+        console.log('[LiveContext] API key first 10 chars:', apiKey ? apiKey.substring(0, 10) : 'NONE');
+        
         if (!apiKey) {
-          throw new Error('API key not found');
+          throw new Error('API key not found in environment. Check .env.local file.');
         }
 
         const ai = new GoogleGenAI({ apiKey });
-        console.log('[LiveContext] Creating live session...');
+        
+        const LIVE_MODEL = 'gemini-2.5-flash-native-audio-preview-12-2025';
+        let liveModelName = LIVE_MODEL; // Use hardcoded model directly, skip listModels
+        
+        console.log('[LiveContext] Creating live session with model:', liveModelName);
 
         // BUILD DETECTED PROGRAMS CONTEXT FOR MOSSY
         let detectedProgramsContext = '';
@@ -682,10 +731,15 @@ DO NOT say "I cannot integrate" - you CAN by launching programs and providing ex
         }
 
         const sessionPromise = ai.live.connect({
-          model: 'gemini-2.0-flash-exp',
+          model: liveModelName,
           config: {
             responseModalities: [Modality.AUDIO],
             speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: 'Zephyr' } } },
+            generationConfig: {
+              temperature: 0.8,
+              candidateCount: 1,
+              maxOutputTokens: 8192
+            },
             // IMPORTANT: Provide tools as Tool objects with functionDeclarations
             tools: [{ functionDeclarations: toolDeclarations }] as any,
             systemInstruction: { role: 'system', parts: [{ text: getFullSystemInstruction((cortexMemory || []).join?.(' ') + '\n' + detectedProgramsContext + '\n' +
@@ -711,13 +765,45 @@ DO NOT say "I cannot integrate" - you CAN by launching programs and providing ex
               lastActivityRef.current = Date.now();
               sessionReadyRef.current = true;
               
-              // DISABLED KEEPALIVE: These artificial ping messages were likely interfering with Google's API
-              // The API has its own keep-alive; adding ours on top was causing issues
-              // Let the connection work naturally - if it dies, we reconnect gracefully
+              // ACTIVITY MONITOR: Check for silent disconnects every 10s
+              // Google's API can drop without firing close events; detect via lastActivity
+              const activityCheck = setInterval(() => {
+                if (!sessionRef.current || !sessionReadyRef.current) {
+                  clearInterval(activityCheck);
+                  return;
+                }
+                
+                const idleTime = Date.now() - lastActivityRef.current;
+                
+                // If no messages for 8 minutes, assume silent disconnect
+                if (idleTime > 8 * 60 * 1000) {
+                  console.warn('[LiveContext] No activity for 8 min, reconnecting');
+                  clearInterval(activityCheck);
+                  sessionReadyRef.current = false;
+                  scheduleReconnect('silent-timeout');
+                  return;
+                }
+                
+                // Gentle check: confirm session still has a working socket
+                try {
+                  if (sessionRef.current && typeof sessionRef.current.sendRealtimeInput === 'function') {
+                    const elapsed = Date.now() - (sessionStartTimeRef.current || Date.now());
+                    // After 7 min, if user is idle (no activity for 2min), preemptively reconnect
+                    if (elapsed > 7 * 60 * 1000 && idleTime > 120000) {
+                      console.log('[LiveContext] Proactive reconnect at 7min during idle');
+                      clearInterval(activityCheck);
+                      sessionReadyRef.current = false;
+                      scheduleReconnect('proactive-refresh');
+                    }
+                  }
+                } catch (err) {
+                  console.warn('[LiveContext] Activity check error, reconnecting:', err);
+                  clearInterval(activityCheck);
+                  sessionReadyRef.current = false;
+                  scheduleReconnect('activity-check-fail');
+                }
+              }, 10000);
               
-              // DISABLED PROACTIVE RECONNECT: Forcing disconnect at 4.5 min was interrupting user
-              // New strategy: Let Google close the connection naturally, then immediately reconnect
-              // This way the timing is based on actual session limits, not arbitrary timers
               sessionStartTimeRef.current = Date.now();
               
               resolve();
@@ -726,7 +812,7 @@ DO NOT say "I cannot integrate" - you CAN by launching programs and providing ex
             onmessage: async (msg: LiveServerMessage) => {
               // Guard: if session closed while this callback was queued, skip processing
               if (!sessionRef.current) {
-                console.warn('[LiveContext] ⚠️ Ignoring message: session already closed');
+                // This is normal during reconnects; just silently ignore
                 return;
               }
               
@@ -900,80 +986,124 @@ DO NOT say "I cannot integrate" - you CAN by launching programs and providing ex
               }
 
               if (msg.serverContent?.interrupted) {
-                console.log('[LiveContext] Session interrupted');
-                
-                // Stop and clear all active audio sources
-                sourcesRef.current.forEach(s => {
-                  try { 
-                    s.stop();
-                    s.disconnect();
-                  } catch(e) {
-                    // Already stopped/disconnected
-                  }
-                });
+                console.log('[LiveContext] Session interrupted - restarting session');
+
+                // Stop audio immediately
+                sourcesRef.current.forEach(s => { try { s.stop(); s.disconnect(); } catch {} });
                 sourcesRef.current.clear();
                 nextStartTimeRef.current = 0;
-                setMode('listening');
+                setMode('idle');
+
+                // Cleanly disconnect the current session but keep the message buffer
+                disconnect(false, false);
+
+                // Now schedule reconnect
+                scheduleReconnect('server-interrupt');
+                return;
               }
             },
 
             onclose: (ev) => {
               console.log('[LiveContext] ❌ Session closed:', ev.code, ev.reason);
-              console.log('[LiveContext] Close event details:', { code: ev.code, reason: ev.reason, wasClean: ev.wasClean });
+              console.log('[LiveContext] Close event details:', {
+                code: ev.code,
+                reason: ev.reason,
+                wasClean: ev.wasClean,
+              });
+
               sessionReadyRef.current = false;
               const reason = `code=${ev.code} reason=${ev.reason}`;
-              
-              // Quota/1011: pause auto-reconnect and surface status
-              if (ev.code === 1011 || /quota/i.test(ev.reason || '')) {
-                console.log('[LiveContext] Quota/1011 error detected; pausing auto-reconnect');
-                manualDisconnectRef.current = true;
-                setStatus('Quota exceeded; please wait or switch model. Auto-reconnect paused.');
-                disconnect(true, false); // Preserve buffer on quota error
-                reject(new Error(`Session closed (quota): ${ev.reason || ''}`));
+              const reasonLower = (ev.reason || '').toLowerCase();
+
+              // FATAL: Check for non-retriable errors (model mismatch, permissions, invalid keys, etc.)
+              const fatal =
+                ev.code === 1008 ||
+                reasonLower.includes('not compatible') ||
+                reasonLower.includes('bidigeneratecontent') ||
+                reasonLower.includes('permission') ||
+                reasonLower.includes('invalid api key') ||
+                reasonLower.includes('not found') ||
+                reasonLower.includes('not supported') ||
+                reasonLower.includes('call listmodels');
+
+              if (fatal) {
+                console.error('[LiveContext] ❌ FATAL: Non-retriable error detected');
+                console.error('[LiveContext] Close reason:', ev.reason);
+                manualDisconnectRef.current = true; // stop auto-retry
+                setStatus(`Fatal close (${ev.code}): ${ev.reason || 'unknown'}`);
+                disconnect(true, false); // preserve buffer
+                reject(new Error(`Fatal error: ${ev.reason}`));
                 return;
               }
-              
-              // Code 1000 (clean close) likely means Google's API closed the connection
-              // at its natural limit (~5-10 minutes). This is NOT a user-initiated disconnect.
-              // Auto-reconnect to keep the conversation going.
+
+              // QUOTA / RATE-LIMIT (in reason) → pause with long backoff (5–15 min)
+              if (reasonLower.includes('quota') || reasonLower.includes('rate limit')) {
+                console.log('[LiveContext] Quota / rate limit error detected; pausing auto-reconnect for 10 minutes');
+                pauseReconnect('quota/rate-limit', 10 * 60 * 1000);
+                disconnect(false, false); // Preserve buffer
+                reject(new Error(`Rate limited: ${ev.reason}`));
+                return;
+              }
+
+              // 1011 = service unavailable / quota → pause with long backoff, require manual retry
+              if (ev.code === 1011) {
+                console.log('[LiveContext] 1011 service-unavailable/quota; pausing reconnect for 10 minutes');
+                pauseReconnect('service-unavailable', 10 * 60 * 1000);
+                disconnect(false, false); // Preserve buffer
+                reject(new Error(`Service unavailable (1011): ${ev.reason || ''}`));
+                return;
+              }
+
+              // 1000 = clean close – usually Google session limit
+              // Treat as normal refresh: reconnect with exponential backoff + jitter (not rapid 1s loops)
               if (ev.code === 1000) {
-                console.log('[LiveContext] Clean close (1000) detected - Google API session limit reached. Auto-reconnecting...');
-                disconnect(false, false); // Preserve buffer, auto-reconnect
-                scheduleReconnect('google-api-session-limit');
+                console.log(
+                  '[LiveContext] Clean close (1000) – Google API session limit. Auto-reconnecting with backoff...',
+                );
+                cooldownUntilRef.current = Date.now() + 15000; // 15s cooldown before next reconnect attempt
+                disconnect(false, false); // Preserve buffer
+                scheduleReconnect('session-rollover-1000');
                 reject(new Error(`Session closed (Google API limit): ${ev.reason || ''}`));
                 return;
               }
-              
+
+              // Other closes: unexpected but retriable
               console.log('[LiveContext] Unexpected close code:', ev.code, '- scheduling reconnect');
               disconnect(false, false); // Preserve buffer on unexpected errors
               scheduleReconnect(reason || 'unknown-close');
               reject(new Error(`Session closed: ${ev.reason}`));
             },
 
-            onerror: (err) => {
+            onerror: (err: any) => {
               console.error('[LiveContext] ❌ CRITICAL SESSION ERROR:', err);
               console.error('[LiveContext] Error type:', err?.constructor?.name);
               console.error('[LiveContext] Error message:', err?.message);
               console.error('[LiveContext] Error stack:', err?.stack);
               console.error('[LiveContext] Full error object:', err);
+
               sessionReadyRef.current = false;
-              if (err?.message && /quota/i.test(err.message)) {
-                manualDisconnectRef.current = true;
-                setStatus('Quota exceeded; please wait or switch model. Auto-reconnect paused.');
-                disconnect(true, false); // Preserve buffer on quota error
-                reject(err);
+              const msg = (err?.message || '').toLowerCase();
+
+              // Again, only treat explicit quota / rate-limit as "stop auto-reconnect"
+              if (msg.includes('quota') || msg.includes('rate limit')) {
+                pauseReconnect('quota/rate-limit', 10 * 60 * 1000);
+                disconnect(false, false);
                 return;
               }
-              
-              setStatus(`Connection Lost: ${err?.message || 'Unknown error'}`);
-              disconnect(false, false); // Preserve buffer on errors
-              // If socket already closed cleanly, don't auto-retry
-              if (err?.message && /CLOSING or CLOSED/i.test(err.message)) {
+
+              setStatus(`Connection lost: ${err?.message || 'Unknown error'}`);
+
+              // If socket is already closing/closed, don't thrash; ask user to reconnect manually
+              if (msg.includes('closing or closed')) {
                 manualDisconnectRef.current = true;
                 setStatus('Link closed. Tap Connect to resume.');
+                disconnect(true, false);
                 reject(err);
                 return;
               }
+
+              // All other errors → attempt auto-reconnect with backoff
+              disconnect(false, false); // Preserve buffer for context
               scheduleReconnect(err?.message || 'unknown-error');
               reject(err);
             }
@@ -1010,8 +1140,19 @@ DO NOT say "I cannot integrate" - you CAN by launching programs and providing ex
                   const vol = Math.sqrt(sum / floatData.length) * 100;
                   setVolume(vol);
 
-                  if (vol > 0.1) {
-                    console.log('[LiveContext] Sending audio chunk (Worklet), volume:', vol.toFixed(2));
+                  const nowMs = Date.now();
+                  const silenceDuration = nowMs - lastSpeechRef.current;
+                  
+                  // Track when user is actually speaking (above threshold)
+                  if (vol > MIN_SEND_VOLUME) {
+                    lastSpeechRef.current = nowMs;
+                  }
+                  
+                  // Only send if: volume high enough, throttle ok, AND not silent for too long
+                  if (vol > MIN_SEND_VOLUME && nowMs - lastSendRef.current >= MIN_SEND_INTERVAL_MS && silenceDuration < SILENCE_THRESHOLD_MS) {
+                    lastSendRef.current = nowMs;
+                    lastActivityRef.current = nowMs; // Update activity when sending audio
+                    console.log('[LiveContext] ✓ Sending audio chunk (Worklet), volume:', vol.toFixed(2), 'dB');
                     const int16 = new Int16Array(floatData.length);
                     for (let i = 0; i < floatData.length; i++) {
                       int16[i] = floatData[i] < 0 ? floatData[i] * 0x8000 : floatData[i] * 0x7FFF;
@@ -1031,8 +1172,8 @@ DO NOT say "I cannot integrate" - you CAN by launching programs and providing ex
                     try {
                       const result = sessionRef.current.sendRealtimeInput({
                         media: {
-                          data: base64,
-                          mimeType: 'audio/pcm;rate=16000'
+                          mimeType: 'audio/pcm;rate=16000',
+                          data: base64
                         }
                       });
                       if (result && typeof result.catch === 'function') {
@@ -1096,8 +1237,19 @@ DO NOT say "I cannot integrate" - you CAN by launching programs and providing ex
                   const vol = Math.sqrt(sum / buffer.length) * 100;
                   setVolume(vol);
                   
-                  if (vol > 0.1 && !isMutedRef.current) {
-                    console.log('[LiveContext] Sending audio chunk, volume:', vol.toFixed(2));
+                  const nowMs = Date.now();
+                  const silenceDuration = nowMs - lastSpeechRef.current;
+                  
+                  // Track when user is actually speaking
+                  if (vol > MIN_SEND_VOLUME) {
+                    lastSpeechRef.current = nowMs;
+                  }
+                  
+                  // Only send if: volume high enough, throttle ok, not muted, AND not silent for too long
+                  if (vol > MIN_SEND_VOLUME && nowMs - lastSendRef.current >= MIN_SEND_INTERVAL_MS && !isMutedRef.current && silenceDuration < SILENCE_THRESHOLD_MS) {
+                    lastSendRef.current = nowMs;
+                    lastActivityRef.current = nowMs; // Update activity when sending audio
+                    console.log('[LiveContext] ✓ Sending audio chunk (polling), volume:', vol.toFixed(2), 'dB');
                     const int16 = new Int16Array(buffer.length);
                     for (let i = 0; i < buffer.length; i++) {
                       int16[i] = buffer[i] < 0 ? buffer[i] * 0x8000 : buffer[i] * 0x7FFF;
@@ -1119,7 +1271,7 @@ DO NOT say "I cannot integrate" - you CAN by launching programs and providing ex
                     // Check if session is still connected before sending
                     try {
                       const result = sessionRef.current.sendRealtimeInput({
-                        media: { data: base64, mimeType: 'audio/pcm;rate=16000' }
+                        media: { mimeType: 'audio/pcm;rate=16000', data: base64 }
                       });
                       if (result && typeof result.catch === 'function') {
                         result.catch((err: any) => {
