@@ -20,6 +20,15 @@ import ffmpegInstaller from '@ffmpeg-installer/ffmpeg';
 import https from 'https';
 import FormData from 'form-data';
 import OpenAI from 'openai';
+import dotenv from 'dotenv';
+
+// Load environment variables from .env.local
+const envPath = path.join(__dirname, '../../.env.local');
+console.log('[Main] Loading .env from:', envPath);
+console.log('[Main] File exists:', fs.existsSync(envPath));
+dotenv.config({ path: envPath });
+console.log('[Main] VITE_API_KEY loaded:', !!process.env.VITE_API_KEY);
+console.log('[Main] VITE_API_KEY value:', process.env.VITE_API_KEY ? `${process.env.VITE_API_KEY.substring(0, 10)}...` : 'NOT FOUND');
 
 // Set ffmpeg path
 ffmpeg.setFfmpegPath(ffmpegInstaller.path);
@@ -684,6 +693,49 @@ function setupIpcHandlers() {
     const updated = { ...current, ...newSettings };
     saveSettings(updated);
     return;
+  });
+
+  // Generate ephemeral token for Gemini Live API
+  ipcMain.handle('generate-live-token', async () => {
+    console.log('[Token] Generating ephemeral token for Live API');
+    console.log('[Token] process.env.VITE_API_KEY:', !!process.env.VITE_API_KEY);
+    console.log('[Token] process.env.VITE_GOOGLE_API_KEY:', !!process.env.VITE_GOOGLE_API_KEY);
+    try {
+      const apiKey = process.env.VITE_API_KEY || process.env.VITE_GOOGLE_API_KEY;
+      console.log('[Token] API key found:', !!apiKey);
+      if (!apiKey) {
+        throw new Error('API key not found in environment');
+      }
+
+      const now = new Date();
+      const expireTime = new Date(now.getTime() + 60 * 60 * 1000); // 1 hour
+      const newSessionExpireTime = new Date(now.getTime() + 1 * 60 * 1000); // 1 minute
+
+      const response = await fetch('https://generativelanguage.googleapis.com/v1alpha/auth/tokens:create', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-goog-api-key': apiKey,
+        },
+        body: JSON.stringify({
+          uses: 1,
+          expireTime: expireTime.toISOString(),
+          newSessionExpireTime: newSessionExpireTime.toISOString(),
+        }),
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Token creation failed: ${response.status} ${errorText}`);
+      }
+
+      const data = await response.json() as { name?: string };
+      console.log('[Token] Ephemeral token generated successfully');
+      return { token: data.name || '', expireTime: expireTime.toISOString() };
+    } catch (error) {
+      console.error('[Token] Failed to generate ephemeral token:', error);
+      throw error;
+    }
   });
 
   // Get real system information
