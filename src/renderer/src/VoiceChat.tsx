@@ -4,14 +4,10 @@ import { useLive } from './LiveContext';
 import AvatarCore from './AvatarCore';
 
 const VoiceChat: React.FC = () => {
-  let liveContext: any = null;
-  try {
-    liveContext = useLive();
-  } catch (err) {
-    console.warn('[VoiceChat] LiveContext not available, using fallback');
-    liveContext = { isActive: false, isMuted: false, toggleMute: () => {}, disconnect: () => {}, mode: 'disconnected', connect: () => {}, transcription: '' };
-  }
-  const { isActive, isMuted, toggleMute, disconnect, mode, connect, transcription } = liveContext;
+  const fallbackLive = { isActive: false, isMuted: false, toggleMute: () => {}, disconnect: () => {}, mode: 'disconnected', connect: async () => {}, transcription: '', micLevel: 0, audioInputs: [], selectedInputId: '', setSelectedInputId: () => {} };
+  // eslint-disable-next-line react-hooks/rules-of-hooks
+  const liveContext = useLive() || fallbackLive;
+  const { isActive, isMuted, toggleMute, disconnect, mode, connect, transcription, micLevel, audioInputs, selectedInputId, setSelectedInputId } = liveContext;
   const [isConnecting, setIsConnecting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -95,7 +91,22 @@ const VoiceChat: React.FC = () => {
 
           {transcription && (
             <div className="bg-black/60 backdrop-blur-md border border-blue-500/20 px-6 py-3 rounded-2xl max-w-md shadow-2xl animate-in fade-in slide-in-from-bottom-4">
-              <p className="text-sm text-blue-100 italic leading-relaxed font-serif">"{transcription}"</p>
+              <p className="text-sm text-blue-100 italic leading-relaxed font-serif">&quot;{transcription}&quot;</p>
+            </div>
+          )}
+
+          {isActive && (
+            <div className="mt-4 flex items-center gap-3 bg-blue-900/30 border border-blue-500/30 rounded-xl px-4 py-2 backdrop-blur-md shadow-lg">
+              <span className="text-[10px] font-mono uppercase tracking-widest text-blue-200/80">Mic Level</span>
+              <div className="flex-1 h-2 bg-slate-900/60 rounded-full overflow-hidden">
+                <div
+                  className={`h-full rounded-full transition-all ${
+                    micLevel > 40 ? 'bg-emerald-400' : micLevel > 20 ? 'bg-yellow-400' : 'bg-red-400'
+                  }`}
+                  style={{ width: `${micLevel}%` }}
+                />
+              </div>
+              <span className="text-[10px] font-mono text-blue-100 w-10 text-right">{micLevel}%</span>
             </div>
           )}
           
@@ -110,6 +121,22 @@ const VoiceChat: React.FC = () => {
 
         {/* Simplified Toggle Control */}
         <div className="flex flex-col items-center gap-6 mb-8">
+
+          <div className="w-full max-w-xs text-left">
+            <label className="text-[10px] font-mono uppercase tracking-[0.2em] text-blue-200/70 block mb-2">Input Device</label>
+            <select
+              className="w-full bg-black/60 text-blue-100 border border-blue-500/40 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-blue-400"
+              value={selectedInputId}
+              onChange={(e) => setSelectedInputId(e.target.value)}
+              disabled={isConnecting}
+            >
+              <option value="">System Default</option>
+              {audioInputs.map((d, idx) => (
+                <option key={d.deviceId || idx} value={d.deviceId}>{d.label || `Mic ${idx + 1}`}</option>
+              ))}
+            </select>
+            <p className="text-[10px] text-blue-200/60 mt-1">If Mossy hears herself, pick your physical mic (not Stereo Mix).</p>
+          </div>
           <button
             onClick={isActive ? disconnect : handleConnect}
             disabled={isConnecting}
@@ -136,17 +163,19 @@ const VoiceChat: React.FC = () => {
           </button>
 
           {isActive && (
-            <button
-              onClick={toggleMute}
-              className={`p-3 rounded-xl border transition-all flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest ${
-                isMuted
-                  ? 'bg-red-500/10 border-red-500/50 text-red-400'
-                  : 'bg-blue-500/10 border-blue-500/50 text-blue-400 hover:bg-blue-500/20'
-              }`}
-            >
-              {isMuted ? <MicOff size={14} /> : <Mic size={14} />}
-              {isMuted ? 'Muted' : 'Voice Active'}
-            </button>
+            <div className="flex gap-3">
+              <button
+                onClick={toggleMute}
+                className={`p-3 rounded-xl border transition-all flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest ${
+                  isMuted
+                    ? 'bg-red-500/10 border-red-500/50 text-red-400'
+                    : 'bg-blue-500/10 border-blue-500/50 text-blue-400 hover:bg-blue-500/20'
+                }`}
+              >
+                {isMuted ? <MicOff size={14} /> : <Mic size={14} />}
+                {isMuted ? 'Muted' : 'Voice Active'}
+              </button>
+            </div>
           )}
         </div>
       </div>

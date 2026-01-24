@@ -1,5 +1,4 @@
 import React, { useState, useRef, useEffect, useMemo, useCallback } from 'react';
-import { GoogleGenAI, Modality, FunctionDeclaration, Type } from "@google/genai";
 import ReactMarkdown from 'react-markdown';
 import { LocalAIEngine } from './LocalAIEngine';
 import { getFullSystemInstruction } from './MossyBrain';
@@ -7,7 +6,6 @@ import { checkContentGuard } from './Fallout4Guard';
 import { Send, Paperclip, Loader2, Bot, Leaf, Search, FolderOpen, Save, Trash2, CheckCircle2, HelpCircle, PauseCircle, ChevronRight, FileText, Cpu, X, CheckSquare, Globe, Mic, Volume2, VolumeX, StopCircle, Wifi, Gamepad2, Terminal, Play, Box, Layout, ArrowUpRight, Wrench, Radio, Lock, Square, Map, Scroll, Flag, PenTool, Database, Activity, Clipboard } from 'lucide-react';
 import { Message } from '../types';
 import { useLive } from './LiveContext';
-import { toolDeclarations } from './MossyBrain';
 import { executeMossyTool, sanitizeBlenderScript } from './MossyTools';
 
 
@@ -166,153 +164,32 @@ const ProjectWizard: React.FC<{ onSubmit: (data: any) => void, onCancel: () => v
 // --- Sub-components for Performance ---
 
 // Memoized Message Item to prevent re-rendering list on typing
-const MessageItem = React.memo(({ msg, onboardingState, scanProgress, detectedApps, projectContext, handleIntegrate, handleStartProject, onManualExecute }: any) => {
-    
-    // Helper to extract script for display
-    const getScriptContent = () => {
-        if (!msg.toolCall || msg.toolCall.toolName !== 'execute_blender_script') return '';
-        const script = msg.toolCall.args.script;
-        if (script.includes('primitive_cube_add') || script.includes('create_cube')) {
-            return "# AUTO-OPTIMIZED: Delegating to 'MOSSY_CUBE' internal function for reliability.";
-        }
-        return sanitizeBlenderScript(script);
-    };
-
+const MessageItem = React.memo(({ msg }: { msg: Message }) => {
+    const roleLabel = msg.role === 'user' ? 'You' : msg.role === 'assistant' || msg.role === 'model' ? 'Mossy' : msg.role;
     return (
-        <div className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-            <div className={`max-w-[85%] lg:max-w-[75%] rounded-2xl p-4 shadow-sm ${
-            msg.role === 'user' ? 'bg-emerald-600 text-white rounded-tr-none' : msg.role === 'system' ? 'bg-slate-800 border border-slate-700 text-slate-400 text-sm' : 'bg-forge-panel border border-slate-700 rounded-tl-none'
-            }`}>
-            {msg.images && msg.images.map((img: string, i: number) => (
-                <img key={i} src={img} alt="Uploaded" className="max-w-full h-auto rounded mb-2 border border-black/20" />
-            ))}
-            <div className="markdown-body text-sm leading-relaxed">
-                <ReactMarkdown>{msg.text}</ReactMarkdown>
+        <div className="flex gap-3 items-start py-2">
+            <div className="w-9 h-9 rounded-full bg-slate-800 flex items-center justify-center text-xs font-bold text-emerald-300 border border-slate-700">
+                {roleLabel?.slice(0, 2).toUpperCase()}
             </div>
-
-            {/* Special handling for Blender commands stored in message metadata */}
-            {msg.toolCall && msg.toolCall.toolName === 'execute_blender_script' && (
-                <div className="mt-3 bg-slate-900 border border-emerald-500/30 rounded-xl p-3 animate-slide-up">
-                    <div className="flex items-center gap-2 mb-2 text-xs font-bold text-emerald-400 uppercase tracking-wide">
-                        <Terminal className="w-3 h-3" /> Ready to Execute
-                    </div>
-                    <div className="bg-black/50 p-2 rounded border border-slate-800 font-mono text-xs text-slate-300 max-h-32 overflow-y-auto mb-3">
-                        {getScriptContent()}
-                    </div>
-                    <div className="text-[10px] text-slate-500 mb-2 italic">
-                        Click 'Run Command' to send to clipboard. If auto-run fails, use 'Paste & Run' in Blender.
-                    </div>
-                    <button 
-                        onClick={() => onManualExecute(msg.toolCall.toolName, msg.toolCall.args)}
-                        className="w-full py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-lg text-xs flex items-center justify-center gap-2 transition-colors shadow-lg"
-                    >
-                        <Play className="w-3 h-3 fill-current" /> Run Command
-                    </button>
-                </div>
-            )}
-
-            {/* Generic Tool Execution Status */}
-            {msg.toolCall && msg.toolCall.toolName !== 'execute_blender_script' && (
-                <div className="mt-3 bg-slate-900/50 border border-slate-700 rounded-xl p-3 animate-slide-up">
-                    <div className="flex justify-between items-center mb-2">
-                        <div className="flex items-center gap-2 text-[10px] font-bold text-slate-400 uppercase tracking-widest">
-                            <Terminal className="w-3 h-3" /> System Bridge
-                        </div>
-                        <div className={`flex items-center gap-1 px-1.5 py-0.5 border rounded text-[9px] font-bold ${
-                            msg.toolResult?.success !== false 
-                            ? 'bg-emerald-900/30 border-emerald-500/30 text-emerald-400' 
-                            : 'bg-red-900/30 border-red-500/30 text-red-400'
-                        }`}>
-                            {msg.toolResult?.success !== false ? 'EXECUTED' : 'FAILED'}
-                        </div>
-                    </div>
-                    <div className="flex items-center justify-between gap-3">
-                        <div className="flex-1 min-w-0">
-                            <div className="text-[11px] font-mono text-white truncate">
-                                {msg.toolCall.toolName}({Object.entries(msg.toolCall.args || {}).map(([k,v]) => `${k}="${v}"`).join(', ')})
-                            </div>
-                            {msg.toolResult && (
-                                <div className="text-[10px] text-slate-500 mt-1 italic border-l border-slate-700 pl-2">
-                                    {typeof msg.toolResult === 'string' 
-                                        ? (msg.toolResult.length > 100 ? msg.toolResult.substring(0, 100) + '...' : msg.toolResult)
-                                        : (msg.toolResult.result?.length > 100 ? msg.toolResult.result.substring(0, 100) + '...' : msg.toolResult.result)
-                                    }
-                                </div>
-                            )}
-                        </div>
-                        <button 
-                            onClick={() => onManualExecute(msg.toolCall.toolName, msg.toolCall.args)}
-                            className="p-2 bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-emerald-400 rounded-lg border border-slate-700 transition-colors"
-                            title="Re-run tool command"
-                        >
-                            <RotateCcw className="w-3 h-3" />
-                        </button>
-                    </div>
-                </div>
-            )}
-
-            {onboardingState === 'scanning' && msg.role === 'model' && msg.text.includes("Scan") && (
-                <div className="mt-4 bg-slate-900 rounded-lg p-3 border border-slate-700 animate-slide-up">
-                    <div className="flex justify-between text-xs mb-1 text-emerald-400 font-mono">
-                        <span>PIP-BOY DIAGNOSTIC</span>
-                        <span>{scanProgress}%</span>
-                    </div>
-                    <div className="h-1.5 bg-slate-800 rounded-full overflow-hidden">
-                        <div className="h-full bg-emerald-500 transition-all duration-100" style={{ width: `${scanProgress}%` }}></div>
-                    </div>
-                    <div className="mt-2 text-[10px] text-slate-500 font-mono truncate">
-                        Probing Data/F4SE/Plugins...
-                    </div>
-                </div>
-            )}
-
-            {onboardingState === 'integrating' && msg.role === 'model' && msg.text.includes("Scan Complete") && (
-                <div className="mt-4 bg-slate-900 rounded-xl p-4 border border-slate-700 shadow-inner animate-slide-up">
-                    <h4 className="text-xs font-bold text-slate-400 mb-3 uppercase tracking-wider flex items-center gap-2">
-                        <Search className="w-3 h-3" /> Detected Tools
-                    </h4>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mb-4">
-                        {detectedApps.map((app: any) => (
-                            <label key={app.id} className={`flex items-center gap-2 p-2 rounded cursor-pointer border transition-all ${app.checked ? 'bg-emerald-900/20 border-emerald-500/50' : 'bg-slate-800 border-transparent hover:border-slate-600'}`}>
-                                <div className="w-3 h-3 rounded bg-emerald-500"></div>
-                                <span className="text-xs font-medium text-slate-200">{app.name}</span>
-                            </label>
+            <div className="flex-1 min-w-0 space-y-1">
+                <div className="text-xs uppercase tracking-wide text-slate-500 font-semibold">{roleLabel}</div>
+                {msg.text && (
+                    <ReactMarkdown className="prose prose-invert prose-sm max-w-none whitespace-pre-wrap">
+                        {msg.text}
+                    </ReactMarkdown>
+                )}
+                {msg.images && msg.images.length > 0 && (
+                    <div className="flex flex-wrap gap-2 mt-2">
+                        {msg.images.map((src, idx) => (
+                            <img key={idx} src={src} alt="upload" className="w-20 h-20 object-cover rounded border border-slate-700" />
                         ))}
                     </div>
-                    <button onClick={handleIntegrate} className="w-full py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg font-bold text-xs uppercase tracking-wide transition-colors">
-                        Link & Integrate
-                    </button>
-                </div>
-            )}
-
-            {msg.id === 'integrated' && onboardingState === 'ready' && !projectContext && (
-                <div className="mt-4 flex flex-col gap-2">
-                    <button onClick={handleStartProject} className="flex items-center gap-3 p-3 bg-slate-800 hover:bg-slate-700 border border-slate-600 hover:border-emerald-500/50 rounded-xl text-left transition-all group">
-                        <div className="p-2 bg-emerald-500/20 rounded-lg group-hover:bg-emerald-500/30">
-                            <FolderOpen className="w-5 h-5 text-emerald-400" />
-                        </div>
-                        <div>
-                            <div className="text-sm font-bold text-slate-200">Start New Mod</div>
-                            <div className="text-xs text-slate-500">Create workspace for ESP/ESL</div>
-                        </div>
-                        <ChevronRight className="w-4 h-4 text-slate-600 ml-auto group-hover:text-emerald-400" />
-                    </button>
-                </div>
-            )}
-            
-            {msg.sources && msg.sources.length > 0 && (
-                <div className="mt-3 pt-3 border-t border-slate-600/50 text-xs flex flex-wrap gap-2">
-                    {msg.sources.map((s: any, idx: number) => (
-                    <a key={idx} href={s.uri} target="_blank" rel="noreferrer" className="flex items-center gap-1 bg-black/20 hover:bg-black/40 px-2 py-1 rounded text-emerald-300 truncate max-w-[150px]">
-                        <Globe className="w-3 h-3" /> {s.title}
-                    </a>
-                    ))}
-                </div>
-            )}
+                )}
             </div>
         </div>
     );
 });
+MessageItem.displayName = 'MessageItem';
 
 // Memoized List Container
 const MessageList = React.memo(({ messages, ...props }: any) => {
@@ -325,6 +202,7 @@ const MessageList = React.memo(({ messages, ...props }: any) => {
         </div>
     );
 });
+MessageList.displayName = 'MessageList';
 
 export const ChatInterface: React.FC = () => {
   // Global Live State
@@ -337,7 +215,6 @@ export const ChatInterface: React.FC = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [isStreaming, setIsStreaming] = useState(false);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
-  const abortControllerRef = useRef<AbortController | null>(null);
   
   // Voice State
   const [isVoiceEnabled, setIsVoiceEnabled] = useState(() => {
@@ -348,6 +225,7 @@ export const ChatInterface: React.FC = () => {
   
   const [isListening, setIsListening] = useState(false);
   const [isPlayingAudio, setIsPlayingAudio] = useState(false);
+  const [audioLevel, setAudioLevel] = useState(0); // Audio meter level (0-100)
   
   // Bridge State
   const [isBridgeActive, setIsBridgeActive] = useState(false);
@@ -384,6 +262,7 @@ export const ChatInterface: React.FC = () => {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
   const activeSourceRef = useRef<AudioBufferSourceNode | null>(null);
+  const lastSendTimeRef = useRef<number>(0); // Prevent rapid duplicate sends
 
   // --- PERSISTENCE LAYER (DEBOUNCED) ---
   useEffect(() => {
@@ -410,7 +289,9 @@ export const ChatInterface: React.FC = () => {
         try {
             const drivers = JSON.parse(localStorage.getItem('mossy_bridge_drivers') || '[]');
             setActiveDrivers(drivers);
-        } catch {}
+        } catch (e) {
+            console.error('Failed to load bridge drivers:', e);
+        }
         
         // CHECK BLENDER ADD-ON STATUS
         const blenderActive = localStorage.getItem('mossy_blender_active') === 'true';
@@ -462,7 +343,9 @@ export const ChatInterface: React.FC = () => {
 
             const memoryData = localStorage.getItem('mossy_cortex_memory');
             if (memoryData) setCortexMemory(JSON.parse(memoryData));
-        } catch (e) {}
+        } catch (e) {
+            console.error('Failed to load cortex data:', e);
+        }
         
         // Cleanup listener
         return () => {
@@ -588,6 +471,15 @@ export const ChatInterface: React.FC = () => {
   };
 
   const stopAudio = () => {
+      // Stop any pending speech synthesis immediately
+      try {
+          if ('speechSynthesis' in window) {
+              window.speechSynthesis.cancel();
+          }
+      } catch (e) {
+          // Ignore speech cancel errors
+      }
+
       if (activeSourceRef.current) {
           try {
               activeSourceRef.current.stop();
@@ -600,216 +492,173 @@ export const ChatInterface: React.FC = () => {
       setIsPlayingAudio(false);
   };
 
-  const startListening = () => {
+  const startListening = async () => {
       if (isLiveActive) {
           alert("Live Voice is currently active. Please disconnect Live Voice to use the chat microphone.");
           return;
       }
       
-      const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-      if (!SpeechRecognition) {
-          alert("Audio receptors damaged. (Browser not supported)");
-          return;
-      }
-      
-      const recognition = new SpeechRecognition();
-      recognition.continuous = false;
-      recognition.interimResults = false;
-      recognition.lang = 'en-US';
-      
-      // LATENCY FIX: Manual silence detection to stop recording immediately instead of waiting 1-2s
-      let audioContext: AudioContext | null = null;
-      let analyser: AnalyserNode | null = null;
+      const audioChunks: Blob[] = [];
       let mediaStream: MediaStream | null = null;
       let silenceTimer: ReturnType<typeof setTimeout> | null = null;
       let silenceDuration = 0;
-      const SILENCE_THRESHOLD = 0.01; // Very quiet threshold
-      const SILENCE_DURATION_MS = 500; // 500ms of silence to trigger stop
+      const SILENCE_THRESHOLD = 0.05; // More lenient threshold - only stop on actual silence, not quiet parts of speech
+      const SILENCE_DURATION_MS = 5000; // 5 seconds of silence before auto-stopping (allows longer natural pauses in speech)
+      const MIN_RECORDING_MS = 1000; // Minimum 1 second recording to avoid cutting off start of speech
+      let recordingStartTime = Date.now();
       
-      const setupSilenceDetection = async () => {
-          try {
-              mediaStream = await navigator.mediaDevices.getUserMedia({ audio: true });
-              audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
-              analyser = audioContext.createAnalyser();
-              analyser.fftSize = 2048;
+      try {
+          setIsListening(true);
+          mediaStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+          recordingStartTime = Date.now();
+          
+          const mediaRecorder = new MediaRecorder(mediaStream);
+          mediaRecorder.ondataavailable = (e) => audioChunks.push(e.data);
+          
+          mediaRecorder.onstop = async () => {
+              setIsListening(false);
+              if (silenceTimer) clearTimeout(silenceTimer);
+              if (mediaStream) mediaStream.getTracks().forEach(t => t.stop());
               
-              const source = audioContext.createMediaStreamSource(mediaStream);
-              source.connect(analyser);
+              // Send to Whisper or Deepgram for transcription
+              const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
+              if (audioBlob.size < 100) {
+                  console.log('[ChatInterface] Audio too small, ignoring');
+                  return; // Ignore empty recordings
+              }
               
-              const buffer = new Uint8Array(analyser.frequencyBinCount);
-              const checkSilence = () => {
-                  if (!analyser) return;
-                  analyser.getByteFrequencyData(buffer);
+              let transcript = '';
+              
+              // Try OpenAI Whisper first
+              try {
+                  console.log('[ChatInterface] Sending audio to Whisper... (size:', audioBlob.size, 'bytes)');
+                  const formData = new FormData();
+                  formData.append('file', audioBlob, 'audio.webm');
+                  formData.append('model', 'whisper-1');
                   
-                  const average = buffer.reduce((a, b) => a + b) / buffer.length;
-                  const normalized = average / 255;
+                  const response = await fetch('https://api.openai.com/v1/audio/transcriptions', {
+                      method: 'POST',
+                      headers: { 'Authorization': `Bearer ${import.meta.env.VITE_OPENAI_API_KEY}` },
+                      body: formData,
+                  });
                   
-                  if (normalized < SILENCE_THRESHOLD) {
-                      silenceDuration += 50; // Check interval ~50ms
-                      if (silenceDuration >= SILENCE_DURATION_MS) {
-                          console.log('[ChatInterface] Silence detected - stopping speech recognition');
-                          recognition.abort();
-                          return;
-                      }
+                  if (response.ok) {
+                      const result = await response.json();
+                      transcript = result.text?.trim() || '';
+                      console.log('[ChatInterface] Whisper transcript:', transcript);
                   } else {
-                      silenceDuration = 0; // Reset if user speaks again
+                      console.warn('[ChatInterface] Whisper error:', response.status, '- trying Deepgram fallback');
                   }
-                  
-                  silenceTimer = setTimeout(checkSilence, 50);
-              };
+              } catch (err) {
+                  console.warn('[ChatInterface] Whisper failed:', err, '- trying Deepgram fallback');
+              }
+              
+              // Fallback to Deepgram if Whisper failed
+              if (!transcript && import.meta.env.VITE_DEEPGRAM_API_KEY) {
+                  try {
+                      console.log('[ChatInterface] Trying Deepgram transcription...');
+                      const response = await fetch('https://api.deepgram.com/v1/listen?model=nova-2-general&language=en&punctuate=true', {
+                          method: 'POST',
+                          headers: {
+                              'Authorization': `Token ${import.meta.env.VITE_DEEPGRAM_API_KEY}`,
+                              'Content-Type': 'audio/webm'
+                          },
+                          body: audioBlob
+                      });
+                      
+                      if (response.ok) {
+                          const data = await response.json();
+                          transcript = data.results?.channels?.[0]?.alternatives?.[0]?.transcript?.trim() || '';
+                          console.log('[ChatInterface] Deepgram transcript:', transcript);
+                      } else {
+                          console.error('[ChatInterface] Deepgram error:', response.status);
+                      }
+                  } catch (err) {
+                      console.error('[ChatInterface] Deepgram failed:', err);
+                  }
+              }
+              
+              // Submit the transcript if we got one
+              if (transcript) {
+                  console.log('[ChatInterface] Got transcript, submitting:', transcript);
+                  setInputText(prev => prev + (prev ? ' ' : '') + transcript);
+                  // Auto-submit the transcribed text (only once)
+                  setTimeout(() => {
+                      console.log('[ChatInterface] Auto-submitting transcript');
+                      handleSend(transcript);
+                  }, 100);
+              } else {
+                  console.error('[ChatInterface] No transcription available from any service');
+                  alert('Voice transcription failed. Please check your microphone and try again.');
+              }
+          };
+          
+          mediaRecorder.start();
+          
+          // Setup silence detection
+          const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
+          const analyser = audioContext.createAnalyser();
+          analyser.fftSize = 2048;
+          const source = audioContext.createMediaStreamSource(mediaStream);
+          source.connect(analyser);
+          
+          const buffer = new Uint8Array(analyser.frequencyBinCount);
+          const checkSilence = () => {
+              analyser.getByteFrequencyData(buffer);
+              const average = buffer.reduce((a, b) => a + b) / buffer.length;
+              const normalized = average / 255;
+              
+              // Update audio level meter
+              setAudioLevel(Math.round(normalized * 100));
+              
+              // DISABLED: Automatic silence detection was cutting off users mid-sentence
+              // Instead, users must click the button again to stop recording
+              // This gives them full control over when their message ends
               
               silenceTimer = setTimeout(checkSilence, 50);
-          } catch (err) {
-              console.warn('[ChatInterface] Silence detection setup failed:', err);
-          }
-      };
-      
-      recognition.onstart = () => {
-          setIsListening(true);
-          setupSilenceDetection(); // Start monitoring for silence
-      };
-      
-      recognition.onresult = (event: any) => {
-          setInputText(prev => prev + (prev ? ' ' : '') + event.results[0][0].transcript);
-      };
-      
-      recognition.onerror = () => {
+          };
+          
+          silenceTimer = setTimeout(checkSilence, 50);
+          
+      } catch (err) {
+          console.error('[ChatInterface] Mic access failed:', err);
           setIsListening(false);
-          if (silenceTimer) clearTimeout(silenceTimer);
-          if (mediaStream) mediaStream.getTracks().forEach(t => t.stop());
-          if (audioContext) audioContext.close();
-      };
-      
-      recognition.onend = () => {
-          setIsListening(false);
-          if (silenceTimer) clearTimeout(silenceTimer);
-          if (mediaStream) mediaStream.getTracks().forEach(t => t.stop());
-          if (audioContext) audioContext.close();
-      };
-      
-      recognition.start();
+      }
   };
 
   const speakText = async (textToSpeak: string) => {
       if (!textToSpeak || isLiveActive) return;
-      const cleanText = textToSpeak.replace(/[*#]/g, '').substring(0, 500); 
-      setIsPlayingAudio(true);
+      
+      // PREVENT QUEUING: Stop any existing speech before starting new one
       try {
-        const apiKey = import.meta.env.VITE_API_KEY || import.meta.env.VITE_GOOGLE_API_KEY || "";
-        const ai = new GoogleGenAI({ apiKey });
-        const model = ai.getGenerativeModel({ model: 'gemini-1.5-flash' });
-        
-        const result = await model.generateContent({
-            contents: [{ role: 'user', parts: [{ text: cleanText }] }],
-            generationConfig: {
-                responseModalities: [Modality.AUDIO],
-                speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: 'Kore' } } },
-            },
-        });
-        
-        const response = await result.response;
-        const base64Audio = response.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
-        if (!base64Audio) throw new Error("No audio returned");
+          if ('speechSynthesis' in window) {
+              window.speechSynthesis.cancel();
+          }
+      } catch (e) {
+          // Ignore
+      }
+      
+      const cleanText = textToSpeak.replace(/[*#]/g, '').substring(0, 500);
+      setIsPlayingAudio(true);
 
-        // MEMORY LEAK FIX: Reuse existing AudioContext or create if needed
-        if (!audioContextRef.current) {
-            audioContextRef.current = new (window.AudioContext || window.webkitAudioContext)();
-        }
-        const ctx = audioContextRef.current;
-        
-        // MEMORY LEAK FIX: Resume context if suspended
-        if (ctx.state === 'suspended') {
-            await ctx.resume();
-        }
-        
-        // PERFORMANCE FIX: Non-blocking audio decode - simpler approach
-        // Only use async chunking for very large audio (>10MB)
-        const binaryString = atob(base64Audio);
-        const audioLen = binaryString.length;
-        
-        let buffer: AudioBuffer;
-        
-        if (audioLen > 10 * 1024 * 1024) {
-            // Large audio - use async chunking with efficient byte extraction
-            buffer = await new Promise<AudioBuffer>((resolve, reject) => {
-                try {
-                    const bytes = new Uint8Array(audioLen);
-                    const chunkSize = 65536;
-                    let offset = 0;
-                    
-                    const processChunk = () => {
-                        const end = Math.min(offset + chunkSize, audioLen);
-                        for (let i = offset; i < end; i++) {
-                            bytes[i] = binaryString.charCodeAt(i) & 0xFF;
-                        }
-                        offset = end;
-                        
-                        if (offset < audioLen) {
-                            setTimeout(processChunk, 0);
-                        } else {
-                            const dataInt16 = new Int16Array(bytes.buffer);
-                            const audioBuffer = ctx.createBuffer(1, dataInt16.length, 24000);
-                            const channelData = audioBuffer.getChannelData(0);
-                            
-                            let sampleOffset = 0;
-                            const sampleChunkSize = 32768;
-                            
-                            const processSamples = () => {
-                                const sampleEnd = Math.min(sampleOffset + sampleChunkSize, dataInt16.length);
-                                for (let i = sampleOffset; i < sampleEnd; i++) {
-                                    channelData[i] = dataInt16[i] / 32768.0;
-                                }
-                                sampleOffset = sampleEnd;
-                                
-                                if (sampleOffset < dataInt16.length) {
-                                    setTimeout(processSamples, 0);
-                                } else {
-                                    resolve(audioBuffer);
-                                }
-                            };
-                            
-                            processSamples();
-                        }
-                    };
-                    
-                    processChunk();
-                } catch (err) {
-                    reject(err);
-                }
-            });
+      try {
+        if ('speechSynthesis' in window) {
+          const utter = new SpeechSynthesisUtterance(cleanText);
+          utter.onend = () => setIsPlayingAudio(false);
+          utter.onerror = () => setIsPlayingAudio(false);
+          window.speechSynthesis.speak(utter);
         } else {
-            // Normal audio size - sync is fine, with efficient byte extraction
-            const bytes = new Uint8Array(audioLen);
-            for (let i = 0; i < audioLen; i++) {
-                bytes[i] = binaryString.charCodeAt(i) & 0xFF;
-            }
-            const dataInt16 = new Int16Array(bytes.buffer);
-            buffer = ctx.createBuffer(1, dataInt16.length, 24000);
-            const channelData = buffer.getChannelData(0);
-            for (let i = 0; i < dataInt16.length; i++) channelData[i] = dataInt16[i] / 32768.0;
+          console.warn('[TTS] Browser speechSynthesis unavailable; skipping audio playback.');
+          setIsPlayingAudio(false);
         }
-
-        const source = ctx.createBufferSource();
-        source.buffer = buffer;
-        source.connect(ctx.destination);
-        activeSourceRef.current = source;
-        
-        // MEMORY LEAK FIX: Properly disconnect source after playback
-        source.onended = () => { 
-            try {
-                source.disconnect();
-            } catch (e) {
-                // Already disconnected
-            }
-            setIsPlayingAudio(false); 
-            activeSourceRef.current = null; 
-        };
-        source.start();
-      } catch (e) { console.error("TTS Error", e); setIsPlayingAudio(false); }
+      } catch (err) {
+        console.error('[TTS] Audio playback failed:', err);
+        setIsPlayingAudio(false);
+      }
   };
 
   // --- CHAT LOGIC ---
-  const generateSystemContext = () => {
+  const generateSystemContext = async () => {
     try {
       let hardwareCtx = "Hardware: Unknown";
       if (profile) {
@@ -877,8 +726,9 @@ export const ChatInterface: React.FC = () => {
       // Get current mod project info
       let modContext = "";
       try {
-          const { ModProjectStorage } = require('./services/ModProjectStorage');
-          const currentMod = ModProjectStorage.getCurrentMod();
+          // Dynamic import for ModProjectStorage to avoid circular dependencies
+          const ModProjectStorageModule = await import('./services/ModProjectStorage');
+          const currentMod = ModProjectStorageModule.ModProjectStorage.getCurrentMod();
           if (currentMod) {
               const stats = ModProjectStorage.getProjectStats(currentMod.id);
               modContext = `\n**CURRENT MOD PROJECT:** "${currentMod.name}"\n- Type: ${currentMod.type} | Status: ${currentMod.status}\n- Progress: ${currentMod.completionPercentage}% | Steps: ${stats.completedSteps}/${stats.totalSteps}\n- Version: ${currentMod.version}\n(Provide context-aware guidance for this specific mod.)`;
@@ -1108,7 +958,9 @@ export const ChatInterface: React.FC = () => {
                     }
                 });
                 finalApps = Object.values(driveMap);
-            } catch (e) {}
+            } catch (e) {
+                console.error('Failed to deduplicate apps:', e);
+            }
         }
         
         setDetectedApps(finalApps);
@@ -1216,10 +1068,6 @@ export const ChatInterface: React.FC = () => {
   };
 
   const handleStopGeneration = () => {
-      if (abortControllerRef.current) {
-          abortControllerRef.current.abort();
-          abortControllerRef.current = null;
-      }
       setIsLoading(false);
       setIsStreaming(false);
       setMessages(prev => [...prev, { id: Date.now().toString(), role: 'model', text: "**[Generation Stopped by User]**" }]);
@@ -1229,10 +1077,13 @@ export const ChatInterface: React.FC = () => {
     const textToSend = overrideText || inputText;
     if ((!textToSend.trim() && !selectedFile) || isLoading || isStreaming) return;
 
-    if (abortControllerRef.current) {
-        abortControllerRef.current.abort();
+    // Prevent rapid duplicate sends (within 500ms)
+    const now = Date.now();
+    if (now - lastSendTimeRef.current < 500) {
+        console.log('[ChatInterface] Ignoring duplicate send within 500ms');
+        return;
     }
-    abortControllerRef.current = new AbortController();
+    lastSendTimeRef.current = now;
 
     if (onboardingState === 'init') {
         if (textToSend.toLowerCase().match(/yes|ok|start|scan/)) {
@@ -1280,158 +1131,32 @@ export const ChatInterface: React.FC = () => {
 
     try {
       console.log("[Mossy] Initializing AI Session...");
-      const apiKey = import.meta.env.VITE_API_KEY || import.meta.env.VITE_GOOGLE_API_KEY || "";
-      if (!apiKey) {
-          throw new Error("No API Key found. Please add VITE_API_KEY to your .env file.");
-      }
-
-      const ai = new GoogleGenAI({ apiKey });
-      
-      const history = messages
-        .filter(m => m.role !== 'system' && !m.text.includes("Scan Complete")) 
-        .map(m => {
-            const parts: any[] = [];
-            if (m.text && m.text.trim().length > 0) parts.push({ text: m.text });
-            
-            // If message has a tool call and result, include them for short-term memory
-            if (m.toolCall) {
-                parts.push({
-                    functionCall: {
-                        name: m.toolCall.toolName,
-                        args: m.toolCall.args
-                    }
-                });
-                if (m.toolResult) {
-                    parts.push({
-                        functionResponse: {
-                            name: m.toolCall.toolName,
-                            response: { result: m.toolResult }
-                        }
-                    });
-                }
-            }
-            
-            if (parts.length === 0) parts.push({ text: "[Image Uploaded]" });
-            return { role: m.role, parts };
-        });
-
-      const userParts = [];
-      if (selectedFile) {
-        const base64 = await new Promise<string>((resolve) => {
-          const reader = new FileReader();
-          reader.onloadend = () => resolve(reader.result as string);
-          reader.readAsDataURL(selectedFile);
-        });
-        userParts.push({ inlineData: { mimeType: selectedFile.type, data: base64.split(',')[1] } });
-      }
-      userParts.push({ text: textToSend });
-      
-      const contents = [...history, { role: 'user', parts: userParts }];
-
-      const toolsConfig = [{ functionDeclarations: toolDeclarations }];
+      const dynamicInstruction = getFullSystemInstruction(await generateSystemContext());
       setIsStreaming(true);
-      
-      const dynamicInstruction = getFullSystemInstruction(generateSystemContext());
-      
-      const model = ai.getGenerativeModel({ 
-        model: 'gemini-1.5-flash',
-        systemInstruction: dynamicInstruction, // Use simple string format
-        tools: toolsConfig
-      });
 
       const streamId = (Date.now() + 1).toString();
-      setMessages(prev => [...prev, { id: streamId, role: 'model', text: "..Establishing Neural Uplink.." }]);
+      setMessages(prev => [...prev, { id: streamId, role: 'model', text: "..Processing.." }]);
 
-      let localThoughtText = "";
-      let aiResponseText = "";
+      // Use local engine only (Google Cloud removed)
+      const localResult = await LocalAIEngine.generateResponse(textToSend, dynamicInstruction);
+      const aiResponseText = localResult.content || "Mossy is in Passive Mode; no cloud model configured.";
 
-      const updateUI = () => {
-          const fullText = localThoughtText + aiResponseText;
-          setMessages(prev => prev.map(m => m.id === streamId ? { ...m, text: fullText || "..Processing.." } : m));
-      };
+      setMessages(prev => prev.map(m => m.id === streamId ? { ...m, text: aiResponseText } : m));
 
-      // Start local ML in parallel (Non-blocking)
-      LocalAIEngine.generateResponse(textToSend, dynamicInstruction)
-        .then(res => {
-            localThoughtText = `**[Local Inference]**\n${res.content}\n\n---\n`;
-            updateUI();
-        })
-        .catch(e => console.warn("Local ML failed", e));
-
-      console.log("[Mossy] Starting Content Stream...");
-      const streamResult = await model.generateContentStream({ contents });
-      
-      try {
-          for await (const chunk of streamResult.stream) {
-              if (abortControllerRef.current?.signal.aborted) break;
-              
-              try {
-                  let chunkText = "";
-                  try {
-                      chunkText = chunk.text();
-                      aiResponseText += chunkText;
-                      updateUI();
-                  } catch (e) {
-                      // Not a text chunk (likely a function call)
-                  }
-                  
-                  const calls = chunk.functionCalls();
-                  if (calls && calls.length > 0) {
-                      for (const call of calls) {
-                          try {
-                              console.log("[Mossy] Executing Tool:", call.name);
-                              const toolResponse = await executeTool(call.name, call.args);
-                              const result = toolResponse?.result || toolResponse; // Extract result property
-                              
-                              aiResponseText += `\n\n[System: Executed ${call.name}]\n`;
-                              setMessages(prev => prev.map(m => m.id === streamId ? { 
-                                  ...m, 
-                                  toolCall: { toolName: call.name, args: call.args },
-                                  toolResult: result 
-                              } : m));
-                              updateUI();
-                          } catch (toolError: any) {
-                              console.error("[Mossy] Tool execution error:", toolError);
-                              const errorMsg = toolError instanceof Error ? toolError.message : String(toolError);
-                              aiResponseText += `\n\n[System: Tool ${call.name} failed - ${errorMsg}]\n`;
-                              setMessages(prev => prev.map(m => m.id === streamId ? { 
-                                  ...m, 
-                                  toolCall: { toolName: call.name, args: call.args },
-                                  toolResult: `Error executing ${call.name}: ${errorMsg}` 
-                              } : m));
-                              updateUI();
-                          }
-                      }
-                  }
-              } catch (chunkError: any) {
-                  console.error("[Mossy] Chunk processing error (continuing stream):", chunkError);
-                  // Continue processing remaining chunks instead of crashing
-              }
-          }
-      } catch (streamError: any) {
-          console.error("[Mossy] Stream error:", streamError);
-          const streamErrMsg = streamError instanceof Error ? streamError.message : String(streamError);
-          aiResponseText += `\n\n[Stream interrupted: ${streamErrMsg}]`;
-          updateUI();
+      console.log('[ChatInterface] Response received, isVoiceEnabled:', isVoiceEnabled);
+      if (isVoiceEnabled && aiResponseText) {
+          console.log('[ChatInterface] Speaking response (length:', aiResponseText.length, ')');
+          await speakText(aiResponseText);
       }
-
-      if (isVoiceEnabled && aiResponseText) speakText(aiResponseText);
 
     } catch (error) {
       console.error(error);
       const errText = error instanceof Error ? error.message : 'Unknown error';
-      if (errText.includes("not found") || errText.includes("404")) {
-          setMessages(prev => [...prev, { id: Date.now().toString(), role: 'model', text: "**Connection Lost:** The Google AI Studio service is currently unreachable." }]);
-      } else if (errText.includes("implemented") || errText.includes("supported")) {
-           setMessages(prev => [...prev, { id: Date.now().toString(), role: 'model', text: "**System Limitation:** Tool execution unavailable in current stream configuration. I'll describe the action instead." }]);
-      } else {
-          setMessages(prev => [...prev, { id: Date.now().toString(), role: 'model', text: `**System Error:** ${errText}` }]);
-      }
+      setMessages(prev => [...prev, { id: Date.now().toString(), role: 'model', text: `**System Error:** ${errText}` }]);
     } finally {
       setIsLoading(false);
       setIsStreaming(false);
       setSelectedFile(null);
-      abortControllerRef.current = null;
     }
   };
 
@@ -1639,6 +1364,23 @@ export const ChatInterface: React.FC = () => {
                         >
                             <Mic className="w-5 h-5" />
                         </button>
+
+                        {isListening && (
+                            <div className="flex items-center gap-2 px-3 py-2 bg-slate-900 rounded-xl border border-slate-700">
+                                <div className="text-xs text-slate-400">Audio:</div>
+                                <div className="w-24 h-2 bg-slate-800 rounded-full overflow-hidden">
+                                    <div 
+                                        className={`h-full rounded-full transition-all ${
+                                            audioLevel > 30 ? 'bg-emerald-500' : 
+                                            audioLevel > 10 ? 'bg-yellow-500' : 
+                                            'bg-red-500'
+                                        }`}
+                                        style={{ width: `${audioLevel}%` }}
+                                    />
+                                </div>
+                                <div className="text-xs text-slate-400 w-8 text-right">{audioLevel}%</div>
+                            </div>
+                        )}
 
                         <input type="text" className="flex-1 bg-slate-900 border border-slate-700 rounded-xl px-4 py-2 focus:outline-none focus:border-emerald-500 transition-colors text-slate-100 placeholder-slate-500" placeholder="Message Mossy..." value={inputText} onChange={(e) => setInputText(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && handleSend()} />
                         <button onClick={() => handleSend()} disabled={isLoading || isStreaming || (!inputText && !selectedFile)} className="p-3 bg-emerald-600 text-white rounded-xl hover:bg-emerald-500 disabled:opacity-50 disabled:cursor-not-allowed font-medium transition-colors shadow-lg shadow-emerald-900/20"><Send className="w-5 h-5" /></button>

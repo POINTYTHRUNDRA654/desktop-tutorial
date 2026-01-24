@@ -1,0 +1,23 @@
+
+> mossy-desktop@3.0.0 lint
+> eslint . --ext .ts,.tsx
+
+
+Oops! Something went wrong! :(
+
+ESLint: 8.57.1
+
+Error: .eslintrc.json:
+	Configuration for rule "no-useless-escape" is invalid:
+	Value [{"exceptions":["\\P","\\."]}] should NOT have more than 0 items.
+
+    at ConfigValidator.validateRuleOptions (D:\Projects\desktop-tutorial\desktop-tutorial\node_modules\@eslint\eslintrc\dist\eslintrc.cjs:2048:23)
+    at D:\Projects\desktop-tutorial\desktop-tutorial\node_modules\@eslint\eslintrc\dist\eslintrc.cjs:2103:18
+    at Array.forEach (<anonymous>)
+    at ConfigValidator.validateRules (D:\Projects\desktop-tutorial\desktop-tutorial\node_modules\@eslint\eslintrc\dist\eslintrc.cjs:2100:34)
+    at ConfigValidator.validateConfigArray (D:\Projects\desktop-tutorial\desktop-tutorial\node_modules\@eslint\eslintrc\dist\eslintrc.cjs:2226:18)
+    at CascadingConfigArrayFactory._finalizeConfigArray (D:\Projects\desktop-tutorial\desktop-tutorial\node_modules\@eslint\eslintrc\dist\eslintrc.cjs:3985:23)
+    at CascadingConfigArrayFactory.getConfigArrayForFile (D:\Projects\desktop-tutorial\desktop-tutorial\node_modules\@eslint\eslintrc\dist\eslintrc.cjs:3791:21)
+    at FileEnumerator._iterateFilesRecursive (D:\Projects\desktop-tutorial\desktop-tutorial\node_modules\eslint\lib\cli-engine\file-enumerator.js:450:49)
+    at _iterateFilesRecursive.next (<anonymous>)
+    at FileEnumerator.iterateFiles (D:\Projects\desktop-tutorial\desktop-tutorial\node_modules\eslint\lib\cli-engine\file-enumerator.js:299:49)

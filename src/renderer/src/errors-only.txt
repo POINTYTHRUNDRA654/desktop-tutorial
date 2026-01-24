@@ -1,0 +1,246 @@
+
+   193:19   error    Require statement not part of import statement            @typescript-eslint/no-var-requires
+   745:18   error    Require statement not part of import statement            @typescript-eslint/no-var-requires
+   778:22   error    Require statement not part of import statement            @typescript-eslint/no-var-requires
+   779:18   error    Require statement not part of import statement            @typescript-eslint/no-var-requires
+   867:22   error    Require statement not part of import statement            @typescript-eslint/no-var-requires
+   868:24   error    Require statement not part of import statement            @typescript-eslint/no-var-requires
+   900:11   error    'storageDrives' is never reassigned. Use 'const' instead  prefer-const
+   920:28   error    Require statement not part of import statement            @typescript-eslint/no-var-requires
+  1087:15   error    'b' is never reassigned. Use 'const' instead              prefer-const
+  1457:54   error    'colorSpace' is never reassigned. Use 'const' instead     prefer-const
+  1742:17   error    Empty block statement                                     no-empty
+D:\Projects\desktop-tutorial\desktop-tutorial\src\renderer\src\AICopilot.tsx
+D:\Projects\desktop-tutorial\desktop-tutorial\src\renderer\src\AnimationValidator.tsx
+D:\Projects\desktop-tutorial\desktop-tutorial\src\renderer\src\App.tsx
+D:\Projects\desktop-tutorial\desktop-tutorial\src\renderer\src\AssetOptimizer.tsx
+D:\Projects\desktop-tutorial\desktop-tutorial\src\renderer\src\AssetViewer3D.tsx
+D:\Projects\desktop-tutorial\desktop-tutorial\src\renderer\src\AutoCompiler.tsx
+D:\Projects\desktop-tutorial\desktop-tutorial\src\renderer\src\AvatarOverlay.tsx
+D:\Projects\desktop-tutorial\desktop-tutorial\src\renderer\src\BA2Manager.tsx
+D:\Projects\desktop-tutorial\desktop-tutorial\src\renderer\src\BackupManager.tsx
+D:\Projects\desktop-tutorial\desktop-tutorial\src\renderer\src\ChatInterface.tsx
+  167:21   error    Component definition is missing display name                                                                                                                   react/display-name
+  194:21   error    Component definition is missing display name                                                                                                                   react/display-name
+  673:41   error    Require statement not part of import statement                                                                                                                 @typescript-eslint/no-var-requires
+D:\Projects\desktop-tutorial\desktop-tutorial\src\renderer\src\CommandPalette.tsx
+D:\Projects\desktop-tutorial\desktop-tutorial\src\renderer\src\ConflictGraph.tsx
+D:\Projects\desktop-tutorial\desktop-tutorial\src\renderer\src\DesktopBridge.tsx
+   846:49   error    `"` can be escaped with `&quot;`, `&ldquo;`, `&#34;`, `&rdquo;`  react/no-unescaped-entities
+   846:65   error    `"` can be escaped with `&quot;`, `&ldquo;`, `&#34;`, `&rdquo;`  react/no-unescaped-entities
+   976:44   error    `"` can be escaped with `&quot;`, `&ldquo;`, `&#34;`, `&rdquo;`  react/no-unescaped-entities
+   976:63   error    `"` can be escaped with `&quot;`, `&ldquo;`, `&#34;`, `&rdquo;`  react/no-unescaped-entities
+  1019:23   error    `"` can be escaped with `&quot;`, `&ldquo;`, `&#34;`, `&rdquo;`  react/no-unescaped-entities
+  1019:62   error    `'` can be escaped with `&apos;`, `&lsquo;`, `&#39;`, `&rsquo;`  react/no-unescaped-entities
+  1019:105  error    `'` can be escaped with `&apos;`, `&lsquo;`, `&#39;`, `&rsquo;`  react/no-unescaped-entities
+  1020:26   error    `'` can be escaped with `&apos;`, `&lsquo;`, `&#39;`, `&rsquo;`  react/no-unescaped-entities
+  1020:56   error    `'` can be escaped with `&apos;`, `&lsquo;`, `&#39;`, `&rsquo;`  react/no-unescaped-entities
+  1020:63   error    `'` can be escaped with `&apos;`, `&lsquo;`, `&#39;`, `&rsquo;`  react/no-unescaped-entities
+  1020:101  error    `"` can be escaped with `&quot;`, `&ldquo;`, `&#34;`, `&rdquo;`  react/no-unescaped-entities
+D:\Projects\desktop-tutorial\desktop-tutorial\src\renderer\src\DiagnosticTools.tsx
+D:\Projects\desktop-tutorial\desktop-tutorial\src\renderer\src\ErrorBoundary.tsx
+D:\Projects\desktop-tutorial\desktop-tutorial\src\renderer\src\ExternalToolsSettings.tsx
+D:\Projects\desktop-tutorial\desktop-tutorial\src\renderer\src\Fallout4SpecializationBanner.tsx
+D:\Projects\desktop-tutorial\desktop-tutorial\src\renderer\src\FileWatcher.tsx
+D:\Projects\desktop-tutorial\desktop-tutorial\src\renderer\src\FirstRunOnboarding.tsx
+  363:30  error    `'` can be escaped with `&apos;`, `&lsquo;`, `&#39;`, `&rsquo;`                                                                                                                                                                      react/no-unescaped-entities
+D:\Projects\desktop-tutorial\desktop-tutorial\src\renderer\src\Holodeck.tsx
+  246:111  error    `"` can be escaped with `&quot;`, `&ldquo;`, `&#34;`, `&rdquo;`  react/no-unescaped-entities
+  246:120  error    `"` can be escaped with `&quot;`, `&ldquo;`, `&#34;`, `&rdquo;`  react/no-unescaped-entities
+D:\Projects\desktop-tutorial\desktop-tutorial\src\renderer\src\HyperTerminal.tsx
+  72:15  error  Parsing error: ';' expected
+D:\Projects\desktop-tutorial\desktop-tutorial\src\renderer\src\ImageSuite.tsx
+  114:21  error    Empty block statement                                  no-empty
+  193:15  error    Empty block statement                                  no-empty
+D:\Projects\desktop-tutorial\desktop-tutorial\src\renderer\src\LeveledListInjectionGuide.tsx
+   24:42   error    `'` can be escaped with `&apos;`, `&lsquo;`, `&#39;`, `&rsquo;`  react/no-unescaped-entities
+   51:74   error    `'` can be escaped with `&apos;`, `&lsquo;`, `&#39;`, `&rsquo;`  react/no-unescaped-entities
+   53:190  error    `'` can be escaped with `&apos;`, `&lsquo;`, `&#39;`, `&rsquo;`  react/no-unescaped-entities
+  143:83   error    `'` can be escaped with `&apos;`, `&lsquo;`, `&#39;`, `&rsquo;`  react/no-unescaped-entities
+  163:134  error    `"` can be escaped with `&quot;`, `&ldquo;`, `&#34;`, `&rdquo;`  react/no-unescaped-entities
+  163:153  error    `"` can be escaped with `&quot;`, `&ldquo;`, `&#34;`, `&rdquo;`  react/no-unescaped-entities
+  325:58   error    `"` can be escaped with `&quot;`, `&ldquo;`, `&#34;`, `&rdquo;`  react/no-unescaped-entities
+  325:83   error    `"` can be escaped with `&quot;`, `&ldquo;`, `&#34;`, `&rdquo;`  react/no-unescaped-entities
+  336:47   error    `'` can be escaped with `&apos;`, `&lsquo;`, `&#39;`, `&rsquo;`  react/no-unescaped-entities
+  336:76   error    `"` can be escaped with `&quot;`, `&ldquo;`, `&#34;`, `&rdquo;`  react/no-unescaped-entities
+  336:97   error    `"` can be escaped with `&quot;`, `&ldquo;`, `&#34;`, `&rdquo;`  react/no-unescaped-entities
+  339:35   error    `"` can be escaped with `&quot;`, `&ldquo;`, `&#34;`, `&rdquo;`  react/no-unescaped-entities
+  339:56   error    `"` can be escaped with `&quot;`, `&ldquo;`, `&#34;`, `&rdquo;`  react/no-unescaped-entities
+  371:88   error    `'` can be escaped with `&apos;`, `&lsquo;`, `&#39;`, `&rsquo;`  react/no-unescaped-entities
+  371:126  error    `'` can be escaped with `&apos;`, `&lsquo;`, `&#39;`, `&rsquo;`  react/no-unescaped-entities
+  374:77   error    `'` can be escaped with `&apos;`, `&lsquo;`, `&#39;`, `&rsquo;`  react/no-unescaped-entities
+  374:80   error    `"` can be escaped with `&quot;`, `&ldquo;`, `&#34;`, `&rdquo;`  react/no-unescaped-entities
+  374:93   error    `"` can be escaped with `&quot;`, `&ldquo;`, `&#34;`, `&rdquo;`  react/no-unescaped-entities
+  389:32   error    `'` can be escaped with `&apos;`, `&lsquo;`, `&#39;`, `&rsquo;`  react/no-unescaped-entities
+  494:58   error    `'` can be escaped with `&apos;`, `&lsquo;`, `&#39;`, `&rsquo;`  react/no-unescaped-entities
+  496:37   error    `'` can be escaped with `&apos;`, `&lsquo;`, `&#39;`, `&rsquo;`  react/no-unescaped-entities
+  497:49   error    `'` can be escaped with `&apos;`, `&lsquo;`, `&#39;`, `&rsquo;`  react/no-unescaped-entities
+  603:40   error    `"` can be escaped with `&quot;`, `&ldquo;`, `&#34;`, `&rdquo;`  react/no-unescaped-entities
+  603:44   error    `"` can be escaped with `&quot;`, `&ldquo;`, `&#34;`, `&rdquo;`  react/no-unescaped-entities
+  603:60   error    `"` can be escaped with `&quot;`, `&ldquo;`, `&#34;`, `&rdquo;`  react/no-unescaped-entities
+  603:64   error    `"` can be escaped with `&quot;`, `&ldquo;`, `&#34;`, `&rdquo;`  react/no-unescaped-entities
+  604:77   error    `'` can be escaped with `&apos;`, `&lsquo;`, `&#39;`, `&rsquo;`  react/no-unescaped-entities
+  612:22   error    `'` can be escaped with `&apos;`, `&lsquo;`, `&#39;`, `&rsquo;`  react/no-unescaped-entities
+  647:104  error    `'` can be escaped with `&apos;`, `&lsquo;`, `&#39;`, `&rsquo;`  react/no-unescaped-entities
+  671:38   error    `'` can be escaped with `&apos;`, `&lsquo;`, `&#39;`, `&rsquo;`  react/no-unescaped-entities
+  671:135  error    `'` can be escaped with `&apos;`, `&lsquo;`, `&#39;`, `&rsquo;`  react/no-unescaped-entities
+  695:62   error    `"` can be escaped with `&quot;`, `&ldquo;`, `&#34;`, `&rdquo;`  react/no-unescaped-entities
+  695:87   error    `"` can be escaped with `&quot;`, `&ldquo;`, `&#34;`, `&rdquo;`  react/no-unescaped-entities
+  697:53   error    `'` can be escaped with `&apos;`, `&lsquo;`, `&#39;`, `&rsquo;`  react/no-unescaped-entities
+  699:69   error    `'` can be escaped with `&apos;`, `&lsquo;`, `&#39;`, `&rsquo;`  react/no-unescaped-entities
+  705:62   error    `"` can be escaped with `&quot;`, `&ldquo;`, `&#34;`, `&rdquo;`  react/no-unescaped-entities
+  705:95   error    `"` can be escaped with `&quot;`, `&ldquo;`, `&#34;`, `&rdquo;`  react/no-unescaped-entities
+  715:62   error    `"` can be escaped with `&quot;`, `&ldquo;`, `&#34;`, `&rdquo;`  react/no-unescaped-entities
+  715:93   error    `"` can be escaped with `&quot;`, `&ldquo;`, `&#34;`, `&rdquo;`  react/no-unescaped-entities
+  805:22   error    `'` can be escaped with `&apos;`, `&lsquo;`, `&#39;`, `&rsquo;`  react/no-unescaped-entities
+  812:128  error    `"` can be escaped with `&quot;`, `&ldquo;`, `&#34;`, `&rdquo;`  react/no-unescaped-entities
+  812:136  error    `"` can be escaped with `&quot;`, `&ldquo;`, `&#34;`, `&rdquo;`  react/no-unescaped-entities
+  857:79   error    `'` can be escaped with `&apos;`, `&lsquo;`, `&#39;`, `&rsquo;`  react/no-unescaped-entities
+  859:53   error    `"` can be escaped with `&quot;`, `&ldquo;`, `&#34;`, `&rdquo;`  react/no-unescaped-entities
+  859:72   error    `"` can be escaped with `&quot;`, `&ldquo;`, `&#34;`, `&rdquo;`  react/no-unescaped-entities
+  902:38   error    `"` can be escaped with `&quot;`, `&ldquo;`, `&#34;`, `&rdquo;`  react/no-unescaped-entities
+  902:51   error    `"` can be escaped with `&quot;`, `&ldquo;`, `&#34;`, `&rdquo;`  react/no-unescaped-entities
+D:\Projects\desktop-tutorial\desktop-tutorial\src\renderer\src\LiveContext.backup.tsx
+D:\Projects\desktop-tutorial\desktop-tutorial\src\renderer\src\LiveContext.tsx
+   518:48   error    Empty block statement                                      no-empty
+   716:100  error    Empty block statement                                      no-empty
+   720:154  error    Empty block statement                                      no-empty
+   961:30   error    Promise executor functions should not be async             no-async-promise-executor
+  1070:52   error    Empty block statement                                      no-empty
+D:\Projects\desktop-tutorial\desktop-tutorial\src\renderer\src\LiveGameMonitor.tsx
+D:\Projects\desktop-tutorial\desktop-tutorial\src\renderer\src\LiveInterface.tsx
+  60:74  error  `'` can be escaped with `&apos;`, `&lsquo;`, `&#39;`, `&rsquo;`  react/no-unescaped-entities
+D:\Projects\desktop-tutorial\desktop-tutorial\src\renderer\src\LoadOrderAnalyzer.tsx
+   50:25  error    Empty block statement                     no-empty
+   96:21  error    Empty block statement                     no-empty
+  113:21  error    Empty block statement                     no-empty
+D:\Projects\desktop-tutorial\desktop-tutorial\src\renderer\src\Lorekeeper.tsx
+   55:59   error    Unnecessary escape character: \.            no-useless-escape
+   55:63   error    Unnecessary escape character: \/            no-useless-escape
+D:\Projects\desktop-tutorial\desktop-tutorial\src\renderer\src\ModDistribution.tsx
+D:\Projects\desktop-tutorial\desktop-tutorial\src\renderer\src\ModProjectManager.tsx
+  153:50  error    `"` can be escaped with `&quot;`, `&ldquo;`, `&#34;`, `&rdquo;`  react/no-unescaped-entities
+  153:58  error    `"` can be escaped with `&quot;`, `&ldquo;`, `&#34;`, `&rdquo;`  react/no-unescaped-entities
+  587:67  error    `"` can be escaped with `&quot;`, `&ldquo;`, `&#34;`, `&rdquo;`  react/no-unescaped-entities
+  587:76  error    `"` can be escaped with `&quot;`, `&ldquo;`, `&#34;`, `&rdquo;`  react/no-unescaped-entities
+D:\Projects\desktop-tutorial\desktop-tutorial\src\renderer\src\ModdingJourney.tsx
+D:\Projects\desktop-tutorial\desktop-tutorial\src\renderer\src\MossyFaceAvatar.tsx
+D:\Projects\desktop-tutorial\desktop-tutorial\src\renderer\src\MossyIdentity.tsx
+  77:12  error  `'` can be escaped with `&apos;`, `&lsquo;`, `&#39;`, `&rsquo;`  react/no-unescaped-entities
+D:\Projects\desktop-tutorial\desktop-tutorial\src\renderer\src\MossyMemoryVault.tsx
+  377:82   error    `'` can be escaped with `&apos;`, `&lsquo;`, `&#39;`, `&rsquo;`  react/no-unescaped-entities
+  377:126  error    `'` can be escaped with `&apos;`, `&lsquo;`, `&#39;`, `&rsquo;`  react/no-unescaped-entities
+  377:143  error    `'` can be escaped with `&apos;`, `&lsquo;`, `&#39;`, `&rsquo;`  react/no-unescaped-entities
+  407:37   error    `"` can be escaped with `&quot;`, `&ldquo;`, `&#34;`, `&rdquo;`  react/no-unescaped-entities
+  407:51   error    `"` can be escaped with `&quot;`, `&ldquo;`, `&#34;`, `&rdquo;`  react/no-unescaped-entities
+D:\Projects\desktop-tutorial\desktop-tutorial\src\renderer\src\MossyObserver.tsx
+  397:21  error    React Hook "useLive" is called conditionally. React Hooks must be called in the exact same order in every component render  react-hooks/rules-of-hooks
+  488:25  error    `"` can be escaped with `&quot;`, `&ldquo;`, `&#34;`, `&rdquo;`                                                             react/no-unescaped-entities
+  488:35  error    `"` can be escaped with `&quot;`, `&ldquo;`, `&#34;`, `&rdquo;`                                                             react/no-unescaped-entities
+D:\Projects\desktop-tutorial\desktop-tutorial\src\renderer\src\MossyOnboarding.tsx
+   20:66  error    'onComplete' is missing in props validation              react/prop-types
+    49:21   error    Empty block statement                               no-empty
+   536:25   error    'mapping' is never reassigned. Use 'const' instead  prefer-const
+D:\Projects\desktop-tutorial\desktop-tutorial\src\renderer\src\NeuralLink.tsx
+  152:112  error    `'` can be escaped with `&apos;`, `&lsquo;`, `&#39;`, `&rsquo;`                                                   react/no-unescaped-entities
+  162:41   error    `"` can be escaped with `&quot;`, `&ldquo;`, `&#34;`, `&rdquo;`                                                   react/no-unescaped-entities
+  162:51   error    `"` can be escaped with `&quot;`, `&ldquo;`, `&#34;`, `&rdquo;`                                                   react/no-unescaped-entities
+D:\Projects\desktop-tutorial\desktop-tutorial\src\renderer\src\OpenAIVoiceContext.tsx
+   98:11  error    'apiKey' is never reassigned. Use 'const' instead  prefer-const
+D:\Projects\desktop-tutorial\desktop-tutorial\src\renderer\src\PatchGenerator.tsx
+D:\Projects\desktop-tutorial\desktop-tutorial\src\renderer\src\PerformancePredictor.tsx
+D:\Projects\desktop-tutorial\desktop-tutorial\src\renderer\src\PipBoyHeader.tsx
+D:\Projects\desktop-tutorial\desktop-tutorial\src\renderer\src\PopularModsDatabase.tsx
+  148:25  error    `'` can be escaped with `&apos;`, `&lsquo;`, `&#39;`, `&rsquo;`  react/no-unescaped-entities
+D:\Projects\desktop-tutorial\desktop-tutorial\src\renderer\src\PrecombineAndPRPGuide.tsx
+  220:39  error  Unnecessary escape character: \ .                                no-useless-escape
+  229:30  error  Unnecessary escape character: \ .                                no-useless-escape
+  233:20  error  Unnecessary escape character: \M                                 no-useless-escape
+  233:27  error  Unnecessary escape character: \P                                 no-useless-escape
+  233:39  error  Unnecessary escape character: \ .                                no-useless-escape
+  246:23  error  Unnecessary escape character: \ .                                no-useless-escape
+  371:12  error  Unnecessary escape character: \P                                 no-useless-escape
+  371:24  error  Unnecessary escape character: \ .                                no-useless-escape
+  427:37  error  Unnecessary escape character: \P                                 no-useless-escape
+  458:29  error  Unnecessary escape character: \P                                 no-useless-escape
+  458:41  error  Unnecessary escape character: \ .                                no-useless-escape
+  460:22  error  Unnecessary escape character: \M                                 no-useless-escape
+  460:29  error  Unnecessary escape character: \P                                 no-useless-escape
+  562:79  error  `'` can be escaped with `&apos;`, `&lsquo;`, `&#39;`, `&rsquo;`  react/no-unescaped-entities
+D:\Projects\desktop-tutorial\desktop-tutorial\src\renderer\src\PrecombineChecker.tsx
+D:\Projects\desktop-tutorial\desktop-tutorial\src\renderer\src\PrivacySettings.tsx
+   68:16   error    'key' is never reassigned. Use 'const' instead                             prefer-const
+   69:26   error    Do not access Object.prototype method 'hasOwnProperty' from target object  no-prototype-builtins
+  276:55   error    `'` can be escaped with `&apos;`, `&lsquo;`, `&#39;`, `&rsquo;`            react/no-unescaped-entities
+  374:125  error    `'` can be escaped with `&apos;`, `&lsquo;`, `&#39;`, `&rsquo;`            react/no-unescaped-entities
+D:\Projects\desktop-tutorial\desktop-tutorial\src\renderer\src\QuestEditor.tsx
+D:\Projects\desktop-tutorial\desktop-tutorial\src\renderer\src\QuestModAuthoringGuide.tsx
+  30:89  error    `'` can be escaped with `&apos;`, `&lsquo;`, `&#39;`, `&rsquo;`  react/no-unescaped-entities
+  45:35  error    `'` can be escaped with `&apos;`, `&lsquo;`, `&#39;`, `&rsquo;`  react/no-unescaped-entities
+  55:71  error    `'` can be escaped with `&apos;`, `&lsquo;`, `&#39;`, `&rsquo;`  react/no-unescaped-entities
+D:\Projects\desktop-tutorial\desktop-tutorial\src\renderer\src\QuestModAutomationSuite.tsx
+  223:58  error    `'` can be escaped with `&apos;`, `&lsquo;`, `&#39;`, `&rsquo;`  react/no-unescaped-entities
+D:\Projects\desktop-tutorial\desktop-tutorial\src\renderer\src\QuickReference.tsx
+  158:120  error  Unnecessary escape character: \"                                 no-useless-escape
+  158:126  error  Unnecessary escape character: \"                                 no-useless-escape
+  162:126  error  Unnecessary escape character: \"                                 no-useless-escape
+  162:134  error  Unnecessary escape character: \"                                 no-useless-escape
+  163:118  error  Unnecessary escape character: \"                                 no-useless-escape
+  163:130  error  Unnecessary escape character: \"                                 no-useless-escape
+  164:118  error  Unnecessary escape character: \"                                 no-useless-escape
+  164:129  error  Unnecessary escape character: \"                                 no-useless-escape
+  169:122  error  Unnecessary escape character: \"                                 no-useless-escape
+  169:131  error  Unnecessary escape character: \"                                 no-useless-escape
+  185:85   error  Unnecessary escape character: \"                                 no-useless-escape
+  185:98   error  Unnecessary escape character: \"                                 no-useless-escape
+  310:45   error  `"` can be escaped with `&quot;`, `&ldquo;`, `&#34;`, `&rdquo;`  react/no-unescaped-entities
+  310:59   error  `"` can be escaped with `&quot;`, `&ldquo;`, `&#34;`, `&rdquo;`  react/no-unescaped-entities
+D:\Projects\desktop-tutorial\desktop-tutorial\src\renderer\src\RiggingMistakesGallery.tsx
+D:\Projects\desktop-tutorial\desktop-tutorial\src\renderer\src\Sidebar.tsx
+  16:19   error    React Hook "useLive" is called conditionally. React Hooks must be called in the exact same order in every component render  react-hooks/rules-of-hooks
+D:\Projects\desktop-tutorial\desktop-tutorial\src\renderer\src\SystemBus.tsx
+D:\Projects\desktop-tutorial\desktop-tutorial\src\renderer\src\SystemMonitor.tsx
+   204:19   error    Empty block statement                                                                                                              no-empty
+  1209:56   error    `'` can be escaped with `&apos;`, `&lsquo;`, `&#39;`, `&rsquo;`                                                                    react/no-unescaped-entities
+  1209:65   error    `'` can be escaped with `&apos;`, `&lsquo;`, `&#39;`, `&rsquo;`                                                                    react/no-unescaped-entities
+  1209:86   error    `'` can be escaped with `&apos;`, `&lsquo;`, `&#39;`, `&rsquo;`                                                                    react/no-unescaped-entities
+  1209:92   error    `'` can be escaped with `&apos;`, `&lsquo;`, `&#39;`, `&rsquo;`                                                                    react/no-unescaped-entities
+D:\Projects\desktop-tutorial\desktop-tutorial\src\renderer\src\TTSPanel.tsx
+D:\Projects\desktop-tutorial\desktop-tutorial\src\renderer\src\TheAnima.tsx
+  172:79   error    `'` can be escaped with `&apos;`, `&lsquo;`, `&#39;`, `&rsquo;`  react/no-unescaped-entities
+D:\Projects\desktop-tutorial\desktop-tutorial\src\renderer\src\TheAssembler.tsx
+  205:17   error    'cleanJson' is never reassigned. Use 'const' instead    prefer-const
+D:\Projects\desktop-tutorial\desktop-tutorial\src\renderer\src\TheAuditor.tsx
+   58:49  error    Unnecessary escape character: \/                 no-useless-escape
+   91:49  error    Unnecessary escape character: \/                 no-useless-escape
+  124:49  error    Unnecessary escape character: \/                 no-useless-escape
+  157:49  error    Unnecessary escape character: \/                 no-useless-escape
+D:\Projects\desktop-tutorial\desktop-tutorial\src\renderer\src\TheBlueprint.tsx
+D:\Projects\desktop-tutorial\desktop-tutorial\src\renderer\src\TheCartographer.tsx
+D:\Projects\desktop-tutorial\desktop-tutorial\src\renderer\src\TheCatalyst.tsx
+D:\Projects\desktop-tutorial\desktop-tutorial\src\renderer\src\TheConduit.tsx
+  352:82  error    `'` can be escaped with `&apos;`, `&lsquo;`, `&#39;`, `&rsquo;`  react/no-unescaped-entities
+D:\Projects\desktop-tutorial\desktop-tutorial\src\renderer\src\TheCortex.tsx
+D:\Projects\desktop-tutorial\desktop-tutorial\src\renderer\src\TheGenome.tsx
+D:\Projects\desktop-tutorial\desktop-tutorial\src\renderer\src\TheHive.tsx
+D:\Projects\desktop-tutorial\desktop-tutorial\src\renderer\src\TheLens.tsx
+D:\Projects\desktop-tutorial\desktop-tutorial\src\renderer\src\TheNexus.tsx
+D:\Projects\desktop-tutorial\desktop-tutorial\src\renderer\src\ThePrism.tsx
+D:\Projects\desktop-tutorial\desktop-tutorial\src\renderer\src\TheRegistry.tsx
+D:\Projects\desktop-tutorial\desktop-tutorial\src\renderer\src\TheReverie.tsx
+D:\Projects\desktop-tutorial\desktop-tutorial\src\renderer\src\TheScribe.tsx
+   35:17   error    'systemContext' is never reassigned. Use 'const' instead  prefer-const
+D:\Projects\desktop-tutorial\desktop-tutorial\src\renderer\src\TheScribeEnhanced.tsx
+D:\Projects\desktop-tutorial\desktop-tutorial\src\renderer\src\TheSynapse.tsx
+D:\Projects\desktop-tutorial\desktop-tutorial\src\renderer\src\TheVault.tsx
+D:\Projects\desktop-tutorial\desktop-tutorial\src\renderer\src\TheWorkshop.tsx
+   77:21   error    'x' is never reassigned. Use 'const' instead                 prefer-const
+   80:21   error    'y' is never reassigned. Use 'const' instead                 prefer-const
+  295:11   error    'foundSuggestions' is never reassigned. Use 'const' instead  prefer-const
+D:\Projects\desktop-tutorial\desktop-tutorial\src\renderer\src\TutorialOverlay.tsx
+  222:46   error    `'` can be escaped with `&apos;`, `&lsquo;`, `&#39;`, `&rsquo;`                                                     react/no-unescaped-entities
+D:\Projects\desktop-tutorial\desktop-tutorial\src\renderer\src\VoiceChat.tsx
+D:\Projects\desktop-tutorial\desktop-tutorial\src\renderer\src\VoiceCommands.tsx
+D:\Projects\desktop-tutorial\desktop-tutorial\src\renderer\src\Workshop.tsx
+D:\Projects\desktop-tutorial\desktop-tutorial\src\renderer\src\components\ExternalToolNotice.tsx
+

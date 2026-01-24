@@ -281,7 +281,7 @@ EndFunction`;
                   onClick={() => setDescription(prompt)}
                   className="w-full text-left text-sm text-slate-300 hover:text-white bg-slate-800 hover:bg-slate-700 p-3 rounded-lg transition-colors"
                 >
-                  "{prompt}"
+                  &quot;{prompt}&quot;
                 </button>
               ))}
             </div>
@@ -290,8 +290,8 @@ EndFunction`;
           <div className="bg-blue-900/20 border border-blue-500/30 rounded-xl p-4">
             <h4 className="font-bold text-blue-300 mb-2 text-sm">How it works</h4>
             <p className="text-xs text-slate-400">
-              The generator analyzes your description and creates Papyrus code using common patterns. 
-              It detects keywords like "activate", "spawn", "combat", "timer" to choose the right template.
+              The generator analyzes your description and creates Papyrus code using common patterns.
+              It detects keywords like &quot;activate&quot;, &quot;spawn&quot;, &quot;combat&quot;, &quot;timer&quot; to choose the right template.
             </p>
           </div>
         </div>

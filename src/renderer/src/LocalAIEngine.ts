@@ -1,7 +1,9 @@
 /**
  * Local AI Engine Service
- * Connects Mossy to local AI backends like Ollama or LM Studio.
+ * Connects Mossy to local AI backends like Ollama or Groq Cloud.
  */
+
+import { Groq } from 'groq-sdk';
 
 export interface AIResponse {
   content: string;
@@ -25,7 +27,7 @@ export const LocalAIEngine = {
   },
 
   /**
-   * Generates a response using the local Ollama service.
+   * Generates a response using the local Ollama service or Groq Cloud API.
    */
   async generateResponse(query: string, systemInstruction: string): Promise<AIResponse> {
     const isLocalActive = await this.checkOllama();
@@ -47,7 +49,9 @@ export const LocalAIEngine = {
                 if (window.electronAPI?.getSettings) {
                     userSettings = await window.electronAPI.getSettings();
                 }
-            } catch (e) {}
+            } catch (e) {
+                console.error('[LocalAIEngine] Failed to get settings:', e);
+            }
 
             if (processes.length > 0 || blenderLinked || detectedApps.length > 0 || systemProfileRaw || userSettings) {
                 injectedContext += "\n### INSTALLED SOFTWARE & CREATIVE PIPELINE:\n";
@@ -93,7 +97,9 @@ export const LocalAIEngine = {
                 }
                 injectedContext += "\n";
             }
-        } catch (e) {}
+        } catch (e) {
+            console.error('[LocalAIEngine] Hardware/software context injection error:', e);
+        }
     }
 
     // Inject Working Memory (Persistence)
@@ -110,10 +116,13 @@ export const LocalAIEngine = {
                     memories.map((m: any) => `[Title: ${m.title}]\n${m.content}`).join("\n---\n") + 
                     "\n\n";
             }
-        } catch (e) {}
+        } catch (e) {
+            console.error('[LocalAIEngine] Failed to parse custom knowledge:', e);
+        }
     }
     // ---------------------------
 
+    // Try Ollama first if available
     if (isLocalActive) {
       try {
         const controller = new AbortController();
@@ -135,14 +144,52 @@ export const LocalAIEngine = {
           return { content: data.response };
         }
       } catch (e) {
-        console.warn('Ollama generate failed, falling back to legacy engine:', e);
+        console.warn('Ollama generate failed, falling back to Groq:', e);
       }
     }
 
-    // Fallback message when local LLM is unavailable
-    return {
-      content: "Mossy is currently in Passive Mode because no local AI backend (like Ollama) was detected at localhost:11434. Please ensure Ollama is running to enable deep reasoning, or use the Desktop Bridge to sync your Fallout 4 installation data."
-    };
+    // Fallback to Groq Cloud API
+    try {
+      const groqApiKey = import.meta.env.VITE_GROQ_API_KEY;
+      if (!groqApiKey) {
+        console.warn('[LocalAIEngine] No Groq API key found');
+        return {
+          content: "Mossy is in Passive Mode - no local AI service detected and no cloud API configured. Please set VITE_GROQ_API_KEY in .env.local to enable responses."
+        };
+      }
+
+      const groqClient = new Groq({ 
+        apiKey: groqApiKey, 
+        dangerouslyAllowBrowser: true 
+      });
+
+      const messages: any[] = [
+        {
+          role: 'system',
+          content: systemInstruction + injectedContext
+        },
+        {
+          role: 'user',
+          content: query
+        }
+      ];
+
+      const response = await groqClient.chat.completions.create({
+        model: 'llama-3.3-70b-versatile',
+        messages,
+        temperature: 0.7,
+        max_tokens: 1024
+      });
+
+      const content = response.choices[0]?.message?.content || "No response generated";
+      console.log('[LocalAIEngine] Groq response received');
+      return { content };
+    } catch (e) {
+      console.error('[LocalAIEngine] Groq API error:', e);
+      return {
+        content: "Mossy is in Passive Mode because no local AI backend (like Ollama) was detected at localhost:11434, and Groq API is not configured. Please ensure Ollama is running to enable deep reasoning, or set VITE_GROQ_API_KEY in .env.local."
+      };
+    }
   },
 
   /**
