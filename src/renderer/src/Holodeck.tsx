@@ -243,7 +243,7 @@ const Holodeck = () => {
                                 <div className="flex-1 overflow-y-auto space-y-2 p-3">
                                     {testRuns.filter(r => r.scenarioId === activeScenario.id).length === 0 ? (
                                         <div className="text-center py-6">
-                                            <p className="text-[10px] text-slate-500">No test runs yet. Click "Run Test" above to start.</p>
+                                            <p className="text-[10px] text-slate-500">No test runs yet. Click &quot;Run Test&quot; above to start.</p>
                                         </div>
                                     ) : (
                                         testRuns.filter(r => r.scenarioId === activeScenario.id).map((run) => (

@@ -1,5 +1,4 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { GoogleGenAI } from "@google/genai";
 import ReactMarkdown from 'react-markdown';
 import { Triangle, Zap, BrainCircuit, ShieldAlert, Palette, Layers, ArrowRight, Loader2, Maximize2, Sparkles, Send } from 'lucide-react';
 

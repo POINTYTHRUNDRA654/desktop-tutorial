@@ -395,7 +395,7 @@ const AudioStudio: React.FC = () => {
                   ) : (
                       <div className="text-center py-8 text-slate-500">
                           <FileAudio className="w-12 h-12 mx-auto mb-2 opacity-30" />
-                          <p className="text-sm">No audio files loaded. Click "Load Audio" to begin.</p>
+                          <p className="text-sm">No audio files loaded. Click &quot;Load Audio&quot; to begin.</p>
                       </div>
                   )}
               </div>

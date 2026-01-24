@@ -360,7 +360,7 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
                         <Check className="w-20 h-20 mx-auto mb-6 text-emerald-400" />
                         <h2 className="text-3xl font-bold text-white mb-4">Setup Complete!</h2>
                         <p className="text-xl text-slate-300">
-                            I'm ready to help you create amazing mods.
+                            I&apos;m ready to help you create amazing mods.
                         </p>
                     </div>
                 )}

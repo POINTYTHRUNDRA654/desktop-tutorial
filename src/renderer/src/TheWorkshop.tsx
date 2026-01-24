@@ -1,5 +1,4 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { GoogleGenAI } from "@google/genai";
 import { Folder, FileCode, FileImage, FileBox, ChevronRight, ChevronDown, Play, Save, RefreshCw, Box, Layers, Code, CheckCircle2, AlertCircle, Share2, Workflow, Plus, Zap, ArrowRight, Package, BookOpen, Copy, Lightbulb, Database, Settings as SettingsIcon } from 'lucide-react';
 import ExternalToolNotice from './components/ExternalToolNotice';
 import { useNavigate } from 'react-router-dom';
@@ -75,10 +74,10 @@ const WireframePreview: React.FC<{ active: boolean }> = ({ active }) => {
 
             const rotated = vertices.map(v => {
                 // Rotate Y
-                let x = v.x * Math.cos(rot) - v.z * Math.sin(rot);
+                const x = v.x * Math.cos(rot) - v.z * Math.sin(rot);
                 let z = v.x * Math.sin(rot) + v.z * Math.cos(rot);
                 // Rotate X
-                let y = v.y * Math.cos(rot * 0.5) - z * Math.sin(rot * 0.5);
+                const y = v.y * Math.cos(rot * 0.5) - z * Math.sin(rot * 0.5);
                 z = v.y * Math.sin(rot * 0.5) + z * Math.cos(rot * 0.5);
                 
                 // Project
@@ -293,7 +292,7 @@ const Workshop: React.FC = () => {
       const lastWord = words[words.length - 1];
 
       // Check for trigger keywords
-      let foundSuggestions: string[] = [];
+      const foundSuggestions: string[] = [];
       if (lastWord.endsWith('.')) {
           // Object method lookup - dynamic engine integration pending
       } else if (lastWord === 'Event') {

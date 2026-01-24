@@ -201,7 +201,9 @@ const SystemMonitor: React.FC = () => {
               }
               
               setIntegrations(newIntegrations);
-          } catch {}
+          } catch (err) {
+              console.error('Failed to sync integrations:', err);
+          }
       };
       
       syncIntegrations();

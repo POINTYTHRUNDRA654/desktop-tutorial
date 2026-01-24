@@ -217,7 +217,7 @@ If you modify ANY object placement in an existing exterior cell → you break pr
 **Step 3: Configure PRP**
 1. In PRP settings:
    - ESM/ESP: Your file
-   - Output folder: Create precombines\ folder
+   - Output folder: Create precombines folder
    - Worldspace: Commonwealth (or your target)
    - Handle PRP conflicts: YES (if other mods modified precombines)
 2. Save settings
@@ -230,7 +230,7 @@ If you modify ANY object placement in an existing exterior cell → you break pr
 5. Takes 5-30 minutes (depends on size)
 
 **Step 5: Add to Your Mod**
-1. PRP creates Data\Meshes\Precombined\ files
+1. PRP creates Data\Meshes\Precombined files
 2. Copy these files to your mod folder
 3. Update your ESP to reference new precombines
 4. Your mod now includes precombine fixes
