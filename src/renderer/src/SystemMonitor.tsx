@@ -3,7 +3,7 @@ import ExternalToolNotice from './components/ExternalToolNotice';
 import { Settings as SettingsIcon } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, AreaChart, Area } from 'recharts';
-import { Cpu, HardDrive, Activity, Terminal, Search, CheckCircle2, Zap, Box, Settings, BrainCircuit, Package, Link, Play, Monitor, AlertTriangle, Map, Upload, RefreshCw, Database, ShieldCheck, Globe, Share2, Copy, HardDriveDownload, FileText, Users, Key, Lock } from 'lucide-react';
+import { Cpu, HardDrive, Activity, Terminal, Search, CheckCircle2, Zap, Box, BrainCircuit, Link, Play, Monitor, AlertTriangle, Map, Upload, RefreshCw, Database, ShieldCheck, Copy, HardDriveDownload, Package, Settings } from 'lucide-react';
 import { LocalAIEngine } from './LocalAIEngine';
 
 interface LogEntry {
@@ -108,15 +108,6 @@ const SystemMonitor: React.FC = () => {
   const [scanError, setScanError] = useState<string | null>(null);
   const [selectedCategory, setSelectedCategory] = useState<'All' | 'Creation' | 'Workflow' | 'Knowledge' | 'System' | 'Output'>('All');
   
-  // Deployment State
-  const [buildStatus, setBuildStatus] = useState<'idle' | 'building' | 'complete' | 'error'>('idle');
-  const [buildProgress, setBuildProgress] = useState(0);
-  const [buildLog, setBuildLog] = useState<string[]>([]);
-  const [version, setVersion] = useState('1.0.0-beta');
-  const [testerKeys, setTesterKeys] = useState<string[]>([]);
-  const [releaseUrl, setReleaseUrl] = useState('');
-  const [copied, setCopied] = useState(false);
-
   // Installer Wizard State
   const [showInstaller, setShowInstaller] = useState(false);
   const [installStep, setInstallStep] = useState(0); // 0: Init, 1: Scanning, 2: Installing, 3: Done
@@ -492,11 +483,6 @@ const SystemMonitor: React.FC = () => {
       }, 800);
   };
 
-  const generateTesterKeys = () => {
-      const newKey = `BETA-${Math.random().toString(36).substring(2, 6).toUpperCase()}-${Math.random().toString(36).substring(2, 6).toUpperCase()}`;
-      setTesterKeys(prev => [...prev, newKey]);
-  };
-
   const startInstaller = async () => {
       setShowInstaller(true);
       setInstallStep(1);
@@ -591,16 +577,6 @@ const SystemMonitor: React.FC = () => {
       navigator.clipboard.writeText(releaseUrl);
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
-  };
-
-  const downloadManual = () => {
-      const element = document.createElement("a");
-      const file = new Blob(["OmniForge / Mossy User Manual\n\nVersion: 2.4.2\n\n1. Getting Started\n..."], {type: 'text/plain'});
-      element.href = URL.createObjectURL(file);
-      element.download = "Mossy_User_Manual.txt";
-      document.body.appendChild(element);
-      element.click();
-      document.body.removeChild(element);
   };
 
   return (
@@ -720,16 +696,7 @@ const SystemMonitor: React.FC = () => {
           >
               <Monitor className="w-4 h-4" /> Hardware Profile
           </button>
-          <button 
-            onClick={() => setActiveTab('deploy')}
-            className={`px-6 py-3 rounded-t-lg font-bold text-sm transition-colors flex items-center gap-2 ${
-                activeTab === 'deploy' 
-                ? 'bg-slate-800 text-emerald-400 border-t border-x border-slate-700' 
-                : 'text-slate-400 hover:text-white hover:bg-slate-800/50'
-            }`}
-          >
-              <Package className="w-4 h-4" /> Deploy & Release
-          </button>
+
       </div>
 
       <div className="flex-1 overflow-y-auto p-6 bg-slate-900/50">
@@ -1230,185 +1197,6 @@ const SystemMonitor: React.FC = () => {
                       </div>
                   </div>
               )}
-          </div>
-      )}
-
-      {/* DEPLOY TAB */}
-      {activeTab === 'deploy' && (
-          <div className="max-w-6xl mx-auto grid grid-cols-1 lg:grid-cols-3 gap-8">
-              {/* Build Config */}
-              <div className="lg:col-span-2 space-y-6">
-                  <div className="bg-slate-800 border border-slate-700 rounded-xl p-6">
-                      <div className="flex justify-between items-start mb-6">
-                          <div>
-                              <h3 className="text-xl font-bold text-white flex items-center gap-2">
-                                  <Package className="w-6 h-6 text-emerald-400" />
-                                  Deployment Pipeline
-                              </h3>
-                              <p className="text-sm text-slate-400 mt-1">Configure and compile application build artifacts.</p>
-                          </div>
-                          <div className="flex flex-col items-end">
-                              <span className="text-xs font-bold text-slate-500 uppercase">Target Version</span>
-                              <input 
-                                  type="text" 
-                                  value={version}
-                                  onChange={(e) => setVersion(e.target.value)}
-                                  className="bg-slate-900 border border-slate-600 rounded px-2 py-1 text-sm text-white w-28 text-right focus:border-emerald-500 outline-none"
-                              />
-                          </div>
-                      </div>
-
-                      <div className="grid grid-cols-3 gap-4 mb-6">
-                          <div className="p-4 bg-slate-900 rounded-lg border border-emerald-500/30 flex flex-col gap-2 cursor-pointer hover:bg-slate-900/80">
-                              <Globe className="w-6 h-6 text-emerald-400" />
-                              <span className="font-bold text-white text-sm">Web (PWA)</span>
-                              <span className="text-xs text-emerald-400 font-mono">ACTIVE</span>
-                          </div>
-                          <div className="p-4 bg-slate-900 rounded-lg border border-slate-700 flex flex-col gap-2 opacity-50 cursor-not-allowed">
-                              <Settings className="w-6 h-6 text-slate-400" />
-                              <span className="font-bold text-slate-300 text-sm">Windows .exe</span>
-                              <span className="text-xs text-slate-500 font-mono">MISSING SDK</span>
-                          </div>
-                          <div className="p-4 bg-slate-900 rounded-lg border border-slate-700 flex flex-col gap-2 opacity-50 cursor-not-allowed">
-                              <Terminal className="w-6 h-6 text-slate-400" />
-                              <span className="font-bold text-slate-300 text-sm">Linux AppImage</span>
-                              <span className="text-xs text-slate-500 font-mono">MISSING SDK</span>
-                          </div>
-                      </div>
-
-                      {/* Build Console */}
-                      <div className="bg-black rounded-lg border border-slate-700 font-mono text-xs p-4 h-64 overflow-y-auto mb-6 flex flex-col">
-                          {buildLog.length === 0 ? (
-                              <div className="flex-1 flex items-center justify-center text-slate-600">
-                                  Waiting for build command...
-                              </div>
-                          ) : (
-                              <div className="space-y-1">
-                                  {buildLog.map((log, i) => (
-                                      <div key={i} className="text-slate-300">{log}</div>
-                                  ))}
-                                  {buildStatus === 'complete' && <div className="text-emerald-400 font-bold mt-2">Build sequence finished.</div>}
-                                  <div ref={buildLogRef} />
-                              </div>
-                          )}
-                      </div>
-
-                      {/* Controls */}
-                      <div className="flex gap-4">
-                          {buildStatus === 'building' ? (
-                              <div className="flex-1 bg-slate-700 rounded-lg h-12 relative overflow-hidden">
-                                  <div className="absolute inset-0 bg-emerald-600 transition-all duration-300" style={{ width: `${buildProgress}%` }}></div>
-                                  <div className="absolute inset-0 flex items-center justify-center font-bold text-white drop-shadow-md">
-                                      Compiling... {buildProgress.toFixed(0)}%
-                                  </div>
-                              </div>
-                          ) : (
-                              <button 
-                                  onClick={startBuild}
-                                  disabled={buildStatus === 'complete'}
-                                  className="flex-1 py-3 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-lg transition-all shadow-lg shadow-emerald-900/20 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-                              >
-                                  <RefreshCw className="w-5 h-5" />
-                                  Initialize Build
-                              </button>
-                          )}
-                      </div>
-                  </div>
-
-                  {/* Release Management Panel - Only shows after build */}
-                  {buildStatus === 'complete' && (
-                      <div className="bg-slate-800 border border-emerald-500/30 rounded-xl p-6 animate-fade-in shadow-2xl">
-                          <div className="flex items-center gap-3 mb-4">
-                              <div className="p-2 bg-emerald-500/20 rounded-full">
-                                  <Share2 className="w-5 h-5 text-emerald-400" />
-                              </div>
-                              <h3 className="text-lg font-bold text-white">Release Management</h3>
-                          </div>
-                          
-                          <div className="grid grid-cols-2 gap-4">
-                              <div className="col-span-2 bg-slate-900 rounded-lg p-3 border border-slate-700 flex flex-col gap-2">
-                                  <label className="text-[10px] text-slate-500 uppercase font-bold">Public Beta Link</label>
-                                  <div className="flex gap-2">
-                                      <div className="flex-1 bg-black rounded px-3 py-2 text-sm font-mono text-emerald-400 border border-slate-800 truncate">
-                                          {releaseUrl}
-                                      </div>
-                                      <button 
-                                          onClick={copyLink}
-                                          className="px-3 bg-slate-800 hover:bg-slate-700 border border-slate-600 rounded text-slate-300 transition-colors"
-                                      >
-                                          {copied ? <CheckCircle2 className="w-4 h-4 text-green-500" /> : <Copy className="w-4 h-4" />}
-                                      </button>
-                                  </div>
-                              </div>
-
-                              <button 
-                                  onClick={startInstaller}
-                                  className="p-3 bg-purple-600 hover:bg-purple-500 rounded-lg flex items-center justify-center gap-2 text-sm font-bold text-white transition-colors shadow-lg shadow-purple-900/20"
-                              >
-                                  <HardDriveDownload className="w-4 h-4" /> Initialize System Link
-                              </button>
-
-                              <button 
-                                  onClick={downloadManual}
-                                  className="p-3 bg-slate-700 hover:bg-slate-600 rounded-lg flex items-center justify-center gap-2 text-sm font-bold text-white transition-colors"
-                              >
-                                  <FileText className="w-4 h-4" /> Download Manual
-                              </button>
-                          </div>
-                          <p className="text-[10px] text-slate-500 mt-4 italic text-center">
-                              Use the <strong>Connection Wizard</strong> to perform a deep scan of this machine and establish a persistent bridge connection.
-                          </p>
-                      </div>
-                  )}
-              </div>
-
-              {/* Beta Management */}
-              <div className="space-y-6">
-                  <div className="bg-slate-800 border border-slate-700 rounded-xl p-6 h-full flex flex-col">
-                      <div className="mb-6">
-                          <h3 className="text-lg font-bold text-white flex items-center gap-2">
-                              <Users className="w-5 h-5 text-blue-400" />
-                              Beta Access
-                          </h3>
-                          <p className="text-xs text-slate-400 mt-1">Manage tester invitations.</p>
-                      </div>
-
-                      <div className="flex-1 bg-slate-900/50 rounded-lg border border-slate-700 p-4 mb-4 overflow-y-auto">
-                          {testerKeys.length === 0 ? (
-                              <div className="text-center text-slate-500 text-xs mt-10">
-                                  No active keys generated.
-                              </div>
-                          ) : (
-                              <div className="space-y-2">
-                                  {testerKeys.map((key, i) => (
-                                      <div key={i} className="flex justify-between items-center bg-black/40 p-2 rounded border border-slate-800">
-                                          <div className="flex items-center gap-2">
-                                              <Key className="w-3 h-3 text-yellow-500" />
-                                              <span className="font-mono text-xs text-slate-300">{key}</span>
-                                          </div>
-                                          <span className="text-[10px] text-emerald-500">ACTIVE</span>
-                                      </div>
-                                  ))}
-                              </div>
-                          )}
-                      </div>
-
-                      <button 
-                          onClick={generateTesterKeys}
-                          className="w-full py-3 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-lg transition-all shadow-lg shadow-blue-900/20 flex items-center justify-center gap-2"
-                      >
-                          <Share2 className="w-4 h-4" />
-                          Generate Invite Key
-                      </button>
-                      
-                      <div className="mt-4 p-3 bg-yellow-900/20 border border-yellow-500/20 rounded-lg flex gap-3">
-                          <Lock className="w-4 h-4 text-yellow-500 shrink-0 mt-0.5" />
-                          <p className="text-[10px] text-yellow-200/70 leading-relaxed">
-                              Keys grant full read/write access to the project file. Share only with trusted testers.
-                          </p>
-                      </div>
-                  </div>
-              </div>
           </div>
       )}
 
