@@ -1,0 +1,483 @@
+
+> mossy-desktop@3.0.0 lint
+> eslint . --ext .ts,.tsx
+
+
+D:\Projects\desktop-tutorial\desktop-tutorial\src\electron\BridgeServer.ts
+  3:16  warning  'spawn' is defined but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
+
+D:\Projects\desktop-tutorial\desktop-tutorial\src\electron\main.ts
+    12:26  warning  'getSystemInfo' is defined but never used. Allowed unused vars must match /^_/u             @typescript-eslint/no-unused-vars
+   753:11  warning  'totalIdle' is assigned a value but never used. Allowed unused vars must match /^_/u        @typescript-eslint/no-unused-vars
+   754:11  warning  'totalTick' is assigned a value but never used. Allowed unused vars must match /^_/u        @typescript-eslint/no-unused-vars
+  1361:13  warning  'pixelFormatSize' is assigned a value but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
+  1389:13  warning  'materials' is assigned a value but never used. Allowed unused vars must match /^_/u        @typescript-eslint/no-unused-vars
+
+D:\Projects\desktop-tutorial\desktop-tutorial\src\renderer\src\AICopilot.tsx
+   2:10  warning  'MessageSquare' is defined but never used. Allowed unused vars must match /^_/u            @typescript-eslint/no-unused-vars
+  24:10  warning  'projectContext' is assigned a value but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
+
+D:\Projects\desktop-tutorial\desktop-tutorial\src\renderer\src\AnimationValidator.tsx
+    2:61  warning  'Copy' is defined but never used. Allowed unused vars must match /^_/u     @typescript-eslint/no-unused-vars
+  364:39  warning  'stepIdx' is defined but never used. Allowed unused args must match /^_/u  @typescript-eslint/no-unused-vars
+
+D:\Projects\desktop-tutorial\desktop-tutorial\src\renderer\src\App.tsx
+   2:37  warning  'Navigate' is defined but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
+  14:10  warning  'Loader2' is defined but never used. Allowed unused vars must match /^_/u   @typescript-eslint/no-unused-vars
+
+D:\Projects\desktop-tutorial\desktop-tutorial\src\renderer\src\AssetViewer3D.tsx
+    2:44   warning  'Triangle' is defined but never used. Allowed unused vars must match /^_/u          @typescript-eslint/no-unused-vars
+   21:10   warning  'loading' is assigned a value but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
+  245:76   warning  'cosY' is defined but never used. Allowed unused args must match /^_/u              @typescript-eslint/no-unused-vars
+  245:90   warning  'sinY' is defined but never used. Allowed unused args must match /^_/u              @typescript-eslint/no-unused-vars
+  245:104  warning  'cosX' is defined but never used. Allowed unused args must match /^_/u              @typescript-eslint/no-unused-vars
+  245:118  warning  'sinX' is defined but never used. Allowed unused args must match /^_/u              @typescript-eslint/no-unused-vars
+
+D:\Projects\desktop-tutorial\desktop-tutorial\src\renderer\src\AutoCompiler.tsx
+  2:49  warning  'FolderOpen' is defined but never used. Allowed unused vars must match /^_/u     @typescript-eslint/no-unused-vars
+  2:68  warning  'AlertTriangle' is defined but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
+
+D:\Projects\desktop-tutorial\desktop-tutorial\src\renderer\src\BA2Manager.tsx
+  2:19  warning  'FolderOpen' is defined but never used. Allowed unused vars must match /^_/u   @typescript-eslint/no-unused-vars
+  2:62  warning  'HardDrive' is defined but never used. Allowed unused vars must match /^_/u    @typescript-eslint/no-unused-vars
+  2:73  warning  'AlertCircle' is defined but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
+
+D:\Projects\desktop-tutorial\desktop-tutorial\src\renderer\src\BackupManager.tsx
+  26:10  warning  'workspacePath' is assigned a value but never used. Allowed unused vars must match /^_/u     @typescript-eslint/no-unused-vars
+  26:25  warning  'setWorkspacePath' is assigned a value but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
+
+D:\Projects\desktop-tutorial\desktop-tutorial\src\renderer\src\ChatInterface.tsx
+     1:46   warning  'useMemo' is defined but never used. Allowed unused vars must match /^_/u                       @typescript-eslint/no-unused-vars
+     1:55   warning  'useCallback' is defined but never used. Allowed unused vars must match /^_/u                   @typescript-eslint/no-unused-vars
+     6:47   warning  'Search' is defined but never used. Allowed unused vars must match /^_/u                        @typescript-eslint/no-unused-vars
+     6:67   warning  'Save' is defined but never used. Allowed unused vars must match /^_/u                          @typescript-eslint/no-unused-vars
+     6:95   warning  'HelpCircle' is defined but never used. Allowed unused vars must match /^_/u                    @typescript-eslint/no-unused-vars
+     6:107  warning  'PauseCircle' is defined but never used. Allowed unused vars must match /^_/u                   @typescript-eslint/no-unused-vars
+     6:120  warning  'ChevronRight' is defined but never used. Allowed unused vars must match /^_/u                  @typescript-eslint/no-unused-vars
+     6:144  warning  'Cpu' is defined but never used. Allowed unused vars must match /^_/u                           @typescript-eslint/no-unused-vars
+     6:152  warning  'CheckSquare' is defined but never used. Allowed unused vars must match /^_/u                   @typescript-eslint/no-unused-vars
+     6:233  warning  'Play' is defined but never used. Allowed unused vars must match /^_/u                          @typescript-eslint/no-unused-vars
+     6:252  warning  'ArrowUpRight' is defined but never used. Allowed unused vars must match /^_/u                  @typescript-eslint/no-unused-vars
+     6:266  warning  'Wrench' is defined but never used. Allowed unused vars must match /^_/u                        @typescript-eslint/no-unused-vars
+     6:274  warning  'Radio' is defined but never used. Allowed unused vars must match /^_/u                         @typescript-eslint/no-unused-vars
+     6:295  warning  'Map' is defined but never used. Allowed unused vars must match /^_/u                           @typescript-eslint/no-unused-vars
+     6:308  warning  'Flag' is defined but never used. Allowed unused vars must match /^_/u                          @typescript-eslint/no-unused-vars
+     6:314  warning  'PenTool' is defined but never used. Allowed unused vars must match /^_/u                       @typescript-eslint/no-unused-vars
+     6:343  warning  'Clipboard' is defined but never used. Allowed unused vars must match /^_/u                     @typescript-eslint/no-unused-vars
+   232:10   warning  'activeDrivers' is assigned a value but never used. Allowed unused vars must match /^_/u        @typescript-eslint/no-unused-vars
+   250:19   warning  'setProfile' is assigned a value but never used. Allowed unused vars must match /^_/u           @typescript-eslint/no-unused-vars
+   259:10   warning  'scannedMap' is assigned a value but never used. Allowed unused vars must match /^_/u           @typescript-eslint/no-unused-vars
+   329:39   warning  'event' is defined but never used. Allowed unused args must match /^_/u                         @typescript-eslint/no-unused-vars
+   504:11   warning  'silenceDuration' is assigned a value but never used. Allowed unused vars must match /^_/u      @typescript-eslint/no-unused-vars
+   504:11   error    'silenceDuration' is never reassigned. Use 'const' instead                                      prefer-const
+   505:13   warning  'SILENCE_THRESHOLD' is assigned a value but never used. Allowed unused vars must match /^_/u    @typescript-eslint/no-unused-vars
+   506:13   warning  'SILENCE_DURATION_MS' is assigned a value but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
+   507:13   warning  'MIN_RECORDING_MS' is assigned a value but never used. Allowed unused vars must match /^_/u     @typescript-eslint/no-unused-vars
+   513:11   warning  'recordingStartTime' is assigned a value but never used. Allowed unused vars must match /^_/u   @typescript-eslint/no-unused-vars
+  1028:24   warning  'p' is defined but never used. Allowed unused args must match /^_/u                             @typescript-eslint/no-unused-vars
+  1031:33   warning  'val' is defined but never used. Allowed unused args must match /^_/u                           @typescript-eslint/no-unused-vars
+
+D:\Projects\desktop-tutorial\desktop-tutorial\src\renderer\src\CommandPalette.tsx
+  4:27   warning  'Zap' is defined but never used. Allowed unused vars must match /^_/u         @typescript-eslint/no-unused-vars
+  4:175  warning  'Box' is defined but never used. Allowed unused vars must match /^_/u         @typescript-eslint/no-unused-vars
+  4:180  warning  'Settings' is defined but never used. Allowed unused vars must match /^_/u    @typescript-eslint/no-unused-vars
+  4:226  warning  'Shield' is defined but never used. Allowed unused vars must match /^_/u      @typescript-eslint/no-unused-vars
+  4:257  warning  'Camera' is defined but never used. Allowed unused vars must match /^_/u      @typescript-eslint/no-unused-vars
+  4:295  warning  'PenTool' is defined but never used. Allowed unused vars must match /^_/u     @typescript-eslint/no-unused-vars
+  4:332  warning  'Globe' is defined but never used. Allowed unused vars must match /^_/u       @typescript-eslint/no-unused-vars
+  4:339  warning  'Smartphone' is defined but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
+  4:358  warning  'Lock' is defined but never used. Allowed unused vars must match /^_/u        @typescript-eslint/no-unused-vars
+
+D:\Projects\desktop-tutorial\desktop-tutorial\src\renderer\src\DesktopBridge.tsx
+    2:33   warning  'Wifi' is defined but never used. Allowed unused vars must match /^_/u                   @typescript-eslint/no-unused-vars
+    2:39   warning  'Shield' is defined but never used. Allowed unused vars must match /^_/u                 @typescript-eslint/no-unused-vars
+    2:62   warning  'Power' is defined but never used. Allowed unused vars must match /^_/u                  @typescript-eslint/no-unused-vars
+    2:69   warning  'Layers' is defined but never used. Allowed unused vars must match /^_/u                 @typescript-eslint/no-unused-vars
+    2:97   warning  'ImageIcon' is defined but never used. Allowed unused vars must match /^_/u              @typescript-eslint/no-unused-vars
+    2:108  warning  'MessageSquare' is defined but never used. Allowed unused vars must match /^_/u          @typescript-eslint/no-unused-vars
+    2:150  warning  'AlertOctagon' is defined but never used. Allowed unused vars must match /^_/u           @typescript-eslint/no-unused-vars
+    2:164  warning  'Link' is defined but never used. Allowed unused vars must match /^_/u                   @typescript-eslint/no-unused-vars
+    2:180  warning  'Globe' is defined but never used. Allowed unused vars must match /^_/u                  @typescript-eslint/no-unused-vars
+    2:228  warning  'ArrowRightLeft' is defined but never used. Allowed unused vars must match /^_/u         @typescript-eslint/no-unused-vars
+    2:244  warning  'ArrowRight' is defined but never used. Allowed unused vars must match /^_/u             @typescript-eslint/no-unused-vars
+   32:10   warning  'drivers' is assigned a value but never used. Allowed unused vars must match /^_/u       @typescript-eslint/no-unused-vars
+  576:9    warning  'toggleDriver' is assigned a value but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
+
+D:\Projects\desktop-tutorial\desktop-tutorial\src\renderer\src\DiagnosticTools.tsx
+  1:27  warning  'useEffect' is defined but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
+
+D:\Projects\desktop-tutorial\desktop-tutorial\src\renderer\src\ExternalToolsSettings.tsx
+  2:16  warning  'TestTube2' is defined but never used. Allowed unused vars must match /^_/u          @typescript-eslint/no-unused-vars
+  7:10  warning  'settings' is assigned a value but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
+
+D:\Projects\desktop-tutorial\desktop-tutorial\src\renderer\src\Fallout4SpecializationBanner.tsx
+  2:10  warning  'AlertCircle' is defined but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
+  2:29  warning  'Zap' is defined but never used. Allowed unused vars must match /^_/u          @typescript-eslint/no-unused-vars
+
+D:\Projects\desktop-tutorial\desktop-tutorial\src\renderer\src\FileWatcher.tsx
+  2:27  warning  'AlertTriangle' is defined but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
+
+D:\Projects\desktop-tutorial\desktop-tutorial\src\renderer\src\Holodeck.tsx
+   2:26   warning  'Pause' is defined but never used. Allowed unused vars must match /^_/u                      @typescript-eslint/no-unused-vars
+   2:33   warning  'SkipForward' is defined but never used. Allowed unused vars must match /^_/u                @typescript-eslint/no-unused-vars
+   2:81   warning  'Zap' is defined but never used. Allowed unused vars must match /^_/u                        @typescript-eslint/no-unused-vars
+   2:105  warning  'Settings' is defined but never used. Allowed unused vars must match /^_/u                   @typescript-eslint/no-unused-vars
+  31:7    warning  'getSeverityColor' is assigned a value but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
+  54:22   warning  'setTestRuns' is assigned a value but never used. Allowed unused vars must match /^_/u       @typescript-eslint/no-unused-vars
+
+D:\Projects\desktop-tutorial\desktop-tutorial\src\renderer\src\ImageSuite.tsx
+   1:27  warning  'useRef' is defined but never used. Allowed unused vars must match /^_/u                     @typescript-eslint/no-unused-vars
+  19:11  warning  'setAvatarFromUrl' is assigned a value but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
+
+D:\Projects\desktop-tutorial\desktop-tutorial\src\renderer\src\LiveContext.backup.tsx
+  127:21  warning  'setInitError' is assigned a value but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
+  228:26  warning  'e' is defined but never used. Allowed unused args must match /^_/u                      @typescript-eslint/no-unused-vars
+
+D:\Projects\desktop-tutorial\desktop-tutorial\src\renderer\src\LiveContext.tsx
+    21:36  warning  'toolDeclarations' is defined but never used. Allowed unused vars must match /^_/u               @typescript-eslint/no-unused-vars
+    22:10  warning  'executeMossyTool' is defined but never used. Allowed unused vars must match /^_/u               @typescript-eslint/no-unused-vars
+   127:7   warning  'encodeAudioToBase64' is assigned a value but never used. Allowed unused vars must match /^_/u   @typescript-eslint/no-unused-vars
+   136:7   warning  'createBlob' is assigned a value but never used. Allowed unused vars must match /^_/u            @typescript-eslint/no-unused-vars
+   144:7   warning  'decodeAudioData' is assigned a value but never used. Allowed unused vars must match /^_/u       @typescript-eslint/no-unused-vars
+   216:10  warning  'encodeWAV' is defined but never used. Allowed unused vars must match /^_/u                      @typescript-eslint/no-unused-vars
+   274:10  warning  'combineAudioChunks' is defined but never used. Allowed unused vars must match /^_/u             @typescript-eslint/no-unused-vars
+   570:18  warning  'setVolume' is assigned a value but never used. Allowed unused vars must match /^_/u             @typescript-eslint/no-unused-vars
+   624:9   warning  'MIN_SEND_VOLUME' is assigned a value but never used. Allowed unused vars must match /^_/u       @typescript-eslint/no-unused-vars
+   625:9   warning  'MIN_SEND_INTERVAL_MS' is assigned a value but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
+   626:9   warning  'SILENCE_THRESHOLD_MS' is assigned a value but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
+   660:9   warning  'lastSendRef' is assigned a value but never used. Allowed unused vars must match /^_/u           @typescript-eslint/no-unused-vars
+   661:9   warning  'lastSpeechRef' is assigned a value but never used. Allowed unused vars must match /^_/u         @typescript-eslint/no-unused-vars
+   662:9   warning  'lastFlushRef' is assigned a value but never used. Allowed unused vars must match /^_/u          @typescript-eslint/no-unused-vars
+   663:9   warning  'lastModelReplyRef' is assigned a value but never used. Allowed unused vars must match /^_/u     @typescript-eslint/no-unused-vars
+   664:9   warning  'modelIsSpeakingRef' is assigned a value but never used. Allowed unused vars must match /^_/u    @typescript-eslint/no-unused-vars
+   928:9   warning  'scheduleReconnect' is assigned a value but never used. Allowed unused vars must match /^_/u     @typescript-eslint/no-unused-vars
+   959:9   warning  'pauseReconnect' is assigned a value but never used. Allowed unused vars must match /^_/u        @typescript-eslint/no-unused-vars
+  1142:19  warning  'lastScan' is assigned a value but never used. Allowed unused vars must match /^_/u              @typescript-eslint/no-unused-vars
+  1446:25  error    'recordingStartTime2' is never reassigned. Use 'const' instead                                   prefer-const
+  1518:25  error    'recordingStartTime2' is never reassigned. Use 'const' instead                                   prefer-const
+  1567:19  error    'recordingStartTime' is never reassigned. Use 'const' instead                                    prefer-const
+
+D:\Projects\desktop-tutorial\desktop-tutorial\src\renderer\src\LiveGameMonitor.tsx
+    2:20  warning  'Cpu' is defined but never used. Allowed unused vars must match /^_/u                   @typescript-eslint/no-unused-vars
+    2:60  warning  'AlertTriangle' is defined but never used. Allowed unused vars must match /^_/u         @typescript-eslint/no-unused-vars
+  101:9   warning  'removeWatch' is assigned a value but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
+
+D:\Projects\desktop-tutorial\desktop-tutorial\src\renderer\src\LoadOrderAnalyzer.tsx
+  2:45  warning  'Package' is defined but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
+
+D:\Projects\desktop-tutorial\desktop-tutorial\src\renderer\src\Lorekeeper.tsx
+   1:38   warning  'useRef' is defined but never used. Allowed unused vars must match /^_/u          @typescript-eslint/no-unused-vars
+   2:20   warning  'Search' is defined but never used. Allowed unused vars must match /^_/u          @typescript-eslint/no-unused-vars
+   2:28   warning  'Plus' is defined but never used. Allowed unused vars must match /^_/u            @typescript-eslint/no-unused-vars
+   2:34   warning  'Save' is defined but never used. Allowed unused vars must match /^_/u            @typescript-eslint/no-unused-vars
+   2:105  warning  'CheckCircle2' is defined but never used. Allowed unused vars must match /^_/u    @typescript-eslint/no-unused-vars
+   2:119  warning  'AlertCircle' is defined but never used. Allowed unused vars must match /^_/u     @typescript-eslint/no-unused-vars
+   6:6    warning  'PrecombineType' is defined but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
+  52:11   warning  'lines' is assigned a value but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
+
+D:\Projects\desktop-tutorial\desktop-tutorial\src\renderer\src\ModDistribution.tsx
+  2:38  warning  'FileText' is defined but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
+
+D:\Projects\desktop-tutorial\desktop-tutorial\src\renderer\src\ModProjectManager.tsx
+    2:30  warning  'FileText' is defined but never used. Allowed unused vars must match /^_/u                 @typescript-eslint/no-unused-vars
+    2:48  warning  'Settings' is defined but never used. Allowed unused vars must match /^_/u                 @typescript-eslint/no-unused-vars
+   28:10  warning  'selectedTab' is assigned a value but never used. Allowed unused vars must match /^_/u     @typescript-eslint/no-unused-vars
+   28:23  warning  'setSelectedTab' is assigned a value but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
+  363:10  warning  'editingName' is assigned a value but never used. Allowed unused vars must match /^_/u     @typescript-eslint/no-unused-vars
+  363:23  warning  'setEditingName' is assigned a value but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
+
+D:\Projects\desktop-tutorial\desktop-tutorial\src\renderer\src\ModdingJourney.tsx
+  2:18  warning  'Star' is defined but never used. Allowed unused vars must match /^_/u      @typescript-eslint/no-unused-vars
+  2:24  warning  'Target' is defined but never used. Allowed unused vars must match /^_/u    @typescript-eslint/no-unused-vars
+  2:32  warning  'Zap' is defined but never used. Allowed unused vars must match /^_/u       @typescript-eslint/no-unused-vars
+  2:37  warning  'BookOpen' is defined but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
+
+D:\Projects\desktop-tutorial\desktop-tutorial\src\renderer\src\MossyFaceAvatar.tsx
+  18:3  warning  'size' is assigned a value but never used. Allowed unused vars must match /^_/u      @typescript-eslint/no-unused-vars
+  20:3  warning  'isActive' is assigned a value but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
+
+D:\Projects\desktop-tutorial\desktop-tutorial\src\renderer\src\MossyMemoryVault.tsx
+  2:16  warning  'Upload' is defined but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
+
+D:\Projects\desktop-tutorial\desktop-tutorial\src\renderer\src\MossyObserver.tsx
+  3:10  warning  'MessageSquare' is defined but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
+
+D:\Projects\desktop-tutorial\desktop-tutorial\src\renderer\src\MossyOnboarding.tsx
+   27:27  warning  'setPrivacySettings' is assigned a value but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
+  307:3   warning  'Lock' is defined but never used. Allowed unused vars must match /^_/u                         @typescript-eslint/no-unused-vars
+  308:3   warning  'Share2' is defined but never used. Allowed unused vars must match /^_/u                       @typescript-eslint/no-unused-vars
+  311:3   warning  'Database' is defined but never used. Allowed unused vars must match /^_/u                     @typescript-eslint/no-unused-vars
+  314:3   warning  'AlertCircle' is defined but never used. Allowed unused vars must match /^_/u                  @typescript-eslint/no-unused-vars
+
+D:\Projects\desktop-tutorial\desktop-tutorial\src\renderer\src\MossyTools.ts
+    1:10  warning  'Type' is defined but never used. Allowed unused vars must match /^_/u               @typescript-eslint/no-unused-vars
+  316:19  warning  'settings' is assigned a value but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
+
+D:\Projects\desktop-tutorial\desktop-tutorial\src\renderer\src\NeuralLink.tsx
+  3:35  warning  'AlertTriangle' is defined but never used. Allowed unused vars must match /^_/u     @typescript-eslint/no-unused-vars
+  3:50  warning  'CheckCircle2' is defined but never used. Allowed unused vars must match /^_/u      @typescript-eslint/no-unused-vars
+  3:74  warning  'Code' is defined but never used. Allowed unused vars must match /^_/u              @typescript-eslint/no-unused-vars
+  3:80  warning  'Layers' is defined but never used. Allowed unused vars must match /^_/u            @typescript-eslint/no-unused-vars
+  4:10  warning  'FO4KnowledgeBase' is defined but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
+
+D:\Projects\desktop-tutorial\desktop-tutorial\src\renderer\src\PatchGenerator.tsx
+    2:20   warning  'AlertTriangle' is defined but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
+  199:106  warning  'i' is defined but never used. Allowed unused args must match /^_/u              @typescript-eslint/no-unused-vars
+
+D:\Projects\desktop-tutorial\desktop-tutorial\src\renderer\src\PerformancePredictor.tsx
+  2:29  warning  'AlertTriangle' is defined but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
+  2:68  warning  'Upload' is defined but never used. Allowed unused vars must match /^_/u         @typescript-eslint/no-unused-vars
+
+D:\Projects\desktop-tutorial\desktop-tutorial\src\renderer\src\PipBoyHeader.tsx
+  7:17  warning  'Zap' is defined but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
+
+D:\Projects\desktop-tutorial\desktop-tutorial\src\renderer\src\PopularModsDatabase.tsx
+  3:40  warning  'getModsByCategory' is defined but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
+
+D:\Projects\desktop-tutorial\desktop-tutorial\src\renderer\src\PrecombineChecker.tsx
+  2:39  warning  'Zap' is defined but never used. Allowed unused vars must match /^_/u          @typescript-eslint/no-unused-vars
+  2:44  warning  'ChevronDown' is defined but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
+
+D:\Projects\desktop-tutorial\desktop-tutorial\src\renderer\src\QuestEditor.tsx
+   2:35  warning  'Link2' is defined but never used. Allowed unused vars must match /^_/u                     @typescript-eslint/no-unused-vars
+   2:58  warning  'Save' is defined but never used. Allowed unused vars must match /^_/u                      @typescript-eslint/no-unused-vars
+   2:64  warning  'Undo' is defined but never used. Allowed unused vars must match /^_/u                      @typescript-eslint/no-unused-vars
+   2:70  warning  'Redo' is defined but never used. Allowed unused vars must match /^_/u                      @typescript-eslint/no-unused-vars
+  42:10  warning  'history' is assigned a value but never used. Allowed unused vars must match /^_/u          @typescript-eslint/no-unused-vars
+  42:19  warning  'setHistory' is assigned a value but never used. Allowed unused vars must match /^_/u       @typescript-eslint/no-unused-vars
+  43:10  warning  'historyIndex' is assigned a value but never used. Allowed unused vars must match /^_/u     @typescript-eslint/no-unused-vars
+  43:24  warning  'setHistoryIndex' is assigned a value but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
+
+D:\Projects\desktop-tutorial\desktop-tutorial\src\renderer\src\QuestModAutomationSuite.tsx
+  2:92  warning  'PlusCircle' is defined but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
+
+D:\Projects\desktop-tutorial\desktop-tutorial\src\renderer\src\RiggingMistakesGallery.tsx
+  2:23  warning  'CheckCircle2' is defined but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
+
+D:\Projects\desktop-tutorial\desktop-tutorial\src\renderer\src\Sidebar.tsx
+  3:10   warning  'MessageSquare' is defined but never used. Allowed unused vars must match /^_/u    @typescript-eslint/no-unused-vars
+  3:55   warning  'Heart' is defined but never used. Allowed unused vars must match /^_/u            @typescript-eslint/no-unused-vars
+  3:62   warning  'Leaf' is defined but never used. Allowed unused vars must match /^_/u             @typescript-eslint/no-unused-vars
+  3:141  warning  'SquareTerminal' is defined but never used. Allowed unused vars must match /^_/u   @typescript-eslint/no-unused-vars
+  3:171  warning  'Aperture' is defined but never used. Allowed unused vars must match /^_/u         @typescript-eslint/no-unused-vars
+  3:198  warning  'Satellite' is defined but never used. Allowed unused vars must match /^_/u        @typescript-eslint/no-unused-vars
+  3:209  warning  'Workflow' is defined but never used. Allowed unused vars must match /^_/u         @typescript-eslint/no-unused-vars
+  3:219  warning  'Hexagon' is defined but never used. Allowed unused vars must match /^_/u          @typescript-eslint/no-unused-vars
+  3:228  warning  'DraftingCompass' is defined but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
+  3:245  warning  'Dna' is defined but never used. Allowed unused vars must match /^_/u              @typescript-eslint/no-unused-vars
+  3:260  warning  'Flame' is defined but never used. Allowed unused vars must match /^_/u            @typescript-eslint/no-unused-vars
+  3:267  warning  'Binary' is defined but never used. Allowed unused vars must match /^_/u           @typescript-eslint/no-unused-vars
+  3:275  warning  'Triangle' is defined but never used. Allowed unused vars must match /^_/u         @typescript-eslint/no-unused-vars
+  3:294  warning  'FlaskConical' is defined but never used. Allowed unused vars must match /^_/u     @typescript-eslint/no-unused-vars
+  3:308  warning  'Map' is defined but never used. Allowed unused vars must match /^_/u              @typescript-eslint/no-unused-vars
+  3:313  warning  'FileDigit' is defined but never used. Allowed unused vars must match /^_/u        @typescript-eslint/no-unused-vars
+  3:324  warning  'Library' is defined but never used. Allowed unused vars must match /^_/u          @typescript-eslint/no-unused-vars
+  3:333  warning  'Bug' is defined but never used. Allowed unused vars must match /^_/u              @typescript-eslint/no-unused-vars
+  3:347  warning  'Watch' is defined but never used. Allowed unused vars must match /^_/u            @typescript-eslint/no-unused-vars
+  3:438  warning  'Archive' is defined but never used. Allowed unused vars must match /^_/u          @typescript-eslint/no-unused-vars
+  3:447  warning  'Eye' is defined but never used. Allowed unused vars must match /^_/u              @typescript-eslint/no-unused-vars
+  3:452  warning  'Save' is defined but never used. Allowed unused vars must match /^_/u             @typescript-eslint/no-unused-vars
+  3:476  warning  'FileCodeIcon' is defined but never used. Allowed unused vars must match /^_/u     @typescript-eslint/no-unused-vars
+  3:490  warning  'Bot' is defined but never used. Allowed unused vars must match /^_/u              @typescript-eslint/no-unused-vars
+  3:495  warning  'Box' is defined but never used. Allowed unused vars must match /^_/u              @typescript-eslint/no-unused-vars
+  3:500  warning  'Gauge' is defined but never used. Allowed unused vars must match /^_/u            @typescript-eslint/no-unused-vars
+  3:512  warning  'GitMerge' is defined but never used. Allowed unused vars must match /^_/u         @typescript-eslint/no-unused-vars
+  3:522  warning  'Clock' is defined but never used. Allowed unused vars must match /^_/u            @typescript-eslint/no-unused-vars
+  3:529  warning  'Share2' is defined but never used. Allowed unused vars must match /^_/u           @typescript-eslint/no-unused-vars
+
+D:\Projects\desktop-tutorial\desktop-tutorial\src\renderer\src\SystemMonitor.tsx
+  6:46   warning  'Trash2' is defined but never used. Allowed unused vars must match /^_/u         @typescript-eslint/no-unused-vars
+  6:86   warning  'Layers' is defined but never used. Allowed unused vars must match /^_/u         @typescript-eslint/no-unused-vars
+  6:94   warning  'Radio' is defined but never used. Allowed unused vars must match /^_/u          @typescript-eslint/no-unused-vars
+  6:119  warning  'History' is defined but never used. Allowed unused vars must match /^_/u        @typescript-eslint/no-unused-vars
+  6:128  warning  'Archive' is defined but never used. Allowed unused vars must match /^_/u        @typescript-eslint/no-unused-vars
+  6:137  warning  'FileCode' is defined but never used. Allowed unused vars must match /^_/u       @typescript-eslint/no-unused-vars
+  6:147  warning  'XCircle' is defined but never used. Allowed unused vars must match /^_/u        @typescript-eslint/no-unused-vars
+  6:167  warning  'Save' is defined but never used. Allowed unused vars must match /^_/u           @typescript-eslint/no-unused-vars
+  6:173  warning  'Clock' is defined but never used. Allowed unused vars must match /^_/u          @typescript-eslint/no-unused-vars
+  6:180  warning  'RotateCcw' is defined but never used. Allowed unused vars must match /^_/u      @typescript-eslint/no-unused-vars
+  6:199  warning  'Download' is defined but never used. Allowed unused vars must match /^_/u       @typescript-eslint/no-unused-vars
+  6:209  warning  'DownloadCloud' is defined but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
+  6:239  warning  'Hexagon' is defined but never used. Allowed unused vars must match /^_/u        @typescript-eslint/no-unused-vars
+  6:326  warning  'Command' is defined but never used. Allowed unused vars must match /^_/u        @typescript-eslint/no-unused-vars
+  6:360  warning  'Network' is defined but never used. Allowed unused vars must match /^_/u        @typescript-eslint/no-unused-vars
+  6:393  warning  'GitBranch' is defined but never used. Allowed unused vars must match /^_/u      @typescript-eslint/no-unused-vars
+  6:409  warning  'Container' is defined but never used. Allowed unused vars must match /^_/u      @typescript-eslint/no-unused-vars
+
+D:\Projects\desktop-tutorial\desktop-tutorial\src\renderer\src\TTSPanel.tsx
+  2:43   warning  'Mic2' is defined but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
+  2:100  warning  'Save' is defined but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
+
+D:\Projects\desktop-tutorial\desktop-tutorial\src\renderer\src\TheAnima.tsx
+   2:27   warning  'TrendingUp' is defined but never used. Allowed unused vars must match /^_/u               @typescript-eslint/no-unused-vars
+   2:59   warning  'Badge' is defined but never used. Allowed unused vars must match /^_/u                    @typescript-eslint/no-unused-vars
+   2:80   warning  'Plus' is defined but never used. Allowed unused vars must match /^_/u                     @typescript-eslint/no-unused-vars
+   2:86   warning  'RefreshCw' is defined but never used. Allowed unused vars must match /^_/u                @typescript-eslint/no-unused-vars
+   2:97   warning  'Lock' is defined but never used. Allowed unused vars must match /^_/u                     @typescript-eslint/no-unused-vars
+   2:110  warning  'Shield' is defined but never used. Allowed unused vars must match /^_/u                   @typescript-eslint/no-unused-vars
+   2:126  warning  'HardDrive' is defined but never used. Allowed unused vars must match /^_/u                @typescript-eslint/no-unused-vars
+   2:137  warning  'Network' is defined but never used. Allowed unused vars must match /^_/u                  @typescript-eslint/no-unused-vars
+  23:25   warning  'setDisciplines' is assigned a value but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
+  74:21   warning  'setLessons' is assigned a value but never used. Allowed unused vars must match /^_/u      @typescript-eslint/no-unused-vars
+  96:13   warning  'time' is assigned a value but never used. Allowed unused vars must match /^_/u            @typescript-eslint/no-unused-vars
+
+D:\Projects\desktop-tutorial\desktop-tutorial\src\renderer\src\TheAssembler.tsx
+   24:7   warning  'initialStructure' is assigned a value but never used. Allowed unused vars must match /^_/u   @typescript-eslint/no-unused-vars
+   26:7   warning  'modFiles' is assigned a value but never used. Allowed unused vars must match /^_/u           @typescript-eslint/no-unused-vars
+   34:21  warning  'setModName' is assigned a value but never used. Allowed unused vars must match /^_/u         @typescript-eslint/no-unused-vars
+   35:23  warning  'setModAuthor' is assigned a value but never used. Allowed unused vars must match /^_/u       @typescript-eslint/no-unused-vars
+   36:24  warning  'setModVersion' is assigned a value but never used. Allowed unused vars must match /^_/u      @typescript-eslint/no-unused-vars
+   37:24  warning  'setModWebsite' is assigned a value but never used. Allowed unused vars must match /^_/u      @typescript-eslint/no-unused-vars
+  120:11  warning  'handleBrowseFiles' is assigned a value but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
+
+D:\Projects\desktop-tutorial\desktop-tutorial\src\renderer\src\TheAuditor.tsx
+    4:16  warning  'FileWarning' is defined but never used. Allowed unused vars must match /^_/u          @typescript-eslint/no-unused-vars
+  344:35  warning  'resolution' is assigned a value but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
+
+D:\Projects\desktop-tutorial\desktop-tutorial\src\renderer\src\TheBlueprint.tsx
+  2:58   warning  'ChevronRight' is defined but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
+  2:72   warning  'AlertCircle' is defined but never used. Allowed unused vars must match /^_/u   @typescript-eslint/no-unused-vars
+  2:85   warning  'FileText' is defined but never used. Allowed unused vars must match /^_/u      @typescript-eslint/no-unused-vars
+  2:95   warning  'Plus' is defined but never used. Allowed unused vars must match /^_/u          @typescript-eslint/no-unused-vars
+  2:101  warning  'Trash2' is defined but never used. Allowed unused vars must match /^_/u        @typescript-eslint/no-unused-vars
+
+D:\Projects\desktop-tutorial\desktop-tutorial\src\renderer\src\TheCartographer.tsx
+  3:94   warning  'Maximize' is defined but never used. Allowed unused vars must match /^_/u     @typescript-eslint/no-unused-vars
+  3:144  warning  'Thermometer' is defined but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
+
+D:\Projects\desktop-tutorial\desktop-tutorial\src\renderer\src\TheCatalyst.tsx
+  29:12  warning  'apiStatus' is assigned a value but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
+
+D:\Projects\desktop-tutorial\desktop-tutorial\src\renderer\src\TheConduit.tsx
+  2:26  warning  'GitBranch' is defined but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
+  2:85  warning  'Upload' is defined but never used. Allowed unused vars must match /^_/u     @typescript-eslint/no-unused-vars
+  2:93  warning  'RefreshCw' is defined but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
+
+D:\Projects\desktop-tutorial\desktop-tutorial\src\renderer\src\TheCortex.tsx
+    2:93   warning  'BookOpen' is defined but never used. Allowed unused vars must match /^_/u                @typescript-eslint/no-unused-vars
+    2:103  warning  'Activity' is defined but never used. Allowed unused vars must match /^_/u                @typescript-eslint/no-unused-vars
+   23:11   warning  'CompatibilityReport' is defined but never used. Allowed unused vars must match /^_/u     @typescript-eslint/no-unused-vars
+  134:24   warning  'setCopiedText' is assigned a value but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
+
+D:\Projects\desktop-tutorial\desktop-tutorial\src\renderer\src\TheGenome.tsx
+    2:15  warning  'Plus' is defined but never used. Allowed unused vars must match /^_/u                         @typescript-eslint/no-unused-vars
+    2:65  warning  'Upload' is defined but never used. Allowed unused vars must match /^_/u                       @typescript-eslint/no-unused-vars
+    2:73  warning  'Share2' is defined but never used. Allowed unused vars must match /^_/u                       @typescript-eslint/no-unused-vars
+    2:81  warning  'Users' is defined but never used. Allowed unused vars must match /^_/u                        @typescript-eslint/no-unused-vars
+    2:98  warning  'Github' is defined but never used. Allowed unused vars must match /^_/u                       @typescript-eslint/no-unused-vars
+  243:29  warning  'setCustomFunctions' is assigned a value but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
+  244:23  warning  'setTemplates' is assigned a value but never used. Allowed unused vars must match /^_/u        @typescript-eslint/no-unused-vars
+
+D:\Projects\desktop-tutorial\desktop-tutorial\src\renderer\src\TheHive.tsx
+    2:58   warning  'AlertTriangle' is defined but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
+    2:83   warning  'Upload' is defined but never used. Allowed unused vars must match /^_/u         @typescript-eslint/no-unused-vars
+    2:105  warning  'Wrench' is defined but never used. Allowed unused vars must match /^_/u         @typescript-eslint/no-unused-vars
+    2:138  warning  'FileText' is defined but never used. Allowed unused vars must match /^_/u       @typescript-eslint/no-unused-vars
+  354:65   warning  'i' is defined but never used. Allowed unused args must match /^_/u              @typescript-eslint/no-unused-vars
+
+D:\Projects\desktop-tutorial\desktop-tutorial\src\renderer\src\TheNexus.tsx
+   4:10   warning  'LayoutDashboard' is defined but never used. Allowed unused vars must match /^_/u         @typescript-eslint/no-unused-vars
+   4:32   warning  'Clock' is defined but never used. Allowed unused vars must match /^_/u                   @typescript-eslint/no-unused-vars
+   4:39   warning  'Shield' is defined but never used. Allowed unused vars must match /^_/u                  @typescript-eslint/no-unused-vars
+   4:47   warning  'Activity' is defined but never used. Allowed unused vars must match /^_/u                @typescript-eslint/no-unused-vars
+   4:57   warning  'Star' is defined but never used. Allowed unused vars must match /^_/u                    @typescript-eslint/no-unused-vars
+   4:63   warning  'ArrowRight' is defined but never used. Allowed unused vars must match /^_/u              @typescript-eslint/no-unused-vars
+   4:75   warning  'MessageSquare' is defined but never used. Allowed unused vars must match /^_/u           @typescript-eslint/no-unused-vars
+   4:90   warning  'Terminal' is defined but never used. Allowed unused vars must match /^_/u                @typescript-eslint/no-unused-vars
+   4:100  warning  'Aperture' is defined but never used. Allowed unused vars must match /^_/u                @typescript-eslint/no-unused-vars
+   4:110  warning  'GitBranch' is defined but never used. Allowed unused vars must match /^_/u               @typescript-eslint/no-unused-vars
+   4:121  warning  'Cpu' is defined but never used. Allowed unused vars must match /^_/u                     @typescript-eslint/no-unused-vars
+   4:126  warning  'AlertTriangle' is defined but never used. Allowed unused vars must match /^_/u           @typescript-eslint/no-unused-vars
+   4:141  warning  'Calendar' is defined but never used. Allowed unused vars must match /^_/u                @typescript-eslint/no-unused-vars
+   4:151  warning  'Bell' is defined but never used. Allowed unused vars must match /^_/u                    @typescript-eslint/no-unused-vars
+   4:157  warning  'Gamepad2' is defined but never used. Allowed unused vars must match /^_/u                @typescript-eslint/no-unused-vars
+   4:176  warning  'Library' is defined but never used. Allowed unused vars must match /^_/u                 @typescript-eslint/no-unused-vars
+   4:185  warning  'Bug' is defined but never used. Allowed unused vars must match /^_/u                     @typescript-eslint/no-unused-vars
+   4:190  warning  'Binary' is defined but never used. Allowed unused vars must match /^_/u                  @typescript-eslint/no-unused-vars
+   4:198  warning  'BookOpen' is defined but never used. Allowed unused vars must match /^_/u                @typescript-eslint/no-unused-vars
+   4:208  warning  'PlayCircle' is defined but never used. Allowed unused vars must match /^_/u              @typescript-eslint/no-unused-vars
+   4:220  warning  'PauseCircle' is defined but never used. Allowed unused vars must match /^_/u             @typescript-eslint/no-unused-vars
+   4:233  warning  'CheckCircle2' is defined but never used. Allowed unused vars must match /^_/u            @typescript-eslint/no-unused-vars
+   5:8    warning  'PipBoyHeader' is defined but never used. Allowed unused vars must match /^_/u            @typescript-eslint/no-unused-vars
+   7:8    warning  'MossyFaceAvatar' is defined but never used. Allowed unused vars must match /^_/u         @typescript-eslint/no-unused-vars
+  10:11   warning  'Insight' is defined but never used. Allowed unused vars must match /^_/u                 @typescript-eslint/no-unused-vars
+  20:10   warning  'activeProject' is assigned a value but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
+  24:21   warning  'mode' is assigned a value but never used. Allowed unused vars must match /^_/u           @typescript-eslint/no-unused-vars
+
+D:\Projects\desktop-tutorial\desktop-tutorial\src\renderer\src\ThePrism.tsx
+  3:20  warning  'Zap' is defined but never used. Allowed unused vars must match /^_/u         @typescript-eslint/no-unused-vars
+  3:61  warning  'Layers' is defined but never used. Allowed unused vars must match /^_/u      @typescript-eslint/no-unused-vars
+  3:69  warning  'ArrowRight' is defined but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
+  3:90  warning  'Maximize2' is defined but never used. Allowed unused vars must match /^_/u   @typescript-eslint/no-unused-vars
+
+D:\Projects\desktop-tutorial\desktop-tutorial\src\renderer\src\TheRegistry.tsx
+    1:27  warning  'useEffect' is defined but never used. Allowed unused vars must match /^_/u            @typescript-eslint/no-unused-vars
+    2:45  warning  'Plus' is defined but never used. Allowed unused vars must match /^_/u                 @typescript-eslint/no-unused-vars
+    2:51  warning  'Trash2' is defined but never used. Allowed unused vars must match /^_/u               @typescript-eslint/no-unused-vars
+    2:71  warning  'Database' is defined but never used. Allowed unused vars must match /^_/u             @typescript-eslint/no-unused-vars
+    2:81  warning  'Settings' is defined but never used. Allowed unused vars must match /^_/u             @typescript-eslint/no-unused-vars
+   71:21  warning  'setPlugins' is assigned a value but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
+   72:21  warning  'setFormids' is assigned a value but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
+  158:55  warning  'idx' is defined but never used. Allowed unused args must match /^_/u                  @typescript-eslint/no-unused-vars
+
+D:\Projects\desktop-tutorial\desktop-tutorial\src\renderer\src\TheReverie.tsx
+  2:98   warning  'Code' is defined but never used. Allowed unused vars must match /^_/u    @typescript-eslint/no-unused-vars
+  2:118  warning  'Layers' is defined but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
+
+D:\Projects\desktop-tutorial\desktop-tutorial\src\renderer\src\TheScribe.tsx
+  2:20   warning  'PenTool' is defined but never used. Allowed unused vars must match /^_/u     @typescript-eslint/no-unused-vars
+  2:109  warning  'Globe' is defined but never used. Allowed unused vars must match /^_/u       @typescript-eslint/no-unused-vars
+  4:11   warning  'DocSection' is defined but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
+
+D:\Projects\desktop-tutorial\desktop-tutorial\src\renderer\src\TheScribeEnhanced.tsx
+  2:87  warning  'Terminal' is defined but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
+  2:97  warning  'Wrench' is defined but never used. Allowed unused vars must match /^_/u    @typescript-eslint/no-unused-vars
+
+D:\Projects\desktop-tutorial\desktop-tutorial\src\renderer\src\TheSynapse.tsx
+    2:15  warning  'Plus' is defined but never used. Allowed unused vars must match /^_/u                         @typescript-eslint/no-unused-vars
+    2:43  warning  'AlertCircle' is defined but never used. Allowed unused vars must match /^_/u                  @typescript-eslint/no-unused-vars
+    2:68  warning  'FileJson' is defined but never used. Allowed unused vars must match /^_/u                     @typescript-eslint/no-unused-vars
+    2:78  warning  'Settings' is defined but never used. Allowed unused vars must match /^_/u                     @typescript-eslint/no-unused-vars
+  209:12  warning  'expandedSection' is assigned a value but never used. Allowed unused vars must match /^_/u     @typescript-eslint/no-unused-vars
+  209:29  warning  'setExpandedSection' is assigned a value but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
+
+D:\Projects\desktop-tutorial\desktop-tutorial\src\renderer\src\TheVault.tsx
+  219:19  warning  'isDDS' is assigned a value but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
+
+D:\Projects\desktop-tutorial\desktop-tutorial\src\renderer\src\TheWorkshop.tsx
+    2:39   warning  'FileBox' is defined but never used. Allowed unused vars must match /^_/u                @typescript-eslint/no-unused-vars
+    2:117  warning  'CheckCircle2' is defined but never used. Allowed unused vars must match /^_/u           @typescript-eslint/no-unused-vars
+    2:131  warning  'AlertCircle' is defined but never used. Allowed unused vars must match /^_/u            @typescript-eslint/no-unused-vars
+    2:144  warning  'Share2' is defined but never used. Allowed unused vars must match /^_/u                 @typescript-eslint/no-unused-vars
+    2:173  warning  'ArrowRight' is defined but never used. Allowed unused vars must match /^_/u             @typescript-eslint/no-unused-vars
+    2:204  warning  'Copy' is defined but never used. Allowed unused vars must match /^_/u                   @typescript-eslint/no-unused-vars
+  247:10   warning  'cursorPos' is assigned a value but never used. Allowed unused vars must match /^_/u     @typescript-eslint/no-unused-vars
+  247:21   warning  'setCursorPos' is assigned a value but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
+
+D:\Projects\desktop-tutorial\desktop-tutorial\src\renderer\src\TutorialOverlay.tsx
+  1:38   warning  'useMemo' is defined but never used. Allowed unused vars must match /^_/u       @typescript-eslint/no-unused-vars
+  2:10   warning  'Download' is defined but never used. Allowed unused vars must match /^_/u      @typescript-eslint/no-unused-vars
+  2:20   warning  'CheckCircle2' is defined but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
+  2:49   warning  'Monitor' is defined but never used. Allowed unused vars must match /^_/u       @typescript-eslint/no-unused-vars
+  2:58   warning  'Command' is defined but never used. Allowed unused vars must match /^_/u       @typescript-eslint/no-unused-vars
+  2:67   warning  'Layout' is defined but never used. Allowed unused vars must match /^_/u        @typescript-eslint/no-unused-vars
+  2:75   warning  'ChevronRight' is defined but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
+  2:89   warning  'Package' is defined but never used. Allowed unused vars must match /^_/u       @typescript-eslint/no-unused-vars
+  2:108  warning  'Pause' is defined but never used. Allowed unused vars must match /^_/u         @typescript-eslint/no-unused-vars
+  2:115  warning  'Play' is defined but never used. Allowed unused vars must match /^_/u          @typescript-eslint/no-unused-vars
+  2:141  warning  'Layers' is defined but never used. Allowed unused vars must match /^_/u        @typescript-eslint/no-unused-vars
+  2:149  warning  'Zap' is defined but never used. Allowed unused vars must match /^_/u           @typescript-eslint/no-unused-vars
+  2:154  warning  'ShieldCheck' is defined but never used. Allowed unused vars must match /^_/u   @typescript-eslint/no-unused-vars
+
+D:\Projects\desktop-tutorial\desktop-tutorial\src\renderer\src\VoiceChat.tsx
+  1:27  warning  'useEffect' is defined but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
+  2:23  warning  'Phone' is defined but never used. Allowed unused vars must match /^_/u      @typescript-eslint/no-unused-vars
+  2:67  warning  'Wifi' is defined but never used. Allowed unused vars must match /^_/u       @typescript-eslint/no-unused-vars
+  2:73  warning  'Circle' is defined but never used. Allowed unused vars must match /^_/u     @typescript-eslint/no-unused-vars
+
+D:\Projects\desktop-tutorial\desktop-tutorial\src\renderer\src\VoiceCommands.tsx
+  2:33  warning  'Settings' is defined but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
+
+Γ£û 345 problems (4 errors, 341 warnings)
+  4 errors and 0 warnings potentially fixable with the `--fix` option.
+
