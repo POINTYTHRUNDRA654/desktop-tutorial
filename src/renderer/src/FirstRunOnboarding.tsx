@@ -198,9 +198,13 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
                 {step === 'welcome' && (
                     <div className="text-center animate-fade-in">
                         <Sparkles className="w-20 h-20 mx-auto mb-6 text-amber-400" />
-                        <h1 className="text-4xl font-bold text-white mb-4">Welcome to Mossy</h1>
+                        <h1 className="text-4xl font-bold text-white mb-4">Welcome to Mossy v3.0</h1>
                         <p className="text-xl text-slate-300 mb-8">
-                            Your AI-powered Fallout 4 modding assistant
+                            Your AI-powered Fallout 4 modding assistant with next-gen voice conversation
+                        </p>
+                        <p className="text-slate-400 mb-6">
+                            <strong className="text-emerald-400">✨ New in v3.0:</strong> Lightning-fast voice responses with smart silence detection (~1s), 
+                            Deepgram-first speech recognition, and full conversation memory. Talk naturally—Mossy remembers everything!
                         </p>
                         <p className="text-slate-400 mb-8">
                             Let me scan your system to discover tools I can integrate with.
@@ -359,8 +363,23 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
                     <div className="text-center animate-fade-in">
                         <Check className="w-20 h-20 mx-auto mb-6 text-emerald-400" />
                         <h2 className="text-3xl font-bold text-white mb-4">Setup Complete!</h2>
-                        <p className="text-xl text-slate-300">
-                            I&apos;m ready to help you create amazing mods.
+                        <p className="text-xl text-slate-300 mb-6">
+                            I'm ready to help you create amazing mods.
+                        </p>
+                        <div className="bg-slate-900/50 border border-emerald-500/30 rounded-lg p-6 mb-6 text-left max-w-lg mx-auto">
+                            <h3 className="text-emerald-400 font-bold mb-3 flex items-center gap-2">
+                                <Sparkles className="w-5 h-5" /> Try Live Voice Now!
+                            </h3>
+                            <ul className="space-y-2 text-sm text-slate-300">
+                                <li>• Click <strong>"Live Voice"</strong> in the sidebar to start an always-on voice conversation</li>
+                                <li>• Just speak naturally—I'll detect when you're done (~1 second of silence)</li>
+                                <li>• I remember everything we discuss, so no need to repeat yourself</li>
+                                <li>• Responses are lightning-fast with Deepgram speech recognition</li>
+                                <li>• Use <strong>"Mute"</strong> when you need me to stop listening temporarily</li>
+                            </ul>
+                        </div>
+                        <p className="text-slate-400 text-sm">
+                            Ready to experience the future of AI modding assistance?
                         </p>
                     </div>
                 )}
