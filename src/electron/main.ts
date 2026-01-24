@@ -114,10 +114,10 @@ function createWindow() {
     mainWindow.loadURL('http://localhost:5173');
     mainWindow.webContents.openDevTools();
   } else {
-    // Production: load from external/volttech-dist
-    const indexPath = path.join(__dirname, '../../external/volttech-dist/index.html');
+    // Production: load bundled Vite build from /dist (packaged by electron-builder)
+    const indexPath = path.join(__dirname, '../../dist/index.html');
     mainWindow.loadFile(indexPath).catch(err => {
-      console.error('Failed to load front-end from external/volttech-dist:', err);
+      console.error('Failed to load front-end from dist build:', err);
       // Fallback: show error page
       mainWindow?.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(`
         <!DOCTYPE html>
