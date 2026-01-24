@@ -269,7 +269,7 @@ const TheCortex = () => {
                 {activeTab === 'conflicts' && (
                     <div className="p-6 space-y-4">
                         <div className="text-xs text-slate-400 mb-4">
-                            Conflict analysis detects interactions between mods. Even "none" conflicts should be reviewed to ensure compatibility.
+                            Conflict analysis detects interactions between mods. Even &quot;none&quot; conflicts should be reviewed to ensure compatibility.
                         </div>
                         {SAMPLE_CONFLICTS.map((conflict, idx) => (
                             <div

@@ -66,8 +66,11 @@ const FALLOUT4_TOOLSET_COMMANDS: Command[] = [
         command: 'robocopy "C:\\Games\\Fallout 4\\Data" "D:\\Backups" /MIR /MT:8',
         purpose: 'Parallel file copy for modding backups.',
         riskLevel: 'low'
-    }
-];
+    },
+    {
+        id: 'utility-1b',
+        category: 'utility',
+        name: 'Project Backup',
         description: 'Create timestamped backup of entire mod project.',
         command: 'gfxexport -help',
         purpose: 'Saves complete copy of mod before major changes. Allows rollback if something breaks.',

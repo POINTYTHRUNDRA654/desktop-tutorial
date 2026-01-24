@@ -21,7 +21,7 @@ export const LeveledListInjectionGuide: React.FC = () => {
           <div className="bg-blue-900/20 border border-blue-700/30 rounded p-4">
             <h4 className="font-bold text-blue-300 mb-2">📋 Definition</h4>
             <p className="text-slate-300 text-sm leading-relaxed">
-              Leveled Lists are Fallout 4's core spawning system. They define what creatures, NPCs, or items appear in the world based on player level, location, and probability.
+              Leveled Lists are Fallout 4&apos;s core spawning system. They define what creatures, NPCs, or items appear in the world based on player level, location, and probability.
             </p>
           </div>
 
@@ -48,9 +48,9 @@ export const LeveledListInjectionGuide: React.FC = () => {
           </div>
 
           <div className="bg-orange-900/20 border border-orange-700/30 rounded p-4">
-            <h4 className="font-bold text-orange-300 mb-2">⚠️ Why You Can't Just Edit Vanilla Lists</h4>
+            <h4 className="font-bold text-orange-300 mb-2">⚠️ Why You Can&apos;t Just Edit Vanilla Lists</h4>
             <p className="text-sm text-slate-300 leading-relaxed mb-2">
-              If you directly edit vanilla leveled lists in your ESP, your mod will <strong>conflict</strong> with every other mod that edits the same list. Result: Only the last-loaded mod's changes apply.
+              If you directly edit vanilla leveled lists in your ESP, your mod will <strong>conflict</strong> with every other mod that edits the same list. Result: Only the last-loaded mod&apos;s changes apply.
             </p>
             <p className="text-sm text-slate-300 leading-relaxed">
               <strong>Solution:</strong> Use injection methods (script-based or patch-based) to ADD entries without replacing the entire list.
@@ -140,7 +140,7 @@ export const LeveledListInjectionGuide: React.FC = () => {
           <div className="bg-green-900/20 border border-green-700/30 rounded p-4">
             <h4 className="font-bold text-green-300 mb-2">💡 Recommendation</h4>
             <p className="text-sm text-slate-300 leading-relaxed">
-              For maximum compatibility: <strong>Use script injection</strong>. It's the modding community standard for leveled list changes. Provide an MCM toggle so users can disable your spawns if needed.
+              For maximum compatibility: <strong>Use script injection</strong>. It&apos;s the modding community standard for leveled list changes. Provide an MCM toggle so users can disable your spawns if needed.
             </p>
           </div>
         </div>
@@ -160,7 +160,7 @@ export const LeveledListInjectionGuide: React.FC = () => {
               <div className="border-l-4 border-green-500 pl-4">
                 <p className="font-bold text-green-400 mb-2">Step 1: Create Your Quest Script</p>
                 <p className="text-sm text-slate-300 mb-2">
-                  In Creation Kit, create a new Quest (e.g., <code className="text-orange-300">MyCreatureInjectionQuest</code>). Set "Start Game Enabled" = TRUE.
+                  In Creation Kit, create a new Quest (e.g., <code className="text-orange-300">MyCreatureInjectionQuest</code>). Set &quot;Start Game Enabled&quot; = TRUE.
                 </p>
                 <div className="bg-slate-950 border border-slate-700 rounded p-3 mt-2">
                   <p className="text-xs text-slate-500 mb-2">Quest Properties:</p>
@@ -322,7 +322,7 @@ EndEvent`}
               <div className="border-l-4 border-purple-500 pl-4">
                 <p className="font-bold text-purple-400 mb-2">Step 3: Copy Leveled List as Override</p>
                 <p className="text-sm text-slate-300 mb-2">
-                  Right-click the leveled list → <strong>"Copy as override into..."</strong> → Select your ESP.
+                  Right-click the leveled list → <strong>&quot;Copy as override into...&quot;</strong> → Select your ESP.
                 </p>
                 <div className="bg-purple-950/30 border border-purple-800/50 rounded p-2 mt-2">
                   <p className="text-xs text-purple-300">⚠️ This creates a copy in YOUR ESP. Now you can edit without touching the vanilla file.</p>
@@ -333,10 +333,10 @@ EndEvent`}
               <div className="border-l-4 border-orange-500 pl-4">
                 <p className="font-bold text-orange-400 mb-2">Step 4: Add Your Creature/Item</p>
                 <p className="text-sm text-slate-300 mb-2">
-                  In the right panel (your ESP's override), expand <strong>"Leveled List Entries"</strong>.
+                  In the right panel (your ESP&apos;s override), expand <strong>&quot;Leveled List Entries&quot;</strong>.
                 </p>
                 <ol className="text-xs text-slate-300 space-y-2 list-decimal list-inside ml-4">
-                  <li>Right-click "Leveled List Entries" → <strong>Add</strong></li>
+                  <li>Right-click &quot;Leveled List Entries&quot; → <strong>Add</strong></li>
                   <li>Set <code className="text-orange-300">Reference</code> = Your creature/item</li>
                   <li>Set <code className="text-orange-300">Level</code> = Minimum player level (e.g., 1 for always, 20 for high-level)</li>
                   <li>Set <code className="text-orange-300">Count</code> = How many (usually 1)</li>
@@ -368,10 +368,10 @@ EndEvent`}
               Conflict Warning
             </h4>
             <p className="text-sm text-slate-300 leading-relaxed mb-2">
-              If another mod ALSO edits the same leveled list, only the last-loaded mod's version will apply. The earlier mod's changes are lost.
+              If another mod ALSO edits the same leveled list, only the last-loaded mod&apos;s version will apply. The earlier mod&apos;s changes are lost.
             </p>
             <p className="text-sm text-slate-300 leading-relaxed">
-              <strong>Solution:</strong> Create a merged patch using FO4Edit's "Merged Patch" feature, or tell users to use a leveled list merger tool (e.g., Wrye Bash).
+              <strong>Solution:</strong> Create a merged patch using FO4Edit&apos;s &quot;Merged Patch&quot; feature, or tell users to use a leveled list merger tool (e.g., Wrye Bash).
             </p>
           </div>
         </div>
@@ -491,10 +491,10 @@ EndEvent`}
             <h4 className="font-bold text-green-300 mb-2">💡 Balancing Tips</h4>
             <ul className="text-sm text-slate-300 space-y-2 list-disc list-inside">
               <li>Start with <strong>Count = 1</strong> and test. Increase if too rare.</li>
-              <li>Match level to creature difficulty (don't spawn deathclaws at Level 1)</li>
+              <li>Match level to creature difficulty (don&apos;t spawn deathclaws at Level 1)</li>
               <li>Test in multiple locations (Commonwealth, Far Harbor, Nuka-World)</li>
-              <li>Consider lore (don't put tropical plants in snowy areas)</li>
-              <li>Respect player experience (don't overwhelm with new spawns)</li>
+              <li>Consider lore (don&apos;t put tropical plants in snowy areas)</li>
+              <li>Respect player experience (don&apos;t overwhelm with new spawns)</li>
             </ul>
           </div>
         </div>
@@ -600,8 +600,8 @@ EndFunction`}
             <ol className="text-sm text-slate-300 space-y-2 list-decimal list-inside">
               <li>Open Creation Kit or FO4Edit</li>
               <li>Navigate to <strong>Leveled NPC</strong> or <strong>Leveled Item</strong> section</li>
-              <li>Search for keywords: "Enc" (encounters), "LL_" (leveled list), faction names</li>
-              <li>Inspect existing vanilla creatures to see which lists they're in</li>
+              <li>Search for keywords: &quot;Enc&quot; (encounters), &quot;LL_&quot; (leveled list), faction names</li>
+              <li>Inspect existing vanilla creatures to see which lists they&apos;re in</li>
               <li>Document all relevant lists for your biome/faction</li>
             </ol>
           </div>
@@ -609,7 +609,7 @@ EndFunction`}
           <div className="bg-green-900/20 border border-green-700/30 rounded p-4">
             <h4 className="font-bold text-green-300 mb-2">✅ Best Practices</h4>
             <ul className="text-sm text-slate-300 space-y-2 list-disc list-inside">
-              <li>Don't inject into EVERY list (overwhelming for players)</li>
+              <li>Don&apos;t inject into EVERY list (overwhelming for players)</li>
               <li>Choose 3-7 relevant lists for your creature type</li>
               <li>Vary spawn chances (common in some areas, rare in others)</li>
               <li>Test in all target zones before release</li>
@@ -692,17 +692,17 @@ EndFunction`}
             
             <div className="space-y-3">
               <div className="bg-slate-950 border border-slate-700 rounded p-3">
-                <p className="font-bold text-red-400 mb-1">❌ "My creature never spawns"</p>
+                <p className="font-bold text-red-400 mb-1">❌ &quot;My creature never spawns&quot;</p>
                 <ul className="text-xs text-slate-300 space-y-1 list-disc list-inside ml-4">
                   <li>Check player level vs creature's minimum level requirement</li>
                   <li>Verify script ran (check Debug.Trace in logs)</li>
-                  <li>Visit NEW locations (already-spawned areas won't update)</li>
+                  <li>Visit NEW locations (already-spawned areas won&apos;t update)</li>
                   <li>Count might be too low (increase from 1 to 3-5)</li>
                 </ul>
               </div>
 
               <div className="bg-slate-950 border border-slate-700 rounded p-3">
-                <p className="font-bold text-red-400 mb-1">❌ "Creature spawns but crashes game"</p>
+                <p className="font-bold text-red-400 mb-1">❌ &quot;Creature spawns but crashes game&quot;</p>
                 <ul className="text-xs text-slate-300 space-y-1 list-disc list-inside ml-4">
                   <li>Missing mesh/texture files</li>
                   <li>Broken NIF (validate in NifSkope)</li>
@@ -712,7 +712,7 @@ EndFunction`}
               </div>
 
               <div className="bg-slate-950 border border-slate-700 rounded p-3">
-                <p className="font-bold text-red-400 mb-1">❌ "Too many spawns (overwhelming)"</p>
+                <p className="font-bold text-red-400 mb-1">❌ &quot;Too many spawns (overwhelming)&quot;</p>
                 <ul className="text-xs text-slate-300 space-y-1 list-disc list-inside ml-4">
                   <li>Reduce Count parameter (from 5 to 1-2)</li>
                   <li>Increase minimum level requirement</li>
@@ -802,14 +802,14 @@ EndFunction`}
               <div className="bg-slate-950 border border-slate-700 rounded p-3">
                 <p className="font-bold text-white mb-2">4. Respect Player Level</p>
                 <p className="text-sm text-slate-300">
-                  Don't spawn level-50 creatures at level 1. Match difficulty to player progression.
+                  Don&apos;t spawn level-50 creatures at level 1. Match difficulty to player progression.
                 </p>
               </div>
 
               <div className="bg-slate-950 border border-slate-700 rounded p-3">
                 <p className="font-bold text-white mb-2">5. Use Descriptive Naming</p>
                 <p className="text-sm text-slate-300">
-                  Name your quest/script clearly: <code className="text-orange-300">MyModName_LeveledListInjection</code> (not "Quest01")
+                  Name your quest/script clearly: <code className="text-orange-300">MyModName_LeveledListInjection</code> (not &quot;Quest01&quot;)
                 </p>
               </div>
             </div>
@@ -854,9 +854,9 @@ EndFunction`}
             
             <div className="space-y-3">
               <div className="bg-slate-950 border border-slate-700 rounded p-3">
-                <p className="font-bold text-white mb-2">Problem: Script doesn't run</p>
+                <p className="font-bold text-white mb-2">Problem: Script doesn&apos;t run</p>
                 <ul className="text-xs text-slate-300 space-y-1 list-disc list-inside ml-4">
-                  <li><strong>Check:</strong> Quest "Start Game Enabled" = TRUE</li>
+                  <li><strong>Check:</strong> Quest &quot;Start Game Enabled&quot; = TRUE</li>
                   <li><strong>Check:</strong> Script attached to quest</li>
                   <li><strong>Check:</strong> Properties filled in Creation Kit</li>
                   <li><strong>Check:</strong> F4SE installed (if using F4SE functions)</li>

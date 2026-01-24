@@ -46,7 +46,9 @@ export const executeMossyTool = async (name: string, args: any, context: {
     } else if (name === 'send_blender_shortcut') {
         try {
             await navigator.clipboard.writeText(`MOSSY_CMD:import bpy; bpy.ops.wm.context_toggle(data_path="space_data.overlay.show_wireframes")`); 
-        } catch (e) {}
+        } catch (e) {
+            console.error('[MossyTools] Failed to copy blender shortcut:', e);
+        }
         
         window.dispatchEvent(new CustomEvent('mossy-blender-shortcut', {
             detail: {
@@ -533,7 +535,7 @@ export const executeMossyTool = async (name: string, args: any, context: {
                     };
                     
                     // Try exact match first, then try converted camelCase version
-                    let mapping = settingsMapping[searchLower] || settingsMapping[searchWithSpaces];
+                    const mapping = settingsMapping[searchLower] || settingsMapping[searchWithSpaces];
                     if (mapping) {
                         const path = settings[mapping.key];
                         if (path && path.length > 3) {

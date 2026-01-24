@@ -666,7 +666,7 @@ print("Batch processing complete")`,
               <div className="text-center py-12 text-slate-500">
                 <Check className="w-12 h-12 mx-auto mb-3 opacity-50" />
                 <p>No issues detected</p>
-                <p className="text-sm mt-1">Click "Validate" to check your code</p>
+                <p className="text-sm mt-1">Click &quot;Validate&quot; to check your code</p>
               </div>
             )}
 
@@ -717,15 +717,15 @@ print("Batch processing complete")`,
                   <p>• Always start with ScriptName declaration</p>
                   <p>• Close all Event/Function blocks</p>
                   <p>• Import F4SE if using F4SE functions</p>
-                  <p>• Use "Auto" for simple properties</p>
+                  <p>• Use &quot;Auto&quot; for simple properties</p>
                 </>
               )}
               {activeTab === 'xedit' && (
                 <>
-                  <p>• Start with "unit" declaration</p>
+                  <p>• Start with &quot;unit&quot; declaration</p>
                   <p>• Implement Initialize/Process/Finalize</p>
                   <p>• Use AddMessage() for logging</p>
-                  <p>• End with "end."</p>
+                  <p>• End with &quot;end.&quot;</p>
                 </>
               )}
               {activeTab === 'blender' && (

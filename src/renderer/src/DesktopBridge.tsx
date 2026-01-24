@@ -39,7 +39,9 @@ const DesktopBridge: React.FC = () => {
                   return s ? { ...d, status: s.status } : d;
               });
           }
-      } catch {}
+      } catch (e) {
+          console.error('Failed to load saved drivers:', e);
+      }
       return initialDrivers;
   });
 
@@ -85,7 +87,9 @@ const DesktopBridge: React.FC = () => {
 
               const bLinked = localStorage.getItem('mossy_blender_active') === 'true';
               setBlenderLinked(bLinked);
-          } catch {}
+          } catch (e) {
+              console.error('Failed to sync bridge state:', e);
+          }
       };
       
       syncState(); // Initial check
@@ -838,8 +842,8 @@ if __name__ == "__main__":
                                       <li>Download both files using the buttons below</li>
                                       <li>Save them to a new folder (e.g., <code className="bg-slate-800 px-2 py-0.5 rounded">C:\Mossy</code>)</li>
                                       <li>Double-click <strong>start_mossy.bat</strong></li>
-                                      <li>Wait for console to show "Running on http://127.0.0.1:21337"</li>
-                                      <li>Click "Test Connection" above</li>
+                                      <li>Wait for console to show &quot;Running on http://127.0.0.1:21337&quot;</li>
+                                      <li>Click &quot;Test Connection&quot; above</li>
                                   </ol>
                               </div>
 
@@ -865,13 +869,13 @@ if __name__ == "__main__":
                                       </h5>
                                       <div className="space-y-3 text-sm text-slate-300">
                                           <div>
-                                              <strong>"Python is not recognized"</strong>
+                                              <strong>&quot;Python is not recognized&quot;</strong>
                                               <p className="text-xs text-slate-400 mt-1">
-                                                  Python isn't installed or not in PATH. Download from <a href="https://python.org" target="_blank" className="text-blue-400 hover:underline">python.org</a> and check "Add Python to PATH" during install.
+                                                  Python isn&apos;t installed or not in PATH. Download from <a href="https://python.org" target="_blank" rel="noreferrer" className="text-blue-400 hover:underline">python.org</a> and check &quot;Add Python to PATH&quot; during install.
                                               </p>
                                           </div>
                                           <div>
-                                              <strong>"Permission denied" or "Already in use"</strong>
+                                              <strong>&quot;Permission denied&quot; or &quot;Already in use&quot;</strong>
                                               <p className="text-xs text-slate-400 mt-1">
                                                   Port 21337 is blocked. Check Windows Firewall or close any other app using that port.
                                               </p>
@@ -969,7 +973,7 @@ if __name__ == "__main__":
                                 <li>Download <strong>mossy_link.py</strong> below</li>
                                 <li>In Blender: <em>Edit &gt; Preferences &gt; Add-ons</em></li>
                                 <li>Click <strong>Install...</strong> and select the file</li>
-                                <li>Enable "System: Mossy Link" checkbox</li>
+                                <li>Enable &quot;System: Mossy Link&quot; checkbox</li>
                             </ol>
                         </div>
                     </div>
@@ -1012,8 +1016,8 @@ if __name__ == "__main__":
                       <Zap className="w-4 h-4 text-yellow-400"/> Pro Tip: Automated Workflows
                   </h4>
                   <p className="text-xs text-slate-400 italic">
-                      "Once enabled, you can say things like 'Mossy, align my Blender scene to Fallout 4' 
-                      or 'Create a test cube in Blender' and I'll execute the code through the link."
+                      &quot;Once enabled, you can say things like &apos;Mossy, align my Blender scene to Fallout 4&apos; 
+                      or &apos;Create a test cube in Blender&apos; and I&apos;ll execute the code through the link.&quot;
                   </p>
                 </div>
             </div>

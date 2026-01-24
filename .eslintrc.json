@@ -1,4 +1,5 @@
 {
+  "root": true,
   "env": {
     "browser": true,
     "es2022": true,
@@ -23,7 +24,10 @@
   "rules": {
     "react/react-in-jsx-scope": "off",
     "@typescript-eslint/no-unused-vars": ["warn", { "argsIgnorePattern": "^_" }],
-    "@typescript-eslint/no-explicit-any": "warn"
+    "@typescript-eslint/no-explicit-any": "warn",
+    "no-useless-escape": "warn",
+    "react/no-unescaped-entities": "warn",
+    "@typescript-eslint/no-var-requires": "warn"
   },
   "settings": {
     "react": {

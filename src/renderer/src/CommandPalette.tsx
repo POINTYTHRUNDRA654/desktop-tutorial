@@ -222,7 +222,7 @@ const CommandPalette: React.FC = () => {
                                 </div>
                                 <div className="flex-1">
                                     <div className="font-medium text-sm flex items-center gap-2">
-                                        Ask Mossy: <span className="italic opacity-80">"{query}"</span>
+                                        Ask Mossy: <span className="italic opacity-80">&quot;{query}&quot;</span>
                                     </div>
                                     <div className={`text-xs mt-1 ${selectedIndex === filteredActions.length ? 'text-purple-100' : 'text-slate-500'}`}>
                                         Use AI to process this request instantly.
@@ -268,4 +268,5 @@ const CommandPalette: React.FC = () => {
     );
 };
 
+CommandPalette.displayName = 'CommandPalette';
 export default CommandPalette;

@@ -111,7 +111,9 @@ const ImageSuite: React.FC = () => {
                   texconvPath = parsed.texconv as string;
                 }
               }
-            } catch {}
+            } catch (e) {
+              console.error('Failed to load texconv settings:', e);
+            }
           }
 
           const options: any = texconvPath ? { texconvPath } : {};
@@ -190,7 +192,9 @@ const ImageSuite: React.FC = () => {
             texconvPath = parsed.texconv as string;
           }
         }
-      } catch {}
+      } catch (e) {
+        console.error('Failed to load texconv path for PBR:', e);
+      }
 
       // Convert each to DDS with locked formats (main picks up options.texconvPath when provided)
       const ddsDiffuse = await window.electron.api.convertImageFormat(diffuseData, 'dds', { bcFormat: 'BC7_UNORM', texconvPath, requireReal: requireRealDDS, mipmapLevels });

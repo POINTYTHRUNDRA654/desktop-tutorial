@@ -202,7 +202,7 @@ After installing, you may need to update the tool path in settings.`;
             const text = response.text();
 
             // Clean markdown fences if present
-            let cleanJson = text.replace(/```json/g, '').replace(/```/g, '').trim();
+            const cleanJson = text.replace(/```json/g, '').replace(/```/g, '').trim();
             const generated = JSON.parse(cleanJson);
             
             // Add IDs and visual state

@@ -4,13 +4,14 @@ import { useLive } from './LiveContext';
 
 // Floating overlay for persistent avatar presence
 const AvatarOverlay: React.FC = () => {
-  let liveContext: any = null;
-  try {
-    liveContext = useLive();
-  } catch (err) {
-    console.warn('[AvatarOverlay] LiveContext not available, using fallback');
-    return null; // Don't render if context isn't available
+  // Hook must be called unconditionally at the top level
+  const liveContext = useLive();
+  
+  if (!liveContext) {
+    console.warn('[AvatarOverlay] LiveContext not available');
+    return null;
   }
+  
   const { mode, isActive, connect, disconnect } = liveContext;
 
   const handleClick = async () => {

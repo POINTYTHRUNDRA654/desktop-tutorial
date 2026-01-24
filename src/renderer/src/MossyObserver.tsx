@@ -391,14 +391,8 @@ const MossyObserver: React.FC = () => {
     const [visible, setVisible] = useState(false);
     const [isAlert, setIsAlert] = useState(false);
     
-    // Consume global avatar state (with safe fallback)
-    let liveContext: any = null;
-    try {
-      liveContext = useLive();
-    } catch (err) {
-      console.warn('[MossyObserver] LiveContext not available, using fallback');
-      liveContext = { customAvatar: null };
-    }
+    // Hook must be called unconditionally
+    const liveContext = useLive();
     const { customAvatar } = liveContext;
 
     useEffect(() => {
