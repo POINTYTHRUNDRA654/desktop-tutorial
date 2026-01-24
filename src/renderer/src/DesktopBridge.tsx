@@ -172,11 +172,11 @@ def add_cors_headers(response):
 
 print(f"\\n[MOSSY BRIDGE] Initializing Neural Link on port {PORT}...")
 print("[MOSSY BRIDGE] Capabilities: Screen (Eyes), Clipboard (Hands), Hardware (Senses)")
-print("[MOSSY BRIDGE] Hardware Endpoint: Ready (v5.0)")
+print("[MOSSY BRIDGE] Hardware Endpoint: Ready (v3.0)")
 
 @app.route('/health', methods=['GET'])
 def health():
-    return jsonify({"status": "online", "version": "5.0.0"})
+    return jsonify({"status": "online", "version": "3.0.0"})
 
 @app.route('/hardware', methods=['GET'])
 def get_hardware():
@@ -280,7 +280,7 @@ if __name__ == '__main__':
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
-      addLog('System', 'Generated NEW mossy_server.py (v5.0)', 'success');
+      addLog('System', 'Generated NEW mossy_server.py (v3.0)', 'success');
   };
 
   const handleDownloadBatch = () => {
@@ -523,7 +523,7 @@ def register():
         default=False,
         update=update_mossy_link_active
     )
-    print("[Mossy Link] Add-on v5.0 registered successfully!")
+    print("[Mossy Link] Add-on v3.0 registered successfully!")
 
 def unregister():
     global MOSSY_SERVER
@@ -541,7 +541,7 @@ def unregister():
     
     bpy.utils.unregister_class(MOSSY_OT_TestConnection)
     bpy.utils.unregister_class(MOSSY_PT_Panel)
-    print("[Mossy Link] Add-on v5.0 unregistered.")
+    print("[Mossy Link] Add-on v3.0 unregistered.")
 
 if __name__ == "__main__":
     register()
@@ -554,7 +554,7 @@ if __name__ == "__main__":
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
-    addLog('System', 'Generated Blender Add-on (mossy_link.py) v4.0', 'success');
+    addLog('System', 'Generated Blender Add-on (mossy_link.py) v3.0', 'success');
   };
 
   const addLog = (source: string, event: string, status: 'ok' | 'warn' | 'err' | 'success' = 'ok') => {
