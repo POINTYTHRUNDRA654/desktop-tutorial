@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Play, FileAudio, Sliders, Radio, Mic2, Cpu, Music, Download, Volume2, Activity, Settings, Save, Upload, Trash2, Folder } from 'lucide-react';
+import { Play, FileAudio, Sliders, Radio, Cpu, Music, Download, Volume2, Activity, Settings, Upload, Trash2, Folder } from 'lucide-react';
 
 const AudioStudio: React.FC = () => {
   const [audioBuffer, setAudioBuffer] = useState<AudioBuffer | null>(null);

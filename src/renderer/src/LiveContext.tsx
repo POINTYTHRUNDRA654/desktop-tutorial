@@ -1564,7 +1564,7 @@ Example bad responses (DO NOT DO THIS):
             console.log('[LiveContext] MediaRecorder started');
 
               // Smart silence detection - only stop after actual silence
-              let recordingStartTime = Date.now();
+              const recordingStartTime = Date.now();
               let lastSpeechTime = Date.now();
               let hasSpeech = false;
               const SILENCE_THRESHOLD = 0.02; // More sensitive (detect speech sooner)
