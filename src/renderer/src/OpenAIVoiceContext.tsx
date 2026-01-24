@@ -95,7 +95,7 @@ export const OpenAIVoiceProvider: React.FC<{ children: ReactNode }> = ({ childre
       setStatus('Initializing...');
 
       // Get API key from environment or localStorage
-      let apiKey = process.env.REACT_APP_OPENAI_API_KEY || localStorage.getItem('openai_api_key');
+      const apiKey = process.env.REACT_APP_OPENAI_API_KEY || localStorage.getItem('openai_api_key');
       
       if (!apiKey) {
         setStatus('Please provide OpenAI API key');

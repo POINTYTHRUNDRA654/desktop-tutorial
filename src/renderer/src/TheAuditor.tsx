@@ -749,7 +749,7 @@ const TheAuditor: React.FC = () => {
                             </div>
                         ) : (
                             <div className="text-slate-500 text-sm italic">
-                                "Click on an issue in the inspector to get a detailed breakdown and fix strategy."
+                                &quot;Click on an issue in the inspector to get a detailed breakdown and fix strategy.&quot;
                             </div>
                         )}
                     </div>

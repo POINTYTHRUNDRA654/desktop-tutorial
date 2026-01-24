@@ -148,26 +148,6 @@ const TheHive: React.FC = () => {
         }
     };
 
-                    updated[0].steps[stepIndex] = { ...updated[0].steps[stepIndex], status: 'running' };
-                    return updated;
-                });
-
-                setTimeout(() => {
-                    setBuildPipelines(prev => {
-                        const updated = [...prev];
-                        updated[0].steps[stepIndex] = { ...updated[0].steps[stepIndex], status: 'success' };
-                        return updated;
-                    });
-                }, BUILD_STEPS[stepIndex].duration);
-
-                stepIndex++;
-            } else {
-                clearInterval(interval);
-                setBuildRunning(false);
-            }
-        }, 2000);
-    };
-
     return (
         <div className="h-full flex flex-col bg-[#050505] text-slate-200 font-sans relative overflow-hidden">
             {/* Background */}

@@ -155,7 +155,7 @@ export const LiveProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
               if (dbSaved && dbSaved !== current) {
                   // If DB has data but local didn't (or differed), update state
                   setCustomAvatar(dbSaved);
-                  try { localStorage.setItem('mossy_avatar_custom', dbSaved); } catch (e) {}
+                  try { localStorage.setItem('mossy_avatar_custom', dbSaved); } catch (e) { console.error('Failed to save avatar to localStorage:', e); }
               } else if (current && !dbSaved) {
                   // If local has data but DB doesn't, sync back to DB
                   await saveImageToDB('mossy_avatar_custom', current);
@@ -264,7 +264,9 @@ export const LiveProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           setCustomAvatar(compressed);
           try {
               localStorage.setItem('mossy_avatar_custom', compressed);
-          } catch (e) {}
+          } catch (e) {
+              console.warn('Failed to save to localStorage:', e);
+          }
           await saveImageToDB('mossy_avatar_custom', compressed);
       } catch (err) {
           console.error("Failed to process avatar url:", err);
@@ -327,7 +329,9 @@ export const LiveProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
               const p = JSON.parse(projSaved);
               projectContext = `CURRENT ACTIVE PROJECT: ${p.name}\nSTATUS: ${p.status}\nNOTES: ${p.notes}`;
           }
-      } catch (e) {}
+      } catch (e) {
+          console.error('Failed to load project context:', e);
+      }
 
       // 3. LOAD RECENT CHAT HISTORY (MEMORY)
       let historyContext = "";
@@ -339,7 +343,9 @@ export const LiveProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
               const recent = msgs.filter((m: any) => m.role !== 'system').slice(-10);
               historyContext = recent.map((m: any) => `[${m.role === 'user' ? 'USER' : 'MOSSY'}]: ${m.text}`).join('\n');
           }
-      } catch (e) {}
+      } catch (e) {
+          console.error('Failed to load chat history:', e);
+      }
 
       // Get microphone access with error handling
       console.log('[LiveContext] Requesting microphone access...');

@@ -897,7 +897,7 @@ function setupIpcHandlers() {
       }
       
       // Get ALL storage space
-      let storageDrives: Array<{device: string, free: number, total: number}> = [];
+      const storageDrives: Array<{device: string, free: number, total: number}> = [];
       if (platform === 'win32') {
         const storageWmic = await safeExec('wmic logicaldisk get DeviceID,FreeSpace,Size');
         const rows = storageWmic.split('\n').filter((l: string) => l.trim() && !l.includes('DeviceID'));
@@ -1084,7 +1084,7 @@ function setupIpcHandlers() {
             return b;
           };
           // Check SOI
-          let b = read(2);
+          const b = read(2);
           if (b[0] !== 0xFF || b[1] !== 0xD8) {
             return { width: 0, height: 0 };
           }
@@ -1454,7 +1454,8 @@ function setupIpcHandlers() {
       // For now, return basic PNG/JPG dimensions via buffer inspection
       const buffer = fs.readFileSync(filePath);
       
-      let width = 0, height = 0, format = 'unknown', colorSpace = 'RGB';
+      let width = 0, height = 0, format = 'unknown';
+      const colorSpace = 'RGB';
       
       // Simple PNG detection: PNG signature is 89 50 4E 47
       if (buffer[0] === 0x89 && buffer[1] === 0x50 && buffer[2] === 0x4E && buffer[3] === 0x47) {
@@ -1739,7 +1740,9 @@ function setupIpcHandlers() {
         try {
           const raw = Buffer.from((sourceBase64.split(',')[1] || sourceBase64), 'base64');
           fs.writeFileSync(inPath, raw);
-        } catch {}
+        } catch (err) {
+          console.error('Failed to decode base64 image:', err);
+        }
       }
 
       // Attempt to run texconv (prefer explicit path from options if provided)

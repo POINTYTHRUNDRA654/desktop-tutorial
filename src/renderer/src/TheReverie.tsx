@@ -1,5 +1,4 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { GoogleGenAI } from "@google/genai";
 import { Sparkles, BrainCircuit, Play, Pause, Save, ThumbsUp, ThumbsDown, ArrowRight, Lightbulb, Code, Palette, Zap, Layers } from 'lucide-react';
 
 interface Dream {

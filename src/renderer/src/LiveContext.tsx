@@ -16,7 +16,8 @@
  */
 
 import React, { createContext, useContext, useState, useRef, useEffect, ReactNode } from 'react';
-import { GoogleGenAI, LiveServerMessage, Modality, Type } from '@google/genai';
+import { Groq } from 'groq-sdk';
+import OpenAI from 'openai';
 import { getFullSystemInstruction, toolDeclarations } from './MossyBrain';
 import { executeMossyTool } from './MossyTools';
 
@@ -28,6 +29,10 @@ interface LiveContextType {
   volume: number;
   mode: 'idle' | 'listening' | 'processing' | 'speaking';
   transcription: string;
+  micLevel: number;
+  audioInputs: Array<{ deviceId: string; label: string }>;
+  selectedInputId: string;
+  setSelectedInputId: (id: string) => void;
   connect: () => Promise<void>;
   disconnect: (manual?: boolean) => void;
   customAvatar: string | null;
@@ -207,6 +212,356 @@ const decodeAudioData = async (base64String: string, ctx: AudioContext): Promise
   }
 };
 
+// Helper: Encode raw PCM samples to WAV format
+function encodeWAV(samples: Float32Array, sampleRate: number = 16000): Blob {
+  const frameLength = samples.length;
+  const numberOfChannels = 1;
+  const sampleRateValue = sampleRate;
+  const format = 1; // PCM
+  const bitDepth = 16;
+
+  const bytesPerSample = bitDepth / 8;
+  const blockAlign = numberOfChannels * bytesPerSample;
+
+  const preData = new ArrayBuffer(44);
+  const view = new DataView(preData);
+
+  const writeString = (offset: number, string: string) => {
+    for (let i = 0; i < string.length; i++) {
+      view.setUint8(offset + i, string.charCodeAt(i));
+    }
+  };
+
+  /* RIFF identifier */
+  writeString(0, 'RIFF');
+  /* file length */
+  view.setUint32(4, 36 + frameLength * bytesPerSample, true);
+  /* RIFF type */
+  writeString(8, 'WAVE');
+  /* format chunk identifier */
+  writeString(12, 'fmt ');
+  /* format chunk length */
+  view.setUint32(16, 16, true);
+  /* sample format (raw) */
+  view.setUint16(20, format, true);
+  /* channel count */
+  view.setUint16(22, numberOfChannels, true);
+  /* sample rate */
+  view.setUint32(24, sampleRateValue, true);
+  /* avg. bytes/sec */
+  view.setUint32(28, sampleRateValue * blockAlign, true);
+  /* block-align */
+  view.setUint16(32, blockAlign, true);
+  /* 16-bit samples */
+  view.setUint16(34, bitDepth, true);
+  /* data chunk identifier */
+  writeString(36, 'data');
+  /* data chunk length */
+  view.setUint32(40, frameLength * bytesPerSample, true);
+
+  // Convert float samples to PCM int16
+  const pcmData = new Int16Array(frameLength);
+  let offset = 0;
+  for (let i = 0; i < frameLength; i++, offset += bytesPerSample) {
+    const s = Math.max(-1, Math.min(1, samples[i])); // Clamp
+    pcmData[i] = s < 0 ? s * 0x8000 : s * 0x7FFF;
+  }
+
+  return new Blob([preData, pcmData.buffer], { type: 'audio/wav' });
+}
+
+// Helper: Combine webm/opus chunks into a single blob for STT
+function combineAudioChunks(chunks: Blob[]): Blob {
+  return new Blob(chunks, { type: 'audio/webm;codecs=opus' });
+}
+
+// Helper: Transcribe audio to text using OpenAI Whisper
+async function transcribeAudioWithWhisper(audioBlob: Blob, openaiApiKey: string): Promise<string> {
+  const openai = new OpenAI({ apiKey: openaiApiKey, dangerouslyAllowBrowser: true });
+  // Send as webm with correct filename
+  const file = new File([audioBlob], `audio.webm`, { type: audioBlob.type || 'audio/webm;codecs=opus' });
+  
+  const response = await openai.audio.transcriptions.create({
+    model: 'whisper-1',
+    file,
+    language: 'en',
+    response_format: 'text',
+  });
+  
+  // When response_format is 'text', the response IS the text string directly
+  return typeof response === 'string' ? response : (response as any).text || '';
+}
+
+// Helper: Transcribe audio to text using Deepgram
+async function transcribeAudioWithDeepgram(audioBlob: Blob, deepgramApiKey: string): Promise<string> {
+  const mimeType = audioBlob.type || 'audio/ogg';
+  const url = 'https://api.deepgram.com/v1/listen?model=nova-2-general&language=en&punctuate=true';
+
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: {
+      Authorization: `Token ${deepgramApiKey}`,
+      'Content-Type': mimeType,
+    },
+    body: audioBlob,
+  });
+
+  if (!response.ok) {
+    const errText = await response.text();
+    throw new Error(`Deepgram API error ${response.status}: ${errText}`);
+  }
+
+  const data = await response.json();
+  const transcript = data?.results?.channels?.[0]?.alternatives?.[0]?.transcript || '';
+  return transcript;
+}
+
+const preferredBrowserVoiceName = (import.meta.env.VITE_BROWSER_TTS_VOICE || '').trim();
+
+// Helper: Convert text to speech using ElevenLabs
+async function synthesizeSpeechWithElevenLabs(
+  text: string,
+  elevenLabsApiKey: string,
+  voiceId: string
+): Promise<Blob> {
+  const response = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${voiceId}`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'accept': 'audio/mpeg', // ensure audio content negotiation
+      'xi-api-key': elevenLabsApiKey,
+    },
+    body: JSON.stringify({
+      text,
+      model_id: 'eleven_monolingual_v1',
+      voice_settings: {
+        stability: 0.5,
+        similarity_boost: 0.75,
+      },
+    }),
+  });
+
+  if (!response.ok) {
+    const errText = await response.text().catch(() => '');
+    throw new Error(`ElevenLabs API error: ${response.status} ${response.statusText}${errText ? ` - ${errText}` : ''}`);
+  }
+
+  return response.blob();
+}
+
+// Fallback: Speak using browser SpeechSynthesis
+async function speakWithBrowserTTS(text: string): Promise<void> {
+  try {
+    if (!('speechSynthesis' in window)) {
+      console.warn('[LiveContext] Browser TTS not available.');
+      return;
+    }
+    
+    // Cancel any ongoing speech before starting new utterance
+    window.speechSynthesis.cancel();
+    
+    const pickVoice = async (): Promise<SpeechSynthesisVoice | undefined> => {
+      let voices = window.speechSynthesis.getVoices();
+      if (!voices || voices.length === 0) {
+        await new Promise<void>((resolve) => {
+          window.speechSynthesis.onvoiceschanged = () => {
+            voices = window.speechSynthesis.getVoices();
+            resolve();
+          };
+        });
+      }
+      const lcVoices = voices.map(v => ({ v, n: v.name.toLowerCase() }));
+      const candidates = [
+        preferredBrowserVoiceName,
+        'aria', 'jenny', 'zira', 'female', 'en-us', 'english'
+      ].filter(Boolean) as string[];
+      for (const cand of candidates) {
+        const lc = cand.toLowerCase();
+        const exact = lcVoices.find(({ n }) => n === lc);
+        if (exact) return exact.v;
+        const partial = lcVoices.find(({ n }) => n.includes(lc));
+        if (partial) return partial.v;
+      }
+      return voices[0];
+    };
+
+    const voice = await pickVoice();
+    if (voice) {
+      console.log('[LiveContext] Using browser TTS voice:', voice.name, voice.lang || '');
+    } else {
+      console.warn('[LiveContext] No browser TTS voice found, using default.');
+    }
+
+    await new Promise<void>((resolve) => {
+      const utter = new SpeechSynthesisUtterance(text);
+      utter.rate = 1.0;
+      utter.pitch = 1.0;
+      if (voice) utter.voice = voice;
+      utter.onend = () => resolve();
+      utter.onerror = () => resolve();
+      window.speechSynthesis.speak(utter);
+    });
+  } catch (e) {
+    console.warn('[LiveContext] Browser TTS failed:', e);
+  }
+}
+
+// Helper: Verify ElevenLabs credentials and voice accessibility
+async function verifyElevenLabsCredentials(apiKey: string, voiceId: string): Promise<void> {
+  try {
+    // Check if API key is accepted
+    const userResp = await fetch('https://api.elevenlabs.io/v1/user', {
+      headers: { 'xi-api-key': apiKey }
+    });
+    if (userResp.status === 401) {
+      console.warn('[LiveContext] ElevenLabs key rejected (401). Regenerate your API key in ElevenLabs settings.');
+      return;
+    }
+
+    // Check voice accessibility
+    const voicesResp = await fetch('https://api.elevenlabs.io/v1/voices', {
+      headers: { 'xi-api-key': apiKey }
+    });
+    if (!voicesResp.ok) {
+      console.warn('[LiveContext] ElevenLabs voices list error:', voicesResp.status, voicesResp.statusText);
+      return;
+    }
+
+    const data = await voicesResp.json().catch(() => ({}));
+    const voices = (data as any)?.voices || [];
+    const hasVoice = Array.isArray(voices) && voices.some((v: any) => v?.voice_id === voiceId);
+    console.log(`[LiveContext] ElevenLabs key valid. Voice accessible? ${hasVoice ? 'yes' : 'no'}`);
+    if (!hasVoice) {
+      console.warn('[LiveContext] Provided ElevenLabs voice ID not found in your account. Use a voice you own or shared with you.');
+    }
+  } catch (err) {
+    console.warn('[LiveContext] ElevenLabs verification failed:', err);
+  }
+}
+
+// Helper: Send message to Groq and get response
+async function sendMessageToGroq(
+  userMessage: string,
+  groqClient: any,
+  conversationHistory: any[],
+  systemPrompt: string,
+  audioContextRef: React.MutableRefObject<AudioContext | undefined>,
+  elevenLabsApiKey: string,
+  elevenLabsVoiceId: string,
+  ttsProvider: string,
+  isMutedRef: React.MutableRefObject<boolean>,
+  sourcesRef: React.MutableRefObject<Set<AudioBufferSourceNode>>,
+  nextStartTimeRef: React.MutableRefObject<number>,
+  setMode: (mode: 'idle' | 'listening' | 'processing' | 'speaking') => void,
+  saveLiveMessage: (role: string, text: string) => void
+): Promise<string> {
+  try {
+    // Add user message to history
+    conversationHistory.push({
+      role: 'user',
+      content: userMessage
+    });
+
+    console.log('[LiveContext] Sending to Groq:', {
+      userMessage,
+      historyLength: conversationHistory.length,
+      modelName: 'llama-3.3-70b-versatile'
+    });
+
+    // Build messages array with system prompt and history
+    const messages = conversationHistory.map(msg => ({
+      role: msg.role,
+      content: msg.content
+    }));
+
+    // Call Groq LLM
+    const response = await groqClient.chat.completions.create({
+      model: 'llama-3.3-70b-versatile',
+      messages: [
+        {
+          role: 'system',
+          content: systemPrompt
+        },
+        ...messages
+      ],
+      max_tokens: 500,
+      temperature: 0.7,
+    });
+
+    const modelResponse = response.choices[0]?.message?.content || '';
+    console.log('[LiveContext] Groq response:', modelResponse);
+
+    // Add model response to history
+    conversationHistory.push({
+      role: 'assistant',
+      content: modelResponse
+    });
+
+    // Save to localStorage for persistence
+    saveLiveMessage('assistant', modelResponse);
+
+    // Synthesize response to speech with selected provider
+    if (modelResponse && !isMutedRef.current) {
+      setMode('processing');
+      console.log('[LiveContext] Mode set to processing, about to speak...');
+      if (ttsProvider === 'elevenlabs' && audioContextRef.current) {
+        console.log('[LiveContext] Synthesizing response with ElevenLabs...');
+        try {
+          const audioBlob = await synthesizeSpeechWithElevenLabs(
+            modelResponse,
+            elevenLabsApiKey,
+            elevenLabsVoiceId
+          );
+          const arrayBuffer = await audioBlob.arrayBuffer();
+          const ctx = audioContextRef.current;
+          if (ctx.state === 'suspended') await ctx.resume();
+          const decodedBuffer = await ctx.decodeAudioData(arrayBuffer);
+          const source = ctx.createBufferSource();
+          source.buffer = decodedBuffer;
+          source.connect(ctx.destination);
+          source.onended = () => {
+            try { source.disconnect(); } catch (e) {
+              console.error('[LiveContext] Failed to disconnect audio source:', e);
+            }
+            sourcesRef.current.delete(source);
+            if (sourcesRef.current.size === 0) setMode('listening');
+          };
+          const now = ctx.currentTime;
+          if (nextStartTimeRef.current < now) nextStartTimeRef.current = now + 0.05;
+          source.start(nextStartTimeRef.current);
+          nextStartTimeRef.current += decodedBuffer.duration;
+          sourcesRef.current.add(source);
+          setMode('speaking');
+        } catch (audioErr) {
+          console.error('[LiveContext] Audio playback error:', audioErr);
+          console.log('[LiveContext] Falling back to browser TTS...');
+          setMode('speaking');
+          await speakWithBrowserTTS(modelResponse);
+          // After TTS finishes, wait a moment before returning to listening
+          await new Promise(resolve => setTimeout(resolve, 500));
+          setMode('listening');
+          console.log('[LiveContext] Mode set to listening after browser TTS fallback');
+        }
+      } else {
+        setMode('speaking');
+        console.log('[LiveContext] Mode set to speaking, starting browser TTS...');
+        await speakWithBrowserTTS(modelResponse);
+        // After TTS finishes, wait a moment before returning to listening
+        // to allow natural pause between exchanges
+        console.log('[LiveContext] Browser TTS finished, waiting 500ms before resuming listening...');
+        await new Promise(resolve => setTimeout(resolve, 500));
+        setMode('listening');
+        console.log('[LiveContext] Mode set back to listening');
+      }
+    }
+
+    return modelResponse;
+  } catch (error) {
+    console.error('[LiveContext] Groq API error:', error);
+    throw error;
+  }
+}
+
 export const LiveProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [isActive, setIsActive] = useState(false);
   const isActiveRef = useRef(false);
@@ -216,6 +571,7 @@ export const LiveProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const [mode, setMode] = useState<'idle' | 'listening' | 'processing' | 'speaking'>('idle');
   const [transcription, setTranscription] = useState('');
   const [customAvatar, setCustomAvatar] = useState<string | null>(null);
+  const ranTtsSelfTestRef = useRef(false);
 
   // Global error handler to suppress known WebSocket errors that we're handling
   useEffect(() => {
@@ -269,6 +625,10 @@ export const LiveProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const MIN_SEND_INTERVAL_MS = 220; // throttle sends to ~200-250ms cadence
   const SILENCE_THRESHOLD_MS = 1500; // Stop sending after 1.5s of silence to signal turn end
 
+  const [micLevel, setMicLevel] = useState(0); // Live mic level (0-100) for UI meter
+  const [audioInputs, setAudioInputs] = useState<Array<{ deviceId: string; label: string }>>([]);
+  const [selectedInputId, setSelectedInputId] = useState<string>('');
+
   const setLiveActive = (val: boolean) => {
     setIsActive(val);
     isActiveRef.current = val;
@@ -293,11 +653,17 @@ export const LiveProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const isConnectingRef = useRef<boolean>(false);
   const manualDisconnectRef = useRef<boolean>(false);
   const lastActivityRef = useRef<number>(Date.now());
+  const meterTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const deviceListReadyRef = useRef<boolean>(false);
   const pollingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const audioBufferRef = useRef<Float32Array | null>(null); // Reusable buffer to prevent memory leak
   const lastSendRef = useRef<number>(0);
   const lastSpeechRef = useRef<number>(Date.now()); // Track last time user actually spoke (vol > threshold)
-    const cooldownUntilRef = useRef<number>(0);
+  const lastFlushRef = useRef<number>(0); // Track last time we flushed to trigger model response
+  const lastModelReplyRef = useRef<number>(0); // Track when model last replied to avoid repeated nudges
+  const modelIsSpeakingRef = useRef<boolean>(false); // Track if model audio is currently playing
+  const modelSpeakingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null); // Debounce model speaking end
+  const cooldownUntilRef = useRef<number>(0);
 
   // Live session message buffer for preserving context across interrupts
   const liveSessionMessages = useRef<Array<{role: string, text: string, timestamp: number}>>([]);
@@ -366,11 +732,15 @@ export const LiveProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   }, []);
 
   useEffect(() => {
-    try { localStorage.setItem('mossy_cortex_memory', JSON.stringify(cortexMemory || [])); } catch {}
+    try { localStorage.setItem('mossy_cortex_memory', JSON.stringify(cortexMemory || [])); } catch (e) {
+      console.error('[LiveContext] Failed to save cortex memory:', e);
+    }
   }, [cortexMemory]);
 
   useEffect(() => {
-    try { projectData ? localStorage.setItem('mossy_project_data', JSON.stringify(projectData)) : localStorage.removeItem('mossy_project_data'); } catch {}
+    try { projectData ? localStorage.setItem('mossy_project_data', JSON.stringify(projectData)) : localStorage.removeItem('mossy_project_data'); } catch (e) {
+      console.error('[LiveContext] Failed to save project data:', e);
+    }
   }, [projectData]);
 
   const updateAvatar = async (file: File) => {
@@ -408,6 +778,19 @@ export const LiveProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     await deleteImageFromDB('mossy_avatar_custom');
   };
 
+  const refreshAudioInputs = async () => {
+    try {
+      const devices = await navigator.mediaDevices.enumerateDevices();
+      const inputs = devices
+        .filter((d) => d.kind === 'audioinput')
+        .map((d) => ({ deviceId: d.deviceId, label: d.label || 'Microphone' }));
+      setAudioInputs(inputs);
+      deviceListReadyRef.current = true;
+    } catch (e) {
+      console.warn('[LiveContext] enumerateDevices failed:', e);
+    }
+  };
+
   const disconnect = (manual = false, shouldClearBuffer = true) => {
     console.log('[LiveContext] Disconnecting...');
     manualDisconnectRef.current = manual;
@@ -441,11 +824,56 @@ export const LiveProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       pollingTimerRef.current = null;
     }
 
+    // Clear model speaking timeout
+    if (modelSpeakingTimeoutRef.current) {
+      clearTimeout(modelSpeakingTimeoutRef.current);
+      modelSpeakingTimeoutRef.current = null;
+    }
+
+    if (meterTimerRef.current) {
+      clearInterval(meterTimerRef.current);
+      meterTimerRef.current = null;
+    }
+
+    setMicLevel(0);
+
     streamRef.current?.getTracks().forEach(t => t.stop());
     
     // Stop MediaRecorder if it exists
-    if (processorRef.current && typeof (processorRef.current as any).stop === 'function') {
-      (processorRef.current as any).stop();
+    if (processorRef.current) {
+      const rec = processorRef.current as any;
+      // Clear recording timeout
+      if (rec.recordingTimeout) {
+        clearTimeout(rec.recordingTimeout);
+        rec.recordingTimeout = null;
+      }
+      // Clear data collect interval
+      if (rec.dataCollectInterval) {
+        clearInterval(rec.dataCollectInterval);
+        rec.dataCollectInterval = null;
+      }
+      // Clear old silence check timer if it exists
+      if (rec.silenceCheckTimer) {
+        clearInterval(rec.silenceCheckTimer);
+        rec.silenceCheckTimer = null;
+      }
+        // Clear silence check interval
+        if (rec.silenceCheckInterval) {
+          clearInterval(rec.silenceCheckInterval);
+          rec.silenceCheckInterval = null;
+        }
+      // Clear old recording interval if it exists
+      if (rec.recordingInterval) {
+        clearInterval(rec.recordingInterval);
+        rec.recordingInterval = null;
+      }
+      // Stop recorder if active
+      if (rec.state === 'recording') {
+        try { rec.stop(); } catch (e) { console.warn('[LiveContext] MediaRecorder stop error:', e); }
+      }
+      // Clear event handlers
+      rec.ondataavailable = null;
+      rec.onstop = null;
     }
     
     // MEMORY LEAK FIX: Disconnect AudioWorklet properly
@@ -465,6 +893,10 @@ export const LiveProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }
     
     // MEMORY LEAK FIX: Stop all audio sources and clear immediately
+    // FORCE STOP TTS AUDIO
+    if (window.speechSynthesis) {
+      window.speechSynthesis.cancel();
+    }
     sourcesRef.current.forEach((source) => {
       try {
         source.stop();
@@ -486,6 +918,7 @@ export const LiveProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     sessionRef.current = null;
     audioBufferRef.current = null; // Clear reusable buffer
     nextStartTimeRef.current = 0;
+    deviceListReadyRef.current = false;
 
     setLiveActive(false);
     setStatus('Disconnected');
@@ -556,6 +989,8 @@ export const LiveProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     if (sessionRef.current) {
       disconnect(true);
     }
+    // Always start fresh on reconnect to avoid stale context loops
+    liveSessionMessages.current = [];
     // Stop any lingering audio sources from a prior session
     sourcesRef.current.forEach((s) => { try { s.stop(); } catch { /* noop */ } });
     sourcesRef.current.clear();
@@ -566,34 +1001,140 @@ export const LiveProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     failureTimestampsRef.current = [];
     lastActivityRef.current = Date.now();
 
-    return new Promise<void>(async (resolve, reject) => {
+    return new Promise<void>((resolve, reject) => {
+      (async () => {
       try {
         setStatus('Initializing...');
         setMode('processing');
 
-        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        const stream = await navigator.mediaDevices.getUserMedia({
+          audio: {
+            sampleRate: 16000,
+            channelCount: 1,
+            noiseSuppression: true,
+            echoCancellation: true,
+            ...(selectedInputId ? { deviceId: { exact: selectedInputId } } : {}),
+          },
+        });
         streamRef.current = stream;
 
         inputContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 16000 });
         audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 24000 });
 
-        // Temporarily use direct API key (ephemeral token to be re-enabled after testing)
-        const apiKey = import.meta.env.VITE_API_KEY || import.meta.env.VITE_GOOGLE_API_KEY;
-        console.log('[LiveContext] API key available:', !!apiKey);
-        console.log('[LiveContext] API key first 10 chars:', apiKey ? apiKey.substring(0, 10) : 'NONE');
-        
-        if (!apiKey) {
-          throw new Error('API key not found in environment. Check .env.local file.');
+        // Refresh device labels now that we have permission
+        refreshAudioInputs();
+
+        // Live mic level meter
+        try {
+          const meterCtx = inputContextRef.current || new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 16000 });
+          inputContextRef.current = meterCtx;
+          const meterAnalyser = meterCtx.createAnalyser();
+          meterAnalyser.fftSize = 2048;
+          const meterSource = meterCtx.createMediaStreamSource(stream);
+          meterSource.connect(meterAnalyser);
+          const dataArray = new Uint8Array(meterAnalyser.fftSize);
+
+          const updateLevel = () => {
+            meterAnalyser.getByteTimeDomainData(dataArray);
+            let sum = 0;
+            for (let i = 0; i < dataArray.length; i++) {
+              const v = (dataArray[i] - 128) / 128; // center and normalize
+              sum += v * v;
+            }
+            const rms = Math.sqrt(sum / dataArray.length);
+            const level = Math.min(100, Math.round(rms * 180)); // scale to 0-100, boost a bit
+            setMicLevel(level);
+          };
+
+          if (meterTimerRef.current) clearInterval(meterTimerRef.current);
+          meterTimerRef.current = setInterval(updateLevel, 80);
+        } catch (e) {
+          console.warn('[LiveContext] Mic meter setup failed:', e);
         }
 
-        const ai = new GoogleGenAI({ apiKey });
-        
-        const LIVE_MODEL = 'gemini-2.5-flash-native-audio-preview-12-2025';
-        let liveModelName = LIVE_MODEL; // Use hardcoded model directly, skip listModels
-        
-        console.log('[LiveContext] Creating live session with model:', liveModelName);
+        // Initialize Groq client
+        const groqApiKey = import.meta.env.VITE_GROQ_API_KEY;
+        const openaiApiKey = import.meta.env.VITE_OPENAI_API_KEY;
+        const deepgramApiKey = import.meta.env.VITE_DEEPGRAM_API_KEY;
+        const elevenLabsApiKey = import.meta.env.VITE_ELEVENLABS_API_KEY;
+        const elevenLabsVoiceId = import.meta.env.VITE_ELEVENLABS_VOICE_ID;
+        const ttsProvider = (import.meta.env.VITE_TTS_PROVIDER || 'browser').toLowerCase();
 
-        // BUILD DETECTED PROGRAMS CONTEXT FOR MOSSY
+        if (!groqApiKey) {
+          throw new Error('VITE_GROQ_API_KEY not found in environment. Check .env.local file.');
+        }
+        if (!openaiApiKey) {
+          throw new Error('VITE_OPENAI_API_KEY not found in environment. Check .env.local file.');
+        }
+        if (ttsProvider === 'elevenlabs' && (!elevenLabsApiKey || !elevenLabsVoiceId)) {
+          throw new Error('VITE_ELEVENLABS_API_KEY or VITE_ELEVENLABS_VOICE_ID not found. Check .env.local file.');
+        }
+
+        const groqClient = new Groq({ apiKey: groqApiKey, dangerouslyAllowBrowser: true });
+        sessionRef.current = { 
+          groqClient, 
+          conversationHistory: [],
+          openaiApiKey,
+          deepgramApiKey,
+          elevenLabsApiKey,
+          elevenLabsVoiceId,
+          ttsProvider
+        } as any;
+        console.log('[LiveContext] Groq client initialized with model: llama-3.3-70b-versatile');
+        console.log('[LiveContext] OpenAI Whisper STT enabled');
+        if (ttsProvider === 'elevenlabs') {
+          console.log('[LiveContext] ElevenLabs TTS enabled with voice ID:', elevenLabsVoiceId);
+          // Verify ElevenLabs credentials and voice access for clearer diagnostics
+          verifyElevenLabsCredentials(elevenLabsApiKey, elevenLabsVoiceId);
+        } else {
+          console.log('[LiveContext] Browser TTS enabled');
+        }
+        setStatus('Ready');
+        sessionReadyRef.current = true;
+
+        // Optional: run a one-time TTS self-test to confirm audio pipeline
+        if (!ranTtsSelfTestRef.current && !isMutedRef.current) {
+          ranTtsSelfTestRef.current = true;
+          try {
+            if (ttsProvider === 'elevenlabs' && audioContextRef.current) {
+              const testBlob = await synthesizeSpeechWithElevenLabs(
+                'Voice link check successful. Mossy is online.',
+                elevenLabsApiKey,
+                elevenLabsVoiceId
+              );
+
+              const arrayBuffer = await testBlob.arrayBuffer();
+              const ctx = audioContextRef.current;
+              if (ctx.state === 'suspended') await ctx.resume();
+              const decodedBuffer = await ctx.decodeAudioData(arrayBuffer);
+              const source = ctx.createBufferSource();
+              source.buffer = decodedBuffer;
+              source.connect(ctx.destination);
+              source.onended = () => {
+                try { source.disconnect(); } catch (e) {
+                  console.error('[LiveContext] Failed to disconnect audio source:', e);
+                }
+                sourcesRef.current.delete(source);
+                if (sourcesRef.current.size === 0) setMode('listening');
+              };
+
+              const now = ctx.currentTime;
+              if (nextStartTimeRef.current < now) nextStartTimeRef.current = now + 0.05;
+              source.start(nextStartTimeRef.current);
+              nextStartTimeRef.current += decodedBuffer.duration;
+              sourcesRef.current.add(source);
+              setMode('speaking');
+              console.log('[LiveContext] ElevenLabs TTS ready (silent mode).');
+            } else {
+              // Silent mode - no voice announcement
+              console.log('[LiveContext] Browser TTS ready (silent mode).');
+            }
+          } catch (err) {
+            console.warn('[LiveContext] TTS initialization completed with warnings:', err);
+          }
+        }
+
+        // BUILD DETECTED PROGRAMS CONTEXT FOR MOSSY (VOICE-OPTIMIZED - SHORT VERSION)
         let detectedProgramsContext = '';
         try {
             const scanSummary = localStorage.getItem('mossy_scan_summary');
@@ -626,42 +1167,31 @@ export const LiveProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
                 console.log('[LiveContext] AI apps:', aiApps.length);
                 console.log('[LiveContext] FO4 apps:', fo4Apps.length);
                 
+                // VOICE-OPTIMIZED: Short summary, not the full list
                 detectedProgramsContext = `
-[SYSTEM SCAN STATUS: COMPLETE]
-[SCAN TIME: ${lastScan || 'Recently'}]
-[TOTAL PROGRAMS DETECTED: ${apps.length}]
+[SYSTEM SCAN: Complete - ${apps.length} total programs detected]
+[KEY TOOLS AVAILABLE: ${nvidiaApps.length} NVIDIA tools, ${aiApps.length} AI/ML tools, ${fo4Apps.length} Fallout 4 installations]
 
-[AUTOMATICALLY DETECTED TOOLS - YOU HAVE ACCESS TO THESE]
-NVIDIA Ecosystem (${nvidiaApps.length} tools):
-${nvidiaApps.slice(0, 10).map(a => `  • ${a.displayName || a.name}`).join('\n')}
-${nvidiaApps.length > 10 ? `  • ...and ${nvidiaApps.length - 10} more NVIDIA tools` : ''}
+IMPORTANT: This is VOICE mode. Keep responses conversational and brief.
+- Do NOT list all tools unless specifically asked
+- Do NOT read long program lists out loud
+- When greeting, just say hello and ask how you can help
+- Only mention specific tools when relevant to the conversation
 
-AI/ML Tools (${aiApps.length} tools):
-${aiApps.length > 0 ? aiApps.map(a => `  • ${a.displayName || a.name}`).join('\n') : '  • None detected'}
+Example good responses:
+User: "Hello"
+You: "Hi! I'm Mossy, your Fallout 4 modding assistant. What can I help you with today?"
 
-Fallout 4 (${fo4Apps.length} installations):
-${fo4Apps.length > 0 ? fo4Apps.map(a => `  • ${a.displayName || a.name}\n    Path: ${a.path}`).join('\n') : '  • Not installed'}
+User: "What tools do I have?"
+You: "I've detected ${nvidiaApps.length} NVIDIA tools, ${aiApps.length} AI tools, and ${fo4Apps.length} Fallout 4 installations. What would you like to work on?"
 
-[INSTRUCTION] 
-When the user asks "what tools do I have" or "what can you integrate with", reference these SPECIFIC programs by name.
-Tell them you can see their ${nvidiaApps.length} NVIDIA tools, ${aiApps.length} AI tools, and ${apps.length} total programs.
-
-HOW YOU INTEGRATE:
-• **Launch programs**: Use the launch_program tool to open NVIDIA Canvas, Luma, GIMP, or any detected tool
-• **Recommend workflows**: Suggest which tools to use for specific modding tasks
-• **Guide usage**: Explain how to use detected tools for Fallout 4 modding
-• **Provide paths**: Tell users where their tools are installed (paths are in the data above)
-• **Multi-tool workflows**: Create step-by-step processes, launching tools as needed
-
-EXAMPLE WORKFLOW:
-User: "I need to create a new texture"
-You: "I'll open NVIDIA Canvas for you to generate the base texture. [launch_program Canvas] Once you've created something, we can enhance it in GIMP and convert to DDS for Fallout 4."
-
-When user asks about integration, DEMONSTRATE by actually launching tools and guiding them through the process.
-DO NOT say "I cannot integrate" - you CAN by launching programs and providing expert guidance.
+Example bad responses (DO NOT DO THIS):
+- Reading entire tool lists
+- Saying "I've detected ComfyUI, protoc, alembic..." (long lists)
+- Repeating scan data unless asked
 `;
                 
-                console.log('[LiveContext] Built detected programs context:', detectedProgramsContext);
+                console.log('[LiveContext] Built voice-optimized context');
             } else {
                 console.warn('[LiveContext] No scan data found in localStorage');
             }
@@ -730,606 +1260,384 @@ DO NOT say "I cannot integrate" - you CAN by launching programs and providing ex
           console.warn('[LiveContext] Failed to load recent chat context:', err);
         }
 
-        const sessionPromise = ai.live.connect({
-          model: liveModelName,
-          config: {
-            responseModalities: [Modality.AUDIO],
-            speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: 'Zephyr' } } },
-            generationConfig: {
-              temperature: 0.8,
-              candidateCount: 1,
-              maxOutputTokens: 8192
-            },
-            // IMPORTANT: Provide tools as Tool objects with functionDeclarations
-            tools: [{ functionDeclarations: toolDeclarations }] as any,
-            systemInstruction: { role: 'system', parts: [{ text: getFullSystemInstruction((cortexMemory || []).join?.(' ') + '\n' + detectedProgramsContext + '\n' +
-              '**OMNIFORGE MODULES (Built-in):**\n' +
-              '• Image Studio (/images): PBR Map Synthesizer and Format Converter. Fallout 4 profile uses: _d → BC7, _n → BC5, _s → BC5.\n' +
-              '• The Auditor (/auditor): Scans ESP/ESM, NIF, DDS, BGSM; reports issues and basic auto-fixes.\n' +
-              '• The Vault (/vault): Asset library + BA2 staging; presets; external tool paths (texconv, xWMAEncode, PapyrusCompiler, gfxexport, splicer).\n' +
-              '• Workshop (/workshop): File browser and editor; Papyrus compile.\n' +
-              '• Holodeck (/holodeck): Automated mod validator with live game monitoring.\n' +
-              '• System Monitor (/system): Hardware/tools scan and Desktop Bridge status.\n' +
-              '• The Scribe (/scribe): Documentation assistant.\n' +
-              recentChatContext) }] } as any,
-          },
-          callbacks: {
-            onopen: () => {
-              console.log('[LiveContext] Session opened');
-              setStatus('Online');
-              setLiveActive(true);
-              setMode('listening');
-              isConnectingRef.current = false;
-              reconnectAttemptsRef.current = 0;
-              failureTimestampsRef.current = [];
-              lastActivityRef.current = Date.now();
-              sessionReadyRef.current = true;
-              
-              // ACTIVITY MONITOR: Check for silent disconnects every 10s
-              // Google's API can drop without firing close events; detect via lastActivity
-              const activityCheck = setInterval(() => {
-                if (!sessionRef.current || !sessionReadyRef.current) {
-                  clearInterval(activityCheck);
-                  return;
-                }
-                
-                const idleTime = Date.now() - lastActivityRef.current;
-                
-                // If no messages for 8 minutes, assume silent disconnect
-                if (idleTime > 8 * 60 * 1000) {
-                  console.warn('[LiveContext] No activity for 8 min, reconnecting');
-                  clearInterval(activityCheck);
-                  sessionReadyRef.current = false;
-                  scheduleReconnect('silent-timeout');
-                  return;
-                }
-                
-                // Gentle check: confirm session still has a working socket
-                try {
-                  if (sessionRef.current && typeof sessionRef.current.sendRealtimeInput === 'function') {
-                    const elapsed = Date.now() - (sessionStartTimeRef.current || Date.now());
-                    // After 7 min, if user is idle (no activity for 2min), preemptively reconnect
-                    if (elapsed > 7 * 60 * 1000 && idleTime > 120000) {
-                      console.log('[LiveContext] Proactive reconnect at 7min during idle');
-                      clearInterval(activityCheck);
-                      sessionReadyRef.current = false;
-                      scheduleReconnect('proactive-refresh');
-                    }
-                  }
-                } catch (err) {
-                  console.warn('[LiveContext] Activity check error, reconnecting:', err);
-                  clearInterval(activityCheck);
-                  sessionReadyRef.current = false;
-                  scheduleReconnect('activity-check-fail');
-                }
-              }, 10000);
-              
-              sessionStartTimeRef.current = Date.now();
-              
-              resolve();
-            },
+        // For Groq: initialize conversation and resolve immediately
+        // The conversation will happen via the UI or voice input handlers
+        const groqSession = sessionRef.current as any;
+        if (!groqSession) {
+          throw new Error('Session not properly initialized');
+        }
 
-            onmessage: async (msg: LiveServerMessage) => {
-              // Guard: if session closed while this callback was queued, skip processing
-              if (!sessionRef.current) {
-                // This is normal during reconnects; just silently ignore
+        // Mark as ready and resolve
+        isConnectingRef.current = false;
+        reconnectAttemptsRef.current = 0;
+        sessionStartTimeRef.current = Date.now();
+        setLiveActive(true);
+        
+        // Store conversation system prompt in session
+        groqSession.systemPrompt = getFullSystemInstruction(
+          (cortexMemory || []).join(' ') + '\n' + detectedProgramsContext + '\n' + recentChatContext
+        );
+        
+        console.log('[LiveContext] Groq session ready for conversation');
+
+        // SET UP AUDIO INPUT CAPTURE FOR GROQ VOICE CHAT (MediaRecorder stop/restart approach)
+        try {
+          const stream = streamRef.current;
+          if (stream) {
+            // Use MediaRecorder but stop/start it to get complete files
+            const preferredMime = MediaRecorder.isTypeSupported('audio/webm;codecs=opus')
+              ? 'audio/webm;codecs=opus'
+              : undefined;
+
+            const recorder = preferredMime
+              ? new MediaRecorder(stream, { mimeType: preferredMime })
+              : new MediaRecorder(stream);
+            
+            processorRef.current = recorder as any;
+
+            let recordedChunks: Blob[] = [];
+            let chunkCount = 0;
+
+            recorder.ondataavailable = (event: BlobEvent) => {
+              if (event.data && event.data.size > 0) {
+                recordedChunks.push(event.data);
+                chunkCount++;
+                console.log('[LiveContext] Audio chunk received #' + chunkCount, {
+                  size: event.data.size,
+                  totalChunks: recordedChunks.length
+                });
+              }
+            };
+
+            recorder.onstop = async () => {
+              console.log('[LiveContext] Recorder stopped. Chunks collected:', {
+                count: recordedChunks.length,
+                totalSize: recordedChunks.reduce((sum, blob) => sum + blob.size, 0),
+                sessionReady: sessionReadyRef.current
+              });
+              
+              if (!sessionReadyRef.current || recordedChunks.length === 0) {
+                console.log('[LiveContext] No chunks or session not ready - restarting recording');
+                recordedChunks = [];
+                chunkCount = 0;
+                // Always restart recording unless disconnected
+                if (sessionReadyRef.current && recorder.state === 'inactive') {
+                  recorder.start();
+                }
                 return;
               }
-              
-              lastActivityRef.current = Date.now();
-              console.log('[LiveContext] Message received:', msg);
 
-              if (msg.toolCall?.functionCalls) {
-                console.log('[LiveContext] Tool call received:', msg.toolCall);
-                const functionCalls = msg.toolCall.functionCalls;
-                
-                // Process all tool calls and collect responses
-                const responses: any[] = [];
-                
-                for (const call of functionCalls) {
-                  const { name, args, id } = call;
-                  try {
-                    const isBlenderLinked = localStorage.getItem('mossy_blender_active') === 'true';
-                    const toolContext = {
-                      isBlenderLinked,
-                      setProfile: () => {},
-                      setProjectData,
-                      setProjectContext: () => {},
-                      setShowProjectPanel: () => {}
-                    };
-                    
-                    console.log(`[LiveContext] Executing tool: ${name} with ID: ${id}`);
-                    const res: any = await executeMossyTool(name, args, toolContext);
-                    console.log(`[LiveContext] Tool ${name} completed, result:`, res);
-                    
-                    // Format response exactly as Google expects
-                    const response = {
-                      id: String(id), // Ensure ID is string
-                      name: String(name), // Ensure name is string
-                      response: {
-                        output: res?.result ? String(res.result) : 'Operation completed'
-                      }
-                    };
-                    
-                    responses.push(response);
-                    console.log('[LiveContext] Added response:', response);
-                  } catch (err) {
-                    console.error(`[LiveContext] Tool ${name} failed:`, err);
-                    responses.push({
-                      id: String(id),
-                      name: String(name),
-                      response: {
-                        output: `Error: ${err instanceof Error ? err.message : String(err)}`
-                      }
-                    });
-                  }
-                }
+              // Combine all chunks into one complete webm file
+              const completeBlob = new Blob(recordedChunks, {
+                type: recorder.mimeType || 'audio/webm;codecs=opus'
+              });
+              recordedChunks = [];
 
-                // Validate and send responses
-                if (responses.length > 0) {
-                  console.log('[LiveContext] ============ TOOL RESPONSE DEBUG ============');
-                  console.log('[LiveContext] Response count:', responses.length);
-                  console.log('[LiveContext] Responses array:', JSON.stringify(responses, null, 2));
-                  console.log('[LiveContext] Session exists:', !!sessionRef.current);
-                  
-                  if (sessionRef.current) {
-                    try {
-                      // Validate each response thoroughly
-                      const validationResults = responses.map((r, idx) => ({
-                        index: idx,
-                        hasId: !!r.id,
-                        hasName: !!r.name,
-                        hasResponse: !!r.response,
-                        hasOutput: !!r.response?.output,
-                        outputType: typeof r.response?.output,
-                        fullResponse: r
-                      }));
-                      
-                      console.log('[LiveContext] Validation results:', validationResults);
-                      
-                      const allValid = responses.every(r => 
-                        r && 
-                        typeof r.id === 'string' && r.id.length > 0 &&
-                        typeof r.name === 'string' && r.name.length > 0 &&
-                        r.response && 
-                        typeof r.response.output === 'string'
-                      );
-                      
-                      if (!allValid) {
-                        console.error('[LiveContext] ❌ Invalid response format detected!');
-                        console.error('[LiveContext] Failed validation check');
-                        return;
-                      }
-                      
-                      console.log('[LiveContext] ✓ All responses passed validation');
-                      console.log('[LiveContext] Calling sendToolResponse with:', {
-                        functionResponses: responses.length === 1 ? responses[0] : responses
-                      });
-                      
-                      // SDK expects: { functionResponses: FunctionResponse | FunctionResponse[] }
-                      await sessionRef.current.sendToolResponse({
-                        functionResponses: responses.length === 1 ? responses[0] : responses
-                      });
-                      
-                      console.log('[LiveContext] ✓✓✓ Tool responses sent successfully!');
-                    } catch (sendError) {
-                      console.error('[LiveContext] ❌❌❌ Error sending tool response:', sendError);
-                      console.error('[LiveContext] Error stack:', sendError instanceof Error ? sendError.stack : 'No stack');
-                      console.error('[LiveContext] Failed responses:', JSON.stringify(responses, null, 2));
-                    }
-                  } else {
-                    console.error('[LiveContext] ❌ Session is null, cannot send responses');
-                  }
-                } else {
-                  console.warn('[LiveContext] ⚠️ No responses to send (responses array is empty)');
-                  console.warn('[LiveContext] Tool calls received:', msg.toolCall?.functionCalls?.length || 0);
-                }
-              }
-              
-              if (msg.serverContent?.userContent?.parts) {
-                const text = msg.serverContent.userContent.parts
-                  .map(p => p.text)
-                  .filter(Boolean)
-                  .join(' ');
-                if (text) {
-                  console.log('[LiveContext] User transcription:', text);
-                  setTranscription(text);
-                  // Save user message immediately
-                  saveLiveMessage('user', text);
-                }
-              }
-
-              if (msg.serverContent?.modelTurn?.parts) {
-                const audioPart = msg.serverContent.modelTurn.parts.find(p => p.inlineData?.data);
-                const textPart = msg.serverContent.modelTurn.parts.find(p => p.text);
-                
-                if (textPart?.text) {
-                  console.log('[LiveContext] Model text:', textPart.text);
-                  // Save model response immediately
-                  saveLiveMessage('model', textPart.text);
-                }
-
-                if (audioPart?.inlineData?.data && audioContextRef.current && !isMutedRef.current) {
-                  setMode('speaking');
-                  try {
-                    const ctx = audioContextRef.current;
-                    if (ctx.state === 'suspended') await ctx.resume();
-                    
-                    const buffer = await decodeAudioData(audioPart.inlineData.data, ctx);
-                    const source = ctx.createBufferSource();
-                    source.buffer = buffer;
-                    source.connect(ctx.destination);
-                    
-                    // MEMORY LEAK FIX: Proper cleanup of audio sources
-                    source.onended = () => {
-                      try {
-                        source.disconnect();
-                      } catch (e) {
-                        // Already disconnected
-                      }
-                      sourcesRef.current.delete(source);
-                      if (sourcesRef.current.size === 0) setMode('listening');
-                    };
-                    
-                    const now = ctx.currentTime;
-                    if (nextStartTimeRef.current < now) {
-                      nextStartTimeRef.current = now + 0.05;
-                    }
-                    
-                    source.start(nextStartTimeRef.current);
-                    nextStartTimeRef.current += buffer.duration;
-                    sourcesRef.current.add(source);
-                  } catch (err) {
-                    console.error('[LiveContext] Audio decode error:', err);
-                  }
-                }
-              }
-
-              if (msg.serverContent?.interrupted) {
-                console.log('[LiveContext] Session interrupted - restarting session');
-
-                // Stop audio immediately
-                sourcesRef.current.forEach(s => { try { s.stop(); s.disconnect(); } catch {} });
-                sourcesRef.current.clear();
-                nextStartTimeRef.current = 0;
-                setMode('idle');
-
-                // Cleanly disconnect the current session but keep the message buffer
-                disconnect(false, false);
-
-                // Now schedule reconnect
-                scheduleReconnect('server-interrupt');
-                return;
-              }
-            },
-
-            onclose: (ev) => {
-              console.log('[LiveContext] ❌ Session closed:', ev.code, ev.reason);
-              console.log('[LiveContext] Close event details:', {
-                code: ev.code,
-                reason: ev.reason,
-                wasClean: ev.wasClean,
+              console.log('[LiveContext] Complete recording', {
+                size: completeBlob.size,
+                type: completeBlob.type
               });
 
-              sessionReadyRef.current = false;
-              const reason = `code=${ev.code} reason=${ev.reason}`;
-              const reasonLower = (ev.reason || '').toLowerCase();
-
-              // FATAL: Check for non-retriable errors (model mismatch, permissions, invalid keys, etc.)
-              const fatal =
-                ev.code === 1008 ||
-                reasonLower.includes('not compatible') ||
-                reasonLower.includes('bidigeneratecontent') ||
-                reasonLower.includes('permission') ||
-                reasonLower.includes('invalid api key') ||
-                reasonLower.includes('not found') ||
-                reasonLower.includes('not supported') ||
-                reasonLower.includes('call listmodels');
-
-              if (fatal) {
-                console.error('[LiveContext] ❌ FATAL: Non-retriable error detected');
-                console.error('[LiveContext] Close reason:', ev.reason);
-                manualDisconnectRef.current = true; // stop auto-retry
-                setStatus(`Fatal close (${ev.code}): ${ev.reason || 'unknown'}`);
-                disconnect(true, false); // preserve buffer
-                reject(new Error(`Fatal error: ${ev.reason}`));
-                return;
-              }
-
-              // QUOTA / RATE-LIMIT (in reason) → pause with long backoff (5–15 min)
-              if (reasonLower.includes('quota') || reasonLower.includes('rate limit')) {
-                console.log('[LiveContext] Quota / rate limit error detected; pausing auto-reconnect for 10 minutes');
-                pauseReconnect('quota/rate-limit', 10 * 60 * 1000);
-                disconnect(false, false); // Preserve buffer
-                reject(new Error(`Rate limited: ${ev.reason}`));
-                return;
-              }
-
-              // 1011 = service unavailable / quota → pause with long backoff, require manual retry
-              if (ev.code === 1011) {
-                console.log('[LiveContext] 1011 service-unavailable/quota; pausing reconnect for 10 minutes');
-                pauseReconnect('service-unavailable', 10 * 60 * 1000);
-                disconnect(false, false); // Preserve buffer
-                reject(new Error(`Service unavailable (1011): ${ev.reason || ''}`));
-                return;
-              }
-
-              // 1000 = clean close – usually Google session limit
-              // Treat as normal refresh: reconnect with exponential backoff + jitter (not rapid 1s loops)
-              if (ev.code === 1000) {
-                console.log(
-                  '[LiveContext] Clean close (1000) – Google API session limit. Auto-reconnecting with backoff...',
-                );
-                cooldownUntilRef.current = Date.now() + 15000; // 15s cooldown before next reconnect attempt
-                disconnect(false, false); // Preserve buffer
-                scheduleReconnect('session-rollover-1000');
-                reject(new Error(`Session closed (Google API limit): ${ev.reason || ''}`));
-                return;
-              }
-
-              // Other closes: unexpected but retriable
-              console.log('[LiveContext] Unexpected close code:', ev.code, '- scheduling reconnect');
-              disconnect(false, false); // Preserve buffer on unexpected errors
-              scheduleReconnect(reason || 'unknown-close');
-              reject(new Error(`Session closed: ${ev.reason}`));
-            },
-
-            onerror: (err: any) => {
-              console.error('[LiveContext] ❌ CRITICAL SESSION ERROR:', err);
-              console.error('[LiveContext] Error type:', err?.constructor?.name);
-              console.error('[LiveContext] Error message:', err?.message);
-              console.error('[LiveContext] Error stack:', err?.stack);
-              console.error('[LiveContext] Full error object:', err);
-
-              sessionReadyRef.current = false;
-              const msg = (err?.message || '').toLowerCase();
-
-              // Again, only treat explicit quota / rate-limit as "stop auto-reconnect"
-              if (msg.includes('quota') || msg.includes('rate limit')) {
-                pauseReconnect('quota/rate-limit', 10 * 60 * 1000);
-                disconnect(false, false);
-                return;
-              }
-
-              setStatus(`Connection lost: ${err?.message || 'Unknown error'}`);
-
-              // If socket is already closing/closed, don't thrash; ask user to reconnect manually
-              if (msg.includes('closing or closed')) {
-                manualDisconnectRef.current = true;
-                setStatus('Link closed. Tap Connect to resume.');
-                disconnect(true, false);
-                reject(err);
-                return;
-              }
-
-              // All other errors → attempt auto-reconnect with backoff
-              disconnect(false, false); // Preserve buffer for context
-              scheduleReconnect(err?.message || 'unknown-error');
-              reject(err);
-            }
-          }
-        });
-
-        sessionPromise.then(async (session) => {
-          sessionRef.current = session;
-          console.log('[LiveContext] Session object acquired');
-          sessionReadyRef.current = true;
-
-          try {
-            if (streamRef.current && inputContextRef.current) {
-              const ctx = inputContextRef.current;
-              if (ctx.state === 'suspended') await ctx.resume();
-              
-              const source = ctx.createMediaStreamSource(streamRef.current);
-              
-              try {
-                console.log('[LiveContext] Attempting AudioWorklet capture from: /audio-processor.js');
-                await ctx.audioWorklet.addModule('/audio-processor.js');
-                const workletNode = new AudioWorkletNode(ctx, 'audio-processor');
-                
-                // MEMORY LEAK FIX: Store message handler so it can be cleaned up
-                const messageHandler = async (event: MessageEvent) => {
-                  const floatData = event.data;
-                  if (!sessionRef.current || !sessionReadyRef.current || isMutedRef.current || !isActiveRef.current) return;
-
-                  // Ensure context is running (sometimes browsers suspend if idle)
-                  if (ctx.state === 'suspended') await ctx.resume();
-
-                  let sum = 0;
-                  for (let i = 0; i < floatData.length; i++) sum += floatData[i] * floatData[i];
-                  const vol = Math.sqrt(sum / floatData.length) * 100;
-                  setVolume(vol);
-
-                  const nowMs = Date.now();
-                  const silenceDuration = nowMs - lastSpeechRef.current;
-                  
-                  // Track when user is actually speaking (above threshold)
-                  if (vol > MIN_SEND_VOLUME) {
-                    lastSpeechRef.current = nowMs;
-                  }
-                  
-                  // Only send if: volume high enough, throttle ok, AND not silent for too long
-                  if (vol > MIN_SEND_VOLUME && nowMs - lastSendRef.current >= MIN_SEND_INTERVAL_MS && silenceDuration < SILENCE_THRESHOLD_MS) {
-                    lastSendRef.current = nowMs;
-                    lastActivityRef.current = nowMs; // Update activity when sending audio
-                    console.log('[LiveContext] ✓ Sending audio chunk (Worklet), volume:', vol.toFixed(2), 'dB');
-                    const int16 = new Int16Array(floatData.length);
-                    for (let i = 0; i < floatData.length; i++) {
-                      int16[i] = floatData[i] < 0 ? floatData[i] * 0x8000 : floatData[i] * 0x7FFF;
-                    }
-                    const base64 = encodeAudioToBase64(int16);
-
-                    // Pre-check: if anything looks wrong, abort this send
-                    if (!sessionRef.current || !sessionReadyRef.current || !isActiveRef.current) {
-                      return; // Don't even try to send
-                    }
-
-                    if (typeof sessionRef.current.sendRealtimeInput !== 'function') {
-                      console.warn('[LiveContext] sendRealtimeInput is not a function, socket may be closing');
-                      return;
-                    }
-
-                    try {
-                      const result = sessionRef.current.sendRealtimeInput({
-                        media: {
-                          mimeType: 'audio/pcm;rate=16000',
-                          data: base64
-                        }
-                      });
-                      if (result && typeof result.catch === 'function') {
-                        result.catch((err: any) => {
-                          if (err?.message?.includes('CLOSING or CLOSED')) {
-                            console.log('[LiveContext] WebSocket closed during send, scheduling reconnect');
-                            sessionReadyRef.current = false;
-                            scheduleReconnect('socket-closed-during-send');
-                          }
-                        });
-                      }
-                    } catch (err: any) {
-                      if (err?.message?.includes('CLOSING or CLOSED')) {
-                        console.log('[LiveContext] WebSocket closed during send, scheduling reconnect');
-                        sessionReadyRef.current = false;
-                        scheduleReconnect('socket-closed-during-send');
-                      } else {
-                        console.warn('[LiveContext] Failed to send audio (connection may be closing):', err);
-                      }
-                    }
-                  }
-                };
-                
-                workletNode.port.onmessage = messageHandler;
-
-                const silence = ctx.createGain();
-                silence.gain.value = 0;
-                source.connect(workletNode);
-                workletNode.connect(silence);
-                silence.connect(ctx.destination);
-                processorRef.current = workletNode as any;
-                console.log('[LiveContext] AudioWorklet active');
-
-              } catch (workletErr) {
-                console.warn('[LiveContext] Fallback to Polling:', workletErr);
-                const analyser = ctx.createAnalyser();
-                // LATENCY FIX: Reduce fftSize from 2048 (128ms) to 1024 (64ms) for snappier input
-                analyser.fftSize = 1024;
-                source.connect(analyser);
-                
-                // MEMORY LEAK FIX: Reuse single buffer instead of creating new ones
-                if (!audioBufferRef.current || audioBufferRef.current.length !== analyser.fftSize) {
-                  audioBufferRef.current = new Float32Array(analyser.fftSize);
+              // PREVENT EMPTY/SILENCE LOOPS: Skip processing if blob is tiny (silence detection)
+              // Typical 3-second silence in opus/webm is ~5-15KB, meaningful speech is 20KB+
+              if (completeBlob.size < 5000) {
+                console.log('[LiveContext] Ignoring silence chunk (blob too small:', completeBlob.size, 'bytes)');
+                setMode('listening');
+                // Restart recording for next speech
+                if (sessionReadyRef.current && recorder.state === 'inactive') {
+                  recorder.start();
                 }
-                
-                const poll = async () => {
-                  // Early exit checks
-                  if (!isActiveRef.current || !sessionRef.current || !sessionReadyRef.current) {
-                    pollingTimerRef.current = null;
+                return;
+              }
+
+              try {
+                setMode('processing');
+                const groqSession = sessionRef.current as any;
+                let transcription = '';
+
+                // Prefer Deepgram first for lower latency, fallback to Whisper
+                try {
+                  if (groqSession.deepgramApiKey) {
+                    transcription = await transcribeAudioWithDeepgram(completeBlob, groqSession.deepgramApiKey);
+                    console.log('[LiveContext] Deepgram transcription:', transcription);
+                  } else {
+                    // No Deepgram key, use Whisper
+                    transcription = await transcribeAudioWithWhisper(completeBlob, groqSession.openaiApiKey);
+                    console.log('[LiveContext] Whisper transcription:', transcription);
+                  }
+                } catch (primaryErr) {
+                  console.warn('[LiveContext] Primary STT failed, trying fallback:', primaryErr);
+                  try {
+                    // Fallback to the other provider
+                    if (groqSession.deepgramApiKey) {
+                      transcription = await transcribeAudioWithWhisper(completeBlob, groqSession.openaiApiKey);
+                      console.log('[LiveContext] Whisper fallback transcription:', transcription);
+                    } else {
+                      transcription = await transcribeAudioWithDeepgram(completeBlob, groqSession.deepgramApiKey);
+                      console.log('[LiveContext] Deepgram fallback transcription:', transcription);
+                    }
+                  } catch (fallbackErr) {
+                    console.error('[LiveContext] Both STT providers failed:', fallbackErr);
+                    setMode('listening');
+                    // Restart recording
+                    if (sessionReadyRef.current && recorder.state === 'inactive') {
+                      recorder.start();
+                    }
                     return;
                   }
-                  
-                  if (ctx.state === 'suspended') await ctx.resume();
+                }
 
-                  // MEMORY LEAK FIX: Reuse existing buffer
-                  const buffer = audioBufferRef.current!;
-                  analyser.getFloatTimeDomainData(buffer);
+                // PREVENT ECHO LOOPS: Skip if transcription is empty or very short (noise)
+                if (!transcription || transcription.trim().length < 2) {
+                  console.log('[LiveContext] Ignoring empty/noise transcription');
+                  setMode('listening');
+                  // Restart recording for next speech
+                  if (sessionReadyRef.current && recorder.state === 'inactive') {
+                    recorder.start();
+                  }
+                  return;
+                }
+
+                setTranscription(transcription);
+                saveLiveMessage('user', transcription);
+
+                await sendMessageToGroq(
+                  transcription,
+                  groqSession.groqClient,
+                  groqSession.conversationHistory,
+                  groqSession.systemPrompt,
+                  audioContextRef as React.MutableRefObject<AudioContext | undefined>,
+                  groqSession.elevenLabsApiKey,
+                  groqSession.elevenLabsVoiceId,
+                  groqSession.ttsProvider,
+                  isMutedRef,
+                  sourcesRef,
+                  nextStartTimeRef,
+                  setMode,
+                  saveLiveMessage
+                );
+
+                setMode('listening');
+
+                // Restart recording for next speech with new timers
+                if (sessionReadyRef.current && recorder.state === 'inactive') {
+                  console.log('[LiveContext] Restarting recorder for next message...');
+                  chunkCount = 0;
                   
-                  let sum = 0;
-                  for (let i = 0; i < buffer.length; i++) sum += buffer[i] * buffer[i];
-                  const vol = Math.sqrt(sum / buffer.length) * 100;
-                  setVolume(vol);
-                  
-                  const nowMs = Date.now();
-                  const silenceDuration = nowMs - lastSpeechRef.current;
-                  
-                  // Track when user is actually speaking
-                  if (vol > MIN_SEND_VOLUME) {
-                    lastSpeechRef.current = nowMs;
+                  // Clear old timer if it exists
+                  const rec = processorRef.current as any;
+                  if (rec.recordingTimeout) clearTimeout(rec.recordingTimeout);
+                  if (rec.silenceCheckInterval) {
+                    clearInterval(rec.silenceCheckInterval);
+                    rec.silenceCheckInterval = null;
                   }
                   
-                  // Only send if: volume high enough, throttle ok, not muted, AND not silent for too long
-                  if (vol > MIN_SEND_VOLUME && nowMs - lastSendRef.current >= MIN_SEND_INTERVAL_MS && !isMutedRef.current && silenceDuration < SILENCE_THRESHOLD_MS) {
-                    lastSendRef.current = nowMs;
-                    lastActivityRef.current = nowMs; // Update activity when sending audio
-                    console.log('[LiveContext] ✓ Sending audio chunk (polling), volume:', vol.toFixed(2), 'dB');
-                    const int16 = new Int16Array(buffer.length);
-                    for (let i = 0; i < buffer.length; i++) {
-                      int16[i] = buffer[i] < 0 ? buffer[i] * 0x8000 : buffer[i] * 0x7FFF;
-                    }
-                    const base64 = encodeAudioToBase64(int16);
-                    
-                    // Pre-check: if anything looks wrong, abort this send
-                    if (!sessionRef.current || !sessionReadyRef.current || !isActiveRef.current) {
-                      pollingTimerRef.current = null;
-                      return;
-                    }
+                  recorder.start();
+                  
+                  // Re-enable smart silence detection for this new recording
+                  try {
+                    const streamForDetection = streamRef.current;
+                    const audioCtx2 = new (window.AudioContext || (window as any).webkitAudioContext)();
+                    const analyser2 = audioCtx2.createAnalyser();
+                    analyser2.fftSize = 2048;
+                    const source2 = audioCtx2.createMediaStreamSource(streamForDetection as MediaStream);
+                    source2.connect(analyser2);
 
-                    if (typeof sessionRef.current.sendRealtimeInput !== 'function') {
-                      console.warn('[LiveContext] sendRealtimeInput is not a function, socket may be closing');
-                      pollingTimerRef.current = null;
-                      return;
-                    }
+                    let recordingStartTime2 = Date.now();
+                    let lastSpeechTime2 = Date.now();
+                    let hasSpeech2 = false;
+                    const SILENCE_THRESHOLD2 = 0.02;
+                    const SILENCE_WAIT_MS2 = 1000;
+                    const MAX_RECORDING_MS2 = 30000;
 
-                    // Check if session is still connected before sending
-                    try {
-                      const result = sessionRef.current.sendRealtimeInput({
-                        media: { mimeType: 'audio/pcm;rate=16000', data: base64 }
-                      });
-                      if (result && typeof result.catch === 'function') {
-                        result.catch((err: any) => {
-                          if (err?.message?.includes('CLOSING or CLOSED')) {
-                            console.log('[LiveContext] WebSocket closed during send (polling), scheduling reconnect');
-                            sessionReadyRef.current = false;
-                            pollingTimerRef.current = null;
-                            scheduleReconnect('socket-closed-during-send');
-                          }
-                        });
-                      }
-                    } catch (err: any) {
-                      if (err?.message?.includes('CLOSING or CLOSED')) {
-                        console.log('[LiveContext] WebSocket closed during send (polling), scheduling reconnect');
-                        sessionReadyRef.current = false;
-                        pollingTimerRef.current = null;
-                        scheduleReconnect('socket-closed-during-send');
+                    const buffer2 = new Uint8Array(analyser2.frequencyBinCount);
+                    const silenceCheckInterval2 = setInterval(() => {
+                      const now2 = Date.now();
+                      const recDur2 = now2 - recordingStartTime2;
+                      if (recDur2 >= MAX_RECORDING_MS2) {
+                        console.log('[LiveContext] Max 30s reached (restart) - stopping');
+                        clearInterval(silenceCheckInterval2);
+                        if (recorder.state === 'recording') recorder.stop();
                         return;
-                      } else {
-                        console.warn('[LiveContext] Failed to send audio (polling, connection may be closing):', err);
                       }
-                    }
+                      analyser2.getByteFrequencyData(buffer2);
+                      const avg2 = buffer2.reduce((a, b) => a + b) / buffer2.length;
+                      const norm2 = avg2 / 255;
+                      if (norm2 >= SILENCE_THRESHOLD2) {
+                        lastSpeechTime2 = now2;
+                        hasSpeech2 = true;
+                      } else {
+                        const silenceDur2 = now2 - lastSpeechTime2;
+                        const speechDur2 = lastSpeechTime2 - recordingStartTime2;
+                        if (hasSpeech2 && speechDur2 >= 1000 && silenceDur2 >= SILENCE_WAIT_MS2) {
+                          console.log('[LiveContext] Speech complete (restart) after', recDur2, 'ms - stopping');
+                          clearInterval(silenceCheckInterval2);
+                          if (recorder.state === 'recording') recorder.stop();
+                        }
+                      }
+                    }, 50);
+                    rec.silenceCheckInterval = silenceCheckInterval2;
+                  } catch (detErr) {
+                    console.warn('[LiveContext] Restart silence detection failed, using 30s timeout:', detErr);
+                    const recordingTimeout = setTimeout(() => {
+                      if (recorder.state === 'recording') {
+                        console.log('[LiveContext] 30-second timeout reached - stopping recording');
+                        recorder.stop();
+                      }
+                    }, 30000);
+                    rec.recordingTimeout = recordingTimeout;
+                  }
+                }
+              } catch (err) {
+                console.error('[LiveContext] Error processing audio:', err);
+                setMode('listening');
+                // Restart recording with new timers
+                if (sessionReadyRef.current && recorder.state === 'inactive') {
+                  console.log('[LiveContext] Restarting recorder after error...');
+                  chunkCount = 0;
+                  
+                  // Clear old timer
+                  const rec = processorRef.current as any;
+                  if (rec.recordingTimeout) clearTimeout(rec.recordingTimeout);
+                  if (rec.silenceCheckInterval) {
+                    clearInterval(rec.silenceCheckInterval);
+                    rec.silenceCheckInterval = null;
                   }
                   
-                  // MEMORY LEAK FIX: Track timeout so it can be cleared on disconnect
-                  pollingTimerRef.current = setTimeout(poll, 128);
-                };
-                poll();
-                processorRef.current = { 
-                  disconnect: () => {
-                    source.disconnect();
-                    if (pollingTimerRef.current) {
-                      clearTimeout(pollingTimerRef.current);
-                      pollingTimerRef.current = null;
+                  recorder.start();
+                  
+                  // Re-enable smart silence detection on error restart
+                  try {
+                    const streamForDetection = streamRef.current;
+                    const audioCtx2 = new (window.AudioContext || (window as any).webkitAudioContext)();
+                    const analyser2 = audioCtx2.createAnalyser();
+                    analyser2.fftSize = 2048;
+                    const source2 = audioCtx2.createMediaStreamSource(streamForDetection as MediaStream);
+                    source2.connect(analyser2);
+
+                    let recordingStartTime2 = Date.now();
+                    let lastSpeechTime2 = Date.now();
+                    let hasSpeech2 = false;
+                    const SILENCE_THRESHOLD2 = 0.02;
+                    const SILENCE_WAIT_MS2 = 1000;
+                    const MAX_RECORDING_MS2 = 30000;
+
+                    const buffer2 = new Uint8Array(analyser2.frequencyBinCount);
+                    const silenceCheckInterval2 = setInterval(() => {
+                      const now2 = Date.now();
+                      const recDur2 = now2 - recordingStartTime2;
+                      if (recDur2 >= MAX_RECORDING_MS2) {
+                        clearInterval(silenceCheckInterval2);
+                        if (recorder.state === 'recording') recorder.stop();
+                        return;
+                      }
+                      analyser2.getByteFrequencyData(buffer2);
+                      const avg2 = buffer2.reduce((a, b) => a + b) / buffer2.length;
+                      const norm2 = avg2 / 255;
+                      if (norm2 >= SILENCE_THRESHOLD2) {
+                        lastSpeechTime2 = now2;
+                        hasSpeech2 = true;
+                      } else {
+                        const silenceDur2 = now2 - lastSpeechTime2;
+                        const speechDur2 = lastSpeechTime2 - recordingStartTime2;
+                        if (hasSpeech2 && speechDur2 >= 1000 && silenceDur2 >= SILENCE_WAIT_MS2) {
+                          clearInterval(silenceCheckInterval2);
+                          if (recorder.state === 'recording') recorder.stop();
+                        }
+                      }
+                    }, 50);
+                    rec.silenceCheckInterval = silenceCheckInterval2;
+                  } catch (detErr) {
+                    const recordingTimeout = setTimeout(() => {
+                      if (recorder.state === 'recording') {
+                        recorder.stop();
+                      }
+                    }, 30000);
+                    rec.recordingTimeout = recordingTimeout;
+                  }
+                }
+              }
+            };
+
+            // Start recording
+            recorder.start();
+            console.log('[LiveContext] MediaRecorder started');
+
+              // Smart silence detection - only stop after actual silence
+              let recordingStartTime = Date.now();
+              let lastSpeechTime = Date.now();
+              let hasSpeech = false;
+              const SILENCE_THRESHOLD = 0.02; // More sensitive (detect speech sooner)
+              const SILENCE_WAIT_MS = 1000; // 1.0 seconds of silence to stop faster
+              const MIN_SPEECH_MS = 1000; // Must have at least 1 second of speech
+              const MAX_RECORDING_MS = 30000; // Max 30 seconds
+            
+              try {
+                const audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)();
+                const analyser = audioCtx.createAnalyser();
+                analyser.fftSize = 2048;
+                const source = audioCtx.createMediaStreamSource(stream);
+                source.connect(analyser);
+              
+                const buffer = new Uint8Array(analyser.frequencyBinCount);
+              
+                const silenceCheckInterval = setInterval(() => {
+                  const now = Date.now();
+                  const recordingDuration = now - recordingStartTime;
+                
+                  // Max timeout safety check
+                  if (recordingDuration >= MAX_RECORDING_MS) {
+                    console.log('[LiveContext] Max 30s reached - stopping');
+                    clearInterval(silenceCheckInterval);
+                    if (recorder.state === 'recording') recorder.stop();
+                    return;
+                  }
+                
+                  // Check audio level
+                  analyser.getByteFrequencyData(buffer);
+                  const average = buffer.reduce((a, b) => a + b) / buffer.length;
+                  const normalized = average / 255;
+                
+                  if (normalized >= SILENCE_THRESHOLD) {
+                    // Speech detected
+                    lastSpeechTime = now;
+                    hasSpeech = true;
+                  } else {
+                    // Silence detected
+                    const silenceDuration = now - lastSpeechTime;
+                    const speechDuration = lastSpeechTime - recordingStartTime;
+                  
+                    // Only stop if: had speech, met min duration, and silence long enough
+                    if (hasSpeech && speechDuration >= MIN_SPEECH_MS && silenceDuration >= SILENCE_WAIT_MS) {
+                      console.log('[LiveContext] Speech complete after', recordingDuration, 'ms - stopping');
+                      clearInterval(silenceCheckInterval);
+                      if (recorder.state === 'recording') recorder.stop();
                     }
                   }
-                } as any;
+                }, 50);
+              
+                (processorRef.current as any).silenceCheckInterval = silenceCheckInterval;
+              } catch (err) {
+                console.warn('[LiveContext] Silence detection failed, using 30s timeout:', err);
+                const recordingTimeout = setTimeout(() => {
+                  if (recorder.state === 'recording') {
+                    console.log('[LiveContext] Fallback 30s timeout - stopping');
+                    recorder.stop();
+                  }
+                }, 30000);
+                (processorRef.current as any).recordingTimeout = recordingTimeout;
               }
-            }
-          } catch (err) {
-            console.error('[LiveContext] Audio setup fail:', err);
           }
-        }).catch((err) => {
-          console.error('[LiveContext] Session start fail:', err);
-          disconnect(false, false); // Preserve buffer on connection errors
-          scheduleReconnect(err?.message || 'connect-failed');
-          reject(err);
-        });
-
-      } catch (err: any) {
-        console.error('[LiveContext] Connect error:', err);
-        setStatus('Error: ' + err.message);
-        setMode('idle');
-        setLiveActive(false);
-        disconnect(false, false); // Preserve buffer on connection errors
-        scheduleReconnect(err?.message || 'connect-error');
+        } catch (err) {
+          console.error('[LiveContext] Failed to set up audio capture:', err);
+        }
+        
+        resolve();
+      } catch (err) {
+        console.error('[LiveContext] Failed to initialize connection:', err);
         reject(err);
       }
+      })();
     });
   };
 
@@ -1343,6 +1651,10 @@ DO NOT say "I cannot integrate" - you CAN by launching programs and providing ex
         volume,
         mode,
         transcription,
+        micLevel,
+        audioInputs,
+        selectedInputId,
+        setSelectedInputId,
         connect,
         disconnect: (manual?: boolean) => disconnect(manual),
         customAvatar,

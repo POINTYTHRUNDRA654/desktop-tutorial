@@ -17,7 +17,12 @@ interface PrivacySettings {
   allowAnalytics: boolean;
 }
 
-const MossyOnboarding: React.FC<{ onComplete: () => void }> = ({ onComplete }) => {
+interface MossyOnboardingProps {
+  onComplete?: () => void;
+}
+
+/* eslint-disable react/prop-types */
+const MossyOnboarding: React.FC<MossyOnboardingProps> = ({ onComplete = () => {} }) => {
   const [currentStep, setCurrentStep] = useState(0);
   const [privacySettings, setPrivacySettings] = useState<PrivacySettings>({
     keepLocalOnly: true,

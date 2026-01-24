@@ -11,13 +11,16 @@ const Sidebar: React.FC = () => {
   const [moodColor, setMoodColor] = useState('text-emerald-400');
   
   // Consume Global Live Context (with safe fallback)
-  let liveContext: any = null;
+  let liveContextValue: any = null;
+  
   try {
-    liveContext = useLive();
+    // eslint-disable-next-line react-hooks/rules-of-hooks
+    liveContextValue = useLive();
   } catch (err) {
     console.warn('[Sidebar] LiveContext not available, using fallback');
-    liveContext = { isActive: false, isMuted: false, toggleMute: () => {}, disconnect: () => {} };
   }
+  
+  const liveContext = liveContextValue || { isActive: false, isMuted: false, toggleMute: () => {}, disconnect: () => {} };
   const { isActive, isMuted, toggleMute, disconnect } = liveContext;
 
   // Toggle Pip-Boy Theme

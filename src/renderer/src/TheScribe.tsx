@@ -1,5 +1,4 @@
 import React, { useState, useEffect } from 'react';
-import { GoogleGenAI } from "@google/genai";
 import { FileText, PenTool, RefreshCw, Copy, Check, Upload, Feather, BookOpen, List, Code, Sparkles, Wand2, Globe } from 'lucide-react';
 
 interface DocSection {
@@ -33,7 +32,7 @@ const TheScribe: React.FC = () => {
             const ai = new GoogleGenAI({ apiKey: (import.meta.env.VITE_API_KEY || import.meta.env.VITE_GOOGLE_API_KEY || "") });
             
             let prompt = "";
-            let systemContext = `You are "The Scribe", a documentation assistant for Fallout 4 mods. Mod Name: "${modName}". Version: "${version}".`;
+            const systemContext = `You are "The Scribe", a documentation assistant for Fallout 4 mods. Mod Name: "${modName}". Version: "${version}".`;
 
             if (activeTab === 'readme') {
                 prompt = `${systemContext}

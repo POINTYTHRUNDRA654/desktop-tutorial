@@ -51,7 +51,11 @@ const TheVault: React.FC = () => {
 
     type ToolExtraArgs = Partial<Record<keyof ToolPaths, string>>;
     const [toolExtraArgs, setToolExtraArgs] = useState<ToolExtraArgs>(() => {
-        try { return JSON.parse(localStorage.getItem('vault-tool-extra-args-v1') || '{}') as ToolExtraArgs; } catch { return {}; }
+        try {
+            return JSON.parse(localStorage.getItem('vault-tool-extra-args-v1') || '{}') as ToolExtraArgs;
+        } catch {
+            return {};
+        }
     });
 
     type VaultPresets = {
@@ -66,7 +70,19 @@ const TheVault: React.FC = () => {
     const [presets, setPresets] = useState<VaultPresets>(() => {
         const raw = typeof window !== 'undefined' ? window.localStorage.getItem('vault-presets-v1') : null;
         if (raw) {
-            try { return JSON.parse(raw) as VaultPresets; } catch {}
+            try {
+                return JSON.parse(raw) as VaultPresets;
+            } catch {
+                return {
+                    meshesBase: 'Data/Meshes',
+                    texturesBase: 'Data/Textures',
+                    audioBase: 'Data/Sound/Voice',
+                    voiceProject: 'MyCompanion.esp',
+                    scriptsBase: 'Data/Scripts',
+                    scriptsSource: 'Data/Scripts/Source',
+                    uiBase: 'Data/Interface'
+                };
+            }
         }
         return {
             meshesBase: 'Data/Meshes',
@@ -415,7 +431,9 @@ const TheVault: React.FC = () => {
                             } else {
                                 setAssets(p => p.map(x => x.id === a.id ? { ...x, staged: !x.staged } : x));
                             }
-                        } catch {}
+                        } catch (err) {
+                            console.warn('Failed to read image dimensions', err);
+                        }
                     })();
                     return a;
                 }
@@ -657,7 +675,7 @@ const TheVault: React.FC = () => {
                             <div className="font-semibold text-amber-200 mb-1">External Tools Not Configured</div>
                             <div className="text-amber-300/80 text-xs">
                                 Asset verification requires external tools (texconv, splicer, etc.). 
-                                Scroll down to <span className="font-semibold">"Tool Paths & Configuration"</span> to set up your tools.
+                                Scroll down to <span className="font-semibold">&quot;Tool Paths &amp; Configuration&quot;</span> to set up your tools.
                             </div>
                         </div>
                     </div>

@@ -216,7 +216,7 @@ export const VoiceCommands: React.FC = () => {
                 <div key={idx} className="bg-slate-800 rounded-lg p-4 border border-slate-700 hover:border-pink-500/50 transition-colors">
                   <div className="flex justify-between items-start mb-2">
                     <div>
-                      <div className="text-sm font-mono text-pink-400 mb-1">"{cmd.phrase}"</div>
+                      <div className="text-sm font-mono text-pink-400 mb-1">&quot;{cmd.phrase}&quot;</div>
                       <div className="text-xs text-slate-400">{cmd.description}</div>
                     </div>
                     <button
@@ -247,13 +247,13 @@ export const VoiceCommands: React.FC = () => {
             <h3 className="font-bold text-white mb-3">How It Works</h3>
             <div className="space-y-3 text-sm text-slate-400">
               <p>
-                1. <span className="font-bold text-white">Click "Start Listening"</span> to activate voice recognition
+                1. <span className="font-bold text-white">Click &quot;Start Listening&quot;</span> to activate voice recognition
               </p>
               <p>
-                2. <span className="font-bold text-white">Say "Mossy"</span> to get Mossy's attention
+                2. <span className="font-bold text-white">Say &quot;Mossy&quot;</span> to get Mossy&apos;s attention
               </p>
               <p>
-                3. <span className="font-bold text-white">Follow with a command</span> like "analyze script" or "load order"
+                3. <span className="font-bold text-white">Follow with a command</span> like &quot;analyze script&quot; or &quot;load order&quot;
               </p>
               <p>
                 4. <span className="font-bold text-white">Mossy will respond</span> and execute the action
@@ -268,7 +268,7 @@ export const VoiceCommands: React.FC = () => {
               <li>• Speak clearly and at a normal pace</li>
               <li>• Use a good quality microphone</li>
               <li>• Minimize background noise</li>
-              <li>• Always start with "Mossy" to activate commands</li>
+              <li>• Always start with &quot;Mossy&quot; to activate commands</li>
               <li>• Wait for the green confirmation before speaking again</li>
             </ul>
           </div>
