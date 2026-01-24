@@ -1,7 +1,22 @@
-# Getting Started with Mossy
+# Getting Started with Mossy v3.0
 ## Your Complete Fallout 4 Modding Assistant
 
 Welcome to Mossy v3.0! This guide will help you get the most out of your AI modding companion.
+
+---
+
+## 🎆 What's New in v3.0
+
+### Revolutionary Voice Conversation
+Mossy now features **next-generation voice interaction** with:
+
+- **⚡ Smart Silence Detection (~1s):** Mossy detects when you're done speaking in about 1 second using intelligent audio analysis - no more mid-sentence cutoffs!
+- **🚀 Deepgram-First STT:** Lightning-fast speech recognition prioritizes Deepgram for near-instant transcription with Whisper as backup
+- **🧠 Full Conversation Memory:** Mossy includes your recent chat history + knowledge vault in every response, so you never have to repeat context
+- **🎭 Simplified Controls:** Clean UI with mute toggle and standard disconnect - no unnecessary emergency buttons
+- **🔄 Robust Restart Logic:** Fresh silence detection on every conversation turn prevents timeout delays
+
+**Try it:** Click **"Live Voice"** in the sidebar and just start talking naturally. Mossy will respond fast and remember everything!
 
 ---
 

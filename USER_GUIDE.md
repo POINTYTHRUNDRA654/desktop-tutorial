@@ -6,21 +6,31 @@ Mossy is your AI companion for Fallout 4 modding. This guide will help you get s
 
 ## First Launch - The Onboarding Tutorial
 
-When you download and launch Mossy for the first time, you'll see a comprehensive 6-step tutorial. **You must complete this to use Mossy** - but don't worry, it only takes a few minutes and is designed to set you up for success.
+When you download and launch Mossy for the first time, you'll see a streamlined setup process. **You must complete this to use Mossy** - but don't worry, it only takes a minute!
 
-### Step 1: Welcome to Mossy
-Introduction to Mossy and the new Hybrid AI architecture. Choose between Google Gemini or local Ollama for your AI brain.
+### What's New in v3.0 ✨
+**Revolutionary Voice Conversation:**
+- **Smart Silence Detection (~1s):** Mossy detects when you've finished speaking in about 1 second - no more cutoffs!
+- **Lightning-Fast STT:** Deepgram-first speech recognition for near-instant transcription
+- **Full Conversation Memory:** Mossy remembers your entire chat history and knowledge vault, so you never have to repeat yourself
+- **Simplified UI:** Clean mute toggle and disconnect controls - no clutter
+- **Natural Flow:** Just speak naturally; Mossy will respond quickly and stay in context
 
-### Step 2: Neural Link Integration
-Mossy now monitors your desktop. Select which modding tools you use (Blender, CK, xEdit) to enable the Neural Link bridge.
+### Setup Steps
 
-### Step 3: Memory Vault Calibration
-Learn how to upload your own tutorials and PDF guides to Mossy's local RAG memory. This "digestion" process allows Mossy to answer questions using your private sources.
+**Step 1: Welcome to Mossy v3.0**
+Introduction to your AI modding companion and the new voice features.
 
-### Step 4: Connecting Your Tools
-Confirm the installation paths for your core utilities. Mossy uses these to launch tools and validate your assets.
+**Step 2: System Scan**
+Mossy scans for modding tools (Creation Kit, xEdit, Blender, etc.) to enable deep integrations.
 
-### Step 5: Your Privacy Settings
+**Step 3: Tool Recommendations**
+Review detected tools and choose which ones Mossy should monitor and integrate with.
+
+**Step 4: Setup Complete**
+You're ready! Click "Complete Setup" to launch Mossy.
+
+### Your Privacy Settings
 This is the most important step. **You have complete control over your data.**
 
 #### What Gets Stored Locally (Always)
