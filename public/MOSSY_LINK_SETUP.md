@@ -1,6 +1,6 @@
-# Mossy Link Add-on for Blender 4.5.5+
+# Mossy Link Add-on for Blender 4.5.5+ (v3.0)
 
-This add-on enables **real-time AI-driven control** of Blender from Mossy (the OmniForge AI assistant).
+This add-on enables **real-time AI-driven control** of Blender from Mossy v3.0 (the OmniForge AI assistant).
 
 ## What It Does
 
