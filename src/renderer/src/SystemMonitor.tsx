@@ -3,7 +3,7 @@ import ExternalToolNotice from './components/ExternalToolNotice';
 import { Settings as SettingsIcon } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, AreaChart, Area } from 'recharts';
-import { Cpu, HardDrive, Activity, Terminal, Trash2, Search, CheckCircle2, Database, Layers, Radio, ShieldCheck, Zap, History, Archive, FileCode, XCircle, RefreshCw, Save, Clock, RotateCcw, Upload, Download, DownloadCloud, Box, Settings, Hexagon, BrainCircuit, Package, Share2, Users, Key, Globe, Lock, Link, FileText, Copy, Command, Play, HardDriveDownload, Network, Monitor, AlertTriangle, GitBranch, Map, Container } from 'lucide-react';
+import { Cpu, HardDrive, Activity, Terminal, Search, CheckCircle2, Zap, Box, Settings, BrainCircuit, Package, Link, Play, Monitor, AlertTriangle, Map, Upload, RefreshCw, Database, ShieldCheck, Globe, Share2, Copy, HardDriveDownload, FileText, Users, Key, Lock } from 'lucide-react';
 import { LocalAIEngine } from './LocalAIEngine';
 
 interface LogEntry {
