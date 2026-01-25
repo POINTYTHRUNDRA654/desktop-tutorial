@@ -8,7 +8,7 @@ import AvatarCore from './AvatarCore';
 import { useLive } from './LiveContext';
 
 const AvatarCard: React.FC = () => {
-  const { customAvatar, mode, volume, setAvatarFromUrl, clearAvatar } = useLive();
+  const { customAvatar, mode, volume, setAvatarFromUrl, clearAvatar, updateAvatar, avatarLocked } = useLive();
   const [avatarUrl, setAvatarUrl] = useState('');
 
   return (
@@ -80,50 +80,70 @@ const AvatarCard: React.FC = () => {
       </div>
 
       {/* Avatar Controls */}
-      <div style={{ marginTop: '1rem', borderTop: '1px dashed #00d000', paddingTop: '0.75rem' }}>
-        <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'center' }}>
-          <input
-            value={avatarUrl}
-            onChange={(e) => setAvatarUrl(e.target.value)}
-            placeholder="Image URL (jpg/png)"
-            style={{
-              width: '60%',
-              padding: '0.4rem',
-              background: '#0a0e0a',
-              border: '1px solid #00d000',
-              color: '#00ff00',
-              fontFamily: 'monospace',
-              fontSize: '0.75rem'
-            }}
-          />
-          <button
-            onClick={() => avatarUrl && setAvatarFromUrl(avatarUrl)}
-            style={{
-              padding: '0.4rem 0.6rem',
-              background: '#003300',
-              border: '1px solid #00d000',
-              color: '#00ff00',
-              fontFamily: 'monospace',
-              fontSize: '0.75rem',
-              cursor: 'pointer'
-            }}
-          >SET</button>
-          {customAvatar && (
+      {!avatarLocked && (
+        <div style={{ marginTop: '1rem', borderTop: '1px dashed #00d000', paddingTop: '0.75rem' }}>
+          <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'center' }}>
+            <input
+              value={avatarUrl}
+              onChange={(e) => setAvatarUrl(e.target.value)}
+              placeholder="Image URL (jpg/png)"
+              style={{
+                width: '60%',
+                padding: '0.4rem',
+                background: '#0a0e0a',
+                border: '1px solid #00d000',
+                color: '#00ff00',
+                fontFamily: 'monospace',
+                fontSize: '0.75rem'
+              }}
+            />
             <button
-              onClick={() => clearAvatar()}
+              onClick={() => avatarUrl && setAvatarFromUrl(avatarUrl)}
               style={{
                 padding: '0.4rem 0.6rem',
-                background: '#330000',
-                border: '1px solid #ff3333',
-                color: '#ff6666',
+                background: '#003300',
+                border: '1px solid #00d000',
+                color: '#00ff00',
                 fontFamily: 'monospace',
                 fontSize: '0.75rem',
                 cursor: 'pointer'
               }}
-            >CLEAR</button>
-          )}
+            >SET</button>
+            <input
+              type="file"
+              accept="image/*"
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                if (file) {
+                  updateAvatar(file);
+                }
+              }}
+              style={{
+                padding: '0.4rem 0.6rem',
+                background: '#001100',
+                border: '1px solid #00d000',
+                color: '#00ff00',
+                fontFamily: 'monospace',
+                fontSize: '0.75rem'
+              }}
+            />
+            {customAvatar && (
+              <button
+                onClick={() => clearAvatar()}
+                style={{
+                  padding: '0.4rem 0.6rem',
+                  background: '#330000',
+                  border: '1px solid #ff3333',
+                  color: '#ff6666',
+                  fontFamily: 'monospace',
+                  fontSize: '0.75rem',
+                  cursor: 'pointer'
+                }}
+              >CLEAR</button>
+            )}
+          </div>
         </div>
-      </div>
+      )}
     </div>
   );
 };

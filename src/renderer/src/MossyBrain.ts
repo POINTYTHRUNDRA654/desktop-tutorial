@@ -36,6 +36,20 @@ export const toolDeclarations: FunctionDeclaration[] = [
         }
     },
     {
+        name: 'write_blender_script',
+        description: 'Write a Python script into Blender\'s Text Editor (optionally run). Use for animation workflows to edit and iterate inside Blender.',
+        parameters: {
+            type: Type.OBJECT,
+            properties: {
+                script: { type: Type.STRING, description: 'The Python code to write.' },
+                name: { type: Type.STRING, description: 'Text block name (default: MOSSY_SCRIPT)' },
+                run: { type: Type.BOOLEAN, description: 'Whether to execute immediately after writing (default: false)' },
+                description: { type: Type.STRING, description: 'Short description of the action.' }
+            },
+            required: ['script']
+        }
+    },
+    {
         name: 'send_blender_shortcut',
         description: 'Send a keyboard shortcut or key press to the active Blender window.',
         parameters: {
