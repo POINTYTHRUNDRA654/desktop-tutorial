@@ -31,9 +31,9 @@ bl_info = {
     "name": "Mossy Link - AI Assistant Integration",
     "blender": (4, 5, 0),
     "author": "OmniForge AI",
-    "version": (3, 0, 0),
+    "version": (5, 0, 0),
     "location": "View3D > Mossy Link Panel",
-    "description": "Real-time AI script execution and Blender control via Mossy v3.0 Desktop Bridge",
+    "description": "Real-time AI script execution and Blender control via Mossy v4.0+ Desktop Bridge",
     "warning": "",
     "wiki_url": "",
     "tracker_url": "",
@@ -112,16 +112,23 @@ class MossyLinkServer:
                 if not data:
                     break
                 
+                print(f"[Mossy Link] Received data: {data[:200]}..." if len(data) > 200 else f"[Mossy Link] Received data: {data}")
+                
                 try:
                     command = json.loads(data)
+                    print(f"[Mossy Link] Parsed command type: {command.get('type', 'unknown')}")
                     result = self._execute_command(command)
+                    print(f"[Mossy Link] Command result: {result[:100]}..." if len(str(result)) > 100 else f"[Mossy Link] Command result: {result}")
                     response = json.dumps({"success": True, "result": result})
                 except json.JSONDecodeError as e:
+                    print(f"[Mossy Link] JSON decode error: {e}")
                     response = json.dumps({"success": False, "error": f"Invalid JSON: {str(e)}"})
                 except Exception as e:
+                    print(f"[Mossy Link] Command execution error: {e}")
                     response = json.dumps({"success": False, "error": str(e), "trace": traceback.format_exc()})
                 
                 # Send response
+                print(f"[Mossy Link] Sending response: {response[:200]}..." if len(response) > 200 else f"[Mossy Link] Sending response: {response}")
                 self.client_socket.sendall(response.encode('utf-8'))
                 
         except Exception as e:
@@ -138,6 +145,12 @@ class MossyLinkServer:
         
         if cmd_type == 'script':
             return self._execute_script(command.get('code', ''))
+        elif cmd_type == 'text':
+            # Create/update a Text datablock and optionally execute it
+            code = command.get('code', '')
+            name = command.get('name', 'MOSSY_SCRIPT')
+            run = bool(command.get('run', False))
+            return self._write_text_block(code, name, run)
         elif cmd_type == 'property':
             return self._get_property(command.get('path', ''))
         elif cmd_type == 'status':
@@ -154,6 +167,8 @@ class MossyLinkServer:
         if not code:
             return "No code provided"
         
+        print(f"[Mossy Link] Executing script: {code[:100]}..." if len(code) > 100 else f"[Mossy Link] Executing script: {code}")
+        
         # Capture output
         old_stdout = sys.stdout
         sys.stdout = output_buffer = StringIO()
@@ -166,14 +181,67 @@ class MossyLinkServer:
                 'D': bpy.data,
                 'ops': bpy.ops,
             }
-            
-            exec(code, namespace)
+            # Ensure Object Mode for operations that require it
+            try:
+                obj = bpy.context.active_object
+                if obj and obj.mode != 'OBJECT':
+                    bpy.ops.object.mode_set(mode='OBJECT')
+            except Exception:
+                # Ignore mode errors; continue with execution
+                pass
+
+            # Prefer executing with a 3D View context override when using operators
+            uses_ops = ('bpy.ops.' in code) or ('ops.' in code)
+            area = None
+            try:
+                # Find a VIEW_3D area for correct context
+                for a in bpy.context.window.screen.areas:
+                    if a.type == 'VIEW_3D':
+                        area = a
+                        break
+            except Exception:
+                area = None
+
+            if uses_ops and area is not None:
+                try:
+                    with bpy.context.temp_override(area=area):
+                        exec(code, namespace)
+                except Exception:
+                    # Fallback to plain exec if override fails
+                    exec(code, namespace)
+            else:
+                exec(code, namespace)
             result = output_buffer.getvalue()
-            return result if result else "Script executed successfully (no output)"
+            final_result = result if result else "Script executed successfully (no output)"
+            print(f"[Mossy Link] Result: {final_result}", file=sys.stderr)  # Log to stderr so it's visible
+            return final_result
         except Exception as e:
-            return f"Error executing script: {str(e)}\n{traceback.format_exc()}"
+            error_result = f"Error executing script: {str(e)}\n{traceback.format_exc()}"
+            print(f"[Mossy Link] ERROR: {error_result}", file=sys.stderr)
+            return error_result
         finally:
             sys.stdout = old_stdout
+
+    def _write_text_block(self, code, name="MOSSY_SCRIPT", run=False):
+        """Create or update a Blender Text datablock with the provided code, and optionally execute it."""
+        try:
+            if not code:
+                return "No code provided"
+            # Create or get text block
+            text = bpy.data.texts.get(name)
+            if text is None:
+                text = bpy.data.texts.new(name)
+            text.clear()
+            text.write(code)
+            print(f"[Mossy Link] Wrote script to Text block: {name}")
+
+            if run:
+                # Execute using same safe context as _execute_script
+                return self._execute_script(code)
+            else:
+                return f"Text block '{name}' updated (run=False)"
+        except Exception as e:
+            return f"Error writing text block: {str(e)}\n{traceback.format_exc()}"
     
     def _get_property(self, path):
         """Get a Blender property value"""
@@ -257,6 +325,7 @@ class MOSSY_PT_MainPanel(bpy.types.Panel):
         
         layout.separator()
         layout.operator("wm.mossy_link_toggle", text="Toggle Mossy Link Server")
+        layout.operator("mossy.test_bridge", text="Test Bridge Connection")
 
 
 class WM_OT_MossyLinkToggle(bpy.types.Operator):
@@ -288,6 +357,48 @@ class WM_OT_MossyLinkToggle(bpy.types.Operator):
         return {'FINISHED'}
 
 
+class MOSSY_OT_TestBridge(bpy.types.Operator):
+    """Test connection to Mossy Bridge"""
+    bl_idname = "mossy.test_bridge"
+    bl_label = "Test Bridge"
+    
+    def execute(self, context):
+        try:
+            sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            sock.settimeout(2)
+            
+            # Try to connect to Bridge on port 21337
+            try:
+                sock.connect(('127.0.0.1', 21337))
+                sock.close()
+                self.report({'INFO'}, "✓ Mossy Bridge is RUNNING on port 21337!")
+                return {'FINISHED'}
+            except ConnectionRefusedError:
+                self.report({'ERROR'}, "✗ Bridge NOT running on 21337. Start the Desktop Bridge first.")
+                return {'CANCELLED'}
+            except socket.timeout:
+                self.report({'ERROR'}, "✗ Bridge timeout. Check if port 21337 is accessible.")
+                return {'CANCELLED'}
+        except Exception as e:
+            self.report({'ERROR'}, f"✗ Error: {str(e)}")
+            return {'CANCELLED'}
+
+
+def _start_server_deferred():
+    """Start server with a timer so it doesn't block Blender initialization"""
+    global mossy_server
+    try:
+        mossy_server = MossyLinkServer('127.0.0.1', 9999)
+        if mossy_server.start():
+            bpy.types.WindowManager.mossy_link_active = True
+            print("[Mossy Link] Add-on v5.0 server started on port 9999")
+        else:
+            print("[Mossy Link] Warning: Could not start server (port may be in use)")
+    except Exception as e:
+        print(f"[Mossy Link] Error starting server: {e}")
+    return None  # Don't repeat timer
+
+
 def register():
     """Register the add-on"""
     global mossy_server
@@ -295,17 +406,14 @@ def register():
     # Register classes
     bpy.utils.register_class(MOSSY_PT_MainPanel)
     bpy.utils.register_class(WM_OT_MossyLinkToggle)
+    bpy.utils.register_class(MOSSY_OT_TestBridge)
     
     # Add window manager property
     bpy.types.WindowManager.mossy_link_active = bpy.props.BoolProperty(default=False)
     
-    # Auto-start server on load
-    mossy_server = MossyLinkServer('127.0.0.1', 9999)
-    if mossy_server.start():
-        bpy.types.WindowManager.mossy_link_active = True
-        print("[Mossy Link] Add-on initialized and server started")
-    else:
-        print("[Mossy Link] Warning: Could not start server (port may be in use)")
+    # Schedule server startup on next timer (doesn't block Blender init)
+    bpy.app.timers.register(_start_server_deferred, first_interval=0.5)
+    print("[Mossy Link] Add-on v5.0 registered successfully!")
 
 
 def unregister():
@@ -320,8 +428,9 @@ def unregister():
     # Unregister classes
     bpy.utils.unregister_class(MOSSY_PT_MainPanel)
     bpy.utils.unregister_class(WM_OT_MossyLinkToggle)
+    bpy.utils.unregister_class(MOSSY_OT_TestBridge)
     
-    print("[Mossy Link] Add-on unregistered")
+    print("[Mossy Link] Add-on v5.0 unregistered")
 
 
 if __name__ == "__main__":

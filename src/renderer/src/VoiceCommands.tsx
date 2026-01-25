@@ -115,7 +115,7 @@ export const VoiceCommands: React.FC = () => {
     if (recognition && enabled) {
       recognition.start();
       setListening(true);
-      speak('Listening');
+      // Disable the audible 'Listening' prompt
     }
   };
 

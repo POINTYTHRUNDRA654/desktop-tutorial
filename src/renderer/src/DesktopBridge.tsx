@@ -142,6 +142,8 @@ import threading
 import sys
 import platform
 import subprocess
+import socket
+import json
 from flask import Flask, jsonify, request, make_response
 from flask_cors import CORS
 
@@ -262,6 +264,91 @@ def list_files():
         return jsonify({"status": "success", "files": files})
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
+
+@app.route('/execute', methods=['POST'])
+def execute_blender_command():
+    """Execute a command in Blender via the Mossy Link add-on"""
+    try:
+        data = request.json
+        cmd_type = data.get('type', 'blender')
+        
+        if cmd_type == 'blender':
+            # Forward to Blender addon on port 9999
+            blender_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            blender_socket.settimeout(3)
+            
+            try:
+                blender_socket.connect(('127.0.0.1', 9999))
+                script = data.get('script', '')
+                
+                print(f"[BRIDGE] Received Blender command, forwarding to addon:")
+                print(f"[BRIDGE] Script: {script[:100]}..." if len(script) > 100 else f"[BRIDGE] Script: {script}")
+                
+                # Send as JSON command (script)
+                command = json.dumps({ 'type': 'script', 'code': script })
+                
+                blender_socket.send(command.encode('utf-8'))
+                response = blender_socket.recv(4096).decode('utf-8')
+                blender_socket.close()
+                
+                print(f"[BRIDGE] Addon response: {response[:100]}..." if len(response) > 100 else f"[BRIDGE] Addon response: {response}")
+                
+                return jsonify({
+                    "status": "success",
+                    "message": "Blender command executed",
+                    "response": response
+                })
+            except ConnectionRefusedError:
+                error_msg = "Blender addon not responding on port 9999. Is the addon active?"
+                print(f"[BRIDGE] ERROR: {error_msg}")
+                return jsonify({
+                    "status": "error",
+                    "message": error_msg
+                }), 503
+            except socket.timeout:
+                error_msg = "Blender addon timed out (>3s). Check if it's still running."
+                print(f"[BRIDGE] ERROR: {error_msg}")
+                return jsonify({
+                    "status": "error",
+                    "message": error_msg
+                }), 504
+        elif cmd_type == 'text':
+            # Forward text block creation/update to addon
+            blender_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            blender_socket.settimeout(3)
+
+            try:
+                blender_socket.connect(('127.0.0.1', 9999))
+                code = data.get('script') or data.get('code') or ''
+                name = data.get('name') or 'MOSSY_SCRIPT'
+                run = bool(data.get('run', False))
+
+                print(f"[BRIDGE] Writing text block '{name}', run={run}")
+                # Send as JSON command (text)
+                command = json.dumps({ 'type': 'text', 'code': code, 'name': name, 'run': run })
+                blender_socket.send(command.encode('utf-8'))
+                response = blender_socket.recv(4096).decode('utf-8')
+                blender_socket.close()
+
+                print(f"[BRIDGE] Addon response: {response[:100]}..." if len(response) > 100 else f"[BRIDGE] Addon response: {response}")
+                return jsonify({ "status": "success", "message": "Blender text updated", "response": response })
+            except ConnectionRefusedError:
+                error_msg = "Blender addon not responding on port 9999. Is the addon active?"
+                print(f"[BRIDGE] ERROR: {error_msg}")
+                return jsonify({ "status": "error", "message": error_msg }), 503
+            except socket.timeout:
+                error_msg = "Blender addon timed out (>3s). Check if it's still running."
+                print(f"[BRIDGE] ERROR: {error_msg}")
+                return jsonify({ "status": "error", "message": error_msg }), 504
+        else:
+            error_msg = f"Unknown command type: {cmd_type}"
+            print(f"[BRIDGE] ERROR: {error_msg}")
+            return jsonify({ "status": "error", "message": error_msg }), 400
+            
+    except Exception as e:
+        error_msg = f"Bridge execute error: {str(e)}"
+        print(f"[BRIDGE] ERROR: {error_msg}")
+        return jsonify({"status": "error", "message": error_msg}), 500
 
 if __name__ == '__main__':
     try:

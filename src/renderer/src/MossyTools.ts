@@ -2,14 +2,14 @@ import { Type } from '@google/genai';
 import { logMossyError, getErrorReport } from './MossyErrorReporter';
 
 export const sanitizeBlenderScript = (rawScript: string): string => {
-    if (rawScript.includes('primitive_cube_add') || rawScript.includes('create_cube')) {
-        return "MOSSY_CUBE"; 
-    }
-    
     let safeScript = rawScript;
+    
+    // Ensure bpy is imported
     if (!safeScript.includes('import bpy')) {
         safeScript = 'import bpy\n' + safeScript;
     }
+    
+    // Allow all legitimate bpy operations - don't block them!
     return safeScript;
 };
 
@@ -1145,6 +1145,36 @@ Check your Downloads folder or the location where files are saved.`;
             }
         } else {
             result = `**Blender Python Prepared:**\nI have prepared the script and attempted to copy it to the clipboard. Use the 'Paste & Run' button in the Blender panel.`;
+        }
+    } else if (name === 'write_blender_script') {
+        const bridgeActive = localStorage.getItem('mossy_bridge_active') === 'true' || true;
+        const safeScript = sanitizeBlenderScript(args.script);
+        const scriptName = args.name || 'MOSSY_SCRIPT';
+        const shouldRun = !!args.run;
+
+        if (bridgeActive) {
+            try {
+                const response = await fetch('http://localhost:21337/execute', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ 
+                        type: 'text',
+                        script: safeScript,
+                        name: scriptName,
+                        run: shouldRun
+                    })
+                });
+                if (response.ok) {
+                    result = `**Blender Script Updated:** Added to Text '${scriptName}'${shouldRun ? ' and executed' : ''}.`;
+                } else {
+                    result = `**Bridge Error:** Could not update Blender text block. Ensure Bridge and Add-on are active.`;
+                }
+            } catch (e) {
+                result = `**Connection Error:** Failed to reach Bridge. Script is in clipboard as a fallback.`;
+            }
+        } else {
+            try { await navigator.clipboard.writeText(safeScript); } catch {}
+            result = `**Blender Script Prepared:** Saved to clipboard. Open Text Editor in Blender, paste into a new block named '${scriptName}', and run.`;
         }
     } else if (name === 'send_blender_shortcut') {
         result = `**Blender Shortcut Sent:** ${args.keys}\nCommand confirmed by bridge.`;

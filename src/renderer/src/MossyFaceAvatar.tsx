@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { useLive } from './LiveContext';
 
 interface MossyFaceAvatarProps {
   className?: string;
@@ -20,6 +21,7 @@ const MossyFaceAvatar: React.FC<MossyFaceAvatarProps> = ({
   isActive = false,
   showRings = true
 }) => {
+  const { customAvatar } = useLive();
   const [pulseIntensity, setPulseIntensity] = useState(0);
   const [time, setTime] = useState(0);
 
@@ -58,9 +60,9 @@ const MossyFaceAvatar: React.FC<MossyFaceAvatarProps> = ({
         background: '#050505'
       }}
     >
-      {/* THE FACE: The original high-fidelity picture */}
+      {/* THE FACE: Original or custom high-fidelity picture */}
       <img 
-        src="/mossy-avatar.png" 
+        src={customAvatar || "/mossy-avatar.png"}
         alt="Mossy High Fidelity Face"
         className="w-full h-full object-cover select-none"
       />

@@ -39,6 +39,7 @@ interface LiveContextType {
   updateAvatar: (file: File) => Promise<void>;
   setAvatarFromUrl: (url: string) => Promise<void>;
   clearAvatar: () => void;
+  avatarLocked: boolean;
   // Shared Brain State
   cortexMemory: any[];
   setCortexMemory: (val: any[]) => void;
@@ -453,7 +454,7 @@ async function sendMessageToGroq(
   sourcesRef: React.MutableRefObject<Set<AudioBufferSourceNode>>,
   nextStartTimeRef: React.MutableRefObject<number>,
   setMode: (mode: 'idle' | 'listening' | 'processing' | 'speaking') => void,
-  saveLiveMessage: (role: string, text: string) => void
+  saveLiveMessage: (role: 'user' | 'model', text: string) => void
 ): Promise<string> {
   try {
     // Add user message to history
@@ -498,7 +499,7 @@ async function sendMessageToGroq(
     });
 
     // Save to localStorage for persistence
-    saveLiveMessage('assistant', modelResponse);
+    saveLiveMessage('model', modelResponse);
 
     // Synthesize response to speech with selected provider
     if (modelResponse && !isMutedRef.current) {
@@ -571,6 +572,7 @@ export const LiveProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const [mode, setMode] = useState<'idle' | 'listening' | 'processing' | 'speaking'>('idle');
   const [transcription, setTranscription] = useState('');
   const [customAvatar, setCustomAvatar] = useState<string | null>(null);
+  const [avatarLocked, setAvatarLocked] = useState<boolean>(false);
   const ranTtsSelfTestRef = useRef(false);
 
   // Global error handler to suppress known WebSocket errors that we're handling
@@ -701,6 +703,7 @@ export const LiveProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   useEffect(() => {
     (async () => {
       const saved = localStorage.getItem('mossy_avatar_custom');
+      const locked = localStorage.getItem('mossy_avatar_locked');
       if (!saved) {
         try {
           const dbAvatar = await getImageFromDB('mossy_avatar_custom');
@@ -710,6 +713,9 @@ export const LiveProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         }
       } else {
         setCustomAvatar(saved);
+      }
+      if (locked === 'true') {
+        setAvatarLocked(true);
       }
     })();
   }, []);
@@ -744,17 +750,28 @@ export const LiveProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   }, [projectData]);
 
   const updateAvatar = async (file: File) => {
+    if (avatarLocked) {
+      console.warn('Avatar is locked; ignoring updateAvatar');
+      return;
+    }
     const reader = new FileReader();
     reader.onload = async () => {
       const dataUrl = reader.result as string;
       setCustomAvatar(dataUrl);
       localStorage.setItem('mossy_avatar_custom', dataUrl);
       await saveImageToDB('mossy_avatar_custom', dataUrl);
+      // Auto-lock after successful upload
+      setAvatarLocked(true);
+      localStorage.setItem('mossy_avatar_locked', 'true');
     };
     reader.readAsDataURL(file);
   };
 
   const setAvatarFromUrl = async (url: string) => {
+    if (avatarLocked) {
+      console.warn('Avatar is locked; ignoring setAvatarFromUrl');
+      return;
+    }
     try {
       const response = await fetch(url);
       if (!response.ok) throw new Error('Failed to fetch image');
@@ -765,6 +782,9 @@ export const LiveProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         setCustomAvatar(dataUrl);
         localStorage.setItem('mossy_avatar_custom', dataUrl);
         await saveImageToDB('mossy_avatar_custom', dataUrl);
+        // Auto-lock after successful URL set
+        setAvatarLocked(true);
+        localStorage.setItem('mossy_avatar_locked', 'true');
       };
       reader.readAsDataURL(blob);
     } catch (e) {
@@ -773,9 +793,23 @@ export const LiveProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   };
 
   const clearAvatar = async () => {
+    if (avatarLocked) {
+      console.warn('Avatar is locked; ignoring clearAvatar');
+      return;
+    }
     setCustomAvatar(null);
     localStorage.removeItem('mossy_avatar_custom');
     await deleteImageFromDB('mossy_avatar_custom');
+  };
+
+  const lockAvatar = () => {
+    setAvatarLocked(true);
+    localStorage.setItem('mossy_avatar_locked', 'true');
+  };
+
+  const unlockAvatar = () => {
+    setAvatarLocked(false);
+    localStorage.removeItem('mossy_avatar_locked');
   };
 
   const refreshAudioInputs = async () => {
@@ -1029,7 +1063,7 @@ export const LiveProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           const meterCtx = inputContextRef.current || new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 16000 });
           inputContextRef.current = meterCtx;
           const meterAnalyser = meterCtx.createAnalyser();
-          meterAnalyser.fftSize = 2048;
+          meterAnalyser.fftSize = 1024;
           const meterSource = meterCtx.createMediaStreamSource(stream);
           meterSource.connect(meterAnalyser);
           const dataArray = new Uint8Array(meterAnalyser.fftSize);
@@ -1047,7 +1081,7 @@ export const LiveProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           };
 
           if (meterTimerRef.current) clearInterval(meterTimerRef.current);
-          meterTimerRef.current = setInterval(updateLevel, 80);
+          meterTimerRef.current = setInterval(updateLevel, 50);
         } catch (e) {
           console.warn('[LiveContext] Mic meter setup failed:', e);
         }
@@ -1447,10 +1481,13 @@ Example bad responses (DO NOT DO THIS):
                     let lastSpeechTime2 = Date.now();
                     let hasSpeech2 = false;
                     const SILENCE_THRESHOLD2 = 0.02;
-                    const SILENCE_WAIT_MS2 = 1000;
+                    const SILENCE_WAIT_MS2 = Number(import.meta.env.VITE_SILENCE_WAIT_MS ?? 400);
+                    const MIN_SPEECH_MS2 = Number(import.meta.env.VITE_MIN_SPEECH_MS ?? 300);
                     const MAX_RECORDING_MS2 = 30000;
 
                     const buffer2 = new Uint8Array(analyser2.frequencyBinCount);
+                    const timeBuffer2 = new Uint8Array(analyser2.fftSize);
+                    const AMP_THRESHOLD2 = Number(import.meta.env.VITE_AMP_THRESHOLD ?? 0.015);
                     const silenceCheckInterval2 = setInterval(() => {
                       const now2 = Date.now();
                       const recDur2 = now2 - recordingStartTime2;
@@ -1461,15 +1498,22 @@ Example bad responses (DO NOT DO THIS):
                         return;
                       }
                       analyser2.getByteFrequencyData(buffer2);
+                      analyser2.getByteTimeDomainData(timeBuffer2);
                       const avg2 = buffer2.reduce((a, b) => a + b) / buffer2.length;
                       const norm2 = avg2 / 255;
-                      if (norm2 >= SILENCE_THRESHOLD2) {
+                      let sum2 = 0;
+                      for (let i = 0; i < timeBuffer2.length; i++) {
+                        const v = (timeBuffer2[i] - 128) / 128;
+                        sum2 += v * v;
+                      }
+                      const rms2 = Math.sqrt(sum2 / timeBuffer2.length);
+                      if (norm2 >= SILENCE_THRESHOLD2 || rms2 >= AMP_THRESHOLD2) {
                         lastSpeechTime2 = now2;
                         hasSpeech2 = true;
                       } else {
                         const silenceDur2 = now2 - lastSpeechTime2;
                         const speechDur2 = lastSpeechTime2 - recordingStartTime2;
-                        if (hasSpeech2 && speechDur2 >= 1000 && silenceDur2 >= SILENCE_WAIT_MS2) {
+                        if (hasSpeech2 && speechDur2 >= MIN_SPEECH_MS2 && silenceDur2 >= SILENCE_WAIT_MS2) {
                           console.log('[LiveContext] Speech complete (restart) after', recDur2, 'ms - stopping');
                           clearInterval(silenceCheckInterval2);
                           if (recorder.state === 'recording') recorder.stop();
@@ -1519,10 +1563,13 @@ Example bad responses (DO NOT DO THIS):
                     let lastSpeechTime2 = Date.now();
                     let hasSpeech2 = false;
                     const SILENCE_THRESHOLD2 = 0.02;
-                    const SILENCE_WAIT_MS2 = 1000;
+                    const SILENCE_WAIT_MS2 = Number(import.meta.env.VITE_SILENCE_WAIT_MS ?? 400);
+                    const MIN_SPEECH_MS2 = Number(import.meta.env.VITE_MIN_SPEECH_MS ?? 300);
                     const MAX_RECORDING_MS2 = 30000;
 
                     const buffer2 = new Uint8Array(analyser2.frequencyBinCount);
+                    const timeBuffer2 = new Uint8Array(analyser2.fftSize);
+                    const AMP_THRESHOLD2 = Number(import.meta.env.VITE_AMP_THRESHOLD ?? 0.015);
                     const silenceCheckInterval2 = setInterval(() => {
                       const now2 = Date.now();
                       const recDur2 = now2 - recordingStartTime2;
@@ -1532,15 +1579,22 @@ Example bad responses (DO NOT DO THIS):
                         return;
                       }
                       analyser2.getByteFrequencyData(buffer2);
+                      analyser2.getByteTimeDomainData(timeBuffer2);
                       const avg2 = buffer2.reduce((a, b) => a + b) / buffer2.length;
                       const norm2 = avg2 / 255;
-                      if (norm2 >= SILENCE_THRESHOLD2) {
+                      let sum2 = 0;
+                      for (let i = 0; i < timeBuffer2.length; i++) {
+                        const v = (timeBuffer2[i] - 128) / 128;
+                        sum2 += v * v;
+                      }
+                      const rms2 = Math.sqrt(sum2 / timeBuffer2.length);
+                      if (norm2 >= SILENCE_THRESHOLD2 || rms2 >= AMP_THRESHOLD2) {
                         lastSpeechTime2 = now2;
                         hasSpeech2 = true;
                       } else {
                         const silenceDur2 = now2 - lastSpeechTime2;
                         const speechDur2 = lastSpeechTime2 - recordingStartTime2;
-                        if (hasSpeech2 && speechDur2 >= 1000 && silenceDur2 >= SILENCE_WAIT_MS2) {
+                        if (hasSpeech2 && speechDur2 >= MIN_SPEECH_MS2 && silenceDur2 >= SILENCE_WAIT_MS2) {
                           clearInterval(silenceCheckInterval2);
                           if (recorder.state === 'recording') recorder.stop();
                         }
@@ -1568,8 +1622,8 @@ Example bad responses (DO NOT DO THIS):
               let lastSpeechTime = Date.now();
               let hasSpeech = false;
               const SILENCE_THRESHOLD = 0.02; // More sensitive (detect speech sooner)
-              const SILENCE_WAIT_MS = 1000; // 1.0 seconds of silence to stop faster
-              const MIN_SPEECH_MS = 1000; // Must have at least 1 second of speech
+              const SILENCE_WAIT_MS = Number(import.meta.env.VITE_SILENCE_WAIT_MS ?? 400); // configurable silence wait
+              const MIN_SPEECH_MS = Number(import.meta.env.VITE_MIN_SPEECH_MS ?? 300); // configurable minimum speech duration
               const MAX_RECORDING_MS = 30000; // Max 30 seconds
             
               try {
@@ -1580,6 +1634,8 @@ Example bad responses (DO NOT DO THIS):
                 source.connect(analyser);
               
                 const buffer = new Uint8Array(analyser.frequencyBinCount);
+                const timeBuffer = new Uint8Array(analyser.fftSize);
+                const AMP_THRESHOLD = Number(import.meta.env.VITE_AMP_THRESHOLD ?? 0.015);
               
                 const silenceCheckInterval = setInterval(() => {
                   const now = Date.now();
@@ -1595,10 +1651,17 @@ Example bad responses (DO NOT DO THIS):
                 
                   // Check audio level
                   analyser.getByteFrequencyData(buffer);
+                  analyser.getByteTimeDomainData(timeBuffer);
                   const average = buffer.reduce((a, b) => a + b) / buffer.length;
                   const normalized = average / 255;
+                  let sum = 0;
+                  for (let i = 0; i < timeBuffer.length; i++) {
+                    const v = (timeBuffer[i] - 128) / 128;
+                    sum += v * v;
+                  }
+                  const rms = Math.sqrt(sum / timeBuffer.length);
                 
-                  if (normalized >= SILENCE_THRESHOLD) {
+                  if (normalized >= SILENCE_THRESHOLD || rms >= AMP_THRESHOLD) {
                     // Speech detected
                     lastSpeechTime = now;
                     hasSpeech = true;
@@ -1661,6 +1724,7 @@ Example bad responses (DO NOT DO THIS):
         updateAvatar,
         setAvatarFromUrl,
         clearAvatar,
+        avatarLocked,
         cortexMemory,
         setCortexMemory,
         projectData,
