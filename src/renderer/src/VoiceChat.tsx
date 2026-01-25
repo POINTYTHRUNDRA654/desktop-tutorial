@@ -138,7 +138,7 @@ const VoiceChat: React.FC = () => {
             <p className="text-[10px] text-blue-200/60 mt-1">If Mossy hears herself, pick your physical mic (not Stereo Mix).</p>
           </div>
           <button
-            onClick={isActive ? disconnect : handleConnect}
+            onClick={() => isActive ? disconnect() : handleConnect()}
             disabled={isConnecting}
             className={`group relative flex items-center justify-center w-24 h-24 rounded-full transition-all duration-500 shadow-2xl ${
               isActive 

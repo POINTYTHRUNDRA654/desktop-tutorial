@@ -10,6 +10,7 @@ import ErrorBoundary from './ErrorBoundary';
 import PipBoyFrame from './PipBoyFrame';
 import PipBoyStartup from './PipBoyStartup';
 import { FirstRunOnboarding } from './FirstRunOnboarding';
+import UpdateNotifier from './UpdateNotifier';
 
 import { Loader2, Zap } from 'lucide-react';
 import { LiveProvider } from './LiveContext';
@@ -54,6 +55,17 @@ const PrecombineChecker = React.lazy(() => import('./PrecombineChecker').then(mo
 const LeveledListInjectionGuide = React.lazy(() => import('./LeveledListInjectionGuide').then(module => ({ default: module.LeveledListInjectionGuide })));
 const QuestModAuthoringGuide = React.lazy(() => import('./QuestModAuthoringGuide').then(module => ({ default: module.QuestModAuthoringGuide })));
 const ModProjectManager = React.lazy(() => import('./ModProjectManager'));
+const BodyslideGuide = React.lazy(() => import('./BodyslideGuide'));
+const SimSettlementsGuide = React.lazy(() => import('./SimSettlementsGuide'));
+const SimSettlementsAddonGuide = React.lazy(() => import('./SimSettlementsAddonGuide'));
+const SimSettlementsUnitsLoadoutsGuide = React.lazy(() => import('./guides/SimSettlementsUnitsLoadoutsGuide'));
+const SimSettlementsAddonToolkitsGuide = React.lazy(() => import('./guides/SimSettlementsAddonToolkitsGuide'));
+const PaperScriptGuide = React.lazy(() => import('./PaperScriptGuide'));
+const PaperScriptQuickStartGuide = React.lazy(() => import('./PaperScriptQuickStartGuide'));
+const PaperScriptFallout4Guide = React.lazy(() => import('./PaperScriptFallout4Guide'));
+const HavokGuide = React.lazy(() => import('./HavokGuide'));
+const HavokQuickStartGuide = React.lazy(() => import('./HavokQuickStartGuide'));
+const HavokFallout4Guide = React.lazy(() => import('./HavokFallout4Guide'));
 
 // Define window interface for AI Studio helpers & Custom Events
 declare global {
@@ -244,6 +256,17 @@ const App: React.FC = () => {
                 <Route path="/quest-mod-authoring-guide" element={<QuestModAuthoringGuide />} />
                 <Route path="/quest-authoring" element={<QuestModAuthoringGuide />} />
                 <Route path="/journey" element={<ModProjectManager />} />
+                <Route path="/bodyslide" element={<BodyslideGuide />} />
+                <Route path="/sim-settlements" element={<SimSettlementsGuide />} />
+                <Route path="/sim-settlements-addon" element={<SimSettlementsAddonGuide />} />
+                <Route path="/sim-settlements-units-loadouts" element={<SimSettlementsUnitsLoadoutsGuide />} />
+                <Route path="/sim-settlements-addon-toolkits" element={<SimSettlementsAddonToolkitsGuide />} />
+                <Route path="/paperscript" element={<PaperScriptGuide />} />
+                <Route path="/paperscript-quick-start" element={<PaperScriptQuickStartGuide />} />
+                <Route path="/paperscript-fo4" element={<PaperScriptFallout4Guide />} />
+                <Route path="/havok" element={<HavokGuide />} />
+                <Route path="/havok-quick-start" element={<HavokQuickStartGuide />} />
+                <Route path="/havok-fo4" element={<HavokFallout4Guide />} />
               </Routes>
             </Suspense>
             <AvatarOverlay />
@@ -260,6 +283,7 @@ const App: React.FC = () => {
           <PipBoyFrame>
             {renderAppContent()}
           </PipBoyFrame>
+          <UpdateNotifier />
         </OpenAIVoiceProvider>
       </LiveProvider>
     </ErrorBoundary>
