@@ -1,0 +1,370 @@
+/* Guide Components Styling */
+
+.container {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 2rem;
+  background: #0a0e27;
+  color: #e0e0e0;
+  font-family: 'Courier New', monospace;
+  min-height: 100vh;
+}
+
+.header {
+  margin-bottom: 2rem;
+  border-bottom: 2px solid #00d000;
+  padding-bottom: 1.5rem;
+}
+
+.title {
+  font-size: 2.5rem;
+  font-weight: bold;
+  color: #00ff00;
+  margin-bottom: 0.5rem;
+  text-shadow: 0 0 10px rgba(0, 255, 0, 0.3);
+}
+
+.subtitle {
+  font-size: 1rem;
+  color: #00d000;
+  margin-bottom: 0.5rem;
+}
+
+.description {
+  color: #b0b0b0;
+  font-size: 0.95rem;
+  line-height: 1.6;
+}
+
+.content {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.section {
+  border: 1px solid #00d000;
+  border-radius: 4px;
+  overflow: hidden;
+  background: rgba(0, 16, 0, 0.3);
+}
+
+.sectionHeader {
+  width: 100%;
+  padding: 1rem;
+  background: rgba(0, 32, 0, 0.5);
+  border: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  transition: all 0.3s ease;
+  font-family: 'Courier New', monospace;
+  color: #00ff00;
+  font-weight: bold;
+  font-size: 1.1rem;
+}
+
+.sectionHeader:hover {
+  background: rgba(0, 64, 0, 0.5);
+  text-shadow: 0 0 5px rgba(0, 255, 0, 0.5);
+}
+
+.sectionTitle {
+  flex: 1;
+  text-align: left;
+}
+
+.sectionSubtitle {
+  font-size: 0.85rem;
+  color: #00d000;
+  margin-left: 1rem;
+  font-weight: normal;
+}
+
+.expandIcon {
+  margin-left: 1rem;
+  font-size: 0.9rem;
+  color: #00d000;
+}
+
+.sectionContent {
+  padding: 1.5rem;
+  background: rgba(0, 10, 0, 0.2);
+  border-top: 1px solid #00d000;
+}
+
+.codeBlock {
+  background: #000000;
+  border: 1px solid #00d000;
+  border-radius: 4px;
+  padding: 1rem;
+  overflow-x: auto;
+  margin: 1rem 0;
+  font-size: 0.9rem;
+  line-height: 1.5;
+  color: #00ff00;
+}
+
+.codeBlock code {
+  font-family: 'Courier New', monospace;
+}
+
+.codeBlock .lang-paperscript,
+.codeBlock .lang-python,
+.codeBlock .lang-javascript,
+.codeBlock .lang-bash {
+  color: #00ff00;
+}
+
+.highlight {
+  background: rgba(0, 255, 0, 0.1);
+  padding: 0.2rem 0.4rem;
+  border-radius: 2px;
+  color: #00ff00;
+  font-weight: bold;
+}
+
+.featureBox {
+  background: rgba(0, 128, 0, 0.1);
+  border-left: 4px solid #00ff00;
+  padding: 1rem;
+  margin: 1rem 0;
+  border-radius: 4px;
+}
+
+.featureBox h4 {
+  color: #00ff00;
+  margin-bottom: 0.5rem;
+  font-weight: bold;
+}
+
+.featureBox p {
+  color: #b0b0b0;
+  margin: 0.5rem 0;
+  line-height: 1.5;
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 1rem 0;
+  border: 1px solid #00d000;
+}
+
+.table thead {
+  background: rgba(0, 32, 0, 0.5);
+}
+
+.table th {
+  padding: 0.75rem;
+  text-align: left;
+  color: #00ff00;
+  font-weight: bold;
+  border-bottom: 1px solid #00d000;
+}
+
+.table td {
+  padding: 0.75rem;
+  border-bottom: 1px solid rgba(0, 212, 0, 0.3);
+  color: #b0b0b0;
+}
+
+.table tbody tr:hover {
+  background: rgba(0, 32, 0, 0.3);
+}
+
+.list {
+  margin: 1rem 0;
+  padding-left: 1.5rem;
+}
+
+.list li {
+  color: #b0b0b0;
+  margin: 0.5rem 0;
+  line-height: 1.6;
+}
+
+.list li strong {
+  color: #00ff00;
+}
+
+.note {
+  background: rgba(255, 215, 0, 0.1);
+  border-left: 4px solid #ffd700;
+  padding: 1rem;
+  margin: 1rem 0;
+  border-radius: 4px;
+  color: #ffd700;
+}
+
+.warning {
+  background: rgba(255, 69, 0, 0.1);
+  border-left: 4px solid #ff4500;
+  padding: 1rem;
+  margin: 1rem 0;
+  border-radius: 4px;
+  color: #ff6b6b;
+}
+
+.success {
+  background: rgba(0, 255, 0, 0.1);
+  border-left: 4px solid #00ff00;
+  padding: 1rem;
+  margin: 1rem 0;
+  border-radius: 4px;
+  color: #00ff00;
+}
+
+.links {
+  margin: 1rem 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.links a {
+  color: #00ff00;
+  text-decoration: none;
+  transition: all 0.3s ease;
+}
+
+.links a:hover {
+  color: #00d000;
+  text-decoration: underline;
+  text-shadow: 0 0 5px rgba(0, 255, 0, 0.3);
+}
+
+.buttonGroup {
+  display: flex;
+  gap: 1rem;
+  margin: 1rem 0;
+  flex-wrap: wrap;
+}
+
+.button {
+  background: rgba(0, 128, 0, 0.3);
+  border: 1px solid #00ff00;
+  color: #00ff00;
+  padding: 0.75rem 1.5rem;
+  border-radius: 4px;
+  cursor: pointer;
+  font-family: 'Courier New', monospace;
+  font-weight: bold;
+  transition: all 0.3s ease;
+}
+
+.button:hover {
+  background: rgba(0, 128, 0, 0.5);
+  text-shadow: 0 0 5px rgba(0, 255, 0, 0.5);
+  box-shadow: 0 0 10px rgba(0, 255, 0, 0.3);
+}
+
+.comparisonTable {
+  width: 100%;
+  margin: 1rem 0;
+  border-collapse: collapse;
+}
+
+.comparisonTable th,
+.comparisonTable td {
+  padding: 0.75rem;
+  border: 1px solid #00d000;
+  text-align: left;
+}
+
+.comparisonTable th {
+  background: rgba(0, 32, 0, 0.5);
+  color: #00ff00;
+  font-weight: bold;
+}
+
+.comparisonTable tr:hover {
+  background: rgba(0, 32, 0, 0.3);
+}
+
+.tab {
+  display: none;
+}
+
+.tab.active {
+  display: block;
+}
+
+.tabButtons {
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+  border-bottom: 1px solid #00d000;
+}
+
+.tabButton {
+  background: transparent;
+  border: none;
+  padding: 0.75rem 1rem;
+  color: #00d000;
+  cursor: pointer;
+  font-family: 'Courier New', monospace;
+  border-bottom: 2px solid transparent;
+  transition: all 0.3s ease;
+}
+
+.tabButton.active {
+  color: #00ff00;
+  border-bottom-color: #00ff00;
+}
+
+.tabButton:hover {
+  color: #00ff00;
+}
+
+/* Scrollbar styling */
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+::-webkit-scrollbar-track {
+  background: rgba(0, 16, 0, 0.3);
+}
+
+::-webkit-scrollbar-thumb {
+  background: #00d000;
+  border-radius: 5px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #00ff00;
+}
+
+/* Responsive design */
+@media (max-width: 768px) {
+  .container {
+    padding: 1rem;
+  }
+
+  .title {
+    font-size: 1.8rem;
+  }
+
+  .table {
+    font-size: 0.9rem;
+  }
+
+  .table th,
+  .table td {
+    padding: 0.5rem;
+  }
+
+  .buttonGroup {
+    flex-direction: column;
+  }
+
+  .button {
+    width: 100%;
+  }
+
+  .section {
+    margin-bottom: 1rem;
+  }
+}

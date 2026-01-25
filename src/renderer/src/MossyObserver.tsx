@@ -382,6 +382,63 @@ const QUIPS: Record<string, string[]> = {
         "Test Results show pass/fail status, duration, and detailed issues found - use this to debug problems in your mod.",
         "Critical severity tests prevent CTDs and data loss - run these before any release. Major severity tests affect functionality.",
         "Re-run tests after fixing issues to confirm your changes worked - the Holodeck tracks all test runs for comparison."
+    ],
+    '/paperscript': [
+        "PaperScript is a modern scripting language for Fallout 4 - a cleaner, more powerful alternative to Papyrus.",
+        "Get started in 15 minutes with the Quick Start Guide - covers setup, syntax, and your first script.",
+        "PaperScript compiles to Papyrus bytecode (PEX), so it's fully compatible with Fallout 4 and F4SE.",
+        "Key features: cleaner syntax, better error messages, modern language features, powerful preprocessor system.",
+        "Property groups organize your script properties - like classes within a script for better code organization.",
+        "Namespaces prevent naming conflicts when multiple mods define the same function or class names.",
+        "The 'is' operator (is SomeType) is powerful for type checking in conditions and script logic.",
+        "Structs let you bundle related properties together - define structured data that behaves like a blueprint.",
+        "The 'var' type handles any value type - useful for dynamic scripting when you don't know the exact type upfront.",
+        "Flags are boolean properties that save space - use them for simple true/false state instead of multiple properties.",
+        "Installation takes 5 minutes on Windows/Linux/macOS - check the FO4 Features guide for step-by-step instructions.",
+        "Use the CLI tool for batch compilation - compile entire project folders or watch for changes automatically.",
+        "Complete examples in the documentation show quest scripts, property group usage, struct implementations, and more.",
+        "Performance optimization tips explain best practices - PaperScript compiles efficiently to bytecode.",
+        "Read the syntax reference when you need to refresh on operators, functions, or language constructs.",
+        "Explore the 4 complete example scripts - quest setups, companion systems, settlement expansions, event handlers.",
+        "The preprocessor system handles conditional compilation - support multiple game versions from one codebase.",
+        "Modern patterns like lambda functions and enhanced loops make scripting more expressive and readable.",
+        "Ask me to 'walk you through PaperScript' and I can guide you step-by-step through any feature or concept."
+    ],
+    '/havok': [
+        "Havok is the physics and animation engine deeply integrated into Fallout 4's Creation Engine.",
+        "Every NPC animation uses Havok skeletons - understanding it is crucial for animation modding.",
+        "HavokMax is the 3DS Max plugin that makes animation creation seamless.",
+        "Havok provides physics shapes (capsules, spheres, boxes) for realistic character ragdoll.",
+        "Behavior graphs are state machines that control when and how animations play.",
+        "Animation events trigger game logic at specific frames - damage, sounds, effects, at exact timing.",
+        "The standard FO4 skeleton has specialized bones for control, weapons, and finger detail.",
+        "Physics-based character control allows realistic movement and interaction with environment.",
+        "Animation blending creates smooth transitions between states without popping or jittering.",
+        "Start with the Quick Start guide to install Havok and create your first animation in 30 minutes."
+    ],
+    '/havok-quick-start': [
+        "You're in the Havok Quick Start - get installed and animating in under 1 hour.",
+        "Step 1: Download Havok SDK from Autodesk (gamedev/academic license) - 10 minutes.",
+        "Step 2: Clone and build HavokMax from PredatorCZ's GitHub repository - 10 minutes.",
+        "Step 3: Copy HavokMax.dlu to 3DS Max plugins folder and restart - 5 minutes.",
+        "Step 4: Import a base Fallout 4 skeleton NIF as reference - 3 minutes.",
+        "Step 5: Verify HavokMax loaded in 3DS Max (check menu bar) - 2 minutes.",
+        "Create your first animation: simple idle with weight shift - 30 minutes total.",
+        "Use keyboard shortcuts: K = keyframe, Delete = remove keyframe, < > = frame navigation.",
+        "Blend times (0.1-0.2 sec) create smooth transitions between animation states.",
+        "Export to .hkx format for use in Fallout 4 - ready to embed in NIF files."
+    ],
+    '/havok-fo4': [
+        "Advanced Fallout 4 animation integration - building professional character animations.",
+        "The Creation Engine integrates Havok at three levels: physics, animation, and behavior.",
+        "Fallout 4's character skeleton is highly specialized - pelvis is the primary control bone.",
+        "Animation events like AttackImpact trigger damage calculation at exact frame timing.",
+        "Behavior graphs define state machines - transitions between idle, combat, movement states.",
+        "Ragdoll physics require balanced mass (realistic proportions) and properly tuned constraints.",
+        "Common issues: animation pop (pose mismatch), floating/sinking (root bone), unstable ragdoll.",
+        "Physics shapes (capsule, sphere, box) must match actual character dimensions and mass.",
+        "Performance: monitor FPS, keep total mod under 50MB, compress animations appropriately.",
+        "Test in Creation Kit and in-game to verify physics, transitions, and event timing."
     ]
 };
 

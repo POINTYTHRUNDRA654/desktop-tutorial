@@ -193,13 +193,29 @@ const ExternalToolsSettings: React.FC = () => {
           console.log(`[BrowsePath] User cancelled file picker`);
         }
       } else {
-        const msg = 'File picker requires the Desktop Bridge (Electron).';
-        console.error(`[BrowsePath]`, msg);
-        alert(msg);
+        console.warn('[BrowsePath] File picker not available; offering manual fallback');
+        const manualPath = prompt(`File picker unavailable.\n\nPlease paste the full path to ${toolName} (e.g., C:\\Program Files\\${toolName}\\${toolName}.exe)`);
+        
+        if (manualPath && manualPath.trim()) {
+          if (manualPath.toLowerCase().endsWith('.exe')) {
+            handleChange(toolKey, manualPath);
+            alert(`✅ Path set to:\n${manualPath}`);
+          } else {
+            alert(`❌ Invalid path.\n\nMust be a .exe file.\n\nYou provided: ${manualPath}`);
+          }
+        }
       }
     } catch (e) {
       console.error('[BrowsePath] Exception:', e);
-      alert(`❌ File picker failed: ${String(e)}`);
+      const manualPath = prompt(`File picker failed: ${String(e)}\n\nPlease paste the full path to ${toolName}.exe`);
+      if (manualPath && manualPath.trim()) {
+        if (manualPath.toLowerCase().endsWith('.exe')) {
+          handleChange(toolKey, manualPath);
+          alert(`✅ Path set to:\n${manualPath}`);
+        } else {
+          alert(`❌ Invalid path.\n\nMust be a .exe file.`);
+        }
+      }
     }
   };
 

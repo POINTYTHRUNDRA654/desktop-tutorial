@@ -252,13 +252,31 @@ const ModProjectManager: React.FC = () => {
               {/* Mod Name */}
               <div>
                 <label className="block text-sm font-bold text-stone-300 mb-2">Mod Name *</label>
-                <input
-                  type="text"
-                  value={createModal.name}
-                  onChange={(e) => setCreateModal({ ...createModal, name: e.target.value })}
-                  placeholder="e.g., 'Plasma Rifle Overhaul'"
-                  className="w-full px-4 py-2 bg-stone-900 border border-stone-700 rounded-lg text-stone-200 focus:border-amber-600 focus:ring-1 focus:ring-amber-600 outline-none transition-all"
-                />
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={createModal.name}
+                    onChange={(e) => setCreateModal({ ...createModal, name: e.target.value })}
+                    autoFocus
+                    placeholder="e.g., 'Plasma Rifle Overhaul'"
+                    className="flex-1 px-4 py-2 bg-stone-900 border border-stone-700 rounded-lg text-stone-200 focus:border-amber-600 focus:ring-1 focus:ring-amber-600 outline-none transition-all"
+                  />
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      try {
+                        const text = await navigator.clipboard.readText();
+                        if (text) setCreateModal({ ...createModal, name: text });
+                      } catch (err) {
+                        console.warn('Clipboard read failed:', err);
+                      }
+                    }}
+                    className="px-3 py-2 bg-stone-800 hover:bg-stone-700 border border-stone-700 rounded-lg text-stone-200 text-sm font-bold"
+                    title="Paste from clipboard"
+                  >
+                    Paste
+                  </button>
+                </div>
               </div>
 
               {/* Description */}
