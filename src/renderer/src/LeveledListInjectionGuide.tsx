@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { List, ChevronDown, ChevronRight, Zap, AlertTriangle, CheckCircle2, Code, FileText, Settings } from 'lucide-react';
 
 interface GuideSection {
@@ -9,9 +10,145 @@ interface GuideSection {
 }
 
 export const LeveledListInjectionGuide: React.FC = () => {
+  const navigate = useNavigate();
   const [expandedSection, setExpandedSection] = useState<string>('overview');
 
+  const openUrl = (url: string) => {
+    try {
+      const anyWindow = window as any;
+      if (anyWindow?.electron?.openExternal) {
+        anyWindow.electron.openExternal(url);
+        return;
+      }
+    } catch {
+      // ignore
+    }
+    window.open(url, '_blank', 'noopener,noreferrer');
+  };
+
+  const openNexusSearch = (query: string) => {
+    const url = `https://www.nexusmods.com/fallout4/search/?gsearch=${encodeURIComponent(query)}&gsearchtype=mods`;
+    openUrl(url);
+  };
+
   const sections: GuideSection[] = [
+    {
+      id: 'tools-install-verify',
+      title: 'Tools / Install / Verify (No Guesswork)',
+      icon: Settings,
+      content: (
+        <div className="space-y-4">
+          <div className="bg-slate-900/50 border border-slate-700 rounded p-4">
+            <h4 className="font-bold text-white mb-2">Minimum Toolchain</h4>
+            <ul className="text-sm text-slate-300 space-y-2 list-disc list-inside">
+              <li>
+                <strong>Creation Kit:</strong> used to create quests, attach scripts, and compile Papyrus.
+                <div className="mt-2 flex flex-wrap gap-2">
+                  <button
+                    className="px-3 py-1 rounded bg-slate-800 hover:bg-slate-700 text-xs text-white"
+                    onClick={() => openUrl('https://store.steampowered.com/search/?term=Creation%20Kit%20Fallout%204')}
+                  >
+                    Steam search: Creation Kit
+                  </button>
+                  <button
+                    className="px-3 py-1 rounded bg-slate-800 hover:bg-slate-700 text-xs text-white"
+                    onClick={() => navigate('/ck-quest-dialogue')}
+                  >
+                    In-app: CK Quest/Dialogue Wizard
+                  </button>
+                </div>
+              </li>
+              <li>
+                <strong>FO4Edit (xEdit):</strong> inspect leveled lists, check conflicts, build simple patches.
+                <div className="mt-2 flex flex-wrap gap-2">
+                  <button
+                    className="px-3 py-1 rounded bg-slate-800 hover:bg-slate-700 text-xs text-white"
+                    onClick={() => openNexusSearch('FO4Edit')}
+                  >
+                    Nexus search: FO4Edit
+                  </button>
+                </div>
+              </li>
+              <li>
+                <strong>F4SE (for script injection):</strong> required if you want runtime injection or an MCM toggle.
+                <div className="mt-2 flex flex-wrap gap-2">
+                  <button
+                    className="px-3 py-1 rounded bg-slate-800 hover:bg-slate-700 text-xs text-white"
+                    onClick={() => openUrl('https://f4se.silverlock.org/')}
+                  >
+                    Official: f4se.silverlock.org
+                  </button>
+                  <button
+                    className="px-3 py-1 rounded bg-slate-800 hover:bg-slate-700 text-xs text-white"
+                    onClick={() => openNexusSearch('Address Library for F4SE Plugins')}
+                  >
+                    Nexus search: Address Library
+                  </button>
+                </div>
+              </li>
+              <li>
+                <strong>(Optional) MCM:</strong> if you want a user-facing toggle.
+                <div className="mt-2 flex flex-wrap gap-2">
+                  <button
+                    className="px-3 py-1 rounded bg-slate-800 hover:bg-slate-700 text-xs text-white"
+                    onClick={() => openNexusSearch('Mod Configuration Menu')}
+                  >
+                    Nexus search: MCM
+                  </button>
+                </div>
+              </li>
+            </ul>
+          </div>
+
+          <div className="bg-green-900/20 border border-green-700/30 rounded p-4">
+            <h4 className="font-bold text-green-300 mb-2">Fast Verification Loop (10–15 minutes)</h4>
+            <ol className="text-sm text-slate-200 space-y-2 list-decimal list-inside">
+              <li>
+                <strong>Confirm F4SE is loading</strong> (if you’re doing script injection).
+                <div className="text-xs text-slate-400 mt-1">In-game console: try a known F4SE command (or check your mod manager logs).</div>
+              </li>
+              <li>
+                <strong>Create a tiny quest</strong> in CK: Start Game Enabled, attach an injection script, compile to a <code className="text-orange-300">.pex</code>.
+              </li>
+              <li>
+                <strong>Log a proof</strong>: add a <code className="text-orange-300">Debug.Trace("MyMod: Injection ran")</code> and verify it appears in Papyrus logs.
+              </li>
+              <li>
+                <strong>Verify the injected form exists</strong> in FO4Edit: your plugin + injected list records look sane (no overrides of vanilla lists unless intentional).
+              </li>
+              <li>
+                <strong>In-game check</strong>: spawn or loot the target container/NPC enough times to prove your item/NPC can appear.
+              </li>
+            </ol>
+          </div>
+
+          <div className="bg-slate-900/50 border border-slate-700 rounded p-4">
+            <h4 className="font-bold text-white mb-2">In-App Shortcuts</h4>
+            <div className="flex flex-wrap gap-2">
+              <button className="px-3 py-1 rounded bg-slate-800 hover:bg-slate-700 text-xs text-white" onClick={() => navigate('/install-wizard')}>
+                Install Wizard
+              </button>
+              <button className="px-3 py-1 rounded bg-slate-800 hover:bg-slate-700 text-xs text-white" onClick={() => navigate('/settings/tools')}>
+                Tool Settings
+              </button>
+              <button className="px-3 py-1 rounded bg-slate-800 hover:bg-slate-700 text-xs text-white" onClick={() => navigate('/packaging-release')}>
+                Packaging & Release
+              </button>
+            </div>
+          </div>
+
+          <div className="bg-orange-900/20 border border-orange-700/30 rounded p-4">
+            <h4 className="font-bold text-orange-300 mb-2">Common Failure Causes</h4>
+            <ul className="text-sm text-slate-300 space-y-2 list-disc list-inside">
+              <li>Script compiles but doesn’t run: quest not Start Game Enabled, script not attached, or plugin not loading.</li>
+              <li>Trace doesn’t appear: Papyrus logging disabled or writing to a different profile/runtime folder.</li>
+              <li>Nothing spawns: wrong list type (LVLI vs LVLN), wrong level/count, or you injected into an unused list.</li>
+              <li>Conflicts: you accidentally overrode the vanilla leveled list record instead of injecting at runtime.</li>
+            </ul>
+          </div>
+        </div>
+      )
+    },
     {
       id: 'overview',
       title: 'What Are Leveled Lists?',

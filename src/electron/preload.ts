@@ -25,11 +25,16 @@ const IPC_CHANNELS = {
   DETECT_PROGRAMS: 'detect-programs',
   OPEN_PROGRAM: 'open-program',
   OPEN_EXTERNAL: 'open-external',
+  REVEAL_IN_FOLDER: 'reveal-in-folder',
   GET_TOOL_VERSION: 'get-tool-version',
   GET_RUNNING_PROCESSES: 'get-running-processes',
   GET_SETTINGS: 'get-settings',
   SET_SETTINGS: 'set-settings',
   SETTINGS_UPDATED: 'settings-updated',
+  ELEVENLABS_STATUS: 'elevenlabs-status',
+  ELEVENLABS_LIST_VOICES: 'elevenlabs-list-voices',
+  ELEVENLABS_SYNTHESIZE: 'elevenlabs-synthesize',
+  CHECK_BLENDER_ADDON: 'check-blender-addon',
   VAULT_RUN_TOOL: 'vault-run-tool',
   VAULT_SAVE_MANIFEST: 'vault-save-manifest',
   VAULT_LOAD_MANIFEST: 'vault-load-manifest',
@@ -62,6 +67,41 @@ const IPC_CHANNELS = {
   AUDITOR_PICK_NIF_FILE: 'auditor-pick-nif-file',
   AUDITOR_PICK_DDS_FILE: 'auditor-pick-dds-file',
   AUDITOR_PICK_BGSM_FILE: 'auditor-pick-bgsm-file',
+
+  // Duplicate Finder
+  DEDUPE_PICK_FOLDERS: 'dedupe-pick-folders',
+  DEDUPE_SCAN: 'dedupe-scan',
+  DEDUPE_CANCEL: 'dedupe-cancel',
+  DEDUPE_PROGRESS: 'dedupe-progress',
+  DEDUPE_TRASH: 'dedupe-trash',
+  // Load Order Lab (experimental)
+  LOAD_ORDER_PICK_MO2_PROFILE_DIR: 'load-order-pick-mo2-profile-dir',
+  LOAD_ORDER_PICK_LOOT_REPORT_FILE: 'load-order-pick-loot-report-file',
+  LOAD_ORDER_WRITE_USERDATA_FILE: 'load-order-write-userdata-file',
+  LOAD_ORDER_LAUNCH_XEDIT: 'load-order-launch-xedit',
+
+  // Generic file helpers
+  PICK_JSON_FILE: 'pick-json-file',
+  PICK_DIRECTORY: 'pick-directory',
+  SAVE_FILE: 'save-file',
+
+  // Local ML (offline semantic search)
+  ML_INDEX_BUILD: 'ml-index-build',
+  ML_INDEX_QUERY: 'ml-index-query',
+  ML_INDEX_STATUS: 'ml-index-status',
+
+  // Local capabilities detection
+  ML_CAPS_STATUS: 'ml-caps-status',
+
+  // Local LLM (optional, if installed)
+  ML_LLM_STATUS: 'ml-llm-status',
+  ML_LLM_GENERATE: 'ml-llm-generate',
+
+  // Secrets presence-only status
+  SECRET_STATUS: 'secret-status',
+
+  // Speech-to-text (main process handles keys)
+  TRANSCRIBE_AUDIO: 'transcribe-audio',
 } as const;
 
 /**
@@ -78,6 +118,7 @@ const electronAPI = {
 
   /**
    * Get currently running modding tools
+   * @returns Promise resolving to array of running processes
    */
   getRunningProcesses: (): Promise<any[]> => {
     return ipcRenderer.invoke(IPC_CHANNELS.GET_RUNNING_PROCESSES);
@@ -105,11 +146,52 @@ const electronAPI = {
   },
 
   /**
+   * ElevenLabs config status (whether a key is stored in main-process settings).
+   */
+  elevenLabsStatus: (): Promise<
+    | { ok: true; configured: boolean; voiceId?: string; provider?: 'browser' | 'elevenlabs' }
+    | { ok: false; error: string }
+  > => {
+    return ipcRenderer.invoke(IPC_CHANNELS.ELEVENLABS_STATUS);
+  },
+
+  /**
+   * List available ElevenLabs voices.
+   */
+  elevenLabsListVoices: (): Promise<
+    | {
+        ok: true;
+        voices: Array<{ voice_id: string; name: string; category?: string; labels?: Record<string, string> }>;
+      }
+    | { ok: false; error: string }
+  > => {
+    return ipcRenderer.invoke(IPC_CHANNELS.ELEVENLABS_LIST_VOICES);
+  },
+
+  /**
+   * Synthesize speech with ElevenLabs (main process does the network call).
+   */
+  elevenLabsSynthesizeSpeech: (args: { text: string; voiceId?: string }): Promise<
+    | { ok: true; audioBase64: string; mimeType?: string }
+    | { ok: false; error: string }
+  > => {
+    return ipcRenderer.invoke(IPC_CHANNELS.ELEVENLABS_SYNTHESIZE, args);
+  },
+
+  /**
+   * Check if the Blender Mossy Link add-on socket is reachable.
+   * Used by Desktop Bridge "Blender Link" panel.
+   */
+  checkBlenderAddon: (): Promise<{ connected: boolean; error?: string }> => {
+    return ipcRenderer.invoke(IPC_CHANNELS.CHECK_BLENDER_ADDON);
+  },
+
+  /**
    * Open/launch a program by its executable path
    * @param path - Full path to the program executable
    * @returns Promise resolving when program is launched
    */
-  openProgram: (path: string): Promise<void> => {
+  openProgram: (path: string): Promise<{ success: boolean; error?: string; method?: string }> => {
     return ipcRenderer.invoke(IPC_CHANNELS.OPEN_PROGRAM, path);
   },
 
@@ -120,6 +202,14 @@ const electronAPI = {
    */
   openExternal: (path: string): Promise<void> => {
     return ipcRenderer.invoke(IPC_CHANNELS.OPEN_EXTERNAL, path);
+  },
+
+  /**
+   * Reveal a file in the OS file manager (Explorer/Finder) or open a directory.
+   * @param path - Full path to a file or directory
+   */
+  revealInFolder: (path: string): Promise<{ success: boolean; error?: string }> => {
+    return ipcRenderer.invoke(IPC_CHANNELS.REVEAL_IN_FOLDER, path);
   },
 
   /**
@@ -263,6 +353,13 @@ const electronAPI = {
   },
 
   /**
+   * FS: Stat a path (exists/isFile/isDirectory)
+   */
+  fsStat: (targetPath: string): Promise<{ exists: boolean; isFile: boolean; isDirectory: boolean }> => {
+    return ipcRenderer.invoke('fs-stat', targetPath);
+  },
+
+  /**
    * Workshop: Read DDS texture preview info
    */
   readDdsPreview: (filePath: string): Promise<{ width: number; height: number; format: string; data?: string }> => {
@@ -393,7 +490,162 @@ const electronAPI = {
    * Used for exporting error reports, logs, etc.
    */
   saveFile: (content: string, filename: string): Promise<string> => {
-    return ipcRenderer.invoke('save-file', content, filename);
+    return ipcRenderer.invoke(IPC_CHANNELS.SAVE_FILE, content, filename);
+  },
+
+  /**
+   * Pick a JSON file from disk (native dialog)
+   * Used for importing script libraries.
+   */
+  pickJsonFile: (): Promise<string> => {
+    return ipcRenderer.invoke(IPC_CHANNELS.PICK_JSON_FILE);
+  },
+
+  /**
+   * Pick a folder from disk (native dialog)
+   * Used for configuring tool-related directories.
+   */
+  pickDirectory: (title?: string): Promise<string> => {
+    return ipcRenderer.invoke(IPC_CHANNELS.PICK_DIRECTORY, title);
+  },
+
+  /**
+   * Local ML: Build semantic index (offline)
+   */
+  mlIndexBuild: (req?: { roots?: string[] }): Promise<any> => {
+    return ipcRenderer.invoke(IPC_CHANNELS.ML_INDEX_BUILD, req);
+  },
+
+  /**
+   * Local ML: Index status
+   */
+  mlIndexStatus: (): Promise<any> => {
+    return ipcRenderer.invoke(IPC_CHANNELS.ML_INDEX_STATUS);
+  },
+
+  /**
+   * Local ML: Query semantic index
+   */
+  mlIndexQuery: (req: { query: string; topK?: number }): Promise<any> => {
+    return ipcRenderer.invoke(IPC_CHANNELS.ML_INDEX_QUERY, req);
+  },
+
+  /**
+   * Capabilities: Detect local services/tools (Ollama, LM Studio, etc)
+   */
+  mlCapsStatus: (): Promise<any> => {
+    return ipcRenderer.invoke(IPC_CHANNELS.ML_CAPS_STATUS);
+  },
+
+  /**
+   * Local LLM: Detect local LLM runtime (Ollama)
+   */
+  mlLlmStatus: (): Promise<any> => {
+    return ipcRenderer.invoke(IPC_CHANNELS.ML_LLM_STATUS);
+  },
+
+  /**
+   * Local LLM: Generate via local runtime (Ollama)
+   */
+  mlLlmGenerate: (req: { provider: 'ollama' | 'openai_compat'; model: string; prompt: string; baseUrl?: string }): Promise<any> => {
+    return ipcRenderer.invoke(IPC_CHANNELS.ML_LLM_GENERATE, req);
+  },
+
+  /**
+   * Load Order Lab: Pick MO2 profile directory
+   */
+  pickMo2ProfileDir: (): Promise<string> => {
+    return ipcRenderer.invoke(IPC_CHANNELS.LOAD_ORDER_PICK_MO2_PROFILE_DIR);
+  },
+
+  /**
+   * Load Order Lab: Pick LOOT report/log file
+   */
+  pickLootReportFile: (): Promise<string> => {
+    return ipcRenderer.invoke(IPC_CHANNELS.LOAD_ORDER_PICK_LOOT_REPORT_FILE);
+  },
+
+  /**
+   * Load Order Lab: Write a file into app userData for automation
+   */
+  writeLoadOrderUserDataFile: (filename: string, content: string): Promise<string> => {
+    return ipcRenderer.invoke(IPC_CHANNELS.LOAD_ORDER_WRITE_USERDATA_FILE, filename, content);
+  },
+
+  /**
+   * Load Order Lab: Launch xEdit with optional args (detached)
+   */
+  launchXEdit: (args?: string[], cwd?: string): Promise<{ ok: boolean; error?: string }> => {
+    return ipcRenderer.invoke(IPC_CHANNELS.LOAD_ORDER_LAUNCH_XEDIT, args, cwd);
+  },
+
+  /**
+   * AI Chat: OpenAI-powered chat completion
+   * Main process manages API key; renderer never sees it
+   */
+  aiChatOpenAI: (prompt: string, systemPrompt?: string, model?: string): Promise<{ success: boolean; content?: string; error?: string }> => {
+    return ipcRenderer.invoke('ai-chat-openai', { prompt, systemPrompt, model });
+  },
+
+  /**
+   * AI Chat: Groq-powered chat completion (lower latency, real-time)
+   * Main process manages API key; renderer never sees it
+   */
+  aiChatGroq: (prompt: string, systemPrompt?: string, model?: string): Promise<{ success: boolean; content?: string; error?: string }> => {
+    return ipcRenderer.invoke('ai-chat-groq', { prompt, systemPrompt, model });
+  },
+
+  /**
+   * Secrets status (presence only). Never returns actual key values.
+   */
+  getSecretStatus: (): Promise<
+    | { ok: true; openai: boolean; groq: boolean; deepgram: boolean; elevenlabs: boolean }
+    | { ok: false; error: string }
+  > => {
+    return ipcRenderer.invoke(IPC_CHANNELS.SECRET_STATUS);
+  },
+
+  /**
+   * Speech-to-text for recorded mic audio.
+   * Renderer provides audio bytes; main process uses configured providers (OpenAI/Deepgram).
+   */
+  transcribeAudio: (arrayBuffer: ArrayBuffer, mimeType?: string): Promise<{ success: boolean; text?: string; error?: string }> => {
+    return ipcRenderer.invoke(IPC_CHANNELS.TRANSCRIBE_AUDIO, arrayBuffer, mimeType);
+  },
+
+  /**
+   * Duplicate Finder: Pick one or more folders via native dialog
+   */
+  pickDedupeFolders: (): Promise<string[]> => {
+    return ipcRenderer.invoke(IPC_CHANNELS.DEDUPE_PICK_FOLDERS);
+  },
+
+  /**
+   * Duplicate Finder: Scan folders for duplicates (returns groups)
+   */
+  dedupeScan: (options: { roots: string[]; extensions?: string[]; minSizeBytes?: number; maxFiles?: number }): Promise<any> => {
+    return ipcRenderer.invoke(IPC_CHANNELS.DEDUPE_SCAN, options);
+  },
+
+  /**
+   * Duplicate Finder: Cancel an in-progress scan
+   */
+  dedupeCancel: (scanId: string): Promise<{ ok: boolean }> => {
+    return ipcRenderer.invoke(IPC_CHANNELS.DEDUPE_CANCEL, scanId);
+  },
+
+  /**
+   * Duplicate Finder: Progress events
+   */
+  onDedupeProgress: (callback: (progress: any) => void): void => {
+    ipcRenderer.on(IPC_CHANNELS.DEDUPE_PROGRESS, (_event, progress) => callback(progress));
+  },
+
+  /**
+   * Duplicate Finder: Move selected files to Recycle Bin
+   */
+  dedupeTrash: (payload: { scanId: string; paths: string[] }): Promise<any> => {
+    return ipcRenderer.invoke(IPC_CHANNELS.DEDUPE_TRASH, payload);
   },
 };
 

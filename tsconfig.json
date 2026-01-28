@@ -19,5 +19,5 @@
     }
   },
   "include": ["src/renderer/**/*", "src/shared/**/*"],
-  "exclude": ["node_modules", "dist", "dist-electron"]
+  "exclude": ["node_modules", "dist", "dist-electron", "**/*.backup.ts", "**/*.backup.tsx"]
 }

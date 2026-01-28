@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { CheckCircle2, ChevronDown, AlertCircle, Zap, BookOpen } from 'lucide-react';
+import { ToolsInstallVerifyPanel } from './components/ToolsInstallVerifyPanel';
 
 interface ChecklistPhase {
   id: string;
@@ -558,6 +559,35 @@ export const CustomRiggingChecklist: React.FC = () => {
       {/* Content */}
       <div className="flex-1 overflow-y-auto p-6">
         <div className="max-w-3xl mx-auto space-y-3">
+          <ToolsInstallVerifyPanel
+            accentClassName="text-cyan-300"
+            description="Rigging is easy to “almost get right”. Use this checklist with a tiny in-game test loop so you don’t spend hours weight painting on a broken skeleton setup."
+            tools={[
+              { label: 'Blender (official download)', href: 'https://www.blender.org/download/', kind: 'official' },
+              { label: 'Nexus search: Better Blender 3', href: 'https://www.nexusmods.com/fallout4/search/?gsearch=Better%20Blender%203&gsearchtype=mods', kind: 'search', note: 'Search for the FO4-focused Blender tooling referenced in this checklist.' },
+              { label: 'Nexus search: PyNifly', href: 'https://www.nexusmods.com/fallout4/search/?gsearch=PyNifly&gsearchtype=mods', kind: 'search', note: 'NIF import/export add-on (commonly used in FO4 pipelines).' },
+            ]}
+            verify={[
+              'Check off a couple items and refresh; confirm completion state persists.',
+              'Confirm your skeleton import has the expected bone count and exact bone names.',
+              'Confirm your export produces a file in the expected folder structure (no “random desktop exports”).'
+            ]}
+            firstTestLoop={[
+              'Import skeleton → bind a tiny test mesh → paint a few weights → export once.',
+              'Test in-game (or in your inspection tooling) → fix the first obvious deformation → repeat.'
+            ]}
+            troubleshooting={[
+              'If the game crashes on load, suspect bone naming/hierarchy changes before you suspect weights.',
+              'If joints crease hard, re-check weight blending at the joint (two bones should overlap).'
+            ]}
+            shortcuts={[
+              { label: 'Rigging Mistakes', to: '/rigging-mistakes' },
+              { label: 'Export Settings', to: '/export-settings' },
+              { label: 'Animation Validator', to: '/animation-validator' },
+              { label: 'Skeleton Reference', to: '/skeleton-reference' },
+            ]}
+          />
+
           {phases.map((phase, phaseIdx) => {
             const phaseCompleted = phase.items.filter((i) => i.completed).length;
             const isExpanded = expandedPhase === phase.id;

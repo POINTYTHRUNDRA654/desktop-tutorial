@@ -25,7 +25,7 @@ The **Audio Studio** is a professional-grade audio processing and creation tool 
 
 ### Before (Fake Implementation)
 - ❌ Text-to-speech only (no real audio)
-- ❌ Fake Google Gemini API calls
+- ❌ Removed legacy Google/Gemini API calls
 - ❌ "Generate Raw Audio" button didn't create real files
 - ❌ No actual audio file import
 - ❌ No real export functionality

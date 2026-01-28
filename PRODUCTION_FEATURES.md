@@ -5,10 +5,10 @@
 ### 🤖 Mossy Chat Interface
 **Status**: ✅ **FULLY FUNCTIONAL**
 
-Real Google Gemini API integration for Fallout 4 modding assistance.
+Optional cloud AI integration (OpenAI/Groq) for Fallout 4 modding assistance.
 
 **Features:**
-- Real-time voice conversation (Google Gemini Live API)
+- Real-time voice conversation (local voices by default; optional STT)
 - Text and voice input/output
 - Custom avatar support with image uploads
 - Mode detection: Listening → Processing → Speaking
@@ -18,7 +18,7 @@ Real Google Gemini API integration for Fallout 4 modding assistance.
 - Beautiful animated avatar with orbital rings
 
 **Backend:**
-- Genuine Google Gemini AI integration
+- Genuine cloud AI integration (OpenAI/Groq)
 - WebAudio API for microphone input
 - Real speech synthesis
 
@@ -313,7 +313,7 @@ All removed because they were demo-only with hardcoded sample data:
 
 **Package Contents:**
 - ✅ 11 production-ready modules
-- ✅ Real Gemini AI integration
+- ✅ Real cloud AI integration
 - ✅ Real image processing library
 - ✅ Real binary file parsing
 - ✅ Real system integration
@@ -348,7 +348,7 @@ This codebase demonstrates:
 - Secure IPC communication patterns
 - Real image processing implementation
 - File format parsing (NIF, DDS, ESP)
-- AI API integration (Google Gemini)
+- AI API integration (OpenAI/Groq)
 - System integration best practices
 - TypeScript best practices
 - Production quality standards

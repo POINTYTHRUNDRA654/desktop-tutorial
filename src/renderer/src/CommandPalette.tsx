@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { GoogleGenAI } from "@google/genai";
 import { Search, Command, Zap, ArrowRight, CornerDownLeft, BrainCircuit, Loader2, FileCode, LayoutDashboard, Terminal, MessageSquare, Activity, Image, Mic2, Hexagon, Layers, Box, Settings, Sparkles, RefreshCw, Dna, Database, Shield, Radio, Map, Container, Camera, Aperture, Network, GitBranch, PenTool, FlaskConical, Bug, Package, Globe, Smartphone, Heart, Lock, Gamepad2, Monitor, Rocket, ShieldCheck, Feather } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 
@@ -146,11 +145,12 @@ const CommandPalette: React.FC = () => {
         setIsThinking(true);
         setAiResult(null);
         try {
-            const ai = new GoogleGenAI({ apiKey: (import.meta.env.VITE_API_KEY || import.meta.env.VITE_GOOGLE_API_KEY || "") });
-            const model = ai.getGenerativeModel({ model: 'gemini-1.5-flash' });
-            const result = await model.generateContent(`User Quick Query from Command Palette: "${prompt}". Provide a concise, helpful answer (max 3 sentences).`);
-            const response = await result.response;
-            setAiResult(response.text());
+            const response = await (window as any).electronAPI.aiChatOpenAI(
+                `User Quick Query from Command Palette: "${prompt}". Provide a concise, helpful answer (max 3 sentences).`,
+                'You are a helpful Fallout 4 modding assistant.',
+                'gpt-3.5-turbo'
+            );
+            setAiResult(response.success && response.content ? response.content : "Connection Error.");
         } catch (e) {
             setAiResult("Connection Error.");
         } finally {

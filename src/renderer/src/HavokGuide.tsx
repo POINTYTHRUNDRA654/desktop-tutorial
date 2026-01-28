@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 
 const HavokGuide = () => {
+  const navigate = useNavigate();
   const [expandedSection, setExpandedSection] = useState<string | null>(null);
 
   const toggleSection = (section: string) => {
@@ -88,6 +90,54 @@ const HavokGuide = () => {
     cursor: 'pointer',
   };
 
+  const calloutStyle: React.CSSProperties = {
+    backgroundColor: 'rgba(0, 255, 0, 0.06)',
+    border: '1px solid #00441a',
+    borderLeft: '4px solid #00ff00',
+    borderRadius: '4px',
+    padding: '12px',
+    marginBottom: '18px',
+    color: '#cccccc',
+    lineHeight: '1.6',
+    fontSize: '14px',
+  };
+
+  const buttonRowStyle: React.CSSProperties = {
+    display: 'flex',
+    flexWrap: 'wrap',
+    gap: '8px',
+    marginTop: '10px',
+  };
+
+  const buttonStyle: React.CSSProperties = {
+    backgroundColor: '#0a0e27',
+    border: '1px solid #00d000',
+    color: '#00ff00',
+    padding: '6px 10px',
+    borderRadius: '4px',
+    cursor: 'pointer',
+    fontFamily: 'monospace',
+    fontSize: '12px',
+  };
+
+  const openUrl = (url: string) => {
+    try {
+      const anyWindow = window as any;
+      if (anyWindow?.electron?.openExternal) {
+        anyWindow.electron.openExternal(url);
+        return;
+      }
+    } catch {
+      // ignore
+    }
+    window.open(url, '_blank', 'noopener,noreferrer');
+  };
+
+  const openNexusSearch = (query: string) => {
+    const url = `https://www.nexusmods.com/fallout4/search/?gsearch=${encodeURIComponent(query)}&gsearchtype=mods`;
+    openUrl(url);
+  };
+
   return (
     <div style={{ 
       padding: '20px', 
@@ -102,6 +152,24 @@ const HavokGuide = () => {
       <p style={{ color: '#00d000', marginBottom: '30px' }}>
         Professional physics and animation middleware for Fallout 4 modding
       </p>
+
+      <div style={calloutStyle}>
+        <div style={{ color: '#00ff00', fontWeight: 'bold', marginBottom: '6px' }}>Tools / Install / Verify (Fallout 4)</div>
+        <div>
+          In Fallout 4 modding, “Havok” usually means <strong>HKX animation data + behavior graphs</strong>. The fastest success path is:
+          <strong> author in Blender → export → convert to FO4 HKX → validate → test in-game</strong>.
+        </div>
+        <div style={{ marginTop: '8px' }}>
+          <strong>Fast verification loop:</strong> swap a single known vanilla HKX (in a throwaway test mod), launch game, confirm the new motion plays.
+        </div>
+        <div style={buttonRowStyle}>
+          <button style={buttonStyle} onClick={() => navigate('/animation-guide')}>In-app: Animation Guide</button>
+          <button style={buttonStyle} onClick={() => navigate('/animation-validator')}>In-app: Animation Validator</button>
+          <button style={buttonStyle} onClick={() => navigate('/vault')}>In-app: The Vault</button>
+          <button style={buttonStyle} onClick={() => openNexusSearch('HKXPack')}>Nexus search: HKXPack</button>
+          <button style={buttonStyle} onClick={() => openNexusSearch('Bethesda Archive Extractor')}>Nexus search: BAE</button>
+        </div>
+      </div>
 
       {/* What is Havok */}
       <div style={sectionStyle}>

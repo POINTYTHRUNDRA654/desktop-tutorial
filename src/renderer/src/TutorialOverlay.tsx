@@ -27,13 +27,15 @@ const TutorialOverlay: React.FC = () => {
     // --- State Management ---
     
     useEffect(() => {
-        // Tutorial shows only on home route unless manually triggered
+        // Tutorial is manual-by-default.
+        // Auto-opening a full-screen overlay can make the app feel "stuck" if anything goes wrong with layout.
+        // To auto-start, explicitly set: localStorage.setItem('mossy_tutorial_autostart', 'true')
         const completed = localStorage.getItem('mossy_tutorial_completed') === 'true';
+        const autoStart = localStorage.getItem('mossy_tutorial_autostart') === 'true';
         const route = window.location.hash || '#/';
         const onHome = route === '#/' || route === '#' || route === '';
 
-        if (!completed && onHome) {
-            // Small delay to allow app to render before showing tutorial
+        if (!completed && autoStart && onHome) {
             const timer = setTimeout(() => setIsOpen(true), 1500);
             return () => clearTimeout(timer);
         }

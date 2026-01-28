@@ -1,7 +1,9 @@
 import React, { useState } from 'react';
 import styles from './GuideStyles.module.css';
+import { useNavigate } from 'react-router-dom';
 
 export default function SimSettlementsUnitsLoadoutsGuide() {
+  const navigate = useNavigate();
   const [expandedSections, setExpandedSections] = useState<{ [key: string]: boolean }>({});
 
   const toggleSection = (section: string) => {
@@ -9,6 +11,24 @@ export default function SimSettlementsUnitsLoadoutsGuide() {
       ...prev,
       [section]: !prev[section]
     }));
+  };
+
+  const openUrl = (url: string) => {
+    try {
+      const anyWindow = window as any;
+      if (anyWindow?.electron?.openExternal) {
+        anyWindow.electron.openExternal(url);
+        return;
+      }
+    } catch {
+      // ignore
+    }
+    window.open(url, '_blank', 'noopener,noreferrer');
+  };
+
+  const openNexusSearch = (query: string) => {
+    const url = `https://www.nexusmods.com/fallout4/search/?gsearch=${encodeURIComponent(query)}&gsearchtype=mods`;
+    openUrl(url);
   };
 
   const SectionHeader = ({ id, title, subtitle }: { id: string; title: string; subtitle?: string }) => (
@@ -32,6 +52,36 @@ export default function SimSettlementsUnitsLoadoutsGuide() {
         <p className={styles.versionInfo}>Complete Reference Guide v1.0</p>
         <p className={styles.scopeInfo}>
           Comprehensive guide to creating military units, loadouts, and soldier progression systems
+        </p>
+      </div>
+
+      <div className={styles.contentBlock}>
+        <h3>Tools / Install / Verify (No Guesswork)</h3>
+        <p>
+          You can read this guide without modding tools, but you can’t <em>ship</em> a Units/Loadouts addon without a working CK pipeline.
+        </p>
+        <ul>
+          <li><strong>Creation Kit:</strong> edit SS2 UnitType/Loadout records and compile scripts.</li>
+          <li><strong>FO4Edit:</strong> sanity-check records, dependencies, FormLists, and conflicts.</li>
+          <li><strong>SS2 installed for testing:</strong> you’ll validate that units appear and can be assigned.</li>
+        </ul>
+
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem', marginTop: '0.75rem' }}>
+          <button style={{ background: 'rgba(0, 255, 0, 0.08)', border: '1px solid #00d000', color: '#00ff00', padding: '0.35rem 0.6rem', borderRadius: 4, cursor: 'pointer', fontFamily: 'Courier New, monospace', fontSize: '0.85rem' }} onClick={() => openUrl('https://store.steampowered.com/search/?term=Creation%20Kit%20Fallout%204')}>Steam search: Creation Kit</button>
+          <button style={{ background: 'rgba(0, 255, 0, 0.08)', border: '1px solid #00d000', color: '#00ff00', padding: '0.35rem 0.6rem', borderRadius: 4, cursor: 'pointer', fontFamily: 'Courier New, monospace', fontSize: '0.85rem' }} onClick={() => openNexusSearch('Sim Settlements 2')}>Nexus search: SS2</button>
+          <button style={{ background: 'rgba(0, 255, 0, 0.08)', border: '1px solid #00d000', color: '#00ff00', padding: '0.35rem 0.6rem', borderRadius: 4, cursor: 'pointer', fontFamily: 'Courier New, monospace', fontSize: '0.85rem' }} onClick={() => openNexusSearch("Add-On Maker's Toolkit")}>Nexus search: Toolkit</button>
+          <button style={{ background: 'rgba(0, 255, 0, 0.08)', border: '1px solid #00d000', color: '#00ff00', padding: '0.35rem 0.6rem', borderRadius: 4, cursor: 'pointer', fontFamily: 'Courier New, monospace', fontSize: '0.85rem' }} onClick={() => openNexusSearch('FO4Edit')}>Nexus search: FO4Edit</button>
+        </div>
+
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem', marginTop: '0.75rem' }}>
+          <button style={{ background: 'rgba(0, 255, 0, 0.08)', border: '1px solid #00d000', color: '#00ff00', padding: '0.35rem 0.6rem', borderRadius: 4, cursor: 'pointer', fontFamily: 'Courier New, monospace', fontSize: '0.85rem' }} onClick={() => navigate('/install-wizard')}>In-app: Install Wizard</button>
+          <button style={{ background: 'rgba(0, 255, 0, 0.08)', border: '1px solid #00d000', color: '#00ff00', padding: '0.35rem 0.6rem', borderRadius: 4, cursor: 'pointer', fontFamily: 'Courier New, monospace', fontSize: '0.85rem' }} onClick={() => navigate('/ck-quest-dialogue')}>In-app: CK Wizard</button>
+          <button style={{ background: 'rgba(0, 255, 0, 0.08)', border: '1px solid #00d000', color: '#00ff00', padding: '0.35rem 0.6rem', borderRadius: 4, cursor: 'pointer', fontFamily: 'Courier New, monospace', fontSize: '0.85rem' }} onClick={() => navigate('/packaging-release')}>In-app: Packaging</button>
+          <button style={{ background: 'rgba(0, 255, 0, 0.08)', border: '1px solid #00d000', color: '#00ff00', padding: '0.35rem 0.6rem', borderRadius: 4, cursor: 'pointer', fontFamily: 'Courier New, monospace', fontSize: '0.85rem' }} onClick={() => navigate('/vault')}>In-app: The Vault</button>
+        </div>
+
+        <p style={{ marginTop: '0.75rem' }}>
+          <strong>First test loop:</strong> duplicate a template UnitType + one Loadout → register in the correct FormList → load in-game and confirm the unit shows up and can be assigned.
         </p>
       </div>
 

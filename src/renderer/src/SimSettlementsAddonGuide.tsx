@@ -1,5 +1,7 @@
 import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { ChevronDown, ChevronUp, Wrench, BookOpen, AlertCircle, Users, Hammer, CheckCircle2, HelpCircle, Lightbulb, Code, Zap } from 'lucide-react';
+import { ToolsInstallVerifyPanel } from './components/ToolsInstallVerifyPanel';
 
 interface Section {
   id: string;
@@ -9,10 +11,29 @@ interface Section {
 }
 
 export default function SimSettlementsAddonGuide() {
+  const navigate = useNavigate();
   const [expandedSection, setExpandedSection] = useState<string | null>('quick-start');
 
   const toggleSection = (id: string) => {
     setExpandedSection(expandedSection === id ? null : id);
+  };
+
+  const openUrl = (url: string) => {
+    try {
+      const anyWindow = window as any;
+      if (anyWindow?.electron?.openExternal) {
+        anyWindow.electron.openExternal(url);
+        return;
+      }
+    } catch {
+      // ignore
+    }
+    window.open(url, '_blank', 'noopener,noreferrer');
+  };
+
+  const openNexusSearch = (query: string) => {
+    const url = `https://www.nexusmods.com/fallout4/search/?gsearch=${encodeURIComponent(query)}&gsearchtype=mods`;
+    openUrl(url);
   };
 
   const sections: Section[] = [
@@ -55,6 +76,20 @@ export default function SimSettlementsAddonGuide() {
               <li>Save and test in-game</li>
             </ol>
           </div>
+
+          <div className="bg-[#001a00] p-2 rounded text-[#008000] text-xs border border-[#004400]">
+            <p className="text-[#00d000] font-bold">Fast verification loop</p>
+            <ol className="list-decimal list-inside space-y-1 mt-1">
+              <li>CK launches and can load the SS2 masters (no missing-file errors).</li>
+              <li>You can compile a trivial Papyrus script (produces a <strong>.pex</strong>).</li>
+              <li>Your test plugin loads in-game and the new record appears (craftable item, holotape, or building skin).</li>
+            </ol>
+            <div className="flex flex-wrap gap-2 mt-2">
+              <button className="px-3 py-1 rounded bg-[#002200] hover:bg-[#003300]" onClick={() => navigate('/ck-quest-dialogue')}>CK Wizard</button>
+              <button className="px-3 py-1 rounded bg-[#002200] hover:bg-[#003300]" onClick={() => navigate('/packaging-release')}>Packaging</button>
+              <button className="px-3 py-1 rounded bg-[#002200] hover:bg-[#003300]" onClick={() => navigate('/settings/tools')}>Tool Settings</button>
+            </div>
+          </div>
         </div>
       )
     },
@@ -96,14 +131,23 @@ export default function SimSettlementsAddonGuide() {
               <div className="border-l border-[#00ff00] pl-2">
                 <p className="text-[#00d000] font-bold">Creation Kit</p>
                 <p className="text-[#008000]">Core tool for all addon work. Steam download.</p>
+                <div className="flex flex-wrap gap-2 mt-2">
+                  <button className="px-3 py-1 rounded bg-[#002200] hover:bg-[#003300]" onClick={() => openUrl('https://store.steampowered.com/search/?term=Creation%20Kit%20Fallout%204')}>Steam search</button>
+                </div>
               </div>
               <div className="border-l border-[#00ff00] pl-2">
                 <p className="text-[#00d000] font-bold">XEdit / FO4Edit</p>
                 <p className="text-[#008000]">Automates tedious work. Nexus Mods.</p>
+                <div className="flex flex-wrap gap-2 mt-2">
+                  <button className="px-3 py-1 rounded bg-[#002200] hover:bg-[#003300]" onClick={() => openNexusSearch('FO4Edit')}>Nexus search</button>
+                </div>
               </div>
               <div className="border-l border-[#00ff00] pl-2">
                 <p className="text-[#00d000] font-bold">Nifskope</p>
                 <p className="text-[#008000]">3D model editing. GitHub (Dev 7+)</p>
+                <div className="flex flex-wrap gap-2 mt-2">
+                  <button className="px-3 py-1 rounded bg-[#002200] hover:bg-[#003300]" onClick={() => openUrl('https://github.com/search?q=NifSkope+release&type=repositories')}>GitHub search</button>
+                </div>
               </div>
             </div>
           </div>
@@ -113,10 +157,25 @@ export default function SimSettlementsAddonGuide() {
               <p><span className="text-[#00d000]">Open Office Calc:</span> <span className="text-[#008000]">Spreadsheet software (Excel alternative)</span></p>
               <p><span className="text-[#00d000]">Material Editor:</span> <span className="text-[#008000]">Custom textures and materials</span></p>
               <p><span className="text-[#00d000]">Addon Maker's Toolkit:</span> <span className="text-[#008000]">Scripts, templates, helpers</span></p>
+              <div className="flex flex-wrap gap-2 mt-2">
+                <button className="px-3 py-1 rounded bg-[#002200] hover:bg-[#003300]" onClick={() => openNexusSearch("Add-On Maker's Toolkit")}>Toolkit (Nexus search)</button>
+                <button className="px-3 py-1 rounded bg-[#002200] hover:bg-[#003300]" onClick={() => openNexusSearch('Sim Settlements 2')}>SS2 (Nexus search)</button>
+              </div>
             </div>
           </div>
           <div className="bg-[#001a00] p-2 rounded text-[#008000] text-xs border border-[#004400]">
             <p><strong>Total Setup Time:</strong> 30-45 minutes for all tools</p>
+            <p className="mt-1"><strong>Verify:</strong> CK opens SS2 masters, FO4Edit opens your plugin, NifSkope opens a reference .nif without missing textures.</p>
+          </div>
+
+          <div className="bg-black/40 border border-[#004400] rounded p-3">
+            <p className="text-[#00d000] font-bold mb-2">In-app shortcuts</p>
+            <div className="flex flex-wrap gap-2">
+              <button className="px-3 py-1 rounded bg-[#002200] hover:bg-[#003300] text-xs" onClick={() => navigate('/install-wizard')}>Install Wizard</button>
+              <button className="px-3 py-1 rounded bg-[#002200] hover:bg-[#003300] text-xs" onClick={() => navigate('/ck-quest-dialogue')}>CK Wizard</button>
+              <button className="px-3 py-1 rounded bg-[#002200] hover:bg-[#003300] text-xs" onClick={() => navigate('/packaging-release')}>Packaging</button>
+              <button className="px-3 py-1 rounded bg-[#002200] hover:bg-[#003300] text-xs" onClick={() => navigate('/vault')}>The Vault</button>
+            </div>
           </div>
         </div>
       )
@@ -431,6 +490,36 @@ export default function SimSettlementsAddonGuide() {
         <p className="text-sm text-[#008000]">Master addon creation: buildings, city plans, HQ content, and advanced systems</p>
         <p className="text-xs text-[#004400] mt-2">Version 1.0 | Updated January 24, 2026</p>
       </div>
+
+      <ToolsInstallVerifyPanel
+        accentClassName="text-emerald-300"
+        description="Use this page as a quick-start map. The safest first win is: CK loads SS2 masters → compile one script → ship one tiny record → test in-game."
+        tools={[
+          { label: 'Steam search: Fallout 4 Creation Kit', href: 'https://store.steampowered.com/search/?term=Fallout%204%20Creation%20Kit', kind: 'search' },
+          { label: 'Nexus search: FO4Edit', href: 'https://www.nexusmods.com/fallout4/search/?gsearch=FO4Edit&gsearchtype=mods', kind: 'search' },
+          { label: 'Nexus search: NifSkope', href: 'https://www.nexusmods.com/fallout4/search/?gsearch=NifSkope&gsearchtype=mods', kind: 'search', note: 'Optional for mesh/material inspection.' },
+          { label: 'Nexus search: Addon Maker Toolkit', href: 'https://www.nexusmods.com/fallout4/search/?gsearch=Addon%20Maker%27s%20Toolkit&gsearchtype=mods', kind: 'search', note: 'If you plan to ship SS2-specific scripts/workflows.' },
+        ]}
+        verify={[
+          'Expand “Quick Start” and confirm you can reach the three in-app buttons (CK Wizard / Packaging / Tool Settings).',
+          'Confirm CK can launch and load SS2 masters without missing-file errors.',
+          'Confirm you can compile a trivial Papyrus script and it produces a .pex.'
+        ]}
+        firstTestLoop={[
+          'Create one tiny record (holotape/craftable/building skin) → save plugin → load in-game → confirm it appears.',
+          'Only after a clean loop should you add city plans/HQ content or more complex quests.'
+        ]}
+        troubleshooting={[
+          'If CK cannot load masters, stop and resolve missing files/paths first (don’t keep editing).',
+          'If scripts do not compile, confirm your CK install is correct before you change more logic.'
+        ]}
+        shortcuts={[
+          { label: 'CK Wizard', to: '/ck-quest-dialogue' },
+          { label: 'Packaging', to: '/packaging-release' },
+          { label: 'Tool Settings', to: '/settings/tools' },
+          { label: 'Quick Reference', to: '/reference' },
+        ]}
+      />
 
       {/* Sections */}
       <div className="space-y-2">

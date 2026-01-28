@@ -24,7 +24,8 @@ export class DesktopShortcutManager {
 
       const appPath = app.getAppPath();
       const exePath = process.execPath; // This gets the Electron executable
-      const iconPath = path.join(__dirname, '../../public/pipboy-icon.svg');
+      // Use the Electron executable's icon (avoids external icon file dependencies)
+      const iconPath = exePath;
       
       // Windows shortcut creation using PowerShell
       const shortcutName = 'Mossy Pip-Boy';

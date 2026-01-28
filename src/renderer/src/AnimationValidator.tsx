@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { AlertCircle, CheckCircle, AlertTriangle, FileText, Copy } from 'lucide-react';
+import { ToolsInstallVerifyPanel } from './components/ToolsInstallVerifyPanel';
 
 interface ValidationStep {
   id: string;
@@ -361,6 +362,32 @@ export const AnimationValidator: React.FC = () => {
       {/* Content */}
       <div className="flex-1 overflow-y-auto p-6">
         <div className="max-w-4xl mx-auto space-y-4">
+          <ToolsInstallVerifyPanel
+            accentClassName="text-emerald-300"
+            description="Use this validator before your first export. The goal is to catch scale, naming, and timeline mistakes while they’re cheap to fix."
+            tools={[
+              { label: 'Blender (official download)', href: 'https://www.blender.org/download/', kind: 'official' },
+            ]}
+            verify={[
+              'Toggle a few checks to Pass/Fail and refresh; confirm your progress persists.',
+              'Use the “Fix Issues” state to drive the next action (don’t export until critical items are green).'
+            ]}
+            firstTestLoop={[
+              'Pick one short animation → validate setup/skeleton/timeline → export once → test once.',
+              'Only after a clean loop should you batch-export more clips.'
+            ]}
+            troubleshooting={[
+              'If every check is failing, start with frame rate + bone naming + timeline range; those cause the most downstream confusion.',
+              'If you are unsure about a bone name, cross-check with Skeleton Reference before touching the rig.'
+            ]}
+            shortcuts={[
+              { label: 'Animation Guide', to: '/animation-guide' },
+              { label: 'Skeleton Reference', to: '/skeleton-reference' },
+              { label: 'Export Settings', to: '/export-settings' },
+              { label: 'Havok Quick Start', to: '/havok-quick-start' },
+            ]}
+          />
+
           {validationSteps.map((step, stepIdx) => (
             <div key={step.id} className={`border rounded-lg overflow-hidden ${getCategoryColor(step.category)}`}>
               {/* Step Header */}

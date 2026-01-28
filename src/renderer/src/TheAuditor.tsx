@@ -1,7 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import ExternalToolNotice from './components/ExternalToolNotice';
-import { GoogleGenAI } from "@google/genai";
+import { ToolsInstallVerifyPanel } from './components/ToolsInstallVerifyPanel';
 import { Scan, FileWarning, CheckCircle2, AlertTriangle, FileImage, Box, FileCode, Search, Wrench, ArrowRight, ShieldCheck, RefreshCw, XCircle, File, MessageSquare } from 'lucide-react';
+import { useWheelScrollProxyFrom } from './components/useWheelScrollProxy';
 
 interface AuditIssue {
     id: string;
@@ -31,6 +32,29 @@ const TheAuditor: React.FC = () => {
     const [scanProgress, setScanProgress] = useState(0);
     const [mossyAdvice, setMossyAdvice] = useState<string | null>(null);
     const [isFixing, setIsFixing] = useState(false);
+
+    const fileListScrollRef = useRef<HTMLDivElement | null>(null);
+    const issuesScrollRef = useRef<HTMLDivElement | null>(null);
+    const adviceScrollRef = useRef<HTMLDivElement | null>(null);
+    const wheelProxy = useWheelScrollProxyFrom(() => issuesScrollRef.current ?? fileListScrollRef.current ?? adviceScrollRef.current);
+
+    const go = (path: string) => {
+        window.dispatchEvent(new CustomEvent('mossy-control', { detail: { action: 'navigate', payload: { path } } }));
+    };
+
+    const openUrl = (url: string) => {
+        const api = (window as any).electron?.api || (window as any).electronAPI;
+        if (typeof api?.openExternal === 'function') {
+            api.openExternal(url);
+            return;
+        }
+        window.open(url, '_blank', 'noopener,noreferrer');
+    };
+
+    const openNexusSearch = (keywords: string) => {
+        const query = encodeURIComponent(keywords);
+        openUrl(`https://www.nexusmods.com/fallout4/search/?BH=0&search%5Bsearch_keywords%5D=${query}`);
+    };
 
     const selectedFile = files.find(f => f.id === selectedFileId);
 
@@ -417,15 +441,6 @@ const TheAuditor: React.FC = () => {
         setSelectedIssueId(issue.id);
         setMossyAdvice("Analyzing issue...");
         try {
-            const settings = await window.electronAPI.getSettings();
-            const apiKey = settings.geminiApiKey;
-            
-            if (!apiKey) {
-                setMossyAdvice("⚠️ No Gemini API key configured. Please add your API key in Settings to get AI-powered advice.");
-                return;
-            }
-
-            const ai = new GoogleGenAI({ apiKey });
             const prompt = `
             Act as an expert Fallout 4 Modder AI assistant named Mossy.
             The user has a file with the following error:
@@ -436,13 +451,21 @@ const TheAuditor: React.FC = () => {
             Keep it under 3 sentences.
             `;
 
-            const result = await ai.generateContent({
-                model: 'gemini-2.0-flash-exp',
-                contents: [{ role: 'user', parts: [{ text: prompt }] }],
-            });
-            
-            const text = result.response.text();
-            setMossyAdvice(text);
+            const api = (window as any).electronAPI ?? (window as any).electron?.api;
+            if (!api?.aiChatGroq && !api?.aiChatOpenAI) {
+                setMossyAdvice("⚠️ AI advice is unavailable in this build.");
+                return;
+            }
+
+            const res = api.aiChatGroq
+                ? await api.aiChatGroq(prompt, 'You are Mossy, a Fallout 4 modding assistant.', 'llama-3.3-70b-versatile')
+                : await api.aiChatOpenAI(prompt, 'You are Mossy, a Fallout 4 modding assistant.', 'gpt-3.5-turbo');
+
+            if (res?.success && res?.content) {
+                setMossyAdvice(String(res.content));
+            } else {
+                setMossyAdvice(String(res?.error || 'AI advice failed.'));
+            }
         } catch (e) {
                 console.error('Mossy advice error:', e);
                 setMossyAdvice("I cannot reach my knowledge base right now, but this usually requires cleaning the plugin in xEdit.\n\nDon't have xEdit? Download FO4Edit from Nexus Mods:\nhttps://www.nexusmods.com/fallout4/mods/2737");
@@ -477,14 +500,98 @@ const TheAuditor: React.FC = () => {
     };
 
     return (
-        <div className="h-full flex flex-col bg-[#0d1117] text-slate-200 font-sans overflow-hidden">
+        <div className="h-full flex flex-col bg-[#0d1117] text-slate-200 font-sans overflow-hidden min-h-0" onWheel={wheelProxy}>
             {/* Info Banner */}
             <div className="bg-blue-900/30 border-b border-blue-700/50 px-4 py-2 flex items-center gap-3">
                 <CheckCircle2 className="w-4 h-4 text-blue-400 flex-shrink-0" />
                 <p className="text-xs text-blue-200">
                     <strong>Real ESP Analysis:</strong> Files are validated and checked for size/record issues. 
-                    Click issues to get AI-powered advice and fixes (requires Gemini API key in Settings).
+                    Click issues to get AI-powered advice and fixes (requires an AI provider configured in Settings).
                 </p>
+            </div>
+
+            <div className="px-4 pt-4 max-h-72 overflow-y-auto pr-2">
+                <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+                    <ToolsInstallVerifyPanel
+                        className="mb-0"
+                        accentClassName="text-emerald-300"
+                        description="Auditor is an in-app triage view. You can inspect assets/plugins here; external tools are only needed when you decide to edit/fix files outside the app."
+                        tools={[
+                            {
+                                label: 'FO4Edit (xEdit) (optional for plugin fixes)',
+                                href: 'https://www.nexusmods.com/fallout4/search/?gsearch=FO4Edit&gsearchtype=mods',
+                                note: 'Use Nexus search to pick the current maintained release (no brittle direct IDs).',
+                                kind: 'search',
+                            },
+                            {
+                                label: 'NifSkope (optional for mesh inspection)',
+                                href: 'https://github.com/niftools/nifskope/releases',
+                                note: 'Official GitHub releases.',
+                                kind: 'official',
+                            },
+                        ]}
+                        verify={[
+                            'Upload one small test file (ESP/NIF/DDS/BGSM) and confirm it appears in the file list.',
+                            'Click an issue and confirm the advice panel updates.',
+                        ]}
+                        firstTestLoop={[
+                            'Scan one tiny file first (fast feedback).',
+                            'Apply exactly one fix (in-app or external tool), then re-upload to confirm the issue count drops.',
+                        ]}
+                        troubleshooting={[
+                            'If AI advice is empty, confirm your API key is configured and try again.',
+                            'If uploads do nothing, you may be running without native file picker support.',
+                        ]}
+                        shortcuts={[
+                            { label: 'Tool Settings', to: '/settings/tools' },
+                            { label: 'Workshop', to: '/workshop' },
+                            { label: 'Chat', to: '/chat' },
+                            { label: 'Diagnostics', to: '/diagnostics' },
+                        ]}
+                    />
+
+                    <div className="bg-slate-900/60 border border-slate-800 rounded-xl p-4">
+                        <div className="text-sm font-semibold text-white mb-1">Existing Workflow (Legacy)</div>
+                        <div className="text-xs text-slate-400 mb-3">Quick access to uploads + audit run.</div>
+                        <div className="flex flex-wrap gap-2">
+                            <button
+                                onClick={handleFileUpload}
+                                className="px-3 py-2 bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold rounded border border-blue-700/40"
+                            >
+                                Upload ESP
+                            </button>
+                            <button
+                                onClick={handleMeshUpload}
+                                className="px-3 py-2 bg-purple-600 hover:bg-purple-500 text-white text-xs font-bold rounded border border-purple-700/40"
+                            >
+                                Upload NIF
+                            </button>
+                            <button
+                                onClick={handleTextureUpload}
+                                className="px-3 py-2 bg-pink-600 hover:bg-pink-500 text-white text-xs font-bold rounded border border-pink-700/40"
+                            >
+                                Upload DDS
+                            </button>
+                            <button
+                                onClick={handleMaterialUpload}
+                                className="px-3 py-2 bg-orange-600 hover:bg-orange-500 text-white text-xs font-bold rounded border border-orange-700/40"
+                            >
+                                Upload BGSM
+                            </button>
+                            <button
+                                onClick={runAudit}
+                                disabled={isScanning}
+                                className={`px-3 py-2 rounded text-xs font-bold border transition-colors ${
+                                    isScanning
+                                        ? 'bg-slate-800 border-slate-700 text-slate-500 cursor-not-allowed'
+                                        : 'bg-emerald-600 hover:bg-emerald-500 border-emerald-700/40 text-white'
+                                }`}
+                            >
+                                Run Audit
+                            </button>
+                        </div>
+                    </div>
+                </div>
             </div>
             
             {/* Header */}
@@ -554,29 +661,79 @@ const TheAuditor: React.FC = () => {
                 {/* Helpful external tool links */}
                 <div className="flex items-center gap-3 ml-4 text-[11px]">
                     <span className="text-slate-500">Need tools?</span>
-                    <a href="https://www.nexusmods.com/fallout4/mods/2737" target="_blank" rel="noreferrer" className="text-emerald-400 hover:text-emerald-300 font-bold">xEdit</a>
+                    <button
+                        onClick={() => openNexusSearch('FO4Edit xEdit')}
+                        className="text-emerald-400 hover:text-emerald-300 font-bold"
+                        title="Open Nexus search for FO4Edit (xEdit)"
+                    >
+                        xEdit
+                    </button>
                     <span className="text-slate-600">•</span>
-                    <a href="https://www.nexusmods.com/newvegas/mods/75969" target="_blank" rel="noreferrer" className="text-purple-400 hover:text-purple-300 font-bold">NifSkope</a>
+                    <button
+                        onClick={() => openUrl('https://github.com/niftools/nifskope/releases')}
+                        className="text-purple-400 hover:text-purple-300 font-bold"
+                        title="Open NifSkope releases"
+                    >
+                        NifSkope
+                    </button>
                     <span className="text-slate-600">•</span>
-                    <a href="https://www.nexusmods.com/fallout4/mods/6821" target="_blank" rel="noreferrer" className="text-blue-400 hover:text-blue-300 font-bold">FOMOD Creator</a>
+                    <button
+                        onClick={() => openUrl('https://www.nexusmods.com/fallout4/mods/6821')}
+                        className="text-blue-400 hover:text-blue-300 font-bold"
+                        title="Open FOMOD Creation Tool"
+                    >
+                        FOMOD Creator
+                    </button>
                     <span className="text-slate-600">•</span>
-                    <a href="https://www.blender.org/download/" target="_blank" rel="noreferrer" className="text-pink-400 hover:text-pink-300 font-bold">Blender</a>
+                    <button
+                        onClick={() => openUrl('https://www.blender.org/download/')}
+                        className="text-pink-400 hover:text-pink-300 font-bold"
+                        title="Open Blender download"
+                    >
+                        Blender
+                    </button>
                 </div>
             </div>
                         {/* Quick access to external tools */}
                         <div className="px-4 pb-3 bg-slate-900 flex flex-col gap-2">
                             <ExternalToolNotice toolKey="xeditPath" toolName="xEdit / FO4Edit" nexusUrl="https://www.nexusmods.com/fallout4/mods/2737" description="Clean plugins (ITM/UDR), resolve conflicts, and generate patches." />
-                            <ExternalToolNotice toolKey="nifSkopePath" toolName="NifSkope" nexusUrl="https://www.nexusmods.com/newvegas/mods/75969" description="Inspect and fix NIFs: materials, collision, texture paths, and more." />
+                            <ExternalToolNotice toolKey="nifSkopePath" toolName="NifSkope" nexusUrl="https://github.com/niftools/nifskope/releases" description="Inspect and fix NIFs: materials, collision, texture paths, and more." />
+                            <div className="flex flex-wrap gap-2">
+                                <button
+                                    onClick={() => go('/settings/tools')}
+                                    className="px-3 py-2 bg-slate-800 hover:bg-slate-700 border border-slate-600 rounded text-xs font-bold"
+                                >
+                                    Tool Settings
+                                </button>
+                                <button
+                                    onClick={() => go('/workshop')}
+                                    className="px-3 py-2 bg-slate-800 hover:bg-slate-700 border border-slate-600 rounded text-xs font-bold"
+                                >
+                                    Workshop
+                                </button>
+                                <button
+                                    onClick={() => go('/vault')}
+                                    className="px-3 py-2 bg-slate-800 hover:bg-slate-700 border border-slate-600 rounded text-xs font-bold"
+                                >
+                                    The Vault
+                                </button>
+                                <button
+                                    onClick={() => go('/packaging-release')}
+                                    className="px-3 py-2 bg-slate-800 hover:bg-slate-700 border border-slate-600 rounded text-xs font-bold"
+                                >
+                                    Packaging & Release
+                                </button>
+                            </div>
                         </div>
 
-            <div className="flex-1 flex overflow-hidden">
+            <div className="flex-1 min-h-0 flex overflow-hidden">
                 
                 {/* Left: File Manifest */}
-                <div className="w-80 bg-slate-900/50 border-r border-slate-800 flex flex-col">
+                <div className="w-80 bg-slate-900/50 border-r border-slate-800 flex flex-col min-h-0">
                     <div className="p-3 border-b border-slate-800 text-xs font-bold text-slate-500 uppercase tracking-widest bg-slate-900">
                         Mod Manifest
                     </div>
-                    <div className="flex-1 overflow-y-auto p-2 space-y-1">
+                    <div ref={fileListScrollRef} className="flex-1 min-h-0 overflow-y-auto p-2 space-y-1">
                         {files.map(file => (
                             <div 
                                 key={file.id}
@@ -611,7 +768,7 @@ const TheAuditor: React.FC = () => {
                 </div>
 
                 {/* Center: Inspector */}
-                <div className="flex-1 bg-[#0a0d14] flex flex-col overflow-hidden">
+                <div className="flex-1 min-h-0 bg-[#0a0d14] flex flex-col overflow-hidden">
                     {selectedFile ? (
                         <div className="flex flex-col h-full">
                             {/* File Info Header */}
@@ -651,7 +808,7 @@ const TheAuditor: React.FC = () => {
                             </div>
 
                             {/* Issues List */}
-                            <div className="flex-1 overflow-y-auto p-6 space-y-4">
+                            <div ref={issuesScrollRef} className="flex-1 min-h-0 overflow-y-auto p-6 space-y-4">
                                 {selectedFile.issues.length === 0 && selectedFile.status === 'clean' && (
                                     <div className="flex flex-col items-center justify-center h-full text-slate-600 opacity-60">
                                         <CheckCircle2 className="w-24 h-24 mb-4 text-emerald-500" />
@@ -720,7 +877,7 @@ const TheAuditor: React.FC = () => {
                         <Scan className="w-4 h-4 text-emerald-400" /> Analysis Log
                     </h3>
 
-                    <div className="flex-1 overflow-y-auto relative z-10">
+                    <div ref={adviceScrollRef} className="flex-1 overflow-y-auto relative z-10">
                         {mossyAdvice ? (
                             <div className="animate-slide-in-right">
                                 <div className="flex items-center gap-2 mb-3">

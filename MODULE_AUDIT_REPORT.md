@@ -13,7 +13,7 @@
   - ✅ File size checking (250MB limit)
   - ✅ Record count extraction
   - ✅ Real file path handling via Electron
-  - ✅ Gemini AI advice integration (uses real API)
+  - ✅ AI advice integration (OpenAI/Groq)
 - **What's Fake:**
   - ❌ NIF/DDS/BGSM analysis (still showing mock issues)
   - ❌ Deep ESP parsing (no deleted records, ITM detection, etc.)
@@ -127,7 +127,7 @@
 
 ### 9. **Live Interface (Voice Chat)**
 - **Status:** DISABLED
-- **Code Evidence:** Line 12 `TODO: Re-enable when @google/genai import issues are resolved`, Line 53 `Live Voice Chat - Coming Soon`
+- **Code Evidence:** Live Voice Chat is currently in maintenance mode
 - **Reality:** Maintenance page only, no functionality
 
 ### 10. **The Splicer**

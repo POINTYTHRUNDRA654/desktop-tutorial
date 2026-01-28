@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Save, TestTube2, Wrench, FileCog, Swords, Package, ExternalLink, Play, Palette, FolderOpen, ShieldCheck, Zap, Archive, Image as ImageIcon, Terminal, Maximize2, RefreshCw } from 'lucide-react';
 import { executeMossyTool } from './MossyTools';
 import type { Settings } from '../../shared/types';
+import { ToolsInstallVerifyPanel } from './components/ToolsInstallVerifyPanel';
 
 const ExternalToolsSettings: React.FC = () => {
   const [settings, setSettings] = useState<Settings | null>(null);
@@ -15,9 +16,16 @@ const ExternalToolsSettings: React.FC = () => {
         setSettings(s);
         setDraft({
           xeditPath: s.xeditPath || '',
+          xeditScriptsDirOverride: s.xeditScriptsDirOverride || '',
           nifSkopePath: s.nifSkopePath || '',
           fomodCreatorPath: s.fomodCreatorPath || '',
           creationKitPath: s.creationKitPath || '',
+          fallout4Path: s.fallout4Path || '',
+          papyrusCompilerPath: s.papyrusCompilerPath || '',
+          papyrusFlagsPath: s.papyrusFlagsPath || '',
+          papyrusImportPaths: s.papyrusImportPaths || '',
+          papyrusSourcePath: s.papyrusSourcePath || '',
+          papyrusOutputPath: s.papyrusOutputPath || '',
           blenderPath: s.blenderPath || '',
           lootPath: s.lootPath || '',
           vortexPath: s.vortexPath || '',
@@ -64,6 +72,7 @@ const ExternalToolsSettings: React.FC = () => {
         blenderPath: 'Blender',
         nifSkopePath: 'NifSkope',
         creationKitPath: 'Creation Kit',
+        papyrusCompilerPath: 'Papyrus Compiler',
       };
 
       for (const [key, label] of Object.entries(toolNames)) {
@@ -176,10 +185,10 @@ const ExternalToolsSettings: React.FC = () => {
         console.log(`[BrowsePath] Calling pickToolPath...`);
         const selectedPath = await bridge.pickToolPath(toolName);
         console.log(`[BrowsePath] User selected:`, selectedPath);
-        
+
         if (selectedPath) {
           console.log(`[BrowsePath] Checking if path ends with .exe:`, selectedPath.toLowerCase().endsWith('.exe'));
-          
+
           // Validate that the selected path is an executable
           if (!selectedPath.toLowerCase().endsWith('.exe')) {
             const msg = `❌ Invalid selection.\n\nPlease select a .exe file.\n\nYou selected: ${selectedPath}`;
@@ -187,6 +196,7 @@ const ExternalToolsSettings: React.FC = () => {
             alert(msg);
             return;
           }
+
           console.log(`[BrowsePath] Path validation passed. Saving: ${selectedPath}`);
           handleChange(toolKey, selectedPath);
         } else {
@@ -195,7 +205,7 @@ const ExternalToolsSettings: React.FC = () => {
       } else {
         console.warn('[BrowsePath] File picker not available; offering manual fallback');
         const manualPath = prompt(`File picker unavailable.\n\nPlease paste the full path to ${toolName} (e.g., C:\\Program Files\\${toolName}\\${toolName}.exe)`);
-        
+
         if (manualPath && manualPath.trim()) {
           if (manualPath.toLowerCase().endsWith('.exe')) {
             handleChange(toolKey, manualPath);
@@ -215,6 +225,29 @@ const ExternalToolsSettings: React.FC = () => {
         } else {
           alert(`❌ Invalid path.\n\nMust be a .exe file.`);
         }
+      }
+    }
+  };
+
+  const browseFolder = async (toolKey: keyof Settings, title: string) => {
+    try {
+      const bridge: any = (window as any).electron?.api || (window as any).electronAPI;
+      if (typeof bridge?.pickDirectory === 'function') {
+        const selected = await bridge.pickDirectory(title);
+        if (selected) {
+          handleChange(toolKey, String(selected));
+        }
+        return;
+      }
+      const manual = prompt(`Folder picker unavailable.\n\nPaste the full folder path for: ${title}`);
+      if (manual && manual.trim()) {
+        handleChange(toolKey, manual.trim());
+      }
+    } catch (e) {
+      console.warn('[BrowseFolder] Failed:', e);
+      const manual = prompt(`Folder picker failed: ${String(e)}\n\nPaste the full folder path for: ${title}`);
+      if (manual && manual.trim()) {
+        handleChange(toolKey, manual.trim());
       }
     }
   };
@@ -352,6 +385,30 @@ const ExternalToolsSettings: React.FC = () => {
       </div>
 
       <div className="flex-1 overflow-auto p-6">
+        <ToolsInstallVerifyPanel
+          accentClassName="text-emerald-300"
+          description="Use this page to point Mossy at the tools you already have installed. The app does not bundle these executables for you."
+          verify={[
+            'Pick one tool (e.g., xEdit) → Browse to its .exe → confirm status flips to “✅ CONFIGURED”.',
+            'Click Save Settings and confirm a success message.',
+            'Use Test Launch (or AI Launch Test) to confirm the tool can be started from Mossy.'
+          ]}
+          firstTestLoop={[
+            'Auto-detect from scan (if available) → review each detected path.',
+            'Save → test-launch your top 1–2 tools (xEdit, Blender, Creation Kit).',
+            'Return to Workshop/Assembler and confirm those pages stop warning about missing tools.'
+          ]}
+          troubleshooting={[
+            'If Browse/Test Launch does nothing, you may be missing the desktop bridge; use the packaged Electron app.',
+            'If Save warns about file type, ensure you selected the tool’s .exe (not a folder or shortcut).' 
+          ]}
+          shortcuts={[
+            { label: 'Workshop', to: '/workshop' },
+            { label: 'Assembler', to: '/assembler' },
+            { label: 'Diagnostics', to: '/diagnostics' },
+          ]}
+        />
+
         <div className="mb-6 p-4 bg-blue-900/30 border border-blue-700 rounded-lg text-sm text-blue-300">
           <strong>📌 Quick Start:</strong> Each tool below shows its configuration status (✅ CONFIGURED or ⚠️ NOT SET). 
           <ol className="mt-2 ml-4 space-y-1 list-decimal">
@@ -382,6 +439,34 @@ const ExternalToolsSettings: React.FC = () => {
             <button onClick={() => browsePath('xeditPath', 'xEdit')} className="px-3 py-1 bg-slate-700 hover:bg-slate-600 border border-slate-600 rounded text-[11px] font-bold flex items-center gap-1"><FolderOpen className="w-3 h-3" /> Browse</button>
             <button onClick={() => testLaunch(draft.xeditPath, 'xEdit')} className="px-3 py-1 bg-emerald-700 hover:bg-emerald-600 border border-emerald-500 rounded text-[11px] font-bold flex items-center gap-1"><Play className="w-3 h-3" /> Test Launch</button>
             <button onClick={() => aiLaunchTest('xedit', 'xEdit')} className="px-3 py-1 bg-sky-700 hover:bg-sky-600 border border-sky-500 rounded text-[11px] font-bold flex items-center gap-1"><Zap className="w-3 h-3" /> AI Launch Test</button>
+          </div>
+
+          <div className="mt-3 pt-3 border-t border-slate-800">
+            <div className="text-[11px] text-slate-400 mb-1">Optional: xEdit “Edit Scripts” folder override</div>
+            <input
+              value={(draft as any).xeditScriptsDirOverride || ''}
+              onChange={(e) => handleChange('xeditScriptsDirOverride', e.target.value)}
+              placeholder="(auto) next to FO4Edit.exe\\Edit Scripts"
+              className="w-full rounded px-3 py-2 text-xs border font-mono bg-slate-800 border-slate-700 text-white"
+            />
+            <div className="mt-2 flex gap-2">
+              <button
+                onClick={() => browseFolder('xeditScriptsDirOverride', 'Select xEdit Edit Scripts folder')}
+                className="px-3 py-1 bg-slate-700 hover:bg-slate-600 border border-slate-600 rounded text-[11px] font-bold flex items-center gap-1"
+              >
+                <FolderOpen className="w-3 h-3" /> Browse Folder
+              </button>
+              <button
+                onClick={() => handleChange('xeditScriptsDirOverride', '')}
+                className="px-3 py-1 bg-slate-900 hover:bg-slate-800 border border-slate-700 rounded text-[11px] font-bold"
+                title="Clear override (use auto-detected folder)"
+              >
+                Clear
+              </button>
+            </div>
+            <div className="mt-2 text-[10px] text-slate-500">
+              Use this if your xEdit scripts folder isn’t next to the .exe (MO2, portable setups, custom layouts).
+            </div>
           </div>
         </div>
 
@@ -433,6 +518,60 @@ const ExternalToolsSettings: React.FC = () => {
             <button onClick={() => browsePath('creationKitPath', 'Creation Kit')} className="px-3 py-1 bg-slate-700 hover:bg-slate-600 border border-slate-600 rounded text-[11px] font-bold flex items-center gap-1"><FolderOpen className="w-3 h-3" /> Browse</button>
             <button onClick={() => testLaunch(draft.creationKitPath, 'Creation Kit')} className="px-3 py-1 bg-emerald-700 hover:bg-emerald-600 border border-emerald-500 rounded text-[11px] font-bold flex items-center gap-1"><Play className="w-3 h-3" /> Test Launch</button>
             <button onClick={() => aiLaunchTest('creationkit', 'Creation Kit')} className="px-3 py-1 bg-sky-700 hover:bg-sky-600 border border-sky-500 rounded text-[11px] font-bold flex items-center gap-1"><Zap className="w-3 h-3" /> AI Launch Test</button>
+          </div>
+        </div>
+
+        {/* Fallout 4 / Papyrus */}
+        <div className="bg-slate-900 border border-slate-800 rounded-xl p-4">
+          <div className="flex items-center gap-2 mb-2">
+            <Terminal className="w-5 h-5 text-emerald-300" />
+            <div>
+              <div className="text-sm font-bold text-white">Fallout 4 / Papyrus</div>
+              <span className="text-[11px] text-slate-400">Used for writing + compiling .psc into .pex</span>
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            <input
+              value={draft.fallout4Path || ''}
+              onChange={(e) => handleChange('fallout4Path', e.target.value)}
+              placeholder="C:\\Program Files (x86)\\Steam\\steamapps\\common\\Fallout 4"
+              className="w-full bg-slate-800 border border-slate-700 rounded px-3 py-2 text-sm text-white"
+            />
+            <input
+              value={draft.papyrusCompilerPath || ''}
+              onChange={(e) => handleChange('papyrusCompilerPath', e.target.value)}
+              placeholder="C:\\...\\Fallout 4\\Papyrus Compiler\\PapyrusCompiler.exe"
+              className="w-full bg-slate-800 border border-slate-700 rounded px-3 py-2 text-sm text-white"
+            />
+            <input
+              value={draft.papyrusFlagsPath || ''}
+              onChange={(e) => handleChange('papyrusFlagsPath', e.target.value)}
+              placeholder="C:\\...\\Fallout 4\\Data\\Scripts\\Source\\Base\\Institute_Papyrus_Flags.flg"
+              className="w-full bg-slate-800 border border-slate-700 rounded px-3 py-2 text-sm text-white"
+            />
+            <input
+              value={draft.papyrusImportPaths || ''}
+              onChange={(e) => handleChange('papyrusImportPaths', e.target.value)}
+              placeholder='Import paths (semicolon-separated), e.g. C:\\...\\Data\\Scripts\\Source;C:\\...\\Data\\Scripts\\Source\\Base'
+              className="w-full bg-slate-800 border border-slate-700 rounded px-3 py-2 text-sm text-white"
+            />
+            <input
+              value={draft.papyrusSourcePath || ''}
+              onChange={(e) => handleChange('papyrusSourcePath', e.target.value)}
+              placeholder="Source output folder for .psc (optional), e.g. ...\\Data\\Scripts\\Source\\User"
+              className="w-full bg-slate-800 border border-slate-700 rounded px-3 py-2 text-sm text-white"
+            />
+            <input
+              value={draft.papyrusOutputPath || ''}
+              onChange={(e) => handleChange('papyrusOutputPath', e.target.value)}
+              placeholder="PEX output folder (optional), e.g. ...\\Data\\Scripts"
+              className="w-full bg-slate-800 border border-slate-700 rounded px-3 py-2 text-sm text-white"
+            />
+          </div>
+
+          <div className="mt-2 text-[11px] text-slate-500">
+            Tip: you can leave these blank and still use Workshop compile manually, but CK Link works best when configured.
           </div>
         </div>
 

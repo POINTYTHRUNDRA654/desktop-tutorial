@@ -14,9 +14,6 @@ const PipBoyFrame: React.FC<{ children: React.ReactNode }> = ({ children }) => {
         
         {/* Screen Content Wrapper */}
         <div className="pipboy-screen-area">
-          {/* Subtle Screen Reflection overlay */}
-          <div className="pipboy-screen-reflection"></div>
-          
           {/* Actual App Content */}
           <div className="pipboy-content">
             {children}
@@ -56,7 +53,9 @@ const PipBoyFrame: React.FC<{ children: React.ReactNode }> = ({ children }) => {
           box-shadow: 
             inset 0 0 60px rgba(0,0,0,1),
             0 30px 60px rgba(0,0,0,0.8),
-            0 0 100px rgba(0,0,0,0.5);
+            0 0 100px rgba(0,0,0,0.5),
+            0 0 32px rgba(0, 255, 0, 0.08),
+            0 0 0 1px rgba(0, 255, 0, 0.10);
           display: flex;
           flex-direction: column;
           border: 4px solid #1c1c1c;
@@ -81,7 +80,7 @@ const PipBoyFrame: React.FC<{ children: React.ReactNode }> = ({ children }) => {
           overflow: hidden;
           box-shadow: 
             inset 0 0 50px rgba(0,0,0,1),
-            0 0 20px rgba(0,255,0,0.05);
+            0 0 24px rgba(0,255,0,0.10);
           border: 20px solid #141414;
           z-index: 2;
           transform: perspective(1000px) rotateX(0.5deg);
@@ -90,13 +89,16 @@ const PipBoyFrame: React.FC<{ children: React.ReactNode }> = ({ children }) => {
         .pipboy-screen-reflection {
           position: absolute;
           inset: 0;
+          /* Keep this extremely subtle; heavy overlays look like a "giant" image over the UI. */
           background: linear-gradient(
             135deg,
-            rgba(255,255,255,0.05) 0%,
-            rgba(255,255,255,0.1) 25%,
-            rgba(255,255,255,0) 50%,
-            rgba(255,255,255,0.02) 100%
+            rgba(255,255,255,0.02) 0%,
+            rgba(255,255,255,0.04) 18%,
+            rgba(255,255,255,0.00) 52%,
+            rgba(255,255,255,0.01) 100%
           );
+          opacity: 0.12;
+          mix-blend-mode: screen;
           pointer-events: none;
           z-index: 1000;
         }

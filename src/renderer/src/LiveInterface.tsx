@@ -5,11 +5,10 @@ import { useNavigate } from 'react-router-dom';
 /**
  * LiveInterface - Maintenance Mode
  * 
- * The Live Voice Chat feature is temporarily disabled due to dependency 
- * compatibility issues with the @google/genai package. This page allows
+ * The Live Voice Chat feature is temporarily disabled. This page allows
  * users to navigate away safely while we resolve the import errors.
  * 
- * TODO: Re-enable when @google/genai import issues are resolved
+ * TODO: Re-enable when Live voice pipeline is stable
  */
 const LiveInterface: React.FC = () => {
   const navigate = useNavigate();

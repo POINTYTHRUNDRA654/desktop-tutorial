@@ -1,5 +1,7 @@
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import { Folder, FileCode, FileBox, Play, Save, RefreshCw, Home, ChevronUp } from 'lucide-react';
+import { ToolsInstallVerifyPanel } from './components/ToolsInstallVerifyPanel';
+import { useWheelScrollProxy } from './components/useWheelScrollProxy';
 
 // --- Types ---
 interface FileEntry {
@@ -33,6 +35,9 @@ interface TextureInfo {
 }
 
 const Workshop: React.FC = () => {
+  const fileListScrollRef = useRef<HTMLDivElement>(null);
+  const onWheel = useWheelScrollProxy(fileListScrollRef);
+
   const [fileTree, setFileTree] = useState<FileEntry[]>([]);
   const [selectedFile, setSelectedFile] = useState<FileEntry | null>(null);
   const [fileContent, setFileContent] = useState('');
@@ -177,7 +182,7 @@ const Workshop: React.FC = () => {
   };
 
   return (
-    <div className="h-full flex flex-col bg-forge-dark text-slate-200 overflow-hidden">
+    <div className="h-full flex flex-col bg-forge-dark text-slate-200 overflow-hidden" onWheel={onWheel}>
       {/* Toolbar */}
       <div className="h-14 border-b border-slate-700 bg-forge-panel flex items-center px-4 justify-between shadow-md z-10">
         <div className="flex items-center gap-2 flex-1">
@@ -237,6 +242,34 @@ const Workshop: React.FC = () => {
         </div>
       </div>
 
+      <div className="px-4 pt-4">
+        <ToolsInstallVerifyPanel
+          accentClassName="text-emerald-300"
+          description="Workshop is a local file browser/editor. Some actions require the Electron bridge APIs (browse/read/write) to be available in this build."
+          tools={[]}
+          verify={[
+            'Click Browse and confirm a directory listing appears (folders + files).',
+            'Open a small text file and confirm contents load into the editor pane.',
+            'Edit and Save, then reopen to confirm the change persisted.',
+          ]}
+          firstTestLoop={[
+            'Browse to a temporary folder (or a safe test folder) and open a file.',
+            'Make a tiny edit and Save; confirm the console reports success.',
+            'If you need Papyrus compiling, set a compiler path and compile a .psc test file.',
+          ]}
+          troubleshooting={[
+            'If Browse does nothing, you may be running in web mode (no Electron preload).',
+            'If compile fails, confirm the compiler path points to a real compiler executable.',
+          ]}
+          shortcuts={[
+            { label: 'Desktop Bridge', to: '/bridge' },
+            { label: 'Tool Settings', to: '/settings/tools' },
+            { label: 'Script Analyzer', to: '/script-analyzer' },
+            { label: 'Diagnostics', to: '/diagnostics' },
+          ]}
+        />
+      </div>
+
       {/* Main Content */}
       <div className="flex-1 flex overflow-hidden">
         {/* File Browser */}
@@ -244,7 +277,7 @@ const Workshop: React.FC = () => {
           <div className="p-3 text-xs font-bold text-slate-500 uppercase tracking-wider border-b border-slate-700/50">
             File Browser
           </div>
-          <div className="flex-1 overflow-y-auto p-2 space-y-0.5">
+          <div ref={fileListScrollRef} className="flex-1 overflow-y-auto p-2 space-y-0.5">
             {fileTree.length === 0 ? (
               <div className="text-xs text-slate-500 p-2">No files loaded. Browse a directory above.</div>
             ) : (

@@ -1,5 +1,5 @@
-import { Type } from '@google/genai';
 import { logMossyError, getErrorReport } from './MossyErrorReporter';
+import { ModProjectStorage } from './services/ModProjectStorage';
 
 export const sanitizeBlenderScript = (rawScript: string): string => {
     let safeScript = rawScript;
@@ -20,42 +20,159 @@ export const executeMossyTool = async (name: string, args: any, context: {
     setProjectContext: (c: any) => void,
     setShowProjectPanel: (s: boolean) => void
 }) => {
-    // Pre-check for Blender tools
-    if ((name === 'execute_blender_script' || name === 'send_blender_shortcut') && !context.isBlenderLinked) {
-        return { error: "**Error:** Blender Link is offline. Please install the 'Mossy Link' add-on from the Bridge page to control Blender." };
+    const api = (window as any).electronAPI || (window as any).electron?.api;
+
+    const sanitizeBasename = (raw: string): string => {
+        const trimmed = String(raw || '').trim();
+        const cleaned = trimmed.replace(/[^A-Za-z0-9_\-]/g, '_');
+        return cleaned.length ? cleaned : `MOSSY_${Date.now()}`;
+    };
+
+    const dirname = (p: string): string => {
+        const normalized = String(p || '').replace(/\//g, '\\');
+        const idx = normalized.lastIndexOf('\\');
+        return idx >= 0 ? normalized.slice(0, idx) : normalized;
+    };
+
+    const joinPath = (...parts: string[]): string => {
+        return parts
+            .filter(Boolean)
+            .map((s) => String(s).replace(/\//g, '\\').replace(/\\+$/g, ''))
+            .join('\\')
+            .replace(/\\{2,}/g, '\\');
+    };
+
+    const trySaveTextFile = async (filePath: string, content: string): Promise<boolean> => {
+        if (!api?.writeFile) return false;
+        try {
+            return await api.writeFile(filePath, content);
+        } catch {
+            return false;
+        }
+    };
+
+    const saveToDownloads = async (filename: string, content: string): Promise<string | null> => {
+        if (!api?.saveFile) return null;
+        try {
+            return await api.saveFile(content, filename);
+        } catch {
+            return null;
+        }
+    };
+
+    const postToBridge = async (payload: any, timeoutMs = 1200): Promise<boolean> => {
+        const controller = new AbortController();
+        const timer = setTimeout(() => controller.abort(), timeoutMs);
+        try {
+            const response = await fetch('http://localhost:21337/execute', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload),
+                signal: controller.signal,
+            });
+            return response.ok;
+        } catch {
+            return false;
+        } finally {
+            clearTimeout(timer);
+        }
+    };
+
+    // Blender reliability: always create an artifact (file + clipboard) and only claim delivery when confirmed.
+    if (name === 'execute_blender_script') {
+        const safeScript = sanitizeBlenderScript(String(args?.script || ''));
+        const scriptBasename = sanitizeBasename(args?.name || args?.description || 'MOSSY_BLENDER_SCRIPT');
+        const filename = `${scriptBasename}.py`;
+
+        const savedPath = await saveToDownloads(filename, safeScript);
+        let clipboardOk = false;
+        try { await navigator.clipboard.writeText(safeScript); clipboardOk = true; } catch { /* ignore clipboard errors */ }
+
+        let linkDispatched = false;
+        if (context.isBlenderLinked) {
+            try {
+                window.dispatchEvent(new CustomEvent('mossy-blender-command', {
+                    detail: {
+                        code: safeScript,
+                        description: args?.description || 'Script Execution'
+                    }
+                }));
+                linkDispatched = true;
+            } catch {
+                linkDispatched = false;
+            }
+        }
+
+        const bridgeWanted = localStorage.getItem('mossy_bridge_active') === 'true';
+        const bridgeOk = bridgeWanted
+            ? await postToBridge({ type: 'blender', script: safeScript, target: 'active_instance' })
+            : false;
+
+        const delivery = bridgeOk
+            ? 'Sent to Blender via Desktop Bridge.'
+            : linkDispatched
+            ? 'Sent to Blender via Mossy Link.'
+            : 'Bridge/Link not confirmed; use file + clipboard fallback.';
+
+        const savedLine = savedPath ? `**Saved:** ${savedPath}` : `**Saved:** (could not auto-save; use clipboard)`;
+        const clipLine = clipboardOk ? '**Clipboard:** copied' : '**Clipboard:** failed to copy (copy from the message)';
+
+        const result = `**Blender Python Ready:** ${filename}\n\n${savedLine}\n${clipLine}\n\n${delivery}\n\n` +
+            `**Run it in Blender:** Scripting → Text Editor → New → Paste → Run Script.`;
+
+        return { success: true, result };
     }
 
-    // DISPATCH BLENDER EVENT TO BRIDGE
-    if (name === 'execute_blender_script') {
-        const safeScript = sanitizeBlenderScript(args.script);
-        const noncedScript = `${safeScript}\n# ID: ${Date.now()}`;
-        args.script = noncedScript;
+    if (name === 'write_blender_script') {
+        const safeScript = sanitizeBlenderScript(String(args?.script || ''));
+        const scriptBasename = sanitizeBasename(args?.name || 'MOSSY_SCRIPT');
+        const shouldRun = !!args?.run;
+        const filename = `${scriptBasename}.py`;
 
-        try {
-            await navigator.clipboard.writeText(`MOSSY_CMD:${noncedScript}`);
-        } catch (e) {
-            console.error("Clipboard write failed", e);
+        const savedPath = await saveToDownloads(filename, safeScript);
+        let clipboardOk = false;
+        try { await navigator.clipboard.writeText(safeScript); clipboardOk = true; } catch { /* ignore clipboard errors */ }
+
+        const bridgeWanted = localStorage.getItem('mossy_bridge_active') === 'true';
+        const bridgeOk = bridgeWanted
+            ? await postToBridge({ type: 'text', script: safeScript, name: scriptBasename, run: shouldRun })
+            : false;
+
+        const savedLine = savedPath ? `**Saved:** ${savedPath}` : `**Saved:** (could not auto-save; use clipboard)`;
+        const clipLine = clipboardOk ? '**Clipboard:** copied' : '**Clipboard:** failed to copy (copy from the message)';
+        const delivery = bridgeOk
+            ? `**Bridge:** Updated Text '${scriptBasename}'${shouldRun ? ' and executed' : ''}.`
+            : `**Bridge:** not confirmed; create a Text block named '${scriptBasename}', paste, then Run Script.`;
+
+        const result = `**Blender Script Prepared:** ${filename}\n\n${savedLine}\n${clipLine}\n\n${delivery}`;
+        return { success: true, result };
+    }
+
+    if (name === 'send_blender_shortcut') {
+        const fallbackSnippet = String(args?.script || '').trim() || 'import bpy\n# (no shortcut script provided)\n';
+        let clipboardOk = false;
+        try { await navigator.clipboard.writeText(fallbackSnippet); clipboardOk = true; } catch { /* ignore clipboard errors */ }
+
+        let linkDispatched = false;
+        if (context.isBlenderLinked) {
+            try {
+                window.dispatchEvent(new CustomEvent('mossy-blender-shortcut', {
+                    detail: {
+                        keys: args?.keys,
+                        description: args?.desc || 'Keyboard Input'
+                    }
+                }));
+                linkDispatched = true;
+            } catch {
+                linkDispatched = false;
+            }
         }
 
-        window.dispatchEvent(new CustomEvent('mossy-blender-command', {
-            detail: {
-                code: noncedScript,
-                description: args.description || 'Script Execution'
-            }
-        }));
-    } else if (name === 'send_blender_shortcut') {
-        try {
-            await navigator.clipboard.writeText(`MOSSY_CMD:import bpy; bpy.ops.wm.context_toggle(data_path="space_data.overlay.show_wireframes")`); 
-        } catch (e) {
-            console.error('[MossyTools] Failed to copy blender shortcut:', e);
-        }
-        
-        window.dispatchEvent(new CustomEvent('mossy-blender-shortcut', {
-            detail: {
-                keys: args.keys,
-                description: args.desc || 'Keyboard Input'
-            }
-        }));
+        const result = `**Blender Shortcut:** ${args?.keys || '(unspecified)'}\n\n` +
+            (linkDispatched ? `**Link:** dispatched.\n` : `**Link:** not confirmed.\n`) +
+            (clipboardOk ? `**Clipboard:** copied fallback snippet.` : `**Clipboard:** failed (copy manually from chat).`);
+
+        return { success: true, result };
     }
 
     // Simulate delay
@@ -64,8 +181,6 @@ export const executeMossyTool = async (name: string, args: any, context: {
     let result: any = "Success";
     if (name === 'launch_tool') {
         try {
-            const api = (window as any).electronAPI || (window as any).electron?.api;
-            
             if (!api) {
                 console.error('[MossyTools] IPC API not available!');
                 return {
@@ -377,7 +492,76 @@ export const executeMossyTool = async (name: string, args: any, context: {
             result = `Error: Desktop Bridge is offline. (Unable to list real files in ${args.path})`;
         }
     } else if (name === 'generate_papyrus_script') {
-        result = `**Papyrus Script Generated:** ${args.scriptName}.psc\n\n\`\`\`papyrus\n${args.code}\n\`\`\``;
+        const scriptName = sanitizeBasename(args.scriptName);
+        const code = String(args.code || '').trimEnd() + '\n';
+        const filename = `${scriptName}.psc`;
+
+        let wroteTo: string | null = null;
+
+        // Best effort: if Creation Kit is configured, write directly into the game's Data\Scripts\Source
+        try {
+            if (api?.getSettings) {
+                const settings = await api.getSettings();
+                const ckPath = String(settings?.creationKitPath || '').trim();
+                if (ckPath) {
+                    const ckNorm = ckPath.replace(/\//g, '\\');
+                    const lower = ckNorm.toLowerCase();
+                    const toolsIdx = lower.lastIndexOf('\\tools\\');
+                    const gameRoot = toolsIdx >= 0 ? ckNorm.slice(0, toolsIdx) : dirname(ckNorm);
+                    const targetPath = joinPath(gameRoot, 'Data', 'Scripts', 'Source', filename);
+                    const ok = await trySaveTextFile(targetPath, code);
+                    if (ok) wroteTo = targetPath;
+                }
+            }
+        } catch {
+            // ignore and fall back
+        }
+
+        if (!wroteTo) {
+            const saved = await saveToDownloads(filename, code);
+            if (saved) wroteTo = saved;
+        }
+
+        try { await navigator.clipboard.writeText(code); } catch { /* ignore clipboard errors */ }
+
+        result = `**Papyrus Script Generated:** ${filename}\n\n` +
+            (wroteTo ? `**Saved:** ${wroteTo}\n\n` : `**Saved:** (unable to write file automatically)\n\n`) +
+            `\`\`\`papyrus\n${code}\`\`\`\n\n` +
+            `**Next:** In Creation Kit, open Script Manager and refresh/reopen if it doesn't appear immediately. Papyrus source scripts must be in a Scripts\\Source folder to show up in CK.`;
+    } else if (name === 'generate_xedit_script') {
+        const scriptName = sanitizeBasename(args.scriptName);
+        const code = String(args.code || '').trimEnd() + '\n';
+        const filename = `${scriptName}.pas`;
+
+        let wroteTo: string | null = null;
+
+        // Best effort: if xEdit is configured, write directly into xEdit\Edit Scripts
+        try {
+            if (api?.getSettings) {
+                const settings = await api.getSettings();
+                const xeditPath = String(settings?.xeditPath || '').trim();
+                if (xeditPath) {
+                    const xeditDir = dirname(xeditPath);
+                    const targetPath = joinPath(xeditDir, 'Edit Scripts', filename);
+                    const ok = await trySaveTextFile(targetPath, code);
+                    if (ok) wroteTo = targetPath;
+                }
+            }
+        } catch {
+            // ignore
+        }
+
+        if (!wroteTo) {
+            const saved = await saveToDownloads(filename, code);
+            if (saved) wroteTo = saved;
+        }
+
+        try { await navigator.clipboard.writeText(code); } catch { /* ignore clipboard errors */ }
+
+        result = `**xEdit Script Generated:** ${filename}\n\n` +
+            (wroteTo ? `**Saved:** ${wroteTo}\n\n` : `**Saved:** (unable to write file automatically)\n\n`) +
+            `\`\`\`pascal\n${code}\`\`\`\n\n` +
+            `**Next:** In FO4Edit/xEdit: right-click a record → **Apply Script** → pick **${filename}**. If it doesn't appear, restart xEdit (it reads scripts on startup).`;
     } else if (name === 'check_previs_status') {
         const bridgeActive = localStorage.getItem('mossy_bridge_active') === 'true';
         if (bridgeActive) {
@@ -554,9 +738,13 @@ export const executeMossyTool = async (name: string, args: any, context: {
                 try {
                     console.log(`[MOSSY LAUNCH] Launching from settings: ${settingsPath}`);
                     console.log(`[MOSSY LAUNCH] Path exists check...`);
-                    
-                    await api.openProgram(settingsPath);
-                    console.log(`[MOSSY LAUNCH] ✓ Program launch command sent successfully`);
+
+                    const launchRes: any = await api.openProgram(settingsPath);
+                    console.log(`[MOSSY LAUNCH] ✓ Program launch command sent successfully`, launchRes);
+                    if (launchRes && launchRes.success === false) {
+                        result = `[MOSSY] ⚠️ Could not launch **${settingsMatch}**\n\n**Error:** ${launchRes.error || 'Unknown error'}\n\n**Path:** ${settingsPath}\n\nPlease check the path in External Tools settings.`;
+                        return { success: false, result };
+                    }
                     result = `[MOSSY] ✅ Launched **${settingsMatch}**\n\n${reason}\n\nThe program should open in a few seconds.`;
                     return { success: true, result };
                 } catch (launchErr) {
@@ -586,7 +774,7 @@ export const executeMossyTool = async (name: string, args: any, context: {
                         score = 1000;
                     }
                     // Exact word match at the end = 800 points (Canvas in "NVIDIA Canvas")
-                    else if (name.endsWith(searchTerm) || name.split(' ').some(word => word === searchTerm)) {
+                    else if (name.endsWith(searchTerm) || name.split(' ').some((word: string) => word === searchTerm)) {
                         score = 800;
                     }
                     // Starts with search term = 600 points
@@ -594,7 +782,7 @@ export const executeMossyTool = async (name: string, args: any, context: {
                         score = 600;
                     }
                     // Contains search term as complete word = 400 points
-                    else if (name.split(' ').some(word => word.includes(searchTerm)) || name.split('-').some(word => word.includes(searchTerm))) {
+                    else if (name.split(' ').some((word: string) => word.includes(searchTerm)) || name.split('-').some((word: string) => word.includes(searchTerm))) {
                         score = 400;
                     }
                     // Contains search term = 100 points
@@ -603,10 +791,10 @@ export const executeMossyTool = async (name: string, args: any, context: {
                     }
                     
                     return { app, score };
-                }).filter(item => item.score > 0)
-                 .sort((a, b) => b.score - a.score);
+                }).filter((item: { score: number }) => item.score > 0)
+                 .sort((a: { score: number }, b: { score: number }) => b.score - a.score);
                 
-                console.log(`[MOSSY LAUNCH] Scored matches for "${programName}":`, scored.slice(0, 3).map(s => ({ name: s.app.displayName, score: s.score })));
+                console.log(`[MOSSY LAUNCH] Scored matches for "${programName}":`, scored.slice(0, 3).map((s: any) => ({ name: s.app.displayName, score: s.score })));
                 
                 if (scored.length === 0) {
                     result = `[MOSSY] Could not find "${programName}" in detected programs. Try asking me "what tools do I have?" to see available programs.`;
@@ -629,7 +817,11 @@ export const executeMossyTool = async (name: string, args: any, context: {
                     if (launchApi) {
                         try {
                             console.log(`[MOSSY LAUNCH] Calling openProgram...`);
-                            await launchApi(targetPath);
+                            const launchRes: any = await launchApi(targetPath);
+                            if (launchRes && launchRes.success === false) {
+                                result = `[MOSSY] ⚠️ Could not launch "${targetApp.displayName || targetApp.name}". Error: ${launchRes.error || 'Unknown error'}\n\nPath: ${targetPath}`;
+                                return { success: false, result };
+                            }
                             console.log(`[MOSSY LAUNCH] openProgram call succeeded`);
                             result = `[MOSSY] ✅ Launched **${targetApp.displayName || targetApp.name}**\n\n${reason}\n\nThe program should open in a few seconds.`;
                         } catch (launchErr) {
@@ -645,8 +837,8 @@ export const executeMossyTool = async (name: string, args: any, context: {
                     // If there are other close matches, mention them
                     if (scored.length > 1 && scored[0].score >= 600) {
                         const otherMatches = scored.slice(1, 3);
-                        if (otherMatches.some(m => m.score >= 400)) {
-                            console.log(`[MOSSY LAUNCH] Other close matches:`, otherMatches.map(m => ({ name: m.app.displayName, score: m.score })));
+                        if (otherMatches.some((m: any) => m.score >= 400)) {
+                            console.log(`[MOSSY LAUNCH] Other close matches:`, otherMatches.map((m: any) => ({ name: m.app.displayName, score: m.score })));
                         }
                     }
                 }
@@ -698,10 +890,14 @@ export const executeMossyTool = async (name: string, args: any, context: {
                 console.log('[MOSSY SCAN] ⚠️ WARNING: This may take 30-60 seconds and could disconnect Live API!');
                 
                 // Step 1: Check if detectPrograms exists
-                const detectPrograms = typeof window.electron?.api?.detectPrograms === 'function' 
-                    ? window.electron.api.detectPrograms 
-                    : typeof window.electronAPI?.detectPrograms === 'function'
-                    ? window.electronAPI.detectPrograms
+                const electronAny = (window as any).electron;
+                const electronApiAny = electronAny?.api;
+                const electronCompatAny = (window as any).electronAPI;
+
+                const detectPrograms = typeof electronApiAny?.detectPrograms === 'function'
+                    ? electronApiAny.detectPrograms
+                    : typeof electronCompatAny?.detectPrograms === 'function'
+                    ? electronCompatAny.detectPrograms
                     : null;
 
                 if (!detectPrograms) {
@@ -824,7 +1020,6 @@ export const executeMossyTool = async (name: string, args: any, context: {
                     return name.includes('ai') || 
                            name.includes('chatgpt') || 
                            name.includes('claude') || 
-                           name.includes('gemini') || 
                            name.includes('copilot') ||
                            name.includes('gpt') ||
                            name.includes('ollama') ||
@@ -1056,7 +1251,7 @@ For more help, visit: Settings > Diagnostic Tools > Run Diagnostics
 `;
                 
                 // Try to use Electron API to save file
-                const api = window.electron?.api || window.electronAPI;
+                const api: any = (window as any).electron?.api || (window as any).electronAPI;
                 if (api?.saveFile) {
                     try {
                         console.log('[MOSSY] Calling api.saveFile with:', { filename, contentLength: reportContent.length });
@@ -1123,7 +1318,7 @@ Check your Downloads folder or the location where files are saved.`;
             result = `**Export failed:** ${e instanceof Error ? e.message : 'Unknown error'}. The error logs may still be available in Settings > Privacy Settings > Export Mossy Error Logs.`;
         }
     } else if (name === 'execute_blender_script') {
-        const bridgeActive = localStorage.getItem('mossy_bridge_active') === 'true' || true; // Native bridge is now always active
+        const bridgeActive = localStorage.getItem('mossy_bridge_active') === 'true';
         if (bridgeActive) {
             try {
                 const response = await fetch('http://localhost:21337/execute', {
@@ -1147,7 +1342,7 @@ Check your Downloads folder or the location where files are saved.`;
             result = `**Blender Python Prepared:**\nI have prepared the script and attempted to copy it to the clipboard. Use the 'Paste & Run' button in the Blender panel.`;
         }
     } else if (name === 'write_blender_script') {
-        const bridgeActive = localStorage.getItem('mossy_bridge_active') === 'true' || true;
+        const bridgeActive = localStorage.getItem('mossy_bridge_active') === 'true';
         const safeScript = sanitizeBlenderScript(args.script);
         const scriptName = args.name || 'MOSSY_SCRIPT';
         const shouldRun = !!args.run;
@@ -1173,7 +1368,7 @@ Check your Downloads folder or the location where files are saved.`;
                 result = `**Connection Error:** Failed to reach Bridge. Script is in clipboard as a fallback.`;
             }
         } else {
-            try { await navigator.clipboard.writeText(safeScript); } catch {}
+            try { await navigator.clipboard.writeText(safeScript); } catch { /* ignore clipboard errors */ }
             result = `**Blender Script Prepared:** Saved to clipboard. Open Text Editor in Blender, paste into a new block named '${scriptName}', and run.`;
         }
     } else if (name === 'send_blender_shortcut') {
@@ -1214,8 +1409,6 @@ Check your Downloads folder or the location where files are saved.`;
     } else if (name === 'ck_set_render_mode') {
         result = `**CK Render Mode set to:** ${args.mode}`;
     } else if (name === 'create_mod_project') {
-        // Import ModProjectStorage here to avoid circular dependencies
-        const { ModProjectStorage } = await import('./services/ModProjectStorage');
         try {
             const newProject = ModProjectStorage.createModProject({
                 name: args.name,
@@ -1229,7 +1422,6 @@ Check your Downloads folder or the location where files are saved.`;
             result = `❌ Error creating mod project: ${e}`;
         }
     } else if (name === 'add_mod_step') {
-        const { ModProjectStorage } = await import('./services/ModProjectStorage');
         try {
             const step = ModProjectStorage.addStep(args.projectId, {
                 title: args.title,
@@ -1246,7 +1438,6 @@ Check your Downloads folder or the location where files are saved.`;
             result = `❌ Error adding step: ${e}`;
         }
     } else if (name === 'update_mod_step') {
-        const { ModProjectStorage } = await import('./services/ModProjectStorage');
         try {
             const step = ModProjectStorage.updateStep(args.projectId, args.stepId, {
                 status: args.status,
@@ -1262,7 +1453,6 @@ Check your Downloads folder or the location where files are saved.`;
             result = `❌ Error updating step: ${e}`;
         }
     } else if (name === 'get_mod_status') {
-        const { ModProjectStorage } = await import('./services/ModProjectStorage');
         try {
             const projectId = args.projectId || ModProjectStorage.getCurrentModId();
             if (!projectId) {
@@ -1280,7 +1470,6 @@ Check your Downloads folder or the location where files are saved.`;
             result = `❌ Error fetching mod status: ${e}`;
         }
     } else if (name === 'list_mod_projects') {
-        const { ModProjectStorage } = await import('./services/ModProjectStorage');
         try {
             const projects = ModProjectStorage.getProjectListItems();
             if (projects.length === 0) {
@@ -1295,7 +1484,6 @@ Check your Downloads folder or the location where files are saved.`;
             result = `❌ Error listing projects: ${e}`;
         }
     } else if (name === 'set_current_mod') {
-        const { ModProjectStorage } = await import('./services/ModProjectStorage');
         try {
             const success = ModProjectStorage.setCurrentMod(args.projectId);
             if (!success) {
@@ -1323,7 +1511,7 @@ function categorizeProgramsByFunction(apps: any[]): any[] {
         'Mod Managers': ['vortex', 'modorganizer', 'mo2', 'nmm', 'fomm'],
         'Scripting': ['python', 'visual studio', 'vscode', 'sublime', 'notepad++', 'atom', 'code editor', 'ide'],
         'Media': ['premiere', 'davinci', 'ffmpeg', 'handbrake', 'audacity', 'video', 'audio', 'media'],
-        'AI & ML': ['chatgpt', 'claude', 'gemini', 'copilot', 'ollama', 'neural', 'ai', 'llm', 'tensorflow', 'pytorch'],
+        'AI & ML': ['chatgpt', 'claude', 'copilot', 'ollama', 'neural', 'ai', 'llm', 'tensorflow', 'pytorch'],
         'Utilities': ['7zip', 'winrar', 'total commander', 'everything', 'cleanup', 'optimization'],
     };
 

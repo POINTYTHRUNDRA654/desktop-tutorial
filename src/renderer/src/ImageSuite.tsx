@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Image as ImageIcon, ScanSearch, Download, Layers, Upload, CheckCircle2, AlertTriangle } from 'lucide-react';
 import { useLive } from './LiveContext';
+import { ToolsInstallVerifyPanel } from './components/ToolsInstallVerifyPanel';
 
 const ImageSuite: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'pbr' | 'convert'>('pbr');
@@ -239,6 +240,38 @@ const ImageSuite: React.FC = () => {
       </div>
 
       <div className="flex-1 p-6 overflow-y-auto">
+        <div className="max-w-5xl mx-auto">
+          <ToolsInstallVerifyPanel
+            accentClassName="text-forge-accent"
+            description="Most features run in-app. If you require real DDS output (instead of a fallback), you may need an external DDS tool like texconv and a configured tool path."
+            tools={[
+              {
+                label: 'DirectXTex (texconv) releases (optional DDS compression)',
+                href: 'https://github.com/microsoft/DirectXTex/releases',
+                kind: 'official',
+                note: 'Install texconv if “Require real DDS” is enabled and you want authentic DDS output.'
+              },
+            ]}
+            verify={[
+              'Upload a source image and confirm the preview updates.',
+              'Generate one PBR map and confirm it appears in the results list.',
+              'Export and confirm the download contains the expected files.'
+            ]}
+            firstTestLoop={[
+              'Upload a small PNG → generate PBR maps → export → inspect filenames.',
+              'Switch to Format Converter → convert to DDS with FO4 preset → export and verify the file opens in your preferred viewer.'
+            ]}
+            troubleshooting={[
+              'If you see a DDS “fallback” warning, either disable “Require real DDS” or configure a real DDS tool path.',
+              'If exports fail, open DevTools/console and check IPC errors from the desktop bridge.'
+            ]}
+            shortcuts={[
+              { label: 'Tool Settings', to: '/settings/tools' },
+              { label: 'The Vault', to: '/vault' },
+              { label: 'Workshop', to: '/workshop' },
+            ]}
+          />
+        </div>
         <div className="max-w-5xl mx-auto grid grid-cols-1 lg:grid-cols-12 gap-8">
           
           {/* Controls Sidebar */}

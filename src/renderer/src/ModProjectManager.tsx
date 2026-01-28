@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Plus, ChevronRight, FileText, Trash2, Settings, CheckCircle2, Clock, AlertCircle, TrendingUp, FolderOpen, Zap } from 'lucide-react';
 import { ModProjectStorage } from './services/ModProjectStorage';
 import type { ModProject, ModProjectListItem, CreateModProjectInput, ModType } from './types/ModProject';
+import { ToolsInstallVerifyPanel } from './components/ToolsInstallVerifyPanel';
 
 interface CreateModalState {
   isOpen: boolean;
@@ -145,6 +146,30 @@ const ModProjectManager: React.FC = () => {
 
         {/* Projects Grid */}
         <div className="flex-1 overflow-y-auto p-6">
+          <ToolsInstallVerifyPanel
+            accentClassName="text-amber-300"
+            description="This page manages your in-app mod project journey. No external installs are required, but you should still do a tiny plan → test loop for every project."
+            verify={[
+              'Create a new project and confirm it appears in the list.',
+              'Select a project and confirm “current mod” updates (badge/status changes).',
+              'Refresh and confirm your projects persist.'
+            ]}
+            firstTestLoop={[
+              'Create a minimal project plan → do one small change → package/test once → log what happened.',
+              'Only then add more scope (assets, scripts, quests, etc.).'
+            ]}
+            troubleshooting={[
+              'If projects disappear after refresh, verify you are not in a private/cleared storage mode.',
+              'If you feel stuck, reduce scope to the smallest testable change and iterate.'
+            ]}
+            shortcuts={[
+              { label: 'The Vault', to: '/vault' },
+              { label: 'Packaging Wizard', to: '/packaging-release' },
+              { label: 'Crash Triage', to: '/crash-triage' },
+              { label: 'Tool Settings', to: '/settings/tools' },
+            ]}
+          />
+
           {projects.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-full text-center">
               <FolderOpen className="w-16 h-16 text-stone-700 mb-4" />

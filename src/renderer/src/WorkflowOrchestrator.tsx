@@ -1,5 +1,7 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { GitBranch, Package, HardDrive, Play, Loader2, CheckCircle2, AlertTriangle, Database, Copy, Shield, Settings, Repeat2, ClipboardList, Download } from 'lucide-react';
+import { ToolsInstallVerifyPanel } from './components/ToolsInstallVerifyPanel';
+import { useWheelScrollProxy } from './components/useWheelScrollProxy';
 
 interface Asset {
     id: string;
@@ -56,7 +58,7 @@ const ASSETS: Asset[] = [
         id: 'mesh-01',
         name: 'Railcar Static Mesh',
         type: 'mesh',
-        sourcePath: 'D:/Fallout4Mods/Assets/meshes/railcar_high.nif',
+        sourcePath: 'EXAMPLE: <your workspace>/Assets/meshes/railcar_high.nif',
         targetPath: 'Data/Meshes/Workshop/Rail/railcar01.nif',
         sizeMB: 14.2,
         tags: ['static', 'collision', 'lod'],
@@ -68,7 +70,7 @@ const ASSETS: Asset[] = [
         id: 'mesh-02',
         name: 'Armor Chestplate',
         type: 'mesh',
-        sourcePath: 'D:/Fallout4Mods/Assets/meshes/armor/chestplate_high.nif',
+        sourcePath: 'EXAMPLE: <your workspace>/Assets/meshes/armor/chestplate_high.nif',
         targetPath: 'Data/Meshes/Armor/Custom/chestplate.nif',
         sizeMB: 9.8,
         tags: ['armor', 'skin', 'physics'],
@@ -79,7 +81,7 @@ const ASSETS: Asset[] = [
         id: 'tex-01',
         name: 'Railcar Texture Set',
         type: 'texture',
-        sourcePath: 'D:/Fallout4Mods/Assets/textures/railcar/*.png',
+        sourcePath: 'EXAMPLE: <your workspace>/Assets/textures/railcar/*.png',
         targetPath: 'Data/Textures/Workshop/Rail/railcar01_*.dds',
         sizeMB: 88.4,
         tags: ['albedo', 'normal', 'metal'],
@@ -91,7 +93,7 @@ const ASSETS: Asset[] = [
         id: 'tex-02',
         name: 'Armor Texture Set',
         type: 'texture',
-        sourcePath: 'D:/Fallout4Mods/Assets/textures/armor/*.png',
+        sourcePath: 'EXAMPLE: <your workspace>/Assets/textures/armor/*.png',
         targetPath: 'Data/Textures/Armor/Custom/armor_*.dds',
         sizeMB: 52.1,
         tags: ['albedo', 'normal', 'roughness'],
@@ -102,7 +104,7 @@ const ASSETS: Asset[] = [
         id: 'audio-01',
         name: 'Workbench VO Lines',
         type: 'audio',
-        sourcePath: 'D:/Fallout4Mods/Assets/audio/workbench/*.wav',
+        sourcePath: 'EXAMPLE: <your workspace>/Assets/audio/workbench/*.wav',
         targetPath: 'Data/Sound/Voice/CustomWorkbench/',
         sizeMB: 34.7,
         tags: ['voice', 'dialogue'],
@@ -113,7 +115,7 @@ const ASSETS: Asset[] = [
         id: 'script-01',
         name: 'Railcar Control Script',
         type: 'script',
-        sourcePath: 'D:/Fallout4Mods/Assets/scripts/RailcarControl.psc',
+        sourcePath: 'EXAMPLE: <your workspace>/Assets/scripts/RailcarControl.psc',
         targetPath: 'Data/Scripts/RailcarControl.pex',
         sizeMB: 0.4,
         tags: ['papyrus', 'workshop'],
@@ -180,6 +182,9 @@ const WorkflowOrchestrator = () => {
     const [logs, setLogs] = useState<RunLog[]>([]);
     const [isRunning, setIsRunning] = useState(false);
     const [runHistory, setRunHistory] = useState<Record<string, RunHistoryEntry[]>>({});
+
+    const mainScrollRef = useRef<HTMLDivElement | null>(null);
+    const onWheel = useWheelScrollProxy(mainScrollRef);
 
     const selectedAsset = useMemo(() => assets.find(a => a.id === selectedAssetId) || null, [assets, selectedAssetId]);
 
@@ -256,7 +261,7 @@ const WorkflowOrchestrator = () => {
     const stagedForBA2 = useMemo(() => assets.filter(a => a.status === 'processed' || a.status === 'in-progress'), [assets]);
 
     return (
-        <div className="h-full flex flex-col bg-[#111827] text-slate-200 font-sans overflow-hidden">
+        <div className="h-full min-h-0 flex flex-col bg-[#111827] text-slate-200 font-sans overflow-hidden" onWheel={onWheel}>
             {/* Header */}
             <div className="p-4 border-b border-black bg-[#1f2937] flex justify-between items-center shadow-md">
                 <div>
@@ -273,14 +278,44 @@ const WorkflowOrchestrator = () => {
                 </div>
             </div>
 
-            <div className="flex flex-1 overflow-hidden">
+            <div className="p-4 border-b border-slate-800 bg-[#111827]">
+                <div className="max-h-72 overflow-y-auto pr-2">
+                    <ToolsInstallVerifyPanel
+                        className="mb-0"
+                        accentClassName="text-purple-300"
+                        description="Orchestrator is a pipeline planner and run log UI. Any real processing requires you to connect it to real tools/commands in your environment (no default paths are assumed)."
+                        tools={[]}
+                        verify={[
+                            'Select an asset and confirm applicable pipelines update.',
+                            'Start a pipeline run and confirm you see step-by-step status output.',
+                        ]}
+                        firstTestLoop={[
+                            'Pick one asset type (mesh/texture/audio/script) and run its simplest pipeline.',
+                            'Copy the target path and confirm it matches your intended Data/ layout.',
+                            'Package the processed output using the Packaging wizard.',
+                        ]}
+                        troubleshooting={[
+                            'If a pipeline step “succeeds” but you don’t see results, confirm the command/tool is actually configured.',
+                            'Treat any displayed source paths marked EXAMPLE as placeholders; set your real workspace paths.',
+                        ]}
+                        shortcuts={[
+                            { label: 'Workshop', to: '/workshop' },
+                            { label: 'Tool Settings', to: '/settings/tools' },
+                            { label: 'Packaging', to: '/packaging-release' },
+                            { label: 'Diagnostics', to: '/diagnostics' },
+                        ]}
+                    />
+                </div>
+            </div>
+
+            <div className="flex flex-1 min-h-0 overflow-hidden">
                 {/* Assets List */}
-                <div className="w-80 border-r border-slate-800 bg-[#0f172a] flex flex-col">
+                <div className="w-80 border-r border-slate-800 bg-[#0f172a] flex flex-col min-h-0">
                     <div className="p-4 border-b border-slate-800 bg-[#111827]">
                         <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wide">Assets</h3>
                         <p className="text-[10px] text-slate-500">Central storage to reuse across mods</p>
                     </div>
-                    <div className="p-3 space-y-2 overflow-y-auto">
+                    <div className="p-3 space-y-2 overflow-y-auto min-h-0">
                         {assets.map(asset => (
                             <button
                                 key={asset.id}
@@ -321,7 +356,7 @@ const WorkflowOrchestrator = () => {
                 </div>
 
                 {/* Main Panel */}
-                <div className="flex-1 flex flex-col bg-[#0b1220]">
+                <div className="flex-1 flex flex-col min-h-0 bg-[#0b1220]">
                     {selectedAsset && selectedPipeline ? (
                         <>
                             {/* Pipeline Header */}
@@ -361,8 +396,8 @@ const WorkflowOrchestrator = () => {
                             </div>
 
                             {/* Pipeline Selection and Steps */}
-                            <div className="flex-1 flex overflow-hidden">
-                                <div className="w-72 border-r border-slate-800 bg-[#0f172a] p-4 space-y-2 overflow-y-auto">
+                            <div className="flex-1 flex min-h-0 overflow-hidden">
+                                <div className="w-72 border-r border-slate-800 bg-[#0f172a] p-4 space-y-2 overflow-y-auto min-h-0">
                                     <div className="text-[11px] text-slate-400 uppercase font-bold mb-2">Pipelines</div>
                                     {applicablePipelines.map(p => (
                                         <div key={p.id} className={`p-3 rounded border ${p.id === selectedPipeline.id ? 'bg-purple-900/30 border-purple-700/50' : 'bg-slate-900/40 border-slate-800'}`}>
@@ -375,7 +410,7 @@ const WorkflowOrchestrator = () => {
                                     </div>
                                 </div>
 
-                                <div className="flex-1 overflow-y-auto p-6">
+                                <div ref={mainScrollRef} className="flex-1 min-h-0 overflow-y-auto p-6 pb-24">
                                     <div className="space-y-4">
                                         {runSteps.length === 0 && (
                                             <div className="text-center text-slate-500 py-8 text-sm">
@@ -452,7 +487,7 @@ const WorkflowOrchestrator = () => {
                 </div>
 
                 {/* Right Panel */}
-                <div className="w-80 border-l border-slate-800 bg-[#0f172a] flex flex-col">
+                <div className="w-80 border-l border-slate-800 bg-[#0f172a] flex flex-col min-h-0">
                     <div className="p-4 border-b border-slate-800 bg-[#111827] flex items-center justify-between">
                         <div>
                             <div className="text-[10px] text-slate-400 uppercase font-bold">Storage Stats</div>
@@ -501,7 +536,7 @@ const WorkflowOrchestrator = () => {
                         </div>
                     </div>
 
-                    <div className="flex-1 overflow-y-auto p-3 space-y-2 font-mono text-[10px] text-slate-300">
+                    <div className="flex-1 min-h-0 overflow-y-auto p-3 pb-24 space-y-2 font-mono text-[10px] text-slate-300">
                         {logs.length === 0 && <div className="italic text-slate-600">Waiting for pipeline run...</div>}
                         {logs.map((logEntry, idx) => (
                             <div key={idx} className={`border-l-2 pl-2 py-1 ${

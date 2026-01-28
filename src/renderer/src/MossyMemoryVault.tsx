@@ -1,6 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Book, Upload, Trash2, Search, Brain, FileText, CheckCircle2, Loader2, Sparkles, Database, Plus, X, Activity, Cloud, Files } from 'lucide-react';
 import { LocalAIEngine } from './LocalAIEngine';
+import { ToolsInstallVerifyPanel } from './components/ToolsInstallVerifyPanel';
+import { useWheelScrollProxy } from './components/useWheelScrollProxy';
 
 interface MemoryItem {
     id: string;
@@ -13,6 +15,9 @@ interface MemoryItem {
 }
 
 const MossyMemoryVault: React.FC = () => {
+    const contentScrollRef = useRef<HTMLDivElement>(null);
+    const onWheel = useWheelScrollProxy(contentScrollRef);
+
     const [memories, setMemories] = useState<MemoryItem[]>([]);
     const [searchTerm, setSearchTerm] = useState('');
     const [isUploading, setIsUploading] = useState(false);
@@ -238,7 +243,7 @@ const MossyMemoryVault: React.FC = () => {
     );
 
     return (
-        <div className="h-full flex flex-col bg-[#0f120f] text-slate-200 font-sans overflow-hidden">
+        <div className="h-full min-h-0 flex flex-col bg-[#0f120f] text-slate-200 font-sans overflow-hidden" onWheel={onWheel}>
             {/* Drag and Drop Overlay */}
             {isDragActive && (
                 <div 
@@ -309,6 +314,52 @@ const MossyMemoryVault: React.FC = () => {
                 </button>
             </div>
 
+            <div className="px-6 pt-4">
+                <ToolsInstallVerifyPanel
+                    accentClassName="text-emerald-300"
+                    description="You can ingest text/files entirely locally. Offline video transcription is optional and requires whisper.cpp + a model file."
+                    tools={[
+                        {
+                            label: 'whisper.cpp releases (offline transcription)'
+                            ,
+                            href: 'https://github.com/ggerganov/whisper.cpp/releases'
+                            ,
+                            kind: 'official'
+                            ,
+                            note: 'Place whisper.cpp.exe under external/whisper/ if you want offline video transcription.'
+                        },
+                        {
+                            label: 'Hugging Face model file (example: ggml-base.en.bin)'
+                            ,
+                            href: 'https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-base.en.bin'
+                            ,
+                            kind: 'official'
+                            ,
+                            note: 'Download the model and place it next to whisper.cpp.exe (see the notice below).'
+                        },
+                    ]}
+                    verify={[
+                        'Click “Ingest Knowledge” → paste a short snippet → confirm it appears in the list.',
+                        'Search for a unique word you pasted and confirm it matches.',
+                        'Confirm the vault count badge updates across the app (Chat/Live pages show it).'
+                    ]}
+                    firstTestLoop={[
+                        'Ingest 1 small text snippet + 1 local file → confirm both show as learned.',
+                        'Open Chat and ask a question that should be answered from your ingested content.',
+                        'If using Live Synapse, connect and verify the “Vault loaded” badge reflects your count.'
+                    ]}
+                    troubleshooting={[
+                        'If PDF or file processing stalls, try a smaller file first to isolate whether it is a parsing issue.',
+                        'If offline video transcription is enabled but fails, re-check file names and the external/whisper/ directory structure.'
+                    ]}
+                    shortcuts={[
+                        { label: 'Chat', to: '/chat' },
+                        { label: 'Live Synapse', to: '/live' },
+                        { label: 'The Vault (Assets)', to: '/vault' },
+                    ]}
+                />
+            </div>
+
             {/* Stats Bar */}
             <div className="px-6 py-3 bg-[#1a1f1a] border-b border-emerald-900/20 flex items-center gap-6 text-[10px] font-mono text-emerald-300">
                 <div className="flex items-center gap-2">
@@ -359,7 +410,8 @@ const MossyMemoryVault: React.FC = () => {
 
             {/* Content Area */}
             <div 
-                className="flex-1 overflow-y-auto p-6 space-y-4"
+                ref={contentScrollRef}
+                className="flex-1 min-h-0 overflow-y-auto p-6 pb-24 space-y-4"
                 onDragEnter={handleDrag}
                 onDragLeave={handleDrag}
                 onDragOver={handleDrag}

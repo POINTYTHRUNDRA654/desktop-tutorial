@@ -29,14 +29,16 @@ const ExternalToolNotice: React.FC<ExternalToolNoticeProps> = ({
       try {
         const s = await window.electronAPI.getSettings();
         setSettings(s);
-        window.electronAPI.onSettingsUpdated((newSettings) => setSettings(newSettings));
+        const unsubscribe = window.electronAPI.onSettingsUpdated((newSettings) => setSettings(newSettings));
+        return unsubscribe;
       } catch (e) {
         console.warn('[ExternalToolNotice] Failed to load settings', e);
       }
     };
-    init();
+    let cleanup: (() => void) | void;
+    init().then((unsub) => { cleanup = unsub; }).catch(() => {});
     return () => {
-      // onSettingsUpdated returns void in types; renderer will clean up on unload
+      if (typeof cleanup === 'function') cleanup();
     };
   }, []);
 

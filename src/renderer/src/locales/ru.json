@@ -1,0 +1,164 @@
+{
+  "nav": {
+    "home": "Mossy.Space",
+    "modProjects": "Проекты модов",
+    "quickReference": "Быстрая справка",
+    "knowledgeSearch": "Поиск по базе знаний",
+    "installWizard": "Мастер установки",
+    "platforms": "Платформы",
+    "crashTriage": "Разбор вылетов",
+    "packagingRelease": "Сборка и релиз",
+    "ckQuestDialogue": "CK: квесты и диалоги",
+    "animationGuide": "Гайд по анимации",
+    "skeletonReference": "Справка по скелету",
+    "riggingMistakes": "Ошибки риггинга",
+    "questModAuthoring": "Создание квестовых модов",
+    "precombinePrpGuide": "Гайд: Precombine и PRP",
+    "prpPatchBuilder": "Сборщик патчей PRP",
+    "leveledListInjection": "Инъекция leveled lists",
+    "lorekeeper": "Хранитель лора",
+
+    "templateGenerator": "Генератор шаблонов",
+    "scriptAnalyzer": "Анализатор скриптов",
+    "assembler": "Сборщик",
+    "workshop": "Мастерская",
+    "blueprint": "Чертёж",
+
+    "riggingChecklist": "Чек-лист риггинга",
+    "exportSettingsHelper": "Помощник экспорта",
+    "animationValidator": "Проверка анимаций",
+    "precombineChecker": "Проверка precombine",
+
+    "auditor": "Аудитор",
+    "scribe": "Писец",
+    "systemMonitor": "Монитор системы",
+
+    "orchestrator": "Оркестратор",
+    "workflowRunner": "Запуск workflows",
+    "holodeck": "Холодек",
+    "vault": "Хранилище",
+    "memoryVault": "Память",
+    "neuralLink": "Нейролинк",
+    "localCapabilities": "Локальные возможности",
+
+    "imageStudio": "Студия изображений",
+    "audioStudio": "Студия аудио",
+
+    "liveSynapse": "Live Synapse",
+    "desktopBridge": "Desktop Bridge",
+    "duplicateFinder": "Поиск дубликатов",
+    "communityLearning": "Обучение сообщества",
+    "toolVerify": "Проверка инструментов",
+    "privacySettings": "Приватность",
+    "voiceSettings": "Голос",
+    "languageSettings": "Язык",
+    "diagnosticTools": "Диагностика",
+    "supportMossy": "Поддержать Mossy"
+  },
+  "settings": {
+    "language": {
+      "title": "Настройки языка",
+      "subtitle": "Выберите язык интерфейса Mossy.",
+      "uiLanguageLabel": "Язык приложения",
+      "uiLanguageHelp": "Влияет на подписи, кнопки и текст интерфейса (где переведено).",
+      "requestTitle": "Запросить язык",
+      "requestHelp": "Нет вашего языка? Напишите, какой добавить следующим.",
+      "requestCta": "Запросить язык",
+      "requestCtaTitle": "Открыть форму запроса языка",
+      "auto": "Авто (система)",
+      "current": "Текущий",
+      "save": "Сохранить"
+    }
+  },
+  "onboarding": {
+    "language": {
+      "label": "Язык",
+      "help": "Выберите язык интерфейса. Позже можно изменить в настройках.",
+      "auto": "Авто (система)"
+    }
+  },
+  "installWizard": {
+    "tagline": "Mossy Tutor • Мастер установки",
+    "topics": "Темы",
+    "modManager": "Менеджер модов",
+    "shortcuts": {
+      "title": "Быстрые ссылки",
+      "externalTools": "Настройки внешних инструментов",
+      "precombinePrp": "Гайд: Precombine и PRP",
+      "simSettlements": "Гайд: Sim Settlements"
+    },
+    "topicSelector": {
+      "xedit": "xEdit / FO4Edit",
+      "ss2": "SS2: строительство участков",
+      "prp": "PRP (Previs/Precombine)",
+      "patching": "Создание патчей"
+    },
+    "actions": {
+      "askMossy": "Спросить Mossy",
+      "askMossyTitle": "Спросить Mossy в чате",
+      "sendToChat": "Отправить в чат",
+      "sendToChatTitle": "Отправить чек-лист этой темы в чат",
+      "reset": "Сброс",
+      "resetTitle": "Сбросить прогресс мастера"
+    },
+    "section": {
+      "prereqs": "Подготовка",
+      "download": "Загрузка",
+      "installConfigure": "Установка / настройка",
+      "buildPatch": "Сборка патча",
+      "verify": "Проверка",
+      "troubleshoot": "Устранение проблем"
+    },
+    "step": {
+      "markIncomplete": "Отметить шаг как незавершённый",
+      "markComplete": "Отметить шаг как выполненный",
+      "completed": "Выполнено",
+      "notCompleted": "Не выполнено"
+    },
+    "topic": {
+      "xedit": {
+        "title": "Настройка xEdit / FO4Edit",
+        "subtitle": "Установите, настройте и проверьте xEdit, чтобы безопасно создавать патчи."
+      },
+      "ss2": {
+        "title": "Настройка Sim Settlements 2",
+        "subtitle": "Зависимости + установка + базовая проверка для строительства участков."
+      },
+      "prp": {
+        "title": "Настройка PRP",
+        "subtitle": "Установка precombines/previs с проверкой конфликтов."
+      },
+      "patching": {
+        "title": "Создание патчей",
+        "subtitle": "Безопасный, повторяемый процесс для создания патчей совместимости."
+      }
+    },
+    "verifyPanel": {
+      "description": "Этот мастер помогает не пропустить prerequisites: даёт официальные источники/стабильные поисковые страницы и минимальный цикл проверки.",
+      "verify": {
+        "0": "Выберите тему и убедитесь, что чек-лист отображается, а галочки сохраняются после обновления.",
+        "1": "Откройте хотя бы одну ссылку из “Trusted links” и убедитесь, что она открывается через openExternal/window.open.",
+        "2": "Нажмите “Отправить в чат” и убедитесь, что чек-лист копируется и подставляется в чат."
+      },
+      "firstTestLoop": {
+        "0": "Начните с “xEdit / FO4Edit” и добейтесь чистого первого запуска.",
+        "1": "Выберите менеджер модов и выполните минимальные шаги проверки перед расширением."
+      },
+      "troubleshooting": {
+        "0": "Если ссылки не открываются, проверьте Diagnostics и доступность openExternal (desktop app) или разрешите всплывающие окна.",
+        "1": "Если состояние галочек не сохраняется, проверьте доступность localStorage (см. Diagnostics)."
+      }
+    },
+    "downloadsSources": "Загрузки и источники",
+    "downloadsSourcesHelp": "Показывает надёжные источники и прямые URL, найденные в вашей локальной базе знаний.",
+    "refresh": "Обновить",
+    "refreshTitle": "Обновить ссылки",
+    "fromVault": "Из вашей базы знаний",
+    "openVault": "Открыть Memory Vault",
+    "searchNexus": "Поиск на Nexus",
+    "vaultLink": "Ссылка из Vault",
+    "tutorTip": "Совет",
+    "openLastLocation": "Открыть последнее место",
+    "openLastLocationTitle": "(Необязательно) Открыть последнее сохранённое место, если доступно"
+  }
+}

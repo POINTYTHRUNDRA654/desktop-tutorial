@@ -14,6 +14,6 @@
 - Any red error messages?
 
 ## Common Issues:
-- API key missing: Check .env.local file has VITE_API_KEY=your_key_here
+- API key missing: Configure OpenAI/Groq/Deepgram in Desktop Settings (or set OPENAI_API_KEY/GROQ_API_KEY/DEEPGRAM_API_KEY for development)
 - Microphone permission denied: Click "Allow" when browser asks
 - Audio context error: Try refreshing the page
