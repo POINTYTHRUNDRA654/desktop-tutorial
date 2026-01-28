@@ -1,11 +1,4 @@
-function normalizeBaseUrl(baseUrl: string | undefined): string {
-	const raw = (baseUrl || './').trim();
-	if (!raw) return './';
-	return raw.endsWith('/') ? raw : `${raw}/`;
-}
+import mossyAvatarSvgUrl from './mossy-avatar.svg?url';
 
-// IMPORTANT:
-// - In dev, Vite serves public assets at `/...`
-// - In production Electron builds loaded via `file://`, absolute `/...` breaks.
-// Using BASE_URL keeps this working for both (base is `./` in prod).
-export const mossyAvatarUrl = `${normalizeBaseUrl((import.meta as any)?.env?.BASE_URL)}mossy-avatar.svg`;
+// Bundle the avatar so it resolves correctly in packaged `file://` builds.
+export const mossyAvatarUrl = mossyAvatarSvgUrl;
