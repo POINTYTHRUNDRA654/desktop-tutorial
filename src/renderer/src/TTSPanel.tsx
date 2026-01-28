@@ -1,7 +1,10 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Play, FileAudio, Sliders, Radio, Cpu, Music, Download, Volume2, Activity, Settings, Upload, Trash2, Folder } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { Play, FileAudio, Sliders, Radio, Cpu, Music, Download, Volume2, Activity, Settings, Upload, Trash2, Folder, ExternalLink } from 'lucide-react';
+import { ToolsInstallVerifyPanel } from './components/ToolsInstallVerifyPanel';
 
 const AudioStudio: React.FC = () => {
+    const navigate = useNavigate();
   const [audioBuffer, setAudioBuffer] = useState<AudioBuffer | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [audioFiles, setAudioFiles] = useState<{ name: string; buffer: AudioBuffer; duration: number }[]>([]);
@@ -14,6 +17,14 @@ const AudioStudio: React.FC = () => {
   const [echoAmount, setEchoAmount] = useState(0);
   const [pitchShift, setPitchShift] = useState(1.0);
   const [audioQuality, setAudioQuality] = useState<'16bit-22k' | '16bit-44k' | '24bit-48k'>('16bit-44k');
+
+  const openUrl = (url: string) => {
+      window.open(url, '_blank', 'noopener,noreferrer');
+  };
+
+  const openNexusSearch = (query: string) => {
+      openUrl(`https://www.nexusmods.com/fallout4/search/?query=${encodeURIComponent(query)}`);
+  };
   
   // Refs for Audio API
   const audioContextRef = useRef<AudioContext | null>(null);
@@ -335,6 +346,144 @@ const AudioStudio: React.FC = () => {
       <div className="flex-1 flex overflow-hidden">
           {/* Main Content */}
           <div className="flex-1 flex flex-col p-6 gap-6 overflow-y-auto">
+
+              <ToolsInstallVerifyPanel
+                  accentClassName="text-purple-300"
+                  description="Audio Studio runs entirely in-app for basic editing and WAV export. Fallout 4 voice integration (XWM/FUZ/LIP) may require external tools depending on your target pipeline."
+                  tools={[
+                      {
+                          label: 'Creation Kit (Archive2 for BA2/archives)'
+                          ,
+                          href: 'https://store.steampowered.com/search/?term=Fallout%204%20Creation%20Kit'
+                          ,
+                          kind: 'search'
+                          ,
+                          note: 'Use Steam search to find the official listing if you need Archive2 as part of packaging.'
+                      },
+                      {
+                          label: 'Nexus search: FUZ tools (pack/unpack)'
+                          ,
+                          href: 'https://www.nexusmods.com/fallout4/search/?query=fuz'
+                          ,
+                          kind: 'search'
+                          ,
+                          note: 'Search for a FUZ pipeline tool that matches your workflow; avoid random mirrors.'
+                      },
+                      {
+                          label: 'Nexus search: XWM tools (encode/decode)'
+                          ,
+                          href: 'https://www.nexusmods.com/fallout4/search/?query=xwm'
+                          ,
+                          kind: 'search'
+                          ,
+                          note: 'If FO4 requires XWM, pick a known community tool and configure its path if needed.'
+                      },
+                  ]}
+                  verify={[
+                      'Upload or load a WAV and confirm it appears in the file list.',
+                      'Play audio and confirm the visualizer moves and audio can be stopped.',
+                      'Export to WAV and confirm the output lands where you expect (download or mod folder, depending on settings).'
+                  ]}
+                  firstTestLoop={[
+                      'Load a short WAV → apply one effect (e.g., Radio) → export → re-import to confirm it round-trips.',
+                      'If targeting FO4, follow the “Fallout 4 Voice Pipeline” box and resolve any missing-tool notes one at a time.'
+                  ]}
+                  troubleshooting={[
+                      'If audio will not play, click Play once to unlock the browser audio context (some environments require a user gesture).',
+                      'If FO4 export warns about missing XWM/FUZ/LIP tools, decide which targets you truly need and configure only those.'
+                  ]}
+                  shortcuts={[
+                      { label: 'Tool Settings', to: '/settings/tools' },
+                      { label: 'The Vault', to: '/vault' },
+                      { label: 'Workshop', to: '/workshop' },
+                  ]}
+              />
+
+              {/* Fallout 4 Integration */}
+              <div className="bg-forge-panel border border-slate-700 rounded-xl p-6">
+                  <div className="flex items-start justify-between gap-4 mb-4">
+                      <div>
+                          <h3 className="text-sm font-bold text-slate-200 flex items-center gap-2">
+                              <Music className="w-4 h-4" /> Fallout 4 Voice Pipeline (Export → In-Game)
+                          </h3>
+                          <p className="text-xs text-slate-400 mt-1">
+                              This panel tells you what’s missing after “Export to WAV”: FO4 typically needs XWM/FUZ + optional LIP.
+                          </p>
+                      </div>
+                      <div className="flex flex-wrap gap-2 justify-end">
+                          <button
+                              onClick={() => navigate('/settings/tools')}
+                              className="px-3 py-2 bg-slate-800 hover:bg-slate-700 border border-slate-600 rounded text-xs font-bold text-slate-200"
+                              title="Configure external tools"
+                          >
+                              Tool Settings
+                          </button>
+                          <button
+                              onClick={() => navigate('/ck-quest-dialogue')}
+                              className="px-3 py-2 bg-slate-800 hover:bg-slate-700 border border-slate-600 rounded text-xs font-bold text-slate-200"
+                              title="Quest/dialogue workflow"
+                          >
+                              CK Wizard
+                          </button>
+                          <button
+                              onClick={() => navigate('/packaging-release')}
+                              className="px-3 py-2 bg-slate-800 hover:bg-slate-700 border border-slate-600 rounded text-xs font-bold text-slate-200"
+                              title="Packaging and release checklist"
+                          >
+                              Packaging
+                          </button>
+                      </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                      <div className="bg-slate-900 border border-slate-700 rounded-lg p-4">
+                          <h4 className="text-xs font-bold text-slate-300 uppercase tracking-widest mb-2">Recommended export targets</h4>
+                          <ul className="text-xs text-slate-300 space-y-2">
+                              <li>• Dialogue: start with <strong>16-bit 22 kHz</strong> (smaller + common for voiced lines)</li>
+                              <li>• Music/ambient: higher rates can be fine, but test in-game and watch file size</li>
+                              <li>• Keep levels sane: avoid clipping; aim for consistent loudness per character</li>
+                          </ul>
+                      </div>
+
+                      <div className="bg-slate-900 border border-slate-700 rounded-lg p-4">
+                          <h4 className="text-xs font-bold text-slate-300 uppercase tracking-widest mb-2">Convert & place (typical)</h4>
+                          <ul className="text-xs text-slate-300 space-y-2">
+                              <li>• Convert WAV → <strong>XWM</strong> (common) then package as <strong>FUZ</strong> for dialogue</li>
+                              <li>• Optional: generate <strong>.LIP</strong> (lip sync). CK can generate lips for dialogue lines.</li>
+                              <li>• Put final files under <strong>Sound/Voice/&lt;YourPlugin&gt;.esp/&lt;VoiceType&gt;/...</strong></li>
+                              <li>• Verify: load plugin in CK and preview the line; then test a clean save in-game</li>
+                          </ul>
+                      </div>
+                  </div>
+
+                  <div className="mt-4 flex flex-wrap gap-2">
+                      <button
+                          onClick={() => openNexusSearch('multiXwm')}
+                          className="px-3 py-2 bg-slate-900 hover:bg-slate-800 border border-purple-500/30 rounded text-xs font-bold text-slate-200 flex items-center gap-2"
+                          title="Nexus search for XWM conversion tools"
+                      >
+                          <ExternalLink className="w-4 h-4 text-purple-300" /> Nexus: multiXwm
+                      </button>
+                      <button
+                          onClick={() => openNexusSearch('unfuzer')}
+                          className="px-3 py-2 bg-slate-900 hover:bg-slate-800 border border-purple-500/30 rounded text-xs font-bold text-slate-200 flex items-center gap-2"
+                          title="Nexus search for FUZ tools"
+                      >
+                          <ExternalLink className="w-4 h-4 text-purple-300" /> Nexus: FUZ tools
+                      </button>
+                      <button
+                          onClick={() => openNexusSearch('FaceFXWrapper')}
+                          className="px-3 py-2 bg-slate-900 hover:bg-slate-800 border border-purple-500/30 rounded text-xs font-bold text-slate-200 flex items-center gap-2"
+                          title="Nexus search for LIP generation helpers"
+                      >
+                          <ExternalLink className="w-4 h-4 text-purple-300" /> Nexus: LIP helpers
+                      </button>
+                  </div>
+
+                  <p className="text-[11px] text-slate-500 mt-3">
+                      Note: This tool exports WAV and lets you process audio. Fallout 4 compatibility depends on your chosen voice pipeline (XWM/FUZ/LIP) and correct folder layout.
+                  </p>
+              </div>
               
               {/* Audio File Manager */}
               <div className="bg-forge-panel border border-slate-700 rounded-xl p-6">

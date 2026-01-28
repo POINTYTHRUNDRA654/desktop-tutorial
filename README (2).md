@@ -15,6 +15,6 @@ View your app in AI Studio: https://ai.studio/apps/drive/1uEKBzDjU2KgB6zleJiVhy7
 
 1. Install dependencies:
    `npm install`
-2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
+2. Configure keys in the Desktop app Settings UI (OpenAI/Groq/Deepgram)
 3. Run the app:
    `npm run dev`

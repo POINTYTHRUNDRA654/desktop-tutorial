@@ -1,5 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Container, Search, HardDrive, Lock, Globe, ShieldCheck, Clipboard, CheckCircle2, AlertTriangle, Archive, FilePlus, Upload, Wrench, ChevronDown } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { Container, Search, HardDrive, Lock, Globe, ShieldCheck, Clipboard, CheckCircle2, AlertTriangle, Archive, FilePlus, Upload, Wrench, ChevronDown, ExternalLink } from 'lucide-react';
+import { ToolsInstallVerifyPanel } from './components/ToolsInstallVerifyPanel';
 
 type AssetType = 'mesh' | 'texture' | 'audio' | 'script' | 'ui';
 
@@ -22,6 +24,11 @@ interface Asset {
 const initialAssets: Asset[] = [];
 
 const TheVault: React.FC = () => {
+    const navigate = useNavigate();
+    const configSectionRef = useRef<HTMLDivElement | null>(null);
+    const importSectionRef = useRef<HTMLDivElement | null>(null);
+    const manifestSectionRef = useRef<HTMLDivElement | null>(null);
+    const assetsListRef = useRef<HTMLDivElement | null>(null);
     const [assets, setAssets] = useState<Asset[]>(() => {
         const stored = typeof window !== 'undefined' ? window.localStorage.getItem('vault-assets-v1') : null;
         if (!stored) return initialAssets;
@@ -97,6 +104,22 @@ const TheVault: React.FC = () => {
     const [autoConvertImagesToDDS, setAutoConvertImagesToDDS] = useState<boolean>(() => {
         try { return JSON.parse(localStorage.getItem('vault-auto-convert-images-v1') || 'false'); } catch { return false; }
     });
+
+    const openUrl = async (url: string) => {
+        try {
+            if (api?.openExternal) {
+                await api.openExternal(url);
+                return;
+            }
+        } catch {
+            // ignore
+        }
+        window.open(url, '_blank', 'noopener,noreferrer');
+    };
+
+    const openNexusSearch = (query: string) => {
+        openUrl(`https://www.nexusmods.com/fallout4/search/?query=${encodeURIComponent(query)}`);
+    };
 
     const toolMap: Record<AssetType, { tool: string; command: string; patterns: string[] }> = {
         mesh: {
@@ -492,7 +515,7 @@ const TheVault: React.FC = () => {
         .join('\n');
 
     return (
-        <div className="h-full flex flex-col bg-forge-dark text-slate-200">
+        <div className="h-full flex flex-col bg-forge-dark text-slate-200 overflow-y-auto overflow-x-hidden min-h-0">
             <div className="p-6 border-b border-slate-700 bg-forge-panel flex flex-col gap-4 shadow-md z-10">
                 <div className="flex justify-between items-center">
                     <div>
@@ -503,6 +526,14 @@ const TheVault: React.FC = () => {
                         <p className="text-xs text-slate-400 font-mono mt-1">Secure Fallout 4 Asset Library & BA2 staging</p>
                     </div>
                     <div className="flex gap-2">
+                        <button
+                            onClick={() => navigate('/settings/tools')}
+                            className="flex items-center gap-2 px-4 py-2 bg-slate-800 hover:bg-slate-700 border border-slate-600 rounded-lg text-sm font-bold transition-colors"
+                            title="Configure external tool paths"
+                        >
+                            <Wrench className="w-4 h-4" />
+                            Tool Settings
+                        </button>
                         <button
                             onClick={handleVerifyAll}
                             className="flex items-center gap-2 px-4 py-2 bg-slate-800 hover:bg-slate-700 border border-slate-600 rounded-lg text-sm font-bold transition-colors"
@@ -525,6 +556,87 @@ const TheVault: React.FC = () => {
                     </div>
                 </div>
 
+                <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+                    <ToolsInstallVerifyPanel
+                        accentClassName="text-forge-accent"
+                        description="The Vault runs in-app. External converters (DDS/audio/BA2) are optional and only needed if you want real game-ready outputs on this machine."
+                        tools={[
+                            {
+                                label: 'DirectXTex (texconv) releases (optional DDS compression)'
+                                ,
+                                href: 'https://github.com/microsoft/DirectXTex/releases'
+                                ,
+                                kind: 'official'
+                                ,
+                                note: 'If you require real DDS output, install texconv and set its path in Tool Settings.'
+                            },
+                            {
+                                label: 'Fallout 4 Creation Kit (Archive2 for BA2)'
+                                ,
+                                href: 'https://store.steampowered.com/search/?term=Fallout%204%20Creation%20Kit'
+                                ,
+                                kind: 'search'
+                                ,
+                                note: 'Use Steam search to find the official listing; Archive2 ships with the CK install.'
+                            },
+                        ]}
+                        verify={[
+                            'Add one file (mesh/texture/audio) and confirm it appears in the asset table.',
+                            'Click “Verify All” and confirm rows update with either “Ready” or a concrete issue.',
+                            'Click “Copy BA2 Manifest” and paste into a text editor to confirm paths are correct.'
+                        ]}
+                        firstTestLoop={[
+                            'Add a small texture + a small mesh → stage them → copy the manifest.',
+                            'If you plan to produce game-ready outputs, open Tool Settings and set any external tool paths.',
+                            'Run “Verify All” again to confirm the page can invoke whatever tools you configured.'
+                        ]}
+                        troubleshooting={[
+                            'If Verify does nothing, you may be running without the desktop bridge; use the packaged Electron app.',
+                            'If “real DDS” or audio conversion fails, set the external tool path(s) in Tool Settings first.'
+                        ]}
+                        shortcuts={[
+                            { label: 'Tool Settings', to: '/settings/tools' },
+                            { label: 'Workshop', to: '/workshop' },
+                            { label: 'Assembler', to: '/assembler' },
+                            { label: 'Auditor', to: '/auditor' },
+                        ]}
+                    />
+
+                    <div className="bg-slate-900/60 border border-slate-800 rounded-xl p-4">
+                        <div className="text-sm font-semibold text-white mb-1">Existing Workflow (Legacy)</div>
+                        <div className="text-xs text-slate-400 mb-3">Jump to the original Vault sections.</div>
+                        <div className="flex flex-wrap gap-2">
+                            <button
+                                onClick={() => {
+                                    setExpandConfig(true);
+                                    setTimeout(() => configSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 0);
+                                }}
+                                className="px-3 py-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded text-xs font-bold"
+                            >
+                                Configuration
+                            </button>
+                            <button
+                                onClick={() => importSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
+                                className="px-3 py-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded text-xs font-bold"
+                            >
+                                Import / Drop Zone
+                            </button>
+                            <button
+                                onClick={() => manifestSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
+                                className="px-3 py-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded text-xs font-bold"
+                            >
+                                BA2 Manifest
+                            </button>
+                            <button
+                                onClick={() => assetsListRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
+                                className="px-3 py-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded text-xs font-bold"
+                            >
+                                Asset List
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
                 <button 
                     onClick={() => setExpandConfig(!expandConfig)}
                     className="flex items-center gap-2 text-sm font-semibold text-slate-300 hover:text-white transition-colors py-2"
@@ -534,7 +646,7 @@ const TheVault: React.FC = () => {
                 </button>
 
                 {expandConfig && (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-3 max-h-96 overflow-y-auto">
+                <div ref={configSectionRef} className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-3 max-h-96 overflow-y-auto">
                         <div className="bg-slate-900/60 border border-slate-800 rounded-xl p-3">
                             <div className="text-xs text-slate-400 mb-2 font-semibold">Auto-target Presets</div>
                                         <div className="grid grid-cols-2 gap-2 text-xs">
@@ -595,8 +707,8 @@ const TheVault: React.FC = () => {
                                                 </div>
                                             </div>
                         </div>
-                        </div>
-                        )}
+                                    </div>
+                                )}
 
                 <div className="flex flex-wrap gap-4">
                     <div className="flex-1 min-w-[220px] relative">
@@ -681,7 +793,84 @@ const TheVault: React.FC = () => {
                     </div>
                 )}
 
+                <div className="bg-slate-900/60 border border-slate-800 rounded-xl p-4">
+                    <div className="flex items-start justify-between gap-4">
+                        <div>
+                            <div className="text-xs font-semibold text-slate-300 flex items-center gap-2">
+                                <ShieldCheck className="w-4 h-4 text-emerald-300" /> External tools: what/where/verify
+                            </div>
+                            <div className="text-[11px] text-slate-400 mt-1 leading-relaxed">
+                                The Vault can stage assets and run basic checks, but format validation and conversion require external tools.
+                                Use search links (stable) and then point this page to the tool executables.
+                            </div>
+                        </div>
+                        <button
+                            onClick={() => setExpandConfig(true)}
+                            className="px-3 py-2 rounded-lg bg-slate-800 border border-slate-700 text-xs font-bold text-slate-200 hover:border-slate-600 transition-colors"
+                            title="Open presets & tool path configuration"
+                        >
+                            Configure here
+                        </button>
+                    </div>
+
+                    <div className="mt-3 grid grid-cols-1 md:grid-cols-2 gap-3">
+                        <div className="rounded-lg border border-slate-800 bg-black/30 p-3">
+                            <div className="text-xs font-bold text-white">Textures</div>
+                            <div className="text-[11px] text-slate-400 mt-1">Need <span className="font-mono">texconv</span> for DDS conversion/format checks.</div>
+                            <div className="mt-2 flex flex-wrap gap-2">
+                                <button onClick={() => openNexusSearch('texconv')} className="px-2 py-1 rounded border border-slate-700 bg-slate-900/40 hover:border-slate-500 text-[11px] font-bold flex items-center gap-2">
+                                    <ExternalLink className="w-3 h-3" /> Nexus search: texconv
+                                </button>
+                            </div>
+                            <div className="text-[11px] text-slate-500 mt-2">Verify: run one conversion and confirm your output lands under <span className="font-mono">Data/Textures</span> with correct BC format.</div>
+                        </div>
+
+                        <div className="rounded-lg border border-slate-800 bg-black/30 p-3">
+                            <div className="text-xs font-bold text-white">Audio</div>
+                            <div className="text-[11px] text-slate-400 mt-1">Need <span className="font-mono">xWMAEncode</span> (or an equivalent pipeline) for XWM.</div>
+                            <div className="mt-2 flex flex-wrap gap-2">
+                                <button onClick={() => openNexusSearch('xWMAEncode')} className="px-2 py-1 rounded border border-slate-700 bg-slate-900/40 hover:border-slate-500 text-[11px] font-bold flex items-center gap-2">
+                                    <ExternalLink className="w-3 h-3" /> Nexus search: xWMAEncode
+                                </button>
+                                <button onClick={() => navigate('/tts')} className="px-2 py-1 rounded border border-slate-700 bg-slate-900/40 hover:border-slate-500 text-[11px] font-bold">
+                                    Audio Studio page
+                                </button>
+                            </div>
+                            <div className="text-[11px] text-slate-500 mt-2">Verify: convert a short WAV and ensure the game can play it (and package as FUZ for dialogue when needed).</div>
+                        </div>
+
+                        <div className="rounded-lg border border-slate-800 bg-black/30 p-3">
+                            <div className="text-xs font-bold text-white">Scripts</div>
+                            <div className="text-[11px] text-slate-400 mt-1">Papyrus compile uses <span className="font-mono">PapyrusCompiler</span> (bundled with CK installs).</div>
+                            <div className="mt-2 flex flex-wrap gap-2">
+                                <button onClick={() => openNexusSearch('Creation Kit')} className="px-2 py-1 rounded border border-slate-700 bg-slate-900/40 hover:border-slate-500 text-[11px] font-bold flex items-center gap-2">
+                                    <ExternalLink className="w-3 h-3" /> Nexus search: Creation Kit
+                                </button>
+                                <button onClick={() => navigate('/ck-quest-dialogue')} className="px-2 py-1 rounded border border-slate-700 bg-slate-900/40 hover:border-slate-500 text-[11px] font-bold">
+                                    CK Wizard
+                                </button>
+                            </div>
+                            <div className="text-[11px] text-slate-500 mt-2">Verify: compile one tiny script and confirm a <span className="font-mono">.pex</span> lands under <span className="font-mono">Data/Scripts</span>.</div>
+                        </div>
+
+                        <div className="rounded-lg border border-slate-800 bg-black/30 p-3">
+                            <div className="text-xs font-bold text-white">Meshes / UI</div>
+                            <div className="text-[11px] text-slate-400 mt-1">Mesh and UI checks depend on your chosen toolchain (Splicer/OutfitStudio, Scaleform export tools).</div>
+                            <div className="mt-2 flex flex-wrap gap-2">
+                                <button onClick={() => openNexusSearch('Outfit Studio')} className="px-2 py-1 rounded border border-slate-700 bg-slate-900/40 hover:border-slate-500 text-[11px] font-bold flex items-center gap-2">
+                                    <ExternalLink className="w-3 h-3" /> Nexus search: Outfit Studio
+                                </button>
+                                <button onClick={() => openNexusSearch('Splicer Fallout 4')} className="px-2 py-1 rounded border border-slate-700 bg-slate-900/40 hover:border-slate-500 text-[11px] font-bold flex items-center gap-2">
+                                    <ExternalLink className="w-3 h-3" /> Nexus search: Splicer
+                                </button>
+                            </div>
+                            <div className="text-[11px] text-slate-500 mt-2">Verify: run one validation pass and re-open the asset in-game (the only true verification).</div>
+                        </div>
+                    </div>
+                </div>
+
                 <div
+                    ref={importSectionRef}
                     onDrop={handleDrop}
                     onDragOver={(e) => e.preventDefault()}
                     className="mt-4 border border-dashed border-slate-600 bg-slate-900/60 rounded-xl p-4 flex items-center justify-between gap-3"
@@ -715,7 +904,7 @@ const TheVault: React.FC = () => {
                 </div>
             </div>
 
-            <div className="flex-1 overflow-y-auto p-6 bg-[#0c1220]">
+            <div className="flex-1 min-h-0 p-6 bg-[#0c1220]">
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
                     <div className="bg-slate-900/70 border border-slate-800 rounded-xl p-3">
                         <p className="text-[10px] uppercase text-slate-500">Tracked assets</p>
@@ -736,7 +925,7 @@ const TheVault: React.FC = () => {
                 </div>
 
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
-                    <div className="lg:col-span-2 bg-slate-900/60 border border-slate-800 rounded-xl p-4">
+                    <div ref={manifestSectionRef} className="lg:col-span-2 bg-slate-900/60 border border-slate-800 rounded-xl p-4">
                         <div className="flex items-center justify-between mb-3">
                             <div className="flex items-center gap-2">
                                 <Archive className="w-4 h-4 text-forge-accent" />
@@ -796,7 +985,7 @@ const TheVault: React.FC = () => {
                         <p>No assets match the filters.</p>
                     </div>
                 ) : (
-                    <div className="flex flex-col gap-3">
+                    <div ref={assetsListRef} className="flex flex-col gap-3">
                         {filteredAssets.map(asset => {
                             const hasIssues = (asset.issues || []).length > 0;
                             return (

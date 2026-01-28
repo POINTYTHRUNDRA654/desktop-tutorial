@@ -1,10 +1,12 @@
 import React, { useState, useEffect, useRef } from 'react';
 import ExternalToolNotice from './components/ExternalToolNotice';
+import { ToolsInstallVerifyPanel } from './components/ToolsInstallVerifyPanel';
 import { Settings as SettingsIcon } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, AreaChart, Area } from 'recharts';
 import { Cpu, HardDrive, Activity, Terminal, Search, CheckCircle2, Zap, Box, BrainCircuit, Link, Play, Monitor, AlertTriangle, Map, Upload, RefreshCw, Database, ShieldCheck, Copy, HardDriveDownload, Package, Settings } from 'lucide-react';
 import { LocalAIEngine } from './LocalAIEngine';
+import { useWheelScrollProxy } from './components/useWheelScrollProxy';
 
 interface LogEntry {
   id: string;
@@ -579,8 +581,77 @@ const SystemMonitor: React.FC = () => {
       setTimeout(() => setCopied(false), 2000);
   };
 
-  return (
-    <div className="h-full w-full bg-forge-dark text-slate-200 flex flex-col overflow-hidden relative">
+    const mainScrollRef = useRef<HTMLDivElement | null>(null);
+    const wheelProxy = useWheelScrollProxy(mainScrollRef);
+
+    return (
+        <div className="h-full w-full bg-forge-dark text-slate-200 flex flex-col overflow-hidden relative min-h-0" onWheel={wheelProxy}>
+
+            <div className="p-4 max-h-64 overflow-y-auto pr-2">
+                <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+                    <ToolsInstallVerifyPanel
+                        className="mb-0"
+                        accentClassName="text-emerald-300"
+                        description="System Monitor is a status + diagnostics hub. Some capabilities require the Electron API and/or Desktop Bridge to be present."
+                        tools={[]}
+                        verify={[
+                            'Open Telemetry tab and confirm charts/widgets render.',
+                            'Run a scan and confirm the log updates with detected items.',
+                        ]}
+                        firstTestLoop={[
+                            'Run Install Wizard once to populate detected apps/tool paths.',
+                            'Open Desktop Bridge and confirm it’s ONLINE (if you use local features).',
+                            'Return here and run one scan to confirm end-to-end reporting.',
+                        ]}
+                        troubleshooting={[
+                            'If nothing detects, check that Electron API is available (not web mode).',
+                            'If bridge-based checks fail, confirm the bridge process is running and reachable.',
+                        ]}
+                        shortcuts={[
+                            { label: 'Install Wizard', to: '/install-wizard' },
+                            { label: 'Desktop Bridge', to: '/bridge' },
+                            { label: 'Diagnostics', to: '/diagnostics' },
+                            { label: 'Tool Settings', to: '/settings/tools' },
+                        ]}
+                    />
+
+                    <div className="bg-slate-900/60 border border-slate-800 rounded-xl p-4">
+                        <div className="text-sm font-semibold text-white mb-1">Existing Workflow (Legacy)</div>
+                        <div className="text-xs text-slate-400 mb-3">Jump to the original tabs and actions.</div>
+                        <div className="flex flex-wrap gap-2">
+                            <button
+                                onClick={() => setActiveTab('telemetry')}
+                                className="px-3 py-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded text-xs font-bold"
+                            >
+                                Telemetry
+                            </button>
+                            <button
+                                onClick={() => setActiveTab('hardware')}
+                                className="px-3 py-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded text-xs font-bold"
+                            >
+                                Hardware Profile
+                            </button>
+                            <button
+                                onClick={() => setShowInstaller(true)}
+                                className="px-3 py-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded text-xs font-bold"
+                            >
+                                Bridge Installer
+                            </button>
+                            <button
+                                onClick={startScan}
+                                disabled={isScanning}
+                                className={`px-3 py-2 border rounded text-xs font-bold transition-colors ${
+                                    isScanning
+                                        ? 'bg-slate-800 border-slate-700 text-slate-500 cursor-not-allowed'
+                                        : 'bg-emerald-500/10 border-emerald-600 text-emerald-300 hover:bg-emerald-500/20'
+                                }`}
+                            >
+                                Full System Scan
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
       
       {/* --- VIRTUAL INSTALLER MODAL --- */}
       {showInstaller && (
@@ -605,7 +676,7 @@ const SystemMonitor: React.FC = () => {
                   </div>
 
                   {/* Installer Content */}
-                  <div className="flex-1 p-8 flex flex-col gap-6 overflow-hidden">
+                  <div className="flex-1 min-h-0 p-8 flex flex-col gap-6 overflow-hidden">
                       {installStep === 1 && (
                           <div className="flex flex-col items-center justify-center h-full gap-4">
                               <div className="w-16 h-16 border-4 border-slate-700 border-t-emerald-500 rounded-full animate-spin"></div>
@@ -617,7 +688,7 @@ const SystemMonitor: React.FC = () => {
                       )}
 
                       {installStep >= 2 && (
-                          <div className="flex-1 overflow-y-auto pr-2 custom-scrollbar">
+                          <div className="flex-1 min-h-0 overflow-y-auto pr-2 custom-scrollbar">
                               <div className="text-sm text-slate-400 mb-4 font-bold uppercase tracking-wider flex justify-between items-end">
                                   <span>Detected Environment ({foundTools.length} Items)</span>
                                   <span className="text-emerald-500 text-xs">SCAN COMPLETE</span>
@@ -699,7 +770,7 @@ const SystemMonitor: React.FC = () => {
 
       </div>
 
-      <div className="flex-1 overflow-y-auto p-6 bg-slate-900/50">
+            <div ref={mainScrollRef} className="flex-1 min-h-0 overflow-y-auto p-6 pb-24 bg-slate-900/50">
       
       {/* TELEMETRY TAB */}
       {activeTab === 'telemetry' && (
@@ -894,7 +965,7 @@ const SystemMonitor: React.FC = () => {
                     </div>
                 </div>
                 
-                <div className="flex-1 overflow-y-auto space-y-1 pr-2 custom-scrollbar" ref={logsContainerRef}>
+                <div className="flex-1 min-h-0 overflow-y-auto space-y-1 pr-2 custom-scrollbar" ref={logsContainerRef}>
                 {logs.map((log) => (
                     <div key={log.id} className={`text-xs flex gap-3 hover:bg-white/5 p-0.5 rounded ${
                         log.type === 'error' ? 'text-red-400' :

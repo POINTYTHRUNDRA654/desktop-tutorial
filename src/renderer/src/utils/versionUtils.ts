@@ -45,14 +45,20 @@ export const parseVersion = (versionString: string): { major: number; minor: num
   };
 };
 
+import packageJson from '../../../../package.json';
+
 /**
  * Get current app version
+ * Uses build-time package.json to avoid runtime fetch failures in prod/dev.
  */
 export const getCurrentVersion = async (): Promise<string> => {
+  if (packageJson?.version) return packageJson.version;
+
+  // Fallback for safety; should never hit with resolved JSON import
   try {
     const response = await fetch('/package.json');
-    const packageJson = await response.json();
-    return packageJson.version;
+    const pkg = await response.json();
+    return pkg.version || '0.0.0';
   } catch (error) {
     console.error('Failed to read package.json:', error);
     return '0.0.0';

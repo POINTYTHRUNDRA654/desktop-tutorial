@@ -1,5 +1,7 @@
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import { Wand2, Copy, Download, Sparkles, Code } from 'lucide-react';
+import { ToolsInstallVerifyPanel } from './components/ToolsInstallVerifyPanel';
+import { useWheelScrollProxyFrom } from './components/useWheelScrollProxy';
 
 interface GeneratedTemplate {
   code: string;
@@ -11,6 +13,13 @@ export const TemplateGenerator: React.FC = () => {
   const [description, setDescription] = useState('');
   const [generating, setGenerating] = useState(false);
   const [generated, setGenerated] = useState<GeneratedTemplate | null>(null);
+
+  const descriptionRef = useRef<HTMLTextAreaElement | null>(null);
+  const examplesRef = useRef<HTMLDivElement | null>(null);
+  const outputRef = useRef<HTMLDivElement | null>(null);
+  const outputScrollRef = useRef<HTMLDivElement | null>(null);
+
+  const wheelProxy = useWheelScrollProxyFrom(() => (generated ? outputScrollRef.current : examplesRef.current));
 
   const generateTemplate = async () => {
     if (!description.trim()) return;
@@ -226,7 +235,7 @@ EndFunction`;
   ];
 
   return (
-    <div className="h-full bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 overflow-hidden flex flex-col">
+    <div className="h-full bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 overflow-hidden flex flex-col min-h-0" onWheel={wheelProxy}>
       {/* Header */}
       <div className="p-6 border-b border-slate-700 bg-slate-800/50">
         <div className="flex items-center gap-3 mb-4">
@@ -240,6 +249,7 @@ EndFunction`;
         {/* Input */}
         <div className="space-y-3">
           <textarea
+            ref={descriptionRef}
             value={description}
             onChange={(e) => setDescription(e.target.value)}
             placeholder="Describe what your script should do... (e.g., 'Create a door that spawns enemies when opened')"
@@ -265,10 +275,73 @@ EndFunction`;
         </div>
       </div>
 
+      <div className="px-6 pt-4">
+        <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+          <ToolsInstallVerifyPanel
+            accentClassName="text-emerald-300"
+            description="This generator runs locally in the UI (no external tools required). Use it to scaffold a script, then move it into your project and compile with your chosen toolchain."
+            verify={[
+              'Enter a short description and click Generate; confirm code + explanation appear.',
+              'Copy code and confirm your clipboard contains the full script text.',
+              'Download and confirm the saved file includes the generated script.'
+            ]}
+            firstTestLoop={[
+              'Generate a small script (Activator or Timer) → copy it into your project.',
+              'Open External Tools Settings and confirm your compiler/tool paths are configured (if you plan to compile locally).'
+            ]}
+            troubleshooting={[
+              'If Generate does nothing, ensure the description field is not empty and retry.',
+              'If download is blocked, allow downloads/popups in your environment.'
+            ]}
+            shortcuts={[
+              { label: 'Tool Settings', to: '/settings/tools' },
+              { label: 'Quick Reference', to: '/reference' },
+              { label: 'Workshop', to: '/workshop' },
+            ]}
+          />
+
+          <div className="bg-slate-900 border border-slate-700 rounded-xl p-4">
+            <div className="text-sm font-bold text-white mb-1">Existing Workflow (Legacy)</div>
+            <div className="text-xs text-slate-400 mb-3">
+              Quick access to the original page sections.
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <button
+                onClick={() => descriptionRef.current?.focus()}
+                className="px-3 py-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded text-xs font-bold"
+              >
+                Focus Description
+              </button>
+              <button
+                onClick={() => {
+                  setDescription((prev) => prev.trim() ? prev : 'Create a script that activates when player enters and spawns 3 raiders');
+                  requestAnimationFrame(() => descriptionRef.current?.focus());
+                }}
+                className="px-3 py-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded text-xs font-bold"
+              >
+                Insert Example Prompt
+              </button>
+              <button
+                onClick={() => examplesRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
+                className="px-3 py-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded text-xs font-bold"
+              >
+                Example Prompts
+              </button>
+              <button
+                onClick={() => outputRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
+                className="px-3 py-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded text-xs font-bold"
+              >
+                Generated Output
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
       {/* Content */}
-      <div className="flex-1 overflow-hidden flex gap-4 p-6">
+      <div className="flex-1 min-h-0 overflow-hidden flex gap-4 p-6">
         {/* Left: Examples */}
-        <div className="w-80 flex flex-col gap-4">
+        <div ref={examplesRef} className="w-80 flex flex-col gap-4 min-h-0 overflow-y-auto pr-2">
           <div className="bg-slate-900 border border-slate-700 rounded-xl p-4">
             <h3 className="font-bold text-white mb-3 flex items-center gap-2">
               <Sparkles className="w-4 h-4 text-emerald-400" />
@@ -297,7 +370,7 @@ EndFunction`;
         </div>
 
         {/* Right: Generated Code */}
-        <div className="flex-1 flex flex-col bg-slate-900 border border-slate-700 rounded-xl overflow-hidden">
+        <div ref={outputRef} className="flex-1 min-h-0 flex flex-col bg-slate-900 border border-slate-700 rounded-xl overflow-hidden">
           {!generated && (
             <div className="flex-1 flex items-center justify-center text-slate-500">
               <div className="text-center">
@@ -341,7 +414,7 @@ EndFunction`;
               </div>
 
               {/* Code */}
-              <div className="flex-1 overflow-y-auto">
+              <div ref={outputScrollRef} className="flex-1 min-h-0 overflow-y-auto">
                 <pre className="p-4 text-sm font-mono text-slate-200 whitespace-pre-wrap">
                   {generated.code}
                 </pre>

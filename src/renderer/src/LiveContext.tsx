@@ -12,14 +12,19 @@
  * 8. Added source set size limit (max 10) to prevent unbounded growth
  * 9. Null audioBufferRef on interrupt to hint garbage collection
  * 
- * These fixes prevent the memory buildup that caused crashes after ~5 minutes of conversation.
+ * API KEY SECURITY FIX:
+ * Groq and OpenAI API calls now route through Electron IPC handlers (main.ts)
+ * Renderer process never has direct access to API keys; main process holds them secure
+ * This prevents keys from being exposed in browser environment
  */
 
 import React, { createContext, useContext, useState, useRef, useEffect, ReactNode } from 'react';
-import { Groq } from 'groq-sdk';
-import OpenAI from 'openai';
 import { getFullSystemInstruction, toolDeclarations } from './MossyBrain';
+import { getCommunityLearningContextForModel } from './communityLearningProfile';
+import { getApprovedToolsSummary } from './toolPermissions';
+import { buildKnowledgeManifestForModel, buildRelevantKnowledgeVaultContext, buildRecentKnowledgeIndex } from './knowledgeRetrieval';
 import { executeMossyTool } from './MossyTools';
+import { speakBrowserTts } from './browserTts';
 
 interface LiveContextType {
   isActive: boolean;
@@ -277,44 +282,22 @@ function combineAudioChunks(chunks: Blob[]): Blob {
 }
 
 // Helper: Transcribe audio to text using OpenAI Whisper
-async function transcribeAudioWithWhisper(audioBlob: Blob, openaiApiKey: string): Promise<string> {
-  const openai = new OpenAI({ apiKey: openaiApiKey, dangerouslyAllowBrowser: true });
-  // Send as webm with correct filename
-  const file = new File([audioBlob], `audio.webm`, { type: audioBlob.type || 'audio/webm;codecs=opus' });
-  
-  const response = await openai.audio.transcriptions.create({
-    model: 'whisper-1',
-    file,
-    language: 'en',
-    response_format: 'text',
-  });
-  
-  // When response_format is 'text', the response IS the text string directly
-  return typeof response === 'string' ? response : (response as any).text || '';
+async function transcribeAudioWithWhisper(audioBlob: Blob, _openaiApiKey: string): Promise<string> {
+  const api = (window as any)?.electronAPI ?? (window as any)?.electron?.api;
+  if (!api?.transcribeAudio) {
+    throw new Error('transcribeAudio IPC not available');
+  }
+  const ab = await audioBlob.arrayBuffer();
+  const res = await api.transcribeAudio(ab, audioBlob.type || 'audio/webm;codecs=opus');
+  if (!res?.success) {
+    throw new Error(res?.error || 'Transcription failed');
+  }
+  return String(res.text || '');
 }
 
-// Helper: Transcribe audio to text using Deepgram
-async function transcribeAudioWithDeepgram(audioBlob: Blob, deepgramApiKey: string): Promise<string> {
-  const mimeType = audioBlob.type || 'audio/ogg';
-  const url = 'https://api.deepgram.com/v1/listen?model=nova-2-general&language=en&punctuate=true';
-
-  const response = await fetch(url, {
-    method: 'POST',
-    headers: {
-      Authorization: `Token ${deepgramApiKey}`,
-      'Content-Type': mimeType,
-    },
-    body: audioBlob,
-  });
-
-  if (!response.ok) {
-    const errText = await response.text();
-    throw new Error(`Deepgram API error ${response.status}: ${errText}`);
-  }
-
-  const data = await response.json();
-  const transcript = data?.results?.channels?.[0]?.alternatives?.[0]?.transcript || '';
-  return transcript;
+// Kept for backwards compatibility with existing call sites
+async function transcribeAudioWithDeepgram(audioBlob: Blob, _deepgramApiKey: string): Promise<string> {
+  return transcribeAudioWithWhisper(audioBlob, '');
 }
 
 const preferredBrowserVoiceName = (import.meta.env.VITE_BROWSER_TTS_VOICE || '').trim();
@@ -322,14 +305,28 @@ const preferredBrowserVoiceName = (import.meta.env.VITE_BROWSER_TTS_VOICE || '')
 // Helper: Convert text to speech using ElevenLabs
 async function synthesizeSpeechWithElevenLabs(
   text: string,
-  elevenLabsApiKey: string,
+  _elevenLabsApiKey: string,
   voiceId: string
 ): Promise<Blob> {
+  const api = (window as any)?.electronAPI ?? (window as any)?.electron?.api;
+  if (api?.elevenLabsSynthesizeSpeech) {
+    const res = await api.elevenLabsSynthesizeSpeech({ text, voiceId });
+    if (!res || res.ok !== true || !res.audioBase64) {
+      throw new Error(res?.error || 'ElevenLabs synth failed');
+    }
+    const bytes = Uint8Array.from(atob(String(res.audioBase64)), (c) => c.charCodeAt(0));
+    return new Blob([bytes], { type: res.mimeType || 'audio/mpeg' });
+  }
+
+  // Web/non-Electron fallback: use the old renderer-side fetch path.
+  const elevenLabsApiKey = _elevenLabsApiKey;
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 20000);
   const response = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${voiceId}`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      'accept': 'audio/mpeg', // ensure audio content negotiation
+      accept: 'audio/mpeg',
       'xi-api-key': elevenLabsApiKey,
     },
     body: JSON.stringify({
@@ -340,7 +337,8 @@ async function synthesizeSpeechWithElevenLabs(
         similarity_boost: 0.75,
       },
     }),
-  });
+    signal: controller.signal,
+  }).finally(() => clearTimeout(timeout));
 
   if (!response.ok) {
     const errText = await response.text().catch(() => '');
@@ -353,54 +351,26 @@ async function synthesizeSpeechWithElevenLabs(
 // Fallback: Speak using browser SpeechSynthesis
 async function speakWithBrowserTTS(text: string): Promise<void> {
   try {
-    if (!('speechSynthesis' in window)) {
-      console.warn('[LiveContext] Browser TTS not available.');
+    const cleaned = (text ?? '').trim();
+    const normalized = cleaned.toLowerCase();
+    // Never speak UI/state labels.
+    if (
+      !cleaned ||
+      normalized === 'listening' ||
+      normalized === 'listening...' ||
+      normalized === 'ready' ||
+      normalized === 'processing' ||
+      normalized === 'processing...' ||
+      normalized === 'processing vocal input' ||
+      normalized === 'processing vocal input...'
+    ) {
       return;
     }
-    
-    // Cancel any ongoing speech before starting new utterance
-    window.speechSynthesis.cancel();
-    
-    const pickVoice = async (): Promise<SpeechSynthesisVoice | undefined> => {
-      let voices = window.speechSynthesis.getVoices();
-      if (!voices || voices.length === 0) {
-        await new Promise<void>((resolve) => {
-          window.speechSynthesis.onvoiceschanged = () => {
-            voices = window.speechSynthesis.getVoices();
-            resolve();
-          };
-        });
-      }
-      const lcVoices = voices.map(v => ({ v, n: v.name.toLowerCase() }));
-      const candidates = [
-        preferredBrowserVoiceName,
-        'aria', 'jenny', 'zira', 'female', 'en-us', 'english'
-      ].filter(Boolean) as string[];
-      for (const cand of candidates) {
-        const lc = cand.toLowerCase();
-        const exact = lcVoices.find(({ n }) => n === lc);
-        if (exact) return exact.v;
-        const partial = lcVoices.find(({ n }) => n.includes(lc));
-        if (partial) return partial.v;
-      }
-      return voices[0];
-    };
 
-    const voice = await pickVoice();
-    if (voice) {
-      console.log('[LiveContext] Using browser TTS voice:', voice.name, voice.lang || '');
-    } else {
-      console.warn('[LiveContext] No browser TTS voice found, using default.');
-    }
-
-    await new Promise<void>((resolve) => {
-      const utter = new SpeechSynthesisUtterance(text);
-      utter.rate = 1.0;
-      utter.pitch = 1.0;
-      if (voice) utter.voice = voice;
-      utter.onend = () => resolve();
-      utter.onerror = () => resolve();
-      window.speechSynthesis.speak(utter);
+    const envPreferred = (import.meta.env.VITE_BROWSER_TTS_VOICE || '').trim();
+    await speakBrowserTts(cleaned, {
+      cancelExisting: true,
+      preferredVoiceName: envPreferred || undefined,
     });
   } catch (e) {
     console.warn('[LiveContext] Browser TTS failed:', e);
@@ -410,6 +380,22 @@ async function speakWithBrowserTTS(text: string): Promise<void> {
 // Helper: Verify ElevenLabs credentials and voice accessibility
 async function verifyElevenLabsCredentials(apiKey: string, voiceId: string): Promise<void> {
   try {
+    const api = (window as any)?.electronAPI ?? (window as any)?.electron?.api;
+    if (api?.elevenLabsListVoices) {
+      const voicesResp = await api.elevenLabsListVoices();
+      if (!voicesResp || voicesResp.ok !== true) {
+        console.warn('[LiveContext] ElevenLabs voices list error:', voicesResp?.error || 'unknown');
+        return;
+      }
+      const voices = Array.isArray(voicesResp.voices) ? voicesResp.voices : [];
+      const hasVoice = voices.some((v: any) => String(v?.voice_id || '') === String(voiceId || ''));
+      console.log(`[LiveContext] ElevenLabs configured. Voice accessible? ${hasVoice ? 'yes' : 'no'}`);
+      if (!hasVoice) {
+        console.warn('[LiveContext] Provided ElevenLabs voice ID not found in your account. Use a voice you own or shared with you.');
+      }
+      return;
+    }
+
     // Check if API key is accepted
     const userResp = await fetch('https://api.elevenlabs.io/v1/user', {
       headers: { 'xi-api-key': apiKey }
@@ -440,10 +426,10 @@ async function verifyElevenLabsCredentials(apiKey: string, voiceId: string): Pro
   }
 }
 
-// Helper: Send message to Groq and get response
+// Helper: Send message to Groq and get response (via IPC)
 async function sendMessageToGroq(
   userMessage: string,
-  groqClient: any,
+  _groqClient: any,  // No longer used; IPC handles it
   conversationHistory: any[],
   systemPrompt: string,
   audioContextRef: React.MutableRefObject<AudioContext | undefined>,
@@ -463,33 +449,17 @@ async function sendMessageToGroq(
       content: userMessage
     });
 
-    console.log('[LiveContext] Sending to Groq:', {
+    console.log('[LiveContext] Sending to Groq via IPC:', {
       userMessage,
       historyLength: conversationHistory.length,
       modelName: 'llama-3.3-70b-versatile'
     });
 
-    // Build messages array with system prompt and history
-    const messages = conversationHistory.map(msg => ({
-      role: msg.role,
-      content: msg.content
-    }));
+    // Call Groq via IPC handler (main process has the API key)
+    const response = await (window as any).electronAPI.aiChatGroq(userMessage, systemPrompt, 'llama-3.3-70b-versatile');
+    if (!response.success) throw new Error(response.error || 'Groq chat failed');
 
-    // Call Groq LLM
-    const response = await groqClient.chat.completions.create({
-      model: 'llama-3.3-70b-versatile',
-      messages: [
-        {
-          role: 'system',
-          content: systemPrompt
-        },
-        ...messages
-      ],
-      max_tokens: 500,
-      temperature: 0.7,
-    });
-
-    const modelResponse = response.choices[0]?.message?.content || '';
+    const modelResponse = response.content || '';
     console.log('[LiveContext] Groq response:', modelResponse);
 
     // Add model response to history
@@ -538,8 +508,7 @@ async function sendMessageToGroq(
           console.log('[LiveContext] Falling back to browser TTS...');
           setMode('speaking');
           await speakWithBrowserTTS(modelResponse);
-          // After TTS finishes, wait a moment before returning to listening
-          await new Promise(resolve => setTimeout(resolve, 500));
+          // Immediately resume listening (patched voice latency - removed 500ms delay)
           setMode('listening');
           console.log('[LiveContext] Mode set to listening after browser TTS fallback');
         }
@@ -547,10 +516,8 @@ async function sendMessageToGroq(
         setMode('speaking');
         console.log('[LiveContext] Mode set to speaking, starting browser TTS...');
         await speakWithBrowserTTS(modelResponse);
-        // After TTS finishes, wait a moment before returning to listening
-        // to allow natural pause between exchanges
-        console.log('[LiveContext] Browser TTS finished, waiting 500ms before resuming listening...');
-        await new Promise(resolve => setTimeout(resolve, 500));
+        // Immediately resume listening after TTS finishes (patched voice latency)
+        console.log('[LiveContext] Browser TTS finished, resuming listening immediately...');
         setMode('listening');
         console.log('[LiveContext] Mode set back to listening');
       }
@@ -1086,40 +1053,64 @@ export const LiveProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           console.warn('[LiveContext] Mic meter setup failed:', e);
         }
 
-        // Initialize Groq client
-        const groqApiKey = import.meta.env.VITE_GROQ_API_KEY;
-        const openaiApiKey = import.meta.env.VITE_OPENAI_API_KEY;
-        const deepgramApiKey = import.meta.env.VITE_DEEPGRAM_API_KEY;
-        const elevenLabsApiKey = import.meta.env.VITE_ELEVENLABS_API_KEY;
-        const elevenLabsVoiceId = import.meta.env.VITE_ELEVENLABS_VOICE_ID;
-        const ttsProvider = (import.meta.env.VITE_TTS_PROVIDER || 'browser').toLowerCase();
+        // API keys are handled in Electron main process (never in renderer)
+        let elevenLabsApiKey = '';
+        let elevenLabsVoiceId = String(import.meta.env.VITE_ELEVENLABS_VOICE_ID || '').trim();
+        let ttsProvider = String(import.meta.env.VITE_TTS_PROVIDER || 'browser').toLowerCase();
 
-        if (!groqApiKey) {
-          throw new Error('VITE_GROQ_API_KEY not found in environment. Check .env.local file.');
-        }
-        if (!openaiApiKey) {
-          throw new Error('VITE_OPENAI_API_KEY not found in environment. Check .env.local file.');
-        }
-        if (ttsProvider === 'elevenlabs' && (!elevenLabsApiKey || !elevenLabsVoiceId)) {
-          throw new Error('VITE_ELEVENLABS_API_KEY or VITE_ELEVENLABS_VOICE_ID not found. Check .env.local file.');
+        const electronApi = (window as any)?.electronAPI ?? (window as any)?.electron?.api;
+        const hasElevenLabsIpc = Boolean(electronApi?.elevenLabsSynthesizeSpeech);
+
+        // Prefer Electron settings over env vars.
+        try {
+          if (electronApi?.getSettings) {
+            const s = await electronApi.getSettings();
+            ttsProvider = String(s?.ttsOutputProvider || ttsProvider).toLowerCase();
+            elevenLabsVoiceId = String(s?.elevenLabsVoiceId || elevenLabsVoiceId).trim();
+          }
+
+          if (electronApi?.elevenLabsStatus) {
+            const st = await electronApi.elevenLabsStatus();
+            const configured = Boolean(st?.ok && st.configured);
+            if (ttsProvider === 'elevenlabs' && (!configured || !elevenLabsVoiceId)) {
+              console.warn('[LiveContext] ElevenLabs selected but not configured; falling back to browser TTS.');
+              ttsProvider = 'browser';
+            }
+          }
+        } catch {
+          // ignore
         }
 
-        const groqClient = new Groq({ apiKey: groqApiKey, dangerouslyAllowBrowser: true });
+        // Desktop app readiness checks (presence-only)
+        if (electronApi?.getSecretStatus) {
+          const st = await electronApi.getSecretStatus();
+          if (st?.ok) {
+            if (!st.groq) {
+              throw new Error('Groq is not configured. Add a Groq API key in Desktop settings.');
+            }
+            if (!st.openai && !st.deepgram) {
+              throw new Error('Speech-to-text is not configured. Add an OpenAI or Deepgram API key in Desktop settings.');
+            }
+          }
+        }
+        // Web/non-Electron fallback: require env config.
+        if (ttsProvider === 'elevenlabs' && !hasElevenLabsIpc && (!elevenLabsApiKey || !elevenLabsVoiceId)) {
+          console.warn('[LiveContext] ElevenLabs selected but not configured; falling back to browser TTS.');
+          ttsProvider = 'browser';
+        }
+
+        // Note: Groq client no longer created here; IPC handlers in main process manage API keys
         sessionRef.current = { 
-          groqClient, 
+          groqClient: null,  // No longer used; IPC handles Groq
           conversationHistory: [],
-          openaiApiKey,
-          deepgramApiKey,
           elevenLabsApiKey,
           elevenLabsVoiceId,
           ttsProvider
         } as any;
-        console.log('[LiveContext] Groq client initialized with model: llama-3.3-70b-versatile');
-        console.log('[LiveContext] OpenAI Whisper STT enabled');
+        console.log('[LiveContext] Groq chat configured for IPC mode (main process handles API key)');
+        console.log('[LiveContext] STT enabled via main process');
         if (ttsProvider === 'elevenlabs') {
           console.log('[LiveContext] ElevenLabs TTS enabled with voice ID:', elevenLabsVoiceId);
-          // Verify ElevenLabs credentials and voice access for clearer diagnostics
-          verifyElevenLabsCredentials(elevenLabsApiKey, elevenLabsVoiceId);
         } else {
           console.log('[LiveContext] Browser TTS enabled');
         }
@@ -1174,6 +1165,14 @@ export const LiveProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             const scanSummary = localStorage.getItem('mossy_scan_summary');
             const allApps = localStorage.getItem('mossy_all_detected_apps');
             const lastScan = localStorage.getItem('mossy_last_scan');
+
+            // Persistent permissions summary (do NOT ask to rescan every session)
+            const bridgeActive = localStorage.getItem('mossy_bridge_active') === 'true';
+            const approvedTools = getApprovedToolsSummary(6);
+            const permissionsContext =
+              approvedTools.count > 0
+                ? `\n[INTEGRATION PERMISSIONS: User-approved tools saved (${approvedTools.count}). Do NOT request a rescan each session. Bridge: ${bridgeActive ? 'ONLINE' : 'OFFLINE'}. Examples: ${approvedTools.names.join(', ') || 'N/A'}]\n`
+                : '';
             
             console.log('[LiveContext] Building detected programs context...');
             console.log('[LiveContext] scanSummary exists?', !!scanSummary);
@@ -1202,7 +1201,7 @@ export const LiveProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
                 console.log('[LiveContext] FO4 apps:', fo4Apps.length);
                 
                 // VOICE-OPTIMIZED: Short summary, not the full list
-                detectedProgramsContext = `
+                detectedProgramsContext = `${permissionsContext}
 [SYSTEM SCAN: Complete - ${apps.length} total programs detected]
 [KEY TOOLS AVAILABLE: ${nvidiaApps.length} NVIDIA tools, ${aiApps.length} AI/ML tools, ${fo4Apps.length} Fallout 4 installations]
 
@@ -1258,9 +1257,9 @@ Example bad responses (DO NOT DO THIS):
               acc.set(key, msg);
             }
             return acc;
-          }, new Map());
+          }, new Map<string, any>());
           
-          const trimmed = Array.from(uniqueMessages.values())
+          const trimmed: any[] = Array.from(uniqueMessages.values())
             .filter((m: any) => m?.role === 'user' || m?.role === 'model')
             .slice(-100); // Get FULL conversation history (was 20, increased to 100)
           
@@ -1270,22 +1269,22 @@ Example bad responses (DO NOT DO THIS):
             return `${role}: ${text}`;
           });
           
-          // Load Memory Vault knowledge for context
-          let knowledgeVaultContext = "";
-          try {
-              const knowledgeStr = typeof window !== 'undefined' ? window.localStorage.getItem('mossy_knowledge_vault') : null;
-              if (knowledgeStr) {
-                  const knowledge = JSON.parse(knowledgeStr);
-                  if (Array.isArray(knowledge) && knowledge.length > 0) {
-                      const knowledgeItems = knowledge
-                          .map((item: any) => `[${item.tags?.join(', ') || 'general'}] ${item.title}: ${item.content.substring(0, 150)}${item.content.length > 150 ? '...' : ''}`)
-                          .join('\n');
-                      knowledgeVaultContext = `\n**MOSSY'S KNOWLEDGE VAULT (${knowledge.length} items - CRITICAL CONTEXT):**\n${knowledgeItems}`;
-                  }
+            // Load Memory Vault knowledge for context (compact; avoid dumping entire DB)
+            let knowledgeVaultContext = "";
+            try {
+              const lastUser = (([...trimmed] as any[]).reverse().find((m: any) => m?.role === 'user') as any)?.text || '';
+              const manifest = buildKnowledgeManifestForModel();
+              const relevant = lastUser
+              ? buildRelevantKnowledgeVaultContext(String(lastUser), { maxItems: 6, maxChars: 3500 })
+              : '';
+              const recentIndex = buildRecentKnowledgeIndex(8);
+
+              if (manifest || relevant || recentIndex) {
+                knowledgeVaultContext = `\n**MOSSY'S KNOWLEDGE VAULT (VOICE - COMPACT):**${manifest}${relevant}${recentIndex}`;
               }
-          } catch (e) {
+            } catch (e) {
               console.warn('[LiveContext] Failed to load memory vault:', e);
-          }
+            }
           
           if (lines.length > 0) {
             recentChatContext = `[RECENT CHAT - Last ${lines.length} exchanges]\n${lines.join('\n')}${knowledgeVaultContext}`;
@@ -1307,9 +1306,16 @@ Example bad responses (DO NOT DO THIS):
         sessionStartTimeRef.current = Date.now();
         setLiveActive(true);
         
+        const communityLearningCtx = getCommunityLearningContextForModel();
+
         // Store conversation system prompt in session
         groqSession.systemPrompt = getFullSystemInstruction(
-          (cortexMemory || []).join(' ') + '\n' + detectedProgramsContext + '\n' + recentChatContext
+          (cortexMemory || []).join(' ') +
+            '\n' +
+            detectedProgramsContext +
+            '\n' +
+            recentChatContext +
+            (communityLearningCtx ? '\n' + communityLearningCtx : '')
         );
         
         console.log('[LiveContext] Groq session ready for conversation');
@@ -1389,36 +1395,16 @@ Example bad responses (DO NOT DO THIS):
                 const groqSession = sessionRef.current as any;
                 let transcription = '';
 
-                // Prefer Deepgram first for lower latency, fallback to Whisper
                 try {
-                  if (groqSession.deepgramApiKey) {
-                    transcription = await transcribeAudioWithDeepgram(completeBlob, groqSession.deepgramApiKey);
-                    console.log('[LiveContext] Deepgram transcription:', transcription);
-                  } else {
-                    // No Deepgram key, use Whisper
-                    transcription = await transcribeAudioWithWhisper(completeBlob, groqSession.openaiApiKey);
-                    console.log('[LiveContext] Whisper transcription:', transcription);
+                  transcription = await transcribeAudioWithWhisper(completeBlob, '');
+                  console.log('[LiveContext] STT transcription:', transcription);
+                } catch (sttErr) {
+                  console.error('[LiveContext] STT failed:', sttErr);
+                  setMode('listening');
+                  if (sessionReadyRef.current && recorder.state === 'inactive') {
+                    recorder.start();
                   }
-                } catch (primaryErr) {
-                  console.warn('[LiveContext] Primary STT failed, trying fallback:', primaryErr);
-                  try {
-                    // Fallback to the other provider
-                    if (groqSession.deepgramApiKey) {
-                      transcription = await transcribeAudioWithWhisper(completeBlob, groqSession.openaiApiKey);
-                      console.log('[LiveContext] Whisper fallback transcription:', transcription);
-                    } else {
-                      transcription = await transcribeAudioWithDeepgram(completeBlob, groqSession.deepgramApiKey);
-                      console.log('[LiveContext] Deepgram fallback transcription:', transcription);
-                    }
-                  } catch (fallbackErr) {
-                    console.error('[LiveContext] Both STT providers failed:', fallbackErr);
-                    setMode('listening');
-                    // Restart recording
-                    if (sessionReadyRef.current && recorder.state === 'inactive') {
-                      recorder.start();
-                    }
-                    return;
-                  }
+                  return;
                 }
 
                 // PREVENT ECHO LOOPS: Skip if transcription is empty or very short (noise)

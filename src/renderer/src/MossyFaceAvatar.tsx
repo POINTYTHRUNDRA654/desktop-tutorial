@@ -1,6 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import { useLive } from './LiveContext';
 
+const DEFAULT_MOSSY_AVATAR_URL = '/mossy-avatar.svg';
+
 interface MossyFaceAvatarProps {
   className?: string;
   size?: 'small' | 'medium' | 'large';
@@ -24,6 +26,11 @@ const MossyFaceAvatar: React.FC<MossyFaceAvatarProps> = ({
   const { customAvatar } = useLive();
   const [pulseIntensity, setPulseIntensity] = useState(0);
   const [time, setTime] = useState(0);
+  const [imageSrc, setImageSrc] = useState<string>(customAvatar || DEFAULT_MOSSY_AVATAR_URL);
+
+  useEffect(() => {
+    setImageSrc(customAvatar || DEFAULT_MOSSY_AVATAR_URL);
+  }, [customAvatar]);
 
   // Animation Loop for soul-layers
   useEffect(() => {
@@ -51,10 +58,18 @@ const MossyFaceAvatar: React.FC<MossyFaceAvatarProps> = ({
     return () => clearInterval(pulseInterval);
   }, [mode]);
 
+  const maxPx = size === 'small' ? 48 : size === 'medium' ? 96 : 256;
+
   return (
     <div 
       className={`relative rounded-full overflow-hidden ${className} transition-all duration-700`}
       style={{
+        width: '100%',
+        height: '100%',
+        maxWidth: maxPx,
+        maxHeight: maxPx,
+        overflow: 'hidden',
+        borderRadius: '9999px',
         boxShadow: `0 0 ${40 + pulseIntensity * 40}px rgba(59, 130, 246, ${0.3 + pulseIntensity * 0.4})`,
         border: `2px solid rgba(59, 130, 246, ${0.1 + pulseIntensity * 0.2})`,
         background: '#050505'
@@ -62,9 +77,14 @@ const MossyFaceAvatar: React.FC<MossyFaceAvatarProps> = ({
     >
       {/* THE FACE: Original or custom high-fidelity picture */}
       <img 
-        src={customAvatar || "/mossy-avatar.png"}
-        alt="Mossy High Fidelity Face"
+        src={imageSrc}
+        alt="Mossy"
         className="w-full h-full object-cover select-none"
+        style={{ width: '100%', height: '100%', objectFit: 'cover', pointerEvents: 'none' }}
+        draggable={false}
+        onError={() => {
+          if (imageSrc !== DEFAULT_MOSSY_AVATAR_URL) setImageSrc(DEFAULT_MOSSY_AVATAR_URL);
+        }}
       />
 
       {/* THE SOUL: Procedural SVG Overlay Layers */}

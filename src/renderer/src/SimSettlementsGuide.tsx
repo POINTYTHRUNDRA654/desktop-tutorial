@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { ChevronDown, ChevronUp, Download, Zap, BookOpen, AlertCircle, Users, Hammer, CheckCircle2, HelpCircle, Lightbulb } from 'lucide-react';
 
 interface Section {
@@ -9,13 +10,92 @@ interface Section {
 }
 
 export default function SimSettlementsGuide() {
+  const navigate = useNavigate();
   const [expandedSection, setExpandedSection] = useState<string | null>('quick-start');
 
   const toggleSection = (id: string) => {
     setExpandedSection(expandedSection === id ? null : id);
   };
 
+  const openUrl = (url: string) => {
+    try {
+      const anyWindow = window as any;
+      if (anyWindow?.electron?.openExternal) {
+        anyWindow.electron.openExternal(url);
+        return;
+      }
+    } catch {
+      // ignore
+    }
+    window.open(url, '_blank', 'noopener,noreferrer');
+  };
+
+  const openNexusSearch = (query: string) => {
+    const url = `https://www.nexusmods.com/fallout4/search/?gsearch=${encodeURIComponent(query)}&gsearchtype=mods`;
+    openUrl(url);
+  };
+
   const sections: Section[] = [
+    {
+      id: 'tools-install-verify',
+      title: '🧰 Tools / Install / Verify (No Guesswork)',
+      icon: <CheckCircle2 className="w-5 h-5 text-[#00ff00]" />,
+      content: (
+        <div className="space-y-4 text-sm text-[#00ff00] font-mono">
+          <div className="bg-[#001a00] p-3 rounded text-xs border border-[#004400]">
+            <p className="text-[#00d000] font-bold mb-2">What you need (PC)</p>
+            <ul className="list-disc list-inside space-y-1 text-[#008000]">
+              <li><strong>Fallout 4</strong> (and the DLC your chosen SS2 package requires)</li>
+              <li><strong>One mod manager</strong> (Vortex or MO2)</li>
+              <li><strong>Core SS2 stack</strong>: Sim Settlements 2 + Workshop Framework + HUD Framework</li>
+              <li><strong>(Optional)</strong> F4SE + MCM (only if you’re using SS2 features that require it)</li>
+            </ul>
+          </div>
+
+          <div className="bg-black/40 border border-[#004400] rounded p-3">
+            <p className="text-[#00d000] font-bold mb-2">Where to get things (stable links)</p>
+            <div className="flex flex-wrap gap-2">
+              <button className="px-3 py-1 rounded bg-[#002200] hover:bg-[#003300] text-xs" onClick={() => openUrl('https://www.nexusmods.com/about/vortex/')}>Vortex (official)</button>
+              <button className="px-3 py-1 rounded bg-[#002200] hover:bg-[#003300] text-xs" onClick={() => openNexusSearch('Mod Organizer 2')}>MO2 (Nexus search)</button>
+              <button className="px-3 py-1 rounded bg-[#002200] hover:bg-[#003300] text-xs" onClick={() => openNexusSearch('Sim Settlements 2')}>SS2 (Nexus search)</button>
+              <button className="px-3 py-1 rounded bg-[#002200] hover:bg-[#003300] text-xs" onClick={() => openNexusSearch('Workshop Framework')}>Workshop Framework</button>
+              <button className="px-3 py-1 rounded bg-[#002200] hover:bg-[#003300] text-xs" onClick={() => openNexusSearch('HUD Framework')}>HUD Framework</button>
+              <button className="px-3 py-1 rounded bg-[#002200] hover:bg-[#003300] text-xs" onClick={() => openUrl('https://f4se.silverlock.org/')}>F4SE (official)</button>
+            </div>
+          </div>
+
+          <div className="bg-black/40 border border-[#004400] rounded p-3">
+            <p className="text-[#00d000] font-bold mb-2">Fast verification loop (5–10 minutes)</p>
+            <ol className="list-decimal list-inside space-y-1 text-xs text-[#008000]">
+              <li>Open your mod manager and confirm SS2 + dependencies are enabled (plugins checked).</li>
+              <li>Launch Fallout 4 through the mod manager (not directly from Steam).</li>
+              <li>Load a test save, go to a settlement, and build a Recruitment Radio Beacon.</li>
+              <li>Wait for the Stranger quest trigger; if it doesn’t fire, use the SS2 holotape tools to reboot the quest.</li>
+              <li>If using F4SE/MCM: confirm the SS2 settings menu exists and loads.</li>
+            </ol>
+          </div>
+
+          <div className="bg-black/40 border border-[#004400] rounded p-3">
+            <p className="text-[#00d000] font-bold mb-2">In-app shortcuts</p>
+            <div className="flex flex-wrap gap-2">
+              <button className="px-3 py-1 rounded bg-[#002200] hover:bg-[#003300] text-xs" onClick={() => navigate('/install-wizard')}>Install Wizard</button>
+              <button className="px-3 py-1 rounded bg-[#002200] hover:bg-[#003300] text-xs" onClick={() => navigate('/settings/tools')}>Tool Settings</button>
+              <button className="px-3 py-1 rounded bg-[#002200] hover:bg-[#003300] text-xs" onClick={() => navigate('/vault')}>The Vault</button>
+            </div>
+          </div>
+
+          <div className="bg-[#1a0000] border border-[#440000] rounded p-3">
+            <p className="text-[#ff4444] font-bold mb-2">Common failure causes</p>
+            <ul className="list-disc list-inside space-y-1 text-xs text-[#ff8888]">
+              <li>Plugins are downloaded but not enabled (Vortex “Plugins” tab not checked).</li>
+              <li>Load order conflicts (two settlement frameworks fighting). Use a clean profile to confirm baseline.</li>
+              <li>Installed the wrong SS2 package for your DLC situation (missing required DLC).</li>
+              <li>Launching the game outside the mod manager (mods not actually loading).</li>
+            </ul>
+          </div>
+        </div>
+      )
+    },
     {
       id: 'quick-start',
       title: '⚡ Quick Start (5 Minutes)',

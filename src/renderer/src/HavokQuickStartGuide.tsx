@@ -1,6 +1,9 @@
 import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { ToolsInstallVerifyPanel } from './components/ToolsInstallVerifyPanel';
 
 const HavokQuickStartGuide = () => {
+  const navigate = useNavigate();
   const [expandedSection, setExpandedSection] = useState<string | null>(null);
 
   const toggleSection = (section: string) => {
@@ -61,6 +64,54 @@ const HavokQuickStartGuide = () => {
     marginBottom: '10px',
   };
 
+  const calloutStyle: React.CSSProperties = {
+    backgroundColor: 'rgba(0, 255, 0, 0.06)',
+    border: '1px solid #00441a',
+    borderLeft: '4px solid #00ff00',
+    borderRadius: '4px',
+    padding: '12px',
+    marginBottom: '18px',
+    color: '#cccccc',
+    lineHeight: '1.6',
+    fontSize: '14px',
+  };
+
+  const buttonRowStyle: React.CSSProperties = {
+    display: 'flex',
+    flexWrap: 'wrap',
+    gap: '8px',
+    marginTop: '10px',
+  };
+
+  const buttonStyle: React.CSSProperties = {
+    backgroundColor: '#0a0e27',
+    border: '1px solid #00d000',
+    color: '#00ff00',
+    padding: '6px 10px',
+    borderRadius: '4px',
+    cursor: 'pointer',
+    fontFamily: 'monospace',
+    fontSize: '12px',
+  };
+
+  const openUrl = (url: string) => {
+    try {
+      const anyWindow = window as any;
+      if (anyWindow?.electron?.openExternal) {
+        anyWindow.electron.openExternal(url);
+        return;
+      }
+    } catch {
+      // ignore
+    }
+    window.open(url, '_blank', 'noopener,noreferrer');
+  };
+
+  const openNexusSearch = (query: string) => {
+    const url = `https://www.nexusmods.com/fallout4/search/?gsearch=${encodeURIComponent(query)}&gsearchtype=mods`;
+    openUrl(url);
+  };
+
   const tableStyle: React.CSSProperties = {
     width: '100%',
     borderCollapse: 'collapse',
@@ -97,6 +148,57 @@ const HavokQuickStartGuide = () => {
         Get Havok installed and create your first animation in under 1 hour
       </p>
 
+      <div style={{ maxWidth: 980, margin: '0 auto 18px auto' }}>
+        <ToolsInstallVerifyPanel
+          accentClassName="text-emerald-300"
+          description="This page includes both the pragmatic FO4 path (Blender → convert → test) and legacy SDK workflows. Start with the smallest conversion/test loop first."
+          tools={[
+            { label: 'Blender (official download)', href: 'https://www.blender.org/download/', kind: 'official' },
+            { label: 'Nexus search: HKXPackUI', href: 'https://www.nexusmods.com/fallout4/search/?gsearch=HKXPackUI&gsearchtype=mods', kind: 'search' },
+            { label: 'Nexus search: BAE', href: 'https://www.nexusmods.com/fallout4/search/?gsearch=BAE&gsearchtype=mods', kind: 'search' },
+            { label: 'HavokMax (GitHub)', href: 'https://github.com/PredatorCZ/HavokMax', kind: 'docs' },
+            { label: 'HavokLib (GitHub)', href: 'https://github.com/PredatorCZ/HavokLib', kind: 'docs' },
+            { label: 'CMake (official download)', href: 'https://cmake.org/download/', kind: 'official', note: 'Needed if you build from source.' },
+            { label: 'Visual Studio (official download)', href: 'https://visualstudio.microsoft.com/downloads/', kind: 'official', note: 'Needed for MSVC builds on Windows.' },
+          ]}
+          verify={[
+            'Use the in-page buttons to jump to Animation Guide/Validator and confirm navigation works.',
+            'Confirm you can open the tool links above (or copy them) from inside the app.',
+            'Confirm your “tiny test” export has a predictable frame rate and duration.'
+          ]}
+          firstTestLoop={[
+            'Author a 20–30 frame clip in Blender → export FBX → convert to FO4 HKX using your chosen method.',
+            'Test in-game early; only then invest in SDK/HavokMax builds if you truly need them.'
+          ]}
+          troubleshooting={[
+            'If you are blocked on SDK licensing/installs, switch to the Blender → conversion toolchain path first.',
+            'If conversion output is unusable, verify you are targeting the correct FO4 HKX profile/version.'
+          ]}
+          shortcuts={[
+            { label: 'Animation Guide', to: '/animation-guide' },
+            { label: 'Animation Validator', to: '/animation-validator' },
+            { label: 'Export Settings', to: '/export-settings' },
+            { label: 'The Vault', to: '/vault' },
+          ]}
+        />
+      </div>
+
+      <div style={calloutStyle}>
+        <div style={{ color: '#00ff00', fontWeight: 'bold', marginBottom: '6px' }}>Reality check (Fallout 4 modding)</div>
+        <div>
+          For Fallout 4, most modders don’t start by installing a full Havok SDK. The practical path is:
+          <strong> author animation in Blender → export → convert to FO4 HKX → verify in-game</strong>.
+          Legacy SDK/HavokMax setups exist, but they’re not the easiest first win.
+        </div>
+        <div style={buttonRowStyle}>
+          <button style={buttonStyle} onClick={() => navigate('/animation-guide')}>In-app: Animation Guide</button>
+          <button style={buttonStyle} onClick={() => navigate('/animation-validator')}>In-app: Animation Validator</button>
+          <button style={buttonStyle} onClick={() => navigate('/vault')}>In-app: The Vault</button>
+          <button style={buttonStyle} onClick={() => openNexusSearch('HKXPack')}>Nexus search: HKXPack</button>
+          <button style={buttonStyle} onClick={() => openNexusSearch('Bethesda Archive Extractor')}>Nexus search: BAE</button>
+        </div>
+      </div>
+
       {/* 5-Step Setup */}
       <div style={sectionStyle}>
         <div style={titleStyle} onClick={() => toggleSection('5-step')}>
@@ -105,15 +207,16 @@ const HavokQuickStartGuide = () => {
         </div>
         {expandedSection === '5-step' && (
           <div style={contentStyle}>
-            <div style={headingStyle}>Step 1: Install Havok SDK (10 min)</div>
-            <ol>
-              <li>Download from Autodesk (gamedev or academic license)</li>
-              <li>Extract to folder: <code>C:\HavokSDK\hk2010_2_0</code></li>
-              <li>Add to Windows PATH environment variable</li>
-              <li>Test in Command Prompt: <code>echo %HK_HAVOK_SDK%</code></li>
-            </ol>
+            <div style={headingStyle}>Step 1: Choose a toolchain (10 min)</div>
+            <ul>
+              <li><strong>Recommended:</strong> Blender animation workflow + an HKX conversion toolchain (community tooling).</li>
+              <li><strong>Legacy/Advanced:</strong> Havok SDK + HavokMax (3ds Max plugin) if you already have that environment working.</li>
+            </ul>
+            <p style={{ color: '#00d000' }}>
+              If you’re here specifically for Fallout 4, start with the in-app animation guide and only come back to SDK setup if you need it.
+            </p>
 
-            <div style={headingStyle}>Step 2: Install HavokMax (10 min)</div>
+            <div style={headingStyle}>Step 2: (Optional) Install HavokMax (10 min)</div>
             <div style={codeBlockStyle}>
               {`git clone https://github.com/PredatorCZ/HavokMax.git
 cd HavokMax
@@ -131,19 +234,18 @@ cmake --build . --config Release`}
               {`git clone https://github.com/PredatorCZ/HavokLib.git`}
             </div>
 
-            <div style={headingStyle}>Step 4: Get Reference Model (3 min)</div>
+            <div style={headingStyle}>Step 4: Get a reference skeleton/animation (3 min)</div>
             <ol>
-              <li>Extract Fallout 4 assets using Nifskope</li>
+              <li>Extract Fallout 4 assets using a BA2 extractor (BAE is common)</li>
               <li>Open <code>Data\meshes\actors\character\CharacterAssets\skeleton.nif</code></li>
               <li>Import to 3DS Max</li>
             </ol>
 
-            <div style={headingStyle}>Step 5: Test HavokMax (2 min)</div>
+            <div style={headingStyle}>Step 5: Verify something works (2 min)</div>
             <ol>
-              <li>Look for <strong>Havok</strong> menu in 3DS Max</li>
-              <li>Check for <strong>Animation Tools</strong> toolbar</li>
-              <li>Check for <strong>Physics Tools</strong> toolbar</li>
-              <li>Plugin loaded successfully ✓</li>
+              <li>If using HavokMax: confirm the Havok menu/toolbars exist.</li>
+              <li>If using Blender pipeline: export a tiny animation and run it through your HKX conversion tool.</li>
+              <li>Use the in-app validator to catch common format/version issues before testing in-game.</li>
             </ol>
           </div>
         )}

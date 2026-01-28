@@ -1,7 +1,7 @@
 # Audio Input Processing Issue - TODO
 
 ## Status
-✅ Connection to Google Gemini Live API works
+✅ Connection to live voice pipeline works
 ✅ Session connects and opens successfully  
 ✅ Audio playback from Mossy works
 ❌ Audio input from microphone crashes the app
@@ -10,7 +10,7 @@
 The `ScriptProcessorNode` is deprecated and causes crashes when:
 1. Setting up the audio processor in `onopen` callback
 2. Processing audio frames in `onaudioprocess`
-3. Sending audio blobs to Gemini API
+3. Sending audio blobs to transcription provider
 
 ## Current Workaround
 Audio input processing is disabled. Connection works but users cannot send audio to Mossy.
@@ -50,7 +50,7 @@ mediaRecorder.start(100); // 100ms chunks
 ## Testing Checklist
 - [ ] No crash on connect
 - [ ] No crash on voice input
-- [ ] Audio actually reaches Gemini
+- [ ] Audio actually reaches the transcription provider
 - [ ] Mossy responds to voice
 - [ ] Audio playback works
 - [ ] Disconnect cleanly

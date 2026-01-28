@@ -1,5 +1,7 @@
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import { BookOpen, ChevronDown, AlertTriangle, Zap, CheckCircle } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { useWheelScrollProxy } from './components/useWheelScrollProxy';
 
 interface GuideSection {
   id: string;
@@ -11,6 +13,31 @@ interface GuideSection {
 
 export const PrecombineAndPRPGuide: React.FC = () => {
   const [expandedSection, setExpandedSection] = useState<string>('overview');
+  const navigate = useNavigate();
+  const sectionRefs = useRef<Record<string, HTMLDivElement | null>>({});
+  const contentScrollRef = useRef<HTMLDivElement | null>(null);
+  const wheelProxy = useWheelScrollProxy(contentScrollRef);
+
+  const openAndScrollTo = (id: string) => {
+    setExpandedSection(id);
+    requestAnimationFrame(() => {
+      sectionRefs.current[id]?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
+  };
+
+  const openUrl = (url: string) => {
+    const api = (window as any).electron?.api || (window as any).electronAPI;
+    if (typeof api?.openExternal === 'function') {
+      api.openExternal(url);
+      return;
+    }
+    window.open(url, '_blank', 'noopener,noreferrer');
+  };
+
+  const openNexusSearch = (keywords: string) => {
+    const query = encodeURIComponent(keywords);
+    openUrl(`https://www.nexusmods.com/fallout4/search/?BH=0&search%5Bsearch_keywords%5D=${query}`);
+  };
 
   const sections: GuideSection[] = [
     {
@@ -133,6 +160,50 @@ If you modify ANY object placement in an existing exterior cell → you break pr
         'Object modifications',
         'Terrain changes',
         'Interior vs exterior',
+      ],
+    },
+    {
+      id: 'do-i-need-rebuild',
+      title: 'Do I Need To Rebuild Precombines For My Mod?',
+      icon: <CheckCircle className="w-5 h-5" />,
+      content: `This is the most important question — and the easiest place to accidentally ship a broken mod.
+
+**Quick Decision (90% accurate):**
+
+1) Did you edit an existing EXTERIOR cell in a vanilla worldspace (Commonwealth, Far Harbor, Nuka-World)?
+→ If YES: assume you need a rebuild.
+
+2) Did you add/move/delete any placed objects in that exterior cell?
+→ If YES: you need a rebuild.
+
+3) Did you only edit quest/dialogue/AI/scripts, or only replace textures/meshes (no placement changes)?
+→ If YES: you do NOT need a rebuild.
+
+**What “counts” as a placement change:**
+- Adding a new object (even one)
+- Moving/rotating/scaling a vanilla object
+- Deleting/disabling an object
+- Changing flags that affect rendering/visibility
+- Landscape/water edits in that cell
+
+**When people get fooled:**
+- “It looks fine in CK” → in-game still breaks because precombines are a runtime optimization.
+- “I only changed a few rocks” → that can break the entire precombine group in that cell.
+- “It’s a settlement mod” → settlement placement in vanilla cells is one of the most common sources of precombine breakage.
+
+**How to be sure (verification-first):**
+1) Identify the exact exterior cells your mod touches.
+2) In-game, visit those cells and rotate the camera around your edits.
+3) If anything pops in/out, flickers, or disappears → you need a rebuild.
+4) If you want a faster, more reliable answer: run PRP analysis against your plugin(s) and review the report of affected cells.
+
+**If you’re not sure:**
+Treat it as “YES, rebuild” for any exterior placement edits. The cost is build time; the benefit is avoiding invisible objects, broken previs, and performance hits for your users.`,
+      subsections: [
+        'Quick decision checklist',
+        'What counts as placement',
+        'Common false negatives',
+        'Verification steps',
       ],
     },
     {
@@ -317,6 +388,92 @@ Precombine 5 is in BOTH mods.
       ],
     },
     {
+      id: 'prp-patch-for-your-mod',
+      title: 'How To Make a PRP Patch For Your Mod',
+      icon: <Zap className="w-5 h-5" />,
+      content: `A “PRP patch” is NOT just an ESP that changes records — it usually includes **merged precombine meshes** for the specific cells where two mods collide.
+
+**When you need a PRP patch:**
+- Your mod touches exterior cells with placement edits (so it breaks/changes precombines)
+- AND you want compatibility with:
+  - PRP (base rebuild)
+  - Another precombine rebuild mod
+  - A big worldspace/settlement/landscape mod that also rebuilds
+
+**Key idea:**
+Precombines are delivered as files (precombined NIFs). If two mods ship different precombined meshes for the same cell, **last one wins** unless you merge.
+
+---
+
+## Recommended Patch Workflow (Safe + Repeatable)
+
+**Step 0: Decide how you’ll ship**
+- Option A: Your mod ships its own rebuilt precombines (you are a “precombine mod”).
+- Option B: You ship an OPTIONAL compatibility patch (recommended if you want to keep your main mod lightweight).
+
+**Step 1: Define the patch target**
+Pick a specific combo you are supporting, for example:
+- Base PRP + Your Mod
+- PRP + Your Mod + (Other Mod)
+
+Write it down as the patch name. Example: “PRP + MySettlementOverhaul Patch”.
+
+**Step 2: Align load order for the build**
+Your patch needs to be built against the same load order you expect users to run.
+Typical pattern:
+1) PRP
+2) Your mod
+3) Other mod(s) (if applicable)
+4) Your *patch* (last)
+
+**Step 3: Build merged precombines with PRP**
+Run PRP in conflict/merge mode with ALL involved plugins present.
+Output should include:
+- A set of merged precombine files for the affected cells
+- A patch plugin (ESP/ESL) that loads after the mods and points to the merged output
+
+**Step 4: Package the patch correctly**
+Your patch mod should contain:
+1) Patch plugin (ESP/ESL)
+2) The merged files under the correct paths (usually under Meshes\\Precombined\\...)
+
+**Step 5: Verify**
+Test in-game with EXACTLY the supported combo:
+1) Clean profile
+2) Load PRP + your mod + other mod + patch
+3) Visit each touched cell, rotate camera, confirm nothing disappears
+4) Confirm performance didn’t tank in the affected area
+
+**Step 6: Document it (this is part of the patch)**
+In the patch description/README:
+- Required mods + exact versions (if you can)
+- Required load order (“place patch after both”)
+- What it fixes (cells/areas)
+- What it does NOT cover
+
+---
+
+## Common PRP Patch Mistakes
+
+❌ Shipping only a plugin with no merged precombine files
+→ Users still get “last mod wins” behavior.
+
+❌ Building a patch against a different load order than the one you tell users
+→ The patch “works on your machine” and fails for users.
+
+❌ Trying to support too many combos at once
+→ Start with the most popular conflict combo, then add more patches as separate downloads.
+
+If you tell Mossy your mod type (settlement overhaul / landscape / world edits) and the other mod you want compatibility with, she can help you define the exact patch target and verification path.`,
+      subsections: [
+        'When a PRP patch is needed',
+        'Build order and merge concept',
+        'Packaging patch assets',
+        'Verification checklist',
+        'Common mistakes',
+      ],
+    },
+    {
       id: 'best-practices',
       title: 'Precombine Best Practices',
       icon: <CheckCircle className="w-5 h-5" />,
@@ -493,7 +650,7 @@ After PRP rebuild:
   ];
 
   return (
-    <div className="h-full bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 overflow-hidden flex flex-col">
+    <div className="h-full bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 overflow-hidden flex flex-col min-h-0" onWheel={wheelProxy}>
       {/* Header */}
       <div className="p-6 border-b border-slate-700 bg-slate-800/50">
         <div className="flex items-center gap-3">
@@ -503,14 +660,144 @@ After PRP rebuild:
             <p className="text-sm text-slate-400">How to rebuild precombines for Fallout 4 mods</p>
           </div>
         </div>
+
+        <div className="mt-5 max-h-72 overflow-y-auto pr-2">
+          <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+            <div className="bg-slate-950/50 border border-slate-700 rounded-lg p-4">
+              <div className="text-sm font-bold text-purple-300 mb-2">🧰 Tools / Install / Verify (No Guesswork)</div>
+              <ul className="text-xs text-slate-300 space-y-1 list-disc list-inside">
+                <li><strong>Fallout 4 + DLC</strong> installed (use your own game files).</li>
+                <li><strong>Creation Kit</strong> (for checking cells/placements and saving plugins).</li>
+                <li><strong>PRP tool</strong> (Precombine &amp; Previsibines) to analyze + rebuild + merge.</li>
+                <li><strong>FO4Edit (xEdit)</strong> helps inspect conflicts/load order quickly.</li>
+                <li><strong>NifSkope</strong> is handy for sanity-checking generated assets.</li>
+                <li><strong>A mod manager</strong> (MO2/Vortex) for clean-profile testing.</li>
+              </ul>
+
+              <div className="mt-3 flex flex-wrap gap-2">
+                <button
+                  onClick={() => openUrl('https://store.steampowered.com/search/?term=Fallout%204%20Creation%20Kit')}
+                  className="px-3 py-2 rounded bg-slate-800 hover:bg-slate-700 border border-slate-600 text-xs font-bold text-white"
+                >
+                  Steam: Creation Kit (search)
+                </button>
+                <button
+                  onClick={() => openNexusSearch('Precombine & Previsibines PRP')}
+                  className="px-3 py-2 rounded bg-slate-800 hover:bg-slate-700 border border-slate-600 text-xs font-bold text-white"
+                >
+                  Nexus: PRP (search)
+                </button>
+                <button
+                  onClick={() => openNexusSearch('FO4Edit')}
+                  className="px-3 py-2 rounded bg-slate-800 hover:bg-slate-700 border border-slate-600 text-xs font-bold text-white"
+                >
+                  Nexus: FO4Edit (search)
+                </button>
+                <button
+                  onClick={() => openUrl('https://github.com/niftools/nifskope/releases')}
+                  className="px-3 py-2 rounded bg-slate-800 hover:bg-slate-700 border border-slate-600 text-xs font-bold text-white"
+                >
+                  GitHub: NifSkope releases
+                </button>
+                <button
+                  onClick={() => openNexusSearch('Bethesda Archive Extractor')}
+                  className="px-3 py-2 rounded bg-slate-800 hover:bg-slate-700 border border-slate-600 text-xs font-bold text-white"
+                >
+                  Nexus: BAE (search)
+                </button>
+              </div>
+            </div>
+
+            <div className="bg-black/40 border border-slate-700 rounded-lg p-4">
+              <div className="text-sm font-bold text-emerald-300 mb-2">📦 Existing Install / Workflow (Legacy Section)</div>
+              <div className="text-xs text-slate-300 mb-3">
+                If the legacy “install / setup” details feel pushed to the bottom, use these quick-open buttons to jump straight to the relevant section.
+              </div>
+
+            <div className="flex flex-wrap gap-2">
+              <button
+                onClick={() => openAndScrollTo('prp-intro')}
+                className="px-3 py-2 rounded bg-emerald-900/30 hover:bg-emerald-900/50 border border-emerald-500/30 text-xs font-bold text-white"
+              >
+                Open: PRP Tool section
+              </button>
+              <button
+                onClick={() => openAndScrollTo('do-i-need-rebuild')}
+                className="px-3 py-2 rounded bg-slate-800 hover:bg-slate-700 border border-slate-600 text-xs font-bold text-white"
+              >
+                Open: Do I need a rebuild?
+              </button>
+              <button
+                onClick={() => openAndScrollTo('detecting-breaks')}
+                className="px-3 py-2 rounded bg-slate-800 hover:bg-slate-700 border border-slate-600 text-xs font-bold text-white"
+              >
+                Open: Detecting breaks
+              </button>
+            </div>
+
+            <div className="mt-3 border-t border-slate-700 pt-3">
+              <div className="text-xs font-bold text-slate-200 mb-1">First test loop (10–15 minutes)</div>
+              <ol className="text-xs text-slate-300 list-decimal list-inside space-y-1">
+                <li>In a clean mod-manager profile, enable ONLY your plugin (and DLC requirements).</li>
+                <li>Run PRP in <strong>Analyze</strong> mode against your plugin; note affected exterior cells.</li>
+                <li>Run PRP <strong>Build/Rebuild</strong>; confirm output includes <strong>Meshes\\Precombined\\</strong> files.</li>
+                <li>Install the output as a mod, load in-game, visit one touched cell, rotate camera 360°.</li>
+                <li>If you’re supporting compatibility: build a <strong>merged</strong> PRP patch for one specific combo.</li>
+              </ol>
+            </div>
+
+            <div className="mt-3 flex flex-wrap gap-2">
+              <button
+                onClick={() => navigate('/install-wizard')}
+                className="px-3 py-2 rounded bg-purple-700 hover:bg-purple-600 text-xs font-bold text-white"
+              >
+                Install Wizard
+              </button>
+              <button
+                onClick={() => navigate('/settings/tools')}
+                className="px-3 py-2 rounded bg-slate-800 hover:bg-slate-700 border border-slate-600 text-xs font-bold text-white"
+              >
+                Tool Settings
+              </button>
+              <button
+                onClick={() => navigate('/precombine-checker')}
+                className="px-3 py-2 rounded bg-slate-800 hover:bg-slate-700 border border-slate-600 text-xs font-bold text-white"
+              >
+                Precombine Checker
+              </button>
+              <button
+                onClick={() => navigate('/prp-patch-builder')}
+                className="px-3 py-2 rounded bg-slate-800 hover:bg-slate-700 border border-slate-600 text-xs font-bold text-white"
+              >
+                PRP Patch Builder
+              </button>
+              <button
+                onClick={() => navigate('/packaging-release')}
+                className="px-3 py-2 rounded bg-slate-800 hover:bg-slate-700 border border-slate-600 text-xs font-bold text-white"
+              >
+                Packaging & Release
+              </button>
+              <button
+                onClick={() => navigate('/vault')}
+                className="px-3 py-2 rounded bg-slate-800 hover:bg-slate-700 border border-slate-600 text-xs font-bold text-white"
+              >
+                The Vault
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
       </div>
 
       {/* Content */}
-      <div className="flex-1 overflow-y-auto p-6">
+      <div ref={contentScrollRef} className="flex-1 min-h-0 overflow-y-auto p-6">
         <div className="max-w-4xl mx-auto space-y-3">
           {sections.map((section) => (
             <div
               key={section.id}
+              ref={(el) => {
+                sectionRefs.current[section.id] = el;
+              }}
               className="bg-slate-900 border border-slate-700 rounded-lg overflow-hidden hover:border-purple-500/50 transition-colors"
             >
               <button

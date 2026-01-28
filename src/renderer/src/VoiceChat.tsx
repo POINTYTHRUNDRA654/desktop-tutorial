@@ -1,15 +1,53 @@
 import React, { useState, useEffect } from 'react';
-import { Mic, MicOff, Phone, PhoneOff, AlertCircle, Radio, Power, Wifi, Circle } from 'lucide-react';
+import { Mic, MicOff, Phone, PhoneOff, AlertCircle, Radio, Power, Wifi, Circle, Database } from 'lucide-react';
 import { useLive } from './LiveContext';
 import AvatarCore from './AvatarCore';
+import { useNavigate } from 'react-router-dom';
+import { ToolsInstallVerifyPanel } from './components/ToolsInstallVerifyPanel';
+
+const DEFAULT_MOSSY_AVATAR_URL = '/mossy-avatar.svg';
 
 const VoiceChat: React.FC = () => {
+  const navigate = useNavigate();
   const fallbackLive = { isActive: false, isMuted: false, toggleMute: () => {}, disconnect: () => {}, mode: 'disconnected', connect: async () => {}, transcription: '', micLevel: 0, audioInputs: [], selectedInputId: '', setSelectedInputId: () => {} };
   // eslint-disable-next-line react-hooks/rules-of-hooks
   const liveContext = useLive() || fallbackLive;
   const { isActive, isMuted, toggleMute, disconnect, mode, connect, transcription, micLevel, audioInputs, selectedInputId, setSelectedInputId } = liveContext;
   const [isConnecting, setIsConnecting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [knowledgeCount, setKnowledgeCount] = useState<number>(() => {
+    try {
+      const raw = localStorage.getItem('mossy_knowledge_vault');
+      const parsed = raw ? JSON.parse(raw) : null;
+      return Array.isArray(parsed) ? parsed.length : 0;
+    } catch {
+      return 0;
+    }
+  });
+
+  useEffect(() => {
+    const readCount = () => {
+      try {
+        const raw = localStorage.getItem('mossy_knowledge_vault');
+        const parsed = raw ? JSON.parse(raw) : null;
+        setKnowledgeCount(Array.isArray(parsed) ? parsed.length : 0);
+      } catch {
+        setKnowledgeCount(0);
+      }
+    };
+
+    const onKnowledgeUpdated = () => readCount();
+    const onStorage = (e: StorageEvent) => {
+      if (!e.key || e.key === 'mossy_knowledge_vault') readCount();
+    };
+
+    window.addEventListener('mossy-knowledge-updated', onKnowledgeUpdated);
+    window.addEventListener('storage', onStorage);
+    return () => {
+      window.removeEventListener('mossy-knowledge-updated', onKnowledgeUpdated);
+      window.removeEventListener('storage', onStorage);
+    };
+  }, []);
 
   const handleConnect = async () => {
     setIsConnecting(true);
@@ -43,9 +81,9 @@ const VoiceChat: React.FC = () => {
 
   return (
     <div 
-      className="h-full w-full flex flex-col relative overflow-hidden bg-black"
+      className="h-full w-full flex flex-col relative overflow-y-auto overflow-x-hidden bg-black"
       style={{
-        backgroundImage: 'linear-gradient(to bottom, rgba(0, 0, 0, 0.8), rgba(0, 0, 0, 0.6)), url("/mossy-avatar.png")',
+        backgroundImage: `linear-gradient(to bottom, rgba(0, 0, 0, 0.8), rgba(0, 0, 0, 0.6)), url(${DEFAULT_MOSSY_AVATAR_URL})`,
         backgroundSize: 'cover',
         backgroundPosition: 'center'
       }}
@@ -57,18 +95,59 @@ const VoiceChat: React.FC = () => {
       {/* Header */}
       <div className="p-6 relative z-10 flex justify-between items-start">
         <div>
+
+        <div className="px-6 relative z-10">
+          <ToolsInstallVerifyPanel
+            accentClassName="text-blue-300"
+            description="Live Synapse uses your microphone and the app’s live voice pipeline. No external tools are required, but device permissions must be enabled."
+            verify={[
+              'Click Connect and confirm the status text changes from idle to active.',
+              'Speak and confirm the mic level meter responds and transcription updates (if enabled).',
+              'Disconnect and confirm the UI returns to idle without errors.'
+            ]}
+            firstTestLoop={[
+              'Select the correct microphone input (if multiple are available).',
+              'Connect → speak one short sentence → confirm transcription updates.',
+              'Open Memory Vault and confirm the vault badge still matches your local count.'
+            ]}
+            troubleshooting={[
+              'If no inputs appear, check OS microphone permissions and ensure no other app is exclusively using the mic.',
+              'If Connect fails, check any required credentials/config in Settings and retry.'
+            ]}
+            shortcuts={[
+              { label: 'Memory Vault', to: '/memory-vault' },
+              { label: 'Chat', to: '/chat' },
+              { label: 'TTS / Audio Studio', to: '/tts' },
+              { label: 'Privacy Settings', to: '/settings/privacy' },
+            ]}
+          />
+        </div>
           <h1 className="text-2xl font-black text-white flex items-center gap-3 tracking-tighter uppercase italic">
             <Radio className="w-6 h-6 text-blue-400 animate-pulse" />
             Live Synapse
           </h1>
           <p className="text-blue-400/60 text-[10px] font-mono tracking-widest uppercase mt-1">Direct Neural Interface • v4.0.2</p>
         </div>
-        {isActive && (
-           <div className="flex items-center gap-2 px-3 py-1 bg-blue-500/20 border border-blue-500/30 rounded text-[10px] text-blue-400 font-mono animate-pulse">
-                <div className="w-1.5 h-1.5 rounded-full bg-blue-400" />
-                ENCRYPTED BEAM ACTIVE
-           </div>
-        )}
+        <div className="flex flex-col items-end gap-2">
+          {knowledgeCount > 0 && (
+            <button
+              type="button"
+              onClick={() => navigate('/memory-vault')}
+              className="flex items-center gap-2 px-3 py-1 bg-emerald-500/10 border border-emerald-500/20 rounded text-[10px] text-emerald-300 font-mono hover:bg-emerald-500/15 hover:border-emerald-400/30 transition-colors"
+              title="Open Memory Vault (Knowledge Vault is loaded locally)"
+              aria-label="Open Memory Vault"
+            >
+              <Database className="w-3 h-3" />
+              VAULT LOADED • {knowledgeCount}
+            </button>
+          )}
+          {isActive && (
+             <div className="flex items-center gap-2 px-3 py-1 bg-blue-500/20 border border-blue-500/30 rounded text-[10px] text-blue-400 font-mono animate-pulse">
+                  <div className="w-1.5 h-1.5 rounded-full bg-blue-400" />
+                  ENCRYPTED BEAM ACTIVE
+             </div>
+          )}
+        </div>
       </div>
 
       {/* Main Content */}

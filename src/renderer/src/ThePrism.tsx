@@ -42,8 +42,6 @@ const ThePrism: React.FC = () => {
         // Reset Shards
         setShards(prev => prev.map(s => ({ ...s, content: '', status: 'thinking' })));
 
-        const ai = new GoogleGenAI({ apiKey: (import.meta.env.VITE_API_KEY || import.meta.env.VITE_GOOGLE_API_KEY || "") });
-
         // 1. Parallel Generation for Shards
         const shardPrompts = {
             logic: `You are 'The Architect', a hyper-logical AI focused on code efficiency, system stability, and structural integrity. Analyze this request: "${query}". Provide a technical, bullet-point breakdown of how to achieve this. Be concise.`,
@@ -53,10 +51,8 @@ const ThePrism: React.FC = () => {
 
         const generateShard = async (shardId: 'logic' | 'creative' | 'critic') => {
             try {
-                const model = ai.getGenerativeModel({ model: 'gemini-1.5-flash' });
-                const result = await model.generateContent(shardPrompts[shardId]);
-                const response = await result.response;
-                const text = response.text();
+                const response = await (window as any).electronAPI.aiChatOpenAI(shardPrompts[shardId], 'You are The Prism, a multi-perspective reasoning engine.', 'gpt-3.5-turbo');
+                const text = response.success && response.content ? response.content : 'Data corrupted.';
                 setShards(prev => prev.map(s => s.id === shardId ? { ...s, content: text, status: 'complete' } : s));
                 return text;
             } catch (e) {
@@ -87,11 +83,13 @@ const ThePrism: React.FC = () => {
             Format with Markdown.
             `;
 
-            const model = ai.getGenerativeModel({ model: 'gemini-1.5-flash' });
-            const result = await model.generateContent(finalPrompt);
-            const response = await result.response;
-
-            setSynthesis(response.text());
+                        const synthResp = await (window as any).electronAPI.aiChatOpenAI(
+                            finalPrompt,
+                            'You are The Prism, a multi-perspective reasoning engine. Provide a polished final synthesis in Markdown.',
+                            'gpt-3.5-turbo'
+                        );
+                        const text = (synthResp?.success && synthResp?.content) ? String(synthResp.content) : '';
+                        setSynthesis(text || 'Synthesis failed. Neural alignment error.');
             setSynthesisStatus('complete');
 
         } catch (e) {
@@ -120,7 +118,7 @@ const ThePrism: React.FC = () => {
                     </div>
                 </div>
                 <div className="px-3 py-1 rounded-full border border-white/10 bg-white/5 text-xs text-slate-300 font-mono">
-                    MODEL: GEMINI-3-PRO
+                    MODEL: OPENAI (IPC)
                 </div>
             </div>
 

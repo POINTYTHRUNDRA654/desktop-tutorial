@@ -1,0 +1,164 @@
+{
+  "nav": {
+    "home": "Mossy.Space",
+    "modProjects": "Mod-Projekte",
+    "quickReference": "Schnellreferenz",
+    "knowledgeSearch": "Wissenssuche",
+    "installWizard": "Installations-Assistent",
+    "platforms": "Plattformen",
+    "crashTriage": "Crash-Triage",
+    "packagingRelease": "Packaging & Release",
+    "ckQuestDialogue": "CK: Quests & Dialog",
+    "animationGuide": "Animationsleitfaden",
+    "skeletonReference": "Skelett-Referenz",
+    "riggingMistakes": "Rigging-Fehler",
+    "questModAuthoring": "Quest-Mod-Erstellung",
+    "precombinePrpGuide": "Precombine & PRP Leitfaden",
+    "prpPatchBuilder": "PRP-Patch-Builder",
+    "leveledListInjection": "Leveled-List-Injection",
+    "lorekeeper": "Der Lorekeeper",
+
+    "templateGenerator": "Vorlagen-Generator",
+    "scriptAnalyzer": "Skript-Analysator",
+    "assembler": "Der Assembler",
+    "workshop": "Die Werkstatt",
+    "blueprint": "Der Bauplan",
+
+    "riggingChecklist": "Rigging-Checkliste",
+    "exportSettingsHelper": "Export-Einstellungen",
+    "animationValidator": "Animations-Validator",
+    "precombineChecker": "Precombine-Checker",
+
+    "auditor": "Der Auditor",
+    "scribe": "Der Schreiber",
+    "systemMonitor": "Systemmonitor",
+
+    "orchestrator": "Der Orchestrator",
+    "workflowRunner": "Workflow-Runner",
+    "holodeck": "Das Holodeck",
+    "vault": "Der Tresor",
+    "memoryVault": "Memory Vault",
+    "neuralLink": "Neural Link",
+    "localCapabilities": "Lokale Fähigkeiten",
+
+    "imageStudio": "Bildstudio",
+    "audioStudio": "Audiostudio",
+
+    "liveSynapse": "Live Synapse",
+    "desktopBridge": "Desktop-Bridge",
+    "duplicateFinder": "Duplikat-Finder",
+    "communityLearning": "Community-Lernen",
+    "toolVerify": "Tool-Verifizierung",
+    "privacySettings": "Datenschutz",
+    "voiceSettings": "Stimme",
+    "languageSettings": "Sprache",
+    "diagnosticTools": "Diagnose-Tools",
+    "supportMossy": "Mossy unterstützen"
+  },
+  "settings": {
+    "language": {
+      "title": "Spracheinstellungen",
+      "subtitle": "Wähle die Sprache der Mossy-Oberfläche.",
+      "uiLanguageLabel": "App-Sprache",
+      "uiLanguageHelp": "Betrifft Labels, Buttons und UI-Text (wo übersetzt).",
+      "requestTitle": "Sprache anfragen",
+      "requestHelp": "Deine Sprache fehlt? Sag uns, welche wir als Nächstes hinzufügen sollen.",
+      "requestCta": "Sprache anfragen",
+      "requestCtaTitle": "Formular für Sprachanfrage öffnen",
+      "auto": "Auto (System)",
+      "current": "Aktuell",
+      "save": "Speichern"
+    }
+  },
+  "onboarding": {
+    "language": {
+      "label": "Sprache",
+      "help": "Wähle deine UI-Sprache. Du kannst das später in den Einstellungen ändern.",
+      "auto": "Auto (System)"
+    }
+  },
+  "installWizard": {
+    "tagline": "Mossy Tutor • Installations-Assistent",
+    "topics": "Themen",
+    "modManager": "Mod-Manager",
+    "shortcuts": {
+      "title": "Kurzlinks",
+      "externalTools": "Einstellungen: Externe Tools",
+      "precombinePrp": "Precombine & PRP Leitfaden",
+      "simSettlements": "Sim Settlements Leitfaden"
+    },
+    "topicSelector": {
+      "xedit": "xEdit / FO4Edit",
+      "ss2": "SS2: Plot-Building",
+      "prp": "PRP (Previs/Precombine)",
+      "patching": "Patches bauen"
+    },
+    "actions": {
+      "askMossy": "Mossy fragen",
+      "askMossyTitle": "Mossy im Chat fragen",
+      "sendToChat": "An Chat senden",
+      "sendToChatTitle": "Checkliste dieses Themas an den Chat senden",
+      "reset": "Zurücksetzen",
+      "resetTitle": "Assistenten-Fortschritt zurücksetzen"
+    },
+    "section": {
+      "prereqs": "Voraussetzungen",
+      "download": "Download",
+      "installConfigure": "Installieren / Konfigurieren",
+      "buildPatch": "Patch erstellen",
+      "verify": "Prüfen",
+      "troubleshoot": "Fehlerbehebung"
+    },
+    "step": {
+      "markIncomplete": "Schritt als unvollständig markieren",
+      "markComplete": "Schritt als erledigt markieren",
+      "completed": "Erledigt",
+      "notCompleted": "Nicht erledigt"
+    },
+    "topic": {
+      "xedit": {
+        "title": "xEdit / FO4Edit Einrichtung",
+        "subtitle": "Installiere, konfiguriere und prüfe xEdit, damit du sicher patchen kannst."
+      },
+      "ss2": {
+        "title": "Sim Settlements 2 Einrichtung",
+        "subtitle": "Abhängigkeiten + Installation + Basisprüfung für Plot-Building."
+      },
+      "prp": {
+        "title": "PRP Einrichtung",
+        "subtitle": "Precombines/Previs installieren mit konfliktbewusster Prüfung."
+      },
+      "patching": {
+        "title": "Patch-Building",
+        "subtitle": "Ein sicherer, wiederholbarer Workflow zum Erstellen von Kompatibilitäts-Patches."
+      }
+    },
+    "verifyPanel": {
+      "description": "Dieser Assistent hilft, fehlende Voraussetzungen zu vermeiden: er verlinkt auf offizielle Quellen oder stabile Suchseiten und bietet eine minimale Prüfschleife.",
+      "verify": {
+        "0": "Wähle ein Thema und prüfe, dass die Checkliste angezeigt wird und Checkboxen nach dem Reload erhalten bleiben.",
+        "1": "Öffne mindestens einen Link aus “Trusted links” und prüfe, dass er über openExternal/window.open öffnet.",
+        "2": "Nutze “An Chat senden” und prüfe, dass die Checkliste kopiert und im Chat vorbefüllt ist."
+      },
+      "firstTestLoop": {
+        "0": "Starte mit “xEdit / FO4Edit” und sorge zuerst für einen sauberen Start.",
+        "1": "Wähle deinen Mod-Manager und erledige zunächst nur die minimalen Prüfschritte, bevor du mehr machst."
+      },
+      "troubleshooting": {
+        "0": "Wenn Links nicht öffnen, prüfe Diagnostics und ob openExternal verfügbar ist (Desktop-App) oder erlaube Popups.",
+        "1": "Wenn Checkbox-Zustand nicht gespeichert wird, prüfe ob localStorage verfügbar ist (siehe Diagnostics)."
+      }
+    },
+    "downloadsSources": "Downloads & Quellen",
+    "downloadsSourcesHelp": "Zeigt vertrauenswürdige Quellen und direkte URLs aus deinem lokalen Knowledge Vault.",
+    "refresh": "Aktualisieren",
+    "refreshTitle": "Links aktualisieren",
+    "fromVault": "Aus deinem Knowledge Vault",
+    "openVault": "Memory Vault öffnen",
+    "searchNexus": "Nexus durchsuchen",
+    "vaultLink": "Vault-Link",
+    "tutorTip": "Tutor-Tipp",
+    "openLastLocation": "Letzten Ort öffnen",
+    "openLastLocationTitle": "(Optional) Letzten gespeicherten Ort öffnen, falls verfügbar"
+  }
+}

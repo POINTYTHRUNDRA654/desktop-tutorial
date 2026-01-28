@@ -1,5 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { FileText, PenTool, RefreshCw, Copy, Check, Upload, Feather, BookOpen, List, Code, Sparkles, Wand2, Globe } from 'lucide-react';
+import { useWheelScrollProxy } from './components/useWheelScrollProxy';
 
 interface DocSection {
     id: string;
@@ -9,6 +10,9 @@ interface DocSection {
 }
 
 const TheScribe: React.FC = () => {
+    const editorScrollRef = useRef<HTMLDivElement>(null);
+    const onWheel = useWheelScrollProxy(editorScrollRef);
+
     const [modName, setModName] = useState('MyMod');
     const [version, setVersion] = useState('1.0.0');
     const [activeTab, setActiveTab] = useState<'readme' | 'changelog' | 'lore'>('readme');
@@ -29,8 +33,6 @@ const TheScribe: React.FC = () => {
     const handleGenerate = async () => {
         setIsGenerating(true);
         try {
-            const ai = new GoogleGenAI({ apiKey: (import.meta.env.VITE_API_KEY || import.meta.env.VITE_GOOGLE_API_KEY || "") });
-            
             let prompt = "";
             const systemContext = `You are "The Scribe", a documentation assistant for Fallout 4 mods. Mod Name: "${modName}". Version: "${version}".`;
 
@@ -56,14 +58,17 @@ const TheScribe: React.FC = () => {
                 Make it atmospheric, mentioning specific Fallout 4 locations or factions if relevant (Institute, Brotherhood, Railroad).`;
             }
 
-            const model = ai.getGenerativeModel({ model: 'gemini-1.5-flash' });
-            const result = await model.generateContent(prompt);
-            const response = await result.response;
-
-            setGeneratedContent(response.text());
+            // Call IPC handler in main process (your API key is safe there)
+            const result = await (window as any).electronAPI.aiChatOpenAI(prompt, systemContext, 'gpt-3.5-turbo');
+            
+            if (result.success && result.content) {
+                setGeneratedContent(result.content);
+            } else {
+                setGeneratedContent("Error: Ink pot empty. (" + (result.error || "AI Generation Failed") + ")");
+            }
 
         } catch (e) {
-            setGeneratedContent("Error: Ink pot empty. (AI Generation Failed)");
+            setGeneratedContent("Error: Ink pot empty. (IPC call failed)");
         } finally {
             setIsGenerating(false);
         }
@@ -76,7 +81,7 @@ const TheScribe: React.FC = () => {
     };
 
     return (
-        <div className="h-full flex flex-col bg-[#0c0a09] text-slate-200 font-serif">
+        <div className="h-full flex flex-col bg-[#0c0a09] text-slate-200 font-serif" onWheel={onWheel}>
             {/* Header */}
             <div className="p-4 border-b border-stone-800 bg-[#1c1917] flex justify-between items-center shadow-md z-10 font-sans">
                 <div>
@@ -179,7 +184,7 @@ const TheScribe: React.FC = () => {
 
                 {/* Right: Editor */}
                 <div className="flex-1 bg-[#121212] relative flex flex-col">
-                    <div className="flex-1 p-8 overflow-y-auto custom-scrollbar">
+                    <div ref={editorScrollRef} className="flex-1 p-8 overflow-y-auto custom-scrollbar">
                         {generatedContent ? (
                             <div className="max-w-3xl mx-auto bg-stone-900/50 border border-stone-800 rounded-sm p-8 shadow-2xl relative">
                                 <button 
