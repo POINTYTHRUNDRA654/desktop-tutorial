@@ -1,6 +1,22 @@
-# MOSSY RELEASE TESTING CHECKLIST v1.0
+# MOSSY RELEASE TESTING CHECKLIST v4.0
+
+Use this checklist for validating the Windows installer build (`Mossy Setup 4.0.0.exe`) and core flows.
 
 ## ✅ CORE FUNCTIONALITY TESTS
+
+### 0. **Installer + First Run** (CRITICAL)
+- [ ] Install via `Mossy Setup 4.0.0.exe`
+- [ ] Launch Mossy from Start Menu/desktop shortcut
+- [ ] Onboarding appears on first launch
+  - [ ] Language selection is shown
+  - [ ] System scan runs (or clearly explains if skipped/blocked)
+  - [ ] Tool approvals are presented and saved
+
+### 0.1 **UI Language** (CRITICAL)
+- [ ] In onboarding, switch language and verify visible UI text changes
+- [ ] After finishing onboarding, confirm language persists after app restart
+- [ ] In Settings → Language, change language and verify it applies immediately
+- [ ] Verify `auto/system` follows Windows language (where applicable)
 
 ### 1. **Diagnostic Tools** (NEW)
 - [ ] Go to sidebar → Diagnostic Tools
@@ -101,6 +117,10 @@
 - [ ] Export Error Logs button exists
 - [ ] API Key saving works (if testing transcription)
 
+### 12.1 **Keys / Secrets Safety** (CRITICAL)
+- [ ] Verify the app does not require sharing `.env.local` with testers
+- [ ] If testing cloud providers, keys are entered via Settings UI (not hardcoded)
+
 ### 13. **Navigation**
 - [ ] All sidebar items clickable
 - [ ] All routes load without errors
@@ -145,7 +165,7 @@
 ```
 1. npm run build
 2. npm run dev
-3. Open http://localhost:5173
+3. Open http://localhost:5174
 4. Test each section above
 5. Check F12 console for errors
 6. Run Mossy diagnostic scan
