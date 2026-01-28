@@ -1,12 +1,22 @@
 import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
+import path from 'path';
+import fs from 'fs';
+import dotenv from 'dotenv';
 
 import { apiLimiter } from './middleware/rateLimit';
 import { requireApiToken } from './middleware/auth';
 import { registerHealthRoutes } from './routes/health';
 import { registerChatRoutes } from './routes/chat';
 import { registerTranscriptionRoutes } from './routes/transcribe';
+
+// Load backend environment variables from local files if present.
+// (Node does not load .env automatically.) Existing process.env values always win.
+for (const envFile of ['.env.backend', '.env.local', '.env']) {
+  const filePath = path.resolve(process.cwd(), envFile);
+  if (fs.existsSync(filePath)) dotenv.config({ path: filePath, override: false, quiet: true });
+}
 
 const PORT = Number(process.env.PORT || process.env.MOSSY_BACKEND_PORT || 8787);
 const HOST = String(process.env.HOST || '0.0.0.0');

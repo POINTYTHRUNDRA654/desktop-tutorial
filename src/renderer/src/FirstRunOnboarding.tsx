@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Cpu, Sparkles, Check, X, ArrowRight, Loader, Map } from 'lucide-react';
 import { useI18n, resolveUiLanguage } from './i18n';
+import { formatAppVersion } from './appInfo';
 
 interface OnboardingProps {
     onComplete: () => void;
@@ -261,17 +262,18 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
     };
 
     return (
-        <div className="fixed inset-0 bg-black/95 z-50 flex items-center justify-center p-8">
+        <div className="fixed inset-0 bg-black/95 z-50 overflow-y-auto">
+            <div className="min-h-full flex items-start justify-center p-6 md:p-8">
             <div className="max-w-3xl w-full">
                 {step === 'welcome' && (
                     <div className="text-center animate-fade-in">
                         <Sparkles className="w-20 h-20 mx-auto mb-6 text-amber-400" />
-                        <h1 className="text-4xl font-bold text-white mb-4">Welcome to Mossy v4.0</h1>
+                        <h1 className="text-4xl font-bold text-white mb-4">Welcome to Mossy {formatAppVersion()}</h1>
                         <p className="text-xl text-slate-300 mb-8">
                             Your AI-powered Fallout 4 modding assistant with next-gen voice conversation
                         </p>
                         <p className="text-slate-400 mb-6">
-                            <strong className="text-emerald-400">✨ New in v4.0:</strong> Pick your UI language on first launch (or later in Settings), plus a smoother Install Wizard experience.
+                            <strong className="text-emerald-400">✨ New in {formatAppVersion()}:</strong> Pick your UI language on first launch (or later in Settings), plus a smoother Install Wizard experience.
                         </p>
                         <p className="text-slate-400 mb-8">
                             Let me scan your system to discover tools I can integrate with.
@@ -474,6 +476,7 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
                         </p>
                     </div>
                 )}
+            </div>
             </div>
         </div>
     );

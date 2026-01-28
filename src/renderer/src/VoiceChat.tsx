@@ -5,6 +5,7 @@ import AvatarCore from './AvatarCore';
 import { useNavigate } from 'react-router-dom';
 import { ToolsInstallVerifyPanel } from './components/ToolsInstallVerifyPanel';
 import { mossyAvatarUrl } from './assets/avatar';
+import { formatAppVersion } from './appInfo';
 
 const DEFAULT_MOSSY_AVATAR_URL = mossyAvatarUrl;
 
@@ -127,7 +128,7 @@ const VoiceChat: React.FC = () => {
             <Radio className="w-6 h-6 text-blue-400 animate-pulse" />
             Live Synapse
           </h1>
-          <p className="text-blue-400/60 text-[10px] font-mono tracking-widest uppercase mt-1">Direct Neural Interface • v4.0.2</p>
+          <p className="text-blue-400/60 text-[10px] font-mono tracking-widest uppercase mt-1">Direct Neural Interface • {formatAppVersion()}</p>
         </div>
         <div className="flex flex-col items-end gap-2">
           {knowledgeCount > 0 && (

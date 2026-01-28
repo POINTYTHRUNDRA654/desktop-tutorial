@@ -11,6 +11,8 @@ declare module '*.json' {
 }
 
 declare global {
+  const __APP_VERSION__: string;
+
   interface Window {
     electron?: {
       api?: ElectronAPIType;

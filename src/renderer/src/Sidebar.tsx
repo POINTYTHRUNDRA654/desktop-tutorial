@@ -4,6 +4,7 @@ import { MessageSquare, Radio, Image, Mic2, Activity, Heart, Leaf, Monitor, Wifi
 import { useLive } from './LiveContext';
 import AvatarCore from './AvatarCore';
 import { useI18n } from './i18n';
+import { formatAppVersion } from './appInfo';
 
 const Sidebar: React.FC = () => {
   const [bridgeConnected, setBridgeConnected] = useState(false);
@@ -239,7 +240,7 @@ const Sidebar: React.FC = () => {
       
       {/* Footer Info & Pip-Boy Toggle */}
       <div className="p-4 border-t border-slate-800 bg-slate-900/50 flex justify-between items-center">
-        <div className="text-[10px] text-slate-600 font-mono">CORE: v2.4.2</div>
+        <div className="text-[10px] text-slate-600 font-mono">CORE: {formatAppVersion()}</div>
         <button 
             onClick={togglePipBoy}
             className={`p-2 rounded-full transition-colors ${isPipBoy ? 'bg-amber-900/20 text-amber-400 border border-amber-500/30' : 'bg-slate-800 text-slate-500 hover:text-white border border-slate-700'}`}

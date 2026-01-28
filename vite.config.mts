@@ -2,6 +2,7 @@ import { defineConfig, loadEnv } from 'vite';
 import react from '@vitejs/plugin-react';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import fs from 'node:fs';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -17,6 +18,9 @@ export default defineConfig(({ mode }) => {
   const envDir = path.resolve(__dirname, './');
   const env = loadEnv(mode, envDir, '');
   const port = Number(env.VITE_DEV_SERVER_PORT || env.DEV_SERVER_PORT || 5174);
+
+  const pkg = JSON.parse(fs.readFileSync(path.resolve(__dirname, 'package.json'), 'utf8')) as { version?: string };
+  const appVersion = pkg.version || '0.0.0';
 
   // Note: We intentionally inject CSP via a Vite HTML transform so we don't
   // depend on committing `.env.*` files (which are gitignored).
@@ -34,6 +38,9 @@ export default defineConfig(({ mode }) => {
     root: 'src/renderer',
     base: './',
     envDir,
+    define: {
+      __APP_VERSION__: JSON.stringify(appVersion),
+    },
     build: {
       outDir: '../../dist',
       emptyOutDir: true,

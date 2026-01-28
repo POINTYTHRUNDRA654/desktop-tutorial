@@ -19,7 +19,16 @@ The goal: **your provider keys live on the server**, not inside the shipped desk
 2) Build + run:
 
 - `npm run backend:build`
+
+Then either set env vars inline:
+
 - `MOSSY_API_TOKEN=dev-token GROQ_API_KEY=... OPENAI_API_KEY=... npm run backend:start`
+
+Or create a local env file (recommended):
+
+- Copy `.env.backend.example` → `.env.backend`
+- Fill in `GROQ_API_KEY` and/or `OPENAI_API_KEY`
+- Run `npm run backend:start`
 
 Or run in watch mode:
 
@@ -49,6 +58,14 @@ Generate a strong backend token locally (Windows PowerShell):
 ## Environment
 
 See `.env.backend.example`.
+
+The backend automatically loads (if present), in this order:
+
+- `.env.backend`
+- `.env.local`
+- `.env`
+
+Existing system environment variables always win.
 
 ## Render.com (simple deploy)
 

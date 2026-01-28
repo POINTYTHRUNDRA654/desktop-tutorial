@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { LocalAIEngine } from './LocalAIEngine';
+import { formatAppVersion } from './appInfo';
 
 interface StartupStep {
   text: string;
@@ -10,7 +11,7 @@ interface StartupStep {
 export const PipBoyStartup: React.FC<{ onComplete: () => void }> = ({ onComplete }) => {
   const [steps, setSteps] = useState<StartupStep[]>([
     { text: 'VERIFYING HARDWARE INTERFACE...', status: 'pending', delay: 800 },
-    { text: 'INITIALIZING ROBCO BIOS v4.0.2...', status: 'pending', delay: 1000 },
+    { text: `INITIALIZING ROBCO BIOS ${formatAppVersion()}...`, status: 'pending', delay: 1000 },
     { text: 'SCANNING FOR FALLOUT 4 INSTALLATION...', status: 'pending', delay: 1500 },
     { text: 'CHECKING F4SE STATUS...', status: 'pending', delay: 1200 },
     { text: 'SYNCING WITH NEURAL LINK...', status: 'pending', delay: 900 },

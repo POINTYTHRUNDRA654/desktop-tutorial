@@ -426,16 +426,19 @@ async function verifyElevenLabsCredentials(apiKey: string, voiceId: string): Pro
   }
 }
 
-// Helper: Send message to Groq and get response (via IPC)
-async function sendMessageToGroq(
+type LlmProvider = 'groq' | 'openai';
+
+// Helper: Send message to configured LLM and get response (via IPC)
+async function sendMessageToLlm(
   userMessage: string,
-  _groqClient: any,  // No longer used; IPC handles it
+  _unusedClient: any, // No longer used; IPC handles it
   conversationHistory: any[],
   systemPrompt: string,
   audioContextRef: React.MutableRefObject<AudioContext | undefined>,
   elevenLabsApiKey: string,
   elevenLabsVoiceId: string,
   ttsProvider: string,
+  llmProvider: LlmProvider,
   isMutedRef: React.MutableRefObject<boolean>,
   sourcesRef: React.MutableRefObject<Set<AudioBufferSourceNode>>,
   nextStartTimeRef: React.MutableRefObject<number>,
@@ -449,18 +452,25 @@ async function sendMessageToGroq(
       content: userMessage
     });
 
-    console.log('[LiveContext] Sending to Groq via IPC:', {
+    console.log('[LiveContext] Sending to LLM via IPC:', {
+      provider: llmProvider,
       userMessage,
       historyLength: conversationHistory.length,
-      modelName: 'llama-3.3-70b-versatile'
+      modelName: llmProvider === 'groq' ? 'llama-3.3-70b-versatile' : 'gpt-3.5-turbo',
     });
 
-    // Call Groq via IPC handler (main process has the API key)
-    const response = await (window as any).electronAPI.aiChatGroq(userMessage, systemPrompt, 'llama-3.3-70b-versatile');
-    if (!response.success) throw new Error(response.error || 'Groq chat failed');
+    const electronApi = (window as any)?.electronAPI ?? (window as any)?.electron?.api;
+    if (!electronApi?.aiChatGroq && !electronApi?.aiChatOpenAI) throw new Error('AI chat is not available in this environment');
+
+    // Call provider via IPC handler (main process has the API key)
+    const response =
+      llmProvider === 'openai'
+        ? await electronApi.aiChatOpenAI(userMessage, systemPrompt, 'gpt-3.5-turbo')
+        : await electronApi.aiChatGroq(userMessage, systemPrompt, 'llama-3.3-70b-versatile');
+    if (!response.success) throw new Error(response.error || 'AI chat failed');
 
     const modelResponse = response.content || '';
-    console.log('[LiveContext] Groq response:', modelResponse);
+    console.log('[LiveContext] LLM response:', modelResponse);
 
     // Add model response to history
     conversationHistory.push({
@@ -525,7 +535,7 @@ async function sendMessageToGroq(
 
     return modelResponse;
   } catch (error) {
-    console.error('[LiveContext] Groq API error:', error);
+    console.error('[LiveContext] LLM API error:', error);
     throw error;
   }
 }
@@ -1090,11 +1100,12 @@ export const LiveProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             const backendEnabled = Boolean(backendBaseUrl);
 
             // If a backend proxy is configured, we allow missing local provider keys.
-            const llmOk = Boolean(st.groq) || backendEnabled;
+            // For local-only, accept either Groq or OpenAI.
+            const llmOk = Boolean(st.groq) || Boolean((st as any).openai) || backendEnabled;
             const sttOk = Boolean(st.openai) || Boolean(st.deepgram) || backendEnabled;
 
             if (!llmOk) {
-              throw new Error('Groq is not configured. Add a Groq API key in Desktop settings, or configure the Backend Proxy.');
+              throw new Error('No LLM provider is configured. Add a Groq or OpenAI API key in Desktop settings, or configure the Backend Proxy.');
             }
             if (!sttOk) {
               throw new Error('Speech-to-text is not configured. Add an OpenAI or Deepgram API key in Desktop settings, or configure the Backend Proxy.');
@@ -1112,15 +1123,32 @@ export const LiveProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           ttsProvider = 'browser';
         }
 
-        // Note: Groq client no longer created here; IPC handlers in main process manage API keys
+        // Choose LLM provider for voice chat. Prefer Groq when configured (lower latency), else OpenAI.
+        let llmProvider: LlmProvider = 'groq';
+        try {
+          if (electronApi?.getSecretStatus) {
+            const st = await electronApi.getSecretStatus();
+            if (st?.ok) {
+              const backendEnabled = Boolean(backendBaseUrl);
+              if (st.groq) llmProvider = 'groq';
+              else if ((st as any).openai) llmProvider = 'openai';
+              else if (backendEnabled) llmProvider = 'groq';
+            }
+          }
+        } catch {
+          // ignore; default stays 'groq'
+        }
+
+        // Note: LLM clients are not created here; IPC handlers in main process manage API keys
         sessionRef.current = { 
           groqClient: null,  // No longer used; IPC handles Groq
           conversationHistory: [],
           elevenLabsApiKey,
           elevenLabsVoiceId,
-          ttsProvider
+          ttsProvider,
+          llmProvider
         } as any;
-        console.log('[LiveContext] Groq chat configured for IPC mode (main process handles API key)');
+        console.log(`[LiveContext] LLM chat configured for IPC mode (${llmProvider})`);
         console.log('[LiveContext] STT enabled via main process');
         if (ttsProvider === 'elevenlabs') {
           console.log('[LiveContext] ElevenLabs TTS enabled with voice ID:', elevenLabsVoiceId);
@@ -1434,7 +1462,7 @@ Example bad responses (DO NOT DO THIS):
                 setTranscription(transcription);
                 saveLiveMessage('user', transcription);
 
-                await sendMessageToGroq(
+                await sendMessageToLlm(
                   transcription,
                   groqSession.groqClient,
                   groqSession.conversationHistory,
@@ -1443,6 +1471,7 @@ Example bad responses (DO NOT DO THIS):
                   groqSession.elevenLabsApiKey,
                   groqSession.elevenLabsVoiceId,
                   groqSession.ttsProvider,
+                  (groqSession.llmProvider || 'groq') as LlmProvider,
                   isMutedRef,
                   sourcesRef,
                   nextStartTimeRef,

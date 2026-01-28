@@ -27,13 +27,29 @@ import FormData from 'form-data';
 import OpenAI from 'openai';
 import dotenv from 'dotenv';
 
-// Load environment variables from .env.local
-const envPath = path.join(__dirname, '../../.env.local');
-console.log('[Main] Loading .env from:', envPath);
-console.log('[Main] File exists:', fs.existsSync(envPath));
-// Suppress dotenv's own startup logs (keeps dev console readable).
-// dotenv@17 supports { quiet: true }.
-dotenv.config({ path: envPath, quiet: true });
+// Load environment variables for the main process.
+// In dev, Electron runs with CWD at the project root, but __dirname points at the compiled output folder.
+// Prefer CWD/appPath so .env.local and .env are found reliably.
+const loadDotEnvIfPresent = (filePath: string) => {
+  try {
+    if (fs.existsSync(filePath)) {
+      dotenv.config({ path: filePath, override: false, quiet: true });
+    }
+  } catch {
+    // Ignore env file loading issues; keys can still come from system env or app settings.
+  }
+};
+
+const envCandidates = Array.from(
+  new Set([
+    path.resolve(process.cwd(), '.env.local'),
+    path.resolve(process.cwd(), '.env'),
+    path.resolve(app.getAppPath(), '.env.local'),
+    path.resolve(app.getAppPath(), '.env'),
+  ])
+);
+
+for (const p of envCandidates) loadDotEnvIfPresent(p);
 // Never log API keys (even presence-only for renderer-exposed vars).
 // Never log API keys (even partial prefixes).
 
