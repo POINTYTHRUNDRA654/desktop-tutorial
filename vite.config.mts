@@ -18,6 +18,18 @@ export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, envDir, '');
   const port = Number(env.VITE_DEV_SERVER_PORT || env.DEV_SERVER_PORT || 5174);
 
+  // Note: We intentionally inject CSP via a Vite HTML transform so we don't
+  // depend on committing `.env.*` files (which are gitignored).
+  const CSP_DEV =
+    "default-src 'self'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; object-src 'none'; img-src 'self' data: blob: https:; media-src 'self' data: blob:; font-src 'self' data: https://fonts.gstatic.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; script-src 'self' 'unsafe-eval'; connect-src 'self' http: https: ws: wss:; worker-src 'self' blob:";
+
+  // Production CSP needs to allow React inline styles and optional local bridge checks.
+  // Keep network access restricted to HTTPS/WSS plus explicit localhost endpoints.
+  const CSP_PROD =
+    "default-src 'self'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; object-src 'none'; img-src 'self' data: blob: https:; media-src 'self' data: blob:; font-src 'self' data: https://fonts.gstatic.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; script-src 'self'; connect-src 'self' https: wss: http://127.0.0.1:21337 http://localhost:21337 ws://127.0.0.1:21337 ws://localhost:21337; worker-src 'self' blob:";
+
+  const csp = mode === 'development' ? CSP_DEV : CSP_PROD;
+
   return {
     root: 'src/renderer',
     base: './',
@@ -52,7 +64,15 @@ export default defineConfig(({ mode }) => {
       port,
       strictPort: true,
     },
-    plugins: [react()],
+    plugins: [
+      react(),
+      {
+        name: 'inject-csp',
+        transformIndexHtml(html) {
+          return html.replace('%VITE_CSP%', csp);
+        },
+      },
+    ],
     resolve: {
       alias: {
         '@': path.resolve(__dirname, './src'),
