@@ -9,6 +9,7 @@ import { registerChatRoutes } from './routes/chat';
 import { registerTranscriptionRoutes } from './routes/transcribe';
 
 const PORT = Number(process.env.PORT || process.env.MOSSY_BACKEND_PORT || 8787);
+const HOST = String(process.env.HOST || '0.0.0.0');
 
 const app = express();
 
@@ -50,6 +51,6 @@ app.use((_req, res) => {
   res.status(404).json({ ok: false, error: 'not_found' });
 });
 
-app.listen(PORT, () => {
-  console.log(`[backend] listening on http://127.0.0.1:${PORT}`);
+app.listen(PORT, HOST, () => {
+  console.log(`[backend] listening on http://${HOST}:${PORT}`);
 });
