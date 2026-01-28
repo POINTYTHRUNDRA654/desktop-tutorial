@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { Book, Code, Keyboard, Hash, ChevronDown, ChevronUp, Zap, FileCode, Terminal, Palette } from 'lucide-react';
+import { ToolsInstallVerifyPanel } from './components/ToolsInstallVerifyPanel';
 
 interface ReferenceSection {
   id: string;
@@ -231,6 +232,23 @@ export const QuickReference: React.FC = () => {
 
       {/* Content */}
       <div className="flex-1 overflow-y-auto p-6 space-y-4">
+        <ToolsInstallVerifyPanel
+          accentClassName="text-emerald-300"
+          description="This page is a fast in-app cheat sheet. Use search to narrow down snippets and standards without needing external docs."
+          verify={[
+            'Type a keyword in search and confirm the list filters immediately.',
+            'Expand/collapse a section and confirm it stays open while you browse.'
+          ]}
+          firstTestLoop={[
+            'Search for one concept you are working on (e.g., “OnInit” or “precombines”).',
+            'Copy the example into your notes, then open Template Generator to scaffold a full script.'
+          ]}
+          shortcuts={[
+            { label: 'Template Generator', to: '/template-generator' },
+            { label: 'Workshop', to: '/workshop' },
+            { label: 'Install Wizard', to: '/install-wizard' },
+          ]}
+        />
         {filteredReferences.map((section) => {
           const isExpanded = expandedSections.includes(section.id);
           const Icon = section.icon;

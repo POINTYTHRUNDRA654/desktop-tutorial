@@ -1,5 +1,7 @@
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import { DraftingCompass, Briefcase, CheckCircle2, Copy, ChevronRight, AlertCircle, FileText, Plus, Trash2 } from 'lucide-react';
+import { ToolsInstallVerifyPanel } from './components/ToolsInstallVerifyPanel';
+import { useWheelScrollProxy } from './components/useWheelScrollProxy';
 
 // ============================================================================
 // MOD ARCHITECTURE PLANNER - Blueprint for Fallout 4 Mods
@@ -146,6 +148,16 @@ const TheBlueprint: React.FC = () => {
     const [expandedStructure, setExpandedStructure] = useState<string | null>(null);
     const [copiedPath, setCopiedPath] = useState<string | null>(null);
 
+    const detailsScrollRef = useRef<HTMLDivElement | null>(null);
+    const wheelProxy = useWheelScrollProxy(detailsScrollRef);
+
+    const jumpToTab = (tab: 'structure' | 'components' | 'dependencies') => {
+        setExpandedStructure(tab);
+        requestAnimationFrame(() => {
+            detailsScrollRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
+        });
+    };
+
     const handleCopyStructure = async () => {
         const structureText = selectedTemplate.structure
             .map(item => `${item.type === 'folder' ? '📁' : '📄'} ${item.path} - ${item.description}`)
@@ -163,7 +175,7 @@ const TheBlueprint: React.FC = () => {
     };
 
     return (
-        <div className="h-full flex flex-col bg-[#1e1e1e] text-slate-200 font-sans overflow-hidden">
+        <div className="h-full flex flex-col bg-[#1e1e1e] text-slate-200 font-sans overflow-hidden min-h-0" onWheel={wheelProxy}>
             {/* Header */}
             <div className="p-4 border-b border-black bg-[#2d2d2d] flex justify-between items-center shadow-md">
                 <div>
@@ -178,13 +190,76 @@ const TheBlueprint: React.FC = () => {
                 </div>
             </div>
 
-            <div className="flex-1 flex overflow-hidden">
+            <div className="p-4 border-b border-black bg-[#1e1e1e]">
+                <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+                    <ToolsInstallVerifyPanel
+                        accentClassName="text-amber-300"
+                        description="Blueprint is a planner: it helps you choose a sane mod structure and copy paths/components without guessing the file layout. It doesn’t download tools or generate plugins by itself."
+                        tools={[]}
+                        verify={[
+                            'Click a template and confirm Folder Structure/Components tabs update.',
+                            'Use Copy to clipboard and paste into a text editor to confirm paths copied.',
+                        ]}
+                        firstTestLoop={[
+                            'Pick a template that matches your mod type (Quest/Settlement/etc).',
+                            'Copy the structure list, then create folders/files in your real mod workspace.',
+                            'Open Chat and ask Mossy to review the planned structure for missing pieces.',
+                        ]}
+                        troubleshooting={[
+                            'If copy fails, your browser/Electron clipboard permission may be blocked; try again after restarting the app.',
+                            'If a template doesn’t match your scope, treat it as a baseline and add only what you actually ship.',
+                        ]}
+                        shortcuts={[
+                            { label: 'Chat', to: '/chat' },
+                            { label: 'Template Generator', to: '/template-generator' },
+                            { label: 'Packaging', to: '/packaging-release' },
+                            { label: 'Tool Settings', to: '/settings/tools' },
+                        ]}
+                    />
+
+                    <div className="bg-[#252526] border border-slate-700 rounded-xl p-4">
+                        <div className="text-sm font-bold text-white mb-1">Existing Workflow (Legacy)</div>
+                        <div className="text-xs text-slate-400 mb-3">
+                            Jump into the original tabs and copy actions.
+                        </div>
+                        <div className="flex flex-wrap gap-2">
+                            <button
+                                onClick={() => jumpToTab('structure')}
+                                className="px-3 py-2 bg-black/40 hover:bg-black/60 border border-slate-700 rounded text-xs font-bold text-amber-200"
+                            >
+                                Folder Structure
+                            </button>
+                            <button
+                                onClick={() => jumpToTab('components')}
+                                className="px-3 py-2 bg-black/40 hover:bg-black/60 border border-slate-700 rounded text-xs font-bold text-amber-200"
+                            >
+                                Components
+                            </button>
+                            <button
+                                onClick={() => jumpToTab('dependencies')}
+                                className="px-3 py-2 bg-black/40 hover:bg-black/60 border border-slate-700 rounded text-xs font-bold text-amber-200"
+                            >
+                                Dependencies
+                            </button>
+                            <button
+                                onClick={handleCopyStructure}
+                                className="px-3 py-2 bg-black/40 hover:bg-black/60 border border-slate-700 rounded text-xs font-bold text-amber-200"
+                                title="Copy the full structure list to clipboard"
+                            >
+                                Copy Structure
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div className="flex-1 min-h-0 flex overflow-hidden">
                 {/* Left: Template List */}
-                <div className="w-64 bg-[#252526] border-r border-black flex flex-col">
+                <div className="w-64 bg-[#252526] border-r border-black flex flex-col min-h-0">
                     <div className="p-2 bg-[#333333] border-b border-black text-[10px] font-bold text-slate-300 uppercase tracking-wider">
                         Mod Templates
                     </div>
-                    <div className="flex-1 overflow-y-auto">
+                    <div className="flex-1 min-h-0 overflow-y-auto">
                         {MOD_TEMPLATES.map((template) => (
                             <div
                                 key={template.id}
@@ -211,7 +286,7 @@ const TheBlueprint: React.FC = () => {
                 </div>
 
                 {/* Center/Right: Template Details */}
-                <div className="flex-1 flex flex-col overflow-hidden">
+                <div className="flex-1 min-h-0 flex flex-col overflow-hidden">
                     {/* Template Tabs */}
                     <div className="flex border-b border-black bg-[#252526]">
                         <button
@@ -247,7 +322,7 @@ const TheBlueprint: React.FC = () => {
                     </div>
 
                     {/* Content Area */}
-                    <div className="flex-1 overflow-y-auto p-4">
+                    <div ref={detailsScrollRef} className="flex-1 min-h-0 overflow-y-auto p-4">
                         {/* FOLDER STRUCTURE TAB */}
                         {expandedStructure !== 'components' && expandedStructure !== 'dependencies' && (
                             <div className="space-y-2">

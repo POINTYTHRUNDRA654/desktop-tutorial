@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { Settings, Copy, CheckCircle2, AlertCircle, ChevronDown } from 'lucide-react';
+import { ToolsInstallVerifyPanel } from './components/ToolsInstallVerifyPanel';
 
 interface ExportScenario {
   id: string;
@@ -76,7 +77,7 @@ export const ExportSettingsHelper: React.FC = () => {
         '✓ Animation Name: Set to your animation name (idle, walk_forward, attack_left)',
         '✓ Export path: Data\\Meshes\\Animations\\[modname]\\',
         '✓ Timeline range: 1-60 (or your animation duration)',
-        '✓ Frame rate: 24 fps (verified in Output properties)',
+        '✓ Frame rate: match the target/vanilla animation (commonly 30 fps for FO4 humanoids; verify in Output properties)',
       ],
       common_mistakes: [
         'Export Mesh: ON → adds mesh geometry (unnecessary, bloats file)',
@@ -240,6 +241,34 @@ export const ExportSettingsHelper: React.FC = () => {
       {/* Content */}
       <div className="flex-1 overflow-y-auto p-6">
         <div className="max-w-6xl mx-auto space-y-6">
+          <ToolsInstallVerifyPanel
+            accentClassName="text-orange-300"
+            description="Use this page to avoid the classic export traps (wrong scale, wrong selection, wrong path). Pick one scenario, export a tiny file, and verify the result before you continue modeling/animating."
+            tools={[
+              { label: 'Blender (official download)', href: 'https://www.blender.org/download/', kind: 'official' },
+              { label: 'Nexus search: Better Blender 3', href: 'https://www.nexusmods.com/fallout4/search/?gsearch=Better%20Blender%203&gsearchtype=mods', kind: 'search' },
+            ]}
+            verify={[
+              'Switch scenarios and confirm the settings + checklist update immediately.',
+              'Use Copy on one setting and confirm your clipboard updates.',
+              'Confirm the “Export path” guidance matches your intended Data\Meshes subfolder.'
+            ]}
+            firstTestLoop={[
+              'Export the smallest thing possible (one pose, one mesh, or one 20-frame clip).',
+              'Verify file exists, has reasonable size, and loads in your next step (NIF/HKX tooling or in-game).'
+            ]}
+            troubleshooting={[
+              'If the character is 10× too big/small, your scale is wrong (typically 1.0 vs 0.1).',
+              'If the file contains “extra stuff”, re-check “Only Selected” and what is selected at export time.'
+            ]}
+            shortcuts={[
+              { label: 'Animation Guide', to: '/animation-guide' },
+              { label: 'Rigging Checklist', to: '/rigging-checklist' },
+              { label: 'Rigging Mistakes', to: '/rigging-mistakes' },
+              { label: 'Animation Validator', to: '/animation-validator' },
+            ]}
+          />
+
           {/* Scenario Selector */}
           <div className="space-y-3">
             <h2 className="text-lg font-bold text-white">Select Your Scenario</h2>

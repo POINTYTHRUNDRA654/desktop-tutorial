@@ -1,12 +1,12 @@
 # New Features Added - The Scribe Enhancement & Tools
 
-## 4. ✅ Hybrid AI Engine (Google Gemini + Local Ollama)
+## 4. ✅ Hybrid AI Engine (OpenAI/Groq + Local Ollama)
 
 **Location:** `LocalAIEngine.ts`, `ChatInterface.tsx`
 
 **What It Does:**
 - Provides a dual-mode AI engine.
-- **Live Mode:** Connects to Google Gemini API for fast, high-quality voice and text chat.
+- **Live Mode:** Uses optional cloud AI for voice and text chat.
 - **Local Mode:** Automatically detects a local Ollama instance (port 11434) and uses `llama3` for 100% private, offline inference.
 - **Auto-Fallback:** Switches to local mode if API limits are reached or internet is disconnected.
 

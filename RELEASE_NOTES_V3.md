@@ -7,7 +7,7 @@
 You're getting a **professional, production-ready Fallout 4 modding assistant** with:
 
 ✅ 11 fully functional modules  
-✅ Google Gemini AI integration  
+✅ Cloud AI integration (OpenAI/Groq)  
 ✅ Real asset analysis (NIF/DDS/ESP)  
 ✅ PBR texture generation  
 ✅ System tool integration  
@@ -18,14 +18,14 @@ You're getting a **professional, production-ready Fallout 4 modding assistant** 
 - **OS:** Windows 10/11 (64-bit)
 - **RAM:** 4GB minimum (8GB recommended)
 - **Storage:** 500MB for installation
-- **Internet:** Required for Gemini AI features
+- **Internet:** Required for optional cloud AI/STT features
 
 ### Installation
 
 1. Download `Mossy-Setup-3.0.0.exe`
 2. Run installer
 3. Follow prompts
-4. Get Google Gemini API key from [aistudio.google.com](https://aistudio.google.com)
+4. Configure AI keys in the Desktop app Settings UI (OpenAI/Groq/Deepgram)
 5. Configure API key in app settings
 6. Launch Mossy
 
@@ -33,7 +33,7 @@ You're getting a **professional, production-ready Fallout 4 modding assistant** 
 
 On first run, Mossy will:
 1. Detect your installed modding tools
-2. Ask for Google Gemini API key
+2. Ask for configured AI provider (OpenAI/Groq)
 3. Create default configuration
 4. Load Mossy's avatar
 5. Show tutorial overview
@@ -132,7 +132,7 @@ These features were removed because they didn't actually work:
 
 ### Step 1: Get API Key
 ```
-1. Visit https://aistudio.google.com/app/apikey
+1. Configure keys in Settings UI (no Google/Gemini)
 2. Click "Get API Key"
 3. Create new key
 4. Copy the key
@@ -191,7 +191,7 @@ These features were removed because they didn't actually work:
 - Try running as Administrator
 
 ### "API Key Missing" Error
-- Get key from aistudio.google.com
+- Configure keys in Settings UI
 - Paste into Settings → API Key
 - Restart Mossy
 
@@ -239,7 +239,7 @@ These features were removed because they didn't actually work:
 ❌ System information (only shown, not saved)
 
 ### What Talks to Internet
-- 📡 Google Gemini API (for chat only)
+- 📡 Cloud AI (OpenAI/Groq)
 - 📡 Google APIs (if enabled)
 
 Everything else is local.
@@ -277,7 +277,7 @@ MIT License - See LICENSE file in installation directory
 ---
 
 **Mossy v3.0 - Professional Fallout 4 Modding Assistant**
-Built with Electron, React, TypeScript, Google Gemini AI
+Built with Electron, React, TypeScript
 Production Ready ✅
 
 **Release Date:** January 2026

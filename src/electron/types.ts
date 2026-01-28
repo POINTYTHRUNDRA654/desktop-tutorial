@@ -23,6 +23,7 @@ export const IPC_CHANNELS = {
   DETECT_PROGRAMS: 'detect-programs',
   OPEN_PROGRAM: 'open-program',
   OPEN_EXTERNAL: 'open-external',
+  REVEAL_IN_FOLDER: 'reveal-in-folder',
   GET_TOOL_VERSION: 'get-tool-version',
   GET_RUNNING_PROCESSES: 'get-running-processes',
   // Vault integration
@@ -59,17 +60,173 @@ export const IPC_CHANNELS = {
   AUDITOR_PICK_NIF_FILE: 'auditor-pick-nif-file',
   AUDITOR_PICK_DDS_FILE: 'auditor-pick-dds-file',
   AUDITOR_PICK_BGSM_FILE: 'auditor-pick-bgsm-file',
+
+  // Duplicate Finder
+  DEDUPE_PICK_FOLDERS: 'dedupe-pick-folders',
+  DEDUPE_SCAN: 'dedupe-scan',
+  DEDUPE_CANCEL: 'dedupe-cancel',
+  DEDUPE_PROGRESS: 'dedupe-progress',
+  DEDUPE_TRASH: 'dedupe-trash',
+
+  // Load Order Lab (experimental)
+  LOAD_ORDER_PICK_MO2_PROFILE_DIR: 'load-order-pick-mo2-profile-dir',
+  LOAD_ORDER_PICK_LOOT_REPORT_FILE: 'load-order-pick-loot-report-file',
+  LOAD_ORDER_WRITE_USERDATA_FILE: 'load-order-write-userdata-file',
+  LOAD_ORDER_LAUNCH_XEDIT: 'load-order-launch-xedit',
+
+  // Generic file helpers
+  PICK_JSON_FILE: 'pick-json-file',
+  PICK_DIRECTORY: 'pick-directory',
+  SAVE_FILE: 'save-file',
+
+  // Local ML (offline semantic search)
+  ML_INDEX_BUILD: 'ml-index-build',
+  ML_INDEX_QUERY: 'ml-index-query',
+  ML_INDEX_STATUS: 'ml-index-status',
+
+  // Local capabilities detection
+  ML_CAPS_STATUS: 'ml-caps-status',
+
+  // Local LLM (optional, if installed)
+  ML_LLM_STATUS: 'ml-llm-status',
+  ML_LLM_GENERATE: 'ml-llm-generate',
+
+  // ElevenLabs TTS (optional)
+  ELEVENLABS_STATUS: 'elevenlabs-status',
+  ELEVENLABS_LIST_VOICES: 'elevenlabs-list-voices',
+  ELEVENLABS_SYNTHESIZE: 'elevenlabs-synthesize',
+
+  // Secrets presence-only status
+  SECRET_STATUS: 'secret-status',
+
+  // Speech-to-text (main process handles keys)
+  TRANSCRIBE_AUDIO: 'transcribe-audio',
 } as const;
+
+export type MlIndexBuildRequest = {
+  roots?: string[];
+};
+
+export type MlIndexBuildResponse =
+  | { ok: true; indexPath: string; indexedChunks: number; indexedSources: number }
+  | { ok: false; error: string };
+
+export type MlIndexStatusResponse =
+  | { ok: true; indexPath: string; indexedChunks: number; indexedSources: number; model: string; createdAt: string }
+  | { ok: false; indexPath: string; reason: string };
+
+export type MlIndexQueryRequest = {
+  query: string;
+  topK?: number;
+};
+
+export type MlIndexQueryResponse =
+  | {
+      ok: true;
+      results: Array<{ score: number; sourcePath: string; title: string; content: string }>;
+    }
+  | { ok: false; error: string };
+
+export type MlLlmStatusResponse =
+  | { ok: true; provider: 'ollama'; baseUrl: string; models: string[] }
+  | { ok: false; provider: 'ollama'; baseUrl: string; error: string };
+
+export type MlCapsStatusResponse = {
+  ok: true;
+  ollama: MlLlmStatusResponse;
+  openaiCompat:
+    | { ok: true; provider: 'openai_compat'; baseUrl: string; models: string[] }
+    | { ok: false; provider: 'openai_compat'; baseUrl: string; error: string };
+};
+
+export type MlLlmGenerateRequest = {
+  provider: 'ollama' | 'openai_compat';
+  model: string;
+  prompt: string;
+  baseUrl?: string;
+};
+
+export type MlLlmGenerateResponse =
+  | { ok: true; text: string }
+  | { ok: false; error: string };
+
+export type DedupeProgressStage = 'collect' | 'stat' | 'hash' | 'group' | 'done' | 'canceled' | 'error';
+
+export type DedupeProgress = {
+  scanId: string;
+  stage: DedupeProgressStage;
+  current?: number;
+  total?: number;
+  message?: string;
+};
+
+export type DedupeGroup = {
+  hash: string;
+  size: number;
+  files: string[];
+};
+
+export type DedupeScanOptions = {
+  roots: string[];
+  extensions?: string[];
+  minSizeBytes?: number;
+  maxFiles?: number;
+};
+
+export type DedupeScanResult = {
+  scanId: string;
+  roots: string[];
+  extensions: string[];
+  totalFilesScanned: number;
+  totalBytesScanned: number;
+  groups: DedupeGroup[];
+};
 
 /**
  * API exposed to renderer via contextBridge
  */
 export interface ElectronAPI {
   detectPrograms: () => Promise<InstalledProgram[]>;
-  openProgram: (path: string) => Promise<void>;
+  openProgram: (path: string) => Promise<{ success: boolean; error?: string; method?: string }>;
   openExternal: (path: string) => Promise<void>;
+  revealInFolder: (path: string) => Promise<{ success: boolean; error?: string }>;
   getToolVersion: (path: string) => Promise<string>;
   getRunningProcesses: () => Promise<any[]>;
+  getSettings: () => Promise<any>;
+  setSettings: (settings: any) => Promise<void>;
+  onSettingsUpdated: (callback: (settings: any) => void) => void;
+
+  elevenLabsStatus?: () => Promise<
+    | { ok: true; configured: boolean; voiceId?: string; provider?: 'browser' | 'elevenlabs' }
+    | { ok: false; error: string }
+  >;
+  elevenLabsListVoices?: () => Promise<
+    | {
+        ok: true;
+        voices: Array<{
+          voice_id: string;
+          name: string;
+          category?: string;
+          labels?: Record<string, string>;
+        }>;
+      }
+    | { ok: false; error: string }
+  >;
+  elevenLabsSynthesizeSpeech?: (args: {
+    text: string;
+    voiceId?: string;
+  }) => Promise<
+    | { ok: true; audioBase64: string; mimeType?: string }
+    | { ok: false; error: string }
+  >;
+
+  getSecretStatus?: () => Promise<
+    | { ok: true; openai: boolean; groq: boolean; deepgram: boolean; elevenlabs: boolean }
+    | { ok: false; error: string }
+  >;
+
+  transcribeAudio?: (arrayBuffer: ArrayBuffer, mimeType?: string) => Promise<{ success: boolean; text?: string; error?: string }>;
+  checkBlenderAddon: () => Promise<{ connected: boolean; error?: string }>;
   getSystemInfo: () => Promise<{
     os: string; 
     cpu: string; 
@@ -99,7 +256,23 @@ export interface ElectronAPI {
   browseDirectory: (startPath?: string) => Promise<{ name: string; type: 'folder' | 'file'; path: string; fileType?: string }[]>;
   readFile: (filePath: string) => Promise<string>;
   writeFile: (filePath: string, content: string) => Promise<boolean>;
-  runPapyrusCompiler: (scriptPath: string, compilerPath: string) => Promise<{ exitCode: number; stdout: string; stderr: string }>;
+  runPapyrusCompiler: (
+    scriptPath: string,
+    compilerPathOrOptions: string | {
+      compilerPath: string;
+      scriptPath?: string;
+      flagsPath?: string;
+      importPaths?: string[] | string;
+      outputPath?: string;
+      release?: boolean;
+      optimize?: boolean;
+      final?: boolean;
+      quiet?: boolean;
+      additionalArgs?: string[];
+      cwd?: string;
+    }
+  ) => Promise<{ exitCode: number; stdout: string; stderr: string }>;
+  fsStat: (targetPath: string) => Promise<{ exists: boolean; isFile: boolean; isDirectory: boolean }>;
   readDdsPreview: (filePath: string) => Promise<{ width: number; height: number; format: string; data?: string }>;
   readNifInfo: (filePath: string) => Promise<{ vertices: number; triangles: number; materials: string[] } | null>;
   parseScriptDeps: (scriptPath: string) => Promise<{ imports: string[]; references: string[] }>;
@@ -122,15 +295,33 @@ export interface ElectronAPI {
   pickNifFile: () => Promise<string>;
   pickDdsFile: () => Promise<string>;
   pickBgsmFile: () => Promise<string>;
+
+  // Generic file helpers
+  pickJsonFile: () => Promise<string>;
+  pickDirectory: (title?: string) => Promise<string>;
+  saveFile: (content: string, filename: string) => Promise<string>;
+
+  // Local ML (offline semantic search)
+  mlIndexBuild: (req?: MlIndexBuildRequest) => Promise<MlIndexBuildResponse>;
+  mlIndexStatus: () => Promise<MlIndexStatusResponse>;
+  mlIndexQuery: (req: MlIndexQueryRequest) => Promise<MlIndexQueryResponse>;
+
+  // Capabilities
+  mlCapsStatus: () => Promise<MlCapsStatusResponse>;
+
+  // Local LLM (optional)
+  mlLlmStatus: () => Promise<MlLlmStatusResponse>;
+  mlLlmGenerate: (req: MlLlmGenerateRequest) => Promise<MlLlmGenerateResponse>;
+
+  // Duplicate Finder
+  pickDedupeFolders: () => Promise<string[]>;
+  dedupeScan: (options: DedupeScanOptions) => Promise<DedupeScanResult>;
+  dedupeCancel: (scanId: string) => Promise<{ ok: boolean }>;
+  onDedupeProgress: (callback: (progress: DedupeProgress) => void) => void;
+  dedupeTrash: (payload: { scanId: string; paths: string[] }) => Promise<{
+    ok: boolean;
+    results: Array<{ path: string; ok: boolean; error?: string }>;
+  }>;
 }
 
-/**
- * Extend Window interface to include our Electron API
- */
-declare global {
-  interface Window {
-    electron: {
-      api: ElectronAPI;
-    };
-  }
-}
+// Window typings live in src/renderer/src/electron.d.ts

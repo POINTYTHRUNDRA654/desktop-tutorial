@@ -9,9 +9,13 @@ import { app, BrowserWindow, ipcMain, dialog, shell } from 'electron';
 import path from 'path';
 import os from 'os';
 import { IPC_CHANNELS } from './types';
+import { scanForDuplicates, type DedupeScanState } from './duplicateFinder';
 import { detectPrograms, getSystemInfo } from './detectPrograms';
 import { getRunningModdingTools } from './processMonitor';
 import { DesktopShortcutManager } from './desktopShortcut';
+import { buildSemanticIndex, getSemanticIndexStatus, querySemanticIndex } from './ml/semanticIndex';
+import { getOllamaStatus, ollamaGenerate } from './ml/ollama';
+import { getOpenAICompatStatus, openAICompatChat } from './ml/openaiCompat';
 import fs from 'fs';
 import { spawn, exec } from 'child_process';
 import { BridgeServer } from './BridgeServer';
@@ -26,9 +30,11 @@ import dotenv from 'dotenv';
 const envPath = path.join(__dirname, '../../.env.local');
 console.log('[Main] Loading .env from:', envPath);
 console.log('[Main] File exists:', fs.existsSync(envPath));
-dotenv.config({ path: envPath });
-console.log('[Main] VITE_API_KEY loaded:', !!process.env.VITE_API_KEY);
-console.log('[Main] VITE_API_KEY value:', process.env.VITE_API_KEY ? `${process.env.VITE_API_KEY.substring(0, 10)}...` : 'NOT FOUND');
+// Suppress dotenv's own startup logs (keeps dev console readable).
+// dotenv@17 supports { quiet: true }.
+dotenv.config({ path: envPath, quiet: true });
+// Never log API keys (even presence-only for renderer-exposed vars).
+// Never log API keys (even partial prefixes).
 
 // Set ffmpeg path
 ffmpeg.setFfmpegPath(ffmpegInstaller.path);
@@ -66,6 +72,10 @@ if (typeof (global as any).DOMMatrix === 'undefined') {
 let mainWindow: BrowserWindow | null = null;
 const bridge = new BridgeServer();
 
+// Duplicate Finder state
+const dedupeScanStates = new Map<string, DedupeScanState>();
+const dedupeAllowedPathsByScan = new Map<string, Set<string>>();
+
 // Development mode flag
 const isDev = process.env.NODE_ENV === 'development' || !app.isPackaged;
 
@@ -88,12 +98,24 @@ try {
  * Create the main application window
  */
 function createWindow() {
+  // NOTE:
+  // - Electron/Chromium doesn't reliably load SVGs as native window icons.
+  // - `__dirname` here points inside dist-electron, not the repo root.
+  // Use an absolute path derived from app paths so the icon exists at runtime.
+  const publicDir = app.isPackaged
+    ? path.join(process.resourcesPath, 'public')
+    : path.join(app.getAppPath(), 'public');
+
+  const iconPath = process.platform === 'win32'
+    ? undefined
+    : path.join(publicDir, 'pipboy-icon.svg');
+
   mainWindow = new BrowserWindow({
     width: 1200,
     height: 800,
     minWidth: 800,
     minHeight: 600,
-    icon: path.join(__dirname, '../../public/pipboy-icon.svg'),
+    ...(iconPath ? { icon: iconPath } : {}),
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,      // Security: isolate preload context
@@ -102,6 +124,16 @@ function createWindow() {
     },
     show: false, // Don't show until ready
     title: 'Mossy Pip-Boy - Fallout 4 Modding Assistant',
+  });
+
+  const windowRef = mainWindow;
+
+  windowRef.webContents.on('did-finish-load', () => {
+    try {
+      console.log('[Main] Renderer loaded URL:', windowRef.webContents.getURL());
+    } catch {
+      // ignore
+    }
   });
 
   // Load the app based on environment
@@ -187,33 +219,6 @@ function createWindow() {
  * Setup IPC handlers for renderer communication
  */
 function setupIpcHandlers() {
-  // Check if Blender Mossy Link add-on is running
-  ipcMain.handle('check-blender-addon', async (_event) => {
-    try {
-      const net = require('net');
-      return new Promise((resolve) => {
-        const socket = new net.Socket();
-        const timeout = setTimeout(() => {
-          socket.destroy();
-          resolve({ connected: false, error: 'Connection timeout' });
-        }, 1000);
-        
-        socket.connect(9999, '127.0.0.1', () => {
-          clearTimeout(timeout);
-          socket.destroy();
-          resolve({ connected: true, port: 9999 });
-        });
-        
-        socket.on('error', () => {
-          clearTimeout(timeout);
-          resolve({ connected: false, error: 'Blender add-on not listening on port 9999' });
-        });
-      });
-    } catch (err: any) {
-      return { connected: false, error: err.message };
-    }
-  });
-
   // PDF parsing handler (runs in main process with Node.js)
   ipcMain.handle('parse-pdf', async (_event, arrayBuffer: ArrayBuffer) => {
     try {
@@ -431,6 +436,85 @@ function setupIpcHandlers() {
     }
   });
 
+  // Audio transcription handler (runs in main process; renderer never sees API keys)
+  ipcMain.handle('transcribe-audio', async (_event, arrayBuffer: ArrayBuffer, mimeType?: string) => {
+    let tempAudioPath: string | null = null;
+
+    try {
+      const s = loadSettings();
+      const openaiKey =
+        String(s?.openaiApiKey || '').trim() ||
+        String(process.env.OPENAI_API_KEY || '').trim();
+      const deepgramKey =
+        String(s?.deepgramApiKey || '').trim() ||
+        String(process.env.DEEPGRAM_API_KEY || '').trim();
+
+      const buf = Buffer.from(arrayBuffer);
+      const mt = String(mimeType || '').toLowerCase();
+      const ext = mt.includes('webm') ? '.webm' : mt.includes('wav') ? '.wav' : mt.includes('ogg') ? '.ogg' : '.mp3';
+      tempAudioPath = path.join(os.tmpdir(), `mossy-audio-${Date.now()}${ext}`);
+      fs.writeFileSync(tempAudioPath, buf);
+
+      // Prefer OpenAI Whisper if configured
+      if (openaiKey) {
+        try {
+          const client = new OpenAI({ apiKey: openaiKey });
+          const result = await client.audio.transcriptions.create({
+            file: fs.createReadStream(tempAudioPath),
+            model: 'whisper-1',
+          });
+          const text = String((result as any)?.text || '').trim();
+          return { success: true, text };
+        } catch (e: any) {
+          console.warn('[Transcription] OpenAI Whisper failed; will try Deepgram fallback:', e?.message || e);
+        }
+      }
+
+      // Deepgram fallback if configured
+      if (deepgramKey) {
+        const deepgramLang = (() => {
+          const raw = String(s?.sttLanguage || s?.uiLanguage || '').trim().toLowerCase();
+          if (!raw || raw === 'auto') return 'en';
+          const base = raw.split('-')[0];
+          return base || 'en';
+        })();
+
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 20000);
+        try {
+          const url = `https://api.deepgram.com/v1/listen?model=nova-2-general&language=${encodeURIComponent(deepgramLang)}&punctuate=true`;
+          const res = await fetch(url, {
+            method: 'POST',
+            headers: {
+              Authorization: `Token ${deepgramKey}`,
+              'Content-Type': mt || 'application/octet-stream',
+            },
+            body: buf,
+            signal: controller.signal,
+          });
+          if (!res.ok) {
+            const t = await res.text().catch(() => '');
+            return { success: false, error: `Deepgram error ${res.status}: ${t || res.statusText}` };
+          }
+          const data: any = await res.json().catch(() => ({}));
+          const transcript = String(data?.results?.channels?.[0]?.alternatives?.[0]?.transcript || '').trim();
+          return { success: true, text: transcript };
+        } finally {
+          clearTimeout(timeout);
+        }
+      }
+
+      return { success: false, error: 'No transcription provider configured (OpenAI/Deepgram)' };
+    } catch (error: any) {
+      console.error('[Transcription] transcribe-audio error:', error);
+      return { success: false, error: error?.message || 'Failed to transcribe audio' };
+    } finally {
+      if (tempAudioPath && fs.existsSync(tempAudioPath)) {
+        try { fs.unlinkSync(tempAudioPath); } catch { /* ignore */ }
+      }
+    }
+  });
+
   // Program detection handler
   ipcMain.handle(IPC_CHANNELS.DETECT_PROGRAMS, async () => {
     try {
@@ -487,18 +571,18 @@ function setupIpcHandlers() {
               if (shellError) {
                   console.warn(`[Main] OPEN_PROGRAM: shell.openPath returned error: ${shellError}`);
                   console.log(`[Main] OPEN_PROGRAM: Trying fallback method with spawn...`);
-                  
-                  // Method 2: Fallback to direct spawn with shell: true
-                  const child = spawn(`"${programPath}"`, [], {
-                      cwd: programDir,
-                      detached: true,
-                      shell: true,
-                      stdio: 'ignore'
+
+                  // Method 2: Fallback to Windows start (more reliable for GUI apps)
+                  const child = spawn('cmd.exe', ['/c', 'start', '""', programPath], {
+                    cwd: programDir,
+                    detached: true,
+                    stdio: 'ignore',
+                    windowsHide: true,
                   });
                   
                   child.unref();
                   console.log(`[Main] OPEN_PROGRAM: ✓ Fallback spawn completed`);
-                  return { success: true, method: 'spawn-shell-fallback' };
+                  return { success: true, method: 'cmd-start-fallback' };
               } else {
                   console.log(`[Main] OPEN_PROGRAM: ✓ SUCCESS - Program launched via shell.openPath`);
                   return { success: true, method: 'shell-openPath' };
@@ -579,6 +663,32 @@ function setupIpcHandlers() {
     }
   });
 
+  // Reveal a file in Explorer/Finder, or open a directory
+  ipcMain.handle(IPC_CHANNELS.REVEAL_IN_FOLDER, async (_event, targetPath: string) => {
+    try {
+      if (!targetPath || typeof targetPath !== 'string') {
+        return { success: false, error: 'Invalid path' };
+      }
+
+      const fsMod = await import('fs');
+      if (!fsMod.existsSync(targetPath)) {
+        return { success: false, error: `Path not found: ${targetPath}` };
+      }
+
+      const stat = fsMod.statSync(targetPath);
+      if (stat.isDirectory()) {
+        const error = await shell.openPath(targetPath);
+        if (error) return { success: false, error };
+        return { success: true };
+      }
+
+      shell.showItemInFolder(targetPath);
+      return { success: true };
+    } catch (e: any) {
+      return { success: false, error: e?.message || String(e) };
+    }
+  });
+
   // Get executable version (Windows)
   ipcMain.handle(IPC_CHANNELS.GET_TOOL_VERSION, async (_event, filePath: string) => {
     try {
@@ -641,7 +751,19 @@ function setupIpcHandlers() {
     }
     // Return comprehensive default settings with all tool paths
     return {
+      // UI + Voice language
+      uiLanguage: 'auto',
+      sttLanguage: 'en-US',
+
+      // Local AI defaults
+      localAiPreferredProvider: 'auto',
+      ollamaBaseUrl: 'http://127.0.0.1:11434',
+      ollamaModel: 'llama3',
+      openaiCompatBaseUrl: 'http://127.0.0.1:1234/v1',
+      openaiCompatModel: '',
+
       xeditPath: '',
+      xeditScriptsDirOverride: '',
       nifSkopePath: '',
       fomodCreatorPath: '',
       creationKitPath: '',
@@ -649,6 +771,7 @@ function setupIpcHandlers() {
       lootPath: '',
       vortexPath: '',
       mo2Path: '',
+      fallout4Path: '',
       wryeBashPath: '',
       bodySlidePath: '',
       outfitStudioPath: '',
@@ -665,7 +788,56 @@ function setupIpcHandlers() {
       nvidiaOmniversePath: '',
       autodeskFbxPath: '',
       nifUtilsSuitePath: '',
+
+      // Papyrus
+      papyrusCompilerPath: '',
+      papyrusFlagsPath: '',
+      papyrusImportPaths: '',
+      papyrusSourcePath: '',
+      papyrusOutputPath: '',
+      papyrusTemplateLibrary: [],
+
+      // Script libraries (The Scribe)
+      xeditScriptLibrary: [],
+      blenderScriptLibrary: [],
+      scriptBundles: [],
+
+      // Load Order Lab (experimental)
+      loadOrderLabXeditPresetId: 'fo4edit-script-quoted',
+      loadOrderLabXeditArgsTemplate: '',
+      loadOrderLabXeditArgsEnabled: false,
+      loadOrderLabPreparedScriptPath: '',
+
+      // Community Sharing
+      communityRepo: '',
+      communityContributorName: '',
+      communityContributorLink: '',
+
+      // Workflow Runner
+      workflowRunnerWorkflows: [],
+      workflowRunnerRunHistory: [],
+
+      // TTS output (optional)
+      ttsOutputProvider: 'browser',
+      elevenLabsApiKey: '',
+      elevenLabsVoiceId: '',
+
+      // Cloud API keys (stored locally; never exposed to renderer)
+      openaiApiKey: '',
+      groqApiKey: '',
+      deepgramApiKey: '',
     };
+  };
+
+  const redactSettingsForRenderer = (settings: any): any => {
+    if (!settings || typeof settings !== 'object') return settings;
+    const clone: any = { ...settings };
+    // Never expose secrets to the renderer.
+    if (clone.elevenLabsApiKey) clone.elevenLabsApiKey = '';
+    if (clone.openaiApiKey) clone.openaiApiKey = '';
+    if (clone.groqApiKey) clone.groqApiKey = '';
+    if (clone.deepgramApiKey) clone.deepgramApiKey = '';
+    return clone;
   };
 
   const saveSettings = (settings: any): void => {
@@ -674,7 +846,7 @@ function setupIpcHandlers() {
       console.log('[Settings] Settings saved to:', settingsPath);
       // Notify all renderer windows of settings update
       if (mainWindow && !mainWindow.isDestroyed()) {
-        mainWindow.webContents.send('settings-updated', settings);
+        mainWindow.webContents.send('settings-updated', redactSettingsForRenderer(settings));
       }
     } catch (e) {
       console.error('[Settings] Failed to save settings:', e);
@@ -684,58 +856,170 @@ function setupIpcHandlers() {
 
   ipcMain.handle('get-settings', async () => {
     console.log('[Settings] get-settings called');
-    return loadSettings();
+    return redactSettingsForRenderer(loadSettings());
   });
 
   ipcMain.handle('set-settings', async (_event, newSettings: any) => {
-    console.log('[Settings] set-settings called with:', newSettings);
+    try {
+      console.log('[Settings] set-settings called with keys:', Object.keys(newSettings || {}));
+    } catch {
+      console.log('[Settings] set-settings called');
+    }
     const current = loadSettings();
     const updated = { ...current, ...newSettings };
     saveSettings(updated);
     return;
   });
 
-  // Generate ephemeral token for Gemini Live API
-  ipcMain.handle('generate-live-token', async () => {
-    console.log('[Token] Generating ephemeral token for Live API');
-    console.log('[Token] process.env.VITE_API_KEY:', !!process.env.VITE_API_KEY);
-    console.log('[Token] process.env.VITE_GOOGLE_API_KEY:', !!process.env.VITE_GOOGLE_API_KEY);
+  const getElevenLabsConfig = (): { apiKey: string; voiceId: string; provider: 'browser' | 'elevenlabs' } => {
+    const s = loadSettings();
+
+    // Prefer per-user settings, but allow env vars for dev/shared installs.
+    // IMPORTANT: Do NOT use VITE_* here (those are renderer-exposed in Vite).
+    const apiKeyFromSettings = String(s?.elevenLabsApiKey || '').trim();
+    const apiKeyFromEnv = String(process.env.ELEVENLABS_API_KEY || '').trim();
+    const apiKey = apiKeyFromSettings || apiKeyFromEnv;
+
+    const voiceIdFromSettings = String(s?.elevenLabsVoiceId || '').trim();
+    const voiceIdFromEnv = String(process.env.ELEVENLABS_VOICE_ID || '').trim();
+    const voiceId = voiceIdFromSettings || voiceIdFromEnv;
+
+    const provider = s?.ttsOutputProvider === 'elevenlabs' ? 'elevenlabs' : 'browser';
+    return { apiKey, voiceId, provider };
+  };
+
+  ipcMain.handle('elevenlabs-status', async () => {
     try {
-      const apiKey = process.env.VITE_API_KEY || process.env.VITE_GOOGLE_API_KEY;
-      console.log('[Token] API key found:', !!apiKey);
-      if (!apiKey) {
-        throw new Error('API key not found in environment');
-      }
-
-      const now = new Date();
-      const expireTime = new Date(now.getTime() + 60 * 60 * 1000); // 1 hour
-      const newSessionExpireTime = new Date(now.getTime() + 1 * 60 * 1000); // 1 minute
-
-      const response = await fetch('https://generativelanguage.googleapis.com/v1alpha/auth/tokens:create', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-goog-api-key': apiKey,
-        },
-        body: JSON.stringify({
-          uses: 1,
-          expireTime: expireTime.toISOString(),
-          newSessionExpireTime: newSessionExpireTime.toISOString(),
-        }),
-      });
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(`Token creation failed: ${response.status} ${errorText}`);
-      }
-
-      const data = await response.json() as { name?: string };
-      console.log('[Token] Ephemeral token generated successfully');
-      return { token: data.name || '', expireTime: expireTime.toISOString() };
-    } catch (error) {
-      console.error('[Token] Failed to generate ephemeral token:', error);
-      throw error;
+      const cfg = getElevenLabsConfig();
+      return { ok: true, configured: Boolean(cfg.apiKey), voiceId: cfg.voiceId || undefined, provider: cfg.provider };
+    } catch (e: any) {
+      return { ok: false, error: String(e?.message || e) };
     }
+  });
+
+  ipcMain.handle('elevenlabs-list-voices', async () => {
+    try {
+      const { apiKey } = getElevenLabsConfig();
+      if (!apiKey) return { ok: false, error: 'ElevenLabs API key not set' };
+
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 15000);
+      try {
+        const res = await fetch('https://api.elevenlabs.io/v1/voices', {
+          method: 'GET',
+          headers: {
+            'xi-api-key': apiKey,
+            accept: 'application/json',
+          },
+          signal: controller.signal,
+        });
+
+        if (!res.ok) {
+          const text = await res.text().catch(() => '');
+          return { ok: false, error: `ElevenLabs voices request failed (${res.status}): ${text || res.statusText}` };
+        }
+
+        const json: any = await res.json();
+        const voices = Array.isArray(json?.voices) ? json.voices : [];
+        return {
+          ok: true,
+          voices: voices.map((v: any) => ({
+            voice_id: String(v?.voice_id || ''),
+            name: String(v?.name || ''),
+            category: v?.category ? String(v.category) : undefined,
+            labels: v?.labels && typeof v.labels === 'object' ? v.labels : undefined,
+          })),
+        };
+      } finally {
+        clearTimeout(timeout);
+      }
+    } catch (e: any) {
+      return { ok: false, error: String(e?.message || e) };
+    }
+  });
+
+  ipcMain.handle('elevenlabs-synthesize', async (_event, args: { text: string; voiceId?: string }) => {
+    try {
+      const cfg = getElevenLabsConfig();
+      if (!cfg.apiKey) return { ok: false, error: 'ElevenLabs API key not set' };
+
+      const text = String(args?.text || '').trim();
+      if (!text) return { ok: false, error: 'No text provided' };
+      if (text.length > 5000) return { ok: false, error: 'Text too long (max 5000 chars)' };
+
+      const voiceId = String(args?.voiceId || cfg.voiceId || '').trim();
+      if (!voiceId) return { ok: false, error: 'ElevenLabs voiceId not set' };
+
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 20000);
+      try {
+        const res = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${encodeURIComponent(voiceId)}`, {
+          method: 'POST',
+          headers: {
+            'xi-api-key': cfg.apiKey,
+            'Content-Type': 'application/json',
+            accept: 'audio/mpeg',
+          },
+          body: JSON.stringify({ text }),
+          signal: controller.signal,
+        });
+
+        if (!res.ok) {
+          const errText = await res.text().catch(() => '');
+          return { ok: false, error: `ElevenLabs synth failed (${res.status}): ${errText || res.statusText}` };
+        }
+
+        const buf = Buffer.from(await res.arrayBuffer());
+        return { ok: true, audioBase64: buf.toString('base64'), mimeType: 'audio/mpeg' };
+      } finally {
+        clearTimeout(timeout);
+      }
+    } catch (e: any) {
+      return { ok: false, error: String(e?.message || e) };
+    }
+  });
+
+  // Desktop Bridge: check Blender Mossy Link add-on socket
+  ipcMain.handle('check-blender-addon', async () => {
+    try {
+      const net = await import('net');
+      return await new Promise<{ connected: boolean; error?: string }>((resolve) => {
+        const socket = new net.Socket();
+        const timeoutMs = 500;
+        const cleanup = () => {
+          try { socket.destroy(); } catch { /* ignore */ }
+        };
+
+        socket.setTimeout(timeoutMs);
+
+        socket.once('connect', () => {
+          cleanup();
+          resolve({ connected: true });
+        });
+        socket.once('timeout', () => {
+          cleanup();
+          resolve({ connected: false, error: 'timeout' });
+        });
+        socket.once('error', (err: any) => {
+          cleanup();
+          resolve({ connected: false, error: String(err?.message || err) });
+        });
+
+        try {
+          socket.connect(9999, '127.0.0.1');
+        } catch (e: any) {
+          cleanup();
+          resolve({ connected: false, error: String(e?.message || e) });
+        }
+      });
+    } catch (e: any) {
+      return { connected: false, error: String(e?.message || e) };
+    }
+  });
+
+  // Live token generation is disabled.
+  ipcMain.handle('generate-live-token', async () => {
+    throw new Error('Live token generation is disabled.');
   });
 
   // Get real system information
@@ -1286,6 +1570,174 @@ function setupIpcHandlers() {
     }
   });
 
+  // --- Load Order Lab: Pick MO2 profile directory ---
+  ipcMain.handle(IPC_CHANNELS.LOAD_ORDER_PICK_MO2_PROFILE_DIR, async () => {
+    const win = BrowserWindow.getFocusedWindow() || mainWindow;
+    const options = {
+      title: 'Select Mod Organizer 2 (MO2) Profile Folder',
+      properties: ['openDirectory'] as Array<'openDirectory'>,
+    };
+
+    const result = win
+      ? await dialog.showOpenDialog(win, options)
+      : await dialog.showOpenDialog(options);
+    if (result.canceled || !result.filePaths?.length) return '';
+    return result.filePaths[0];
+  });
+
+  // --- Load Order Lab: Pick LOOT report/log file ---
+  ipcMain.handle(IPC_CHANNELS.LOAD_ORDER_PICK_LOOT_REPORT_FILE, async () => {
+    const win = BrowserWindow.getFocusedWindow() || mainWindow;
+    const options = {
+      title: 'Select LOOT Report/Log File',
+      properties: ['openFile'] as Array<'openFile'>,
+      filters: [
+        { name: 'LOOT Reports', extensions: ['html', 'htm', 'json', 'txt'] },
+        { name: 'All Files', extensions: ['*'] },
+      ],
+    };
+
+    const result = win
+      ? await dialog.showOpenDialog(win, options)
+      : await dialog.showOpenDialog(options);
+    if (result.canceled || !result.filePaths?.length) return '';
+    return result.filePaths[0];
+  });
+
+  // --- Load Order Lab: Write file into userData for automation ---
+  ipcMain.handle(IPC_CHANNELS.LOAD_ORDER_WRITE_USERDATA_FILE, async (_event, filename: string, content: string) => {
+    try {
+      const safeName = String(filename || '').replace(/[\\/:*?"<>|]+/g, '_').trim();
+      if (!safeName) return '';
+      const dir = path.join(app.getPath('userData'), 'load-order-lab');
+      fs.mkdirSync(dir, { recursive: true });
+      const target = path.join(dir, safeName);
+      fs.writeFileSync(target, String(content ?? ''), 'utf-8');
+      return target;
+    } catch (e: any) {
+      console.error('Load Order Lab write userData file error:', e);
+      return '';
+    }
+  });
+
+  // --- Load Order Lab: Launch xEdit (detached) using configured settings path ---
+  ipcMain.handle(IPC_CHANNELS.LOAD_ORDER_LAUNCH_XEDIT, async (_event, args?: string[], cwd?: string) => {
+    try {
+      const settings = loadSettings();
+      const exe = String(settings?.xeditPath || '').trim();
+      if (!exe) return { ok: false, error: 'xEdit path not configured' };
+      if (!fs.existsSync(exe)) return { ok: false, error: `xEdit not found: ${exe}` };
+
+      const child = spawn(exe, Array.isArray(args) ? args : [], {
+        cwd: (cwd && typeof cwd === 'string' && cwd.trim()) ? cwd : path.dirname(exe),
+        detached: true,
+        stdio: 'ignore',
+        windowsHide: false,
+        shell: false,
+      });
+      child.unref();
+      return { ok: true };
+    } catch (e: any) {
+      return { ok: false, error: String(e?.message || e) };
+    }
+  });
+
+  // --- Duplicate Finder: Pick folders ---
+  ipcMain.handle(IPC_CHANNELS.DEDUPE_PICK_FOLDERS, async () => {
+    const win = BrowserWindow.getFocusedWindow() || mainWindow;
+    const options = {
+      title: 'Select folder(s) to scan for duplicates',
+      properties: ['openDirectory', 'multiSelections'] as Array<'openDirectory' | 'multiSelections'>,
+    };
+
+    const result = win
+      ? await dialog.showOpenDialog(win, options)
+      : await dialog.showOpenDialog(options);
+    if (result.canceled) return [];
+    return result.filePaths;
+  });
+
+  // --- Duplicate Finder: Scan for duplicates (SHA-256) ---
+  ipcMain.handle(IPC_CHANNELS.DEDUPE_SCAN, async (event, options) => {
+    const scanId = `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+    const state: DedupeScanState = { canceled: false };
+    dedupeScanStates.set(scanId, state);
+
+    const sendProgress = (progress: any) => {
+      try {
+        event.sender.send(IPC_CHANNELS.DEDUPE_PROGRESS, progress);
+      } catch {
+        // ignore
+      }
+    };
+
+    try {
+      const result = await scanForDuplicates(scanId, options, sendProgress, state);
+
+      const allowed = new Set<string>();
+      for (const group of result.groups) {
+        for (const filePath of group.files) allowed.add(filePath);
+      }
+      dedupeAllowedPathsByScan.set(scanId, allowed);
+
+      return result;
+    } catch (err: any) {
+      const message = String(err?.message || err);
+      if (message === 'CANCELED') {
+        sendProgress({ scanId, stage: 'canceled', message: 'Scan canceled.' });
+        return {
+          scanId,
+          roots: Array.isArray(options?.roots) ? options.roots : [],
+          extensions: Array.isArray(options?.extensions) ? options.extensions : [],
+          totalFilesScanned: 0,
+          totalBytesScanned: 0,
+          groups: [],
+        };
+      }
+
+      sendProgress({ scanId, stage: 'error', message });
+      throw err;
+    }
+  });
+
+  // --- Duplicate Finder: Cancel scan ---
+  ipcMain.handle(IPC_CHANNELS.DEDUPE_CANCEL, async (_event, scanId: string) => {
+    const state = dedupeScanStates.get(scanId);
+    if (state) state.canceled = true;
+    return { ok: true };
+  });
+
+  // --- Duplicate Finder: Move selected files to Recycle Bin ---
+  ipcMain.handle(IPC_CHANNELS.DEDUPE_TRASH, async (_event, payload: { scanId: string; paths: string[] }) => {
+    const scanId = String(payload?.scanId || '');
+    const paths = Array.isArray(payload?.paths) ? payload.paths.map(String) : [];
+
+    const allowed = dedupeAllowedPathsByScan.get(scanId);
+    if (!allowed) {
+      return {
+        ok: false,
+        results: paths.map((p) => ({ path: p, ok: false, error: 'Unknown scanId (run a scan first).' })),
+      };
+    }
+
+    const results: Array<{ path: string; ok: boolean; error?: string }> = [];
+    for (const p of paths) {
+      if (!allowed.has(p)) {
+        results.push({ path: p, ok: false, error: 'Path not authorized for this scan.' });
+        continue;
+      }
+
+      try {
+        await shell.trashItem(p);
+        results.push({ path: p, ok: true });
+      } catch (err: any) {
+        results.push({ path: p, ok: false, error: String(err?.message || err) });
+      }
+    }
+
+    return { ok: results.every((r) => r.ok), results };
+  });
+
   // --- Workshop: Read file content ---
   ipcMain.handle(IPC_CHANNELS.WORKSHOP_READ_FILE, async (_event, filePath: string) => {
     try {
@@ -1308,6 +1760,11 @@ function setupIpcHandlers() {
   // --- Workshop: Write file content ---
   ipcMain.handle(IPC_CHANNELS.WORKSHOP_WRITE_FILE, async (_event, filePath: string, content: string) => {
     try {
+      // Ensure target directory exists
+      const dir = path.dirname(filePath);
+      if (!fs.existsSync(dir)) {
+        fs.mkdirSync(dir, { recursive: true });
+      }
       fs.writeFileSync(filePath, content, 'utf-8');
       return true;
     } catch (err) {
@@ -1316,32 +1773,110 @@ function setupIpcHandlers() {
     }
   });
 
+  // --- FS: Stat path (exists/isFile/isDirectory) ---
+  ipcMain.handle('fs-stat', async (_event, targetPath: string) => {
+    try {
+      if (!targetPath || typeof targetPath !== 'string') {
+        return { exists: false, isFile: false, isDirectory: false };
+      }
+
+      const p = targetPath.trim();
+      if (!p) return { exists: false, isFile: false, isDirectory: false };
+      if (!fs.existsSync(p)) return { exists: false, isFile: false, isDirectory: false };
+
+      const st = fs.statSync(p);
+      return { exists: true, isFile: st.isFile(), isDirectory: st.isDirectory() };
+    } catch {
+      return { exists: false, isFile: false, isDirectory: false };
+    }
+  });
+
   // --- Workshop: Run Papyrus compiler ---
-  ipcMain.handle(IPC_CHANNELS.WORKSHOP_RUN_PAPYRUS_COMPILER, async (_event, scriptPath: string, compilerPath: string) => {
+  ipcMain.handle(IPC_CHANNELS.WORKSHOP_RUN_PAPYRUS_COMPILER, async (_event, scriptPath: string, compilerPathOrOptions: any) => {
     return new Promise((resolve) => {
-      const scriptDir = path.dirname(scriptPath);
-      const process = spawn(compilerPath, [scriptPath], { cwd: scriptDir });
-      let stdout = '';
-      let stderr = '';
+      try {
+        const options = (compilerPathOrOptions && typeof compilerPathOrOptions === 'object')
+          ? compilerPathOrOptions
+          : null;
 
-      process.stdout?.on('data', (data) => { stdout += data.toString(); });
-      process.stderr?.on('data', (data) => { stderr += data.toString(); });
+        const compilerPath = options
+          ? String(options.compilerPath || options.path || '')
+          : String(compilerPathOrOptions || '');
 
-      process.on('close', (code) => {
-        resolve({
-          exitCode: code || 0,
-          stdout,
-          stderr
+        const effectiveScriptPath = options
+          ? String(options.scriptPath || scriptPath || '')
+          : String(scriptPath || '');
+
+        if (!compilerPath || !compilerPath.trim()) {
+          resolve({ exitCode: 1, stdout: '', stderr: 'Papyrus compiler path not set.' });
+          return;
+        }
+
+        if (!fs.existsSync(compilerPath)) {
+          resolve({ exitCode: 1, stdout: '', stderr: `Papyrus compiler not found: ${compilerPath}` });
+          return;
+        }
+
+        if (!effectiveScriptPath || !effectiveScriptPath.trim()) {
+          resolve({ exitCode: 1, stdout: '', stderr: 'Script path not set.' });
+          return;
+        }
+
+        if (!fs.existsSync(effectiveScriptPath)) {
+          resolve({ exitCode: 1, stdout: '', stderr: `Script not found: ${effectiveScriptPath}` });
+          return;
+        }
+
+        const args: string[] = [effectiveScriptPath];
+
+        const flagsPath = options?.flagsPath ? String(options.flagsPath) : '';
+        if (flagsPath) args.push(`-f=${flagsPath}`);
+
+        const importPathsRaw = options?.importPaths;
+        if (Array.isArray(importPathsRaw)) {
+          const joined = importPathsRaw.map((p) => String(p).trim()).filter(Boolean).join(';');
+          if (joined) args.push(`-i=${joined}`);
+        } else if (typeof importPathsRaw === 'string' && importPathsRaw.trim()) {
+          args.push(`-i=${importPathsRaw.trim()}`);
+        }
+
+        const outputPath = options?.outputPath ? String(options.outputPath).trim() : '';
+        if (outputPath) args.push(`-o=${outputPath}`);
+
+        if (options?.release) args.push('-r');
+        if (options?.optimize) args.push('-op');
+        if (options?.final) args.push('-final');
+        if (options?.quiet) args.push('-q');
+
+        if (Array.isArray(options?.additionalArgs)) {
+          for (const a of options.additionalArgs) {
+            const s = String(a).trim();
+            if (s) args.push(s);
+          }
+        }
+
+        const scriptDir = path.dirname(effectiveScriptPath);
+        const cwd = (options?.cwd && typeof options.cwd === 'string' && options.cwd.trim())
+          ? options.cwd
+          : scriptDir;
+
+        const child = spawn(compilerPath, args, { cwd, shell: false, windowsHide: true });
+        let stdout = '';
+        let stderr = '';
+
+        child.stdout?.on('data', (data) => { stdout += data.toString(); });
+        child.stderr?.on('data', (data) => { stderr += data.toString(); });
+
+        child.on('close', (code) => {
+          resolve({ exitCode: code ?? 0, stdout, stderr });
         });
-      });
 
-      process.on('error', (err) => {
-        resolve({
-          exitCode: 1,
-          stdout,
-          stderr: err.message
+        child.on('error', (err) => {
+          resolve({ exitCode: 1, stdout, stderr: String((err as any)?.message || err) });
         });
-      });
+      } catch (e: any) {
+        resolve({ exitCode: 1, stdout: '', stderr: String(e?.message || e) });
+      }
     });
   });
 
@@ -1793,22 +2328,262 @@ function setupIpcHandlers() {
   // Save file handler (with save dialog)
   ipcMain.handle('save-file', async (_event, content: string, filename: string) => {
     try {
-      // Default to Downloads folder first (silent, no dialog)
-      const downloadsPath = path.join(os.homedir(), 'Downloads');
-      const filePath = path.join(downloadsPath, filename);
-      
-      // Ensure Downloads folder exists
-      if (!fs.existsSync(downloadsPath)) {
-        fs.mkdirSync(downloadsPath, { recursive: true });
-      }
-      
-      // Write file directly to Downloads
-      fs.writeFileSync(filePath, content, 'utf-8');
-      console.log('[SaveFile] File saved directly to:', filePath);
-      return filePath;
+      const safeName = String(filename || 'export.txt').replace(/[\\/:*?"<>|]+/g, '_').trim() || 'export.txt';
+      const defaultDir = path.join(os.homedir(), 'Downloads');
+      const defaultPath = path.join(defaultDir, safeName);
+
+      const ext = path.extname(safeName).toLowerCase().replace('.', '');
+      const filters = (() => {
+        switch (ext) {
+          case 'json':
+            return [{ name: 'JSON', extensions: ['json'] }, { name: 'All Files', extensions: ['*'] }];
+          case 'cmd':
+            return [{ name: 'Command Script', extensions: ['cmd'] }, { name: 'All Files', extensions: ['*'] }];
+          case 'bat':
+            return [{ name: 'Batch Script', extensions: ['bat'] }, { name: 'All Files', extensions: ['*'] }];
+          case 'pas':
+            return [{ name: 'xEdit Script (Pascal)', extensions: ['pas'] }, { name: 'All Files', extensions: ['*'] }];
+          case 'psc':
+            return [{ name: 'Papyrus Script', extensions: ['psc'] }, { name: 'All Files', extensions: ['*'] }];
+          case 'py':
+            return [{ name: 'Python Script', extensions: ['py'] }, { name: 'All Files', extensions: ['*'] }];
+          case 'txt':
+            return [{ name: 'Text', extensions: ['txt'] }, { name: 'All Files', extensions: ['*'] }];
+          default:
+            return [{ name: 'All Files', extensions: ['*'] }];
+        }
+      })();
+
+      const win = BrowserWindow.getFocusedWindow() || mainWindow;
+      const result = win
+        ? await dialog.showSaveDialog(win, {
+            title: 'Save File',
+            defaultPath,
+            buttonLabel: 'Save',
+            filters,
+          })
+        : await dialog.showSaveDialog({
+            title: 'Save File',
+            defaultPath,
+            buttonLabel: 'Save',
+            filters,
+          });
+
+      if (result.canceled || !result.filePath) return '';
+
+      fs.writeFileSync(result.filePath, String(content ?? ''), 'utf-8');
+      console.log('[SaveFile] File saved to:', result.filePath);
+      return result.filePath;
     } catch (err: any) {
       console.error('[SaveFile] Error:', err);
       throw new Error(err?.message || 'Failed to save file');
+    }
+  });
+
+  // Pick JSON file handler (native open dialog)
+  ipcMain.handle('pick-json-file', async () => {
+    try {
+      const win = BrowserWindow.getFocusedWindow() || mainWindow;
+      const options = {
+        title: 'Select Script Library JSON',
+        properties: ['openFile'] as Array<'openFile'>,
+        filters: [
+          { name: 'JSON Files', extensions: ['json'] },
+          { name: 'Text Files', extensions: ['txt'] },
+          { name: 'All Files', extensions: ['*'] },
+        ],
+      };
+
+      const result = win
+        ? await dialog.showOpenDialog(win, options)
+        : await dialog.showOpenDialog(options);
+      if (result.canceled || !result.filePaths?.length) return '';
+      return result.filePaths[0];
+    } catch (err: any) {
+      console.error('[PickJsonFile] Error:', err);
+      return '';
+    }
+  });
+
+  // Pick directory handler (native open dialog)
+  ipcMain.handle(IPC_CHANNELS.PICK_DIRECTORY, async (_event, title?: string) => {
+    try {
+      const win = BrowserWindow.getFocusedWindow() || mainWindow;
+      const options = {
+        title: String(title || 'Select Folder'),
+        properties: ['openDirectory'] as Array<'openDirectory'>,
+      };
+      const result = win
+        ? await dialog.showOpenDialog(win, options)
+        : await dialog.showOpenDialog(options);
+      if (result.canceled || !result.filePaths?.length) return '';
+      return result.filePaths[0];
+    } catch (err: any) {
+      console.error('[PickDirectory] Error:', err);
+      return '';
+    }
+  });
+
+  // Local ML: Semantic index status/build/query
+  ipcMain.handle(IPC_CHANNELS.ML_INDEX_STATUS, async () => {
+    return getSemanticIndexStatus();
+  });
+
+  ipcMain.handle(IPC_CHANNELS.ML_INDEX_BUILD, async (_event, req?: { roots?: string[] }) => {
+    try {
+      const roots = Array.isArray(req?.roots) ? req!.roots : undefined;
+      return await buildSemanticIndex({ roots });
+    } catch (err: any) {
+      return { ok: false, error: String(err?.message || err) };
+    }
+  });
+
+  ipcMain.handle(IPC_CHANNELS.ML_INDEX_QUERY, async (_event, req: { query: string; topK?: number }) => {
+    try {
+      const q = String(req?.query ?? '');
+      const topK = typeof req?.topK === 'number' ? req.topK : undefined;
+      return await querySemanticIndex(q, { topK });
+    } catch (err: any) {
+      return { ok: false, error: String(err?.message || err) };
+    }
+  });
+
+  // Local LLM: Optional Ollama integration
+  ipcMain.handle(IPC_CHANNELS.ML_LLM_STATUS, async () => {
+    const s = loadSettings();
+    const status = await getOllamaStatus(String(s?.ollamaBaseUrl || 'http://127.0.0.1:11434'));
+    if (status.ok) return { ok: true, provider: 'ollama', baseUrl: status.baseUrl, models: status.models };
+    return { ok: false, provider: 'ollama', baseUrl: status.baseUrl, error: status.error };
+  });
+
+  ipcMain.handle(IPC_CHANNELS.ML_CAPS_STATUS, async () => {
+    const s = loadSettings();
+    const ollama = await getOllamaStatus(String(s?.ollamaBaseUrl || 'http://127.0.0.1:11434'));
+    const openaiCompat = await getOpenAICompatStatus(String(s?.openaiCompatBaseUrl || 'http://127.0.0.1:1234/v1'));
+
+    return {
+      ok: true,
+      ollama: ollama.ok
+        ? { ok: true, provider: 'ollama', baseUrl: ollama.baseUrl, models: ollama.models }
+        : { ok: false, provider: 'ollama', baseUrl: ollama.baseUrl, error: ollama.error },
+      openaiCompat: openaiCompat.ok
+        ? { ok: true, provider: 'openai_compat', baseUrl: openaiCompat.baseUrl, models: openaiCompat.models }
+        : { ok: false, provider: 'openai_compat', baseUrl: openaiCompat.baseUrl, error: openaiCompat.error },
+    };
+  });
+
+  ipcMain.handle(
+    IPC_CHANNELS.ML_LLM_GENERATE,
+    async (
+      _event,
+      req: { provider: 'ollama' | 'openai_compat'; model: string; prompt: string; baseUrl?: string }
+    ) => {
+    try {
+      if (!req || (req.provider !== 'ollama' && req.provider !== 'openai_compat')) return { ok: false, error: 'Unsupported provider' };
+      const model = String(req.model || '');
+      const prompt = String(req.prompt || '');
+      if (!model.trim()) return { ok: false, error: 'Missing model' };
+      if (!prompt.trim()) return { ok: false, error: 'Missing prompt' };
+
+      if (req.provider === 'ollama') {
+        const baseUrl = req.baseUrl || String(loadSettings()?.ollamaBaseUrl || 'http://127.0.0.1:11434');
+        return await ollamaGenerate({ model, prompt }, { baseUrl });
+      }
+
+      const resp = await openAICompatChat({
+        baseUrl: req.baseUrl || String(loadSettings()?.openaiCompatBaseUrl || 'http://127.0.0.1:1234/v1'),
+        model,
+        system: 'You are Mossy, a local model running in OpenAI-compatible mode. Follow the user prompt carefully.',
+        user: prompt,
+      });
+      if (!resp.ok) return { ok: false, error: resp.error };
+      return { ok: true, text: resp.text };
+    } catch (err: any) {
+      return { ok: false, error: String(err?.message || err) };
+    }
+  }
+  );
+
+  /**
+   * AI Chat Handler - OpenAI
+   * Renderer calls this with a prompt; main process handles API key
+   */
+  ipcMain.handle('ai-chat-openai', async (_event, payload: { prompt: string; systemPrompt?: string; model?: string }) => {
+    try {
+      const s = loadSettings();
+      const apiKey =
+        String(s?.openaiApiKey || '').trim() ||
+        String(process.env.OPENAI_API_KEY || '').trim();
+      if (!apiKey) {
+        throw new Error('OpenAI API key not configured');
+      }
+
+      const client = new OpenAI({ apiKey });
+      const systemPrompt = payload.systemPrompt || 'You are a helpful assistant for Fallout 4 modding.';
+      const model = payload.model || 'gpt-3.5-turbo';
+
+      const response = await client.chat.completions.create({
+        model,
+        messages: [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: payload.prompt },
+        ],
+      });
+
+      const content = response.choices[0]?.message?.content || '';
+      return { success: true, content };
+    } catch (error: any) {
+      console.error('[AI Chat OpenAI] Error:', error);
+      return { success: false, error: error.message || 'AI chat failed' };
+    }
+  });
+
+  /**
+   * AI Chat Handler - Groq (for voice and real-time)
+   */
+  ipcMain.handle('ai-chat-groq', async (_event, payload: { prompt: string; systemPrompt?: string; model?: string }) => {
+    try {
+      const s = loadSettings();
+      const apiKey =
+        String(s?.groqApiKey || '').trim() ||
+        String(process.env.GROQ_API_KEY || '').trim();
+      if (!apiKey) {
+        throw new Error('Groq API key not configured');
+      }
+
+      // Dynamic import for Groq ES module
+      const { default: Groq } = await import('groq-sdk');
+      const client = new Groq({ apiKey });
+      const systemPrompt = payload.systemPrompt || 'You are a helpful assistant for Fallout 4 modding.';
+      const model = payload.model || 'llama-3.3-70b-versatile';
+
+      const response = await client.chat.completions.create({
+        model,
+        messages: [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: payload.prompt },
+        ],
+      });
+
+      const content = response.choices[0]?.message?.content || '';
+      return { success: true, content };
+    } catch (error: any) {
+      console.error('[AI Chat Groq] Error:', error);
+      return { success: false, error: error.message || 'Groq chat failed' };
+    }
+  });
+
+  // Secrets presence only (no values). Renderer can use this to show setup state safely.
+  ipcMain.handle('secret-status', async () => {
+    try {
+      const s = loadSettings();
+      const openai = Boolean(String(s?.openaiApiKey || '').trim() || String(process.env.OPENAI_API_KEY || '').trim());
+      const groq = Boolean(String(s?.groqApiKey || '').trim() || String(process.env.GROQ_API_KEY || '').trim());
+      const deepgram = Boolean(String(s?.deepgramApiKey || '').trim() || String(process.env.DEEPGRAM_API_KEY || '').trim());
+      const elevenlabs = Boolean(getElevenLabsConfig().apiKey);
+      return { ok: true, openai, groq, deepgram, elevenlabs };
+    } catch (e: any) {
+      return { ok: false, error: String(e?.message || e) };
     }
   });
 }

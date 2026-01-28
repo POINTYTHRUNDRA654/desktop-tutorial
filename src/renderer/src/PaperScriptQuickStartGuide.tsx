@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 
 const PaperScriptQuickStartGuide = () => {
+  const navigate = useNavigate();
   const [expandedSection, setExpandedSection] = useState<string | null>('quick-start');
 
   const toggleSection = (id: string) => {
@@ -86,6 +88,42 @@ const PaperScriptQuickStartGuide = () => {
     borderRadius: '4px'
   };
 
+  const buttonRowStyle: React.CSSProperties = {
+    display: 'flex',
+    flexWrap: 'wrap',
+    gap: '0.5rem',
+    marginTop: '0.75rem',
+  };
+
+  const smallButtonStyle: React.CSSProperties = {
+    background: 'rgba(0, 255, 0, 0.08)',
+    border: '1px solid #00d000',
+    color: '#00ff00',
+    padding: '0.35rem 0.6rem',
+    borderRadius: '4px',
+    cursor: 'pointer',
+    fontFamily: 'Courier New, monospace',
+    fontSize: '0.85rem',
+  };
+
+  const openUrl = (url: string) => {
+    try {
+      const anyWindow = window as any;
+      if (anyWindow?.electron?.openExternal) {
+        anyWindow.electron.openExternal(url);
+        return;
+      }
+    } catch {
+      // ignore
+    }
+    window.open(url, '_blank', 'noopener,noreferrer');
+  };
+
+  const openNexusSearch = (query: string) => {
+    const url = `https://www.nexusmods.com/fallout4/search/?gsearch=${encodeURIComponent(query)}&gsearchtype=mods`;
+    openUrl(url);
+  };
+
   const stepStyle: React.CSSProperties = {
     marginLeft: '1.5rem',
     paddingLeft: '1rem',
@@ -98,6 +136,28 @@ const PaperScriptQuickStartGuide = () => {
       <div style={headerStyle}>
         <h1 style={titleStyle}>PaperScript Quick Start</h1>
         <p style={subtitleStyle}>Get started in 15 minutes</p>
+      </div>
+
+      <div style={featureBoxStyle}>
+        <h3 style={{ color: '#00ff00', marginTop: 0 }}>Tools / Install / Verify (Fallout 4)</h3>
+        <ul style={{ marginLeft: '1.25rem', color: '#b0b0b0', lineHeight: 1.6 }}>
+          <li><strong>PaperScript binary</strong> (transpiler) + a folder to put it in (e.g. <code style={{ color: '#00ff00' }}>C:\Dev\PaperScript</code>).</li>
+          <li><strong>Creation Kit</strong> (Papyrus compile). You’ll compile the generated <code style={{ color: '#00ff00' }}>.psc</code> into <code style={{ color: '#00ff00' }}>.pex</code>.</li>
+          <li><strong>FO4Edit</strong> (optional but strongly recommended) for sanity-checking your plugin + script assets.</li>
+        </ul>
+        <div style={buttonRowStyle}>
+          <button style={smallButtonStyle} onClick={() => openUrl('https://github.com/search?q=PaperScript+Papyrus&type=repositories')}>GitHub search: PaperScript</button>
+          <button style={smallButtonStyle} onClick={() => openUrl('https://store.steampowered.com/search/?term=Creation%20Kit%20Fallout%204')}>Steam search: Creation Kit</button>
+          <button style={smallButtonStyle} onClick={() => openNexusSearch('FO4Edit')}>Nexus search: FO4Edit</button>
+        </div>
+        <div style={buttonRowStyle}>
+          <button style={smallButtonStyle} onClick={() => navigate('/install-wizard')}>In-app: Install Wizard</button>
+          <button style={smallButtonStyle} onClick={() => navigate('/ck-quest-dialogue')}>In-app: CK Quest/Dialogue Wizard</button>
+          <button style={smallButtonStyle} onClick={() => navigate('/packaging-release')}>In-app: Packaging & Release</button>
+        </div>
+        <div style={{ marginTop: '0.75rem', color: '#b0b0b0' }}>
+          <strong>Fast verify:</strong> run <code style={{ color: '#00ff00' }}>paperscript --version</code> → transpile one file → compile in CK → confirm <code style={{ color: '#00ff00' }}>.pex</code> is produced.
+        </div>
       </div>
 
       {/* Quick Start */}
@@ -116,6 +176,9 @@ const PaperScriptQuickStartGuide = () => {
               <div style={stepStyle}>
                 <p>Visit the PaperScript GitHub releases page and download the latest version for your OS.</p>
                 <p style={{fontSize: '0.9rem', color: '#b0b0b0'}}>Supports: Windows, Linux, macOS</p>
+                <div style={{ marginTop: '0.5rem' }}>
+                  <button style={smallButtonStyle} onClick={() => openUrl('https://github.com/search?q=PaperScript+Papyrus+releases&type=repositories')}>Find releases (GitHub search)</button>
+                </div>
               </div>
             </div>
 
@@ -176,6 +239,11 @@ const PaperScriptQuickStartGuide = () => {
               <h4 style={{color: '#00ff00', marginBottom: '0.5rem'}}>Step 7: Test Your Mod</h4>
               <div style={stepStyle}>
                 <p>Package your mod with the .pex files and test in-game!</p>
+                <ul style={{ marginLeft: '1.25rem', color: '#b0b0b0', marginTop: '0.5rem' }}>
+                  <li>Confirm <code style={{color: '#00ff00'}}>.pex</code> is inside your mod’s <code style={{color: '#00ff00'}}>Scripts\</code> folder (not only Source).</li>
+                  <li>Start a new save or clean profile for the first test.</li>
+                  <li>Trigger the script (quest/init/event) and confirm it runs (log, visible behavior, or a debug notification).</li>
+                </ul>
               </div>
             </div>
           </div>

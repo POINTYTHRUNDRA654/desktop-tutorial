@@ -545,7 +545,13 @@ const MossyObserver: React.FC = () => {
                     {customAvatar ? (
                         <>
                             <div className="absolute inset-0 bg-emerald-500/20 animate-pulse"></div>
-                            <img src={customAvatar} alt="Mossy" className="w-full h-full object-cover opacity-90" />
+                            <img
+                                src={customAvatar}
+                                alt="Mossy"
+                                className="w-full h-full object-cover opacity-90"
+                                style={{ pointerEvents: 'none' }}
+                                draggable={false}
+                            />
                         </>
                     ) : (
                         <>

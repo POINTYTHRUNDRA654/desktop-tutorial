@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { AlertCircle, CheckCircle2, XCircle, Loader2, Play, Copy, Download } from 'lucide-react';
+import { ToolsInstallVerifyPanel } from './components/ToolsInstallVerifyPanel';
 
 interface DiagnosticCheck {
   id: string;
@@ -46,67 +47,139 @@ const DiagnosticTools: React.FC = () => {
       description: 'Verify localStorage is accessible for caching',
       status: 'idle',
       result: ''
+    },
+    {
+      id: 'knowledge-vault',
+      name: 'Knowledge Vault Loaded',
+      description: 'Check if mossy_knowledge_vault is present and readable',
+      status: 'idle',
+      result: ''
+    },
+    {
+      id: 'install-wizard-state',
+      name: 'Install Wizard State',
+      description: 'Check if the Install Wizard progress is readable',
+      status: 'idle',
+      result: ''
+    },
+    {
+      id: 'microphone-permission',
+      name: 'Microphone Permission',
+      description: 'Check microphone permission state (if supported by browser)',
+      status: 'idle',
+      result: ''
+    },
+    {
+      id: 'tts-voices',
+      name: 'Browser TTS Voices',
+      description: 'Check speechSynthesis voice availability',
+      status: 'idle',
+      result: ''
     }
   ]);
 
   const [testOutput, setTestOutput] = useState<string>('');
   const [isRunningTest, setIsRunningTest] = useState(false);
+  const [snapshotStatus, setSnapshotStatus] = useState<string>('');
 
   const runDiagnostics = async () => {
-    const updatedChecks = checks.map(c => ({ ...c, status: 'checking' as const, result: '', errorDetails: '' }));
+    const updatedChecks: DiagnosticCheck[] = checks.map(c => ({ ...c, status: 'checking', result: '', errorDetails: '' }));
+
+    const setCheck = (id: string, patch: Partial<DiagnosticCheck>) => {
+      const idx = updatedChecks.findIndex(c => c.id === id);
+      if (idx === -1) return;
+      updatedChecks[idx] = { ...updatedChecks[idx], ...patch };
+    };
+
     setChecks(updatedChecks);
 
-    // Check Electron API
-    updatedChecks[0].status = 'success';
-    const hasElectronApi = !!(window as any).electron?.api || !!(window as any).electronAPI;
-    updatedChecks[0].result = hasElectronApi ? 'Available' : 'Not Available';
-    updatedChecks[0].status = hasElectronApi ? 'success' : 'error';
+    const api = (window as any).electron?.api || (window as any).electronAPI;
+    const hasElectronApi = !!api;
+    setCheck('electron-api', { result: hasElectronApi ? 'Available' : 'Not Available', status: hasElectronApi ? 'success' : 'error' });
 
-    // Check detectPrograms
-    updatedChecks[1].status = 'checking';
-    const detectPrograms = typeof (window as any).electron?.api?.detectPrograms === 'function' 
-      ? (window as any).electron.api.detectPrograms
-      : typeof (window as any).electronAPI?.detectPrograms === 'function'
-      ? (window as any).electronAPI.detectPrograms
-      : null;
-    
-    updatedChecks[1].result = detectPrograms ? 'Function exists and callable' : 'Function not found';
-    updatedChecks[1].status = detectPrograms ? 'success' : 'error';
+    const detectPrograms = typeof api?.detectPrograms === 'function' ? api.detectPrograms : null;
+    setCheck('detect-programs', { result: detectPrograms ? 'Function exists and callable' : 'Function not found', status: detectPrograms ? 'success' : 'error' });
 
-    // Check getSystemInfo
-    updatedChecks[2].status = 'checking';
-    const getSystemInfo = typeof (window as any).electron?.api?.getSystemInfo === 'function'
-      ? (window as any).electron.api.getSystemInfo
-      : typeof (window as any).electronAPI?.getSystemInfo === 'function'
-      ? (window as any).electronAPI.getSystemInfo
-      : null;
+    const getSystemInfo = typeof api?.getSystemInfo === 'function' ? api.getSystemInfo : null;
+    setCheck('get-system-info', { result: getSystemInfo ? 'Function exists and callable' : 'Function not found', status: getSystemInfo ? 'success' : 'error' });
 
-    updatedChecks[2].result = getSystemInfo ? 'Function exists and callable' : 'Function not found';
-    updatedChecks[2].status = getSystemInfo ? 'success' : 'error';
+    let bridgeActive = false;
+    try {
+      bridgeActive = localStorage.getItem('mossy_bridge_active') === 'true';
+    } catch {
+      bridgeActive = false;
+    }
+    setCheck('desktop-bridge', { result: bridgeActive ? 'Active' : 'Inactive', status: bridgeActive ? 'success' : 'error' });
 
-    // Check Desktop Bridge
-    updatedChecks[3].status = 'checking';
-    const bridgeActive = localStorage.getItem('mossy_bridge_active') === 'true';
-    updatedChecks[3].result = bridgeActive ? 'Active' : 'Inactive';
-    updatedChecks[3].status = bridgeActive ? 'success' : 'error';
-
-    // Check localStorage
-    updatedChecks[4].status = 'checking';
     try {
       const testKey = '__diagnostic_test__';
       localStorage.setItem(testKey, 'test');
       const retrieved = localStorage.getItem(testKey);
       localStorage.removeItem(testKey);
-      updatedChecks[4].result = retrieved === 'test' ? 'Fully functional' : 'Read/write issue';
-      updatedChecks[4].status = retrieved === 'test' ? 'success' : 'error';
+      const ok = retrieved === 'test';
+      setCheck('storage-available', { result: ok ? 'Fully functional' : 'Read/write issue', status: ok ? 'success' : 'error' });
     } catch (e) {
-      updatedChecks[4].result = 'Error';
-      updatedChecks[4].errorDetails = (e as Error).message;
-      updatedChecks[4].status = 'error';
+      setCheck('storage-available', { result: 'Error', errorDetails: (e as Error).message, status: 'error' });
+    }
+
+    // Knowledge Vault
+    try {
+      const raw = localStorage.getItem('mossy_knowledge_vault');
+      const parsed = raw ? JSON.parse(raw) : null;
+      const count = Array.isArray(parsed) ? parsed.length : 0;
+      setCheck('knowledge-vault', { result: raw ? `Loaded (${count} items)` : 'Missing', status: raw ? 'success' : 'error' });
+    } catch (e) {
+      setCheck('knowledge-vault', { result: 'Unreadable', errorDetails: (e as Error).message, status: 'error' });
+    }
+
+    // Install Wizard progress
+    try {
+      const raw = localStorage.getItem('mossy_install_wizard_state_v1');
+      const parsed = raw ? JSON.parse(raw) : null;
+      const topic = parsed?.topic ? String(parsed.topic) : '';
+      const checkedCount = parsed?.checked && typeof parsed.checked === 'object' ? Object.keys(parsed.checked).length : 0;
+      const ok = !!raw;
+      setCheck('install-wizard-state', { result: ok ? `Loaded (topic=${topic || 'unknown'}, ${checkedCount} marks)` : 'Missing', status: ok ? 'success' : 'error' });
+    } catch (e) {
+      setCheck('install-wizard-state', { result: 'Unreadable', errorDetails: (e as Error).message, status: 'error' });
+    }
+
+    // Microphone permission (best-effort)
+    try {
+      const perms: any = (navigator as any).permissions;
+      if (!perms?.query) {
+        setCheck('microphone-permission', { result: 'permissions API not supported', status: 'error' });
+      } else {
+        const status = await perms.query({ name: 'microphone' });
+        const state = String(status?.state || 'unknown');
+        setCheck('microphone-permission', { result: state, status: state === 'granted' ? 'success' : 'error' });
+      }
+    } catch (e) {
+      setCheck('microphone-permission', { result: 'Error', errorDetails: (e as Error).message, status: 'error' });
+    }
+
+    // TTS voices
+    try {
+      const synth = (window as any).speechSynthesis;
+      if (!synth?.getVoices) {
+        setCheck('tts-voices', { result: 'speechSynthesis not supported', status: 'error' });
+      } else {
+        const voices = synth.getVoices();
+        const count = Array.isArray(voices) ? voices.length : 0;
+        setCheck('tts-voices', { result: count > 0 ? `Available (${count})` : 'No voices yet (try again)', status: count > 0 ? 'success' : 'error' });
+      }
+    } catch (e) {
+      setCheck('tts-voices', { result: 'Error', errorDetails: (e as Error).message, status: 'error' });
     }
 
     setChecks(updatedChecks);
   };
+
+  // Auto-run when opening the page (quick health view)
+  useEffect(() => {
+    runDiagnostics().catch(() => {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const testDetectPrograms = async () => {
     setIsRunningTest(true);
@@ -197,6 +270,100 @@ ${listAvailableAPIs()}
     URL.revokeObjectURL(url);
   };
 
+  const redactSecretsDeep = (value: unknown): unknown => {
+    const redactKey = (key: string) => /(api[_-]?key|token|secret|password|bearer|authorization)/i.test(key);
+
+    if (Array.isArray(value)) {
+      return value.map(redactSecretsDeep);
+    }
+
+    if (value && typeof value === 'object') {
+      const obj = value as Record<string, unknown>;
+      const out: Record<string, unknown> = {};
+      for (const [k, v] of Object.entries(obj)) {
+        out[k] = redactKey(k) ? 'REDACTED' : redactSecretsDeep(v);
+      }
+      return out;
+    }
+
+    return value;
+  };
+
+  const downloadTextFallback = (content: string, filename: string, mimeType: string) => {
+    const blob = new Blob([content], { type: mimeType });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
+
+  const exportDiagnosticsSnapshot = async () => {
+    setSnapshotStatus('Building snapshot...');
+
+    try {
+      const api = (window as any).electron?.api || (window as any).electronAPI;
+
+      const [systemInfo, performance, settings] = await Promise.all([
+        typeof api?.getSystemInfo === 'function' ? api.getSystemInfo().catch(() => null) : Promise.resolve(null),
+        typeof api?.getPerformance === 'function' ? api.getPerformance().catch(() => null) : Promise.resolve(null),
+        typeof api?.getSettings === 'function' ? api.getSettings().catch(() => null) : Promise.resolve(null),
+      ]);
+
+      let errorLogs: unknown[] = [];
+      try {
+        const raw = localStorage.getItem('mossy_error_logs');
+        const parsed = raw ? JSON.parse(raw) : [];
+        errorLogs = Array.isArray(parsed) ? parsed : [];
+      } catch {
+        errorLogs = [];
+      }
+
+      const snapshot = {
+        generatedAt: new Date().toISOString(),
+        app: {
+          isElectron: !!api,
+          userAgent: navigator.userAgent,
+          platform: navigator.platform,
+          language: navigator.language,
+          localStorageEnabled: testLocalStorage(),
+        },
+        checks: checks.map((c) => ({
+          id: c.id,
+          name: c.name,
+          description: c.description,
+          status: c.status,
+          result: c.result,
+          errorDetails: c.errorDetails || '',
+        })),
+        testOutput: testOutput || '',
+        availableApis: listAvailableAPIs(),
+        systemInfo,
+        performance,
+        settings: settings ? redactSecretsDeep(settings) : null,
+        errorLogs,
+      };
+
+      const json = JSON.stringify(snapshot, null, 2);
+      const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+      const filename = `mossy-diagnostics-snapshot-${timestamp}.json`;
+
+      if (typeof api?.saveFile === 'function') {
+        setSnapshotStatus('Waiting for save location...');
+        const savedTo = await api.saveFile(json, filename);
+        setSnapshotStatus(savedTo ? `Saved: ${savedTo}` : 'Canceled');
+      } else {
+        downloadTextFallback(json, filename, 'application/json');
+        setSnapshotStatus('Downloaded');
+      }
+    } catch (e) {
+      setSnapshotStatus(`Export failed: ${e instanceof Error ? e.message : 'Unknown error'}`);
+    }
+  };
+
   const testLocalStorage = (): boolean => {
     try {
       localStorage.setItem('__test__', 'test');
@@ -225,6 +392,30 @@ ${listAvailableAPIs()}
             Run system diagnostics to check if all Mossy APIs are properly configured. Use this to troubleshoot issues.
           </p>
         </div>
+
+        <ToolsInstallVerifyPanel
+          accentClassName="text-cyan-300"
+          description="This page validates what the app can see (desktop bridge APIs, storage, mic permissions, and cached vault state)."
+          verify={[
+            'Click “Run Diagnostics” and confirm each check resolves to Success/Error (no endless “Checking…”).',
+            'If using the desktop app, confirm Electron API checks show Success.',
+            'Copy the available API list and confirm it includes the functions you expect for your workflow.'
+          ]}
+          firstTestLoop={[
+            'Run Diagnostics once right after launch (baseline).',
+            'Open Desktop Bridge and Tools Settings, then return and re-run Diagnostics.',
+            'If you are troubleshooting voice, confirm mic permission and TTS voice availability checks.'
+          ]}
+          troubleshooting={[
+            'If Electron API is missing, you are likely running a web preview; use the packaged Electron build for bridge features.',
+            'If localStorage fails, disable strict privacy modes/extensions that block storage and reload.'
+          ]}
+          shortcuts={[
+            { label: 'Desktop Bridge', to: '/bridge' },
+            { label: 'Tool Settings', to: '/settings/tools' },
+            { label: 'Privacy Settings', to: '/settings/privacy' },
+          ]}
+        />
 
         {/* System Checks */}
         <div className="bg-slate-900 border border-slate-700 rounded-xl overflow-hidden mb-8">
@@ -327,6 +518,20 @@ ${listAvailableAPIs()}
           </div>
 
           <div className="p-6">
+            <button
+              onClick={() => exportDiagnosticsSnapshot().catch(() => {})}
+              className="w-full px-4 py-3 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold transition-colors flex items-center justify-center gap-2"
+            >
+              <Download className="w-4 h-4" />
+              Export Diagnostics Snapshot (JSON)
+            </button>
+
+            {snapshotStatus && (
+              <p className="text-xs text-slate-400 mt-2 font-mono break-words">{snapshotStatus}</p>
+            )}
+
+            <div className="h-px bg-slate-700 my-4" />
+
             <button
               onClick={exportDiagnostics}
               className="w-full px-4 py-3 rounded-lg bg-purple-600 hover:bg-purple-700 text-white font-bold transition-colors flex items-center justify-center gap-2"

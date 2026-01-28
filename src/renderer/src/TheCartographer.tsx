@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { GoogleGenAI } from "@google/genai";
+import OpenAI from 'openai';
 import { Map, Layout, Box, Target, Shield, Skull, Zap, Download, RefreshCw, ZoomIn, ZoomOut, Maximize, Navigation, Layers, Wind, Sun, Volume2, Thermometer, Radio } from 'lucide-react';
 
 interface Room {
@@ -208,26 +208,12 @@ const TheCartographer: React.FC = () => {
         setSelectedRoom(null);
 
         try {
-            const ai = new GoogleGenAI({ apiKey: (import.meta.env.VITE_API_KEY || import.meta.env.VITE_GOOGLE_API_KEY || "") });
-            
-            const systemPrompt = `
-            You are a Level Design Architect AI. 
-            Generate a 2D tile-based map layout based on the prompt: "${prompt}".
-            The map should be a JSON object with:
-            1. width, height (grid size, e.g. 20x20).
-            2. rooms: array of { id, name, x, y, w, h, type: 'room'|'corridor'|'start'|'boss', description }.
-               - Ensure rooms do NOT overlap.
-               - Keep coordinates integer based.
-            3. connections: array of { from: roomId, to: roomId } representing doorways.
-            4. entities: array of { id, type: 'enemy'|'loot'|'trap', label, x, y } placed inside valid room bounds.
-            5. environment: object { lighting: 'Dark'|'Dim'|'Bright'|'Strobe'|'Emergency', atmosphere: 'Clean'|'Dusty'|'Radioactive'|'Foggy'|'Void', audioTrack: string, gravity: float (default 1.0), hazardLevel: int (0-10) }.
-            `;
+            const systemPrompt = `You are a Level Design Architect AI for Fallout 4. Generate a 2D tile-based map layout as JSON with: width, height, rooms (id, name, x, y, w, h, type, description), connections (from/to roomId), entities (id, type, label, x, y), environment (lighting, atmosphere, audioTrack, gravity, hazardLevel).`;
+            const userPrompt = `Generate a map based on this prompt: "${prompt}". Return valid JSON only.`;
 
-            const model = ai.getGenerativeModel({ 
-                model: 'gemini-1.5-flash',
-                generationConfig: { responseMimeType: 'application/json' }
-            });
-            const result = await model.generateContent(systemPrompt);
+            const aiResponse = await (window as any).electronAPI.aiChatOpenAI(userPrompt, systemPrompt, 'gpt-3.5-turbo');
+            if (!aiResponse.success || !aiResponse.content) throw new Error(aiResponse.error || 'Failed to generate map');
+            const result = { response: { text: () => aiResponse.content } };
             const response = await result.response;
 
             const data = JSON.parse(response.text());

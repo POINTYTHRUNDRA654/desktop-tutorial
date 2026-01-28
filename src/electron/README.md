@@ -96,7 +96,17 @@ The main process loads from `http://localhost:5173` in development.
 
 To test with a different URL:
 ```bash
-ELECTRON_START_URL=http://localhost:3000 npm run dev:electron
+ELECTRON_START_URL=http://localhost:5173 npm run dev:electron
+```
+
+#### Windows note (running Electron)
+
+If PowerShell says `electron` is not recognized, run Electron via npm (recommended) or via `npx` so it uses the local `node_modules` binary:
+
+```bash
+npm run start
+# or
+npx electron .
 ```
 
 ### View Example UI

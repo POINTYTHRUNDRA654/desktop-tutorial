@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { Mic, StopCircle, Play, Settings, Volume2, Zap } from 'lucide-react';
+import { Mic, StopCircle, Play, Volume2, Zap } from 'lucide-react';
+import { speakMossy } from './mossyTts';
 
 interface VoiceCommand {
   phrase: string;
@@ -102,13 +103,28 @@ export const VoiceCommands: React.FC = () => {
   };
 
   const speak = (text: string) => {
-    if ('speechSynthesis' in window) {
-      const utterance = new SpeechSynthesisUtterance(text);
-      utterance.rate = 1.0;
-      utterance.pitch = 1.0;
-      utterance.volume = 0.8;
-      window.speechSynthesis.speak(utterance);
+    const normalized = (text ?? '').trim().toLowerCase();
+    // Never speak UI/state labels.
+    if (
+      !normalized ||
+      normalized === 'listening' ||
+      normalized === 'listening...' ||
+      normalized === "i'm listening." ||
+      normalized === 'im listening.' ||
+      normalized === 'ready' ||
+      normalized === 'processing' ||
+      normalized === 'processing...' ||
+      normalized === 'processing vocal input' ||
+      normalized === 'processing vocal input...' ||
+      normalized === 'neural computation...' ||
+      normalized === 'speaking...' ||
+      normalized === 'disconnected'
+    ) {
+      return;
     }
+
+    // Shared browser TTS helper handles voice selection + settings.
+    void speakMossy(text, { cancelExisting: true });
   };
 
   const startListening = () => {

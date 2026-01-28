@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { AlertTriangle, CheckCircle2, Zap, ChevronDown } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 
 interface CheckItem {
   id: string;
@@ -11,6 +12,22 @@ interface CheckItem {
 }
 
 export const PrecombineChecker: React.FC = () => {
+  const navigate = useNavigate();
+
+  const openUrl = (url: string) => {
+    const api = (window as any).electron?.api || (window as any).electronAPI;
+    if (typeof api?.openExternal === 'function') {
+      api.openExternal(url);
+      return;
+    }
+    window.open(url, '_blank', 'noopener,noreferrer');
+  };
+
+  const openNexusSearch = (keywords: string) => {
+    const query = encodeURIComponent(keywords);
+    openUrl(`https://www.nexusmods.com/fallout4/search/?BH=0&search%5Bsearch_keywords%5D=${query}`);
+  };
+
   const [checks, setChecks] = useState<CheckItem[]>([
     // Pre-Modification Checks
     {
@@ -344,6 +361,77 @@ export const PrecombineChecker: React.FC = () => {
                   ? 'Fix Issues'
                   : 'In Progress'}
             </p>
+          </div>
+        </div>
+
+        <div className="mt-5 bg-slate-950/50 border border-slate-700 rounded-lg p-4">
+          <div className="text-sm font-bold text-orange-300 mb-2">🧰 Tools / Install / Verify (No Guesswork)</div>
+          <p className="text-xs text-slate-300">
+            This page is a <strong>release readiness</strong> checklist. If you haven’t rebuilt yet, start with the PRP guide, then come back here.
+          </p>
+
+          <div className="mt-3 flex flex-wrap gap-2">
+            <button
+              onClick={() => navigate('/precombine-prp')}
+              className="px-3 py-2 rounded bg-orange-700 hover:bg-orange-600 text-xs font-bold text-white"
+            >
+              Open PRP Guide
+            </button>
+            <button
+              onClick={() => navigate('/prp-patch-builder')}
+              className="px-3 py-2 rounded bg-slate-800 hover:bg-slate-700 border border-slate-600 text-xs font-bold text-white"
+            >
+              PRP Patch Builder
+            </button>
+            <button
+              onClick={() => navigate('/packaging-release')}
+              className="px-3 py-2 rounded bg-slate-800 hover:bg-slate-700 border border-slate-600 text-xs font-bold text-white"
+            >
+              Packaging & Release
+            </button>
+            <button
+              onClick={() => navigate('/settings/tools')}
+              className="px-3 py-2 rounded bg-slate-800 hover:bg-slate-700 border border-slate-600 text-xs font-bold text-white"
+            >
+              Tool Settings
+            </button>
+          </div>
+
+          <div className="mt-3 flex flex-wrap gap-2">
+            <button
+              onClick={() => openUrl('https://store.steampowered.com/search/?term=Fallout%204%20Creation%20Kit')}
+              className="px-3 py-2 rounded bg-slate-900 hover:bg-slate-800 border border-slate-700 text-xs font-bold text-white"
+            >
+              Steam: Creation Kit (search)
+            </button>
+            <button
+              onClick={() => openNexusSearch('Precombine & Previsibines PRP')}
+              className="px-3 py-2 rounded bg-slate-900 hover:bg-slate-800 border border-slate-700 text-xs font-bold text-white"
+            >
+              Nexus: PRP (search)
+            </button>
+            <button
+              onClick={() => openNexusSearch('FO4Edit')}
+              className="px-3 py-2 rounded bg-slate-900 hover:bg-slate-800 border border-slate-700 text-xs font-bold text-white"
+            >
+              Nexus: FO4Edit (search)
+            </button>
+            <button
+              onClick={() => openUrl('https://github.com/niftools/nifskope/releases')}
+              className="px-3 py-2 rounded bg-slate-900 hover:bg-slate-800 border border-slate-700 text-xs font-bold text-white"
+            >
+              GitHub: NifSkope releases
+            </button>
+          </div>
+
+          <div className="mt-3 bg-black/40 border border-slate-700 rounded p-3">
+            <div className="text-xs font-bold text-slate-200 mb-1">Fast verify (5 minutes)</div>
+            <ol className="text-xs text-slate-300 list-decimal list-inside space-y-1">
+              <li>Confirm the rebuilt output ships <strong>Meshes\\Precombined\\...</strong> (not just a plugin).</li>
+              <li>Load a clean profile (only required mods + your mod + your patch, if any).</li>
+              <li>Visit one touched exterior cell; rotate camera; watch for pop-in/invisible objects/flicker.</li>
+              <li>If anything breaks: rebuild or make a merged PRP patch for that specific combo.</li>
+            </ol>
           </div>
         </div>
       </div>

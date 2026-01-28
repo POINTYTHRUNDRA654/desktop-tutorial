@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Lock, Database, Share2, Shield, Settings as SettingsIcon, AlertCircle, CheckCircle2, Eye, EyeOff } from 'lucide-react';
 import { exportErrorLogs } from './MossyErrorReporter';
+import { ToolsInstallVerifyPanel } from './components/ToolsInstallVerifyPanel';
 
 interface PrivacySettings {
   keepLocalOnly: boolean;
@@ -199,6 +200,30 @@ const PrivacySettings: React.FC = () => {
             Your data privacy and security are fundamental rights. Control exactly what information Mossy collects, stores, and shares.
           </p>
         </div>
+
+        <ToolsInstallVerifyPanel
+          accentClassName="text-red-300"
+          description="These settings are stored locally on this machine. Use this page to control what is kept local vs. shared, and to manage API keys used by optional AI features."
+          verify={[
+            'Toggle one setting and confirm the save status changes to “Saved”.',
+            'Refresh the app and confirm your toggle value persisted.',
+            'If you set an API key, confirm it shows as saved and can be revealed/hidden safely.'
+          ]}
+          firstTestLoop={[
+            'Keep “Local only” enabled while you explore features.',
+            'If you use voice/video transcription, set the required key here and then test from Memory Vault or Live Synapse.',
+            'Export logs if you need to file a bug report, then disable any sharing toggles you are not comfortable with.'
+          ]}
+          troubleshooting={[
+            'If values do not persist, verify localStorage is available (see Diagnostics).',
+            'If a feature claims a key is missing, re-open this page and confirm the key is saved under the expected field.'
+          ]}
+          shortcuts={[
+            { label: 'Diagnostics', to: '/diagnostics' },
+            { label: 'Memory Vault', to: '/memory-vault' },
+            { label: 'Live Synapse', to: '/live' },
+          ]}
+        />
 
         {/* OpenAI API Key Section */}
         <div className="bg-slate-900 border border-slate-700 rounded-xl overflow-hidden mb-8">

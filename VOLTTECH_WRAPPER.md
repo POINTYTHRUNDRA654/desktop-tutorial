@@ -50,8 +50,25 @@ npm install
 # Start development (with Vite dev server)
 npm run dev
 
-# Or use custom URL
-ELECTRON_START_URL=http://localhost:3000 npm run dev:electron
+# Or use a custom URL (must already be running)
+# Note: on Windows, prefer running via npm scripts (or `npx`) so the local Electron binary is found.
+ELECTRON_START_URL=http://localhost:5173 npm run dev:electron
+```
+
+#### Windows note (common gotcha)
+
+If you run `electron .` directly in PowerShell and see:
+
+`The term 'electron' is not recognized...`
+
+that just means Electron is installed locally (in `node_modules`) but not globally on your PATH.
+
+Use one of these instead:
+
+```bash
+npm run start
+# or
+npx electron .
 ```
 
 ### View Example UI

@@ -1,141 +1,296 @@
 import React, { useState } from 'react';
-import { BookOpen, ChevronDown, CheckCircle, AlertCircle, Zap, FileCode } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { ToolsInstallVerifyPanel } from './components/ToolsInstallVerifyPanel';
+import {
+  BookOpen,
+  ChevronDown,
+  CheckCircle,
+  AlertCircle,
+  Zap,
+  FileCode,
+  ExternalLink,
+} from 'lucide-react';
 
-interface Section {
+type SectionAction = {
+  label: string;
+  to?: string;
+  externalUrl?: string;
+};
+
+type Section = {
   id: string;
   title: string;
   icon: React.ReactNode;
   content: string;
+  actions?: SectionAction[];
   steps?: string[];
-}
+};
+
+const openUrl = async (url: string) => {
+  const bridge = (window as any).electron?.api || (window as any).electronAPI;
+  try {
+    if (bridge?.openExternal) {
+      await bridge.openExternal(url);
+      return;
+    }
+  } catch {
+    // ignore
+  }
+  window.open(url, '_blank', 'noopener,noreferrer');
+};
 
 export const BlenderAnimationGuide: React.FC = () => {
   const [expandedSection, setExpandedSection] = useState<string>('overview');
+  const navigate = useNavigate();
 
   const sections: Section[] = [
     {
       id: 'overview',
       title: 'Fallout 4 Animation Pipeline Overview (2026 Standards)',
       icon: <BookOpen className="w-5 h-5" />,
-      content: `The modern Fallout 4 animation pipeline uses Blender 4.1+: \n\n1. Blender (4.1+) → Animation creation using PyNifly or FBX\n2. Havok Content Tools 2014 → Build HKX (2010.2.0-r1)\n3. HKXPackUI → Pack for Fallout 4\n\nKey constraint: Do NOT rename deform bones in vanilla skeletons.\nKey requirement: All animations must be 30 FPS for correct game playback.`,
+      content:
+        `A practical, modern FO4 animation pipeline is:\n\n` +
+        `1) Blender (authoring) → create/clean keys + annotations\n` +
+        `2) Havok Content Tools 2014 → convert FBX → HKX (FO4 2010.2.0-r1)\n` +
+        `3) HKXPackUI → pack/inspect as needed\n\n` +
+        `Key constraint: do NOT rename deform bones on vanilla skeletons.\n` +
+        `FPS note: FO4 humanoid animations are commonly 30 FPS, but the safe rule is “match the vanilla animation you’re targeting” and keep Blender + Havok consistent.\n` +
+        `Scale note: pick a single unit/scale convention and keep it consistent end-to-end (don’t mix 1.0 and 0.1 mid-pipeline).`,
+      actions: [
+        { label: 'Skeleton Reference', to: '/skeleton-reference' },
+        { label: 'Export Settings Helper', to: '/export-settings' },
+        { label: 'Havok Quick Start', to: '/havok-quick-start' },
+        { label: 'Havok FO4 Guide', to: '/havok-fo4' },
+      ],
       steps: [
-        'Import FO4 skeleton rig into Blender via PyNifly',
-        'Create animation at 30 FPS',
-        'Annotate events with Pose Markers',
-        'Export as FBX with Only Deform Bones',
-        'Build HKX for FO4 2010.2.0-r1 profile'
-      ]
+        'Extract a vanilla animation you want to match (path + naming + FPS reference)',
+        'Import FO4 skeleton into Blender (don’t rename bones)',
+        'Animate in Pose mode; keep Root stable unless you know why you’re moving it',
+        'Export FBX with Only Deform Bones + baked animation',
+        'Convert FBX → HKX using Havok 2010.2.0-r1 profile',
+        'Test in-game early (loose files first, then BA2)',
+      ],
     },
     {
       id: 'import-skeleton',
       title: 'Importing FO4 Skeleton into Blender',
       icon: <Zap className="w-5 h-5" />,
-      content: `Steps to import the Fallout 4 skeleton:\n\n1. Tool: Use PyNifly (latest release)\n2. Process:\n   - File → Import → NetImmerse/Gamebryo (.nif)\n   - Select skeleton NIF from Data\\Meshes\\Actors\\Character\\_Skeleton.nif\n   - Set Scale: 1.0 (PyNifly uses Meters natively)\n\n3. Result: Full skeleton with bone names and constraints\n\nCommon issue: Using 0.1 scale with modern exporters. Stick to 1.0 (Meters) for Blender 4.x.`,
+      content:
+        `Import steps (PyNifly workflow):\n\n` +
+        `1) File → Import → NetImmerse/Gamebryo (.nif)\n` +
+        `2) Choose the skeleton NIF (example: Data\\Meshes\\Actors\\Character\\_Skeleton.nif)\n` +
+        `3) Verify you got a full bone hierarchy with intact names\n\n` +
+        `If your export ends up too big/small in-game: revisit unit scale + FBX export scale together (as a pair).`,
+      actions: [
+        { label: 'Skeleton Reference', to: '/skeleton-reference' },
+        { label: 'Export Settings Helper', to: '/export-settings' },
+        {
+          label: 'Search Nexus: PyNifly',
+          externalUrl: 'https://www.nexusmods.com/fallout4/search/?gsearch=PyNifly&gsearchtype=mods',
+        },
+      ],
       steps: [
-        'Download and install PyNifly Blender plugin',
-        'Navigate to FO4 data\\meshes\\actors\\character',
-        'File → Import → NIF',
-        'Select skeleton.nif',
-        'Verify scale setting: 1.0 (Meters)',
-        'Import and confirm all bones (Root, COM, Pelvis, etc.)'
-      ]
+        'Install PyNifly add-on in Blender Preferences → Add-ons',
+        'Restart Blender (if needed) and confirm NIF import appears',
+        'Import the FO4 skeleton NIF',
+        'Verify bone names were preserved exactly',
+        'Save a clean “skeleton_only.blend” as your base file',
+      ],
     },
     {
       id: 'bone-hierarchy',
       title: 'Understanding FO4 Bone Hierarchy',
       icon: <FileCode className="w-5 h-5" />,
-      content: `FO4 skeleton structure (critical for rigging):\n\nROOT\n├─ NPC Root [NPC:\\_0]\n├─ Pelvis\n│  ├─ Spine1\n│  ├─ Spine2\n│  ├─ Chest\n│  │  ├─ Neck\n│  │  │  └─ Head\n│  │  ├─ L_Shoulder → L_Upperarm → L_Forearm → L_Hand\n│  │  └─ R_Shoulder → R_Upperarm → R_Forearm → R_Hand\n├─ L_Thigh → L_Calf → L_Foot\n├─ R_Thigh → R_Calf → R_Foot\n\nKey points:\n• 60+ bones total (including fingers, toes, facial bones)\n• Pelvis is parent to all upper body\n• Root bone should NOT animate (world anchor)\n• NPC Root drives character movement\n• Every bone name must match EXACTLY (case-sensitive)`,
+      content:
+        `FO4 skeleton structure (simplified):\n\n` +
+        `ROOT\n` +
+        `├─ NPC Root [NPC:\\_0]\n` +
+        `├─ Pelvis → Spine… → Neck → Head\n` +
+        `├─ L_Shoulder → L_Upperarm → L_Forearm → L_Hand\n` +
+        `└─ R_Shoulder → R_Upperarm → R_Forearm → R_Hand\n\n` +
+        `Key points:\n` +
+        `• Bone names are case-sensitive\n` +
+        `• Adding/renaming bones is a common export/in-game failure source\n` +
+        `• Root vs NPC Root: be deliberate about which one carries motion`,
+      actions: [{ label: 'Skeleton Reference', to: '/skeleton-reference' }],
       steps: [
-        'Open skeleton in Blender',
-        'Switch to Outliner view',
-        'Expand hierarchy fully',
-        'Verify bone names match FO4 standard',
-        'Check for extra/missing bones',
-        'Note: Custom bones will cause export errors'
-      ]
+        'Open the Outliner and expand the armature hierarchy',
+        'Confirm there are no accidental extra bones',
+        'If you must constrain bones, do it in a way that doesn’t rename deform bones',
+      ],
     },
     {
       id: 'custom-rigging',
       title: 'Custom Skeletal Rigging (Advanced)',
       icon: <AlertCircle className="w-5 h-5" />,
-      content: `For custom character rigs (armor, clothing, custom bodies):\n\n1. DO NOT create new bones - FO4 won't recognize them\n2. Instead: Parent your geometry to EXISTING bones\n\nProcess:\n   a) Import FO4 skeleton\n   b) Add your custom mesh (armor/body/cloth)\n   c) Enable Armature modifier on mesh\n   d) Set armature target: FO4 Skeleton\n   e) Parent mesh to armature (Ctrl+P → With Armature Deformation)\n   f) Weight paint: assign vertices to bones\n\n3. Weight painting:\n   - Switch to Weight Paint mode\n   - Select each bone and paint influence\n   - Use soft brush for smooth deformation\n   - Avoid creating hard edges (exception: sharp armor seams)\n   - Test: Rotate bones in Pose mode to verify deformation\n\n4. Common mistake: Forgetting to remove duplicate bone constraints → causes export errors`,
+      content:
+        `For armor/clothing/custom bodies, FO4 typically expects you to bind meshes to existing bones.\n\n` +
+        `Workflow:\n` +
+        `• Import the FO4 skeleton\n` +
+        `• Add your mesh\n` +
+        `• Add an Armature modifier pointing at the FO4 skeleton\n` +
+        `• Parent (Ctrl+P) with armature deformation\n` +
+        `• Weight paint and test in Pose mode\n\n` +
+        `Avoid: creating new deform bones (often breaks export / in-game expectations).`,
       steps: [
-        'Import skeleton AND your custom mesh',
-        'Select mesh, then skeleton (Shift+click)',
+        'Import skeleton and mesh',
         'Ctrl+P → With Armature Deformation',
-        'Switch to Weight Paint mode',
-        'Select each bone group (Left arm, Right arm, etc.)',
-        'Paint weights (green = full influence, blue = no influence)',
-        'Test in Pose mode by rotating bones',
-        'Refine weights until satisfied',
-        'Verify no bones added to skeleton'
-      ]
+        'Weight paint and normalize weights',
+        'Test by posing arms/legs and checking deformation',
+        'Export a quick NIF/FBX test and validate in your pipeline',
+      ],
     },
     {
       id: 'animation-creation',
       title: 'Creating Animations',
       icon: <CheckCircle className="w-5 h-5" />,
-      content: `Step-by-step animation workflow:\n\n1. Setup:\n   - Import skeleton (already rigged)\n   - Set timeline length: Your animation duration (e.g., 90 frames = 3.0 sec at 30fps)\n   - Frame rate: Set to 30 fps (Fallout 4 Standard)\n\n2. Keyframing:\n   - Select armature (not mesh)\n   - Switch to Pose mode (Tab)\n   - Rotate bones to create keyframes\n   - Press 'i' to insert keyframe at each pose\n\n3. Annotations:\n   - Add Pose Markers (Shift+Alt+M) for annotations\n   - Common: "Hit" for impact, "FootstepL" for audio\n\n4. Common pitfall: Animating root bone → will offset character position in-game.\n   Solution: Animate NPC Root for movement, keep Root at origin.`,
+      content:
+        `Step-by-step animation workflow:\n\n` +
+        `1) Set scene FPS to match your target animation (commonly 30 FPS).\n` +
+        `2) Pose mode on the armature; keyframe transforms.\n` +
+        `3) Use Pose Markers for events/annotations where your pipeline supports it.\n\n` +
+        `Common pitfall: animating the wrong root bone and getting in-game offsets.\n` +
+        `Rule of thumb: keep ROOT stable unless you’re intentionally driving world motion.`,
+      actions: [
+        { label: 'Animation Validator', to: '/animation-validator' },
+        { label: 'Export Settings Helper', to: '/export-settings' },
+      ],
       steps: [
-        'Set timeline: 1 - [frame count]',
-        'Set frame rate: 30 fps (Output → FPS: 30)',
-        'Select armature, Tab to Pose mode',
-        'Create poses and keyframe (I)',
-        'Add Pose Markers for annotations',
-        'Verify first and last frames match for loops'
-      ]
+        'Set timeline range (start/end) for your clip',
+        'Set Output → FPS to match the target',
+        'Pose + keyframe; keep curves clean (avoid accidental spikes)',
+        'If looping: ensure first/last frames match or blend cleanly',
+        'Add Pose Markers for key events (impacts, footsteps)',
+      ],
     },
     {
       id: 'nif-export',
       title: 'Exporting to HKX/NIF',
       icon: <Zap className="w-5 h-5" />,
-      content: `Exporting from Blender 4.1 to Fallout 4:\n\n1. Prep:\n   - Select Armature\n   - Ensure all keyframes are on deform bones\n\n2. Export process:\n   - File → Export → FBX (.fbx)\n   - Settings:\n     ✓ Only Deform Bones: YES\n     ✓ Bake Animation: YES\n     ✓ Scale: 1.0\n\n3. Havok Build:\n   - Open Havok Content Tools 2014\n   - File → Import FBX\n   - Filter: Export to HKX\n   - Profile: Fallout 4 (2010.2.0-r1)\n\n4. Verification:\n   - Open final HKX in HKXPackUI\n   - Check for annotation list`,
+      content:
+        `Export/conversion overview:\n\n` +
+        `1) Export FBX from Blender\n` +
+        `   ✓ Bake animation\n` +
+        `   ✓ Only Deform Bones\n` +
+        `   ✓ Use a consistent scale convention\n\n` +
+        `2) Import FBX into Havok Content Tools 2014\n` +
+        `3) Export HKX using the FO4 2010.2.0-r1 profile\n\n` +
+        `If Havok import fails, try a different FBX export variant/version and re-export.`,
+      actions: [
+        { label: 'Export Settings Helper', to: '/export-settings' },
+        { label: 'Havok Quick Start', to: '/havok-quick-start' },
+        { label: 'Havok FO4 Guide', to: '/havok-fo4' },
+        {
+          label: 'Search Nexus: HKXPackUI',
+          externalUrl: 'https://www.nexusmods.com/fallout4/search/?gsearch=HKXPackUI&gsearchtype=mods',
+        },
+      ],
       steps: [
-        'Select armature',
-        'File → Export → FBX',
-        'Check Only Deform Bones',
-        'Open Havok Content Tools',
-        'Build as HKX for FO4 profile',
-        'Pack using HKXPackUI'
-      ]
+        'Export FBX from Blender with baked animation',
+        'Confirm only the intended bones are exported',
+        'Convert FBX → HKX in Havok using FO4 profile',
+        'Inspect HKX (and annotations/events) in HKXPackUI',
+      ],
+    },
+    {
+      id: 'integration',
+      title: 'Integrating Animations Into Fallout 4 (Minimum Working Path)',
+      icon: <FileCode className="w-5 h-5" />,
+      content:
+        `There are multiple ways to get animations “working” in FO4.\n\n` +
+        `Fastest reliable test path: an animation replacer (same file name + same relative folder path as the vanilla HKX).\n\n` +
+        `Brand-new animations usually require behavior/graph work. Use the Havok FO4 Guide for behavior graph context.`,
+      actions: [
+        { label: 'Packaging & Release Wizard', to: '/packaging-release' },
+        { label: 'Havok FO4 Guide', to: '/havok-fo4' },
+      ],
+      steps: [
+        'Extract a vanilla HKX and note its full relative path under Data\\Meshes\\...',
+        'Export/convert your animation to HKX',
+        'Place your HKX at the same relative path (loose files for iteration)',
+        'Test in-game; if speed is wrong, fix FPS at source and rebuild HKX',
+        'When stable, package into BA2 and retest',
+      ],
     },
     {
       id: 'validation',
       title: 'Validation Checklist',
       icon: <CheckCircle className="w-5 h-5" />,
-      content: `Before importing into Fallout 4, verify:\n\n✓ Bone names: Exact match to FO4 skeleton (case-sensitive)\n✓ No extra bones: Only deform bones exported\n✓ Scale: 1.0 (Meters)\n✓ Root bone: at 0,0,0\n✓ NPC Root: check for correct movement translation\n✓ Loop detection: First frame = last frame (if looping)\n✓ Frame rate: 30 fps\n✓ Weight painting: Normalization check (Sum = 1.0)\n✓ HKX Build: Using profile 2010.2.0-r1`,
+      content:
+        `Before testing in Fallout 4, verify:\n\n` +
+        `✓ Bone names match the target skeleton (case-sensitive)\n` +
+        `✓ No accidental extra bones exported\n` +
+        `✓ Scale is consistent across import/export\n` +
+        `✓ FPS matches the target animation\n` +
+        `✓ HKX built with FO4 2010.2.0-r1 profile`,
+      actions: [
+        { label: 'Animation Validator', to: '/animation-validator' },
+        { label: 'Skeleton Reference', to: '/skeleton-reference' },
+      ],
       steps: [
-        'Run Mossy Animation Validator',
-        'Fix any weight normalization errors',
-        'Export to FBX',
-        'Check annotations in HKXPackUI',
-        'Test in-game on actual character'
-      ]
+        'Run the in-app Animation Validator first',
+        'Fix weight normalization and naming issues before conversion',
+        'Inspect HKX for expected annotations/events (if used)',
+        'Test in-game with a controlled scenario',
+      ],
     },
     {
       id: 'common-errors',
       title: 'Common Errors & Solutions',
       icon: <AlertCircle className="w-5 h-5" />,
-      content: `Problem: Animation plays too fast/slow\nSolution: Check scene FPS. FO4 expects 30 FPS. Re-bake animations at 30 FPS.\n\nProblem: Mesh explodes or stretches\nSolution: Weight normalization error or extra bones. Ensure sum of weights is 1.0 and export ONLY deform bones.\n\nProblem: Character stays static\nSolution: Missing annotations or incorrect HKX build profile. Use 2010.2.0-r1.\n\nProblem: T-Pose in-game\nSolution: Skeleton mismatch. Ensure armature wasn't renamed and bone hierarchy is intact.\n\nProblem: FBX Import fails in Havok\nSolution: Use Binary FBX 2014/2015 format instead of ASCII.`
+      content:
+        `Problem: Animation plays too fast/slow\n` +
+        `Fix: Blender FPS and conversion settings don’t match the target; re-bake and rebuild HKX.\n\n` +
+        `Problem: Mesh explodes or stretches\n` +
+        `Fix: weights/bones mismatch; normalize weights; export only intended deform bones.\n\n` +
+        `Problem: T-pose in-game\n` +
+        `Fix: skeleton mismatch or missing expected data; verify names and hierarchy.\n\n` +
+        `Problem: Havok FBX import fails\n` +
+        `Fix: try a different FBX export variant/version and re-export from Blender.`,
     },
     {
       id: 'tools',
       title: 'Required Production Tools (2026)',
       icon: <Zap className="w-5 h-5" />,
-      content: `Essential tools for modern FO4 modding:\n\n1. Blender 4.1+\n   - Support for modern geometry and PBR workflows.\n\n2. PyNifly Blender Add-on\n   - Best-in-class NIF import/export for modern Blender.\n\n3. Havok Content Tools 2014 (64-bit)\n   - Required for converting FBX to HKX animations.\n\n4. HKXPackUI\n   - Required for packing animations into the final format.\n\n5. BAE (Bethesda Archive Extractor)\n   - For extracting vanilla assets to use as references.`,
+      content:
+        `Tools you’ll typically need, plus “install/verify” checks:\n\n` +
+        `1) Blender (authoring)\n` +
+        `   Verify: Blender launches; you can save a .blend.\n\n` +
+        `2) PyNifly (NIF import/export in Blender)\n` +
+        `   Verify: NIF import/export entries show up in Blender.\n\n` +
+        `3) Havok Content Tools 2014 (FBX → HKX)\n` +
+        `   Verify: you can import your FBX and export HKX using the FO4 profile.\n\n` +
+        `4) HKXPackUI (inspect/pack as needed)\n` +
+        `   Verify: HKX opens; you can view annotations/events.\n\n` +
+        `5) BAE (extract vanilla references)\n` +
+        `   Verify: you can extract a BA2 and browse the output.\n\n` +
+        `Link policy: use Nexus searches for community tools (versions move), and avoid hardcoding uncertain URLs.`,
+      actions: [
+        { label: 'Blender Download', externalUrl: 'https://www.blender.org/download/' },
+        {
+          label: 'Search Nexus: PyNifly',
+          externalUrl: 'https://www.nexusmods.com/fallout4/search/?gsearch=PyNifly&gsearchtype=mods',
+        },
+        {
+          label: 'Search Nexus: HKXPackUI',
+          externalUrl: 'https://www.nexusmods.com/fallout4/search/?gsearch=HKXPackUI&gsearchtype=mods',
+        },
+        {
+          label: 'Search Nexus: BAE',
+          externalUrl: 'https://www.nexusmods.com/fallout4/search/?gsearch=BAE&gsearchtype=mods',
+        },
+      ],
       steps: [
-        'Install Blender 4.1+',
-        'Enable PyNifly in Preferences',
-        'Set up Havok Content Tools paths',
-        'Extract skeleton.nif for reference',
-        'Begin first project at 30 FPS'
-      ]
-    }
+        'Install Blender and confirm it runs',
+        'Install PyNifly and confirm NIF import/export shows',
+        'Set up conversion tooling and validate on a tiny test clip',
+        'Extract vanilla references (skeleton + a vanilla HKX target)',
+      ],
+    },
   ];
 
   return (
     <div className="h-full bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 overflow-hidden flex flex-col">
-      {/* Header */}
       <div className="p-6 border-b border-slate-700 bg-slate-800/50">
         <div className="flex items-center gap-3">
           <BookOpen className="w-8 h-8 text-cyan-400" />
@@ -144,11 +299,69 @@ export const BlenderAnimationGuide: React.FC = () => {
             <p className="text-sm text-slate-400">Complete pipeline for custom Fallout 4 animations</p>
           </div>
         </div>
+
+        <div className="mt-4 flex flex-wrap gap-2">
+          <button
+            onClick={() => navigate('/skeleton-reference')}
+            className="px-3 py-1.5 text-xs rounded bg-slate-900 border border-slate-700 text-slate-200 hover:border-cyan-500/50 hover:bg-slate-800 transition-colors"
+          >
+            Skeleton Reference
+          </button>
+          <button
+            onClick={() => navigate('/export-settings')}
+            className="px-3 py-1.5 text-xs rounded bg-slate-900 border border-slate-700 text-slate-200 hover:border-cyan-500/50 hover:bg-slate-800 transition-colors"
+          >
+            Export Settings
+          </button>
+          <button
+            onClick={() => navigate('/animation-validator')}
+            className="px-3 py-1.5 text-xs rounded bg-slate-900 border border-slate-700 text-slate-200 hover:border-cyan-500/50 hover:bg-slate-800 transition-colors"
+          >
+            Animation Validator
+          </button>
+          <button
+            onClick={() => navigate('/havok-quick-start')}
+            className="px-3 py-1.5 text-xs rounded bg-slate-900 border border-slate-700 text-slate-200 hover:border-cyan-500/50 hover:bg-slate-800 transition-colors"
+          >
+            Havok Quick Start
+          </button>
+        </div>
       </div>
 
-      {/* Content */}
       <div className="flex-1 overflow-y-auto p-6">
         <div className="max-w-4xl mx-auto space-y-3">
+          <ToolsInstallVerifyPanel
+            accentClassName="text-cyan-300"
+            description="This page is a pipeline guide. Use the tools list + a tiny test clip to confirm your install and scale before you build a full animation set."
+            tools={[
+              { label: 'Blender (official download)', href: 'https://www.blender.org/download/', kind: 'official' },
+              { label: 'Nexus search: PyNifly', href: 'https://www.nexusmods.com/fallout4/search/?gsearch=PyNifly&gsearchtype=mods', kind: 'search', note: 'NIF import/export add-on used by this guide.' },
+              { label: 'Nexus search: HKXPackUI', href: 'https://www.nexusmods.com/fallout4/search/?gsearch=HKXPackUI&gsearchtype=mods', kind: 'search', note: 'For inspecting/packing HKX files (optional).' },
+              { label: 'Nexus search: BAE', href: 'https://www.nexusmods.com/fallout4/search/?gsearch=BAE&gsearchtype=mods', kind: 'search', note: 'Bethesda Archive Extractor (reference extraction).' },
+            ]}
+            verify={[
+              'Expand “Overview” and confirm you can navigate to Skeleton Reference / Export Settings / Havok Quick Start.',
+              'Confirm Blender can import the FO4 skeleton and the bone names are unchanged (case-sensitive).',
+              'Export a tiny 10–30 frame FBX and confirm it contains animation keyframes.'
+            ]}
+            firstTestLoop={[
+              'Import skeleton → animate 1 bone for ~20 frames → export FBX.',
+              'Convert FBX → FO4 HKX using your chosen toolchain → inspect/pack if needed.',
+              'Test in-game as loose files first; only then package to BA2.'
+            ]}
+            troubleshooting={[
+              'If the in-game scale is wrong, fix Blender unit scale + FBX export scale together (don’t “half-fix” one side).',
+              'If animations do nothing in-game, verify bone names were not renamed and the target skeleton matches.'
+            ]}
+            shortcuts={[
+              { label: 'Skeleton Reference', to: '/skeleton-reference' },
+              { label: 'Export Settings', to: '/export-settings' },
+              { label: 'Animation Validator', to: '/animation-validator' },
+              { label: 'Havok Quick Start', to: '/havok-quick-start' },
+              { label: 'The Vault', to: '/vault' },
+            ]}
+          />
+
           {sections.map((section) => (
             <div
               key={section.id}
@@ -171,9 +384,30 @@ export const BlenderAnimationGuide: React.FC = () => {
 
               {expandedSection === section.id && (
                 <div className="px-6 py-4 bg-slate-950/50 border-t border-slate-700">
-                  <div className="text-sm text-slate-300 whitespace-pre-wrap mb-4">
-                    {section.content}
-                  </div>
+                  <div className="text-sm text-slate-300 whitespace-pre-wrap mb-4">{section.content}</div>
+
+                  {section.actions && section.actions.length > 0 && (
+                    <div className="flex flex-wrap gap-2 mb-4">
+                      {section.actions.map((action) => (
+                        <button
+                          key={action.label}
+                          onClick={() => {
+                            if (action.to) {
+                              navigate(action.to);
+                              return;
+                            }
+                            if (action.externalUrl) {
+                              void openUrl(action.externalUrl);
+                            }
+                          }}
+                          className="px-3 py-1.5 text-xs rounded bg-slate-900 border border-slate-700 text-slate-200 hover:border-cyan-500/50 hover:bg-slate-800 transition-colors inline-flex items-center gap-2"
+                        >
+                          {action.label}
+                          {action.externalUrl ? <ExternalLink className="w-3.5 h-3.5 text-slate-400" /> : null}
+                        </button>
+                      ))}
+                    </div>
+                  )}
 
                   {section.steps && section.steps.length > 0 && (
                     <div className="mt-4 pt-4 border-t border-slate-700">
@@ -200,10 +434,10 @@ export const BlenderAnimationGuide: React.FC = () => {
         </div>
       </div>
 
-      {/* Footer Tip */}
       <div className="p-4 bg-cyan-900/20 border-t border-slate-700">
         <p className="text-xs text-cyan-300">
-          💡 Pro Tip: Start with simple looping idle animations before attempting complex combat animations. Practice the pipeline with vanilla animations first.
+          💡 Pro Tip: Start with simple looping idle animations before attempting complex combat animations. Practice
+          the pipeline with vanilla animations first.
         </p>
       </div>
     </div>

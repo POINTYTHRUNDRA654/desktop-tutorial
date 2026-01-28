@@ -1,8 +1,10 @@
 import React, { useState } from 'react';
 import styles from './GuideStyles.module.css';
 import { ExternalLink, Download } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 
 export default function SimSettlementsAddonToolkitsGuide() {
+  const navigate = useNavigate();
   const [expandedSections, setExpandedSections] = useState<{ [key: string]: boolean }>({});
 
   const toggleSection = (section: string) => {
@@ -33,6 +35,24 @@ export default function SimSettlementsAddonToolkitsGuide() {
     </a>
   );
 
+  const openUrl = (url: string) => {
+    try {
+      const anyWindow = window as any;
+      if (anyWindow?.electron?.openExternal) {
+        anyWindow.electron.openExternal(url);
+        return;
+      }
+    } catch {
+      // ignore
+    }
+    window.open(url, '_blank', 'noopener,noreferrer');
+  };
+
+  const openNexusSearch = (query: string) => {
+    const url = `https://www.nexusmods.com/fallout4/search/?gsearch=${encodeURIComponent(query)}&gsearchtype=mods`;
+    openUrl(url);
+  };
+
   return (
     <div className={styles.guideContainer}>
       <div className={styles.header}>
@@ -41,6 +61,25 @@ export default function SimSettlementsAddonToolkitsGuide() {
         <p className={styles.scopeInfo}>
           Essential resources, toolkits, and tutorials for creating Sim Settlements 2 add-on content
         </p>
+      </div>
+
+      <div className={styles.contentBlock}>
+        <h3>Tools / Install / Verify (No Guesswork)</h3>
+        <p>
+          If you can do these three things, you’re “set up” enough to start: <strong>CK loads SS2</strong>, <strong>scripts compile</strong>, and <strong>a test plugin loads in-game</strong>.
+        </p>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem', marginTop: '0.75rem' }}>
+          <button style={{ background: 'rgba(0, 255, 0, 0.08)', border: '1px solid #00d000', color: '#00ff00', padding: '0.35rem 0.6rem', borderRadius: 4, cursor: 'pointer', fontFamily: 'Courier New, monospace', fontSize: '0.85rem' }} onClick={() => openUrl('https://store.steampowered.com/search/?term=Creation%20Kit%20Fallout%204')}>Steam search: Creation Kit</button>
+          <button style={{ background: 'rgba(0, 255, 0, 0.08)', border: '1px solid #00d000', color: '#00ff00', padding: '0.35rem 0.6rem', borderRadius: 4, cursor: 'pointer', fontFamily: 'Courier New, monospace', fontSize: '0.85rem' }} onClick={() => openNexusSearch('Sim Settlements 2')}>Nexus search: SS2</button>
+          <button style={{ background: 'rgba(0, 255, 0, 0.08)', border: '1px solid #00d000', color: '#00ff00', padding: '0.35rem 0.6rem', borderRadius: 4, cursor: 'pointer', fontFamily: 'Courier New, monospace', fontSize: '0.85rem' }} onClick={() => openNexusSearch("Add-On Maker's Toolkit")}>Nexus search: Toolkit</button>
+          <button style={{ background: 'rgba(0, 255, 0, 0.08)', border: '1px solid #00d000', color: '#00ff00', padding: '0.35rem 0.6rem', borderRadius: 4, cursor: 'pointer', fontFamily: 'Courier New, monospace', fontSize: '0.85rem' }} onClick={() => openNexusSearch('FO4Edit')}>Nexus search: FO4Edit</button>
+        </div>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem', marginTop: '0.75rem' }}>
+          <button style={{ background: 'rgba(0, 255, 0, 0.08)', border: '1px solid #00d000', color: '#00ff00', padding: '0.35rem 0.6rem', borderRadius: 4, cursor: 'pointer', fontFamily: 'Courier New, monospace', fontSize: '0.85rem' }} onClick={() => navigate('/install-wizard')}>In-app: Install Wizard</button>
+          <button style={{ background: 'rgba(0, 255, 0, 0.08)', border: '1px solid #00d000', color: '#00ff00', padding: '0.35rem 0.6rem', borderRadius: 4, cursor: 'pointer', fontFamily: 'Courier New, monospace', fontSize: '0.85rem' }} onClick={() => navigate('/ck-quest-dialogue')}>In-app: CK Wizard</button>
+          <button style={{ background: 'rgba(0, 255, 0, 0.08)', border: '1px solid #00d000', color: '#00ff00', padding: '0.35rem 0.6rem', borderRadius: 4, cursor: 'pointer', fontFamily: 'Courier New, monospace', fontSize: '0.85rem' }} onClick={() => navigate('/packaging-release')}>In-app: Packaging</button>
+          <button style={{ background: 'rgba(0, 255, 0, 0.08)', border: '1px solid #00d000', color: '#00ff00', padding: '0.35rem 0.6rem', borderRadius: 4, cursor: 'pointer', fontFamily: 'Courier New, monospace', fontSize: '0.85rem' }} onClick={() => navigate('/vault')}>In-app: The Vault</button>
+        </div>
       </div>
 
       {/* Introduction */}

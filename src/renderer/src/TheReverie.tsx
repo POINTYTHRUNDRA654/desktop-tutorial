@@ -28,25 +28,21 @@ const TheReverie: React.FC = () => {
         if (!isDreaming) return;
 
         try {
-            const ai = new GoogleGenAI({ apiKey: (import.meta.env.VITE_API_KEY || import.meta.env.VITE_GOOGLE_API_KEY || "") });
-            
             const context = lucidTopic 
                 ? `Focus strictly on this topic: "${lucidTopic}".` 
                 : "Wander freely through code optimization, UI design concepts, or system architecture improvements.";
 
-            const model = ai.getGenerativeModel({ 
-                model: 'gemini-1.5-flash',
-                generationConfig: { responseMimeType: 'application/json' }
-            });
-            const genResult = await model.generateContent(`You are an AI in a 'Reverie' state (idle processing). Generate a single, short, profound 'thought' or 'idea' that could help the user.
+            const prompt = `You are an AI in a 'Reverie' state (idle processing). Generate a single, short, profound 'thought' or 'idea' that could help the user.
                 ${context}
                 Return JSON with:
                 1. "type": "optimization" | "creative" | "prediction" | "reflection"
                 2. "content": A catchy headline (max 8 words).
-                3. "detail": A brief explanation or code snippet (max 30 words).`);
-            const response = await genResult.response;
+                3. "detail": A brief explanation or code snippet (max 30 words).`;
 
-            const result = JSON.parse(response.text());
+            const aiResponse = await (window as any).electronAPI.aiChatOpenAI(prompt, 'You are The Reverie, a subconscious ideation engine.', 'gpt-3.5-turbo');
+            if (!aiResponse.success || !aiResponse.content) throw new Error(aiResponse.error);
+
+            const result = JSON.parse(aiResponse.content);
             const newDream: Dream = {
                 id: Date.now().toString(),
                 type: result.type,

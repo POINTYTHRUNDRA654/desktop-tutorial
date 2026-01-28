@@ -4,6 +4,7 @@
  */
 
 import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { ChevronDown, ChevronUp, ExternalLink, CheckCircle2, AlertCircle } from 'lucide-react';
 
 interface Section {
@@ -14,6 +15,7 @@ interface Section {
 }
 
 const BodyslideGuide: React.FC = () => {
+  const navigate = useNavigate();
   const [expandedSection, setExpandedSection] = useState<string | null>('quickstart');
 
   const toggleSection = (id: string) => {
@@ -31,6 +33,24 @@ const BodyslideGuide: React.FC = () => {
       <ExternalLink size={14} />
     </a>
   );
+
+  const openUrl = (url: string) => {
+    try {
+      const anyWindow = window as any;
+      if (anyWindow?.electron?.openExternal) {
+        anyWindow.electron.openExternal(url);
+        return;
+      }
+    } catch {
+      // ignore
+    }
+    window.open(url, '_blank', 'noopener,noreferrer');
+  };
+
+  const openNexusSearch = (query: string) => {
+    const url = `https://www.nexusmods.com/fallout4/search/?gsearch=${encodeURIComponent(query)}&gsearchtype=mods`;
+    openUrl(url);
+  };
 
   const sections: Section[] = [
     {
@@ -198,6 +218,57 @@ const BodyslideGuide: React.FC = () => {
               <li>✓ "Build Morphs"</li>
               <li>✓ "Build Meshes\Actors\Characters..."</li>
             </ul>
+          </div>
+        </div>
+      )
+    },
+    {
+      id: 'verify-troubleshoot',
+      title: '🧪 Verify & Troubleshoot (First Test Loop)',
+      icon: <AlertCircle className="w-5 h-5 text-[#00ff00]" />,
+      content: (
+        <div className="space-y-4 text-sm text-[#00ff00] font-mono">
+          <div className="bg-[#0a0e0a] border border-[#00d000] rounded p-3">
+            <h4 className="text-[#00d000] font-bold mb-2">Fast verification loop (5–10 minutes)</h4>
+            <ol className="list-decimal list-inside space-y-1 text-[#008000] text-xs">
+              <li>Run BodySlide from your mod manager (so it sees the same virtual file system).</li>
+              <li>Pick a preset → Batch Build → Build (leave default selections unless you know why).</li>
+              <li>Confirm output meshes were written somewhere you control:
+                <ul className="list-disc list-inside ml-4 mt-1">
+                  <li><strong>MO2:</strong> check the Overwrite folder or a dedicated “BodySlide Output” mod.</li>
+                  <li><strong>Vortex:</strong> confirm deployment and that BodySlide is pointed at the real game folder.</li>
+                </ul>
+              </li>
+              <li>Launch the game and equip the affected outfit; confirm the shape changed.</li>
+            </ol>
+          </div>
+
+          <div className="bg-[#0a0e0a] border border-[#00d000] rounded p-3">
+            <h4 className="text-[#00d000] font-bold mb-2">Common problems</h4>
+            <ul className="list-disc list-inside space-y-1 text-[#008000] text-xs">
+              <li><strong>Nothing changes in-game:</strong> output meshes aren’t being used (wrong folder, wrong profile, or another mod overrides them).</li>
+              <li><strong>Clipping/exploding meshes:</strong> outfit isn’t made for your body (wrong reference) or missing BodySlide files.</li>
+              <li><strong>No sliders / can’t edit body in-game:</strong> you’re thinking of LooksMenu sliders, not BodySlide. BodySlide changes meshes on disk.</li>
+              <li><strong>Batch Build prompts a conflict:</strong> pick the outfit variant you actually want active.</li>
+            </ul>
+          </div>
+
+          <div className="bg-[#001a00] border border-[#004400] rounded p-3">
+            <h4 className="text-[#00d000] font-bold mb-2">Helpful searches</h4>
+            <div className="flex flex-wrap gap-2">
+              <button className="px-3 py-1 rounded bg-black/40 hover:bg-black/60 text-xs" onClick={() => openNexusSearch('LooksMenu')}>Nexus search: LooksMenu</button>
+              <button className="px-3 py-1 rounded bg-black/40 hover:bg-black/60 text-xs" onClick={() => openNexusSearch('BodySlide and Outfit Studio')}>Nexus search: BodySlide</button>
+              <button className="px-3 py-1 rounded bg-black/40 hover:bg-black/60 text-xs" onClick={() => openNexusSearch('CBBE')}>Nexus search: CBBE</button>
+            </div>
+          </div>
+
+          <div className="bg-[#0a0e0a] border border-[#00d000] rounded p-3">
+            <h4 className="text-[#00d000] font-bold mb-2">In-app shortcuts</h4>
+            <div className="flex flex-wrap gap-2">
+              <button className="px-3 py-1 rounded bg-black/40 hover:bg-black/60 text-xs" onClick={() => navigate('/install-wizard')}>Install Wizard</button>
+              <button className="px-3 py-1 rounded bg-black/40 hover:bg-black/60 text-xs" onClick={() => navigate('/packaging-release')}>Packaging & Release</button>
+              <button className="px-3 py-1 rounded bg-black/40 hover:bg-black/60 text-xs" onClick={() => navigate('/vault')}>The Vault</button>
+            </div>
           </div>
         </div>
       )

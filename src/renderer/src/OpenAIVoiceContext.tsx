@@ -46,6 +46,10 @@ export const OpenAIVoiceProvider: React.FC<{ children: ReactNode }> = ({ childre
   const audioBufferRef = useRef<Float32Array[]>([]);
   const isProcessingRef = useRef(false);
 
+  const PROCESS_INTERVAL_MS = Number(import.meta.env.VITE_OPENAI_VOICE_PROCESS_INTERVAL_MS ?? 650);
+  const MIN_AUDIO_SECONDS = Number(import.meta.env.VITE_OPENAI_VOICE_MIN_AUDIO_SECONDS ?? 0.65);
+  const SAMPLE_RATE_HZ = 16000;
+
   const toggleMute = () => {
     setIsMuted(prev => !prev);
   };
@@ -79,7 +83,10 @@ export const OpenAIVoiceProvider: React.FC<{ children: ReactNode }> = ({ childre
       const source = audioContextRef.current.createBufferSource();
       source.buffer = buffer;
       source.connect(audioContextRef.current.destination);
-      source.onended = () => setMode('listening');
+      source.onended = () => {
+        setMode('listening');
+        setStatus('Listening...');
+      };
       source.start(0);
     } catch (err) {
       console.error('[OpenAI] Playback error:', err);
@@ -192,20 +199,26 @@ export const OpenAIVoiceProvider: React.FC<{ children: ReactNode }> = ({ childre
 
     const processAudio = async () => {
       try {
+        const api = (window as any).electron?.api as any;
+
         // Check if we have audio and IPC available
         if (audioBufferRef.current.length === 0) return;
-        if (!window.electron?.api?.openaiTranscribe) {
+        if (!api?.openaiTranscribe) {
           console.error('[OpenAI] IPC not available');
           return;
         }
         if (isMuted) return;
         if (isProcessingRef.current) return;
 
+        const totalLengthSamples = audioBufferRef.current.reduce((sum, buf) => sum + buf.length, 0);
+        const seconds = totalLengthSamples / SAMPLE_RATE_HZ;
+        // Avoid hammering the transcribe endpoint with tiny fragments.
+        if (seconds < MIN_AUDIO_SECONDS) return;
+
         isProcessingRef.current = true;
 
         // Combine audio buffers
-        const totalLength = audioBufferRef.current.reduce((sum, buf) => sum + buf.length, 0);
-        const combined = new Float32Array(totalLength);
+        const combined = new Float32Array(totalLengthSamples);
         let offset = 0;
         for (const buf of audioBufferRef.current) {
           combined.set(buf, offset);
@@ -219,7 +232,7 @@ export const OpenAIVoiceProvider: React.FC<{ children: ReactNode }> = ({ childre
         const base64Audio = encodePCMToBase64(combined);
         
         console.log('[OpenAI] Calling transcribe handler...');
-        const transcribeResult = await window.electron.api.openaiTranscribe(base64Audio, apiKeyRef.current);
+        const transcribeResult = await api.openaiTranscribe(base64Audio, apiKeyRef.current);
 
         if (!transcribeResult?.success || !transcribeResult?.text) {
           console.error('[OpenAI] Transcription failed:', transcribeResult?.error);
@@ -249,7 +262,7 @@ export const OpenAIVoiceProvider: React.FC<{ children: ReactNode }> = ({ childre
         // Get chat response
         setStatus('Thinking...');
         console.log('[OpenAI] Calling chat handler...');
-        const chatResult = await window.electron.api.openaiChat(
+        const chatResult = await api.openaiChat(
           conversationRef.current,
           apiKeyRef.current
         );
@@ -270,7 +283,7 @@ export const OpenAIVoiceProvider: React.FC<{ children: ReactNode }> = ({ childre
         setStatus('Speaking...');
         console.log('[OpenAI] Calling synthesize handler...');
         
-        if (!window.electron?.api?.synthesizeSpeech) {
+        if (!api?.synthesizeSpeech) {
           console.error('[OpenAI] TTS not available');
           setMode('listening');
           setStatus('Listening...');
@@ -278,7 +291,7 @@ export const OpenAIVoiceProvider: React.FC<{ children: ReactNode }> = ({ childre
           return;
         }
 
-        const ttsResult = await window.electron.api.synthesizeSpeech({
+        const ttsResult = await api.synthesizeSpeech({
           text: chatResult.text,
           voiceName: 'en-US-Neural2-C',
           audioEncoding: 'MP3'
@@ -299,7 +312,7 @@ export const OpenAIVoiceProvider: React.FC<{ children: ReactNode }> = ({ childre
       }
     };
 
-    const interval = setInterval(processAudio, 2000);
+    const interval = setInterval(processAudio, PROCESS_INTERVAL_MS);
     return () => clearInterval(interval);
   }, [isActive, isMuted]);
 
