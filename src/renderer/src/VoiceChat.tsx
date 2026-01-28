@@ -4,8 +4,9 @@ import { useLive } from './LiveContext';
 import AvatarCore from './AvatarCore';
 import { useNavigate } from 'react-router-dom';
 import { ToolsInstallVerifyPanel } from './components/ToolsInstallVerifyPanel';
+import { mossyAvatarUrl } from './assets/avatar';
 
-const DEFAULT_MOSSY_AVATAR_URL = '/mossy-avatar.svg';
+const DEFAULT_MOSSY_AVATAR_URL = mossyAvatarUrl;
 
 const VoiceChat: React.FC = () => {
   const navigate = useNavigate();

@@ -318,34 +318,8 @@ async function synthesizeSpeechWithElevenLabs(
     return new Blob([bytes], { type: res.mimeType || 'audio/mpeg' });
   }
 
-  // Web/non-Electron fallback: use the old renderer-side fetch path.
-  const elevenLabsApiKey = _elevenLabsApiKey;
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 20000);
-  const response = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${voiceId}`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      accept: 'audio/mpeg',
-      'xi-api-key': elevenLabsApiKey,
-    },
-    body: JSON.stringify({
-      text,
-      model_id: 'eleven_monolingual_v1',
-      voice_settings: {
-        stability: 0.5,
-        similarity_boost: 0.75,
-      },
-    }),
-    signal: controller.signal,
-  }).finally(() => clearTimeout(timeout));
-
-  if (!response.ok) {
-    const errText = await response.text().catch(() => '');
-    throw new Error(`ElevenLabs API error: ${response.status} ${response.statusText}${errText ? ` - ${errText}` : ''}`);
-  }
-
-  return response.blob();
+  // Security: never require API keys in the renderer.
+  throw new Error('ElevenLabs synthesis requires the desktop IPC bridge. Switch TTS provider to browser, or enable ElevenLabs in desktop settings.');
 }
 
 // Fallback: Speak using browser SpeechSynthesis

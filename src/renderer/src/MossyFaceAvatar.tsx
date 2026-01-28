@@ -1,7 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import { useLive } from './LiveContext';
+import { mossyAvatarUrl } from './assets/avatar';
 
-const DEFAULT_MOSSY_AVATAR_URL = '/mossy-avatar.svg';
+const DEFAULT_MOSSY_AVATAR_URL = mossyAvatarUrl;
 
 interface MossyFaceAvatarProps {
   className?: string;

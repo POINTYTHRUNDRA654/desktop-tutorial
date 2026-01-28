@@ -477,12 +477,11 @@ const electronAPI = {
    */
   transcribeVideo: (
     arrayBuffer: ArrayBuffer,
-    apiKey: string,
     filename: string,
     projectId?: string,
     organizationId?: string,
   ): Promise<{ success: boolean; text?: string; error?: string }> => {
-    return ipcRenderer.invoke('transcribe-video', arrayBuffer, apiKey, filename, projectId, organizationId);
+    return ipcRenderer.invoke('transcribe-video', arrayBuffer, filename, projectId, organizationId);
   },
 
   /**

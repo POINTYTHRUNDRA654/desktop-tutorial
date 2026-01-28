@@ -5,7 +5,7 @@
  * Handles window creation, IPC communication for program detection and launching.
  */
 
-import { app, BrowserWindow, ipcMain, dialog, shell } from 'electron';
+import { app, BrowserWindow, ipcMain, dialog, shell, safeStorage } from 'electron';
 import path from 'path';
 import os from 'os';
 import { IPC_CHANNELS } from './types';
@@ -21,6 +21,7 @@ import { spawn, exec } from 'child_process';
 import { BridgeServer } from './BridgeServer';
 import ffmpeg from 'fluent-ffmpeg';
 import ffmpegInstaller from '@ffmpeg-installer/ffmpeg';
+import http from 'http';
 import https from 'https';
 import FormData from 'form-data';
 import OpenAI from 'openai';
@@ -71,6 +72,71 @@ if (typeof (global as any).DOMMatrix === 'undefined') {
 
 let mainWindow: BrowserWindow | null = null;
 const bridge = new BridgeServer();
+
+type BackendConfig = { baseUrl: string; token?: string };
+
+const getBackendConfig = (): BackendConfig | null => {
+  const rawUrl = String(process.env.MOSSY_BACKEND_URL || '').trim();
+  if (!rawUrl) return null;
+  const baseUrl = rawUrl.replace(/\/+$/, '');
+  const tokenRaw = String(process.env.MOSSY_BACKEND_TOKEN || '').trim();
+  return { baseUrl, token: tokenRaw || undefined };
+};
+
+const backendJoin = (cfg: BackendConfig, pathname: string): string => {
+  const p = String(pathname || '').startsWith('/') ? String(pathname) : `/${pathname}`;
+  return `${cfg.baseUrl}${p}`;
+};
+
+const postFormData = async (
+  urlStr: string,
+  formData: FormData,
+  headers: Record<string, string> = {},
+  timeoutMs = 30000
+): Promise<{ ok: boolean; status: number; json?: any; text?: string }> => {
+  const url = new URL(urlStr);
+  const isHttps = url.protocol === 'https:';
+  const client = isHttps ? https : http;
+
+  const reqHeaders: Record<string, string> = {
+    ...formData.getHeaders(),
+    ...headers,
+  };
+
+  return await new Promise((resolve, reject) => {
+    const req = client.request(
+      {
+        method: 'POST',
+        hostname: url.hostname,
+        port: url.port || (isHttps ? 443 : 80),
+        path: `${url.pathname}${url.search}`,
+        headers: reqHeaders,
+      },
+      (res) => {
+        let data = '';
+        res.on('data', (chunk) => {
+          data += chunk;
+        });
+        res.on('end', () => {
+          let json: any | undefined;
+          try {
+            json = data ? JSON.parse(data) : undefined;
+          } catch {
+            json = undefined;
+          }
+          const status = res.statusCode || 0;
+          resolve({ ok: status >= 200 && status < 300, status, json, text: data });
+        });
+      }
+    );
+
+    req.setTimeout(timeoutMs, () => {
+      req.destroy(new Error('Request timeout'));
+    });
+    req.on('error', reject);
+    formData.pipe(req);
+  });
+};
 
 // Duplicate Finder state
 const dedupeScanStates = new Map<string, DedupeScanState>();
@@ -143,7 +209,8 @@ function createWindow() {
     mainWindow.webContents.openDevTools();
   } else if (isDev) {
     // Development with local server
-    mainWindow.loadURL('http://localhost:5173');
+    const devPort = Number(process.env.VITE_DEV_SERVER_PORT || process.env.DEV_SERVER_PORT || 5173);
+    mainWindow.loadURL(`http://localhost:${devPort}`);
     mainWindow.webContents.openDevTools();
   } else {
     // Production: load bundled Vite build from /dist (packaged by electron-builder)
@@ -238,18 +305,30 @@ function setupIpcHandlers() {
   });
 
   // Video transcription handler (runs in main process with Node.js)
-  ipcMain.handle('transcribe-video', async (
-    _event,
-    arrayBuffer: ArrayBuffer,
-    apiKey: string,
-    filename: string,
-    projectId?: string,
-    organizationId?: string,
-  ) => {
+  // NOTE: For security, the renderer should NOT pass API keys. This handler prefers
+  // main-process stored secrets (safeStorage-encrypted settings) and env vars.
+  // Back-compat: older renderers passed (apiKey, filename, projectId?, organizationId?).
+  ipcMain.handle('transcribe-video', async (_event, arrayBuffer: ArrayBuffer, ...args: any[]) => {
     let tempVideoPath: string | null = null;
     let tempAudioPath: string | null = null;
 
     try {
+      const looksLikeFilename = (v: any): boolean => {
+        const s = String(v || '').trim();
+        if (!s) return false;
+        return /\.(mp4|webm|mov|avi|mkv|flv)$/i.test(s) || /\.[a-z0-9]{2,5}$/i.test(s);
+      };
+
+      const isNewSignature = looksLikeFilename(args?.[0]);
+      const filename = String((isNewSignature ? args?.[0] : args?.[1]) || '').trim();
+      const apiKeyFromRenderer = String((isNewSignature ? '' : args?.[0]) || '').trim();
+      const projectId = isNewSignature ? args?.[1] : args?.[2];
+      const organizationId = isNewSignature ? args?.[2] : args?.[3];
+
+      const s = loadSettings();
+      const storedKey = getSecretValue(s, 'openaiApiKey', 'OPENAI_API_KEY');
+      const apiKey = storedKey || apiKeyFromRenderer;
+
       // Save video to temp file
       const buffer = Buffer.from(arrayBuffer);
       const ext = path.extname(filename) || '.mp4';
@@ -279,6 +358,41 @@ function setupIpcHandlers() {
       // Read audio file
       const audioBuffer = fs.readFileSync(tempAudioPath);
       console.log('[Transcription] Audio file size:', audioBuffer.length, 'bytes');
+
+      let transcription = '';
+
+      // If a backend proxy is configured, try it first. This allows installs to work without
+      // end-user provider keys (backend holds keys). If it fails, fall back to local behavior.
+      const backend = getBackendConfig();
+      if (backend) {
+        try {
+          const sttLang = (() => {
+            const raw = String(s?.sttLanguage || s?.uiLanguage || '').trim().toLowerCase();
+            if (!raw || raw === 'auto') return '';
+            return raw.split('-')[0] || raw;
+          })();
+
+          const form = new FormData();
+          form.append('audio', audioBuffer, {
+            filename: 'audio.mp3',
+            contentType: 'audio/mpeg',
+          });
+          if (sttLang) form.append('language', sttLang);
+
+          const extraHeaders: Record<string, string> = {};
+          if (backend.token) extraHeaders.Authorization = `Bearer ${backend.token}`;
+
+          const resp = await postFormData(backendJoin(backend, '/v1/transcribe'), form, extraHeaders, 60000);
+          if (resp.ok && resp.json?.ok) {
+            transcription = String(resp.json?.text || '').trim();
+            return { success: true, text: transcription };
+          }
+          const msg = String(resp.json?.message || resp.json?.error || resp.text || `Backend transcribe failed (${resp.status})`);
+          console.warn('[Transcription] Backend proxy failed; continuing with local transcription:', msg);
+        } catch (e: any) {
+          console.warn('[Transcription] Backend proxy error; continuing with local transcription:', e?.message || e);
+        }
+      }
 
       // Local whisper.cpp fallback helper
       const transcribeLocalWhisper = async () => {
@@ -338,8 +452,6 @@ function setupIpcHandlers() {
       };
 
       // Decide path: if no key, go local; else try SDK then fallback to local on 401
-      let transcription = '';
-
       if (!apiKey) {
         transcription = await transcribeLocalWhisper();
         return { success: true, text: transcription };
@@ -442,16 +554,45 @@ function setupIpcHandlers() {
 
     try {
       const s = loadSettings();
-      const openaiKey =
-        String(s?.openaiApiKey || '').trim() ||
-        String(process.env.OPENAI_API_KEY || '').trim();
-      const deepgramKey =
-        String(s?.deepgramApiKey || '').trim() ||
-        String(process.env.DEEPGRAM_API_KEY || '').trim();
+      const openaiKey = getSecretValue(s, 'openaiApiKey', 'OPENAI_API_KEY');
+      const deepgramKey = getSecretValue(s, 'deepgramApiKey', 'DEEPGRAM_API_KEY');
 
       const buf = Buffer.from(arrayBuffer);
       const mt = String(mimeType || '').toLowerCase();
       const ext = mt.includes('webm') ? '.webm' : mt.includes('wav') ? '.wav' : mt.includes('ogg') ? '.ogg' : '.mp3';
+
+      // If a backend proxy is configured, try it first. This enables "works on download" flows
+      // (server holds provider keys; client holds none). If it fails, fall back to local keys.
+      const backend = getBackendConfig();
+      if (backend) {
+        try {
+          const sttLang = (() => {
+            const raw = String(s?.sttLanguage || s?.uiLanguage || '').trim().toLowerCase();
+            if (!raw || raw === 'auto') return '';
+            return raw.split('-')[0] || raw;
+          })();
+
+          const form = new FormData();
+          form.append('audio', buf, {
+            filename: `audio${ext}`,
+            contentType: mt || 'application/octet-stream',
+          });
+          if (sttLang) form.append('language', sttLang);
+
+          const extraHeaders: Record<string, string> = {};
+          if (backend.token) extraHeaders.Authorization = `Bearer ${backend.token}`;
+
+          const resp = await postFormData(backendJoin(backend, '/v1/transcribe'), form, extraHeaders, 45000);
+          if (resp.ok && resp.json?.ok) {
+            return { success: true, text: String(resp.json?.text || '').trim() };
+          }
+          const msg = String(resp.json?.message || resp.json?.error || resp.text || `Backend transcribe failed (${resp.status})`);
+          console.warn('[Transcription] Backend proxy failed; falling back to local providers:', msg);
+        } catch (e: any) {
+          console.warn('[Transcription] Backend proxy error; falling back to local providers:', e?.message || e);
+        }
+      }
+
       tempAudioPath = path.join(os.tmpdir(), `mossy-audio-${Date.now()}${ext}`);
       fs.writeFileSync(tempAudioPath, buf);
 
@@ -739,12 +880,94 @@ function setupIpcHandlers() {
 
   // Settings management using JSON file storage
   const settingsPath = path.join(app.getPath('userData'), 'settings.json');
+
+  type SecretField = 'elevenLabsApiKey' | 'openaiApiKey' | 'groqApiKey' | 'deepgramApiKey' | 'backendToken';
+  const secretEncKey = (k: SecretField) => `${k}Enc` as const;
+  const hasOwn = (obj: any, key: string) => Object.prototype.hasOwnProperty.call(obj, key);
+
+  const encryptSecretForStorage = (plain: string): string => {
+    const v = String(plain || '').trim();
+    if (!v) return '';
+    try {
+      if (safeStorage.isEncryptionAvailable()) {
+        const buf = safeStorage.encryptString(v);
+        return `enc:${buf.toString('base64')}`;
+      }
+    } catch (e) {
+      console.warn('[Settings] safeStorage encryption failed; storing as plain marker:', e);
+    }
+    return `plain:${v}`;
+  };
+
+  const decryptSecretFromStorage = (stored: any): string => {
+    const raw = String(stored || '').trim();
+    if (!raw) return '';
+    if (raw.startsWith('plain:')) return raw.slice('plain:'.length);
+    if (!raw.startsWith('enc:')) return '';
+    const b64 = raw.slice('enc:'.length);
+    try {
+      if (!safeStorage.isEncryptionAvailable()) return '';
+      return safeStorage.decryptString(Buffer.from(b64, 'base64'));
+    } catch (e) {
+      console.warn('[Settings] safeStorage decryption failed:', e);
+      return '';
+    }
+  };
+
+  const migratePlainSecretsToEncrypted = (settings: any): { next: any; migrated: boolean } => {
+    if (!settings || typeof settings !== 'object') return { next: settings, migrated: false };
+    const next = { ...settings };
+    let migrated = false;
+
+    const fields: SecretField[] = ['elevenLabsApiKey', 'openaiApiKey', 'groqApiKey', 'deepgramApiKey', 'backendToken'];
+    for (const field of fields) {
+      const encKey = secretEncKey(field);
+      const plain = String(next?.[field] || '').trim();
+      const enc = String(next?.[encKey] || '').trim();
+
+      if (plain && !enc) {
+        next[encKey] = encryptSecretForStorage(plain);
+        next[field] = '';
+        migrated = true;
+        continue;
+      }
+
+      if (enc && plain) {
+        next[field] = '';
+        migrated = true;
+      }
+    }
+
+    return { next, migrated };
+  };
+
+  const getSecretValue = (settings: any, field: SecretField, envName?: string): string => {
+    const encKey = secretEncKey(field);
+    const fromEnc = decryptSecretFromStorage(settings?.[encKey]);
+    if (fromEnc) return fromEnc;
+
+    const fromPlain = String(settings?.[field] || '').trim();
+    if (fromPlain) return fromPlain;
+
+    const fromEnv = envName ? String((process.env as any)?.[envName] || '').trim() : '';
+    return fromEnv;
+  };
   
   const loadSettings = (): any => {
     try {
       if (fs.existsSync(settingsPath)) {
         const data = fs.readFileSync(settingsPath, 'utf-8');
-        return JSON.parse(data);
+        const parsed = JSON.parse(data);
+        const { next, migrated } = migratePlainSecretsToEncrypted(parsed);
+        if (migrated) {
+          try {
+            fs.writeFileSync(settingsPath, JSON.stringify(next, null, 2), 'utf-8');
+            console.log('[Settings] Migrated plaintext secrets to encrypted storage');
+          } catch (e) {
+            console.warn('[Settings] Failed to persist migrated secrets:', e);
+          }
+        }
+        return next;
       }
     } catch (e) {
       console.error('[Settings] Failed to load settings:', e);
@@ -820,12 +1043,21 @@ function setupIpcHandlers() {
       // TTS output (optional)
       ttsOutputProvider: 'browser',
       elevenLabsApiKey: '',
+      elevenLabsApiKeyEnc: '',
       elevenLabsVoiceId: '',
+
+      // Optional backend proxy (server holds provider keys)
+      backendBaseUrl: '',
+      backendToken: '',
+      backendTokenEnc: '',
 
       // Cloud API keys (stored locally; never exposed to renderer)
       openaiApiKey: '',
+      openaiApiKeyEnc: '',
       groqApiKey: '',
+      groqApiKeyEnc: '',
       deepgramApiKey: '',
+      deepgramApiKeyEnc: '',
     };
   };
 
@@ -833,10 +1065,16 @@ function setupIpcHandlers() {
     if (!settings || typeof settings !== 'object') return settings;
     const clone: any = { ...settings };
     // Never expose secrets to the renderer.
+    if (clone.backendToken) clone.backendToken = '';
+    if (clone.backendTokenEnc) clone.backendTokenEnc = '';
     if (clone.elevenLabsApiKey) clone.elevenLabsApiKey = '';
+    if (clone.elevenLabsApiKeyEnc) clone.elevenLabsApiKeyEnc = '';
     if (clone.openaiApiKey) clone.openaiApiKey = '';
+    if (clone.openaiApiKeyEnc) clone.openaiApiKeyEnc = '';
     if (clone.groqApiKey) clone.groqApiKey = '';
+    if (clone.groqApiKeyEnc) clone.groqApiKeyEnc = '';
     if (clone.deepgramApiKey) clone.deepgramApiKey = '';
+    if (clone.deepgramApiKeyEnc) clone.deepgramApiKeyEnc = '';
     return clone;
   };
 
@@ -867,18 +1105,40 @@ function setupIpcHandlers() {
     }
     const current = loadSettings();
     const updated = { ...current, ...newSettings };
-    saveSettings(updated);
+
+    // Never persist plaintext secrets. If renderer provides them, encrypt into *Enc fields.
+    const next: any = { ...updated };
+    const fields: SecretField[] = ['elevenLabsApiKey', 'openaiApiKey', 'groqApiKey', 'deepgramApiKey', 'backendToken'];
+    for (const field of fields) {
+      if (!hasOwn(newSettings || {}, field)) continue;
+      const encKey = secretEncKey(field);
+      const plain = String((newSettings || {})[field] || '');
+      next[encKey] = encryptSecretForStorage(plain);
+      next[field] = '';
+    }
+
+    saveSettings(next);
     return;
   });
+
+  // Prefer settings-based backend config when available; env vars remain supported.
+  // This shadows the file-scope helper so IPC handlers (defined in this function scope)
+  // can use per-user settings without exposing secrets to the renderer.
+  const getBackendConfig = (): BackendConfig | null => {
+    const s = loadSettings();
+    const rawUrl = String(s?.backendBaseUrl || process.env.MOSSY_BACKEND_URL || '').trim();
+    if (!rawUrl) return null;
+    const baseUrl = rawUrl.replace(/\/+$/, '');
+    const tokenRaw = getSecretValue(s, 'backendToken', 'MOSSY_BACKEND_TOKEN');
+    return { baseUrl, token: tokenRaw ? tokenRaw : undefined };
+  };
 
   const getElevenLabsConfig = (): { apiKey: string; voiceId: string; provider: 'browser' | 'elevenlabs' } => {
     const s = loadSettings();
 
     // Prefer per-user settings, but allow env vars for dev/shared installs.
     // IMPORTANT: Do NOT use VITE_* here (those are renderer-exposed in Vite).
-    const apiKeyFromSettings = String(s?.elevenLabsApiKey || '').trim();
-    const apiKeyFromEnv = String(process.env.ELEVENLABS_API_KEY || '').trim();
-    const apiKey = apiKeyFromSettings || apiKeyFromEnv;
+    const apiKey = getSecretValue(s, 'elevenLabsApiKey', 'ELEVENLABS_API_KEY');
 
     const voiceIdFromSettings = String(s?.elevenLabsVoiceId || '').trim();
     const voiceIdFromEnv = String(process.env.ELEVENLABS_VOICE_ID || '').trim();
@@ -2510,17 +2770,52 @@ function setupIpcHandlers() {
    */
   ipcMain.handle('ai-chat-openai', async (_event, payload: { prompt: string; systemPrompt?: string; model?: string }) => {
     try {
+      const systemPrompt = payload.systemPrompt || 'You are a helpful assistant for Fallout 4 modding.';
+      const model = payload.model || 'gpt-3.5-turbo';
+
+      const backend = getBackendConfig();
+      if (backend) {
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 20000);
+        try {
+          const res = await fetch(backendJoin(backend, '/v1/chat'), {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              ...(backend.token ? { Authorization: `Bearer ${backend.token}` } : {}),
+            },
+            body: JSON.stringify({
+              provider: 'openai',
+              model,
+              messages: [
+                { role: 'system', content: systemPrompt },
+                { role: 'user', content: String(payload.prompt || '') },
+              ],
+            }),
+            signal: controller.signal,
+          });
+
+          const json: any = await res.json().catch(() => ({}));
+          if (res.ok && json?.ok) {
+            return { success: true, content: String(json?.text || '') };
+          }
+
+          const msg = String(json?.message || json?.error || `Backend chat failed (${res.status})`);
+          console.warn('[AI Chat OpenAI] Backend proxy failed; falling back to local provider:', msg);
+        } catch (e: any) {
+          console.warn('[AI Chat OpenAI] Backend proxy error; falling back to local provider:', e?.message || e);
+        } finally {
+          clearTimeout(timeout);
+        }
+      }
+
       const s = loadSettings();
-      const apiKey =
-        String(s?.openaiApiKey || '').trim() ||
-        String(process.env.OPENAI_API_KEY || '').trim();
+      const apiKey = getSecretValue(s, 'openaiApiKey', 'OPENAI_API_KEY');
       if (!apiKey) {
         throw new Error('OpenAI API key not configured');
       }
 
       const client = new OpenAI({ apiKey });
-      const systemPrompt = payload.systemPrompt || 'You are a helpful assistant for Fallout 4 modding.';
-      const model = payload.model || 'gpt-3.5-turbo';
 
       const response = await client.chat.completions.create({
         model,
@@ -2543,10 +2838,47 @@ function setupIpcHandlers() {
    */
   ipcMain.handle('ai-chat-groq', async (_event, payload: { prompt: string; systemPrompt?: string; model?: string }) => {
     try {
+      const systemPrompt = payload.systemPrompt || 'You are a helpful assistant for Fallout 4 modding.';
+      const model = payload.model || 'llama-3.3-70b-versatile';
+
+      const backend = getBackendConfig();
+      if (backend) {
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 20000);
+        try {
+          const res = await fetch(backendJoin(backend, '/v1/chat'), {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              ...(backend.token ? { Authorization: `Bearer ${backend.token}` } : {}),
+            },
+            body: JSON.stringify({
+              provider: 'groq',
+              model,
+              messages: [
+                { role: 'system', content: systemPrompt },
+                { role: 'user', content: String(payload.prompt || '') },
+              ],
+            }),
+            signal: controller.signal,
+          });
+
+          const json: any = await res.json().catch(() => ({}));
+          if (res.ok && json?.ok) {
+            return { success: true, content: String(json?.text || '') };
+          }
+
+          const msg = String(json?.message || json?.error || `Backend chat failed (${res.status})`);
+          console.warn('[AI Chat Groq] Backend proxy failed; falling back to local provider:', msg);
+        } catch (e: any) {
+          console.warn('[AI Chat Groq] Backend proxy error; falling back to local provider:', e?.message || e);
+        } finally {
+          clearTimeout(timeout);
+        }
+      }
+
       const s = loadSettings();
-      const apiKey =
-        String(s?.groqApiKey || '').trim() ||
-        String(process.env.GROQ_API_KEY || '').trim();
+      const apiKey = getSecretValue(s, 'groqApiKey', 'GROQ_API_KEY');
       if (!apiKey) {
         throw new Error('Groq API key not configured');
       }
@@ -2554,8 +2886,6 @@ function setupIpcHandlers() {
       // Dynamic import for Groq ES module
       const { default: Groq } = await import('groq-sdk');
       const client = new Groq({ apiKey });
-      const systemPrompt = payload.systemPrompt || 'You are a helpful assistant for Fallout 4 modding.';
-      const model = payload.model || 'llama-3.3-70b-versatile';
 
       const response = await client.chat.completions.create({
         model,
@@ -2577,11 +2907,12 @@ function setupIpcHandlers() {
   ipcMain.handle('secret-status', async () => {
     try {
       const s = loadSettings();
-      const openai = Boolean(String(s?.openaiApiKey || '').trim() || String(process.env.OPENAI_API_KEY || '').trim());
-      const groq = Boolean(String(s?.groqApiKey || '').trim() || String(process.env.GROQ_API_KEY || '').trim());
-      const deepgram = Boolean(String(s?.deepgramApiKey || '').trim() || String(process.env.DEEPGRAM_API_KEY || '').trim());
+      const openai = Boolean(getSecretValue(s, 'openaiApiKey', 'OPENAI_API_KEY'));
+      const groq = Boolean(getSecretValue(s, 'groqApiKey', 'GROQ_API_KEY'));
+      const deepgram = Boolean(getSecretValue(s, 'deepgramApiKey', 'DEEPGRAM_API_KEY'));
       const elevenlabs = Boolean(getElevenLabsConfig().apiKey);
-      return { ok: true, openai, groq, deepgram, elevenlabs };
+      const backendToken = Boolean(getSecretValue(s, 'backendToken', 'MOSSY_BACKEND_TOKEN'));
+      return { ok: true, openai, groq, deepgram, elevenlabs, backendToken };
     } catch (e: any) {
       return { ok: false, error: String(e?.message || e) };
     }
