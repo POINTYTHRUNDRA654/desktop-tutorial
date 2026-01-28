@@ -27,9 +27,6 @@ const MossyMemoryVault: React.FC = () => {
     const [newContent, setNewContent] = useState('');
     const [newTags, setNewTags] = useState('');
     const [isDragActive, setIsDragActive] = useState(false);
-    const [showApiKeyModal, setShowApiKeyModal] = useState(false);
-    const [apiKeyInput, setApiKeyInput] = useState('');
-    const [pendingFile, setPendingFile] = useState<File | null>(null);
 
     useEffect(() => {
         const stored = localStorage.getItem('mossy_knowledge_vault');
@@ -59,26 +56,17 @@ const MossyMemoryVault: React.FC = () => {
             setIsUploading(true);
             setUploadProgress(10);
             
-            // Get OpenAI API key from localStorage - try multiple possible key names
-            const apiKey = localStorage.getItem('openai_api_key') 
-                || localStorage.getItem('OPENAI_API_KEY')
-                || localStorage.getItem('openaiApiKey');
-            
-            if (!apiKey) {
-                setIsUploading(false);
-                setUploadProgress(0);
-                setPendingFile(file);
-                setShowApiKeyModal(true);
-                return;
-            }
-            
             const arrayBuffer = await file.arrayBuffer();
             setUploadProgress(30);
             
             // Use IPC to transcribe video in main process
             const projectId = localStorage.getItem('openai_project_id') || undefined;
             const organizationId = localStorage.getItem('openai_org_id') || undefined;
-            const result = await (window as any).electron?.api?.transcribeVideo(arrayBuffer, apiKey, file.name, projectId, organizationId);
+            const api = (window as any).electron?.api;
+            if (!api?.transcribeVideo) {
+                throw new Error('Video transcription IPC not available');
+            }
+            const result = await api.transcribeVideo(arrayBuffer, file.name, projectId, organizationId);
             setUploadProgress(90);
             
             if (result?.success) {
@@ -617,70 +605,6 @@ const MossyMemoryVault: React.FC = () => {
                 </div>
             )}
 
-            {/* API Key Modal */}
-            {showApiKeyModal && (
-                <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center backdrop-blur-sm">
-                    <div className="bg-slate-900 border border-emerald-500/30 rounded-2xl p-8 max-w-md w-full mx-4 shadow-2xl shadow-emerald-500/10">
-                        <div className="flex items-center gap-3 mb-6">
-                            <Activity className="w-6 h-6 text-emerald-400" />
-                            <h2 className="text-2xl font-bold text-white">OpenAI API Key Required</h2>
-                        </div>
-                        
-                        <p className="text-slate-300 mb-6 text-sm leading-relaxed">
-                            To transcribe videos, you need an OpenAI API key. Get one from <a href="https://platform.openai.com/api-keys" target="_blank" rel="noopener noreferrer" className="text-emerald-400 hover:text-emerald-300 underline">platform.openai.com/api-keys</a>
-                        </p>
-                        
-                        <div className="mb-6">
-                            <label className="block text-sm font-semibold text-slate-200 mb-2">Paste your API Key (sk-proj-...)</label>
-                            <input 
-                                type="password" 
-                                value={apiKeyInput}
-                                onChange={(e) => setApiKeyInput(e.target.value)}
-                                placeholder="sk-proj-..."
-                                className="w-full px-4 py-3 bg-slate-800 border border-slate-700 rounded-lg text-white placeholder-slate-500 focus:border-emerald-500 focus:outline-none transition-colors"
-                            />
-                        </div>
-                        
-                        <div className="flex gap-3">
-                            <button 
-                                onClick={() => {
-                                    setShowApiKeyModal(false);
-                                    setApiKeyInput('');
-                                    setPendingFile(null);
-                                }}
-                                className="flex-1 px-4 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg transition-colors font-semibold text-sm"
-                            >
-                                Cancel
-                            </button>
-                            <button 
-                                onClick={() => {
-                                    if (apiKeyInput.trim()) {
-                                        const trimmed = apiKeyInput.trim();
-                                        localStorage.setItem('openai_api_key', trimmed);
-                                        // If it's a project key, prompt for optional project id via simple detection
-                                        if (trimmed.startsWith('sk-proj-')) {
-                                            const pid = prompt('Optional: Enter your OpenAI Project ID (starts with "proj_...") if your key requires it. Leave blank to skip.');
-                                            if (pid && pid.trim()) {
-                                                localStorage.setItem('openai_project_id', pid.trim());
-                                            }
-                                        }
-                                        setShowApiKeyModal(false);
-                                        setApiKeyInput('');
-                                        // Retry with the newly saved key
-                                        if (pendingFile) {
-                                            handleVideoFile(pendingFile);
-                                        }
-                                    }
-                                }}
-                                disabled={!apiKeyInput.trim()}
-                                className="flex-1 px-4 py-2.5 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-40 disabled:cursor-not-allowed text-white rounded-lg transition-colors font-semibold text-sm"
-                            >
-                                Save & Continue
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            )}
         </div>
     );
 };

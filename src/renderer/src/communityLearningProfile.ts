@@ -1,3 +1,5 @@
+import { redactSensitiveText } from './utils/privacyRedaction';
+
 export type CommunityLearningProfileV1 = {
   version: 1;
   contributorName: string;
@@ -46,18 +48,7 @@ export function saveCommunityLearningProfile(
 }
 
 export function redactForPublicSharing(input: string): string {
-  let text = input;
-
-  // Windows paths like C:\Users\Name\...
-  text = text.replace(/[A-Za-z]:\\[^\s"']+/g, '[REDACTED_PATH]');
-  // POSIX-ish paths like /Users/name/... or /home/name/...
-  text = text.replace(/\/(Users|home)\/[^\s"']+/g, '/[REDACTED_PATH]');
-
-  // Common API key prefixes
-  text = text.replace(/\bsk-[A-Za-z0-9_\-]{10,}\b/g, '[REDACTED_KEY]');
-  text = text.replace(/\bgsk_[A-Za-z0-9_\-]{10,}\b/g, '[REDACTED_KEY]');
-
-  return text;
+  return redactSensitiveText(String(input ?? ''));
 }
 
 export function buildCommunityIssueBody(profile: CommunityLearningProfileV1): string {
@@ -132,11 +123,6 @@ export function getCommunityLearningContextForModel(): string {
   const goals = profile.goals.map((g) => `- ${g}`).join('\n');
   if (!goals) return '';
 
-  return [
-    '**USER MODDING GOALS (taught by user):**',
-    goals,
-    profile.contributorName ? `\n(Contributor: ${profile.contributorName})` : '',
-  ]
-    .filter(Boolean)
-    .join('\n');
+  // Do not include contributor identity in model context.
+  return ['**USER MODDING GOALS (taught by user):**', goals].join('\n');
 }
