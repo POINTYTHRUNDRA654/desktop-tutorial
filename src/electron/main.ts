@@ -973,6 +973,10 @@ function setupIpcHandlers() {
       console.error('[Settings] Failed to load settings:', e);
     }
     // Return comprehensive default settings with all tool paths
+    const defaultBackendBaseUrl = String(
+      process.env.MOSSY_BACKEND_URL || (app.isPackaged ? 'https://mossy.onrender.com' : '')
+    ).trim();
+
     return {
       // UI + Voice language
       uiLanguage: 'auto',
@@ -1047,7 +1051,7 @@ function setupIpcHandlers() {
       elevenLabsVoiceId: '',
 
       // Optional backend proxy (server holds provider keys)
-      backendBaseUrl: '',
+      backendBaseUrl: defaultBackendBaseUrl,
       backendToken: '',
       backendTokenEnc: '',
 
