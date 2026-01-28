@@ -21,9 +21,11 @@ export function requireApiToken(req: Request, res: Response, next: NextFunction)
   if (!expected) return next();
 
   const provided = extractBearerToken(req) || String(req.headers['x-mossy-token'] || '').trim();
-  if (!provided || provided !== expected) {
-    return res.status(401).json({ ok: false, error: 'unauthorized' });
-  }
+  // If a token is configured server-side, accept it when provided, but do not
+  // require it. This supports "works on download" clients.
+  //
+  // If a client *does* send a token and it's wrong, reject it (helps catch misconfig).
+  if (provided && provided !== expected) return res.status(401).json({ ok: false, error: 'unauthorized' });
 
   return next();
 }
