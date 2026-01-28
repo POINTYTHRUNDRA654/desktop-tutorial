@@ -3,6 +3,10 @@ import { Lock, Database, Share2, Shield, Settings as SettingsIcon, AlertCircle, 
 import { exportErrorLogs } from './MossyErrorReporter';
 import { ToolsInstallVerifyPanel } from './components/ToolsInstallVerifyPanel';
 
+function getElectronApi(): any {
+  return (window as any)?.electron?.api ?? (window as any)?.electronAPI;
+}
+
 interface PrivacySettings {
   keepLocalOnly: boolean;
   shareModProjectData: boolean;
@@ -37,9 +41,20 @@ const PrivacySettings: React.FC = () => {
 
   const [showDetails, setShowDetails] = useState<string | null>(null);
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved'>('idle');
-  const [openaiApiKey, setOpenaiApiKey] = useState<string>('');
-  const [showApiKey, setShowApiKey] = useState<boolean>(false);
-  const [apiKeySaved, setApiKeySaved] = useState<boolean>(false);
+  const [openaiApiKeyInput, setOpenaiApiKeyInput] = useState<string>('');
+  const [groqApiKeyInput, setGroqApiKeyInput] = useState<string>('');
+  const [deepgramApiKeyInput, setDeepgramApiKeyInput] = useState<string>('');
+
+  const [showOpenaiKey, setShowOpenaiKey] = useState(false);
+  const [showGroqKey, setShowGroqKey] = useState(false);
+  const [showDeepgramKey, setShowDeepgramKey] = useState(false);
+
+  const [backendBaseUrlInput, setBackendBaseUrlInput] = useState<string>('');
+  const [backendTokenInput, setBackendTokenInput] = useState<string>('');
+  const [showBackendToken, setShowBackendToken] = useState(false);
+
+  const [secrets, setSecrets] = useState<{ openai: boolean; groq: boolean; deepgram: boolean; elevenlabs: boolean; backendToken: boolean } | null>(null);
+  const [keySaveStatus, setKeySaveStatus] = useState<Record<string, 'idle' | 'saving' | 'saved' | 'error'>>({});
 
   useEffect(() => {
     // Load settings from localStorage
@@ -52,16 +67,96 @@ const PrivacySettings: React.FC = () => {
       }
     }
 
-    // Load OpenAI API key
-    const savedKey = localStorage.getItem('openai_api_key');
-    if (savedKey) {
-      setOpenaiApiKey(savedKey);
-      setApiKeySaved(true);
-    }
+    // Load presence-only status from main process, and migrate any legacy localStorage OpenAI key.
+    const initSecrets = async () => {
+      const api = getElectronApi();
+      if (!api?.getSecretStatus) return;
+      try {
+        // Load non-secret backend URL from settings (token presence comes from secret-status).
+        if (api?.getSettings) {
+          try {
+            const s = await api.getSettings();
+            setBackendBaseUrlInput(String(s?.backendBaseUrl || '').trim());
+          } catch {
+            // ignore
+          }
+        }
+
+        const st = await api.getSecretStatus();
+        if (st?.ok) {
+          setSecrets({ openai: !!st.openai, groq: !!st.groq, deepgram: !!st.deepgram, elevenlabs: !!st.elevenlabs, backendToken: !!st.backendToken });
+
+          // Legacy migration: older builds stored OpenAI key in localStorage, but v4 voice/STT uses main-process settings/env.
+          const legacyOpenai = String(localStorage.getItem('openai_api_key') || '').trim();
+          if (legacyOpenai && !st.openai && api?.setSettings) {
+            await api.setSettings({ openaiApiKey: legacyOpenai });
+            localStorage.removeItem('openai_api_key');
+            const st2 = await api.getSecretStatus();
+            if (st2?.ok) setSecrets({ openai: !!st2.openai, groq: !!st2.groq, deepgram: !!st2.deepgram, elevenlabs: !!st2.elevenlabs, backendToken: !!st2.backendToken });
+          }
+        }
+      } catch (e) {
+        console.warn('Failed to load secret status:', e);
+      }
+    };
+    void initSecrets();
 
     // Calculate storage
     calculateStorageInfo();
   }, []);
+
+  const saveApiKey = async (field: 'openaiApiKey' | 'groqApiKey' | 'deepgramApiKey', value: string) => {
+    const api = getElectronApi();
+    if (!api?.setSettings || !api?.getSecretStatus) {
+      setKeySaveStatus((prev) => ({ ...prev, [field]: 'error' }));
+      return;
+    }
+
+    setKeySaveStatus((prev) => ({ ...prev, [field]: 'saving' }));
+    try {
+      await api.setSettings({ [field]: value.trim() } as any);
+      const st = await api.getSecretStatus();
+      if (st?.ok) setSecrets({ openai: !!st.openai, groq: !!st.groq, deepgram: !!st.deepgram, elevenlabs: !!st.elevenlabs, backendToken: !!st.backendToken });
+      setKeySaveStatus((prev) => ({ ...prev, [field]: 'saved' }));
+      setTimeout(() => setKeySaveStatus((prev) => ({ ...prev, [field]: 'idle' })), 2500);
+    } catch {
+      setKeySaveStatus((prev) => ({ ...prev, [field]: 'error' }));
+    }
+  };
+
+  const saveBackendConfig = async (baseUrl: string, tokenOrEmpty?: string) => {
+    const api = getElectronApi();
+    if (!api?.setSettings || !api?.getSecretStatus) {
+      setKeySaveStatus((prev) => ({ ...prev, backend: 'error' }));
+      return;
+    }
+
+    setKeySaveStatus((prev) => ({ ...prev, backend: 'saving' }));
+    try {
+      const payload: any = { backendBaseUrl: String(baseUrl || '').trim() };
+      if (typeof tokenOrEmpty === 'string') {
+        payload.backendToken = tokenOrEmpty.trim();
+      }
+      await api.setSettings(payload);
+
+      // Clear token input so it doesn't linger in renderer memory.
+      if (typeof tokenOrEmpty === 'string' && tokenOrEmpty.trim()) {
+        setBackendTokenInput('');
+      }
+
+      const st = await api.getSecretStatus();
+      if (st?.ok) setSecrets({ openai: !!st.openai, groq: !!st.groq, deepgram: !!st.deepgram, elevenlabs: !!st.elevenlabs, backendToken: !!st.backendToken });
+
+      setKeySaveStatus((prev) => ({ ...prev, backend: 'saved' }));
+      setTimeout(() => setKeySaveStatus((prev) => ({ ...prev, backend: 'idle' })), 2500);
+    } catch {
+      setKeySaveStatus((prev) => ({ ...prev, backend: 'error' }));
+    }
+  };
+
+  const clearApiKey = async (field: 'openaiApiKey' | 'groqApiKey' | 'deepgramApiKey') => {
+    await saveApiKey(field, '');
+  };
 
   const calculateStorageInfo = () => {
     try {
@@ -225,72 +320,249 @@ const PrivacySettings: React.FC = () => {
           ]}
         />
 
-        {/* OpenAI API Key Section */}
+        {/* API Keys (Main Process) */}
         <div className="bg-slate-900 border border-slate-700 rounded-xl overflow-hidden mb-8">
           <div className="bg-slate-800 border-b border-slate-700 p-6">
             <div className="flex items-center gap-3 mb-2">
               <div className="text-emerald-400"><Lock className="w-5 h-5" /></div>
               <h2 className="text-xl font-bold text-white">API Keys</h2>
             </div>
-            <p className="text-slate-400 text-sm">Manage API keys for AI features. Keys are stored locally and encrypted.</p>
+            <p className="text-slate-400 text-sm">
+              Keys are stored locally in the Desktop app (main process). The renderer can only see presence/absence, not the values.
+            </p>
           </div>
           
           <div className="p-6">
-            <div className="mb-4">
-              <label className="block text-sm font-medium text-slate-300 mb-2">
-                OpenAI API Key (for video transcription)
-              </label>
+            <div className="mb-5">
+              <div className="flex items-center justify-between gap-3 mb-2">
+                <label className="block text-sm font-medium text-slate-300">
+                  Groq API Key (required for Live Synapse)
+                </label>
+                <span className={`text-[10px] font-mono uppercase tracking-widest ${secrets?.groq ? 'text-emerald-300' : 'text-amber-300'}`}>
+                  {secrets?.groq ? 'Configured' : 'Missing'}
+                </span>
+              </div>
               <div className="flex gap-2">
                 <div className="relative flex-1">
                   <input
-                    type={showApiKey ? 'text' : 'password'}
-                    value={openaiApiKey}
-                    onChange={(e) => {
-                      setOpenaiApiKey(e.target.value);
-                      setApiKeySaved(false);
-                    }}
+                    type={showGroqKey ? 'text' : 'password'}
+                    value={groqApiKeyInput}
+                    onChange={(e) => setGroqApiKeyInput(e.target.value)}
+                    placeholder="gsk_..."
+                    className="w-full bg-slate-800 border border-slate-600 rounded-lg px-4 py-2 text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                  />
+                  <button
+                    onClick={() => setShowGroqKey(!showGroqKey)}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white transition-colors"
+                  >
+                    {showGroqKey ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
+                </div>
+                <button
+                  onClick={() => void saveApiKey('groqApiKey', groqApiKeyInput)}
+                  className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+                    keySaveStatus.groqApiKey === 'saved'
+                      ? 'bg-emerald-600 text-white'
+                      : keySaveStatus.groqApiKey === 'error'
+                      ? 'bg-red-600 text-white'
+                      : 'bg-emerald-500 hover:bg-emerald-600 text-white'
+                  }`}
+                >
+                  {keySaveStatus.groqApiKey === 'saved' ? '✓ Saved' : keySaveStatus.groqApiKey === 'error' ? 'Error' : 'Save'}
+                </button>
+                <button
+                  onClick={() => void clearApiKey('groqApiKey')}
+                  className="px-4 py-2 rounded-lg font-medium bg-red-500 hover:bg-red-600 text-white transition-colors"
+                >
+                  Clear
+                </button>
+              </div>
+              <p className="text-xs text-slate-400 mt-2">Get a key from groq.com (API keys).</p>
+            </div>
+
+            <div className="mb-5">
+              <div className="flex items-center justify-between gap-3 mb-2">
+                <label className="block text-sm font-medium text-slate-300">
+                  OpenAI API Key (optional; enables Whisper transcription)
+                </label>
+                <span className={`text-[10px] font-mono uppercase tracking-widest ${secrets?.openai ? 'text-emerald-300' : 'text-amber-300'}`}>
+                  {secrets?.openai ? 'Configured' : 'Missing'}
+                </span>
+              </div>
+              <div className="flex gap-2">
+                <div className="relative flex-1">
+                  <input
+                    type={showOpenaiKey ? 'text' : 'password'}
+                    value={openaiApiKeyInput}
+                    onChange={(e) => setOpenaiApiKeyInput(e.target.value)}
                     placeholder="sk-..."
                     className="w-full bg-slate-800 border border-slate-600 rounded-lg px-4 py-2 text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-emerald-500"
                   />
                   <button
-                    onClick={() => setShowApiKey(!showApiKey)}
+                    onClick={() => setShowOpenaiKey(!showOpenaiKey)}
                     className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white transition-colors"
                   >
-                    {showApiKey ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    {showOpenaiKey ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                   </button>
                 </div>
                 <button
-                  onClick={() => {
-                    if (openaiApiKey.trim()) {
-                      localStorage.setItem('openai_api_key', openaiApiKey.trim());
-                      setApiKeySaved(true);
-                      setTimeout(() => setApiKeySaved(false), 3000);
-                    }
-                  }}
+                  onClick={() => void saveApiKey('openaiApiKey', openaiApiKeyInput)}
                   className={`px-4 py-2 rounded-lg font-medium transition-colors ${
-                    apiKeySaved 
-                      ? 'bg-emerald-600 text-white' 
+                    keySaveStatus.openaiApiKey === 'saved'
+                      ? 'bg-emerald-600 text-white'
+                      : keySaveStatus.openaiApiKey === 'error'
+                      ? 'bg-red-600 text-white'
                       : 'bg-emerald-500 hover:bg-emerald-600 text-white'
                   }`}
                 >
-                  {apiKeySaved ? '✓ Saved' : 'Save'}
+                  {keySaveStatus.openaiApiKey === 'saved' ? '✓ Saved' : keySaveStatus.openaiApiKey === 'error' ? 'Error' : 'Save'}
                 </button>
-                {openaiApiKey && (
-                  <button
-                    onClick={() => {
-                      localStorage.removeItem('openai_api_key');
-                      setOpenaiApiKey('');
-                      setApiKeySaved(false);
-                    }}
-                    className="px-4 py-2 rounded-lg font-medium bg-red-500 hover:bg-red-600 text-white transition-colors"
-                  >
-                    Clear
-                  </button>
-                )}
+                <button
+                  onClick={() => void clearApiKey('openaiApiKey')}
+                  className="px-4 py-2 rounded-lg font-medium bg-red-500 hover:bg-red-600 text-white transition-colors"
+                >
+                  Clear
+                </button>
               </div>
               <p className="text-xs text-slate-400 mt-2">
                 Get your API key from <a href="https://platform.openai.com/api-keys" target="_blank" rel="noopener noreferrer" className="text-emerald-400 hover:underline">platform.openai.com/api-keys</a>
               </p>
+            </div>
+
+            <div>
+              <div className="flex items-center justify-between gap-3 mb-2">
+                <label className="block text-sm font-medium text-slate-300">
+                  Deepgram API Key (optional; STT fallback)
+                </label>
+                <span className={`text-[10px] font-mono uppercase tracking-widest ${secrets?.deepgram ? 'text-emerald-300' : 'text-amber-300'}`}>
+                  {secrets?.deepgram ? 'Configured' : 'Missing'}
+                </span>
+              </div>
+              <div className="flex gap-2">
+                <div className="relative flex-1">
+                  <input
+                    type={showDeepgramKey ? 'text' : 'password'}
+                    value={deepgramApiKeyInput}
+                    onChange={(e) => setDeepgramApiKeyInput(e.target.value)}
+                    placeholder="dg_..."
+                    className="w-full bg-slate-800 border border-slate-600 rounded-lg px-4 py-2 text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                  />
+                  <button
+                    onClick={() => setShowDeepgramKey(!showDeepgramKey)}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white transition-colors"
+                  >
+                    {showDeepgramKey ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
+                </div>
+                <button
+                  onClick={() => void saveApiKey('deepgramApiKey', deepgramApiKeyInput)}
+                  className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+                    keySaveStatus.deepgramApiKey === 'saved'
+                      ? 'bg-emerald-600 text-white'
+                      : keySaveStatus.deepgramApiKey === 'error'
+                      ? 'bg-red-600 text-white'
+                      : 'bg-emerald-500 hover:bg-emerald-600 text-white'
+                  }`}
+                >
+                  {keySaveStatus.deepgramApiKey === 'saved' ? '✓ Saved' : keySaveStatus.deepgramApiKey === 'error' ? 'Error' : 'Save'}
+                </button>
+                <button
+                  onClick={() => void clearApiKey('deepgramApiKey')}
+                  className="px-4 py-2 rounded-lg font-medium bg-red-500 hover:bg-red-600 text-white transition-colors"
+                >
+                  Clear
+                </button>
+              </div>
+              <p className="text-xs text-slate-400 mt-2">Get a key from deepgram.com (API keys).</p>
+            </div>
+          </div>
+        </div>
+
+        {/* Backend Proxy (Optional) */}
+        <div className="bg-slate-900 border border-slate-700 rounded-xl overflow-hidden mb-8">
+          <div className="bg-slate-800 border-b border-slate-700 p-6">
+            <div className="flex items-center gap-3 mb-2">
+              <div className="text-emerald-400"><Shield className="w-5 h-5" /></div>
+              <h2 className="text-xl font-bold text-white">Backend Proxy (Optional)</h2>
+            </div>
+            <p className="text-slate-400 text-sm">
+              If you host a Mossy backend (Render/Railway/etc.), you can configure it here so testers don’t need their own provider keys.
+              The token is stored locally in the desktop app (main process) and never revealed to the renderer.
+            </p>
+          </div>
+          <div className="p-6">
+            <div className="mb-4">
+              <div className="flex items-center justify-between gap-3 mb-2">
+                <label className="block text-sm font-medium text-slate-300">Backend URL</label>
+                <span className={`text-[10px] font-mono uppercase tracking-widest ${backendBaseUrlInput.trim() ? 'text-emerald-300' : 'text-amber-300'}`}>
+                  {backendBaseUrlInput.trim() ? 'Set' : 'Not set'}
+                </span>
+              </div>
+              <input
+                value={backendBaseUrlInput}
+                onChange={(e) => setBackendBaseUrlInput(e.target.value)}
+                placeholder="https://your-service.onrender.com"
+                className="w-full bg-slate-800 border border-slate-600 rounded-lg px-4 py-2 text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+              />
+              <p className="text-xs text-slate-400 mt-2">Example: https://mossy-backend.onrender.com</p>
+            </div>
+
+            <div className="mb-4">
+              <div className="flex items-center justify-between gap-3 mb-2">
+                <label className="block text-sm font-medium text-slate-300">Backend Token (paste once, then Save)</label>
+                <span className={`text-[10px] font-mono uppercase tracking-widest ${secrets?.backendToken ? 'text-emerald-300' : 'text-amber-300'}`}>
+                  {secrets?.backendToken ? 'Configured' : 'Missing'}
+                </span>
+              </div>
+              <div className="flex gap-2">
+                <div className="relative flex-1">
+                  <input
+                    type={showBackendToken ? 'text' : 'password'}
+                    value={backendTokenInput}
+                    onChange={(e) => setBackendTokenInput(e.target.value)}
+                    placeholder={secrets?.backendToken ? '(already saved — leave blank to keep)' : 'dev-token / long random token'}
+                    className="w-full bg-slate-800 border border-slate-600 rounded-lg px-4 py-2 text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                  />
+                  <button
+                    onClick={() => setShowBackendToken(!showBackendToken)}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white transition-colors"
+                  >
+                    {showBackendToken ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
+                </div>
+                <button
+                  onClick={() => void saveBackendConfig(backendBaseUrlInput, backendTokenInput.trim() ? backendTokenInput : undefined)}
+                  className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+                    keySaveStatus.backend === 'saved'
+                      ? 'bg-emerald-600 text-white'
+                      : keySaveStatus.backend === 'error'
+                      ? 'bg-red-600 text-white'
+                      : 'bg-emerald-500 hover:bg-emerald-600 text-white'
+                  }`}
+                >
+                  {keySaveStatus.backend === 'saved' ? '✓ Saved' : keySaveStatus.backend === 'error' ? 'Error' : 'Save'}
+                </button>
+                <button
+                  onClick={() => void saveBackendConfig(backendBaseUrlInput, '')}
+                  className="px-4 py-2 rounded-lg font-medium bg-red-500 hover:bg-red-600 text-white transition-colors"
+                  title="Clears the stored backend token"
+                >
+                  Clear Token
+                </button>
+              </div>
+              <p className="text-xs text-slate-400 mt-2">
+                This should match your backend’s <span className="font-mono">MOSSY_API_TOKEN</span>.
+              </p>
+            </div>
+
+            <div className="flex flex-wrap gap-2">
+              <button
+                onClick={() => void saveBackendConfig('', undefined)}
+                className="px-4 py-2 rounded-lg font-medium bg-slate-800 hover:bg-slate-700 border border-slate-600 text-white transition-colors"
+                title="Disables backend proxy by clearing the URL"
+              >
+                Disable Backend (Clear URL)
+              </button>
             </div>
           </div>
         </div>

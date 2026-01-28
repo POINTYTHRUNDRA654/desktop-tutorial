@@ -15,7 +15,9 @@ package-lock.json
 dist
 dist-electron
 dist-ssr
+dist-backend
 release
+release-test
 *.local
 
 # Local release artifacts

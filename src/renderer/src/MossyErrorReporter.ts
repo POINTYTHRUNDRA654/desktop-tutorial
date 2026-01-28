@@ -3,6 +3,8 @@
  * Logs errors to a structured file for debugging and diagnostic sharing
  */
 
+import { redactSensitiveObject } from './utils/privacyRedaction';
+
 interface MossyErrorLog {
   timestamp: string;
   toolName: string;
@@ -13,7 +15,26 @@ interface MossyErrorLog {
   suggestedFix?: string;
 }
 
-const API_ENDPOINT = 'http://localhost:5173/api/mossy-error-log';
+type PrivacySettings = {
+  keepLocalOnly: boolean;
+  shareBugReports: boolean;
+};
+
+function loadPrivacySettings(): PrivacySettings {
+  try {
+    const raw = localStorage.getItem('mossy_privacy_settings');
+    if (!raw) return { keepLocalOnly: true, shareBugReports: false };
+    const parsed = JSON.parse(raw) as Partial<PrivacySettings>;
+    return {
+      keepLocalOnly: parsed.keepLocalOnly !== false,
+      shareBugReports: parsed.shareBugReports === true,
+    };
+  } catch {
+    return { keepLocalOnly: true, shareBugReports: false };
+  }
+}
+
+const API_ENDPOINT = ((import.meta as any)?.env?.VITE_ERROR_LOG_ENDPOINT as string | undefined)?.trim() || '';
 
 export const logMossyError = async (
   toolName: string,
@@ -33,19 +54,28 @@ export const logMossyError = async (
       suggestedFix,
     };
 
-    // Try to send to backend to write file (no await, fire and forget)
-    fetch(API_ENDPOINT, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(errorLog),
-    }).catch(() => {
-      // Silently fail if backend not available
-      console.log('[MOSSY] Backend error log not available, using localStorage');
-    });
+    const privacy = loadPrivacySettings();
+    const allowSend = !privacy.keepLocalOnly && privacy.shareBugReports && !!API_ENDPOINT;
+
+    if (allowSend) {
+      // Send a redacted version only (never raw paths, emails, tokens, etc).
+      const safeLog = redactSensitiveObject(errorLog);
+
+      // Try to send to backend (fire and forget)
+      fetch(API_ENDPOINT, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(safeLog),
+      }).catch(() => {
+        // Silently fail if backend not available
+        console.log('[MOSSY] Error log endpoint not reachable; stored locally only');
+      });
+    }
 
     // Always store in localStorage regardless of backend
     const errorLogs = JSON.parse(localStorage.getItem('mossy_error_logs') || '[]');
-    errorLogs.push(errorLog);
+    // Store redacted logs locally too, so exports don't leak secrets.
+    errorLogs.push(redactSensitiveObject(errorLog));
     
     // Keep only last 50 errors
     if (errorLogs.length > 50) {
