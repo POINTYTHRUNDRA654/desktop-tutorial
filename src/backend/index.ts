@@ -33,14 +33,18 @@ app.use((req, _res, next) => {
 
 // Apply safety to all API routes
 app.use(apiLimiter);
-app.use(requireApiToken);
 
-const router = express.Router();
-registerHealthRoutes(router);
-registerChatRoutes(router);
-registerTranscriptionRoutes(router);
+// Public routes (no auth). Render health checks won't include auth headers.
+const publicRouter = express.Router();
+registerHealthRoutes(publicRouter);
+app.use(publicRouter);
 
-app.use(router);
+// Protected routes (auth if MOSSY_API_TOKEN is set)
+const apiRouter = express.Router();
+apiRouter.use(requireApiToken);
+registerChatRoutes(apiRouter);
+registerTranscriptionRoutes(apiRouter);
+app.use(apiRouter);
 
 app.use((_req, res) => {
   res.status(404).json({ ok: false, error: 'not_found' });
