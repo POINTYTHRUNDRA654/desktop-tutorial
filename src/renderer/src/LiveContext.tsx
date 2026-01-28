@@ -1036,11 +1036,13 @@ export const LiveProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         const hasElevenLabsIpc = Boolean(electronApi?.elevenLabsSynthesizeSpeech);
 
         // Prefer Electron settings over env vars.
+        let backendBaseUrl = '';
         try {
           if (electronApi?.getSettings) {
             const s = await electronApi.getSettings();
             ttsProvider = String(s?.ttsOutputProvider || ttsProvider).toLowerCase();
             elevenLabsVoiceId = String(s?.elevenLabsVoiceId || elevenLabsVoiceId).trim();
+            backendBaseUrl = String(s?.backendBaseUrl || '').trim();
           }
 
           if (electronApi?.elevenLabsStatus) {
@@ -1059,11 +1061,22 @@ export const LiveProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         if (electronApi?.getSecretStatus) {
           const st = await electronApi.getSecretStatus();
           if (st?.ok) {
-            if (!st.groq) {
-              throw new Error('Groq is not configured. Add a Groq API key in Desktop settings.');
+            const backendEnabled = Boolean(backendBaseUrl);
+
+            // If a backend proxy is configured, we allow missing local provider keys.
+            const llmOk = Boolean(st.groq) || backendEnabled;
+            const sttOk = Boolean(st.openai) || Boolean(st.deepgram) || backendEnabled;
+
+            if (!llmOk) {
+              throw new Error('Groq is not configured. Add a Groq API key in Desktop settings, or configure the Backend Proxy.');
             }
-            if (!st.openai && !st.deepgram) {
-              throw new Error('Speech-to-text is not configured. Add an OpenAI or Deepgram API key in Desktop settings.');
+            if (!sttOk) {
+              throw new Error('Speech-to-text is not configured. Add an OpenAI or Deepgram API key in Desktop settings, or configure the Backend Proxy.');
+            }
+
+            // If backend URL is set but token is missing, warn early (backend may still allow unauthenticated dev).
+            if (backendEnabled && !st.backendToken) {
+              console.warn('[LiveContext] Backend URL is set but backend token is missing. If your backend requires auth, add the token in Privacy Settings.');
             }
           }
         }
