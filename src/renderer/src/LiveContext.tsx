@@ -59,12 +59,38 @@ interface LiveContextType {
 
 const LiveContext = createContext<LiveContextType | undefined>(undefined);
 
+const FALLBACK_LIVE_CONTEXT: LiveContextType = {
+  isActive: false,
+  isMuted: false,
+  toggleMute: () => {},
+  status: 'Idle',
+  volume: 1,
+  mode: 'idle',
+  transcription: '',
+  micLevel: 0,
+  audioInputs: [],
+  selectedInputId: '',
+  setSelectedInputId: () => {},
+  connect: async () => {},
+  disconnect: () => {},
+  customAvatar: null,
+  updateAvatar: async () => {},
+  setAvatarFromUrl: async () => {},
+  clearAvatar: () => {},
+  avatarLocked: false,
+  cortexMemory: [],
+  setCortexMemory: () => {},
+  projectData: null,
+  setProjectData: () => {},
+  isLiveActive: false,
+  isLiveMuted: false,
+  toggleLiveMute: () => {},
+  disconnectLive: () => {},
+};
+
 export const useLive = () => {
   const context = useContext(LiveContext);
-  if (!context) {
-    throw new Error('useLive must be used within a LiveProvider');
-  }
-  return context;
+  return context ?? FALLBACK_LIVE_CONTEXT;
 };
 
 const DB_NAME = 'MossyDB';
