@@ -3,43 +3,122 @@
  * Connects Mossy to local AI backends like Ollama or Groq Cloud.
  */
 
-import { Groq } from 'groq-sdk';
+import {
+  buildKnowledgeManifestForModel,
+  buildRelevantKnowledgeVaultContext,
+} from './knowledgeRetrieval';
 
 export interface AIResponse {
   content: string;
   context?: any;
 }
 
+type LocalAiPreferred = 'auto' | 'ollama' | 'openai_compat' | 'off';
+
+type LocalAiSettings = {
+  localAiPreferredProvider?: LocalAiPreferred;
+  ollamaBaseUrl?: string;
+  ollamaModel?: string;
+  openaiCompatBaseUrl?: string;
+  openaiCompatModel?: string;
+};
+
 export const LocalAIEngine = {
   /**
-   * Pings the local Ollama service to check if it's alive.
+   * Loads persisted local AI settings (if available).
+   */
+  async getLocalAiSettings(): Promise<LocalAiSettings> {
+    try {
+      if (window.electronAPI?.getSettings) {
+        const s = await window.electronAPI.getSettings();
+        return {
+          localAiPreferredProvider: (s?.localAiPreferredProvider ?? 'auto') as LocalAiPreferred,
+          ollamaBaseUrl: s?.ollamaBaseUrl ?? 'http://127.0.0.1:11434',
+          ollamaModel: s?.ollamaModel ?? 'llama3',
+          openaiCompatBaseUrl: s?.openaiCompatBaseUrl ?? 'http://127.0.0.1:1234/v1',
+          openaiCompatModel: s?.openaiCompatModel ?? '',
+        };
+      }
+    } catch {
+      // ignore
+    }
+
+    return {
+      localAiPreferredProvider: 'auto',
+      ollamaBaseUrl: 'http://127.0.0.1:11434',
+      ollamaModel: 'llama3',
+      openaiCompatBaseUrl: 'http://127.0.0.1:1234/v1',
+      openaiCompatModel: '',
+    };
+  },
+
+  /**
+   * Checks whether a local AI provider is available.
+   * Uses the Electron main process to avoid CORS and to support configurable ports.
+   */
+  async getLocalProviderStatus(): Promise<
+    | { ok: true; provider: 'ollama'; baseUrl: string; models: string[] }
+    | { ok: true; provider: 'openai_compat'; baseUrl: string; models: string[] }
+    | { ok: false; reason: string }
+  > {
+    try {
+      const api = (window.electron?.api || window.electronAPI) as any;
+      if (!api?.mlCapsStatus) return { ok: false, reason: 'Desktop capabilities API not available.' };
+
+      const settings = await this.getLocalAiSettings();
+      const preferred = (settings.localAiPreferredProvider ?? 'auto') as LocalAiPreferred;
+
+      const caps = await api.mlCapsStatus();
+      const ollamaOk = !!caps?.ollama?.ok;
+      const openaiOk = !!caps?.openaiCompat?.ok;
+
+      const pickAuto = () => {
+        if (ollamaOk) return { ok: true as const, provider: 'ollama' as const, baseUrl: caps.ollama.baseUrl, models: caps.ollama.models || [] };
+        if (openaiOk) return { ok: true as const, provider: 'openai_compat' as const, baseUrl: caps.openaiCompat.baseUrl, models: caps.openaiCompat.models || [] };
+        return { ok: false as const, reason: 'No local provider detected.' };
+      };
+
+      if (preferred === 'off') return { ok: false, reason: 'Local AI disabled in settings.' };
+      if (preferred === 'auto') return pickAuto();
+
+      if (preferred === 'ollama') {
+        return ollamaOk
+          ? { ok: true, provider: 'ollama', baseUrl: caps.ollama.baseUrl, models: caps.ollama.models || [] }
+          : { ok: false, reason: `Ollama not detected (${caps?.ollama?.error || 'unknown'})` };
+      }
+
+      // openai_compat
+      return openaiOk
+        ? { ok: true, provider: 'openai_compat', baseUrl: caps.openaiCompat.baseUrl, models: caps.openaiCompat.models || [] }
+        : { ok: false, reason: `OpenAI-compatible server not detected (${caps?.openaiCompat?.error || 'unknown'})` };
+    } catch (e: any) {
+      return { ok: false, reason: String(e?.message || e) };
+    }
+  },
+
+  /**
+   * Backwards-compatible helper used by existing UI code.
    */
   async checkOllama(): Promise<boolean> {
-    try {
-      const controller = new AbortController();
-      const id = setTimeout(() => controller.abort(), 2000); // 2s timeout
-      const response = await fetch('http://localhost:11434/api/tags', { signal: controller.signal });
-      clearTimeout(id);
-      return response.ok;
-    } catch (e) {
-      return false;
-    }
+    const st = await this.getLocalProviderStatus();
+    return st.ok && st.provider === 'ollama';
   },
 
   /**
    * Generates a response using the local Ollama service or Groq Cloud API.
    */
   async generateResponse(query: string, systemInstruction: string): Promise<AIResponse> {
-    const isLocalActive = await this.checkOllama();
+    const localStatus = await this.getLocalProviderStatus();
+    const localSettings = await this.getLocalAiSettings();
     
     // --- KNOWLEDGE & PROCESS INJECTION ---
-    const customKnowledge = localStorage.getItem('mossy_knowledge_vault');
     let injectedContext = "";
     
     // Inject Process & Hardware Awareness
-    if (typeof window.electron?.api?.getRunningProcesses === 'function') {
+    const electronApiAny = (window as any).electron?.api;
+    if (typeof electronApiAny?.getRunningProcesses === 'function') {
         try {
-            const processes = await window.electron.api.getRunningProcesses();
+        const processes = await electronApiAny.getRunningProcesses();
             const blenderLinked = localStorage.getItem('mossy_blender_active') === 'true';
             const detectedApps = JSON.parse(localStorage.getItem('mossy_apps') || '[]');
             const systemProfileRaw = localStorage.getItem('mossy_system_profile');
@@ -108,86 +187,77 @@ export const LocalAIEngine = {
         injectedContext += `\n### WORKING MEMORY (LONG-TERM CONTEXT):\n${workingMemory}\n`;
     }
 
-    if (customKnowledge) {
-        try {
-            const memories = JSON.parse(customKnowledge);
-            if (memories.length > 0) {
-                injectedContext += "### ADDITIONAL USER-PROVIDED KNOWLEDGE:\n" + 
-                    memories.map((m: any) => `[Title: ${m.title}]\n${m.content}`).join("\n---\n") + 
-                    "\n\n";
-            }
-        } catch (e) {
-            console.error('[LocalAIEngine] Failed to parse custom knowledge:', e);
-        }
+    // Knowledge Vault (DO NOT dump full DB; keep it relevant + compact)
+    const manifest = buildKnowledgeManifestForModel();
+    const relevant = buildRelevantKnowledgeVaultContext(query, { maxItems: 8, maxChars: 6000 });
+    if (manifest || relevant) {
+      injectedContext += "\n### KNOWLEDGE VAULT (Loaded):\n";
+      if (manifest) injectedContext += manifest + "\n";
+      if (relevant) injectedContext += relevant + "\n";
     }
     // ---------------------------
 
-    // Try Ollama first if available
-    if (isLocalActive) {
+    // Try local provider first if available
+    if (localStatus.ok) {
       try {
-        const controller = new AbortController();
-        const id = setTimeout(() => controller.abort(), 10000); // 10s timeout for generation
-        const response = await fetch('http://localhost:11434/api/generate', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          signal: controller.signal,
-          body: JSON.stringify({
-            model: 'llama3', 
-            prompt: `${systemInstruction}${injectedContext}\n\nUser Question: ${query}\n\nMossy's Response:`,
-            stream: false
-          })
-        });
-        clearTimeout(id);
+        const api = (window.electron?.api || window.electronAPI) as any;
+        const prompt = `${systemInstruction}${injectedContext}\n\nUser Question: ${query}\n\nMossy's Response:`;
 
-        if (response.ok) {
-          const data = await response.json();
-          return { content: data.response };
+        const provider = localStatus.provider;
+
+        const model = provider === 'ollama'
+          ? String(localSettings.ollamaModel || 'llama3')
+          : String(localSettings.openaiCompatModel || localStatus.models?.[0] || '');
+
+        if (!model.trim()) {
+          return { content: 'Local AI is detected but no model is selected. Configure a model in Local Capabilities.' };
         }
+
+        const baseUrl = provider === 'ollama'
+          ? String(localSettings.ollamaBaseUrl || 'http://127.0.0.1:11434')
+          : String(localSettings.openaiCompatBaseUrl || 'http://127.0.0.1:1234/v1');
+
+        const resp = await api.mlLlmGenerate({
+          provider,
+          model,
+          baseUrl,
+          prompt,
+        });
+
+        if (resp?.ok) {
+          return { content: String(resp.text || '') };
+        }
+        console.warn('[LocalAIEngine] Local provider generation failed:', resp?.error);
       } catch (e) {
-        console.warn('Ollama generate failed, falling back to Groq:', e);
+        console.warn('[LocalAIEngine] Local provider error, falling back to Groq:', e);
       }
     }
 
-    // Fallback to Groq Cloud API
+    // Fallback to Groq Cloud via Electron main-process IPC (renderer never sees API keys)
     try {
-      const groqApiKey = import.meta.env.VITE_GROQ_API_KEY;
-      if (!groqApiKey) {
-        console.warn('[LocalAIEngine] No Groq API key found');
+      const api = (window.electron?.api || window.electronAPI) as any;
+      if (!api?.aiChatGroq) {
         return {
-          content: "Mossy is in Passive Mode - no local AI service detected and no cloud API configured. Please set VITE_GROQ_API_KEY in .env.local to enable responses."
+          content:
+            'Mossy is in Passive Mode - no local AI service detected and cloud chat is not available in this build.'
         };
       }
 
-      const groqClient = new Groq({ 
-        apiKey: groqApiKey, 
-        dangerouslyAllowBrowser: true 
-      });
+      const systemPrompt = systemInstruction + injectedContext;
+      const resp = await api.aiChatGroq(query, systemPrompt, 'llama-3.3-70b-versatile');
+      if (resp?.success) {
+        return { content: String(resp.content || '') };
+      }
 
-      const messages: any[] = [
-        {
-          role: 'system',
-          content: systemInstruction + injectedContext
-        },
-        {
-          role: 'user',
-          content: query
-        }
-      ];
-
-      const response = await groqClient.chat.completions.create({
-        model: 'llama-3.3-70b-versatile',
-        messages,
-        temperature: 0.7,
-        max_tokens: 1024
-      });
-
-      const content = response.choices[0]?.message?.content || "No response generated";
-      console.log('[LocalAIEngine] Groq response received');
-      return { content };
-    } catch (e) {
-      console.error('[LocalAIEngine] Groq API error:', e);
       return {
-        content: "Mossy is in Passive Mode because no local AI backend (like Ollama) was detected at localhost:11434, and Groq API is not configured. Please ensure Ollama is running to enable deep reasoning, or set VITE_GROQ_API_KEY in .env.local."
+        content:
+          String(resp?.error || 'Mossy is in Passive Mode because Groq is not configured. Add a Groq API key in Desktop settings, or run a local AI backend (like Ollama).'),
+      };
+    } catch (e) {
+      console.error('[LocalAIEngine] Groq IPC error:', e);
+      return {
+        content:
+          'Mossy is in Passive Mode because no local AI backend (like Ollama) was detected and Groq cloud chat is not available. Configure Groq in Desktop settings or start a local backend.',
       };
     }
   },

@@ -2,6 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { Cpu, Activity, Zap, Eye, AlertTriangle, CheckCircle2, Terminal, Code, Layers, MessageSquare } from 'lucide-react';
 import { FO4KnowledgeBase } from '../../shared/FO4KnowledgeBase';
+import { ToolsInstallVerifyPanel } from './components/ToolsInstallVerifyPanel';
 
 interface RunningProcess {
     name: string;
@@ -17,11 +18,12 @@ const NeuralLink: React.FC = () => {
     const [mossyThoughts, setMossyThoughts] = useState<string[]>([]);
 
     const scanProcesses = async () => {
-        if (typeof window.electron?.api?.getRunningProcesses !== 'function') return;
+        const bridge: any = (window as any).electron?.api || (window as any).electronAPI;
+        if (typeof bridge?.getRunningProcesses !== 'function') return;
         
         setIsScanning(true);
         try {
-            const tools = await window.electron.api.getRunningProcesses();
+            const tools = await bridge.getRunningProcesses();
             setRunningTools(tools);
             setLastScan(new Date());
             generateMossyThoughts(tools);
@@ -101,6 +103,29 @@ const NeuralLink: React.FC = () => {
                     {isScanning ? 'Scanning...' : 'Manual Refresh'}
                 </button>
             </div>
+
+                <ToolsInstallVerifyPanel
+                    accentClassName="text-blue-300"
+                    description="Neural Link reads running processes via the Electron desktop bridge. In a plain browser build, process scanning is unavailable."
+                    verify={[
+                        'Click “Manual Refresh” and confirm the scan completes without errors.',
+                        'If running in the desktop app, confirm “Active Modding Session” populates when tools are open.'
+                    ]}
+                    firstTestLoop={[
+                        'Open Desktop Bridge and confirm it is connected.',
+                        'Launch one tool (e.g., Blender) → return here → click “Manual Refresh” → confirm it appears.',
+                        'Leave it running for 10 seconds and confirm the auto-scan updates the list.'
+                    ]}
+                    troubleshooting={[
+                        'If scanning never finds tools, verify you are using the packaged Electron app (not a web preview).',
+                        'If tools are running but not detected, check the bridge method availability: window.electron.api.getRunningProcesses.'
+                    ]}
+                    shortcuts={[
+                        { label: 'Desktop Bridge', to: '/bridge' },
+                        { label: 'System Monitor', to: '/monitor' },
+                        { label: 'Workshop', to: '/workshop' },
+                    ]}
+                />
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 {/* Process List */}

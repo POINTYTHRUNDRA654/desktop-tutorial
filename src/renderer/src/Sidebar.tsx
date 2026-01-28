@@ -1,14 +1,17 @@
 import React, { useEffect, useState } from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
-import { MessageSquare, Radio, Image, Mic2, Activity, Heart, Leaf, Monitor, Wifi, WifiOff, Hammer, GitBranch, Network, Gamepad2, Container, SquareTerminal, BrainCircuit, Aperture, LayoutDashboard, Satellite, Workflow, Hexagon, DraftingCompass, Dna, Sparkles, Flame, Binary, Triangle, PenTool, FlaskConical, Map, FileDigit, Library, Bug, Package, Watch, ShieldCheck, Feather, Power, Volume2, VolumeX, Settings, Coffee, Book, Code, Wand2, Archive, Eye, Save, List, FileCode as FileCodeIcon, Bot, Box, Gauge, Zap, GitMerge, Clock, Share2, Bone, CheckCircle2, AlertCircle, BookOpen, Wrench } from 'lucide-react';
+import { MessageSquare, Radio, Image, Mic2, Activity, Heart, Leaf, Monitor, Wifi, WifiOff, Hammer, GitBranch, Network, Gamepad2, Container, SquareTerminal, BrainCircuit, Aperture, LayoutDashboard, Satellite, Workflow, Hexagon, DraftingCompass, Dna, Sparkles, Flame, Binary, Triangle, PenTool, FlaskConical, Map, FileDigit, Library, Bug, Package, Watch, ShieldCheck, Feather, Power, Volume2, VolumeX, Settings, Coffee, Book, Code, Wand2, Archive, Eye, Save, List, FileCode as FileCodeIcon, Bot, Box, Gauge, Zap, GitMerge, Clock, Share2, Github, Bone, CheckCircle2, AlertCircle, BookOpen, Wrench, Copy } from 'lucide-react';
 import { useLive } from './LiveContext';
 import AvatarCore from './AvatarCore';
+import { useI18n } from './i18n';
 
 const Sidebar: React.FC = () => {
   const [bridgeConnected, setBridgeConnected] = useState(false);
   const [isPipBoy, setIsPipBoy] = useState(false);
   const location = useLocation();
   const [moodColor, setMoodColor] = useState('text-emerald-400');
+
+  const { t } = useI18n();
   
   // Consume Global Live Context (with safe fallback)
   let liveContextValue: any = null;
@@ -78,44 +81,82 @@ const Sidebar: React.FC = () => {
   }, [location]);
 
   const navItems = [
-    { to: '/', icon: LayoutDashboard, label: 'Mossy.Space' },
-    { to: '/journey', icon: Sparkles, label: 'Mod Projects' },
-    { to: '/assembler', icon: Package, label: 'The Assembler' },
-    { to: '/auditor', icon: ShieldCheck, label: 'The Auditor' },
-    { to: '/scribe', icon: Feather, label: 'The Scribe' },
-    { to: '/holo', icon: Gamepad2, label: 'The Holodeck' },
-    { to: '/orchestrator', icon: GitBranch, label: 'The Orchestrator' },
-    { to: '/vault', icon: Container, label: 'The Vault' },
-    { to: '/memory-vault', icon: BrainCircuit, label: 'Memory Vault' },
-    { to: '/neural-link', icon: Zap, label: 'Neural Link' },
-    { to: '/lore', icon: Network, label: 'The Lorekeeper' },
-    { to: '/workshop', icon: Hammer, label: 'The Workshop' },
-    { to: '/images', icon: Image, label: 'Image Studio' },
-    { to: '/tts', icon: Mic2, label: 'Audio Studio' },
-    { to: '/monitor', icon: Activity, label: 'System Monitor' },
-    { to: '/live', icon: Radio, label: 'Live Synapse' },
-    { to: '/bridge', icon: Monitor, label: 'Desktop Bridge' },
-    { to: '/settings/privacy', icon: Settings, label: 'Privacy Settings' },
-    { to: '/diagnostics', icon: Wrench, label: 'Diagnostic Tools' },
-    { to: '/support', icon: Coffee, label: 'Support Mossy' },
-    { to: '/reference', icon: Book, label: 'Quick Reference' },
-    { to: '/script-analyzer', icon: Code, label: 'Script Analyzer' },
-    { to: '/template-generator', icon: Wand2, label: 'Template Generator' },
+    // === FOUNDATION: HOME & PROJECTS ===
+    { to: '/', icon: LayoutDashboard, label: t('nav.home', 'Mossy.Space') },
+    { to: '/journey', icon: Sparkles, label: t('nav.modProjects', 'Mod Projects') },
 
-    { to: '/animation-guide', icon: Book, label: 'Animation Guide' },
-    { to: '/skeleton-reference', icon: Bone, label: 'Skeleton Reference' },
-    { to: '/animation-validator', icon: CheckCircle2, label: 'Animation Validator' },
-    { to: '/rigging-checklist', icon: PenTool, label: 'Rigging Checklist' },
-    { to: '/export-settings', icon: Settings, label: 'Export Settings Helper' },
-    { to: '/rigging-mistakes', icon: AlertCircle, label: 'Rigging Mistakes' },
-    { to: '/precombine-prp', icon: Hammer, label: 'Precombine & PRP Guide' },
-    { to: '/precombine-checker', icon: CheckCircle2, label: 'Precombine Checker' },
-    { to: '/leveled-list-injection', icon: List, label: 'Leveled List Injection' },
-    { to: '/quest-authoring', icon: BookOpen, label: 'Quest Mod Authoring' },
+    // === CORE LEARNING: GUIDES & REFERENCES ===
+    { to: '/reference', icon: Book, label: t('nav.quickReference', 'Quick Reference') },
+    { to: '/knowledge', icon: Bot, label: t('nav.knowledgeSearch', 'Knowledge Search') },
+    { to: '/install-wizard', icon: Wrench, label: t('nav.installWizard', 'Install Wizard') },
+    { to: '/platforms', icon: Library, label: t('nav.platforms', 'Platforms') },
+    { to: '/crash-triage', icon: Bug, label: t('nav.crashTriage', 'Crash Triage') },
+    { to: '/packaging-release', icon: Archive, label: t('nav.packagingRelease', 'Packaging & Release') },
+    { to: '/ck-quest-dialogue', icon: BookOpen, label: t('nav.ckQuestDialogue', 'CK Quest & Dialogue') },
+    { to: '/animation-guide', icon: Book, label: t('nav.animationGuide', 'Animation Guide') },
+    { to: '/skeleton-reference', icon: Bone, label: t('nav.skeletonReference', 'Skeleton Reference') },
+    { to: '/rigging-mistakes', icon: AlertCircle, label: t('nav.riggingMistakes', 'Rigging Mistakes') },
+    { to: '/quest-authoring', icon: BookOpen, label: t('nav.questModAuthoring', 'Quest Mod Authoring') },
+    { to: '/precombine-prp', icon: Hammer, label: t('nav.precombinePrpGuide', 'Precombine & PRP Guide') },
+    { to: '/prp-patch-builder', icon: GitMerge, label: t('nav.prpPatchBuilder', 'PRP Patch Builder') },
+    { to: '/leveled-list-injection', icon: List, label: t('nav.leveledListInjection', 'Leveled List Injection') },
+    { to: '/lore', icon: Network, label: t('nav.lorekeeper', 'The Lorekeeper') },
+
+    // === BUILDING TOOLS: CREATE & GENERATE ===
+    { to: '/template-generator', icon: Wand2, label: t('nav.templateGenerator', 'Template Generator') },
+    { to: '/script-analyzer', icon: Code, label: t('nav.scriptAnalyzer', 'Script Analyzer') },
+    { to: '/assembler', icon: Package, label: t('nav.assembler', 'The Assembler') },
+    { to: '/workshop', icon: Hammer, label: t('nav.workshop', 'The Workshop') },
+    { to: '/blueprint', icon: DraftingCompass, label: t('nav.blueprint', 'The Blueprint') },
+
+    // === ENHANCEMENT: ADVANCED SPECIALIZATION ===
+    { to: '/rigging-checklist', icon: PenTool, label: t('nav.riggingChecklist', 'Rigging Checklist') },
+    { to: '/export-settings', icon: Settings, label: t('nav.exportSettingsHelper', 'Export Settings Helper') },
+    { to: '/animation-validator', icon: CheckCircle2, label: t('nav.animationValidator', 'Animation Validator') },
+    { to: '/precombine-checker', icon: CheckCircle2, label: t('nav.precombineChecker', 'Precombine Checker') },
+
+    // === QUALITY ASSURANCE: VALIDATE & VERIFY ===
+    { to: '/auditor', icon: ShieldCheck, label: t('nav.auditor', 'The Auditor') },
+    { to: '/scribe', icon: Feather, label: t('nav.scribe', 'The Scribe') },
+    { to: '/monitor', icon: Activity, label: t('nav.systemMonitor', 'System Monitor') },
+
+    // === EXECUTION & COLLABORATION ===
+    { to: '/orchestrator', icon: GitBranch, label: t('nav.orchestrator', 'The Orchestrator') },
+    { to: '/workflow-runner', icon: Workflow, label: t('nav.workflowRunner', 'Workflow Runner') },
+    { to: '/holo', icon: Gamepad2, label: t('nav.holodeck', 'The Holodeck') },
+    { to: '/vault', icon: Container, label: t('nav.vault', 'The Vault') },
+    { to: '/memory-vault', icon: BrainCircuit, label: t('nav.memoryVault', 'Memory Vault') },
+    { to: '/neural-link', icon: Zap, label: t('nav.neuralLink', 'Neural Link') },
+    { to: '/capabilities', icon: Gauge, label: t('nav.localCapabilities', 'Local Capabilities') },
+
+    // === CONTENT CREATION ===
+    { to: '/images', icon: Image, label: t('nav.imageStudio', 'Image Studio') },
+    { to: '/tts', icon: Mic2, label: t('nav.audioStudio', 'Audio Studio') },
+
+    // === INTEGRATION & SUPPORT ===
+    { to: '/live', icon: Radio, label: t('nav.liveSynapse', 'Live Synapse') },
+    { to: '/bridge', icon: Monitor, label: t('nav.desktopBridge', 'Desktop Bridge') },
+    { to: '/dedupe', icon: Copy, label: t('nav.duplicateFinder', 'Duplicate Finder') },
+    { to: '/community', icon: Github, label: t('nav.communityLearning', 'Community Learning') },
+    { to: '/tool-verify', icon: CheckCircle2, label: t('nav.toolVerify', 'Tool Verify') },
+    { to: '/settings/privacy', icon: Settings, label: t('nav.privacySettings', 'Privacy Settings') },
+    { to: '/settings/voice', icon: Volume2, label: t('nav.voiceSettings', 'Voice Settings') },
+    { to: '/settings/language', icon: Map, label: t('nav.languageSettings', 'Language Settings') },
+    { to: '/diagnostics', icon: Wrench, label: t('nav.diagnosticTools', 'Diagnostic Tools') },
+    { to: '/support', icon: Coffee, label: t('nav.supportMossy', 'Support Mossy') },
   ];
 
   return (
-    <div className="w-64 bg-slate-900 border-r border-slate-800 flex flex-col h-full relative z-50 transition-colors duration-500">
+    <div
+      data-mossy-sidebar="1"
+      className="w-64 bg-slate-900 border-r border-slate-800 flex flex-col h-full relative z-50 transition-colors duration-500"
+      style={{
+        width: 256,
+        minWidth: 256,
+        flex: '0 0 256px',
+        outline: import.meta.env.DEV ? '2px solid rgba(255,0,255,0.8)' : undefined,
+      }}
+    >
       {/* Live Header with Persistent Avatar */}
       <div className="p-6 border-b border-slate-800 flex items-center gap-3">
         <div className="relative w-12 h-12 flex-shrink-0">

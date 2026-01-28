@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { Bone, Search, Grid, List, ChevronRight } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 
 interface SkeletonBone {
   name: string;
@@ -66,10 +67,25 @@ const FO4_SKELETON: SkeletonBone[] = [
 ];
 
 export const SkeletonReference: React.FC = () => {
+  const navigate = useNavigate();
   const [searchQuery, setSearchQuery] = useState('');
   const [viewMode, setViewMode] = useState<'hierarchy' | 'group'>('hierarchy');
   const [selectedBone, setSelectedBone] = useState<SkeletonBone | null>(null);
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set(['Root', 'Spine', 'Head']));
+
+  const openUrl = (url: string) => {
+    const api = (window as any).electron?.api || (window as any).electronAPI;
+    if (typeof api?.openExternal === 'function') {
+      api.openExternal(url);
+      return;
+    }
+    window.open(url, '_blank', 'noopener,noreferrer');
+  };
+
+  const openNexusSearch = (keywords: string) => {
+    const query = encodeURIComponent(keywords);
+    openUrl(`https://www.nexusmods.com/fallout4/search/?BH=0&search%5Bsearch_keywords%5D=${query}`);
+  };
 
   const filteredBones = FO4_SKELETON.filter((bone) =>
     bone.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -165,6 +181,82 @@ export const SkeletonReference: React.FC = () => {
             >
               <Grid className="w-4 h-4" />
               <span className="text-sm font-medium">By Group</span>
+            </button>
+          </div>
+        </div>
+
+        <div className="mt-5 bg-slate-950/50 border border-slate-700 rounded-lg p-4">
+          <div className="text-sm font-bold text-cyan-300 mb-2">🧰 Tools / Install / Verify (No Guesswork)</div>
+          <p className="text-xs text-slate-300">
+            This page is a <strong>reference</strong> for FO4 bone names + hierarchy. To actually rig/export, you’ll need the usual Fallout 4 animation toolchain.
+          </p>
+
+          <div className="mt-3 flex flex-wrap gap-2">
+            <button
+              onClick={() => openUrl('https://www.blender.org/download/')}
+              className="px-3 py-2 rounded bg-slate-800 hover:bg-slate-700 border border-slate-600 text-xs font-bold text-white"
+            >
+              Blender (official)
+            </button>
+            <button
+              onClick={() => openNexusSearch('Bethesda Archive Extractor')}
+              className="px-3 py-2 rounded bg-slate-800 hover:bg-slate-700 border border-slate-600 text-xs font-bold text-white"
+            >
+              Nexus: BAE (search)
+            </button>
+            <button
+              onClick={() => openUrl('https://github.com/niftools/nifskope/releases')}
+              className="px-3 py-2 rounded bg-slate-800 hover:bg-slate-700 border border-slate-600 text-xs font-bold text-white"
+            >
+              GitHub: NifSkope releases
+            </button>
+            <button
+              onClick={() => openNexusSearch('Fallout 4 skeleton')}
+              className="px-3 py-2 rounded bg-slate-800 hover:bg-slate-700 border border-slate-600 text-xs font-bold text-white"
+            >
+              Nexus: Skeleton resources (search)
+            </button>
+          </div>
+
+          <div className="mt-3 bg-black/40 border border-slate-700 rounded p-3">
+            <div className="text-xs font-bold text-slate-200 mb-1">First test loop (rig/skin sanity)</div>
+            <ol className="text-xs text-slate-300 list-decimal list-inside space-y-1">
+              <li>Pick one bone from this list (e.g., <span className="font-mono">L_Forearm</span>), and ensure your mesh weights to that bone (non-zero weights).</li>
+              <li>In Blender, pose that bone and confirm deformation looks correct (no spikes/explosions).</li>
+              <li>Export using your chosen pipeline and validate using the in-app Animation tools.</li>
+            </ol>
+          </div>
+
+          <div className="mt-3 flex flex-wrap gap-2">
+            <button
+              onClick={() => navigate('/animation-guide')}
+              className="px-3 py-2 rounded bg-cyan-700 hover:bg-cyan-600 text-xs font-bold text-white"
+            >
+              Blender Animation Guide
+            </button>
+            <button
+              onClick={() => navigate('/rigging-checklist')}
+              className="px-3 py-2 rounded bg-slate-800 hover:bg-slate-700 border border-slate-600 text-xs font-bold text-white"
+            >
+              Rigging Checklist
+            </button>
+            <button
+              onClick={() => navigate('/export-settings')}
+              className="px-3 py-2 rounded bg-slate-800 hover:bg-slate-700 border border-slate-600 text-xs font-bold text-white"
+            >
+              Export Settings
+            </button>
+            <button
+              onClick={() => navigate('/animation-validator')}
+              className="px-3 py-2 rounded bg-slate-800 hover:bg-slate-700 border border-slate-600 text-xs font-bold text-white"
+            >
+              Animation Validator
+            </button>
+            <button
+              onClick={() => navigate('/install-wizard')}
+              className="px-3 py-2 rounded bg-slate-800 hover:bg-slate-700 border border-slate-600 text-xs font-bold text-white"
+            >
+              Install Wizard
             </button>
           </div>
         </div>

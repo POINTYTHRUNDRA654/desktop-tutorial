@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { Cpu, Sparkles, Check, X, ArrowRight, Loader } from 'lucide-react';
+import { Cpu, Sparkles, Check, X, ArrowRight, Loader, Map } from 'lucide-react';
+import { useI18n, resolveUiLanguage } from './i18n';
 
 interface OnboardingProps {
     onComplete: () => void;
@@ -14,6 +15,7 @@ interface ToolRecommendation {
 }
 
 export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) => {
+    const { t, setUiLanguagePref } = useI18n();
     const [step, setStep] = useState<'welcome' | 'scanning' | 'recommendations' | 'complete'>('welcome');
     const [scanProgress, setScanProgress] = useState(0);
     const [recommendations, setRecommendations] = useState<ToolRecommendation[]>([]);
@@ -21,6 +23,12 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
     const [allApps, setAllApps] = useState<any[]>([]);
     const [userChoices, setUserChoices] = useState<Record<string, boolean>>({});
     const [showAllPrograms, setShowAllPrograms] = useState(false);
+
+    const [uiLanguage, setUiLanguage] = useState<string>('auto');
+
+    const getElectronApi = () => {
+        return (window as any)?.electron?.api ?? (window as any)?.electronAPI;
+    };
 
     useEffect(() => {
         // Check if this is truly first run
@@ -30,17 +38,65 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
         }
     }, []);
 
+    // Load persisted UI language (if available) so the first screen reflects it.
+    useEffect(() => {
+        const api = getElectronApi();
+        if (!api?.getSettings) return;
+
+        let disposed = false;
+        const load = async () => {
+            try {
+                const s = await api.getSettings();
+                if (disposed) return;
+                const pref = String(s?.uiLanguage || 'auto');
+                setUiLanguage(pref);
+                if (pref === 'auto') setUiLanguagePref('auto');
+                else setUiLanguagePref(resolveUiLanguage(pref));
+            } catch {
+                // ignore
+            }
+        };
+
+        void load();
+        return () => {
+            disposed = true;
+        };
+    }, [setUiLanguagePref]);
+
+    const applyLanguage = async (value: string) => {
+        setUiLanguage(value);
+
+        if (value === 'auto') {
+            setUiLanguagePref('auto');
+        } else {
+            setUiLanguagePref(resolveUiLanguage(value));
+        }
+
+        const api = getElectronApi();
+        if (!api?.setSettings) return;
+        try {
+            await api.setSettings({ uiLanguage: value });
+        } catch {
+            // ignore
+        }
+    };
+
     const startScan = async () => {
         setStep('scanning');
         setScanProgress(10);
 
         try {
+            const api = getElectronApi();
+            if (!api?.getSystemInfo || !api?.detectPrograms) {
+                throw new Error('Electron API not available');
+            }
+
             // Get system info
-            const systemInfo = await window.electron.api.getSystemInfo();
+            const systemInfo = await api.getSystemInfo();
             setScanProgress(30);
 
             // Detect all programs
-            const allDetectedApps = await window.electron.api.detectPrograms();
+            const allDetectedApps = await api.detectPrograms();
             setAllApps(allDetectedApps);
             setScanProgress(70);
 
@@ -152,7 +208,8 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
 
             // Save scan results
             localStorage.setItem('mossy_all_detected_apps', JSON.stringify(allDetectedApps));
-            localStorage.setItem('mossy_last_scan', new Date().toISOString());
+            // Use a numeric timestamp so all modules can compare it safely
+            localStorage.setItem('mossy_last_scan', Date.now().toString());
             localStorage.setItem('mossy_scan_summary', JSON.stringify({
                 totalPrograms: allDetectedApps.length,
                 nvidiaTools: nvidia.length,
@@ -187,6 +244,17 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
             .map(r => ({ name: r.name, path: r.path, category: r.category }));
         
         localStorage.setItem('mossy_integrated_tools', JSON.stringify(integratedTools));
+
+                // Promote to the unified scan/permissions store used across the app.
+                // These are the tools the user explicitly approved for Mossy to know about and interact with.
+                const promotedApps = integratedTools.map((t, idx) => ({
+                    id: `onboard-${idx}-${Math.random().toString(36).slice(2, 7)}`,
+                    name: t.name,
+                    category: t.category,
+                    checked: true,
+                    path: t.path
+                }));
+                localStorage.setItem('mossy_apps', JSON.stringify(promotedApps));
         
         setStep('complete');
         setTimeout(onComplete, 2000);
@@ -198,18 +266,41 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
                 {step === 'welcome' && (
                     <div className="text-center animate-fade-in">
                         <Sparkles className="w-20 h-20 mx-auto mb-6 text-amber-400" />
-                        <h1 className="text-4xl font-bold text-white mb-4">Welcome to Mossy v3.0</h1>
+                        <h1 className="text-4xl font-bold text-white mb-4">Welcome to Mossy v4.0</h1>
                         <p className="text-xl text-slate-300 mb-8">
                             Your AI-powered Fallout 4 modding assistant with next-gen voice conversation
                         </p>
                         <p className="text-slate-400 mb-6">
-                            <strong className="text-emerald-400">✨ New in v3.0:</strong> Lightning-fast voice responses with smart silence detection (~1s), 
-                            Deepgram-first speech recognition, and full conversation memory. Talk naturally—Mossy remembers everything!
+                            <strong className="text-emerald-400">✨ New in v4.0:</strong> Pick your UI language on first launch (or later in Settings), plus a smoother Install Wizard experience.
                         </p>
                         <p className="text-slate-400 mb-8">
                             Let me scan your system to discover tools I can integrate with.
                             This will help me provide personalized recommendations and boost my capabilities.
                         </p>
+
+                        <div className="max-w-md mx-auto mb-8 text-left bg-slate-900/40 border border-slate-700 rounded-xl p-4">
+                            <div className="flex items-center gap-2 text-white font-bold text-sm">
+                                <Map className="w-4 h-4 text-emerald-400" />
+                                {t('onboarding.language.label', 'Language')}
+                            </div>
+                            <div className="text-xs text-slate-400 mt-1">
+                                {t('onboarding.language.help', 'Choose your interface language. You can change this later in Settings.')}
+                            </div>
+                            <select
+                                className="mt-3 w-full bg-slate-950 border border-slate-700 text-white rounded-lg px-3 py-2"
+                                value={uiLanguage}
+                                onChange={(e) => void applyLanguage(e.target.value)}
+                            >
+                                <option value="auto">{t('onboarding.language.auto', 'Auto (system)')}</option>
+                                <option value="en">English</option>
+                                <option value="es">Español</option>
+                                <option value="fr">Français</option>
+                                <option value="de">Deutsch</option>
+                                <option value="ru">Русский</option>
+                                <option value="zh-Hans">中文（简体）</option>
+                            </select>
+                        </div>
+
                         <button
                             onClick={startScan}
                             className="px-8 py-4 bg-amber-600 hover:bg-amber-500 text-white rounded-lg font-bold text-lg flex items-center gap-3 mx-auto transition-colors"

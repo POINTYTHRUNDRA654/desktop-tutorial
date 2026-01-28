@@ -47,8 +47,8 @@ const AvatarOverlay: React.FC = () => {
       onClick={handleClick}
       style={{
         position: 'fixed',
-        bottom: 32,
-        right: 32,
+        bottom: 112,
+        right: 24,
         zIndex: 1000,
         width: 80,
         height: 80,

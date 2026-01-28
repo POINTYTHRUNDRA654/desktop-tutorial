@@ -1,5 +1,7 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { Gamepad2, Play, Pause, SkipForward, CheckCircle2, AlertTriangle, Copy, Zap, Target, BarChart3, Settings } from 'lucide-react';
+import { ToolsInstallVerifyPanel } from './components/ToolsInstallVerifyPanel';
+import { useWheelScrollProxyFrom } from './components/useWheelScrollProxy';
 
 interface TestScenario {
     id: string;
@@ -54,6 +56,11 @@ const Holodeck = () => {
     const [testRuns, setTestRuns] = useState<TestRun[]>([]);
     const [copiedId, setCopiedId] = useState<string | null>(null);
 
+    const scenariosScrollRef = useRef<HTMLDivElement | null>(null);
+    const detailsScrollRef = useRef<HTMLDivElement | null>(null);
+
+    const wheelProxy = useWheelScrollProxyFrom(() => (activeScenario ? detailsScrollRef.current : scenariosScrollRef.current));
+
     const handleCopyStep = (id: string, text: string) => {
         navigator.clipboard.writeText(text);
         setCopiedId(id);
@@ -62,10 +69,16 @@ const Holodeck = () => {
 
     const handleTestRun = async (scenarioId: string) => {
         try {
-            const processes = await window.electronAPI.getRunningProcesses();
-            const isGameRunning = processes.some(p => 
-                p.name.toLowerCase().includes('fallout4') || 
-                p.name.toLowerCase().includes('f4se')
+            const api: any = (window as any).electron?.api || (window as any).electronAPI;
+            if (!api?.getRunningProcesses) {
+                alert('Desktop Bridge API is not available in this context.');
+                return;
+            }
+
+            const processes = await api.getRunningProcesses();
+            const isGameRunning = (processes ?? []).some((p: any) =>
+                String(p?.name ?? '').toLowerCase().includes('fallout4') ||
+                String(p?.name ?? '').toLowerCase().includes('f4se')
             );
 
             if (!isGameRunning) {
@@ -87,7 +100,7 @@ const Holodeck = () => {
     };
 
     return (
-        <div className="h-full flex flex-col bg-[#1e1e1e] text-slate-200 font-sans overflow-hidden">
+        <div className="h-full flex flex-col bg-[#1e1e1e] text-slate-200 font-sans overflow-hidden min-h-0" onWheel={wheelProxy}>
             {/* Header */}
             <div className="p-4 border-b border-black bg-[#2d2d2d] flex justify-between items-center shadow-md">
                 <div>
@@ -104,14 +117,73 @@ const Holodeck = () => {
                 </div>
             </div>
 
+            <div className="p-4 border-b border-black bg-[#1e1e1e]">
+                <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+                    <ToolsInstallVerifyPanel
+                        accentClassName="text-purple-300"
+                        description="Holodeck is a test harness UI. Real-time checks require Desktop Bridge access and (for some scenarios) the game process running."
+                        tools={[]}
+                        verify={[
+                            'Select a scenario and confirm the details panel updates.',
+                            'Start a run and confirm you either get a success path or a clear error message.',
+                        ]}
+                        firstTestLoop={[
+                            'Start Desktop Bridge and confirm it is ONLINE.',
+                            'Launch Fallout 4 (or F4SE) and then try a single simple scenario.',
+                            'If the run starts, stop it and confirm the UI returns to idle cleanly.',
+                        ]}
+                        troubleshooting={[
+                            'If you get “connection failed”, verify Desktop Bridge is running and permissions are allowed.',
+                            'If it can’t find the game, confirm the process name matches your launcher (FO4/F4SE).',
+                        ]}
+                        shortcuts={[
+                            { label: 'Desktop Bridge', to: '/bridge' },
+                            { label: 'Neural Link', to: '/neural-link' },
+                            { label: 'Diagnostics', to: '/diagnostics' },
+                            { label: 'System Monitor', to: '/monitor' },
+                        ]}
+                    />
+
+                    <div className="bg-[#252526] border border-slate-800 rounded-xl p-4">
+                        <div className="text-sm font-bold text-white mb-1">Existing Workflow (Legacy)</div>
+                        <div className="text-xs text-slate-400 mb-3">Jump to the original list/details panes.</div>
+                        <div className="flex flex-wrap gap-2">
+                            <button
+                                onClick={() => scenariosScrollRef.current?.scrollTo({ top: 0, behavior: 'smooth' })}
+                                className="px-3 py-2 bg-black/40 hover:bg-black/60 border border-slate-700 rounded text-xs font-bold text-purple-200"
+                            >
+                                Scenarios List
+                            </button>
+                            <button
+                                onClick={() => detailsScrollRef.current?.scrollTo({ top: 0, behavior: 'smooth' })}
+                                className="px-3 py-2 bg-black/40 hover:bg-black/60 border border-slate-700 rounded text-xs font-bold text-purple-200"
+                            >
+                                Scenario Details
+                            </button>
+                            <button
+                                onClick={() => activeScenario && handleTestRun(activeScenario.id)}
+                                disabled={!activeScenario}
+                                className={`px-3 py-2 border rounded text-xs font-bold transition-colors ${
+                                    activeScenario
+                                        ? 'bg-purple-900/30 hover:bg-purple-900/50 border-purple-700/50 text-purple-200'
+                                        : 'bg-slate-800 border-slate-700 text-slate-500 cursor-not-allowed'
+                                }`}
+                            >
+                                Run Selected
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
             {/* Main Layout */}
-            <div className="flex-1 flex overflow-hidden">
+            <div className="flex-1 min-h-0 flex overflow-hidden">
                 {/* Scenarios List */}
-                <div className="w-80 border-r border-slate-800 overflow-y-auto bg-[#252526] flex flex-col">
+                <div className="w-80 border-r border-slate-800 overflow-y-auto bg-[#252526] flex flex-col min-h-0">
                     <div className="sticky top-0 p-4 border-b border-slate-800 bg-[#2d2d2d]">
                         <h3 className="text-xs font-bold text-white uppercase tracking-wide">Test Scenarios</h3>
                     </div>
-                    <div className="flex-1 space-y-2 p-3 overflow-y-auto">
+                    <div ref={scenariosScrollRef} className="flex-1 min-h-0 space-y-2 p-3 overflow-y-auto">
                         {TEST_SCENARIOS.map((scenario) => (
                             <button
                                 key={scenario.id}
@@ -140,11 +212,11 @@ const Holodeck = () => {
                 </div>
 
                 {/* Main Content */}
-                <div className="flex-1 flex flex-col overflow-hidden">
+                <div className="flex-1 min-h-0 flex flex-col overflow-hidden">
                     {activeScenario ? (
                         <>
                             {/* Scenario Details */}
-                            <div className="flex-1 overflow-y-auto p-6 space-y-6">
+                            <div ref={detailsScrollRef} className="flex-1 min-h-0 overflow-y-auto p-6 space-y-6">
                                 {/* Header */}
                                 <div>
                                     <div className="flex items-center justify-between mb-4">

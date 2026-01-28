@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
-import { GoogleGenAI } from "@google/genai";
 import { Package, Plus, Trash2, Eye, Code, Wand2, RefreshCw, FileText, Layers, CheckSquare, Image as ImageIcon, ChevronRight, ChevronDown, Download, ExternalLink, Info, Settings } from 'lucide-react';
 import ExternalToolNotice from './components/ExternalToolNotice';
+import { ToolsInstallVerifyPanel } from './components/ToolsInstallVerifyPanel';
 import { useNavigate } from 'react-router-dom';
 import type { Settings as AppSettings } from '../shared/types';
 
@@ -37,6 +37,15 @@ const TheAssembler: React.FC = () => {
     const [modWebsite, setModWebsite] = useState('');
     const [toolSettings, setToolSettings] = useState<AppSettings | null>(null);
     const navigate = useNavigate();
+
+    const openUrl = (url: string) => {
+        const api = (window as any).electron?.api || (window as any).electronAPI;
+        if (typeof api?.openExternal === 'function') {
+            api.openExternal(url);
+            return;
+        }
+        window.open(url, '_blank', 'noopener,noreferrer');
+    };
 
     useEffect(() => {
         const init = async () => {
@@ -94,7 +103,13 @@ const TheAssembler: React.FC = () => {
     const handleLaunchExternalTool = async () => {
         const toolPath = (toolSettings?.fomodCreatorPath && toolSettings.fomodCreatorPath.trim().length > 0)
             ? toolSettings.fomodCreatorPath
-            : 'G:\\Tools\\FOMOD Creation Tool 1.7-6821-1-7\\FomodDesigner.exe';
+            : '';
+
+        if (!toolPath) {
+            alert('Set the FOMOD Creation Tool path in Tool Settings first.');
+            openUrl('https://www.nexusmods.com/fallout4/mods/6821');
+            return;
+        }
         try {
             if (window.electron?.api?.openExternal) {
                 await window.electron.api.openExternal(toolPath);
@@ -105,10 +120,9 @@ const TheAssembler: React.FC = () => {
             console.error('Failed to launch FOMOD Tool:', error);
             const errorMsg = `Could not launch FOMOD Creation Tool.
 
-The tool was not found at:
-${toolPath}
+Check the configured path in Tool Settings.
 
-Download it from Nexus Mods:
+Download the tool from Nexus Mods:
 https://www.nexusmods.com/fallout4/mods/6821
 
 After installing, you may need to update the tool path in settings.`;
@@ -175,29 +189,14 @@ After installing, you may need to update the tool path in settings.`;
     const handleAutoGenerate = async () => {
         setIsGenerating(true);
         try {
-            const ai = new GoogleGenAI({ apiKey: (import.meta.env.VITE_API_KEY || import.meta.env.VITE_GOOGLE_API_KEY || "") });
-            
-            const prompt = `
-            Act as a FOMOD installer architect.
-            I have these files in my mod folder: ${JSON.stringify(modFiles)}.
-            
-            Analyze the filenames to determine logical grouping (e.g. Resolution options, Patches).
-            Generate a JSON structure representing the FOMOD pages/groups/options.
-            Structure format: Array of Objects.
-            - type: "page" | "group" | "option"
-            - name: string
-            - description: string
-            - groupType: "SelectExactlyOne" | "SelectAny" (only for groups)
-            - children: array of same objects.
-            
-            Do not include file paths mapping, just the visual structure.
-            `;
+            const systemPrompt = `You are a FOMOD installer architect. Generate JSON structure for FOMOD pages/groups/options based on file analysis.`;
+            const userPrompt = `Analyze these files: ${JSON.stringify(modFiles)}.
+            Group them logically (e.g. Resolution, Patches).
+            Return JSON array with type, name, description, groupType, children.`;
 
-            const model = ai.getGenerativeModel({ 
-                model: 'gemini-1.5-flash',
-                generationConfig: { responseMimeType: 'application/json' }
-            });
-            const result = await model.generateContent(prompt);
+            const aiResponse = await (window as any).electronAPI.aiChatOpenAI(userPrompt, systemPrompt, 'gpt-3.5-turbo');
+            if (!aiResponse.success || !aiResponse.content) throw new Error(aiResponse.error);
+            const result = { response: { text: () => aiResponse.content } };
             const response = await result.response;
             const text = response.text();
 
@@ -365,11 +364,15 @@ After installing, you may need to update the tool path in settings.`;
                 </div>
                 
                 {/* Content */}
-                <div className="flex-1 flex p-4 gap-4 bg-[url('https://www.transparenttextures.com/patterns/dark-leather.png')] bg-[#222]">
+                <div className="flex-1 flex p-4 gap-4 bg-[#222]">
                     {/* Left: Image */}
                     <div className="w-1/3 bg-black border border-[#555] flex items-center justify-center relative">
                         {selectedId && findNode(structure, selectedId)?.imagePath ? (
-                            <img src={`https://placehold.co/300x400/111/fff?text=${findNode(structure, selectedId)?.imagePath}`} className="w-full h-full object-cover opacity-80" />
+                            <div className="w-full h-full flex items-center justify-center p-3 text-center">
+                                <div className="text-[10px] text-slate-300 font-mono break-words">
+                                    {findNode(structure, selectedId)?.imagePath}
+                                </div>
+                            </div>
                         ) : (
                             <ImageIcon className="w-12 h-12 text-slate-700" />
                         )}
@@ -470,6 +473,42 @@ After installing, you may need to update the tool path in settings.`;
                         <Code className="w-4 h-4" /> XML
                     </button>
                 </div>
+            </div>
+
+            <div className="px-4 pt-4 max-h-72 overflow-y-auto pr-2">
+                <ToolsInstallVerifyPanel
+                    className="mb-0"
+                    accentClassName="text-purple-300"
+                    description="Assembler lets you design a FOMOD structure and export it. Launching an external FOMOD editor is optional and only works if you set a real path in Tool Settings."
+                    tools={[
+                        {
+                            label: 'FOMOD Creation Tool (optional external editor)',
+                            href: 'https://www.nexusmods.com/fallout4/mods/6821',
+                            note: 'Optional. Use Tool Settings to point Mossy at the executable you installed.',
+                            kind: 'official',
+                        },
+                    ]}
+                    verify={[
+                        'Switch between Structure / Preview / XML to confirm all three views render.',
+                        'Export FOMOD and verify files/folders are written to the chosen output.',
+                        'If you use Launch Tool: set the tool path in Tool Settings first.',
+                    ]}
+                    firstTestLoop={[
+                        'Create a tiny installer (one page, two options, one file mapping).',
+                        'Export and inspect the output in Workshop.',
+                        'Do one install/uninstall cycle in your mod manager before scaling up.',
+                    ]}
+                    troubleshooting={[
+                        'If Launch Tool fails, no default path is assumed—configure it in Tool Settings.',
+                        'If export output is missing, ensure your options include at least one file mapping.',
+                    ]}
+                    shortcuts={[
+                        { label: 'Tool Settings', to: '/settings/tools' },
+                        { label: 'Workshop', to: '/workshop' },
+                        { label: 'Packaging', to: '/packaging-release' },
+                        { label: 'Diagnostics', to: '/diagnostics' },
+                    ]}
+                />
             </div>
                         {/* External tool status */}
                         <div className="px-4 pt-2">

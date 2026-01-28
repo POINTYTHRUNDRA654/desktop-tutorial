@@ -21,6 +21,11 @@ const GITHUB_API_URL = `https://api.github.com/repos/${GITHUB_REPO}`;
  * Fetch latest release from GitHub
  */
 export const getLatestGitHubRelease = async (): Promise<GitHubRelease | null> => {
+  // Avoid network calls in dev/localhost to keep console clean and offline-friendly
+  if (import.meta.env.DEV || typeof window !== 'undefined' && window.location.hostname === 'localhost') {
+    return null;
+  }
+
   try {
     const response = await fetch(`${GITHUB_API_URL}/releases/latest`, {
       headers: {
@@ -29,7 +34,10 @@ export const getLatestGitHubRelease = async (): Promise<GitHubRelease | null> =>
     });
 
     if (!response.ok) {
-      console.warn('[GitHubReleaseChecker] Failed to fetch releases:', response.statusText);
+      // 404 is expected if no releases exist yet; skip noisy warning
+      if (response.status !== 404) {
+        console.warn('[GitHubReleaseChecker] Failed to fetch releases:', response.statusText);
+      }
       return null;
     }
 

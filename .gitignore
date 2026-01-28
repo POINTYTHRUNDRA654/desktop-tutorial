@@ -18,6 +18,12 @@ dist-ssr
 release
 *.local
 
+# Local release artifacts
+release.zip
+
+# Generated knowledge bundle (created during build)
+public/knowledge/
+
 # External front-end assets (user-provided)
 external/volttech-dist/*
 !external/volttech-dist/.gitkeep

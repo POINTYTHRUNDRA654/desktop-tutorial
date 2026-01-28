@@ -2,11 +2,20 @@ import React, { useState, useRef, useEffect, useMemo, useCallback } from 'react'
 import ReactMarkdown from 'react-markdown';
 import { LocalAIEngine } from './LocalAIEngine';
 import { getFullSystemInstruction } from './MossyBrain';
+import { getCommunityLearningContextForModel } from './communityLearningProfile';
+import { getToolPermissionsContextForModel, mergeExistingCheckedState } from './toolPermissions';
 import { checkContentGuard } from './Fallout4Guard';
 import { Send, Paperclip, Loader2, Bot, Leaf, Search, FolderOpen, Save, Trash2, CheckCircle2, HelpCircle, PauseCircle, ChevronRight, FileText, Cpu, X, CheckSquare, Globe, Mic, Volume2, VolumeX, StopCircle, Wifi, Gamepad2, Terminal, Play, Box, Layout, ArrowUpRight, Wrench, Radio, Lock, Square, Map, Scroll, Flag, PenTool, Database, Activity, Clipboard } from 'lucide-react';
 import { Message } from '../types';
 import { useLive } from './LiveContext';
+import { speakMossy } from './mossyTts';
 import { executeMossyTool, sanitizeBlenderScript } from './MossyTools';
+import { ModProjectStorage } from './services/ModProjectStorage';
+import { useActivityMonitor } from './hooks/useActivityMonitor';
+import { SuggestionPanel } from './components/SuggestionPanel';
+import { ToolsInstallVerifyPanel } from './components/ToolsInstallVerifyPanel';
+import { buildKnowledgeManifestForModel, buildRelevantKnowledgeVaultContext } from './knowledgeRetrieval';
+import { useNavigate, useLocation } from 'react-router-dom';
 
 
 type OnboardingState = 'init' | 'scanning' | 'integrating' | 'ready' | 'project_setup';
@@ -166,6 +175,39 @@ const ProjectWizard: React.FC<{ onSubmit: (data: any) => void, onCancel: () => v
 // Memoized Message Item to prevent re-rendering list on typing
 const MessageItem = React.memo(({ msg }: { msg: Message }) => {
     const roleLabel = msg.role === 'user' ? 'You' : msg.role === 'assistant' || msg.role === 'model' ? 'Mossy' : msg.role;
+
+    const savedPath = useMemo(() => {
+        const text = msg.text || '';
+        // Tool outputs consistently format saved locations like: **Saved:** C:\Path\To\File.ext
+        const m = text.match(/\*\*Saved:\*\*\s*(.+)$/m);
+        if (!m) return null;
+        const raw = (m[1] || '').trim();
+        if (!raw || raw.startsWith('(')) return null;
+        if (raw.toLowerCase().includes('unable to write')) return null;
+        return raw;
+    }, [msg.text]);
+
+    const handleOpenSaved = useCallback(async () => {
+        if (!savedPath) return;
+        const bridge = (window as any).electron?.api || (window as any).electronAPI;
+        try {
+            if (bridge?.revealInFolder) {
+                const res = await bridge.revealInFolder(savedPath);
+                if (res && res.success === false) {
+                    console.warn('[ChatInterface] revealInFolder failed:', res.error);
+                }
+                return;
+            }
+
+            // Fallback: open the path directly (won't highlight the file)
+            if (bridge?.openExternal) {
+                await bridge.openExternal(savedPath);
+            }
+        } catch (e) {
+            console.error('[ChatInterface] Failed to open saved path:', e);
+        }
+    }, [savedPath]);
+
     return (
         <div className="flex gap-3 items-start py-2">
             <div className="w-9 h-9 rounded-full bg-slate-800 flex items-center justify-center text-xs font-bold text-emerald-300 border border-slate-700">
@@ -173,6 +215,21 @@ const MessageItem = React.memo(({ msg }: { msg: Message }) => {
             </div>
             <div className="flex-1 min-w-0 space-y-1">
                 <div className="text-xs uppercase tracking-wide text-slate-500 font-semibold">{roleLabel}</div>
+                {savedPath && (
+                    <div className="flex items-center gap-2">
+                        <button
+                            type="button"
+                            onClick={handleOpenSaved}
+                            className="inline-flex items-center gap-2 px-2 py-1 rounded-md bg-slate-800/70 border border-slate-700 text-[11px] text-slate-200 hover:bg-slate-800 hover:border-slate-600 transition-colors"
+                            title="Open containing folder"
+                            aria-label="Open containing folder"
+                        >
+                            <FolderOpen className="w-3.5 h-3.5" />
+                            Open folder
+                        </button>
+                        <div className="text-[10px] text-slate-500 truncate" title={savedPath}>{savedPath}</div>
+                    </div>
+                )}
                 {msg.text && (
                     <ReactMarkdown className="prose prose-invert prose-sm max-w-none whitespace-pre-wrap">
                         {msg.text}
@@ -205,8 +262,17 @@ const MessageList = React.memo(({ messages, ...props }: any) => {
 MessageList.displayName = 'MessageList';
 
 export const ChatInterface: React.FC = () => {
+    const navigate = useNavigate();
+    const location = useLocation();
+
+    const appliedPrefillRef = useRef(false);
+    const CHAT_PREFILL_KEY = 'mossy_chat_prefill_v1';
+
   // Global Live State
   const { isActive: isLiveActive, isMuted: isLiveMuted, toggleMute: toggleLiveMute, disconnect: disconnectLive } = useLive();
+
+  // Activity Monitoring Hook
+  const { logActivity, suggestions, getTopSuggestions } = useActivityMonitor();
 
   // State
   const [messages, setMessages] = useState<Message[]>([]);
@@ -258,11 +324,51 @@ export const ChatInterface: React.FC = () => {
   const [scannedFiles, setScannedFiles] = useState<any[]>([]);
   const [scannedMap, setScannedMap] = useState<any>(null);
   const [cortexMemory, setCortexMemory] = useState<any[]>([]);
+  const [knowledgeCount, setKnowledgeCount] = useState<number>(() => {
+      try {
+          const raw = localStorage.getItem('mossy_knowledge_vault');
+          const parsed = raw ? JSON.parse(raw) : [];
+          return Array.isArray(parsed) ? parsed.length : 0;
+      } catch {
+          return 0;
+      }
+
+  });
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
   const activeSourceRef = useRef<AudioBufferSourceNode | null>(null);
   const lastSendTimeRef = useRef<number>(0); // Prevent rapid duplicate sends
+
+    // Accept a one-time prefill (Install Wizard → Chat handoff, etc.)
+    useEffect(() => {
+        if (appliedPrefillRef.current) return;
+
+        const statePrefill = (location.state as any)?.prefill;
+        const storedPrefill = (() => {
+            try {
+                return localStorage.getItem(CHAT_PREFILL_KEY);
+            } catch {
+                return null;
+            }
+        })();
+
+        const prefill = typeof statePrefill === 'string' ? statePrefill : (storedPrefill || '');
+        if (!prefill || inputText.trim()) return;
+
+        setInputText(prefill);
+        appliedPrefillRef.current = true;
+
+        try {
+            localStorage.removeItem(CHAT_PREFILL_KEY);
+        } catch {
+            // ignore
+        }
+
+        if (typeof statePrefill === 'string') {
+            navigate('/chat', { replace: true, state: {} });
+        }
+    }, [location.state, navigate, inputText]);
 
   // --- PERSISTENCE LAYER (DEBOUNCED) ---
   useEffect(() => {
@@ -282,6 +388,19 @@ export const ChatInterface: React.FC = () => {
   }, [messages, workingMemory]);
 
   useEffect(() => {
+    const api = (window as any).electron?.api || (window as any).electronAPI;
+
+    const refreshSettings = () => {
+        if (api?.getSettings) {
+            api.getSettings().then(setFormalSettings).catch(() => {});
+        }
+    };
+
+    const handleSettingsUpdate = () => {
+        console.log('[ChatInterface] Settings updated via broadcast, refreshing...');
+        refreshSettings();
+    };
+
     const checkState = () => {
         const active = localStorage.getItem('mossy_bridge_active') === 'true';
         setIsBridgeActive(active);
@@ -296,43 +415,12 @@ export const ChatInterface: React.FC = () => {
         // CHECK BLENDER ADD-ON STATUS
         const blenderActive = localStorage.getItem('mossy_blender_active') === 'true';
         setIsBlenderLinked(blenderActive);
-        
-        if (active) {
-             const lastScan = localStorage.getItem('mossy_last_scan');
-             const now = Date.now();
-             const oneDay = 24 * 60 * 60 * 1000;
-             const hasApps = localStorage.getItem('mossy_apps');
 
-             // If no scan data exists, always run scan (critical for onboarding)
-             if (!hasApps) {
-                console.log('[ChatInterface] No scan data found; running auto-scan...');
-                if (onboardingState === 'init') {
-                    performSystemScan(); // Full visible scan on init
-                } else {
-                    performSystemScan(true); // Silent scan if already onboarded
-                }
-             } 
-             // Otherwise, periodic silent scan if we've finished onboarding
-             else if (onboardingState !== 'init' && onboardingState !== 'scanning' && onboardingState !== 'integrating') {
-                if (!lastScan || (now - parseInt(lastScan)) > oneDay) {
-                    performSystemScan(true); // Silent background refresh
-                }
-             }
-        }
+        // IMPORTANT: Do NOT auto-rescan on focus/startup.
+        // The user's approved tool permissions should persist between sessions.
+        // Scans should only occur when explicitly triggered by the user.
 
-        const api = (window as any).electron?.api || (window as any).electronAPI;
-        if (api?.getSettings) {
-            api.getSettings().then(setFormalSettings).catch(() => {});
-        }
-        
-        // Listen for settings updates from External Tools Settings page
-        const handleSettingsUpdate = (event: any) => {
-            console.log('[ChatInterface] Settings updated via broadcast, refreshing...');
-            if (api?.getSettings) {
-                api.getSettings().then(setFormalSettings).catch(() => {});
-            }
-        };
-        window.addEventListener('mossy-settings-updated', handleSettingsUpdate);
+        refreshSettings();
 
         try {
             const auditorData = localStorage.getItem('mossy_scan_auditor');
@@ -343,15 +431,20 @@ export const ChatInterface: React.FC = () => {
 
             const memoryData = localStorage.getItem('mossy_cortex_memory');
             if (memoryData) setCortexMemory(JSON.parse(memoryData));
+
+            const vaultRaw = localStorage.getItem('mossy_knowledge_vault');
+            if (vaultRaw) {
+                const vault = JSON.parse(vaultRaw);
+                setKnowledgeCount(Array.isArray(vault) ? vault.length : 0);
+            } else {
+                setKnowledgeCount(0);
+            }
         } catch (e) {
             console.error('Failed to load cortex data:', e);
         }
-        
-        // Cleanup listener
-        return () => {
-            window.removeEventListener('mossy-settings-updated', handleSettingsUpdate);
-        };
     };
+
+    window.addEventListener('mossy-settings-updated', handleSettingsUpdate);
     checkState();
     window.addEventListener('focus', checkState);
     window.addEventListener('mossy-memory-update', checkState);
@@ -366,6 +459,7 @@ export const ChatInterface: React.FC = () => {
         const savedState = localStorage.getItem('mossy_state');
         const savedProject = localStorage.getItem('mossy_project');
         const savedApps = localStorage.getItem('mossy_apps');
+        const savedIntegratedTools = localStorage.getItem('mossy_integrated_tools');
         const savedVoice = localStorage.getItem('mossy_voice_enabled');
         const savedMemory = localStorage.getItem('mossy_working_memory');
 
@@ -381,15 +475,35 @@ export const ChatInterface: React.FC = () => {
             setProjectData(parsed);
             setShowProjectPanel(true);
         }
-        if (savedApps) setDetectedApps(JSON.parse(savedApps));
+        if (savedApps) {
+            setDetectedApps(JSON.parse(savedApps));
+        } else if (savedIntegratedTools) {
+            // Back-compat: first-run onboarding stored approvals here.
+            // Promote into mossy_apps so the rest of the app has a single source of truth.
+            const tools = JSON.parse(savedIntegratedTools) as Array<{ name: string; path?: string; category?: string }>;
+            const promoted = tools
+                .filter(t => t?.name)
+                .map((t, idx) => ({
+                    id: `integrated-${idx}-${Math.random().toString(36).slice(2, 7)}`,
+                    name: t.name,
+                    category: t.category || 'Tool',
+                    checked: true,
+                    path: t.path
+                }));
+            setDetectedApps(promoted);
+            localStorage.setItem('mossy_apps', JSON.stringify(promoted));
+        }
         if (savedVoice && !isLiveActive) setIsVoiceEnabled(JSON.parse(savedVoice));
     } catch (e) { console.error("Load failed", e); initMossy(); }
 
     return () => {
+        window.removeEventListener('mossy-settings-updated', handleSettingsUpdate);
         window.removeEventListener('focus', checkState);
         window.removeEventListener('mossy-memory-update', checkState);
         window.removeEventListener('mossy-bridge-connected', checkState);
         window.removeEventListener('mossy-driver-update', checkState);
+        window.removeEventListener('mossy-blender-linked', checkState);
+        window.removeEventListener('storage', checkState);
         
         // MEMORY LEAK FIX: Clean up audio resources on unmount
         if (activeSourceRef.current) {
@@ -405,6 +519,21 @@ export const ChatInterface: React.FC = () => {
             audioContextRef.current = null;
         }
     };
+  }, []);
+
+  // Dedicated listener for vault updates (immediate UI feedback)
+  useEffect(() => {
+      const handler = () => {
+          try {
+              const raw = localStorage.getItem('mossy_knowledge_vault');
+              const parsed = raw ? JSON.parse(raw) : [];
+              setKnowledgeCount(Array.isArray(parsed) ? parsed.length : 0);
+          } catch {
+              setKnowledgeCount(0);
+          }
+      };
+      window.addEventListener('mossy-knowledge-updated', handler);
+      return () => window.removeEventListener('mossy-knowledge-updated', handler);
   }, []);
 
   // Other state persistence
@@ -425,12 +554,12 @@ export const ChatInterface: React.FC = () => {
   }, [isLiveActive]);
 
   const initMossy = () => {
-      const hasApps = localStorage.getItem('mossy_apps');
+      const hasApps = localStorage.getItem('mossy_apps') || localStorage.getItem('mossy_integrated_tools');
       if (hasApps) {
           setMessages([{ 
               id: 'init', 
               role: 'model', 
-              text: "👋 **Welcome back, Vault Dweller!**\n\nMy neural link is active and I've loaded your system profile. I'm ready to assist with your Fallout 4 project. What are we working on today?" 
+              text: "👋 **Welcome back, Vault Dweller!**\n\nI remember the tools and integrations you approved. I can use those permissions to help teach you workflows and (when the Desktop Bridge is online) interact with supported apps to automate steps.\n\nWhat are we working on today?" 
           }]);
           setOnboardingState('ready');
           return;
@@ -450,6 +579,11 @@ export const ChatInterface: React.FC = () => {
           localStorage.removeItem('mossy_state');
           localStorage.removeItem('mossy_project');
           localStorage.removeItem('mossy_apps');
+          localStorage.removeItem('mossy_integrated_tools');
+          localStorage.removeItem('mossy_tool_preferences');
+          localStorage.removeItem('mossy_all_detected_apps');
+          localStorage.removeItem('mossy_scan_summary');
+          localStorage.removeItem('mossy_last_scan');
           localStorage.removeItem('mossy_scan_auditor');
           localStorage.removeItem('mossy_scan_cartographer');
           localStorage.removeItem('mossy_cortex_memory');
@@ -528,54 +662,25 @@ export const ChatInterface: React.FC = () => {
               }
               
               let transcript = '';
-              
-              // Try OpenAI Whisper first
+
+              // Transcribe via Electron main process (keeps API keys out of renderer)
               try {
-                  console.log('[ChatInterface] Sending audio to Whisper... (size:', audioBlob.size, 'bytes)');
-                  const formData = new FormData();
-                  formData.append('file', audioBlob, 'audio.webm');
-                  formData.append('model', 'whisper-1');
-                  
-                  const response = await fetch('https://api.openai.com/v1/audio/transcriptions', {
-                      method: 'POST',
-                      headers: { 'Authorization': `Bearer ${import.meta.env.VITE_OPENAI_API_KEY}` },
-                      body: formData,
-                  });
-                  
-                  if (response.ok) {
-                      const result = await response.json();
-                      transcript = result.text?.trim() || '';
-                      console.log('[ChatInterface] Whisper transcript:', transcript);
+                  const api = (window as any).electron?.api || (window as any).electronAPI;
+                  if (!api?.transcribeAudio) {
+                      console.warn('[ChatInterface] transcribeAudio IPC not available');
                   } else {
-                      console.warn('[ChatInterface] Whisper error:', response.status, '- trying Deepgram fallback');
+                      console.log('[ChatInterface] Transcribing audio via main process... (size:', audioBlob.size, 'bytes)');
+                      const ab = await audioBlob.arrayBuffer();
+                      const resp = await api.transcribeAudio(ab, audioBlob.type || 'audio/webm');
+                      if (resp?.success) {
+                          transcript = String(resp.text || '').trim();
+                          console.log('[ChatInterface] Transcript:', transcript);
+                      } else {
+                          console.warn('[ChatInterface] Transcription failed:', resp?.error);
+                      }
                   }
               } catch (err) {
-                  console.warn('[ChatInterface] Whisper failed:', err, '- trying Deepgram fallback');
-              }
-              
-              // Fallback to Deepgram if Whisper failed
-              if (!transcript && import.meta.env.VITE_DEEPGRAM_API_KEY) {
-                  try {
-                      console.log('[ChatInterface] Trying Deepgram transcription...');
-                      const response = await fetch('https://api.deepgram.com/v1/listen?model=nova-2-general&language=en&punctuate=true', {
-                          method: 'POST',
-                          headers: {
-                              'Authorization': `Token ${import.meta.env.VITE_DEEPGRAM_API_KEY}`,
-                              'Content-Type': 'audio/webm'
-                          },
-                          body: audioBlob
-                      });
-                      
-                      if (response.ok) {
-                          const data = await response.json();
-                          transcript = data.results?.channels?.[0]?.alternatives?.[0]?.transcript?.trim() || '';
-                          console.log('[ChatInterface] Deepgram transcript:', transcript);
-                      } else {
-                          console.error('[ChatInterface] Deepgram error:', response.status);
-                      }
-                  } catch (err) {
-                      console.error('[ChatInterface] Deepgram failed:', err);
-                  }
+                  console.warn('[ChatInterface] Transcription failed:', err);
               }
               
               // Submit the transcript if we got one
@@ -589,7 +694,7 @@ export const ChatInterface: React.FC = () => {
                   }, 100);
               } else {
                   console.error('[ChatInterface] No transcription available from any service');
-                  alert('Voice transcription failed. Please check your microphone and try again.');
+                  alert('Voice transcription failed. If you want STT, configure OpenAI or Deepgram in Desktop settings, then try again.');
               }
           };
           
@@ -628,37 +733,18 @@ export const ChatInterface: React.FC = () => {
 
   const speakText = async (textToSpeak: string) => {
       if (!textToSpeak || isLiveActive) return;
-      
-      // PREVENT QUEUING: Stop any existing speech before starting new one
-      try {
-          if ('speechSynthesis' in window) {
-              window.speechSynthesis.cancel();
-          }
-      } catch (e) {
-          // Ignore
-      }
-      
-      const cleanText = textToSpeak.replace(/[*#]/g, '').substring(0, 500);
       setIsPlayingAudio(true);
 
       try {
-        if ('speechSynthesis' in window) {
-          const utter = new SpeechSynthesisUtterance(cleanText);
-          utter.onend = () => setIsPlayingAudio(false);
-          utter.onerror = () => setIsPlayingAudio(false);
-          window.speechSynthesis.speak(utter);
-        } else {
-          console.warn('[TTS] Browser speechSynthesis unavailable; skipping audio playback.');
-          setIsPlayingAudio(false);
-        }
+                await speakMossy(textToSpeak, { cancelExisting: true });
       } catch (err) {
         console.error('[TTS] Audio playback failed:', err);
-        setIsPlayingAudio(false);
       }
+            setIsPlayingAudio(false);
   };
 
   // --- CHAT LOGIC ---
-  const generateSystemContext = async () => {
+  const generateSystemContext = async (query?: string) => {
     try {
       let hardwareCtx = "Hardware: Unknown";
       if (profile) {
@@ -668,15 +754,10 @@ export const ChatInterface: React.FC = () => {
       // Load Memory Vault knowledge for context
       let knowledgeVaultContext = "";
       try {
-          const knowledgeStr = typeof window !== 'undefined' ? window.localStorage.getItem('mossy_knowledge_vault') : null;
-          if (knowledgeStr) {
-              const knowledge = JSON.parse(knowledgeStr);
-              if (Array.isArray(knowledge) && knowledge.length > 0) {
-                  const knowledgeItems = knowledge
-                      .map((item: any) => `[${item.tags?.join(', ') || 'general'}] ${item.title}: ${item.content.substring(0, 200)}${item.content.length > 200 ? '...' : ''}`)
-                      .join('\n');
-                  knowledgeVaultContext = `\n**MOSSY'S KNOWLEDGE VAULT (${knowledge.length} items - CRITICAL CONTEXT):**\n${knowledgeItems}`;
-              }
+          const manifest = buildKnowledgeManifestForModel();
+          const relevant = buildRelevantKnowledgeVaultContext(query || '', { maxItems: 10, maxChars: 7000 });
+          if (manifest || relevant) {
+              knowledgeVaultContext = `\n**MOSSY'S KNOWLEDGE VAULT (CRITICAL):**${manifest}${relevant}`;
           }
       } catch (e) {
           console.warn('[ChatInterface] Failed to load memory vault:', e);
@@ -722,13 +803,17 @@ export const ChatInterface: React.FC = () => {
               learnedCtx = `\n**INGESTED KNOWLEDGE (TUTORIALS & DOCS):**\n${learnedItems}\n(Use this knowledge to answer user queries accurately based on the provided documents.)`;
           }
       }
+
+      const communityLearningCtx = getCommunityLearningContextForModel();
+      const toolPermissionsCtx = getToolPermissionsContextForModel({
+          bridgeActive: isBridgeActive,
+          blenderLinked: isBlenderLinked,
+      });
       
       // Get current mod project info
       let modContext = "";
       try {
-          // Dynamic import for ModProjectStorage to avoid circular dependencies
-          const ModProjectStorageModule = await import('./services/ModProjectStorage');
-          const currentMod = ModProjectStorageModule.ModProjectStorage.getCurrentMod();
+          const currentMod = ModProjectStorage.getCurrentMod();
           if (currentMod) {
               const stats = ModProjectStorage.getProjectStats(currentMod.id);
               modContext = `\n**CURRENT MOD PROJECT:** "${currentMod.name}"\n- Type: ${currentMod.type} | Status: ${currentMod.status}\n- Progress: ${currentMod.completionPercentage}% | Steps: ${stats.completedSteps}/${stats.totalSteps}\n- Version: ${currentMod.version}\n(Provide context-aware guidance for this specific mod.)`;
@@ -784,7 +869,7 @@ export const ChatInterface: React.FC = () => {
                     "• Workshop (/workshop): Real file browser and editor; Papyrus compile via configured compiler path.",
                     "• Holodeck (/holodeck): Automated mod validator; integrates with Neural Link to monitor live gameplay.",
                     "• System Monitor (/system): Hardware and tools scan, Desktop Bridge status, launch helpers.",
-                    "• The Scribe (/scribe): Documentation and readme assistant (Gemini-backed)."
+                    "• The Scribe (/scribe): Documentation and readme assistant (AI-backed)."
                 ].join('\n');
 
       return `
@@ -793,6 +878,7 @@ export const ChatInterface: React.FC = () => {
       ${blenderContext}
             ${settingsCtx}${gameFolderInfo}
             ${appFeatures}
+        ${toolPermissionsCtx}
       **Short-Term Working Memory:** ${workingMemory}
       **Project Status:** ${projectData ? projectData.name : "None"}${modContext}
       ${knowledgeVaultContext}
@@ -801,6 +887,7 @@ export const ChatInterface: React.FC = () => {
       ${hardwareCtx}
       ${scanContext}
       ${learnedCtx}
+            ${communityLearningCtx}
       `;
     } catch (e) {
       console.error("Context Error:", e);
@@ -940,6 +1027,9 @@ export const ChatInterface: React.FC = () => {
         if (existingAppsRaw) {
             try {
                 const existing = JSON.parse(existingAppsRaw);
+
+                // Preserve explicit user approvals (checked true/false)
+                finalApps = mergeExistingCheckedState(finalApps as any, existing as any) as any;
                 // Keep any existing apps that aren't in the new found list
                 existing.forEach((ea: any) => {
                     if (!finalApps.some(fa => fa.path === ea.path || fa.name === ea.name)) {
@@ -1131,14 +1221,16 @@ export const ChatInterface: React.FC = () => {
 
     try {
       console.log("[Mossy] Initializing AI Session...");
-      const dynamicInstruction = getFullSystemInstruction(await generateSystemContext());
+            const dynamicInstruction = getFullSystemInstruction(await generateSystemContext(textToSend));
       setIsStreaming(true);
 
       const streamId = (Date.now() + 1).toString();
       setMessages(prev => [...prev, { id: streamId, role: 'model', text: "..Processing.." }]);
 
       // Use local engine only (Google Cloud removed)
+      const startTime = Date.now();
       const localResult = await LocalAIEngine.generateResponse(textToSend, dynamicInstruction);
+      const duration = Date.now() - startTime;
       const aiResponseText = localResult.content || "Mossy is in Passive Mode; no cloud model configured.";
 
       setMessages(prev => prev.map(m => m.id === streamId ? { ...m, text: aiResponseText } : m));
@@ -1149,9 +1241,29 @@ export const ChatInterface: React.FC = () => {
           await speakText(aiResponseText);
       }
 
+      // Log activity AFTER speaking (non-blocking, deferred)
+      logActivity('ai_query', 'AI Response Generation', `Query: "${textToSend.substring(0, 50)}..."`, {
+        duration,
+        success: true,
+        metadata: {
+          queryLength: textToSend.length,
+          responseLength: aiResponseText.length,
+          hasImage: !!selectedFile,
+        },
+        tags: ['ai_chat', 'response'],
+      });
+
     } catch (error) {
       console.error(error);
       const errText = error instanceof Error ? error.message : 'Unknown error';
+      
+      // Log failed activity
+      logActivity('ai_query', 'AI Response Generation', `Failed: ${errText}`, {
+        success: false,
+        metadata: { errorMessage: errText },
+        tags: ['ai_chat', 'error'],
+      });
+      
       setMessages(prev => [...prev, { id: Date.now().toString(), role: 'model', text: `**System Error:** ${errText}` }]);
     } finally {
       setIsLoading(false);
@@ -1185,6 +1297,19 @@ export const ChatInterface: React.FC = () => {
                 <div className="hidden md:flex items-center gap-1.5 px-3 py-1 bg-orange-900/20 border border-orange-500/30 rounded-full text-xs text-orange-400 animate-fade-in">
                     <Box className="w-3 h-3" /> Blender Active
                 </div>
+            )}
+
+            {knowledgeCount > 0 && (
+                <button
+                    type="button"
+                    onClick={() => navigate('/memory-vault')}
+                    className="hidden md:flex items-center gap-1.5 px-3 py-1 bg-emerald-900/20 border border-emerald-500/30 rounded-full text-xs text-emerald-300 animate-fade-in hover:bg-emerald-500/10 hover:border-emerald-400/40 transition-colors"
+                    title="Open Memory Vault (Knowledge Vault is loaded locally)"
+                    aria-label="Open Memory Vault"
+                >
+                    <Database className="w-3 h-3" />
+                    <span>Knowledge Vault: {knowledgeCount}</span>
+                </button>
             )}
 
             {projectContext && (
@@ -1261,6 +1386,33 @@ export const ChatInterface: React.FC = () => {
         </div>
       </div>
 
+            <div className="px-4 pt-4">
+                <ToolsInstallVerifyPanel
+                    accentClassName="text-emerald-300"
+                    description="Chat is the main interface. Optional features (voice, Blender scripts, desktop actions) require the relevant integrations to be active."
+                    tools={[]}
+                    verify={[
+                        'Send a short message and confirm you receive a response.',
+                        'If Knowledge Vault badge shows, click it and confirm the vault opens.',
+                    ]}
+                    firstTestLoop={[
+                        'Run Install Wizard to detect tools (one time).',
+                        'Ask Mossy for a tiny “hello world” FO4 mod plan (one record or one script).',
+                        'Execute exactly one action (generate text, analyze a file, or open a guide) and confirm the output is usable.',
+                    ]}
+                    troubleshooting={[
+                        'If responses fail, check Settings for API key/model configuration.',
+                        'If desktop actions fail, confirm Desktop Bridge/Electron API is available.',
+                    ]}
+                    shortcuts={[
+                        { label: 'Install Wizard', to: '/install-wizard' },
+                        { label: 'Tool Settings', to: '/settings/tools' },
+                        { label: 'Memory Vault', to: '/memory-vault' },
+                        { label: 'Diagnostics', to: '/diagnostics' },
+                    ]}
+                />
+            </div>
+
       <div className="flex-1 flex overflow-hidden">
         <div className="flex-1 flex flex-col min-w-0">
             
@@ -1311,6 +1463,16 @@ export const ChatInterface: React.FC = () => {
             </MessageList>
 
             <div className="p-4 bg-forge-panel border-t border-slate-700 z-10">
+                {/* Suggestion Panel */}
+                {suggestions.length > 0 && (
+                    <SuggestionPanel
+                        suggestions={getTopSuggestions(3)}
+                        onDismiss={(id) => console.log('Dismissed suggestion:', id)}
+                        onAccept={(id) => console.log('Accepted suggestion:', id)}
+                        showAll={false}
+                    />
+                )}
+
                 {onboardingState === 'project_setup' ? (
                     <ProjectWizard 
                         onCancel={() => {

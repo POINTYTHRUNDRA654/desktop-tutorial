@@ -1,5 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Mountain, Search, Plus, Save, AlertTriangle, Zap, RefreshCw, Settings, Folder, Database, Copy, CheckCircle2, AlertCircle } from 'lucide-react';
+import { ToolsInstallVerifyPanel } from './components/ToolsInstallVerifyPanel';
+import { useWheelScrollProxy } from './components/useWheelScrollProxy';
 
 // --- Types ---
 type LODPass = 'lod0' | 'lod1' | 'lod2' | 'lod3' | 'lod4';
@@ -133,6 +135,14 @@ const Lorekeeper: React.FC = () => {
   });
   const [newPresetName, setNewPresetName] = useState('');
   const api = (window as any).electron?.api;
+
+  const toolPathsSectionRef = useRef<HTMLDivElement | null>(null);
+  const lodSectionRef = useRef<HTMLDivElement | null>(null);
+  const precombineSectionRef = useRef<HTMLDivElement | null>(null);
+
+  const scrollToSection = (ref: { current: HTMLDivElement | null }) => {
+    ref.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  };
 
   useEffect(() => {
     const stored = localStorage.getItem('lorekeeper-lod-assets');
@@ -277,8 +287,11 @@ const Lorekeeper: React.FC = () => {
   const pendingPrecombine = precombineJobs.filter(j => j.status === 'pending').length;
   const completedPrecombine = precombineJobs.filter(j => j.status === 'done').length;
 
+  const mainScrollRef = useRef<HTMLDivElement | null>(null);
+  const wheelProxy = useWheelScrollProxy(mainScrollRef);
+
   return (
-    <div className="h-full flex flex-col bg-forge-dark text-slate-200">
+    <div className="h-full flex flex-col bg-forge-dark text-slate-200 min-h-0 overflow-hidden" onWheel={wheelProxy}>
       {/* Header */}
       <div className="p-4 border-b border-slate-700 bg-forge-panel flex justify-between items-center z-10 shadow-md">
         <div>
@@ -295,9 +308,78 @@ const Lorekeeper: React.FC = () => {
         </div>
       </div>
 
-      <div className="flex-1 overflow-y-auto p-6 flex flex-col gap-6">
+      <div className="p-4 max-h-72 overflow-y-auto pr-2">
+        <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+          <ToolsInstallVerifyPanel
+            className="mb-0"
+            accentClassName="text-forge-accent"
+            description="Lorekeeper is for FO4 optimization workflows (LOD generation + precombines/PRP planning). It relies on you configuring real tool paths below."
+            tools={[
+              {
+                label: 'Search Nexus: LODGen / xLODGen (FO4)',
+                href: 'https://www.nexusmods.com/fallout4/search/?gsearch=LODGen&gsearchtype=mods',
+                note: 'Use search to find the current maintained LOD tool for FO4.',
+                kind: 'search',
+              },
+              {
+                label: 'Search Nexus: PRP / Previsibines Repair Pack',
+                href: 'https://www.nexusmods.com/fallout4/search/?gsearch=PRP&gsearchtype=mods',
+                note: 'Use search to find the current PRP resources and documentation.',
+                kind: 'search',
+              },
+            ]}
+            verify={[
+              'Set tool paths (LODGEN/PJM/etc) and confirm they persist after refresh.',
+              'Create a new job and confirm it appears in the job list.',
+            ]}
+            firstTestLoop={[
+              'Run one small job (tiny cell range / single test asset) before doing a full worldspace pass.',
+              'Inspect output logs and confirm output paths match your mod staging folder.',
+            ]}
+            troubleshooting={[
+              'If Run does nothing, confirm your executable paths are correct and accessible.',
+              'If output paths look wrong, fix presets/targets first—don’t run large batches blindly.',
+            ]}
+            shortcuts={[
+              { label: 'Precombine Guide', to: '/precombine-prp' },
+              { label: 'Precombine Checker', to: '/precombine-checker' },
+              { label: 'Tool Settings', to: '/settings/tools' },
+              { label: 'Packaging', to: '/packaging-release' },
+            ]}
+          />
+
+          <div className="bg-slate-900/60 border border-slate-800 rounded-xl p-4">
+            <div className="text-sm font-semibold text-white mb-1">Existing Workflow (Legacy)</div>
+            <div className="text-xs text-slate-400 mb-3">
+              Jump straight into the existing panels without scrolling past the tools block.
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <button
+                onClick={() => scrollToSection(toolPathsSectionRef)}
+                className="px-3 py-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded text-xs font-bold"
+              >
+                Tool Paths
+              </button>
+              <button
+                onClick={() => scrollToSection(lodSectionRef)}
+                className="px-3 py-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded text-xs font-bold"
+              >
+                LOD Generation
+              </button>
+              <button
+                onClick={() => scrollToSection(precombineSectionRef)}
+                className="px-3 py-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded text-xs font-bold"
+              >
+                Precombine Jobs
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+  <div ref={mainScrollRef} className="flex-1 min-h-0 overflow-y-auto p-6 flex flex-col gap-6">
         {/* Tool Paths Config */}
-        <div className="bg-slate-900/60 border border-slate-800 rounded-xl p-4">
+        <div ref={toolPathsSectionRef} className="bg-slate-900/60 border border-slate-800 rounded-xl p-4">
           <div className="flex items-center gap-2 text-sm font-semibold text-white mb-3">
             <Folder className="w-4 h-4 text-forge-accent" /> Tool Paths
           </div>
@@ -342,7 +424,7 @@ const Lorekeeper: React.FC = () => {
         </div>
 
         {/* LOD Generation */}
-        <div className="bg-slate-900/60 border border-slate-800 rounded-xl p-4">
+        <div ref={lodSectionRef} className="bg-slate-900/60 border border-slate-800 rounded-xl p-4">
           <div className="flex items-center justify-between mb-3">
             <div className="flex items-center gap-2 text-sm font-semibold text-white">
               <Zap className="w-4 h-4 text-amber-400" /> LOD Generation (LODGEN)
@@ -416,7 +498,7 @@ const Lorekeeper: React.FC = () => {
         </div>
 
         {/* Precombine Jobs */}
-        <div className="bg-slate-900/60 border border-slate-800 rounded-xl p-4">
+        <div ref={precombineSectionRef} className="bg-slate-900/60 border border-slate-800 rounded-xl p-4">
           <div className="flex items-center justify-between mb-3">
             <div className="flex items-center gap-2 text-sm font-semibold text-white">
               <Database className="w-4 h-4 text-purple-400" /> Precombine Jobs (PRP/PJM)

@@ -1,5 +1,6 @@
 import React from 'react';
 import { Coffee, Heart, DollarSign, Github, ExternalLink } from 'lucide-react';
+import { ToolsInstallVerifyPanel } from './components/ToolsInstallVerifyPanel';
 
 export const DonationSupport: React.FC = () => {
   return (
@@ -16,6 +17,23 @@ export const DonationSupport: React.FC = () => {
               Help keep your Fallout 4 modding companion caffeinated and running! ☕
             </p>
           </div>
+
+          <ToolsInstallVerifyPanel
+            accentClassName="text-amber-300"
+            description="No tools needed. This page only opens official support links in your browser."
+            verify={[
+              'Click one support option and confirm it opens in your browser.',
+              'Return to the app and confirm navigation/state is unchanged.'
+            ]}
+            troubleshooting={[
+              'If links do not open, check Diagnostics and confirm openExternal is available (desktop bridge) or allow popups in your environment.'
+            ]}
+            shortcuts={[
+              { label: 'Community Learning', to: '/community' },
+              { label: 'Privacy Settings', to: '/settings/privacy' },
+              { label: 'Diagnostics', to: '/diagnostics' },
+            ]}
+          />
 
           {/* Why Support Section */}
           <div className="bg-slate-800/50 backdrop-blur-sm rounded-xl p-6 border border-slate-700/50">

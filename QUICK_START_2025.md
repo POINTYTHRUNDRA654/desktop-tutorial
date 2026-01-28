@@ -1,19 +1,45 @@
-# Mossy v3.0 - Professional Modding Shell
+# Mossy v4.0 - Quick Start (5 minutes)
 
-**Welcome to Mossy!** This guide will get you up and running in 5 minutes.
+**Welcome to Mossy!** This guide gets you from install → first launch → first useful action.
+
+## 1) Install (Windows)
+
+1. Download the latest Windows installer (for example: `Mossy Setup 4.0.0.exe`).
+2. Run the installer and follow the prompts.
+3. Launch Mossy from the Start Menu or desktop shortcut.
+
+## 2) First Launch (Onboarding)
+
+On first run, Mossy walks you through a quick setup:
+
+1. **Pick your UI language** (Auto/system, English, Español, Français, Deutsch, Русский, 中文（简体）).
+2. **System Scan** finds modding tools installed on your PC.
+3. **Tool approvals** let you choose which tools Mossy can “know about” and integrate with.
+
+You can change language and tool approvals later in Settings.
+
+## 3) Configure AI (Optional)
+
+Mossy works in a “local-first” way, but some features use external providers if you enable them.
+
+- Open **Settings → AI/Voice** and choose your provider(s).
+- If you choose a cloud provider, enter your API key in Settings.
+
+## 4) Use the Install Wizard (Recommended)
+
+Open **Install Wizard** for guided checklists (xEdit/FO4Edit setup, PRP, SS2, patch-building, and verification).
 
 ## What is Mossy?
 
 Mossy is a professional Fallout 4 modding dashboard. Unlike other tools, Mossy uses **zero simulated data**. Everything you see is derived from real-time system monitoring and file analysis.
 
-- 🤖 **Hybrid AI** - Use Google Gemini (Live) or Ollama (Local/Private).
+- 🤖 **Hybrid AI** - Use OpenAI/Groq (cloud) or Ollama (Local/Private).
 - 🧠 **Memory Vault** - Feed Mossy custom tutorials to create your own modding RAG.
 - 🔗 **Neural Link** - Real-time monitoring of Blender, Creation Kit, and xEdit (Requires Desktop Bridge).
 - 🔍 **Asset Analysis** - Real binary validation of NIF, DDS, and ESP files.
 - 🎨 **PBR Generation** - Apply real Sobel edge detection and luminance algorithms to your textures.
 - 🛠️ **Tools Integration** - Direct system link to detect and launch your modding utilities.
 - 📊 **System Monitor** - Real-time hardware telemetry (No fake metrics).
-... (existing steps) ...
 
 ### Step 3: Train Mossy (Optional but Recommended)
 Go to **Memory Vault** and upload any `.txt` or `.md` tutorials you have. Mossy will "digest" these and use them to answer your questions.
@@ -25,15 +51,15 @@ Launch Blender or the Creation Kit. Mossy's **Neural Link** will pulse green whe
 
 When you launch Mossy for the first time:
 
-1. **Visit The Nexus** - Complete the onboarding calibration.
-2. **Open Neural Link** - See which modding tools Mossy is currently watching.
-3. **Check the Vault** - Stage your assets for BA2 packaging.
-4. **Try the Scribe** - Edit your scripts with real-time Papyrus validation.
+1. **Complete onboarding** - Language + tool discovery + approvals.
+2. **Open Neural Link** - See which modding tools Mossy is watching.
+3. **Check the Vault** - Stage assets and organize outputs.
+4. **Try the Workshop/Scribe** - Edit and manage scripts.
 
 ## 🔍 Key Features Explained
 
 ### 1. Chat Interface (Mossy)
-- **Talk to AI** - Natural conversation with Gemini
+- **Talk to AI** - Natural conversation (cloud or local)
 - **Voice Input/Output** - Use your microphone
 - **Custom Avatar** - Upload custom avatar image
 - **Real-time Status** - See if Mossy is listening, processing, or speaking
@@ -115,7 +141,7 @@ Test your mod in Fallout 4:
 4. Select your image
 
 ### Set Tool Paths
-1. Go to **The Scribe**
+1. Go to **Settings → External Tools**
 2. Set paths to your:
    - Blender executable
    - Creation Kit
@@ -127,7 +153,7 @@ Test your mod in Fallout 4:
 
 ### "API Key Missing"
 - Check `.env.local` file exists
-- Verify you put `VITE_API_KEY=` not `API_KEY=`
+- Configure keys in the Desktop Settings UI (recommended). For development env vars, use `OPENAI_API_KEY`, `GROQ_API_KEY`, `DEEPGRAM_API_KEY`.
 - Restart app: `npm run dev`
 
 ### Tools Not Detected
@@ -179,7 +205,7 @@ npm run build
 npm run package:win
 ```
 
-Creates `release/Mossy-Setup-3.0.0.exe`
+Installer output goes to `release/` (for example: `Mossy Setup 4.0.0.exe`).
 
 ## 📖 Documentation
 

@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { AlertCircle, CheckCircle2, ChevronDown, Zap } from 'lucide-react';
+import { ToolsInstallVerifyPanel } from './components/ToolsInstallVerifyPanel';
 
 interface MistakeExample {
   id: string;
@@ -382,6 +383,32 @@ export const RiggingMistakesGallery: React.FC = () => {
       {/* Content */}
       <div className="flex-1 overflow-y-auto p-6">
         <div className="max-w-4xl mx-auto space-y-3">
+          <ToolsInstallVerifyPanel
+            accentClassName="text-red-300"
+            description="Use this gallery as a debugging index: pick the symptom you see, apply the smallest fix, then re-test immediately."
+            tools={[
+              { label: 'Blender (official download)', href: 'https://www.blender.org/download/', kind: 'official', note: 'Most fixes here are done directly in Blender.' },
+            ]}
+            verify={[
+              'Change the category filter and confirm the list updates.',
+              'Expand one example and confirm you can read fix steps + prevention.'
+            ]}
+            firstTestLoop={[
+              'Identify one symptom → apply only the first fix step → re-export → re-test.',
+              'Repeat until the symptom changes; then move to the next step.'
+            ]}
+            troubleshooting={[
+              'If you do not know “what changed”, fix one variable at a time (one bone, one weight group, one export toggle).',
+              'If “everything looks wrong”, start with scale + bone naming before touching weights.'
+            ]}
+            shortcuts={[
+              { label: 'Rigging Checklist', to: '/rigging-checklist' },
+              { label: 'Export Settings', to: '/export-settings' },
+              { label: 'Animation Validator', to: '/animation-validator' },
+              { label: 'Animation Guide', to: '/animation-guide' },
+            ]}
+          />
+
           {filteredMistakes.map((mistake) => (
             <div
               key={mistake.id}

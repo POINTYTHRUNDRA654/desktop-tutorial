@@ -76,7 +76,7 @@ After:
 - ✅ 11 functional modules
 - ✅ "Production-ready"
 - ✅ "Zero fake features"
-- ✅ "Real Gemini AI"
+- ✅ "Real AI" (OpenAI/Groq)
 - ✅ Clear, honest feature list
 
 ## 📦 Distribution Package Now Includes
@@ -136,7 +136,7 @@ Mossy v3.0
 Professional Fallout 4 Modding Assistant
 
 ✅ 11 Production-Ready Modules
-✅ Real Google Gemini AI
+✅ Real AI (OpenAI/Groq)
 ✅ File Analysis & PBR Generation
 ✅ Tool Integration & Testing
 ✅ Zero Fake Features
@@ -217,7 +217,7 @@ When announcing Mossy v3.0:
 1. **"Lean & Mean"** - Removed 30+ fake features, kept only what works
 2. **"Production Ready"** - 100% functional, zero mockups
 3. **"Honest Approach"** - Transparent about what's included
-4. **"Real Tools"** - Actual Gemini AI, real image processing, real file parsing
+4. **"Real Tools"** - Actual AI (OpenAI/Groq), real image processing, real file parsing
 5. **"Developer-Friendly"** - Clear documentation, easy setup
 
 ## ✨ Highlights for Marketing
@@ -228,7 +228,7 @@ Mossy v3.0 - The Honest Modding Assistant
 We removed 30+ fake features so you get 11 that actually work.
 No bloat. No promises we can't keep. Just real tools for real modders.
 
-✅ Real Gemini AI - Talk to your modding assistant
+✅ Real AI - Talk to your modding assistant
 ✅ File Analysis - Validate ESP, NIF, DDS files
 ✅ Texture Generation - Create PBR maps automatically
 ✅ Tool Integration - Detect and launch your tools

@@ -1,0 +1,164 @@
+{
+  "nav": {
+    "home": "Mossy.Space",
+    "modProjects": "模组项目",
+    "quickReference": "快速参考",
+    "knowledgeSearch": "知识搜索",
+    "installWizard": "安装向导",
+    "platforms": "平台",
+    "crashTriage": "崩溃排查",
+    "packagingRelease": "打包与发布",
+    "ckQuestDialogue": "CK 任务与对白",
+    "animationGuide": "动画指南",
+    "skeletonReference": "骨架参考",
+    "riggingMistakes": "绑定常见错误",
+    "questModAuthoring": "任务模组制作",
+    "precombinePrpGuide": "Precombine 与 PRP 指南",
+    "prpPatchBuilder": "PRP 补丁构建器",
+    "leveledListInjection": "Leveled List 注入",
+    "lorekeeper": "Lorekeeper",
+
+    "templateGenerator": "模板生成器",
+    "scriptAnalyzer": "脚本分析器",
+    "assembler": "Assembler",
+    "workshop": "Workshop",
+    "blueprint": "Blueprint",
+
+    "riggingChecklist": "绑定检查清单",
+    "exportSettingsHelper": "导出设置助手",
+    "animationValidator": "动画校验器",
+    "precombineChecker": "Precombine 检查器",
+
+    "auditor": "Auditor",
+    "scribe": "Scribe",
+    "systemMonitor": "系统监视器",
+
+    "orchestrator": "Orchestrator",
+    "workflowRunner": "工作流运行器",
+    "holodeck": "Holodeck",
+    "vault": "Vault",
+    "memoryVault": "Memory Vault",
+    "neuralLink": "Neural Link",
+    "localCapabilities": "本地能力",
+
+    "imageStudio": "图像工作室",
+    "audioStudio": "音频工作室",
+
+    "liveSynapse": "Live Synapse",
+    "desktopBridge": "桌面桥",
+    "duplicateFinder": "重复项查找",
+    "communityLearning": "社区学习",
+    "toolVerify": "工具验证",
+    "privacySettings": "隐私设置",
+    "voiceSettings": "语音设置",
+    "languageSettings": "语言",
+    "diagnosticTools": "诊断工具",
+    "supportMossy": "支持 Mossy"
+  },
+  "settings": {
+    "language": {
+      "title": "语言设置",
+      "subtitle": "选择 Mossy 界面使用的语言。",
+      "uiLanguageLabel": "应用语言",
+      "uiLanguageHelp": "影响界面标签、按钮和文本（已翻译的部分）。",
+      "requestTitle": "请求新增语言",
+      "requestHelp": "没有你的语言？告诉我们希望下一个添加哪种语言。",
+      "requestCta": "请求新增语言",
+      "requestCtaTitle": "打开语言请求表单",
+      "auto": "自动（系统）",
+      "current": "当前",
+      "save": "保存"
+    }
+  },
+  "onboarding": {
+    "language": {
+      "label": "语言",
+      "help": "选择界面语言。稍后可在设置中更改。",
+      "auto": "自动（系统）"
+    }
+  },
+  "installWizard": {
+    "tagline": "Mossy 导师 • 安装向导",
+    "topics": "主题",
+    "modManager": "模组管理器",
+    "shortcuts": {
+      "title": "快捷入口",
+      "externalTools": "外部工具设置",
+      "precombinePrp": "Precombine 与 PRP 指南",
+      "simSettlements": "Sim Settlements 指南"
+    },
+    "topicSelector": {
+      "xedit": "xEdit / FO4Edit",
+      "ss2": "SS2：地块建造",
+      "prp": "PRP（Previs/Precombine）",
+      "patching": "制作补丁"
+    },
+    "actions": {
+      "askMossy": "询问 Mossy",
+      "askMossyTitle": "在聊天中询问 Mossy",
+      "sendToChat": "发送到聊天",
+      "sendToChatTitle": "将此主题清单发送到聊天",
+      "reset": "重置",
+      "resetTitle": "重置向导进度"
+    },
+    "section": {
+      "prereqs": "准备",
+      "download": "下载",
+      "installConfigure": "安装 / 配置",
+      "buildPatch": "制作补丁",
+      "verify": "验证",
+      "troubleshoot": "排错"
+    },
+    "step": {
+      "markIncomplete": "标记为未完成",
+      "markComplete": "标记为已完成",
+      "completed": "已完成",
+      "notCompleted": "未完成"
+    },
+    "topic": {
+      "xedit": {
+        "title": "xEdit / FO4Edit 设置",
+        "subtitle": "安装、配置并验证 xEdit，以便安全地制作补丁。"
+      },
+      "ss2": {
+        "title": "Sim Settlements 2 设置",
+        "subtitle": "依赖项 + 安装 + 基础验证，用于地块建造。"
+      },
+      "prp": {
+        "title": "PRP 设置",
+        "subtitle": "安装 precombines/previs，并进行冲突意识的验证。"
+      },
+      "patching": {
+        "title": "补丁制作",
+        "subtitle": "安全、可重复的兼容性补丁制作流程。"
+      }
+    },
+    "verifyPanel": {
+      "description": "该向导旨在避免遗漏前置条件：提供官方来源或稳定的搜索页面，并给出最小验证闭环。",
+      "verify": {
+        "0": "选择一个主题，确认清单能显示并且勾选在刷新后仍会保存。",
+        "1": "从“可信链接”中至少打开一个链接，并确认通过 openExternal/window.open 打开。",
+        "2": "使用“发送到聊天”，确认清单已复制并预填充到聊天中。"
+      },
+      "firstTestLoop": {
+        "0": "先从 “xEdit / FO4Edit” 开始，确保首次启动干净成功。",
+        "1": "选择模组管理器，然后先完成最小化的验证步骤，再逐步扩展。"
+      },
+      "troubleshooting": {
+        "0": "如果链接无法打开，请检查诊断页面并确认 openExternal 可用（桌面版），或允许弹窗。",
+        "1": "如果勾选状态无法保存，请确认 localStorage 可用（见诊断）。"
+      }
+    },
+    "downloadsSources": "下载与来源",
+    "downloadsSourcesHelp": "显示可信来源，以及从本地知识库中提取到的直接链接。",
+    "refresh": "刷新",
+    "refreshTitle": "刷新链接",
+    "fromVault": "来自本地知识库",
+    "openVault": "打开 Memory Vault",
+    "searchNexus": "在 Nexus 搜索",
+    "vaultLink": "知识库链接",
+    "tutorTip": "提示",
+    "openLastLocation": "打开上次位置",
+    "openLastLocationTitle": "（可选）若可用，打开上次保存的位置"
+  }
+}

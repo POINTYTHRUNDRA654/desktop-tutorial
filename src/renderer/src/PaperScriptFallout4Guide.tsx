@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 
 const PaperScriptFallout4Guide = () => {
+  const navigate = useNavigate();
   const [expandedSection, setExpandedSection] = useState<string | null>('fo4-features');
 
   const toggleSection = (id: string) => {
@@ -86,11 +88,70 @@ const PaperScriptFallout4Guide = () => {
     borderRadius: '4px'
   };
 
+  const buttonRowStyle: React.CSSProperties = {
+    display: 'flex',
+    flexWrap: 'wrap',
+    gap: '0.5rem',
+    marginTop: '0.75rem',
+  };
+
+  const smallButtonStyle: React.CSSProperties = {
+    background: 'rgba(0, 255, 0, 0.08)',
+    border: '1px solid #00d000',
+    color: '#00ff00',
+    padding: '0.35rem 0.6rem',
+    borderRadius: '4px',
+    cursor: 'pointer',
+    fontFamily: 'Courier New, monospace',
+    fontSize: '0.85rem',
+  };
+
+  const openUrl = (url: string) => {
+    try {
+      const anyWindow = window as any;
+      if (anyWindow?.electron?.openExternal) {
+        anyWindow.electron.openExternal(url);
+        return;
+      }
+    } catch {
+      // ignore
+    }
+    window.open(url, '_blank', 'noopener,noreferrer');
+  };
+
+  const openNexusSearch = (query: string) => {
+    const url = `https://www.nexusmods.com/fallout4/search/?gsearch=${encodeURIComponent(query)}&gsearchtype=mods`;
+    openUrl(url);
+  };
+
   return (
     <div style={containerStyle}>
       <div style={headerStyle}>
         <h1 style={titleStyle}>PaperScript for Fallout 4</h1>
         <p style={subtitleStyle}>Advanced features and installation guide</p>
+      </div>
+
+      <div style={featureBoxStyle}>
+        <h3 style={{ color: '#00ff00', marginTop: 0 }}>Tools / Install / Verify (FO4 Integration)</h3>
+        <ul style={{ marginLeft: '1.25rem', color: '#b0b0b0', lineHeight: 1.6 }}>
+          <li><strong>PaperScript</strong> to generate <code style={{ color: '#00ff00' }}>.psc</code>.</li>
+          <li><strong>Creation Kit</strong> to compile <code style={{ color: '#00ff00' }}>.psc</code> → <code style={{ color: '#00ff00' }}>.pex</code>.</li>
+          <li><strong>Mod manager</strong> (MO2/Vortex) so you can verify installs with a clean profile.</li>
+          <li><strong>(Optional) FO4Edit</strong> for dependency and record sanity checks.</li>
+        </ul>
+        <div style={buttonRowStyle}>
+          <button style={smallButtonStyle} onClick={() => openUrl('https://github.com/search?q=PaperScript+Papyrus&type=repositories')}>GitHub search: PaperScript</button>
+          <button style={smallButtonStyle} onClick={() => openUrl('https://store.steampowered.com/search/?term=Creation%20Kit%20Fallout%204')}>Steam search: Creation Kit</button>
+          <button style={smallButtonStyle} onClick={() => openNexusSearch('FO4Edit')}>Nexus search: FO4Edit</button>
+        </div>
+        <div style={buttonRowStyle}>
+          <button style={smallButtonStyle} onClick={() => navigate('/install-wizard')}>In-app: Install Wizard</button>
+          <button style={smallButtonStyle} onClick={() => navigate('/ck-quest-dialogue')}>In-app: CK Quest/Dialogue Wizard</button>
+          <button style={smallButtonStyle} onClick={() => navigate('/packaging-release')}>In-app: Packaging & Release</button>
+        </div>
+        <div style={{ marginTop: '0.75rem', color: '#b0b0b0' }}>
+          <strong>First test loop:</strong> build one script → compile to <code style={{ color: '#00ff00' }}>.pex</code> → ship it in a tiny test plugin → trigger it on game start.
+        </div>
       </div>
 
       {/* FO4 Features */}

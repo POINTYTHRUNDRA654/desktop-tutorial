@@ -3,6 +3,9 @@
  * Retro-Futuristic Terminal Aesthetic
  */
 
+@import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&display=swap');
+
 * {
   margin: 0;
   padding: 0;
@@ -39,9 +42,6 @@
   --pipboy-text-dim: #cc9033;
   --pipboy-glow: 0 0 20px rgba(230, 176, 74, 0.6);
 }
-
-@import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&display=swap');
-@import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&display=swap');
 
 body {
   font-family: 'Orbitron', monospace;

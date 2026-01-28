@@ -1,11 +1,11 @@
 # Mossy - The Fallout 4 Modding Assistant
 
-**Mossy v3.0** - A production-ready Electron desktop application for Fallout 4 modding with AI assistance, real-time analysis, and professional asset optimization.
+**Mossy v4.0** - A production-ready Electron desktop application for Fallout 4 modding with AI assistance, real-time analysis, and professional asset optimization.
 
 ![License](https://img.shields.io/badge/license-MIT-blue.svg)
 ![Platform](https://img.shields.io/badge/platform-Windows-blue)
 ![Status](https://img.shields.io/badge/status-Production%20Ready-green.svg)
-![Version](https://img.shields.io/badge/version-3.0-blue.svg)
+![Version](https://img.shields.io/badge/version-4.0-blue.svg)
 
 ## 🎯 What's Inside
 
@@ -14,7 +14,7 @@
 ### Core Modules
 
 #### 🤖 **Mossy AI Engine** (Hybrid Intelligence)
-- Real-time voice conversation with Gemini Live API
+- Real-time voice conversation (local Windows voices by default; optional STT providers)
 - **Local ML Inference** - Support for Ollama (Llama 3) for private, offline assistance
 - **Memory Vault (RAG)** - Ingest custom tutorials and documentation to expand Mossy's "brain"
 - Custom avatar support with image uploads
@@ -87,7 +87,7 @@
 
 ## ✨ Key Features
 
-- ✅ **Hybrid AI Integration** - Choose between Google Gemini or local Ollama (Llama 3)
+- ✅ **Hybrid AI Integration** - Choose between OpenAI/Groq (cloud) or local Ollama (private)
 - ✅ **Memory Vault (RAG)** - Upload your own PDF/Text tutorials to train Mossy on your specific needs
 - ✅ **Active Neural Link** - Real-time monitoring of your modding tools (Blender, CK, xEdit)
 - ✅ **Modern Standards** - Built-in support for Blender 4.1 metrics (1.0 scale, 30 FPS)
@@ -95,6 +95,18 @@
 - ✅ **Advanced Image Processing** - Real Sobel operators and image algorithms
 - ✅ **Zero Fake Features** - Everything is functional and tested
 - ✅ **Real IPC Bridge** - Direct Electron API access for system operations
+
+## 🌍 UI Language
+
+Mossy supports UI language selection on first launch (and later in Settings).
+
+Current UI languages:
+- English (`en`)
+- Español (`es`)
+- Français (`fr`)
+- Deutsch (`de`)
+- Русский (`ru`)
+- 中文（简体）(`zh-Hans`)
 
 ## 🏗️ Architecture
 
@@ -104,7 +116,7 @@
 - **React** - UI framework
 - **TypeScript** - Type safety
 - **Vite** - Fast build tool
-- **Google Gemini AI** - Real AI integration
+- **Cloud AI (optional)** - Real AI integration (OpenAI/Groq), or stay local
 - **sharp** - Real image processing library
 - **Electron IPC** - Real system integration
 
@@ -154,15 +166,17 @@ desktop-ai-assistant/
    npm install
    ```
 
-3. Set up environment variables (create `.env` file):
-   ```env
-   # LLM API Configuration
-   LLM_API_KEY=your-api-key-here
-   LLM_API_ENDPOINT=https://api.openai.com/v1/chat/completions
-   LLM_MODEL=gpt-3.5-turbo
-   ```
+3. (Optional) Set development API keys (Electron main only):
+   - Create `.env.local` in the project root and add any keys you want to use in dev.
+   - Example:
+     ```env
+     OPENAI_API_KEY=your-api-key-here
+     GROQ_API_KEY=your-key-here
+     DEEPGRAM_API_KEY=your-key-here
+     ELEVENLABS_API_KEY=your-key-here
+     ```
 
-   **⚠️ Security Note**: Never commit your `.env` file to version control!
+   Security note: do not put secrets in `VITE_*` variables (Vite exposes those to the renderer).
 
 ### Development
 
@@ -173,23 +187,9 @@ npm run dev
 ```
 
 This will:
-1. Start Vite dev server for the renderer (port 5173)
+1. Start Vite dev server for the renderer (port 5174)
 2. Launch Electron with hot reload enabled
 3. Open DevTools automatically
-
-#### Google GenAI API Key (TTS/Live Audio)
-
-Voice and live audio features use Google GenAI. Set a Vite env key:
-
-1. Create a `.env` file in the project root with:
-
-```
-VITE_API_KEY=your_google_genai_api_key_here
-```
-
-2. Restart `npm run dev` after adding the key.
-
-If the key is missing, the app will show “API Key Missing” and remain offline for live/TTS.
 
 ### Building
 
@@ -239,7 +239,6 @@ Outputs to `release/` directory:
 
 - **Node.js** v18+
 - **npm** or **yarn**
-- **Google GenAI API Key** (for Mossy voice features)
 
 ### Installation
 
@@ -251,8 +250,8 @@ cd desktop-tutorial
 # Install dependencies
 npm install
 
-# Set up API key
-echo "VITE_API_KEY=your_google_genai_api_key" > .env.local
+# (Optional) Set dev-only API keys for Electron main
+echo "OPENAI_API_KEY=your_key_here" > .env.local
 ```
 
 ### Development
@@ -262,7 +261,7 @@ npm run dev
 ```
 
 Starts:
-- Vite dev server (port 5173)
+- Vite dev server (port 5174)
 - Electron with hot reload
 - Auto-opening DevTools
 
@@ -272,6 +271,8 @@ Starts:
 npm run build        # Build all
 npm run package:win  # Windows installer
 ```
+
+Installer output goes to `release/` (for example: `Mossy Setup 4.0.0.exe`).
 
 ## 📦 What's NOT Included
 
@@ -299,18 +300,16 @@ For transparency, these modules were removed because they had no real functional
 
 ## 🔑 API Configuration
 
-### Google Gemini API
+This app does not use Google / Gemini.
 
-Mossy's voice features require a Gemini API key:
+- Preferred: configure keys inside the Desktop app Settings UI (stored in the Electron main process and never exposed to the renderer).
+- Optional (dev only): set main-process env vars in `.env.local`:
+   - `OPENAI_API_KEY`
+   - `GROQ_API_KEY`
+   - `DEEPGRAM_API_KEY`
+   - `ELEVENLABS_API_KEY`
 
-1. Get key from [Google AI Studio](https://aistudio.google.com/app/apikey)
-2. Create `.env.local`:
-   ```
-   VITE_API_KEY=your_key_here
-   ```
-3. Restart app: `npm run dev`
-
-**Note**: This is user-provided and never stored on servers.
+Note: Do not put secrets in `VITE_*` env vars. Vite exposes `VITE_*` to the renderer.
 
 ## 🎨 Customizing Mossy's Avatar
 
@@ -342,7 +341,7 @@ MIT - See [LICENSE](LICENSE) file
 
 ## 🙏 Credits
 
-Built with Electron, React, TypeScript, and powered by Google Gemini AI.
+Built with Electron, React, and TypeScript.
 
 - **macOS**: Accessibility permissions in System Preferences
 - **Windows**: No special permissions required

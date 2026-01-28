@@ -25,7 +25,15 @@ const UpdateNotifier: React.FC = () => {
   });
 
   useEffect(() => {
+    // Disable update checks (offline/private builds)
+    return;
+
     const checkForUpdates_ = async () => {
+      // Skip update checks in dev/localhost to avoid noisy 404s and external calls
+      if (import.meta.env.DEV || window.location.hostname === 'localhost') {
+        return;
+      }
+
       try {
         const currentVersion = await getCurrentVersion();
         

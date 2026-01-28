@@ -8,24 +8,21 @@ Mossy is your AI companion for Fallout 4 modding. This guide will help you get s
 
 When you download and launch Mossy for the first time, you'll see a streamlined setup process. **You must complete this to use Mossy** - but don't worry, it only takes a minute!
 
-### What's New in v3.0 ✨
-**Revolutionary Voice Conversation:**
-- **Smart Silence Detection (~1s):** Mossy detects when you've finished speaking in about 1 second - no more cutoffs!
-- **Lightning-Fast STT:** Deepgram-first speech recognition for near-instant transcription
-- **Full Conversation Memory:** Mossy remembers your entire chat history and knowledge vault, so you never have to repeat yourself
-- **Simplified UI:** Clean mute toggle and disconnect controls - no clutter
-- **Natural Flow:** Just speak naturally; Mossy will respond quickly and stay in context
+### What's New in v4.0 ✨
+- **UI Language Selection:** Pick your interface language on first launch (or later in Settings).
+- **6 core UI languages:** English, Español, Français, Deutsch, Русский, 中文（简体）.
+- **Smoother setup flow:** Cleaner first-run onboarding and more guided “Install Wizard” checklists.
 
 ### Setup Steps
 
-**Step 1: Welcome to Mossy v3.0**
-Introduction to your AI modding companion and the new voice features.
+**Step 1: Welcome + Language**
+Choose your UI language (Auto/system or one of the supported languages). You can change this later in Settings.
 
 **Step 2: System Scan**
 Mossy scans for modding tools (Creation Kit, xEdit, Blender, etc.) to enable deep integrations.
 
-**Step 3: Tool Recommendations**
-Review detected tools and choose which ones Mossy should monitor and integrate with.
+**Step 3: Tool Approvals**
+Review detected tools and choose which ones Mossy should know about and integrate with.
 
 **Step 4: Setup Complete**
 You're ready! Click "Complete Setup" to launch Mossy.
@@ -34,13 +31,15 @@ You're ready! Click "Complete Setup" to launch Mossy.
 This is the most important step. **You have complete control over your data.**
 
 #### What Gets Stored Locally (Always)
-By default, everything stays on your computer:
+By default, Mossy stores data locally on your computer:
 - ✅ Your project files and mods
 - ✅ Your conversations with Mossy
 - ✅ Your settings and preferences
 - ✅ Your modding projects and notes
 
 **Nobody can access this data except you.** It never leaves your computer unless you explicitly choose to share something.
+
+Note: local storage is not automatically encrypted by Mossy. Treat your Windows account and disk security (BitLocker, account password) as your primary protection.
 
 #### Optional: Contribute to Community Knowledge Base
 If you want to help other Mossy users, you can optionally share anonymized insights:
@@ -73,15 +72,8 @@ If you want to help other Mossy users, you can optionally share anonymized insig
 
 **What you need to do:** Review each setting. Toggle ON any that you want to participate in. If you prefer complete privacy, just leave them all OFF. ✅
 
-### Step 6: You're All Set!
-Calibration complete. Confirms your setup is finished and shows you next steps.
-
-**What you'll see:**
-- Neural Link status (Active/Inactive)
-- Memory Vault digestion summary
-- Confirmation that data is secure
-
-**What you need to do:** Click "Start Using Mossy" to launch the hub.
+### You're All Set
+After setup completes, Mossy drops you into the main UI. From there you can open Chat, Install Wizard, or any module.
 
 ## After Onboarding
 
@@ -97,7 +89,7 @@ Calibration complete. Confirms your setup is finished and shows you next steps.
    - Providing documentation
 
 ### Accessing Settings Later
-From the sidebar, click **"Privacy Settings"** to:
+From the sidebar, you can use Settings to:
 - View your current privacy configuration
 - Change sharing preferences anytime
 - Learn more about what each setting does
@@ -108,12 +100,14 @@ From the sidebar, click **"Privacy Settings"** to:
 ## How Your Data Works
 
 ### Private Local Data
-Everything by default stays on your computer in encrypted storage:
+Everything by default stays on your computer in local storage:
 - Projects and files
 - Conversations
 - Settings
 - Personal notes
 - Sensitive information
+
+If you enable cloud AI or cloud speech-to-text providers, your prompts/audio may be sent to that provider to fulfill the request.
 
 ### Optional Shared Data
 If you enable sharing, **anonymized patterns** are sent to improve Mossy for everyone:

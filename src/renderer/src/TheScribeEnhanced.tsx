@@ -1,6 +1,7 @@
-import React, { useEffect, useState } from 'react';
-import { Code, FileCode, Palette, Check, X, AlertTriangle, Zap, Copy, Play, BookOpen, Terminal, Wrench } from 'lucide-react';
-import type { Settings } from '../../shared/types';
+import React, { useEffect, useMemo, useState } from 'react';
+import { Code, FileCode, Palette, Check, X, AlertTriangle, Zap, Copy, Play, BookOpen, Save, Trash2, Upload, Download } from 'lucide-react';
+import type { ScriptBundle, ScriptTemplate, Settings } from '../../shared/types';
+import { useNavigate } from 'react-router-dom';
 
 type ScriptType = 'papyrus' | 'xedit' | 'blender';
 
@@ -11,6 +12,7 @@ interface ValidationError {
 }
 
 export const TheScribe: React.FC = () => {
+  const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState<ScriptType>('papyrus');
   const [code, setCode] = useState('');
   const [validationErrors, setValidationErrors] = useState<ValidationError[]>([]);
@@ -18,6 +20,43 @@ export const TheScribe: React.FC = () => {
   const [settings, setSettings] = useState<Settings | null>(null);
   const [launching, setLaunching] = useState(false);
   const [toolVersion, setToolVersion] = useState('');
+
+  const [xeditLibrary, setXeditLibrary] = useState<ScriptTemplate[]>([]);
+  const [blenderLibrary, setBlenderLibrary] = useState<ScriptTemplate[]>([]);
+  const [librarySelectedId, setLibrarySelectedId] = useState<string>('');
+  const [libraryTitle, setLibraryTitle] = useState<string>('');
+  const [libraryAuthor, setLibraryAuthor] = useState<string>('');
+  const [libraryDescription, setLibraryDescription] = useState<string>('');
+  const [libraryImportText, setLibraryImportText] = useState<string>('');
+  const [libraryStatus, setLibraryStatus] = useState<string>('');
+
+  const [runningScript, setRunningScript] = useState(false);
+  const [runStatus, setRunStatus] = useState<string>('');
+  const [runOutput, setRunOutput] = useState<string>('');
+
+  const [xeditScriptStatus, setXeditScriptStatus] = useState<string>('');
+
+  const [scriptBundles, setScriptBundles] = useState<ScriptBundle[]>([]);
+  const [bundleSelectedId, setBundleSelectedId] = useState<string>('');
+  const [bundleTitle, setBundleTitle] = useState<string>('');
+  const [bundleAuthor, setBundleAuthor] = useState<string>('');
+  const [bundleDescription, setBundleDescription] = useState<string>('');
+  const [bundleImportText, setBundleImportText] = useState<string>('');
+  const [bundleStatus, setBundleStatus] = useState<string>('');
+
+  const openUrl = (url: string) => {
+    const api = (window as any).electron?.api || (window as any).electronAPI;
+    if (typeof api?.openExternal === 'function') {
+      api.openExternal(url);
+      return;
+    }
+    window.open(url, '_blank', 'noopener,noreferrer');
+  };
+
+  const openNexusSearch = (keywords: string) => {
+    const query = encodeURIComponent(keywords);
+    openUrl(`https://www.nexusmods.com/fallout4/search/?BH=0&search%5Bsearch_keywords%5D=${query}`);
+  };
 
   useEffect(() => {
     const init = async () => {
@@ -34,6 +73,13 @@ export const TheScribe: React.FC = () => {
       // onSettingsUpdated returns void; renderer cleans up on unload
     };
   }, []);
+
+  useEffect(() => {
+    // Keep local libraries in sync with persisted settings
+    setXeditLibrary(Array.isArray(settings?.xeditScriptLibrary) ? settings!.xeditScriptLibrary! : []);
+    setBlenderLibrary(Array.isArray(settings?.blenderScriptLibrary) ? settings!.blenderScriptLibrary! : []);
+    setScriptBundles(Array.isArray(settings?.scriptBundles) ? settings!.scriptBundles! : []);
+  }, [settings]);
 
   useEffect(() => {
     const fetchVersion = async () => {
@@ -73,6 +119,557 @@ export const TheScribe: React.FC = () => {
     return 'Tool';
   };
 
+  const activeLibrary = useMemo(() => {
+    if (activeTab === 'xedit') return xeditLibrary;
+    if (activeTab === 'blender') return blenderLibrary;
+    return [];
+  }, [activeTab, xeditLibrary, blenderLibrary]);
+
+  const persistLibrary = async (type: 'xedit' | 'blender', nextLibrary: ScriptTemplate[]) => {
+    try {
+      if (type === 'xedit') {
+        await window.electronAPI.setSettings({ xeditScriptLibrary: nextLibrary });
+      } else {
+        await window.electronAPI.setSettings({ blenderScriptLibrary: nextLibrary });
+      }
+      setLibraryStatus('Saved.');
+      setTimeout(() => setLibraryStatus(''), 1500);
+    } catch (e) {
+      console.warn('[TheScribe] Failed to persist script library', e);
+      setLibraryStatus('Failed to save.');
+      setTimeout(() => setLibraryStatus(''), 2000);
+    }
+  };
+
+  const makeId = () => {
+    try {
+      // Browser/Electron renderer
+      const anyCrypto: any = (globalThis as any).crypto;
+      if (anyCrypto?.randomUUID) return anyCrypto.randomUUID();
+    } catch {
+      // ignore
+    }
+    return `tmpl_${Date.now()}_${Math.random().toString(16).slice(2)}`;
+  };
+
+  const persistBundles = async (nextBundles: ScriptBundle[]) => {
+    try {
+      await window.electronAPI.setSettings({ scriptBundles: nextBundles });
+      setBundleStatus('Saved.');
+      setTimeout(() => setBundleStatus(''), 1500);
+    } catch (e) {
+      console.warn('[TheScribe] Failed to persist bundles', e);
+      setBundleStatus('Failed to save.');
+      setTimeout(() => setBundleStatus(''), 2000);
+    }
+  };
+
+  const selectedBundle = useMemo(() => {
+    const b = scriptBundles.find((b) => b.id === bundleSelectedId) || null;
+    return b;
+  }, [scriptBundles, bundleSelectedId]);
+
+  useEffect(() => {
+    if (!selectedBundle) {
+      setBundleTitle('');
+      setBundleAuthor('');
+      setBundleDescription('');
+      return;
+    }
+    setBundleTitle(selectedBundle.title || '');
+    setBundleAuthor(selectedBundle.author || '');
+    setBundleDescription(selectedBundle.description || '');
+  }, [selectedBundle]);
+
+  const normalizeImportedBundle = (raw: any): ScriptBundle | null => {
+    const title = String(raw?.title || '').trim();
+    if (!title) return null;
+    const incomingTemplates = Array.isArray(raw?.templates) ? raw.templates : [];
+    const templates = incomingTemplates
+      .map((t: any) => {
+        const scriptTypeRaw = String(t?.scriptType || '').trim();
+        const scriptType = (scriptTypeRaw === 'xedit' || scriptTypeRaw === 'blender') ? scriptTypeRaw : 'xedit';
+        const body = String(t?.body || '').trimEnd();
+        const tTitle = String(t?.title || '').trim();
+        if (!tTitle || !body) return null;
+        const createdAt = String(t?.createdAt || '').trim() || new Date().toISOString();
+        const updatedAt = String(t?.updatedAt || '').trim() || createdAt;
+        return {
+          id: String(t?.id || '').trim() || makeId(),
+          title: tTitle,
+          author: String(t?.author || '').trim() || undefined,
+          description: String(t?.description || '').trim() || undefined,
+          scriptType,
+          body,
+          createdAt,
+          updatedAt,
+        } as ScriptTemplate;
+      })
+      .filter((t: ScriptTemplate | null): t is ScriptTemplate => Boolean(t));
+
+    const now = new Date().toISOString();
+    return {
+      id: String(raw?.id || '').trim() || makeId(),
+      title,
+      author: String(raw?.author || '').trim() || undefined,
+      description: String(raw?.description || '').trim() || undefined,
+      templates,
+      createdAt: String(raw?.createdAt || '').trim() || now,
+      updatedAt: String(raw?.updatedAt || '').trim() || now,
+    };
+  };
+
+  const exportBundlesJson = () => JSON.stringify({ bundles: scriptBundles }, null, 2);
+
+  const handleExportBundlesToFile = async () => {
+    try {
+      const api = window.electronAPI as any;
+      if (typeof api?.saveFile !== 'function') {
+        setBundleStatus('Export requires Desktop Bridge saveFile support.');
+        setTimeout(() => setBundleStatus(''), 2000);
+        return;
+      }
+      const filename = `mossy-scribe-bundles.json`;
+      const savedTo = await api.saveFile(exportBundlesJson(), filename);
+      setBundleStatus(savedTo ? `Saved: ${savedTo}` : 'Saved.');
+      setTimeout(() => setBundleStatus(''), 2500);
+    } catch (e) {
+      console.warn('[TheScribe] Bundle export failed', e);
+      setBundleStatus('Export failed.');
+      setTimeout(() => setBundleStatus(''), 2000);
+    }
+  };
+
+  const handleImportBundlesMerge = async () => {
+    const text = bundleImportText.trim();
+    if (!text) {
+      setBundleStatus('Paste JSON to import.');
+      setTimeout(() => setBundleStatus(''), 2000);
+      return;
+    }
+    try {
+      const parsed = JSON.parse(text);
+      const incoming = Array.isArray(parsed)
+        ? parsed
+        : Array.isArray(parsed?.bundles)
+          ? parsed.bundles
+          : [];
+
+      const normalized = incoming
+        .map((b: any) => normalizeImportedBundle(b))
+        .filter((b: ScriptBundle | null): b is ScriptBundle => Boolean(b));
+
+      if (!normalized.length) {
+        setBundleStatus('No valid bundles found.');
+        setTimeout(() => setBundleStatus(''), 2000);
+        return;
+      }
+
+      const byId = new Map(scriptBundles.map((b) => [b.id, b] as const));
+      const merged: ScriptBundle[] = [...scriptBundles];
+      for (const b of normalized) {
+        const existing = byId.get(b.id);
+        if (existing) {
+          const idx = merged.findIndex((m) => m.id === existing.id);
+          if (idx >= 0) merged[idx] = { ...existing, ...b, id: existing.id, createdAt: existing.createdAt };
+        } else {
+          merged.unshift(b);
+        }
+      }
+
+      setScriptBundles(merged);
+      await persistBundles(merged);
+      setBundleStatus(`Imported ${normalized.length} bundle(s).`);
+      setTimeout(() => setBundleStatus(''), 2000);
+    } catch (e) {
+      console.warn('[TheScribe] Bundle import failed', e);
+      setBundleStatus('Invalid JSON.');
+      setTimeout(() => setBundleStatus(''), 2000);
+    }
+  };
+
+  const handleImportBundlesFromFile = async () => {
+    try {
+      const api = window.electronAPI as any;
+      if (typeof api?.pickJsonFile !== 'function' || typeof api?.readFile !== 'function') {
+        setBundleStatus('Import requires Desktop Bridge file picker + readFile support.');
+        setTimeout(() => setBundleStatus(''), 2500);
+        return;
+      }
+      const filePath = await api.pickJsonFile();
+      if (!filePath) {
+        setBundleStatus('Import canceled.');
+        setTimeout(() => setBundleStatus(''), 1500);
+        return;
+      }
+      const content = await api.readFile(filePath);
+      setBundleImportText(String(content || ''));
+      await handleImportBundlesMerge();
+    } catch (e) {
+      console.warn('[TheScribe] Bundle import from file failed', e);
+      setBundleStatus('Import failed.');
+      setTimeout(() => setBundleStatus(''), 2000);
+    }
+  };
+
+  const handleNewBundle = async () => {
+    const now = new Date().toISOString();
+    const b: ScriptBundle = {
+      id: makeId(),
+      title: 'New Bundle',
+      author: undefined,
+      description: undefined,
+      templates: [],
+      createdAt: now,
+      updatedAt: now,
+    };
+    const next = [b, ...scriptBundles];
+    setScriptBundles(next);
+    setBundleSelectedId(b.id);
+    await persistBundles(next);
+  };
+
+  const handleSaveBundleMeta = async () => {
+    if (!selectedBundle) {
+      setBundleStatus('Select a bundle first.');
+      setTimeout(() => setBundleStatus(''), 2000);
+      return;
+    }
+    const title = bundleTitle.trim();
+    if (!title) {
+      setBundleStatus('Enter a bundle title.');
+      setTimeout(() => setBundleStatus(''), 2000);
+      return;
+    }
+    const now = new Date().toISOString();
+    const next = scriptBundles.map((b) =>
+      b.id === selectedBundle.id
+        ? { ...b, title, author: bundleAuthor.trim() || undefined, description: bundleDescription.trim() || undefined, updatedAt: now }
+        : b
+    );
+    setScriptBundles(next);
+    await persistBundles(next);
+  };
+
+  const handleDeleteBundle = async () => {
+    if (!selectedBundle) return;
+    const next = scriptBundles.filter((b) => b.id !== selectedBundle.id);
+    setScriptBundles(next);
+    setBundleSelectedId('');
+    await persistBundles(next);
+  };
+
+  const handleAddSelectedTemplateToBundle = async () => {
+    if (!selectedBundle) {
+      setBundleStatus('Select a bundle first.');
+      setTimeout(() => setBundleStatus(''), 2000);
+      return;
+    }
+    if (activeTab !== 'xedit' && activeTab !== 'blender') {
+      setBundleStatus('Bundles are for xEdit/Blender templates.');
+      setTimeout(() => setBundleStatus(''), 2000);
+      return;
+    }
+
+    const fromLibrary = activeLibrary.find((t) => t.id === librarySelectedId) || null;
+    const title = (fromLibrary?.title || libraryTitle).trim();
+    const body = (fromLibrary?.body || code).trimEnd();
+    if (!title || !body) {
+      setBundleStatus('Pick a saved script or enter title+code first.');
+      setTimeout(() => setBundleStatus(''), 2000);
+      return;
+    }
+
+    const now = new Date().toISOString();
+    const candidate: ScriptTemplate = {
+      id: makeId(),
+      title,
+      author: (fromLibrary?.author || libraryAuthor).trim() || undefined,
+      description: (fromLibrary?.description || libraryDescription).trim() || undefined,
+      scriptType: activeTab,
+      body,
+      createdAt: now,
+      updatedAt: now,
+    };
+
+    const key = `${candidate.scriptType}|${candidate.title}|${candidate.author || ''}`.toLowerCase();
+    const existingKeys = new Set(selectedBundle.templates.map((t) => `${t.scriptType}|${t.title}|${t.author || ''}`.toLowerCase()));
+    if (existingKeys.has(key)) {
+      setBundleStatus('Already in bundle (same title/author/type).');
+      setTimeout(() => setBundleStatus(''), 2000);
+      return;
+    }
+
+    const next = scriptBundles.map((b) =>
+      b.id === selectedBundle.id
+        ? { ...b, templates: [candidate, ...b.templates], updatedAt: now }
+        : b
+    );
+    setScriptBundles(next);
+    await persistBundles(next);
+  };
+
+  const handleRemoveTemplateFromBundle = async (templateId: string) => {
+    if (!selectedBundle) return;
+    const now = new Date().toISOString();
+    const next = scriptBundles.map((b) =>
+      b.id === selectedBundle.id
+        ? { ...b, templates: b.templates.filter((t) => t.id !== templateId), updatedAt: now }
+        : b
+    );
+    setScriptBundles(next);
+    await persistBundles(next);
+  };
+
+  const handleInstallBundleToLibraries = async () => {
+    if (!selectedBundle) return;
+    const incoming = selectedBundle.templates;
+    if (!incoming.length) {
+      setBundleStatus('Bundle is empty.');
+      setTimeout(() => setBundleStatus(''), 2000);
+      return;
+    }
+
+    const mergeInto = async (type: 'xedit' | 'blender', current: ScriptTemplate[]) => {
+      const normalized = incoming.filter((t: ScriptTemplate) => t.scriptType === type);
+      if (!normalized.length) return current;
+      const byKey = new Map(current.map((t) => [`${t.scriptType}|${t.title}|${t.author || ''}`.toLowerCase(), t] as const));
+      const next = [...current];
+      for (const t of normalized) {
+        const key = `${t.scriptType}|${t.title}|${t.author || ''}`.toLowerCase();
+        const existing = byKey.get(key);
+        if (existing) continue;
+        const now = new Date().toISOString();
+        next.unshift({ ...t, id: makeId(), createdAt: now, updatedAt: now });
+      }
+      await persistLibrary(type, next);
+      return next;
+    };
+
+    const nextX = await mergeInto('xedit', xeditLibrary);
+    const nextB = await mergeInto('blender', blenderLibrary);
+    setXeditLibrary(nextX);
+    setBlenderLibrary(nextB);
+    setBundleStatus('Installed templates into libraries.');
+    setTimeout(() => setBundleStatus(''), 2000);
+  };
+
+  const handleSaveToLibrary = async () => {
+    if (activeTab !== 'xedit' && activeTab !== 'blender') {
+      setLibraryStatus('Library is available for xEdit/Blender tabs.');
+      setTimeout(() => setLibraryStatus(''), 2000);
+      return;
+    }
+
+    const title = libraryTitle.trim();
+    const body = code;
+    if (!title) {
+      setLibraryStatus('Enter a title first.');
+      setTimeout(() => setLibraryStatus(''), 2000);
+      return;
+    }
+    if (!body.trim()) {
+      setLibraryStatus('Nothing to save (code is empty).');
+      setTimeout(() => setLibraryStatus(''), 2000);
+      return;
+    }
+
+    const now = new Date().toISOString();
+    const existingIndex = activeLibrary.findIndex((t) => t.id === librarySelectedId);
+    const nextTemplate: ScriptTemplate = {
+      id: existingIndex >= 0 ? activeLibrary[existingIndex].id : makeId(),
+      title,
+      author: libraryAuthor.trim() || undefined,
+      description: libraryDescription.trim() || undefined,
+      scriptType: activeTab,
+      body,
+      createdAt: existingIndex >= 0 ? activeLibrary[existingIndex].createdAt : now,
+      updatedAt: now,
+    };
+
+    const next = [...activeLibrary];
+    if (existingIndex >= 0) next[existingIndex] = nextTemplate;
+    else next.unshift(nextTemplate);
+
+    setLibrarySelectedId(nextTemplate.id);
+    if (activeTab === 'xedit') setXeditLibrary(next);
+    else setBlenderLibrary(next);
+
+    await persistLibrary(activeTab, next);
+  };
+
+  const handleLoadFromLibrary = () => {
+    if (activeTab !== 'xedit' && activeTab !== 'blender') return;
+    const tmpl = activeLibrary.find((t) => t.id === librarySelectedId);
+    if (!tmpl) {
+      setLibraryStatus('Pick a saved script to load.');
+      setTimeout(() => setLibraryStatus(''), 2000);
+      return;
+    }
+    setCode(tmpl.body || '');
+    setLibraryTitle(tmpl.title || '');
+    setLibraryAuthor(tmpl.author || '');
+    setLibraryDescription(tmpl.description || '');
+    setValidationErrors([]);
+    setLibraryStatus('Loaded.');
+    setTimeout(() => setLibraryStatus(''), 1500);
+  };
+
+  const handleDeleteFromLibrary = async () => {
+    if (activeTab !== 'xedit' && activeTab !== 'blender') return;
+    const id = librarySelectedId;
+    if (!id) {
+      setLibraryStatus('Pick a saved script to delete.');
+      setTimeout(() => setLibraryStatus(''), 2000);
+      return;
+    }
+    const next = activeLibrary.filter((t) => t.id !== id);
+    setLibrarySelectedId('');
+    if (activeTab === 'xedit') setXeditLibrary(next);
+    else setBlenderLibrary(next);
+    await persistLibrary(activeTab, next);
+  };
+
+  const exportLibraryJson = () => {
+    const payload = { templates: activeLibrary };
+    return JSON.stringify(payload, null, 2);
+  };
+
+  const handleCopyLibraryExport = async () => {
+    try {
+      await navigator.clipboard.writeText(exportLibraryJson());
+      setLibraryStatus('Export JSON copied.');
+      setTimeout(() => setLibraryStatus(''), 1500);
+    } catch {
+      setLibraryStatus('Copy failed.');
+      setTimeout(() => setLibraryStatus(''), 2000);
+    }
+  };
+
+  const handleExportLibraryToFile = async () => {
+    if (activeTab !== 'xedit' && activeTab !== 'blender') return;
+    try {
+      const api = window.electronAPI as any;
+      if (typeof api?.saveFile !== 'function') {
+        setLibraryStatus('Export requires Desktop Bridge saveFile support.');
+        setTimeout(() => setLibraryStatus(''), 2000);
+        return;
+      }
+      const filename = `mossy-scribe-${activeTab}-library.json`;
+      const savedTo = await api.saveFile(exportLibraryJson(), filename);
+      setLibraryStatus(savedTo ? `Saved: ${savedTo}` : 'Saved.');
+      setTimeout(() => setLibraryStatus(''), 2500);
+    } catch (e) {
+      console.warn('[TheScribe] Export to file failed', e);
+      setLibraryStatus('Export failed.');
+      setTimeout(() => setLibraryStatus(''), 2000);
+    }
+  };
+
+  const normalizeImportedTemplate = (raw: any, fallbackType: 'xedit' | 'blender'): ScriptTemplate | null => {
+    const title = String(raw?.title || '').trim();
+    const body = String(raw?.body || '').trimEnd();
+    if (!title || !body) return null;
+
+    const scriptTypeRaw = String(raw?.scriptType || '').trim();
+    const scriptType = (scriptTypeRaw === 'xedit' || scriptTypeRaw === 'blender') ? scriptTypeRaw : fallbackType;
+    const createdAt = String(raw?.createdAt || '').trim() || new Date().toISOString();
+    const updatedAt = String(raw?.updatedAt || '').trim() || createdAt;
+
+    return {
+      id: String(raw?.id || '').trim() || makeId(),
+      title,
+      author: String(raw?.author || '').trim() || undefined,
+      description: String(raw?.description || '').trim() || undefined,
+      scriptType,
+      body,
+      createdAt,
+      updatedAt,
+    };
+  };
+
+  const handleImportMerge = async () => {
+    if (activeTab !== 'xedit' && activeTab !== 'blender') return;
+    const text = libraryImportText.trim();
+    if (!text) {
+      setLibraryStatus('Paste JSON to import.');
+      setTimeout(() => setLibraryStatus(''), 2000);
+      return;
+    }
+    try {
+      const parsed = JSON.parse(text);
+      const incoming = Array.isArray(parsed)
+        ? parsed
+        : Array.isArray(parsed?.templates)
+          ? parsed.templates
+          : [];
+
+      const normalized = incoming
+        .map((t: any) => normalizeImportedTemplate(t, activeTab))
+        .filter((t: ScriptTemplate | null): t is ScriptTemplate => Boolean(t))
+        .filter((t: ScriptTemplate) => t.scriptType === activeTab);
+
+      if (normalized.length === 0) {
+        setLibraryStatus('No valid templates found for this tab.');
+        setTimeout(() => setLibraryStatus(''), 2000);
+        return;
+      }
+
+      const byId = new Map(activeLibrary.map((t) => [t.id, t] as const));
+      const byKey = new Map(activeLibrary.map((t) => [`${t.scriptType}|${t.title}|${t.author || ''}`.toLowerCase(), t] as const));
+
+      const merged: ScriptTemplate[] = [...activeLibrary];
+      for (const t of normalized) {
+        const key = `${t.scriptType}|${t.title}|${t.author || ''}`.toLowerCase();
+        const existingById = byId.get(t.id);
+        const existingByKey = byKey.get(key);
+        const existing = existingById || existingByKey;
+        if (existing) {
+          const idx = merged.findIndex((m) => m.id === existing.id);
+          if (idx >= 0) merged[idx] = { ...existing, ...t, id: existing.id, createdAt: existing.createdAt };
+        } else {
+          merged.unshift(t);
+        }
+      }
+
+      if (activeTab === 'xedit') setXeditLibrary(merged);
+      else setBlenderLibrary(merged);
+      await persistLibrary(activeTab, merged);
+      setLibraryStatus(`Imported ${normalized.length} template(s).`);
+      setTimeout(() => setLibraryStatus(''), 2000);
+    } catch (e) {
+      console.warn('[TheScribe] Import failed', e);
+      setLibraryStatus('Invalid JSON.');
+      setTimeout(() => setLibraryStatus(''), 2000);
+    }
+  };
+
+  const handleImportFromFile = async () => {
+    if (activeTab !== 'xedit' && activeTab !== 'blender') return;
+    try {
+      const api = window.electronAPI as any;
+      if (typeof api?.pickJsonFile !== 'function' || typeof api?.readFile !== 'function') {
+        setLibraryStatus('Import requires Desktop Bridge file picker + readFile support.');
+        setTimeout(() => setLibraryStatus(''), 2500);
+        return;
+      }
+      const filePath = await api.pickJsonFile();
+      if (!filePath) {
+        setLibraryStatus('Import canceled.');
+        setTimeout(() => setLibraryStatus(''), 1500);
+        return;
+      }
+      const content = await api.readFile(filePath);
+      setLibraryImportText(String(content || ''));
+      // Merge immediately
+      await handleImportMerge();
+    } catch (e) {
+      console.warn('[TheScribe] Import from file failed', e);
+      setLibraryStatus('Import failed.');
+      setTimeout(() => setLibraryStatus(''), 2000);
+    }
+  };
+
   const handleLaunchTool = async () => {
     const path = getActiveToolPath();
     const toolName = getActiveToolName();
@@ -82,8 +679,10 @@ export const TheScribe: React.FC = () => {
     }
     setLaunching(true);
     try {
-      const bridge = (window as any).electron?.api;
-      if (bridge?.openExternal) {
+      const bridge = (window as any).electron?.api || (window as any).electronAPI;
+      if (bridge?.openProgram) {
+        await bridge.openProgram(path);
+      } else if (bridge?.openExternal) {
         await bridge.openExternal(path);
       } else {
         alert('Launching external tools requires the Desktop Bridge (Electron).');
@@ -93,6 +692,172 @@ export const TheScribe: React.FC = () => {
       alert(`Could not launch ${toolName}. Check the configured path in Tool Settings.`);
     } finally {
       setLaunching(false);
+    }
+  };
+
+  const dirnamePortable = (p: string) => {
+    const s = String(p || '').replace(/\//g, '\\');
+    const idx = s.lastIndexOf('\\');
+    if (idx <= 0) return '';
+    return s.slice(0, idx);
+  };
+
+  const joinPortable = (a: string, b: string) => {
+    const left = String(a || '').replace(/[\\/]+$/g, '');
+    const right = String(b || '').replace(/^[\\/]+/g, '');
+    if (!left) return right;
+    if (!right) return left;
+    return `${left}\\${right}`;
+  };
+
+  const safeFilenameBase = (name: string) => {
+    const s = String(name || '').trim();
+    const cleaned = s.replace(/[\\/:*?"<>|]+/g, '_').replace(/\s+/g, ' ').trim();
+    return cleaned || 'scribe_script';
+  };
+
+  const getXeditScriptsDir = () => {
+    const override = String(settings?.xeditScriptsDirOverride || '').trim();
+    if (override) return override;
+    const exe = String(settings?.xeditPath || '').trim();
+    if (!exe) return '';
+    const dir = dirnamePortable(exe);
+    if (!dir) return '';
+    return joinPortable(dir, 'Edit Scripts');
+  };
+
+  const handleExportXeditScriptToFile = async () => {
+    if (activeTab !== 'xedit') return;
+    try {
+      const api: any = (window as any).electron?.api || (window as any).electronAPI;
+      if (typeof api?.saveFile !== 'function') {
+        setXeditScriptStatus('Export requires Desktop Bridge saveFile support.');
+        setTimeout(() => setXeditScriptStatus(''), 2500);
+        return;
+      }
+      const body = String(code || '').trimEnd();
+      if (!body.trim()) {
+        setXeditScriptStatus('Nothing to export (editor is empty).');
+        setTimeout(() => setXeditScriptStatus(''), 2000);
+        return;
+      }
+      const base = safeFilenameBase(libraryTitle || 'xedit_script');
+      const filename = base.toLowerCase().endsWith('.pas') ? base : `${base}.pas`;
+      const savedTo = await api.saveFile(body, filename);
+      setXeditScriptStatus(savedTo ? `Exported: ${savedTo}` : 'Exported.');
+      setTimeout(() => setXeditScriptStatus(''), 2500);
+    } catch (e) {
+      console.warn('[TheScribe] xEdit export failed', e);
+      setXeditScriptStatus('Export failed.');
+      setTimeout(() => setXeditScriptStatus(''), 2000);
+    }
+  };
+
+  const handleInstallXeditScriptToFolder = async () => {
+    if (activeTab !== 'xedit') return;
+    try {
+      const api: any = (window as any).electron?.api || (window as any).electronAPI;
+      if (typeof api?.writeFile !== 'function') {
+        setXeditScriptStatus('Install requires Desktop Bridge writeFile support.');
+        setTimeout(() => setXeditScriptStatus(''), 2500);
+        return;
+      }
+
+      const scriptsDir = getXeditScriptsDir();
+      if (!scriptsDir) {
+        setXeditScriptStatus('Set your xEdit path in Tool Settings first.');
+        setTimeout(() => setXeditScriptStatus(''), 2500);
+        return;
+      }
+
+      const body = String(code || '').trimEnd();
+      if (!body.trim()) {
+        setXeditScriptStatus('Nothing to install (editor is empty).');
+        setTimeout(() => setXeditScriptStatus(''), 2000);
+        return;
+      }
+
+      const base = safeFilenameBase(libraryTitle || 'xedit_script');
+      const filename = base.toLowerCase().endsWith('.pas') ? base : `${base}.pas`;
+      const targetPath = joinPortable(scriptsDir, filename);
+
+      const ok = await api.writeFile(targetPath, body);
+      if (!ok) {
+        setXeditScriptStatus('Install failed (writeFile returned false).');
+        setTimeout(() => setXeditScriptStatus(''), 2500);
+        return;
+      }
+
+      // Try to reveal the new file for convenience, but don't treat failures as fatal.
+      try {
+        if (typeof api?.revealInFolder === 'function') await api.revealInFolder(targetPath);
+        else if (typeof api?.openProgram === 'function') await api.openProgram(scriptsDir);
+      } catch {
+        // ignore
+      }
+
+      setXeditScriptStatus('Installed to xEdit Edit Scripts folder.');
+      setTimeout(() => setXeditScriptStatus(''), 2500);
+    } catch (e) {
+      console.warn('[TheScribe] xEdit install failed', e);
+      setXeditScriptStatus('Install failed.');
+      setTimeout(() => setXeditScriptStatus(''), 2000);
+    }
+  };
+
+  const handleRunBlenderScript = async () => {
+    if (activeTab !== 'blender') return;
+    const exe = getActiveToolPath().trim();
+    if (!exe) {
+      alert('Set a Blender path in Tool Settings before running scripts.');
+      return;
+    }
+
+    const bridge: any = (window as any).electron?.api || (window as any).electronAPI;
+    if (typeof bridge?.runTool !== 'function' || typeof bridge?.writeLoadOrderUserDataFile !== 'function') {
+      setRunStatus('Run requires Desktop Bridge (runTool + userData writer).');
+      setTimeout(() => setRunStatus(''), 2500);
+      return;
+    }
+
+    const scriptBody = String(code || '').trim();
+    if (!scriptBody) {
+      setRunStatus('Nothing to run (editor is empty).');
+      setTimeout(() => setRunStatus(''), 2000);
+      return;
+    }
+
+    setRunningScript(true);
+    setRunStatus('Running Blender headless...');
+    setRunOutput('');
+
+    try {
+      const filename = `scribe_blender_${Date.now()}.py`;
+      const scriptPath: string = await bridge.writeLoadOrderUserDataFile(filename, scriptBody);
+      if (!scriptPath) {
+        setRunStatus('Failed to write temp script.');
+        return;
+      }
+
+      const res = await bridge.runTool({
+        cmd: exe,
+        args: ['--background', '--python', scriptPath],
+        cwd: undefined,
+      });
+
+      const stdout = String(res?.stdout || '').trim();
+      const stderr = String(res?.stderr || '').trim();
+      const exitCode = Number(res?.exitCode ?? -1);
+      setRunStatus(`Finished (exit ${exitCode}).`);
+      const joined = [stdout && `STDOUT\n${stdout}`, stderr && `STDERR\n${stderr}`].filter(Boolean).join('\n\n');
+      setRunOutput(joined || '(no output)');
+    } catch (e) {
+      console.warn('[TheScribe] Blender run failed', e);
+      setRunStatus('Run failed.');
+      setRunOutput(String((e as any)?.message || e || 'Unknown error'));
+    } finally {
+      setRunningScript(false);
+      setTimeout(() => setRunStatus(''), 4000);
     }
   };
 
@@ -566,6 +1331,63 @@ print("Batch processing complete")`,
             </button>
           </div>
         </div>
+
+        <div className="mt-5 bg-slate-950/50 border border-slate-700 rounded-lg p-4">
+          <div className="text-sm font-bold text-purple-300 mb-2">🧰 Tools / Install / Verify (No Guesswork)</div>
+          <ul className="text-xs text-slate-300 space-y-1 list-disc list-inside">
+            <li><strong>Papyrus:</strong> Creation Kit installed (for compiling <span className="font-mono">.psc → .pex</span>).</li>
+            <li><strong>xEdit scripts:</strong> FO4Edit installed (to run scripts and patch records).</li>
+            <li><strong>Blender scripts:</strong> Blender installed (run from Blender’s Text Editor / Scripting workspace).</li>
+          </ul>
+
+          <div className="mt-3 flex flex-wrap gap-2">
+            <button
+              onClick={() => openUrl('https://store.steampowered.com/search/?term=Fallout%204%20Creation%20Kit')}
+              className="px-3 py-2 rounded bg-slate-800 hover:bg-slate-700 border border-slate-600 text-xs font-bold text-white"
+            >
+              Steam: Creation Kit (search)
+            </button>
+            <button
+              onClick={() => openNexusSearch('FO4Edit xEdit')}
+              className="px-3 py-2 rounded bg-slate-800 hover:bg-slate-700 border border-slate-600 text-xs font-bold text-white"
+            >
+              Nexus: FO4Edit (search)
+            </button>
+            <button
+              onClick={() => openUrl('https://www.blender.org/download/')}
+              className="px-3 py-2 rounded bg-slate-800 hover:bg-slate-700 border border-slate-600 text-xs font-bold text-white"
+            >
+              Blender (official)
+            </button>
+          </div>
+
+          <div className="mt-3 flex flex-wrap gap-2">
+            <button
+              onClick={() => navigate('/settings/tools')}
+              className="px-3 py-2 rounded bg-purple-700 hover:bg-purple-600 text-xs font-bold text-white"
+            >
+              Tool Settings
+            </button>
+            <button
+              onClick={() => navigate('/script-analyzer')}
+              className="px-3 py-2 rounded bg-slate-800 hover:bg-slate-700 border border-slate-600 text-xs font-bold text-white"
+            >
+              Script Analyzer
+            </button>
+            <button
+              onClick={() => navigate('/workshop')}
+              className="px-3 py-2 rounded bg-slate-800 hover:bg-slate-700 border border-slate-600 text-xs font-bold text-white"
+            >
+              Workshop
+            </button>
+            <button
+              onClick={() => navigate('/ck-quest-dialogue')}
+              className="px-3 py-2 rounded bg-slate-800 hover:bg-slate-700 border border-slate-600 text-xs font-bold text-white"
+            >
+              CK Wizard
+            </button>
+          </div>
+        </div>
       </div>
 
       <div className="flex-1 flex overflow-hidden">
@@ -613,6 +1435,38 @@ print("Batch processing complete")`,
                 {activeTab === 'xedit' && 'Launch xEdit'}
                 {activeTab === 'blender' && 'Launch Blender'}
               </button>
+              {activeTab === 'xedit' && (
+                <>
+                  <button
+                    onClick={() => void handleInstallXeditScriptToFolder()}
+                    disabled={launching || !getActiveToolPath().trim()}
+                    className="flex items-center gap-2 px-3 py-1.5 bg-purple-700 hover:bg-purple-600 text-white rounded text-sm font-medium transition-colors disabled:opacity-50"
+                    title="Writes a .pas into your xEdit 'Edit Scripts' folder (best-effort, version-agnostic)."
+                  >
+                    <Upload className="w-4 h-4" />
+                    Install Script
+                  </button>
+                  <button
+                    onClick={() => void handleExportXeditScriptToFile()}
+                    className="flex items-center gap-2 px-3 py-1.5 bg-slate-700 hover:bg-slate-600 text-white rounded text-sm font-medium transition-colors"
+                    title="Exports this script as a .pas file (works for any xEdit version)."
+                  >
+                    <Download className="w-4 h-4" />
+                    Export .pas
+                  </button>
+                </>
+              )}
+              {activeTab === 'blender' && (
+                <button
+                  onClick={() => void handleRunBlenderScript()}
+                  disabled={runningScript || launching || !getActiveToolPath().trim()}
+                  className="flex items-center gap-2 px-3 py-1.5 bg-purple-700 hover:bg-purple-600 text-white rounded text-sm font-medium transition-colors disabled:opacity-50"
+                  title="Runs Blender in background with this script (writes a temp .py to app userData)."
+                >
+                  <Play className="w-4 h-4" />
+                  {runningScript ? 'Running…' : 'Run Script'}
+                </button>
+              )}
               {getActiveToolPath().trim() && (
                 <span className="text-[11px] text-slate-400 px-2 py-1 bg-slate-800 border border-slate-700 rounded">
                   {toolVersion ? `Version: ${toolVersion}` : 'Version: unknown'}
@@ -634,6 +1488,26 @@ print("Batch processing complete")`,
               </button>
             </div>
           </div>
+
+          {activeTab === 'xedit' && (
+            <div className="border-b border-slate-700/50 bg-slate-900/30 p-3">
+              <div className="text-[11px] text-slate-400">
+                Tip: xEdit versions differ, so Mossy avoids hardcoding command-line flags. Use “Install Script” (writes to <span className="font-mono">Edit Scripts</span>) then run it from xEdit’s Apply Script menu, or use “Export .pas” and copy it manually.
+              </div>
+              {xeditScriptStatus && <div className="text-xs text-slate-200 mt-2">{xeditScriptStatus}</div>}
+            </div>
+          )}
+
+          {(runStatus || runOutput) && activeTab === 'blender' && (
+            <div className="border-b border-slate-700/50 bg-slate-900/30 p-3">
+              {runStatus && <div className="text-xs text-slate-200 mb-2">{runStatus}</div>}
+              {runOutput && (
+                <pre className="text-[11px] whitespace-pre-wrap text-slate-300 bg-slate-950/50 border border-slate-700 rounded p-2 max-h-40 overflow-auto">
+                  {runOutput}
+                </pre>
+              )}
+            </div>
+          )}
 
           {/* Code Editor */}
           <div className="flex-1 p-4 overflow-auto bg-slate-950">
@@ -704,6 +1578,282 @@ print("Batch processing complete")`,
               );
             })}
           </div>
+
+          {/* Script Library */}
+          <div className="p-4 border-t border-slate-700/50 bg-slate-900/40">
+            <h3 className="text-sm font-bold text-white mb-2 flex items-center gap-2">
+              <Save className="w-4 h-4 text-purple-300" />
+              Script Library
+              <span className="text-[11px] text-slate-400 font-normal">({activeLibrary.length})</span>
+            </h3>
+
+            {activeTab === 'papyrus' ? (
+              <div className="text-xs text-slate-400">
+                For Papyrus, use the Creation Kit Link Template Library (Desktop Bridge → CK).
+              </div>
+            ) : (
+              <div className="space-y-2">
+                <div className="grid grid-cols-2 gap-2">
+                  <input
+                    value={libraryTitle}
+                    onChange={(e) => setLibraryTitle(e.target.value)}
+                    placeholder="Title"
+                    className="bg-slate-950 border border-slate-700 rounded px-2 py-1 text-xs text-white focus:outline-none focus:border-purple-500"
+                  />
+                  <input
+                    value={libraryAuthor}
+                    onChange={(e) => setLibraryAuthor(e.target.value)}
+                    placeholder="Author (optional)"
+                    className="bg-slate-950 border border-slate-700 rounded px-2 py-1 text-xs text-white focus:outline-none focus:border-purple-500"
+                  />
+                </div>
+
+                <textarea
+                  value={libraryDescription}
+                  onChange={(e) => setLibraryDescription(e.target.value)}
+                  placeholder="Description (optional)"
+                  className="w-full bg-slate-950 border border-slate-700 rounded px-2 py-1 text-xs text-white focus:outline-none focus:border-purple-500"
+                  rows={2}
+                />
+
+                <div className="flex gap-2">
+                  <select
+                    value={librarySelectedId}
+                    onChange={(e) => setLibrarySelectedId(e.target.value)}
+                    className="flex-1 bg-slate-950 border border-slate-700 rounded px-2 py-1 text-xs text-white focus:outline-none focus:border-purple-500"
+                  >
+                    <option value="">Load saved script…</option>
+                    {activeLibrary.map((t) => (
+                      <option key={t.id} value={t.id}>
+                        {t.title}{t.author ? ` — ${t.author}` : ''}
+                      </option>
+                    ))}
+                  </select>
+
+                  <button
+                    onClick={handleLoadFromLibrary}
+                    className="px-2 py-1 rounded bg-slate-800 hover:bg-slate-700 border border-slate-700 text-xs font-bold text-white"
+                  >
+                    Load
+                  </button>
+                </div>
+
+                <div className="flex gap-2">
+                  <button
+                    onClick={handleSaveToLibrary}
+                    className="flex items-center gap-2 px-2 py-1 rounded bg-purple-700 hover:bg-purple-600 text-xs font-bold text-white"
+                  >
+                    <Save className="w-3.5 h-3.5" />
+                    Save
+                  </button>
+                  <button
+                    onClick={handleDeleteFromLibrary}
+                    className="flex items-center gap-2 px-2 py-1 rounded bg-slate-800 hover:bg-slate-700 border border-slate-700 text-xs font-bold text-white"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                    Delete
+                  </button>
+                  <button
+                    onClick={handleCopyLibraryExport}
+                    className="flex items-center gap-2 px-2 py-1 rounded bg-slate-800 hover:bg-slate-700 border border-slate-700 text-xs font-bold text-white"
+                    title="Copy export JSON"
+                  >
+                    <Download className="w-3.5 h-3.5" />
+                    Export
+                  </button>
+
+                  <button
+                    onClick={handleExportLibraryToFile}
+                    className="flex items-center gap-2 px-2 py-1 rounded bg-slate-800 hover:bg-slate-700 border border-slate-700 text-xs font-bold text-white"
+                    title="Save export JSON to a file"
+                  >
+                    <Download className="w-3.5 h-3.5" />
+                    Export to file
+                  </button>
+                </div>
+
+                <textarea
+                  value={libraryImportText}
+                  onChange={(e) => setLibraryImportText(e.target.value)}
+                  placeholder='Paste JSON to import (array or { "templates": [...] })'
+                  className="w-full bg-slate-950 border border-slate-700 rounded px-2 py-1 text-[11px] text-white focus:outline-none focus:border-purple-500"
+                  rows={3}
+                />
+                <div className="flex items-center justify-between">
+                  <div className="flex gap-2">
+                    <button
+                      onClick={handleImportMerge}
+                      className="flex items-center gap-2 px-2 py-1 rounded bg-slate-800 hover:bg-slate-700 border border-slate-700 text-xs font-bold text-white"
+                    >
+                      <Upload className="w-3.5 h-3.5" />
+                      Import + merge
+                    </button>
+                    <button
+                      onClick={handleImportFromFile}
+                      className="flex items-center gap-2 px-2 py-1 rounded bg-slate-800 hover:bg-slate-700 border border-slate-700 text-xs font-bold text-white"
+                      title="Pick a JSON file and import it"
+                    >
+                      <Upload className="w-3.5 h-3.5" />
+                      Import from file
+                    </button>
+                  </div>
+
+                  {libraryStatus && <div className="text-[11px] text-slate-300">{libraryStatus}</div>}
+                </div>
+              </div>
+            )}
+          </div>
+
+          {activeTab !== 'papyrus' && (
+            <div className="p-4 border-t border-slate-700/50 bg-slate-800/20">
+              <h3 className="text-sm font-bold text-white mb-2 flex items-center gap-2">
+                <FileCode className="w-4 h-4 text-emerald-400" />
+                Script Bundles (shareable)
+              </h3>
+              <div className="text-xs text-slate-400 mb-3">
+                Bundles are portable packs of xEdit/Blender templates. Import/export one JSON, then optionally install templates into your libraries.
+              </div>
+
+              <div className="space-y-2">
+                <div className="flex gap-2">
+                  <select
+                    value={bundleSelectedId}
+                    onChange={(e) => setBundleSelectedId(e.target.value)}
+                    className="flex-1 bg-slate-950 border border-slate-700 rounded px-2 py-1 text-xs text-white focus:outline-none focus:border-emerald-500"
+                  >
+                    <option value="">Select bundle…</option>
+                    {scriptBundles.map((b) => (
+                      <option key={b.id} value={b.id}>
+                        {b.title}{b.author ? ` — ${b.author}` : ''}
+                      </option>
+                    ))}
+                  </select>
+                  <button
+                    onClick={() => void handleNewBundle()}
+                    className="px-2 py-1 rounded bg-emerald-700 hover:bg-emerald-600 text-xs font-bold text-white"
+                  >
+                    New
+                  </button>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                  <input
+                    value={bundleTitle}
+                    onChange={(e) => setBundleTitle(e.target.value)}
+                    placeholder="Bundle title"
+                    className="bg-slate-950 border border-slate-700 rounded px-2 py-1 text-xs text-white focus:outline-none focus:border-emerald-500"
+                  />
+                  <input
+                    value={bundleAuthor}
+                    onChange={(e) => setBundleAuthor(e.target.value)}
+                    placeholder="Bundle author (optional)"
+                    className="bg-slate-950 border border-slate-700 rounded px-2 py-1 text-xs text-white focus:outline-none focus:border-emerald-500"
+                  />
+                </div>
+
+                <textarea
+                  value={bundleDescription}
+                  onChange={(e) => setBundleDescription(e.target.value)}
+                  placeholder="Bundle description (optional)"
+                  className="w-full bg-slate-950 border border-slate-700 rounded px-2 py-1 text-xs text-white focus:outline-none focus:border-emerald-500"
+                  rows={2}
+                />
+
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    onClick={() => void handleSaveBundleMeta()}
+                    className="flex items-center gap-2 px-2 py-1 rounded bg-slate-800 hover:bg-slate-700 border border-slate-700 text-xs font-bold text-white"
+                  >
+                    <Save className="w-3.5 h-3.5" />
+                    Save bundle
+                  </button>
+                  <button
+                    onClick={() => void handleDeleteBundle()}
+                    className="flex items-center gap-2 px-2 py-1 rounded bg-slate-800 hover:bg-slate-700 border border-slate-700 text-xs font-bold text-white"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                    Delete bundle
+                  </button>
+                  <button
+                    onClick={() => void handleAddSelectedTemplateToBundle()}
+                    className="flex items-center gap-2 px-2 py-1 rounded bg-emerald-700 hover:bg-emerald-600 text-xs font-bold text-white"
+                    title="Adds the selected saved script (or current editor) into this bundle"
+                  >
+                    <Upload className="w-3.5 h-3.5" />
+                    Add current script
+                  </button>
+                  <button
+                    onClick={() => void handleInstallBundleToLibraries()}
+                    className="flex items-center gap-2 px-2 py-1 rounded bg-slate-800 hover:bg-slate-700 border border-slate-700 text-xs font-bold text-white"
+                    title="Copies templates from this bundle into your xEdit/Blender libraries (deduped by title/author/type)."
+                  >
+                    <Download className="w-3.5 h-3.5" />
+                    Install into libraries
+                  </button>
+                  <button
+                    onClick={() => void handleExportBundlesToFile()}
+                    className="flex items-center gap-2 px-2 py-1 rounded bg-slate-800 hover:bg-slate-700 border border-slate-700 text-xs font-bold text-white"
+                    title="Save bundles JSON to a file"
+                  >
+                    <Download className="w-3.5 h-3.5" />
+                    Export bundles
+                  </button>
+                </div>
+
+                {selectedBundle?.templates?.length ? (
+                  <div className="bg-slate-950/30 border border-slate-700 rounded p-2">
+                    <div className="text-[11px] text-slate-400 mb-1">Templates in bundle</div>
+                    <div className="space-y-1">
+                      {selectedBundle.templates.map((t) => (
+                        <div key={t.id} className="flex items-center justify-between gap-2">
+                          <div className="min-w-0">
+                            <div className="text-xs text-slate-100 truncate">{t.title}</div>
+                            <div className="text-[10px] text-slate-500 truncate">{t.scriptType}{t.author ? ` • ${t.author}` : ''}</div>
+                          </div>
+                          <button
+                            onClick={() => void handleRemoveTemplateFromBundle(t.id)}
+                            className="px-2 py-1 text-[11px] rounded bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-100"
+                          >
+                            Remove
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ) : (
+                  <div className="text-[11px] text-slate-500 italic">Select a bundle to see its templates.</div>
+                )}
+
+                <textarea
+                  value={bundleImportText}
+                  onChange={(e) => setBundleImportText(e.target.value)}
+                  placeholder='Paste bundles JSON to import (array or { "bundles": [...] })'
+                  className="w-full bg-slate-950 border border-slate-700 rounded px-2 py-1 text-[11px] text-white focus:outline-none focus:border-emerald-500"
+                  rows={3}
+                />
+                <div className="flex items-center justify-between">
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => void handleImportBundlesMerge()}
+                      className="flex items-center gap-2 px-2 py-1 rounded bg-slate-800 hover:bg-slate-700 border border-slate-700 text-xs font-bold text-white"
+                    >
+                      <Upload className="w-3.5 h-3.5" />
+                      Import + merge
+                    </button>
+                    <button
+                      onClick={() => void handleImportBundlesFromFile()}
+                      className="flex items-center gap-2 px-2 py-1 rounded bg-slate-800 hover:bg-slate-700 border border-slate-700 text-xs font-bold text-white"
+                      title="Pick a JSON file and import it"
+                    >
+                      <Upload className="w-3.5 h-3.5" />
+                      Import from file
+                    </button>
+                  </div>
+                  {bundleStatus && <div className="text-[11px] text-slate-300">{bundleStatus}</div>}
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* Quick Tips */}
           <div className="p-4 border-t border-slate-700/50 bg-slate-800/30">
