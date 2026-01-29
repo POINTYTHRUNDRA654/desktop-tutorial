@@ -102,6 +102,9 @@ const IPC_CHANNELS = {
 
   // Speech-to-text (main process handles keys)
   TRANSCRIBE_AUDIO: 'transcribe-audio',
+
+  // Native TTS (Windows fallback)
+  NATIVE_TTS_SPEAK: 'native-tts-speak',
 } as const;
 
 /**
@@ -598,7 +601,7 @@ const electronAPI = {
    * Secrets status (presence only). Never returns actual key values.
    */
   getSecretStatus: (): Promise<
-    | { ok: true; openai: boolean; groq: boolean; deepgram: boolean; elevenlabs: boolean }
+    | { ok: true; openai: boolean; groq: boolean; deepgram: boolean; elevenlabs: boolean; backendUrl?: boolean; backendToken?: boolean }
     | { ok: false; error: string }
   > => {
     return ipcRenderer.invoke(IPC_CHANNELS.SECRET_STATUS);
@@ -610,6 +613,14 @@ const electronAPI = {
    */
   transcribeAudio: (arrayBuffer: ArrayBuffer, mimeType?: string): Promise<{ success: boolean; text?: string; error?: string }> => {
     return ipcRenderer.invoke(IPC_CHANNELS.TRANSCRIBE_AUDIO, arrayBuffer, mimeType);
+  },
+
+  /**
+   * Native OS TTS (best-effort). Used as a fallback when browser speechSynthesis
+   * is missing/unreliable in packaged builds.
+   */
+  nativeTtsSpeak: (text: string): Promise<{ ok: true } | { ok: false; error: string }> => {
+    return ipcRenderer.invoke(IPC_CHANNELS.NATIVE_TTS_SPEAK, text);
   },
 
   /**

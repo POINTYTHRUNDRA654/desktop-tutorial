@@ -27,6 +27,8 @@ const VoiceSettings: React.FC = () => {
   const [elevenLabsLoading, setElevenLabsLoading] = useState(false);
   const [elevenLabsError, setElevenLabsError] = useState<string | null>(null);
 
+  const [nativeTtsLastResult, setNativeTtsLastResult] = useState<string>('');
+
   // Feature flag: keep ElevenLabs completely optional (no keys required for normal use).
   // This flag is NOT a secret. It just controls UI exposure.
   const enableElevenLabsUi = String((import.meta as any)?.env?.VITE_ENABLE_ELEVENLABS || '').toLowerCase() === 'true';
@@ -74,6 +76,24 @@ const VoiceSettings: React.FC = () => {
     copy.sort((a, b) => (a.lang || '').localeCompare(b.lang || '') || (a.name || '').localeCompare(b.name || ''));
     return copy;
   }, [voices]);
+
+  const ttsDiagnostics = useMemo(() => {
+    const api = getElectronApi();
+    const speechAvailable = typeof window !== 'undefined' && 'speechSynthesis' in window;
+    const voicesCount = voices.length;
+    const sampleVoices = voices
+      .slice(0, 5)
+      .map((v) => `${String(v.name || 'Unknown')}${v.lang ? ` (${v.lang})` : ''}`);
+
+    return {
+      speechAvailable,
+      voicesCount,
+      sampleVoices,
+      browserTtsEnabled: settings.enabled,
+      preferredVoiceName: settings.preferredVoiceName || '(auto)',
+      nativeAvailable: typeof api?.nativeTtsSpeak === 'function',
+    };
+  }, [voices, settings.enabled, settings.preferredVoiceName]);
 
   const openWindowsSpeechSettings = async () => {
     try {
@@ -177,6 +197,24 @@ const VoiceSettings: React.FC = () => {
     await speakBrowserTts(testText, { cancelExisting: true });
   };
 
+  const onTestNative = async () => {
+    const api = getElectronApi();
+    setNativeTtsLastResult('');
+
+    if (!api?.nativeTtsSpeak) {
+      setNativeTtsLastResult('Native TTS IPC not available');
+      return;
+    }
+
+    try {
+      const res = await api.nativeTtsSpeak(testText);
+      if (res?.ok) setNativeTtsLastResult('Native TTS: ok');
+      else setNativeTtsLastResult(`Native TTS error: ${String(res?.error || 'unknown')}`);
+    } catch (e: any) {
+      setNativeTtsLastResult(`Native TTS error: ${String(e?.message || e)}`);
+    }
+  };
+
   const onTestOutput = async () => {
     await speakMossy(testText, { cancelExisting: true });
   };
@@ -232,6 +270,72 @@ const VoiceSettings: React.FC = () => {
       </div>
 
       <div className="flex-1 overflow-y-auto p-6 space-y-6">
+        <div className="bg-black/40 border border-white/10 rounded-xl p-5">
+          <div className="flex items-center justify-between gap-4">
+            <div>
+              <div className="text-xs font-black text-white uppercase tracking-widest">TTS Diagnostics</div>
+              <div className="text-[11px] text-slate-400 mt-1">Helps debug silent voice in packaged installs.</div>
+            </div>
+
+            <button
+              onClick={() => setVoices(getBrowserTtsVoices())}
+              className="px-3 py-2 bg-slate-800 hover:bg-slate-700 border border-slate-600 text-slate-100 font-bold rounded-lg transition-colors"
+              title="Refresh voice list"
+            >
+              Refresh
+            </button>
+          </div>
+
+          <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-3 text-[12px]">
+            <div className="text-slate-200">
+              <span className="text-slate-400">speechSynthesis:</span> {ttsDiagnostics.speechAvailable ? 'available' : 'missing'}
+            </div>
+            <div className="text-slate-200">
+              <span className="text-slate-400">Voices:</span> {ttsDiagnostics.voicesCount}
+            </div>
+            <div className="text-slate-200">
+              <span className="text-slate-400">Browser TTS enabled:</span> {ttsDiagnostics.browserTtsEnabled ? 'yes' : 'no'}
+            </div>
+            <div className="text-slate-200">
+              <span className="text-slate-400">Preferred voice:</span> {ttsDiagnostics.preferredVoiceName}
+            </div>
+            <div className="text-slate-200">
+              <span className="text-slate-400">Native fallback (IPC):</span> {ttsDiagnostics.nativeAvailable ? 'available' : 'missing'}
+            </div>
+          </div>
+
+          {ttsDiagnostics.sampleVoices.length > 0 && (
+            <div className="mt-3 text-[11px] text-slate-400">
+              <span className="text-slate-500">Sample voices:</span> {ttsDiagnostics.sampleVoices.join(' · ')}
+            </div>
+          )}
+
+          <div className="mt-4 flex flex-wrap gap-3">
+            <button
+              onClick={onTest}
+              className="px-4 py-2 bg-slate-800 hover:bg-slate-700 border border-slate-600 text-slate-100 font-bold rounded-lg flex items-center gap-2 transition-colors"
+              title="Test browser TTS"
+            >
+              <Play className="w-4 h-4" />
+              Test Browser
+            </button>
+            <button
+              onClick={onTestNative}
+              className="px-4 py-2 bg-slate-800 hover:bg-slate-700 border border-slate-600 text-slate-100 font-bold rounded-lg flex items-center gap-2 transition-colors"
+              title="Test native OS TTS fallback"
+            >
+              <Play className="w-4 h-4" />
+              Test Native
+            </button>
+          </div>
+
+          {nativeTtsLastResult && (
+            <div className="mt-3 text-[12px] text-slate-200 bg-slate-900/60 border border-slate-700 rounded-lg p-3">
+              {nativeTtsLastResult}
+            </div>
+          )}
+        </div>
+
         {'speechSynthesis' in window && (
           <div className="bg-black/40 border border-white/10 rounded-xl p-5">
             <div className="flex items-center justify-between gap-4">

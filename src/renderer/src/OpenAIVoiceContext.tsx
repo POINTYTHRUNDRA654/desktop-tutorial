@@ -105,8 +105,10 @@ export const OpenAIVoiceProvider: React.FC<{ children: ReactNode }> = ({ childre
       const apiKey = process.env.REACT_APP_OPENAI_API_KEY || localStorage.getItem('openai_api_key');
       
       if (!apiKey) {
-        setStatus('Please provide OpenAI API key');
-        throw new Error('OpenAI API key not found. Set REACT_APP_OPENAI_API_KEY environment variable or save key to localStorage');
+        setStatus('OpenAI voice is not configured. Add an OpenAI API key in Privacy Settings (desktop app), then retry.');
+        setIsActive(false);
+        setMode('idle');
+        return;
       }
 
       apiKeyRef.current = apiKey;

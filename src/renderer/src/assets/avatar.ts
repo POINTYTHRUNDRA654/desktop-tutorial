@@ -1,6 +1,15 @@
-import mossyAvatarPngUrl from './mossy-avatar.png?url';
-import mossyAvatarSvgUrl from './mossy-avatar.svg?url';
+// Primary/default avatar URL.
+//
+// This MUST be the JPG per project expectations. Put the file at:
+//   `public/mossy-avatar.jpg`
+// so it is served at runtime from `/mossy-avatar.jpg` in both Vite dev and
+// packaged Electron builds.
+export const mossyAvatarJpgUrl = 'mossy-avatar.jpg';
+export const mossyAvatarUrl = mossyAvatarJpgUrl;
 
-// Bundle the avatar so it resolves correctly in packaged `file://` builds.
-// Prefer PNG (more compatible with img rendering/filters), with SVG as fallback.
-export const mossyAvatarUrl = mossyAvatarPngUrl || mossyAvatarSvgUrl;
+// Fallback SVG (kept for resilience if the JPG is missing or fails).
+// This SVG should render the JPG internally (see `public/mossy-avatar.svg`).
+export const mossyAvatarFallbackUrl = 'mossy-avatar.svg';
+
+// Back-compat alias.
+export const mossyAvatarPng = mossyAvatarUrl;

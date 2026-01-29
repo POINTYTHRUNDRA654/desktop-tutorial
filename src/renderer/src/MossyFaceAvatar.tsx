@@ -1,8 +1,8 @@
 import React, { useEffect, useState } from 'react';
-import { useLive } from './LiveContext';
-import { mossyAvatarUrl } from './assets/avatar';
+import { mossyAvatarUrl, mossyAvatarFallbackUrl } from './assets/avatar';
 
 const DEFAULT_MOSSY_AVATAR_URL = mossyAvatarUrl;
+const FALLBACK_MOSSY_AVATAR_URL = mossyAvatarFallbackUrl;
 
 interface MossyFaceAvatarProps {
   className?: string;
@@ -10,6 +10,7 @@ interface MossyFaceAvatarProps {
   mode?: 'idle' | 'listening' | 'processing' | 'speaking';
   isActive?: boolean;
   showRings?: boolean;
+  customAvatarUrl?: string | null;
 }
 
 /**
@@ -22,16 +23,19 @@ const MossyFaceAvatar: React.FC<MossyFaceAvatarProps> = ({
   size = 'large',
   mode = 'idle',
   isActive = false,
-  showRings = true
+  showRings = true,
+  customAvatarUrl = null
 }) => {
-  const { customAvatar } = useLive();
   const [pulseIntensity, setPulseIntensity] = useState(0);
   const [time, setTime] = useState(0);
-  const [imageSrc, setImageSrc] = useState<string>(customAvatar || DEFAULT_MOSSY_AVATAR_URL);
+  const [imageSrc, setImageSrc] = useState<string>(DEFAULT_MOSSY_AVATAR_URL);
 
+  // Keep the face image in sync with the currently selected custom avatar.
+  // If no custom avatar is set, fall back to the bundled default.
   useEffect(() => {
-    setImageSrc(customAvatar || DEFAULT_MOSSY_AVATAR_URL);
-  }, [customAvatar]);
+    const nextSrc = customAvatarUrl || DEFAULT_MOSSY_AVATAR_URL;
+    setImageSrc((prev) => (prev === nextSrc ? prev : nextSrc));
+  }, [customAvatarUrl]);
 
   // Animation Loop for soul-layers
   useEffect(() => {
@@ -84,7 +88,12 @@ const MossyFaceAvatar: React.FC<MossyFaceAvatarProps> = ({
         style={{ width: '100%', height: '100%', objectFit: 'cover', pointerEvents: 'none' }}
         draggable={false}
         onError={() => {
-          if (imageSrc !== DEFAULT_MOSSY_AVATAR_URL) setImageSrc(DEFAULT_MOSSY_AVATAR_URL);
+          // Try the default JPG first, then fall back to the bundled SVG.
+          if (imageSrc !== DEFAULT_MOSSY_AVATAR_URL) {
+            setImageSrc(DEFAULT_MOSSY_AVATAR_URL);
+            return;
+          }
+          if (imageSrc !== FALLBACK_MOSSY_AVATAR_URL) setImageSrc(FALLBACK_MOSSY_AVATAR_URL);
         }}
       />
 

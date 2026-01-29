@@ -655,7 +655,7 @@ const SystemMonitor: React.FC = () => {
       
       {/* --- VIRTUAL INSTALLER MODAL --- */}
       {showInstaller && (
-          <div className="fixed inset-0 z-50 bg-black/90 backdrop-blur-md flex items-center justify-center p-8 animate-fade-in">
+          <div className="fixed inset-0 z-50 bg-black/90 backdrop-blur-md flex items-center justify-center p-8 animate-fade-in" onWheel={(e) => e.stopPropagation()}>
               <div className="w-full max-w-4xl bg-[#0f172a] border border-slate-700 rounded-xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
                   {/* Installer Header */}
                   <div className="p-6 border-b border-slate-800 bg-slate-900 flex justify-between items-center">

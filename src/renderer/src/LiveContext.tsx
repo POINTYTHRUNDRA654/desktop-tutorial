@@ -348,6 +348,34 @@ async function synthesizeSpeechWithElevenLabs(
   throw new Error('ElevenLabs synthesis requires the desktop IPC bridge. Switch TTS provider to browser, or enable ElevenLabs in desktop settings.');
 }
 
+async function playAudioBlobWithHtmlAudio(audioBlob: Blob): Promise<boolean> {
+  try {
+    const url = URL.createObjectURL(audioBlob);
+    try {
+      const audio = new Audio();
+      audio.src = url;
+      audio.preload = 'auto';
+
+      const ended = new Promise<void>((resolve) => {
+        audio.onended = () => resolve();
+        audio.onerror = () => resolve();
+      });
+
+      await audio.play();
+      await ended;
+      return true;
+    } finally {
+      try {
+        URL.revokeObjectURL(url);
+      } catch {
+        // ignore
+      }
+    }
+  } catch {
+    return false;
+  }
+}
+
 // Fallback: Speak using browser SpeechSynthesis
 async function speakWithBrowserTTS(text: string): Promise<void> {
   try {
@@ -481,8 +509,10 @@ async function sendMessageToLlm(
     // Save to localStorage for persistence
     saveLiveMessage('model', modelResponse);
 
-    // Synthesize response to speech with selected provider
-    if (modelResponse && !isMutedRef.current) {
+    // Synthesize response to speech with selected provider.
+    // NOTE: `isMuted` is used as a microphone/input mute toggle in the UI.
+    // It should not silence Mossy's output voice.
+    if (modelResponse) {
       setMode('processing');
       console.log('[LiveContext] Mode set to processing, about to speak...');
       if (ttsProvider === 'elevenlabs' && audioContextRef.current) {
@@ -493,26 +523,33 @@ async function sendMessageToLlm(
             elevenLabsApiKey,
             elevenLabsVoiceId
           );
-          const arrayBuffer = await audioBlob.arrayBuffer();
-          const ctx = audioContextRef.current;
-          if (ctx.state === 'suspended') await ctx.resume();
-          const decodedBuffer = await ctx.decodeAudioData(arrayBuffer);
-          const source = ctx.createBufferSource();
-          source.buffer = decodedBuffer;
-          source.connect(ctx.destination);
-          source.onended = () => {
-            try { source.disconnect(); } catch (e) {
-              console.error('[LiveContext] Failed to disconnect audio source:', e);
-            }
-            sourcesRef.current.delete(source);
-            if (sourcesRef.current.size === 0) setMode('listening');
-          };
-          const now = ctx.currentTime;
-          if (nextStartTimeRef.current < now) nextStartTimeRef.current = now + 0.05;
-          source.start(nextStartTimeRef.current);
-          nextStartTimeRef.current += decodedBuffer.duration;
-          sourcesRef.current.add(source);
-          setMode('speaking');
+          // Prefer HTML audio playback first (more reliable in some packaged builds)
+          const playedViaHtml = await playAudioBlobWithHtmlAudio(audioBlob);
+          if (playedViaHtml) {
+            setMode('speaking');
+            setMode('listening');
+          } else {
+            const arrayBuffer = await audioBlob.arrayBuffer();
+            const ctx = audioContextRef.current;
+            if (ctx.state === 'suspended') await ctx.resume();
+            const decodedBuffer = await ctx.decodeAudioData(arrayBuffer);
+            const source = ctx.createBufferSource();
+            source.buffer = decodedBuffer;
+            source.connect(ctx.destination);
+            source.onended = () => {
+              try { source.disconnect(); } catch (e) {
+                console.error('[LiveContext] Failed to disconnect audio source:', e);
+              }
+              sourcesRef.current.delete(source);
+              if (sourcesRef.current.size === 0) setMode('listening');
+            };
+            const now = ctx.currentTime;
+            if (nextStartTimeRef.current < now) nextStartTimeRef.current = now + 0.05;
+            source.start(nextStartTimeRef.current);
+            nextStartTimeRef.current += decodedBuffer.duration;
+            sourcesRef.current.add(source);
+            setMode('speaking');
+          }
         } catch (audioErr) {
           console.error('[LiveContext] Audio playback error:', audioErr);
           console.log('[LiveContext] Falling back to browser TTS...');
@@ -679,12 +716,21 @@ export const LiveProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   useEffect(() => {
     (async () => {
-      const saved = localStorage.getItem('mossy_avatar_custom');
+      const savedRaw = localStorage.getItem('mossy_avatar_custom');
       const locked = localStorage.getItem('mossy_avatar_locked');
+
+      // Treat empty/placeholder strings as "no custom avatar".
+      const saved = savedRaw && savedRaw !== 'null' && savedRaw !== 'undefined' && savedRaw.trim() !== ''
+        ? savedRaw
+        : null;
+
       if (!saved) {
         try {
           const dbAvatar = await getImageFromDB('mossy_avatar_custom');
-          if (dbAvatar) setCustomAvatar(dbAvatar);
+          const normalizedDbAvatar = dbAvatar && dbAvatar !== 'null' && dbAvatar !== 'undefined' && dbAvatar.trim() !== ''
+            ? dbAvatar
+            : null;
+          if (normalizedDbAvatar) setCustomAvatar(normalizedDbAvatar);
         } catch (e) {
           console.warn("Avatar load error:", e);
         }
@@ -1097,22 +1143,46 @@ export const LiveProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         if (electronApi?.getSecretStatus) {
           const st = await electronApi.getSecretStatus();
           if (st?.ok) {
-            const backendEnabled = Boolean(backendBaseUrl);
+            const backendEnabled = Boolean(backendBaseUrl) || Boolean((st as any).backendUrl);
 
             // If a backend proxy is configured, we allow missing local provider keys.
             // For local-only, accept either Groq or OpenAI.
-            const llmOk = Boolean(st.groq) || Boolean((st as any).openai) || backendEnabled;
-            const sttOk = Boolean(st.openai) || Boolean(st.deepgram) || backendEnabled;
+            const hasGroq = Boolean(st.groq);
+            const hasOpenAi = Boolean((st as any).openai);
+            const hasSttOpenAi = Boolean(st.openai);
+            const hasDeepgram = Boolean(st.deepgram);
+
+            const hasBackendToken = Boolean((st as any).backendToken);
+
+            const llmOk = hasGroq || hasOpenAi || backendEnabled;
+            const sttOk = hasSttOpenAi || hasDeepgram || backendEnabled;
+
+            // If you're relying on a backend proxy (no local keys), a token may be required.
+            // When backend is the only configured path and token is missing, fail early with a precise message.
+            const relyingOnBackendForLlm = backendEnabled && !hasGroq && !hasOpenAi;
+            const relyingOnBackendForStt = backendEnabled && !hasSttOpenAi && !hasDeepgram;
+            if ((relyingOnBackendForLlm || relyingOnBackendForStt) && !hasBackendToken) {
+              // Some backends may allow unauthenticated dev mode; don't hard-block.
+              console.warn(
+                '[LiveContext] Backend Proxy is set but the backend token is missing. If your backend requires auth, add the token in Privacy Settings (Backend Token).'
+              );
+            }
 
             if (!llmOk) {
-              throw new Error('No LLM provider is configured. Add a Groq or OpenAI API key in Desktop settings, or configure the Backend Proxy.');
+              throw new Error(
+                `Live Synapse needs an LLM provider. Add a Groq or OpenAI API key in Privacy Settings, or configure the Backend Proxy. ` +
+                  `(configured: groq=${hasGroq ? 'yes' : 'no'}, openai=${hasOpenAi ? 'yes' : 'no'}, backendProxy=${backendEnabled ? 'on' : 'off'})`
+              );
             }
             if (!sttOk) {
-              throw new Error('Speech-to-text is not configured. Add an OpenAI or Deepgram API key in Desktop settings, or configure the Backend Proxy.');
+              throw new Error(
+                `Live Synapse needs speech-to-text. Add an OpenAI or Deepgram API key in Privacy Settings, or configure the Backend Proxy. ` +
+                  `(configured: openai=${hasSttOpenAi ? 'yes' : 'no'}, deepgram=${hasDeepgram ? 'yes' : 'no'}, backendProxy=${backendEnabled ? 'on' : 'off'})`
+              );
             }
 
             // If backend URL is set but token is missing, warn early (backend may still allow unauthenticated dev).
-            if (backendEnabled && !st.backendToken) {
+            if (backendEnabled && !hasBackendToken) {
               console.warn('[LiveContext] Backend URL is set but backend token is missing. If your backend requires auth, add the token in Privacy Settings.');
             }
           }
@@ -1159,7 +1229,7 @@ export const LiveProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         sessionReadyRef.current = true;
 
         // Optional: run a one-time TTS self-test to confirm audio pipeline
-        if (!ranTtsSelfTestRef.current && !isMutedRef.current) {
+        if (!ranTtsSelfTestRef.current) {
           ranTtsSelfTestRef.current = true;
           try {
             if (ttsProvider === 'elevenlabs' && audioContextRef.current) {
@@ -1396,6 +1466,17 @@ Example bad responses (DO NOT DO THIS):
                 totalSize: recordedChunks.reduce((sum, blob) => sum + blob.size, 0),
                 sessionReady: sessionReadyRef.current
               });
+
+              // Mic mute: do not transcribe or send to LLM while muted.
+              if (isMutedRef.current) {
+                recordedChunks = [];
+                chunkCount = 0;
+                setMode('listening');
+                if (sessionReadyRef.current && recorder.state === 'inactive') {
+                  recorder.start();
+                }
+                return;
+              }
               
               if (!sessionReadyRef.current || recordedChunks.length === 0) {
                 console.log('[LiveContext] No chunks or session not ready - restarting recording');
@@ -1437,10 +1518,12 @@ Example bad responses (DO NOT DO THIS):
                 let transcription = '';
 
                 try {
+                  setStatus('Transcribing...');
                   transcription = await transcribeAudioWithWhisper(completeBlob, '');
                   console.log('[LiveContext] STT transcription:', transcription);
                 } catch (sttErr) {
                   console.error('[LiveContext] STT failed:', sttErr);
+                  setStatus(`Speech-to-text failed: ${String((sttErr as any)?.message || sttErr || 'unknown error')}`);
                   setMode('listening');
                   if (sessionReadyRef.current && recorder.state === 'inactive') {
                     recorder.start();
@@ -1462,22 +1545,29 @@ Example bad responses (DO NOT DO THIS):
                 setTranscription(transcription);
                 saveLiveMessage('user', transcription);
 
-                await sendMessageToLlm(
-                  transcription,
-                  groqSession.groqClient,
-                  groqSession.conversationHistory,
-                  groqSession.systemPrompt,
-                  audioContextRef as React.MutableRefObject<AudioContext | undefined>,
-                  groqSession.elevenLabsApiKey,
-                  groqSession.elevenLabsVoiceId,
-                  groqSession.ttsProvider,
-                  (groqSession.llmProvider || 'groq') as LlmProvider,
-                  isMutedRef,
-                  sourcesRef,
-                  nextStartTimeRef,
-                  setMode,
-                  saveLiveMessage
-                );
+                try {
+                  setStatus('Thinking...');
+                  await sendMessageToLlm(
+                    transcription,
+                    groqSession.groqClient,
+                    groqSession.conversationHistory,
+                    groqSession.systemPrompt,
+                    audioContextRef as React.MutableRefObject<AudioContext | undefined>,
+                    groqSession.elevenLabsApiKey,
+                    groqSession.elevenLabsVoiceId,
+                    groqSession.ttsProvider,
+                    (groqSession.llmProvider || 'groq') as LlmProvider,
+                    isMutedRef,
+                    sourcesRef,
+                    nextStartTimeRef,
+                    setMode,
+                    saveLiveMessage
+                  );
+                  setStatus('Ready');
+                } catch (llmErr) {
+                  console.error('[LiveContext] LLM call failed:', llmErr);
+                  setStatus(`AI request failed: ${String((llmErr as any)?.message || llmErr || 'unknown error')}`);
+                }
 
                 setMode('listening');
 
@@ -1726,6 +1816,15 @@ Example bad responses (DO NOT DO THIS):
         resolve();
       } catch (err) {
         console.error('[LiveContext] Failed to initialize connection:', err);
+        // Critical: ensure we release any partially-created resources and clear the connecting latch.
+        try {
+          // Treat as error-based disconnect: do not mark manual, do not clear buffer.
+          disconnect(false, false);
+        } catch {
+          // ignore
+        }
+        isConnectingRef.current = false;
+        sessionReadyRef.current = false;
         reject(err);
       }
       })();

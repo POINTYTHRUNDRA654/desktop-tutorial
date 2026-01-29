@@ -63,9 +63,49 @@ async function ensureConfig(): Promise<void> {
 
 let audioCtx: AudioContext | null = null;
 
+async function playBase64AudioWithHtmlAudio(base64Audio: string): Promise<boolean> {
+  const cleaned = (base64Audio ?? '').trim();
+  if (!cleaned) return false;
+
+  // Prefer <audio> playback first: tends to be more reliable than WebAudio decode
+  // in packaged Electron builds and doesn't depend on decodeAudioData support.
+  try {
+    const bytes = Uint8Array.from(atob(cleaned), (c) => c.charCodeAt(0));
+    const blob = new Blob([bytes], { type: 'audio/mpeg' });
+    const url = URL.createObjectURL(blob);
+    try {
+      const audio = new Audio();
+      audio.src = url;
+      audio.preload = 'auto';
+
+      const ended = new Promise<void>((resolve) => {
+        audio.onended = () => resolve();
+        audio.onerror = () => resolve();
+      });
+
+      // If play() is blocked (e.g., no user gesture), it will reject.
+      await audio.play();
+      await ended;
+      return true;
+    } finally {
+      try {
+        URL.revokeObjectURL(url);
+      } catch {
+        // ignore
+      }
+    }
+  } catch {
+    return false;
+  }
+}
+
 async function playBase64Audio(base64Audio: string): Promise<void> {
   const cleaned = (base64Audio ?? '').trim();
   if (!cleaned) return;
+
+  // First try HTMLAudioElement playback; fall back to WebAudio if it fails.
+  const played = await playBase64AudioWithHtmlAudio(cleaned);
+  if (played) return;
 
   if (!audioCtx) {
     audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)();

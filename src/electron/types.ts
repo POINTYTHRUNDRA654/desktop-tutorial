@@ -101,6 +101,9 @@ export const IPC_CHANNELS = {
 
   // Speech-to-text (main process handles keys)
   TRANSCRIBE_AUDIO: 'transcribe-audio',
+
+  // Native TTS (Windows fallback)
+  NATIVE_TTS_SPEAK: 'native-tts-speak',
 } as const;
 
 export type MlIndexBuildRequest = {
@@ -221,11 +224,17 @@ export interface ElectronAPI {
   >;
 
   getSecretStatus?: () => Promise<
-    | { ok: true; openai: boolean; groq: boolean; deepgram: boolean; elevenlabs: boolean }
+    | { ok: true; openai: boolean; groq: boolean; deepgram: boolean; elevenlabs: boolean; backendUrl?: boolean; backendToken?: boolean }
     | { ok: false; error: string }
   >;
 
   transcribeAudio?: (arrayBuffer: ArrayBuffer, mimeType?: string) => Promise<{ success: boolean; text?: string; error?: string }>;
+
+  /**
+   * Native OS TTS (best-effort). Primarily used as a fallback when browser speechSynthesis
+   * is missing or unreliable in packaged builds.
+   */
+  nativeTtsSpeak?: (text: string) => Promise<{ ok: true } | { ok: false; error: string }>;
   checkBlenderAddon: () => Promise<{ connected: boolean; error?: string }>;
   getSystemInfo: () => Promise<{
     os: string; 

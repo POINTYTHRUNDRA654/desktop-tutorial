@@ -22,6 +22,7 @@
     "build:electron": "tsc -p tsconfig.electron.json",
     "start": "electron .",
     "package": "npm run build && electron-builder",
+    "prepackage:win": "node scripts/download-vcredist.mjs",
     "package:win": "npm run build && electron-builder --win",
     "package:win:clean": "npm run clean && npm run build && electron-builder --win",
     "package:win:clean:mem": "npm run clean && npm run build:vite:mem && npm run build:electron && electron-builder --win --x64",
@@ -103,10 +104,20 @@
       "external/volttech-dist/**/*",
       "public/**/*"
     ],
+    "asarUnpack": [
+      "**/@ffmpeg-installer/**"
+    ],
     "extraResources": [
       {
         "from": "external/volttech-dist",
         "to": "external/volttech-dist",
+        "filter": [
+          "**/*"
+        ]
+      },
+      {
+        "from": "external/vcredist",
+        "to": "vcredist",
         "filter": [
           "**/*"
         ]
@@ -140,7 +151,10 @@
       "allowToChangeInstallationDirectory": true,
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
-      "shortcutName": "Mossy"
+      "shortcutName": "Mossy",
+      "perMachine": true,
+      "allowElevation": true,
+      "include": "build/nsis-include.nsh"
     },
     "linux": {
       "target": "AppImage",

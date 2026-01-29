@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useLocation } from 'react-router-dom';
 import { MessageSquare, X } from 'lucide-react';
 import { useLive } from './LiveContext';
+import { mossyAvatarUrl } from './assets/avatar';
 
 const QUIPS: Record<string, string[]> = {
     '/': [
@@ -449,8 +450,7 @@ const MossyObserver: React.FC = () => {
     const [isAlert, setIsAlert] = useState(false);
     
     // Hook must be called unconditionally
-    const liveContext = useLive();
-    const { customAvatar } = liveContext;
+    useLive();
 
     useEffect(() => {
         // Clear previous unless alert
@@ -542,28 +542,14 @@ const MossyObserver: React.FC = () => {
                 
                 {/* Mini Avatar Bubble */}
                 <div className={`w-12 h-12 rounded-full bg-black border-2 flex items-center justify-center overflow-hidden relative shadow-lg ${isAlert ? 'border-emerald-400 shadow-[0_0_15px_#10b981]' : 'border-slate-800'}`}>
-                    {customAvatar ? (
-                        <>
-                            <div className="absolute inset-0 bg-emerald-500/20 animate-pulse"></div>
-                            <img
-                                src={customAvatar}
-                                alt="Mossy"
-                                className="w-full h-full object-cover opacity-90"
-                                style={{ pointerEvents: 'none' }}
-                                draggable={false}
-                            />
-                        </>
-                    ) : (
-                        <>
-                            {/* Inner Glow */}
-                            <div className="absolute inset-0 bg-emerald-900/20"></div>
-                            {/* Core */}
-                            <div className="w-4 h-4 bg-emerald-400 rounded-full shadow-[0_0_15px_#10b981] animate-pulse"></div>
-                            {/* Rings */}
-                            <div className="absolute inset-1 border border-emerald-500/30 rounded-full animate-spin-slow"></div>
-                            <div className="absolute inset-2 border border-emerald-500/20 rounded-full animate-reverse-spin"></div>
-                        </>
-                    )}
+                    <div className="absolute inset-0 bg-emerald-500/10"></div>
+                    <img
+                        src={mossyAvatarUrl}
+                        alt="Mossy"
+                        className="w-full h-full object-cover opacity-95"
+                        style={{ pointerEvents: 'none' }}
+                        draggable={false}
+                    />
                 </div>
             </div>
         </div>

@@ -118,10 +118,38 @@ export async function speakBrowserTts(
   if (UI_STATE_PHRASES.has(normalized)) return;
 
   if (typeof window === 'undefined') return;
-  if (!('speechSynthesis' in window)) return;
+
+  const electronApi: any = (window as any)?.electron?.api ?? (window as any)?.electronAPI;
+
+  // Packaged Electron builds can sometimes lack browser speechSynthesis/voices.
+  // If so, try native OS TTS via IPC (Windows only).
+  const hasSpeech = 'speechSynthesis' in window;
+  if (!hasSpeech) {
+    try {
+      if (typeof electronApi?.nativeTtsSpeak === 'function') {
+        const res = await electronApi.nativeTtsSpeak(cleaned);
+        if (res?.ok) return;
+      }
+    } catch {
+      // ignore
+    }
+    return;
+  }
 
   const settings = loadBrowserTtsSettings();
   if (!settings.enabled) return;
+
+  // If voices are completely unavailable, prefer native OS TTS when available.
+  // This avoids the "silent" failure mode some environments hit.
+  try {
+    const voices = getBrowserTtsVoices();
+    if ((!voices || voices.length === 0) && typeof electronApi?.nativeTtsSpeak === 'function') {
+      const res = await electronApi.nativeTtsSpeak(cleaned);
+      if (res?.ok) return;
+    }
+  } catch {
+    // ignore
+  }
 
   if (opts?.cancelExisting) {
     try {

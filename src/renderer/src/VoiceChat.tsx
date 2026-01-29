@@ -1,22 +1,37 @@
-import React, { useState, useEffect } from 'react';
-import { Mic, MicOff, Phone, PhoneOff, AlertCircle, Radio, Power, Wifi, Circle, Database } from 'lucide-react';
+import React, { useEffect, useMemo, useState } from 'react';
+import { Mic, MicOff, PhoneOff, AlertCircle, Radio, Power, Database, Play } from 'lucide-react';
 import { useLive } from './LiveContext';
 import AvatarCore from './AvatarCore';
 import { useNavigate } from 'react-router-dom';
 import { ToolsInstallVerifyPanel } from './components/ToolsInstallVerifyPanel';
 import { mossyAvatarUrl } from './assets/avatar';
 import { formatAppVersion } from './appInfo';
+import { getBrowserTtsVoices, loadBrowserTtsSettings, speakBrowserTts, type BrowserTtsSettings } from './browserTts';
 
 const DEFAULT_MOSSY_AVATAR_URL = mossyAvatarUrl;
+
+function getElectronApi(): any {
+  return (window as any)?.electron?.api ?? (window as any)?.electronAPI;
+}
 
 const VoiceChat: React.FC = () => {
   const navigate = useNavigate();
   const fallbackLive = { isActive: false, isMuted: false, toggleMute: () => {}, disconnect: () => {}, mode: 'disconnected', connect: async () => {}, transcription: '', micLevel: 0, audioInputs: [], selectedInputId: '', setSelectedInputId: () => {} };
   // eslint-disable-next-line react-hooks/rules-of-hooks
   const liveContext = useLive() || fallbackLive;
-  const { isActive, isMuted, toggleMute, disconnect, mode, connect, transcription, micLevel, audioInputs, selectedInputId, setSelectedInputId } = liveContext;
+  const { isActive, isMuted, toggleMute, disconnect, mode, connect, transcription, micLevel, audioInputs, selectedInputId, setSelectedInputId, status } = liveContext as any;
   const [isConnecting, setIsConnecting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [showTtsDiagnostics, setShowTtsDiagnostics] = useState(false);
+  const [ttsVoices, setTtsVoices] = useState<SpeechSynthesisVoice[]>([]);
+  const [ttsSettings, setTtsSettings] = useState<BrowserTtsSettings>(() => loadBrowserTtsSettings());
+  const [nativeTtsLastResult, setNativeTtsLastResult] = useState<string>('');
+  const isConfigError = !!error && (
+    error.includes('needs an LLM provider') ||
+    error.includes('needs speech-to-text') ||
+    error.includes('No LLM provider is configured') ||
+    error.includes('Speech-to-text is not configured')
+  );
   const [knowledgeCount, setKnowledgeCount] = useState<number>(() => {
     try {
       const raw = localStorage.getItem('mossy_knowledge_vault');
@@ -50,6 +65,78 @@ const VoiceChat: React.FC = () => {
       window.removeEventListener('storage', onStorage);
     };
   }, []);
+
+  // Keep TTS diagnostics updated in this view (packaged installs can differ from dev).
+  useEffect(() => {
+    const refresh = () => setTtsVoices(getBrowserTtsVoices());
+    refresh();
+
+    try {
+      setTtsSettings(loadBrowserTtsSettings());
+    } catch {
+      // ignore
+    }
+
+    if (!('speechSynthesis' in window)) return;
+
+    const handler = () => refresh();
+    try {
+      window.speechSynthesis.addEventListener('voiceschanged', handler);
+    } catch {
+      // ignore
+    }
+
+    const t = setTimeout(refresh, 200);
+
+    return () => {
+      clearTimeout(t);
+      try {
+        window.speechSynthesis.removeEventListener('voiceschanged', handler);
+      } catch {
+        // ignore
+      }
+    };
+  }, []);
+
+  const ttsDiagnostics = useMemo(() => {
+    const api = getElectronApi();
+    const speechAvailable = typeof window !== 'undefined' && 'speechSynthesis' in window;
+    const voicesCount = ttsVoices.length;
+    const sampleVoices = ttsVoices
+      .slice(0, 4)
+      .map((v) => `${String(v.name || 'Unknown')}${v.lang ? ` (${v.lang})` : ''}`);
+
+    return {
+      speechAvailable,
+      voicesCount,
+      sampleVoices,
+      browserTtsEnabled: Boolean(ttsSettings.enabled),
+      preferredVoiceName: ttsSettings.preferredVoiceName || '(auto)',
+      nativeAvailable: typeof api?.nativeTtsSpeak === 'function',
+    };
+  }, [ttsSettings.enabled, ttsSettings.preferredVoiceName, ttsVoices]);
+
+  const onTestBrowserTts = async () => {
+    await speakBrowserTts('Howdy. I\'m Mossy. Testing voice output.', { cancelExisting: true });
+  };
+
+  const onTestNativeTts = async () => {
+    const api = getElectronApi();
+    setNativeTtsLastResult('');
+
+    if (!api?.nativeTtsSpeak) {
+      setNativeTtsLastResult('Native TTS IPC not available');
+      return;
+    }
+
+    try {
+      const res = await api.nativeTtsSpeak('Howdy. I\'m Mossy. Testing voice output.');
+      if (res?.ok) setNativeTtsLastResult('Native TTS: ok');
+      else setNativeTtsLastResult(`Native TTS error: ${String(res?.error || 'unknown')}`);
+    } catch (e: any) {
+      setNativeTtsLastResult(`Native TTS error: ${String(e?.message || e)}`);
+    }
+  };
 
   const handleConnect = async () => {
     setIsConnecting(true);
@@ -129,6 +216,11 @@ const VoiceChat: React.FC = () => {
             Live Synapse
           </h1>
           <p className="text-blue-400/60 text-[10px] font-mono tracking-widest uppercase mt-1">Direct Neural Interface • {formatAppVersion()}</p>
+          {status && String(status).trim() && String(status).trim() !== 'Ready' && (
+            <p className="text-blue-200/70 text-[10px] font-mono tracking-widest uppercase mt-2">
+              STATUS: {String(status)}
+            </p>
+          )}
         </div>
         <div className="flex flex-col items-end gap-2">
           {knowledgeCount > 0 && (
@@ -158,7 +250,16 @@ const VoiceChat: React.FC = () => {
         {error && (
           <div className="mb-6 p-3 bg-red-900/40 border border-red-500/50 rounded-lg text-red-200 text-xs font-mono flex items-center gap-2 backdrop-blur-md">
             <AlertCircle size={14} />
-            {error}
+            <span className="flex-1">{error}</span>
+            {isConfigError ? (
+              <button
+                type="button"
+                onClick={() => navigate('/settings/privacy')}
+                className="px-3 py-1 rounded bg-slate-900/60 hover:bg-slate-900 border border-red-500/30 text-red-100 text-[10px] font-bold uppercase tracking-widest"
+              >
+                Open Privacy Settings
+              </button>
+            ) : null}
           </div>
         )}
 
@@ -202,6 +303,75 @@ const VoiceChat: React.FC = () => {
 
         {/* Simplified Toggle Control */}
         <div className="flex flex-col items-center gap-6 mb-8">
+
+          {/* Compact TTS status + toggleable diagnostics (helps with installer-only silent voice) */}
+          <div className="w-full max-w-md bg-black/40 backdrop-blur-md border border-blue-500/20 rounded-xl p-4 shadow-xl">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <div className="text-[10px] font-mono uppercase tracking-[0.25em] text-blue-200/80">TTS</div>
+                <div className="text-[12px] text-blue-100/90 mt-1">
+                  speechSynthesis: {ttsDiagnostics.speechAvailable ? 'ok' : 'missing'} · voices: {ttsDiagnostics.voicesCount} · native: {ttsDiagnostics.nativeAvailable ? 'ok' : 'missing'}
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowTtsDiagnostics((v) => !v)}
+                className="px-3 py-2 bg-blue-500/10 hover:bg-blue-500/15 border border-blue-500/30 text-blue-100 font-bold rounded-lg transition-colors text-[11px]"
+              >
+                {showTtsDiagnostics ? 'Hide' : 'Show'}
+              </button>
+            </div>
+
+            {showTtsDiagnostics && (
+              <div className="mt-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-[12px]">
+                  <div className="text-blue-100/90"><span className="text-blue-200/60">Browser TTS enabled:</span> {ttsDiagnostics.browserTtsEnabled ? 'yes' : 'no'}</div>
+                  <div className="text-blue-100/90"><span className="text-blue-200/60">Preferred voice:</span> {ttsDiagnostics.preferredVoiceName}</div>
+                </div>
+
+                {ttsDiagnostics.sampleVoices.length > 0 && (
+                  <div className="mt-2 text-[11px] text-blue-200/60">
+                    <span className="text-blue-200/40">Sample voices:</span> {ttsDiagnostics.sampleVoices.join(' · ')}
+                  </div>
+                )}
+
+                <div className="mt-3 flex flex-wrap gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setTtsVoices(getBrowserTtsVoices())}
+                    className="px-3 py-2 bg-black/40 hover:bg-black/50 border border-blue-500/30 text-blue-100 font-bold rounded-lg transition-colors text-[11px]"
+                    title="Refresh voice list"
+                  >
+                    Refresh
+                  </button>
+                  <button
+                    type="button"
+                    onClick={onTestBrowserTts}
+                    className="px-3 py-2 bg-black/40 hover:bg-black/50 border border-blue-500/30 text-blue-100 font-bold rounded-lg transition-colors text-[11px] flex items-center gap-2"
+                    title="Test browser TTS"
+                  >
+                    <Play className="w-4 h-4" />
+                    Test Browser
+                  </button>
+                  <button
+                    type="button"
+                    onClick={onTestNativeTts}
+                    className="px-3 py-2 bg-black/40 hover:bg-black/50 border border-blue-500/30 text-blue-100 font-bold rounded-lg transition-colors text-[11px] flex items-center gap-2"
+                    title="Test native OS TTS fallback"
+                  >
+                    <Play className="w-4 h-4" />
+                    Test Native
+                  </button>
+                </div>
+
+                {nativeTtsLastResult && (
+                  <div className="mt-3 text-[12px] text-blue-100 bg-black/40 border border-blue-500/20 rounded-lg p-3">
+                    {nativeTtsLastResult}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
 
           <div className="w-full max-w-xs text-left">
             <label className="text-[10px] font-mono uppercase tracking-[0.2em] text-blue-200/70 block mb-2">Input Device</label>

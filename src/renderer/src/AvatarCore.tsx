@@ -8,7 +8,7 @@ interface AvatarCoreProps {
 }
 
 const AvatarCore: React.FC<AvatarCoreProps> = ({ className = "w-full h-full", showRings = true }) => {
-    const { isActive, mode } = useLive();
+    const { isActive, mode, customAvatar } = useLive();
     
     return (
         <MossyFaceAvatar 
@@ -16,6 +16,7 @@ const AvatarCore: React.FC<AvatarCoreProps> = ({ className = "w-full h-full", sh
             isActive={isActive} 
             mode={mode}
             showRings={showRings}
+            customAvatarUrl={customAvatar}
         />
     );
 };

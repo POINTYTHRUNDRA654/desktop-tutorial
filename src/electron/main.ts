@@ -27,6 +27,8 @@ import FormData from 'form-data';
 import OpenAI from 'openai';
 import dotenv from 'dotenv';
 
+type NativeTtsSpeakResponse = { ok: true } | { ok: false; error: string };
+
 // Load environment variables for the main process.
 // In dev, Electron runs with CWD at the project root, but __dirname points at the compiled output folder.
 // Prefer CWD/appPath so .env.local and .env are found reliably.
@@ -54,7 +56,17 @@ for (const p of envCandidates) loadDotEnvIfPresent(p);
 // Never log API keys (even partial prefixes).
 
 // Set ffmpeg path
-ffmpeg.setFfmpegPath(ffmpegInstaller.path);
+(() => {
+  const raw = String(ffmpegInstaller.path || '').trim();
+  if (!raw) return;
+
+  // In packaged apps, native binaries must live outside app.asar.
+  // electron-builder will place asarUnpack-ed files under app.asar.unpacked.
+  const isInAsar = raw.includes('app.asar');
+  const unpacked = isInAsar ? raw.replace('app.asar', 'app.asar.unpacked') : raw;
+  const resolved = isInAsar ? (fs.existsSync(unpacked) ? unpacked : raw) : raw;
+  ffmpeg.setFfmpegPath(resolved);
+})();
 
 // Polyfill DOMMatrix for pdf-parse compatibility
 if (typeof (global as any).DOMMatrix === 'undefined') {
@@ -88,6 +100,92 @@ if (typeof (global as any).DOMMatrix === 'undefined') {
 
 let mainWindow: BrowserWindow | null = null;
 const bridge = new BridgeServer();
+
+type VcRuntimeAttempt = 'attempted' | 'already-installed' | 'skipped' | 'failed';
+let vcredistAttemptedThisSession = false;
+
+const getVCRuntimeFlagPath = () => {
+  try {
+    return path.join(app.getPath('userData'), 'vcredist-attempted.flag');
+  } catch {
+    return null;
+  }
+};
+
+const hasVCRuntimeAttemptFlag = () => {
+  const flagPath = getVCRuntimeFlagPath();
+  if (!flagPath) return false;
+  try {
+    return fs.existsSync(flagPath);
+  } catch {
+    return false;
+  }
+};
+
+const markVCRuntimeAttempted = () => {
+  const flagPath = getVCRuntimeFlagPath();
+  if (!flagPath) return;
+  try {
+    fs.writeFileSync(flagPath, new Date().toISOString());
+  } catch {
+    // ignore
+  }
+};
+
+const checkRegistryInstalledFlag = (key: string) =>
+  new Promise<boolean>((resolve) => {
+    exec(`reg query "${key}" /v Installed`, (err, stdout) => {
+      if (err) return resolve(false);
+      const installed = /Installed\s+REG_DWORD\s+0x1/i.test(stdout || '');
+      resolve(installed);
+    });
+  });
+
+const isVCRuntimePresent = async () => {
+  if (process.platform !== 'win32') return true;
+
+  const windir = process.env.WINDIR || process.env.SystemRoot || 'C:\\Windows';
+  const system32 = path.join(windir, 'System32');
+  const syswow64 = path.join(windir, 'SysWOW64');
+  const candidates = [
+    path.join(system32, 'vcruntime140.dll'),
+    path.join(system32, 'vcruntime140_1.dll'),
+    path.join(system32, 'msvcp140.dll'),
+    path.join(system32, 'vcomp140.dll'),
+    path.join(system32, 'concrt140.dll'),
+    path.join(syswow64, 'vcruntime140.dll'),
+    path.join(syswow64, 'vcruntime140_1.dll'),
+    path.join(syswow64, 'msvcp140.dll'),
+    path.join(syswow64, 'vcomp140.dll'),
+    path.join(syswow64, 'concrt140.dll'),
+  ];
+
+  const hasDll = candidates.some((p) => {
+    try {
+      return fs.existsSync(p);
+    } catch {
+      return false;
+    }
+  });
+  if (hasDll) return true;
+
+  const registryKeys = [
+    'HKLM\\SOFTWARE\\Microsoft\\VisualStudio\\14.0\\VC\\Runtimes\\x64',
+    'HKLM\\SOFTWARE\\Microsoft\\VisualStudio\\14.0\\VC\\Runtimes\\x86',
+    'HKLM\\SOFTWARE\\WOW6432Node\\Microsoft\\VisualStudio\\14.0\\VC\\Runtimes\\x64',
+    'HKLM\\SOFTWARE\\WOW6432Node\\Microsoft\\VisualStudio\\14.0\\VC\\Runtimes\\x86',
+  ];
+
+  for (const key of registryKeys) {
+    try {
+      if (await checkRegistryInstalledFlag(key)) return true;
+    } catch {
+      // ignore
+    }
+  }
+
+  return false;
+};
 
 type BackendConfig = { baseUrl: string; token?: string };
 
@@ -298,6 +396,55 @@ function createWindow() {
   });
 }
 
+const nativeTtsSpeakWindows = async (text: string): Promise<NativeTtsSpeakResponse> => {
+  const cleaned = String(text ?? '').replace(/[\r\n]+/g, ' ').trim().slice(0, 1200);
+  if (!cleaned) return { ok: true };
+  if (process.platform !== 'win32') return { ok: false, error: 'native TTS only implemented for Windows' };
+
+  // Use PowerShell + System.Speech so we don't depend on Chromium speechSynthesis.
+  // Pass the text via stdin to avoid quoting/escaping issues.
+  const ps =
+    "$ErrorActionPreference='Stop';" +
+    "Add-Type -AssemblyName System.Speech;" +
+    "$t=[Console]::In.ReadToEnd();" +
+    "$s=New-Object System.Speech.Synthesis.SpeechSynthesizer;" +
+    "$s.Speak($t);";
+
+  return await new Promise<NativeTtsSpeakResponse>((resolve) => {
+    try {
+      const child = spawn(
+        'powershell.exe',
+        ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-Command', ps],
+        { windowsHide: true, stdio: ['pipe', 'ignore', 'pipe'] }
+      );
+
+      let stderr = '';
+      child.stderr.on('data', (d) => {
+        stderr += String(d);
+      });
+
+      child.on('error', (e) => resolve({ ok: false, error: String((e as any)?.message || e) }));
+      child.on('exit', (code) => {
+        if (code === 0) resolve({ ok: true });
+        else resolve({ ok: false, error: (stderr || `PowerShell exited with code ${code}`).trim() });
+      });
+
+      try {
+        child.stdin.write(cleaned, 'utf8');
+      } catch {
+        // ignore
+      }
+      try {
+        child.stdin.end();
+      } catch {
+        // ignore
+      }
+    } catch (e: any) {
+      resolve({ ok: false, error: String(e?.message || e) });
+    }
+  });
+};
+
 /**
  * Setup IPC handlers for renderer communication
  */
@@ -389,10 +536,8 @@ function setupIpcHandlers() {
           })();
 
           const form = new FormData();
-          form.append('audio', audioBuffer, {
-            filename: 'audio.mp3',
-            contentType: 'audio/mpeg',
-          });
+          // Backend expects the conventional multipart field name `file`.
+          form.append('file', audioBuffer, { filename: 'audio.mp3', contentType: 'audio/mpeg' });
           if (sttLang) form.append('language', sttLang);
 
           const extraHeaders: Record<string, string> = {};
@@ -567,6 +712,168 @@ function setupIpcHandlers() {
   // Audio transcription handler (runs in main process; renderer never sees API keys)
   ipcMain.handle('transcribe-audio', async (_event, arrayBuffer: ArrayBuffer, mimeType?: string) => {
     let tempAudioPath: string | null = null;
+    let tempWhisperInputPath: string | null = null;
+    let backendAttempted = false;
+    let backendError: string | null = null;
+
+    const whisperSupportDir = path.join(app.getPath('userData'), 'external', 'whisper');
+
+    const ensureDir = (dirPath: string) => {
+      try {
+        fs.mkdirSync(dirPath, { recursive: true });
+      } catch {
+        // ignore
+      }
+    };
+
+    const psQuote = (s: string) => `'${String(s).replace(/'/g, "''")}'`;
+
+    const expandZipWindows = (zipPath: string, destDir: string) =>
+      new Promise<void>((resolve, reject) => {
+        const cmd = `powershell -NoProfile -Command "Expand-Archive -Force -LiteralPath ${psQuote(zipPath)} -DestinationPath ${psQuote(destDir)}"`;
+        exec(cmd, (err, _stdout, stderr) => {
+          if (err) return reject(new Error(String(stderr || err.message || err)));
+          resolve();
+        });
+      });
+
+    const downloadFile = (url: string, destPath: string, timeoutMs = 10 * 60 * 1000) =>
+      new Promise<void>((resolve, reject) => {
+        const out = fs.createWriteStream(destPath);
+
+        const fail = (e: any) => {
+          try {
+            out.close();
+          } catch {
+            // ignore
+          }
+          try {
+            if (fs.existsSync(destPath)) fs.unlinkSync(destPath);
+          } catch {
+            // ignore
+          }
+          reject(e);
+        };
+
+        const request = https.get(
+          url,
+          {
+            headers: {
+              'User-Agent': 'mossy-desktop',
+              Accept: '*/*',
+            },
+          },
+          (res) => {
+            const code = Number(res.statusCode || 0);
+            const redirect = res.headers.location;
+            if (code >= 300 && code < 400 && redirect) {
+              out.close(() => {
+                try {
+                  if (fs.existsSync(destPath)) fs.unlinkSync(destPath);
+                } catch {
+                  // ignore
+                }
+                downloadFile(redirect, destPath, timeoutMs).then(resolve, reject);
+              });
+              return;
+            }
+
+            if (code !== 200) {
+              res.resume();
+              return fail(new Error(`Download failed (${code}) for ${url}`));
+            }
+
+            res.pipe(out);
+            out.on('finish', () => out.close(() => resolve()));
+          }
+        );
+
+        request.setTimeout(timeoutMs, () => {
+          try {
+            request.destroy(new Error('Download timeout'));
+          } catch {
+            // ignore
+          }
+        });
+        request.on('error', fail);
+        out.on('error', fail);
+      });
+
+    const findFileRecursive = (dirPath: string, fileName: string): string | null => {
+      try {
+        const entries = fs.readdirSync(dirPath, { withFileTypes: true });
+        for (const entry of entries) {
+          const full = path.join(dirPath, entry.name);
+          if (entry.isFile() && entry.name.toLowerCase() === fileName.toLowerCase()) return full;
+          if (entry.isDirectory()) {
+            const found = findFileRecursive(full, fileName);
+            if (found) return found;
+          }
+        }
+      } catch {
+        // ignore
+      }
+      return null;
+    };
+
+    const ensureLocalWhisperInstalled = async (): Promise<void> => {
+      ensureDir(whisperSupportDir);
+
+      const targetBin = path.join(whisperSupportDir, 'whisper-cli.exe');
+      const targetAltBin = path.join(whisperSupportDir, 'main.exe');
+
+      const hasBin = fs.existsSync(targetBin) || fs.existsSync(targetAltBin);
+      const hasModel =
+        fs.existsSync(path.join(whisperSupportDir, 'ggml-tiny.en.bin')) ||
+        fs.existsSync(path.join(whisperSupportDir, 'ggml-base.en.bin'));
+
+      // Download binaries (Windows) if missing.
+      if (!hasBin && process.platform === 'win32') {
+        const zipUrl =
+          process.arch === 'ia32'
+            ? 'https://github.com/ggml-org/whisper.cpp/releases/download/v1.8.3/whisper-bin-Win32.zip'
+            : 'https://github.com/ggml-org/whisper.cpp/releases/download/v1.8.3/whisper-bin-x64.zip';
+
+        const zipPath = path.join(os.tmpdir(), `mossy-whisper-bin-${process.arch}-${Date.now()}.zip`);
+        const unzipDir = path.join(os.tmpdir(), `mossy-whisper-bin-${process.arch}-${Date.now()}`);
+
+        try {
+          console.log('[Transcription] Local Whisper missing; downloading whisper.cpp binaries:', zipUrl);
+          await downloadFile(zipUrl, zipPath);
+          ensureDir(unzipDir);
+          await expandZipWindows(zipPath, unzipDir);
+
+          const foundWhisperCli = findFileRecursive(unzipDir, 'whisper-cli.exe');
+          const foundMain = findFileRecursive(unzipDir, 'main.exe');
+
+          if (foundWhisperCli) {
+            fs.copyFileSync(foundWhisperCli, targetBin);
+          } else if (foundMain) {
+            fs.copyFileSync(foundMain, targetAltBin);
+          }
+        } catch (e: any) {
+          console.warn('[Transcription] Failed to auto-install whisper.cpp binaries:', e?.message || e);
+        } finally {
+          try {
+            if (fs.existsSync(zipPath)) fs.unlinkSync(zipPath);
+          } catch {
+            // ignore
+          }
+        }
+      }
+
+      // Download a small English model if missing.
+      if (!hasModel) {
+        const modelUrl = 'https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-tiny.en.bin';
+        const modelDest = path.join(whisperSupportDir, 'ggml-tiny.en.bin');
+        try {
+          console.log('[Transcription] Local Whisper model missing; downloading:', modelUrl);
+          await downloadFile(modelUrl, modelDest);
+        } catch (e: any) {
+          console.warn('[Transcription] Failed to auto-download Whisper model:', e?.message || e);
+        }
+      }
+    };
 
     try {
       const s = loadSettings();
@@ -581,6 +888,7 @@ function setupIpcHandlers() {
       // (server holds provider keys; client holds none). If it fails, fall back to local keys.
       const backend = getBackendConfig();
       if (backend) {
+        backendAttempted = true;
         try {
           const sttLang = (() => {
             const raw = String(s?.sttLanguage || s?.uiLanguage || '').trim().toLowerCase();
@@ -589,10 +897,8 @@ function setupIpcHandlers() {
           })();
 
           const form = new FormData();
-          form.append('audio', buf, {
-            filename: `audio${ext}`,
-            contentType: mt || 'application/octet-stream',
-          });
+          // Backend expects the conventional multipart field name `file`.
+          form.append('file', buf, { filename: `audio${ext}`, contentType: mt || 'application/octet-stream' });
           if (sttLang) form.append('language', sttLang);
 
           const extraHeaders: Record<string, string> = {};
@@ -603,8 +909,10 @@ function setupIpcHandlers() {
             return { success: true, text: String(resp.json?.text || '').trim() };
           }
           const msg = String(resp.json?.message || resp.json?.error || resp.text || `Backend transcribe failed (${resp.status})`);
+          backendError = msg;
           console.warn('[Transcription] Backend proxy failed; falling back to local providers:', msg);
         } catch (e: any) {
+          backendError = String(e?.message || e);
           console.warn('[Transcription] Backend proxy error; falling back to local providers:', e?.message || e);
         }
       }
@@ -661,13 +969,208 @@ function setupIpcHandlers() {
         }
       }
 
-      return { success: false, error: 'No transcription provider configured (OpenAI/Deepgram)' };
+      // Final fallback: local whisper.cpp (optional). This lets Live Synapse work even with no cloud keys.
+      const tryInstallVCRuntime = async (): Promise<VcRuntimeAttempt> => {
+        if (process.platform !== 'win32' || !app.isPackaged) return 'skipped';
+        if (await isVCRuntimePresent()) {
+          markVCRuntimeAttempted();
+          return 'already-installed';
+        }
+        if (vcredistAttemptedThisSession || hasVCRuntimeAttemptFlag()) return 'skipped';
+        vcredistAttemptedThisSession = true;
+        markVCRuntimeAttempted();
+
+        const vcredistDir = path.join(process.resourcesPath, 'vcredist');
+        const x64 = path.join(vcredistDir, 'vc_redist.x64.exe');
+        const x86 = path.join(vcredistDir, 'vc_redist.x86.exe');
+
+        const runInstaller = (exePath: string) =>
+          new Promise<number>((resolve, reject) => {
+            if (!fs.existsSync(exePath)) return resolve(-1);
+
+            const escaped = exePath.replace(/'/g, "''");
+            const command =
+              `Start-Process -FilePath '${escaped}' ` +
+              `-ArgumentList '/install','/quiet','/norestart' ` +
+              `-Verb RunAs -Wait -PassThru | Select-Object -ExpandProperty ExitCode`;
+
+            const child = spawn('powershell', ['-NoProfile', '-Command', command], {
+              windowsHide: true,
+              stdio: ['ignore', 'pipe', 'pipe'],
+            });
+
+            let stdout = '';
+            let stderr = '';
+            child.stdout?.on('data', (d: any) => { stdout += d.toString(); });
+            child.stderr?.on('data', (d: any) => { stderr += d.toString(); });
+            child.on('error', reject);
+            child.on('close', (code: number | null) => {
+              const parsed = Number(String(stdout).trim());
+              if (!Number.isNaN(parsed)) return resolve(parsed);
+              if (stderr.trim()) console.warn('[Transcription] VC++ install stderr:', stderr.trim());
+              resolve(code ?? 0);
+            });
+          });
+
+        try {
+          console.log('[Transcription] Attempting to install VC++ runtime (x64)...');
+          await runInstaller(x64);
+          console.log('[Transcription] Attempting to install VC++ runtime (x86)...');
+          await runInstaller(x86);
+          return 'attempted';
+        } catch (err: any) {
+          console.warn('[Transcription] VC++ runtime install failed:', err?.message || err);
+          return 'failed';
+        }
+      };
+
+      const transcribeLocalWhisper = async () => {
+        const baseDir = app.isPackaged ? process.resourcesPath : app.getAppPath();
+        const parentDir = path.dirname(baseDir);
+        const whisperCandidates = [
+          path.join(whisperSupportDir, 'whisper-cli.exe'),
+          path.join(whisperSupportDir, 'main.exe'),
+          path.join(baseDir, 'external', 'whisper', 'whisper-cli.exe'),
+          path.join(baseDir, 'external', 'whisper', 'main.exe'),
+          path.join(baseDir, 'whisper', 'whisper-cli.exe'),
+          path.join(process.cwd(), 'external', 'whisper', 'whisper-cli.exe'),
+          path.join(parentDir, 'external', 'whisper', 'whisper-cli.exe'),
+        ];
+        const modelCandidates = [
+          path.join(whisperSupportDir, 'ggml-tiny.en.bin'),
+          path.join(whisperSupportDir, 'ggml-base.en.bin'),
+          path.join(baseDir, 'external', 'whisper', 'ggml-tiny.en.bin'),
+          path.join(baseDir, 'external', 'whisper', 'ggml-base.en.bin'),
+          path.join(baseDir, 'whisper', 'ggml-tiny.en.bin'),
+          path.join(baseDir, 'whisper', 'ggml-base.en.bin'),
+          path.join(process.cwd(), 'external', 'whisper', 'ggml-tiny.en.bin'),
+          path.join(process.cwd(), 'external', 'whisper', 'ggml-base.en.bin'),
+          path.join(parentDir, 'external', 'whisper', 'ggml-tiny.en.bin'),
+          path.join(parentDir, 'external', 'whisper', 'ggml-base.en.bin'),
+        ];
+
+        let whisperBin = whisperCandidates.find(fs.existsSync);
+        let modelPath = modelCandidates.find(fs.existsSync);
+
+        // If missing, try a one-time auto-install into userData and re-check.
+        if ((!whisperBin || !modelPath) && process.platform === 'win32') {
+          await ensureLocalWhisperInstalled();
+          whisperBin = whisperCandidates.find(fs.existsSync);
+          modelPath = modelCandidates.find(fs.existsSync);
+        }
+
+        if (!whisperBin) {
+          throw new Error(
+            'Local Whisper binary not found. Auto-install was attempted but did not succeed. ' +
+              'Install a transcription provider (OpenAI/Deepgram), or place whisper-cli.exe (or main.exe) in external/whisper/.'
+          );
+        }
+        if (!modelPath) {
+          throw new Error(
+            'Whisper model not found. Auto-download was attempted but did not succeed. ' +
+              'Place ggml-tiny.en.bin or ggml-base.en.bin in external/whisper/.'
+          );
+        }
+
+        const resolvedWhisperBin = whisperBin as string;
+        const resolvedModelPath = modelPath as string;
+        if (!tempAudioPath) {
+          throw new Error('Temp audio file missing');
+        }
+
+        // whisper.cpp generally expects PCM formats; convert webm/ogg/mp3 to wav for reliability.
+        const inputForWhisper = await (async () => {
+          const lower = tempAudioPath!.toLowerCase();
+          if (lower.endsWith('.wav')) return tempAudioPath!;
+
+          const wavOut = path.join(os.tmpdir(), `mossy-whisper-input-${Date.now()}.wav`);
+          await new Promise<void>((resolve, reject) => {
+            ffmpeg(tempAudioPath!)
+              .audioChannels(1)
+              .audioFrequency(16000)
+              .audioCodec('pcm_s16le')
+              .format('wav')
+              .output(wavOut)
+              .on('end', () => resolve())
+              .on('error', (err: any) => reject(err))
+              .run();
+          });
+          tempWhisperInputPath = wavOut;
+          return wavOut;
+        })();
+
+        const outPrefix = path.join(os.tmpdir(), `mossy-whisper-${Date.now()}`);
+        const args = ['-m', resolvedModelPath, '-f', inputForWhisper, '-otxt', '-of', outPrefix, '-np', '1'];
+
+        await new Promise<void>((resolve, reject) => {
+          const child = spawn(resolvedWhisperBin, args, { stdio: ['ignore', 'pipe', 'pipe'] });
+          let stderr = '';
+          child.stderr?.on('data', (d: any) => {
+            stderr += d.toString();
+          });
+          child.on('error', reject);
+          child.on('close', (code: number | null) => {
+            if (code === 0) return resolve();
+            const normalized = typeof code === 'number' ? (code >>> 0) : null;
+            // 0xC0000135 (3221225781) = STATUS_DLL_NOT_FOUND (typically missing MSVC runtime)
+            if (normalized === 0xc0000135) {
+              tryInstallVCRuntime().then((status) => {
+                const extra =
+                  status === 'attempted'
+                    ? 'The installer attempted to add VC++ just now. Please restart Mossy and try again.'
+                    : status === 'already-installed'
+                    ? 'VC++ appears installed. The whisper binary may be missing another dependency; try reinstalling Mossy or use a cloud provider.'
+                    : status === 'failed'
+                    ? 'The VC++ installer failed. Install the VC++ 2015-2022 Redistributable manually and restart Mossy.'
+                    : 'Reinstall Mossy (with admin) or install the VC++ 2015-2022 Redistributable.';
+                reject(
+                  new Error(
+                    `whisper.cpp failed to start (0xC0000135 / missing DLL). ` +
+                      `This usually means the Microsoft Visual C++ Runtime is not installed. ${extra}`
+                  )
+                );
+              });
+              return;
+            }
+            reject(new Error(`whisper.cpp exited with code ${code}: ${stderr}`));
+          });
+        });
+
+        const txtPath = `${outPrefix}.txt`;
+        if (!fs.existsSync(txtPath)) {
+          throw new Error('whisper.cpp did not produce a transcript file');
+        }
+        return fs.readFileSync(txtPath, 'utf-8').trim();
+      };
+
+      try {
+        const localText = await transcribeLocalWhisper();
+        return { success: true, text: localText };
+      } catch (whisperErr: any) {
+        const whisperMsg = String(whisperErr?.message || whisperErr);
+        if (backendAttempted) {
+          return {
+            success: false,
+            error:
+              `No transcription provider configured (OpenAI/Deepgram). ` +
+              `Backend Proxy transcription failed${backendError ? `: ${backendError}` : ''}. ` +
+              `Local Whisper also unavailable: ${whisperMsg}`,
+          };
+        }
+        return {
+          success: false,
+          error: `No transcription provider configured (OpenAI/Deepgram). Local Whisper also unavailable: ${whisperMsg}`,
+        };
+      }
     } catch (error: any) {
       console.error('[Transcription] transcribe-audio error:', error);
       return { success: false, error: error?.message || 'Failed to transcribe audio' };
     } finally {
       if (tempAudioPath && fs.existsSync(tempAudioPath)) {
         try { fs.unlinkSync(tempAudioPath); } catch { /* ignore */ }
+      }
+      if (tempWhisperInputPath && fs.existsSync(tempWhisperInputPath)) {
+        try { fs.unlinkSync(tempWhisperInputPath); } catch { /* ignore */ }
       }
     }
   });
@@ -970,30 +1473,11 @@ function setupIpcHandlers() {
   };
   
   const loadSettings = (): any => {
-    try {
-      if (fs.existsSync(settingsPath)) {
-        const data = fs.readFileSync(settingsPath, 'utf-8');
-        const parsed = JSON.parse(data);
-        const { next, migrated } = migratePlainSecretsToEncrypted(parsed);
-        if (migrated) {
-          try {
-            fs.writeFileSync(settingsPath, JSON.stringify(next, null, 2), 'utf-8');
-            console.log('[Settings] Migrated plaintext secrets to encrypted storage');
-          } catch (e) {
-            console.warn('[Settings] Failed to persist migrated secrets:', e);
-          }
-        }
-        return next;
-      }
-    } catch (e) {
-      console.error('[Settings] Failed to load settings:', e);
-    }
-    // Return comprehensive default settings with all tool paths
-    const defaultBackendBaseUrl = String(
-      process.env.MOSSY_BACKEND_URL || (app.isPackaged ? 'https://mossy.onrender.com' : '')
-    ).trim();
-
-    return {
+    // Return comprehensive default settings with all tool paths.
+    // IMPORTANT: When reading an existing settings file, we must merge in defaults
+    // so older installs (missing newer keys like backendBaseUrl) still work.
+    const defaultBackendBaseUrl = String(process.env.MOSSY_BACKEND_URL || 'https://mossy.onrender.com').trim();
+    const defaults = {
       // UI + Voice language
       uiLanguage: 'auto',
       sttLanguage: 'en-US',
@@ -1079,6 +1563,27 @@ function setupIpcHandlers() {
       deepgramApiKey: '',
       deepgramApiKeyEnc: '',
     };
+
+    try {
+      if (fs.existsSync(settingsPath)) {
+        const data = fs.readFileSync(settingsPath, 'utf-8');
+        const parsed = JSON.parse(data);
+        const merged = { ...defaults, ...(parsed && typeof parsed === 'object' ? parsed : {}) };
+        const { next, migrated } = migratePlainSecretsToEncrypted(merged);
+        if (migrated) {
+          try {
+            fs.writeFileSync(settingsPath, JSON.stringify(next, null, 2), 'utf-8');
+            console.log('[Settings] Migrated plaintext secrets to encrypted storage');
+          } catch (e) {
+            console.warn('[Settings] Failed to persist migrated secrets:', e);
+          }
+        }
+        return next;
+      }
+    } catch (e) {
+      console.error('[Settings] Failed to load settings:', e);
+    }
+    return defaults;
   };
 
   const redactSettingsForRenderer = (settings: any): any => {
@@ -1139,6 +1644,14 @@ function setupIpcHandlers() {
 
     saveSettings(next);
     return;
+  });
+
+  ipcMain.handle('native-tts-speak', async (_event, text: string) => {
+    try {
+      return await nativeTtsSpeakWindows(text);
+    } catch (e: any) {
+      return { ok: false, error: String(e?.message || e) };
+    }
   });
 
   // Prefer settings-based backend config when available; env vars remain supported.
@@ -2932,7 +3445,8 @@ function setupIpcHandlers() {
       const deepgram = Boolean(getSecretValue(s, 'deepgramApiKey', 'DEEPGRAM_API_KEY'));
       const elevenlabs = Boolean(getElevenLabsConfig().apiKey);
       const backendToken = Boolean(getSecretValue(s, 'backendToken', 'MOSSY_BACKEND_TOKEN'));
-      return { ok: true, openai, groq, deepgram, elevenlabs, backendToken };
+      const backendUrl = Boolean(getBackendConfig()?.baseUrl);
+      return { ok: true, openai, groq, deepgram, elevenlabs, backendToken, backendUrl };
     } catch (e: any) {
       return { ok: false, error: String(e?.message || e) };
     }

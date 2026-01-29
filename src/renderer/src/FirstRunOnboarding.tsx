@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Cpu, Sparkles, Check, X, ArrowRight, Loader, Map } from 'lucide-react';
 import { useI18n, resolveUiLanguage } from './i18n';
 import { formatAppVersion } from './appInfo';
@@ -26,6 +26,64 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
     const [showAllPrograms, setShowAllPrograms] = useState(false);
 
     const [uiLanguage, setUiLanguage] = useState<string>('auto');
+
+    const recommendationsListRef = useRef<HTMLDivElement | null>(null);
+    const allProgramsListRef = useRef<HTMLDivElement | null>(null);
+
+    const scrollList = (ref: React.RefObject<HTMLDivElement | null>, delta: number) => {
+        const el = ref.current;
+        if (!el) return;
+
+        const before = el.scrollTop;
+        // Use direct scrollTop mutation for maximum compatibility (Electron/Chromium quirks, transforms, etc.)
+        el.scrollTop = before + delta;
+
+        // If the element still didn't move, try scrollTo without smooth behavior.
+        if (el.scrollTop === before) {
+            try {
+                el.scrollTo({ top: before + delta, behavior: 'auto' });
+            } catch {
+                // ignore
+            }
+        }
+    };
+
+    // Keyboard fallback for users without a mouse wheel.
+    useEffect(() => {
+        if (step !== 'recommendations') return;
+
+        const handler = (e: KeyboardEvent) => {
+            // Prefer scrolling the recommended list; if it's missing, try the "all programs" list.
+            const targetRef = recommendationsListRef.current ? recommendationsListRef : allProgramsListRef;
+
+            if (e.key === 'PageDown') {
+                e.preventDefault();
+                scrollList(targetRef, 320);
+                return;
+            }
+            if (e.key === 'PageUp') {
+                e.preventDefault();
+                scrollList(targetRef, -320);
+                return;
+            }
+            if (e.key === 'Home') {
+                const el = targetRef.current;
+                if (!el) return;
+                e.preventDefault();
+                el.scrollTop = 0;
+                return;
+            }
+            if (e.key === 'End') {
+                const el = targetRef.current;
+                if (!el) return;
+                e.preventDefault();
+                el.scrollTop = el.scrollHeight;
+            }
+        };
+
+        window.addEventListener('keydown', handler, true);
+        return () => window.removeEventListener('keydown', handler, true);
+    }, [step]);
 
     const getElectronApi = () => {
         return (window as any)?.electron?.api ?? (window as any)?.electronAPI;
@@ -262,7 +320,7 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
     };
 
     return (
-        <div className="fixed inset-0 bg-black/95 z-50 overflow-y-auto">
+        <div className="fixed inset-0 bg-black/95 z-50 overflow-y-auto" onWheelCapture={(e) => e.stopPropagation()}>
             <div className="min-h-full flex items-start justify-center p-6 md:p-8">
             <div className="max-w-3xl w-full">
                 {step === 'welcome' && (
@@ -330,7 +388,7 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
                 )}
 
                 {step === 'recommendations' && (
-                    <div className="animate-fade-in">
+                    <div className="animate-fade-in pb-24">
                         <div className="text-center mb-8">
                             <Cpu className="w-16 h-16 mx-auto mb-4 text-amber-400" />
                             <h2 className="text-2xl font-bold text-white mb-2">Tools Discovered</h2>
@@ -363,7 +421,36 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
                             />
                         </div>
 
-                        <div className="max-h-96 overflow-y-auto space-y-2 mb-6">
+                        <div className="flex items-center justify-end gap-2 mb-2">
+                            <button
+                                type="button"
+                                onClick={() => scrollList(recommendationsListRef, -260)}
+                                className="px-3 py-1 bg-slate-900/70 hover:bg-slate-800 border border-slate-700 rounded text-xs text-slate-200"
+                                title="Scroll up"
+                            >
+                                ▲
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => scrollList(recommendationsListRef, 260)}
+                                className="px-3 py-1 bg-slate-900/70 hover:bg-slate-800 border border-slate-700 rounded text-xs text-slate-200"
+                                title="Scroll down"
+                            >
+                                ▼
+                            </button>
+                        </div>
+
+                        <div
+                            className="max-h-96 overflow-y-auto space-y-2 mb-6"
+                            onWheelCapture={(e) => e.stopPropagation()}
+                            ref={recommendationsListRef}
+                            style={{
+                                // Inline styles so scrolling still works even if utility CSS gets overridden.
+                                maxHeight: '24rem',
+                                overflowY: 'auto',
+                                overscrollBehavior: 'contain',
+                            }}
+                        >
                             {filteredRecommendations.map((rec, i) => (
                                 <div
                                     key={i}
@@ -416,8 +503,37 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
 
                         {showAllPrograms && (
                             <div className="mb-6 p-4 bg-slate-900/50 border border-slate-700 rounded-lg">
-                                <h4 className="text-white font-bold text-sm mb-3">All Detected Programs</h4>
-                                <div className="max-h-64 overflow-y-auto space-y-1">
+                                <div className="flex items-center justify-between gap-2 mb-3">
+                                    <h4 className="text-white font-bold text-sm">All Detected Programs</h4>
+                                    <div className="flex items-center gap-2">
+                                        <button
+                                            type="button"
+                                            onClick={() => scrollList(allProgramsListRef, -240)}
+                                            className="px-2 py-1 bg-slate-900/70 hover:bg-slate-800 border border-slate-700 rounded text-[11px] text-slate-200"
+                                            title="Scroll up"
+                                        >
+                                            ▲
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={() => scrollList(allProgramsListRef, 240)}
+                                            className="px-2 py-1 bg-slate-900/70 hover:bg-slate-800 border border-slate-700 rounded text-[11px] text-slate-200"
+                                            title="Scroll down"
+                                        >
+                                            ▼
+                                        </button>
+                                    </div>
+                                </div>
+                                <div
+                                    className="max-h-64 overflow-y-auto space-y-1"
+                                    onWheelCapture={(e) => e.stopPropagation()}
+                                    ref={allProgramsListRef}
+                                    style={{
+                                        maxHeight: '16rem',
+                                        overflowY: 'auto',
+                                        overscrollBehavior: 'contain',
+                                    }}
+                                >
                                     {allApps.slice(0, 100).map((app: any, i: number) => (
                                         <div key={i} className="text-xs text-slate-400 flex items-center justify-between py-1 px-2 hover:bg-slate-800/50 rounded cursor-pointer"
                                             onClick={() => {
@@ -443,12 +559,23 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
                             </div>
                         )}
 
-                        <button
-                            onClick={finishOnboarding}
-                            className="w-full px-6 py-3 bg-amber-600 hover:bg-amber-500 text-white rounded-lg font-bold transition-colors"
-                        >
-                            Complete Setup
-                        </button>
+                        {/* Fixed footer so the wizard can be completed even without wheel scrolling */}
+                        <div className="fixed left-0 right-0 bottom-0 z-[60] px-6 md:px-8 pb-6">
+                            <div className="max-w-3xl mx-auto">
+                                <div className="bg-black/85 backdrop-blur-sm border border-slate-700 rounded-xl p-3 flex items-center gap-3">
+                                    <div className="text-xs text-slate-400 flex-1">
+                                        No mouse wheel? Use ▲/▼ buttons or search.
+                                    </div>
+                                    <button
+                                        type="button"
+                                        onClick={finishOnboarding}
+                                        className="px-6 py-3 bg-amber-600 hover:bg-amber-500 text-white rounded-lg font-bold transition-colors"
+                                    >
+                                        Complete Setup
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 )}
 
