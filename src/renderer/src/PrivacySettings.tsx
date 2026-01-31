@@ -41,13 +41,16 @@ const PrivacySettings: React.FC = () => {
 
   const [showDetails, setShowDetails] = useState<string | null>(null);
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved'>('idle');
+
   const [openaiApiKeyInput, setOpenaiApiKeyInput] = useState<string>('');
   const [groqApiKeyInput, setGroqApiKeyInput] = useState<string>('');
   const [deepgramApiKeyInput, setDeepgramApiKeyInput] = useState<string>('');
+  const [elevenLabsApiKeyInput, setElevenLabsApiKeyInput] = useState<string>('');
 
   const [showOpenaiKey, setShowOpenaiKey] = useState(false);
   const [showGroqKey, setShowGroqKey] = useState(false);
   const [showDeepgramKey, setShowDeepgramKey] = useState(false);
+  const [showElevenLabsKey, setShowElevenLabsKey] = useState(false);
 
   const [backendBaseUrlInput, setBackendBaseUrlInput] = useState<string>('');
   const [backendTokenInput, setBackendTokenInput] = useState<string>('');
@@ -105,7 +108,7 @@ const PrivacySettings: React.FC = () => {
     calculateStorageInfo();
   }, []);
 
-  const saveApiKey = async (field: 'openaiApiKey' | 'groqApiKey' | 'deepgramApiKey', value: string) => {
+  const saveApiKey = async (field: 'openaiApiKey' | 'groqApiKey' | 'deepgramApiKey' | 'elevenLabsApiKey', value: string) => {
     const api = getElectronApi();
     if (!api?.setSettings || !api?.getSecretStatus) {
       setKeySaveStatus((prev) => ({ ...prev, [field]: 'error' }));
@@ -154,9 +157,72 @@ const PrivacySettings: React.FC = () => {
     }
   };
 
-  const clearApiKey = async (field: 'openaiApiKey' | 'groqApiKey' | 'deepgramApiKey') => {
+  const clearApiKey = async (field: 'openaiApiKey' | 'groqApiKey' | 'deepgramApiKey' | 'elevenLabsApiKey') => {
+    if (field === 'openaiApiKey') setOpenaiApiKeyInput('');
+    if (field === 'groqApiKey') setGroqApiKeyInput('');
+    if (field === 'deepgramApiKey') setDeepgramApiKeyInput('');
+    if (field === 'elevenLabsApiKey') setElevenLabsApiKeyInput('');
     await saveApiKey(field, '');
+    setKeySaveStatus(prev => ({ ...prev, [field]: 'idle' }));
   };
+  // ...existing code...
+  // --- ElevenLabs API Key Section ---
+  // (Insert this block in the same area as the other API key sections)
+
+        {/* ElevenLabs API Key */}
+        <div className="bg-slate-900 border border-slate-700 rounded-xl overflow-hidden mb-8">
+          <div className="bg-slate-800 border-b border-slate-700 p-6">
+            <div className="flex items-center gap-3 mb-2">
+              <div className="text-emerald-400"><Shield className="w-5 h-5" /></div>
+              <h2 className="text-xl font-bold text-white">ElevenLabs API Key</h2>
+            </div>
+            <p className="text-slate-400 text-sm">
+              Paste your ElevenLabs API key here. Required for ElevenLabs TTS voices.
+            </p>
+          </div>
+          <div className="p-6 flex flex-col gap-2">
+            <div className="relative">
+              <input
+                type={showElevenLabsKey ? 'text' : 'password'}
+                className="w-full px-4 py-2 rounded-lg bg-slate-800 border border-slate-600 text-white focus:outline-none focus:ring-2 focus:ring-emerald-400"
+                placeholder="sk-..."
+                value={elevenLabsApiKeyInput}
+                onChange={e => setElevenLabsApiKeyInput(e.target.value)}
+                autoComplete="off"
+                spellCheck={false}
+              />
+              <button
+                type="button"
+                onClick={() => setShowElevenLabsKey(v => !v)}
+                className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white transition-colors"
+                tabIndex={-1}
+              >
+                {showElevenLabsKey ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+              </button>
+            </div>
+            <div className="flex gap-2 mt-2">
+              <button
+                onClick={() => void saveApiKey('elevenLabsApiKey', elevenLabsApiKeyInput)}
+                className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+                  keySaveStatus.elevenLabsApiKey === 'saved'
+                    ? 'bg-emerald-600 text-white'
+                    : keySaveStatus.elevenLabsApiKey === 'error'
+                    ? 'bg-red-600 text-white'
+                    : 'bg-emerald-500 hover:bg-emerald-600 text-white'
+                }`}
+              >
+                {keySaveStatus.elevenLabsApiKey === 'saved' ? '✓ Saved' : keySaveStatus.elevenLabsApiKey === 'error' ? 'Error' : 'Save'}
+              </button>
+              <button
+                onClick={() => void clearApiKey('elevenLabsApiKey')}
+                className="px-4 py-2 rounded-lg font-medium bg-red-500 hover:bg-red-600 text-white transition-colors"
+              >
+                Clear
+              </button>
+            </div>
+            <p className="text-xs text-slate-400 mt-2">Get a key from <a href="https://elevenlabs.io/" target="_blank" rel="noopener noreferrer" className="underline">elevenlabs.io</a> (API keys).</p>
+          </div>
+        </div>
 
   const calculateStorageInfo = () => {
     try {
@@ -348,9 +414,33 @@ const PrivacySettings: React.FC = () => {
                     type={showGroqKey ? 'text' : 'password'}
                     value={groqApiKeyInput}
                     onChange={(e) => setGroqApiKeyInput(e.target.value)}
+                    onPaste={e => {
+                      console.log('[Groq] onPaste event fired');
+                      const text = e.clipboardData.getData('text');
+                      setGroqApiKeyInput(text);
+                      e.preventDefault();
+                    }}
+                    onInput={e => {
+                      console.log('[Groq] onInput event fired');
+                      setGroqApiKeyInput(e.currentTarget.value);
+                    }}
                     placeholder="gsk_..."
                     className="w-full bg-slate-800 border border-slate-600 rounded-lg px-4 py-2 text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-emerald-500"
                   />
+                  {/* Paste button is now inline with Save/Clear */}
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      try {
+                        const text = await navigator.clipboard.readText();
+                        setGroqApiKeyInput(text);
+                      } catch (err) {
+                        alert('Clipboard read failed: ' + err);
+                      }
+                    }}
+                    className="px-4 py-2 rounded-lg font-medium bg-slate-700 hover:bg-emerald-400 text-white transition-colors"
+                    title="Paste from clipboard"
+                  >Paste</button>
                   <button
                     onClick={() => setShowGroqKey(!showGroqKey)}
                     className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white transition-colors"
@@ -395,9 +485,32 @@ const PrivacySettings: React.FC = () => {
                     type={showOpenaiKey ? 'text' : 'password'}
                     value={openaiApiKeyInput}
                     onChange={(e) => setOpenaiApiKeyInput(e.target.value)}
+                    onPaste={e => {
+                      console.log('[OpenAI] onPaste event fired');
+                      const text = e.clipboardData.getData('text');
+                      setOpenaiApiKeyInput(text);
+                      e.preventDefault();
+                    }}
+                    onInput={e => {
+                      console.log('[OpenAI] onInput event fired');
+                      setOpenaiApiKeyInput(e.currentTarget.value);
+                    }}
                     placeholder="sk-..."
                     className="w-full bg-slate-800 border border-slate-600 rounded-lg px-4 py-2 text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-emerald-500"
                   />
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      try {
+                        const text = await navigator.clipboard.readText();
+                        setOpenaiApiKeyInput(text);
+                      } catch (err) {
+                        alert('Clipboard read failed: ' + err);
+                      }
+                    }}
+                    className="px-4 py-2 rounded-lg font-medium bg-slate-700 hover:bg-emerald-400 text-white transition-colors"
+                    title="Paste from clipboard"
+                  >Paste</button>
                   <button
                     onClick={() => setShowOpenaiKey(!showOpenaiKey)}
                     className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white transition-colors"
@@ -444,9 +557,32 @@ const PrivacySettings: React.FC = () => {
                     type={showDeepgramKey ? 'text' : 'password'}
                     value={deepgramApiKeyInput}
                     onChange={(e) => setDeepgramApiKeyInput(e.target.value)}
+                    onPaste={e => {
+                      console.log('[Deepgram] onPaste event fired');
+                      const text = e.clipboardData.getData('text');
+                      setDeepgramApiKeyInput(text);
+                      e.preventDefault();
+                    }}
+                    onInput={e => {
+                      console.log('[Deepgram] onInput event fired');
+                      setDeepgramApiKeyInput(e.currentTarget.value);
+                    }}
                     placeholder="dg_..."
                     className="w-full bg-slate-800 border border-slate-600 rounded-lg px-4 py-2 text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-emerald-500"
                   />
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      try {
+                        const text = await navigator.clipboard.readText();
+                        setDeepgramApiKeyInput(text);
+                      } catch (err) {
+                        alert('Clipboard read failed: ' + err);
+                      }
+                    }}
+                    className="px-4 py-2 rounded-lg font-medium bg-slate-700 hover:bg-emerald-400 text-white transition-colors"
+                    title="Paste from clipboard"
+                  >Paste</button>
                   <button
                     onClick={() => setShowDeepgramKey(!showDeepgramKey)}
                     className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white transition-colors"
@@ -476,8 +612,77 @@ const PrivacySettings: React.FC = () => {
               <p className="text-xs text-slate-400 mt-2">Get a key from deepgram.com (API keys).</p>
             </div>
           </div>
+            {/* ElevenLabs API Key */}
+            <div className="mb-5">
+              <div className="flex items-center justify-between gap-3 mb-2">
+                <label className="block text-sm font-medium text-slate-300">
+                  ElevenLabs API Key (optional; enables ElevenLabs TTS)
+                </label>
+                <span className={`text-[10px] font-mono uppercase tracking-widest ${secrets?.elevenlabs ? 'text-emerald-300' : 'text-amber-300'}`}>
+                  {secrets?.elevenlabs ? 'Configured' : 'Missing'}
+                </span>
+              </div>
+              <div className="flex gap-2">
+                <div className="relative flex-1">
+                  <input
+                    type={showElevenLabsKey ? 'text' : 'password'}
+                    value={elevenLabsApiKeyInput}
+                    onChange={e => setElevenLabsApiKeyInput(e.target.value)}
+                    onPaste={e => {
+                      console.log('[ElevenLabs] onPaste event fired');
+                      const text = e.clipboardData.getData('text');
+                      setElevenLabsApiKeyInput(text);
+                      e.preventDefault();
+                    }}
+                    onInput={e => {
+                      console.log('[ElevenLabs] onInput event fired');
+                      setElevenLabsApiKeyInput(e.currentTarget.value);
+                    }}
+                    placeholder="sk-..."
+                    className="w-full bg-slate-800 border border-slate-600 rounded-lg px-4 py-2 text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                  />
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      try {
+                        const text = await navigator.clipboard.readText();
+                        setElevenLabsApiKeyInput(text);
+                      } catch (err) {
+                        alert('Clipboard read failed: ' + err);
+                      }
+                    }}
+                    className="px-4 py-2 rounded-lg font-medium bg-slate-700 hover:bg-emerald-400 text-white transition-colors"
+                    title="Paste from clipboard"
+                  >Paste</button>
+                  <button
+                    onClick={() => setShowElevenLabsKey(!showElevenLabsKey)}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white transition-colors"
+                  >
+                    {showElevenLabsKey ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
+                </div>
+                <button
+                  onClick={() => void saveApiKey('elevenLabsApiKey', elevenLabsApiKeyInput)}
+                  className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+                    keySaveStatus.elevenLabsApiKey === 'saved'
+                      ? 'bg-emerald-600 text-white'
+                      : keySaveStatus.elevenLabsApiKey === 'error'
+                      ? 'bg-red-600 text-white'
+                      : 'bg-emerald-500 hover:bg-emerald-600 text-white'
+                  }`}
+                >
+                  {keySaveStatus.elevenLabsApiKey === 'saved' ? '✓ Saved' : keySaveStatus.elevenLabsApiKey === 'error' ? 'Error' : 'Save'}
+                </button>
+                <button
+                  onClick={() => void clearApiKey('elevenLabsApiKey')}
+                  className="px-4 py-2 rounded-lg font-medium bg-red-500 hover:bg-red-600 text-white transition-colors"
+                >
+                  Clear
+                </button>
+              </div>
+              <p className="text-xs text-slate-400 mt-2">Get a key from <a href="https://elevenlabs.io/" target="_blank" rel="noopener noreferrer" className="underline">elevenlabs.io</a> (API keys).</p>
+            </div>
         </div>
-
         {/* Backend Proxy (Optional) */}
         <div className="bg-slate-900 border border-slate-700 rounded-xl overflow-hidden mb-8">
           <div className="bg-slate-800 border-b border-slate-700 p-6">

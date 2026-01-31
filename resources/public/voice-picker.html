@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>System Voice Picker</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            padding: 30px;
+        }
+        h1 {
+            color: #333;
+            margin-bottom: 10px;
+            font-size: 28px;
+        }
+        .subtitle {
+            color: #666;
+            margin-bottom: 30px;
+            font-size: 14px;
+        }
+        .test-input {
+            width: 100%;
+            padding: 12px;
+            margin-bottom: 20px;
+            border: 2px solid #ddd;
+            border-radius: 6px;
+            font-size: 16px;
+            transition: border-color 0.2s;
+        }
+        .test-input:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+        .voices-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+            gap: 15px;
+        }
+        .voice-card {
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            padding: 16px;
+            cursor: pointer;
+            transition: all 0.2s;
+            background: #f9f9f9;
+        }
+        .voice-card:hover {
+            border-color: #667eea;
+            background: #f0f0ff;
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.15);
+        }
+        .voice-card.selected {
+            border-color: #667eea;
+            background: #e8ecff;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+        .voice-name {
+            font-weight: 600;
+            color: #333;
+            margin-bottom: 8px;
+            font-size: 16px;
+        }
+        .voice-details {
+            font-size: 12px;
+            color: #666;
+            line-height: 1.6;
+            margin-bottom: 12px;
+        }
+        .voice-buttons {
+            display: flex;
+            gap: 8px;
+        }
+        button {
+            flex: 1;
+            padding: 8px 12px;
+            border: none;
+            border-radius: 4px;
+            font-size: 13px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .btn-test {
+            background: #667eea;
+            color: white;
+        }
+        .btn-test:hover {
+            background: #5568d3;
+        }
+        .btn-test:active {
+            transform: scale(0.98);
+        }
+        .btn-select {
+            background: #48bb78;
+            color: white;
+        }
+        .btn-select:hover {
+            background: #38a169;
+        }
+        .btn-select:active {
+            transform: scale(0.98);
+        }
+        .voice-card.selected .btn-select {
+            background: #22543d;
+        }
+        .info-box {
+            background: #edf2f7;
+            border-left: 4px solid #667eea;
+            padding: 16px;
+            border-radius: 4px;
+            margin-bottom: 20px;
+            font-size: 14px;
+            color: #2d3748;
+        }
+        .selected-info {
+            margin-top: 20px;
+            padding: 16px;
+            background: #c6f6d5;
+            border: 1px solid #9ae6b4;
+            border-radius: 6px;
+            color: #22543d;
+            font-weight: 500;
+        }
+        .loading {
+            text-align: center;
+            padding: 40px;
+            color: #666;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🎤 System Voice Picker</h1>
+        <p class="subtitle">Browse available voices and preview them. Click "Select" to copy to .env.local</p>
+        
+        <div class="info-box">
+            💡 Type test text below, then click "Test Voice" on any card to hear a preview. Available voices vary by system.
+        </div>
+
+        <input 
+            type="text" 
+            class="test-input" 
+            id="testText" 
+            placeholder="Enter test text (default: 'Hello, this is a test.')"
+            value="Hello, this is a test."
+        >
+
+        <div id="voicesContainer" class="voices-grid"></div>
+        <div id="selectedInfo" class="selected-info" style="display: none;"></div>
+    </div>
+
+    <script>
+        let allVoices = [];
+        let selectedVoice = null;
+
+        function populateVoices() {
+            const container = document.getElementById('voicesContainer');
+            container.innerHTML = '';
+
+            if (allVoices.length === 0) {
+                container.innerHTML = '<div class="loading">No voices available. Please check your browser/system audio settings.</div>';
+                return;
+            }
+
+            allVoices.forEach((voice, index) => {
+                const card = document.createElement('div');
+                card.className = 'voice-card';
+                
+                const lang = voice.lang || 'unknown';
+                const voiceName = voice.name || `Voice ${index}`;
+                const isDefault = voice.default ? '✓ Default' : '';
+                
+                card.innerHTML = `
+                    <div class="voice-name">${voiceName}</div>
+                    <div class="voice-details">
+                        <div>Language: ${lang}</div>
+                        ${isDefault ? `<div style="color: #667eea; font-weight: 500;">${isDefault}</div>` : ''}
+                        <div style="margin-top: 4px; font-size: 11px; color: #999;">URI: ${voice.voiceURI || 'N/A'}</div>
+                    </div>
+                    <div class="voice-buttons">
+                        <button class="btn-test" onclick="testVoice(${index})">Test</button>
+                        <button class="btn-select" onclick="selectVoice(${index})">Select</button>
+                    </div>
+                `;
+                
+                container.appendChild(card);
+            });
+        }
+
+        function testVoice(index) {
+            const voice = allVoices[index];
+            const testText = document.getElementById('testText').value || 'Hello, this is a test.';
+            
+            // Cancel any ongoing speech
+            window.speechSynthesis.cancel();
+            
+            const utterance = new SpeechSynthesisUtterance(testText);
+            utterance.voice = voice;
+            utterance.rate = 1.0;
+            utterance.pitch = 1.0;
+            
+            window.speechSynthesis.speak(utterance);
+        }
+
+        function selectVoice(index) {
+            selectedVoice = allVoices[index];
+            
+            // Update UI
+            document.querySelectorAll('.voice-card').forEach((card, i) => {
+                card.classList.toggle('selected', i === index);
+            });
+            
+            const voiceName = selectedVoice.name || `Voice ${index}`;
+            const infoBox = document.getElementById('selectedInfo');
+            infoBox.innerHTML = `
+                ✓ Selected: <strong>${voiceName}</strong><br>
+                <small style="display: block; margin-top: 8px;">
+                    Add to .env.local:<br>
+                    <code style="background: white; padding: 4px 8px; border-radius: 3px; display: block; margin-top: 4px;">
+                        VITE_BROWSER_TTS_VOICE=${voiceName}
+                    </code>
+                </small>
+            `;
+            infoBox.style.display = 'block';
+            
+            console.log('Selected voice:', voiceName);
+            console.log('Full voice object:', selectedVoice);
+        }
+
+        // Load voices
+        function loadVoices() {
+            allVoices = window.speechSynthesis.getVoices();
+            populateVoices();
+        }
+
+        // Initial load
+        loadVoices();
+
+        // Reload voices if they become available (some browsers load async)
+        window.speechSynthesis.onvoiceschanged = loadVoices;
+
+        // Log to console for debugging
+        console.log('Available voices:', allVoices);
+    </script>
+</body>
+</html>
