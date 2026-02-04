@@ -54,3 +54,8 @@ external/volttech-dist/*
 # OS
 .DS_Store
 Thumbs.db
+
+# Build artifacts
+Mossy.exe
+Uninstall Mossy.exe
+resources/app.asar
