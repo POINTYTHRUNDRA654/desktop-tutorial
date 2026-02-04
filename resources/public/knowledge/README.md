@@ -1,11 +1,11 @@
 # Mossy - The Fallout 4 Modding Assistant
 
-**Mossy v4.0** - A production-ready Electron desktop application for Fallout 4 modding with AI assistance, real-time analysis, and professional asset optimization.
+**Mossy v5.4.21** - A production-ready Electron desktop application for Fallout 4 modding with AI assistance, real-time analysis, and professional asset optimization.
 
 ![License](https://img.shields.io/badge/license-MIT-blue.svg)
 ![Platform](https://img.shields.io/badge/platform-Windows-blue)
 ![Status](https://img.shields.io/badge/status-Production%20Ready-green.svg)
-![Version](https://img.shields.io/badge/version-4.0-blue.svg)
+![Version](https://img.shields.io/badge/version-5.4.21-blue.svg)
 
 ## 🎯 What's Inside
 
@@ -173,7 +173,7 @@ desktop-ai-assistant/
      OPENAI_API_KEY=your-api-key-here
      GROQ_API_KEY=your-key-here
      DEEPGRAM_API_KEY=your-key-here
-     ELEVENLABS_API_KEY=your-key-here
+
      ```
 
    Security note: do not put secrets in `VITE_*` variables (Vite exposes those to the renderer).
@@ -307,7 +307,7 @@ This app does not use Google / Gemini.
    - `OPENAI_API_KEY`
    - `GROQ_API_KEY`
    - `DEEPGRAM_API_KEY`
-   - `ELEVENLABS_API_KEY`
+
 
 Note: Do not put secrets in `VITE_*` env vars. Vite exposes `VITE_*` to the renderer.
 
