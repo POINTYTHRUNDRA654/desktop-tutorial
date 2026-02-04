@@ -1,11 +1,11 @@
 # Mossy - The Fallout 4 Modding Assistant
 
-**Mossy v4.0** - A production-ready Electron desktop application for Fallout 4 modding with AI assistance, real-time analysis, and professional asset optimization.
+**Mossy v5.4.21** - A production-ready Electron desktop application for Fallout 4 modding with AI assistance, real-time analysis, and professional asset optimization.
 
 ![License](https://img.shields.io/badge/license-MIT-blue.svg)
 ![Platform](https://img.shields.io/badge/platform-Windows-blue)
 ![Status](https://img.shields.io/badge/status-Production%20Ready-green.svg)
-![Version](https://img.shields.io/badge/version-4.0-blue.svg)
+![Version](https://img.shields.io/badge/version-5.4.21-blue.svg)
 
 ## 🎯 What's Inside
 
@@ -272,7 +272,7 @@ npm run build        # Build all
 npm run package:win  # Windows installer
 ```
 
-Installer output goes to `release/` (for example: `Mossy Setup 4.0.0.exe`).
+Installer output goes to `release/` (for example: `Mossy Setup 5.4.21.exe`).
 
 ## 📦 What's NOT Included
 
