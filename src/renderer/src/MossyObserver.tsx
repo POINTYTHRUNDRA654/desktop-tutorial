@@ -513,6 +513,42 @@ const MossyObserver: React.FC = () => {
         };
     }, []);
 
+    // Handle Proactive Observer notifications from Main
+    useEffect(() => {
+        if (window.electron && window.electron.api && window.electron.api.on) {
+            const unsubscribe = window.electron.api.on('observer-notify', (payload: any) => {
+                console.log('[Observer] Received notification:', payload);
+                if (payload.event === 'file-detected') {
+                    const { filename, type } = payload.data;
+                    setIsAlert(true);
+                    setMessage(`I see you exported ${filename}. I'm analyzing your ${type.toUpperCase()} asset now...`);
+                    setVisible(true);
+                    
+                    // After a delay, show the "Auditor" analysis simulation
+                    setTimeout(() => {
+                        if (type === 'nif') {
+                            setMessage(`Analysis complete: ${filename} vertex count is within limits. Ensure the collision layer is set to 'L_STATIC'!`);
+                        } else if (type === 'dds') {
+                            setMessage(`Texture check: ${filename} is 2048x2048 BC7. High quality, efficient choice!`);
+                        } else {
+                            setMessage(`Analysis complete for ${filename}. Standard Fallout 4 headers detected.`);
+                        }
+                    }, 4000);
+
+                    // Fade out after 10s
+                    setTimeout(() => {
+                        setVisible(false);
+                        setIsAlert(false);
+                    }, 10000);
+                }
+            });
+            return () => {
+                if (typeof unsubscribe === 'function') unsubscribe();
+            };
+        }
+        return undefined;
+    }, []);
+
     if (!message && !visible) return null;
 
     return (

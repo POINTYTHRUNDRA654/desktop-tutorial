@@ -1,5 +1,5 @@
 import { useMemo, useRef, useState } from 'react';
-import { GitBranch, Package, HardDrive, Play, Loader2, CheckCircle2, AlertTriangle, Database, Copy, Shield, Settings, Repeat2, ClipboardList, Download } from 'lucide-react';
+import { GitBranch, Package, HardDrive, Play, Loader2, CheckCircle2, AlertTriangle, Database, Copy, Shield, Settings, Repeat2, ClipboardList, ArrowDownToLine } from 'lucide-react';
 import { ToolsInstallVerifyPanel } from './components/ToolsInstallVerifyPanel';
 import { useWheelScrollProxy } from './components/useWheelScrollProxy';
 
@@ -511,7 +511,7 @@ const WorkflowOrchestrator = () => {
                                 onClick={() => navigator.clipboard.writeText(stagedForBA2.map(a => a.targetPath).join('\n'))}
                                 className="px-2 py-1 bg-slate-800 hover:bg-slate-700 rounded border border-slate-700 text-[10px] text-slate-200 flex items-center gap-1"
                             >
-                                <Download className="w-3 h-3" /> Copy List
+                                <ArrowDownToLine className="w-3 h-3" /> Copy List
                             </button>
                         </div>
                         <div className="text-[10px] text-slate-400">{stagedForBA2.length} assets staged</div>

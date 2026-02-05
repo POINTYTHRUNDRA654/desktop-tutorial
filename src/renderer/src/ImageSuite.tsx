@@ -1,7 +1,8 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Image as ImageIcon, ScanSearch, Download, Layers, Upload, CheckCircle2, AlertTriangle } from 'lucide-react';
+import { Image as ImageIcon, ScanSearch, ArrowDownToLine, Layers, Upload, CheckCircle2, AlertTriangle } from 'lucide-react';
 import { useLive } from './LiveContext';
 import { ToolsInstallVerifyPanel } from './components/ToolsInstallVerifyPanel';
+import { workerManager } from './WorkerManager';
 
 const ImageSuite: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'pbr' | 'convert'>('pbr');
@@ -44,48 +45,127 @@ const ImageSuite: React.FC = () => {
     }
   }, [sourceImage]);
 
-  // --- REAL PBR GENERATION VIA IPC ---
+  // --- REAL PBR GENERATION VIA WEB WORKERS ---
   const generatePBRMaps = async () => {
     if (!sourceImage && !sourcePreview) return;
     setIsProcessingPBR(true);
 
     try {
-      const file = sourceImage;
-      const reader = new FileReader();
-      
-      reader.onload = async (e) => {
-        const base64Data = e.target?.result as string;
-        
-        try {
-          // Call IPC handlers in parallel for all maps
-          const [normal, roughness, height, metallic, ao] = await Promise.all([
-            window.electron.api.generateNormalMap(base64Data),
-            window.electron.api.generateRoughnessMap(base64Data),
-            window.electron.api.generateHeightMap(base64Data),
-            window.electron.api.generateMetallicMap(base64Data),
-            window.electron.api.generateAOMap(base64Data)
-          ]);
-          
-          setPbrMaps({
-            normal,
-            roughness,
-            height,
-            metallic,
-            ao
-          });
-        } catch (err) {
-          console.error('PBR generation error:', err);
-          alert('Failed to generate PBR maps. Check console for details.');
-        } finally {
-          setIsProcessingPBR(false);
-        }
-      };
-      
-      reader.readAsDataURL(file || (sourcePreview ? await fetch(sourcePreview).then(r => r.blob()) : null) as Blob);
+      // Get image data
+      let imageData: ImageData;
+      if (sourceImage) {
+        imageData = await getImageDataFromFile(sourceImage);
+      } else if (sourcePreview) {
+        imageData = await getImageDataFromUrl(sourcePreview);
+      } else {
+        throw new Error('No image source available');
+      }
+
+      // Process all maps in parallel using web workers
+      const operations = [
+        { operation: 'normal-map' as const, imageData },
+        { operation: 'roughness-map' as const, imageData },
+        { operation: 'height-map' as const, imageData },
+        { operation: 'metallic-map' as const, imageData },
+        { operation: 'ao-map' as const, imageData }
+      ];
+
+      const results = await workerManager.processImages(operations, (completed, total) => {
+        console.log(`PBR generation progress: ${completed}/${total}`);
+      });
+
+      // Convert ImageData results to data URLs for display
+      const [normalUrl, roughnessUrl, heightUrl, metallicUrl, aoUrl] = await Promise.all(
+        results.map(result => imageDataToDataUrl(result))
+      );
+
+      setPbrMaps({
+        normal: normalUrl,
+        roughness: roughnessUrl,
+        height: heightUrl,
+        metallic: metallicUrl,
+        ao: aoUrl
+      });
     } catch (err) {
-      console.error('File reading error:', err);
+      console.error('PBR generation error:', err);
+      alert('Failed to generate PBR maps. Check console for details.');
+    } finally {
       setIsProcessingPBR(false);
     }
+  };
+
+  // Helper function to get ImageData from File
+  const getImageDataFromFile = (file: File): Promise<ImageData> => {
+    return new Promise((resolve, reject) => {
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        const ctx = canvas.getContext('2d');
+        if (!ctx) {
+          reject(new Error('Could not get canvas context'));
+          return;
+        }
+
+        canvas.width = img.width;
+        canvas.height = img.height;
+        ctx.drawImage(img, 0, 0);
+
+        const imageData = ctx.getImageData(0, 0, img.width, img.height);
+        resolve(imageData);
+      };
+      img.onerror = () => reject(new Error('Failed to load image'));
+      img.src = URL.createObjectURL(file);
+    });
+  };
+
+  // Helper function to get ImageData from URL
+  const getImageDataFromUrl = (url: string): Promise<ImageData> => {
+    return new Promise((resolve, reject) => {
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        const ctx = canvas.getContext('2d');
+        if (!ctx) {
+          reject(new Error('Could not get canvas context'));
+          return;
+        }
+
+        canvas.width = img.width;
+        canvas.height = img.height;
+        ctx.drawImage(img, 0, 0);
+
+        const imageData = ctx.getImageData(0, 0, img.width, img.height);
+        resolve(imageData);
+      };
+      img.onerror = () => reject(new Error('Failed to load image'));
+      img.crossOrigin = 'anonymous';
+      img.src = url;
+    });
+  };
+
+  // Helper function to convert ImageData to data URL
+  const imageDataToDataUrl = (imageData: ImageData): Promise<string> => {
+    return new Promise((resolve) => {
+      const canvas = document.createElement('canvas');
+      const ctx = canvas.getContext('2d');
+      if (!ctx) {
+        resolve('');
+        return;
+      }
+
+      canvas.width = imageData.width;
+      canvas.height = imageData.height;
+      ctx.putImageData(imageData, 0, 0);
+
+      canvas.toBlob((blob) => {
+        if (blob) {
+          const url = URL.createObjectURL(blob);
+          resolve(url);
+        } else {
+          resolve('');
+        }
+      }, 'image/png');
+    });
   };
 
   // --- FORMAT CONVERSION ---
@@ -125,7 +205,7 @@ const ImageSuite: React.FC = () => {
             options.requireReal = requireRealDDS;
             options.mipmapLevels = mipmapLevels;
           }
-          const converted = await window.electron.api.convertImageFormat(base64Data, conversionFormat, options);
+          const converted = await window.electronAPI.convertImageFormat(base64Data, conversionFormat, options);
 
           if (conversionFormat.toLowerCase() === 'dds') {
             if (typeof converted === 'string' && converted.startsWith('data:converted-dds-')) {
@@ -198,9 +278,9 @@ const ImageSuite: React.FC = () => {
       }
 
       // Convert each to DDS with locked formats (main picks up options.texconvPath when provided)
-      const ddsDiffuse = await window.electron.api.convertImageFormat(diffuseData, 'dds', { bcFormat: 'BC7_UNORM', texconvPath, requireReal: requireRealDDS, mipmapLevels });
-      const ddsNormal = await window.electron.api.convertImageFormat(normalData, 'dds', { bcFormat: 'BC5_UNORM', texconvPath, requireReal: requireRealDDS, mipmapLevels });
-      const ddsSpec = await window.electron.api.convertImageFormat(specData, 'dds', { bcFormat: 'BC5_UNORM', texconvPath, requireReal: requireRealDDS, mipmapLevels });
+      const ddsDiffuse = await window.electronAPI.convertImageFormat(diffuseData, 'dds', { bcFormat: 'BC7_UNORM', texconvPath, requireReal: requireRealDDS, mipmapLevels });
+      const ddsNormal = await window.electronAPI.convertImageFormat(normalData, 'dds', { bcFormat: 'BC5_UNORM', texconvPath, requireReal: requireRealDDS, mipmapLevels });
+      const ddsSpec = await window.electronAPI.convertImageFormat(specData, 'dds', { bcFormat: 'BC5_UNORM', texconvPath, requireReal: requireRealDDS, mipmapLevels });
 
       // Detect fallback (stubbed conversion produces data:converted-dds-...)
       const fallbacks: string[] = [];
@@ -440,7 +520,7 @@ const ImageSuite: React.FC = () => {
                   disabled={(isConverting || !sourceImage)}
                   className="w-full py-3 bg-forge-accent text-slate-900 font-bold rounded-lg hover:bg-sky-400 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                 >
-                  {isConverting ? <ScanSearch className="animate-spin" /> : <Download />}
+                  {isConverting ? <ScanSearch className="animate-spin" /> : <ArrowDownToLine />}
                   {isConverting ? 'Converting...' : (fo4Preset ? 'Export FO4 DDS (_d/_n/_s)' : 'Convert & Download')}
                 </button>
               )}
@@ -472,7 +552,7 @@ const ImageSuite: React.FC = () => {
                         <>
                           <img src={pbrMaps.normal} className="w-full h-32 object-cover rounded" alt="Normal" />
                           <a href={pbrMaps.normal} download="normal_map.png" className="absolute bottom-2 right-2 p-1 bg-white text-black rounded opacity-0 group-hover:opacity-100 transition-opacity">
-                            <Download className="w-3 h-3"/>
+                            <ArrowDownToLine className="w-3 h-3"/>
                           </a>
                         </>
                       ) : (
@@ -486,7 +566,7 @@ const ImageSuite: React.FC = () => {
                         <>
                           <img src={pbrMaps.roughness} className="w-full h-32 object-cover rounded" alt="Specular" />
                           <a href={pbrMaps.roughness} download="specular_map.png" className="absolute bottom-2 right-2 p-1 bg-white text-black rounded opacity-0 group-hover:opacity-100 transition-opacity">
-                            <Download className="w-3 h-3"/>
+                            <ArrowDownToLine className="w-3 h-3"/>
                           </a>
                         </>
                       ) : (
@@ -503,7 +583,7 @@ const ImageSuite: React.FC = () => {
                         <>
                           <img src={pbrMaps.normal} className="w-full h-32 object-cover rounded" alt="Normal" />
                           <a href={pbrMaps.normal} download="normal_map.png" className="absolute bottom-2 right-2 p-1 bg-white text-black rounded opacity-0 group-hover:opacity-100 transition-opacity">
-                            <Download className="w-3 h-3"/>
+                            <ArrowDownToLine className="w-3 h-3"/>
                           </a>
                         </>
                       ) : (
@@ -518,7 +598,7 @@ const ImageSuite: React.FC = () => {
                         <>
                           <img src={pbrMaps.roughness} className="w-full h-32 object-cover rounded" alt="Roughness" />
                           <a href={pbrMaps.roughness} download="roughness_map.png" className="absolute bottom-2 right-2 p-1 bg-white text-black rounded opacity-0 group-hover:opacity-100 transition-opacity">
-                            <Download className="w-3 h-3"/>
+                            <ArrowDownToLine className="w-3 h-3"/>
                           </a>
                         </>
                       ) : (
@@ -533,7 +613,7 @@ const ImageSuite: React.FC = () => {
                         <>
                           <img src={pbrMaps.height} className="w-full h-32 object-cover rounded" alt="Height" />
                           <a href={pbrMaps.height} download="height_map.png" className="absolute bottom-2 right-2 p-1 bg-white text-black rounded opacity-0 group-hover:opacity-100 transition-opacity">
-                            <Download className="w-3 h-3"/>
+                            <ArrowDownToLine className="w-3 h-3"/>
                           </a>
                         </>
                       ) : (
@@ -548,7 +628,7 @@ const ImageSuite: React.FC = () => {
                         <>
                           <img src={pbrMaps.metallic} className="w-full h-32 object-cover rounded" alt="Metallic" />
                           <a href={pbrMaps.metallic} download="metallic_map.png" className="absolute bottom-2 right-2 p-1 bg-white text-black rounded opacity-0 group-hover:opacity-100 transition-opacity">
-                            <Download className="w-3 h-3"/>
+                            <ArrowDownToLine className="w-3 h-3"/>
                           </a>
                         </>
                       ) : (
@@ -563,7 +643,7 @@ const ImageSuite: React.FC = () => {
                         <>
                           <img src={pbrMaps.ao} className="w-full h-32 object-cover rounded" alt="AO" />
                           <a href={pbrMaps.ao} download="ao_map.png" className="absolute bottom-2 right-2 p-1 bg-white text-black rounded opacity-0 group-hover:opacity-100 transition-opacity">
-                            <Download className="w-3 h-3"/>
+                            <ArrowDownToLine className="w-3 h-3"/>
                           </a>
                         </>
                       ) : (

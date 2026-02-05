@@ -4,7 +4,7 @@
  */
 
 import React, { useEffect, useState } from 'react';
-import { AlertCircle, Download, X } from 'lucide-react';
+import { AlertCircle, ArrowDownToLine, X } from 'lucide-react';
 import { checkForUpdates } from './utils/githubReleaseChecker';
 import { getCurrentVersion } from './utils/versionUtils';
 
@@ -257,7 +257,7 @@ const UpdateNotifier: React.FC = () => {
               e.currentTarget.style.background = '#003300';
             }}
           >
-            <Download size={16} />
+            <ArrowDownToLine size={16} />
             DOWNLOAD
           </button>
           <button

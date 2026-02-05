@@ -5,8 +5,8 @@ import { getFullSystemInstruction } from './MossyBrain';
 import { getCommunityLearningContextForModel } from './communityLearningProfile';
 import { getToolPermissionsContextForModel, mergeExistingCheckedState } from './toolPermissions';
 import { checkContentGuard } from './Fallout4Guard';
-import { Send, Paperclip, Loader2, Bot, Leaf, Search, FolderOpen, Save, Trash2, CheckCircle2, HelpCircle, PauseCircle, ChevronRight, FileText, Cpu, X, CheckSquare, Globe, Mic, Volume2, VolumeX, StopCircle, Wifi, Gamepad2, Terminal, Play, Box, Layout, ArrowUpRight, Wrench, Radio, Lock, Square, Map, Scroll, Flag, PenTool, Database, Activity, Clipboard } from 'lucide-react';
-import { Message } from '../types';
+import { Send, Paperclip, Loader2, Bot, Leaf, Search, FolderOpen, Save, Trash2, CheckCircle2, HelpCircle, PauseCircle, ChevronRight, FileText, Cpu, X, CheckSquare, Globe, Mic, Volume2, VolumeX, StopCircle, Wifi, Gamepad2, Terminal, Play, Box, Layout, ArrowUpRight, Wrench, Radio, Lock, Square, Map, Scroll, Flag, PenTool, Database, Activity, Clipboard, Brain } from 'lucide-react';
+import { Message } from '../../shared/types';
 import { useLive } from './LiveContext';
 import { speakMossy } from './mossyTts';
 import { executeMossyTool, sanitizeBlenderScript } from './MossyTools';
@@ -14,8 +14,11 @@ import { ModProjectStorage } from './services/ModProjectStorage';
 import { useActivityMonitor } from './hooks/useActivityMonitor';
 import { SuggestionPanel } from './components/SuggestionPanel';
 import { ToolsInstallVerifyPanel } from './components/ToolsInstallVerifyPanel';
+import { SelfImprovementPanel } from './components/SelfImprovementPanel';
 import { buildKnowledgeManifestForModel, buildRelevantKnowledgeVaultContext } from './knowledgeRetrieval';
 import { useNavigate, useLocation } from 'react-router-dom';
+import { autoSaveManager } from './AutoSaveManager';
+import { useAnalytics } from './utils/analytics';
 
 
 type OnboardingState = 'init' | 'scanning' | 'integrating' | 'ready' | 'project_setup';
@@ -23,9 +26,11 @@ type OnboardingState = 'init' | 'scanning' | 'integrating' | 'ready' | 'project_
 interface DetectedApp {
   id: string;
   name: string;
+  displayName?: string;
   category: string;
   checked: boolean;
   path?: string; // Added path to interface
+  version?: string;
 }
 
 interface ProjectData {
@@ -67,6 +72,7 @@ declare global {
 
 // --- Project Wizard Component ---
 const ProjectWizard: React.FC<{ onSubmit: (data: any) => void, onCancel: () => void }> = ({ onSubmit, onCancel }) => {
+    ProjectWizard.displayName = 'ProjectWizard';
     const [name, setName] = useState('');
     const [description, setDescription] = useState('');
     const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
@@ -174,10 +180,11 @@ const ProjectWizard: React.FC<{ onSubmit: (data: any) => void, onCancel: () => v
 
 // Memoized Message Item to prevent re-rendering list on typing
 const MessageItem = React.memo(({ msg }: { msg: Message }) => {
-    const roleLabel = msg.role === 'user' ? 'You' : msg.role === 'assistant' || msg.role === 'model' ? 'Mossy' : msg.role;
+    MessageItem.displayName = 'MessageItem';
+    const roleLabel = msg.role === 'user' ? 'You' : msg.role === 'assistant' ? 'Mossy' : msg.role;
 
     const savedPath = useMemo(() => {
-        const text = msg.text || '';
+        const text = msg.content || '';
         // Tool outputs consistently format saved locations like: **Saved:** C:\Path\To\File.ext
         const m = text.match(/\*\*Saved:\*\*\s*(.+)$/m);
         if (!m) return null;
@@ -185,7 +192,7 @@ const MessageItem = React.memo(({ msg }: { msg: Message }) => {
         if (!raw || raw.startsWith('(')) return null;
         if (raw.toLowerCase().includes('unable to write')) return null;
         return raw;
-    }, [msg.text]);
+    }, [msg.content]);
 
     const handleOpenSaved = useCallback(async () => {
         if (!savedPath) return;
@@ -209,7 +216,7 @@ const MessageItem = React.memo(({ msg }: { msg: Message }) => {
     }, [savedPath]);
 
     return (
-        <div className="flex gap-3 items-start py-2">
+        <div data-testid={msg.role === 'user' ? 'user-message' : msg.role === 'assistant' ? 'ai-message' : 'system-message'} className="flex gap-3 items-start py-2">
             <div className="w-9 h-9 rounded-full bg-slate-800 flex items-center justify-center text-xs font-bold text-emerald-300 border border-slate-700">
                 {roleLabel?.slice(0, 2).toUpperCase()}
             </div>
@@ -230,17 +237,10 @@ const MessageItem = React.memo(({ msg }: { msg: Message }) => {
                         <div className="text-[10px] text-slate-500 truncate" title={savedPath}>{savedPath}</div>
                     </div>
                 )}
-                {msg.text && (
+                {msg.content && (
                     <ReactMarkdown className="prose prose-invert prose-sm max-w-none whitespace-pre-wrap">
-                        {msg.text}
+                        {msg.content}
                     </ReactMarkdown>
-                )}
-                {msg.images && msg.images.length > 0 && (
-                    <div className="flex flex-wrap gap-2 mt-2">
-                        {msg.images.map((src, idx) => (
-                            <img key={idx} src={src} alt="upload" className="w-20 h-20 object-cover rounded border border-slate-700" />
-                        ))}
-                    </div>
                 )}
             </div>
         </div>
@@ -274,6 +274,9 @@ export const ChatInterface: React.FC = () => {
   // Activity Monitoring Hook
   const { logActivity, suggestions, getTopSuggestions } = useActivityMonitor();
 
+  // Analytics Hook
+  const { trackEvent, trackPageView } = useAnalytics();
+
   // State
   const [messages, setMessages] = useState<Message[]>([]);
   const [workingMemory, setWorkingMemory] = useState<string>("Initializing modding education protocol...");
@@ -285,8 +288,9 @@ export const ChatInterface: React.FC = () => {
   // Voice State
   const [isVoiceEnabled, setIsVoiceEnabled] = useState(() => {
       if (isLiveActive) return false;
-      const saved = localStorage.getItem('mossy_voice_enabled') === 'true';
-      return saved;
+      const saved = localStorage.getItem('mossy_voice_enabled');
+      console.log('[ChatInterface] Voice enabled from localStorage:', saved);
+      return saved === 'true' || saved === null; // Default to true if not set
   });
   
   const [isListening, setIsListening] = useState(false);
@@ -311,6 +315,9 @@ export const ChatInterface: React.FC = () => {
   const [projectContext, setProjectContext] = useState<string | null>(null);
   const [projectData, setProjectData] = useState<ProjectData | null>(null);
   const [showProjectPanel, setShowProjectPanel] = useState(false);
+  
+  // Self-Improvement Panel
+  const [showSelfImprovementPanel, setShowSelfImprovementPanel] = useState(false);
   
   // System Profile
   const [profile, setProfile] = useState<SystemProfile | null>(() => {
@@ -342,6 +349,9 @@ export const ChatInterface: React.FC = () => {
 
     // Accept a one-time prefill (Install Wizard → Chat handoff, etc.)
     useEffect(() => {
+        // Track page view
+        trackPageView('chat_interface');
+
         if (appliedPrefillRef.current) return;
 
         const statePrefill = (location.state as any)?.prefill;
@@ -377,12 +387,14 @@ export const ChatInterface: React.FC = () => {
         if (messages.length > 0) {
             try {
                 localStorage.setItem('mossy_messages', JSON.stringify(messages));
+                // Also save to auto-save manager
+                autoSaveManager.updateCurrentChatHistory(messages);
             } catch (e) {
                 console.error("Failed to save history (Quota Exceeded?)", e);
             }
         }
         localStorage.setItem('mossy_working_memory', workingMemory);
-    }, 2000); 
+    }, 2000);
 
     return () => clearTimeout(saveTimeout);
   }, [messages, workingMemory]);
@@ -454,47 +466,71 @@ export const ChatInterface: React.FC = () => {
     window.addEventListener('storage', checkState);
     
     // Initial Load
-    try {
-        const savedMessages = localStorage.getItem('mossy_messages');
-        const savedState = localStorage.getItem('mossy_state');
-        const savedProject = localStorage.getItem('mossy_project');
-        const savedApps = localStorage.getItem('mossy_apps');
-        const savedIntegratedTools = localStorage.getItem('mossy_integrated_tools');
-        const savedVoice = localStorage.getItem('mossy_voice_enabled');
-        const savedMemory = localStorage.getItem('mossy_working_memory');
+    const loadInitialState = async () => {
+        try {
+            const savedMessages = localStorage.getItem('mossy_messages');
+            const savedState = localStorage.getItem('mossy_state');
+            const savedProject = localStorage.getItem('mossy_project');
+            const savedApps = localStorage.getItem('mossy_apps');
+            const savedIntegratedTools = localStorage.getItem('mossy_integrated_tools');
+            const savedVoice = localStorage.getItem('mossy_voice_enabled');
+            const savedMemory = localStorage.getItem('mossy_working_memory');
 
-        if (savedMessages) setMessages(JSON.parse(savedMessages));
-        else initMossy();
+            // Try to load from auto-save manager first
+            const recoveredSession = await autoSaveManager.recoverFromCrash();
+            if (recoveredSession && recoveredSession.chatHistory && recoveredSession.chatHistory.length > 0) {
+                console.log('[ChatInterface] Recovered chat history from auto-save');
+                setMessages(recoveredSession.chatHistory);
+            } else if (savedMessages) {
+                setMessages(JSON.parse(savedMessages));
+            } else {
+                initMossy();
+            }
 
-        if (savedMemory) setWorkingMemory(savedMemory);
+            if (savedMemory) setWorkingMemory(savedMemory);
 
-        if (savedState) setOnboardingState(JSON.parse(savedState));
-        if (savedProject) {
-            const parsed = JSON.parse(savedProject);
-            setProjectContext(parsed.name);
-            setProjectData(parsed);
-            setShowProjectPanel(true);
+            if (savedState) setOnboardingState(JSON.parse(savedState));
+            if (savedProject) {
+                const parsed = JSON.parse(savedProject);
+                setProjectContext(parsed.name);
+                setProjectData(parsed);
+                setShowProjectPanel(true);
+            }
+            if (savedApps) {
+                setDetectedApps(JSON.parse(savedApps));
+            } else if (savedIntegratedTools) {
+                // Back-compat: first-run onboarding stored approvals here.
+                // Promote into mossy_apps so the rest of the app has a single source of truth.
+                const tools = JSON.parse(savedIntegratedTools) as Array<{ name: string; path?: string; category?: string }>;
+                const promoted = tools
+                    .filter(t => t?.name)
+                    .map((t, idx) => ({
+                        id: `integrated-${idx}-${Math.random().toString(36).slice(2, 7)}`,
+                        name: t.name,
+                        category: t.category || 'Tool',
+                        checked: true,
+                        path: t.path
+                    }));
+                setDetectedApps(promoted);
+                localStorage.setItem('mossy_apps', JSON.stringify(promoted));
+            }
+            if (savedVoice && !isLiveActive) setIsVoiceEnabled(JSON.parse(savedVoice));
+
+            // Update auto-save manager with current state
+            autoSaveManager.updateCurrentChatHistory(savedMessages ? JSON.parse(savedMessages) : []);
+            autoSaveManager.updateCurrentSettings({ voiceEnabled: savedVoice ? JSON.parse(savedVoice) : false });
+            autoSaveManager.updateCurrentUIState({
+                onboardingState: savedState ? JSON.parse(savedState) : 'init',
+                projectContext: savedProject ? JSON.parse(savedProject) : null
+            });
+
+        } catch (e) {
+            console.error("Load failed", e);
+            initMossy();
         }
-        if (savedApps) {
-            setDetectedApps(JSON.parse(savedApps));
-        } else if (savedIntegratedTools) {
-            // Back-compat: first-run onboarding stored approvals here.
-            // Promote into mossy_apps so the rest of the app has a single source of truth.
-            const tools = JSON.parse(savedIntegratedTools) as Array<{ name: string; path?: string; category?: string }>;
-            const promoted = tools
-                .filter(t => t?.name)
-                .map((t, idx) => ({
-                    id: `integrated-${idx}-${Math.random().toString(36).slice(2, 7)}`,
-                    name: t.name,
-                    category: t.category || 'Tool',
-                    checked: true,
-                    path: t.path
-                }));
-            setDetectedApps(promoted);
-            localStorage.setItem('mossy_apps', JSON.stringify(promoted));
-        }
-        if (savedVoice && !isLiveActive) setIsVoiceEnabled(JSON.parse(savedVoice));
-    } catch (e) { console.error("Load failed", e); initMossy(); }
+    };
+
+    loadInitialState();
 
     return () => {
         window.removeEventListener('mossy-settings-updated', handleSettingsUpdate);
@@ -558,8 +594,9 @@ export const ChatInterface: React.FC = () => {
       if (hasApps) {
           setMessages([{ 
               id: 'init', 
-              role: 'model', 
-              text: "👋 **Welcome back, Vault Dweller!**\n\nI remember the tools and integrations you approved. I can use those permissions to help teach you workflows and (when the Desktop Bridge is online) interact with supported apps to automate steps.\n\nWhat are we working on today?" 
+              role: 'assistant', 
+              content: "👋 **Welcome back, Vault Dweller!**\n\nI remember the tools and integrations you approved. I can use those permissions to help teach you workflows and (when the Desktop Bridge is online) interact with supported apps to automate steps.\n\nWhat are we working on today?",
+              timestamp: Date.now()
           }]);
           setOnboardingState('ready');
           return;
@@ -567,8 +604,9 @@ export const ChatInterface: React.FC = () => {
 
       setMessages([{ 
           id: 'init', 
-          role: 'model', 
-          text: "👋 **Hello, Vault Dweller!**\n\nI'm **Mossy**, your dedicated AI assistant for Fallout 4 modding.\n\nTo provide the best assistance, I need to perform a **Deep Scan** to identify your modding tools (Creation Kit, xEdit, Blender, etc.) across all your system drives. I will remember these so we only need to do this once.\n\n**Ready to begin the scan?**" 
+          role: 'assistant', 
+          content: "👋 **Hello, Vault Dweller!**\n\nI'm **Mossy**, your dedicated AI assistant for Fallout 4 modding.\n\nTo provide the best assistance, I need to perform a **Deep Scan** to identify your modding tools (Creation Kit, xEdit, Blender, etc.) across all your system drives. I will remember these so we only need to do this once.\n\n**Ready to begin the scan?**",
+          timestamp: Date.now()
       }]);
       setOnboardingState('init');
   };
@@ -601,7 +639,16 @@ export const ChatInterface: React.FC = () => {
   const toggleVoiceMode = () => {
       if (isLiveActive) return;
       if (isVoiceEnabled) stopAudio();
-      setIsVoiceEnabled(!isVoiceEnabled);
+      const newVoiceEnabled = !isVoiceEnabled;
+      setIsVoiceEnabled(newVoiceEnabled);
+      localStorage.setItem('mossy_voice_enabled', newVoiceEnabled.toString());
+      console.log('[ChatInterface] Voice mode toggled to:', newVoiceEnabled);
+
+      // Track voice mode toggle
+      trackEvent('voice_mode_toggled', {
+        enabled: newVoiceEnabled,
+        wasLiveActive: isLiveActive
+      });
   };
 
   const stopAudio = () => {
@@ -632,6 +679,18 @@ export const ChatInterface: React.FC = () => {
           return;
       }
       
+      // Check if transcription is available
+      const api = (window as any).electron?.api || (window as any).electronAPI;
+      if (!api?.transcribeAudio) {
+          alert('Voice transcription is not available. Please configure OpenAI or Deepgram API keys in Settings.');
+          return;
+      }
+      
+      // Track voice recording start
+      trackEvent('voice_recording_started', {
+        hasTranscriptionAPI: !!api?.transcribeAudio
+      });
+      
       const audioChunks: Blob[] = [];
       let mediaStream: MediaStream | null = null;
       let silenceTimer: ReturnType<typeof setTimeout> | null = null;
@@ -642,8 +701,10 @@ export const ChatInterface: React.FC = () => {
       let recordingStartTime = Date.now();
       
       try {
+          console.log('[VoiceInput] Requesting microphone access...');
           setIsListening(true);
           mediaStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+          console.log('[VoiceInput] Microphone access granted, starting recording...');
           recordingStartTime = Date.now();
           
           const mediaRecorder = new MediaRecorder(mediaStream);
@@ -667,16 +728,32 @@ export const ChatInterface: React.FC = () => {
               try {
                   const api = (window as any).electron?.api || (window as any).electronAPI;
                   if (!api?.transcribeAudio) {
-                      console.warn('[ChatInterface] transcribeAudio IPC not available');
+                      console.warn('[VoiceInput] transcribeAudio IPC not available - check if API keys are configured');
+                      alert('Voice transcription is not available. Please configure OpenAI or Deepgram API keys in Settings.');
+                      return;
                   } else {
-                      console.log('[ChatInterface] Transcribing audio via main process... (size:', audioBlob.size, 'bytes)');
+                      console.log('[VoiceInput] Transcribing audio via main process... (size:', audioBlob.size, 'bytes)');
                       const ab = await audioBlob.arrayBuffer();
                       const resp = await api.transcribeAudio(ab, audioBlob.type || 'audio/webm');
                       if (resp?.success) {
                           transcript = String(resp.text || '').trim();
-                          console.log('[ChatInterface] Transcript:', transcript);
+                          console.log('[VoiceInput] Transcript:', transcript);
+
+                          // Track successful transcription
+                          trackEvent('voice_transcription_success', {
+                            transcriptLength: transcript.length,
+                            audioSize: audioBlob.size
+                          });
                       } else {
-                          console.warn('[ChatInterface] Transcription failed:', resp?.error);
+                          console.warn('[VoiceInput] Transcription failed:', resp?.error);
+
+                          // Track failed transcription
+                          trackEvent('voice_transcription_failed', {
+                            error: resp?.error,
+                            audioSize: audioBlob.size
+                          });
+
+                          alert(`Voice transcription failed: ${resp?.error || 'Unknown error'}`);
                       }
                   }
               } catch (err) {
@@ -692,8 +769,20 @@ export const ChatInterface: React.FC = () => {
                       console.log('[ChatInterface] Auto-submitting transcript');
                       handleSend(transcript);
                   }, 100);
+
+                  // Track voice input submission
+                  trackEvent('voice_input_submitted', {
+                    transcriptLength: transcript.length,
+                    autoSubmitted: true
+                  });
               } else {
                   console.error('[ChatInterface] No transcription available from any service');
+
+                  // Track voice input failure
+                  trackEvent('voice_input_failed', {
+                    reason: 'no_transcription'
+                  });
+
                   alert('Voice transcription failed. If you want STT, configure OpenAI or Deepgram in Desktop settings, then try again.');
               }
           };
@@ -726,19 +815,25 @@ export const ChatInterface: React.FC = () => {
           silenceTimer = setTimeout(checkSilence, 50);
           
       } catch (err) {
-          console.error('[ChatInterface] Mic access failed:', err);
+          console.error('[VoiceInput] Mic access failed:', err);
           setIsListening(false);
+          alert(`Microphone access failed: ${err instanceof Error ? err.message : 'Unknown error'}. Please check your microphone permissions and try again.`);
       }
   };
 
   const speakText = async (textToSpeak: string) => {
-      if (!textToSpeak || isLiveActive) return;
+      if (!textToSpeak || isLiveActive) {
+          console.log('[ChatInterface] speakText skipped - text empty or live active:', { textToSpeak: !!textToSpeak, isLiveActive });
+          return;
+      }
+      console.log('[ChatInterface] speakText called with text length:', textToSpeak.length);
       setIsPlayingAudio(true);
 
       try {
                 await speakMossy(textToSpeak, { cancelExisting: true });
+                console.log('[ChatInterface] speakText completed successfully');
       } catch (err) {
-        console.error('[TTS] Audio playback failed:', err);
+        console.error('[ChatInterface] speakText failed:', err);
       }
             setIsPlayingAudio(false);
   };
@@ -816,7 +911,7 @@ export const ChatInterface: React.FC = () => {
           const currentMod = ModProjectStorage.getCurrentMod();
           if (currentMod) {
               const stats = ModProjectStorage.getProjectStats(currentMod.id);
-              modContext = `\n**CURRENT MOD PROJECT:** "${currentMod.name}"\n- Type: ${currentMod.type} | Status: ${currentMod.status}\n- Progress: ${currentMod.completionPercentage}% | Steps: ${stats.completedSteps}/${stats.totalSteps}\n- Version: ${currentMod.version}\n(Provide context-aware guidance for this specific mod.)`;
+              modContext = `\n**CURRENT MOD PROJECT:** "${currentMod.name}"\n- Type: ${currentMod.type} | Status: ${currentMod.status}\n- Progress: ${currentMod.completionPercentage}% | Steps: ${stats?.completedSteps || 0}/${stats?.totalSteps || 0}\n- Version: ${currentMod.version}\n(Provide context-aware guidance for this specific mod.)`;
           }
       } catch (e) {
           // ModProjectStorage not available, skip
@@ -949,18 +1044,18 @@ export const ChatInterface: React.FC = () => {
         }
 
         // 1. Get real installed programs from Electron
+        // Map found programs to our app categories
+        const moddingKeywords = [
+            'blender', 'creationkit', 'fo4edit', 'xedit', 'sseedit', 'tes5edit', 'fnvedit', 'tes4edit', 
+            'modorganizer', 'vortex', 'nifskope', 'bodyslide', 'f4se', 'loot', 'wryebash', 'outfitstudio', 
+            'archive2', 'gimp', 'photoshop', 'zedit', 'bae', 'pjm', 'bethini',
+            'reshade', 'enb', 'cathedral', 'modsel', 'texconv', 'unpacker',
+            'material', 'bgsm', 'facegen', 'lipgen', 'papyrus', 'caprica', 'script',
+            'fallout', 'morrowind', 'oblivion', 'skyrim', 'starfield', 'game', 'mod'
+        ];
+
         if (typeof window.electron?.api?.detectPrograms === 'function') {
-            const installed = await window.electron.api.detectPrograms();
-            
-            // Map found programs to our app categories
-            const moddingKeywords = [
-                'blender', 'creationkit', 'fo4edit', 'xedit', 'sseedit', 'tes5edit', 'fnvedit', 'tes4edit', 
-                'modorganizer', 'vortex', 'nifskope', 'bodyslide', 'f4se', 'loot', 'wryebash', 'outfitstudio', 
-                'archive2', 'gimp', 'photoshop', 'zedit', 'bae', 'pjm', 'bethini',
-                'reshade', 'enb', 'cathedral', 'modsel', 'texconv', 'unpacker',
-                'material', 'bgsm', 'facegen', 'lipgen', 'papyrus', 'caprica', 'script',
-                'fallout', 'morrowind', 'oblivion', 'skyrim', 'starfield', 'game', 'mod'
-            ];
+            const installed = await window.electronAPI.detectPrograms();
             
             installed.forEach((prog: any) => {
                 const nameLower = prog.name.toLowerCase();
@@ -998,7 +1093,7 @@ export const ChatInterface: React.FC = () => {
             const running = await window.electron.api.getRunningProcesses();
             running.forEach((p: any) => {
                 const nameLower = p.name.toLowerCase();
-                if (moddingKeywords.some(kw => nameLower.includes(kw))) {
+                if (moddingKeywords.some((kw: string) => nameLower.includes(kw))) {
                     if (!foundApps.some(app => app.name.toLowerCase().includes(nameLower) || nameLower.includes(app.name.toLowerCase()))) {
                         foundApps.push({
                             id: `running-${Math.random().toString(36).substr(2, 5)}`,
@@ -1062,10 +1157,11 @@ export const ChatInterface: React.FC = () => {
                 setOnboardingState('integrating');
                 setMessages(prev => [...prev, {
                     id: `scan-done-${Date.now()}`,
-                    role: 'model',
-                    text: foundApps.length > 2 
+                    role: 'assistant',
+                    content: foundApps.length > 2 
                         ? `**Deep Scan Complete.** I located **${foundApps.length}** modding tools across your drives. I will remember these for future sessions so we don't need to scan every time.`
-                        : "**Deep Scan Complete.** I couldn't find many tools automatically. You might need to link them manually in the 'Vault' or 'Bridge' settings."
+                        : "**Deep Scan Complete.** I couldn't find many tools automatically. You might need to link them manually in the 'Vault' or 'Bridge' settings.",
+                    timestamp: Date.now()
                 }]);
             }, 500);
         }
@@ -1081,14 +1177,15 @@ export const ChatInterface: React.FC = () => {
       setOnboardingState('ready');
       setMessages(prev => [...prev, {
           id: 'integrated',
-          role: 'model',
-          text: `Tools Linked. Creation Kit telemetry active.\n\n**Ad Victoriam, modder.** What are we building today?`
+          role: 'assistant',
+          content: `Tools Linked. Creation Kit telemetry active.\n\n**Ad Victoriam, modder.** What are we building today?`,
+          timestamp: Date.now()
       }]);
   };
 
   const handleStartProject = () => {
       setOnboardingState('project_setup');
-      setMessages(prev => [...prev, { id: 'proj-start', role: 'model', text: "Initializing new Workspace configuration protocol..." }]);
+      setMessages(prev => [...prev, { id: 'proj-start', role: 'assistant', content: "Initializing new Workspace configuration protocol...", timestamp: Date.now() }]);
   };
 
   const createProjectFile = (data: { name: string, description: string, categories: string[] }) => {
@@ -1103,12 +1200,28 @@ export const ChatInterface: React.FC = () => {
       setProjectData(newProject);
       setProjectContext(data.name);
       setShowProjectPanel(true);
+
+      // Track project creation
+      trackEvent('project_created', {
+        projectName: data.name,
+        descriptionLength: data.description.length,
+        categoriesCount: data.categories.length,
+        categories: data.categories
+      });
+
       return newProject;
   };
 
   const executeTool = async (name: string, args: any) => {
       // Record tool usage for Modding Journey
       await LocalAIEngine.recordAction('tool_execution', { tool: name, args });
+
+      // Track tool execution start
+      trackEvent('tool_execution_started', {
+        toolName: name,
+        argsCount: Object.keys(args || {}).length,
+        isBlenderLinked
+      });
 
       setActiveTool({ id: Date.now().toString(), toolName: name, args, status: 'running' });
 
@@ -1122,6 +1235,14 @@ export const ChatInterface: React.FC = () => {
       });
 
       setActiveTool(null);
+
+      // Track tool execution completion
+      trackEvent('tool_execution_completed', {
+        toolName: name,
+        success: !result?.error,
+        hasResult: !!result
+      });
+
       return result;
   };
 
@@ -1160,7 +1281,7 @@ export const ChatInterface: React.FC = () => {
   const handleStopGeneration = () => {
       setIsLoading(false);
       setIsStreaming(false);
-      setMessages(prev => [...prev, { id: Date.now().toString(), role: 'model', text: "**[Generation Stopped by User]**" }]);
+      setMessages(prev => [...prev, { id: Date.now().toString(), role: 'assistant', content: "**[Generation Stopped by User]**", timestamp: Date.now() }]);
   };
 
   const handleSend = async (overrideText?: string) => {
@@ -1178,7 +1299,7 @@ export const ChatInterface: React.FC = () => {
     if (onboardingState === 'init') {
         if (textToSend.toLowerCase().match(/yes|ok|start|scan/)) {
             setInputText('');
-            setMessages(prev => [...prev, { id: Date.now().toString(), role: 'user', text: textToSend }]);
+            setMessages(prev => [...prev, { id: Date.now().toString(), role: 'user', content: textToSend, timestamp: Date.now() }]);
             performSystemScan();
             return;
         }
@@ -1188,8 +1309,8 @@ export const ChatInterface: React.FC = () => {
     const guard = checkContentGuard(textToSend);
     if (!guard.allowed) {
         setMessages(prev => [...prev, 
-            { id: Date.now().toString(), role: 'user', text: textToSend },
-            { id: Date.now().toString() + '-guard', role: 'model', text: guard.message || "I am strictly a Fallout 4 modding assistant." }
+            { id: Date.now().toString(), role: 'user', content: textToSend, timestamp: Date.now() },
+            { id: Date.now().toString() + '-guard', role: 'assistant', content: guard.message || "I am strictly a Fallout 4 modding assistant.", timestamp: Date.now() }
         ]);
         setInputText('');
         return;
@@ -1198,14 +1319,21 @@ export const ChatInterface: React.FC = () => {
     const userMessage: Message = {
       id: Date.now().toString(),
       role: 'user',
-      text: textToSend,
-      images: selectedFile ? [URL.createObjectURL(selectedFile)] : undefined
+      content: textToSend,
+      timestamp: Date.now()
     };
 
     setMessages(prev => [...prev, userMessage]);
     setInputText('');
     setIsLoading(true);
     stopAudio();
+
+    // Track message send event
+    trackEvent('chat_message_sent', {
+      messageLength: textToSend.length,
+      hasFile: !!selectedFile,
+      onboardingState: onboardingState
+    });
 
     // Record the chat action for the Modding Journey system
     await LocalAIEngine.recordAction('chat_message', { 
@@ -1225,7 +1353,7 @@ export const ChatInterface: React.FC = () => {
       setIsStreaming(true);
 
       const streamId = (Date.now() + 1).toString();
-      setMessages(prev => [...prev, { id: streamId, role: 'model', text: "..Processing.." }]);
+      setMessages(prev => [...prev, { id: streamId, role: 'assistant', content: "..Processing..", timestamp: Date.now() }]);
 
       // Use local engine only (Google Cloud removed)
       const startTime = Date.now();
@@ -1233,12 +1361,27 @@ export const ChatInterface: React.FC = () => {
       const duration = Date.now() - startTime;
       const aiResponseText = localResult.content || "Mossy is in Passive Mode; no cloud model configured.";
 
-      setMessages(prev => prev.map(m => m.id === streamId ? { ...m, text: aiResponseText } : m));
+    setMessages(prev => prev.map(m => m.id === streamId ? { ...m, content: aiResponseText } : m));
+
+      // Save chat messages to auto-save manager
+      const assistantMessage: Message = {
+        id: streamId,
+        role: 'assistant',
+        content: aiResponseText,
+        timestamp: Date.now()
+      };
+      autoSaveManager.saveChatMessage(assistantMessage);
+
+      // Record interaction for self-improvement
+      const { selfImprovementEngine } = await import('./SelfImprovementEngine');
+      selfImprovementEngine.recordInteraction(textToSend, aiResponseText, [], 'success');
 
       console.log('[ChatInterface] Response received, isVoiceEnabled:', isVoiceEnabled);
       if (isVoiceEnabled && aiResponseText) {
           console.log('[ChatInterface] Speaking response (length:', aiResponseText.length, ')');
           await speakText(aiResponseText);
+      } else {
+          console.log('[ChatInterface] Voice disabled or no response text:', { isVoiceEnabled, hasText: !!aiResponseText });
       }
 
       // Log activity AFTER speaking (non-blocking, deferred)
@@ -1264,7 +1407,7 @@ export const ChatInterface: React.FC = () => {
         tags: ['ai_chat', 'error'],
       });
       
-      setMessages(prev => [...prev, { id: Date.now().toString(), role: 'model', text: `**System Error:** ${errText}` }]);
+      setMessages(prev => [...prev, { id: Date.now().toString(), role: 'assistant', content: `**System Error:** ${errText}`, timestamp: Date.now() }]);
     } finally {
       setIsLoading(false);
       setIsStreaming(false);
@@ -1273,7 +1416,7 @@ export const ChatInterface: React.FC = () => {
   };
 
   return (
-    <div className="flex flex-col h-full bg-forge-dark text-slate-200">
+    <div data-testid="chat-container" className="flex flex-col h-full bg-forge-dark text-slate-200">
       {/* Header */}
       <div className="p-4 border-b border-slate-700 flex justify-between items-center bg-forge-panel">
         <div className="flex items-center gap-3">
@@ -1302,7 +1445,16 @@ export const ChatInterface: React.FC = () => {
             {knowledgeCount > 0 && (
                 <button
                     type="button"
-                    onClick={() => navigate('/memory-vault')}
+                    onClick={() => {
+                        // Track navigation to memory vault
+                        trackEvent('navigation', {
+                            from: 'chat_interface',
+                            to: 'memory_vault',
+                            trigger: 'knowledge_vault_button',
+                            knowledgeCount: knowledgeCount
+                        });
+                        navigate('/memory-vault');
+                    }}
                     className="hidden md:flex items-center gap-1.5 px-3 py-1 bg-emerald-900/20 border border-emerald-500/30 rounded-full text-xs text-emerald-300 animate-fade-in hover:bg-emerald-500/10 hover:border-emerald-400/40 transition-colors"
                     title="Open Memory Vault (Knowledge Vault is loaded locally)"
                     aria-label="Open Memory Vault"
@@ -1358,7 +1510,7 @@ export const ChatInterface: React.FC = () => {
                         {isLiveMuted ? 'Live Muted' : 'Live Active'}
                     </button>
                     <button
-                        onClick={disconnectLive}
+                        onClick={() => disconnectLive()}
                         className="p-1.5 rounded-lg border border-red-500/30 hover:bg-red-900/30 text-red-400 transition-colors"
                         title="Stop Live Session"
                     >
@@ -1367,6 +1519,7 @@ export const ChatInterface: React.FC = () => {
                 </div>
             ) : (
                 <button
+                    data-testid="voice-toggle"
                     onClick={toggleVoiceMode}
                     className={`flex items-center gap-2 px-3 py-1.5 rounded-lg border text-xs font-medium transition-all ${
                         isVoiceEnabled ? 'bg-emerald-500/20 border-emerald-500 text-emerald-300' : 'bg-slate-800 border-slate-700 text-slate-400 hover:text-white'
@@ -1382,6 +1535,9 @@ export const ChatInterface: React.FC = () => {
             </button>
             <button onClick={() => setShowProjectPanel(!showProjectPanel)} className={`p-2 rounded transition-colors ${showProjectPanel ? 'text-emerald-400 bg-emerald-900/30' : 'text-slate-400 hover:text-white'}`}>
                 <FileText className="w-4 h-4" />
+            </button>
+            <button onClick={() => setShowSelfImprovementPanel(!showSelfImprovementPanel)} className={`p-2 rounded transition-colors ${showSelfImprovementPanel ? 'text-purple-400 bg-purple-900/30' : 'text-slate-400 hover:text-white'}`} title="Self-Improvement Center">
+                <Brain className="w-4 h-4" />
             </button>
         </div>
       </div>
@@ -1477,15 +1633,16 @@ export const ChatInterface: React.FC = () => {
                     <ProjectWizard 
                         onCancel={() => {
                             setOnboardingState('ready');
-                            setMessages(prev => [...prev, { id: Date.now().toString(), role: 'model', text: "Project setup cancelled." }]);
+                            setMessages(prev => [...prev, { id: Date.now().toString(), role: 'assistant', content: "Project setup cancelled.", timestamp: Date.now() }]);
                         }}
                         onSubmit={(data) => {
                             createProjectFile(data);
                             setOnboardingState('ready');
                             setMessages(prev => [...prev, { 
                                 id: Date.now().toString(), 
-                                role: 'model', 
-                                text: `**Project Initialized:** ${data.name}\n\nCategories: ${data.categories.join(', ')}\n\nI've set up your workspace. Ready to begin?` 
+                                role: 'assistant', 
+                                content: `**Project Initialized:** ${data.name}\n\nCategories: ${data.categories.join(', ')}\n\nI've set up your workspace. Ready to begin?`,
+                                timestamp: Date.now()
                             }]);
                         }}
                     />
@@ -1495,7 +1652,17 @@ export const ChatInterface: React.FC = () => {
                         <div className="flex items-center gap-2 mb-2 bg-slate-800 p-2 rounded-lg w-fit text-sm border border-slate-600">
                             <div className="bg-slate-700 p-1 rounded"><FileText className="w-4 h-4 text-slate-300" /></div>
                             <span className="truncate max-w-[200px] text-slate-200">{selectedFile.name}</span>
-                            <button onClick={() => setSelectedFile(null)} className="hover:text-red-400 p-1 rounded-full hover:bg-slate-700"><X className="w-3 h-3" /></button>
+                            <button onClick={() => {
+                                // Track file removal
+                                if (selectedFile) {
+                                    trackEvent('file_removed', {
+                                        fileName: selectedFile.name,
+                                        fileSize: selectedFile.size,
+                                        fileType: selectedFile.type
+                                    });
+                                }
+                                setSelectedFile(null);
+                            }} className="hover:text-red-400 p-1 rounded-full hover:bg-slate-700"><X className="w-3 h-3" /></button>
                         </div>
                         )}
                         
@@ -1508,7 +1675,20 @@ export const ChatInterface: React.FC = () => {
 
                         <div className="flex gap-2">
                         <label className="p-3 hover:bg-slate-700 rounded-xl cursor-pointer text-slate-400 transition-colors border border-transparent hover:border-slate-600">
-                            <input type="file" className="hidden" onChange={(e) => e.target.files && setSelectedFile(e.target.files[0])} accept=".psc,.nif,.dds,image/*,text/*" />
+                            <input type="file" className="hidden" onChange={(e) => {
+                                if (e.target.files && e.target.files[0]) {
+                                    const file = e.target.files[0];
+                                    setSelectedFile(file);
+                                    
+                                    // Track file selection
+                                    trackEvent('file_selected', {
+                                        fileName: file.name,
+                                        fileSize: file.size,
+                                        fileType: file.type,
+                                        fileExtension: file.name.split('.').pop()?.toLowerCase()
+                                    });
+                                }
+                            }} accept=".psc,.nif,.dds,image/*,text/*" />
                             <Paperclip className="w-5 h-5" />
                         </label>
                         
@@ -1544,16 +1724,23 @@ export const ChatInterface: React.FC = () => {
                             </div>
                         )}
 
-                        <input type="text" className="flex-1 bg-slate-900 border border-slate-700 rounded-xl px-4 py-2 focus:outline-none focus:border-emerald-500 transition-colors text-slate-100 placeholder-slate-500" placeholder="Message Mossy..." value={inputText} onChange={(e) => setInputText(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && handleSend()} />
-                        <button onClick={() => handleSend()} disabled={isLoading || isStreaming || (!inputText && !selectedFile)} className="p-3 bg-emerald-600 text-white rounded-xl hover:bg-emerald-500 disabled:opacity-50 disabled:cursor-not-allowed font-medium transition-colors shadow-lg shadow-emerald-900/20"><Send className="w-5 h-5" /></button>
+                        <input type="text" data-testid="chat-input" className="flex-1 bg-slate-900 border border-slate-700 rounded-xl px-4 py-2 focus:outline-none focus:border-emerald-500 transition-colors text-slate-100 placeholder-slate-500" placeholder="Message Mossy..." value={inputText} onChange={(e) => setInputText(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && handleSend()} />
+                        <button data-testid="send-button" onClick={() => handleSend()} disabled={isLoading || isStreaming || (!inputText && !selectedFile)} className="p-3 bg-emerald-600 text-white rounded-xl hover:bg-emerald-500 disabled:opacity-50 disabled:cursor-not-allowed font-medium transition-colors shadow-lg shadow-emerald-900/20"><Send className="w-5 h-5" /></button>
                         </div>
                     </>
                 )}
             </div>
         </div>
     </div>
+
+    {/* Self-Improvement Panel */}
+    <SelfImprovementPanel
+      isVisible={showSelfImprovementPanel}
+      onClose={() => setShowSelfImprovementPanel(false)}
+    />
   </div>
-  );
+);
+
 };
 
 export default ChatInterface;

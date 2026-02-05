@@ -102,6 +102,31 @@ const IPC_CHANNELS = {
 
   // Speech-to-text (main process handles keys)
   TRANSCRIBE_AUDIO: 'transcribe-audio',
+
+  // Roadmap System (v5.4.21+)
+  ROADMAP_GET_ALL: 'roadmap-get-all',
+  ROADMAP_GET_ACTIVE: 'roadmap-get-active',
+  ROADMAP_CREATE: 'roadmap-create',
+  ROADMAP_UPDATE_STEP: 'roadmap-update-step',
+  ROADMAP_DELETE: 'roadmap-delete',
+  ROADMAP_GENERATE_AI: 'roadmap-generate-ai',
+
+  // Proactive Observer (Neural Link+)
+  OBSERVER_NOTIFY: 'observer-notify',
+  OBSERVER_SET_ACTIVE_FOLDER: 'observer-set-active-folder',
+
+  // Multi-Project Support
+  PROJECT_LIST: 'project-list',
+  PROJECT_CREATE: 'project-create',
+  PROJECT_UPDATE: 'project-update',
+  PROJECT_DELETE: 'project-delete',
+  PROJECT_SWITCH: 'project-switch',
+  PROJECT_GET_CURRENT: 'project-get-current',
+
+  // Project Wizard (Phase 3)
+  WIZARD_GET_STATE: 'wizard-get-state',
+  WIZARD_UPDATE_STEP: 'wizard-update-step',
+  WIZARD_SUBMIT_ACTION: 'wizard-submit-action',
 } as const;
 
 /**
@@ -268,6 +293,38 @@ const electronAPI = {
   },
   loadVaultManifest: (): Promise<unknown[]> => {
     return ipcRenderer.invoke(IPC_CHANNELS.VAULT_LOAD_MANIFEST);
+  },
+
+  /**
+   * Project Management
+   */
+  getProjects: (): Promise<any[]> => {
+    return ipcRenderer.invoke(IPC_CHANNELS.PROJECT_LIST);
+  },
+  createProject: (project: any): Promise<any> => {
+    return ipcRenderer.invoke(IPC_CHANNELS.PROJECT_CREATE, project);
+  },
+  updateProject: (project: any): Promise<any> => {
+    return ipcRenderer.invoke(IPC_CHANNELS.PROJECT_UPDATE, project);
+  },
+  deleteProject: (projectId: string): Promise<any> => {
+    return ipcRenderer.invoke(IPC_CHANNELS.PROJECT_DELETE, projectId);
+  },
+  getCurrentProject: (): Promise<any> => {
+    return ipcRenderer.invoke(IPC_CHANNELS.PROJECT_GET_CURRENT);
+  },
+
+  /**
+   * Project Wizard
+   */
+  wizardGetState: (wizardId: string): Promise<any> => {
+    return ipcRenderer.invoke(IPC_CHANNELS.WIZARD_GET_STATE, wizardId);
+  },
+  wizardUpdateStep: (wizardId: string, stepId: string, status: string, data?: any): Promise<any> => {
+    return ipcRenderer.invoke(IPC_CHANNELS.WIZARD_UPDATE_STEP, wizardId, stepId, status, data);
+  },
+  wizardSubmitAction: (wizardId: string, actionType: string, payload: any): Promise<any> => {
+    return ipcRenderer.invoke(IPC_CHANNELS.WIZARD_SUBMIT_ACTION, wizardId, actionType, payload);
   },
 
   /**
@@ -645,6 +702,22 @@ const electronAPI = {
    */
   dedupeTrash: (payload: { scanId: string; paths: string[] }): Promise<any> => {
     return ipcRenderer.invoke(IPC_CHANNELS.DEDUPE_TRASH, payload);
+  },
+
+  /**
+   * Generic IPC: Invoke a command in the main process
+   */
+  invoke: (channel: string, ...args: any[]): Promise<any> => {
+    return ipcRenderer.invoke(channel, ...args);
+  },
+
+  /**
+   * Generic IPC: Listen for an event from the main process
+   */
+  on: (channel: string, callback: (...args: any[]) => void): (() => void) => {
+    const subscription = (_event: any, ...args: any[]) => callback(...args);
+    ipcRenderer.on(channel, subscription);
+    return () => ipcRenderer.removeListener(channel, subscription);
   },
 };
 

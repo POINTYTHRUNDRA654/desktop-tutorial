@@ -7,7 +7,7 @@ import {
   ChevronDown,
   Save,
   Copy,
-  Download,
+  ArrowDownToLine,
   Upload,
   AlertTriangle,
   Clock,
@@ -518,7 +518,7 @@ const WorkflowRunner: React.FC = () => {
               className="px-3 py-2 rounded bg-slate-800 hover:bg-slate-700 border border-slate-700 text-xs font-semibold flex items-center gap-2"
               title="Export workflow definitions"
             >
-              <Download className="w-4 h-4" /> Export Workflows
+              <ArrowDownToLine className="w-4 h-4" /> Export Workflows
             </button>
             <button
               onClick={() => importWorkflows().catch(() => {})}
@@ -734,7 +734,7 @@ const WorkflowRunner: React.FC = () => {
                                   onClick={() => exportHistoryRun(run).catch(() => {})}
                                   className="px-3 py-2 rounded bg-slate-700 hover:bg-slate-600 border border-slate-600 text-xs font-semibold flex items-center gap-2"
                                 >
-                                  <Download className="w-4 h-4" /> Export
+                                  <ArrowDownToLine className="w-4 h-4" /> Export
                                 </button>
                               </div>
                             </div>
@@ -882,7 +882,7 @@ const WorkflowRunner: React.FC = () => {
                         onClick={() => exportRunLog().catch(() => {})}
                         className="px-3 py-2 rounded bg-slate-700 hover:bg-slate-600 border border-slate-600 text-xs font-semibold flex items-center gap-2"
                       >
-                        <Download className="w-4 h-4" /> Export
+                        <ArrowDownToLine className="w-4 h-4" /> Export
                       </button>
                     </div>
                   </div>

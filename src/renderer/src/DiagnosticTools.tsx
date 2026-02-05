@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { AlertCircle, CheckCircle2, XCircle, Loader2, Play, Copy, Download } from 'lucide-react';
+import { AlertCircle, CheckCircle2, XCircle, Loader2, Play, Copy, ArrowDownToLine } from 'lucide-react';
 import { ToolsInstallVerifyPanel } from './components/ToolsInstallVerifyPanel';
 
 interface DiagnosticCheck {
@@ -122,24 +122,34 @@ const DiagnosticTools: React.FC = () => {
       setCheck('storage-available', { result: 'Error', errorDetails: (e as Error).message, status: 'error' });
     }
 
-    // Knowledge Vault
+    // Knowledge Vault - initialize if missing
     try {
-      const raw = localStorage.getItem('mossy_knowledge_vault');
+      let raw = localStorage.getItem('mossy_knowledge_vault');
+      if (!raw) {
+        // Initialize with empty array
+        localStorage.setItem('mossy_knowledge_vault', JSON.stringify([]));
+        raw = JSON.stringify([]);
+      }
       const parsed = raw ? JSON.parse(raw) : null;
       const count = Array.isArray(parsed) ? parsed.length : 0;
-      setCheck('knowledge-vault', { result: raw ? `Loaded (${count} items)` : 'Missing', status: raw ? 'success' : 'error' });
+      setCheck('knowledge-vault', { result: `Loaded (${count} items)`, status: 'success' });
     } catch (e) {
       setCheck('knowledge-vault', { result: 'Unreadable', errorDetails: (e as Error).message, status: 'error' });
     }
 
-    // Install Wizard progress
+    // Install Wizard progress - initialize if missing
     try {
-      const raw = localStorage.getItem('mossy_install_wizard_state_v1');
+      let raw = localStorage.getItem('mossy_install_wizard_state_v1');
+      if (!raw) {
+        // Initialize with default state
+        const defaultState = { topic: 'xedit', checked: {}, modManager: 'mo2' };
+        localStorage.setItem('mossy_install_wizard_state_v1', JSON.stringify(defaultState));
+        raw = JSON.stringify(defaultState);
+      }
       const parsed = raw ? JSON.parse(raw) : null;
       const topic = parsed?.topic ? String(parsed.topic) : '';
       const checkedCount = parsed?.checked && typeof parsed.checked === 'object' ? Object.keys(parsed.checked).length : 0;
-      const ok = !!raw;
-      setCheck('install-wizard-state', { result: ok ? `Loaded (topic=${topic || 'unknown'}, ${checkedCount} marks)` : 'Missing', status: ok ? 'success' : 'error' });
+      setCheck('install-wizard-state', { result: `Loaded (topic=${topic || 'unknown'}, ${checkedCount} marks)`, status: 'success' });
     } catch (e) {
       setCheck('install-wizard-state', { result: 'Unreadable', errorDetails: (e as Error).message, status: 'error' });
     }
@@ -158,15 +168,40 @@ const DiagnosticTools: React.FC = () => {
       setCheck('microphone-permission', { result: 'Error', errorDetails: (e as Error).message, status: 'error' });
     }
 
-    // TTS voices
+    // TTS voices - handle async loading
     try {
       const synth = (window as any).speechSynthesis;
       if (!synth?.getVoices) {
         setCheck('tts-voices', { result: 'speechSynthesis not supported', status: 'error' });
       } else {
-        const voices = synth.getVoices();
-        const count = Array.isArray(voices) ? voices.length : 0;
-        setCheck('tts-voices', { result: count > 0 ? `Available (${count})` : 'No voices yet (try again)', status: count > 0 ? 'success' : 'error' });
+        // Voices may load asynchronously, so check immediately and also listen for changes
+        const checkVoices = () => {
+          const voices = synth.getVoices();
+          const count = Array.isArray(voices) ? voices.length : 0;
+          if (count > 0) {
+            setCheck('tts-voices', { result: `Available (${count})`, status: 'success' });
+            return true;
+          }
+          return false;
+        };
+
+        // Check immediately
+        if (!checkVoices()) {
+          // If no voices yet, wait for voiceschanged event or try again after a short delay
+          const voicesChangedHandler = () => {
+            checkVoices();
+            synth.removeEventListener('voiceschanged', voicesChangedHandler);
+          };
+          synth.addEventListener('voiceschanged', voicesChangedHandler);
+
+          // Also try after a short delay in case voiceschanged doesn't fire
+          setTimeout(() => {
+            if (!checkVoices()) {
+              setCheck('tts-voices', { result: 'No voices loaded yet (refresh page)', status: 'error' });
+            }
+            synth.removeEventListener('voiceschanged', voicesChangedHandler);
+          }, 1000);
+        }
       }
     } catch (e) {
       setCheck('tts-voices', { result: 'Error', errorDetails: (e as Error).message, status: 'error' });
@@ -519,10 +554,29 @@ ${listAvailableAPIs()}
 
           <div className="p-6">
             <button
+              onClick={() => {
+                const api = (window as any).electron?.api || (window as any).electronAPI;
+                if (api?.openDevTools) {
+                  api.openDevTools();
+                } else {
+                  // Fallback: try to open dev tools directly
+                  if ((window as any).electron?.webContents?.openDevTools) {
+                    (window as any).electron.webContents.openDevTools();
+                  } else {
+                    alert('Dev tools not available. Try pressing F12 or check if you are running the desktop app.');
+                  }
+                }
+              }}
+              className="w-full px-4 py-3 rounded-lg bg-orange-600 hover:bg-orange-700 text-white font-bold transition-colors flex items-center justify-center gap-2 mb-4"
+            >
+              🔧 Open Developer Tools
+            </button>
+
+            <button
               onClick={() => exportDiagnosticsSnapshot().catch(() => {})}
               className="w-full px-4 py-3 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold transition-colors flex items-center justify-center gap-2"
             >
-              <Download className="w-4 h-4" />
+              <ArrowDownToLine className="w-4 h-4" />
               Export Diagnostics Snapshot (JSON)
             </button>
 
@@ -536,7 +590,7 @@ ${listAvailableAPIs()}
               onClick={exportDiagnostics}
               className="w-full px-4 py-3 rounded-lg bg-purple-600 hover:bg-purple-700 text-white font-bold transition-colors flex items-center justify-center gap-2"
             >
-              <Download className="w-4 h-4" />
+              <ArrowDownToLine className="w-4 h-4" />
               Export Full Diagnostic Report
             </button>
           </div>

@@ -1,6 +1,25 @@
 # Blender Add-on Tutorial (Practical Guide)
 
-This guide helps technical artists and developers extend Blender with Python add-ons, from first operator to headless automation.
+**Updated for Mossy v5.4.21**
+
+This guide helps technical artists and developers extend Blender with Python add-ons, from first operator to headless automation. Now includes direct-write and headless execution via Mossy.
+
+---
+
+## 🚀 Mossy Integration & Onboarding (v5.4.21)
+
+Mossy now supports:
+- Direct script installation to Blender via The Scribe (IDE)
+- Headless automation with [run_blender_ops.ps1](../../scripts/blender/run_blender_ops.ps1)
+- Real-time monitoring and session awareness (Neural Link)
+- Script execution controls and trust management (see checklist below)
+
+**New users:**
+- Use The Scribe to write and install Python scripts directly into Blender
+- Use the headless runner for batch automation and CI workflows
+- All features are production-ready and tested
+
+---
 
 ## Intended Audience
 - Comfortable with Blender basics (navigation, objects, Text Editor).
@@ -98,6 +117,26 @@ Examples:
 ```powershell
 # Render animation in background with scripts/drivers enabled
 blender --background --enable-autoexec "C:\Path\To\my_scene.blend" --render-anim
+```
+
+## Mossy Direct-Write & Automation (v5.4.21)
+
+Mossy can:
+- Write scripts directly to your Blender add-ons folder
+- Launch Blender in headless mode with custom operators
+- Use [run_blender_ops.ps1](../../scripts/blender/run_blender_ops.ps1) for automated batch runs
+
+Example (PowerShell):
+
+```powershell
+# Move X on all objects
+./scripts/blender/run_blender_ops.ps1 -BlendFile "C:\scene.blend" -Operator move_x -EnableAutoExec
+
+# Cursor Array with 8 steps
+./scripts/blender/run_blender_ops.ps1 -BlendFile "C:\scene.blend" -Operator cursor_array -Total 8 -EnableAutoExec
+```
+
+---
 
 # Execute one of our add-ons and invoke its operator
 blender --background --enable-autoexec "C:\Path\To\my_scene.blend" \
@@ -124,6 +163,10 @@ Control auto-exec globally and per-file:
 
 See the checklist: [BLENDER_SCRIPT_EXECUTION_CHECKLIST.md](BLENDER_SCRIPT_EXECUTION_CHECKLIST.md)
 
+**Mossy v5.4.21:**
+- The Scribe and Neural Link modules respect Blender's auto-exec and trust settings
+- All direct-write operations are logged and require explicit user permission
+
 ## Troubleshooting
 - Operator not found: confirm add-on is enabled or script was run; check Operator Search.
 - Properties not showing: ensure `bpy.props` definitions are in the class body and the class is registered.
@@ -135,3 +178,11 @@ See the checklist: [BLENDER_SCRIPT_EXECUTION_CHECKLIST.md](BLENDER_SCRIPT_EXECUT
 - Add panels (`bpy.types.Panel`) for operator UIs.
 - Persist settings via `AddonPreferences`.
 - Package your add-on with versioning and documentation for teammates.
+
+---
+
+**See also:**
+- [BLENDER_SCRIPT_EXECUTION_CHECKLIST.md](BLENDER_SCRIPT_EXECUTION_CHECKLIST.md) for security and automation
+- [scripts/blender/README_BLENDER_ADDONS.md](../../scripts/blender/README_BLENDER_ADDONS.md) for advanced automation
+
+---

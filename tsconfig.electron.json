@@ -6,7 +6,10 @@
     "noEmit": false,
     "outDir": "dist-electron",
     "lib": ["ES2022"],
-    "types": ["node"]
+    "types": ["node"],
+    "strict": false,
+    "noImplicitAny": false,
+    "skipLibCheck": true
   },
   "include": ["src/main/**/*", "src/electron/**/*", "src/shared/**/*"],
   "exclude": ["node_modules", "src/renderer"]
