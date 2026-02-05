@@ -1,10 +1,10 @@
-# Mossy v4.0 - Quick Start (5 minutes)
+# Mossy v5.4.21 - Quick Start (5 minutes)
 
 **Welcome to Mossy!** This guide gets you from install → first launch → first useful action.
 
 ## 1) Install (Windows)
 
-1. Download the latest Windows installer (for example: `Mossy Setup 4.0.0.exe`).
+1. Download the latest Windows installer (for example: `Mossy Setup 5.4.21.exe`).
 2. Run the installer and follow the prompts.
 3. Launch Mossy from the Start Menu or desktop shortcut.
 
@@ -14,9 +14,11 @@ On first run, Mossy walks you through a quick setup:
 
 1. **Pick your UI language** (Auto/system, English, Español, Français, Deutsch, Русский, 中文（简体）).
 2. **System Scan** finds modding tools installed on your PC.
-3. **Tool approvals** let you choose which tools Mossy can “know about” and integrate with.
+3. **Tool Permissions** grant explicit approval for direct-write and automation features.
+4. **Privacy Settings** configure data sharing (default: nothing shared).
+5. **Setup Complete** - you're ready to mod!
 
-You can change language and tool approvals later in Settings.
+You can change settings later in Settings.
 
 ## 3) Configure AI (Optional)
 
@@ -35,11 +37,14 @@ Mossy is a professional Fallout 4 modding dashboard. Unlike other tools, Mossy u
 
 - 🤖 **Hybrid AI** - Use OpenAI/Groq (cloud) or Ollama (Local/Private).
 - 🧠 **Memory Vault** - Feed Mossy custom tutorials to create your own modding RAG.
-- 🔗 **Neural Link** - Real-time monitoring of Blender, Creation Kit, and xEdit (Requires Desktop Bridge).
+- 🔗 **Neural Link** - Real-time monitoring of Blender, Creation Kit, xEdit, and NifSkope with session awareness.
+- ⚡ **Direct-Write Protocol** - Direct script writing to Papyrus, xEdit, and Blender (with explicit permission).
+- 🚀 **Headless Automation** - Batch execution and automation for Blender operations.
 - 🔍 **Asset Analysis** - Real binary validation of NIF, DDS, and ESP files.
 - 🎨 **PBR Generation** - Apply real Sobel edge detection and luminance algorithms to your textures.
 - 🛠️ **Tools Integration** - Direct system link to detect and launch your modding utilities.
 - 📊 **System Monitor** - Real-time hardware telemetry (No fake metrics).
+- 🔒 **Audit Logging** - Complete audit trail for all direct-write and automation actions.
 
 ### Step 3: Train Mossy (Optional but Recommended)
 Go to **Memory Vault** and upload any `.txt` or `.md` tutorials you have. Mossy will "digest" these and use them to answer your questions.

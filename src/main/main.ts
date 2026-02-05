@@ -42,7 +42,9 @@ const log = (msg: string) => {
     const line = `[${new Date().toISOString()}] ${msg}\n`;
     fs.appendFileSync(logPath, line);
     console.log(msg); // Also log to console for debugging
-  } catch (e) {}
+  } catch (e) {
+    // Ignore logging errors
+  }
 };
 
 // Handle second instance (ensure single instance) - DO THIS FIRST
@@ -108,8 +110,10 @@ log('Imports completed successfully.');
  * Handles window creation, IPC communication, tray icon, and system integration.
  */
 
-// Load environment variables from .env.local
-const envPath = path.join(process.cwd(), '.env.local');
+// Load environment variables - use encrypted version for packaged builds
+const envPath = app.isPackaged
+  ? path.join(process.cwd(), '.env.encrypted')
+  : path.join(process.cwd(), '.env.local');
 
 // Helper types and functions for transcription
 type SecretField = 'elevenLabsApiKey' | 'openaiApiKey' | 'groqApiKey' | 'deepgramApiKey' | 'backendToken';
@@ -122,7 +126,31 @@ const decryptSecretFromStorage = (stored: any): string => {
   if (!raw) return '';
   if (raw.startsWith('plain:')) return raw.slice('plain:'.length);
   if (!raw.startsWith('enc:')) return '';
-  const b64 = raw.slice('enc:'.length);
+
+  const encrypted = raw.slice('enc:'.length);
+
+  // Try packaged encryption format first (iv:encrypted)
+  if (encrypted.includes(':')) {
+    try {
+      const crypto = require('crypto');
+      const ENCRYPTION_KEY = 'mossy-2026-packaging-key-change-in-production';
+      const parts = encrypted.split(':');
+      if (parts.length === 2) {
+        const iv = Buffer.from(parts[0], 'hex');
+        const encryptedText = parts[1];
+        const key = crypto.scryptSync(ENCRYPTION_KEY, 'salt', 32);
+        const decipher = crypto.createDecipheriv('aes-256-cbc', key, iv);
+        let decrypted = decipher.update(encryptedText, 'hex', 'utf8');
+        decrypted += decipher.final('utf8');
+        return decrypted;
+      }
+    } catch (e) {
+      console.warn('[Settings] packaged decryption failed, trying safeStorage:', e);
+    }
+  }
+
+  // Fall back to safeStorage format (base64 only)
+  const b64 = encrypted;
   try {
     // For now, just return the base64 decoded value since we don't have safeStorage in main.ts
     return Buffer.from(b64, 'base64').toString('utf-8');
@@ -140,8 +168,18 @@ const getSecretValue = (settings: any, field: SecretField, envName?: string): st
   const fromPlain = String(settings?.[field] || '').trim();
   if (fromPlain) return fromPlain;
 
-  const fromEnv = envName ? String((process.env as any)?.[envName] || '').trim() : '';
-  return fromEnv;
+  // Check environment variables (now potentially encrypted)
+  if (envName) {
+    const envValue = String((process.env as any)?.[envName] || '').trim();
+    if (envValue) {
+      // If it starts with enc:, decrypt it
+      if (envValue.startsWith('enc:')) {
+        return decryptSecretFromStorage(envValue);
+      }
+      return envValue;
+    }
+  }
+  return '';
 };
 
 const getBackendConfig = (): BackendConfig | null => {
