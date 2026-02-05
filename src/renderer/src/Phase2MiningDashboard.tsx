@@ -46,7 +46,7 @@ export const Phase2MiningDashboard: React.FC<Phase2MiningDashboardProps> = ({
   const [activeTab, setActiveTab] = useState('overview');
 
   return (
-    <div className="w-full space-y-6">
+    <div className="w-full space-y-8 p-4">
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-2xl font-bold text-gray-900 dark:text-white">
@@ -63,7 +63,7 @@ export const Phase2MiningDashboard: React.FC<Phase2MiningDashboardProps> = ({
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-        <TabsList className="grid w-full grid-cols-6">
+        <TabsList className="grid w-full grid-cols-6 mb-6">
           <TabsTrigger value="overview">Overview</TabsTrigger>
           <TabsTrigger value="conflicts">Conflicts</TabsTrigger>
           <TabsTrigger value="performance">Performance</TabsTrigger>
@@ -166,13 +166,13 @@ const Phase2Overview: React.FC<{
   ];
 
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+    <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-8">
       {engines.map((engine) => (
-        <Card key={engine.id} className="relative">
-          <CardHeader className="pb-3">
+        <Card key={engine.id} className="relative h-full">
+          <CardHeader className="pb-4">
             <div className="flex items-center justify-between">
-              <div className="flex items-center space-x-2">
-                <engine.icon className="w-5 h-5 text-blue-500" />
+              <div className="flex items-center space-x-3">
+                <engine.icon className="w-6 h-6 text-blue-500" />
                 <CardTitle className="text-lg">{engine.name}</CardTitle>
               </div>
               <Badge
@@ -183,13 +183,13 @@ const Phase2Overview: React.FC<{
               </Badge>
             </div>
           </CardHeader>
-          <CardContent>
-            <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
+          <CardContent className="space-y-4">
+            <p className="text-sm text-gray-600 dark:text-gray-400">
               {engine.description}
             </p>
 
             {engine.metrics && (
-              <div className="space-y-2">
+              <div className="space-y-3">
                 {engine.metrics.totalMeasurements && (
                   <div className="flex justify-between text-sm">
                     <span>Data Points:</span>
@@ -246,43 +246,43 @@ const MLConflictPredictions: React.FC<{
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-8">
       <Card>
         <CardHeader>
-          <CardTitle className="flex items-center space-x-2">
-            <Brain className="w-5 h-5" />
+          <CardTitle className="flex items-center space-x-3">
+            <Brain className="w-6 h-6" />
             <span>ML Conflict Predictions</span>
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-            <div className="text-center">
-              <div className="text-2xl font-bold text-blue-600">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+            <div className="text-center p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
+              <div className="text-3xl font-bold text-blue-600 mb-2">
                 {predictions.metadata?.totalPredictions || 0}
               </div>
-              <div className="text-sm text-gray-600">Total Predictions</div>
+              <div className="text-sm text-gray-600 dark:text-gray-400">Total Predictions</div>
             </div>
-            <div className="text-center">
-              <div className="text-2xl font-bold text-red-600">
+            <div className="text-center p-4 bg-red-50 dark:bg-red-900/20 rounded-lg">
+              <div className="text-3xl font-bold text-red-600 mb-2">
                 {predictions.metadata?.criticalConflicts || 0}
               </div>
-              <div className="text-sm text-gray-600">Critical Conflicts</div>
+              <div className="text-sm text-gray-600 dark:text-gray-400">Critical Conflicts</div>
             </div>
-            <div className="text-center">
-              <div className="text-2xl font-bold text-green-600">
+            <div className="text-center p-4 bg-green-50 dark:bg-green-900/20 rounded-lg">
+              <div className="text-3xl font-bold text-green-600 mb-2">
                 {predictions.metadata?.resolvedConflicts || 0}
               </div>
-              <div className="text-sm text-gray-600">Auto-Resolved</div>
+              <div className="text-sm text-gray-600 dark:text-gray-400">Auto-Resolved</div>
             </div>
           </div>
 
           {predictions.predictions?.length > 0 && (
-            <div className="space-y-4">
-              <h3 className="font-medium">Recent Predictions</h3>
+            <div className="space-y-6">
+              <h3 className="font-medium text-lg">Recent Predictions</h3>
               {predictions.predictions.slice(0, 5).map((prediction: any, index: number) => (
-                <div key={index} className="border rounded-lg p-4">
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="font-medium">
+                <div key={index} className="border rounded-lg p-6 bg-gray-50 dark:bg-gray-800/50">
+                  <div className="flex items-center justify-between mb-4">
+                    <span className="font-medium text-lg">
                       {prediction.modA} ↔ {prediction.modB}
                     </span>
                     <Badge
@@ -290,14 +290,15 @@ const MLConflictPredictions: React.FC<{
                         prediction.severity === 'critical' ? 'destructive' :
                         prediction.severity === 'high' ? 'default' : 'secondary'
                       }
+                      className="text-sm px-3 py-1"
                     >
                       {prediction.severity}
                     </Badge>
                   </div>
-                  <p className="text-sm text-gray-600 mb-2">
+                  <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
                     Probability: {Math.round(prediction.probability * 100)}%
                   </p>
-                  <div className="flex space-x-2">
+                  <div className="flex flex-wrap gap-3">
                     {prediction.mitigationStrategies?.slice(0, 2).map((strategy: any, idx: number) => (
                       <Button
                         key={idx}
@@ -307,6 +308,7 @@ const MLConflictPredictions: React.FC<{
                           prediction,
                           strategy
                         })}
+                        className="px-4 py-2"
                       >
                         {strategy.type}
                       </Button>
@@ -340,30 +342,30 @@ const PerformanceBottlenecks: React.FC<{
   }
 
   return (
-    <div className="space-y-6">
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+    <div className="space-y-8">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
         <Card>
           <CardHeader>
-            <CardTitle className="flex items-center space-x-2">
-              <Zap className="w-5 h-5" />
+            <CardTitle className="flex items-center space-x-3">
+              <Zap className="w-6 h-6" />
               <span>Current Performance</span>
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="space-y-4">
+            <div className="space-y-6">
               <div>
-                <div className="flex justify-between text-sm mb-1">
+                <div className="flex justify-between text-sm mb-2">
                   <span>Average FPS</span>
-                  <span>{bottlenecks.summary?.averageFPS?.toFixed(1) || 'N/A'}</span>
+                  <span className="font-medium">{bottlenecks.summary?.averageFPS?.toFixed(1) || 'N/A'}</span>
                 </div>
-                <Progress value={Math.min((bottlenecks.summary?.averageFPS || 0) / 60 * 100, 100)} />
+                <Progress value={Math.min((bottlenecks.summary?.averageFPS || 0) / 60 * 100, 100)} className="h-3" />
               </div>
               <div>
-                <div className="flex justify-between text-sm mb-1">
+                <div className="flex justify-between text-sm mb-2">
                   <span>Memory Usage</span>
-                  <span>{bottlenecks.summary?.averageMemory?.toFixed(1) || 'N/A'} MB</span>
+                  <span className="font-medium">{bottlenecks.summary?.averageMemory?.toFixed(1) || 'N/A'} MB</span>
                 </div>
-                <Progress value={Math.min((bottlenecks.summary?.averageMemory || 0) / 8192 * 100, 100)} />
+                <Progress value={Math.min((bottlenecks.summary?.averageMemory || 0) / 8192 * 100, 100)} className="h-3" />
               </div>
             </div>
           </CardContent>
@@ -371,30 +373,31 @@ const PerformanceBottlenecks: React.FC<{
 
         <Card>
           <CardHeader>
-            <CardTitle className="flex items-center space-x-2">
-              <AlertTriangle className="w-5 h-5" />
+            <CardTitle className="flex items-center space-x-3">
+              <AlertTriangle className="w-6 h-6" />
               <span>Active Bottlenecks</span>
             </CardTitle>
           </CardHeader>
           <CardContent>
             {bottlenecks.currentAnalysis?.primaryBottlenecks?.length > 0 ? (
-              <div className="space-y-3">
+              <div className="space-y-4">
                 {bottlenecks.currentAnalysis.primaryBottlenecks.map((bottleneck: any, index: number) => (
-                  <div key={index} className="border rounded-lg p-3">
-                    <div className="flex items-center justify-between mb-2">
-                      <span className="font-medium capitalize">{bottleneck.type} Bottleneck</span>
+                  <div key={index} className="border rounded-lg p-4 bg-gray-50 dark:bg-gray-800/50">
+                    <div className="flex items-center justify-between mb-3">
+                      <span className="font-medium capitalize text-base">{bottleneck.type} Bottleneck</span>
                       <Badge variant={
                         bottleneck.severity === 'critical' ? 'destructive' :
                         bottleneck.severity === 'high' ? 'default' : 'secondary'
-                      }>
+                      } className="px-3 py-1">
                         {bottleneck.severity}
                       </Badge>
                     </div>
-                    <p className="text-sm text-gray-600 mb-2">{bottleneck.rootCause}</p>
+                    <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">{bottleneck.rootCause}</p>
                     <Button
                       variant="outline"
                       size="sm"
                       onClick={() => onActionExecute?.('optimize_bottleneck', bottleneck)}
+                      className="px-4 py-2"
                     >
                       Optimize
                     </Button>
@@ -403,7 +406,7 @@ const PerformanceBottlenecks: React.FC<{
               </div>
             ) : (
               <div className="text-center text-gray-500 py-8">
-                <CheckCircle className="w-8 h-8 mx-auto mb-2 opacity-50" />
+                <CheckCircle className="w-12 h-12 mx-auto mb-4 opacity-50" />
                 <p>No active bottlenecks detected</p>
               </div>
             )}

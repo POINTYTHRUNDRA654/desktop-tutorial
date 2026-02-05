@@ -1,20 +1,21 @@
-# Getting Started with Mossy v3.0
+# Getting Started with Mossy v5.4.21
 ## Your Complete Fallout 4 Modding Assistant
 
-Welcome to Mossy v3.0! This guide will help you get the most out of your AI modding companion.
+Welcome to Mossy v5.4.21! This guide will help you get the most out of your AI modding companion.
 
 ---
 
-## 🎆 What's New in v3.0
+## 🎆 What's New in v5.4.21
 
-### Revolutionary Voice Conversation
-Mossy now features **next-generation voice interaction** with:
+### Revolutionary Direct-Write Protocol
+Mossy now features **direct integration** with your modding tools:
 
-- **⚡ Smart Silence Detection (~1s):** Mossy detects when you're done speaking in about 1 second using intelligent audio analysis - no more mid-sentence cutoffs!
-- **🚀 Deepgram-First STT:** Lightning-fast speech recognition prioritizes Deepgram for near-instant transcription with Whisper as backup
-- **🧠 Full Conversation Memory:** Mossy includes your recent chat history + knowledge vault in every response, so you never have to repeat context
-- **🎭 Simplified Controls:** Clean UI with mute toggle and standard disconnect - no unnecessary emergency buttons
-- **🔄 Robust Restart Logic:** Fresh silence detection on every conversation turn prevents timeout delays
+- **⚡ Direct Script Writing:** Mossy can write Papyrus scripts, xEdit patches, and Blender operations directly to your files (with explicit permission)
+- **🚀 Headless Automation:** Batch execution and automation for Blender operations without opening the UI
+- **🧠 Neural Link Monitoring:** Real-time monitoring of Blender, Creation Kit, xEdit, and NifSkope sessions
+- **🔒 Explicit Permissions:** Every direct-write action requires your approval with full audit logging
+- **📊 Session Awareness:** Mossy adapts its advice based on which tools you currently have active
+- **✅ Production Ready:** All modules are functional - no placeholders or fake features
 
 **Try it:** Click **"Live Voice"** in the sidebar and just start talking naturally. Mossy will respond fast and remember everything!
 
@@ -395,4 +396,4 @@ Start chatting with Mossy and explore all the capabilities. Remember:
 ---
 
 *For technical details, see [FALLOUT4_MODDING_GUIDE.md](FALLOUT4_MODDING_GUIDE.md)*  
-*For complete feature list, see [MOSSY_V3_ENHANCEMENTS.md](MOSSY_V3_ENHANCEMENTS.md)*
+*For complete feature list, see [MOSSY_V5_ADVANCED_FEATURES.md](MOSSY_V5_ADVANCED_FEATURES.md)*
