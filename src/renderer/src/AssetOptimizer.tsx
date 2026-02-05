@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Zap, Image, Box, FileArchive, Download, Settings, Play, CheckCircle, AlertCircle } from 'lucide-react';
+import { Zap, Image, Box, FileArchive, ArrowDownToLine, Settings, Play, CheckCircle, AlertCircle } from 'lucide-react';
 
 interface OptimizationJob {
   id: string;
@@ -242,7 +242,7 @@ export const AssetOptimizer: React.FC = () => {
               disabled={!inputPath}
               className="p-4 bg-yellow-600 hover:bg-yellow-500 disabled:opacity-50 border border-yellow-500 rounded-xl transition-colors"
             >
-              <Download className="w-8 h-8 text-white mx-auto mb-2" />
+              <ArrowDownToLine className="w-8 h-8 text-white mx-auto mb-2" />
               <div className="font-bold text-white text-sm mb-1">Export Mod</div>
               <div className="text-xs text-yellow-100">Full optimization + BA2</div>
             </button>

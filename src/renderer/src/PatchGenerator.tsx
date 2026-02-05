@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { GitMerge, AlertTriangle, Check, Download, Zap, Info } from 'lucide-react';
+import { GitMerge, AlertTriangle, Check, ArrowDownToLine, Zap, Info } from 'lucide-react';
 
 interface Conflict {
   record: string;
@@ -385,7 +385,7 @@ export const PatchGenerator: React.FC = () => {
                   onClick={generatePatch}
                   className="w-full px-6 py-3 bg-green-600 hover:bg-green-500 text-white font-bold rounded-lg transition-colors flex items-center justify-center gap-2"
                 >
-                  <Download className="w-5 h-5" />
+                  <ArrowDownToLine className="w-5 h-5" />
                   Generate Patch ESP
                 </button>
               </div>

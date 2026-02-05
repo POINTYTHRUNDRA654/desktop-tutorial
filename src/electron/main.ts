@@ -9,6 +9,7 @@ import { app, BrowserWindow, ipcMain, dialog, shell, safeStorage } from 'electro
 import path from 'path';
 import os from 'os';
 import { IPC_CHANNELS } from './types';
+import { ModProject, CollaborationSession, VersionControlConfig, AnalyticsEvent, UsageMetrics, AnalyticsConfig, Roadmap, ProjectWizardState } from '../shared/types';
 import { scanForDuplicates, type DedupeScanState } from './duplicateFinder';
 import { detectPrograms, getSystemInfo } from './detectPrograms';
 import { getRunningModdingTools } from './processMonitor';
@@ -23,17 +24,39 @@ import ffmpeg from 'fluent-ffmpeg';
 import ffmpegInstaller from '@ffmpeg-installer/ffmpeg';
 import http from 'http';
 import https from 'https';
+import { 
+  setDetectedPrograms, 
+  getLastProgramScan, 
+  getDetectedPrograms,
+  getRoadmaps,
+  saveRoadmap,
+  deleteRoadmap,
+  getProjects,
+  saveProject
+} from '../main/store';
 import FormData from 'form-data';
 import OpenAI from 'openai';
 import dotenv from 'dotenv';
+// import { MiningPipelineOrchestrator } from '../mining/mining-pipeline'; // TEMPORARILY DISABLED
+import { ESPParser } from '../mining/esp-parser'; // TEMPORARILY DISABLED
+import { DependencyGraphBuilder } from '../mining/dependency-graph-builder'; // TEMPORARILY DISABLED
+import { DataSource, MiningResult } from '../shared/types';
 
 // Load environment variables from .env.local
-const envPath = path.join(__dirname, '../../.env.local');
+const envPath = path.join(process.cwd(), '.env.local');
 console.log('[Main] Loading .env from:', envPath);
 console.log('[Main] File exists:', fs.existsSync(envPath));
+console.log('[Main] Current working directory:', process.cwd());
+console.log('[Main] __dirname:', __dirname);
+console.log('[Main] app.getAppPath():', app.getAppPath());
+console.log('[Main] path.dirname(process.execPath):', path.dirname(process.execPath));
 // Suppress dotenv's own startup logs (keeps dev console readable).
 // dotenv@17 supports { quiet: true }.
-dotenv.config({ path: envPath, quiet: true });
+const result = dotenv.config({ path: envPath, quiet: true });
+console.log('[Main] dotenv result:', result);
+console.log('[Main] DEEPGRAM_API_KEY loaded:', !!process.env.DEEPGRAM_API_KEY);
+console.log('[Main] OPENAI_API_KEY loaded:', !!process.env.OPENAI_API_KEY);
+console.log('[Main] process.env keys:', Object.keys(process.env).filter(key => key.includes('API') || key.includes('TOKEN')));
 // Never log API keys (even presence-only for renderer-exposed vars).
 // Never log API keys (even partial prefixes).
 
@@ -286,6 +309,19 @@ function createWindow() {
  * Setup IPC handlers for renderer communication
  */
 function setupIpcHandlers() {
+  // Proactive Observer State
+  let activeWatcher: fs.FSWatcher | null = null;
+  let activeProjectFolder: string | null = null;
+  let lastAnalyzedFile: string | null = null;
+  let lastAnalysisTime: number = 0;
+
+  // Function to notify renderer about observer events
+  const notifyObserver = (event: string, data: any) => {
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.send(IPC_CHANNELS.OBSERVER_NOTIFY, { event, data, timestamp: Date.now() });
+    }
+  };
+
   // PDF parsing handler (runs in main process with Node.js)
   ipcMain.handle('parse-pdf', async (_event, arrayBuffer: ArrayBuffer) => {
     try {
@@ -659,7 +695,23 @@ function setupIpcHandlers() {
   // Program detection handler
   ipcMain.handle(IPC_CHANNELS.DETECT_PROGRAMS, async () => {
     try {
+      // Check if we have cached results from the last hour
+      const lastScan = getLastProgramScan();
+      const oneHourAgo = Date.now() - (60 * 60 * 1000);
+
+      if (lastScan > oneHourAgo) {
+        console.log('[Program Detection] Using cached results from', new Date(lastScan).toISOString());
+        return getDetectedPrograms();
+      }
+
+      // No recent cache, perform fresh scan
+      console.log('[Program Detection] Performing fresh scan...');
       const programs = await detectPrograms();
+
+      // Cache the results
+      setDetectedPrograms(programs);
+      console.log(`[Program Detection] Cached ${programs.length} detected programs`);
+
       return programs;
     } catch (error) {
       console.error('Error detecting programs:', error);
@@ -1243,6 +1295,147 @@ function setupIpcHandlers() {
     }
   });
 
+  // --- Roadmap & Project Management ---
+  ipcMain.handle(IPC_CHANNELS.PROJECT_LIST, async () => {
+    return getProjects();
+  });
+
+  ipcMain.handle(IPC_CHANNELS.PROJECT_CREATE, async (_event, project: ModProject) => {
+    saveProject(project);
+    return { ok: true };
+  });
+
+  ipcMain.handle(IPC_CHANNELS.ROADMAP_GET_ALL, async (_event, projectId?: string) => {
+    return getRoadmaps(projectId);
+  });
+
+  ipcMain.handle(IPC_CHANNELS.ROADMAP_CREATE, async (_event, roadmap: Roadmap) => {
+    saveRoadmap(roadmap);
+    return { ok: true };
+  });
+
+  ipcMain.handle(IPC_CHANNELS.ROADMAP_GENERATE_AI, async (_event, payload: { prompt: string, projectId: string }) => {
+    try {
+      // For the demo/tester release, we use a template-based "AI" approach 
+      // if the prompt contains "rifle" or "weapon", or a generic one otherwise.
+      // In production, this would call the LLM with a schema-output prompt.
+      
+      const prompt = payload.prompt.toLowerCase();
+      let steps: any[] = [];
+      let title = "Modding Roadmap";
+      let goal = payload.prompt;
+
+      if (prompt.includes('rifle') || prompt.includes('weapon') || prompt.includes('gun')) {
+        title = "standalone weapon creation";
+        steps = [
+          { id: '1', title: 'Conceptualize & Reference', description: 'Gather reference images and plan the weapon stats.', status: 'not-started', order: 1 },
+          { id: '2', title: 'High-Poly Modeling', description: 'Create detailed mesh in Blender.', status: 'not-started', tool: 'blender', order: 2 },
+          { id: '3', title: 'Low-Poly & UV Mapping', description: 'Optimize for game performance.', status: 'not-started', tool: 'blender', order: 3 },
+          { id: '4', title: 'Texture Generation', description: 'Create PBR textures (Albedo, Normal, MS).', status: 'not-started', tool: 'image-suite', order: 4 },
+          { id: '5', title: 'NIF Export & Setup', description: 'Export to NIF and setup nodes in NifSkope.', status: 'not-started', tool: 'nifskope', order: 5 },
+          { id: '6', title: 'ESP Implementation', description: 'Add weapon records to Fallout 4.', status: 'not-started', tool: 'ck', order: 6 },
+          { id: '7', title: 'Scripting & Effects', description: 'Add custom firing logic or reload animations.', status: 'not-started', tool: 'scribe', order: 7 }
+        ];
+      } else {
+        title = "Mod Development Roadmap";
+        steps = [
+          { id: '1', title: 'Setup Project', description: 'Initialize folders and resources.', status: 'in-progress', order: 1 },
+          { id: '2', title: 'Asset Creation', description: 'Create models and textures.', status: 'not-started', tool: 'blender', order: 2 },
+          { id: '3', title: 'Game Integration', description: 'Import assets into the game engine.', status: 'not-started', tool: 'ck', order: 3 },
+          { id: '4', title: 'Testing & Refinement', description: 'Verify in-game and fix issues.', status: 'not-started', order: 4 }
+        ];
+      }
+
+      const roadmap: Roadmap = {
+        id: `rm-${Date.now()}`,
+        projectId: payload.projectId,
+        title,
+        goal,
+        steps,
+        currentStepId: steps[0].id,
+        isCustom: true,
+        createdAt: Date.now(),
+        updatedAt: Date.now()
+      };
+
+      saveRoadmap(roadmap);
+      return { ok: true, roadmap };
+    } catch (e: any) {
+      return { ok: false, error: String(e?.message || e) };
+    }
+  });
+
+  ipcMain.handle(IPC_CHANNELS.ROADMAP_UPDATE_STEP, async (_event, payload: { roadmapId: string, stepId: string, status: string }) => {
+    const roadmaps = getRoadmaps();
+    const roadmap = roadmaps.find(r => r.id === payload.roadmapId);
+    if (!roadmap) return { ok: false, error: 'Roadmap not found' };
+    
+    const step = roadmap.steps.find(s => s.id === payload.stepId);
+    if (!step) return { ok: false, error: 'Step not found' };
+    
+    step.status = payload.status as any;
+    saveRoadmap(roadmap);
+    return { ok: true };
+  });
+
+  // --- Proactive Observer (Neural Link+) ---
+  ipcMain.handle(IPC_CHANNELS.OBSERVER_SET_ACTIVE_FOLDER, async (_event, folderPath: string) => {
+    try {
+      if (activeWatcher) {
+        activeWatcher.close();
+        activeWatcher = null;
+      }
+
+      if (!folderPath || !fs.existsSync(folderPath)) {
+        activeProjectFolder = null;
+        return { ok: true, monitoring: false };
+      }
+
+      activeProjectFolder = folderPath;
+      console.log('[Observer] Starting proactive watcher on:', folderPath);
+
+      // Simple implementation using fs.watch
+      activeWatcher = fs.watch(folderPath, { recursive: true }, (eventType, filename) => {
+        if (!filename) return;
+        
+        const fullPath = path.join(activeProjectFolder!, filename);
+        
+        // Anti-flap / debounce
+        const now = Date.now();
+        if (lastAnalyzedFile === fullPath && now - lastAnalysisTime < 2000) return;
+
+        // Triggers on creation or change of interesting files
+        if (eventType === 'rename' || eventType === 'change') {
+          if (fs.existsSync(fullPath)) {
+            const ext = path.extname(filename).toLowerCase();
+            
+            // Logic for automated auditing
+            if (ext === '.nif' || ext === '.dds' || ext === '.esp') {
+              console.log(`[Observer] Auto-detecting change: ${filename}`);
+              lastAnalyzedFile = fullPath;
+              lastAnalysisTime = now;
+              
+              notifyObserver('file-detected', { 
+                filename, 
+                fullPath, 
+                type: ext.substring(1) 
+              });
+
+              // Automate audit if desired
+              // In a real implementation, we would call the audit logic here
+              // and send the result in a second notification.
+            }
+          }
+        }
+      });
+
+      return { ok: true, monitoring: true, folder: folderPath };
+    } catch (e: any) {
+      console.error('[Observer] Error starting watcher:', e);
+      return { ok: false, error: String(e?.message || e) };
+    }
+  });
+
   // Desktop Bridge: check Blender Mossy Link add-on socket
   ipcMain.handle('check-blender-addon', async () => {
     try {
@@ -1278,6 +1471,71 @@ function setupIpcHandlers() {
       });
     } catch (e: any) {
       return { connected: false, error: String(e?.message || e) };
+    }
+  });
+
+  ipcMain.handle('send-blender-command', async (_event, command: string, args: any = {}) => {
+    try {
+      const net = await import('net');
+      return await new Promise((resolve) => {
+        const socket = new net.Socket();
+        const timeoutMs = 5000;
+        let responseReceived = false;
+
+        const cleanup = () => {
+          try { socket.destroy(); } catch { /* ignore */ }
+        };
+
+        socket.setTimeout(timeoutMs);
+
+        socket.on('connect', () => {
+          const message = JSON.stringify({ command, args }) + '\n';
+          socket.write(message);
+        });
+
+        socket.on('data', (data) => {
+          if (responseReceived) return;
+          responseReceived = true;
+
+          try {
+            const response = JSON.parse(data.toString().trim());
+            cleanup();
+            resolve(response);
+          } catch (e) {
+            cleanup();
+            resolve({ success: false, error: 'Invalid JSON response from Blender' });
+          }
+        });
+
+        socket.on('timeout', () => {
+          if (!responseReceived) {
+            cleanup();
+            resolve({ success: false, error: 'Timeout waiting for Blender response' });
+          }
+        });
+
+        socket.on('error', (err: any) => {
+          if (!responseReceived) {
+            cleanup();
+            resolve({ success: false, error: String(err?.message || err) });
+          }
+        });
+
+        socket.on('close', () => {
+          if (!responseReceived) {
+            resolve({ success: false, error: 'Connection closed by Blender' });
+          }
+        });
+
+        try {
+          socket.connect(9999, '127.0.0.1');
+        } catch (e: any) {
+          cleanup();
+          resolve({ success: false, error: String(e?.message || e) });
+        }
+      });
+    } catch (e: any) {
+      return { success: false, error: String(e?.message || e) };
     }
   });
 
@@ -1513,6 +1771,46 @@ function setupIpcHandlers() {
         computerName: 'Local PC',
         error: error instanceof Error ? error.message : 'Unknown error'
       };
+    }
+  });
+
+  // Get running processes for Neural Link monitoring
+  ipcMain.handle('get-running-processes', async () => {
+    try {
+      const { exec } = require('child_process');
+      const util = require('util');
+      const execAsync = util.promisify(exec);
+
+      const platform = require('os').platform();
+      let processes: any[] = [];
+
+      if (platform === 'win32') {
+        // Use tasklist command on Windows
+        const { stdout } = await execAsync('tasklist /FO CSV /NH', { encoding: 'utf-8' });
+        const lines = stdout.split('\n').filter((line: string) => line.trim());
+
+        processes = lines.map((line: string) => {
+          const parts = line.split('","').map((p: string) => p.replace(/"/g, ''));
+          if (parts.length >= 5) {
+            return {
+              name: parts[0],
+              pid: parseInt(parts[1], 10),
+              sessionName: parts[2],
+              sessionNumber: parseInt(parts[3], 10),
+              memoryUsage: parts[4]
+            };
+          }
+          return null;
+        }).filter(Boolean);
+      } else {
+        // For other platforms, return empty array for now
+        processes = [];
+      }
+
+      return processes;
+    } catch (error) {
+      console.error('[Main] Error getting running processes:', error);
+      return [];
     }
   });
 
@@ -2717,13 +3015,13 @@ function setupIpcHandlers() {
     const s = loadSettings();
     const status = await getOllamaStatus(String(s?.ollamaBaseUrl || 'http://127.0.0.1:11434'));
     if (status.ok) return { ok: true, provider: 'ollama', baseUrl: status.baseUrl, models: status.models };
-    return { ok: false, provider: 'ollama', baseUrl: status.baseUrl, error: status.error };
+    return { ok: false, provider: 'ollama', baseUrl: (status as any).baseUrl, error: (status as any).error };
   });
 
   ipcMain.handle(IPC_CHANNELS.ML_CAPS_STATUS, async () => {
     const s = loadSettings();
-    const ollama = await getOllamaStatus(String(s?.ollamaBaseUrl || 'http://127.0.0.1:11434'));
-    const openaiCompat = await getOpenAICompatStatus(String(s?.openaiCompatBaseUrl || 'http://127.0.0.1:1234/v1'));
+    const ollama = await getOllamaStatus(String(s?.ollamaBaseUrl || 'http://127.0.0.1:11434')) as any;
+    const openaiCompat = await getOpenAICompatStatus(String(s?.openaiCompatBaseUrl || 'http://127.0.0.1:1234/v1')) as any;
 
     return {
       ok: true,
@@ -2760,8 +3058,8 @@ function setupIpcHandlers() {
         system: 'You are Mossy, a local model running in OpenAI-compatible mode. Follow the user prompt carefully.',
         user: prompt,
       });
-      if (!resp.ok) return { ok: false, error: resp.error };
-      return { ok: true, text: resp.text };
+      if (!(resp as any).ok) return { ok: false, error: (resp as any).error };
+      return { ok: true, text: (resp as any).text };
     } catch (err: any) {
       return { ok: false, error: String(err?.message || err) };
     }
@@ -2921,13 +3219,74 @@ function setupIpcHandlers() {
       return { ok: false, error: String(e?.message || e) };
     }
   });
+
+  // Mining Infrastructure Handlers - TEMPORARILY DISABLED
+  /*
+  ipcMain.handle('start-mining-pipeline', async (_event, sources: DataSource[]) => {
+    try {
+      const orchestrator = new MiningPipelineOrchestrator();
+      const result = await orchestrator.execute(sources);
+      return { success: true, result };
+    } catch (error: any) {
+      console.error('Mining pipeline error:', error);
+      return { success: false, error: error.message || 'Mining pipeline failed' };
+    }
+  });
+  */
+
+  ipcMain.handle('parse-esp-file', async (_event, filePath: string) => {
+    try {
+      const espData = await ESPParser.parseFile(filePath);
+      return { success: true, data: espData };
+    } catch (error: any) {
+      console.error('ESP parsing error:', error);
+      return { success: false, error: error.message || 'ESP parsing failed' };
+    }
+  });
+
+  ipcMain.handle('build-dependency-graph', async (_event, modFiles: string[]) => {
+    try {
+      const builder = new DependencyGraphBuilder();
+      const graph = await builder.buildGraph(modFiles);
+      return { success: true, graph };
+    } catch (error: any) {
+      console.error('Dependency graph building error:', error);
+      return { success: false, error: error.message || 'Dependency graph building failed' };
+    }
+  });
+
+  ipcMain.handle('get-mining-status', async () => {
+    // For now, return a basic status. In a real implementation, track active mining operations.
+    return {
+      active: false,
+      progress: 0,
+      currentTask: null
+    };
+  });
+
+  // Advanced Analysis Engine handler - TEMPORARILY DISABLED due to mining engine errors
+  /*
+  ipcMain.handle('get-advanced-analysis-engine', async () => {
+    try {
+      // Dynamic import to avoid loading heavy ML dependencies at startup
+      const { AdvancedAnalysisEngineImpl } = await import('../mining/advanced-analysis-engine');
+      const engine = new AdvancedAnalysisEngineImpl();
+      return engine;
+    } catch (error: any) {
+      console.error('Failed to initialize advanced analysis engine:', error);
+      return null;
+    }
+  });
+  */
 }
 
 /**
  * App lifecycle
  */
 
+
 app.whenReady().then(() => {
+  // ...existing code...
   createWindow();
   setupIpcHandlers();
   bridge.start();
