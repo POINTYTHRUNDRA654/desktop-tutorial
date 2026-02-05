@@ -38,6 +38,10 @@ export type OllamaGenerateResponse =
   | { ok: true; text: string }
   | { ok: false; error: string }
 
+export type OllamaPullResponse =
+  | { ok: true }
+  | { ok: false; error: string }
+
 export async function ollamaGenerate(
   req: OllamaGenerateRequest,
   opts?: { baseUrl?: string }
@@ -69,6 +73,41 @@ export async function ollamaGenerate(
 
     const data = (await res.json()) as { response?: string }
     return { ok: true, text: String(data.response ?? '') }
+  } catch (err: any) {
+    const msg = String(err?.name === 'AbortError' ? 'Timeout' : err?.message || err)
+    return { ok: false, error: msg }
+  }
+}
+
+export async function ollamaPull(
+  modelName: string,
+  opts?: { baseUrl?: string }
+): Promise<OllamaPullResponse> {
+  const baseUrl = (opts?.baseUrl ?? 'http://127.0.0.1:11434').replace(/\/$/, '')
+  const url = `${baseUrl}/api/pull`
+
+  try {
+    const controller = new AbortController()
+    const timeout = setTimeout(() => controller.abort(), 300_000) // 5 minutes timeout for model download
+
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        name: modelName,
+        stream: false,
+      }),
+      signal: controller.signal,
+    })
+
+    clearTimeout(timeout)
+
+    if (!res.ok) {
+      const text = await res.text().catch(() => '')
+      return { ok: false, error: `HTTP ${res.status}${text ? `: ${text}` : ''}` }
+    }
+
+    return { ok: true }
   } catch (err: any) {
     const msg = String(err?.name === 'AbortError' ? 'Timeout' : err?.message || err)
     return { ok: false, error: msg }

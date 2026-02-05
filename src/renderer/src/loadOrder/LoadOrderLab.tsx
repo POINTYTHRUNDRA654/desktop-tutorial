@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { FolderOpen, FileText, Download, AlertTriangle, CheckCircle2, ExternalLink } from 'lucide-react';
+import { FolderOpen, FileText, ArrowDownToLine, AlertTriangle, CheckCircle2, ExternalLink } from 'lucide-react';
 import type { LoadOrderModel } from './types';
 import { parseMo2Modlist, parseMo2PluginsTxt } from './parsers';
 import { parseLootReport } from './loot';
@@ -380,7 +380,7 @@ export const LoadOrderLab: React.FC = () => {
               onClick={() => void exportXEditScript()}
               className="px-3 py-2 rounded border border-emerald-700 bg-emerald-900/20 hover:border-emerald-500 text-xs font-bold text-emerald-200 flex items-center gap-2"
             >
-              <Download className="w-4 h-4" />
+              <ArrowDownToLine className="w-4 h-4" />
               Export xEdit Script
             </button>
 

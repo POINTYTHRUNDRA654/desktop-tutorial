@@ -91,17 +91,17 @@ const TheLens = () => {
                     return;
                 }
 
-                const info = await window.electron.api.getSystemInfo();
+                const info = await window.electronAPI.getSystemInfo();
                 console.log('[TheLens] System info loaded:', info);
                 
                 // Format system info from Electron API response
                 const formatted: SystemInfo = {
-                    computerName: info.computerName || 'Unknown',
-                    username: info.username || 'User',
-                    osVersion: `${info.os} (${info.arch})`,
-                    totalMemory: `${info.ram} GB`,
-                    availableMemory: `${(info.ram * 0.6).toFixed(1)} GB`, // Estimate available as 60% of total
-                    cpuModel: `${info.cpu} (${info.cores} cores)`
+                    computerName: 'Unknown', // Not available from getSystemInfo
+                    username: 'User', // Not available from getSystemInfo
+                    osVersion: info.os,
+                    totalMemory: info.ram,
+                    availableMemory: 'Unknown', // Not available from getSystemInfo
+                    cpuModel: info.cpu
                 };
                 
                 setSystemInfo(formatted);

@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { BookOpen, Box, Check, Database, Download, Layers, Library, Lock, MapPin, Play, RefreshCw, Scroll, Search, Settings, Wrench, Zap } from 'lucide-react';
+import { BookOpen, Box, Check, Database, ArrowDownToLine, Layers, Library, Lock, MapPin, Play, RefreshCw, Scroll, Search, Settings, Wrench, Zap } from 'lucide-react';
 
 interface QuestStage {
     id: number;
@@ -492,7 +492,7 @@ const TheOrganizer: React.FC = () => {
                                         </div>
                                     ) : (
                                         <button className="w-full py-2 flex items-center justify-center gap-2 bg-slate-700 hover:bg-slate-600 text-slate-200 rounded text-xs font-bold transition-colors">
-                                            <Download className="w-3 h-3" /> Find Tool
+                                            <ArrowDownToLine className="w-3 h-3" /> Find Tool
                                         </button>
                                     )}
                                 </div>

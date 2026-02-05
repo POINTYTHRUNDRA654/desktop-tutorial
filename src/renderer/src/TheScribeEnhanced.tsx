@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Code, FileCode, Palette, Check, X, AlertTriangle, Zap, Copy, Play, BookOpen, Save, Trash2, Upload, Download } from 'lucide-react';
+import { Code, FileCode, Palette, Check, X, AlertTriangle, Zap, Copy, Play, BookOpen, Save, Trash2, Upload, ArrowDownToLine, Info, Search, ExternalLink } from 'lucide-react';
+import ProjectWizard from './components/ProjectWizard';
 import type { ScriptBundle, ScriptTemplate, Settings } from '../../shared/types';
 import { useNavigate } from 'react-router-dom';
 
@@ -757,19 +758,7 @@ export const TheScribe: React.FC = () => {
     if (activeTab !== 'xedit') return;
     try {
       const api: any = (window as any).electron?.api || (window as any).electronAPI;
-      if (typeof api?.writeFile !== 'function') {
-        setXeditScriptStatus('Install requires Desktop Bridge writeFile support.');
-        setTimeout(() => setXeditScriptStatus(''), 2500);
-        return;
-      }
-
-      const scriptsDir = getXeditScriptsDir();
-      if (!scriptsDir) {
-        setXeditScriptStatus('Set your xEdit path in Tool Settings first.');
-        setTimeout(() => setXeditScriptStatus(''), 2500);
-        return;
-      }
-
+      
       const body = String(code || '').trimEnd();
       if (!body.trim()) {
         setXeditScriptStatus('Nothing to install (editor is empty).');
@@ -778,30 +767,62 @@ export const TheScribe: React.FC = () => {
       }
 
       const base = safeFilenameBase(libraryTitle || 'xedit_script');
-      const filename = base.toLowerCase().endsWith('.pas') ? base : `${base}.pas`;
-      const targetPath = joinPortable(scriptsDir, filename);
+      setXeditScriptStatus('Installing...');
 
-      const ok = await api.writeFile(targetPath, body);
-      if (!ok) {
-        setXeditScriptStatus('Install failed (writeFile returned false).');
-        setTimeout(() => setXeditScriptStatus(''), 2500);
+      // Phase 4: Use the new centralized installScript API
+      const result = await api.installScript('xedit', base, body);
+      
+      if (result && result.success) {
+        setXeditScriptStatus(`Installed to: ${result.path}`);
+        
+        // Try to reveal the new file for convenience
+        try {
+          if (typeof api?.revealInFolder === 'function') await api.revealInFolder(result.path);
+        } catch { /* ignore */ }
+      } else {
+        setXeditScriptStatus(`Failed: ${result?.error || 'Unknown error'}`);
+      }
+      
+      setTimeout(() => setXeditScriptStatus(''), 5000);
+    } catch (e: any) {
+      console.warn('[TheScribe] xEdit install failed', e);
+      setXeditScriptStatus(`Error: ${e.message}`);
+      setTimeout(() => setXeditScriptStatus(''), 5000);
+    }
+  };
+
+  const handleInstallPapyrusScript = async () => {
+    if (activeTab !== 'papyrus') return;
+    try {
+      const api: any = (window as any).electron?.api || (window as any).electronAPI;
+      
+      const body = String(code || '').trimEnd();
+      if (!body.trim()) {
+        setXeditScriptStatus('Nothing to install (editor is empty).');
+        setTimeout(() => setXeditScriptStatus(''), 2000);
         return;
       }
 
-      // Try to reveal the new file for convenience, but don't treat failures as fatal.
-      try {
-        if (typeof api?.revealInFolder === 'function') await api.revealInFolder(targetPath);
-        else if (typeof api?.openProgram === 'function') await api.openProgram(scriptsDir);
-      } catch {
-        // ignore
-      }
+      // Try to extract script name from code
+      const nameMatch = body.match(/Scriptname\s+([\w\d_]+)/i);
+      const scriptName = nameMatch ? nameMatch[1] : (libraryTitle || 'MyScript');
 
-      setXeditScriptStatus('Installed to xEdit Edit Scripts folder.');
-      setTimeout(() => setXeditScriptStatus(''), 2500);
-    } catch (e) {
-      console.warn('[TheScribe] xEdit install failed', e);
-      setXeditScriptStatus('Install failed.');
-      setTimeout(() => setXeditScriptStatus(''), 2000);
+      setXeditScriptStatus('Installing...');
+
+      const result = await api.installScript('papyrus', scriptName, body);
+      
+      if (result && result.success) {
+        setXeditScriptStatus(`Installed to: ${result.path}`);
+      } else {
+        setXeditScriptStatus(`Failed: ${result?.error || 'Unknown error'}`);
+      }
+      
+
+      setTimeout(() => setXeditScriptStatus(''), 5000);
+    } catch (e: any) {
+      console.warn('[TheScribe] Papyrus install failed', e);
+      setXeditScriptStatus(`Error: ${e.message}`);
+      setTimeout(() => setXeditScriptStatus(''), 5000);
     }
   };
 
@@ -1390,9 +1411,28 @@ print("Batch processing complete")`,
         </div>
       </div>
 
-      <div className="flex-1 flex overflow-hidden">
+      <div className="flex-1 flex overflow-hidden relative">
         {/* Left Panel - Editor */}
-        <div className="flex-1 flex flex-col border-r border-slate-700/50">
+        <div className="flex-1 flex flex-col border-r border-slate-700/50 min-w-0">
+          {/* Project Wizard (Phase 3) */}
+          <div className="p-3 bg-slate-900/80 border-b border-slate-700">
+            {activeTab === 'papyrus' && (
+              <ProjectWizard 
+                wizardId="script-writer" 
+                onActionComplete={(res) => {
+                  if (res.content) setCode(res.content);
+                  setRunStatus(res.message);
+                }}
+              />
+            )}
+            {activeTab === 'blender' && (
+              <ProjectWizard 
+                wizardId="blender-companion" 
+                onActionComplete={(res) => setRunStatus(res.message)}
+              />
+            )}
+          </div>
+          
           {/* Toolbar */}
           <div className="p-3 border-b border-slate-700/50 bg-slate-800/30 flex items-center justify-between">
             <div className="flex gap-2">
@@ -1451,7 +1491,7 @@ print("Batch processing complete")`,
                     className="flex items-center gap-2 px-3 py-1.5 bg-slate-700 hover:bg-slate-600 text-white rounded text-sm font-medium transition-colors"
                     title="Exports this script as a .pas file (works for any xEdit version)."
                   >
-                    <Download className="w-4 h-4" />
+                    <ArrowDownToLine className="w-4 h-4" />
                     Export .pas
                   </button>
                 </>
@@ -1486,15 +1526,41 @@ print("Batch processing complete")`,
                 {copied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
                 {copied ? 'Copied!' : 'Copy'}
               </button>
+
+              {activeTab === 'papyrus' && (
+                <button
+                  onClick={handleInstallPapyrusScript}
+                  className="flex items-center gap-2 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded text-sm font-medium transition-colors"
+                  title="Install this script directly into your Data/Scripts/Source/User folder."
+                >
+                  <ArrowDownToLine className="w-4 h-4" />
+                  Install Script
+                </button>
+              )}
+
+              {activeTab === 'xedit' && (
+                <button
+                  onClick={() => void handleInstallXeditScriptToFolder()}
+                  className="flex items-center gap-2 px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded text-sm font-medium transition-colors"
+                  title="Install this script directly into your xEdit 'Edit Scripts' folder."
+                >
+                  <ArrowDownToLine className="w-4 h-4" />
+                  Install Script
+                </button>
+              )}
             </div>
           </div>
 
-          {activeTab === 'xedit' && (
+          {(activeTab === 'xedit' || activeTab === 'papyrus') && (
             <div className="border-b border-slate-700/50 bg-slate-900/30 p-3">
               <div className="text-[11px] text-slate-400">
-                Tip: xEdit versions differ, so Mossy avoids hardcoding command-line flags. Use “Install Script” (writes to <span className="font-mono">Edit Scripts</span>) then run it from xEdit’s Apply Script menu, or use “Export .pas” and copy it manually.
+                {activeTab === 'xedit' ? (
+                  <>Tip: Use “Install Script” to write directly to <span className="font-mono">Edit Scripts</span>, then run it from xEdit’s Apply Script menu.</>
+                ) : (
+                  <>Tip: “Install Script” writes to <span className="font-mono">Data/Scripts/Source/User</span>. You must still compile it in the Creation Kit.</>
+                )}
               </div>
-              {xeditScriptStatus && <div className="text-xs text-slate-200 mt-2">{xeditScriptStatus}</div>}
+              {xeditScriptStatus && <div className="text-xs text-amber-400 mt-2 font-medium">{xeditScriptStatus}</div>}
             </div>
           )}
 
@@ -1658,7 +1724,7 @@ print("Batch processing complete")`,
                     className="flex items-center gap-2 px-2 py-1 rounded bg-slate-800 hover:bg-slate-700 border border-slate-700 text-xs font-bold text-white"
                     title="Copy export JSON"
                   >
-                    <Download className="w-3.5 h-3.5" />
+                    <ArrowDownToLine className="w-3.5 h-3.5" />
                     Export
                   </button>
 
@@ -1667,7 +1733,7 @@ print("Batch processing complete")`,
                     className="flex items-center gap-2 px-2 py-1 rounded bg-slate-800 hover:bg-slate-700 border border-slate-700 text-xs font-bold text-white"
                     title="Save export JSON to a file"
                   >
-                    <Download className="w-3.5 h-3.5" />
+                    <ArrowDownToLine className="w-3.5 h-3.5" />
                     Export to file
                   </button>
                 </div>
@@ -1787,7 +1853,7 @@ print("Batch processing complete")`,
                     className="flex items-center gap-2 px-2 py-1 rounded bg-slate-800 hover:bg-slate-700 border border-slate-700 text-xs font-bold text-white"
                     title="Copies templates from this bundle into your xEdit/Blender libraries (deduped by title/author/type)."
                   >
-                    <Download className="w-3.5 h-3.5" />
+                    <ArrowDownToLine className="w-3.5 h-3.5" />
                     Install into libraries
                   </button>
                   <button
@@ -1795,7 +1861,7 @@ print("Batch processing complete")`,
                     className="flex items-center gap-2 px-2 py-1 rounded bg-slate-800 hover:bg-slate-700 border border-slate-700 text-xs font-bold text-white"
                     title="Save bundles JSON to a file"
                   >
-                    <Download className="w-3.5 h-3.5" />
+                    <ArrowDownToLine className="w-3.5 h-3.5" />
                     Export bundles
                   </button>
                 </div>
@@ -1889,7 +1955,106 @@ print("Batch processing complete")`,
             </div>
           </div>
         </div>
+
+        {/* Right Panel - Technical Reference */}
+        <div className="w-80 border-l border-slate-700/50 bg-slate-900/50 flex flex-col hidden lg:flex">
+          <div className="p-4 border-b border-slate-700/50 flex items-center justify-between bg-slate-800/20">
+            <h3 className="text-sm font-bold text-white flex items-center gap-2">
+              <Info className="w-4 h-4 text-purple-400" />
+              Technical Inspector
+            </h3>
+            <span className="text-[10px] bg-purple-900/50 text-purple-300 px-1.5 py-0.5 rounded border border-purple-500/30 uppercase tracking-tighter font-bold">Live</span>
+          </div>
+
+          <div className="flex-1 overflow-y-auto p-4 space-y-6 text-left">
+            {/* Search */}
+            <div className="relative">
+              <Search className="absolute left-3 top-2.5 w-4 h-4 text-slate-500" />
+              <input 
+                type="text" 
+                placeholder="Search technical docs..."
+                className="w-full bg-slate-950/50 border border-slate-700 rounded-md pl-9 pr-3 py-2 text-xs text-white focus:outline-none focus:border-purple-500/50"
+              />
+            </div>
+
+            {/* Contextual Reference Content */}
+            <div className="space-y-4">
+              {activeTab === 'papyrus' && (
+                <>
+                  <div className="group rounded-lg border border-slate-700/50 bg-slate-800/30 p-3 hover:border-purple-500/30 transition-colors">
+                    <div className="text-xs font-bold text-purple-300 mb-1 flex items-center justify-between">
+                      OnQuestInit()
+                      <ExternalLink className="w-3 h-3 text-slate-500 opacity-0 group-hover:opacity-100 transition-opacity" />
+                    </div>
+                    <p className="text-[11px] text-slate-400 leading-relaxed">Fires when a quest starts for the first time. Excellent for initializing variables or starting timers.</p>
+                  </div>
+                  <div className="group rounded-lg border border-slate-700/50 bg-slate-800/30 p-3 hover:border-purple-500/30 transition-colors">
+                    <div className="text-xs font-bold text-purple-300 mb-1 flex items-center justify-between">
+                      RegisterForRemoteEvent()
+                      <ExternalLink className="w-3 h-3 text-slate-500 opacity-0 group-hover:opacity-100 transition-opacity" />
+                    </div>
+                    <p className="text-[11px] text-slate-400 leading-relaxed">Allows this script to listen for events on other objects. Required for modern mod interactions.</p>
+                  </div>
+                </>
+              )}
+
+              {activeTab === 'xedit' && (
+                <>
+                  <div className="group rounded-lg border border-slate-700/50 bg-slate-800/30 p-3 hover:border-amber-500/30 transition-colors">
+                    <div className="text-xs font-bold text-amber-300 mb-1 flex items-center justify-between">
+                      ReferencedBy()
+                      <ExternalLink className="w-3 h-3 text-slate-500 opacity-0 group-hover:opacity-100 transition-opacity" />
+                    </div>
+                    <p className="text-[11px] text-slate-400 leading-relaxed">Returns a list of all records that point to the current record. Essential for safe patching.</p>
+                  </div>
+                  <div className="group rounded-lg border border-slate-700/50 bg-slate-800/30 p-3 hover:border-amber-500/30 transition-colors">
+                    <div className="text-xs font-bold text-amber-300 mb-1 flex items-center justify-between">
+                      ElementByPath()
+                      <ExternalLink className="w-3 h-3 text-slate-500 opacity-0 group-hover:opacity-100 transition-opacity" />
+                    </div>
+                    <p className="text-[11px] text-slate-400 leading-relaxed">Direct access to nested fields using strings like "DATA\Value".</p>
+                  </div>
+                </>
+              )}
+
+              {activeTab === 'blender' && (
+                <>
+                  <div className="group rounded-lg border border-slate-700/50 bg-slate-800/30 p-3 hover:border-blue-500/30 transition-colors">
+                    <div className="text-xs font-bold text-blue-300 mb-1 flex items-center justify-between">
+                      bpy.ops.wm.call_menu()
+                      <ExternalLink className="w-3 h-3 text-slate-500 opacity-0 group-hover:opacity-100 transition-opacity" />
+                    </div>
+                    <p className="text-[11px] text-slate-400 leading-relaxed">Invokes UI menus programmatically. Useful for multi-tool scripts.</p>
+                  </div>
+                  <div className="group rounded-lg border border-slate-700/50 bg-slate-800/30 p-3 hover:border-blue-500/30 transition-colors">
+                    <div className="text-xs font-bold text-blue-300 mb-1 flex items-center justify-between">
+                      depsgraph_get()
+                      <ExternalLink className="w-3 h-3 text-slate-500 opacity-0 group-hover:opacity-100 transition-opacity" />
+                    </div>
+                    <p className="text-[11px] text-slate-400 leading-relaxed">Access evaluated data (meshes with modifiers applied) for real-time exports.</p>
+                  </div>
+                </>
+              )}
+            </div>
+
+            {/* Wiki Quick Link */}
+            <div className="pt-4 border-t border-slate-700/50">
+              <button 
+                onClick={() => openUrl(activeTab === 'papyrus' ? 'https://www.creationkit.com/fallout4/index.php?title=Category:Papyrus' : 'https://tes5edit.github.io/docs/')}
+                className="w-full flex items-center justify-center gap-2 px-3 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded text-[11px] font-bold border border-slate-700 shadow-sm transition-all"
+              >
+                <BookOpen className="w-3 h-3" />
+                Open Wiki Index
+              </button>
+            </div>
+          </div>
+
+          <div className="p-4 bg-slate-950/20 text-[10px] text-slate-500 border-t border-slate-700/30 italic">
+            Technical Inspector provides context-aware documentation links for the current scripting environment.
+          </div>
+        </div>
       </div>
     </div>
   );
 };
+
