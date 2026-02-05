@@ -1,0 +1,438 @@
+                        <h1 className="text-2xl font-bold text-white flex items-center gap-3">
+                            <Container className="w-6 h-6 text-forge-accent" />
+                            The Vault
+                        </h1>
+                        <p className="text-xs text-slate-400 font-mono mt-1">Secure Fallout 4 Asset Library & BA2 staging</p>
+                    </div>
+                    <div className="flex gap-2">
+                        <button
+                            onClick={handleVerifyAll}
+                            className="flex items-center gap-2 px-4 py-2 bg-slate-800 hover:bg-slate-700 border border-slate-600 rounded-lg text-sm font-bold transition-colors"
+                        >
+                            <CheckCircle2 className="w-4 h-4" />
+                            Verify All
+                        </button>
+                        <button
+                            onClick={() => handleCopy(manifest)}
+                            disabled={stagedAssets.length === 0}
+                            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-bold transition-colors border ${
+                                stagedAssets.length === 0
+                                    ? 'bg-slate-800 border-slate-700 text-slate-500 cursor-not-allowed'
+                                    : 'bg-forge-accent text-slate-900 border-slate-200 shadow-[0_0_15px_rgba(56,189,248,0.3)] hover:bg-sky-400'
+                            }`}
+                        >
+                            <Archive className="w-4 h-4" />
+                            Copy BA2 Manifest
+                        </button>
+                    </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-3">
+                        <div className="bg-slate-900/60 border border-slate-800 rounded-xl p-3">
+                            <div className="text-xs text-slate-400 mb-2 font-semibold">Auto-target Presets</div>
+                                        <div className="grid grid-cols-2 gap-2 text-xs">
+                                <label className="flex flex-col gap-1">
+                                    <span className="text-slate-500">Meshes</span>
+                                    <input value={presets.meshesBase} onChange={e=>setPresets(p=>({...p, meshesBase:e.target.value}))} className="bg-slate-950 border border-slate-800 rounded px-2 py-1 text-slate-200" />
+                                </label>
+                                <label className="flex flex-col gap-1">
+                                    <span className="text-slate-500">Textures</span>
+                                    <input value={presets.texturesBase} onChange={e=>setPresets(p=>({...p, texturesBase:e.target.value}))} className="bg-slate-950 border border-slate-800 rounded px-2 py-1 text-slate-200" />
+                                </label>
+                                <label className="flex flex-col gap-1">
+                                    <span className="text-slate-500">Audio Base</span>
+                                    <input value={presets.audioBase} onChange={e=>setPresets(p=>({...p, audioBase:e.target.value}))} className="bg-slate-950 border border-slate-800 rounded px-2 py-1 text-slate-200" />
+                                </label>
+                                <label className="flex flex-col gap-1">
+                                    <span className="text-slate-500">Voice Project</span>
+                                    <input value={presets.voiceProject} onChange={e=>setPresets(p=>({...p, voiceProject:e.target.value}))} className="bg-slate-950 border border-slate-800 rounded px-2 py-1 text-slate-200" />
+                                </label>
+                                <label className="flex flex-col gap-1">
+                                    <span className="text-slate-500">Scripts Out</span>
+                                    <input value={presets.scriptsBase} onChange={e=>setPresets(p=>({...p, scriptsBase:e.target.value}))} className="bg-slate-950 border border-slate-800 rounded px-2 py-1 text-slate-200" />
+                                </label>
+                                <label className="flex flex-col gap-1">
+                                    <span className="text-slate-500">Scripts Source</span>
+                                    <input value={presets.scriptsSource} onChange={e=>setPresets(p=>({...p, scriptsSource:e.target.value}))} className="bg-slate-950 border border-slate-800 rounded px-2 py-1 text-slate-200" />
+                                </label>
+                                <label className="flex flex-col gap-1">
+                                    <span className="text-slate-500">UI</span>
+                                    <input value={presets.uiBase} onChange={e=>setPresets(p=>({...p, uiBase:e.target.value}))} className="bg-slate-950 border border-slate-800 rounded px-2 py-1 text-slate-200" />
+                                </label>
+                                <label className="flex items-center gap-2 mt-5">
+                                    <input type="checkbox" className="accent-forge-accent" checked={allowOversizedTextures} onChange={e=>setAllowOversizedTextures(e.target.checked)} />
+                                    <span className="text-slate-400">Allow &gt;4K textures</span>
+                                </label>
+                                            <label className="flex items-center gap-2 mt-2">
+                                                <input type="checkbox" className="accent-forge-accent" checked={autoConvertImagesToDDS} onChange={e=>setAutoConvertImagesToDDS(e.target.checked)} />
+                                                <span className="text-slate-400">Auto-convert PNG/TGA/JPG to DDS</span>
+                                            </label>
+                            </div>
+                                            <div className="bg-slate-900/60 border border-slate-800 rounded-xl p-3">
+                                                <div className="flex items-center gap-2 text-xs text-slate-400 mb-2 font-semibold"><Wrench className="w-4 h-4"/> Tool Paths</div>
+                                                <div className="grid grid-cols-2 gap-2 text-xs">
+                                                    {(['texconv','xWMAEncode','PapyrusCompiler','gfxexport','splicer'] as const).map(key => (
+                                                        <div key={key} className="col-span-2">
+                                                            <div className="flex items-center gap-2 mb-1">
+                                                                <span className="w-32 text-slate-500 capitalize">{key}</span>
+                                                                <input value={(toolPaths as any)[key] || ''} onChange={e=>setToolPaths(p=>({...p, [key]: e.target.value}))} className="flex-1 bg-slate-950 border border-slate-800 rounded px-2 py-1 text-slate-200" placeholder={`Path to ${key}.exe`} />
+                                                                <button onClick={async()=>{ const p = await api?.pickToolPath?.(key); if(p) setToolPaths(tp=>({...tp, [key]: p})); }} className="px-2 py-1 border border-slate-700 rounded hover:border-forge-accent">Browse</button>
+                                                                <span className="text-[10px] text-slate-500 w-24 truncate" title={(toolVersions as any)[key] || ''}>{(toolVersions as any)[key] || ''}</span>
+                                                            </div>
+                                                            <div className="flex items-center gap-2">
+                                                                <span className="w-32 text-slate-500">Extra args</span>
+                                                                <input value={(toolExtraArgs as any)[key] || ''} onChange={e=>setToolExtraArgs(p=>({...p, [key]: e.target.value}))} className="flex-1 bg-slate-950 border border-slate-800 rounded px-2 py-1 text-slate-200" placeholder="Optional CLI args appended for advanced runs" />
+                                                            </div>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div className="flex flex-wrap gap-4">
+                    <div className="flex-1 min-w-[220px] relative">
+                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
+                        <input
+                            type="text"
+                            placeholder="Search assets, tags, or paths"
+                            value={searchTerm}
+                            onChange={(e) => setSearchTerm(e.target.value)}
+                            className="w-full bg-slate-900 border border-slate-700 rounded-lg pl-10 pr-4 py-2 text-sm focus:outline-none focus:border-forge-accent text-slate-200"
+                        />
+                    </div>
+                    <select
+                        value={filterType}
+                        onChange={(e) => setFilterType(e.target.value as 'all' | AssetType)}
+                        className="bg-slate-900 border border-slate-700 rounded-lg px-4 py-2 text-sm focus:outline-none focus:border-forge-accent"
+                    >
+                        <option value="all">All Types</option>
+                        <option value="mesh">Meshes</option>
+                        <option value="texture">Textures</option>
+                        <option value="audio">Audio</option>
+                        <option value="script">Scripts</option>
+                        <option value="ui">UI</option>
+                    </select>
+                    <div className="flex bg-slate-900 rounded-lg p-1 border border-slate-700">
+                        <button
+                            onClick={() => setPrivacyFilter('all')}
+                            className={`px-3 py-1 text-xs rounded font-medium transition-colors ${privacyFilter === 'all' ? 'bg-slate-700 text-white' : 'text-slate-500 hover:text-slate-300'}`}
+                        >
+                            All
+                        </button>
+                        <button
+                            onClick={() => setPrivacyFilter('local')}
+                            className={`px-3 py-1 text-xs rounded font-medium flex items-center gap-1 transition-colors ${privacyFilter === 'local' ? 'bg-red-900/50 text-red-200' : 'text-slate-500 hover:text-red-400'}`}
+                        >
+                            <Lock className="w-3 h-3" /> Local
+                        </button>
+                        <button
+                            onClick={() => setPrivacyFilter('shared')}
+                            className={`px-3 py-1 text-xs rounded font-medium flex items-center gap-1 transition-colors ${privacyFilter === 'shared' ? 'bg-blue-900/50 text-blue-200' : 'text-slate-500 hover:text-blue-400'}`}
+                        >
+                            <Globe className="w-3 h-3" /> Shared
+                        </button>
+                    </div>
+                    <div className="flex bg-slate-900 rounded-lg p-1 border border-slate-700">
+                        <button
+                            onClick={() => setStatusFilter('all')}
+                            className={`px-3 py-1 text-xs rounded font-medium transition-colors ${statusFilter === 'all' ? 'bg-slate-700 text-white' : 'text-slate-500 hover:text-slate-300'}`}
+                        >
+                            Any Status
+                        </button>
+                        <button
+                            onClick={() => setStatusFilter('ready')}
+                            className={`px-3 py-1 text-xs rounded font-medium transition-colors ${statusFilter === 'ready' ? 'bg-emerald-900/40 text-emerald-200' : 'text-slate-500 hover:text-emerald-300'}`}
+                        >
+                            Ready
+                        </button>
+                        <button
+                            onClick={() => setStatusFilter('issues')}
+                            className={`px-3 py-1 text-xs rounded font-medium transition-colors ${statusFilter === 'issues' ? 'bg-amber-900/40 text-amber-200' : 'text-slate-500 hover:text-amber-300'}`}
+                        >
+                            Needs Fix
+                        </button>
+                    </div>
+                    <label className="flex items-center gap-2 text-xs text-slate-400 bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 cursor-pointer">
+                        <input type="checkbox" checked={onlyStaged} onChange={(e) => setOnlyStaged(e.target.checked)} className="accent-forge-accent" />
+                        Show only staged
+                    </label>
+                </div>
+
+                {/* Tool Configuration Warning */}
+                {Object.keys(toolPaths).length === 0 && (
+                    <div className="bg-amber-900/20 border border-amber-700/50 rounded-lg p-3 flex items-start gap-3">
+                        <AlertTriangle className="w-5 h-5 text-amber-400 flex-shrink-0 mt-0.5" />
+                        <div className="flex-1 text-sm">
+                            <div className="font-semibold text-amber-200 mb-1">External Tools Not Configured</div>
+                            <div className="text-amber-300/80 text-xs">
+                                Asset verification requires external tools (texconv, splicer, etc.). 
+                                Scroll down to <span className="font-semibold">"Tool Paths & Configuration"</span> to set up your tools.
+                            </div>
+                        </div>
+                    </div>
+                )}
+
+                <div
+                    onDrop={handleDrop}
+                    onDragOver={(e) => e.preventDefault()}
+                    className="mt-4 border border-dashed border-slate-600 bg-slate-900/60 rounded-xl p-4 flex items-center justify-between gap-3"
+                >
+                    <div className="flex items-center gap-3">
+                        <div className="p-2 rounded-lg bg-slate-800 border border-slate-700">
+                            <Upload className="w-5 h-5 text-forge-accent" />
+                        </div>
+                        <div>
+                            <p className="text-sm font-semibold text-white">Drop assets or import files</p>
+                            <p className="text-xs text-slate-400">We auto-assign Data/ targets per type (mesh, texture, audio, script, UI).</p>
+                        </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                        <button
+                            onClick={handleBrowse}
+                            className="flex items-center gap-2 px-3 py-2 bg-slate-800 hover:bg-slate-700 border border-slate-600 rounded-lg text-xs font-bold transition-colors"
+                        >
+                            <FilePlus className="w-4 h-4" />
+                            Import files
+                        </button>
+                        <input
+                            ref={fileInputRef}
+                            type="file"
+                            multiple
+                            className="hidden"
+                            onChange={handleFileChange}
+                        />
+                    </div>
+                </div>
+            </div>
+
+            <div className="flex-1 overflow-y-auto p-6 bg-[#0c1220]">
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
+                    <div className="bg-slate-900/70 border border-slate-800 rounded-xl p-3">
+                        <p className="text-[10px] uppercase text-slate-500">Tracked assets</p>
+                        <p className="text-xl font-bold text-white">{assets.length}</p>
+                    </div>
+                    <div className="bg-slate-900/70 border border-slate-800 rounded-xl p-3">
+                        <p className="text-[10px] uppercase text-slate-500">Staged for BA2</p>
+                        <p className="text-xl font-bold text-white">{stagedAssets.length}</p>
+                    </div>
+                    <div className="bg-slate-900/70 border border-slate-800 rounded-xl p-3">
+                        <p className="text-[10px] uppercase text-slate-500">Ready</p>
+                        <p className="text-xl font-bold text-emerald-400">{readyCount}</p>
+                    </div>
+                    <div className="bg-slate-900/70 border border-slate-800 rounded-xl p-3">
+                        <p className="text-[10px] uppercase text-slate-500">With issues</p>
+                        <p className="text-xl font-bold text-amber-400">{issuesCount}</p>
+                    </div>
+                </div>
+
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
+                    <div className="lg:col-span-2 bg-slate-900/60 border border-slate-800 rounded-xl p-4">
+                        <div className="flex items-center justify-between mb-3">
+                            <div className="flex items-center gap-2">
+                                <Archive className="w-4 h-4 text-forge-accent" />
+                                <span className="text-sm font-semibold text-white">Staged BA2 manifest</span>
+                            </div>
+                            <button
+                                onClick={() => handleCopy(manifest)}
+                                disabled={stagedAssets.length === 0}
+                                className={`flex items-center gap-2 px-3 py-1 text-xs rounded border ${
+                                    stagedAssets.length === 0
+                                        ? 'border-slate-700 text-slate-500 cursor-not-allowed'
+                                        : 'border-slate-600 text-forge-accent hover:border-forge-accent'
+                                }`}
+                            >
+                                <Clipboard className="w-3 h-3" /> Copy list
+                            </button>
+                        </div>
+                        <div className="bg-slate-950/60 border border-slate-800 rounded p-3 h-32 overflow-y-auto text-xs text-slate-300 font-mono">
+                            {stagedAssets.length === 0 ? (
+                                <p className="text-slate-600">Nothing staged yet. Stage assets to generate an Archive2 list.</p>
+                            ) : (
+                                stagedAssets.map(asset => (
+                                    <div key={asset.id} className="flex items-center justify-between py-1 border-b border-slate-800 last:border-b-0">
+                                        <span className="truncate pr-2">{asset.targetPath}</span>
+                                        <span className="text-[10px] text-slate-500 uppercase">{asset.type}</span>
+                                    </div>
+                                ))
+                            )}
+                        </div>
+                    </div>
+
+                    <div className="bg-slate-900/60 border border-slate-800 rounded-xl p-4 flex flex-col gap-3">
+                        <div className="flex items-center gap-2 text-sm font-semibold text-white">
+                            <ShieldCheck className="w-4 h-4 text-emerald-400" /> Security posture
+                        </div>
+                        <div className="flex items-center justify-between text-xs text-slate-300">
+                            <span>Local only</span>
+                            <span className="font-mono">{assets.filter(a => a.privacy === 'local').length}</span>
+                        </div>
+                        <div className="flex items-center justify-between text-xs text-slate-300">
+                            <span>Shared</span>
+                            <span className="font-mono">{assets.filter(a => a.privacy === 'shared').length}</span>
+                        </div>
+                        <div className="flex items-center justify-between text-xs text-slate-300">
+                            <span>Estimated size tracked</span>
+                            <span className="font-mono">{totalSize.toFixed(1)} MB</span>
+                        </div>
+                        <p className="text-[11px] text-slate-500">
+                            The Vault tracks source (authoring) paths vs staging (Data/) paths to prevent accidental leaks and keep BA2 packaging deterministic.
+                        </p>
+                    </div>
+                </div>
+
+                {filteredAssets.length === 0 ? (
+                    <div className="flex flex-col items-center justify-center h-64 text-slate-600">
+                        <HardDrive className="w-12 h-12 mb-4 opacity-20" />
+                        <p>No assets match the filters.</p>
+                    </div>
+                ) : (
+                    <div className="flex flex-col gap-3">
+                        {filteredAssets.map(asset => {
+                            const hasIssues = asset.issues.length > 0;
+                            return (
+                                <div
+                                    key={asset.id}
+                                    className={`p-4 bg-slate-900/70 border rounded-xl transition-colors ${
+                                        hasIssues ? 'border-amber-700/60' : 'border-slate-800'
+                                    }`}
+                                >
+                                    <div className="flex flex-wrap items-start justify-between gap-3">
+                                        <div className="flex flex-col gap-1 min-w-[200px]">
+                                            <div className="flex items-center gap-2">
+                                                <span className="text-sm font-semibold text-white truncate">{asset.name}</span>
+                                                <span
+                                                    className={`px-2 py-0.5 rounded text-[10px] uppercase font-bold border ${
+                                                        asset.type === 'mesh' ? 'text-blue-300 border-blue-700/60 bg-blue-900/20' :
+                                                        asset.type === 'texture' ? 'text-purple-200 border-purple-700/60 bg-purple-900/20' :
+                                                        asset.type === 'audio' ? 'text-amber-200 border-amber-700/60 bg-amber-900/20' :
+                                                        asset.type === 'script' ? 'text-emerald-200 border-emerald-700/60 bg-emerald-900/20' :
+                                                        'text-cyan-200 border-cyan-700/60 bg-cyan-900/20'
+                                                    }`}
+                                                >
+                                                    {asset.type}
+                                                </span>
+                                                <span
+                                                    className={`px-2 py-0.5 rounded text-[10px] uppercase font-bold border ${
+                                                        asset.privacy === 'local' ? 'bg-red-900/30 text-red-200 border-red-700/60' : 'bg-blue-900/30 text-blue-200 border-blue-700/60'
+                                                    }`}
+                                                >
+                                                    {asset.privacy}
+                                                </span>
+                                            </div>
+                                            <div className="flex flex-wrap gap-1">
+                                                {(asset.tags || []).map(tag => (
+                                                    <span key={tag} className="px-1.5 py-0.5 bg-slate-800 text-slate-300 rounded text-[10px]">#{tag}</span>
+                                                ))}
+                                            </div>
+                                            <div className="text-[11px] text-slate-500">Last verified: {asset.lastVerified}</div>
+                                            {asset.type === 'texture' && (
+                                                <div className="mt-1 flex items-center gap-2 text-[11px] text-slate-400">
+                                                    <span>Expected format:</span>
+                                                    <select
+                                                        value={asset.expectedFormat || 'AUTO'}
+                                                        onChange={e=>setAssets(prev=>prev.map(a=>a.id===asset.id?{...a, expectedFormat: e.target.value as any}:a))}
+                                                        className="bg-slate-900 border border-slate-700 rounded px-2 py-0.5 text-[11px]"
+                                                    >
+                                                        <option value="AUTO">Auto</option>
+                                                        <option value="BC1">BC1</option>
+                                                        <option value="BC3">BC3</option>
+                                                        <option value="BC5">BC5</option>
+                                                    </select>
+                                                </div>
+                                            )}
+                                        </div>
+
+                                        <div className="flex items-center gap-2">
+                                            <span className="text-[11px] text-slate-400">{asset.size}</span>
+                                            <label className="flex items-center gap-2 text-[11px] text-slate-400 cursor-pointer">
+                                                <input
+                                                    type="checkbox"
+                                                    checked={asset.staged}
+                                                    onChange={() => toggleStage(asset.id)}
+                                                    className="accent-forge-accent"
+                                                    disabled={hasIssues}
+                                                />
+                                                <span className={hasIssues ? 'text-slate-600' : ''}>Stage for BA2{hasIssues ? ' (resolve issues first)' : ''}</span>
+                                            </label>
+                                        </div>
+                                    </div>
+
+                                    <div className="mt-3 grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
+                                        <div className="bg-slate-950/60 border border-slate-800 rounded p-3 flex flex-col gap-2">
+                                            <div className="flex items-center justify-between">
+                                                <span className="text-slate-400">Source (authoring)</span>
+                                                <button onClick={() => handleCopy(asset.sourcePath)} className="text-forge-accent hover:text-white flex items-center gap-1">
+                                                    <Clipboard className="w-3 h-3" /> Copy
+                                                </button>
+                                            </div>
+                                            <div className="font-mono text-slate-200 truncate">{asset.sourcePath}</div>
+                                        </div>
+                                        <div className="bg-slate-950/60 border border-slate-800 rounded p-3 flex flex-col gap-2">
+                                            <div className="flex items-center justify-between">
+                                                <span className="text-slate-400">Staging (Data/)</span>
+                                                <button onClick={() => handleCopy(asset.targetPath)} className="text-forge-accent hover:text-white flex items-center gap-1">
+                                                    <Clipboard className="w-3 h-3" /> Copy
+                                                </button>
+                                            </div>
+                                            <div className="font-mono text-slate-200 truncate">{asset.targetPath}</div>
+                                        </div>
+                                    </div>
+
+                                    <div className="mt-3 flex flex-wrap gap-2 items-center">
+                                        {hasIssues ? (
+                                            <span className="flex items-center gap-1 text-amber-300 text-xs font-semibold">
+                                                <AlertTriangle className="w-4 h-4" /> {asset.issues.length} issue{asset.issues.length > 1 ? 's' : ''}
+                                            </span>
+                                        ) : (
+                                            <span className="flex items-center gap-1 text-emerald-300 text-xs font-semibold">
+                                                <ShieldCheck className="w-4 h-4" /> Ready for archive
+                                            </span>
+                                        )}
+                                        <button
+                                            onClick={() => handleVerify(asset)}
+                                            disabled={verifyingIds.has(asset.id)}
+                                            className={`px-3 py-1 text-xs rounded border flex items-center gap-1 ${
+                                                verifyingIds.has(asset.id)
+                                                    ? 'border-slate-700 text-slate-500 cursor-not-allowed'
+                                                    : 'border-slate-600 text-white hover:border-forge-accent hover:text-forge-accent'
+                                            }`}
+                                        >
+                                            <CheckCircle2 className="w-3 h-3" /> {verifyingIds.has(asset.id) ? 'Verifying...' : 'Verify'}
+                                        </button>
+                                        <button
+                                            onClick={() => togglePrivacy(asset.id)}
+                                            className="px-3 py-1 text-xs rounded border border-slate-600 text-slate-200 hover:border-forge-accent"
+                                        >
+                                            {asset.privacy === 'local' ? 'Make shared' : 'Make local'}
+                                        </button>
+                                    </div>
+
+                                    {asset.lastRun && (
+                                        <div className="mt-2 bg-slate-950/60 border border-slate-800 rounded p-3 text-[11px] text-slate-200 whitespace-pre-wrap">
+                                            {asset.lastRun}
+                                        </div>
+                                    )}
+
+                                    {hasIssues && (
+                                        <div className="mt-2 bg-amber-900/30 border border-amber-700/60 rounded p-3 text-[11px] text-amber-100 flex flex-col gap-1">
+                                            {(asset.issues || []).map((issue, idx) => (
+                                                <div key={idx} className="flex items-start gap-2">
+                                                    <AlertTriangle className="w-3 h-3 mt-0.5" />
+                                                    <span>{issue}</span>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    )}
+                                </div>
+                            );
+                        })}
+                    </div>
+                )}
+            </div>
+        </div>
+    );
+};
+
+export default TheVault;

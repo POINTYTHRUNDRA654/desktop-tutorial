@@ -1,0 +1,164 @@
+{
+  "nav": {
+    "home": "Mossy.Space",
+    "modProjects": "Projets de mods",
+    "quickReference": "Référence rapide",
+    "knowledgeSearch": "Recherche de connaissances",
+    "installWizard": "Assistant d’installation",
+    "platforms": "Plateformes",
+    "crashTriage": "Diagnostic de crash",
+    "packagingRelease": "Packaging & publication",
+    "ckQuestDialogue": "CK : quêtes & dialogues",
+    "animationGuide": "Guide d’animation",
+    "skeletonReference": "Référence du squelette",
+    "riggingMistakes": "Erreurs de rigging",
+    "questModAuthoring": "Création de mods de quêtes",
+    "precombinePrpGuide": "Guide Precombine & PRP",
+    "prpPatchBuilder": "Générateur de patch PRP",
+    "leveledListInjection": "Injection de listes nivelées",
+    "lorekeeper": "Le Gardien du lore",
+
+    "templateGenerator": "Générateur de modèles",
+    "scriptAnalyzer": "Analyseur de scripts",
+    "assembler": "L’Assembleur",
+    "workshop": "L’Atelier",
+    "blueprint": "Le Plan",
+
+    "riggingChecklist": "Checklist de rigging",
+    "exportSettingsHelper": "Assistant d’export",
+    "animationValidator": "Validateur d’animation",
+    "precombineChecker": "Vérificateur de precombine",
+
+    "auditor": "L’Auditeur",
+    "scribe": "Le Scribe",
+    "systemMonitor": "Moniteur système",
+
+    "orchestrator": "L’Orchestrateur",
+    "workflowRunner": "Exécuteur de workflows",
+    "holodeck": "L’Holodeck",
+    "vault": "Le Coffre",
+    "memoryVault": "Coffre de mémoire",
+    "neuralLink": "Lien neural",
+    "localCapabilities": "Capacités locales",
+
+    "imageStudio": "Studio d’images",
+    "audioStudio": "Studio audio",
+
+    "liveSynapse": "Synapse en direct",
+    "desktopBridge": "Pont desktop",
+    "duplicateFinder": "Détecteur de doublons",
+    "communityLearning": "Apprentissage communautaire",
+    "toolVerify": "Vérification des outils",
+    "privacySettings": "Confidentialité",
+    "voiceSettings": "Voix",
+    "languageSettings": "Langue",
+    "diagnosticTools": "Outils de diagnostic",
+    "supportMossy": "Soutenir Mossy"
+  },
+  "settings": {
+    "language": {
+      "title": "Paramètres de langue",
+      "subtitle": "Choisissez la langue utilisée dans l’interface Mossy.",
+      "uiLanguageLabel": "Langue de l’application",
+      "uiLanguageHelp": "Affecte les libellés, boutons et textes d’interface (quand traduits).",
+      "requestTitle": "Demander une langue",
+      "requestHelp": "Votre langue manque ? Dites-nous laquelle ajouter ensuite.",
+      "requestCta": "Demander une langue",
+      "requestCtaTitle": "Ouvrir le formulaire de demande de langue",
+      "auto": "Auto (système)",
+      "current": "Actuel",
+      "save": "Enregistrer"
+    }
+  },
+  "onboarding": {
+    "language": {
+      "label": "Langue",
+      "help": "Choisissez la langue de l’interface. Vous pourrez la changer plus tard dans les paramètres.",
+      "auto": "Auto (système)"
+    }
+  },
+  "installWizard": {
+    "tagline": "Tuteur Mossy • Assistant d’installation",
+    "topics": "Sujets",
+    "modManager": "Gestionnaire de mods",
+    "shortcuts": {
+      "title": "Raccourcis",
+      "externalTools": "Paramètres des outils externes",
+      "precombinePrp": "Guide Precombine & PRP",
+      "simSettlements": "Guide Sim Settlements"
+    },
+    "topicSelector": {
+      "xedit": "xEdit / FO4Edit",
+      "ss2": "SS2 : construction de parcelles",
+      "prp": "PRP (Previs/Precombine)",
+      "patching": "Créer des patches"
+    },
+    "actions": {
+      "askMossy": "Demander à Mossy",
+      "askMossyTitle": "Demander à Mossy dans le chat",
+      "sendToChat": "Envoyer au chat",
+      "sendToChatTitle": "Envoyer la checklist de ce sujet au chat",
+      "reset": "Réinitialiser",
+      "resetTitle": "Réinitialiser la progression de l’assistant"
+    },
+    "section": {
+      "prereqs": "Prérequis",
+      "download": "Télécharger",
+      "installConfigure": "Installer / configurer",
+      "buildPatch": "Créer le patch",
+      "verify": "Vérifier",
+      "troubleshoot": "Dépannage"
+    },
+    "step": {
+      "markIncomplete": "Marquer l’étape comme incomplète",
+      "markComplete": "Marquer l’étape comme terminée",
+      "completed": "Terminée",
+      "notCompleted": "Non terminée"
+    },
+    "topic": {
+      "xedit": {
+        "title": "Configuration xEdit / FO4Edit",
+        "subtitle": "Installez, configurez et vérifiez xEdit pour patcher en toute sécurité."
+      },
+      "ss2": {
+        "title": "Configuration Sim Settlements 2",
+        "subtitle": "Dépendances + installation + vérification de base pour construire des parcelles."
+      },
+      "prp": {
+        "title": "Configuration PRP",
+        "subtitle": "Installation precombines/previs avec vérification attentive aux conflits."
+      },
+      "patching": {
+        "title": "Création de patches",
+        "subtitle": "Un workflow sûr et reproductible pour créer des patches de compatibilité."
+      }
+    },
+    "verifyPanel": {
+      "description": "Cet assistant évite les prérequis manquants : il pointe vers des sources officielles ou des recherches stables et propose une boucle minimale de vérification.",
+      "verify": {
+        "0": "Choisissez un sujet et vérifiez que la checklist s’affiche et que les cases persistent après rechargement.",
+        "1": "Ouvrez au moins un lien des “liens fiables” et vérifiez qu’il s’ouvre via openExternal/window.open.",
+        "2": "Utilisez “Envoyer au chat” et vérifiez que la checklist est copiée et préremplie dans le chat."
+      },
+      "firstTestLoop": {
+        "0": "Commencez par “xEdit / FO4Edit” et obtenez d’abord un lancement propre.",
+        "1": "Configurez votre gestionnaire de mods, puis faites seulement les vérifications minimales avant d’aller plus loin."
+      },
+      "troubleshooting": {
+        "0": "Si les liens ne s’ouvrent pas, vérifiez Diagnostics et assurez-vous que openExternal est disponible (app desktop) ou autorisez les popups.",
+        "1": "Si l’état des cases ne persiste pas, vérifiez que localStorage est disponible (voir Diagnostics)."
+      }
+    },
+    "downloadsSources": "Téléchargements & sources",
+    "downloadsSourcesHelp": "Affiche des sources fiables et toute URL directe trouvée dans votre Knowledge Vault local.",
+    "refresh": "Actualiser",
+    "refreshTitle": "Actualiser les liens",
+    "fromVault": "Depuis votre Knowledge Vault",
+    "openVault": "Ouvrir le coffre mémoire",
+    "searchNexus": "Rechercher sur Nexus",
+    "vaultLink": "Lien du coffre",
+    "tutorTip": "Conseil",
+    "openLastLocation": "Ouvrir le dernier emplacement",
+    "openLastLocationTitle": "(Optionnel) Ouvrir le dernier emplacement enregistré si disponible"
+  }
+}

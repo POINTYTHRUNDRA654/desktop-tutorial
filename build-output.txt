@@ -1,0 +1,35 @@
+
+> volttech-desktop@0.1.0 build
+> npm run build:vite && npm run build:electron
+
+
+> volttech-desktop@0.1.0 build:vite
+> vite build
+
+[36mvite v7.3.1 [32mbuilding client environment for production...[36m[39m
+transforming...
+[32mΓ£ô[39m 18 modules transformed.
+Γ£ù Build failed in 802ms
+error during build:
+[vite:esbuild] Transform failed with 1 error:
+D:/Projects/desktop-tutorial/desktop-tutorial/src/renderer/src/Holodeck.tsx:74:25: ERROR: Expected "}" but found "': ['"
+file: D:/Projects/desktop-tutorial/desktop-tutorial/src/renderer/src/Holodeck.tsx:74:25
+
+Expected "}" but found "': ['"
+72 |                  action: 'Equip weapon and attack training dummy at 50 ft range',
+73 |                  expectedResult: 'Damage displays as intended (25-35 DPS), attack animation plays smoothly',
+74 |                  riskAreas': ['Animation missing', 'Damage calculation script error', 'Physics misaligned']
+   |                           ^
+75 |              },
+76 |              {
+
+    at failureErrorWithLog (D:\Projects\desktop-tutorial\node_modules\esbuild\lib\main.js:1467:15)
+    at D:\Projects\desktop-tutorial\node_modules\esbuild\lib\main.js:736:50
+    at responseCallbacks.<computed> (D:\Projects\desktop-tutorial\node_modules\esbuild\lib\main.js:603:9)
+    at handleIncomingPacket (D:\Projects\desktop-tutorial\node_modules\esbuild\lib\main.js:658:12)
+    at Socket.readFromStdout (D:\Projects\desktop-tutorial\node_modules\esbuild\lib\main.js:581:7)
+    at Socket.emit (node:events:518:28)
+    at addChunk (node:internal/streams/readable:561:12)
+    at readableAddChunkPushByteMode (node:internal/streams/readable:512:3)
+    at Readable.push (node:internal/streams/readable:392:5)
+    at Pipe.onStreamRead (node:internal/stream_base_commons:189:23)

@@ -1,0 +1,164 @@
+{
+  "nav": {
+    "home": "Mossy.Space",
+    "modProjects": "Mod Projects",
+    "quickReference": "Quick Reference",
+    "knowledgeSearch": "Knowledge Search",
+    "installWizard": "Install Wizard",
+    "platforms": "Platforms",
+    "crashTriage": "Crash Triage",
+    "packagingRelease": "Packaging & Release",
+    "ckQuestDialogue": "CK Quest & Dialogue",
+    "animationGuide": "Animation Guide",
+    "skeletonReference": "Skeleton Reference",
+    "riggingMistakes": "Rigging Mistakes",
+    "questModAuthoring": "Quest Mod Authoring",
+    "precombinePrpGuide": "Precombine & PRP Guide",
+    "prpPatchBuilder": "PRP Patch Builder",
+    "leveledListInjection": "Leveled List Injection",
+    "lorekeeper": "The Lorekeeper",
+
+    "templateGenerator": "Template Generator",
+    "scriptAnalyzer": "Script Analyzer",
+    "assembler": "The Assembler",
+    "workshop": "The Workshop",
+    "blueprint": "The Blueprint",
+
+    "riggingChecklist": "Rigging Checklist",
+    "exportSettingsHelper": "Export Settings Helper",
+    "animationValidator": "Animation Validator",
+    "precombineChecker": "Precombine Checker",
+
+    "auditor": "The Auditor",
+    "scribe": "The Scribe",
+    "systemMonitor": "System Monitor",
+
+    "orchestrator": "The Orchestrator",
+    "workflowRunner": "Workflow Runner",
+    "holodeck": "The Holodeck",
+    "vault": "The Vault",
+    "memoryVault": "Memory Vault",
+    "neuralLink": "Neural Link",
+    "localCapabilities": "Local Capabilities",
+
+    "imageStudio": "Image Studio",
+    "audioStudio": "Audio Studio",
+
+    "liveSynapse": "Live Synapse",
+    "desktopBridge": "Desktop Bridge",
+    "duplicateFinder": "Duplicate Finder",
+    "communityLearning": "Community Learning",
+    "toolVerify": "Tool Verify",
+    "privacySettings": "Privacy Settings",
+    "voiceSettings": "Voice Settings",
+    "languageSettings": "Language Settings",
+    "diagnosticTools": "Diagnostic Tools",
+    "supportMossy": "Support Mossy"
+  },
+  "settings": {
+    "language": {
+      "title": "Language Settings",
+      "subtitle": "Choose the language used in the Mossy interface.",
+      "uiLanguageLabel": "App language",
+      "uiLanguageHelp": "Affects labels, buttons, and UI text (where translated).",
+      "requestTitle": "Request a language",
+      "requestHelp": "Missing your language? Tell us which one to add next.",
+      "requestCta": "Request a language",
+      "requestCtaTitle": "Open the language request form",
+      "auto": "Auto (system)",
+      "current": "Current",
+      "save": "Save"
+    }
+  },
+  "onboarding": {
+    "language": {
+      "label": "Language",
+      "help": "Choose your interface language. You can change this later in Settings.",
+      "auto": "Auto (system)"
+    }
+  },
+  "installWizard": {
+    "tagline": "Mossy Tutor • Install Wizard",
+    "topics": "Topics",
+    "modManager": "Mod Manager",
+    "shortcuts": {
+      "title": "Shortcuts",
+      "externalTools": "External Tools Settings",
+      "precombinePrp": "Precombine & PRP Guide",
+      "simSettlements": "Sim Settlements Guide"
+    },
+    "topicSelector": {
+      "xedit": "xEdit / FO4Edit",
+      "ss2": "SS2 Plot Building",
+      "prp": "PRP (Previs/Precombine)",
+      "patching": "Build Patches"
+    },
+    "actions": {
+      "askMossy": "Ask Mossy",
+      "askMossyTitle": "Ask Mossy in chat",
+      "sendToChat": "Send to Chat",
+      "sendToChatTitle": "Send this topic's checklist to Chat",
+      "reset": "Reset",
+      "resetTitle": "Reset wizard progress"
+    },
+    "section": {
+      "prereqs": "Prereqs",
+      "download": "Download",
+      "installConfigure": "Install / Configure",
+      "buildPatch": "Build the patch",
+      "verify": "Verify",
+      "troubleshoot": "Troubleshoot"
+    },
+    "step": {
+      "markIncomplete": "Mark step incomplete",
+      "markComplete": "Mark step complete",
+      "completed": "Completed",
+      "notCompleted": "Not completed"
+    },
+    "topic": {
+      "xedit": {
+        "title": "xEdit / FO4Edit Setup",
+        "subtitle": "Install, configure, and verify xEdit so you can patch safely."
+      },
+      "ss2": {
+        "title": "Sim Settlements 2 Setup",
+        "subtitle": "Dependencies + install + basic verification for plot building."
+      },
+      "prp": {
+        "title": "PRP Setup",
+        "subtitle": "Precombines/previs install with conflict-aware verification."
+      },
+      "patching": {
+        "title": "Patch Building",
+        "subtitle": "A safe, repeatable workflow for building compatibility patches."
+      }
+    },
+    "verifyPanel": {
+      "description": "This wizard is designed to avoid missing prerequisites: it links to official sources or stable search pages and gives you a minimal verification loop.",
+      "verify": {
+        "0": "Pick a topic and confirm the checklist renders and checkboxes persist after refresh.",
+        "1": "Open at least one link from “Trusted links” and confirm it opens via openExternal/window.open.",
+        "2": "Use “Send to Chat” and confirm the checklist is copied and prefilled in Chat."
+      },
+      "firstTestLoop": {
+        "0": "Start with “xEdit / FO4Edit” and get one clean launch first.",
+        "1": "Configure your mod manager choice, then complete only the minimal “verify” steps before expanding."
+      },
+      "troubleshooting": {
+        "0": "If links do not open, check Diagnostics and confirm openExternal is available (desktop app) or allow popups.",
+        "1": "If checkbox state does not persist, verify localStorage is available (see Diagnostics)."
+      }
+    },
+    "downloadsSources": "Downloads & Sources",
+    "downloadsSourcesHelp": "Shows trusted sources and any direct URLs found inside your local Knowledge Vault.",
+    "refresh": "Refresh",
+    "refreshTitle": "Refresh links",
+    "fromVault": "From your Knowledge Vault",
+    "openVault": "Open Memory Vault",
+    "searchNexus": "Search Nexus",
+    "vaultLink": "Vault link",
+    "tutorTip": "Tutor Tip",
+    "openLastLocation": "Open last location",
+    "openLastLocationTitle": "(Optional) Open last saved location if available"
+  }
+}
