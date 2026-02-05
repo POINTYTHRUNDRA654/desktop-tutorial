@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Terminal, Copy, CheckCircle2, AlertTriangle, Download, Zap, FileText, PlayCircle } from 'lucide-react';
+import { Terminal, Copy, CheckCircle2, AlertTriangle, ArrowDownToLine, Zap, FileText, PlayCircle } from 'lucide-react';
 
 interface Command {
     id: string;
@@ -184,7 +184,7 @@ const HyperTerminal = () => {
                 </div>
                 <div className="flex gap-2">
                     <button className="px-3 py-1.5 bg-black rounded border border-slate-600 hover:border-green-500 transition-colors text-xs text-green-400 flex items-center gap-2">
-                        <Download className="w-3 h-3" /> Export
+                        <ArrowDownToLine className="w-3 h-3" /> Export
                     </button>
                 </div>
             </div>

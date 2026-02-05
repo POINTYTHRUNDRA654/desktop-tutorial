@@ -262,7 +262,7 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
 
     return (
         <div className="fixed inset-0 bg-black/95 z-50 flex items-center justify-center p-8">
-            <div className="max-w-3xl w-full">
+            <div className="max-w-3xl w-full max-h-[90vh] overflow-y-auto bg-slate-900/95 backdrop-blur-sm border border-slate-700 rounded-2xl p-8 shadow-2xl">
                 {step === 'welcome' && (
                     <div className="text-center animate-fade-in">
                         <Sparkles className="w-20 h-20 mx-auto mb-6 text-amber-400" />
@@ -361,7 +361,7 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
                             />
                         </div>
 
-                        <div className="max-h-96 overflow-y-auto space-y-2 mb-6">
+                        <div className="max-h-[50vh] overflow-y-auto space-y-2 mb-6">
                             {filteredRecommendations.map((rec, i) => (
                                 <div
                                     key={i}

@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { CheckCircle2, ExternalLink, FolderOpen, Hammer, Wrench, ShieldCheck, Download, RefreshCcw, AlertCircle, Package, GitBranch, Search, Send } from 'lucide-react';
+import { CheckCircle2, ExternalLink, FolderOpen, Hammer, Wrench, ShieldCheck, ArrowDownToLine, RefreshCcw, AlertCircle, Package, GitBranch, Search, Send, Download } from 'lucide-react';
 import { ToolsInstallVerifyPanel } from './components/ToolsInstallVerifyPanel';
 import { useI18n } from './i18n';
 
