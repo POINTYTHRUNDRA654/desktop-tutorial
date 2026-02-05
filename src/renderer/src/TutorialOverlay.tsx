@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Download, CheckCircle2, ArrowRight, X, Monitor, Command, Layout, ChevronRight, Package, Terminal, Pause, Play, Mic2, BrainCircuit, Layers, Zap, ShieldCheck } from 'lucide-react';
+import { ArrowDownToLine, CheckCircle2, ArrowRight, X, Monitor, Command, Layout, ChevronRight, Package, Terminal, Pause, Play, Mic2, BrainCircuit, Layers, Zap, ShieldCheck } from 'lucide-react';
 
 interface HighlightRect {
     top: string | number;

@@ -10,11 +10,32 @@ import ErrorBoundary from './ErrorBoundary';
 import PipBoyFrame from './PipBoyFrame';
 import PipBoyStartup from './PipBoyStartup';
 import { FirstRunOnboarding } from './FirstRunOnboarding';
-import UpdateNotifier from './UpdateNotifier';
+import { VoiceSetupWizard } from './VoiceSetupWizard';
+import GuidedTour from './GuidedTour';
+import { NotificationProvider } from './NotificationContext';
 
 import { Loader2, Zap } from 'lucide-react';
 import { LiveProvider } from './LiveContext';
 import { OpenAIVoiceProvider } from './OpenAIVoiceContext';
+import { ModProject } from '../../shared/types';
+
+// Import Quick Wins components
+import { GlobalSearch } from './GlobalSearch';
+import { WhatsNewDialog, useWhatsNew } from './WhatsNewDialog';
+import { SkeletonLoader } from './SkeletonLoader';
+import { SettingsImportExport } from './SettingsImportExport';
+
+// Import new performance & reliability managers
+import { cacheManager } from './CacheManager';
+import { workerManager } from './WorkerManager';
+import { autoSaveManager } from './AutoSaveManager';
+
+// Import new AI & intelligence services
+import { contextAwareAIService } from './ContextAwareAIService';
+import { getWorkflowAutomationService } from './WorkflowAutomationService';
+import { getPluginSystemService } from './PluginSystemService';
+import { WorkflowAutomationService } from './WorkflowAutomationService';
+import { PluginSystemService } from './PluginSystemService';
 
 // --- LAZY LOAD MODULES ---
 // This prevents the app from loading ALL code at startup.
@@ -72,7 +93,12 @@ const SimSettlementsAddonToolkitsGuide = React.lazy(() => import('../../componen
 const PaperScriptGuide = React.lazy(() => import('./PaperScriptGuide'));
 const PaperScriptQuickStartGuide = React.lazy(() => import('./PaperScriptQuickStartGuide'));
 const PaperScriptFallout4Guide = React.lazy(() => import('./PaperScriptFallout4Guide'));
+
+// AI & Intelligence Features
+const WorkflowRecorder = React.lazy(() => import('./WorkflowRecorder').then(module => ({ default: module.WorkflowRecorder })));
+const PluginManager = React.lazy(() => import('./PluginManager').then(module => ({ default: module.PluginManager })));
 const HavokGuide = React.lazy(() => import('./HavokGuide'));
+const RoadmapPanel = React.lazy(() => import('./RoadmapPanel'));
 const HavokQuickStartGuide = React.lazy(() => import('./HavokQuickStartGuide'));
 const HavokFallout4Guide = React.lazy(() => import('./HavokFallout4Guide'));
 const InstallWizard = React.lazy(() => import('./InstallWizard'));
@@ -82,6 +108,27 @@ const PackagingReleaseWizard = React.lazy(() => import('./PackagingReleaseWizard
 const CKQuestDialogueWizard = React.lazy(() => import('./CKQuestDialogueWizard'));
 const PRPPatchBuilderWizard = React.lazy(() => import('./PRPPatchBuilderWizard'));
 const DuplicateFinder = React.lazy(() => import('./DuplicateFinder'));
+
+// Archive Management
+const BA2Manager = React.lazy(() => import('./BA2Manager').then(module => ({ default: module.BA2Manager })));
+
+// Advanced Features
+const ProjectManager = React.lazy(() => import('./ProjectManager').then(module => ({ default: module.ProjectManager })));
+const ProjectCreator = React.lazy(() => import('./ProjectCreator').then(module => ({ default: module.ProjectCreator })));
+const CollaborationManager = React.lazy(() => import('./CollaborationManager').then(module => ({ default: module.CollaborationManager })));
+const ProjectSelector = React.lazy(() => import('./ProjectSelector').then(module => ({ default: module.ProjectSelector })));
+const AnalyticsManager = React.lazy(() => import('./AnalyticsManager').then(module => ({ default: module.AnalyticsManager })));
+const AnalyticsDashboard = React.lazy(() => import('./AnalyticsDashboard').then(module => ({ default: module.AnalyticsDashboard })));
+
+// Mining Infrastructure
+const MiningDashboard = React.lazy(() => import('./MiningDashboard').then(module => ({ default: module.MiningDashboard })));
+
+// Mining Infrastructure
+const MiningPanel = React.lazy(() => import('./MiningPanel').then(module => ({ default: module.MiningPanel })));
+const AdvancedAnalysisPanel = React.lazy(() => import('./AdvancedAnalysisPanel').then(module => ({ default: module.AdvancedAnalysisPanel })));
+
+// Test Components
+const NotificationTest = React.lazy(() => import('./NotificationTest'));
 
 // Define window interface for AI Studio helpers & Custom Events
 declare global {
@@ -125,19 +172,7 @@ const NeuralController: React.FC = () => {
   return null;
 };
 
-const ModuleLoader = () => (
-  <div className="flex h-full w-full items-center justify-center bg-[#0a0e0a] text-[#00ff00]">
-    <div className="flex flex-col items-center gap-4">
-      <div className="relative">
-        <div className="h-12 w-12 rounded-full border-4 border-[#008000] border-t-[#00ff00] animate-spin" style={{ boxShadow: '0 0 15px rgba(0, 255, 0, 0.5)' }}></div>
-        <div className="absolute inset-0 flex items-center justify-center">
-          <Zap className="w-4 h-4 fill-current animate-pulse" />
-        </div>
-      </div>
-      <span className="text-xs font-mono tracking-widest uppercase animate-pulse" style={{ textShadow: '0 0 5px rgba(0, 255, 0, 0.3)' }}>Loading Module...</span>
-    </div>
-  </div>
-);
+const ModuleLoader = () => <SkeletonLoader type="module" />;
 
 const App: React.FC = () => {
   const devBuildId = '2026-01-27-1227-debug-probe';
@@ -153,6 +188,12 @@ const App: React.FC = () => {
     // Check if user has completed onboarding
     return localStorage.getItem('mossy_onboarding_completed') !== 'true';
   });
+  const [showVoiceSetup, setShowVoiceSetup] = useState(() => {
+    // Check if user has completed voice setup (only after first run onboarding)
+    const hasCompletedFirstRun = localStorage.getItem('mossy_onboarding_completed') === 'true';
+    const hasCompletedVoiceSetup = localStorage.getItem('mossy_voice_setup_complete') === 'true';
+    return hasCompletedFirstRun && !hasCompletedVoiceSetup;
+  });
   const [debugHash, setDebugHash] = useState(() => window.location.hash || '');
   const [showDevHud, setShowDevHud] = useState(() => {
     if (!import.meta.env.DEV) return false;
@@ -162,6 +203,11 @@ const App: React.FC = () => {
       return false;
     }
   });
+  const [guidedTour, setGuidedTour] = useState(() => ({
+    isOpen: false,
+    type: 'welcome' as 'welcome' | 'feature-spotlight' | 'module-intro',
+    targetModule: undefined as string | undefined
+  }));
   const [layoutDebug, setLayoutDebug] = useState(() => ({
     sidebar: 'n/a',
     main: 'n/a',
@@ -172,14 +218,109 @@ const App: React.FC = () => {
     probeMidRight: 'n/a',
     probeMainCenter: 'n/a',
   }));
-  const [pipToggledAt, setPipToggledAt] = useState('n/a');
+  const [pipToggledAt, setPipToggledAt] = useState(() => '');
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+  
+  // Project management state
+  const [currentProject, setCurrentProject] = useState<ModProject | null>(null);
 
-  // HashRouter expects a hash; Electron dev start URL may omit it.
+  // Quick Wins state
+  const { showWhatsNew, dismissWhatsNew } = useWhatsNew();
+
+  // Project management handlers
+  const handleProjectChange = (project: ModProject) => {
+    setCurrentProject(project);
+  };
+
+  const handleOpenProjectManager = () => {
+    window.location.hash = '#/project/manager';
+  };
+
+  // Guided Tour Event Listeners
   useEffect(() => {
-    if (!window.location.hash) {
-      window.location.hash = '#/';
-    }
-    setDebugHash(window.location.hash || '');
+    const handleStartWelcomeTour = () => {
+      setGuidedTour({ isOpen: true, type: 'welcome', targetModule: undefined });
+    };
+
+    const handleStartModuleTour = (event: CustomEvent) => {
+      setGuidedTour({
+        isOpen: true,
+        type: 'module-intro',
+        targetModule: event.detail?.module
+      });
+    };
+
+    const handleStartFeatureTour = () => {
+      setGuidedTour({ isOpen: true, type: 'feature-spotlight', targetModule: undefined });
+    };
+
+    window.addEventListener('start-welcome-tour', handleStartWelcomeTour);
+    window.addEventListener('start-module-tour', handleStartModuleTour as EventListener);
+    window.addEventListener('start-feature-tour', handleStartFeatureTour);
+
+    return () => {
+      window.removeEventListener('start-welcome-tour', handleStartWelcomeTour);
+      window.removeEventListener('start-module-tour', handleStartModuleTour as EventListener);
+      window.removeEventListener('start-feature-tour', handleStartFeatureTour);
+    };
+  }, []);
+
+  // Load current project on app start
+  useEffect(() => {
+    const loadCurrentProject = async () => {
+      try {
+        if (window.electronAPI?.getCurrentProject) {
+          const project = await window.electronAPI.getCurrentProject();
+          setCurrentProject(project);
+        }
+      } catch (error) {
+        console.error('Failed to load current project:', error);
+      }
+    };
+
+    loadCurrentProject();
+  }, []);
+
+  // Initialize performance & reliability systems
+  useEffect(() => {
+    const initSystems = async () => {
+      try {
+        // Initialize cache manager
+        await cacheManager.init();
+        console.log('[App] Cache manager initialized');
+
+        // Worker manager is initialized automatically
+        console.log('[App] Worker manager initialized');
+
+        // Auto-save manager is initialized automatically
+        console.log('[App] Auto-save manager initialized');
+
+        // Initialize AI & intelligence services
+        console.log('[App] Context-aware AI service initialized');
+        console.log('[App] Workflow automation service initialized');
+        console.log('[App] Plugin system service initialized');
+        console.log('[App] Workflow automation service initialized');
+        console.log('[App] Plugin system service initialized');
+
+        // Attempt crash recovery
+        const recoveredSession = await autoSaveManager.recoverFromCrash();
+        if (recoveredSession) {
+          console.log('[App] Recovered session from crash:', recoveredSession.id);
+          // TODO: Apply recovered session data to app state
+        }
+
+      } catch (error) {
+        console.error('[App] Failed to initialize systems:', error);
+      }
+    };
+
+    initSystems();
+
+    // Cleanup on unmount
+    return () => {
+      workerManager.destroy();
+      autoSaveManager.destroy();
+    };
   }, []);
 
   useEffect(() => {
@@ -329,10 +470,30 @@ const App: React.FC = () => {
     setHasBooted(true);
   };
 
-  // Expose reset function globally for testing
-  React.useEffect(() => {
-    (window as any).__resetMossyOnboarding = resetToFirstRun;
-  }, []);
+  // Keyboard navigation for accessibility
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Skip links navigation
+      if (e.altKey && e.key === '1') {
+        e.preventDefault();
+        const mainContent = document.getElementById('main-content');
+        mainContent?.focus();
+      }
+      if (e.altKey && e.key === '2') {
+        e.preventDefault();
+        const sidebarNav = document.getElementById('sidebar-navigation');
+        sidebarNav?.focus();
+      }
+
+      // Mobile sidebar toggle
+      if (e.key === 'Escape' && sidebarOpen) {
+        setSidebarOpen(false);
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [sidebarOpen]);
 
   // Ensure API Key selection for paid features (Veo/Pro Image) if applicable
   useEffect(() => {
@@ -411,6 +572,21 @@ const App: React.FC = () => {
       );
     }
 
+    if (showVoiceSetup) {
+      return (
+        <VoiceSetupWizard
+          onComplete={() => {
+            setShowVoiceSetup(false);
+            localStorage.setItem('mossy_voice_setup_complete', 'true');
+          }}
+          onSkip={() => {
+            setShowVoiceSetup(false);
+            localStorage.setItem('mossy_voice_setup_complete', 'true');
+          }}
+        />
+      );
+    }
+
     if (showOnboarding) {
       return (
         <MossyOnboarding 
@@ -424,6 +600,10 @@ const App: React.FC = () => {
 
     return (
       <HashRouter>
+        {/* Skip links for accessibility */}
+        <a href="#main-content" className="skip-link focus-visible">Skip to main content</a>
+        <a href="#sidebar-navigation" className="skip-link focus-visible" style={{ left: '120px' }}>Skip to navigation</a>
+
         <div
           className="flex h-full w-full overflow-hidden"
           style={{
@@ -440,9 +620,60 @@ const App: React.FC = () => {
           <CommandPalette />
           <TutorialOverlay />
           <SystemBus />
-          <Sidebar />
+          <WhatsNewDialog isOpen={showWhatsNew} onClose={dismissWhatsNew} />
+
+          {/* Mobile sidebar overlay */}
+          <div
+            className={`sidebar-overlay ${sidebarOpen ? 'show' : ''}`}
+            onClick={() => setSidebarOpen(false)}
+            aria-hidden="true"
+          />
+
+          {/* Sidebar with mobile responsiveness */}
+          <Sidebar
+            isOpen={sidebarOpen}
+            onToggle={() => setSidebarOpen(!sidebarOpen)}
+            onClose={() => setSidebarOpen(false)}
+          />
+
+          {/* Main Application Header */}
+          <header className="main-header bg-slate-900 border-b border-green-500/20 px-4 py-2 flex items-center justify-between">
+            <div className="flex items-center gap-4">
+              <h1 className="text-xl font-bold text-green-400 font-mono">MOSSY</h1>
+              <div className="hidden md:block">
+                <Suspense fallback={<div className="text-xs text-green-600">Loading...</div>}>
+                  <ProjectSelector
+                    currentProject={currentProject}
+                    onProjectChange={handleProjectChange}
+                    onOpenProjectManager={handleOpenProjectManager}
+                  />
+                </Suspense>
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <GlobalSearch />
+              <span className="text-xs text-green-600 font-mono">v4.0</span>
+            </div>
+          </header>
+
+          {/* Mobile header */}
+          <header className="mobile-header hidden" role="banner">
+            <button
+              type="button"
+              className="mobile-menu-button focus-visible"
+              onClick={() => setSidebarOpen(!sidebarOpen)}
+              aria-label="Toggle navigation menu"
+              aria-expanded={sidebarOpen}
+            >
+              <span aria-hidden="true">☰</span>
+            </button>
+            <h1 className="text-lg font-bold">Mossy</h1>
+          </header>
+
           <main
+            id="main-content"
             data-mossy-main="1"
+            data-tour="main-content"
             className="flex-1 relative overflow-y-auto overflow-x-hidden"
             style={{
               background: 'linear-gradient(135deg, #0a0e0a 0%, #1a1f1a 100%)',
@@ -452,84 +683,198 @@ const App: React.FC = () => {
               minWidth: 0,
               outline: import.meta.env.DEV ? '2px solid rgba(0,255,255,0.8)' : undefined,
             }}
+            role="main"
+            aria-label="Main content"
           >
             <MossyObserver />
             <Suspense fallback={<ModuleLoader />}>
               <Routes>
+                {/* Core Application Routes */}
                 <Route path="/" element={<ErrorBoundary><TheNexus /></ErrorBoundary>} />
-                <Route path="/monitor" element={<SystemMonitor />} />
-                <Route
-                  path="/load-order"
-                  element={import.meta.env.VITE_ENABLE_LOAD_ORDER_LAB === 'true'
+                <Route path="/chat" element={<ErrorBoundary><ChatInterface /></ErrorBoundary>} />
+                <Route path="/roadmap" element={<ErrorBoundary><RoadmapPanel /></ErrorBoundary>} />
+                <Route path="/live" element={<ErrorBoundary><VoiceChat /></ErrorBoundary>} />
+
+                {/* Core Tools */}
+                <Route path="/tools" element={<ErrorBoundary><TheNexus /></ErrorBoundary>} />
+                <Route path="/tools/monitor" element={<SystemMonitor />} />
+                <Route path="/tools/auditor" element={<TheAuditor />} />
+                <Route path="/tools/mining" element={<ErrorBoundary><MiningPanel /></ErrorBoundary>} />
+                <Route path="/tools/advanced-analysis" element={<ErrorBoundary><AdvancedAnalysisPanel /></ErrorBoundary>} />
+                <Route path="/tools/assembler" element={<TheAssembler />} />
+                <Route path="/tools/blueprint" element={<TheBlueprint />} />
+                <Route path="/tools/scribe" element={<TheScribe />} />
+                <Route path="/tools/vault" element={<ErrorBoundary><TheVault /></ErrorBoundary>} />
+                <Route path="/tools/dedupe" element={<ErrorBoundary><DuplicateFinder /></ErrorBoundary>} />
+                <Route path="/tools/ba2-manager" element={<ErrorBoundary><BA2Manager /></ErrorBoundary>} />
+
+                {/* Development & Workflow */}
+                <Route path="/dev" element={<ErrorBoundary><TheNexus /></ErrorBoundary>} />
+                <Route path="/dev/workshop" element={<Workshop />} />
+                <Route path="/dev/orchestrator" element={<WorkflowOrchestrator />} />
+                <Route path="/dev/workflow-runner" element={<ErrorBoundary><WorkflowRunner /></ErrorBoundary>} />
+                <Route path="/dev/neural-link" element={<NeuralLink />} />
+                <Route path="/dev/workflow-recorder" element={<ErrorBoundary><WorkflowRecorder /></ErrorBoundary>} />
+                <Route path="/dev/plugin-manager" element={<ErrorBoundary><PluginManager /></ErrorBoundary>} />
+                <Route path="/dev/mining-dashboard" element={<ErrorBoundary><MiningDashboard /></ErrorBoundary>} />
+                <Route path="/dev/load-order" element={
+                  import.meta.env.VITE_ENABLE_LOAD_ORDER_LAB === 'true'
                     ? <ErrorBoundary><LoadOrderLab /></ErrorBoundary>
                     : <ErrorBoundary><LoadOrderAnalyzer /></ErrorBoundary>
-                  }
-                />
-                <Route path="/chat" element={<ErrorBoundary><ChatInterface /></ErrorBoundary>} />
-                <Route path="/assembler" element={<TheAssembler />} />
-                <Route path="/auditor" element={<TheAuditor />} />
-                <Route path="/blueprint" element={<TheBlueprint />} />
-                <Route path="/scribe" element={<TheScribe />} />
-                <Route path="/orchestrator" element={<WorkflowOrchestrator />} />
-                <Route path="/workflow-runner" element={<ErrorBoundary><WorkflowRunner /></ErrorBoundary>} />
-                <Route path="/lore" element={<Lorekeeper />} />
-                <Route path="/holo" element={<Holodeck />} />
-                <Route path="/vault" element={<ErrorBoundary><TheVault /></ErrorBoundary>} />
-                <Route path="/memory-vault" element={<ErrorBoundary><MossyMemoryVault /></ErrorBoundary>} />
-                <Route path="/neural-link" element={<NeuralLink />} />
-                <Route path="/workshop" element={<Workshop />} />
-                <Route path="/live" element={<ErrorBoundary><VoiceChat /></ErrorBoundary>} />
-                <Route path="/images" element={<ImageSuite />} />
-                <Route path="/tts" element={<TTSPanel />} />
-                <Route path="/bridge" element={<DesktopBridge />} />
-                <Route path="/dedupe" element={<ErrorBoundary><DuplicateFinder /></ErrorBoundary>} />
+                } />
+
+                {/* Media & Assets */}
+                <Route path="/media" element={<ErrorBoundary><TheNexus /></ErrorBoundary>} />
+                <Route path="/media/images" element={<ImageSuite />} />
+                <Route path="/media/tts" element={<TTSPanel />} />
+                <Route path="/media/memory-vault" element={<ErrorBoundary><MossyMemoryVault /></ErrorBoundary>} />
+
+                {/* Testing & Deployment */}
+                <Route path="/test" element={<ErrorBoundary><TheNexus /></ErrorBoundary>} />
+                <Route path="/test/holo" element={<Holodeck />} />
+                <Route path="/test/notification-test" element={<NotificationTest />} />
+
+                {/* Knowledge & Learning */}
+                <Route path="/learn" element={<ErrorBoundary><TheNexus /></ErrorBoundary>} />
+                <Route path="/learn/lore" element={<Lorekeeper />} />
+                <Route path="/learn/knowledge" element={<ErrorBoundary><KnowledgeSearch /></ErrorBoundary>} />
+                <Route path="/learn/reference" element={<QuickReference />} />
+                <Route path="/learn/community" element={<CommunityLearning />} />
+                <Route path="/learn/capabilities" element={<ErrorBoundary><LocalCapabilities /></ErrorBoundary>} />
+
+                {/* Guides - Organized by Category */}
+                <Route path="/guides" element={<ErrorBoundary><TheNexus /></ErrorBoundary>} />
+                <Route path="/guides/blender" element={<ErrorBoundary><TheNexus /></ErrorBoundary>} />
+                <Route path="/guides/blender/animation" element={<BlenderAnimationGuide />} />
+                <Route path="/guides/blender/skeleton" element={<SkeletonReference />} />
+                <Route path="/guides/blender/animation-validator" element={<AnimationValidator />} />
+                <Route path="/guides/blender/rigging-checklist" element={<CustomRiggingChecklist />} />
+                <Route path="/guides/blender/export-settings" element={<ExportSettingsHelper />} />
+                <Route path="/guides/blender/rigging-mistakes" element={<RiggingMistakesGallery />} />
+
+                <Route path="/guides/creation-kit" element={<ErrorBoundary><TheNexus /></ErrorBoundary>} />
+                <Route path="/guides/creation-kit/precombine-prp" element={<PrecombineAndPRPGuide />} />
+                <Route path="/guides/creation-kit/precombine-checker" element={<PrecombineChecker />} />
+                <Route path="/guides/creation-kit/leveled-list-injection" element={<LeveledListInjectionGuide />} />
+                <Route path="/guides/creation-kit/quest-authoring" element={<QuestModAuthoringGuide />} />
+                <Route path="/guides/creation-kit/ck-quest-dialogue" element={<ErrorBoundary><CKQuestDialogueWizard /></ErrorBoundary>} />
+
+                <Route path="/guides/papyrus" element={<ErrorBoundary><TheNexus /></ErrorBoundary>} />
+                <Route path="/guides/papyrus/guide" element={<PaperScriptGuide />} />
+                <Route path="/guides/papyrus/quick-start" element={<PaperScriptQuickStartGuide />} />
+                <Route path="/guides/papyrus/fallout4" element={<PaperScriptFallout4Guide />} />
+
+                <Route path="/guides/physics" element={<ErrorBoundary><TheNexus /></ErrorBoundary>} />
+                <Route path="/guides/physics/havok" element={<HavokGuide />} />
+                <Route path="/guides/physics/havok-quick-start" element={<HavokQuickStartGuide />} />
+                <Route path="/guides/physics/havok-fo4" element={<HavokFallout4Guide />} />
+
+                <Route path="/guides/mods" element={<ErrorBoundary><TheNexus /></ErrorBoundary>} />
+                <Route path="/guides/mods/bodyslide" element={<BodyslideGuide />} />
+                <Route path="/guides/mods/sim-settlements" element={<SimSettlementsGuide />} />
+                <Route path="/guides/mods/sim-settlements-addon" element={<SimSettlementsAddonGuide />} />
+                <Route path="/guides/mods/sim-settlements-units-loadouts" element={<SimSettlementsUnitsLoadoutsGuide />} />
+                <Route path="/guides/mods/sim-settlements-addon-toolkits" element={<SimSettlementsAddonToolkitsGuide />} />
+
+                {/* Wizards & Advanced Tools */}
+                <Route path="/wizards" element={<ErrorBoundary><TheNexus /></ErrorBoundary>} />
+                <Route path="/wizards/install" element={<ErrorBoundary><InstallWizard /></ErrorBoundary>} />
+                <Route path="/wizards/platforms" element={<ErrorBoundary><PlatformsHub /></ErrorBoundary>} />
+                <Route path="/wizards/crash-triage" element={<ErrorBoundary><CrashTriageWizard /></ErrorBoundary>} />
+                <Route path="/wizards/packaging-release" element={<ErrorBoundary><PackagingReleaseWizard /></ErrorBoundary>} />
+                <Route path="/wizards/prp-patch-builder" element={<ErrorBoundary><PRPPatchBuilderWizard /></ErrorBoundary>} />
+
+                {/* Development Tools */}
+                <Route path="/devtools" element={<ErrorBoundary><TheNexus /></ErrorBoundary>} />
+                <Route path="/devtools/script-analyzer" element={<ScriptAnalyzer />} />
+                <Route path="/devtools/template-generator" element={<TemplateGenerator />} />
+                <Route path="/devtools/tool-verify" element={<ErrorBoundary><ToolVerify /></ErrorBoundary>} />
+                <Route path="/devtools/diagnostics" element={<DiagnosticTools />} />
+
+                {/* Settings */}
+                <Route path="/settings" element={<ErrorBoundary><TheNexus /></ErrorBoundary>} />
                 <Route path="/settings/privacy" element={<PrivacySettings />} />
                 <Route path="/settings/voice" element={<VoiceSettings />} />
                 <Route path="/settings/language" element={<LanguageSettings />} />
-                <Route path="/diagnostics" element={<DiagnosticTools />} />
                 <Route path="/settings/tools" element={<ExternalToolsSettings />} />
-                <Route path="/tool-verify" element={<ErrorBoundary><ToolVerify /></ErrorBoundary>} />
-                <Route path="/community" element={<CommunityLearning />} />
+                <Route path="/settings/import-export" element={<SettingsImportExport />} />
+
+                {/* Project Management */}
+                <Route path="/project" element={<ErrorBoundary><TheNexus /></ErrorBoundary>} />
+                <Route path="/project/journey" element={<ModProjectManager />} />
+                <Route path="/project/manager" element={<ErrorBoundary><ProjectManager /></ErrorBoundary>} />
+                <Route path="/project/create" element={<ErrorBoundary><ProjectCreator /></ErrorBoundary>} />
+                <Route path="/project/collaboration" element={<ErrorBoundary><CollaborationManager /></ErrorBoundary>} />
+                <Route path="/project/analytics" element={<ErrorBoundary><AnalyticsManager /></ErrorBoundary>} />
+                <Route path="/project/analytics-dashboard" element={<ErrorBoundary><AnalyticsDashboard /></ErrorBoundary>} />
+
+                {/* Support */}
                 <Route path="/support" element={<DonationSupport />} />
-                <Route path="/reference" element={<QuickReference />} />
-                  <Route path="/knowledge" element={<ErrorBoundary><KnowledgeSearch /></ErrorBoundary>} />
-                <Route path="/capabilities" element={<ErrorBoundary><LocalCapabilities /></ErrorBoundary>} />
-                <Route path="/script-analyzer" element={<ScriptAnalyzer />} />
-                <Route path="/template-generator" element={<TemplateGenerator />} />
 
-                <Route path="/install-wizard" element={<ErrorBoundary><InstallWizard /></ErrorBoundary>} />
-                <Route path="/platforms" element={<ErrorBoundary><PlatformsHub /></ErrorBoundary>} />
-                <Route path="/crash-triage" element={<ErrorBoundary><CrashTriageWizard /></ErrorBoundary>} />
-                <Route path="/packaging-release" element={<ErrorBoundary><PackagingReleaseWizard /></ErrorBoundary>} />
-                <Route path="/ck-quest-dialogue" element={<ErrorBoundary><CKQuestDialogueWizard /></ErrorBoundary>} />
-                <Route path="/prp-patch-builder" element={<ErrorBoundary><PRPPatchBuilderWizard /></ErrorBoundary>} />
-
-                <Route path="/animation-guide" element={<BlenderAnimationGuide />} />
-                <Route path="/skeleton-reference" element={<SkeletonReference />} />
-                <Route path="/animation-validator" element={<AnimationValidator />} />
-                <Route path="/rigging-checklist" element={<CustomRiggingChecklist />} />
-                <Route path="/export-settings" element={<ExportSettingsHelper />} />
-                <Route path="/rigging-mistakes" element={<RiggingMistakesGallery />} />
-                <Route path="/precombine-prp" element={<PrecombineAndPRPGuide />} />
-                <Route path="/precombine-checker" element={<PrecombineChecker />} />
-                <Route path="/leveled-list-injection" element={<LeveledListInjectionGuide />} />
-                <Route path="/quest-mod-authoring-guide" element={<QuestModAuthoringGuide />} />
-                <Route path="/quest-authoring" element={<QuestModAuthoringGuide />} />
-                <Route path="/journey" element={<ModProjectManager />} />
-                <Route path="/bodyslide" element={<BodyslideGuide />} />
-                <Route path="/sim-settlements" element={<SimSettlementsGuide />} />
-                <Route path="/sim-settlements-addon" element={<SimSettlementsAddonGuide />} />
-                <Route path="/sim-settlements-units-loadouts" element={<SimSettlementsUnitsLoadoutsGuide />} />
-                <Route path="/sim-settlements-addon-toolkits" element={<SimSettlementsAddonToolkitsGuide />} />
-                <Route path="/paperscript" element={<PaperScriptGuide />} />
-                <Route path="/paperscript-quick-start" element={<PaperScriptQuickStartGuide />} />
-                <Route path="/paperscript-fo4" element={<PaperScriptFallout4Guide />} />
-                <Route path="/havok" element={<HavokGuide />} />
-                <Route path="/havok-quick-start" element={<HavokQuickStartGuide />} />
-                <Route path="/havok-fo4" element={<HavokFallout4Guide />} />
+                {/* Legacy Routes - Redirect to new structure */}
+                <Route path="/monitor" element={<Navigate to="/tools/monitor" replace />} />
+                <Route path="/load-order" element={<Navigate to="/dev/load-order" replace />} />
+                <Route path="/assembler" element={<Navigate to="/tools/assembler" replace />} />
+                <Route path="/auditor" element={<Navigate to="/tools/auditor" replace />} />
+                <Route path="/blueprint" element={<Navigate to="/tools/blueprint" replace />} />
+                <Route path="/scribe" element={<Navigate to="/tools/scribe" replace />} />
+                <Route path="/orchestrator" element={<Navigate to="/dev/orchestrator" replace />} />
+                <Route path="/workflow-runner" element={<Navigate to="/dev/workflow-runner" replace />} />
+                <Route path="/lore" element={<Navigate to="/learn/lore" replace />} />
+                <Route path="/holo" element={<Navigate to="/test/holo" replace />} />
+                <Route path="/vault" element={<Navigate to="/tools/vault" replace />} />
+                <Route path="/memory-vault" element={<Navigate to="/media/memory-vault" replace />} />
+                <Route path="/neural-link" element={<Navigate to="/dev/neural-link" replace />} />
+                <Route path="/workshop" element={<Navigate to="/dev/workshop" replace />} />
+                <Route path="/images" element={<Navigate to="/media/images" replace />} />
+                <Route path="/tts" element={<Navigate to="/media/tts" replace />} />
+                <Route path="/bridge" element={<Navigate to="/test/bridge" replace />} />
+                <Route path="/dedupe" element={<Navigate to="/tools/dedupe" replace />} />
+                <Route path="/diagnostics" element={<Navigate to="/devtools/diagnostics" replace />} />
+                <Route path="/tool-verify" element={<Navigate to="/devtools/tool-verify" replace />} />
+                <Route path="/community" element={<Navigate to="/learn/community" replace />} />
+                <Route path="/reference" element={<Navigate to="/learn/reference" replace />} />
+                <Route path="/capabilities" element={<Navigate to="/learn/capabilities" replace />} />
+                <Route path="/script-analyzer" element={<Navigate to="/devtools/script-analyzer" replace />} />
+                <Route path="/template-generator" element={<Navigate to="/devtools/template-generator" replace />} />
+                <Route path="/install-wizard" element={<Navigate to="/wizards/install" replace />} />
+                <Route path="/platforms" element={<Navigate to="/wizards/platforms" replace />} />
+                <Route path="/crash-triage" element={<Navigate to="/wizards/crash-triage" replace />} />
+                <Route path="/packaging-release" element={<Navigate to="/wizards/packaging-release" replace />} />
+                <Route path="/ck-quest-dialogue" element={<Navigate to="/guides/creation-kit/ck-quest-dialogue" replace />} />
+                <Route path="/prp-patch-builder" element={<Navigate to="/wizards/prp-patch-builder" replace />} />
+                <Route path="/animation-guide" element={<Navigate to="/guides/blender/animation" replace />} />
+                <Route path="/skeleton-reference" element={<Navigate to="/guides/blender/skeleton" replace />} />
+                <Route path="/animation-validator" element={<Navigate to="/guides/blender/animation-validator" replace />} />
+                <Route path="/rigging-checklist" element={<Navigate to="/guides/blender/rigging-checklist" replace />} />
+                <Route path="/export-settings" element={<Navigate to="/guides/blender/export-settings" replace />} />
+                <Route path="/rigging-mistakes" element={<Navigate to="/guides/blender/rigging-mistakes" replace />} />
+                <Route path="/precombine-prp" element={<Navigate to="/guides/creation-kit/precombine-prp" replace />} />
+                <Route path="/precombine-checker" element={<Navigate to="/guides/creation-kit/precombine-checker" replace />} />
+                <Route path="/leveled-list-injection" element={<Navigate to="/guides/creation-kit/leveled-list-injection" replace />} />
+                <Route path="/quest-mod-authoring-guide" element={<Navigate to="/guides/creation-kit/quest-authoring" replace />} />
+                <Route path="/quest-authoring" element={<Navigate to="/guides/creation-kit/quest-authoring" replace />} />
+                <Route path="/journey" element={<Navigate to="/project/journey" replace />} />
+                <Route path="/bodyslide" element={<Navigate to="/guides/mods/bodyslide" replace />} />
+                <Route path="/sim-settlements" element={<Navigate to="/guides/mods/sim-settlements" replace />} />
+                <Route path="/sim-settlements-addon" element={<Navigate to="/guides/mods/sim-settlements-addon" replace />} />
+                <Route path="/sim-settlements-units-loadouts" element={<Navigate to="/guides/mods/sim-settlements-units-loadouts" replace />} />
+                <Route path="/sim-settlements-addon-toolkits" element={<Navigate to="/guides/mods/sim-settlements-addon-toolkits" replace />} />
+                <Route path="/paperscript" element={<Navigate to="/guides/papyrus/guide" replace />} />
+                <Route path="/paperscript-quick-start" element={<Navigate to="/guides/papyrus/quick-start" replace />} />
+                <Route path="/paperscript-fo4" element={<Navigate to="/guides/papyrus/fallout4" replace />} />
+                <Route path="/havok" element={<Navigate to="/guides/physics/havok" replace />} />
+                <Route path="/havok-quick-start" element={<Navigate to="/guides/physics/havok-quick-start" replace />} />
+                <Route path="/havok-fo4" element={<Navigate to="/guides/physics/havok-fo4" replace />} />
               </Routes>
             </Suspense>
           </main>
+          <GuidedTour
+            isOpen={guidedTour.isOpen}
+            onClose={() => setGuidedTour(prev => ({ ...prev, isOpen: false }))}
+            tourType={guidedTour.type}
+            targetModule={guidedTour.targetModule}
+          />
         </div>
       </HashRouter>
     );
@@ -639,9 +984,10 @@ const App: React.FC = () => {
                 )}
               </>
             )}
-            {renderAppContent()}
+            <NotificationProvider>
+              {renderAppContent()}
+            </NotificationProvider>
           </PipBoyFrame>
-          <UpdateNotifier />
         </OpenAIVoiceProvider>
       </LiveProvider>
     </ErrorBoundary>

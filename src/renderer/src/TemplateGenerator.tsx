@@ -1,5 +1,5 @@
 import React, { useRef, useState } from 'react';
-import { Wand2, Copy, Download, Sparkles, Code } from 'lucide-react';
+import { Wand2, Copy, ArrowDownToLine, Sparkles, Code } from 'lucide-react';
 import { ToolsInstallVerifyPanel } from './components/ToolsInstallVerifyPanel';
 import { useWheelScrollProxyFrom } from './components/useWheelScrollProxy';
 
@@ -401,7 +401,7 @@ EndFunction`;
                     onClick={downloadScript}
                     className="px-3 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg flex items-center gap-2 text-sm transition-colors"
                   >
-                    <Download className="w-4 h-4" />
+                    <ArrowDownToLine className="w-4 h-4" />
                     Download
                   </button>
                 </div>

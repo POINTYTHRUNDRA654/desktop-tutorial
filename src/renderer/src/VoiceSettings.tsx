@@ -1,5 +1,45 @@
+// Global error overlay for fatal errors outside React
+function showGlobalFatalErrorOverlay(message: string) {
+  if (document.getElementById('fatal-error-overlay')) return;
+  const overlay = document.createElement('div');
+  overlay.id = 'fatal-error-overlay';
+  overlay.style.position = 'fixed';
+  overlay.style.top = '0';
+  overlay.style.left = '0';
+  overlay.style.width = '100vw';
+  overlay.style.height = '100vh';
+  overlay.style.background = 'rgba(60,0,0,0.97)';
+  overlay.style.color = '#fff';
+  overlay.style.zIndex = '99999';
+  overlay.style.display = 'flex';
+  overlay.style.flexDirection = 'column';
+  overlay.style.justifyContent = 'center';
+  overlay.style.alignItems = 'center';
+  overlay.style.fontSize = '1.2rem';
+  overlay.innerHTML = `<div style="max-width:600px;text-align:center;"><h2 style="color:#ffb4b4;">Fatal Error</h2><div style="margin:1em 0;white-space:pre-wrap;">${message}</div><button id="fatal-error-reload" style="margin-top:2em;padding:0.7em 2em;font-size:1rem;background:#222;color:#fff;border-radius:8px;border:none;cursor:pointer;">Reload</button></div>`;
+  document.body.appendChild(overlay);
+  document.getElementById('fatal-error-reload')?.addEventListener('click', () => window.location.reload());
+}
+
+// Attach global error handlers once
+if (typeof window !== 'undefined' && !(window as any).__voiceSettingsGlobalErrorHandler) {
+  // Temporarily disabled global error handlers for debugging
+  /*
+  window.onerror = function (msg, src, line, col, err) {
+    showGlobalFatalErrorOverlay(`JS Error: ${msg}\n${src}:${line}:${col}\n${err ? err.stack || err : ''}`);
+    return true;
+  };
+  window.onunhandledrejection = function (event) {
+    showGlobalFatalErrorOverlay(`Unhandled Promise Rejection:\n${event.reason ? (event.reason.stack || event.reason) : ''}`);
+    return true;
+  };
+  */
+  (window as any).__voiceSettingsGlobalErrorHandler = true;
+}
 import React, { useEffect, useMemo, useState } from 'react';
-import { Volume2, Save, Play, ExternalLink } from 'lucide-react';
+import { Volume2, Save, ExternalLink, Play, Mic, MicOff } from 'lucide-react';
+import ErrorBoundary from './ErrorBoundary';
+import { VoiceService, VoiceServiceConfig } from './voice-service';
 import {
   BROWSER_TTS_STORAGE_KEY,
   getBrowserTtsVoices,
@@ -8,7 +48,7 @@ import {
   speakBrowserTts,
   type BrowserTtsSettings,
 } from './browserTts';
-import { speakMossy, type MossyTtsProvider, getElevenLabsStatus } from './mossyTts';
+
 
 function getElectronApi(): any {
   return (window as any)?.electron?.api ?? (window as any)?.electronAPI;
@@ -17,19 +57,12 @@ function getElectronApi(): any {
 const VoiceSettings: React.FC = () => {
   const [voices, setVoices] = useState<SpeechSynthesisVoice[]>([]);
   const [settings, setSettings] = useState<BrowserTtsSettings>(() => loadBrowserTtsSettings());
-  const [testText, setTestText] = useState('Howdy. I\'m Mossy. Testing voice output.');
+  const [testText, setTestText] = useState("Howdy. I'm Mossy. Testing voice output.");
+  const [isTestingMic, setIsTestingMic] = useState(false);
+  const [micTestResult, setMicTestResult] = useState('');
+  const [micError, setMicError] = useState('');
 
-  const [ttsProvider, setTtsProvider] = useState<MossyTtsProvider>('browser');
-  const [elevenLabsVoiceId, setElevenLabsVoiceId] = useState('');
-  const [elevenLabsApiKeyInput, setElevenLabsApiKeyInput] = useState('');
-  const [elevenLabsConfigured, setElevenLabsConfigured] = useState(false);
-  const [elevenLabsVoices, setElevenLabsVoices] = useState<Array<{ voice_id: string; name: string }>>([]);
-  const [elevenLabsLoading, setElevenLabsLoading] = useState(false);
-  const [elevenLabsError, setElevenLabsError] = useState<string | null>(null);
 
-  // Feature flag: keep ElevenLabs completely optional (no keys required for normal use).
-  // This flag is NOT a secret. It just controls UI exposure.
-  const enableElevenLabsUi = String((import.meta as any)?.env?.VITE_ENABLE_ELEVENLABS || '').toLowerCase() === 'true';
 
   // Keep voices list updated.
   useEffect(() => {
@@ -87,129 +120,80 @@ const VoiceSettings: React.FC = () => {
     }
   };
 
-  // Load Electron settings for provider/voiceId (and keep them in sync).
-  useEffect(() => {
-    const api = getElectronApi();
-    if (!api?.getSettings) return;
 
-    let disposed = false;
-    const load = async () => {
-      try {
-        const s = await api.getSettings();
-        if (disposed) return;
-        setTtsProvider((String(s?.ttsOutputProvider || 'browser') as MossyTtsProvider) || 'browser');
-        setElevenLabsVoiceId(String(s?.elevenLabsVoiceId || '').trim());
-      } catch {
-        // ignore
-      }
-    };
 
-    void load();
-
-    if (typeof api.onSettingsUpdated === 'function') {
-      try {
-        api.onSettingsUpdated((s: any) => {
-          if (disposed) return;
-          setTtsProvider((String(s?.ttsOutputProvider || 'browser') as MossyTtsProvider) || 'browser');
-          setElevenLabsVoiceId(String(s?.elevenLabsVoiceId || '').trim());
-        });
-      } catch {
-        // ignore
-      }
-    }
-
-    return () => {
-      disposed = true;
-    };
-  }, []);
-
-  // Fetch whether ElevenLabs is configured (API key exists in main-process settings).
-  useEffect(() => {
-    if (!enableElevenLabsUi) return;
-    let disposed = false;
-    const run = async () => {
-      const status = await getElevenLabsStatus();
-      if (disposed) return;
-      if (status.ok) setElevenLabsConfigured(Boolean(status.configured));
-    };
-    void run();
-    return () => {
-      disposed = true;
-    };
-  }, [enableElevenLabsUi]);
 
   const onSave = async () => {
     saveBrowserTtsSettings(settings);
-
-    const api = getElectronApi();
-    if (api?.setSettings) {
-      try {
-        const payload: any = {
-          // Always save provider, but keep ElevenLabs disabled by default unless the feature is enabled.
-          ttsOutputProvider: enableElevenLabsUi ? ttsProvider : 'browser',
-        };
-
-        if (enableElevenLabsUi) {
-          payload.elevenLabsVoiceId = elevenLabsVoiceId.trim();
-          if (elevenLabsApiKeyInput.trim()) {
-            payload.elevenLabsApiKey = elevenLabsApiKeyInput.trim();
-          }
-        }
-
-        await api.setSettings(payload);
-
-        // If we just saved a key, clear the input so it doesn't linger in the renderer.
-        if (elevenLabsApiKeyInput.trim()) {
-          setElevenLabsApiKeyInput('');
-        }
-
-        if (enableElevenLabsUi) {
-          const status = await getElevenLabsStatus();
-          if (status.ok) setElevenLabsConfigured(Boolean(status.configured));
-        }
-      } catch (e: any) {
-        setElevenLabsError(String(e?.message || e));
-      }
-    }
   };
 
   const onTest = async () => {
+    console.log('[VoiceSettings] onTest clicked, calling speakBrowserTts');
     await speakBrowserTts(testText, { cancelExisting: true });
   };
 
-  const onTestOutput = async () => {
-    await speakMossy(testText, { cancelExisting: true });
-  };
-
-  const loadElevenLabsVoices = async () => {
-    const api = getElectronApi();
-    if (!api?.elevenLabsListVoices) {
-      setElevenLabsError('ElevenLabs IPC not available (preload not updated?)');
-      return;
-    }
-
-    setElevenLabsError(null);
-    setElevenLabsLoading(true);
+  const onTestMic = async () => {
+    console.log('[VoiceSettings] onTestMic clicked');
+    setIsTestingMic(true);
+    setMicTestResult('');
+    setMicError('');
+    
     try {
-      const res = await api.elevenLabsListVoices();
-      if (!res || res.ok !== true) {
-        setElevenLabsError(res?.error || 'Failed to load ElevenLabs voices');
-        setElevenLabsVoices([]);
-        return;
-      }
-
-      const list = Array.isArray(res.voices) ? res.voices : [];
-      setElevenLabsVoices(list.map((v: any) => ({ voice_id: String(v.voice_id || ''), name: String(v.name || '') })));
-    } catch (e: any) {
-      setElevenLabsError(String(e?.message || e));
-      setElevenLabsVoices([]);
-    } finally {
-      setElevenLabsLoading(false);
+      // Create voice service for testing (same config as LiveContext)
+      const config: VoiceServiceConfig = {
+        sttProvider: 'backend', // Use backend first, fallback to browser
+        ttsProvider: 'browser',
+        deepgramKey: undefined,
+        elevenlabsKey: undefined,
+      };
+      
+      const voiceService = new VoiceService(config);
+      await voiceService.initialize();
+      
+      // Set up transcription handler
+      const handleTranscription = (text: string) => {
+        console.log('[VoiceSettings] Transcribed:', text);
+        setMicTestResult(`Transcribed: "${text.trim()}"`);
+        setIsTestingMic(false);
+        voiceService.stopListening();
+      };
+      
+      const handleError = (error: string) => {
+        console.error('[VoiceSettings] Voice service error:', error);
+        setMicError(`Test failed: ${error}`);
+        setIsTestingMic(false);
+      };
+      
+      const handleModeChange = (mode: string) => {
+        console.log('[VoiceSettings] Mode changed to:', mode);
+      };
+      
+      // Start listening
+      voiceService.startListening(handleTranscription, handleError, handleModeChange);
+      setMicTestResult('Listening... (speak now)');
+      
+      // Stop after 5 seconds if no result
+      setTimeout(() => {
+        if (isTestingMic) {
+          voiceService.stopListening();
+          setMicTestResult('Test completed (no speech detected)');
+          setIsTestingMic(false);
+        }
+      }, 5000);
+      
+    } catch (error: any) {
+      console.error('[VoiceSettings] Mic test error:', error);
+      setMicError(`Test failed: ${error.message || 'Unknown error'}`);
+      setIsTestingMic(false);
     }
   };
 
-  return (
-    <div className="h-full bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 overflow-hidden flex flex-col">
+
+
+
+    return (
+      <ErrorBoundary>
+        <div className="h-full bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 overflow-hidden flex flex-col">
       <div className="p-6 border-b border-slate-700 bg-slate-800/50">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
@@ -232,6 +216,7 @@ const VoiceSettings: React.FC = () => {
       </div>
 
       <div className="flex-1 overflow-y-auto p-6 space-y-6">
+        {/* Browser TTS settings only. All cloud TTS and context menu code removed. */}
         {'speechSynthesis' in window && (
           <div className="bg-black/40 border border-white/10 rounded-xl p-5">
             <div className="flex items-center justify-between gap-4">
@@ -290,127 +275,8 @@ const VoiceSettings: React.FC = () => {
           </div>
         </div>
 
-        {enableElevenLabsUi && (
-          <div className="bg-black/40 border border-white/10 rounded-xl p-5">
-            <div className="text-xs font-black text-white uppercase tracking-widest mb-3">TTS Output Provider</div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <label className="flex items-center gap-2 text-sm text-slate-200">
-                <input
-                  type="radio"
-                  name="ttsProvider"
-                  value="browser"
-                  checked={ttsProvider === 'browser'}
-                  onChange={() => setTtsProvider('browser')}
-                  className="w-4 h-4"
-                />
-                Browser (Windows voices)
-              </label>
-
-              <label className="flex items-center gap-2 text-sm text-slate-200">
-                <input
-                  type="radio"
-                  name="ttsProvider"
-                  value="elevenlabs"
-                  checked={ttsProvider === 'elevenlabs'}
-                  onChange={() => setTtsProvider('elevenlabs')}
-                  className="w-4 h-4"
-                />
-                ElevenLabs (cloud voice)
-              </label>
-            </div>
-
-            <div className="mt-3 text-[11px] text-slate-500">
-              Browser is always available. ElevenLabs is opt-in and automatically falls back to browser if misconfigured.
-            </div>
-          </div>
-        )}
-
-        {enableElevenLabsUi && (
-          <div className="bg-black/40 border border-white/10 rounded-xl p-5">
-          <div className="flex items-center justify-between gap-4">
-            <div>
-              <div className="text-xs font-black text-white uppercase tracking-widest">ElevenLabs</div>
-              <div className="text-[11px] text-slate-400 mt-1">
-                Store your API key in the desktop app settings (saved locally on your machine).
-              </div>
-            </div>
-            <div className="text-[11px] font-bold">
-              <span className={elevenLabsConfigured ? 'text-emerald-300' : 'text-amber-300'}>
-                {elevenLabsConfigured ? 'Configured' : 'Not configured'}
-              </span>
-            </div>
-          </div>
-
-          <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
-            <label className="text-xs text-slate-300">
-              API Key (paste once, then Save)
-              <input
-                value={elevenLabsApiKeyInput}
-                onChange={(e) => setElevenLabsApiKeyInput(e.target.value)}
-                placeholder={elevenLabsConfigured ? '(already saved — leave blank to keep)' : 'sk-...'}
-                className="mt-1 w-full px-3 py-2 rounded bg-slate-900 border border-slate-700 text-slate-100"
-              />
-            </label>
-
-            <label className="text-xs text-slate-300">
-              Voice ID
-              <input
-                value={elevenLabsVoiceId}
-                onChange={(e) => setElevenLabsVoiceId(e.target.value)}
-                placeholder="e.g. 21m00Tcm4TlvDq8ikWAM"
-                className="mt-1 w-full px-3 py-2 rounded bg-slate-900 border border-slate-700 text-slate-100"
-              />
-            </label>
-          </div>
-
-          <div className="mt-4 flex flex-wrap gap-3">
-            <button
-              onClick={loadElevenLabsVoices}
-              disabled={elevenLabsLoading}
-              className="px-4 py-2 bg-slate-800 hover:bg-slate-700 disabled:opacity-60 border border-slate-600 text-slate-100 font-bold rounded-lg transition-colors"
-              title="Fetch your available ElevenLabs voices"
-            >
-              {elevenLabsLoading ? 'Loading…' : 'Load Voices'}
-            </button>
-
-            {elevenLabsVoices.length > 0 && (
-              <select
-                value={elevenLabsVoiceId}
-                onChange={(e) => setElevenLabsVoiceId(e.target.value)}
-                className="px-3 py-2 rounded bg-slate-900 border border-slate-700 text-slate-100"
-                title="Pick a voice from your account"
-              >
-                <option value="">(Select voice)</option>
-                {elevenLabsVoices.map((v) => (
-                  <option key={v.voice_id} value={v.voice_id}>
-                    {v.name}
-                  </option>
-                ))}
-              </select>
-            )}
-
-            <button
-              onClick={onTestOutput}
-              className="px-4 py-2 bg-slate-800 hover:bg-slate-700 border border-slate-600 text-slate-100 font-bold rounded-lg flex items-center gap-2 transition-colors"
-              title="Test using the currently selected output provider"
-            >
-              <Play className="w-4 h-4" />
-              Test Output
-            </button>
-          </div>
-
-          {elevenLabsError && (
-            <div className="mt-3 text-sm text-rose-200 bg-rose-500/10 border border-rose-500/20 rounded-lg p-3">
-              {elevenLabsError}
-            </div>
-          )}
-
-          <div className="mt-3 text-[11px] text-slate-500">
-            Security note: the app never returns your ElevenLabs key back to the UI after saving it.
-          </div>
-          </div>
-        )}
+        {/* Cloud TTS and ElevenLabs UI removed: browser TTS only */}
 
         <div className="bg-black/40 border border-white/10 rounded-xl p-5">
           <div className="text-xs font-black text-white uppercase tracking-widest mb-3">Preferred Voice</div>
@@ -500,8 +366,42 @@ const VoiceSettings: React.FC = () => {
             </>
           )}
         </div>
+
+        {/* Microphone Test Section */}
+        <div className="bg-black/40 border border-white/10 rounded-xl p-5">
+          <div className="text-xs font-black text-white uppercase tracking-widest mb-3">Microphone Test</div>
+          
+          <div className="flex gap-3 mb-3">
+            <button
+              onClick={onTestMic}
+              disabled={isTestingMic}
+              className="px-4 py-2 bg-blue-600 hover:bg-blue-500 disabled:bg-slate-600 text-white font-bold rounded-lg flex items-center gap-2 transition-colors"
+              title="Test microphone input"
+            >
+              {isTestingMic ? <MicOff className="w-4 h-4" /> : <Mic className="w-4 h-4" />}
+              {isTestingMic ? 'Testing...' : 'Test Mic'}
+            </button>
+          </div>
+
+          {micTestResult && (
+            <div className="text-sm text-green-300 mb-2">
+              {micTestResult}
+            </div>
+          )}
+
+          {micError && (
+            <div className="text-sm text-red-300 mb-2">
+              {micError}
+            </div>
+          )}
+
+          <div className="text-[11px] text-slate-500">
+            Click "Test Mic" and speak. The app should detect and transcribe your speech.
+          </div>
+        </div>
       </div>
-    </div>
+      </div>
+    </ErrorBoundary>
   );
 };
 

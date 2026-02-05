@@ -223,8 +223,8 @@ const SystemMonitor: React.FC = () => {
   // Telemetry Engine - Real data loop
   useEffect(() => {
     const fetchTelemetry = async () => {
-        if (window.electron?.api?.getPerformance) {
-            const perf = await window.electron.api.getPerformance();
+        if (window.electronAPI?.getPerformance) {
+            const perf = await window.electronAPI.getPerformance();
             setData(prev => {
                 const newData = [...prev, {
                     name: new Date().toLocaleTimeString(),
@@ -271,7 +271,7 @@ const SystemMonitor: React.FC = () => {
             addLog("[STEP 1/3] Scanning system hardware...", 'info');
             setScanProgress(10);
             console.log('[SystemMonitor] Calling getSystemInfo...');
-            sysInfo = await window.electron.api.getSystemInfo();
+            sysInfo = await window.electronAPI.getSystemInfo();
             
             console.log('[SystemMonitor] Received system info from Electron:', sysInfo);
             
@@ -372,15 +372,15 @@ const SystemMonitor: React.FC = () => {
             aiTools: aiTools.length,
             fallout4Installations: fallout4Apps.length,
             systemInfo: sysInfo,
-            nvidiaPrograms: nvidiaTools.map(a => ({
+            nvidiaPrograms: nvidiaTools.map((a: any) => ({
                 name: a.displayName || a.name,
                 path: a.path
             })),
-            aiPrograms: aiTools.map(a => ({
+            aiPrograms: aiTools.map((a: any) => ({
                 name: a.displayName || a.name,
                 path: a.path
             })),
-            allPrograms: allApps.map(a => ({
+            allPrograms: allApps.map((a: any) => ({
                 name: a.displayName || a.name,
                 path: a.path,
                 version: a.version,
@@ -455,9 +455,10 @@ const SystemMonitor: React.FC = () => {
 
   // --- Deployment Logic ---
   const startBuild = () => {
-      setBuildStatus('building');
-      setBuildProgress(0);
-      setBuildLog(['Initializing Mod Deployment Sequence...']);
+      // TODO: Implement build status, progress, and log state
+      // setBuildStatus('building');
+      // setBuildProgress(0);
+      // setBuildLog(['Initializing Mod Deployment Sequence...']);
       
       const steps = [
           "Verifying Plugin Integrity (.esp/.esl)...",
@@ -474,13 +475,15 @@ const SystemMonitor: React.FC = () => {
       const interval = setInterval(() => {
           if (currentStep >= steps.length) {
               clearInterval(interval);
-              setBuildStatus('complete');
-              setReleaseUrl(window.location.href.split('#')[0] + '#/beta/invite/' + Math.random().toString(36).substring(7));
+              // TODO: Implement build status and release URL state
+              // setBuildStatus('complete');
+              // setReleaseUrl(window.location.href.split('#')[0] + '#/beta/invite/' + Math.random().toString(36).substring(7));
               return;
           }
 
-          setBuildLog(prev => [...prev, `[${new Date().toLocaleTimeString()}] ${steps[currentStep]}`]);
-          setBuildProgress(prev => Math.min(100, prev + (100 / steps.length)));
+          // TODO: Implement build log and progress state
+          // setBuildLog(prev => [...prev, `[${new Date().toLocaleTimeString()}] ${steps[currentStep]}`]);
+          // setBuildProgress(prev => Math.min(100, prev + (100 / steps.length)));
           currentStep++;
       }, 800);
   };
@@ -493,19 +496,19 @@ const SystemMonitor: React.FC = () => {
 
       try {
           // Perform REAL Tool Detection
-          const apps = window.electron?.api?.detectPrograms ? await window.electron.api.detectPrograms() : [];
+          const apps = window.electronAPI?.detectPrograms ? await window.electronAPI.detectPrograms() : [];
           const moddingKeywords = [
             'blender', 'creation', 'xedit', 'fo4edit', 'fo4xedit', 'edit', 'vortex', 'organizer', 'loot', 'nifskope', 
             'bodyslide', 'f4se', 'upscayl', 'shadermap', 'nvidia', 'fbx', 'photodemon', 'unwrap', 
             'nifutils', 'omniverse', 'spin3d'
           ];
-          const moddingTools = apps.filter(a => moddingKeywords.some(kw => a.displayName.toLowerCase().includes(kw)));
+          const moddingTools = apps.filter(a => moddingKeywords.some(kw => (a.displayName || a.name).toLowerCase().includes(kw)));
           
           const ollamaActive = await LocalAIEngine.checkOllama();
           
           setInstallLog(prev => [...prev, `> Found ${apps.length} total applications.`, `> Filtering for ${moddingTools.length} modding tools...`]);
 
-          const realSystem = window.electron?.api?.getSystemInfo ? await window.electron.api.getSystemInfo() : null;
+          const realSystem = window.electronAPI?.getSystemInfo ? await window.electronAPI.getSystemInfo() : null;
           
           const scanSequence: any[] = [
               { name: 'Native Bridge', found: true, cat: 'System' },
@@ -514,7 +517,7 @@ const SystemMonitor: React.FC = () => {
 
           if (realSystem?.gpu) scanSequence.push({ name: realSystem.gpu, found: true, cat: 'System' });
           moddingTools.slice(0, 10).forEach(t => {
-              scanSequence.push({ name: t.displayName, found: true, cat: 'Modding' });
+              scanSequence.push({ name: t.displayName || t.name, found: true, cat: 'Modding' });
           });
 
           let i = 0;
@@ -530,7 +533,7 @@ const SystemMonitor: React.FC = () => {
                       name: t.displayName,
                       displayName: t.displayName,
                       path: t.path,
-                      version: t.displayVersion,
+                      version: t.version,
                       checked: true,
                       category: 'Tool'
                   }))));
@@ -541,10 +544,10 @@ const SystemMonitor: React.FC = () => {
                           cpu: realSystem.cpu,
                           gpu: realSystem.gpu,
                           ram: realSystem.ram,
-                          vram: realSystem.vram,
-                          motherboard: realSystem.motherboard,
-                          storageDrives: realSystem.storageDrives,
-                          blenderVersion: realSystem.blenderVersion
+                          vram: (realSystem as any).vram || 'Unknown',
+                          motherboard: (realSystem as any).motherboard || 'Unknown',
+                          storageDrives: (realSystem as any).storageDrives || [],
+                          blenderVersion: (realSystem as any).blenderVersion || 'Unknown'
                       }));
                   }
                   
@@ -575,10 +578,11 @@ const SystemMonitor: React.FC = () => {
   };
 
   const copyLink = () => {
-      if (!releaseUrl) return;
-      navigator.clipboard.writeText(releaseUrl);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
+      // TODO: Implement release URL and copied state
+      // if (!releaseUrl) return;
+      // navigator.clipboard.writeText(releaseUrl);
+      // setCopied(true);
+      // setTimeout(() => setCopied(false), 2000);
   };
 
     const mainScrollRef = useRef<HTMLDivElement | null>(null);

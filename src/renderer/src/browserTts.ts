@@ -114,14 +114,32 @@ export async function speakBrowserTts(
   const cleaned = (text ?? '').replace(/[*#]/g, '').trim().substring(0, 700);
   const normalized = cleaned.toLowerCase();
 
-  if (!cleaned) return;
-  if (UI_STATE_PHRASES.has(normalized)) return;
+  console.log('[TTS] speakBrowserTts called with text:', cleaned.substring(0, 50) + '...');
 
-  if (typeof window === 'undefined') return;
-  if (!('speechSynthesis' in window)) return;
+  if (!cleaned) {
+    console.log('[TTS] Text is empty, skipping');
+    return;
+  }
+  if (UI_STATE_PHRASES.has(normalized)) {
+    console.log('[TTS] Text is UI state phrase, skipping');
+    return;
+  }
+
+  if (typeof window === 'undefined') {
+    console.log('[TTS] Window not available, skipping');
+    return;
+  }
+  if (!('speechSynthesis' in window)) {
+    console.log('[TTS] Speech synthesis not supported, skipping');
+    return;
+  }
 
   const settings = loadBrowserTtsSettings();
-  if (!settings.enabled) return;
+  console.log('[TTS] Browser TTS settings:', settings);
+  if (!settings.enabled) {
+    console.log('[TTS] TTS is disabled in settings, skipping');
+    return;
+  }
 
   if (opts?.cancelExisting) {
     try {
@@ -134,8 +152,12 @@ export async function speakBrowserTts(
   // Voices can load lazily; try to wait briefly for them.
   const pickVoiceFromCurrent = () => {
     const voices = getBrowserTtsVoices();
+    console.log('[TTS] Available voices:', voices.map(v => `${v.name} (${v.lang})`));
     const preferred = (opts?.preferredVoiceName ?? settings.preferredVoiceName);
-    return pickBrowserTtsVoice(voices, preferred);
+    console.log('[TTS] Preferred voice name:', preferred);
+    const selectedVoice = pickBrowserTtsVoice(voices, preferred);
+    console.log('[TTS] Selected voice:', selectedVoice ? `${selectedVoice.name} (${selectedVoice.lang})` : 'none');
+    return selectedVoice;
   };
 
   const attemptSpeak = (voice?: SpeechSynthesisVoice) =>
@@ -146,10 +168,22 @@ export async function speakBrowserTts(
         utter.pitch = settings.pitch;
         utter.volume = settings.volume;
         if (voice) utter.voice = voice;
-        utter.onend = () => resolve();
-        utter.onerror = () => resolve();
+        console.log('[TTS] Attempting to speak with voice:', voice ? voice.name : 'default');
+        utter.onstart = () => {
+          console.log('[TTS] Speech started successfully');
+          resolve();
+        };
+        utter.onend = () => {
+          console.log('[TTS] Speech ended');
+          resolve();
+        };
+        utter.onerror = (event) => {
+          console.error('[TTS] Speech error:', event.error);
+          resolve();
+        };
         window.speechSynthesis.speak(utter);
-      } catch {
+      } catch (error) {
+        console.error('[TTS] Exception during speech:', error);
         resolve();
       }
     });

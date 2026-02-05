@@ -6,6 +6,7 @@ import { useLive } from './LiveContext';
 const AvatarOverlay: React.FC = () => {
   // Hook must be called unconditionally at the top level
   const liveContext = useLive();
+  const [isProcessing, setIsProcessing] = React.useState(false);
   
   if (!liveContext) {
     console.warn('[AvatarOverlay] LiveContext not available');
@@ -15,7 +16,14 @@ const AvatarOverlay: React.FC = () => {
   const { mode, isActive, connect, disconnect } = liveContext;
 
   const handleClick = async () => {
+    if (isProcessing) {
+      console.log('[AvatarOverlay] Ignoring click - already processing');
+      return;
+    }
+    
     console.log('[AvatarOverlay] Avatar clicked, isActive:', isActive);
+    setIsProcessing(true);
+    
     try {
       if (!connect || !disconnect) {
         console.error('[AvatarOverlay] Connect or disconnect functions not available');
@@ -35,6 +43,9 @@ const AvatarOverlay: React.FC = () => {
       console.error('[AvatarOverlay] Click handler error:', err);
       console.error('[AvatarOverlay] Error stack:', err?.stack);
       alert(`Voice chat error: ${err?.message || 'Unknown error'}`);
+    } finally {
+      // Small delay to prevent rapid clicking
+      setTimeout(() => setIsProcessing(false), 500);
     }
   };
 

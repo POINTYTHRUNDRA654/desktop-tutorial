@@ -1,6 +1,29 @@
 # Mossy - The Fallout 4 Modding Assistant
 
-**Mossy v5.4.21** - A production-ready Electron desktop application for Fallout 4 modding with AI assistance, real-time analysis, and professional asset optimization.
+**Mossy v5.4.21** - A production-ready Electron desktop application for Fallout 4 modding with AI assistance, real-time analysis, direct-write scripting, and professional asset optimization.
+
+---
+
+## 🚀 Onboarding & Installer Notes (v5.4.21)
+
+**New in v5.4.21:**
+- Direct-write protocol for Papyrus, xEdit, and Blender scripting
+- Headless automation and batch execution for Blender
+- Real-time tool monitoring (Neural Link)
+- Explicit user permission and audit logging for all direct-write and automation features
+- All modules are functional—no placeholders
+
+**Installer:**
+- Windows installer is generated via NSIS (`npm run package:win`)
+- Version is auto-set from `package.json` (currently 5.4.21)
+- No separate .nsi script; packaging is handled by Electron Forge and NSIS config
+
+**Onboarding:**
+- See [BLENDER_ADDON_TUTORIAL.md](resources/public/knowledge/BLENDER_ADDON_TUTORIAL.md) for Blender scripting
+- See [ANIMATION_SUITE_IMPLEMENTATION.md](resources/public/knowledge/ANIMATION_SUITE_IMPLEMENTATION.md) for animation workflow
+- See [BLENDER_SCRIPT_EXECUTION_CHECKLIST.md](resources/public/knowledge/BLENDER_SCRIPT_EXECUTION_CHECKLIST.md) for script execution and trust
+
+---
 
 ![License](https://img.shields.io/badge/license-MIT-blue.svg)
 ![Platform](https://img.shields.io/badge/platform-Windows-blue)
@@ -9,7 +32,7 @@
 
 ## 🎯 What's Inside
 
-**Mossy** is a focused, lean toolkit with only real, working features:
+**Mossy** is a focused, lean toolkit with only real, working features. All modules are production-ready and tested. See onboarding notes above for new user guidance.
 
 ### Core Modules
 
@@ -148,24 +171,24 @@ desktop-ai-assistant/
 
 ## 🚀 Getting Started
 
-### Prerequisites
+---
 
+## 🏁 Quick Start
+
+### Prerequisites
 - **Node.js** (v18 or higher)
 - **npm** or **yarn**
 
 ### Installation
-
 1. Clone the repository:
    ```bash
    git clone https://github.com/POINTYTHRUNDRA654/desktop-tutorial.git
    cd desktop-tutorial
    ```
-
 2. Install dependencies:
    ```bash
    npm install
    ```
-
 3. (Optional) Set development API keys (Electron main only):
    - Create `.env.local` in the project root and add any keys you want to use in dev.
    - Example:
@@ -175,26 +198,20 @@ desktop-ai-assistant/
      DEEPGRAM_API_KEY=your-key-here
      ELEVENLABS_API_KEY=your-key-here
      ```
-
-   Security note: do not put secrets in `VITE_*` variables (Vite exposes those to the renderer).
+   - Security note: do not put secrets in `VITE_*` variables (Vite exposes those to the renderer).
 
 ### Development
-
 Start the development server:
-
 ```bash
 npm run dev
 ```
-
 This will:
 1. Start Vite dev server for the renderer (port 5174)
 2. Launch Electron with hot reload enabled
 3. Open DevTools automatically
 
 ### Building
-
 Build the application for production:
-
 ```bash
 npm run build
 ```
@@ -273,6 +290,8 @@ npm run package:win  # Windows installer
 ```
 
 Installer output goes to `release/` (for example: `Mossy Setup 5.4.21.exe`).
+
+---
 
 ## 📦 What's NOT Included
 

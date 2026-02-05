@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Link2, Package, GitBranch, AlertCircle, CheckCircle2, Copy, Zap, Download, Upload, RefreshCw } from 'lucide-react';
+import { Link2, Package, GitBranch, AlertCircle, CheckCircle2, Copy, Zap, ArrowDownToLine, Upload, RefreshCw } from 'lucide-react';
 
 interface PluginIntegration {
     id: string;
@@ -253,7 +253,7 @@ const TheConduit = () => {
                     >
                         {tab === 'plugins' && <span className="flex items-center gap-2"><Package className="w-3 h-3" /> Plugins</span>}
                         {tab === 'sync' && <span className="flex items-center gap-2"><Zap className="w-3 h-3" /> Sync Channels</span>}
-                        {tab === 'tools' && <span className="flex items-center gap-2"><Download className="w-3 h-3" /> Tools</span>}
+                        {tab === 'tools' && <span className="flex items-center gap-2"><ArrowDownToLine className="w-3 h-3" /> Tools</span>}
                     </button>
                 ))}
             </div>
@@ -362,7 +362,7 @@ const TheConduit = () => {
                                             {tool.installed ? (
                                                 <CheckCircle2 className="w-4 h-4 text-green-400" />
                                             ) : (
-                                                <Download className="w-4 h-4 text-slate-400" />
+                                                <ArrowDownToLine className="w-4 h-4 text-slate-400" />
                                             )}
                                             {tool.name}
                                         </h4>

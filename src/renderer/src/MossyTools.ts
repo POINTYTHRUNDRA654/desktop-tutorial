@@ -78,6 +78,15 @@ export const executeMossyTool = async (name: string, args: any, context: {
         }
     };
 
+    const sendToBlenderAddon = async (command: string, args: any = {}, timeoutMs = 5000): Promise<any> => {
+        if (!api?.sendBlenderCommand) return { success: false, error: 'API not available' };
+        try {
+            return await api.sendBlenderCommand(command, args);
+        } catch (e) {
+            return { success: false, error: String(e) };
+        }
+    };
+
     // Blender reliability: always create an artifact (file + clipboard) and only claim delivery when confirmed.
     if (name === 'execute_blender_script') {
         const safeScript = sanitizeBlenderScript(String(args?.script || ''));
@@ -89,15 +98,24 @@ export const executeMossyTool = async (name: string, args: any, context: {
         try { await navigator.clipboard.writeText(safeScript); clipboardOk = true; } catch { /* ignore clipboard errors */ }
 
         let linkDispatched = false;
+        let socketResult = null;
+
         if (context.isBlenderLinked) {
             try {
-                window.dispatchEvent(new CustomEvent('mossy-blender-command', {
-                    detail: {
-                        code: safeScript,
-                        description: args?.description || 'Script Execution'
-                    }
-                }));
-                linkDispatched = true;
+                // Try socket communication first
+                socketResult = await sendToBlenderAddon('execute_script', { script: safeScript });
+                if (socketResult?.success) {
+                    linkDispatched = true;
+                } else {
+                    // Fall back to custom event
+                    window.dispatchEvent(new CustomEvent('mossy-blender-command', {
+                        detail: {
+                            code: safeScript,
+                            description: args?.description || 'Script Execution'
+                        }
+                    }));
+                    linkDispatched = true;
+                }
             } catch {
                 linkDispatched = false;
             }
@@ -108,19 +126,50 @@ export const executeMossyTool = async (name: string, args: any, context: {
             ? await postToBridge({ type: 'blender', script: safeScript, target: 'active_instance' })
             : false;
 
-        const delivery = bridgeOk
+        const delivery = socketResult?.success
+            ? 'Executed in Blender via Mossy Link socket.'
+            : bridgeOk
             ? 'Sent to Blender via Desktop Bridge.'
             : linkDispatched
-            ? 'Sent to Blender via Mossy Link.'
+            ? 'Sent to Blender via Mossy Link event.'
             : 'Bridge/Link not confirmed; use file + clipboard fallback.';
 
         const savedLine = savedPath ? `**Saved:** ${savedPath}` : `**Saved:** (could not auto-save; use clipboard)`;
         const clipLine = clipboardOk ? '**Clipboard:** copied' : '**Clipboard:** failed to copy (copy from the message)';
 
-        const result = `**Blender Python Ready:** ${filename}\n\n${savedLine}\n${clipLine}\n\n${delivery}\n\n` +
-            `**Run it in Blender:** Scripting → Text Editor → New → Paste → Run Script.`;
+        const result = socketResult?.success
+            ? `**Blender Python Executed:** ${filename}\n\n${savedLine}\n${clipLine}\n\n${delivery}\n\n**Result:** ${socketResult.output || 'Script completed successfully'}`
+            : `**Blender Python Ready:** ${filename}\n\n${savedLine}\n${clipLine}\n\n${delivery}\n\n**Run it in Blender:** Scripting → Text Editor → New → Paste → Run Script.`;
 
         return { success: true, result };
+    }
+
+    if (name === 'get_blender_scene_info') {
+        if (!context.isBlenderLinked) {
+            return { success: false, result: 'Blender is not linked. Please ensure Blender with Mossy Link add-on is running.' };
+        }
+
+        try {
+            const sceneInfo = await sendToBlenderAddon('get_scene_info');
+            if (sceneInfo?.success) {
+                const info = sceneInfo.scene_info;
+                const result = `**Blender Scene Information:**
+
+**Scene:** ${info.scene_name}
+**Frame:** ${info.frame_current}/${info.frame_start}-${info.frame_end}
+**Objects:** ${info.objects_count} total, ${info.selected_objects} selected
+**Active Object:** ${info.active_object || 'None'}
+**Render Engine:** ${info.render_engine}
+**Units:** ${info.unit_system} (Scale: ${info.scale_length})
+**Mode:** ${info.mode || 'Object Mode'}`;
+
+                return { success: true, result };
+            } else {
+                return { success: false, result: `Failed to get scene info: ${sceneInfo?.error || 'Unknown error'}` };
+            }
+        } catch (e) {
+            return { success: false, result: `Error communicating with Blender: ${e}` };
+        }
     }
 
     if (name === 'write_blender_script') {
@@ -1408,6 +1457,16 @@ Check your Downloads folder or the location where files are saved.`;
         }
     } else if (name === 'ck_set_render_mode') {
         result = `**CK Render Mode set to:** ${args.mode}`;
+    } else if (name === 'search_fallout4_wiki') {
+        const query = encodeURIComponent(args.query);
+        const url = `https://fallout.fandom.com/wiki/Special:Search?query=${query}`;
+        if (api?.openExternal) {
+            await api.openExternal(url);
+            result = `**Wiki Search Dispatched:** Searching for "${args.query}" on the Fallout 4 Wiki.\n*External browser session initialized.*`;
+        } else {
+            window.open(url, '_blank');
+            result = `**Wiki Search Opened:** "${args.query}" (Browser redirected to Fallout 4 Wiki).`;
+        }
     } else if (name === 'create_mod_project') {
         try {
             const newProject = ModProjectStorage.createModProject({

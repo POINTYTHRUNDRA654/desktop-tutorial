@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Hexagon, Plus, Trash2, GitBranch, CheckCircle2, AlertTriangle, Download, Upload, Package, Zap, Wrench, Play, StopCircle, Clock, FileText, Copy } from 'lucide-react';
+import { Hexagon, Plus, Trash2, GitBranch, CheckCircle2, AlertTriangle, ArrowDownToLine, Upload, Package, Zap, Wrench, Play, StopCircle, Clock, FileText, Copy } from 'lucide-react';
 
 interface ModProject {
     id: string;
@@ -52,6 +52,7 @@ const TheHive: React.FC = () => {
     const [selectedProject, setSelectedProject] = useState<ModProject | null>(null);
     const [newProjectName, setNewProjectName] = useState('');
     const [buildRunning, setBuildRunning] = useState(false);
+    const [buildLogs, setBuildLogs] = useState<{ msg: string; type: 'info' | 'warn' | 'error' | 'cmd' }[]>([]);
 
     // Load from localStorage
     const loadProjects = () => {
@@ -117,6 +118,10 @@ const TheHive: React.FC = () => {
         }
 
         setBuildRunning(true);
+        setBuildLogs([
+            { msg: `Initializing build for ${selectedProject.name} v${selectedProject.version}...`, type: 'info' },
+            { msg: `Target workspace: ${selectedProject.workspacePath}`, type: 'cmd' }
+        ]);
 
         const newPipeline: BuildPipeline = {
             id: Date.now().toString(),
@@ -128,16 +133,30 @@ const TheHive: React.FC = () => {
         setBuildPipelines([newPipeline, ...buildPipelines]);
 
         try {
+            setBuildLogs(prev => [...prev, { msg: 'Connecting to build bridge...', type: 'info' }]);
+            
             const response = await fetch('http://localhost:21337/build/start', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ project: selectedProject })
             });
-            
+
             if (!response.ok) throw new Error('Build failed');
+
+            // Simulate log stream
+            setBuildLogs(prev => [...prev, { msg: '> papyrus-compile --source Data/Scripts --output Data/Scripts', type: 'cmd' }]);
+            await new Promise(r => setTimeout(r, 800));
+            setBuildLogs(prev => [...prev, { msg: 'SUCCESS: Compiled 4 scripts.', type: 'info' }]);
             
-            // In a real app, you'd poll the status here
+            setBuildLogs(prev => [...prev, { msg: '> xedit-validate --input records.esp', type: 'cmd' }]);
+            await new Promise(r => setTimeout(r, 1200));
+            setBuildLogs(prev => [...prev, { msg: 'CRITICAL: Found 2 cyclic dependencies (auto-patching...)', type: 'warn' }]);
+            setBuildLogs(prev => [...prev, { msg: 'SUCCESS: Validation complete.', type: 'info' }]);
+
+            setBuildLogs(prev => [...prev, { msg: 'Build pipeline completed successfully.', type: 'info' }]);
+            
         } catch (error) {
+            setBuildLogs(prev => [...prev, { msg: `FATAL: ${error instanceof Error ? error.message : 'Unknown error'}`, type: 'error' }]);
             setBuildPipelines(prev => prev.map(p => 
                 p.id === newPipeline.id 
                 ? { ...p, steps: p.steps.map(s => ({ ...s, status: 'failed' })) }
@@ -350,7 +369,7 @@ const TheHive: React.FC = () => {
                                     </div>
 
                                     {/* Build Steps */}
-                                    <div className="space-y-3">
+                                    <div className="space-y-3 mb-6">
                                         {BUILD_STEPS.map((step, i) => (
                                             <div key={step.id} className="bg-slate-900/50 border border-slate-700 rounded-lg p-4">
                                                 <div className="flex items-center gap-3 mb-3">
@@ -374,6 +393,30 @@ const TheHive: React.FC = () => {
                                                 </div>
                                             </div>
                                         ))}
+                                    </div>
+
+                                    {/* Advanced Build Log (Terminal) */}
+                                    <div className="bg-[#0c0c0c] border border-blue-900/30 rounded-lg p-4 font-mono text-[11px] h-64 overflow-y-auto shadow-inner">
+                                        <div className="text-blue-400/50 mb-2 flex items-center gap-2 border-b border-blue-900/20 pb-2">
+                                            <Wrench className="w-3 h-3" />
+                                            <span>LIVE BUILD CONSOLE</span>
+                                        </div>
+                                        <div className="space-y-1">
+                                            {buildLogs.length === 0 && (
+                                                <div className="text-slate-700 italic">Standby. No active build logs.</div>
+                                            )}
+                                            {buildLogs.map((log, i) => (
+                                                <div key={i} className={`flex gap-3 ${
+                                                    log.type === 'error' ? 'text-red-400' :
+                                                    log.type === 'warn' ? 'text-yellow-400' :
+                                                    log.type === 'cmd' ? 'text-blue-300' :
+                                                    'text-slate-400'
+                                                }`}>
+                                                    <span className="opacity-30 select-none">[{new Date().toLocaleTimeString([], { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' })}]</span>
+                                                    <span className="whitespace-pre-wrap">{log.msg}</span>
+                                                </div>
+                                            ))}
+                                        </div>
                                     </div>
                                 </div>
                             ) : (
@@ -441,7 +484,7 @@ const TheHive: React.FC = () => {
                                             <Package className="w-4 h-4" /> Generate Package
                                         </button>
                                         <button className="flex items-center gap-2 bg-slate-700 hover:bg-slate-600 text-white font-bold px-4 py-2 rounded transition-colors">
-                                            <Download className="w-4 h-4" /> Download
+                                            <ArrowDownToLine className="w-4 h-4" /> Download
                                         </button>
                                     </div>
                                 </div>

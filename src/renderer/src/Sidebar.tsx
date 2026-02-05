@@ -1,11 +1,19 @@
 import React, { useEffect, useState } from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
-import { MessageSquare, Radio, Image, Mic2, Activity, Heart, Leaf, Monitor, Wifi, WifiOff, Hammer, GitBranch, Network, Gamepad2, Container, SquareTerminal, BrainCircuit, Aperture, LayoutDashboard, Satellite, Workflow, Hexagon, DraftingCompass, Dna, Sparkles, Flame, Binary, Triangle, PenTool, FlaskConical, Map, FileDigit, Library, Bug, Package, Watch, ShieldCheck, Feather, Power, Volume2, VolumeX, Settings, Coffee, Book, Code, Wand2, Archive, Eye, Save, List, FileCode as FileCodeIcon, Bot, Box, Gauge, Zap, GitMerge, Clock, Share2, Github, Bone, CheckCircle2, AlertCircle, BookOpen, Wrench, Copy } from 'lucide-react';
+import { MessageSquare, Radio, Image, Mic2, Activity, Heart, Leaf, Monitor, Wifi, WifiOff, Hammer, GitBranch, Network, Gamepad2, Container, SquareTerminal, BrainCircuit, Aperture, LayoutDashboard, Satellite, Workflow, Hexagon, DraftingCompass, Dna, Sparkles, Flame, Binary, Triangle, PenTool, FlaskConical, Map, FileDigit, Library, Bug, Package, Watch, ShieldCheck, Feather, Power, Volume2, VolumeX, Settings, Coffee, Book, Code, Wand2, Archive, Eye, Save, List, FileCode as FileCodeIcon, Bot, Box, Gauge, Zap, GitMerge, Clock, Share2, Github, Bone, CheckCircle2, AlertCircle, BookOpen, Wrench, Copy, Command, Star, ArrowDownToLine, Brain, Target, ExternalLink, Globe } from 'lucide-react';
 import { useLive } from './LiveContext';
 import AvatarCore from './AvatarCore';
 import { useI18n } from './i18n';
+import TourLauncher from './TourLauncher';
+import { useFavorites } from './useFavorites';
 
-const Sidebar: React.FC = () => {
+interface SidebarProps {
+  isOpen?: boolean;
+  onToggle?: () => void;
+  onClose?: () => void;
+}
+
+const Sidebar: React.FC<SidebarProps> = ({ isOpen = false, onToggle, onClose }) => {
   const [bridgeConnected, setBridgeConnected] = useState(false);
   const [isPipBoy, setIsPipBoy] = useState(false);
   const location = useLocation();
@@ -25,6 +33,9 @@ const Sidebar: React.FC = () => {
   
   const liveContext = liveContextValue || { isActive: false, isMuted: false, toggleMute: () => {}, disconnect: () => {} };
   const { isActive, isMuted, toggleMute, disconnect } = liveContext;
+
+  // Favorites functionality
+  const { favorites, toggleFavorite, isFavorite } = useFavorites();
 
   // Toggle Pip-Boy Theme
   const togglePipBoy = () => {
@@ -83,6 +94,8 @@ const Sidebar: React.FC = () => {
   const navItems = [
     // === FOUNDATION: HOME & PROJECTS ===
     { to: '/', icon: LayoutDashboard, label: t('nav.home', 'Mossy.Space') },
+    { to: '/chat', icon: MessageSquare, label: t('nav.chat', 'AI Chat') },
+    { to: '/roadmap', icon: Target, label: t('nav.roadmap', 'Modding Roadmaps') },
     { to: '/journey', icon: Sparkles, label: t('nav.modProjects', 'Mod Projects') },
 
     // === CORE LEARNING: GUIDES & REFERENCES ===
@@ -103,6 +116,7 @@ const Sidebar: React.FC = () => {
     { to: '/lore', icon: Network, label: t('nav.lorekeeper', 'The Lorekeeper') },
 
     // === BUILDING TOOLS: CREATE & GENERATE ===
+    { to: '/tools', icon: Wrench, label: t('nav.tools', 'Tools') },
     { to: '/template-generator', icon: Wand2, label: t('nav.templateGenerator', 'Template Generator') },
     { to: '/script-analyzer', icon: Code, label: t('nav.scriptAnalyzer', 'Script Analyzer') },
     { to: '/assembler', icon: Package, label: t('nav.assembler', 'The Assembler') },
@@ -117,6 +131,8 @@ const Sidebar: React.FC = () => {
 
     // === QUALITY ASSURANCE: VALIDATE & VERIFY ===
     { to: '/auditor', icon: ShieldCheck, label: t('nav.auditor', 'The Auditor') },
+    { to: '/tools/mining', icon: Binary, label: t('nav.miningDashboard', 'Mining Dashboard') },
+    { to: '/tools/advanced-analysis', icon: Brain, label: t('nav.advancedAnalysis', 'Advanced Analysis') },
     { to: '/scribe', icon: Feather, label: t('nav.scribe', 'The Scribe') },
     { to: '/monitor', icon: Activity, label: t('nav.systemMonitor', 'System Monitor') },
 
@@ -127,6 +143,9 @@ const Sidebar: React.FC = () => {
     { to: '/vault', icon: Container, label: t('nav.vault', 'The Vault') },
     { to: '/memory-vault', icon: BrainCircuit, label: t('nav.memoryVault', 'Memory Vault') },
     { to: '/neural-link', icon: Zap, label: t('nav.neuralLink', 'Neural Link') },
+    { to: '/tools/ba2-manager', icon: Archive, label: t('nav.ba2Manager', 'BA2 Manager') },
+    { to: '/dev/workflow-recorder', icon: Clock, label: t('nav.workflowRecorder', 'Workflow Recorder') },
+    { to: '/dev/plugin-manager', icon: Package, label: t('nav.pluginManager', 'Plugin Manager') },
     { to: '/capabilities', icon: Gauge, label: t('nav.localCapabilities', 'Local Capabilities') },
 
     // === CONTENT CREATION ===
@@ -142,20 +161,28 @@ const Sidebar: React.FC = () => {
     { to: '/settings/privacy', icon: Settings, label: t('nav.privacySettings', 'Privacy Settings') },
     { to: '/settings/voice', icon: Volume2, label: t('nav.voiceSettings', 'Voice Settings') },
     { to: '/settings/language', icon: Map, label: t('nav.languageSettings', 'Language Settings') },
+    { to: '/settings/import-export', icon: ArrowDownToLine, label: t('nav.settingsImportExport', 'Settings Import/Export') },
     { to: '/diagnostics', icon: Wrench, label: t('nav.diagnosticTools', 'Diagnostic Tools') },
     { to: '/support', icon: Coffee, label: t('nav.supportMossy', 'Support Mossy') },
+
+    // === EXTERNAL RESOURCES ===
+    { to: 'https://fallout.fandom.com/wiki/Fallout_4_portal', icon: Globe, label: 'Fallout 4 Wiki', isExternal: true },
   ];
 
   return (
     <div
+      id="sidebar-navigation"
       data-mossy-sidebar="1"
-      className="w-64 bg-slate-900 border-r border-slate-800 flex flex-col h-full relative z-50 transition-colors duration-500"
+      data-tour="sidebar"
+      className={`w-64 bg-slate-900 border-r border-slate-800 flex flex-col h-full relative z-50 transition-all duration-300 ${isOpen ? 'sidebar-open' : ''}`}
       style={{
         width: 256,
         minWidth: 256,
         flex: '0 0 256px',
         outline: import.meta.env.DEV ? '2px solid rgba(255,0,255,0.8)' : undefined,
       }}
+      role="navigation"
+      aria-label="Main navigation"
     >
       {/* Live Header with Persistent Avatar */}
       <div className="p-6 border-b border-slate-800 flex items-center gap-3">
@@ -185,6 +212,16 @@ const Sidebar: React.FC = () => {
              )}
           </div>
         </div>
+
+        {/* Command Palette Trigger for Tour */}
+        <button
+          data-tour="command-palette-trigger"
+          onClick={() => window.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', ctrlKey: true }))}
+          className="p-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white transition-colors border border-slate-700"
+          title="Command Palette (Ctrl+K)"
+        >
+          <Command className="w-4 h-4" />
+        </button>
       </div>
 
       {/* Global Live Status */}
@@ -201,6 +238,8 @@ const Sidebar: React.FC = () => {
               </div>
               <div className="flex gap-1">
                   <button 
+                      data-tour="voice-toggle"
+                      data-testid="voice-toggle"
                       onClick={toggleMute}
                       className={`p-1 rounded-full transition-colors ${isMuted ? 'text-slate-400 hover:text-white' : 'text-red-400 hover:bg-red-500/20'}`}
                       title={isMuted ? "Unmute Live Voice" : "Mute Live Voice"}
@@ -218,24 +257,123 @@ const Sidebar: React.FC = () => {
           </div>
       )}
 
-      <nav className="flex-1 p-4 space-y-2 overflow-y-auto custom-scrollbar">
+      <nav className="flex-1 p-4 space-y-2 overflow-y-auto custom-scrollbar" role="navigation" aria-label="Main navigation menu">
+        {/* Mobile close button */}
+        <button
+          type="button"
+          className="w-full mb-4 p-2 bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white rounded-lg transition-colors md:hidden focus-visible"
+          onClick={onClose}
+          aria-label="Close navigation menu"
+        >
+          ✕ Close Menu
+        </button>
+
         {navItems.map((item) => (
-          <NavLink
-            key={item.to}
-            to={item.to}
-            className={({ isActive }) =>
-              `flex items-center gap-3 px-4 py-2.5 rounded-lg transition-all text-xs font-medium group ${
-                isActive 
-                  ? `bg-slate-800 ${moodColor} font-bold border border-slate-700 shadow-md` 
-                  : 'text-slate-400 hover:bg-slate-800 hover:text-white'
-              }`
-            }
-          >
-            <item.icon className={`w-4 h-4 transition-transform group-hover:scale-110`} />
-            {item.label}
-          </NavLink>
+          <div key={item.to} className="relative group">
+            {item.isExternal ? (
+                <a
+                  href={item.to}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-3 px-4 py-2.5 rounded-lg transition-all text-xs font-medium text-slate-400 hover:bg-slate-800 hover:text-white group focus-visible"
+                >
+                  <item.icon className="w-4 h-4 transition-transform group-hover:scale-110 text-slate-500 group-hover:text-emerald-400" aria-hidden="true" />
+                  <span className="flex-1">{item.label}</span>
+                  <ExternalLink className="w-3 h-3 text-slate-600 opacity-0 group-hover:opacity-100 transition-opacity" />
+                </a>
+            ) : (
+                <NavLink
+                  to={item.to}
+                  data-testid={`nav-${item.to.replace('/', '').replace('/', '-')}`}
+                  className={({ isActive }) =>
+                    `flex items-center gap-3 px-4 py-2.5 rounded-lg transition-all text-xs font-medium group focus-visible ${
+                      isActive
+                        ? `bg-slate-800 ${moodColor} font-bold border border-slate-700 shadow-md`
+                        : 'text-slate-400 hover:bg-slate-800 hover:text-white'
+                    }`
+                  }
+                  onClick={onClose} // Close sidebar on mobile when navigating
+                >
+                  <item.icon className={`w-4 h-4 transition-transform group-hover:scale-110`} aria-hidden="true" />
+                  <span className="flex-1">{item.label}</span>
+                </NavLink>
+            )}
+            {!item.isExternal && (
+                <button
+                onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    toggleFavorite({
+                    id: item.to,
+                    label: item.label,
+                    path: item.to
+                    });
+                }}
+                className={`absolute right-2 top-1/2 -translate-y-1/2 p-1 rounded opacity-0 group-hover:opacity-100 transition-opacity ${
+                    isFavorite(item.to)
+                    ? 'text-yellow-400 hover:text-yellow-300'
+                    : 'text-slate-500 hover:text-slate-400'
+                }`}
+                title={isFavorite(item.to) ? 'Remove from favorites' : 'Add to favorites'}
+                >
+                    <Star className={`w-3 h-3 ${isFavorite(item.to) ? 'fill-current' : ''}`} />
+                </button>
+            )}
+          </div>
         ))}
       </nav>
+
+      {/* Favorites Section */}
+      {favorites.length > 0 && (
+        <div className="p-4 border-t border-slate-700">
+          <div className="flex items-center gap-2 mb-3">
+            <Star className="w-4 h-4 text-yellow-400 fill-current" />
+            <span className="text-xs font-semibold text-slate-300 uppercase tracking-wider">Favorites</span>
+          </div>
+          <div className="space-y-1">
+            {favorites.map((fav) => {
+              const navItem = navItems.find(item => item.to === fav.path);
+              if (!navItem) return null;
+              
+              return (
+                <NavLink
+                  key={`fav-${fav.id}`}
+                  to={fav.path}
+                  className={({ isActive }) =>
+                    `flex items-center gap-3 px-3 py-2 rounded-lg transition-all text-xs font-medium focus-visible ${
+                      isActive
+                        ? `bg-slate-800 ${moodColor} font-bold border border-slate-700 shadow-md`
+                        : 'text-slate-400 hover:bg-slate-800 hover:text-white'
+                    }`
+                  }
+                  onClick={onClose}
+                >
+                  <navItem.icon className="w-4 h-4" aria-hidden="true" />
+                  <span className="flex-1">{fav.label}</span>
+                  <button
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      toggleFavorite({
+                        id: fav.id,
+                        label: fav.label,
+                        path: fav.path
+                      });
+                    }}
+                    className="p-1 rounded text-yellow-400 hover:text-yellow-300 opacity-60 hover:opacity-100 transition-opacity"
+                    title="Remove from favorites"
+                  >
+                    <Star className="w-3 h-3 fill-current" />
+                  </button>
+                </NavLink>
+              );
+            })}
+          </div>
+        </div>
+      )}
+      
+      {/* Tour Launcher for Testing */}
+      <TourLauncher className="mx-4 mb-4" />
       
       {/* Footer Info & Pip-Boy Toggle */}
       <div className="p-4 border-t border-slate-800 bg-slate-900/50 flex justify-between items-center">

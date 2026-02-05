@@ -498,6 +498,117 @@ async function findSpecialPrograms(): Promise<InstalledProgram[]> {
       displayName: 'Blender',
       name: 'blender'
     },
+    // Fallout 4 Creation Kit
+    {
+      paths: [
+        'C:\\Program Files (x86)\\Steam\\steamapps\\common\\Fallout 4\\CreationKit.exe',
+        'C:\\Program Files\\Steam\\steamapps\\common\\Fallout 4\\CreationKit.exe',
+        'D:\\SteamLibrary\\steamapps\\common\\Fallout 4\\CreationKit.exe',
+        'E:\\SteamLibrary\\steamapps\\common\\Fallout 4\\CreationKit.exe',
+        'F:\\SteamLibrary\\steamapps\\common\\Fallout 4\\CreationKit.exe',
+      ],
+      displayName: 'Fallout 4 Creation Kit',
+      name: 'CreationKit'
+    },
+    // xEdit/FO4Edit
+    {
+      paths: [
+        'C:\\Program Files\\FO4Edit\\FO4Edit.exe',
+        'C:\\Program Files (x86)\\FO4Edit\\FO4Edit.exe',
+        'C:\\Modding\\xEdit\\FO4Edit.exe',
+        'C:\\Tools\\FO4Edit\\FO4Edit.exe',
+        'D:\\Modding\\xEdit\\FO4Edit.exe',
+      ],
+      displayName: 'FO4Edit (xEdit)',
+      name: 'FO4Edit'
+    },
+    // LOOT
+    {
+      paths: [
+        'C:\\Program Files\\LOOT\\LOOT.exe',
+        'C:\\Program Files (x86)\\LOOT\\LOOT.exe',
+        'C:\\Modding\\LOOT\\LOOT.exe',
+        'C:\\Tools\\LOOT\\LOOT.exe',
+      ],
+      displayName: 'LOOT (Load Order Optimization Tool)',
+      name: 'LOOT'
+    },
+    // NifSkope
+    {
+      paths: [
+        'C:\\Program Files\\NifSkope\\NifSkope.exe',
+        'C:\\Program Files (x86)\\NifSkope\\NifSkope.exe',
+        'C:\\Modding\\NifSkope\\NifSkope.exe',
+        'C:\\Tools\\NifSkope\\NifSkope.exe',
+      ],
+      displayName: 'NifSkope',
+      name: 'NifSkope'
+    },
+    // F4SE (Fallout 4 Script Extender)
+    {
+      paths: [
+        'C:\\Program Files (x86)\\Steam\\steamapps\\common\\Fallout 4\\f4se_loader.exe',
+        'C:\\Program Files\\Steam\\steamapps\\common\\Fallout 4\\f4se_loader.exe',
+        'D:\\SteamLibrary\\steamapps\\common\\Fallout 4\\f4se_loader.exe',
+      ],
+      displayName: 'F4SE (Fallout 4 Script Extender)',
+      name: 'f4se_loader'
+    },
+    // Papyrus Compiler
+    {
+      paths: [
+        'C:\\Program Files (x86)\\Steam\\steamapps\\common\\Fallout 4\\Papyrus Compiler\\PapyrusCompiler.exe',
+        'C:\\Program Files\\Steam\\steamapps\\common\\Fallout 4\\Papyrus Compiler\\PapyrusCompiler.exe',
+      ],
+      displayName: 'Papyrus Compiler',
+      name: 'PapyrusCompiler'
+    },
+    // Visual Studio Code (for Papyrus scripting)
+    {
+      paths: [
+        'C:\\Program Files\\Microsoft VS Code\\Code.exe',
+        'C:\\Program Files\\Microsoft VS Code\\bin\\code.cmd',
+        'C:\\Users\\${username}\\AppData\\Local\\Programs\\Microsoft VS Code\\Code.exe',
+      ],
+      displayName: 'Visual Studio Code',
+      name: 'Code'
+    },
+    // 7-Zip (for BSA/BA2 archives)
+    {
+      paths: [
+        'C:\\Program Files\\7-Zip\\7zFM.exe',
+        'C:\\Program Files (x86)\\7-Zip\\7zFM.exe',
+      ],
+      displayName: '7-Zip',
+      name: '7zFM'
+    },
+    // Everything (file search tool)
+    {
+      paths: [
+        'C:\\Program Files\\Everything\\Everything.exe',
+        'C:\\Program Files (x86)\\Everything\\Everything.exe',
+      ],
+      displayName: 'Everything (File Search)',
+      name: 'Everything'
+    },
+    // Notepad++ (script editing)
+    {
+      paths: [
+        'C:\\Program Files\\Notepad++\\notepad++.exe',
+        'C:\\Program Files (x86)\\Notepad++\\notepad++.exe',
+      ],
+      displayName: 'Notepad++',
+      name: 'notepad++'
+    },
+    // Git (version control)
+    {
+      paths: [
+        'C:\\Program Files\\Git\\cmd\\git.exe',
+        'C:\\Program Files\\Git\\bin\\git.exe',
+      ],
+      displayName: 'Git',
+      name: 'git'
+    },
     // GIMP 3.x (PRIORITIZE newer versions)
     {
       paths: [

@@ -273,7 +273,11 @@ const Lorekeeper: React.FC = () => {
       cellRange: '00000000-0000FFFF',
       preset: presetKey as 'interior-dungeon' | 'dense-exterior' | 'settlement' | 'custom',
       status: 'pending',
-      ...preset,
+      interiorCells: preset.interiorCells ?? false,
+      includeStatics: preset.includeStatics ?? true,
+      includeDynamic: preset.includeDynamic ?? false,
+      prpMode: preset.prpMode ?? false,
+      billboardFallback: preset.billboardFallback ?? false,
     };
     setPrecombineJobs(prev => [newJob, ...prev]);
     setNewPresetName('');

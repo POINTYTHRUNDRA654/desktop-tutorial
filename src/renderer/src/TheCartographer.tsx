@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import OpenAI from 'openai';
-import { Map, Layout, Box, Target, Shield, Skull, Zap, Download, RefreshCw, ZoomIn, ZoomOut, Maximize, Navigation, Layers, Wind, Sun, Volume2, Thermometer, Radio } from 'lucide-react';
+import { Map, Layout, Box, Target, Shield, Skull, Zap, ArrowDownToLine, RefreshCw, ZoomIn, ZoomOut, Maximize, Navigation, Layers, Wind, Sun, Volume2, Thermometer, Radio } from 'lucide-react';
 
 interface Room {
     id: string;
@@ -431,7 +431,7 @@ const TheCartographer: React.FC = () => {
                             disabled={!levelData}
                             className="flex items-center justify-center gap-2 p-2 bg-slate-800 hover:bg-slate-700 rounded text-xs font-bold transition-colors disabled:opacity-50 col-span-2"
                         >
-                            <Download className="w-3 h-3" /> Export JSON
+                            <ArrowDownToLine className="w-3 h-3" /> Export JSON
                         </button>
                     </div>
                 </div>
