@@ -11,7 +11,7 @@ const humanBytes = (bytes: number) => {
   return `${value.toFixed(value >= 10 || idx === 0 ? 0 : 1)} ${units[idx]}`;
 };
 
-const defaultExtensions = ['.dds', '.nif', '.png', '.tga', '.jpg', '.jpeg'];
+const defaultExtensions = ['.dds', '.nif', '.png', '.tga', '.jpg', '.jpeg', '.glb', '.fbx', '.obj', '.dae'];
 
 type TrashResult = {
   path: string;

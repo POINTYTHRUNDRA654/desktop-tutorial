@@ -2,6 +2,9 @@ import React, { useState, useEffect } from 'react';
 import { Mic, StopCircle, Play, Volume2, Zap } from 'lucide-react';
 import { speakMossy } from './mossyTts';
 
+// Detect Electron API for robust TTS/STT fallback
+const electronApi = (window.electronAPI || (window as any).electron?.api) ?? null;
+
 interface VoiceCommand {
   phrase: string;
   action: () => void;
@@ -13,32 +16,70 @@ export const VoiceCommands: React.FC = () => {
   const [lastCommand, setLastCommand] = useState('');
   const [recognition, setRecognition] = useState<any>(null);
   const [transcript, setTranscript] = useState('');
+  const [micLevel, setMicLevel] = useState(0);
   const [enabled, setEnabled] = useState(true);
 
   useEffect(() => {
-    // Initialize Web Speech API
-    if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
+    // Listen for backend TTS and STT events from Electron
+    if (window.electron && window.electron.api) {
+      // TTS: Play audio from backend
+      const ttsHandler = (text: string) => {
+        console.log('[VoiceCommands] TTS speaking:', text);
+        // Note: This handler expects text, not audioUrl - may need to be updated
+      };
+      window.electronAPI.onTtsSpeak?.(ttsHandler);
+
+      // STT: Final transcript from backend
+      const sttHandler = (transcript: string) => {
+        setTranscript(transcript);
+        processCommand(transcript.toLowerCase());
+      };
+      window.electronAPI.onSttResult?.(sttHandler);
+
+      // STT: Partial transcript streaming
+      if (window.electronAPI.onSttPartial) {
+        window.electronAPI.onSttPartial((partial: string) => {
+          setTranscript(partial);
+        });
+      } else if ((window as any).electron?.ipcRenderer) {
+        (window as any).electron.ipcRenderer.on('STT_PARTIAL', (_event: any, partial: string) => {
+          setTranscript(partial);
+        });
+      }
+
+      // Mic level streaming
+      if (window.electronAPI.onMicLevel) {
+        window.electronAPI.onMicLevel((level: number) => {
+          setMicLevel(level);
+        });
+      } else if ((window as any).electron?.ipcRenderer) {
+        (window as any).electron.ipcRenderer.on('MIC_LEVEL', (_event: any, level: number) => {
+          setMicLevel(level);
+        });
+      }
+
+      setRecognition('electron');
+      return () => {
+        // Cleanup listeners if needed
+      };
+    } else if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
+      // Browser fallback
       const SpeechRecognition = (window as any).webkitSpeechRecognition || (window as any).SpeechRecognition;
       const recognitionInstance = new SpeechRecognition();
-      
       recognitionInstance.continuous = true;
       recognitionInstance.interimResults = true;
       recognitionInstance.lang = 'en-US';
-
       recognitionInstance.onresult = (event: any) => {
         const current = event.resultIndex;
         const transcriptText = event.results[current][0].transcript;
         setTranscript(transcriptText);
-
         if (event.results[current].isFinal) {
           processCommand(transcriptText.toLowerCase());
         }
       };
-
       recognitionInstance.onerror = (event: any) => {
         console.error('Speech recognition error:', event.error);
       };
-
       setRecognition(recognitionInstance);
     }
   }, []);
@@ -56,7 +97,7 @@ export const VoiceCommands: React.FC = () => {
     },
     {
       phrase: 'mossy pack archive',
-      action: () => navigate('/ba2-manager'),
+      action: () => navigate('/tools/ba2-manager'),
       description: 'Open BA2 Manager'
     },
     {
@@ -122,21 +163,29 @@ export const VoiceCommands: React.FC = () => {
     ) {
       return;
     }
-
-    // Shared browser TTS helper handles voice selection + settings.
-    void speakMossy(text, { cancelExisting: true });
+    if (electronApi && electronApi.ttsSpeak) {
+      electronApi.ttsSpeak(text);
+    } else {
+      void speakMossy(text, { cancelExisting: true });
+    }
   };
 
   const startListening = () => {
-    if (recognition && enabled) {
+    if (!enabled) return;
+    if (recognition === 'electron' && electronApi) {
+      electronApi.startListening();
+      setListening(true);
+    } else if (recognition && recognition.start) {
       recognition.start();
       setListening(true);
-      // Disable the audible 'Listening' prompt
     }
   };
 
   const stopListening = () => {
-    if (recognition) {
+    if (recognition === 'electron' && electronApi) {
+      electronApi.stopListening();
+      setListening(false);
+    } else if (recognition && recognition.stop) {
       recognition.stop();
       setListening(false);
     }
@@ -202,6 +251,7 @@ export const VoiceCommands: React.FC = () => {
             <div className="flex items-center gap-2 mb-2">
               <Volume2 className="w-4 h-4 text-pink-400 animate-pulse" />
               <span className="text-xs font-bold text-pink-300 uppercase">Listening...</span>
+              <span className="ml-2 text-xs text-pink-400">Mic Level: {micLevel.toFixed(0)}</span>
             </div>
             <p className="text-lg text-white font-mono">
               {transcript || 'Say "Mossy" followed by a command...'}

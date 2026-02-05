@@ -1,6 +1,20 @@
 # Blender Script Execution Checklist
 
-A quick, practical reference to control and audit script execution in .blend files.
+**Updated for Mossy v5.4.21**
+
+A quick, practical reference to control and audit script execution in .blend files. Now includes Mossy direct-write, headless automation, and onboarding for new users.
+
+---
+
+## 🚀 Mossy Integration & Onboarding (v5.4.21)
+
+Mossy now supports:
+- Direct script installation and execution via The Scribe (IDE)
+- Headless automation with [run_blender_ops.ps1](../../scripts/blender/run_blender_ops.ps1)
+- Real-time monitoring and session awareness (Neural Link)
+- Explicit user permission for all script execution and file writes
+
+---
 
 ## When Opening a .blend
 - Use File Browser: enable "Trusted Source" for that file if you intend scripts to auto-run.
@@ -13,6 +27,10 @@ A quick, practical reference to control and audit script execution in .blend fil
   - Excluded Paths: optionally block specific locations.
 - Drivers: Python-based drivers may be muted when auto-run is OFF; trust file or enable auto-run to restore.
 - Typical setup: trust all paths except your downloads folder.
+
+**Mossy v5.4.21:**
+- All direct-write and automation features require explicit user permission
+- Mossy respects Blender's auto-exec and trust settings
 
 ## Audit Inside the File
 - Text Editor → Registered Text Blocks:
@@ -60,5 +78,18 @@ blender --background --disable-autoexec "C:\Path\To\my_movie.blend" --render-ani
 Notes:
 - If your workflow relies on Python drivers or registered startup scripts, ensure auto-exec is enabled for that run.
 - Combine with Allowed/Excluded Paths in Preferences to fine-tune trust while batch rendering.
+
+---
+
+## Mossy Direct-Write & Automation (v5.4.21)
+
+Mossy can:
+- Write scripts directly to your Blender add-ons folder
+- Launch Blender in headless mode with custom operators
+- Use [run_blender_ops.ps1](../../scripts/blender/run_blender_ops.ps1) for automated batch runs
+
+All direct-write and automation features are opt-in and logged for audit.
+
+---
 
 Notes: Menu names may vary slightly across Blender 3.x/4.x; the concepts remain the same.

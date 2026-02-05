@@ -1,9 +1,9 @@
 import React, { useEffect, useState } from 'react';
-import { Package, Plus, Trash2, Eye, Code, Wand2, RefreshCw, FileText, Layers, CheckSquare, Image as ImageIcon, ChevronRight, ChevronDown, Download, ExternalLink, Info, Settings } from 'lucide-react';
+import { Package, Plus, Trash2, Eye, Code, Wand2, RefreshCw, FileText, Layers, CheckSquare, Image as ImageIcon, ChevronRight, ChevronDown, ArrowDownToLine, ExternalLink, Info, Settings } from 'lucide-react';
 import ExternalToolNotice from './components/ExternalToolNotice';
 import { ToolsInstallVerifyPanel } from './components/ToolsInstallVerifyPanel';
 import { useNavigate } from 'react-router-dom';
-import type { Settings as AppSettings } from '../shared/types';
+import type { Settings as AppSettings } from '../../shared/types';
 
 // --- Types ---
 type NodeType = 'page' | 'group' | 'option';
@@ -111,8 +111,8 @@ const TheAssembler: React.FC = () => {
             return;
         }
         try {
-            if (window.electron?.api?.openExternal) {
-                await window.electron.api.openExternal(toolPath);
+            if (window.electronAPI?.openExternal) {
+                await window.electronAPI.openExternal(toolPath);
             } else {
                 alert('External tool launch requires Desktop Bridge connection.');
             }
@@ -452,7 +452,7 @@ After installing, you may need to update the tool path in settings.`;
                         onClick={handleExportFOMOD}
                         className="px-4 py-2 bg-emerald-700 hover:bg-emerald-600 border border-emerald-500 rounded text-xs font-bold flex items-center gap-2 transition-all"
                     >
-                        <Download className="w-4 h-4" /> Export FOMOD
+                        <ArrowDownToLine className="w-4 h-4" /> Export FOMOD
                     </button>
                     <button 
                         onClick={() => setViewMode('editor')}
@@ -655,7 +655,7 @@ After installing, you may need to update the tool path in settings.`;
                                         onClick={handleExportFOMOD}
                                         className="text-purple-400 hover:text-white flex items-center gap-1"
                                     >
-                                        <Download className="w-3 h-3" /> Export
+                                        <ArrowDownToLine className="w-3 h-3" /> Export
                                     </button>
                                 </div>
                                 <pre className="flex-1 p-4 overflow-auto text-xs font-mono text-emerald-300 custom-scrollbar leading-relaxed">

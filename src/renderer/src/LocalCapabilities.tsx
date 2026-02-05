@@ -160,7 +160,7 @@ export default function LocalCapabilities(): JSX.Element {
         <div className="bg-slate-900/60 border border-slate-800 rounded-lg p-4 space-y-3">
           <div className="text-sm font-semibold text-slate-200">Ollama</div>
           <div className="text-xs text-slate-300">
-            Status: {caps?.ollama.ok ? 'Detected' : `Not detected (${caps?.ollama.error || 'unknown'})`}
+            Status: {caps?.ollama.ok ? 'Detected' : `Not detected (${(caps?.ollama as any)?.error || 'unknown'})`}
           </div>
           <label className="text-xs text-slate-400">Base URL</label>
           <input
@@ -188,7 +188,7 @@ export default function LocalCapabilities(): JSX.Element {
         <div className="bg-slate-900/60 border border-slate-800 rounded-lg p-4 space-y-3">
           <div className="text-sm font-semibold text-slate-200">OpenAI-compatible local server (LM Studio)</div>
           <div className="text-xs text-slate-300">
-            Status: {caps?.openaiCompat.ok ? 'Detected' : `Not detected (${caps?.openaiCompat.error || 'unknown'})`}
+            Status: {caps?.openaiCompat.ok ? 'Detected' : `Not detected (${(caps?.openaiCompat as any)?.error || 'unknown'})`}
           </div>
           <label className="text-xs text-slate-400">Base URL</label>
           <input

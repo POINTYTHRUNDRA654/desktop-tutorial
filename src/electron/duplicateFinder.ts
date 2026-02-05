@@ -3,7 +3,7 @@ import fs from 'fs';
 import path from 'path';
 import type { DedupeGroup, DedupeProgress, DedupeScanOptions, DedupeScanResult } from './types';
 
-const DEFAULT_EXTENSIONS = ['.dds', '.nif', '.png', '.tga', '.jpg', '.jpeg'] as const;
+const DEFAULT_EXTENSIONS = ['.dds', '.nif', '.png', '.tga', '.jpg', '.jpeg', '.glb', '.fbx', '.obj', '.dae'] as const;
 
 const normalizeExtensions = (extensions?: string[]) => {
   const raw = (extensions ?? []).map((e) => String(e || '').trim()).filter(Boolean);
