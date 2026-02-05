@@ -8,10 +8,13 @@ Mossy is your AI companion for Fallout 4 modding. This guide will help you get s
 
 When you download and launch Mossy for the first time, you'll see a streamlined setup process. **You must complete this to use Mossy** - but don't worry, it only takes a minute!
 
-### What's New in v4.0 ✨
-- **UI Language Selection:** Pick your interface language on first launch (or later in Settings).
-- **6 core UI languages:** English, Español, Français, Deutsch, Русский, 中文（简体）.
-- **Smoother setup flow:** Cleaner first-run onboarding and more guided “Install Wizard” checklists.
+### What's New in v5.4.21 ✨
+- **Direct-Write Protocol:** Mossy can now directly write scripts to Papyrus, xEdit, and Blender with your explicit permission
+- **Neural Link Monitoring:** Real-time monitoring of your modding tools (Blender, Creation Kit, xEdit, NifSkope)
+- **Headless Automation:** Batch execution and automation for Blender operations
+- **Enhanced Privacy Controls:** Explicit permission and audit logging for all direct-write and automation features
+- **Production-Ready Modules:** All features are functional with no placeholders - everything works as described
+- **Session Awareness:** Mossy adapts advice based on which tools you currently have active
 
 ### Setup Steps
 
@@ -19,12 +22,15 @@ When you download and launch Mossy for the first time, you'll see a streamlined 
 Choose your UI language (Auto/system or one of the supported languages). You can change this later in Settings.
 
 **Step 2: System Scan**
-Mossy scans for modding tools (Creation Kit, xEdit, Blender, etc.) to enable deep integrations.
+Mossy scans for modding tools (Creation Kit, xEdit, Blender, NifSkope, Papyrus Compiler) to enable deep integrations.
 
-**Step 3: Tool Approvals**
-Review detected tools and choose which ones Mossy should know about and integrate with.
+**Step 3: Tool Permissions**
+Review detected tools and grant explicit permissions for direct-write and automation features. Each tool shows what Mossy can do and requires your approval.
 
-**Step 4: Setup Complete**
+**Step 4: Privacy Settings**
+Configure how your data is stored and shared (see detailed section below).
+
+**Step 5: Setup Complete**
 You're ready! Click "Complete Setup" to launch Mossy.
 
 ### Your Privacy Settings
@@ -247,4 +253,4 @@ A: Bug reports are reviewed by the Mossy team for privacy issues before analysis
 
 **Remember:** Mossy is here to help YOU succeed in modding. Your privacy and control over your data are always the priority. Enjoy your modding journey!
 
-*Version 2.4.2* | *Last Updated: January 2026*
+*Version 5.4.21* | *Last Updated: February 2026*

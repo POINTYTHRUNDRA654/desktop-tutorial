@@ -5,13 +5,12 @@
 ## 📋 Quick Start
 
 ### For Users
-Users downloading Mossy will see a beautiful 6-step onboarding tutorial on first launch:
-1. **Welcome** - Meet Mossy and her new Hybrid AI (Local + Live).
-2. **Neural Link Calibration** - Establish direct communication with your desktop modding tools.
-3. **Memory Vault Ingestion** - Train Mossy on your private documentation and tutorials.
-4. **Connect Tools** - Select your installed modding utilities.
-5. **Privacy Settings** - Choose what to share (default: nothing).
-6. **You're Set!** - Start using Mossy.
+Users downloading Mossy will see a beautiful 5-step onboarding tutorial on first launch:
+1. **Welcome + Language** - Meet Mossy and choose your UI language.
+2. **System Scan** - Detect installed modding tools (Creation Kit, xEdit, Blender, etc.).
+3. **Tool Permissions** - Grant explicit permissions for direct-write and automation features.
+4. **Privacy Settings** - Choose what to share (default: nothing).
+5. **You're Set!** - Start using Mossy.
 
 **Privacy by default:** All data stays local. Users must opt-in to share anything.
 
