@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Clock, Save, Undo, FolderOpen, Upload, Cloud, GitBranch, Download, Trash2, AlertCircle } from 'lucide-react';
+import { Clock, Save, Undo, FolderOpen, Upload, Cloud, GitBranch, ArrowDownToLine, Trash2, AlertCircle } from 'lucide-react';
 
 interface Snapshot {
   id: string;
@@ -371,7 +371,7 @@ export const BackupManager: React.FC = () => {
                         className="p-2 bg-blue-900 hover:bg-blue-800 text-white rounded transition-colors"
                         title="Export"
                       >
-                        <Download className="w-4 h-4" />
+                        <ArrowDownToLine className="w-4 h-4" />
                       </button>
                       {snapshot.type === 'manual' && (
                         <button

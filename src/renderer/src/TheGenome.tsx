@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Dna, Plus, Code, CheckCircle2, Copy, Trash2, Download, Upload, Share2, Users, BookOpen, Github, Zap, Search } from 'lucide-react';
+import { Dna, Plus, Code, CheckCircle2, Copy, Trash2, ArrowDownToLine, Upload, Share2, Users, BookOpen, Github, Zap, Search } from 'lucide-react';
 
 interface CodeSnippet {
     id: string;
@@ -493,7 +493,7 @@ const TheGenome: React.FC = () => {
                                                 className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-500 text-white px-4 py-2 rounded font-bold text-sm transition-colors"
                                                 title="Download template"
                                             >
-                                                <Download className="w-4 h-4" /> Download
+                                                <ArrowDownToLine className="w-4 h-4" /> Download
                                             </button>
                                         </div>
 

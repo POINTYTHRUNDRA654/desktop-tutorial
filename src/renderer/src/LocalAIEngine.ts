@@ -7,6 +7,7 @@ import {
   buildKnowledgeManifestForModel,
   buildRelevantKnowledgeVaultContext,
 } from './knowledgeRetrieval';
+import { selfImprovementEngine } from './SelfImprovementEngine';
 
 export interface AIResponse {
   content: string;
@@ -111,6 +112,13 @@ export const LocalAIEngine = {
     const localStatus = await this.getLocalProviderStatus();
     const localSettings = await this.getLocalAiSettings();
     
+    // --- SELF-IMPROVEMENT: Include learning insights ---
+    let enhancedSystemInstruction = systemInstruction;
+    const learningInsights = selfImprovementEngine.getLearningInsights();
+    if (learningInsights) {
+      enhancedSystemInstruction += '\n\n### SELF-IMPROVEMENT INSIGHTS:\n' + learningInsights;
+    }
+    
     // --- KNOWLEDGE & PROCESS INJECTION ---
     let injectedContext = "";
     
@@ -201,7 +209,7 @@ export const LocalAIEngine = {
     if (localStatus.ok) {
       try {
         const api = (window.electron?.api || window.electronAPI) as any;
-        const prompt = `${systemInstruction}${injectedContext}\n\nUser Question: ${query}\n\nMossy's Response:`;
+        const prompt = `${enhancedSystemInstruction}${injectedContext}\n\nUser Question: ${query}\n\nMossy's Response:`;
 
         const provider = localStatus.provider;
 
@@ -225,7 +233,12 @@ export const LocalAIEngine = {
         });
 
         if (resp?.ok) {
-          return { content: String(resp.text || '') };
+          const responseContent = String(resp.text || '');
+          
+          // Record interaction for self-improvement
+          selfImprovementEngine.recordInteraction(query, responseContent, [], 'success');
+          
+          return { content: responseContent };
         }
         console.warn('[LocalAIEngine] Local provider generation failed:', resp?.error);
       } catch (e) {
@@ -246,7 +259,12 @@ export const LocalAIEngine = {
       const systemPrompt = systemInstruction + injectedContext;
       const resp = await api.aiChatGroq(query, systemPrompt, 'llama-3.3-70b-versatile');
       if (resp?.success) {
-        return { content: String(resp.content || '') };
+        const responseContent = String(resp.content || '');
+        
+        // Record interaction for self-improvement
+        selfImprovementEngine.recordInteraction(query, responseContent, [], 'success');
+        
+        return { content: responseContent };
       }
 
       return {

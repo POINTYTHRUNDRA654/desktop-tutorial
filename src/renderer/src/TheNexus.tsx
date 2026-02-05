@@ -193,8 +193,8 @@ const TheNexus: React.FC = () => {
       <div className="absolute inset-0 bg-[linear-gradient(rgba(18,16,16,0)_50%,rgba(0,0,0,0.1)_50%)] bg-[length:100%_4px] pointer-events-none z-10 opacity-20" />
 
       {/* Main UI Container */}
-      <div className="relative z-20 flex-1 flex flex-col p-12">
-        <div className="flex justify-between items-start mb-12">
+      <div className="relative z-20 flex-1 flex flex-col px-4 sm:px-6 lg:px-10 py-8">
+        <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-6 mb-12">
             <div>
                 <h1 className="text-4xl font-black italic tracking-tighter text-white uppercase italic">
               Mossy<span className="text-emerald-400">.Space</span>
@@ -207,7 +207,7 @@ const TheNexus: React.FC = () => {
         </div>
 
         {/* Quick Health Strip */}
-        <div className="flex items-center justify-between gap-4 mb-10">
+        <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 mb-10">
           <div className="flex flex-wrap items-center gap-2">
             <HealthBadge icon={Zap} label="Electron" status={health.electron} detail="window.electron.api availability" />
             <HealthBadge icon={Wrench} label="Storage" status={health.storage} detail="localStorage read/write" />
@@ -336,7 +336,7 @@ const TheNexus: React.FC = () => {
       </Link>
     </div>
 
-        <div className="grid grid-cols-4 gap-4 mt-auto">
+        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3 sm:gap-4 mt-8">
             {[
                 { label: 'Neural Link', path: '/neural-link', icon: Zap, detail: 'Process Monitor' },
                 { label: 'The Workshop', path: '/workshop', icon: Hammer, detail: 'Script Compiler' },

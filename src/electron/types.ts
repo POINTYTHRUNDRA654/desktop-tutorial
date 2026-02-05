@@ -3,6 +3,8 @@
  * Used across main, renderer, and preload processes
  */
 
+import type { Message } from '../shared/types';
+
 /**
  * Installed program information
  */
@@ -26,6 +28,7 @@ export const IPC_CHANNELS = {
   REVEAL_IN_FOLDER: 'reveal-in-folder',
   GET_TOOL_VERSION: 'get-tool-version',
   GET_RUNNING_PROCESSES: 'get-running-processes',
+  
   // Vault integration
   VAULT_RUN_TOOL: 'vault-run-tool',
   VAULT_SAVE_MANIFEST: 'vault-save-manifest',
@@ -33,6 +36,7 @@ export const IPC_CHANNELS = {
   VAULT_GET_DDS_DIMENSIONS: 'vault-get-dds-dimensions',
   VAULT_GET_IMAGE_DIMENSIONS: 'vault-get-image-dimensions',
   VAULT_PICK_TOOL_PATH: 'vault-pick-tool-path',
+  
   // Workshop integration
   WORKSHOP_BROWSE_DIRECTORY: 'workshop-browse-directory',
   WORKSHOP_READ_FILE: 'workshop-read-file',
@@ -41,6 +45,7 @@ export const IPC_CHANNELS = {
   WORKSHOP_READ_DDS_PREVIEW: 'workshop-read-dds-preview',
   WORKSHOP_READ_NIF_INFO: 'workshop-read-nif-info',
   WORKSHOP_PARSE_SCRIPT_DEPS: 'workshop-parse-script-deps',
+  
   // Image Suite
   IMAGE_GENERATE_NORMAL_MAP: 'image-generate-normal-map',
   IMAGE_GENERATE_ROUGHNESS_MAP: 'image-generate-roughness-map',
@@ -49,17 +54,45 @@ export const IPC_CHANNELS = {
   IMAGE_GENERATE_AO_MAP: 'image-generate-ao-map',
   IMAGE_GET_INFO: 'image-get-info',
   IMAGE_CONVERT_FORMAT: 'image-convert-format',
+  
   // FOMOD Assembler
   FOMOD_SCAN_MOD_FOLDER: 'fomod-scan-mod-folder',
   FOMOD_ANALYZE_STRUCTURE: 'fomod-analyze-structure',
   FOMOD_VALIDATE_XML: 'fomod-validate-xml',
   FOMOD_EXPORT_PACKAGE: 'fomod-export-package',
+  
   // Auditor ESP Analysis
   AUDITOR_ANALYZE_ESP: 'auditor-analyze-esp',
   AUDITOR_PICK_ESP_FILE: 'auditor-pick-esp-file',
   AUDITOR_PICK_NIF_FILE: 'auditor-pick-nif-file',
   AUDITOR_PICK_DDS_FILE: 'auditor-pick-dds-file',
   AUDITOR_PICK_BGSM_FILE: 'auditor-pick-bgsm-file',
+
+  // Project Management
+  PROJECT_LIST: 'project-list',
+  PROJECT_CREATE: 'project-create',
+  PROJECT_UPDATE: 'project-update',
+  PROJECT_DELETE: 'project-delete',
+  PROJECT_SWITCH: 'project-switch',
+  PROJECT_GET_CURRENT: 'project-get-current',
+
+  // Project Wizard (Phase 3)
+  WIZARD_GET_STATE: 'wizard-get-state',
+  WIZARD_UPDATE_STEP: 'wizard-update-step',
+  WIZARD_SUBMIT_ACTION: 'wizard-submit-action',
+
+  // Roadmap System (Roadmap System)
+  ROADMAP_CREATE: 'roadmap-create',
+  ROADMAP_GET_ALL: 'roadmap-get-all',
+  ROADMAP_GET_ACTIVE: 'roadmap-get-active',
+  ROADMAP_UPDATE_STEP: 'roadmap-update-step',
+  ROADMAP_DELETE: 'roadmap-delete',
+  ROADMAP_GENERATE_AI: 'roadmap-generate-ai',
+
+  // Proactive Observer (Neural Link+)
+  OBSERVER_NOTIFY: 'observer-notify',
+  OBSERVER_GET_STATUS: 'observer-get-status',
+  OBSERVER_SET_ACTIVE_FOLDER: 'observer-set-active-folder',
 
   // Duplicate Finder
   DEDUPE_PICK_FOLDERS: 'dedupe-pick-folders',
@@ -190,11 +223,38 @@ export interface ElectronAPI {
   openProgram: (path: string) => Promise<{ success: boolean; error?: string; method?: string }>;
   openExternal: (path: string) => Promise<void>;
   revealInFolder: (path: string) => Promise<{ success: boolean; error?: string }>;
-  getToolVersion: (path: string) => Promise<string>;
   getRunningProcesses: () => Promise<any[]>;
   getSettings: () => Promise<any>;
   setSettings: (settings: any) => Promise<void>;
   onSettingsUpdated: (callback: (settings: any) => void) => void;
+
+  // Audio - TTS (Text-to-Speech)
+  ttsSpeak: (text: string) => Promise<void>;
+  onTtsSpeak: (callback: (text: string) => void) => (() => void);
+
+  // Audio - STT (Speech-to-Text)
+  sttStart: () => Promise<void>;
+  sttStop: () => Promise<void>;
+  startListening: () => Promise<void>;
+  stopListening: () => Promise<void>;
+  onSttResult: (callback: (text: string) => void) => (() => void);
+
+  // Real-time STT partial transcript
+  onSttPartial: (callback: (partial: string) => void) => (() => void);
+
+  // Real-time mic level
+  onMicLevel: (callback: (level: number) => void) => (() => void);
+
+  // Messaging
+  sendMessage: (message: string) => Promise<void>;
+  onMessage: (callback: (message: Message) => void) => (() => void);
+
+  // Developer tools
+  openDevTools: () => Promise<void>;
+
+  // Window controls
+  minimizeWindow: () => void;
+  closeWindow: () => void;
 
   elevenLabsStatus?: () => Promise<
     | { ok: true; configured: boolean; voiceId?: string; provider?: 'browser' | 'elevenlabs' }
@@ -244,6 +304,12 @@ export interface ElectronAPI {
     motherboard?: string;
     username?: string;
     computerName?: string;
+  }>;
+  getPerformance: () => Promise<{
+    cpuUsage: number;
+    memoryUsage: number;
+    gpuUsage?: number;
+    gpuMemory?: number;
   }>;
   // Vault
   runTool: (payload: { cmd: string; args?: string[]; cwd?: string }) => Promise<{ exitCode: number; stdout: string; stderr: string }>;

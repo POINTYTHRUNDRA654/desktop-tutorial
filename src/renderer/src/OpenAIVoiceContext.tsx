@@ -42,8 +42,8 @@ export const OpenAIVoiceProvider: React.FC<{ children: ReactNode }> = ({ childre
   const conversationRef = useRef<Array<{ role: 'user' | 'assistant'; content: string }>>([]);
   const streamRef = useRef<MediaStream | null>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
-  const processorRef = useRef<ScriptProcessorNode | null>(null);
-  const audioBufferRef = useRef<Float32Array[]>([]);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const audioChunksRef = useRef<Blob[]>([]);
   const isProcessingRef = useRef(false);
 
   const PROCESS_INTERVAL_MS = Number(import.meta.env.VITE_OPENAI_VOICE_PROCESS_INTERVAL_MS ?? 650);
@@ -55,19 +55,34 @@ export const OpenAIVoiceProvider: React.FC<{ children: ReactNode }> = ({ childre
   };
 
   /**
-   * Convert Float32 audio samples to Int16 PCM base64
+   * Convert audio blob to PCM16 base64 for OpenAI
    */
-  const encodePCMToBase64 = (samples: Float32Array): string => {
-    const int16 = new Int16Array(samples.length);
-    for (let i = 0; i < samples.length; i++) {
-      int16[i] = samples[i] < 0 ? samples[i] * 0x8000 : samples[i] * 0x7FFF;
+  const convertBlobToPCM16Base64 = async (blob: Blob): Promise<string> => {
+    const arrayBuffer = await blob.arrayBuffer();
+    const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)({
+      sampleRate: 16000,
+    });
+    
+    try {
+      const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
+      const channelData = audioBuffer.getChannelData(0); // Use first channel
+      
+      // Convert to Int16 PCM
+      const int16 = new Int16Array(channelData.length);
+      for (let i = 0; i < channelData.length; i++) {
+        int16[i] = channelData[i] < 0 ? channelData[i] * 0x8000 : channelData[i] * 0x7FFF;
+      }
+      
+      // Convert to base64
+      const uint8 = new Uint8Array(int16.buffer);
+      let binary = '';
+      for (let i = 0; i < uint8.length; i++) {
+        binary += String.fromCharCode(uint8[i]);
+      }
+      return btoa(binary);
+    } finally {
+      audioContext.close();
     }
-    const uint8 = new Uint8Array(int16.buffer);
-    let binary = '';
-    for (let i = 0; i < uint8.length; i++) {
-      binary += String.fromCharCode(uint8[i]);
-    }
-    return btoa(binary);
   };
 
   /**
@@ -126,40 +141,59 @@ export const OpenAIVoiceProvider: React.FC<{ children: ReactNode }> = ({ childre
       streamRef.current = stream;
       console.log('[OpenAI] Microphone acquired');
 
-      // Setup audio processing
+      // Setup audio processing with MediaRecorder
       setStatus('Setting up audio...');
       const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)({
         sampleRate: 16000,
       });
       audioContextRef.current = audioContext;
 
+      // Create analyser for volume monitoring
+      const analyser = audioContext.createAnalyser();
+      analyser.fftSize = 256;
       const source = audioContext.createMediaStreamSource(stream);
-      const processor = audioContext.createScriptProcessor(4096, 1, 1);
-      processorRef.current = processor;
+      source.connect(analyser);
 
-      // Capture audio
-      processor.onaudioprocess = (event) => {
-        if (!isMuted) {
-          const inputData = event.inputBuffer.getChannelData(0);
-          audioBufferRef.current.push(new Float32Array(inputData));
-
-          // Calculate volume
+      // Monitor volume
+      const monitorVolume = () => {
+        if (!isMuted && analyser) {
+          const dataArray = new Uint8Array(analyser.frequencyBinCount);
+          analyser.getByteFrequencyData(dataArray);
+          
           let sum = 0;
-          for (let i = 0; i < inputData.length; i++) {
-            sum += inputData[i] * inputData[i];
+          for (let i = 0; i < dataArray.length; i++) {
+            sum += dataArray[i];
           }
-          const rms = Math.sqrt(sum / inputData.length);
-          setVolume(Math.min(100, rms * 500));
+          const average = sum / dataArray.length;
+          setVolume(Math.min(100, average * 0.4)); // Scale appropriately
+          
+          if (isActive) {
+            requestAnimationFrame(monitorVolume);
+          }
+        }
+      };
+      monitorVolume();
+
+      // Use MediaRecorder instead of deprecated ScriptProcessorNode
+      const mediaRecorder = new MediaRecorder(stream, {
+        mimeType: 'audio/webm;codecs=opus',
+      });
+      mediaRecorderRef.current = mediaRecorder;
+      audioChunksRef.current = [];
+
+      mediaRecorder.ondataavailable = (event) => {
+        if (event.data.size > 0) {
+          audioChunksRef.current.push(event.data);
         }
       };
 
-      source.connect(processor);
-      processor.connect(audioContext.destination);
+      // Start recording with small time slices for real-time processing
+      mediaRecorder.start(100); // 100ms chunks
 
       setIsActive(true);
       setMode('listening');
       setStatus('Listening...');
-      console.log('[OpenAI] Connected - unlimited session duration');
+      console.log('[OpenAI] Connected - using MediaRecorder');
     } catch (err: any) {
       console.error('[OpenAI] Connection error:', err);
       setStatus(`Error: ${err.message}`);
@@ -170,14 +204,14 @@ export const OpenAIVoiceProvider: React.FC<{ children: ReactNode }> = ({ childre
   const disconnect = () => {
     console.log('[OpenAI] Disconnecting...');
 
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
+      mediaRecorderRef.current.stop();
+      mediaRecorderRef.current = null;
+    }
+
     if (streamRef.current) {
       streamRef.current.getTracks().forEach(track => track.stop());
       streamRef.current = null;
-    }
-
-    if (processorRef.current) {
-      processorRef.current.disconnect();
-      processorRef.current = null;
     }
 
     if (audioContextRef.current) {
@@ -188,7 +222,7 @@ export const OpenAIVoiceProvider: React.FC<{ children: ReactNode }> = ({ childre
     setIsActive(false);
     setMode('idle');
     setStatus('Disconnected');
-    audioBufferRef.current = [];
+    audioChunksRef.current = [];
   };
 
   /**
@@ -201,8 +235,8 @@ export const OpenAIVoiceProvider: React.FC<{ children: ReactNode }> = ({ childre
       try {
         const api = (window as any).electron?.api as any;
 
-        // Check if we have audio and IPC available
-        if (audioBufferRef.current.length === 0) return;
+        // Check if we have audio chunks and IPC available
+        if (audioChunksRef.current.length === 0) return;
         if (!api?.openaiTranscribe) {
           console.error('[OpenAI] IPC not available');
           return;
@@ -210,26 +244,24 @@ export const OpenAIVoiceProvider: React.FC<{ children: ReactNode }> = ({ childre
         if (isMuted) return;
         if (isProcessingRef.current) return;
 
-        const totalLengthSamples = audioBufferRef.current.reduce((sum, buf) => sum + buf.length, 0);
-        const seconds = totalLengthSamples / SAMPLE_RATE_HZ;
-        // Avoid hammering the transcribe endpoint with tiny fragments.
-        if (seconds < MIN_AUDIO_SECONDS) return;
-
         isProcessingRef.current = true;
 
-        // Combine audio buffers
-        const combined = new Float32Array(totalLengthSamples);
-        let offset = 0;
-        for (const buf of audioBufferRef.current) {
-          combined.set(buf, offset);
-          offset += buf.length;
+        // Combine audio chunks into a single blob
+        const combinedBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
+        audioChunksRef.current = [];
+
+        // Convert to PCM16 base64
+        const base64Audio = await convertBlobToPCM16Base64(combinedBlob);
+        
+        // Check minimum audio length (rough estimate)
+        if (base64Audio.length < 1000) { // Very rough check for minimum audio
+          isProcessingRef.current = false;
+          return;
         }
-        audioBufferRef.current = [];
 
         // Transcribe
         setMode('processing');
         setStatus('Transcribing...');
-        const base64Audio = encodePCMToBase64(combined);
         
         console.log('[OpenAI] Calling transcribe handler...');
         const transcribeResult = await api.openaiTranscribe(base64Audio, apiKeyRef.current);

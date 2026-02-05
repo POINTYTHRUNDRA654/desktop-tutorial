@@ -1,8 +1,18 @@
 # Skeletal Rigging & Animation Suite - Implementation Complete
 
-## Overview
+**Updated for Mossy v5.4.21**
 
-A comprehensive solution for Fallout 4 modders tackling one of the **biggest pain points**: custom skeletal rigging and animation from Blender to Fallout 4. This suite provides educational guides, interactive tools, validation checklists, and step-by-step workflows.
+## Overview & Onboarding
+
+Mossy now provides:
+- Direct script installation and automation for Blender animation workflows
+- Real-time monitoring and session awareness (Neural Link)
+- Interactive guides, checklists, and validators for every step
+- Explicit user permission and audit logging for all direct-write operations
+
+A comprehensive solution for Fallout 4 modders tackling one of the **biggest pain points**: custom skeletal rigging and animation from Blender to Fallout 4. This suite provides educational guides, interactive tools, validation checklists, and step-by-step workflows—all now integrated with Mossy’s direct-write and automation features.
+
+---
 
 ---
 
@@ -390,6 +400,9 @@ src/renderer/src/
 ---
 
 ## What Users Can Now Do
+---
+
+## 🚀 Mossy v5.4.21 User Workflow
 
 ### Before This Feature
 - "I'm stuck on skeletal rigging" → No guidance in Mossy
@@ -397,7 +410,23 @@ src/renderer/src/
 - "Is my animation export correct?" → Trial and error
 - "What bone do I attach to?" → External research
 
-### After This Feature
+### After This Feature (v5.4.21)
+1. **Ask AI Copilot**: "How do I rig a custom character?"
+  → Get direct links to 4 comprehensive tools
+2. **Read Guide**: Understand the full pipeline from Blender to FO4
+  → Learn best practices and common mistakes upfront
+3. **Reference Skeleton**: Look up bone names, parents, and purpose
+  → Know exactly which bone controls which body part
+4. **Follow Checklist**: Work through 100+ steps organized in 9 phases
+  → Never skip a critical setup step
+5. **Validate Animations**: Check 40+ validation rules before export
+  → Catch export errors before wasting time on NIF files
+6. **Fix Problems**: Use validator hints to resolve issues systematically
+  → No more "why doesn't this animation work?" debugging
+7. **Automate & Direct-Write**: Use Mossy to install scripts, automate Blender, and run batch exports
+  → All direct-write and automation features require explicit user permission and are logged for audit
+
+---
 1. **Ask AI Copilot**: "How do I rig a custom character?"
    → Get direct links to 4 comprehensive tools
 

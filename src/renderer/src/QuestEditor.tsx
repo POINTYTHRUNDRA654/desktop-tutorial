@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { GitBranch, Plus, Trash2, Link2, Play, Download, Save, Undo, Redo } from 'lucide-react';
+import { GitBranch, Plus, Trash2, Link2, Play, ArrowDownToLine, Save, Undo, Redo } from 'lucide-react';
 
 interface QuestStage {
   id: string;
@@ -317,7 +317,7 @@ export const QuestEditor: React.FC = () => {
               onClick={exportCode}
               className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded flex items-center gap-2 transition-colors"
             >
-              <Download className="w-4 h-4" />
+              <ArrowDownToLine className="w-4 h-4" />
               Export
             </button>
           </div>

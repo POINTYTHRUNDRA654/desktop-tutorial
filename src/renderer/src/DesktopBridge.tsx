@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Monitor, CheckCircle2, Wifi, Shield, Cpu, Terminal, Power, Layers, Box, Code, Image as ImageIcon, MessageSquare, Activity, RefreshCw, Lock, AlertOctagon, Link, Zap, Eye, Globe, Database, Wrench, FolderOpen, HardDrive, ArrowRightLeft, ArrowRight, Keyboard, Download, Server, Clipboard, FileType, HelpCircle, AlertTriangle, Settings, Search, ExternalLink } from 'lucide-react';
+import { Monitor, CheckCircle2, Wifi, Shield, Cpu, Terminal, Power, Layers, Box, Code, Image as ImageIcon, MessageSquare, Activity, RefreshCw, Lock, AlertOctagon, Link, Zap, Eye, Globe, Database, Wrench, FolderOpen, HardDrive, ArrowRightLeft, ArrowRight, Keyboard, ArrowDownToLine, Server, Clipboard, FileType, HelpCircle, AlertTriangle, Settings, Search, ExternalLink, Download } from 'lucide-react';
 import { ToolsInstallVerifyPanel } from './components/ToolsInstallVerifyPanel';
 import { useWheelScrollProxy } from './components/useWheelScrollProxy';
 
@@ -1553,9 +1553,9 @@ if __name__ == "__main__":
 
   const checkBlenderProcess = async () => {
     // Check if socket on port 9999 is listening (addon is active)
-    if (typeof window.electron?.api?.checkBlenderAddon === 'function') {
+    if (typeof window.electronAPI?.checkBlenderAddon === 'function') {
       try {
-        const result = await window.electron.api.checkBlenderAddon();
+        const result = await window.electronAPI.checkBlenderAddon();
         return result.connected === true;
       } catch (e) {
         console.error('Error checking for Blender addon socket:', e);
@@ -2040,7 +2040,7 @@ if __name__ == "__main__":
                                       onClick={handleDownloadServer}
                                       className="flex-1 py-3 bg-slate-800 hover:bg-slate-700 border border-slate-600 rounded-lg font-bold text-white flex items-center justify-center gap-2 transition-colors"
                                   >
-                                      <Download className="w-5 h-5" /> 1. Download Server (.py)
+                                      <ArrowDownToLine className="w-5 h-5" /> 1. Download Server (.py)
                                   </button>
                                   <button 
                                       onClick={handleDownloadBatch}
@@ -2824,7 +2824,7 @@ if __name__ == "__main__":
                             onClick={handleDownloadAddon}
                             className="w-full py-3 border border-blue-500/30 hover:bg-blue-500/10 text-blue-400 text-sm font-bold rounded-xl flex items-center justify-center gap-3 transition-all group"
                         >
-                            <Download className="w-5 h-5 group-hover:animate-bounce" />
+                            <ArrowDownToLine className="w-5 h-5 group-hover:animate-bounce" />
                                                         Download Mossy Link Add-on (v6.0)
                         </button>
                     </div>

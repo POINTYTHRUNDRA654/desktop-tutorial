@@ -3,6 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { Cpu, Activity, Zap, Eye, AlertTriangle, CheckCircle2, Terminal, Code, Layers, MessageSquare } from 'lucide-react';
 import { FO4KnowledgeBase } from '../../shared/FO4KnowledgeBase';
 import { ToolsInstallVerifyPanel } from './components/ToolsInstallVerifyPanel';
+import { contextAwareAIService, ToolContext } from './ContextAwareAIService';
 
 interface RunningProcess {
     name: string;
@@ -20,13 +21,25 @@ const NeuralLink: React.FC = () => {
     const scanProcesses = async () => {
         const bridge: any = (window as any).electron?.api || (window as any).electronAPI;
         if (typeof bridge?.getRunningProcesses !== 'function') return;
-        
+
         setIsScanning(true);
         try {
             const tools = await bridge.getRunningProcesses();
             setRunningTools(tools);
             setLastScan(new Date());
             generateMossyThoughts(tools);
+
+            // Update context-aware AI service
+            const toolContexts: ToolContext[] = tools.map(tool => ({
+                name: tool.name,
+                processName: tool.name.toLowerCase(),
+                windowTitle: tool.windowTitle,
+                isActive: true,
+                lastActive: Date.now(),
+                context: {}
+            }));
+            contextAwareAIService.updateToolContext(toolContexts);
+
         } catch (error) {
             console.error('Failed to scan processes:', error);
         } finally {
@@ -83,7 +96,7 @@ const NeuralLink: React.FC = () => {
     };
 
     return (
-        <div className="p-6 space-y-6 animate-in fade-in duration-500">
+        <div data-testid="neural-link" className="p-6 space-y-6 animate-in fade-in duration-500">
             <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
                     <div className="p-2 bg-blue-500/20 rounded-lg">
@@ -92,6 +105,11 @@ const NeuralLink: React.FC = () => {
                     <div>
                         <h2 className="text-xl font-bold text-white font-mono uppercase tracking-wider">Neural Link</h2>
                         <p className="text-blue-400/60 text-xs">Direct Integration & Process Monitoring</p>
+                        {runningTools.length > 0 && (
+                            <div data-testid="active-tool" className="text-blue-300 text-xs mt-1">
+                                Active: {runningTools.map(t => t.name).join(', ')}
+                            </div>
+                        )}
                     </div>
                 </div>
                 <button 
@@ -143,7 +161,7 @@ const NeuralLink: React.FC = () => {
                             </div>
                         ) : (
                             runningTools.map((tool, idx) => (
-                                <div key={idx} className="flex items-center justify-between p-3 bg-blue-500/5 border border-blue-500/10 rounded-lg hover:bg-blue-500/10 transition-colors">
+                                <div key={idx} data-testid={`${tool.name.toLowerCase().replace(/\s+/g, '-')}-status`} className="flex items-center justify-between p-3 bg-blue-500/5 border border-blue-500/10 rounded-lg hover:bg-blue-500/10 transition-colors">
                                     <div className="flex items-center gap-3">
                                         <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
                                         <div>
@@ -193,20 +211,39 @@ const NeuralLink: React.FC = () => {
 
                     {/* Quick Access Scripts */}
                     {runningTools.some(t => t.name.toLowerCase().includes('blender')) && (
-                        <div className="bg-yellow-500/10 border border-yellow-500/30 rounded-xl p-4">
+                        <div data-testid="standards-alignment" className="bg-yellow-500/10 border border-yellow-500/30 rounded-xl p-4">
                             <div className="flex items-center gap-2 mb-3">
                                 <Zap size={18} className="text-yellow-400" />
-                                <h3 className="text-sm font-semibold text-yellow-200">Blender Integration Add-on</h3>
+                                <h3 className="text-sm font-semibold text-yellow-200">Blender Standards Alignment</h3>
                             </div>
-                            <p className="text-xs text-yellow-200/60 mb-3 leading-relaxed">
-                                I can execute scripts directly in your Blender scene. 
-                                Install the <strong>Mossy Link Add-on</strong> from the Desktop Bridge to enable this.
-                            </p>
+                            <div className="space-y-3 mb-3">
+                                <div className="flex items-center gap-2">
+                                    <label className="text-xs text-yellow-200/80">Unit Scale:</label>
+                                    <input 
+                                        data-testid="blender-scale"
+                                        type="text" 
+                                        value="1.0" 
+                                        readOnly 
+                                        className="px-2 py-1 bg-yellow-500/10 border border-yellow-500/30 rounded text-xs text-yellow-200 w-16 text-center"
+                                    />
+                                </div>
+                                <div className="flex items-center gap-2">
+                                    <label className="text-xs text-yellow-200/80">Target FPS:</label>
+                                    <input 
+                                        data-testid="blender-fps"
+                                        type="text" 
+                                        value="30" 
+                                        readOnly 
+                                        className="px-2 py-1 bg-yellow-500/10 border border-yellow-500/30 rounded text-xs text-yellow-200 w-16 text-center"
+                                    />
+                                </div>
+                            </div>
                             <button 
+                                data-testid="generate-script"
                                 onClick={injectBlenderFix}
                                 className="w-full py-2 bg-yellow-500/20 hover:bg-yellow-500/30 text-yellow-400 rounded-lg border border-yellow-500/30 transition-all text-xs font-bold"
                             >
-                                VIEW SETUP INSTRUCTIONS
+                                Generate Alignment Script
                             </button>
                         </div>
                     )}

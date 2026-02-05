@@ -1,6 +1,29 @@
 # Mossy - The Fallout 4 Modding Assistant
 
-**Mossy v5.4.21** - A production-ready Electron desktop application for Fallout 4 modding with AI assistance, real-time analysis, and professional asset optimization.
+**Mossy v5.4.21** - A production-ready Electron desktop application for Fallout 4 modding with AI assistance, real-time analysis, direct-write scripting, and professional asset optimization.
+
+---
+
+## 🚀 Onboarding & Installer Notes (v5.4.21)
+
+**New in v5.4.21:**
+- Direct-write protocol for Papyrus, xEdit, and Blender scripting
+- Headless automation and batch execution for Blender
+- Real-time tool monitoring (Neural Link)
+- Explicit user permission and audit logging for all direct-write and automation features
+- All modules are functional—no placeholders
+
+**Installer:**
+- Windows installer is generated via NSIS (`npm run package:win`)
+- Version is auto-set from `package.json` (currently 5.4.21)
+- No separate .nsi script; packaging is handled by Electron Forge and NSIS config
+
+**Onboarding:**
+- See [BLENDER_ADDON_TUTORIAL.md](BLENDER_ADDON_TUTORIAL.md) for Blender scripting
+- See [ANIMATION_SUITE_IMPLEMENTATION.md](ANIMATION_SUITE_IMPLEMENTATION.md) for animation workflow
+- See [BLENDER_SCRIPT_EXECUTION_CHECKLIST.md](BLENDER_SCRIPT_EXECUTION_CHECKLIST.md) for script execution and trust
+
+---
 
 ![License](https://img.shields.io/badge/license-MIT-blue.svg)
 ![Platform](https://img.shields.io/badge/platform-Windows-blue)
@@ -9,7 +32,7 @@
 
 ## 🎯 What's Inside
 
-**Mossy** is a focused, lean toolkit with only real, working features:
+**Mossy** is a focused, lean toolkit with only real, working features. All modules are production-ready and tested. See onboarding notes above for new user guidance.
 
 ### Core Modules
 

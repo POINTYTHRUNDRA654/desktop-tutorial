@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ChevronDown, ChevronUp, Download, Zap, BookOpen, AlertCircle, Users, Hammer, CheckCircle2, HelpCircle, Lightbulb } from 'lucide-react';
+import { ChevronDown, ChevronUp, ArrowDownToLine, Zap, BookOpen, AlertCircle, Users, Hammer, CheckCircle2, HelpCircle, Lightbulb } from 'lucide-react';
 
 interface Section {
   id: string;
@@ -157,7 +157,7 @@ export default function SimSettlementsGuide() {
     {
       id: 'installation',
       title: '⚙️ Installation Methods',
-      icon: <Download className="w-5 h-5 text-[#00ff00]" />,
+      icon: <ArrowDownToLine className="w-5 h-5 text-[#00ff00]" />,
       content: (
         <div className="space-y-4 text-sm text-[#00ff00] font-mono">
           <div>
@@ -298,7 +298,7 @@ export default function SimSettlementsGuide() {
     {
       id: 'addons',
       title: '📦 Addons & Expansions',
-      icon: <Download className="w-5 h-5 text-[#00ff00]" />,
+      icon: <ArrowDownToLine className="w-5 h-5 text-[#00ff00]" />,
       content: (
         <div className="space-y-4 text-sm text-[#00ff00] font-mono">
           <div>

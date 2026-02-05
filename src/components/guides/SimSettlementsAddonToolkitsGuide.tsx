@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import styles from './GuideStyles.module.css';
-import { ExternalLink, Download } from 'lucide-react';
+import { ExternalLink } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
 export default function SimSettlementsAddonToolkitsGuide() {

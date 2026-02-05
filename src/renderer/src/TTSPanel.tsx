@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Play, FileAudio, Sliders, Radio, Cpu, Music, Download, Volume2, Activity, Settings, Upload, Trash2, Folder, ExternalLink } from 'lucide-react';
+import { Play, FileAudio, Sliders, Radio, Cpu, Music, ArrowDownToLine, Volume2, Activity, Settings, Upload, Trash2, Folder, ExternalLink } from 'lucide-react';
 import { ToolsInstallVerifyPanel } from './components/ToolsInstallVerifyPanel';
 
 const AudioStudio: React.FC = () => {
@@ -671,7 +671,7 @@ const AudioStudio: React.FC = () => {
                       disabled={!audioBuffer}
                       className="w-full py-3 bg-purple-600 hover:bg-purple-500 disabled:opacity-30 disabled:cursor-not-allowed text-white rounded-lg flex items-center justify-center gap-2 text-sm font-bold transition-colors"
                   >
-                      <Download className="w-4 h-4" /> 
+                      <ArrowDownToLine className="w-4 h-4" /> 
                       Export to WAV
                   </button>
                   

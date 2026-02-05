@@ -107,8 +107,14 @@ const MossyMemoryVault: React.FC = () => {
 
         const file = files[0]; // Process only first file
         
+        // Check if it's an audio file
+        if (file.type.startsWith('audio/') || /\.(mp3|wav|flac|aac|ogg|m4a|wma)$/i.test(file.name)) {
+            handleVideoFile(file); // Reuse video handler since it handles audio transcription
+            return;
+        }
+        
         // Check if it's a video
-        if (file.type.startsWith('video/') || /\.(mp4|webm|mov|avi|mkv|flv)$/i.test(file.name)) {
+        if (file.type.startsWith('video/') || /\.(mp4|webm|mov|avi|mkv|flv|wmv|m4v|3gp)$/i.test(file.name)) {
             handleVideoFile(file);
             return;
         }
@@ -154,7 +160,7 @@ const MossyMemoryVault: React.FC = () => {
         }
         
         // Check if file is text-based
-        if (file.type.startsWith('text/') || file.name.endsWith('.md') || file.name.endsWith('.txt') || file.name.endsWith('.json') || file.name.endsWith('.bat') || file.name.endsWith('.cmd')) {
+        if (file.type.startsWith('text/') || /\.(md|txt|json|bat|cmd|xml|ini|cfg|ps1|sh|py|js|ts|html|css|scss|sass|yaml|yml)$/i.test(file.name)) {
             const reader = new FileReader();
             
             reader.onload = (event) => {
@@ -169,7 +175,7 @@ const MossyMemoryVault: React.FC = () => {
             
             reader.readAsText(file);
         } else {
-            alert(`❌ Unsupported file type: ${file.name}\n\nSupported: .pdf, .txt, .md, .json, .bat, .cmd, .mp4, .webm, .mov, .avi`);
+            alert(`❌ Unsupported file type: ${file.name}\n\nSupported: .pdf, .txt, .md, .json, .bat, .cmd, .xml, .ini, .cfg, .ps1, .sh, .py, .js, .ts, .html, .css, .scss, .sass, .yaml, .yml, .mp4, .webm, .mov, .avi, .mkv, .flv, .wmv, .m4v, .3gp, .mp3, .wav, .flac, .aac, .ogg, .m4a, .wma`);
         }
     };
 

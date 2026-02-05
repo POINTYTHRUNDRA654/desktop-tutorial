@@ -55,8 +55,8 @@ export function useWheelScrollProxyFrom(getScrollTarget: () => HTMLElement | nul
       const before = scrollTarget.scrollTop;
       scrollTarget.scrollBy({ top: e.deltaY, behavior: 'auto' });
 
-      // Only prevent default when we actually scrolled the target.
-      if (scrollTarget.scrollTop !== before) e.preventDefault();
+      // Note: preventDefault() removed as wheel events are passive by default in modern browsers
+      // The scroll behavior is handled by scrollBy() above
     },
     [getScrollTarget]
   );
