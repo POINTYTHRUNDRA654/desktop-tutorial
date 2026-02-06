@@ -1,0 +1,22 @@
+{
+  "model": {
+    "type": "conflict_prediction_v1",
+    "created": 1770358413026,
+    "parameters": {}
+  },
+  "trainingData": [],
+  "feedbackHistory": [],
+  "config": {
+    "modelPath": "./test-model.json",
+    "trainingDataPath": "./test-training.json",
+    "confidenceThreshold": 0.7,
+    "enableRealTimeLearning": true,
+    "featureWeights": {
+      "historicalConflicts": 0.3,
+      "modSimilarity": 0.25,
+      "loadOrder": 0.2,
+      "hardwareCompatibility": 0.15,
+      "versionCompatibility": 0.1
+    }
+  }
+}
