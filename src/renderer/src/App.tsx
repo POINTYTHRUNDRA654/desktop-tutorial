@@ -13,11 +13,13 @@ import { FirstRunOnboarding } from './FirstRunOnboarding';
 import { VoiceSetupWizard } from './VoiceSetupWizard';
 import GuidedTour from './GuidedTour';
 import { NotificationProvider } from './NotificationContext';
+import { ensureBrowserTtsSettingsStored } from './browserTts';
 
-import { Loader2, Zap } from 'lucide-react';
+import { Command, Loader2, Radio, Zap } from 'lucide-react';
 import { LiveProvider } from './LiveContext';
 import { OpenAIVoiceProvider } from './OpenAIVoiceContext';
 import { ModProject } from '../../shared/types';
+import AvatarCore from './AvatarCore';
 
 // Import Quick Wins components
 import { GlobalSearch } from './GlobalSearch';
@@ -45,6 +47,7 @@ const LoadOrderAnalyzer = React.lazy(() => import('./LoadOrderAnalyzer').then(mo
 const LoadOrderLab = React.lazy(() => import('./loadOrder/LoadOrderLab').then(module => ({ default: module.LoadOrderLab })));
 const ChatInterface = React.lazy(() => import('./ChatInterface'));
 const VoiceChat = React.lazy(() => import('./VoiceChat'));
+const FirstSuccessWizard = React.lazy(() => import('./FirstSuccessWizard'));
 const ImageSuite = React.lazy(() => import('./ImageSuite'));
 const TTSPanel = React.lazy(() => import('./TTSPanel'));
 const DesktopBridge = React.lazy(() => import('./DesktopBridge'));
@@ -85,6 +88,7 @@ const PrecombineChecker = React.lazy(() => import('./PrecombineChecker').then(mo
 const LeveledListInjectionGuide = React.lazy(() => import('./LeveledListInjectionGuide').then(module => ({ default: module.LeveledListInjectionGuide })));
 const QuestModAuthoringGuide = React.lazy(() => import('./QuestModAuthoringGuide').then(module => ({ default: module.QuestModAuthoringGuide })));
 const ModProjectManager = React.lazy(() => import('./ModProjectManager'));
+const ModdingJourney = React.lazy(() => import('./ModdingJourney'));
 const BodyslideGuide = React.lazy(() => import('./BodyslideGuide'));
 const SimSettlementsGuide = React.lazy(() => import('./SimSettlementsGuide'));
 const SimSettlementsAddonGuide = React.lazy(() => import('./SimSettlementsAddonGuide'));
@@ -177,6 +181,14 @@ const ModuleLoader = () => <SkeletonLoader type="module" />;
 const App: React.FC = () => {
   const devBuildId = '2026-01-27-1227-debug-probe';
   const [hasBooted, setHasBooted] = useState(() => {
+    // Skip boot sequence in test mode - check multiple sources
+    const urlParams = new URLSearchParams(window.location.search);
+    if (urlParams.has('test') ||
+        window.location.search.includes('test') ||
+        window.localStorage.getItem('mossy_test_mode') === 'true' ||
+        window.localStorage.getItem('mossy_has_booted') === 'true') {
+      return true;
+    }
     // Persist boot so we don't show the startup sequence every launch.
     return localStorage.getItem('mossy_has_booted') === 'true';
   });
@@ -199,6 +211,13 @@ const App: React.FC = () => {
     if (!import.meta.env.DEV) return false;
     try {
       return localStorage.getItem('mossy_show_dev_hud') === 'true';
+    } catch {
+      return false;
+    }
+  });
+  const [isPipBoy, setIsPipBoy] = useState(() => {
+    try {
+      return localStorage.getItem('mossy_pip_mode') === 'true';
     } catch {
       return false;
     }
@@ -226,6 +245,34 @@ const App: React.FC = () => {
 
   // Quick Wins state
   const { showWhatsNew, dismissWhatsNew } = useWhatsNew();
+
+  useEffect(() => {
+    document.body.classList.toggle('pip-boy-mode', isPipBoy);
+    try {
+      localStorage.setItem('mossy_pip_mode', isPipBoy ? 'true' : 'false');
+    } catch {
+      // ignore
+    }
+  }, [isPipBoy]);
+
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key.toLowerCase() === 'p') {
+        e.preventDefault();
+        setIsPipBoy((prev) => !prev);
+        setPipToggledAt(new Date().toLocaleTimeString());
+        return;
+      }
+
+      if (e.key === 'Escape' && isPipBoy) {
+        setIsPipBoy(false);
+        setPipToggledAt(new Date().toLocaleTimeString());
+      }
+    };
+
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [isPipBoy]);
 
   // Project management handlers
   const handleProjectChange = (project: ModProject) => {
@@ -324,6 +371,33 @@ const App: React.FC = () => {
   }, []);
 
   useEffect(() => {
+    const seedVault = async () => {
+      try {
+        const raw = localStorage.getItem('mossy_knowledge_vault');
+        if (raw) {
+          const parsed = JSON.parse(raw);
+          if (Array.isArray(parsed) && parsed.length > 0) return;
+        }
+      } catch {
+        // ignore and attempt seed
+      }
+
+      try {
+        const resp = await fetch('/knowledge/seed-vault.json', { cache: 'no-cache' });
+        if (!resp.ok) return;
+        const data = await resp.json();
+        if (!Array.isArray(data) || data.length === 0) return;
+        localStorage.setItem('mossy_knowledge_vault', JSON.stringify(data));
+        window.dispatchEvent(new Event('mossy-knowledge-updated'));
+      } catch {
+        // ignore
+      }
+    };
+
+    seedVault();
+  }, []);
+
+  useEffect(() => {
     if (!import.meta.env.DEV) return;
     console.log('[App][DEV] build:', devBuildId);
     console.log('[App][DEV] location:', window.location.href);
@@ -362,6 +436,7 @@ const App: React.FC = () => {
         } catch {
           // ignore
         }
+        setIsPipBoy(next);
         setPipToggledAt(new Date().toLocaleTimeString());
       }
     };
@@ -525,6 +600,11 @@ const App: React.FC = () => {
     }
   }, []);
 
+  // Seed browser TTS defaults once to keep voice stable across updates.
+  React.useEffect(() => {
+    ensureBrowserTtsSettingsStored();
+  }, []);
+
   // Dev-only: capture uncaught errors with stack traces.
   // This helps pinpoint issues that Electron logs as "source: (0)".
   React.useEffect(() => {
@@ -637,7 +717,7 @@ const App: React.FC = () => {
           />
 
           {/* Main Application Header */}
-          <header className="main-header bg-slate-900 border-b border-green-500/20 px-4 py-2 flex items-center justify-between">
+          <header className="main-header bg-slate-900 border-b border-green-500/20 px-4 py-2 grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1.6fr)] items-center gap-4">
             <div className="flex items-center gap-4">
               <h1 className="text-xl font-bold text-green-400 font-mono">MOSSY</h1>
               <div className="hidden md:block">
@@ -650,9 +730,34 @@ const App: React.FC = () => {
                 </Suspense>
               </div>
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex items-end gap-2 justify-self-center pb-0.5">
+              <AvatarCore className="w-7 h-7" showRings={false} />
+              <div className="hidden xl:block text-[10px] text-emerald-300 uppercase tracking-[0.3em] font-bold">Mossy Core</div>
+            </div>
+            <div className="flex items-center gap-2 justify-self-stretch justify-end min-w-0">
               <GlobalSearch />
-              <span className="text-xs text-green-600 font-mono">v4.0</span>
+              <button
+                type="button"
+                onClick={() => window.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', ctrlKey: true }))}
+                className="hidden md:flex items-center gap-1.5 px-3 py-1.5 bg-slate-800 border border-slate-700 rounded-lg hover:bg-slate-700 transition-colors text-xs text-slate-300"
+                title="Command Palette (Ctrl+K)"
+              >
+                <Command className="w-3.5 h-3.5" />
+                Command
+              </button>
+              <button
+                type="button"
+                onClick={() => setIsPipBoy((prev) => !prev)}
+                className={`p-2 rounded-lg border text-xs transition-colors ${
+                  isPipBoy
+                    ? 'bg-amber-900/20 text-amber-300 border-amber-500/40'
+                    : 'bg-slate-800 text-slate-400 border-slate-700 hover:text-white'
+                }`}
+                title="Toggle Pip-Boy Theme"
+              >
+                <Radio className="w-3.5 h-3.5" />
+              </button>
+              <span className="text-xs text-green-600 font-mono">v5.4.2.1</span>
             </div>
           </header>
 
@@ -692,6 +797,7 @@ const App: React.FC = () => {
                 {/* Core Application Routes */}
                 <Route path="/" element={<ErrorBoundary><TheNexus /></ErrorBoundary>} />
                 <Route path="/chat" element={<ErrorBoundary><ChatInterface /></ErrorBoundary>} />
+                <Route path="/first-success" element={<ErrorBoundary><FirstSuccessWizard /></ErrorBoundary>} />
                 <Route path="/roadmap" element={<ErrorBoundary><RoadmapPanel /></ErrorBoundary>} />
                 <Route path="/live" element={<ErrorBoundary><VoiceChat /></ErrorBoundary>} />
 
@@ -733,6 +839,7 @@ const App: React.FC = () => {
                 <Route path="/test" element={<ErrorBoundary><TheNexus /></ErrorBoundary>} />
                 <Route path="/test/holo" element={<Holodeck />} />
                 <Route path="/test/notification-test" element={<NotificationTest />} />
+                <Route path="/test/bridge" element={<ErrorBoundary><DesktopBridge /></ErrorBoundary>} />
 
                 {/* Knowledge & Learning */}
                 <Route path="/learn" element={<ErrorBoundary><TheNexus /></ErrorBoundary>} />
@@ -802,6 +909,7 @@ const App: React.FC = () => {
                 {/* Project Management */}
                 <Route path="/project" element={<ErrorBoundary><TheNexus /></ErrorBoundary>} />
                 <Route path="/project/journey" element={<ModProjectManager />} />
+                <Route path="/project/achievements" element={<ErrorBoundary><ModdingJourney /></ErrorBoundary>} />
                 <Route path="/project/manager" element={<ErrorBoundary><ProjectManager /></ErrorBoundary>} />
                 <Route path="/project/create" element={<ErrorBoundary><ProjectCreator /></ErrorBoundary>} />
                 <Route path="/project/collaboration" element={<ErrorBoundary><CollaborationManager /></ErrorBoundary>} />
@@ -984,6 +1092,31 @@ const App: React.FC = () => {
                 )}
               </>
             )}
+            <button
+              type="button"
+              onClick={() => {
+                setIsPipBoy((prev) => !prev);
+                setPipToggledAt(new Date().toLocaleTimeString());
+              }}
+              title="Toggle Pip-Boy Theme (Ctrl+Shift+P, Esc to exit)"
+              style={{
+                position: 'fixed',
+                left: 16,
+                bottom: 16,
+                zIndex: 20002,
+                background: isPipBoy ? 'rgba(120,80,20,0.9)' : 'rgba(0,0,0,0.85)',
+                border: isPipBoy ? '1px solid rgba(230,176,74,0.5)' : '1px solid rgba(0,255,0,0.35)',
+                color: isPipBoy ? '#f6d28a' : '#9aff9a',
+                padding: '6px 10px',
+                fontSize: 11,
+                fontFamily: 'JetBrains Mono, monospace',
+                borderRadius: 10,
+                cursor: 'pointer',
+                letterSpacing: 1,
+              }}
+            >
+              {isPipBoy ? 'PIP-BOY: ON' : 'PIP-BOY: OFF'}
+            </button>
             <NotificationProvider>
               {renderAppContent()}
             </NotificationProvider>

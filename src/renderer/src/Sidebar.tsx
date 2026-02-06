@@ -1,8 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
-import { MessageSquare, Radio, Image, Mic2, Activity, Heart, Leaf, Monitor, Wifi, WifiOff, Hammer, GitBranch, Network, Gamepad2, Container, SquareTerminal, BrainCircuit, Aperture, LayoutDashboard, Satellite, Workflow, Hexagon, DraftingCompass, Dna, Sparkles, Flame, Binary, Triangle, PenTool, FlaskConical, Map, FileDigit, Library, Bug, Package, Watch, ShieldCheck, Feather, Power, Volume2, VolumeX, Settings, Coffee, Book, Code, Wand2, Archive, Eye, Save, List, FileCode as FileCodeIcon, Bot, Box, Gauge, Zap, GitMerge, Clock, Share2, Github, Bone, CheckCircle2, AlertCircle, BookOpen, Wrench, Copy, Command, Star, ArrowDownToLine, Brain, Target, ExternalLink, Globe } from 'lucide-react';
+import { MessageSquare, Radio, Image, Mic2, Activity, Heart, Leaf, Monitor, Wifi, WifiOff, Hammer, GitBranch, Network, Gamepad2, Container, SquareTerminal, BrainCircuit, Aperture, LayoutDashboard, Satellite, Workflow, Hexagon, DraftingCompass, Dna, Sparkles, Flame, Binary, Triangle, PenTool, FlaskConical, Map, FileDigit, Library, Bug, Package, Watch, ShieldCheck, Feather, Power, Volume2, VolumeX, Settings, Coffee, Book, Code, Wand2, Archive, Eye, Save, List, FileCode as FileCodeIcon, Bot, Box, Gauge, Zap, GitMerge, Clock, Share2, Github, Bone, CheckCircle2, AlertCircle, BookOpen, Wrench, Copy, Star, ArrowDownToLine, Brain, Target, ExternalLink, Globe, Trophy } from 'lucide-react';
 import { useLive } from './LiveContext';
-import AvatarCore from './AvatarCore';
 import { useI18n } from './i18n';
 import TourLauncher from './TourLauncher';
 import { useFavorites } from './useFavorites';
@@ -15,7 +14,6 @@ interface SidebarProps {
 
 const Sidebar: React.FC<SidebarProps> = ({ isOpen = false, onToggle, onClose }) => {
   const [bridgeConnected, setBridgeConnected] = useState(false);
-  const [isPipBoy, setIsPipBoy] = useState(false);
   const location = useLocation();
   const [moodColor, setMoodColor] = useState('text-emerald-400');
 
@@ -37,24 +35,6 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen = false, onToggle, onClose }) 
   // Favorites functionality
   const { favorites, toggleFavorite, isFavorite } = useFavorites();
 
-  // Toggle Pip-Boy Theme
-  const togglePipBoy = () => {
-      const newState = !isPipBoy;
-      setIsPipBoy(newState);
-      if (newState) {
-          document.body.classList.add('pip-boy-mode');
-      } else {
-          document.body.classList.remove('pip-boy-mode');
-      }
-      localStorage.setItem('mossy_pip_mode', JSON.stringify(newState));
-  };
-
-  // Init Theme
-  useEffect(() => {
-      const saved = localStorage.getItem('mossy_pip_mode') === 'true';
-      setIsPipBoy(saved);
-      if (saved) document.body.classList.add('pip-boy-mode');
-  }, []);
 
   // Poll for bridge status check
   useEffect(() => {
@@ -95,8 +75,10 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen = false, onToggle, onClose }) 
     // === FOUNDATION: HOME & PROJECTS ===
     { to: '/', icon: LayoutDashboard, label: t('nav.home', 'Mossy.Space') },
     { to: '/chat', icon: MessageSquare, label: t('nav.chat', 'AI Chat') },
+    { to: '/first-success', icon: CheckCircle2, label: t('nav.firstSuccess', 'First Success') },
     { to: '/roadmap', icon: Target, label: t('nav.roadmap', 'Modding Roadmaps') },
     { to: '/journey', icon: Sparkles, label: t('nav.modProjects', 'Mod Projects') },
+    { to: '/project/achievements', icon: Trophy, label: t('nav.achievements', 'Achievements') },
 
     // === CORE LEARNING: GUIDES & REFERENCES ===
     { to: '/reference', icon: Book, label: t('nav.quickReference', 'Quick Reference') },
@@ -185,20 +167,12 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen = false, onToggle, onClose }) 
       aria-label="Main navigation"
     >
       {/* Live Header with Persistent Avatar */}
-      <div className="p-6 border-b border-slate-800 flex items-center gap-3">
-        <div className="relative w-12 h-12 flex-shrink-0">
-            {/* Replaced static CSS core with the unified AvatarCore */}
-            <AvatarCore className="w-12 h-12" showRings={false} />
-            
-            {/* Online Status Dot */}
-            <div className={`absolute bottom-0 right-0 w-3 h-3 border-2 border-slate-900 rounded-full transition-colors duration-500 z-20 ${bridgeConnected ? 'bg-emerald-500 animate-pulse' : 'bg-slate-600'}`}></div>
-        </div>
-        
+      <div className="p-4 border-b border-slate-800 flex items-center gap-3">
         <div className="overflow-hidden flex-1">
-          <h1 className="text-xl font-black italic text-white tracking-tighter leading-none">
+          <h1 className="text-lg font-black italic text-white tracking-tighter leading-none">
             MOSSY<span className={`transition-colors duration-500 ${moodColor}`}>.SPACE</span>
           </h1>
-          <div className="flex items-center gap-1.5 mt-1.5">
+          <div className="flex items-center gap-1.5 mt-1">
              {bridgeConnected ? (
                  <>
                     <Wifi className={`w-3 h-3 transition-colors duration-500 ${moodColor}`} />
@@ -212,16 +186,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen = false, onToggle, onClose }) 
              )}
           </div>
         </div>
-
-        {/* Command Palette Trigger for Tour */}
-        <button
-          data-tour="command-palette-trigger"
-          onClick={() => window.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', ctrlKey: true }))}
-          className="p-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white transition-colors border border-slate-700"
-          title="Command Palette (Ctrl+K)"
-        >
-          <Command className="w-4 h-4" />
-        </button>
+        <div className={`w-2.5 h-2.5 rounded-full border border-slate-900 ${bridgeConnected ? 'bg-emerald-500 animate-pulse' : 'bg-slate-600'}`} />
       </div>
 
       {/* Global Live Status */}
@@ -375,17 +340,6 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen = false, onToggle, onClose }) 
       {/* Tour Launcher for Testing */}
       <TourLauncher className="mx-4 mb-4" />
       
-      {/* Footer Info & Pip-Boy Toggle */}
-      <div className="p-4 border-t border-slate-800 bg-slate-900/50 flex justify-between items-center">
-        <div className="text-[10px] text-slate-600 font-mono">CORE: v2.4.2</div>
-        <button 
-            onClick={togglePipBoy}
-            className={`p-2 rounded-full transition-colors ${isPipBoy ? 'bg-amber-900/20 text-amber-400 border border-amber-500/30' : 'bg-slate-800 text-slate-500 hover:text-white border border-slate-700'}`}
-            title="Toggle Pip-Boy Theme"
-        >
-            <Radio className="w-3 h-3" />
-        </button>
-      </div>
     </div>
   );
 };

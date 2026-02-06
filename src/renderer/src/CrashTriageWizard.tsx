@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { AlertCircle, Bug, CheckCircle2, ExternalLink, Send, ShieldCheck, Wrench } from 'lucide-react';
 import { ToolsInstallVerifyPanel } from './components/ToolsInstallVerifyPanel';
+import { openExternal } from './utils/openExternal';
 
 type SectionId = 'collect' | 'repro' | 'logs' | 'isolate' | 'fix' | 'verify';
 
@@ -48,17 +49,8 @@ const uniq = (xs: string[]) => {
   return out;
 };
 
-const openUrl = async (url: string) => {
-  const bridge = (window as any).electron?.api || (window as any).electronAPI;
-  try {
-    if (bridge?.openExternal) {
-      await bridge.openExternal(url);
-      return;
-    }
-  } catch {
-    // ignore
-  }
-  window.open(url, '_blank', 'noopener,noreferrer');
+const openUrl = (url: string) => {
+  void openExternal(url);
 };
 
 const StepRow: React.FC<{

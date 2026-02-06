@@ -9,77 +9,37 @@
 6. The Havok SDK Overview
 7. HavokMax Plugin
 8. HavokLib Integration
-9. Animation Workflow Basics
-10. Troubleshooting & Resources
-
 ---
 
-## 1. What is Havok?
-
-**Havok** is a powerful physics and animation middleware engine developed by Autodesk. It provides professional-grade tools for:
 
 - **Physics Simulation**: Realistic collision detection, rigid body dynamics, character physics
 - **Character Animation**: Skeletal animation, ragdoll systems, locomotion
-- **Cloth & Particles**: Advanced cloth simulation and particle effects
-- **Audio-Visual Effects**: Integration with visual effects and sound
-- **Performance Optimization**: Multi-platform support with optimized performance
 
 ### Havok Products Relevant to Fallout 4
-
-| Product | Purpose | Use Case |
-|---------|---------|----------|
 | **Havok Physics** | Core physics engine | Collision, gravity, rigid bodies |
 | **Havok Animation** | Skeletal animation system | Character movement, blending, IK |
 | **Havok Behavior** | State machine system | Complex animation logic and AI |
-| **Havok Cloth** | Cloth simulation | Armor, clothing, cape physics |
-
----
 
 ## 2. Why Use Havok for Fallout 4?
-
-### Native Engine Support
-Fallout 4's engine (Creation Engine, Gamebryo-based) has Havok integrated at its core:
 - All NPC animations use Havok skeletons
 - Physics systems rely on Havok collision shapes
 - Ragdoll physics powered by Havok
-- Behavior trees use Havok's state machine architecture
-
-### Professional Animation Workflow
 Havok provides tools that match professional game development:
 - **3DS Max Plugin (HavokMax)**: Seamless integration with industry-standard 3D software
-- **Behavior Editor**: Visual editing of complex animation states
-- **Physics Authoring**: Precise control over collision and physics properties
-- **Debugging Tools**: Visualize and debug physics and animation in real-time
 
 ### Why It Matters for Modding
 Without understanding Havok:
 - Custom animations won't work correctly with Fallout 4's physics
-- Character models may float, clip, or ragdoll unexpectedly
-- Complex behaviors (climbing, mantling, interaction animations) won't function
-- Performance issues and crashes can result from improper Havok setup
 
 ---
-
-## 3. Havok in the Fallout 4 Ecosystem
-
 ### Havok Components in Fallout 4
 
-```
-Havok Engine (Creation Engine Integration)
-├── Physics System
 │   ├── Rigid Body Dynamics
 │   ├── Collision Detection (hkpShape)
 │   └── Constraints
 ├── Animation System
-│   ├── Skeletal Animation (hkpRigidBody bones)
-│   ├── Blending & Layering
-│   └── IK (Inverse Kinematics)
 ├── Behavior System
 │   ├── State Machines
-│   ├── Event Graphs
-│   └── Character Controllers
-└── Cloth & Particles
-    ├── Cloth Simulation
     └── Particle Dynamics
 ```
 
@@ -89,72 +49,33 @@ Havok Engine (Creation Engine Integration)
 |----------------|---------|----------|
 | `.nif` (Havok embedded) | Mesh & Skeleton | 3D geometry, bones, physics shapes |
 | `.hkx` | Havok Data Container | Physics, animation, behavior data |
-| `.txt` (Behavior)| Behavior Graph | Animation state machines, events |
-| `.xml` (Behavior) | Behavior Authoring | Human-readable behavior definitions |
-
----
-
-## 4. Installation & Setup
-
-### Prerequisites
-
 - **3DS Max 2018+** (or compatible version)
-- **Havok SDK 2010.2.0 or 2012.1** (for Fallout 4 compatibility)
 - **HavokMax Plugin** (3DS Max integration)
 - **Fallout 4 Creation Kit** (optional but recommended)
 
 ### Step 1: Install Havok SDK
 
-1. **Download Havok SDK**
-   - Autodesk Havok official website or via GameDev access
-   - For Fallout 4: Version 2010.2.0 or 2012.1
-
 2. **Install SDK**
    ```bash
    # Extract to a known location
-   # Example: C:\HavokSDK\hk2010_2_0
-   ```
-
-3. **Set Environment Variables**
-   - `HK_HAVOK_SDK`: Point to your Havok SDK root
    - Add SDK `bin` folder to system PATH
 
 ### Step 2: Install HavokMax Plugin
-
-1. **Download HavokMax**
-   ```bash
-   gh repo clone PredatorCZ/HavokMax
-   ```
-
-2. **Build HavokMax**
-   ```bash
    cd HavokMax
    cmake -G "Visual Studio 16 2019" -DCMAKE_BUILD_TYPE=Release .
    cmake --build . --config Release
    ```
 
-3. **Install Plugin**
-   - Copy built `.dlu` file to 3DS Max plugins folder:
-     - Windows: `C:\Program Files\Autodesk\3ds Max [VERSION]\plugins\`
-
-4. **Restart 3DS Max**
-
 ### Step 3: Setup HavokLib
 
-1. **Clone HavokLib**
    ```bash
    gh repo clone PredatorCZ/HavokLib
    cd HavokLib
    ```
 
-2. **Build HavokLib**
-   ```bash
-   mkdir build && cd build
-   cmake -G "Visual Studio 16 2019" -DCMAKE_BUILD_TYPE=Release ..
    cmake --build . --config Release
    ```
 
-3. **Library is ready for linking in tools**
 
 ---
 

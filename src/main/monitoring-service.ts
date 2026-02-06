@@ -89,11 +89,11 @@ export class MonitoringService extends EventEmitter {
 
       await new Promise<void>((resolve, reject) => {
         const onError = (err: any) => {
-          if (err?.code === 'EADDRINUSE' && requestedPort !== 0) {
+          if (err?.code === 'EADDRINUSE') {
             console.warn(`[Monitoring] Port ${requestedPort} in use; retrying on random port`);
             this.server!.removeListener('error', onError);
             this.server!.close(() => {
-              this.server!.listen(0);
+              this.server!.listen(0); // Always use 0 to let OS pick a free port
               this.server!.on('error', reject);
             });
             return;

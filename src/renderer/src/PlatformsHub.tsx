@@ -15,6 +15,7 @@ import {
   ScrollText,
 } from 'lucide-react';
 import { ToolsInstallVerifyPanel } from './components/ToolsInstallVerifyPanel';
+import { openExternal } from './utils/openExternal';
 
 type PlatformCard = {
   title: string;
@@ -25,17 +26,8 @@ type PlatformCard = {
   badge?: string;
 };
 
-const openUrl = async (url: string) => {
-  const bridge = (window as any).electron?.api || (window as any).electronAPI;
-  try {
-    if (bridge?.openExternal) {
-      await bridge.openExternal(url);
-      return;
-    }
-  } catch {
-    // ignore
-  }
-  window.open(url, '_blank', 'noopener,noreferrer');
+const openUrl = (url: string) => {
+  void openExternal(url);
 };
 
 export const PlatformsHub: React.FC = () => {

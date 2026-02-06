@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Save, Map, ExternalLink } from 'lucide-react';
 import { resolveUiLanguage, useI18n } from './i18n';
+import { openExternal } from './utils/openExternal';
 
 function getElectronApi(): any {
   return (window as any)?.electron?.api ?? (window as any)?.electronAPI;
@@ -15,22 +16,8 @@ const LanguageSettings: React.FC = () => {
   const [uiLanguage, setUiLanguage] = useState<string>('auto');
   const [saving, setSaving] = useState(false);
 
-  const openUrl = async (url: string) => {
-    try {
-      const api = getElectronApi();
-      if (typeof api?.openExternal === 'function') {
-        await api.openExternal(url);
-        return;
-      }
-    } catch {
-      // ignore
-    }
-
-    try {
-      window.open(url, '_blank', 'noopener,noreferrer');
-    } catch {
-      // ignore
-    }
+  const openUrl = (url: string) => {
+    void openExternal(url);
   };
 
   useEffect(() => {

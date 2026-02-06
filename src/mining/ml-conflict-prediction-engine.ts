@@ -373,3 +373,5 @@ class FeatureExtractor {
     return 0.9;
   }
 }
+
+export { MLConflictPredictionEngineImpl as MLConflictPredictionEngine };

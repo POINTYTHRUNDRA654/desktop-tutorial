@@ -1021,6 +1021,10 @@ export const executeMossyTool = async (name: string, args: any, context: {
                         publisher: a.publisher
                     }))
                 };
+                const previousSummary = localStorage.getItem('mossy_scan_summary');
+                if (previousSummary) {
+                    localStorage.setItem('mossy_scan_summary_prev', previousSummary);
+                }
                 localStorage.setItem('mossy_scan_summary', JSON.stringify(programSummary));
 
                 // Build CONCISE result message to avoid timeout

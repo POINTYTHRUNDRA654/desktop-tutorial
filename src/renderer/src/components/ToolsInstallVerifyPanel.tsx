@@ -1,5 +1,6 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
+import { openExternal } from '../utils/openExternal';
 
 export type ExternalToolLink = {
   label: string;
@@ -23,19 +24,6 @@ export type ToolsInstallVerifyPanelProps = {
   shortcuts?: PageShortcut[];
   accentClassName?: string;
   className?: string;
-};
-
-const openExternal = async (url: string) => {
-  const bridge = (window as any).electron?.api || (window as any).electronAPI;
-  try {
-    if (bridge?.openExternal) {
-      await bridge.openExternal(url);
-      return;
-    }
-  } catch {
-    // ignore
-  }
-  window.open(url, '_blank', 'noopener,noreferrer');
 };
 
 const badgeClass = (kind: ExternalToolLink['kind']) => {

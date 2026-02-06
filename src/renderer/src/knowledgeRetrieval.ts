@@ -3,9 +3,21 @@ type KnowledgeVaultItem = {
   title?: string;
   content?: string;
   source?: string;
+  creditName?: string;
+  creditUrl?: string;
+  trustLevel?: 'personal' | 'community' | 'official';
   date?: string;
   tags?: string[];
   status?: string;
+};
+
+export type KnowledgeCitation = {
+  title: string;
+  source?: string;
+  creditName?: string;
+  creditUrl?: string;
+  trustLevel?: 'personal' | 'community' | 'official';
+  tags?: string[];
 };
 
 const STORAGE_KEY = 'mossy_knowledge_vault';
@@ -126,8 +138,38 @@ export const buildKnowledgeManifestForModel = (): string => {
     `- Knowledge Vault loaded: ${items.length} items\n` +
     `- Do NOT ask the user to repeat information that could be in the Knowledge Vault.\n` +
     `- If you need a detail, say you will search the Knowledge Vault and ask for a keyword or the relevant title/tag.\n` +
-    `- When the user needs installs/tools/mods (xEdit/SS2/PRP/patching), give a step-by-step checklist: what to get, where to download (ONLY if the URL is in the Knowledge Vault or user provided it), how to install (MO2/Vortex/manual), how to verify it works, and common gotchas.\n`
+    `- When the user needs installs/tools/mods (xEdit/SS2/PRP/patching), give a step-by-step checklist: what to get, where to download (ONLY if the URL is in the Knowledge Vault or user provided it), how to install (MO2/Vortex/manual), how to verify it works, and common gotchas.\n` +
+    `- Always preserve credit: if a Knowledge Vault item includes a credit name or source, surface it in your answer.\n`
   );
+};
+
+export const getRelevantKnowledgeVaultItems = (
+  query: string,
+  opts?: { maxItems?: number }
+): KnowledgeCitation[] => {
+  const items = loadKnowledgeVault();
+  if (items.length === 0) return [];
+
+  const maxItems = opts?.maxItems ?? 6;
+  const keywords = extractKeywords(query);
+
+  const ranked = keywords.length
+    ? items
+        .map((it) => ({ it, s: scoreItem(it, keywords) }))
+        .sort((a, b) => b.s - a.s)
+        .filter((x) => x.s > 0)
+        .slice(0, Math.max(maxItems, 3))
+        .map((x) => x.it)
+    : items.slice(-maxItems).reverse();
+
+  return ranked.slice(0, maxItems).map((it) => ({
+    title: String(it.title || 'Untitled').trim(),
+    source: it.source,
+    creditName: it.creditName,
+    creditUrl: it.creditUrl,
+    trustLevel: it.trustLevel,
+    tags: Array.isArray(it.tags) ? it.tags : undefined,
+  }));
 };
 
 export const buildRelevantKnowledgeVaultContext = (query: string, opts?: {
@@ -166,11 +208,14 @@ export const buildRelevantKnowledgeVaultContext = (query: string, opts?: {
   for (const it of ranked.slice(0, maxItems)) {
     const title = String(it.title || 'Untitled').trim();
     const tags = Array.isArray(it.tags) && it.tags.length ? ` [${it.tags.join(', ')}]` : '';
+    const trust = it.trustLevel ? ` trust:${it.trustLevel}` : '';
+    const credit = it.creditName ? ` credit:${it.creditName}` : '';
+    const source = it.source ? ` source:${it.source}` : '';
     const content = String(it.content || '').replace(/\s+/g, ' ').trim();
     const excerptMax = 1200;
     const excerpt = content.length > 0 ? content.slice(0, excerptMax) + (content.length > excerptMax ? '…' : '') : '';
 
-    const block = `- ${title}${tags}${excerpt ? `: ${excerpt}` : ''}`;
+    const block = `- ${title}${tags}${trust}${credit}${source}${excerpt ? `: ${excerpt}` : ''}`;
     if (used + block.length > maxChars) break;
     lines.push(block);
     used += block.length;

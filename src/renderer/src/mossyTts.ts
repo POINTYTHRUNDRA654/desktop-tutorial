@@ -1,6 +1,22 @@
 
 
-import { speakBrowserTts } from './browserTts';
+import { VoiceService, VoiceServiceConfig } from './voice-service';
+
+let voiceService: VoiceService | null = null;
+
+function getVoiceService(): VoiceService {
+  if (!voiceService) {
+    const config: VoiceServiceConfig = {
+      sttProvider: 'backend',
+      ttsProvider: 'browser',
+      deepgramKey: undefined,
+      elevenlabsKey: undefined,
+    };
+    voiceService = new VoiceService(config);
+    voiceService.initialize().catch(console.error);
+  }
+  return voiceService;
+}
 
 export async function speakMossy(
   text: string,
@@ -14,5 +30,12 @@ export async function speakMossy(
     pitch?: string;
   }
 ): Promise<void> {
-  await speakBrowserTts(text, opts);
+  try {
+    const service = getVoiceService();
+    await service.speak(text);
+    opts?.onSuccess?.();
+  } catch (err) {
+    console.error('[mossyTts] speakMossy failed:', err);
+    opts?.onError?.(err);
+  }
 }

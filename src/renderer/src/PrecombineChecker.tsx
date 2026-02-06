@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { AlertTriangle, CheckCircle2, Zap, ChevronDown } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { openExternal } from './utils/openExternal';
 
 interface CheckItem {
   id: string;
@@ -15,12 +16,7 @@ export const PrecombineChecker: React.FC = () => {
   const navigate = useNavigate();
 
   const openUrl = (url: string) => {
-    const api = (window as any).electron?.api || (window as any).electronAPI;
-    if (typeof api?.openExternal === 'function') {
-      api.openExternal(url);
-      return;
-    }
-    window.open(url, '_blank', 'noopener,noreferrer');
+    void openExternal(url);
   };
 
   const openNexusSearch = (keywords: string) => {

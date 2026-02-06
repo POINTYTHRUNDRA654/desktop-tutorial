@@ -4,6 +4,7 @@ import ExternalToolNotice from './components/ExternalToolNotice';
 import { ToolsInstallVerifyPanel } from './components/ToolsInstallVerifyPanel';
 import { useNavigate } from 'react-router-dom';
 import type { Settings as AppSettings } from '../../shared/types';
+import { openExternal } from './utils/openExternal';
 
 // --- Types ---
 type NodeType = 'page' | 'group' | 'option';
@@ -39,12 +40,7 @@ const TheAssembler: React.FC = () => {
     const navigate = useNavigate();
 
     const openUrl = (url: string) => {
-        const api = (window as any).electron?.api || (window as any).electronAPI;
-        if (typeof api?.openExternal === 'function') {
-            api.openExternal(url);
-            return;
-        }
-        window.open(url, '_blank', 'noopener,noreferrer');
+        void openExternal(url);
     };
 
     useEffect(() => {

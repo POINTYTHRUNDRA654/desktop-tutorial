@@ -125,10 +125,10 @@ const electronAPI: ElectronAPI = {
   convertImageFormat: (sourceBase64: string, targetFormat: string, options: any) => ipcRenderer.invoke('image-convert-format', sourceBase64, targetFormat, options),
 
   // TTS speak event listener
-  onTtsSpeak: (callback: (text: string) => void) => {
-    const subscription = (_event: Electron.IpcRendererEvent, text: string) => callback(text);
-    ipcRenderer.on('TTS_SPEAK', subscription);
-    return () => ipcRenderer.removeListener('TTS_SPEAK', subscription);
+  onTtsSpeak: (callback: (audioUrl: string | null) => void) => {
+    const subscription = (_event: Electron.IpcRendererEvent, audioUrl: string | null) => callback(audioUrl);
+    ipcRenderer.on(IPC_CHANNELS.TTS_SPEAK, subscription);
+    return () => ipcRenderer.removeListener(IPC_CHANNELS.TTS_SPEAK, subscription);
   },
 
   // External URL opener

@@ -39,7 +39,7 @@ const MossyIdentity: React.FC<MossyIdentityProps> = ({ mode = 'full', className 
       <div className="mb-4 space-y-2 text-xs font-mono">
         <div className="flex justify-between">
           <span className="text-slate-500">Version:</span>
-          <span className="text-blue-300">2.4</span>
+          <span className="text-blue-300">5.4.2.1</span>
         </div>
         <div className="flex justify-between">
           <span className="text-slate-500">Status:</span>

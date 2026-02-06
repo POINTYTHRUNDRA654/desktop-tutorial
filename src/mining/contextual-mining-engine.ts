@@ -154,19 +154,38 @@ export class ContextualMiningEngineImpl extends EventEmitter implements Contextu
   async analyzeUserPreferences(): Promise<PreferenceAnalysis> {
     this.emit('status', { status: 'running', message: 'Analyzing user preferences' });
 
+    const visualQuality = this.determineVisualQuality();
+    const performancePriorityLabel = this.determinePerformancePriority();
+    const performancePriority = performancePriorityLabel === 'high' ? 9 : performancePriorityLabel === 'low' ? 3 : 6;
+    const modCategories = this.analyzeModCategories();
+    const complexityTolerance = this.assessComplexityTolerance();
+    const automationPreferenceLabel = this.determineAutomationPreference();
+    const automationPreference = automationPreferenceLabel === 'high' ? 9 : automationPreferenceLabel === 'low' ? 3 : 6;
+    const learningStyle = this.determineLearningStyle();
+
     const preferences = {
       moddingStyle: this.determineModdingStyle(),
-      performancePriority: this.determinePerformancePriority(),
+      performancePriority: performancePriorityLabel,
       contentPreferences: this.analyzeContentPreferences(),
       technicalProficiency: this.assessTechnicalProficiency(),
       riskTolerance: this.calculateRiskTolerance(),
-      automationPreference: this.determineAutomationPreference()
+      automationPreference: automationPreferenceLabel,
+      visualQuality,
+      modCategories,
+      complexityTolerance,
+      learningStyle,
     };
 
     const confidence = this.calculatePreferenceConfidence();
     const trends = this.analyzePreferenceTrends();
 
     const analysis: PreferenceAnalysis = {
+      visualQuality,
+      performancePriority,
+      modCategories,
+      complexityTolerance,
+      automationPreference,
+      learningStyle,
       preferences,
       confidence,
       trends,
@@ -650,6 +669,48 @@ export class ContextualMiningEngineImpl extends EventEmitter implements Contextu
       });
     }
 
+    if (situation.gameMode === 'survival') {
+      recommendations.push({
+        id: 'survival-stability',
+        type: 'configuration',
+        title: 'Survival Stability Checklist',
+        description: 'Favor stability-focused mods and keep script load minimal.',
+        relevance: 0.8,
+        confidence: 0.7,
+        expectedOutcome: 'More stable survival sessions with fewer crashes.',
+        actionRequired: 'medium',
+        category: 'stability'
+      });
+
+      if (situation.difficulty === 'hard') {
+        recommendations.push({
+          id: 'survival-performance',
+          type: 'performance',
+          title: 'Survival Performance Pass',
+          description: 'Trim heavy texture mods and prioritize lightweight gameplay overhauls.',
+          relevance: 0.78,
+          confidence: 0.68,
+          expectedOutcome: 'Smoother combat and fewer stutters under load.',
+          actionRequired: 'medium',
+          category: 'performance'
+        });
+      }
+    }
+
+    if (situation.gameMode === 'roleplay') {
+      recommendations.push({
+        id: 'roleplay-immersion',
+        type: 'content',
+        title: 'Immersion Pass',
+        description: 'Add lore-friendly mods and ambient improvements for RP.',
+        relevance: 0.75,
+        confidence: 0.65,
+        expectedOutcome: 'Richer roleplay experience with cohesive tone.',
+        actionRequired: 'low',
+        category: 'content'
+      });
+    }
+
     return recommendations;
   }
 
@@ -722,6 +783,14 @@ export class ContextualMiningEngineImpl extends EventEmitter implements Contextu
 
   private rankRecommendations(recommendations: ContextualRecommendation[]): ContextualRecommendation[] {
     return recommendations
+      .map((rec) => ({
+        ...rec,
+        item: rec.item || rec.title || rec.id || String(rec.type || 'recommendation'),
+        reasoning: rec.reasoning || (rec.description ? [rec.description] : []),
+        contextRelevance: typeof rec.contextRelevance === 'number' ? rec.contextRelevance : (rec.relevance ?? 0.5),
+        expectedImpact: rec.expectedImpact || { performance: 0, stability: 0, compatibility: 0 },
+        relevance: typeof rec.relevance === 'number' ? rec.relevance : 0.5,
+      }))
       .sort((a, b) => (b.relevance * b.confidence) - (a.relevance * a.confidence))
       .slice(0, 10); // Top 10 recommendations
   }
