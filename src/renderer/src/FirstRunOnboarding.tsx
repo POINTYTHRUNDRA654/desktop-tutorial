@@ -210,6 +210,10 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
             localStorage.setItem('mossy_all_detected_apps', JSON.stringify(allDetectedApps));
             // Use a numeric timestamp so all modules can compare it safely
             localStorage.setItem('mossy_last_scan', Date.now().toString());
+            const previousSummary = localStorage.getItem('mossy_scan_summary');
+            if (previousSummary) {
+                localStorage.setItem('mossy_scan_summary_prev', previousSummary);
+            }
             localStorage.setItem('mossy_scan_summary', JSON.stringify({
                 totalPrograms: allDetectedApps.length,
                 nvidiaTools: nvidia.length,
@@ -465,7 +469,8 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
                                 <li>• Click <strong>"Live Voice"</strong> in the sidebar to start an always-on voice conversation</li>
                                 <li>• Just speak naturally—I'll detect when you're done (~1 second of silence)</li>
                                 <li>• I remember everything we discuss, so no need to repeat yourself</li>
-                                <li>• Responses are lightning-fast with Deepgram speech recognition</li>
+                                <li>• Optional: configure STT in settings (OpenAI or Deepgram) for faster recognition</li>
+                                <li>• Live Voice is experimental; check Settings if you need to tune permissions or providers</li>
                                 <li>• Use <strong>"Mute"</strong> when you need me to stop listening temporarily</li>
                             </ul>
                         </div>

@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Monitor, CheckCircle2, Wifi, Shield, Cpu, Terminal, Power, Layers, Box, Code, Image as ImageIcon, MessageSquare, Activity, RefreshCw, Lock, AlertOctagon, Link, Zap, Eye, Globe, Database, Wrench, FolderOpen, HardDrive, ArrowRightLeft, ArrowRight, Keyboard, ArrowDownToLine, Server, Clipboard, FileType, HelpCircle, AlertTriangle, Settings, Search, ExternalLink, Download } from 'lucide-react';
 import { ToolsInstallVerifyPanel } from './components/ToolsInstallVerifyPanel';
 import { useWheelScrollProxy } from './components/useWheelScrollProxy';
+import { openExternal } from './utils/openExternal';
 
 interface Driver {
     id: string;
@@ -1590,15 +1591,10 @@ if __name__ == "__main__":
         const normalized = normalizeHttpUrl(url);
         if (!normalized) return;
         try {
-            const api = (window as any).electronAPI || (window as any).electron?.api;
-            if (api?.openExternal) {
-                await api.openExternal(normalized);
-                return;
-            }
+            await openExternal(normalized);
         } catch {
             // ignore
         }
-        window.open(normalized, '_blank', 'noreferrer');
     };
 
     const fetchBlenderContext = async () => {

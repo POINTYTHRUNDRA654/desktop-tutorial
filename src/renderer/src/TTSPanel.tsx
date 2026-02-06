@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Play, FileAudio, Sliders, Radio, Cpu, Music, ArrowDownToLine, Volume2, Activity, Settings, Upload, Trash2, Folder, ExternalLink } from 'lucide-react';
 import { ToolsInstallVerifyPanel } from './components/ToolsInstallVerifyPanel';
+import { openExternal } from './utils/openExternal';
 
 const AudioStudio: React.FC = () => {
     const navigate = useNavigate();
@@ -19,7 +20,7 @@ const AudioStudio: React.FC = () => {
   const [audioQuality, setAudioQuality] = useState<'16bit-22k' | '16bit-44k' | '24bit-48k'>('16bit-44k');
 
   const openUrl = (url: string) => {
-      window.open(url, '_blank', 'noopener,noreferrer');
+      void openExternal(url);
   };
 
   const openNexusSearch = (query: string) => {

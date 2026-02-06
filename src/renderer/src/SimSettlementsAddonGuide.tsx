@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ChevronDown, ChevronUp, Wrench, BookOpen, AlertCircle, Users, Hammer, CheckCircle2, HelpCircle, Lightbulb, Code, Zap } from 'lucide-react';
 import { ToolsInstallVerifyPanel } from './components/ToolsInstallVerifyPanel';
+import { openExternal } from './utils/openExternal';
 
 interface Section {
   id: string;
@@ -19,16 +20,7 @@ export default function SimSettlementsAddonGuide() {
   };
 
   const openUrl = (url: string) => {
-    try {
-      const anyWindow = window as any;
-      if (anyWindow?.electron?.openExternal) {
-        anyWindow.electron.openExternal(url);
-        return;
-      }
-    } catch {
-      // ignore
-    }
-    window.open(url, '_blank', 'noopener,noreferrer');
+    void openExternal(url);
   };
 
   const openNexusSearch = (query: string) => {

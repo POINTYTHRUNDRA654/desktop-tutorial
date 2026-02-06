@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Container, Search, HardDrive, Lock, Globe, ShieldCheck, Clipboard, CheckCircle2, AlertTriangle, Archive, FilePlus, Upload, Wrench, ChevronDown, ExternalLink } from 'lucide-react';
 import { ToolsInstallVerifyPanel } from './components/ToolsInstallVerifyPanel';
+import { openExternal } from './utils/openExternal';
 
 type AssetType = 'mesh' | 'texture' | 'audio' | 'script' | 'ui';
 
@@ -105,16 +106,8 @@ const TheVault: React.FC = () => {
         try { return JSON.parse(localStorage.getItem('vault-auto-convert-images-v1') || 'false'); } catch { return false; }
     });
 
-    const openUrl = async (url: string) => {
-        try {
-            if (api?.openExternal) {
-                await api.openExternal(url);
-                return;
-            }
-        } catch {
-            // ignore
-        }
-        window.open(url, '_blank', 'noopener,noreferrer');
+    const openUrl = (url: string) => {
+        void openExternal(url);
     };
 
     const openNexusSearch = (query: string) => {

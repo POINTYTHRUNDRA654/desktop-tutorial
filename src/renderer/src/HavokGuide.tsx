@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { openExternal } from './utils/openExternal';
 
 const HavokGuide = () => {
   const navigate = useNavigate();
@@ -121,16 +122,7 @@ const HavokGuide = () => {
   };
 
   const openUrl = (url: string) => {
-    try {
-      const anyWindow = window as any;
-      if (anyWindow?.electron?.openExternal) {
-        anyWindow.electron.openExternal(url);
-        return;
-      }
-    } catch {
-      // ignore
-    }
-    window.open(url, '_blank', 'noopener,noreferrer');
+    void openExternal(url);
   };
 
   const openNexusSearch = (query: string) => {
@@ -647,10 +639,10 @@ Custom Controllers`}
             <ul>
               <li>Fallout 4 Animation Kit (F4AK) by ShadeAnimator — original kit and guide</li>
               <li>DexesTTP — HKXPack/HKXAnim tools</li>
-              <li>MaikCG — <a href="http://www.nexusmods.com/fallout4/mods/16691/?" target="_blank" rel="noreferrer" style={{ color: '#00ff00' }}>F4Biped animation rig</a> and workflow tips</li>
+              <li>MaikCG — <a href="https://www.nexusmods.com/fallout4/mods/16691" target="_blank" rel="noreferrer" style={{ color: '#00ff00' }}>F4Biped animation rig</a> and workflow tips</li>
               <li>Contributors: CPU, NifTools team, JoshNZ, Kimbale, Caliente/Ousnius (CBBE)</li>
-              <li>F4AK Nexus release: <a href="http://www.nexusmods.com/fallout4/mods/16694/?" target="_blank" rel="noreferrer" style={{ color: '#00ff00' }}>Nexus mod 16694</a></li>
-              <li>Guide/Wiki mirror: <a href="http://wiki.nexusmods.com/index.php/Animation_In_Fallout_4" target="_blank" rel="noreferrer" style={{ color: '#00ff00' }}>Animation in Fallout 4</a></li>
+              <li>F4AK Nexus release: <a href="https://www.nexusmods.com/fallout4/mods/16694" target="_blank" rel="noreferrer" style={{ color: '#00ff00' }}>Nexus mod 16694</a></li>
+              <li>Guide/Wiki mirror: <a href="https://wiki.nexusmods.com/index.php/Animation_In_Fallout_4" target="_blank" rel="noreferrer" style={{ color: '#00ff00' }}>Animation in Fallout 4</a></li>
             </ul>
           </div>
         )}

@@ -89,7 +89,7 @@ body.pip-boy-mode section,
 body.pip-boy-mode nav,
 body.pip-boy-mode aside,
 body.pip-boy-mode main {
-  background-color: #050505 !important;
+  background-color: transparent !important;
 }
 
 /* Keep Pip-Boy frame overlays from masking the UI.
@@ -119,30 +119,7 @@ body.pip-boy-mode select {
 }
 
 /* Scanline Effect */
-body.pip-boy-mode::after {
-  content: '';
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.25) 50%),
-    linear-gradient(90deg, rgba(255, 0, 0, 0.06), rgba(0, 255, 0, 0.02), rgba(0, 0, 255, 0.06));
-  background-size: 100% 2px, 3px 100%;
-  pointer-events: none;
-  z-index: 9999;
-  opacity: 0.6;
-}
-
-/* CRT Curvature Vignette */
+body.pip-boy-mode::after,
 body.pip-boy-mode::before {
-  content: '';
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: radial-gradient(circle, rgba(0, 0, 0, 0) 60%, rgba(0, 20, 0, 0.4) 90%, rgba(0, 20, 0, 0.8) 100%);
-  pointer-events: none;
-  z-index: 9998;
+  content: none;
 }

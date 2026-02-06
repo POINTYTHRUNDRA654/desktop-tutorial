@@ -7,6 +7,7 @@ export const PluginManager: React.FC = () => {
     const [showInstallDialog, setShowInstallDialog] = useState(false);
     const [installPath, setInstallPath] = useState('');
     const [loading, setLoading] = useState(false);
+    const pluginsEnabled = false;
 
     const pluginSystemService = getPluginSystemService();
 
@@ -137,18 +138,44 @@ export const PluginManager: React.FC = () => {
                 <div className="flex gap-2">
                     <button
                         onClick={() => setShowInstallDialog(true)}
-                        className="px-3 py-1 bg-emerald-600 hover:bg-emerald-700 text-white text-sm rounded-lg transition-colors"
+                        disabled={!pluginsEnabled}
+                        className={`px-3 py-1 text-white text-sm rounded-lg transition-colors ${
+                            pluginsEnabled
+                                ? 'bg-emerald-600 hover:bg-emerald-700'
+                                : 'bg-slate-700 text-slate-400 cursor-not-allowed'
+                        }`}
+                        title={pluginsEnabled ? 'Install plugin' : 'Plugin system is still experimental'}
                     >
                         Install Plugin
                     </button>
                     <button
                         onClick={() => pluginSystemService.discoverPlugins()}
-                        className="px-3 py-1 bg-slate-700 hover:bg-slate-600 text-white text-sm rounded-lg transition-colors"
+                        disabled={!pluginsEnabled}
+                        className={`px-3 py-1 text-white text-sm rounded-lg transition-colors ${
+                            pluginsEnabled
+                                ? 'bg-slate-700 hover:bg-slate-600'
+                                : 'bg-slate-800 text-slate-500 cursor-not-allowed'
+                        }`}
+                        title={pluginsEnabled ? 'Discover plugins' : 'Marketplace discovery is not available yet'}
                     >
                         Discover
                     </button>
                 </div>
             </div>
+
+            {!pluginsEnabled && (
+                <div className="mb-6 rounded-lg border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-xs text-amber-200">
+                    <div className="flex items-start gap-2">
+                        <AlertTriangle className="w-4 h-4 mt-0.5" />
+                        <div>
+                            <div className="font-bold text-amber-100">Plugin system is experimental</div>
+                            <div className="text-amber-200/80">
+                                Installation, discovery, and execution hooks are not production-ready yet. This page stays visible for roadmap visibility, but actions are disabled to avoid fake workflows.
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
 
             {/* Plugins List */}
             <div className="space-y-4">
@@ -184,10 +211,13 @@ export const PluginManager: React.FC = () => {
                             <div className="flex gap-1 ml-4">
                                 <button
                                     onClick={() => handleTogglePlugin(plugin)}
+                                    disabled={!pluginsEnabled}
                                     className={`p-2 rounded transition-colors ${
-                                        plugin.isActive
-                                            ? 'bg-red-600 hover:bg-red-700 text-white'
-                                            : 'bg-green-600 hover:bg-green-700 text-white'
+                                        pluginsEnabled
+                                            ? plugin.isActive
+                                                ? 'bg-red-600 hover:bg-red-700 text-white'
+                                                : 'bg-green-600 hover:bg-green-700 text-white'
+                                            : 'bg-slate-700 text-slate-400 cursor-not-allowed'
                                     }`}
                                     title={plugin.isActive ? 'Deactivate Plugin' : 'Activate Plugin'}
                                 >
@@ -195,7 +225,12 @@ export const PluginManager: React.FC = () => {
                                 </button>
                                 <button
                                     onClick={() => handleUninstallPlugin(plugin.manifest.id)}
-                                    className="p-2 bg-red-600 hover:bg-red-700 text-white rounded transition-colors"
+                                    disabled={!pluginsEnabled}
+                                    className={`p-2 rounded transition-colors ${
+                                        pluginsEnabled
+                                            ? 'bg-red-600 hover:bg-red-700 text-white'
+                                            : 'bg-slate-700 text-slate-400 cursor-not-allowed'
+                                    }`}
                                     title="Uninstall Plugin"
                                 >
                                     <Trash2 className="w-4 h-4" />
@@ -212,7 +247,12 @@ export const PluginManager: React.FC = () => {
                         <p className="text-sm mb-4">Install AI extensions to enhance Mossy's capabilities</p>
                         <button
                             onClick={() => setShowInstallDialog(true)}
-                            className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg transition-colors"
+                            disabled={!pluginsEnabled}
+                            className={`px-4 py-2 rounded-lg transition-colors ${
+                                pluginsEnabled
+                                    ? 'bg-emerald-600 hover:bg-emerald-700 text-white'
+                                    : 'bg-slate-800 text-slate-500 cursor-not-allowed'
+                            }`}
                         >
                             Install Your First Plugin
                         </button>
