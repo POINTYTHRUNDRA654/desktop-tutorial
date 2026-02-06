@@ -15,10 +15,11 @@ import { useActivityMonitor } from './hooks/useActivityMonitor';
 import { SuggestionPanel } from './components/SuggestionPanel';
 import { ToolsInstallVerifyPanel } from './components/ToolsInstallVerifyPanel';
 import { SelfImprovementPanel } from './components/SelfImprovementPanel';
-import { buildKnowledgeManifestForModel, buildRelevantKnowledgeVaultContext } from './knowledgeRetrieval';
+import { buildKnowledgeManifestForModel, buildRelevantKnowledgeVaultContext, KnowledgeCitation } from './knowledgeRetrieval';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { autoSaveManager } from './AutoSaveManager';
 import { useAnalytics } from './utils/analytics';
+import { openExternal } from './utils/openExternal';
 
 
 type OnboardingState = 'init' | 'scanning' | 'integrating' | 'ready' | 'project_setup';
@@ -178,9 +179,12 @@ const ProjectWizard: React.FC<{ onSubmit: (data: any) => void, onCancel: () => v
 
 // --- Sub-components for Performance ---
 
+type ChatMessage = Message & { citations?: KnowledgeCitation[] };
+
 // Memoized Message Item to prevent re-rendering list on typing
-const MessageItem = React.memo(({ msg }: { msg: Message }) => {
+const MessageItem = React.memo(({ msg }: { msg: ChatMessage }) => {
     MessageItem.displayName = 'MessageItem';
+    const [showCitations, setShowCitations] = useState(false);
     const roleLabel = msg.role === 'user' ? 'You' : msg.role === 'assistant' ? 'Mossy' : msg.role;
 
     const savedPath = useMemo(() => {
@@ -242,6 +246,52 @@ const MessageItem = React.memo(({ msg }: { msg: Message }) => {
                         {msg.content}
                     </ReactMarkdown>
                 )}
+                {msg.role === 'assistant' && (msg.citations?.length || 0) > 0 && (
+                    <div className="pt-2">
+                        <button
+                            type="button"
+                            onClick={() => setShowCitations((prev) => !prev)}
+                            className="inline-flex items-center gap-2 px-2 py-1 rounded-md bg-slate-800/70 border border-slate-700 text-[11px] text-slate-200 hover:bg-slate-800 hover:border-slate-600 transition-colors"
+                        >
+                            <HelpCircle className="w-3.5 h-3.5 text-emerald-400" />
+                            {showCitations ? 'Hide sources' : 'Explain why'}
+                        </button>
+                        {showCitations && (
+                            <div className="mt-2 space-y-2 bg-slate-900/70 border border-slate-800 rounded-lg p-3">
+                                {msg.citations?.map((c, idx) => (
+                                    <div key={`${c.title}-${idx}`} className="border-b border-slate-800 last:border-b-0 pb-2 last:pb-0">
+                                        <div className="text-xs text-slate-100 font-semibold">{c.title}</div>
+                                        <div className="mt-1 text-[10px] text-slate-400">Credit: {c.creditName || 'Uncredited'}</div>
+                                        <div className="text-[10px] text-slate-500 truncate">Source: {c.source || 'Unknown'}</div>
+                                        <div className="mt-1 flex flex-wrap items-center gap-2 text-[10px]">
+                                            <span className="px-2 py-0.5 rounded-full border border-emerald-500/20 text-emerald-300 bg-emerald-500/10 uppercase">
+                                                Trust: {c.trustLevel || 'personal'}
+                                            </span>
+                                            {c.creditUrl && (
+                                                <button
+                                                    type="button"
+                                                    className="text-cyan-400 hover:text-cyan-300 transition-colors"
+                                                    onClick={() => void openExternal(c.creditUrl!)}
+                                                >
+                                                    Open credit
+                                                </button>
+                                            )}
+                                            {c.source && /^https?:/i.test(c.source) && (
+                                                <button
+                                                    type="button"
+                                                    className="text-cyan-400 hover:text-cyan-300 transition-colors"
+                                                    onClick={() => void openExternal(c.source!)}
+                                                >
+                                                    Open source
+                                                </button>
+                                            )}
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+                    </div>
+                )}
             </div>
         </div>
     );
@@ -252,7 +302,7 @@ MessageItem.displayName = 'MessageItem';
 const MessageList = React.memo(({ messages, ...props }: any) => {
     return (
         <div className="flex-1 overflow-y-auto p-4 space-y-6 scroll-smooth">
-            {messages.map((msg: Message) => (
+            {messages.map((msg: ChatMessage) => (
                 <MessageItem key={msg.id} msg={msg} {...props} />
             ))}
             {props.children}
@@ -278,7 +328,7 @@ export const ChatInterface: React.FC = () => {
   const { trackEvent, trackPageView } = useAnalytics();
 
   // State
-  const [messages, setMessages] = useState<Message[]>([]);
+    const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [workingMemory, setWorkingMemory] = useState<string>("Initializing modding education protocol...");
   const [inputText, setInputText] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -301,6 +351,11 @@ export const ChatInterface: React.FC = () => {
   const [isBridgeActive, setIsBridgeActive] = useState(false);
   const [activeDrivers, setActiveDrivers] = useState<any[]>([]);
   const [isBlenderLinked, setIsBlenderLinked] = useState(false);
+    const [isMonitoringPaused, setIsMonitoringPaused] = useState(() => {
+            return localStorage.getItem('mossy_monitoring_paused') === 'true';
+    });
+    const [liveTools, setLiveTools] = useState<string[]>([]);
+    const [liveChecklist, setLiveChecklist] = useState<string[]>([]);
   
   // Tool Execution State
   const [activeTool, setActiveTool] = useState<ToolExecution | null>(null);
@@ -342,10 +397,162 @@ export const ChatInterface: React.FC = () => {
 
   });
 
+  const deriveModTags = useCallback(() => {
+      const tags: string[] = [];
+      if (projectData?.categories && Array.isArray(projectData.categories)) {
+          projectData.categories.forEach((c) => {
+              const v = String(c || '').toLowerCase();
+              if (!v) return;
+              if (v === 'asset') {
+                  tags.push('mesh', 'texture');
+              } else if (v === 'world') {
+                  tags.push('settlement');
+              } else if (v === 'ui') {
+                  tags.push('ui');
+              } else {
+                  tags.push(v);
+              }
+          });
+      }
+
+      const keywordText = `${projectData?.name || ''} ${projectData?.notes || ''}`.toLowerCase();
+      if (keywordText.includes('worldspace')) tags.push('worldspace');
+      if (keywordText.includes('environment')) tags.push('environment');
+      if (keywordText.includes('patch')) tags.push('patching');
+      if (keywordText.includes('animation')) tags.push('animation');
+      if (keywordText.includes('npc') || keywordText.includes('mpc')) tags.push('npc');
+      if (keywordText.includes('creature')) tags.push('creature');
+      if (keywordText.includes('quest')) tags.push('quest');
+
+      if (tags.length === 0) {
+          try {
+              const current = ModProjectStorage.getCurrentMod();
+              if (current?.type) tags.push(String(current.type).toLowerCase());
+          } catch {
+              // ignore
+          }
+      }
+
+      return Array.from(new Set(tags));
+  }, [projectData]);
+
+  const buildLiveChecklist = useCallback((tools: string[], modTags: string[]) => {
+      const names = tools.map(t => t.toLowerCase());
+      const tags = modTags.map(t => t.toLowerCase());
+      const list: string[] = [];
+      const pushUnique = (item: string) => {
+          if (!list.includes(item)) list.push(item);
+      };
+
+      if (names.some(n => n.includes('blender'))) {
+          pushUnique('Blender: confirm unit scale 1.0 and FPS 30 for FO4.');
+          pushUnique('Blender: apply transforms, triangulate, then export with FO4 NIF profile.');
+          pushUnique('Blender: validate normals and smoothing before export.');
+      }
+
+      if (names.some(n => n.includes('creation') || n.includes('ck'))) {
+          pushUnique('Creation Kit: set the correct plugin as Active File before edits.');
+          pushUnique('Creation Kit: avoid deletes; disable refs instead.');
+      }
+
+      if (names.some(n => n.includes('xedit') || n.includes('fo4edit'))) {
+          pushUnique('xEdit: run conflict filter before edits; check ITMs/UDRs before release.');
+      }
+
+      if (names.some(n => n.includes('nifskope'))) {
+          pushUnique('NifSkope: open the NIF to verify paths, collision, and shader flags.');
+      }
+
+      if (names.some(n => n.includes('bodyslide') || n.includes('outfitstudio'))) {
+          pushUnique('BodySlide/Outfit Studio: build with the correct preset and export to Data.');
+      }
+
+      if (names.some(n => n.includes('archive2') || n.includes('bae'))) {
+          pushUnique('Archive2/BAE: confirm archive paths match Data folder layout.');
+      }
+
+      if (names.some(n => n.includes('mo2') || n.includes('mod organizer'))) {
+          pushUnique('MO2: deploy and confirm the plugin is enabled in the right order.');
+      }
+
+      if (names.some(n => n.includes('vortex'))) {
+          pushUnique('Vortex: deploy and confirm the plugin is enabled in the right order.');
+      }
+
+      if (tags.includes('weapon')) {
+          pushUnique('Weapon: verify attach points and keywords in CK/xEdit.');
+      }
+
+      if (tags.includes('armor')) {
+          pushUnique('Armor: confirm bone weights and partitions before export.');
+      }
+
+      if (tags.includes('quest')) {
+          pushUnique('Quest: confirm objectives, stages, and aliases compile without errors.');
+          pushUnique('Quest: verify alias fill conditions and script properties.');
+          pushUnique('Quest: audit dialogue scenes, conditions, and topic links.');
+          pushUnique('Quest: confirm voice assets and lip files (or set silent voice).');
+      }
+
+      if (tags.includes('worldspace')) {
+          pushUnique('Worldspace: finalize navmesh and precombines after layout changes.');
+      }
+
+      if (tags.includes('npc')) {
+          pushUnique('NPC: verify AI packages, inventory, and factions in CK.');
+      }
+
+      if (tags.includes('creature')) {
+          pushUnique('Creature: confirm behavior graph/animation set and attack data.');
+      }
+
+      if (tags.includes('animation')) {
+          pushUnique('Animation: validate HKX export and in-game playback test.');
+      }
+
+      if (tags.includes('patching')) {
+          pushUnique('Patching: resolve conflicts and create a compatibility patch.');
+      }
+
+      if (tags.includes('environment')) {
+          pushUnique('Environment: verify lighting, occlusion, and performance budgets.');
+      }
+
+      if (tags.includes('settlement')) {
+          pushUnique('Settlement: validate Workshop keywords and precombine safety.');
+      }
+
+      if (tags.includes('gameplay')) {
+          pushUnique('Gameplay: review balance values and test in game.');
+      }
+
+      if (tags.includes('texture')) {
+          pushUnique('Texture: verify DDS format and correct _d/_n/_s naming.');
+      }
+
+      if (tags.includes('mesh')) {
+          pushUnique('Mesh: confirm collision and LOD settings where needed.');
+      }
+
+      if (tags.includes('script')) {
+          pushUnique('Script: compile Papyrus and review logs for warnings.');
+      }
+
+      return list.slice(0, 8);
+  }, []);
+
+  useEffect(() => {
+      modTagsRef.current = deriveModTags();
+      if (!isMonitoringPaused) {
+          setLiveChecklist(buildLiveChecklist(liveTools, modTagsRef.current));
+      }
+  }, [deriveModTags, isMonitoringPaused, liveTools, buildLiveChecklist]);
+
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
   const activeSourceRef = useRef<AudioBufferSourceNode | null>(null);
   const lastSendTimeRef = useRef<number>(0); // Prevent rapid duplicate sends
+  const modTagsRef = useRef<string[]>([]);
 
     // Accept a one-time prefill (Install Wizard → Chat handoff, etc.)
     useEffect(() => {
@@ -428,6 +635,27 @@ export const ChatInterface: React.FC = () => {
         const blenderActive = localStorage.getItem('mossy_blender_active') === 'true';
         setIsBlenderLinked(blenderActive);
 
+        const monitoringPaused = localStorage.getItem('mossy_monitoring_paused') === 'true';
+        setIsMonitoringPaused(monitoringPaused);
+
+        if (monitoringPaused) {
+            setLiveTools([]);
+            setLiveChecklist([]);
+        } else {
+            try {
+                const activeRaw = localStorage.getItem('mossy_active_tools');
+                const active = activeRaw ? JSON.parse(activeRaw) : null;
+                const toolNames = Array.isArray(active?.tools)
+                    ? active.tools.map((t: any) => String(t?.name || '')).filter(Boolean)
+                    : [];
+                setLiveTools(toolNames);
+                setLiveChecklist(buildLiveChecklist(toolNames, modTagsRef.current));
+            } catch {
+                setLiveTools([]);
+                setLiveChecklist([]);
+            }
+        }
+
         // IMPORTANT: Do NOT auto-rescan on focus/startup.
         // The user's approved tool permissions should persist between sessions.
         // Scans should only occur when explicitly triggered by the user.
@@ -463,6 +691,7 @@ export const ChatInterface: React.FC = () => {
     window.addEventListener('mossy-bridge-connected', checkState);
     window.addEventListener('mossy-driver-update', checkState);
     window.addEventListener('mossy-blender-linked', checkState);
+    window.addEventListener('mossy-monitoring-toggle', checkState);
     window.addEventListener('storage', checkState);
     
     // Initial Load
@@ -539,6 +768,7 @@ export const ChatInterface: React.FC = () => {
         window.removeEventListener('mossy-bridge-connected', checkState);
         window.removeEventListener('mossy-driver-update', checkState);
         window.removeEventListener('mossy-blender-linked', checkState);
+        window.removeEventListener('mossy-monitoring-toggle', checkState);
         window.removeEventListener('storage', checkState);
         
         // MEMORY LEAK FIX: Clean up audio resources on unmount
@@ -591,13 +821,21 @@ export const ChatInterface: React.FC = () => {
 
   const initMossy = () => {
       const hasApps = localStorage.getItem('mossy_apps') || localStorage.getItem('mossy_integrated_tools');
+      const toolAck = localStorage.getItem('mossy_tool_connection_ack') === 'true';
       if (hasApps) {
-          setMessages([{ 
-              id: 'init', 
-              role: 'assistant', 
-              content: "👋 **Welcome back, Vault Dweller!**\n\nI remember the tools and integrations you approved. I can use those permissions to help teach you workflows and (when the Desktop Bridge is online) interact with supported apps to automate steps.\n\nWhat are we working on today?",
+          const message = toolAck
+              ? "👋 **Welcome back, Vault Dweller!**\n\nWhat are we working on today?"
+              : "👋 **Welcome back, Vault Dweller!**\n\nI remember the tools and integrations you approved. I can use those permissions to help teach you workflows and (when the Desktop Bridge is online) interact with supported apps to automate steps.\n\nWhat are we working on today?";
+
+          setMessages([{
+              id: 'init',
+              role: 'assistant',
+              content: message,
               timestamp: Date.now()
           }]);
+          if (!toolAck) {
+              localStorage.setItem('mossy_tool_connection_ack', 'true');
+          }
           setOnboardingState('ready');
           return;
       }
@@ -632,6 +870,20 @@ export const ChatInterface: React.FC = () => {
           setDetectedApps([]);
           initMossy();
           setShowProjectPanel(false);
+      }
+  };
+
+  const toggleMonitoring = () => {
+      const next = !isMonitoringPaused;
+      setIsMonitoringPaused(next);
+      try {
+          localStorage.setItem('mossy_monitoring_paused', next ? 'true' : 'false');
+          if (next) {
+              localStorage.setItem('mossy_active_tools', JSON.stringify({ at: Date.now(), tools: [] }));
+          }
+          window.dispatchEvent(new Event('mossy-monitoring-toggle'));
+      } catch {
+          // ignore storage errors
       }
   };
 
@@ -841,6 +1093,11 @@ export const ChatInterface: React.FC = () => {
   // --- CHAT LOGIC ---
   const generateSystemContext = async (query?: string) => {
     try {
+      const guidanceMode = (localStorage.getItem('mossy_guidance_mode') || 'slow').toLowerCase();
+      if (!localStorage.getItem('mossy_guidance_mode')) {
+          localStorage.setItem('mossy_guidance_mode', guidanceMode);
+      }
+      const guidanceLine = `**GUIDANCE MODE:** ${guidanceMode.toUpperCase()} (one step at a time; wait for user confirmation)`;
       let hardwareCtx = "Hardware: Unknown";
       if (profile) {
           hardwareCtx = `**Spec:** ${profile.gpu} | ${profile.ram}GB RAM | Blender ${profile.blenderVersion}`;
@@ -887,6 +1144,50 @@ export const ChatInterface: React.FC = () => {
               }
           });
       }
+
+      let scanHistoryCtx = "";
+      try {
+          const lastScanRaw = localStorage.getItem('mossy_last_scan');
+          const summaryRaw = localStorage.getItem('mossy_scan_summary');
+          const summary = summaryRaw ? JSON.parse(summaryRaw) : null;
+          const lastScan = lastScanRaw ? new Date(Number(lastScanRaw)) : null;
+          const lastScanLine = lastScan && !Number.isNaN(lastScan.getTime())
+              ? `Last scan: ${lastScan.toLocaleString()}`
+              : 'Last scan: unknown';
+
+          const totalPrograms = summary?.totalPrograms ?? 'unknown';
+          const nvidiaTools = summary?.nvidiaTools ?? 'unknown';
+          const aiTools = summary?.aiTools ?? 'unknown';
+
+          const approved = (detectedApps || []).filter((a: any) => a?.checked !== false);
+          const denied = (detectedApps || []).filter((a: any) => a?.checked === false);
+          const permissionLine = approved.length === 0 && denied.length === 0
+              ? 'Permissions: not requested'
+              : `Permissions: approved ${approved.length}, denied ${denied.length}`;
+
+          scanHistoryCtx = `\n**SCAN HISTORY & PERMISSIONS:**\n- ${lastScanLine}\n- Programs detected: ${totalPrograms} | NVIDIA tools: ${nvidiaTools} | AI tools: ${aiTools}\n- ${permissionLine}`;
+      } catch {
+          scanHistoryCtx = "\n**SCAN HISTORY & PERMISSIONS:**\n- Last scan: unknown\n- Permissions: unknown";
+      }
+
+      let liveToolCtx = "";
+      try {
+          const activeRaw = localStorage.getItem('mossy_active_tools');
+          if (activeRaw) {
+              const active = JSON.parse(activeRaw);
+              const toolNames = Array.isArray(active?.tools) ? active.tools.map((t: any) => t.name).filter(Boolean) : [];
+              const activeAt = active?.at ? new Date(Number(active.at)) : null;
+              const activeLine = activeAt && !Number.isNaN(activeAt.getTime())
+                  ? `Last tool sync: ${activeAt.toLocaleTimeString()}`
+                  : 'Last tool sync: unknown';
+              const toolsLine = toolNames.length > 0 ? toolNames.join(', ') : 'None';
+              liveToolCtx = `\n**LIVE TOOL MONITORING:**\n- ${activeLine}\n- Active tools: ${toolsLine}`;
+          } else {
+              liveToolCtx = "\n**LIVE TOOL MONITORING:**\n- No active tool context yet.";
+          }
+      } catch {
+          liveToolCtx = "\n**LIVE TOOL MONITORING:**\n- Unavailable";
+      }
       
       let learnedCtx = "";
       if (cortexMemory && cortexMemory.length > 0) {
@@ -921,6 +1222,9 @@ export const ChatInterface: React.FC = () => {
       const blenderContext = isBlenderLinked 
           ? "**BLENDER LINK: ACTIVE (v4.0 Clipboard Relay)**\nYou can execute Python scripts in Blender.\nIMPORTANT: Tell the user they MUST click the 'Run Command' button that appears in the chat to execute the script." 
           : "**BLENDER LINK: OFFLINE**\n(If the user asks to control Blender, tell them to go to the Desktop Bridge and install the 'Mossy Link v4.0' add-on first.)";
+      const toolAck = localStorage.getItem('mossy_tool_connection_ack') === 'true';
+      const toolAckLine = `**Tool Connection Notice:** ${toolAck ? 'ACKNOWLEDGED (do not repeat unless asked)' : 'NOT ACKNOWLEDGED'}`;
+      const monitoringLine = `**Monitoring Status:** ${isMonitoringPaused ? 'PAUSED' : 'ACTIVE'}`;
 
       let settingsCtx = "";
       if (formalSettings) {
@@ -971,6 +1275,9 @@ export const ChatInterface: React.FC = () => {
       **DYNAMIC SYSTEM CONTEXT:**
       **Desktop Bridge:** ${bridgeStatus}
       ${blenderContext}
+    ${toolAckLine}
+    ${guidanceLine}
+    ${monitoringLine}
             ${settingsCtx}${gameFolderInfo}
             ${appFeatures}
         ${toolPermissionsCtx}
@@ -981,6 +1288,8 @@ export const ChatInterface: React.FC = () => {
       **Detected Tools:** ${(detectedApps || []).filter(a => a.path).map(a => `${a.name} [ID: ${a.id}] (Path: ${a.path})`).join(', ') || "None"}
       ${hardwareCtx}
       ${scanContext}
+    ${scanHistoryCtx}
+    ${liveToolCtx}
       ${learnedCtx}
             ${communityLearningCtx}
       `;
@@ -1175,6 +1484,7 @@ export const ChatInterface: React.FC = () => {
 
   const handleIntegrate = () => {
       setOnboardingState('ready');
+      localStorage.setItem('mossy_tool_connection_ack', 'true');
       setMessages(prev => [...prev, {
           id: 'integrated',
           role: 'assistant',
@@ -1360,8 +1670,9 @@ export const ChatInterface: React.FC = () => {
       const localResult = await LocalAIEngine.generateResponse(textToSend, dynamicInstruction);
       const duration = Date.now() - startTime;
       const aiResponseText = localResult.content || "Mossy is in Passive Mode; no cloud model configured.";
+            const citations = Array.isArray(localResult.context?.citations) ? localResult.context.citations : [];
 
-    setMessages(prev => prev.map(m => m.id === streamId ? { ...m, content: aiResponseText } : m));
+        setMessages(prev => prev.map(m => m.id === streamId ? { ...m, content: aiResponseText, citations } : m));
 
       // Save chat messages to auto-save manager
       const assistantMessage: Message = {
@@ -1442,6 +1753,15 @@ export const ChatInterface: React.FC = () => {
                 </div>
             )}
 
+            <div className={`hidden md:flex items-center gap-1.5 px-3 py-1 rounded-full border text-xs animate-fade-in ${
+                isMonitoringPaused
+                    ? 'bg-red-900/20 border-red-500/30 text-red-300'
+                    : 'bg-emerald-900/20 border-emerald-500/30 text-emerald-300'
+            }`}>
+                <Activity className="w-3 h-3" />
+                {isMonitoringPaused ? 'Monitoring Paused' : 'Monitoring On'}
+            </div>
+
             {knowledgeCount > 0 && (
                 <button
                     type="button"
@@ -1495,6 +1815,19 @@ export const ChatInterface: React.FC = () => {
                 </button>
             )}
 
+            <button
+                onClick={toggleMonitoring}
+                className={`hidden lg:flex items-center gap-2 px-3 py-1.5 rounded-lg border text-xs font-bold transition-all ${
+                    isMonitoringPaused
+                        ? 'bg-slate-800 border-slate-700 text-slate-300 hover:text-white'
+                        : 'bg-emerald-900/20 border-emerald-500/40 text-emerald-300'
+                }`}
+                title={isMonitoringPaused ? 'Resume live tool monitoring' : 'Pause live tool monitoring'}
+            >
+                {isMonitoringPaused ? <PauseCircle className="w-4 h-4" /> : <Activity className="w-4 h-4" />}
+                {isMonitoringPaused ? 'Monitor: OFF' : 'Monitor: ON'}
+            </button>
+
             {isLiveActive ? (
                 <div className="flex items-center gap-2">
                     <button
@@ -1541,6 +1874,19 @@ export const ChatInterface: React.FC = () => {
             </button>
         </div>
       </div>
+
+            {!isMonitoringPaused && liveChecklist.length > 0 && (
+                <div className="px-4 pt-4">
+                    <div className="bg-slate-900/70 border border-emerald-500/20 rounded-xl p-3">
+                        <div className="text-[11px] font-bold text-emerald-300 uppercase tracking-widest mb-2">Live guidance</div>
+                        <ul className="text-xs text-slate-300 list-disc pl-4 space-y-1">
+                            {liveChecklist.map((item, idx) => (
+                                <li key={idx}>{item}</li>
+                            ))}
+                        </ul>
+                    </div>
+                </div>
+            )}
 
             <div className="px-4 pt-4">
                 <ToolsInstallVerifyPanel

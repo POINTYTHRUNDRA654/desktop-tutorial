@@ -652,6 +652,22 @@ const electronAPI = {
   },
 
   /**
+   * Voice chat: send a message to main process
+   */
+  sendMessage: (message: string): Promise<void> => {
+    return ipcRenderer.invoke('sendMessage', message);
+  },
+
+  /**
+   * Voice chat: listen for assistant responses
+   */
+  onMessage: (callback: (message: any) => void): (() => void) => {
+    const subscription = (_event: any, message: any) => callback(message);
+    ipcRenderer.on('message', subscription);
+    return () => ipcRenderer.removeListener('message', subscription);
+  },
+
+  /**
    * Secrets status (presence only). Never returns actual key values.
    */
   getSecretStatus: (): Promise<

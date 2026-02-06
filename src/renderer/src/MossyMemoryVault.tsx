@@ -1,18 +1,24 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Book, Upload, Trash2, Search, Brain, FileText, CheckCircle2, Loader2, Sparkles, Database, Plus, X, Activity, Cloud, Files } from 'lucide-react';
+import { Book, Upload, Trash2, Search, Brain, FileText, CheckCircle2, Loader2, Sparkles, Database, Plus, X, Activity, Cloud, Files, Download } from 'lucide-react';
 import { LocalAIEngine } from './LocalAIEngine';
 import { ToolsInstallVerifyPanel } from './components/ToolsInstallVerifyPanel';
 import { useWheelScrollProxy } from './components/useWheelScrollProxy';
+import { openExternal } from './utils/openExternal';
 
 interface MemoryItem {
     id: string;
     title: string;
     content: string;
     source: string;
+    creditName?: string;
+    creditUrl?: string;
+    trustLevel?: 'personal' | 'community' | 'official';
     date: string;
     tags: string[];
     status: 'digesting' | 'learned';
 }
+
+type TrustFilter = 'all' | 'personal' | 'community' | 'official';
 
 const MossyMemoryVault: React.FC = () => {
     const contentScrollRef = useRef<HTMLDivElement>(null);
@@ -25,13 +31,26 @@ const MossyMemoryVault: React.FC = () => {
     const [showUploadModal, setShowUploadModal] = useState(false);
     const [newTitle, setNewTitle] = useState('');
     const [newContent, setNewContent] = useState('');
+    const [newSource, setNewSource] = useState('');
+    const [newCreditName, setNewCreditName] = useState('');
+    const [newCreditUrl, setNewCreditUrl] = useState('');
+    const [newTrustLevel, setNewTrustLevel] = useState<'personal' | 'community' | 'official'>('personal');
     const [newTags, setNewTags] = useState('');
     const [isDragActive, setIsDragActive] = useState(false);
+    const [uploadError, setUploadError] = useState('');
+    const [trustFilter, setTrustFilter] = useState<TrustFilter>('all');
 
     useEffect(() => {
         const stored = localStorage.getItem('mossy_knowledge_vault');
         if (stored) {
-            setMemories(JSON.parse(stored));
+            const parsed = JSON.parse(stored) as MemoryItem[];
+            const normalized = Array.isArray(parsed)
+                ? parsed.map((m) => ({
+                    ...m,
+                    trustLevel: m.trustLevel || 'personal',
+                }))
+                : [];
+            setMemories(normalized);
         }
     }, []);
 
@@ -73,6 +92,7 @@ const MossyMemoryVault: React.FC = () => {
                 const fileName = file.name.replace(/\.[^/.]+$/, '');
                 setNewTitle(fileName + ' (Video Transcript)');
                 setNewContent(result.text.trim());
+                setNewSource((prev) => (prev ? prev : `File: ${file.name}`));
                 setUploadProgress(100);
                 setIsUploading(false);
                 setUploadProgress(0);
@@ -136,6 +156,7 @@ const MossyMemoryVault: React.FC = () => {
                     const fileName = file.name.replace(/\.pdf$/i, '');
                     setNewTitle(fileName);
                     setNewContent(result.text.trim());
+                    setNewSource((prev) => (prev ? prev : `File: ${file.name}`));
                     setUploadProgress(100);
                     setIsUploading(false);
                     setUploadProgress(0);
@@ -151,6 +172,7 @@ const MossyMemoryVault: React.FC = () => {
                 // Fallback to manual copy/paste
                 const fileName = file.name.replace(/\.pdf$/i, '');
                 setNewTitle(fileName);
+                setNewSource((prev) => (prev ? prev : `File: ${file.name}`));
                 setShowUploadModal(true);
                 setTimeout(() => {
                     alert(`❌ Auto-extraction failed.\n\nPlease:\n1. Open "${file.name}"\n2. Select all (Ctrl+A) & copy (Ctrl+C)\n3. Paste (Ctrl+V) below`);
@@ -169,6 +191,7 @@ const MossyMemoryVault: React.FC = () => {
                     const fileName = file.name.replace(/\.[^/.]+$/, '');
                     setNewTitle(fileName);
                     setNewContent(content);
+                    setNewSource((prev) => (prev ? prev : `File: ${file.name}`));
                     setShowUploadModal(true);
                 }
             };
@@ -193,6 +216,15 @@ const MossyMemoryVault: React.FC = () => {
 
     const handleUpload = async () => {
         if (!newTitle || !newContent) return;
+        setUploadError('');
+        if (!newSource.trim()) {
+            setUploadError('Source is required so credit is preserved.');
+            return;
+        }
+        if (!newCreditName.trim()) {
+            setUploadError('Credit name is required.');
+            return;
+        }
 
         setIsUploading(true);
         setUploadProgress(10);
@@ -208,7 +240,10 @@ const MossyMemoryVault: React.FC = () => {
             id: `mem-${Date.now()}`,
             title: newTitle,
             content: newContent,
-            source: 'Manual Upload',
+            source: newSource.trim(),
+            creditName: newCreditName.trim(),
+            creditUrl: newCreditUrl.trim() || undefined,
+            trustLevel: newTrustLevel,
             date: new Date().toLocaleDateString(),
             tags: newTags.split(',').map(t => t.trim()).filter(t => t),
             status: 'learned'
@@ -220,21 +255,44 @@ const MossyMemoryVault: React.FC = () => {
         setShowUploadModal(false);
         setNewTitle('');
         setNewContent('');
+        setNewSource('');
+        setNewCreditName('');
+        setNewCreditUrl('');
+        setNewTrustLevel('personal');
         setNewTags('');
-
+        setUploadError('');
         // Record for ML tracking
         LocalAIEngine.recordAction('knowledge_ingested', { title: newItem.title, tags: newItem.tags }).catch(() => {});
+    };
+
+    const handleExportVault = () => {
+        const blob = new Blob([JSON.stringify(memories, null, 2)], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'mossy-knowledge-vault.json';
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
     };
 
     const deleteMemory = (id: string) => {
         setMemories(memories.filter(m => m.id !== id));
     };
 
-    const filteredMemories = memories.filter(m => 
-        m.title.toLowerCase().includes(searchTerm.toLowerCase()) || 
-        m.content.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        m.tags.some(t => t.toLowerCase().includes(searchTerm.toLowerCase()))
-    );
+    const filteredMemories = memories.filter(m => {
+        const trust = m.trustLevel || 'personal';
+        const trustOk = trustFilter === 'all' ? true : trust === trustFilter;
+        if (!trustOk) return false;
+
+        const q = searchTerm.toLowerCase();
+        return (
+            m.title.toLowerCase().includes(q) ||
+            m.content.toLowerCase().includes(q) ||
+            m.tags.some(t => t.toLowerCase().includes(q))
+        );
+    });
 
     return (
         <div className="h-full min-h-0 flex flex-col bg-[#0f120f] text-slate-200 font-sans overflow-hidden" onWheel={onWheel}>
@@ -299,13 +357,22 @@ const MossyMemoryVault: React.FC = () => {
                         <p className="text-xs text-slate-400">Upload tutorials, snippets, and lore for Mossy to digest into her long-term memory.</p>
                     </div>
                 </div>
-                <button 
-                    onClick={() => setShowUploadModal(true)}
-                    className="flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg transition-all shadow-lg shadow-emerald-900/20 text-sm font-bold"
-                >
-                    <Plus className="w-4 h-4" />
-                    Ingest Knowledge
-                </button>
+                <div className="flex items-center gap-2">
+                    <button
+                        onClick={handleExportVault}
+                        className="flex items-center gap-2 px-4 py-2 bg-slate-900/50 hover:bg-slate-800 text-slate-100 rounded-lg transition-all border border-slate-700 text-sm font-bold"
+                    >
+                        <Download className="w-4 h-4" />
+                        Export Vault
+                    </button>
+                    <button 
+                        onClick={() => setShowUploadModal(true)}
+                        className="flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg transition-all shadow-lg shadow-emerald-900/20 text-sm font-bold"
+                    >
+                        <Plus className="w-4 h-4" />
+                        Ingest Knowledge
+                    </button>
+                </div>
             </div>
 
             <div className="px-6 pt-4">
@@ -400,6 +467,19 @@ const MossyMemoryVault: React.FC = () => {
                         onChange={(e) => setSearchTerm(e.target.value)}
                     />
                 </div>
+                <div className="max-w-2xl mx-auto mt-3 flex items-center gap-3 text-xs text-slate-400">
+                    <span className="uppercase tracking-widest text-[10px] text-emerald-500">Trust</span>
+                    <select
+                        className="bg-[#141814] border border-emerald-900/30 rounded-lg px-3 py-1.5 text-xs text-slate-200 focus:outline-none focus:border-emerald-500/50"
+                        value={trustFilter}
+                        onChange={(e) => setTrustFilter(e.target.value as TrustFilter)}
+                    >
+                        <option value="all">All</option>
+                        <option value="personal">Personal</option>
+                        <option value="community">Community</option>
+                        <option value="official">Official</option>
+                    </select>
+                </div>
             </div>
 
             {/* Content Area */}
@@ -447,6 +527,22 @@ const MossyMemoryVault: React.FC = () => {
                                                 <CheckCircle2 className="w-2.5 h-2.5" /> LEARNED
                                             </span>
                                         </div>
+                                        <div className="mt-2 flex flex-wrap items-center gap-2 text-[10px] text-slate-500">
+                                            <span className="px-2 py-0.5 rounded-full border border-emerald-500/20 text-[9px] text-emerald-300 bg-emerald-500/10 uppercase">
+                                                Trust: {mem.trustLevel || 'personal'}
+                                            </span>
+                                            <span className="truncate">Credit: {mem.creditName || 'Uncredited'}</span>
+                                            {mem.creditUrl && (
+                                                <button
+                                                    className="text-cyan-400 hover:text-cyan-300 transition-colors"
+                                                    onClick={() => void openExternal(mem.creditUrl)}
+                                                    title="Open credit source"
+                                                >
+                                                    Source
+                                                </button>
+                                            )}
+                                        </div>
+                                        <div className="mt-1 text-[10px] text-slate-500 truncate">Source: {mem.source || 'Unknown'}</div>
                                     </div>
                                 </div>
                                 <p className="text-xs text-slate-400 line-clamp-3 mb-4 leading-relaxed bg-black/20 p-2 rounded border border-white/5 italic">
@@ -475,6 +571,11 @@ const MossyMemoryVault: React.FC = () => {
                             setNewTitle('');
                             setNewContent('');
                             setNewTags('');
+                            setNewSource('');
+                            setNewCreditName('');
+                            setNewCreditUrl('');
+                            setNewTrustLevel('personal');
+                            setUploadError('');
                         }
                     }}
                     onKeyDown={(e) => {
@@ -483,6 +584,11 @@ const MossyMemoryVault: React.FC = () => {
                             setNewTitle('');
                             setNewContent('');
                             setNewTags('');
+                            setNewSource('');
+                            setNewCreditName('');
+                            setNewCreditUrl('');
+                            setNewTrustLevel('personal');
+                            setUploadError('');
                         }
                     }}
                 >
@@ -497,6 +603,11 @@ const MossyMemoryVault: React.FC = () => {
                                 setNewTitle('');
                                 setNewContent('');
                                 setNewTags('');
+                                setNewSource('');
+                                setNewCreditName('');
+                                setNewCreditUrl('');
+                                setNewTrustLevel('personal');
+                                setUploadError('');
                             }} className="text-slate-500 hover:text-white transition-colors">
                                 <X className="w-5 h-5" />
                             </button>
@@ -554,6 +665,58 @@ const MossyMemoryVault: React.FC = () => {
                                 </div>
                             </div>
 
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div className="space-y-2">
+                                    <label className="text-[10px] font-bold text-emerald-500 uppercase tracking-widest pl-1">Source (Required)</label>
+                                    <input 
+                                        type="text" 
+                                        placeholder="e.g. https://www.creationkit.com | or File: MyNotes.txt"
+                                        className="w-full bg-[#0f120f] border border-emerald-900/40 rounded-xl py-3 px-4 text-sm text-white focus:outline-none focus:border-emerald-500/50 focus:ring-1 focus:ring-emerald-500/20"
+                                        value={newSource}
+                                        onChange={(e) => setNewSource(e.target.value)}
+                                        disabled={isUploading}
+                                    />
+                                </div>
+                                <div className="space-y-2">
+                                    <label className="text-[10px] font-bold text-emerald-500 uppercase tracking-widest pl-1">Trust Level</label>
+                                    <select
+                                        className="w-full bg-[#0f120f] border border-emerald-900/40 rounded-xl py-3 px-4 text-sm text-white focus:outline-none focus:border-emerald-500/50 focus:ring-1 focus:ring-emerald-500/20"
+                                        value={newTrustLevel}
+                                        onChange={(e) => setNewTrustLevel(e.target.value as MemoryItem['trustLevel'])}
+                                        disabled={isUploading}
+                                    >
+                                        <option value="personal">Personal</option>
+                                        <option value="community">Community</option>
+                                        <option value="official">Official</option>
+                                    </select>
+                                </div>
+                            </div>
+
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div className="space-y-2">
+                                    <label className="text-[10px] font-bold text-emerald-500 uppercase tracking-widest pl-1">Credit Name (Required)</label>
+                                    <input 
+                                        type="text" 
+                                        placeholder="e.g. Bethesda Docs | Dan Bolder | Nexus Modder"
+                                        className="w-full bg-[#0f120f] border border-emerald-900/40 rounded-xl py-3 px-4 text-sm text-white focus:outline-none focus:border-emerald-500/50 focus:ring-1 focus:ring-emerald-500/20"
+                                        value={newCreditName}
+                                        onChange={(e) => setNewCreditName(e.target.value)}
+                                        disabled={isUploading}
+                                    />
+                                </div>
+                                <div className="space-y-2">
+                                    <label className="text-[10px] font-bold text-emerald-500 uppercase tracking-widest pl-1">Credit URL (Optional)</label>
+                                    <input 
+                                        type="text" 
+                                        placeholder="https://..."
+                                        className="w-full bg-[#0f120f] border border-emerald-900/40 rounded-xl py-3 px-4 text-sm text-white focus:outline-none focus:border-emerald-500/50 focus:ring-1 focus:ring-emerald-500/20"
+                                        value={newCreditUrl}
+                                        onChange={(e) => setNewCreditUrl(e.target.value)}
+                                        disabled={isUploading}
+                                    />
+                                </div>
+                            </div>
+
                             <div className="space-y-2">
                                 <label className="text-[10px] font-bold text-emerald-500 uppercase tracking-widest pl-1">Tags (Comma separated)</label>
                                 <input 
@@ -565,6 +728,12 @@ const MossyMemoryVault: React.FC = () => {
                                     disabled={isUploading}
                                 />
                             </div>
+
+                            {uploadError && (
+                                <div className="text-xs text-red-400 bg-red-900/20 border border-red-500/30 rounded-lg px-3 py-2">
+                                    {uploadError}
+                                </div>
+                            )}
 
                             {isUploading && (
                                 <div className="space-y-2 pt-2">

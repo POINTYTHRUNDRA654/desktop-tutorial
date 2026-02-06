@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ToolsInstallVerifyPanel } from './components/ToolsInstallVerifyPanel';
+import { openExternal } from './utils/openExternal';
 import {
   BookOpen,
   ChevronDown,
@@ -26,17 +27,8 @@ type Section = {
   steps?: string[];
 };
 
-const openUrl = async (url: string) => {
-  const bridge = (window as any).electron?.api || (window as any).electronAPI;
-  try {
-    if (bridge?.openExternal) {
-      await bridge.openExternal(url);
-      return;
-    }
-  } catch {
-    // ignore
-  }
-  window.open(url, '_blank', 'noopener,noreferrer');
+const openUrl = (url: string) => {
+  void openExternal(url);
 };
 
 export const BlenderAnimationGuide: React.FC = () => {

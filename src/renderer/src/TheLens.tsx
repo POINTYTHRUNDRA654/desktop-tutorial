@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Eye, Folder, FileText, Settings, RefreshCw, AlertCircle, CheckCircle2, Copy } from 'lucide-react';
 
 // Declare Electron API for TypeScript
@@ -48,12 +48,32 @@ interface RecentProject {
     files: number;
 }
 
+type ScanSummary = {
+    totalPrograms?: number;
+    nvidiaTools?: number;
+    aiTools?: number;
+    fallout4Installations?: number;
+    systemInfo?: any;
+    nvidiaPrograms?: Array<{ name: string; path?: string }>;
+    aiPrograms?: Array<{ name: string; path?: string }>;
+    allPrograms?: Array<{ name: string; path?: string; version?: string; publisher?: string }>;
+};
+
+type ScanDiff = {
+    deltaTotal: number;
+    deltaNvidia: number;
+    deltaAi: number;
+    deltaFo4: number;
+    addedPrograms: string[];
+    removedPrograms: string[];
+};
+
 const EMPTY_SYSTEM_INFO: SystemInfo = {
     computerName: 'OFFLINE',
     username: 'Unauthorized',
     osVersion: 'Unknown',
-    totalMemory: '0 GB',
-    availableMemory: '0 GB',
+    totalMemory: '0',
+    availableMemory: '0',
     cpuModel: 'No Signal'
 };
 
@@ -64,12 +84,46 @@ const RECENT_PROJECTS: RecentProject[] = [];
 const getCategoryColor = (category: string) => {
     switch (category) {
         case 'mod': return 'bg-purple-900/20 border-purple-700/50 text-purple-300';
-        case 'texture': return 'bg-blue-900/20 border-blue-700/50 text-blue-300';
+        case 'texture': return 'bg-blue-900/20 border-blue-700/50 text-slate-200';
         case 'mesh': return 'bg-cyan-900/20 border-cyan-700/50 text-cyan-300';
         case 'script': return 'bg-yellow-900/20 border-yellow-700/50 text-yellow-300';
         case 'config': return 'bg-green-900/20 border-green-700/50 text-green-300';
         default: return 'bg-slate-900/20 border-slate-700/50 text-slate-300';
     }
+};
+
+const formatMemory = (value: string) => {
+    if (!value || value === 'Unknown') return value || 'Unknown';
+    return value.includes('GB') ? value : `${value} GB`;
+};
+
+const computeScanDiff = (current: ScanSummary | null, previous: ScanSummary | null): ScanDiff | null => {
+    if (!current || !previous) return null;
+
+    const toKey = (p: { name?: string; path?: string }) => `${p?.name || 'Unknown'}||${p?.path || ''}`;
+    const currPrograms = (current.allPrograms || []).map(toKey);
+    const prevPrograms = (previous.allPrograms || []).map(toKey);
+
+    const currSet = new Set(currPrograms);
+    const prevSet = new Set(prevPrograms);
+
+    const addedPrograms = Array.from(currSet)
+        .filter((k) => !prevSet.has(k))
+        .map((k) => k.split('||')[0])
+        .slice(0, 6);
+    const removedPrograms = Array.from(prevSet)
+        .filter((k) => !currSet.has(k))
+        .map((k) => k.split('||')[0])
+        .slice(0, 6);
+
+    return {
+        deltaTotal: (current.totalPrograms ?? 0) - (previous.totalPrograms ?? 0),
+        deltaNvidia: (current.nvidiaTools ?? 0) - (previous.nvidiaTools ?? 0),
+        deltaAi: (current.aiTools ?? 0) - (previous.aiTools ?? 0),
+        deltaFo4: (current.fallout4Installations ?? 0) - (previous.fallout4Installations ?? 0),
+        addedPrograms,
+        removedPrograms,
+    };
 };
 
 const TheLens = () => {
@@ -78,20 +132,43 @@ const TheLens = () => {
     const [systemInfo, setSystemInfo] = useState<SystemInfo>(EMPTY_SYSTEM_INFO);
     const [bridgeConnected, setBridgeConnected] = useState(false);
     const [loading, setLoading] = useState(true);
+    const [scanSummary, setScanSummary] = useState<ScanSummary | null>(() => {
+        try {
+            const raw = localStorage.getItem('mossy_scan_summary');
+            return raw ? JSON.parse(raw) : null;
+        } catch {
+            return null;
+        }
+    });
+    const [prevScanSummary, setPrevScanSummary] = useState<ScanSummary | null>(() => {
+        try {
+            const raw = localStorage.getItem('mossy_scan_summary_prev');
+            return raw ? JSON.parse(raw) : null;
+        } catch {
+            return null;
+        }
+    });
+    const [lastScan, setLastScan] = useState<string | null>(() => {
+        try {
+            return localStorage.getItem('mossy_last_scan');
+        } catch {
+            return null;
+        }
+    });
 
-    // Load system info from Electron bridge
-    useEffect(() => {
-        const loadSystemInfo = async () => {
+    const getElectronApi = () => (window as any).electron?.api || (window as any).electronAPI;
+
+    const loadSystemInfo = async () => {
             try {
-                // Check if Electron API is available
-                if (!window.electron?.api?.getSystemInfo) {
+                const api = getElectronApi();
+                if (!api?.getSystemInfo) {
                     console.warn('[TheLens] Bridge offline, waiting for connection...');
                     setBridgeConnected(false);
                     setLoading(false);
                     return;
                 }
 
-                const info = await window.electronAPI.getSystemInfo();
+                const info = await api.getSystemInfo();
                 console.log('[TheLens] System info loaded:', info);
                 
                 // Format system info from Electron API response
@@ -99,7 +176,7 @@ const TheLens = () => {
                     computerName: 'Unknown', // Not available from getSystemInfo
                     username: 'User', // Not available from getSystemInfo
                     osVersion: info.os,
-                    totalMemory: info.ram,
+                    totalMemory: String(info.ram),
                     availableMemory: 'Unknown', // Not available from getSystemInfo
                     cpuModel: info.cpu
                 };
@@ -112,9 +189,28 @@ const TheLens = () => {
             } finally {
                 setLoading(false);
             }
-        };
+    };
 
+    const refreshScanSummary = () => {
+        try {
+            const raw = localStorage.getItem('mossy_scan_summary');
+            setScanSummary(raw ? JSON.parse(raw) : null);
+            const rawPrev = localStorage.getItem('mossy_scan_summary_prev');
+            setPrevScanSummary(rawPrev ? JSON.parse(rawPrev) : null);
+            setLastScan(localStorage.getItem('mossy_last_scan'));
+        } catch {
+            setScanSummary(null);
+            setPrevScanSummary(null);
+            setLastScan(null);
+        }
+    };
+
+    const scanDiff = useMemo(() => computeScanDiff(scanSummary, prevScanSummary), [scanSummary, prevScanSummary]);
+
+    // Load system info from Electron bridge
+    useEffect(() => {
         loadSystemInfo();
+        refreshScanSummary();
     }, []);
 
     const handleCopyPath = (path: string) => {
@@ -135,7 +231,14 @@ const TheLens = () => {
                     <p className="text-[10px] text-slate-400 font-mono mt-0.5">Desktop Bridge v1.0 - System & File Monitoring</p>
                 </div>
                 <div className="flex gap-2">
-                    <button className="px-3 py-1.5 bg-black rounded border border-slate-600 hover:border-cyan-500 transition-colors text-xs text-cyan-400 flex items-center gap-2">
+                    <button
+                        onClick={() => {
+                            setLoading(true);
+                            loadSystemInfo();
+                            refreshScanSummary();
+                        }}
+                        className="px-3 py-1.5 bg-black rounded border border-slate-600 hover:border-cyan-500 transition-colors text-xs text-cyan-400 flex items-center gap-2"
+                    >
                         <RefreshCw className="w-3 h-3" /> Refresh
                     </button>
                     <div className={`px-3 py-1 rounded border font-mono text-xs flex items-center gap-1.5 ${
@@ -174,6 +277,79 @@ const TheLens = () => {
             <div className="flex-1 overflow-y-auto">
                 {activeTab === 'overview' && (
                     <div className="p-6 space-y-6">
+                        <div className="bg-[#252526] border border-slate-800 rounded-lg p-4">
+                            <h3 className="text-sm font-bold text-white mb-3 flex items-center gap-2">
+                                <AlertCircle className="w-4 h-4 text-cyan-400" /> Scan Summary
+                            </h3>
+                            {scanSummary ? (
+                                <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-xs">
+                                    <div className="bg-[#1e1e1e] p-2 rounded border border-slate-700">
+                                        <div className="text-slate-400">Programs</div>
+                                        <div className="text-white font-mono">{scanSummary.totalPrograms ?? '—'}</div>
+                                    </div>
+                                    <div className="bg-[#1e1e1e] p-2 rounded border border-slate-700">
+                                        <div className="text-slate-400">NVIDIA Tools</div>
+                                        <div className="text-white font-mono">{scanSummary.nvidiaTools ?? '—'}</div>
+                                    </div>
+                                    <div className="bg-[#1e1e1e] p-2 rounded border border-slate-700">
+                                        <div className="text-slate-400">AI Tools</div>
+                                        <div className="text-white font-mono">{scanSummary.aiTools ?? '—'}</div>
+                                    </div>
+                                    <div className="bg-[#1e1e1e] p-2 rounded border border-slate-700">
+                                        <div className="text-slate-400">FO4 Installs</div>
+                                        <div className="text-white font-mono">{scanSummary.fallout4Installations ?? '—'}</div>
+                                    </div>
+                                </div>
+                            ) : (
+                                <div className="text-xs text-slate-500 italic">No scan summary found. Run a system scan from System Monitor.</div>
+                            )}
+                            <div className="mt-3 text-[10px] text-slate-500">
+                                Last scan: {lastScan ? new Date(lastScan).toLocaleString() : 'Never'}
+                            </div>
+                        </div>
+                        <div className="bg-[#252526] border border-slate-800 rounded-lg p-4">
+                            <h3 className="text-sm font-bold text-white mb-3 flex items-center gap-2">
+                                <Copy className="w-4 h-4 text-cyan-400" /> Scan Diff
+                            </h3>
+                            {scanDiff ? (
+                                <div className="space-y-3">
+                                    <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-xs">
+                                        <div className="bg-[#1e1e1e] p-2 rounded border border-slate-700">
+                                            <div className="text-slate-400">Programs</div>
+                                            <div className={`font-mono ${scanDiff.deltaTotal >= 0 ? 'text-emerald-300' : 'text-red-300'}`}>
+                                                {scanDiff.deltaTotal >= 0 ? '+' : ''}{scanDiff.deltaTotal}
+                                            </div>
+                                        </div>
+                                        <div className="bg-[#1e1e1e] p-2 rounded border border-slate-700">
+                                            <div className="text-slate-400">NVIDIA</div>
+                                            <div className={`font-mono ${scanDiff.deltaNvidia >= 0 ? 'text-emerald-300' : 'text-red-300'}`}>
+                                                {scanDiff.deltaNvidia >= 0 ? '+' : ''}{scanDiff.deltaNvidia}
+                                            </div>
+                                        </div>
+                                        <div className="bg-[#1e1e1e] p-2 rounded border border-slate-700">
+                                            <div className="text-slate-400">AI Tools</div>
+                                            <div className={`font-mono ${scanDiff.deltaAi >= 0 ? 'text-emerald-300' : 'text-red-300'}`}>
+                                                {scanDiff.deltaAi >= 0 ? '+' : ''}{scanDiff.deltaAi}
+                                            </div>
+                                        </div>
+                                        <div className="bg-[#1e1e1e] p-2 rounded border border-slate-700">
+                                            <div className="text-slate-400">FO4 Installs</div>
+                                            <div className={`font-mono ${scanDiff.deltaFo4 >= 0 ? 'text-emerald-300' : 'text-red-300'}`}>
+                                                {scanDiff.deltaFo4 >= 0 ? '+' : ''}{scanDiff.deltaFo4}
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div className="text-[10px] text-slate-400">
+                                        Added: {scanDiff.addedPrograms.length ? scanDiff.addedPrograms.join(', ') : 'None'}
+                                    </div>
+                                    <div className="text-[10px] text-slate-400">
+                                        Removed: {scanDiff.removedPrograms.length ? scanDiff.removedPrograms.join(', ') : 'None'}
+                                    </div>
+                                </div>
+                            ) : (
+                                <div className="text-xs text-slate-500 italic">Run another scan to see what changed.</div>
+                            )}
+                        </div>
                         {/* System Status */}
                         <div className="bg-[#252526] border border-slate-800 rounded-lg p-4">
                             <h3 className="text-sm font-bold text-white mb-3 flex items-center gap-2">
@@ -190,7 +366,7 @@ const TheLens = () => {
                                 </div>
                                 <div className="bg-[#1e1e1e] p-2 rounded border border-slate-700">
                                     <div className="text-slate-400">Memory Available</div>
-                                    <div className="text-cyan-300 font-mono">{systemInfo.availableMemory} / {systemInfo.totalMemory}</div>
+                                    <div className="text-cyan-300 font-mono">{formatMemory(systemInfo.availableMemory)} / {formatMemory(systemInfo.totalMemory)}</div>
                                 </div>
                                 <div className="bg-[#1e1e1e] p-2 rounded border border-slate-700">
                                     <div className="text-slate-400">CPU</div>
@@ -357,11 +533,11 @@ const TheLens = () => {
                                 </div>
                                 <div className="flex justify-between p-2 bg-[#1e1e1e] rounded border border-slate-700">
                                     <span className="text-slate-400">Total Memory</span>
-                                    <span className="text-cyan-300 font-mono">{systemInfo.totalMemory}</span>
+                                    <span className="text-cyan-300 font-mono">{formatMemory(systemInfo.totalMemory)}</span>
                                 </div>
                                 <div className="flex justify-between p-2 bg-[#1e1e1e] rounded border border-slate-700">
                                     <span className="text-slate-400">Available Memory</span>
-                                    <span className="text-green-300 font-mono">{systemInfo.availableMemory}</span>
+                                    <span className="text-green-300 font-mono">{formatMemory(systemInfo.availableMemory)}</span>
                                 </div>                                {(systemInfo as any).gpu && (
                                     <div className="flex justify-between p-2 bg-[#1e1e1e] rounded border border-slate-700">
                                         <span className="text-slate-400">GPU</span>
@@ -400,10 +576,10 @@ const TheLens = () => {
                         </div>
 
                         <div className="bg-blue-900/10 border border-blue-700/30 rounded-lg p-4">
-                            <h4 className="text-sm font-semibold text-blue-300 mb-2 flex items-center gap-2">
+                            <h4 className="text-sm font-semibold text-slate-100 mb-2 flex items-center gap-2">
                                 <AlertCircle className="w-4 h-4" /> Bridge Status
                             </h4>
-                            <p className="text-xs text-blue-200">The Lens is connected to the desktop. File paths are monitored and system information is current.</p>
+                            <p className="text-xs text-slate-300">The Lens is connected to the desktop. File paths are monitored and system information is current.</p>
                         </div>
                     </div>
                 )}

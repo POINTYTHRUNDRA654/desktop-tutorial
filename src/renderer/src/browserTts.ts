@@ -70,6 +70,18 @@ export function saveBrowserTtsSettings(next: BrowserTtsSettings): void {
   );
 }
 
+export function ensureBrowserTtsSettingsStored(): BrowserTtsSettings {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (raw) return loadBrowserTtsSettings();
+    const defaults = loadBrowserTtsSettings();
+    saveBrowserTtsSettings(defaults);
+    return defaults;
+  } catch {
+    return loadBrowserTtsSettings();
+  }
+}
+
 export function getBrowserTtsVoices(): SpeechSynthesisVoice[] {
   if (typeof window === 'undefined') return [];
   if (!('speechSynthesis' in window)) return [];

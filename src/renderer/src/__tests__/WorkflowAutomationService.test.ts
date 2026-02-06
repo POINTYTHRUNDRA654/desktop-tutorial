@@ -1,11 +1,10 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 
-// Mock CacheManager before importing the service
-const mockCacheManager = {
-  set: vi.fn().mockResolvedValue(undefined),
-  get: vi.fn().mockResolvedValue(null),
-  delete: vi.fn().mockResolvedValue(undefined),
-};
+const mockCacheManager = vi.hoisted(() => ({
+  set: vi.fn(),
+  get: vi.fn(),
+  delete: vi.fn(),
+}));
 
 vi.mock('../CacheManager', () => ({
   cacheManager: mockCacheManager,
@@ -19,6 +18,9 @@ describe('WorkflowAutomationService', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    mockCacheManager.set.mockResolvedValue(undefined);
+    mockCacheManager.get.mockResolvedValue(null);
+    mockCacheManager.delete.mockResolvedValue(undefined);
     service = createWorkflowAutomationService(mockCacheManager);
   });
 

@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { openExternal } from './utils/openExternal';
 
 const HavokFallout4Guide = () => {
   const navigate = useNavigate();
@@ -115,16 +116,7 @@ const HavokFallout4Guide = () => {
   };
 
   const openUrl = (url: string) => {
-    try {
-      const anyWindow = window as any;
-      if (anyWindow?.electron?.openExternal) {
-        anyWindow.electron.openExternal(url);
-        return;
-      }
-    } catch {
-      // ignore
-    }
-    window.open(url, '_blank', 'noopener,noreferrer');
+    void openExternal(url);
   };
 
   const openNexusSearch = (query: string) => {
@@ -843,10 +835,10 @@ Performance Impact:
             <ul>
               <li>Fallout 4 Animation Kit (F4AK) by ShadeAnimator — author of the kit and guide</li>
               <li>DexesTTP — HKXPack/HKXAnim tools</li>
-              <li>MaikCG — <a href="http://www.nexusmods.com/fallout4/mods/16691/?" target="_blank" rel="noreferrer" style={{ color: '#00ff00' }}>F4Biped animation rig</a> and guidance</li>
+              <li>MaikCG — <a href="https://www.nexusmods.com/fallout4/mods/16691" target="_blank" rel="noreferrer" style={{ color: '#00ff00' }}>F4Biped animation rig</a> and guidance</li>
               <li>Contributors: CPU, NifTools team, JoshNZ, Kimbale, Caliente/Ousnius (CBBE)</li>
-              <li>F4AK Nexus release (credit when used): <a href="http://www.nexusmods.com/fallout4/mods/16694/?" target="_blank" rel="noreferrer" style={{ color: '#00ff00' }}>Nexus mod 16694</a></li>
-              <li>Guide/Wiki mirror: <a href="http://wiki.nexusmods.com/index.php/Animation_In_Fallout_4" target="_blank" rel="noreferrer" style={{ color: '#00ff00' }}>Animation in Fallout 4</a></li>
+              <li>F4AK Nexus release (credit when used): <a href="https://www.nexusmods.com/fallout4/mods/16694" target="_blank" rel="noreferrer" style={{ color: '#00ff00' }}>Nexus mod 16694</a></li>
+              <li>Guide/Wiki mirror: <a href="https://wiki.nexusmods.com/index.php/Animation_In_Fallout_4" target="_blank" rel="noreferrer" style={{ color: '#00ff00' }}>Animation in Fallout 4</a></li>
             </ul>
           </div>
         )}
