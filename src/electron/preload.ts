@@ -603,7 +603,7 @@ const electronAPI = {
   /**
    * Local LLM: Generate via local runtime (Ollama)
    */
-  mlLlmGenerate: (req: { provider: 'ollama' | 'openai_compat'; model: string; prompt: string; baseUrl?: string }): Promise<any> => {
+  mlLlmGenerate: (req: { provider: 'ollama' | 'openai_compat' | 'cosmos'; model: string; prompt: string; baseUrl?: string }): Promise<any> => {
     return ipcRenderer.invoke(IPC_CHANNELS.ML_LLM_GENERATE, req);
   },
 
