@@ -45,7 +45,7 @@
 Before:
   "name": "volttech-desktop"
   "version": "0.1.0"
-  "description": "Volt Tech Desktop - Desktop wrapper..."
+  "description": "Mossy Desktop - Desktop wrapper..."
 
 After:
   "name": "mossy-desktop"
