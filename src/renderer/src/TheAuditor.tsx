@@ -6,6 +6,7 @@ import { Scan, FileWarning, CheckCircle2, AlertTriangle, FileImage, Box, FileCod
 import { useWheelScrollProxyFrom } from './components/useWheelScrollProxy';
 import { workerManager } from './WorkerManager';
 import { cacheManager } from './CacheManager';
+import { openExternal } from './utils/openExternal';
 
 interface AuditIssue {
     id: string;
@@ -66,12 +67,7 @@ const TheAuditor: React.FC = () => {
     };
 
     const openUrl = (url: string) => {
-        const api = (window as any).electron?.api || (window as any).electronAPI;
-        if (typeof api?.openExternal === 'function') {
-            api.openExternal(url);
-            return;
-        }
-        window.open(url, '_blank', 'noopener,noreferrer');
+        void openExternal(url);
     };
 
     const openNexusSearch = (keywords: string) => {

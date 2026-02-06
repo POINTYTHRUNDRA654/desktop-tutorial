@@ -1,31 +1,26 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 
-// Mock CacheManager before importing the service
-const mockCacheManager = {
-  set: vi.fn().mockResolvedValue(undefined),
-  get: vi.fn().mockResolvedValue(null),
-  delete: vi.fn().mockResolvedValue(undefined),
-};
+const mockCacheManager = vi.hoisted(() => ({
+  set: vi.fn(),
+  get: vi.fn(),
+  delete: vi.fn(),
+}));
 
 vi.mock('../CacheManager', () => ({
   cacheManager: mockCacheManager,
 }));
 
 // Import after mocking
-import { createWorkflowAutomationService } from '../WorkflowAutomationService';
 import { PluginSystemService, createPluginSystemService } from '../PluginSystemService';
 
 describe('PluginSystemService', () => {
   let service: PluginSystemService;
-  let mockCacheManager: any;
 
   beforeEach(() => {
     vi.clearAllMocks();
-    mockCacheManager = {
-      set: vi.fn().mockResolvedValue(undefined),
-      get: vi.fn().mockResolvedValue(null),
-      delete: vi.fn().mockResolvedValue(undefined),
-    };
+    mockCacheManager.set.mockResolvedValue(undefined);
+    mockCacheManager.get.mockResolvedValue(null);
+    mockCacheManager.delete.mockResolvedValue(undefined);
     service = createPluginSystemService(mockCacheManager);
   });
 

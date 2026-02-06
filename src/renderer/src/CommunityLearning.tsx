@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { Github, Save, Send, ShieldCheck } from 'lucide-react';
 import type { Settings } from '../../shared/types';
 import { ToolsInstallVerifyPanel } from './components/ToolsInstallVerifyPanel';
+import { openExternal } from './utils/openExternal';
 import {
   buildCommunityIssueBody,
   buildGithubNewIssueUrl,
@@ -114,12 +115,7 @@ const CommunityLearning: React.FC = () => {
     });
 
     try {
-      const bridge = (window as any).electron?.api || (window as any).electronAPI;
-      if (bridge?.openExternal) {
-        await bridge.openExternal(url);
-      } else {
-        window.open(url, '_blank', 'noopener,noreferrer');
-      }
+      await openExternal(url);
       setStatus('Opened GitHub draft issue. Submit it from your browser.');
     } catch (e) {
       setStatus(`Could not open browser: ${String(e)}`);

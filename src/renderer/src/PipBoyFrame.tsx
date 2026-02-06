@@ -40,6 +40,8 @@ const PipBoyFrame: React.FC<{ children: React.ReactNode }> = ({ children }) => {
           justify-content: center;
           overflow: hidden;
           padding: 1.5rem;
+          position: relative;
+          z-index: 3;
         }
 
         .pipboy-bezel {
@@ -86,6 +88,35 @@ const PipBoyFrame: React.FC<{ children: React.ReactNode }> = ({ children }) => {
           transform: perspective(1000px) rotateX(0.5deg);
         }
 
+        body.pip-boy-mode .pipboy-screen-area::before {
+          content: '';
+          position: absolute;
+          inset: 0;
+          pointer-events: none;
+          background:
+            repeating-linear-gradient(
+              0deg,
+              rgba(0, 0, 0, 0.12),
+              rgba(0, 0, 0, 0.12) 1px,
+              transparent 1px,
+              transparent 2px
+            ),
+            radial-gradient(ellipse at center, transparent 0%, rgba(0, 0, 0, 0.18) 100%);
+          opacity: 0.45;
+          mix-blend-mode: screen;
+          z-index: 3;
+        }
+
+        body.pip-boy-mode .pipboy-screen-area::after {
+          content: '';
+          position: absolute;
+          inset: 0;
+          pointer-events: none;
+          background: radial-gradient(ellipse at center, rgba(230, 176, 74, 0.04) 0%, transparent 70%);
+          opacity: 0.35;
+          z-index: 2;
+        }
+
         .pipboy-screen-reflection {
           position: absolute;
           inset: 0;
@@ -104,11 +135,17 @@ const PipBoyFrame: React.FC<{ children: React.ReactNode }> = ({ children }) => {
         }
 
         .pipboy-content {
+          position: relative;
+          z-index: 4;
           width: 100%;
           height: 100%;
           border-radius: 40px;
           overflow: hidden;
           background: #000;
+        }
+
+        body.pip-boy-mode .pipboy-content {
+          background: transparent;
         }
 
         .pipboy-label-top {
