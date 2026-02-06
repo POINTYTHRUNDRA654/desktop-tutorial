@@ -17,10 +17,22 @@ const NeuralLink: React.FC = () => {
     const [isScanning, setIsScanning] = useState(false);
     const [lastScan, setLastScan] = useState<Date | null>(null);
     const [mossyThoughts, setMossyThoughts] = useState<string[]>([]);
+    const [isMonitoringPaused, setIsMonitoringPaused] = useState(() => {
+        return localStorage.getItem('mossy_monitoring_paused') === 'true';
+    });
 
     const scanProcesses = async () => {
         const bridge: any = (window as any).electron?.api || (window as any).electronAPI;
         if (typeof bridge?.getRunningProcesses !== 'function') return;
+
+        const paused = localStorage.getItem('mossy_monitoring_paused') === 'true';
+        setIsMonitoringPaused(paused);
+        if (paused) {
+            setRunningTools([]);
+            setLastScan(null);
+            setMossyThoughts(["Monitoring paused. Resume to refresh tool context."]);
+            return;
+        }
 
         setIsScanning(true);
         try {
@@ -28,6 +40,19 @@ const NeuralLink: React.FC = () => {
             setRunningTools(tools);
             setLastScan(new Date());
             generateMossyThoughts(tools);
+
+            try {
+                localStorage.setItem('mossy_active_tools', JSON.stringify({
+                    at: Date.now(),
+                    tools: tools.map(t => ({
+                        name: t.name,
+                        pid: t.pid,
+                        windowTitle: t.windowTitle || ''
+                    }))
+                }));
+            } catch {
+                // ignore storage errors
+            }
 
             // Update context-aware AI service
             const toolContexts: ToolContext[] = tools.map(tool => ({
@@ -51,6 +76,22 @@ const NeuralLink: React.FC = () => {
         scanProcesses();
         const interval = setInterval(scanProcesses, 10000); // Scan every 10 seconds
         return () => clearInterval(interval);
+    }, []);
+
+    useEffect(() => {
+        const handler = () => {
+            const paused = localStorage.getItem('mossy_monitoring_paused') === 'true';
+            setIsMonitoringPaused(paused);
+            if (paused) {
+                setRunningTools([]);
+                setLastScan(null);
+                setMossyThoughts(["Monitoring paused. Resume to refresh tool context."]);
+            } else {
+                scanProcesses();
+            }
+        };
+        window.addEventListener('mossy-monitoring-toggle', handler);
+        return () => window.removeEventListener('mossy-monitoring-toggle', handler);
     }, []);
 
     const generateMossyThoughts = (tools: RunningProcess[]) => {
@@ -121,6 +162,12 @@ const NeuralLink: React.FC = () => {
                     {isScanning ? 'Scanning...' : 'Manual Refresh'}
                 </button>
             </div>
+
+            {isMonitoringPaused && (
+                <div className="mt-4 p-3 rounded-lg border border-yellow-500/30 bg-yellow-500/10 text-yellow-200 text-xs">
+                    Monitoring is paused. Resume from the Chat header to refresh active tools.
+                </div>
+            )}
 
                 <ToolsInstallVerifyPanel
                     accentClassName="text-blue-300"

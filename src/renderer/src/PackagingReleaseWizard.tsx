@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Archive, CheckCircle2, ExternalLink, Package, Send, ShieldCheck } from 'lucide-react';
 import { ToolsInstallVerifyPanel } from './components/ToolsInstallVerifyPanel';
+import { openExternal } from './utils/openExternal';
 
 type SectionId = 'structure' | 'assets' | 'plugin' | 'ba2' | 'qa' | 'release';
 
@@ -36,17 +37,8 @@ const safeParse = <T,>(raw: string | null, fallback: T): T => {
   }
 };
 
-const openUrl = async (url: string) => {
-  const bridge = (window as any).electron?.api || (window as any).electronAPI;
-  try {
-    if (bridge?.openExternal) {
-      await bridge.openExternal(url);
-      return;
-    }
-  } catch {
-    // ignore
-  }
-  window.open(url, '_blank', 'noopener,noreferrer');
+const openUrl = (url: string) => {
+  void openExternal(url);
 };
 
 const StepRow: React.FC<{

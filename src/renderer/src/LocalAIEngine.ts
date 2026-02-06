@@ -6,6 +6,7 @@
 import {
   buildKnowledgeManifestForModel,
   buildRelevantKnowledgeVaultContext,
+  getRelevantKnowledgeVaultItems,
 } from './knowledgeRetrieval';
 import { selfImprovementEngine } from './SelfImprovementEngine';
 
@@ -198,6 +199,7 @@ export const LocalAIEngine = {
     // Knowledge Vault (DO NOT dump full DB; keep it relevant + compact)
     const manifest = buildKnowledgeManifestForModel();
     const relevant = buildRelevantKnowledgeVaultContext(query, { maxItems: 8, maxChars: 6000 });
+    const citations = getRelevantKnowledgeVaultItems(query, { maxItems: 6 });
     if (manifest || relevant) {
       injectedContext += "\n### KNOWLEDGE VAULT (Loaded):\n";
       if (manifest) injectedContext += manifest + "\n";
@@ -238,7 +240,7 @@ export const LocalAIEngine = {
           // Record interaction for self-improvement
           selfImprovementEngine.recordInteraction(query, responseContent, [], 'success');
           
-          return { content: responseContent };
+          return { content: responseContent, context: { citations } };
         }
         console.warn('[LocalAIEngine] Local provider generation failed:', resp?.error);
       } catch (e) {
@@ -264,18 +266,20 @@ export const LocalAIEngine = {
         // Record interaction for self-improvement
         selfImprovementEngine.recordInteraction(query, responseContent, [], 'success');
         
-        return { content: responseContent };
+        return { content: responseContent, context: { citations } };
       }
 
       return {
         content:
           String(resp?.error || 'Mossy is in Passive Mode because Groq is not configured. Add a Groq API key in Desktop settings, or run a local AI backend (like Ollama).'),
+        context: { citations },
       };
     } catch (e) {
       console.error('[LocalAIEngine] Groq IPC error:', e);
       return {
         content:
           'Mossy is in Passive Mode because no local AI backend (like Ollama) was detected and Groq cloud chat is not available. Configure Groq in Desktop settings or start a local backend.',
+        context: { citations },
       };
     }
   },

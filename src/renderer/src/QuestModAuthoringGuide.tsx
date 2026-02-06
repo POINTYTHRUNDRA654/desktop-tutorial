@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { BookOpen, ChevronDown, ChevronRight, Lightbulb, AlertTriangle, CheckCircle2, MessageCircle, Map, Users, Settings, Star, FileText, Wrench, ExternalLink, Rocket } from 'lucide-react';
+import { openExternal } from './utils/openExternal';
 
 interface GuideSection {
   id: string;
@@ -14,7 +15,7 @@ export const QuestModAuthoringGuide: React.FC = () => {
   const navigate = useNavigate();
 
   const openUrl = (url: string) => {
-    window.open(url, '_blank', 'noopener,noreferrer');
+    void openExternal(url);
   };
 
   const sections: GuideSection[] = [

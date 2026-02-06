@@ -7,6 +7,7 @@ import React, { useEffect, useState } from 'react';
 import { AlertCircle, ArrowDownToLine, X } from 'lucide-react';
 import { checkForUpdates } from './utils/githubReleaseChecker';
 import { getCurrentVersion } from './utils/versionUtils';
+import { openExternal } from './utils/openExternal';
 
 interface UpdateInfo {
   available: boolean;
@@ -75,7 +76,7 @@ const UpdateNotifier: React.FC = () => {
 
   const handleDownload = () => {
     if (updateInfo?.downloadUrl) {
-      window.open(updateInfo.downloadUrl, '_blank');
+      void openExternal(updateInfo.downloadUrl);
     }
     handleDismiss();
   };

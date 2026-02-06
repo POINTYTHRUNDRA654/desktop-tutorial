@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { CheckCircle2, ExternalLink, FolderOpen, Hammer, Wrench, ShieldCheck, ArrowDownToLine, RefreshCcw, AlertCircle, Package, GitBranch, Search, Send, Download } from 'lucide-react';
 import { ToolsInstallVerifyPanel } from './components/ToolsInstallVerifyPanel';
 import { useI18n } from './i18n';
+import { openExternal } from './utils/openExternal';
 
 type WizardTopic = 'xedit' | 'ss2' | 'prp' | 'patching';
 
@@ -75,6 +76,25 @@ const loadVault = (): KnowledgeVaultItem[] => {
   return Array.isArray(parsed) ? (parsed as KnowledgeVaultItem[]) : [];
 };
 
+const normalizeVaultItems = (items: any[]): KnowledgeVaultItem[] => {
+  return items
+    .filter((it) => it && typeof it === 'object')
+    .map((it) => ({
+      title: typeof it.title === 'string' ? it.title : undefined,
+      content: typeof it.content === 'string' ? it.content : undefined,
+      source: typeof it.source === 'string' ? it.source : undefined,
+      tags: Array.isArray(it.tags) ? it.tags.filter((t: any) => typeof t === 'string') : undefined,
+      date: typeof it.date === 'string' ? it.date : undefined,
+    }))
+    .filter((it) => (it.title && it.title.trim()) || (it.content && it.content.trim()));
+};
+
+const vaultKey = (item: KnowledgeVaultItem) => {
+  const title = (item.title || '').trim();
+  const content = (item.content || '').trim();
+  return `t:${title.toLowerCase()}|c:${content.slice(0, 160).toLowerCase()}`;
+};
+
 const topicKeywords: Record<WizardTopic, string[]> = {
   xedit: ['xedit', 'fo4edit', 'apply script', 'edit scripts', 'conflict', 'override'],
   ss2: ['ss2', 'sim settlements 2', 'plot', 'plot building', 'city plan', 'workshop framework'],
@@ -99,17 +119,8 @@ const builtInLinks: Record<WizardTopic, Array<{ label: string; url: string; note
   ],
 };
 
-const openUrl = async (url: string) => {
-  const bridge = (window as any).electron?.api || (window as any).electronAPI;
-  try {
-    if (bridge?.openExternal) {
-      await bridge.openExternal(url);
-      return;
-    }
-  } catch {
-    // ignore
-  }
-  window.open(url, '_blank', 'noopener,noreferrer');
+const openUrl = (url: string) => {
+  void openExternal(url);
 };
 
 const revealPath = async (path: string) => {
@@ -167,6 +178,8 @@ export const InstallWizard: React.FC = () => {
   const [state, setState] = useState<WizardState>(() => safeParseJson(localStorage.getItem(STORAGE_KEY), DEFAULT_STATE));
 
   const [vault, setVault] = useState<KnowledgeVaultItem[]>(() => loadVault());
+  const [vaultImportStatus, setVaultImportStatus] = useState('');
+  const [vaultImportBusy, setVaultImportBusy] = useState(false);
 
   useEffect(() => {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
@@ -174,6 +187,82 @@ export const InstallWizard: React.FC = () => {
 
   const refreshVault = () => {
     setVault(loadVault());
+  };
+
+  const mergeVault = (incoming: KnowledgeVaultItem[]) => {
+    const current = loadVault();
+    const merged: KnowledgeVaultItem[] = [];
+    const seen = new Set<string>();
+
+    for (const it of current) {
+      const key = vaultKey(it);
+      if (!seen.has(key)) {
+        seen.add(key);
+        merged.push(it);
+      }
+    }
+
+    for (const it of incoming) {
+      const key = vaultKey(it);
+      if (!seen.has(key)) {
+        seen.add(key);
+        merged.push(it);
+      }
+    }
+
+    localStorage.setItem('mossy_knowledge_vault', JSON.stringify(merged));
+    setVault(merged);
+    window.dispatchEvent(new Event('mossy-knowledge-updated'));
+    return { added: Math.max(0, merged.length - current.length), total: merged.length };
+  };
+
+  const importVaultJson = async (rawText: string) => {
+    try {
+      const parsed = JSON.parse(rawText);
+      if (!Array.isArray(parsed)) {
+        setVaultImportStatus('Import failed: JSON must be an array of items.');
+        return;
+      }
+      const normalized = normalizeVaultItems(parsed);
+      if (normalized.length === 0) {
+        setVaultImportStatus('Import skipped: No usable items found.');
+        return;
+      }
+      const res = mergeVault(normalized);
+      setVaultImportStatus(`Imported ${normalized.length} items. Total now ${res.total}.`);
+    } catch (e: any) {
+      setVaultImportStatus(`Import failed: ${String(e?.message || e)}`);
+    }
+  };
+
+  const handleVaultFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setVaultImportBusy(true);
+    setVaultImportStatus('');
+    try {
+      const text = await file.text();
+      await importVaultJson(text);
+    } finally {
+      setVaultImportBusy(false);
+      e.target.value = '';
+    }
+  };
+
+  const loadBundledVault = async () => {
+    setVaultImportBusy(true);
+    setVaultImportStatus('');
+    try {
+      const resp = await fetch('/knowledge/seed-vault.json', { cache: 'no-cache' });
+      if (!resp.ok) {
+        setVaultImportStatus('Bundled vault not found.');
+        return;
+      }
+      const text = await resp.text();
+      await importVaultJson(text);
+    } finally {
+      setVaultImportBusy(false);
+    }
   };
 
   const vaultLinks = useMemo(() => {
@@ -819,6 +908,39 @@ export const InstallWizard: React.FC = () => {
                   </div>
                 )}
               </div>
+            </div>
+
+            <div className="rounded-xl border border-slate-800 bg-black/40 p-5">
+              <div className="flex items-center justify-between gap-4">
+                <div>
+                  <div className="text-xs font-black tracking-widest uppercase text-slate-400">Optional: Knowledge Vault Import</div>
+                  <div className="text-[11px] text-slate-400 mt-1">
+                    Import a Mossy Vault JSON export (from Memory Vault) or load the bundled vault. This does not include app scan data.
+                  </div>
+                </div>
+                <div className="text-[11px] text-slate-500">Current items: {vault.length}</div>
+              </div>
+
+              <div className="mt-4 flex flex-wrap gap-3 items-center">
+                <label className="inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-slate-900/40 border border-slate-800 text-xs font-bold text-slate-200 hover:border-slate-600 transition-colors cursor-pointer">
+                  <ArrowDownToLine className="w-4 h-4" />
+                  Import JSON
+                  <input type="file" accept="application/json" onChange={handleVaultFile} className="hidden" />
+                </label>
+                <button
+                  type="button"
+                  onClick={loadBundledVault}
+                  disabled={vaultImportBusy}
+                  className="inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-emerald-900/20 border border-emerald-500/30 text-emerald-100 text-xs font-bold hover:bg-emerald-900/30 transition-colors disabled:opacity-60"
+                >
+                  <Download className="w-4 h-4" />
+                  Load bundled vault
+                </button>
+                <Link to="/memory-vault" className="text-[11px] text-emerald-300 hover:underline">Open Memory Vault</Link>
+              </div>
+              {vaultImportStatus && (
+                <div className="mt-3 text-[11px] text-slate-300">{vaultImportStatus}</div>
+              )}
             </div>
 
             {/* Steps */}

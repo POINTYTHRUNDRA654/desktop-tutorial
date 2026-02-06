@@ -25,12 +25,30 @@ import {
   Pause
 } from 'lucide-react';
 
+import { ContextualMiningEngine as ContextualMiningEngineImpl } from './ContextualMiningEngine';
+import { MLConflictPredictionEngine as MLConflictPredictionEngineImpl } from './MLConflictPredictionEngine';
+import { PerformanceBottleneckEngine as PerformanceBottleneckEngineImpl } from './PerformanceBottleneckEngine';
+import { HardwareAwareMiningEngine as HardwareAwareMiningEngineImpl } from './HardwareAwareMiningEngine';
+import { LongitudinalMiningEngine as LongitudinalMiningEngineImpl } from './LongitudinalMiningEngine';
+
+const isTestEnv = import.meta.env.MODE === 'test';
+
 // Lazy load individual engine components for better performance
-const ContextualMiningEngine = React.lazy(() => import('./ContextualMiningEngine').then(module => ({ default: module.ContextualMiningEngine })));
-const MLConflictPredictionEngine = React.lazy(() => import('./MLConflictPredictionEngine').then(module => ({ default: module.MLConflictPredictionEngine })));
-const PerformanceBottleneckEngine = React.lazy(() => import('./PerformanceBottleneckEngine').then(module => ({ default: module.PerformanceBottleneckEngine })));
-const HardwareAwareMiningEngine = React.lazy(() => import('./HardwareAwareMiningEngine').then(module => ({ default: module.HardwareAwareMiningEngine })));
-const LongitudinalMiningEngine = React.lazy(() => import('./LongitudinalMiningEngine').then(module => ({ default: module.LongitudinalMiningEngine })));
+const ContextualMiningEngine = isTestEnv
+  ? ContextualMiningEngineImpl
+  : React.lazy(() => import('./ContextualMiningEngine').then(module => ({ default: module.ContextualMiningEngine })));
+const MLConflictPredictionEngine = isTestEnv
+  ? MLConflictPredictionEngineImpl
+  : React.lazy(() => import('./MLConflictPredictionEngine').then(module => ({ default: module.MLConflictPredictionEngine })));
+const PerformanceBottleneckEngine = isTestEnv
+  ? PerformanceBottleneckEngineImpl
+  : React.lazy(() => import('./PerformanceBottleneckEngine').then(module => ({ default: module.PerformanceBottleneckEngine })));
+const HardwareAwareMiningEngine = isTestEnv
+  ? HardwareAwareMiningEngineImpl
+  : React.lazy(() => import('./HardwareAwareMiningEngine').then(module => ({ default: module.HardwareAwareMiningEngine })));
+const LongitudinalMiningEngine = isTestEnv
+  ? LongitudinalMiningEngineImpl
+  : React.lazy(() => import('./LongitudinalMiningEngine').then(module => ({ default: module.LongitudinalMiningEngine })));
 
 interface Phase2MiningDashboardProps {
   // Engine status and control

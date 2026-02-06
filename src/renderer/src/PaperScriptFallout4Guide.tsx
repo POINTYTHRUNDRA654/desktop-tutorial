@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { openExternal } from './utils/openExternal';
 
 const PaperScriptFallout4Guide = () => {
   const navigate = useNavigate();
@@ -107,16 +108,7 @@ const PaperScriptFallout4Guide = () => {
   };
 
   const openUrl = (url: string) => {
-    try {
-      const anyWindow = window as any;
-      if (anyWindow?.electron?.openExternal) {
-        anyWindow.electron.openExternal(url);
-        return;
-      }
-    } catch {
-      // ignore
-    }
-    window.open(url, '_blank', 'noopener,noreferrer');
+    void openExternal(url);
   };
 
   const openNexusSearch = (query: string) => {
