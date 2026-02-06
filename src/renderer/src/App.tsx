@@ -75,6 +75,7 @@ const LocalCapabilities = React.lazy(() => import('./LocalCapabilities'));
 const ScriptAnalyzer = React.lazy(() => import('./ScriptAnalyzer').then(module => ({ default: module.ScriptAnalyzer })));
 const TemplateGenerator = React.lazy(() => import('./TemplateGenerator').then(module => ({ default: module.TemplateGenerator })));
 const ExternalToolsSettings = React.lazy(() => import('./ExternalToolsSettings'));
+const CosmosWorkflow = React.lazy(() => import('./CosmosWorkflow'));
 const ToolVerify = React.lazy(() => import('./ToolVerify'));
 const CommunityLearning = React.lazy(() => import('./CommunityLearning'));
 const BlenderAnimationGuide = React.lazy(() => import('./BlenderAnimationGuide').then(module => ({ default: module.BlenderAnimationGuide })));
@@ -395,6 +396,44 @@ const App: React.FC = () => {
     };
 
     seedVault();
+  }, []);
+
+  useEffect(() => {
+    const seedKnowledgeRoots = async () => {
+      const ROOTS_KEY = 'mossy_knowledge_roots_v1';
+      const defaultRoots = [
+        'external/nvidia-cosmos/cosmos-transfer2.5',
+        'external/nvidia-cosmos/cosmos-predict2.5',
+        'external/nvidia-cosmos/cosmos-cookbook',
+        'external/nvidia-cosmos/cosmos-rl',
+        'external/nvidia-cosmos/cosmos-dependencies',
+        'external/nvidia-cosmos/cosmos-curate',
+        'external/nvidia-cosmos/cosmos-xenna',
+      ];
+      try {
+        const api = (window as any).electron?.api || (window as any).electronAPI;
+        if (!api?.fsStat) return;
+
+        const raw = localStorage.getItem(ROOTS_KEY);
+        const parsed = raw ? JSON.parse(raw) : [];
+        const roots = Array.isArray(parsed) ? parsed : [];
+
+        const next = [...roots];
+        for (const root of defaultRoots) {
+          const status = await api.fsStat(root);
+          if (!status?.exists || !status?.isDirectory) continue;
+          if (!next.includes(root)) next.push(root);
+        }
+
+        if (next.length !== roots.length) {
+          localStorage.setItem(ROOTS_KEY, JSON.stringify(next));
+        }
+      } catch {
+        // Ignore root seeding failures
+      }
+    };
+
+    seedKnowledgeRoots();
   }, []);
 
   useEffect(() => {
@@ -813,6 +852,7 @@ const App: React.FC = () => {
                 <Route path="/tools/vault" element={<ErrorBoundary><TheVault /></ErrorBoundary>} />
                 <Route path="/tools/dedupe" element={<ErrorBoundary><DuplicateFinder /></ErrorBoundary>} />
                 <Route path="/tools/ba2-manager" element={<ErrorBoundary><BA2Manager /></ErrorBoundary>} />
+                <Route path="/tools/cosmos" element={<ErrorBoundary><CosmosWorkflow /></ErrorBoundary>} />
 
                 {/* Development & Workflow */}
                 <Route path="/dev" element={<ErrorBoundary><TheNexus /></ErrorBoundary>} />
@@ -938,6 +978,7 @@ const App: React.FC = () => {
                 <Route path="/tts" element={<Navigate to="/media/tts" replace />} />
                 <Route path="/bridge" element={<Navigate to="/test/bridge" replace />} />
                 <Route path="/dedupe" element={<Navigate to="/tools/dedupe" replace />} />
+                <Route path="/cosmos" element={<Navigate to="/tools/cosmos" replace />} />
                 <Route path="/diagnostics" element={<Navigate to="/devtools/diagnostics" replace />} />
                 <Route path="/tool-verify" element={<Navigate to="/devtools/tool-verify" replace />} />
                 <Route path="/community" element={<Navigate to="/learn/community" replace />} />

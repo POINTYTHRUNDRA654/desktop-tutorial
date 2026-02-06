@@ -206,11 +206,13 @@ export interface Settings {
   llmModel: string;
 
   // Local AI (optional)
-  localAiPreferredProvider?: 'auto' | 'ollama' | 'openai_compat' | 'off';
+  localAiPreferredProvider?: 'auto' | 'cosmos' | 'ollama' | 'openai_compat' | 'off';
   ollamaBaseUrl?: string;
   ollamaModel?: string;
   openaiCompatBaseUrl?: string;
   openaiCompatModel?: string;
+  cosmosBaseUrl?: string;
+  cosmosModel?: string;
   
   // Audio Settings
   ttsEnabled: boolean;
@@ -454,6 +456,8 @@ export const DEFAULT_SETTINGS: Settings = {
   ollamaModel: 'llama3',
   openaiCompatBaseUrl: 'http://127.0.0.1:1234/v1',
   openaiCompatModel: '',
+  cosmosBaseUrl: '',
+  cosmosModel: '',
   ttsEnabled: true,
   ttsVoice: 'default',
   ttsRate: 1.0,

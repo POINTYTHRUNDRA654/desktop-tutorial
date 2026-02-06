@@ -811,21 +811,41 @@ function setupIpcHandlers() {
 
       const { shell } = await import('electron');
       const fs = await import('fs');
+      const pathMod = await import('path');
+
+      let resolvedPath = filePath;
+      if (!pathMod.isAbsolute(filePath)) {
+        const resolvedFromCwd = pathMod.resolve(filePath);
+        const candidates = [
+          resolvedFromCwd,
+          pathMod.join(app.getAppPath(), filePath),
+          pathMod.join(app.getAppPath(), '..', filePath),
+          pathMod.join(app.getAppPath(), '..', '..', filePath),
+          pathMod.join(process.resourcesPath, filePath),
+          pathMod.join(process.cwd(), filePath),
+          pathMod.join(process.cwd(), '..', filePath),
+        ];
+
+        const match = candidates.find(candidate => fs.existsSync(candidate));
+        if (match) {
+          resolvedPath = match;
+        }
+      }
 
       // Check if file exists
-      if (!fs.existsSync(filePath)) {
-        throw new Error(`File not found: ${filePath}`);
+      if (!fs.existsSync(resolvedPath)) {
+        throw new Error(`File not found: ${resolvedPath}`);
       }
 
       // Open the file with the default application or launch executable
-      const result = await shell.openPath(filePath);
+      const result = await shell.openPath(resolvedPath);
       
       // If result is not empty, it means there was an error
       if (result) {
         throw new Error(result);
       }
 
-      console.log('Successfully opened external file:', filePath);
+      console.log('Successfully opened external file:', resolvedPath);
     } catch (error) {
       console.error('Error opening external file:', error);
       throw error;
@@ -1050,6 +1070,8 @@ function setupIpcHandlers() {
       ollamaModel: 'llama3',
       openaiCompatBaseUrl: 'http://127.0.0.1:1234/v1',
       openaiCompatModel: '',
+      cosmosBaseUrl: '',
+      cosmosModel: '',
 
       xeditPath: '',
       xeditScriptsDirOverride: '',
@@ -2968,12 +2990,19 @@ function setupIpcHandlers() {
     const s = loadSettings();
     const ollama = await getOllamaStatus(String(s?.ollamaBaseUrl || 'http://127.0.0.1:11434')) as any;
     const openaiCompat = await getOpenAICompatStatus(String(s?.openaiCompatBaseUrl || 'http://127.0.0.1:1234/v1')) as any;
+    const cosmosBaseUrl = String(s?.cosmosBaseUrl || '').trim();
+    const cosmos = cosmosBaseUrl
+      ? await getOpenAICompatStatus(cosmosBaseUrl) as any
+      : { ok: false, baseUrl: cosmosBaseUrl, error: 'Not configured' } as any;
 
     return {
       ok: true,
       ollama: ollama.ok
         ? { ok: true, provider: 'ollama', baseUrl: ollama.baseUrl, models: ollama.models }
         : { ok: false, provider: 'ollama', baseUrl: ollama.baseUrl, error: ollama.error },
+      cosmos: cosmos.ok
+        ? { ok: true, provider: 'cosmos', baseUrl: cosmos.baseUrl, models: cosmos.models }
+        : { ok: false, provider: 'cosmos', baseUrl: cosmos.baseUrl, error: cosmos.error },
       openaiCompat: openaiCompat.ok
         ? { ok: true, provider: 'openai_compat', baseUrl: openaiCompat.baseUrl, models: openaiCompat.models }
         : { ok: false, provider: 'openai_compat', baseUrl: openaiCompat.baseUrl, error: openaiCompat.error },
@@ -2984,10 +3013,10 @@ function setupIpcHandlers() {
     IPC_CHANNELS.ML_LLM_GENERATE,
     async (
       _event,
-      req: { provider: 'ollama' | 'openai_compat'; model: string; prompt: string; baseUrl?: string }
+      req: { provider: 'ollama' | 'openai_compat' | 'cosmos'; model: string; prompt: string; baseUrl?: string }
     ) => {
     try {
-      if (!req || (req.provider !== 'ollama' && req.provider !== 'openai_compat')) return { ok: false, error: 'Unsupported provider' };
+      if (!req || (req.provider !== 'ollama' && req.provider !== 'openai_compat' && req.provider !== 'cosmos')) return { ok: false, error: 'Unsupported provider' };
       const model = String(req.model || '');
       const prompt = String(req.prompt || '');
       if (!model.trim()) return { ok: false, error: 'Missing model' };
@@ -2996,6 +3025,19 @@ function setupIpcHandlers() {
       if (req.provider === 'ollama') {
         const baseUrl = req.baseUrl || String(loadSettings()?.ollamaBaseUrl || 'http://127.0.0.1:11434');
         return await ollamaGenerate({ model, prompt }, { baseUrl });
+      }
+
+      if (req.provider === 'cosmos') {
+        const baseUrl = req.baseUrl || String(loadSettings()?.cosmosBaseUrl || '');
+        if (!String(baseUrl || '').trim()) return { ok: false, error: 'Cosmos base URL not configured' };
+        const resp = await openAICompatChat({
+          baseUrl,
+          model,
+          system: 'You are Mossy, a Cosmos Reason2 local model. Follow the user prompt carefully.',
+          user: prompt,
+        });
+        if (!(resp as any).ok) return { ok: false, error: (resp as any).error };
+        return { ok: true, text: (resp as any).text };
       }
 
       const resp = await openAICompatChat({

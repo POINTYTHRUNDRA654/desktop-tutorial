@@ -167,13 +167,16 @@ export type MlLlmStatusResponse =
 export type MlCapsStatusResponse = {
   ok: true;
   ollama: MlLlmStatusResponse;
+  cosmos:
+    | { ok: true; provider: 'cosmos'; baseUrl: string; models: string[] }
+    | { ok: false; provider: 'cosmos'; baseUrl: string; error: string };
   openaiCompat:
     | { ok: true; provider: 'openai_compat'; baseUrl: string; models: string[] }
     | { ok: false; provider: 'openai_compat'; baseUrl: string; error: string };
 };
 
 export type MlLlmGenerateRequest = {
-  provider: 'ollama' | 'openai_compat';
+  provider: 'ollama' | 'openai_compat' | 'cosmos';
   model: string;
   prompt: string;
   baseUrl?: string;
