@@ -1,0 +1,33 @@
+{
+  "profile": {
+    "userId": "default_user",
+    "preferences": {
+      "visualQuality": 7,
+      "performancePriority": 7,
+      "visualQualityPriority": 7,
+      "stabilityPriority": 7,
+      "modCategories": {},
+      "complexityTolerance": 7,
+      "automationPreference": 7,
+      "learningStyle": "interactive"
+    },
+    "behaviorPatterns": [],
+    "performanceTolerance": {
+      "minFPS": 30,
+      "maxMemoryUsage": 80,
+      "acceptableLoadTime": 30
+    },
+    "modPreferences": {},
+    "settingPreferences": {},
+    "contextualPatterns": [],
+    "learningProgress": {
+      "interactionsProcessed": 0,
+      "feedbackIncorporated": 0,
+      "patternsLearned": 0,
+      "adaptationCycles": 0
+    },
+    "lastUpdated": 1770332380199
+  },
+  "lastSaved": 1770358622896,
+  "version": "1.0"
+}
