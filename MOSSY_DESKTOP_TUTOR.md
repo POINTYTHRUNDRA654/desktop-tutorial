@@ -1,6 +1,6 @@
-# Volt Tech Desktop Wrapper - Update
+# Mossy Desktop Tutor
 
-This repository now includes an **Electron-based desktop wrapper** for the Volt Tech web application with native program detection capabilities.
+This repository includes an **Electron-based desktop wrapper** for the Mossy desktop app with native program detection capabilities.
 
 ## New Features
 
@@ -12,18 +12,23 @@ This repository now includes an **Electron-based desktop wrapper** for the Volt 
 
 ### 🚀 Desktop Application
 - Secure Electron context (contextIsolation, no nodeIntegration, sandboxed)
-- Loads Volt Tech web build from `./external/volttech-dist/`
+- Loads Mossy web build from `./external/volttech-dist/` (legacy folder name)
 - Development mode with hot reload support
 - Production-ready Windows NSIS installer
 
+### ✅ What's Included in the Installer
+- Bundled knowledge docs from `resources/public/knowledge` for in-app reference
+- Memory Vault with source/credit/trust metadata and import/export support
+- First Success wizard, Knowledge Search, The Lens scan diff, and Explain Why citations
+
 ## Quick Start
 
-### For Volt Tech Integration
+### For Mossy Desktop Integration
 
 1. **Place your built front-end in `external/volttech-dist/`**
    ```bash
-   # Copy built files from Mossy-Vault---TEC
-   cp -r /path/to/Mossy-Vault---TEC/dist/* external/volttech-dist/
+  # Copy built files from your Mossy UI build
+  cp -r /path/to/mossy-ui/dist/* external/volttech-dist/
    ```
 
 2. **Use the API in your front-end**
@@ -117,7 +122,7 @@ npm run package:win
 ```
 
 This creates:
-- `release/Volt Tech Desktop Setup x.x.x.exe` - NSIS installer
+- `release/Mossy Setup x.x.x.exe` - NSIS installer
 - Installer supports both x64 and ia32 architectures
 - Allows custom installation directory
 - Creates desktop and Start Menu shortcuts
@@ -135,11 +140,11 @@ desktop-tutorial/
 │   │   ├── detectPrograms.ts # Program detection logic
 │   │   ├── types.ts          # TypeScript interfaces
 │   │   └── README.md         # Detailed documentation
-│   ├── main/                 # Original main process
+│   ├── main/                 # Main-process services and preload helpers
 │   ├── renderer/             # React renderer
 │   └── shared/               # Shared types
 ├── external/
-│   └── volttech-dist/        # NEW: Volt Tech web build goes here
+│   └── volttech-dist/        # Legacy folder name: Mossy web build goes here
 │       └── index.html        # Entry point (placeholder)
 ├── public/
 │   └── attach-programs.html  # NEW: Example UI
@@ -159,7 +164,7 @@ desktop-tutorial/
 {
   "build": {
     "appId": "com.volttech.desktop",
-    "productName": "Volt Tech Desktop",
+    "productName": "Mossy",
     "win": {
       "target": ["nsis"]
     },
@@ -210,7 +215,7 @@ Windows installer requires Wine. Build on Windows or use CI/CD with Windows runn
 
 ## Next Steps
 
-1. Copy Volt Tech built assets to `external/volttech-dist/`
+1. Copy Mossy built assets to `external/volttech-dist/`
 2. Integrate `window.electron.api` calls in your front-end
 3. Test program detection and launching
 4. Build Windows installer with `npm run package:win`
