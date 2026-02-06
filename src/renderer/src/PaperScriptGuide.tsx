@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ChevronDown } from 'lucide-react';
+import { openExternal } from './utils/openExternal';
 
 const PaperScriptGuide = () => {
   const navigate = useNavigate();
@@ -111,16 +112,7 @@ const PaperScriptGuide = () => {
   };
 
   const openUrl = (url: string) => {
-    try {
-      const anyWindow = window as any;
-      if (anyWindow?.electron?.openExternal) {
-        anyWindow.electron.openExternal(url);
-        return;
-      }
-    } catch {
-      // ignore
-    }
-    window.open(url, '_blank', 'noopener,noreferrer');
+    void openExternal(url);
   };
 
   const openNexusSearch = (query: string) => {

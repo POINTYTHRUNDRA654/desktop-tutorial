@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Bone, Search, Grid, List, ChevronRight } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { openExternal } from './utils/openExternal';
 
 interface SkeletonBone {
   name: string;
@@ -74,12 +75,7 @@ export const SkeletonReference: React.FC = () => {
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set(['Root', 'Spine', 'Head']));
 
   const openUrl = (url: string) => {
-    const api = (window as any).electron?.api || (window as any).electronAPI;
-    if (typeof api?.openExternal === 'function') {
-      api.openExternal(url);
-      return;
-    }
-    window.open(url, '_blank', 'noopener,noreferrer');
+    void openExternal(url);
   };
 
   const openNexusSearch = (keywords: string) => {

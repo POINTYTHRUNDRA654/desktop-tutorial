@@ -387,6 +387,10 @@ const SystemMonitor: React.FC = () => {
                 publisher: a.publisher
             }))
         };
+        const previousSummary = localStorage.getItem('mossy_scan_summary');
+        if (previousSummary) {
+            localStorage.setItem('mossy_scan_summary_prev', previousSummary);
+        }
         localStorage.setItem('mossy_scan_summary', JSON.stringify(programSummary));
         
         // UPDATE STATE so component re-renders with new data
@@ -622,6 +626,9 @@ const SystemMonitor: React.FC = () => {
                     <div className="bg-slate-900/60 border border-slate-800 rounded-xl p-4">
                         <div className="text-sm font-semibold text-white mb-1">Existing Workflow (Legacy)</div>
                         <div className="text-xs text-slate-400 mb-3">Jump to the original tabs and actions.</div>
+                        <div className="mb-3 rounded border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-[11px] text-amber-200">
+                            Build/release automation is not wired yet. Use the Assembler and Packaging Release Wizard for real output.
+                        </div>
                         <div className="flex flex-wrap gap-2">
                             <button
                                 onClick={() => setActiveTab('telemetry')}

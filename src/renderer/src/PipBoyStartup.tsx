@@ -20,7 +20,20 @@ export const PipBoyStartup: React.FC<{ onComplete: () => void }> = ({ onComplete
   const [currentStep, setCurrentStep] = useState(0);
   const [logs, setLogs] = useState<string[]>([]);
 
+  // Check if we're in test mode and skip the loading sequence
+  const isTestMode = window.location.search.includes('test') ||
+                     window.localStorage.getItem('mossy_test_mode') === 'true';
+
   useEffect(() => {
+    if (isTestMode) {
+      // In test mode, complete immediately
+      setLogs(['[TEST MODE] Skipping boot sequence...']);
+      setTimeout(() => {
+        onComplete();
+      }, 100);
+      return;
+    }
+
     if (currentStep < steps.length) {
       const step = steps[currentStep];
       

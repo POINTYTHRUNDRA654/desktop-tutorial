@@ -6,6 +6,7 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ChevronDown, ChevronUp, ExternalLink, CheckCircle2, AlertCircle } from 'lucide-react';
+import { openExternal } from './utils/openExternal';
 
 interface Section {
   id: string;
@@ -35,16 +36,7 @@ const BodyslideGuide: React.FC = () => {
   );
 
   const openUrl = (url: string) => {
-    try {
-      const anyWindow = window as any;
-      if (anyWindow?.electron?.openExternal) {
-        anyWindow.electron.openExternal(url);
-        return;
-      }
-    } catch {
-      // ignore
-    }
-    window.open(url, '_blank', 'noopener,noreferrer');
+    void openExternal(url);
   };
 
   const openNexusSearch = (query: string) => {

@@ -65,7 +65,7 @@ export const LiveProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   useEffect(() => {
     const config: VoiceServiceConfig = {
       sttProvider: 'backend', // Use backend STT if available, fallback to browser
-      ttsProvider: 'browser', // Default to browser TTS
+      ttsProvider: 'browser',
       deepgramKey: undefined, // API keys accessed through main process
       elevenlabsKey: undefined, // API keys accessed through main process
     };
@@ -107,8 +107,11 @@ export const LiveProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   }, []);
 
   const sendMessageToMain = async (message: string): Promise<string> => {
+    console.log('[LiveContext] sendMessageToMain() called with message:', message.substring(0, 100) + (message.length > 100 ? '...' : ''));
     return new Promise((resolve, reject) => {
-      if (!window.electronAPI?.sendMessage || !window.electronAPI?.onMessage) {
+      const api = (window as any).electron?.api || (window as any).electronAPI;
+      if (!api?.sendMessage || !api?.onMessage) {
+        console.error('[LiveContext] Electron API not available');
         reject(new Error('Electron API not available'));
         return;
       }
@@ -117,7 +120,8 @@ export const LiveProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       let cleanup: (() => void) | null = null;
 
       // Listen for the response
-      cleanup = window.electronAPI.onMessage((responseMessage: any) => {
+      cleanup = api.onMessage((responseMessage: any) => {
+        console.log('[LiveContext] Received response from main:', responseMessage);
         if (!resolved && responseMessage.role === 'assistant') {
           resolved = true;
           if (cleanup) cleanup();
@@ -128,9 +132,12 @@ export const LiveProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       // Enhance the message with context-aware AI suggestions and Voice Mode flag
       const baseEnhancedMessage = contextAwareAIService.enhancePromptWithContext(message);
       const enhancedMessage = `[SYSTEM: LIVE SYNAPSE VOICE SESSION ACTIVE - FOLLOW PACING RULES]\n${baseEnhancedMessage}`;
+      console.log('[LiveContext] Enhanced message:', enhancedMessage.substring(0, 200) + (enhancedMessage.length > 200 ? '...' : ''));
 
       // Send the enhanced message
-      window.electronAPI.sendMessage(enhancedMessage).catch((error) => {
+      console.log('[LiveContext] Sending message to main process...');
+      api.sendMessage(enhancedMessage).catch((error: any) => {
+        console.error('[LiveContext] Error sending message to main:', error);
         if (!resolved) {
           resolved = true;
           if (cleanup) cleanup();
@@ -141,6 +148,7 @@ export const LiveProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       // Timeout after 30 seconds
       setTimeout(() => {
         if (!resolved) {
+          console.error('[LiveContext] Response timeout after 30 seconds');
           resolved = true;
           if (cleanup) cleanup();
           reject(new Error('Response timeout'));
@@ -202,10 +210,15 @@ export const LiveProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
       // Add AI response to history
       conversationHistoryRef.current.push({ role: 'assistant', content: response });
+      console.log('[LiveContext] AI response received, about to speak:', response.substring(0, 100) + (response.length > 100 ? '...' : ''));
 
       // Speak the response
       if (voiceServiceRef.current) {
+        console.log('[LiveContext] Calling voiceService.speak()');
         await voiceServiceRef.current.speak(response);
+        console.log('[LiveContext] voiceService.speak() completed');
+      } else {
+        console.error('[LiveContext] voiceServiceRef.current is null, cannot speak');
       }
 
       // Final check to see if we're still active before resetting mode

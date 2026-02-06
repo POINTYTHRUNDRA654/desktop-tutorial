@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { List, ChevronDown, ChevronRight, Zap, AlertTriangle, CheckCircle2, Code, FileText, Settings } from 'lucide-react';
+import { openExternal } from './utils/openExternal';
 
 interface GuideSection {
   id: string;
@@ -14,16 +15,7 @@ export const LeveledListInjectionGuide: React.FC = () => {
   const [expandedSection, setExpandedSection] = useState<string>('overview');
 
   const openUrl = (url: string) => {
-    try {
-      const anyWindow = window as any;
-      if (anyWindow?.electron?.openExternal) {
-        anyWindow.electron.openExternal(url);
-        return;
-      }
-    } catch {
-      // ignore
-    }
-    window.open(url, '_blank', 'noopener,noreferrer');
+    void openExternal(url);
   };
 
   const openNexusSearch = (query: string) => {

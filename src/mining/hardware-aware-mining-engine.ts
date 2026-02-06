@@ -173,19 +173,22 @@ export class HardwareAwareMiningEngineImpl extends EventEmitter implements Hardw
     const hardwareProfile = await this.getHardwareProfile();
     const compatibilityAnalysis = await this.analyzeHardwareCompatibility([]);
     const recommendations = await this.generateHardwareSpecificRecommendations(hardwareProfile);
+    const metadata = {
+      hardwareProfile,
+      compatibilityAnalysis,
+      recommendations,
+      optimizationHistory: []
+    };
 
     return {
       engine: 'hardware-aware',
+      timestamp: new Date(),
       timestampNum: Date.now(),
       predictions: [],
       insights: [],
       recommendations: recommendations,
-      resultMetadata: {
-        hardwareProfile,
-        compatibilityAnalysis,
-        recommendations,
-        optimizationHistory: []
-      }
+      metadata,
+      resultMetadata: metadata
     };
   }
 

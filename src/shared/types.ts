@@ -197,6 +197,9 @@ export interface Settings {
     groqApiKey?: string;
     deepgramApiKey?: string;
     elevenLabsApiKey?: string;
+  // Backend configuration
+  backendBaseUrl?: string;
+  backendTokenConfigured?: boolean;
   // LLM Configuration
   llmApiEndpoint: string;
   llmApiKey?: string;
@@ -2424,7 +2427,7 @@ export interface ElectronAPI {
   startListening: () => Promise<void>;
   stopListening: () => Promise<void>;
   onSttResult: (callback: (text: string) => void) => (() => void);
-  onTtsSpeak: (callback: (text: string) => void) => (() => void);
+  onTtsSpeak: (callback: (text: string | null) => void) => (() => void);
   transcribeAudio: (arrayBuffer: ArrayBuffer, mimeType?: string) => Promise<{ success: boolean; text?: string; error?: string }>;
   // PDF parsing
   parsePDF: (arrayBuffer: ArrayBuffer) => Promise<{ success: boolean; text?: string; error?: string }>;

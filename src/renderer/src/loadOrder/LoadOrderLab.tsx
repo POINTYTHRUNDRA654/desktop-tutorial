@@ -359,6 +359,9 @@ export const LoadOrderLab: React.FC = () => {
             <p className="text-xs text-slate-400 mt-1">
               MO2 + LOOT import, then generate an xEdit script stub.
             </p>
+            <div className="mt-3 rounded border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-[11px] text-amber-200">
+              The generated script is a stub placeholder. It only creates an empty patch and does not resolve conflicts for you.
+            </div>
           </div>
 
           <div className="flex gap-2 flex-wrap justify-end">

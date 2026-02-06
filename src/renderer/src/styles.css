@@ -112,19 +112,10 @@ body.pip-boy-mode::before {
   right: 0;
   bottom: 0;
   pointer-events: none;
-  background: 
-    /* Scanlines */
-    repeating-linear-gradient(
-      0deg,
-      rgba(0, 0, 0, 0.15),
-      rgba(0, 0, 0, 0.15) 1px,
-      transparent 1px,
-      transparent 2px
-    ),
-    /* Vignette effect */
-    radial-gradient(ellipse at center, transparent 0%, rgba(0, 0, 0, 0.5) 100%);
-  z-index: 9999;
-  animation: scanline-flicker 0.1s infinite;
+  background: none;
+  z-index: 0;
+  opacity: 0;
+  animation: none;
 }
 
 body.pip-boy-mode::after {
@@ -135,9 +126,10 @@ body.pip-boy-mode::after {
   right: 0;
   bottom: 0;
   pointer-events: none;
-  background: radial-gradient(ellipse at center, rgba(230, 176, 74, 0.03) 0%, transparent 70%);
-  z-index: 9998;
-  animation: crt-glow 2s ease-in-out infinite alternate;
+  background: none;
+  z-index: 0;
+  opacity: 0;
+  animation: none;
 }
 
 @keyframes scanline-flicker {
@@ -158,6 +150,11 @@ body.pip-boy-mode * {
 body.pip-boy-mode .bg-slate-900,
 body.pip-boy-mode .bg-slate-800,
 body.pip-boy-mode [class*="bg-slate"] {
+  background-color: var(--pipboy-bg-secondary) !important;
+}
+
+body.pip-boy-mode .bg-black,
+body.pip-boy-mode [class*="bg-black"] {
   background-color: var(--pipboy-bg-secondary) !important;
 }
 

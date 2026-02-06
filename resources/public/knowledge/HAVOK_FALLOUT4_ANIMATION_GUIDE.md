@@ -943,14 +943,14 @@ Workflow:
 ```
 
 ### Credits & Sources
-- ShadeAnimator — Fallout 4 Animation Kit (F4AK) and original guide (Nexus: http://www.nexusmods.com/fallout4/mods/16694/?)
+- ShadeAnimator — Fallout 4 Animation Kit (F4AK) and original guide (Nexus: https://www.nexusmods.com/fallout4/mods/16694)
 - Bizz — 32-bit skeleton/animation conversion workflow and tutorial
 - Figment — updated NifTools tools
 - Mars — tutorial hosting and support
 - DexesTTP — HKXPack/HKXAnim tools (HKXPack v0.1.5-beta: https://github.com/Dexesttp/hkxpack/releases/tag/v0.1.5-beta)
-- MaikCG — F4Biped animation rig: http://www.nexusmods.com/fallout4/mods/16691/?
+- MaikCG — F4Biped animation rig: https://www.nexusmods.com/fallout4/mods/16691
 - Contributors: CPU, NifTools team, JoshNZ, Kimbale, Caliente/Ousnius (CBBE)
-- F4AK guide/wiki mirror: http://wiki.nexusmods.com/index.php/Animation_In_Fallout_4
+- F4AK guide/wiki mirror: https://wiki.nexusmods.com/index.php/Animation_In_Fallout_4
 - Havok animation playlist: https://www.youtube.com/watch?v=PZ5nP8mwzDA&list=PLGGw--fFEeZd5HM9shaaANPuXP9zAgmAN
 
 ---

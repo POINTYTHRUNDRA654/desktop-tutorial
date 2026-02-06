@@ -552,7 +552,7 @@ const MossyObserver: React.FC = () => {
     if (!message && !visible) return null;
 
     return (
-        <div className={`fixed bottom-8 right-8 z-50 transition-all duration-500 transform ${visible ? 'translate-y-0 opacity-100' : 'translate-y-4 opacity-0 pointer-events-none'}`}>
+        <div className={`fixed bottom-6 left-1/2 -translate-x-1/2 z-30 transition-all duration-500 transform ${visible ? 'translate-y-0 opacity-100' : 'translate-y-4 opacity-0 pointer-events-none'}`}>
             <div className="flex items-end gap-3">
                 <div className={`backdrop-blur-md border p-4 rounded-2xl rounded-br-none shadow-[0_0_30px_rgba(16,185,129,0.15)] max-w-xs relative animate-slide-up ${
                     isAlert 

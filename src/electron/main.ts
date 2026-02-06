@@ -167,8 +167,8 @@ const postFormData = async (
 const dedupeScanStates = new Map<string, DedupeScanState>();
 const dedupeAllowedPathsByScan = new Map<string, Set<string>>();
 
-// Development mode flag
-const isDev = process.env.NODE_ENV === 'development' || !app.isPackaged;
+// Development mode flag - only check for dev when not packaged
+const isDev = !app.isPackaged && (process.env.NODE_ENV === 'development' || process.env.ELECTRON_IS_TEST === 'true');
 
 // Allow override of start URL for development
 const ELECTRON_START_URL = process.env.ELECTRON_START_URL;
@@ -228,14 +228,18 @@ function createWindow() {
   });
 
   // Load the app based on environment
-  if (isDev && ELECTRON_START_URL) {
-    // Development with custom URL
-    mainWindow.loadURL(ELECTRON_START_URL);
+  const isTestMode = process.env.ELECTRON_IS_TEST === 'true';
+  const devPort = Number(process.env.VITE_DEV_SERVER_PORT || process.env.DEV_SERVER_PORT || 5173);
+  const testParam = isTestMode ? '?test=true' : '';
+  const devUrl = ELECTRON_START_URL || `http://localhost:${devPort}`;
+
+  if (!app.isPackaged && (ELECTRON_START_URL || process.env.VITE_DEV_SERVER_PORT || process.env.DEV_SERVER_PORT)) {
+    // Development with custom or local server URL
+    mainWindow.loadURL(`${devUrl}${testParam}`);
     mainWindow.webContents.openDevTools();
   } else if (isDev) {
-    // Development with local server
-    const devPort = Number(process.env.VITE_DEV_SERVER_PORT || process.env.DEV_SERVER_PORT || 5173);
-    mainWindow.loadURL(`http://localhost:${devPort}`);
+    // Development fallback
+    mainWindow.loadURL(`${devUrl}${testParam}`);
     mainWindow.webContents.openDevTools();
   } else {
     // Production: load bundled Vite build from /dist (packaged by electron-builder)
@@ -311,11 +315,22 @@ function createWindow() {
  * Setup IPC handlers for renderer communication
  */
 function setupIpcHandlers() {
-  // Proactive Observer State
-  let activeWatcher: fs.FSWatcher | null = null;
+  // Check if handlers are already registered
+  if ((global as any).__ipcHandlersRegistered) {
+    console.log('[Main] IPC handlers already registered, skipping');
+    return;
+  }
+
+  console.log('[Main] Registering IPC handlers...');
+
+  // Variables for observer functionality
+  let activeWatcher: any = null;
   let activeProjectFolder: string | null = null;
-  let lastAnalyzedFile: string | null = null;
+  let lastAnalyzedFile: string = '';
   let lastAnalysisTime: number = 0;
+
+  // Use a set to track registered handlers to avoid duplicates
+  const registeredHandlers = new Set<string>();
 
   // Function to notify renderer about observer events
   const notifyObserver = (event: string, data: any) => {
@@ -324,8 +339,29 @@ function setupIpcHandlers() {
     }
   };
 
+  // Helper function to register handler safely
+  const registerHandler = (channel: string, handler: any) => {
+    if (registeredHandlers.has(channel)) {
+      console.log(`[Main] Handler for '${channel}' already registered, skipping`);
+      return;
+    }
+    try {
+      ipcMain.handle(channel, handler);
+      registeredHandlers.add(channel);
+      console.log(`[Main] Registered handler for '${channel}'`);
+    } catch (error: any) {
+      if (error.message.includes('Attempted to register a second handler')) {
+        console.log(`[Main] Handler for '${channel}' already exists, skipping`);
+      } else {
+        console.error(`[Main] Error registering handler for '${channel}':`, error);
+      }
+    }
+  };
+
+  // Register handlers one by one
+
   // PDF parsing handler (runs in main process with Node.js)
-  ipcMain.handle('parse-pdf', async (_event, arrayBuffer: ArrayBuffer) => {
+  registerHandler('parse-pdf', async (_event, arrayBuffer: ArrayBuffer) => {
     try {
       const buffer = Buffer.from(arrayBuffer);
       
@@ -346,7 +382,7 @@ function setupIpcHandlers() {
   // NOTE: For security, the renderer should NOT pass API keys. This handler prefers
   // main-process stored secrets (safeStorage-encrypted settings) and env vars.
   // Back-compat: older renderers passed (apiKey, filename, projectId?, organizationId?).
-  ipcMain.handle('transcribe-video', async (_event, arrayBuffer: ArrayBuffer, ...args: any[]) => {
+  registerHandler('transcribe-video', async (_event, arrayBuffer: ArrayBuffer, ...args: any[]) => {
     let tempVideoPath: string | null = null;
     let tempAudioPath: string | null = null;
 
@@ -399,100 +435,40 @@ function setupIpcHandlers() {
 
       let transcription = '';
 
-      // If a backend proxy is configured, try it first. This allows installs to work without
-      // end-user provider keys (backend holds keys). If it fails, fall back to local behavior.
+      // If a backend proxy is configured, try it. Backend-only architecture - no fallbacks.
       const backend = getBackendConfig();
-      if (backend) {
-        try {
-          const sttLang = (() => {
-            const raw = String(s?.sttLanguage || s?.uiLanguage || '').trim().toLowerCase();
-            if (!raw || raw === 'auto') return '';
-            return raw.split('-')[0] || raw;
-          })();
-
-          const form = new FormData();
-          form.append('audio', audioBuffer, {
-            filename: 'audio.mp3',
-            contentType: 'audio/mpeg',
-          });
-          if (sttLang) form.append('language', sttLang);
-
-          const extraHeaders: Record<string, string> = {};
-          if (backend.token) extraHeaders.Authorization = `Bearer ${backend.token}`;
-
-          const resp = await postFormData(backendJoin(backend, '/v1/transcribe'), form, extraHeaders, 60000);
-          if (resp.ok && resp.json?.ok) {
-            transcription = String(resp.json?.text || '').trim();
-            return { success: true, text: transcription };
-          }
-          const msg = String(resp.json?.message || resp.json?.error || resp.text || `Backend transcribe failed (${resp.status})`);
-          console.warn('[Transcription] Backend proxy failed; continuing with local transcription:', msg);
-        } catch (e: any) {
-          console.warn('[Transcription] Backend proxy error; continuing with local transcription:', e?.message || e);
-        }
+      if (!backend) {
+        return { success: false, error: 'Backend service not configured. Please set MOSSY_BACKEND_URL and MOSSY_BACKEND_TOKEN environment variables.' };
       }
 
-      // Local whisper.cpp fallback helper
-      const transcribeLocalWhisper = async () => {
-        const baseDir = app.isPackaged ? process.resourcesPath : app.getAppPath();
-        const parentDir = path.dirname(baseDir); // Check parent directory too
-        const whisperCandidates = [
-          path.join(baseDir, 'external', 'whisper', 'whisper-cli.exe'),
-          path.join(baseDir, 'external', 'whisper', 'main.exe'),
-          path.join(baseDir, 'whisper', 'whisper-cli.exe'),
-          path.join(process.cwd(), 'external', 'whisper', 'whisper-cli.exe'),
-          path.join(parentDir, 'external', 'whisper', 'whisper-cli.exe'), // Parent directory
-        ];
-        const modelCandidates = [
-          path.join(baseDir, 'external', 'whisper', 'ggml-base.en.bin'),
-          path.join(baseDir, 'whisper', 'ggml-base.en.bin'),
-          path.join(process.cwd(), 'external', 'whisper', 'ggml-base.en.bin'),
-          path.join(parentDir, 'external', 'whisper', 'ggml-base.en.bin'), // Parent directory
-        ];
+      try {
+        const sttLang = (() => {
+          const raw = String(s?.sttLanguage || s?.uiLanguage || '').trim().toLowerCase();
+          if (!raw || raw === 'auto') return '';
+          return raw.split('-')[0] || raw;
+        })();
 
-        const whisperBin = whisperCandidates.find(fs.existsSync);
-        const modelPath = modelCandidates.find(fs.existsSync);
-
-        console.log('[Transcription] Searching for whisper binary in:', whisperCandidates);
-        console.log('[Transcription] Found whisper binary:', whisperBin);
-        console.log('[Transcription] Found model:', modelPath);
-
-        if (!whisperBin) {
-          throw new Error('Local Whisper binary not found. Place whisper-cli.exe or main.exe in external/whisper/');
-        }
-        if (!modelPath) {
-          throw new Error('Whisper model ggml-base.en.bin not found. Place it in external/whisper/');
-        }
-
-        const outPrefix = path.join(os.tmpdir(), `mossy-whisper-${Date.now()}`);
-        const args = ['-m', modelPath, '-f', tempAudioPath!, '-otxt', '-of', outPrefix, '-np', '1'];
-
-        console.log('[Transcription] Running local whisper:', whisperBin, args.join(' '));
-
-        await new Promise<void>((resolve, reject) => {
-          const child = spawn(whisperBin, args, { stdio: ['ignore', 'pipe', 'pipe'] });
-          let stderr = '';
-          child.stderr?.on('data', (d) => { stderr += d.toString(); });
-          child.on('error', reject);
-          child.on('close', (code) => {
-            if (code === 0) return resolve();
-            reject(new Error(`whisper.cpp exited with code ${code}: ${stderr}`));
-          });
+        const form = new FormData();
+        form.append('audio', audioBuffer, {
+          filename: 'audio.mp3',
+          contentType: 'audio/mpeg',
         });
+        if (sttLang) form.append('language', sttLang);
 
-        const txtPath = `${outPrefix}.txt`;
-        if (!fs.existsSync(txtPath)) {
-          throw new Error('whisper.cpp did not produce a transcript file');
+        const extraHeaders: Record<string, string> = {};
+        if (backend.token) extraHeaders.Authorization = `Bearer ${backend.token}`;
+
+        const resp = await postFormData(backendJoin(backend, '/v1/transcribe'), form, extraHeaders, 60000);
+        if (resp.ok && resp.json?.ok) {
+          transcription = String(resp.json?.text || '').trim();
+          return { success: true, text: transcription };
         }
-        const text = fs.readFileSync(txtPath, 'utf-8').trim();
-        console.log('[Transcription] ✓ Local whisper success');
-        return text;
-      };
-
-      // Decide path: if no key, go local; else try SDK then fallback to local on 401
-      if (!apiKey) {
-        transcription = await transcribeLocalWhisper();
-        return { success: true, text: transcription };
+        const msg = String(resp.json?.message || resp.json?.error || resp.text || `Backend transcribe failed (${resp.status})`);
+        console.error('[Transcription] Backend proxy failed:', msg);
+        return { success: false, error: msg };
+      } catch (e: any) {
+        console.error('[Transcription] Backend proxy error:', e?.message || e);
+        return { success: false, error: e?.message || 'Backend service unavailable' };
       }
 
       try {
@@ -513,9 +489,8 @@ function setupIpcHandlers() {
         const msg = sdkErr?.message || '';
         console.warn('[Transcription] SDK failed:', msg);
         if (/401|Incorrect API key/i.test(msg)) {
-          console.log('[Transcription] Falling back to local whisper due to auth error');
-          transcription = await transcribeLocalWhisper();
-          return { success: true, text: transcription };
+          console.log('[Transcription] Backend authentication failed - no fallback available');
+          return { success: false, error: 'Backend authentication failed. Please check your backend token.' };
         }
 
         // If SDK failed for other reasons, try HTTP as a last resort
@@ -566,10 +541,9 @@ function setupIpcHandlers() {
 
           return { success: true, text: transcription };
         } catch (httpErr: any) {
-          // HTTP also failed, fallback to local whisper
-          console.warn('[Transcription] HTTP also failed, falling back to local whisper');
-          transcription = await transcribeLocalWhisper();
-          return { success: true, text: transcription };
+          // HTTP also failed, no fallback available
+          console.warn('[Transcription] HTTP also failed - no fallback available');
+          return { success: false, error: 'Backend transcription failed. Please check your backend configuration.' };
         }
       }
     } catch (error: any) {
@@ -587,7 +561,7 @@ function setupIpcHandlers() {
   });
 
   // Audio transcription handler (runs in main process; renderer never sees API keys)
-  ipcMain.handle('transcribe-audio', async (_event, arrayBuffer: ArrayBuffer, mimeType?: string) => {
+  registerHandler('transcribe-audio', async (_event, arrayBuffer: ArrayBuffer, mimeType?: string) => {
     let tempAudioPath: string | null = null;
 
     try {
@@ -695,7 +669,7 @@ function setupIpcHandlers() {
   });
 
   // Program detection handler
-  ipcMain.handle(IPC_CHANNELS.DETECT_PROGRAMS, async () => {
+  registerHandler(IPC_CHANNELS.DETECT_PROGRAMS, async () => {
     try {
       // Check if we have cached results from the last hour
       const lastScan = getLastProgramScan();
@@ -722,7 +696,7 @@ function setupIpcHandlers() {
   });
 
   // Get running processes handler
-  ipcMain.handle(IPC_CHANNELS.GET_RUNNING_PROCESSES, async () => {
+  registerHandler(IPC_CHANNELS.GET_RUNNING_PROCESSES, async () => {
     try {
       return await getRunningModdingTools();
     } catch (error) {
@@ -732,7 +706,7 @@ function setupIpcHandlers() {
   });
 
   // Open program handler
-  ipcMain.handle(IPC_CHANNELS.OPEN_PROGRAM, async (event, programPath: string) => {
+  registerHandler(IPC_CHANNELS.OPEN_PROGRAM, async (event, programPath: string) => {
     try {
       // Validate input
       if (!programPath || typeof programPath !== 'string') {
@@ -828,7 +802,7 @@ function setupIpcHandlers() {
   });
 
   // Open external file/executable handler
-  ipcMain.handle(IPC_CHANNELS.OPEN_EXTERNAL, async (event, filePath: string) => {
+  registerHandler(IPC_CHANNELS.OPEN_EXTERNAL, async (event, filePath: string) => {
     try {
       // Validate input
       if (!filePath || typeof filePath !== 'string') {
@@ -859,7 +833,7 @@ function setupIpcHandlers() {
   });
 
   // Reveal a file in Explorer/Finder, or open a directory
-  ipcMain.handle(IPC_CHANNELS.REVEAL_IN_FOLDER, async (_event, targetPath: string) => {
+  registerHandler(IPC_CHANNELS.REVEAL_IN_FOLDER, async (_event, targetPath: string) => {
     try {
       if (!targetPath || typeof targetPath !== 'string') {
         return { success: false, error: 'Invalid path' };
@@ -885,7 +859,7 @@ function setupIpcHandlers() {
   });
 
   // Get executable version (Windows)
-  ipcMain.handle(IPC_CHANNELS.GET_TOOL_VERSION, async (_event, filePath: string) => {
+  registerHandler(IPC_CHANNELS.GET_TOOL_VERSION, async (_event, filePath: string) => {
     try {
       if (!filePath || typeof filePath !== 'string') {
         throw new Error('Invalid file path');
@@ -913,7 +887,7 @@ function setupIpcHandlers() {
   });
 
   // Desktop shortcut handlers
-  ipcMain.handle('create-desktop-shortcut', async () => {
+  registerHandler('create-desktop-shortcut', async () => {
     try {
       const created = DesktopShortcutManager.createDesktopShortcut();
       return { success: created, message: created ? 'Desktop shortcut created successfully' : 'Failed to create desktop shortcut' };
@@ -923,7 +897,7 @@ function setupIpcHandlers() {
     }
   });
 
-  ipcMain.handle('shortcut-exists', async () => {
+  registerHandler('shortcut-exists', async () => {
     try {
       return DesktopShortcutManager.shortcutExists();
     } catch (error) {
@@ -1184,12 +1158,19 @@ function setupIpcHandlers() {
     }
   };
 
-  ipcMain.handle('get-settings', async () => {
+  registerHandler('get-settings', async () => {
     console.log('[Settings] get-settings called');
-    return redactSettingsForRenderer(loadSettings());
+    const settings = loadSettings();
+    const backendBaseUrl = String(settings?.backendBaseUrl || process.env.MOSSY_BACKEND_URL || '').trim();
+    const backendTokenConfigured = Boolean(getSecretValue(settings, 'backendToken', 'MOSSY_BACKEND_TOKEN'));
+    return redactSettingsForRenderer({
+      ...settings,
+      backendBaseUrl,
+      backendTokenConfigured,
+    });
   });
 
-  ipcMain.handle('set-settings', async (_event, newSettings: any) => {
+  registerHandler('set-settings', async (_event, newSettings: any) => {
     try {
       console.log('[Settings] set-settings called with keys:', Object.keys(newSettings || {}));
     } catch {
@@ -1240,117 +1221,46 @@ function setupIpcHandlers() {
     return { apiKey, voiceId, provider };
   };
 
-  ipcMain.handle('elevenlabs-status', async () => {
-    try {
-      const cfg = getElevenLabsConfig();
-      return { ok: true, configured: Boolean(cfg.apiKey), voiceId: cfg.voiceId || undefined, provider: cfg.provider };
-    } catch (e: any) {
-      return { ok: false, error: String(e?.message || e) };
-    }
+  registerHandler('elevenlabs-status', async () => {
+    return { ok: true, configured: false, voiceId: undefined, provider: 'browser' };
   });
 
-  ipcMain.handle('elevenlabs-list-voices', async () => {
-    try {
-      const { apiKey } = getElevenLabsConfig();
-      if (!apiKey) return { ok: false, error: 'ElevenLabs API key not set' };
-
-      const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 15000);
-      try {
-        const res = await fetch('https://api.elevenlabs.io/v1/voices', {
-          method: 'GET',
-          headers: {
-            'xi-api-key': apiKey,
-            accept: 'application/json',
-          },
-          signal: controller.signal,
-        });
-
-        if (!res.ok) {
-          const text = await res.text().catch(() => '');
-          return { ok: false, error: `ElevenLabs voices request failed (${res.status}): ${text || res.statusText}` };
-        }
-
-        const json: any = await res.json();
-        const voices = Array.isArray(json?.voices) ? json.voices : [];
-        return {
-          ok: true,
-          voices: voices.map((v: any) => ({
-            voice_id: String(v?.voice_id || ''),
-            name: String(v?.name || ''),
-            category: v?.category ? String(v.category) : undefined,
-            labels: v?.labels && typeof v.labels === 'object' ? v.labels : undefined,
-          })),
-        };
-      } finally {
-        clearTimeout(timeout);
-      }
-    } catch (e: any) {
-      return { ok: false, error: String(e?.message || e) };
-    }
+  registerHandler('elevenlabs-list-voices', async () => {
+    return { ok: false, error: 'ElevenLabs TTS disabled. Backend service does not support TTS yet.' };
   });
 
-  ipcMain.handle('elevenlabs-synthesize', async (_event, args: { text: string; voiceId?: string }) => {
-    try {
-      const cfg = getElevenLabsConfig();
-      if (!cfg.apiKey) return { ok: false, error: 'ElevenLabs API key not set' };
-
-      const text = String(args?.text || '').trim();
-      if (!text) return { ok: false, error: 'No text provided' };
-      if (text.length > 5000) return { ok: false, error: 'Text too long (max 5000 chars)' };
-
-      const voiceId = String(args?.voiceId || cfg.voiceId || '').trim();
-      if (!voiceId) return { ok: false, error: 'ElevenLabs voiceId not set' };
-
-      const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 20000);
-      try {
-        const res = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${encodeURIComponent(voiceId)}`, {
-          method: 'POST',
-          headers: {
-            'xi-api-key': cfg.apiKey,
-            'Content-Type': 'application/json',
-            accept: 'audio/mpeg',
-          },
-          body: JSON.stringify({ text }),
-          signal: controller.signal,
-        });
-
-        if (!res.ok) {
-          const errText = await res.text().catch(() => '');
-          return { ok: false, error: `ElevenLabs synth failed (${res.status}): ${errText || res.statusText}` };
-        }
-
-        const buf = Buffer.from(await res.arrayBuffer());
-        return { ok: true, audioBase64: buf.toString('base64'), mimeType: 'audio/mpeg' };
-      } finally {
-        clearTimeout(timeout);
-      }
-    } catch (e: any) {
-      return { ok: false, error: String(e?.message || e) };
-    }
+  registerHandler('elevenlabs-synthesize', async (_event, args: { text: string; voiceId?: string }) => {
+    return { ok: false, error: 'ElevenLabs TTS disabled. Backend service does not support TTS yet. Use browser TTS instead.' };
   });
 
   // --- Roadmap & Project Management ---
-  ipcMain.handle(IPC_CHANNELS.PROJECT_LIST, async () => {
+  registerHandler(IPC_CHANNELS.PROJECT_LIST, async () => {
     return getProjects();
   });
 
-  ipcMain.handle(IPC_CHANNELS.PROJECT_CREATE, async (_event, project: ModProject) => {
+  registerHandler(IPC_CHANNELS.PROJECT_GET_CURRENT, async () => {
+    const settings = loadSettings();
+    if (!settings.currentProjectId) {
+      return null;
+    }
+    return getProjects().find(p => p.id === settings.currentProjectId) || null;
+  });
+
+  registerHandler(IPC_CHANNELS.PROJECT_CREATE, async (_event, project: ModProject) => {
     saveProject(project);
     return { ok: true };
   });
 
-  ipcMain.handle(IPC_CHANNELS.ROADMAP_GET_ALL, async (_event, projectId?: string) => {
+  registerHandler(IPC_CHANNELS.ROADMAP_GET_ALL, async (_event, projectId?: string) => {
     return getRoadmaps(projectId);
   });
 
-  ipcMain.handle(IPC_CHANNELS.ROADMAP_CREATE, async (_event, roadmap: Roadmap) => {
+  registerHandler(IPC_CHANNELS.ROADMAP_CREATE, async (_event, roadmap: Roadmap) => {
     saveRoadmap(roadmap);
     return { ok: true };
   });
 
-  ipcMain.handle(IPC_CHANNELS.ROADMAP_GENERATE_AI, async (_event, payload: { prompt: string, projectId: string }) => {
+  registerHandler(IPC_CHANNELS.ROADMAP_GENERATE_AI, async (_event, payload: { prompt: string, projectId: string }) => {
     try {
       // For the demo/tester release, we use a template-based "AI" approach 
       // if the prompt contains "rifle" or "weapon", or a generic one otherwise.
@@ -1401,7 +1311,7 @@ function setupIpcHandlers() {
     }
   });
 
-  ipcMain.handle(IPC_CHANNELS.ROADMAP_UPDATE_STEP, async (_event, payload: { roadmapId: string, stepId: string, status: string }) => {
+  registerHandler(IPC_CHANNELS.ROADMAP_UPDATE_STEP, async (_event, payload: { roadmapId: string, stepId: string, status: string }) => {
     const roadmaps = getRoadmaps();
     const roadmap = roadmaps.find(r => r.id === payload.roadmapId);
     if (!roadmap) return { ok: false, error: 'Roadmap not found' };
@@ -1415,7 +1325,7 @@ function setupIpcHandlers() {
   });
 
   // --- Proactive Observer (Neural Link+) ---
-  ipcMain.handle(IPC_CHANNELS.OBSERVER_SET_ACTIVE_FOLDER, async (_event, folderPath: string) => {
+  registerHandler(IPC_CHANNELS.OBSERVER_SET_ACTIVE_FOLDER, async (_event, folderPath: string) => {
     try {
       if (activeWatcher) {
         activeWatcher.close();
@@ -1473,7 +1383,7 @@ function setupIpcHandlers() {
   });
 
   // Desktop Bridge: check Blender Mossy Link add-on socket
-  ipcMain.handle('check-blender-addon', async () => {
+  registerHandler('check-blender-addon', async () => {
     try {
       const net = await import('net');
       return await new Promise<{ connected: boolean; error?: string }>((resolve) => {
@@ -1510,7 +1420,7 @@ function setupIpcHandlers() {
     }
   });
 
-  ipcMain.handle('send-blender-command', async (_event, command: string, args: any = {}) => {
+  registerHandler('send-blender-command', async (_event, command: string, args: any = {}) => {
     try {
       const net = await import('net');
       return await new Promise((resolve) => {
@@ -1576,13 +1486,13 @@ function setupIpcHandlers() {
   });
 
   // Live token generation is disabled.
-  ipcMain.handle('generate-live-token', async () => {
+  registerHandler('generate-live-token', async () => {
     throw new Error('Live token generation is disabled.');
   });
 
   // Get real system information
   // Get real performance telemetry
-  ipcMain.handle('get-performance', async () => {
+  registerHandler('get-performance', async () => {
     try {
       const os = require('os');
       const totalMem = os.totalmem();
@@ -1615,7 +1525,7 @@ function setupIpcHandlers() {
     }
   });
 
-  ipcMain.handle('get-system-info', async () => {
+  registerHandler('get-system-info', async () => {
     console.log('[Main] get-system-info IPC handler called');
     const { exec } = require('child_process');
     const util = require('util');
@@ -1811,7 +1721,7 @@ function setupIpcHandlers() {
   });
 
   // Get running processes for Neural Link monitoring
-  ipcMain.handle('get-running-processes', async () => {
+  registerHandler('get-running-processes', async () => {
     try {
       const { exec } = require('child_process');
       const util = require('util');
@@ -1851,7 +1761,7 @@ function setupIpcHandlers() {
   });
 
   // --- Vault: Run external tool safely ---
-  ipcMain.handle(IPC_CHANNELS.VAULT_RUN_TOOL, async (_event, payload: { cmd: string; args?: string[]; cwd?: string }) => {
+  registerHandler(IPC_CHANNELS.VAULT_RUN_TOOL, async (_event, payload: { cmd: string; args?: string[]; cwd?: string }) => {
     try {
       if (!payload || typeof payload.cmd !== 'string') throw new Error('Invalid command');
       const allowed = new Set(['texconv', 'xWMAEncode', 'PapyrusCompiler', 'gfxexport', 'splicer', 'Splicer', 'OutfitStudio']);
@@ -1889,7 +1799,7 @@ function setupIpcHandlers() {
   });
 
   // --- Vault: Save/Load manifest under app data ---
-  ipcMain.handle(IPC_CHANNELS.VAULT_SAVE_MANIFEST, async (_event, assets: unknown) => {
+  registerHandler(IPC_CHANNELS.VAULT_SAVE_MANIFEST, async (_event, assets: unknown) => {
     try {
       const file = path.join(app.getPath('userData'), 'vault-assets.json');
       fs.writeFileSync(file, JSON.stringify(assets, null, 2), 'utf-8');
@@ -1899,7 +1809,7 @@ function setupIpcHandlers() {
     }
   });
 
-  ipcMain.handle(IPC_CHANNELS.VAULT_LOAD_MANIFEST, async () => {
+  registerHandler(IPC_CHANNELS.VAULT_LOAD_MANIFEST, async () => {
     try {
       const file = path.join(app.getPath('userData'), 'vault-assets.json');
       if (!fs.existsSync(file)) return [];
@@ -1912,7 +1822,7 @@ function setupIpcHandlers() {
   });
 
   // --- Vault: Get DDS width/height (read header) ---
-  ipcMain.handle(IPC_CHANNELS.VAULT_GET_DDS_DIMENSIONS, async (_event, filePathStr: string) => {
+  registerHandler(IPC_CHANNELS.VAULT_GET_DDS_DIMENSIONS, async (_event, filePathStr: string) => {
     try {
       if (!filePathStr || typeof filePathStr !== 'string' || !fs.existsSync(filePathStr)) {
         return { width: 0, height: 0 };
@@ -1932,7 +1842,7 @@ function setupIpcHandlers() {
   });
 
   // --- Vault: Get PNG/TGA/JPG width/height ---
-  ipcMain.handle(IPC_CHANNELS.VAULT_GET_IMAGE_DIMENSIONS, async (_event, filePathStr: string) => {
+  registerHandler(IPC_CHANNELS.VAULT_GET_IMAGE_DIMENSIONS, async (_event, filePathStr: string) => {
     try {
       if (!filePathStr || typeof filePathStr !== 'string' || !fs.existsSync(filePathStr)) {
         return { width: 0, height: 0 };
@@ -2013,7 +1923,7 @@ function setupIpcHandlers() {
   });
 
   // --- Vault: Pick tool path via native dialog ---
-  ipcMain.handle(IPC_CHANNELS.VAULT_PICK_TOOL_PATH, async (_event, toolName: string) => {
+  registerHandler(IPC_CHANNELS.VAULT_PICK_TOOL_PATH, async (_event, toolName: string) => {
     const result = await dialog.showOpenDialog({
       title: `Select executable for ${toolName}`,
       properties: ['openFile'],
@@ -2027,7 +1937,7 @@ function setupIpcHandlers() {
   });
 
   // --- Auditor: Pick ESP/ESM file via native dialog ---
-  ipcMain.handle(IPC_CHANNELS.AUDITOR_PICK_ESP_FILE, async (_event) => {
+  registerHandler(IPC_CHANNELS.AUDITOR_PICK_ESP_FILE, async (_event) => {
     const result = await dialog.showOpenDialog({
       title: 'Select ESP/ESM Plugin File',
       properties: ['openFile'],
@@ -2041,7 +1951,7 @@ function setupIpcHandlers() {
   });
 
   // --- Auditor: Pick NIF mesh file via native dialog ---
-  ipcMain.handle(IPC_CHANNELS.AUDITOR_PICK_NIF_FILE, async (_event) => {
+  registerHandler(IPC_CHANNELS.AUDITOR_PICK_NIF_FILE, async (_event) => {
     const result = await dialog.showOpenDialog({
       title: 'Select NIF Mesh File',
       properties: ['openFile'],
@@ -2055,7 +1965,7 @@ function setupIpcHandlers() {
   });
 
   // --- Auditor: Pick DDS texture file via native dialog ---
-  ipcMain.handle(IPC_CHANNELS.AUDITOR_PICK_DDS_FILE, async (_event) => {
+  registerHandler(IPC_CHANNELS.AUDITOR_PICK_DDS_FILE, async (_event) => {
     const result = await dialog.showOpenDialog({
       title: 'Select DDS Texture File',
       properties: ['openFile'],
@@ -2069,7 +1979,7 @@ function setupIpcHandlers() {
   });
 
   // --- Auditor: Pick BGSM material file via native dialog ---
-  ipcMain.handle(IPC_CHANNELS.AUDITOR_PICK_BGSM_FILE, async (_event) => {
+  registerHandler(IPC_CHANNELS.AUDITOR_PICK_BGSM_FILE, async (_event) => {
     const result = await dialog.showOpenDialog({
       title: 'Select BGSM/BGEM Material File',
       properties: ['openFile'],
@@ -2083,7 +1993,7 @@ function setupIpcHandlers() {
   });
 
   // --- Auditor: Analyze ESP/ESM files ---
-  ipcMain.handle(IPC_CHANNELS.AUDITOR_ANALYZE_ESP, async (_event, filePath: string) => {
+  registerHandler(IPC_CHANNELS.AUDITOR_ANALYZE_ESP, async (_event, filePath: string) => {
     try {
       if (!fs.existsSync(filePath)) {
         return { success: false, error: 'File not found' };
@@ -2148,7 +2058,7 @@ function setupIpcHandlers() {
   });
 
   // --- Workshop: Browse directory and list files ---
-  ipcMain.handle(IPC_CHANNELS.WORKSHOP_BROWSE_DIRECTORY, async (_event, startPath?: string) => {
+  registerHandler(IPC_CHANNELS.WORKSHOP_BROWSE_DIRECTORY, async (_event, startPath?: string) => {
     try {
       const dirPath = startPath || os.homedir();
       const entries = fs.readdirSync(dirPath, { withFileTypes: true });
@@ -2169,7 +2079,7 @@ function setupIpcHandlers() {
   });
 
   // --- Load Order Lab: Pick MO2 profile directory ---
-  ipcMain.handle(IPC_CHANNELS.LOAD_ORDER_PICK_MO2_PROFILE_DIR, async () => {
+  registerHandler(IPC_CHANNELS.LOAD_ORDER_PICK_MO2_PROFILE_DIR, async () => {
     const win = BrowserWindow.getFocusedWindow() || mainWindow;
     const options = {
       title: 'Select Mod Organizer 2 (MO2) Profile Folder',
@@ -2184,7 +2094,7 @@ function setupIpcHandlers() {
   });
 
   // --- Load Order Lab: Pick LOOT report/log file ---
-  ipcMain.handle(IPC_CHANNELS.LOAD_ORDER_PICK_LOOT_REPORT_FILE, async () => {
+  registerHandler(IPC_CHANNELS.LOAD_ORDER_PICK_LOOT_REPORT_FILE, async () => {
     const win = BrowserWindow.getFocusedWindow() || mainWindow;
     const options = {
       title: 'Select LOOT Report/Log File',
@@ -2203,7 +2113,7 @@ function setupIpcHandlers() {
   });
 
   // --- Load Order Lab: Write file into userData for automation ---
-  ipcMain.handle(IPC_CHANNELS.LOAD_ORDER_WRITE_USERDATA_FILE, async (_event, filename: string, content: string) => {
+  registerHandler(IPC_CHANNELS.LOAD_ORDER_WRITE_USERDATA_FILE, async (_event, filename: string, content: string) => {
     try {
       const safeName = String(filename || '').replace(/[\\/:*?"<>|]+/g, '_').trim();
       if (!safeName) return '';
@@ -2219,7 +2129,7 @@ function setupIpcHandlers() {
   });
 
   // --- Load Order Lab: Launch xEdit (detached) using configured settings path ---
-  ipcMain.handle(IPC_CHANNELS.LOAD_ORDER_LAUNCH_XEDIT, async (_event, args?: string[], cwd?: string) => {
+  registerHandler(IPC_CHANNELS.LOAD_ORDER_LAUNCH_XEDIT, async (_event, args?: string[], cwd?: string) => {
     try {
       const settings = loadSettings();
       const exe = String(settings?.xeditPath || '').trim();
@@ -2241,7 +2151,7 @@ function setupIpcHandlers() {
   });
 
   // --- Duplicate Finder: Pick folders ---
-  ipcMain.handle(IPC_CHANNELS.DEDUPE_PICK_FOLDERS, async () => {
+  registerHandler(IPC_CHANNELS.DEDUPE_PICK_FOLDERS, async () => {
     const win = BrowserWindow.getFocusedWindow() || mainWindow;
     const options = {
       title: 'Select folder(s) to scan for duplicates',
@@ -2256,7 +2166,7 @@ function setupIpcHandlers() {
   });
 
   // --- Duplicate Finder: Scan for duplicates (SHA-256) ---
-  ipcMain.handle(IPC_CHANNELS.DEDUPE_SCAN, async (event, options) => {
+  registerHandler(IPC_CHANNELS.DEDUPE_SCAN, async (event, options) => {
     const scanId = `${Date.now()}-${Math.random().toString(16).slice(2)}`;
     const state: DedupeScanState = { canceled: false };
     dedupeScanStates.set(scanId, state);
@@ -2299,14 +2209,14 @@ function setupIpcHandlers() {
   });
 
   // --- Duplicate Finder: Cancel scan ---
-  ipcMain.handle(IPC_CHANNELS.DEDUPE_CANCEL, async (_event, scanId: string) => {
+  registerHandler(IPC_CHANNELS.DEDUPE_CANCEL, async (_event, scanId: string) => {
     const state = dedupeScanStates.get(scanId);
     if (state) state.canceled = true;
     return { ok: true };
   });
 
   // --- Duplicate Finder: Move selected files to Recycle Bin ---
-  ipcMain.handle(IPC_CHANNELS.DEDUPE_TRASH, async (_event, payload: { scanId: string; paths: string[] }) => {
+  registerHandler(IPC_CHANNELS.DEDUPE_TRASH, async (_event, payload: { scanId: string; paths: string[] }) => {
     const scanId = String(payload?.scanId || '');
     const paths = Array.isArray(payload?.paths) ? payload.paths.map(String) : [];
 
@@ -2337,7 +2247,7 @@ function setupIpcHandlers() {
   });
 
   // --- Workshop: Read file content ---
-  ipcMain.handle(IPC_CHANNELS.WORKSHOP_READ_FILE, async (_event, filePath: string) => {
+  registerHandler(IPC_CHANNELS.WORKSHOP_READ_FILE, async (_event, filePath: string) => {
     try {
       // Try UTF-8 first
       try {
@@ -2356,7 +2266,7 @@ function setupIpcHandlers() {
   });
 
   // --- Workshop: Write file content ---
-  ipcMain.handle(IPC_CHANNELS.WORKSHOP_WRITE_FILE, async (_event, filePath: string, content: string) => {
+  registerHandler(IPC_CHANNELS.WORKSHOP_WRITE_FILE, async (_event, filePath: string, content: string) => {
     try {
       // Ensure target directory exists
       const dir = path.dirname(filePath);
@@ -2372,7 +2282,7 @@ function setupIpcHandlers() {
   });
 
   // --- FS: Stat path (exists/isFile/isDirectory) ---
-  ipcMain.handle('fs-stat', async (_event, targetPath: string) => {
+  registerHandler('fs-stat', async (_event, targetPath: string) => {
     try {
       if (!targetPath || typeof targetPath !== 'string') {
         return { exists: false, isFile: false, isDirectory: false };
@@ -2390,7 +2300,7 @@ function setupIpcHandlers() {
   });
 
   // --- Workshop: Run Papyrus compiler ---
-  ipcMain.handle(IPC_CHANNELS.WORKSHOP_RUN_PAPYRUS_COMPILER, async (_event, scriptPath: string, compilerPathOrOptions: any) => {
+  registerHandler(IPC_CHANNELS.WORKSHOP_RUN_PAPYRUS_COMPILER, async (_event, scriptPath: string, compilerPathOrOptions: any) => {
     return new Promise((resolve) => {
       try {
         const options = (compilerPathOrOptions && typeof compilerPathOrOptions === 'object')
@@ -2479,7 +2389,7 @@ function setupIpcHandlers() {
   });
 
   // --- Workshop: Parse DDS texture preview info ---
-  ipcMain.handle(IPC_CHANNELS.WORKSHOP_READ_DDS_PREVIEW, async (_event, filePath: string) => {
+  registerHandler(IPC_CHANNELS.WORKSHOP_READ_DDS_PREVIEW, async (_event, filePath: string) => {
     try {
       const buffer = fs.readFileSync(filePath);
       if (buffer.length < 128) return { width: 0, height: 0, format: 'invalid' };
@@ -2507,7 +2417,7 @@ function setupIpcHandlers() {
   });
 
   // --- Workshop: Parse NIF mesh info ---
-  ipcMain.handle(IPC_CHANNELS.WORKSHOP_READ_NIF_INFO, async (_event, filePath: string) => {
+  registerHandler(IPC_CHANNELS.WORKSHOP_READ_NIF_INFO, async (_event, filePath: string) => {
     try {
       const buffer = fs.readFileSync(filePath);
       if (buffer.length < 20) return null;
@@ -2547,7 +2457,7 @@ function setupIpcHandlers() {
   });
 
   // --- Workshop: Parse script dependencies ---
-  ipcMain.handle(IPC_CHANNELS.WORKSHOP_PARSE_SCRIPT_DEPS, async (_event, scriptPath: string) => {
+  registerHandler(IPC_CHANNELS.WORKSHOP_PARSE_SCRIPT_DEPS, async (_event, scriptPath: string) => {
     try {
       const content = fs.readFileSync(scriptPath, 'utf-8');
       const lines = content.split('\n');
@@ -2581,7 +2491,7 @@ function setupIpcHandlers() {
   });
 
   // --- Image Suite: Get image info ---
-  ipcMain.handle(IPC_CHANNELS.IMAGE_GET_INFO, async (_event, filePath: string) => {
+  registerHandler(IPC_CHANNELS.IMAGE_GET_INFO, async (_event, filePath: string) => {
     try {
       // For real implementation, would use image-size library
       // For now, return basic PNG/JPG dimensions via buffer inspection
@@ -2647,7 +2557,7 @@ function setupIpcHandlers() {
   });
 
   // --- Image Suite: Generate normal map from height/diffuse ---
-  ipcMain.handle(IPC_CHANNELS.IMAGE_GENERATE_NORMAL_MAP, async (_event, imageBase64: string) => {
+  registerHandler(IPC_CHANNELS.IMAGE_GENERATE_NORMAL_MAP, async (_event, imageBase64: string) => {
     try {
       console.log('[Image Suite] Generating normal map...');
       const buffer = Buffer.from(imageBase64.split(',')[1] || imageBase64, 'base64');
@@ -2736,7 +2646,7 @@ function setupIpcHandlers() {
   });
 
   // --- Image Suite: Generate roughness map ---
-  ipcMain.handle(IPC_CHANNELS.IMAGE_GENERATE_ROUGHNESS_MAP, async (_event, imageBase64: string) => {
+  registerHandler(IPC_CHANNELS.IMAGE_GENERATE_ROUGHNESS_MAP, async (_event, imageBase64: string) => {
     try {
       console.log('[Image Suite] Generating roughness map...');
       const buffer = Buffer.from(imageBase64.split(',')[1] || imageBase64, 'base64');
@@ -2761,7 +2671,7 @@ function setupIpcHandlers() {
   });
 
   // --- Image Suite: Generate height map ---
-  ipcMain.handle(IPC_CHANNELS.IMAGE_GENERATE_HEIGHT_MAP, async (_event, imageBase64: string) => {
+  registerHandler(IPC_CHANNELS.IMAGE_GENERATE_HEIGHT_MAP, async (_event, imageBase64: string) => {
     try {
       console.log('[Image Suite] Generating height map...');
       const buffer = Buffer.from(imageBase64.split(',')[1] || imageBase64, 'base64');
@@ -2783,7 +2693,7 @@ function setupIpcHandlers() {
   });
 
   // --- Image Suite: Generate metallic map ---
-  ipcMain.handle(IPC_CHANNELS.IMAGE_GENERATE_METALLIC_MAP, async (_event, imageBase64: string) => {
+  registerHandler(IPC_CHANNELS.IMAGE_GENERATE_METALLIC_MAP, async (_event, imageBase64: string) => {
     try {
       console.log('[Image Suite] Generating metallic map...');
       const buffer = Buffer.from(imageBase64.split(',')[1] || imageBase64, 'base64');
@@ -2807,7 +2717,7 @@ function setupIpcHandlers() {
   });
 
   // --- Image Suite: Generate ambient occlusion map ---
-  ipcMain.handle(IPC_CHANNELS.IMAGE_GENERATE_AO_MAP, async (_event, imageBase64: string) => {
+  registerHandler(IPC_CHANNELS.IMAGE_GENERATE_AO_MAP, async (_event, imageBase64: string) => {
     try {
       console.log('[Image Suite] Generating AO map...');
       const buffer = Buffer.from(imageBase64.split(',')[1] || imageBase64, 'base64');
@@ -2831,7 +2741,7 @@ function setupIpcHandlers() {
   });
 
   // --- Image Suite: Convert image format ---
-  ipcMain.handle(IPC_CHANNELS.IMAGE_CONVERT_FORMAT, async (_event, sourceBase64: string, targetFormat: string, options: any) => {
+  registerHandler(IPC_CHANNELS.IMAGE_CONVERT_FORMAT, async (_event, sourceBase64: string, targetFormat: string, options: any) => {
     try {
       const fmt = (targetFormat || '').toLowerCase();
 
@@ -2924,7 +2834,7 @@ function setupIpcHandlers() {
   });
 
   // Save file handler (with save dialog)
-  ipcMain.handle('save-file', async (_event, content: string, filename: string) => {
+  registerHandler('save-file', async (_event, content: string, filename: string) => {
     try {
       const safeName = String(filename || 'export.txt').replace(/[\\/:*?"<>|]+/g, '_').trim() || 'export.txt';
       const defaultDir = path.join(os.homedir(), 'Downloads');
@@ -2979,7 +2889,7 @@ function setupIpcHandlers() {
   });
 
   // Pick JSON file handler (native open dialog)
-  ipcMain.handle('pick-json-file', async () => {
+  registerHandler('pick-json-file', async () => {
     try {
       const win = BrowserWindow.getFocusedWindow() || mainWindow;
       const options = {
@@ -3004,7 +2914,7 @@ function setupIpcHandlers() {
   });
 
   // Pick directory handler (native open dialog)
-  ipcMain.handle(IPC_CHANNELS.PICK_DIRECTORY, async (_event, title?: string) => {
+  registerHandler(IPC_CHANNELS.PICK_DIRECTORY, async (_event, title?: string) => {
     try {
       const win = BrowserWindow.getFocusedWindow() || mainWindow;
       const options = {
@@ -3023,11 +2933,11 @@ function setupIpcHandlers() {
   });
 
   // Local ML: Semantic index status/build/query
-  ipcMain.handle(IPC_CHANNELS.ML_INDEX_STATUS, async () => {
+  registerHandler(IPC_CHANNELS.ML_INDEX_STATUS, async () => {
     return getSemanticIndexStatus();
   });
 
-  ipcMain.handle(IPC_CHANNELS.ML_INDEX_BUILD, async (_event, req?: { roots?: string[] }) => {
+  registerHandler(IPC_CHANNELS.ML_INDEX_BUILD, async (_event, req?: { roots?: string[] }) => {
     try {
       const roots = Array.isArray(req?.roots) ? req!.roots : undefined;
       return await buildSemanticIndex({ roots });
@@ -3036,7 +2946,7 @@ function setupIpcHandlers() {
     }
   });
 
-  ipcMain.handle(IPC_CHANNELS.ML_INDEX_QUERY, async (_event, req: { query: string; topK?: number }) => {
+  registerHandler(IPC_CHANNELS.ML_INDEX_QUERY, async (_event, req: { query: string; topK?: number }) => {
     try {
       const q = String(req?.query ?? '');
       const topK = typeof req?.topK === 'number' ? req.topK : undefined;
@@ -3047,14 +2957,14 @@ function setupIpcHandlers() {
   });
 
   // Local LLM: Optional Ollama integration
-  ipcMain.handle(IPC_CHANNELS.ML_LLM_STATUS, async () => {
+  registerHandler(IPC_CHANNELS.ML_LLM_STATUS, async () => {
     const s = loadSettings();
     const status = await getOllamaStatus(String(s?.ollamaBaseUrl || 'http://127.0.0.1:11434'));
     if (status.ok) return { ok: true, provider: 'ollama', baseUrl: status.baseUrl, models: status.models };
     return { ok: false, provider: 'ollama', baseUrl: (status as any).baseUrl, error: (status as any).error };
   });
 
-  ipcMain.handle(IPC_CHANNELS.ML_CAPS_STATUS, async () => {
+  registerHandler(IPC_CHANNELS.ML_CAPS_STATUS, async () => {
     const s = loadSettings();
     const ollama = await getOllamaStatus(String(s?.ollamaBaseUrl || 'http://127.0.0.1:11434')) as any;
     const openaiCompat = await getOpenAICompatStatus(String(s?.openaiCompatBaseUrl || 'http://127.0.0.1:1234/v1')) as any;
@@ -3070,7 +2980,7 @@ function setupIpcHandlers() {
     };
   });
 
-  ipcMain.handle(
+  registerHandler(
     IPC_CHANNELS.ML_LLM_GENERATE,
     async (
       _event,
@@ -3106,65 +3016,50 @@ function setupIpcHandlers() {
    * AI Chat Handler - OpenAI
    * Renderer calls this with a prompt; main process handles API key
    */
-  ipcMain.handle('ai-chat-openai', async (_event, payload: { prompt: string; systemPrompt?: string; model?: string }) => {
+  registerHandler('ai-chat-openai', async (_event, payload: { prompt: string; systemPrompt?: string; model?: string }) => {
     try {
       const systemPrompt = payload.systemPrompt || 'You are a helpful assistant for Fallout 4 modding.';
       const model = payload.model || 'gpt-3.5-turbo';
 
       const backend = getBackendConfig();
-      if (backend) {
-        const controller = new AbortController();
-        const timeout = setTimeout(() => controller.abort(), 20000);
-        try {
-          const res = await fetch(backendJoin(backend, '/v1/chat'), {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              ...(backend.token ? { Authorization: `Bearer ${backend.token}` } : {}),
-            },
-            body: JSON.stringify({
-              provider: 'openai',
-              model,
-              messages: [
-                { role: 'system', content: systemPrompt },
-                { role: 'user', content: String(payload.prompt || '') },
-              ],
-            }),
-            signal: controller.signal,
-          });
+      if (!backend) {
+        return { success: false, error: 'Backend service not configured. Please set MOSSY_BACKEND_URL and MOSSY_BACKEND_TOKEN environment variables.' };
+      }
 
-          const json: any = await res.json().catch(() => ({}));
-          if (res.ok && json?.ok) {
-            return { success: true, content: String(json?.text || '') };
-          }
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 20000);
+      try {
+        const res = await fetch(backendJoin(backend, '/v1/chat'), {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            ...(backend.token ? { Authorization: `Bearer ${backend.token}` } : {}),
+          },
+          body: JSON.stringify({
+            provider: 'openai',
+            model,
+            messages: [
+              { role: 'system', content: systemPrompt },
+              { role: 'user', content: String(payload.prompt || '') },
+            ],
+          }),
+          signal: controller.signal,
+        });
 
-          const msg = String(json?.message || json?.error || `Backend chat failed (${res.status})`);
-          console.warn('[AI Chat OpenAI] Backend proxy failed; falling back to local provider:', msg);
-        } catch (e: any) {
-          console.warn('[AI Chat OpenAI] Backend proxy error; falling back to local provider:', e?.message || e);
-        } finally {
-          clearTimeout(timeout);
+        const json: any = await res.json().catch(() => ({}));
+        if (res.ok && json?.ok) {
+          return { success: true, content: String(json?.text || '') };
         }
+
+        const msg = String(json?.message || json?.error || `Backend chat failed (${res.status})`);
+        console.error('[AI Chat OpenAI] Backend proxy failed:', msg);
+        return { success: false, error: msg };
+      } catch (e: any) {
+        console.error('[AI Chat OpenAI] Backend proxy error:', e?.message || e);
+        return { success: false, error: e?.message || 'Backend service unavailable' };
+      } finally {
+        clearTimeout(timeout);
       }
-
-      const s = loadSettings();
-      const apiKey = getSecretValue(s, 'openaiApiKey', 'OPENAI_API_KEY');
-      if (!apiKey) {
-        throw new Error('OpenAI API key not configured');
-      }
-
-      const client = new OpenAI({ apiKey });
-
-      const response = await client.chat.completions.create({
-        model,
-        messages: [
-          { role: 'system', content: systemPrompt },
-          { role: 'user', content: payload.prompt },
-        ],
-      });
-
-      const content = response.choices[0]?.message?.content || '';
-      return { success: true, content };
     } catch (error: any) {
       console.error('[AI Chat OpenAI] Error:', error);
       return { success: false, error: error.message || 'AI chat failed' };
@@ -3174,67 +3069,50 @@ function setupIpcHandlers() {
   /**
    * AI Chat Handler - Groq (for voice and real-time)
    */
-  ipcMain.handle('ai-chat-groq', async (_event, payload: { prompt: string; systemPrompt?: string; model?: string }) => {
+  registerHandler('ai-chat-groq', async (_event, payload: { prompt: string; systemPrompt?: string; model?: string }) => {
     try {
       const systemPrompt = payload.systemPrompt || 'You are a helpful assistant for Fallout 4 modding.';
       const model = payload.model || 'llama-3.3-70b-versatile';
 
       const backend = getBackendConfig();
-      if (backend) {
-        const controller = new AbortController();
-        const timeout = setTimeout(() => controller.abort(), 20000);
-        try {
-          const res = await fetch(backendJoin(backend, '/v1/chat'), {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              ...(backend.token ? { Authorization: `Bearer ${backend.token}` } : {}),
-            },
-            body: JSON.stringify({
-              provider: 'groq',
-              model,
-              messages: [
-                { role: 'system', content: systemPrompt },
-                { role: 'user', content: String(payload.prompt || '') },
-              ],
-            }),
-            signal: controller.signal,
-          });
+      if (!backend) {
+        return { success: false, error: 'Backend service not configured. Please set MOSSY_BACKEND_URL and MOSSY_BACKEND_TOKEN environment variables.' };
+      }
 
-          const json: any = await res.json().catch(() => ({}));
-          if (res.ok && json?.ok) {
-            return { success: true, content: String(json?.text || '') };
-          }
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 20000);
+      try {
+        const res = await fetch(backendJoin(backend, '/v1/chat'), {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            ...(backend.token ? { Authorization: `Bearer ${backend.token}` } : {}),
+          },
+          body: JSON.stringify({
+            provider: 'groq',
+            model,
+            messages: [
+              { role: 'system', content: systemPrompt },
+              { role: 'user', content: String(payload.prompt || '') },
+            ],
+          }),
+          signal: controller.signal,
+        });
 
-          const msg = String(json?.message || json?.error || `Backend chat failed (${res.status})`);
-          console.warn('[AI Chat Groq] Backend proxy failed; falling back to local provider:', msg);
-        } catch (e: any) {
-          console.warn('[AI Chat Groq] Backend proxy error; falling back to local provider:', e?.message || e);
-        } finally {
-          clearTimeout(timeout);
+        const json: any = await res.json().catch(() => ({}));
+        if (res.ok && json?.ok) {
+          return { success: true, content: String(json?.text || '') };
         }
+
+        const msg = String(json?.message || json?.error || `Backend chat failed (${res.status})`);
+        console.error('[AI Chat Groq] Backend proxy failed:', msg);
+        return { success: false, error: msg };
+      } catch (e: any) {
+        console.error('[AI Chat Groq] Backend proxy error:', e?.message || e);
+        return { success: false, error: e?.message || 'Backend service unavailable' };
+      } finally {
+        clearTimeout(timeout);
       }
-
-      const s = loadSettings();
-      const apiKey = getSecretValue(s, 'groqApiKey', 'GROQ_API_KEY');
-      if (!apiKey) {
-        throw new Error('Groq API key not configured');
-      }
-
-      // Dynamic import for Groq ES module
-      const { default: Groq } = await import('groq-sdk');
-      const client = new Groq({ apiKey });
-
-      const response = await client.chat.completions.create({
-        model,
-        messages: [
-          { role: 'system', content: systemPrompt },
-          { role: 'user', content: payload.prompt },
-        ],
-      });
-
-      const content = response.choices[0]?.message?.content || '';
-      return { success: true, content };
     } catch (error: any) {
       console.error('[AI Chat Groq] Error:', error);
       return { success: false, error: error.message || 'Groq chat failed' };
@@ -3242,7 +3120,7 @@ function setupIpcHandlers() {
   });
 
   // Secrets presence only (no values). Renderer can use this to show setup state safely.
-  ipcMain.handle('secret-status', async () => {
+  registerHandler('secret-status', async () => {
     try {
       const s = loadSettings();
       const openai = Boolean(getSecretValue(s, 'openaiApiKey', 'OPENAI_API_KEY'));
@@ -3258,7 +3136,7 @@ function setupIpcHandlers() {
 
   // Mining Infrastructure Handlers - TEMPORARILY DISABLED
   /*
-  ipcMain.handle('start-mining-pipeline', async (_event, sources: DataSource[]) => {
+  registerHandler('start-mining-pipeline', async (_event, sources: DataSource[]) => {
     try {
       const orchestrator = new MiningPipelineOrchestrator();
       const result = await orchestrator.execute(sources);
@@ -3270,7 +3148,7 @@ function setupIpcHandlers() {
   });
   */
 
-  ipcMain.handle('parse-esp-file', async (_event, filePath: string) => {
+  registerHandler('parse-esp-file', async (_event, filePath: string) => {
     try {
       const espData = await ESPParser.parseFile(filePath);
       return { success: true, data: espData };
@@ -3280,7 +3158,7 @@ function setupIpcHandlers() {
     }
   });
 
-  ipcMain.handle('build-dependency-graph', async (_event, modFiles: string[]) => {
+  registerHandler('build-dependency-graph', async (_event, modFiles: string[]) => {
     try {
       const builder = new DependencyGraphBuilder();
       const graph = await builder.buildGraph(modFiles);
@@ -3291,7 +3169,7 @@ function setupIpcHandlers() {
     }
   });
 
-  ipcMain.handle('get-mining-status', async () => {
+  registerHandler('get-mining-status', async () => {
     // For now, return a basic status. In a real implementation, track active mining operations.
     return {
       active: false,
@@ -3302,7 +3180,7 @@ function setupIpcHandlers() {
 
   // Advanced Analysis Engine handler - TEMPORARILY DISABLED due to mining engine errors
   /*
-  ipcMain.handle('get-advanced-analysis-engine', async () => {
+  registerHandler('get-advanced-analysis-engine', async () => {
     try {
       // Dynamic import to avoid loading heavy ML dependencies at startup
       const { AdvancedAnalysisEngineImpl } = await import('../mining/advanced-analysis-engine');
@@ -3314,6 +3192,92 @@ function setupIpcHandlers() {
     }
   });
   */
+
+  // Voice chat message handler
+  registerHandler('sendMessage', async (_event, message: string) => {
+    console.log('[Main] sendMessage IPC handler called with:', message.substring(0, 100) + (message.length > 100 ? '...' : ''));
+    try {
+      // Use Groq for voice responses (real-time)
+      const systemPrompt = 'You are Mossy, a helpful AI assistant for Fallout 4 modding. Keep responses concise and conversational for voice chat.';
+      const model = 'llama-3.3-70b-versatile';
+
+      const backend = getBackendConfig();
+      let content = '';
+      if (backend) {
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 20000);
+        try {
+          const res = await fetch(backendJoin(backend, '/v1/chat'), {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              ...(backend.token ? { Authorization: `Bearer ${backend.token}` } : {}),
+            },
+            body: JSON.stringify({
+              provider: 'groq',
+              model,
+              messages: [
+                { role: 'system', content: systemPrompt },
+                { role: 'user', content: String(message || '') },
+              ],
+            }),
+            signal: controller.signal,
+          });
+
+          const json: any = await res.json().catch(() => ({}));
+          if (res.ok && json?.ok) {
+            content = String(json?.text || '');
+          } else {
+            console.warn('[sendMessage] Backend proxy failed; falling back to local provider');
+          }
+        } catch (e: any) {
+          console.warn('[sendMessage] Backend proxy error; falling back to local provider:', e?.message || e);
+        } finally {
+          clearTimeout(timeout);
+        }
+      }
+
+      if (!content) {
+        const s = loadSettings();
+        const apiKey = getSecretValue(s, 'groqApiKey', 'GROQ_API_KEY');
+        if (!apiKey) {
+          throw new Error('Groq API key not configured');
+        }
+
+        // Dynamic import for Groq ES module
+        const { default: Groq } = await import('groq-sdk');
+        const client = new Groq({ apiKey });
+
+        const response = await client.chat.completions.create({
+          model,
+          messages: [
+            { role: 'system', content: systemPrompt },
+            { role: 'user', content: message },
+          ],
+        });
+
+        content = response.choices[0]?.message?.content || '';
+      }
+
+      console.log('[Main] AI response generated, sending to renderer:', content.substring(0, 100) + (content.length > 100 ? '...' : ''));
+      // Send the response to the renderer
+      if (mainWindow && !mainWindow.isDestroyed()) {
+        mainWindow.webContents.send('message', { role: 'assistant', content });
+      }
+      return content;
+    } catch (error: any) {
+      console.error('[Main] sendMessage error:', error);
+      const errorMsg = 'Sorry, I encountered an error processing your request.';
+      if (mainWindow && !mainWindow.isDestroyed()) {
+        mainWindow.webContents.send('message', { role: 'assistant', content: errorMsg });
+      }
+      return errorMsg;
+    }
+  });
+
+  // Mark handlers as registered
+  (global as any).__ipcHandlersRegistered = true;
+  console.log('[Main] IPC handlers registration complete');
 }
 
 /**
@@ -3322,22 +3286,37 @@ function setupIpcHandlers() {
 
 
 app.whenReady().then(() => {
-  // ...existing code...
-  createWindow();
-  setupIpcHandlers();
-  bridge.start();
+  // Handle second instance (ensure single instance) - DO THIS FIRST
+  const gotTheLock = app.requestSingleInstanceLock();
 
-  // Try to create desktop shortcut on first run
-  if (!DesktopShortcutManager.shortcutExists()) {
-    DesktopShortcutManager.createDesktopShortcut();
-  }
+  if (!gotTheLock) {
+    app.quit();
+  } else {
+    app.on('second-instance', () => {
+      // Focus the main window if a second instance is launched
+      if (mainWindow) {
+        if (mainWindow.isMinimized()) mainWindow.restore();
+        mainWindow.focus();
+      }
+    });
 
-  app.on('activate', () => {
-    // On macOS, re-create window when dock icon is clicked and no windows are open
-    if (BrowserWindow.getAllWindows().length === 0) {
-      createWindow();
+    // ...existing code...
+    createWindow();
+    setupIpcHandlers();
+    bridge.start();
+
+    // Try to create desktop shortcut on first run
+    if (!DesktopShortcutManager.shortcutExists()) {
+      DesktopShortcutManager.createDesktopShortcut();
     }
-  });
+
+    app.on('activate', () => {
+      // On macOS, re-create window when dock icon is clicked and no windows are open
+      if (BrowserWindow.getAllWindows().length === 0) {
+        createWindow();
+      }
+    });
+  }
 });
 
 app.on('window-all-closed', () => {
@@ -3352,20 +3331,7 @@ app.on('will-quit', () => {
     bridge.stop();
 });
 
-// Handle second instance (ensure single instance)
-const gotTheLock = app.requestSingleInstanceLock();
-
-if (!gotTheLock) {
-  app.quit();
-} else {
-  app.on('second-instance', () => {
-    // Focus the main window if a second instance is launched
-    if (mainWindow) {
-      if (mainWindow.isMinimized()) mainWindow.restore();
-      mainWindow.focus();
-    }
-  });
-}
+// Handle second instance (ensure single instance) - MOVED INSIDE app.whenReady()
 
 // Global Crash Protection
 process.on('uncaughtException', (error) => {

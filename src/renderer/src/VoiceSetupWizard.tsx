@@ -35,12 +35,12 @@ export const VoiceSetupWizard: React.FC<VoiceSetupWizardProps> = ({ onComplete, 
 
     const reqs: VoiceRequirement[] = [
       {
-        id: 'api-keys',
-        name: 'AI API Keys',
-        description: 'Groq or OpenAI API keys for AI responses',
+        id: 'backend',
+        name: 'Backend Connection',
+        description: 'Backend URL + token for AI responses',
         status: 'checking',
         canAutoFix: false,
-        details: 'Required for Mossy to generate responses. Configure in Settings → API Keys.'
+        details: 'Required for Mossy to generate responses. Configure in Settings → Backend.'
       },
       {
         id: 'ollama',
@@ -48,7 +48,7 @@ export const VoiceSetupWizard: React.FC<VoiceSetupWizardProps> = ({ onComplete, 
         description: 'Local AI models for private conversations',
         status: 'checking',
         canAutoFix: true,
-        details: 'Optional but recommended for privacy. Mossy can download models automatically.'
+        details: 'Optional. Use if you want local models instead of the backend.'
       },
       {
         id: 'tts-voices',
@@ -78,16 +78,25 @@ export const VoiceSetupWizard: React.FC<VoiceSetupWizardProps> = ({ onComplete, 
 
     setRequirements(reqs);
 
-    // Check API keys
+    // Check backend configuration
     try {
-      const hasGroq = process.env.GROQ_API_KEY || (await api?.getSettings())?.groqApiKey;
-      const hasOpenAI = process.env.OPENAI_API_KEY || (await api?.getSettings())?.openaiApiKey;
-      reqs[0].status = (hasGroq || hasOpenAI) ? 'ok' : 'missing';
+      const settings = await api?.getSettings?.();
+      const hasBackendUrl = !!String(settings?.backendBaseUrl || '').trim();
+      let hasBackendToken = !!settings?.backendTokenConfigured;
+
+      if (!hasBackendToken && api?.getSecretStatus) {
+        const secrets = await api.getSecretStatus();
+        hasBackendToken = !!secrets?.backendToken;
+      }
+      reqs[0].status = hasBackendUrl && hasBackendToken ? 'ok' : 'missing';
+      if (!hasBackendUrl || !hasBackendToken) {
+        reqs[0].details = 'Backend URL and token are required. Configure in Settings → Backend.';
+      }
     } catch {
       reqs[0].status = 'error';
     }
 
-    // Check Ollama
+    // Check Ollama (optional)
     try {
       const ollamaStatus = await api?.checkOllamaStatus?.();
       if (ollamaStatus?.installed) {
@@ -107,13 +116,14 @@ export const VoiceSetupWizard: React.FC<VoiceSetupWizardProps> = ({ onComplete, 
           setCurrentFixing(null);
         };
       } else {
-        reqs[1].status = 'missing';
+        reqs[1].status = 'ok';
         reqs[1].canAutoFix = false;
-        reqs[1].details = 'Ollama not installed. Download from https://ollama.ai';
+        reqs[1].details = 'Optional. Install from https://ollama.ai if you want local AI.';
       }
     } catch {
-      reqs[1].status = 'missing';
+      reqs[1].status = 'ok';
       reqs[1].canAutoFix = false;
+      reqs[1].details = 'Optional. Install from https://ollama.ai if you want local AI.';
     }
 
     // Check TTS voices

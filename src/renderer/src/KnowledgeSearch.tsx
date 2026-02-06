@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import { openExternal } from './utils/openExternal';
 
 type IndexStatus =
   | { ok: true; indexPath: string; indexedChunks: number; indexedSources: number; model: string; createdAt: string }
@@ -11,6 +12,7 @@ type LlmStatus =
   | { ok: false; provider: 'ollama'; baseUrl: string; error: string };
 
 const ROOTS_KEY = 'mossy_knowledge_roots_v1';
+const REPORT_DOC_URL = 'https://github.com/POINTYTHRUNDRA654/desktop-tutorial/issues/new?labels=missing-doc';
 
 function loadRoots(): string[] {
   try {
@@ -196,6 +198,14 @@ export default function KnowledgeSearch(): JSX.Element {
     }
   };
 
+  const onReportMissingDoc = () => {
+    const topic = query.trim() || '[topic]';
+    const title = `Missing doc: ${topic}`;
+    const body = `## Topic\n${topic}\n\n## What I expected\n\n## Source link (optional)\n\n## Additional context\n`;
+    const url = `${REPORT_DOC_URL}&title=${encodeURIComponent(title)}&body=${encodeURIComponent(body)}`;
+    void openExternal(url);
+  };
+
   if (!desktopReady) {
     return (
       <div className="p-6">
@@ -214,13 +224,21 @@ export default function KnowledgeSearch(): JSX.Element {
           <h2 className="text-xl font-bold text-white">Knowledge Search</h2>
           <p className="text-slate-300 text-sm">Offline semantic search across your Markdown guides.</p>
         </div>
-        <button
-          onClick={onBuildIndex}
-          disabled={buildBusy}
-          className="px-4 py-2 rounded bg-emerald-600 hover:bg-emerald-700 disabled:opacity-60 text-white text-sm font-semibold"
-        >
-          {buildBusy ? 'Indexing…' : 'Build / Refresh Index'}
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={onReportMissingDoc}
+            className="px-3 py-2 rounded bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold"
+          >
+            Report missing doc
+          </button>
+          <button
+            onClick={onBuildIndex}
+            disabled={buildBusy}
+            className="px-4 py-2 rounded bg-emerald-600 hover:bg-emerald-700 disabled:opacity-60 text-white text-sm font-semibold"
+          >
+            {buildBusy ? 'Indexing…' : 'Build / Refresh Index'}
+          </button>
+        </div>
       </div>
 
       <div className="bg-slate-900/60 border border-slate-800 rounded-lg p-4 space-y-3">

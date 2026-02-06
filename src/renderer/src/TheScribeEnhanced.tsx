@@ -3,6 +3,7 @@ import { Code, FileCode, Palette, Check, X, AlertTriangle, Zap, Copy, Play, Book
 import ProjectWizard from './components/ProjectWizard';
 import type { ScriptBundle, ScriptTemplate, Settings } from '../../shared/types';
 import { useNavigate } from 'react-router-dom';
+import { openExternal } from './utils/openExternal';
 
 type ScriptType = 'papyrus' | 'xedit' | 'blender';
 
@@ -46,12 +47,7 @@ export const TheScribe: React.FC = () => {
   const [bundleStatus, setBundleStatus] = useState<string>('');
 
   const openUrl = (url: string) => {
-    const api = (window as any).electron?.api || (window as any).electronAPI;
-    if (typeof api?.openExternal === 'function') {
-      api.openExternal(url);
-      return;
-    }
-    window.open(url, '_blank', 'noopener,noreferrer');
+    void openExternal(url);
   };
 
   const openNexusSearch = (keywords: string) => {
