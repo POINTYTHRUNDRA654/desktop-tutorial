@@ -99,6 +99,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen = false, onToggle, onClose }) 
 
     // === BUILDING TOOLS: CREATE & GENERATE ===
     { to: '/tools', icon: Wrench, label: t('nav.tools', 'Tools') },
+    { to: '/tools/cosmos', icon: Hexagon, label: t('nav.cosmosWorkflow', 'Cosmos Workflow') },
     { to: '/template-generator', icon: Wand2, label: t('nav.templateGenerator', 'Template Generator') },
     { to: '/script-analyzer', icon: Code, label: t('nav.scriptAnalyzer', 'Script Analyzer') },
     { to: '/assembler', icon: Package, label: t('nav.assembler', 'The Assembler') },

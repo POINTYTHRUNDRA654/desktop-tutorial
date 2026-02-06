@@ -433,6 +433,20 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 - Generate within an existing mod: [GENERATING_PREVISBINES_FOR_EXISTING_MOD.md](GENERATING_PREVISBINES_FOR_EXISTING_MOD.md)
 - CK crash troubleshooting: [RESOLVING_CREATION_KIT_CRASHES.md](RESOLVING_CREATION_KIT_CRASHES.md)
 
+## AI/ML Integrations
+
+- Cosmos Transfer2.5 (local repo): [COSMOS_TRANSFER2_5_INTEGRATION.md](COSMOS_TRANSFER2_5_INTEGRATION.md)
+- Cosmos Predict2.5 (local repo): [COSMOS_PREDICT2_5_INTEGRATION.md](COSMOS_PREDICT2_5_INTEGRATION.md)
+- Cosmos Cookbook (local repo): [COSMOS_COOKBOOK_INTEGRATION.md](COSMOS_COOKBOOK_INTEGRATION.md)
+- Cosmos RL (local repo): [COSMOS_RL_INTEGRATION.md](COSMOS_RL_INTEGRATION.md)
+- Cosmos Dependencies (local repo): [COSMOS_DEPENDENCIES_INTEGRATION.md](COSMOS_DEPENDENCIES_INTEGRATION.md)
+- Cosmos Curate (local repo): [COSMOS_CURATE_INTEGRATION.md](COSMOS_CURATE_INTEGRATION.md)
+- Cosmos Xenna (local repo): [COSMOS_XENNA_INTEGRATION.md](COSMOS_XENNA_INTEGRATION.md)
+
+## Fallout 4 Local Knowledge
+
+- Fallout 4 Working Folder Guide: [FALLOUT4_WORKING_FOLDER_GUIDE.md](FALLOUT4_WORKING_FOLDER_GUIDE.md)
+
 ## Blender Docs
 
 ### Modeling

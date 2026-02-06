@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { Save, TestTube2, Wrench, FileCog, Swords, Package, ExternalLink, Play, Palette, FolderOpen, ShieldCheck, Zap, Archive, Image as ImageIcon, Terminal, Maximize2, RefreshCw } from 'lucide-react';
 import { executeMossyTool } from './MossyTools';
 import type { Settings } from '../../shared/types';
@@ -252,6 +253,73 @@ const ExternalToolsSettings: React.FC = () => {
     }
   };
 
+  const addCosmosKnowledgeRoot = async (defaultRoot: string, label: string) => {
+    const ROOTS_KEY = 'mossy_knowledge_roots_v1';
+
+    try {
+      const api = (window as any).electron?.api || (window as any).electronAPI;
+      let target = defaultRoot;
+
+      if (api?.fsStat) {
+        const status = await api.fsStat(defaultRoot);
+        if (!status?.exists || !status?.isDirectory) {
+          if (api?.pickDirectory) {
+            const picked = await api.pickDirectory(`Select ${label} folder`);
+            if (!picked) return;
+            target = String(picked);
+          } else {
+            alert(`${label} folder not found. Please use Knowledge Search to add a root manually.`);
+            return;
+          }
+        }
+      }
+
+      const raw = localStorage.getItem(ROOTS_KEY);
+      const parsed = raw ? JSON.parse(raw) : [];
+      const roots = Array.isArray(parsed) ? parsed : [];
+      if (roots.includes(target)) {
+        alert(`${label} is already in Knowledge Search roots.`);
+        return;
+      }
+
+      localStorage.setItem(ROOTS_KEY, JSON.stringify([...roots, target]));
+      alert(`Added ${label} to Knowledge Search roots.`);
+    } catch (e) {
+      console.warn('[ExternalToolsSettings] Failed to add knowledge root', e);
+      alert('Failed to add Knowledge Search root.');
+    }
+  };
+
+  const addKnowledgeRootFromPicker = async (label: string) => {
+    const ROOTS_KEY = 'mossy_knowledge_roots_v1';
+
+    try {
+      const api = (window as any).electron?.api || (window as any).electronAPI;
+      if (!api?.pickDirectory) {
+        alert('Folder picker not available. Add a root manually in Knowledge Search.');
+        return;
+      }
+
+      const picked = await api.pickDirectory(`Select ${label} folder`);
+      if (!picked) return;
+      const target = String(picked);
+
+      const raw = localStorage.getItem(ROOTS_KEY);
+      const parsed = raw ? JSON.parse(raw) : [];
+      const roots = Array.isArray(parsed) ? parsed : [];
+      if (roots.includes(target)) {
+        alert(`${label} is already in Knowledge Search roots.`);
+        return;
+      }
+
+      localStorage.setItem(ROOTS_KEY, JSON.stringify([...roots, target]));
+      alert(`Added ${label} to Knowledge Search roots.`);
+    } catch (e) {
+      console.warn('[ExternalToolsSettings] Failed to add knowledge root (picker)', e);
+      alert('Failed to add Knowledge Search root.');
+    }
+  };
+
   const autoDetect = () => {
     try {
         const appsRaw = localStorage.getItem('mossy_apps');
@@ -408,6 +476,200 @@ const ExternalToolsSettings: React.FC = () => {
             { label: 'Diagnostics', to: '/diagnostics' },
           ]}
         />
+
+        <div className="mb-6 grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="p-4 bg-slate-900 border border-slate-800 rounded-lg">
+            <div className="text-sm font-bold text-white mb-2">Cosmos Transfer2.5 (Local Repo)</div>
+            <div className="text-xs text-slate-300 mb-3">
+              Adds the local Cosmos Transfer2.5 repo to Knowledge Search so you can index and query its docs.
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <button
+                onClick={() => addCosmosKnowledgeRoot('external/nvidia-cosmos/cosmos-transfer2.5', 'Cosmos Transfer2.5')}
+                className="px-3 py-2 bg-emerald-700 hover:bg-emerald-600 border border-emerald-500 rounded text-[11px] font-bold"
+              >
+                Add to Knowledge Search Roots
+              </button>
+              <Link
+                to="/learn/knowledge"
+                className="px-3 py-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded text-[11px] font-bold"
+              >
+                Open Knowledge Search
+              </Link>
+            </div>
+            <div className="mt-2 text-[10px] text-slate-500">
+              Default path: external/nvidia-cosmos/cosmos-transfer2.5
+            </div>
+          </div>
+
+          <div className="p-4 bg-slate-900 border border-slate-800 rounded-lg">
+            <div className="text-sm font-bold text-white mb-2">Cosmos Predict2.5 (Local Repo)</div>
+            <div className="text-xs text-slate-300 mb-3">
+              Adds the local Cosmos Predict2.5 repo to Knowledge Search so you can index and query its docs.
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <button
+                onClick={() => addCosmosKnowledgeRoot('external/nvidia-cosmos/cosmos-predict2.5', 'Cosmos Predict2.5')}
+                className="px-3 py-2 bg-emerald-700 hover:bg-emerald-600 border border-emerald-500 rounded text-[11px] font-bold"
+              >
+                Add to Knowledge Search Roots
+              </button>
+              <Link
+                to="/learn/knowledge"
+                className="px-3 py-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded text-[11px] font-bold"
+              >
+                Open Knowledge Search
+              </Link>
+            </div>
+            <div className="mt-2 text-[10px] text-slate-500">
+              Default path: external/nvidia-cosmos/cosmos-predict2.5
+            </div>
+          </div>
+
+          <div className="p-4 bg-slate-900 border border-slate-800 rounded-lg">
+            <div className="text-sm font-bold text-white mb-2">Cosmos Cookbook (Local Repo)</div>
+            <div className="text-xs text-slate-300 mb-3">
+              Adds the local Cosmos Cookbook repo to Knowledge Search so you can index and query its docs.
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <button
+                onClick={() => addCosmosKnowledgeRoot('external/nvidia-cosmos/cosmos-cookbook', 'Cosmos Cookbook')}
+                className="px-3 py-2 bg-emerald-700 hover:bg-emerald-600 border border-emerald-500 rounded text-[11px] font-bold"
+              >
+                Add to Knowledge Search Roots
+              </button>
+              <Link
+                to="/learn/knowledge"
+                className="px-3 py-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded text-[11px] font-bold"
+              >
+                Open Knowledge Search
+              </Link>
+            </div>
+            <div className="mt-2 text-[10px] text-slate-500">
+              Default path: external/nvidia-cosmos/cosmos-cookbook
+            </div>
+          </div>
+
+          <div className="p-4 bg-slate-900 border border-slate-800 rounded-lg">
+            <div className="text-sm font-bold text-white mb-2">Cosmos RL (Local Repo)</div>
+            <div className="text-xs text-slate-300 mb-3">
+              Adds the local Cosmos RL repo to Knowledge Search so you can index and query its docs.
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <button
+                onClick={() => addCosmosKnowledgeRoot('external/nvidia-cosmos/cosmos-rl', 'Cosmos RL')}
+                className="px-3 py-2 bg-emerald-700 hover:bg-emerald-600 border border-emerald-500 rounded text-[11px] font-bold"
+              >
+                Add to Knowledge Search Roots
+              </button>
+              <Link
+                to="/learn/knowledge"
+                className="px-3 py-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded text-[11px] font-bold"
+              >
+                Open Knowledge Search
+              </Link>
+            </div>
+            <div className="mt-2 text-[10px] text-slate-500">
+              Default path: external/nvidia-cosmos/cosmos-rl
+            </div>
+          </div>
+
+          <div className="p-4 bg-slate-900 border border-slate-800 rounded-lg">
+            <div className="text-sm font-bold text-white mb-2">Cosmos Dependencies (Local Repo)</div>
+            <div className="text-xs text-slate-300 mb-3">
+              Adds the local Cosmos Dependencies repo to Knowledge Search so you can index and query its docs.
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <button
+                onClick={() => addCosmosKnowledgeRoot('external/nvidia-cosmos/cosmos-dependencies', 'Cosmos Dependencies')}
+                className="px-3 py-2 bg-emerald-700 hover:bg-emerald-600 border border-emerald-500 rounded text-[11px] font-bold"
+              >
+                Add to Knowledge Search Roots
+              </button>
+              <Link
+                to="/learn/knowledge"
+                className="px-3 py-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded text-[11px] font-bold"
+              >
+                Open Knowledge Search
+              </Link>
+            </div>
+            <div className="mt-2 text-[10px] text-slate-500">
+              Default path: external/nvidia-cosmos/cosmos-dependencies
+            </div>
+          </div>
+
+          <div className="p-4 bg-slate-900 border border-slate-800 rounded-lg">
+            <div className="text-sm font-bold text-white mb-2">Cosmos Curate (Local Repo)</div>
+            <div className="text-xs text-slate-300 mb-3">
+              Adds the local Cosmos Curate repo to Knowledge Search so you can index and query its docs.
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <button
+                onClick={() => addCosmosKnowledgeRoot('external/nvidia-cosmos/cosmos-curate', 'Cosmos Curate')}
+                className="px-3 py-2 bg-emerald-700 hover:bg-emerald-600 border border-emerald-500 rounded text-[11px] font-bold"
+              >
+                Add to Knowledge Search Roots
+              </button>
+              <Link
+                to="/learn/knowledge"
+                className="px-3 py-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded text-[11px] font-bold"
+              >
+                Open Knowledge Search
+              </Link>
+            </div>
+            <div className="mt-2 text-[10px] text-slate-500">
+              Default path: external/nvidia-cosmos/cosmos-curate
+            </div>
+          </div>
+
+          <div className="p-4 bg-slate-900 border border-slate-800 rounded-lg">
+            <div className="text-sm font-bold text-white mb-2">Cosmos Xenna (Local Repo)</div>
+            <div className="text-xs text-slate-300 mb-3">
+              Adds the local Cosmos Xenna repo to Knowledge Search so you can index and query its docs.
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <button
+                onClick={() => addCosmosKnowledgeRoot('external/nvidia-cosmos/cosmos-xenna', 'Cosmos Xenna')}
+                className="px-3 py-2 bg-emerald-700 hover:bg-emerald-600 border border-emerald-500 rounded text-[11px] font-bold"
+              >
+                Add to Knowledge Search Roots
+              </button>
+              <Link
+                to="/learn/knowledge"
+                className="px-3 py-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded text-[11px] font-bold"
+              >
+                Open Knowledge Search
+              </Link>
+            </div>
+            <div className="mt-2 text-[10px] text-slate-500">
+              Default path: external/nvidia-cosmos/cosmos-xenna
+            </div>
+          </div>
+
+          <div className="p-4 bg-slate-900 border border-slate-800 rounded-lg">
+            <div className="text-sm font-bold text-white mb-2">Fallout 4 Working Folder (Local)</div>
+            <div className="text-xs text-slate-300 mb-3">
+              Adds your local Fallout 4 working folder to Knowledge Search for private, on-device indexing.
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <button
+                onClick={() => addKnowledgeRootFromPicker('Fallout 4 Working Folder')}
+                className="px-3 py-2 bg-emerald-700 hover:bg-emerald-600 border border-emerald-500 rounded text-[11px] font-bold"
+              >
+                Add via Folder Picker
+              </button>
+              <Link
+                to="/learn/knowledge"
+                className="px-3 py-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded text-[11px] font-bold"
+              >
+                Open Knowledge Search
+              </Link>
+            </div>
+            <div className="mt-2 text-[10px] text-slate-500">
+              Each user picks their own folder path (not shared or synced).
+            </div>
+          </div>
+        </div>
 
         <div className="mb-6 p-4 bg-blue-900/30 border border-blue-700 rounded-lg text-sm text-blue-300">
           <strong>📌 Quick Start:</strong> Each tool below shows its configuration status (✅ CONFIGURED or ⚠️ NOT SET). 

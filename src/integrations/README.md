@@ -89,6 +89,21 @@ File: `clipboard-manager.ts`
 - Risk: Could leak sensitive copied data
 - Mitigation: Clear disclosure, opt-in only
 
+## External AI/ML Integrations
+
+The following repos are included locally for reference and optional workflows:
+
+- Cosmos Reason2 (embedded repo copy): `src/integrations/cosmos-reason2`
+- Cosmos Transfer2.5 (external clone): `external/nvidia-cosmos/cosmos-transfer2.5`
+- Cosmos Predict2.5 (external clone): `external/nvidia-cosmos/cosmos-predict2.5`
+- Cosmos Cookbook (external clone): `external/nvidia-cosmos/cosmos-cookbook`
+- Cosmos RL (external clone): `external/nvidia-cosmos/cosmos-rl`
+- Cosmos Dependencies (external clone): `external/nvidia-cosmos/cosmos-dependencies`
+- Cosmos Curate (external clone): `external/nvidia-cosmos/cosmos-curate`
+- Cosmos Xenna (external clone): `external/nvidia-cosmos/cosmos-xenna`
+
+These are documented integrations and are not auto-executed by Mossy. Use Knowledge Search to index them if you want local semantic search.
+
 ## Creating New Integrations
 
 1. Create a new file in this directory

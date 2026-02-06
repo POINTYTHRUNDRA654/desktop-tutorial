@@ -41,6 +41,7 @@ const searchIndex: SearchItem[] = [
 
   // Building Tools
   { id: 'tools', label: 'Tools', path: '/tools', category: 'Tools', description: 'General tools and utilities' },
+  { id: 'cosmos-workflow', label: 'Cosmos Workflow', path: '/tools/cosmos', category: 'Tools', description: 'Cosmos Transfer2.5 workflow hub' },
   { id: 'template-generator', label: 'Template Generator', path: '/template-generator', category: 'Tools', description: 'Generate templates for mods' },
   { id: 'script-analyzer', label: 'Script Analyzer', path: '/script-analyzer', category: 'Tools', description: 'Analyze Papyrus scripts' },
   { id: 'assembler', label: 'The Assembler', path: '/assembler', category: 'Tools', description: 'Create FOMOD packages' },

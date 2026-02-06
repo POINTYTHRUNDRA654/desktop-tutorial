@@ -5,12 +5,15 @@ type CapsStatus = {
   ollama:
     | { ok: true; provider: 'ollama'; baseUrl: string; models: string[] }
     | { ok: false; provider: 'ollama'; baseUrl: string; error: string };
+  cosmos:
+    | { ok: true; provider: 'cosmos'; baseUrl: string; models: string[] }
+    | { ok: false; provider: 'cosmos'; baseUrl: string; error: string };
   openaiCompat:
     | { ok: true; provider: 'openai_compat'; baseUrl: string; models: string[] }
     | { ok: false; provider: 'openai_compat'; baseUrl: string; error: string };
 };
 
-type LocalAiPreferred = 'auto' | 'ollama' | 'openai_compat' | 'off';
+type LocalAiPreferred = 'auto' | 'cosmos' | 'ollama' | 'openai_compat' | 'off';
 
 type LocalAiSettings = {
   localAiPreferredProvider?: LocalAiPreferred;
@@ -18,6 +21,8 @@ type LocalAiSettings = {
   ollamaModel?: string;
   openaiCompatBaseUrl?: string;
   openaiCompatModel?: string;
+  cosmosBaseUrl?: string;
+  cosmosModel?: string;
 };
 
 export default function LocalCapabilities(): JSX.Element {
@@ -32,6 +37,7 @@ export default function LocalCapabilities(): JSX.Element {
   const preferred: LocalAiPreferred = (settings.localAiPreferredProvider || 'auto') as LocalAiPreferred;
 
   const ollamaModels = useMemo(() => (caps?.ollama.ok ? caps.ollama.models : []), [caps]);
+  const cosmosModels = useMemo(() => (caps?.cosmos.ok ? caps.cosmos.models : []), [caps]);
   const openaiModels = useMemo(() => (caps?.openaiCompat.ok ? caps.openaiCompat.models : []), [caps]);
 
   const refresh = async () => {
@@ -46,6 +52,8 @@ export default function LocalCapabilities(): JSX.Element {
         ollamaModel: s?.ollamaModel ?? 'llama3',
         openaiCompatBaseUrl: s?.openaiCompatBaseUrl ?? 'http://127.0.0.1:1234/v1',
         openaiCompatModel: s?.openaiCompatModel ?? '',
+        cosmosBaseUrl: s?.cosmosBaseUrl ?? '',
+        cosmosModel: s?.cosmosModel ?? '',
       });
 
       const status = (await api.mlCapsStatus()) as CapsStatus;
@@ -73,6 +81,8 @@ export default function LocalCapabilities(): JSX.Element {
         ollamaModel: settings.ollamaModel ?? 'llama3',
         openaiCompatBaseUrl: settings.openaiCompatBaseUrl ?? 'http://127.0.0.1:1234/v1',
         openaiCompatModel: settings.openaiCompatModel ?? '',
+        cosmosBaseUrl: settings.cosmosBaseUrl ?? '',
+        cosmosModel: settings.cosmosModel ?? '',
       });
       await refresh();
     } catch (e: any) {
@@ -88,7 +98,7 @@ export default function LocalCapabilities(): JSX.Element {
     setError('');
     try {
       const providerToUse: LocalAiPreferred = preferred === 'auto'
-        ? (caps?.ollama.ok ? 'ollama' : (caps?.openaiCompat.ok ? 'openai_compat' : 'off'))
+        ? (caps?.cosmos.ok ? 'cosmos' : (caps?.ollama.ok ? 'ollama' : (caps?.openaiCompat.ok ? 'openai_compat' : 'off')))
         : preferred;
 
       if (providerToUse === 'off') {
@@ -98,14 +108,20 @@ export default function LocalCapabilities(): JSX.Element {
 
       const model = providerToUse === 'ollama'
         ? (settings.ollamaModel || 'llama3')
-        : (settings.openaiCompatModel || openaiModels[0] || '');
+        : providerToUse === 'cosmos'
+          ? (settings.cosmosModel || cosmosModels[0] || '')
+          : (settings.openaiCompatModel || openaiModels[0] || '');
 
       if (!model.trim()) {
         setError('Pick a model first.');
         return;
       }
 
-      const baseUrl = providerToUse === 'openai_compat' ? (settings.openaiCompatBaseUrl || undefined) : undefined;
+      const baseUrl = providerToUse === 'cosmos'
+        ? (settings.cosmosBaseUrl || undefined)
+        : providerToUse === 'openai_compat'
+          ? (settings.openaiCompatBaseUrl || undefined)
+          : undefined;
 
       const resp = await api.mlLlmGenerate({
         provider: providerToUse,
@@ -156,7 +172,7 @@ export default function LocalCapabilities(): JSX.Element {
 
       {error ? <div className="text-xs text-red-300">{error}</div> : null}
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         <div className="bg-slate-900/60 border border-slate-800 rounded-lg p-4 space-y-3">
           <div className="text-sm font-semibold text-slate-200">Ollama</div>
           <div className="text-xs text-slate-300">
@@ -183,6 +199,33 @@ export default function LocalCapabilities(): JSX.Element {
               ))}
             </select>
           </div>
+        </div>
+
+        <div className="bg-slate-900/60 border border-slate-800 rounded-lg p-4 space-y-3">
+          <div className="text-sm font-semibold text-slate-200">Cosmos Reason2 (OpenAI-compatible)</div>
+          <div className="text-xs text-slate-300">
+            Status: {caps?.cosmos.ok ? 'Detected' : `Not detected (${(caps?.cosmos as any)?.error || 'unknown'})`}
+          </div>
+          <label className="text-xs text-slate-400">Base URL</label>
+          <input
+            value={settings.cosmosBaseUrl || ''}
+            onChange={(e) => setSettings((s) => ({ ...s, cosmosBaseUrl: e.target.value }))}
+            className="w-full bg-slate-950/60 border border-slate-800 rounded px-3 py-2 text-sm text-slate-200 outline-none"
+            placeholder="http://127.0.0.1:8000/v1"
+          />
+          <label className="text-xs text-slate-400">Model</label>
+          <select
+            value={settings.cosmosModel || ''}
+            onChange={(e) => setSettings((s) => ({ ...s, cosmosModel: e.target.value }))}
+            className="w-full bg-slate-950/60 border border-slate-800 rounded px-3 py-2 text-sm text-slate-200 outline-none"
+          >
+            <option value="">(auto)</option>
+            {cosmosModels.map((m) => (
+              <option key={m} value={m}>
+                {m}
+              </option>
+            ))}
+          </select>
         </div>
 
         <div className="bg-slate-900/60 border border-slate-800 rounded-lg p-4 space-y-3">
@@ -222,6 +265,7 @@ export default function LocalCapabilities(): JSX.Element {
             className="bg-slate-950/60 border border-slate-800 rounded px-3 py-2 text-sm text-slate-200 outline-none"
           >
             <option value="auto">Auto</option>
+            <option value="cosmos">Cosmos Reason2</option>
             <option value="ollama">Ollama</option>
             <option value="openai_compat">LM Studio / OpenAI-Compat</option>
             <option value="off">Off</option>
@@ -235,7 +279,7 @@ export default function LocalCapabilities(): JSX.Element {
           </button>
         </div>
         <div className="text-xs text-slate-400">
-          Tip: For LM Studio, start the local server and enable OpenAI-compatible API.
+          Tip: For Cosmos/LM Studio, start the local server and enable the OpenAI-compatible API.
         </div>
       </div>
     </div>

@@ -15,7 +15,7 @@ export interface AIResponse {
   context?: any;
 }
 
-type LocalAiPreferred = 'auto' | 'ollama' | 'openai_compat' | 'off';
+type LocalAiPreferred = 'auto' | 'cosmos' | 'ollama' | 'openai_compat' | 'off';
 
 type LocalAiSettings = {
   localAiPreferredProvider?: LocalAiPreferred;
@@ -23,6 +23,8 @@ type LocalAiSettings = {
   ollamaModel?: string;
   openaiCompatBaseUrl?: string;
   openaiCompatModel?: string;
+  cosmosBaseUrl?: string;
+  cosmosModel?: string;
 };
 
 export const LocalAIEngine = {
@@ -39,6 +41,8 @@ export const LocalAIEngine = {
           ollamaModel: s?.ollamaModel ?? 'llama3',
           openaiCompatBaseUrl: s?.openaiCompatBaseUrl ?? 'http://127.0.0.1:1234/v1',
           openaiCompatModel: s?.openaiCompatModel ?? '',
+          cosmosBaseUrl: s?.cosmosBaseUrl ?? '',
+          cosmosModel: s?.cosmosModel ?? '',
         };
       }
     } catch {
@@ -51,6 +55,8 @@ export const LocalAIEngine = {
       ollamaModel: 'llama3',
       openaiCompatBaseUrl: 'http://127.0.0.1:1234/v1',
       openaiCompatModel: '',
+      cosmosBaseUrl: '',
+      cosmosModel: '',
     };
   },
 
@@ -60,6 +66,7 @@ export const LocalAIEngine = {
    */
   async getLocalProviderStatus(): Promise<
     | { ok: true; provider: 'ollama'; baseUrl: string; models: string[] }
+    | { ok: true; provider: 'cosmos'; baseUrl: string; models: string[] }
     | { ok: true; provider: 'openai_compat'; baseUrl: string; models: string[] }
     | { ok: false; reason: string }
   > {
@@ -72,9 +79,11 @@ export const LocalAIEngine = {
 
       const caps = await api.mlCapsStatus();
       const ollamaOk = !!caps?.ollama?.ok;
+      const cosmosOk = !!caps?.cosmos?.ok;
       const openaiOk = !!caps?.openaiCompat?.ok;
 
       const pickAuto = () => {
+        if (cosmosOk) return { ok: true as const, provider: 'cosmos' as const, baseUrl: caps.cosmos.baseUrl, models: caps.cosmos.models || [] };
         if (ollamaOk) return { ok: true as const, provider: 'ollama' as const, baseUrl: caps.ollama.baseUrl, models: caps.ollama.models || [] };
         if (openaiOk) return { ok: true as const, provider: 'openai_compat' as const, baseUrl: caps.openaiCompat.baseUrl, models: caps.openaiCompat.models || [] };
         return { ok: false as const, reason: 'No local provider detected.' };
@@ -82,6 +91,12 @@ export const LocalAIEngine = {
 
       if (preferred === 'off') return { ok: false, reason: 'Local AI disabled in settings.' };
       if (preferred === 'auto') return pickAuto();
+
+      if (preferred === 'cosmos') {
+        return cosmosOk
+          ? { ok: true, provider: 'cosmos', baseUrl: caps.cosmos.baseUrl, models: caps.cosmos.models || [] }
+          : { ok: false, reason: `Cosmos not detected (${caps?.cosmos?.error || 'unknown'})` };
+      }
 
       if (preferred === 'ollama') {
         return ollamaOk
@@ -217,7 +232,9 @@ export const LocalAIEngine = {
 
         const model = provider === 'ollama'
           ? String(localSettings.ollamaModel || 'llama3')
-          : String(localSettings.openaiCompatModel || localStatus.models?.[0] || '');
+          : provider === 'cosmos'
+            ? String(localSettings.cosmosModel || localStatus.models?.[0] || '')
+            : String(localSettings.openaiCompatModel || localStatus.models?.[0] || '');
 
         if (!model.trim()) {
           return { content: 'Local AI is detected but no model is selected. Configure a model in Local Capabilities.' };
@@ -225,7 +242,9 @@ export const LocalAIEngine = {
 
         const baseUrl = provider === 'ollama'
           ? String(localSettings.ollamaBaseUrl || 'http://127.0.0.1:11434')
-          : String(localSettings.openaiCompatBaseUrl || 'http://127.0.0.1:1234/v1');
+          : provider === 'cosmos'
+            ? String(localSettings.cosmosBaseUrl || '')
+            : String(localSettings.openaiCompatBaseUrl || 'http://127.0.0.1:1234/v1');
 
         const resp = await api.mlLlmGenerate({
           provider,
