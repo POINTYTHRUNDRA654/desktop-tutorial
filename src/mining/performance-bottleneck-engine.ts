@@ -688,12 +688,14 @@ export class PerformanceBottleneckDetectionEngine extends EventEmitter implement
   }
 
   private categorizeCPU(cpu: any): 'low' | 'medium' | 'high' {
+    if (!cpu) return 'low';
     if (cpu.cores >= 8 && cpu.baseClock >= 3.5) return 'high';
     if (cpu.cores >= 6 && cpu.baseClock >= 3.0) return 'medium';
     return 'low';
   }
 
   private categorizeRAM(ram: any): 'low' | 'medium' | 'high' {
+    if (!ram) return 'low';
     if (ram.total >= 32) return 'high';
     if (ram.total >= 16) return 'medium';
     return 'low';

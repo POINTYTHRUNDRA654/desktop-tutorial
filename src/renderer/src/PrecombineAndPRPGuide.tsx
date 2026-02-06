@@ -2,6 +2,7 @@ import React, { useRef, useState } from 'react';
 import { BookOpen, ChevronDown, AlertTriangle, Zap, CheckCircle } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useWheelScrollProxy } from './components/useWheelScrollProxy';
+import { openExternal } from './utils/openExternal';
 
 interface GuideSection {
   id: string;
@@ -26,12 +27,7 @@ export const PrecombineAndPRPGuide: React.FC = () => {
   };
 
   const openUrl = (url: string) => {
-    const api = (window as any).electron?.api || (window as any).electronAPI;
-    if (typeof api?.openExternal === 'function') {
-      api.openExternal(url);
-      return;
-    }
-    window.open(url, '_blank', 'noopener,noreferrer');
+    void openExternal(url);
   };
 
   const openNexusSearch = (keywords: string) => {

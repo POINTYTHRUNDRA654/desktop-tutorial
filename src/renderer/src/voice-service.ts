@@ -1,6 +1,8 @@
+import { loadBrowserTtsSettings, pickBrowserTtsVoice } from './browserTts';
+
 export interface VoiceServiceConfig {
   sttProvider: 'browser' | 'backend' | 'deepgram';
-  ttsProvider: 'browser' | 'elevenlabs';
+  ttsProvider: 'browser' | 'elevenlabs' | 'cloud';
   deepgramKey?: string;
   elevenlabsKey?: string;
   elevenlabsVoiceId?: string;
@@ -77,7 +79,8 @@ export class VoiceService {
   private currentAudioElement: HTMLAudioElement | null = null;
 
   constructor(config: VoiceServiceConfig) {
-    this.config = config;
+    // Hard-lock to browser TTS for stability across updates.
+    this.config = { ...config, ttsProvider: 'browser' };
   }
 
   async initialize(): Promise<void> {
@@ -148,8 +151,9 @@ export class VoiceService {
       this.recognition.stop();
       this.recognition = null;
     }
-    if (window.electronAPI) {
-      window.electronAPI.sttStop().catch(console.error);
+    const api = (window as any).electronAPI || (window as any).electron?.api;
+    if (api?.sttStop) {
+      api.sttStop().catch(console.error);
     }
     if (this.sttResultUnsubscribe) {
       this.sttResultUnsubscribe();
@@ -365,51 +369,93 @@ export class VoiceService {
   }
 
   async speak(text: string): Promise<void> {
+    console.log('[VoiceService] speak() called with text:', text.substring(0, 100) + (text.length > 100 ? '...' : ''));
     if (this.shouldStop) {
       console.log('[VoiceService] Ignoring speak request, service stopped');
       return;
     }
     
     if (this.config.ttsProvider === 'browser') {
+      console.log('[VoiceService] Using browser TTS provider');
       return this.speakBrowser(text);
     } else if (this.config.ttsProvider === 'elevenlabs') {
+      console.log('[VoiceService] Using ElevenLabs TTS provider');
       return this.speakElevenLabs(text);
+    } else if (this.config.ttsProvider === 'cloud') {
+      console.log('[VoiceService] Using cloud TTS provider (main process)');
+      if (!('electron' in window) || !window.electron?.api?.ttsSpeak || !window.electron?.api?.onTtsSpeak) {
+        console.warn('[VoiceService] Cloud TTS not available, falling back to browser TTS');
+        return this.speakBrowser(text);
+      }
+      return this.speakCloud(text);
     }
   }
 
   private async speakBrowser(text: string): Promise<void> {
+    console.log('[VoiceService] speakBrowser() called');
     if (!('speechSynthesis' in window)) {
+      console.error('[VoiceService] Speech synthesis not supported in window');
       throw new Error('Speech synthesis not supported');
     }
+    console.log('[VoiceService] SpeechSynthesis is available');
 
     return new Promise((resolve, reject) => {
       if (this.shouldStop) {
+        console.log('[VoiceService] speakBrowser: shouldStop is true, resolving early');
+        resolve();
+        return;
+      }
+
+      const browserSettings = loadBrowserTtsSettings();
+      if (!browserSettings.enabled) {
+        console.log('[VoiceService] Browser TTS disabled in settings, skipping speak');
         resolve();
         return;
       }
 
       const utterance = new SpeechSynthesisUtterance(text);
-      utterance.rate = 1.0;
-      utterance.pitch = 1.0;
-      utterance.volume = 0.8;
+      utterance.rate = browserSettings.rate;
+      utterance.pitch = browserSettings.pitch;
+      utterance.volume = browserSettings.volume;
+      console.log('[VoiceService] Created SpeechSynthesisUtterance');
 
       // Set voice based on environment variable or config
-      const preferredVoice = import.meta.env.VITE_BROWSER_TTS_VOICE || 'Linda';
-      const voices = window.speechSynthesis.getVoices();
-      const selectedVoice = voices.find(voice => 
-        voice.name.toLowerCase().includes(preferredVoice.toLowerCase()) ||
-        voice.voiceURI.toLowerCase().includes(preferredVoice.toLowerCase())
-      );
+      const preferredVoice = browserSettings.preferredVoiceName || import.meta.env.VITE_BROWSER_TTS_VOICE || 'Linda';
+      console.log('[VoiceService] Preferred voice:', preferredVoice);
       
-      if (selectedVoice) {
-        utterance.voice = selectedVoice;
-        console.log(`Using TTS voice: ${selectedVoice.name}`);
+      // Function to set voice once voices are loaded
+      const setVoice = () => {
+        const voices = window.speechSynthesis.getVoices();
+        console.log('[VoiceService] Available voices:', voices.map(v => ({ name: v.name, lang: v.lang, localService: v.localService })));
+        const selectedVoice = pickBrowserTtsVoice(voices, preferredVoice);
+        if (selectedVoice) {
+          utterance.voice = selectedVoice;
+          console.log('[VoiceService] Selected voice:', selectedVoice.name);
+        } else {
+          console.warn(`[VoiceService] Preferred voice "${preferredVoice}" not found, using default`);
+        }
+      };
+
+      // Check if voices are already loaded
+      const currentVoices = window.speechSynthesis.getVoices();
+      console.log('[VoiceService] Current voices count:', currentVoices.length);
+      if (currentVoices.length > 0) {
+        setVoice();
       } else {
-        console.warn(`Preferred voice "${preferredVoice}" not found, using default`);
+        console.log('[VoiceService] Waiting for voiceschanged event');
+        // Wait for voices to load
+        const voicesChangedHandler = () => {
+          console.log('[VoiceService] voiceschanged event fired');
+          setVoice();
+          window.speechSynthesis.removeEventListener('voiceschanged', voicesChangedHandler);
+        };
+        window.speechSynthesis.addEventListener('voiceschanged', voicesChangedHandler);
       }
 
       utterance.onstart = () => {
+        console.log('[VoiceService] Speech utterance started');
         if (this.shouldStop) {
+          console.log('[VoiceService] Cancelling speech due to shouldStop');
           window.speechSynthesis.cancel();
           resolve();
         } else {
@@ -417,10 +463,12 @@ export class VoiceService {
         }
       };
       utterance.onend = () => {
+        console.log('[VoiceService] Speech utterance ended');
         this.onModeChange?.('idle');
         resolve();
       };
       utterance.onerror = (event) => {
+        console.error('[VoiceService] Speech utterance error:', event.error, event);
         this.onModeChange?.('idle');
         if (this.shouldStop) {
           resolve();
@@ -429,6 +477,7 @@ export class VoiceService {
         }
       };
 
+      console.log('[VoiceService] Calling window.speechSynthesis.speak()');
       window.speechSynthesis.speak(utterance);
     });
   }
@@ -499,6 +548,75 @@ export class VoiceService {
     } catch (error) {
       if (this.shouldStop) return;
       throw new Error(`ElevenLabs TTS failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  }
+
+  private async speakCloud(text: string): Promise<void> {
+    console.log('[VoiceService] speakCloud() called');
+    if (!('electron' in window) || !window.electron?.api?.ttsSpeak || !window.electron?.api?.onTtsSpeak) {
+      throw new Error('Cloud TTS not available - electron API not found');
+    }
+
+    try {
+      this.onModeChange?.('speaking');
+      
+      // Listen for the audio URL response
+      const audioUrl = await new Promise<string>((resolve, reject) => {
+        const timeout = setTimeout(() => {
+          reject(new Error('TTS timeout'));
+        }, 10000); // 10 second timeout
+
+        const unsubscribe = window.electron.api.onTtsSpeak((url: string | null) => {
+          clearTimeout(timeout);
+          unsubscribe();
+          if (url === null) {
+            reject(new Error('TTS failed'));
+          } else {
+            resolve(url);
+          }
+        });
+
+        // Send the TTS request
+        window.electron.api.ttsSpeak(text).catch((error: any) => {
+          clearTimeout(timeout);
+          unsubscribe();
+          reject(error);
+        });
+      });
+
+      if (this.shouldStop) {
+        this.onModeChange?.('idle');
+        return;
+      }
+
+      const audio = new Audio(audioUrl);
+      this.currentAudioElement = audio;
+
+      await new Promise<void>((resolve, reject) => {
+        audio.onended = () => {
+          this.onModeChange?.('idle');
+          if (this.currentAudioElement === audio) {
+            this.currentAudioElement = null;
+          }
+          resolve();
+        };
+        audio.onerror = () => {
+          this.onModeChange?.('idle');
+          if (this.currentAudioElement === audio) {
+            this.currentAudioElement = null;
+          }
+          reject(new Error('Audio playback failed'));
+        };
+
+        if (this.shouldStop) {
+          resolve();
+        } else {
+          audio.play().catch(reject);
+        }
+      });
+    } catch (error) {
+      this.onModeChange?.('idle');
+      throw new Error(`Cloud TTS failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   }
 
