@@ -1,6 +1,6 @@
-# Volt Tech Desktop - Electron Wrapper
+# Mossy Desktop - Electron Wrapper
 
-This directory contains the Electron-based desktop wrapper for the Volt Tech web application with program detection capabilities.
+This directory contains the Electron-based desktop wrapper for the Mossy web application with program detection capabilities.
 
 ## Overview
 
@@ -22,7 +22,7 @@ src/electron/
 └── types.ts          # Shared TypeScript interfaces
 
 external/volttech-dist/
-└── index.html        # Volt Tech web build assets go here
+└── index.html        # Mossy web build assets go here (legacy folder name)
 
 public/
 └── attach-programs.html  # Example UI demonstrating the API
@@ -75,8 +75,8 @@ await window.electron.api.openProgram('C:\\Program Files\\Example\\app.exe');
 npm install
 ```
 
-2. Place Volt Tech web build in `external/volttech-dist/`:
-   - Copy the built output from Mossy-Vault---TEC
+2. Place Mossy web build in `external/volttech-dist/`:
+  - Copy the built output from your Mossy UI build
    - Must include `index.html` as entry point
    - Or keep the placeholder for testing
 
@@ -137,7 +137,7 @@ npm run package:win
 ```
 
 This creates:
-- `release/Volt Tech Desktop Setup x.x.x.exe` - NSIS installer for Windows
+- `release/Mossy Setup x.x.x.exe` - NSIS installer for Windows
 
 The installer:
 - Allows custom installation directory
@@ -187,7 +187,7 @@ Recursively finds `.exe` files (max depth: 2), excluding:
 {
   "build": {
     "appId": "com.volttech.desktop",
-    "productName": "Volt Tech Desktop",
+    "productName": "Mossy",
     "win": {
       "target": ["nsis"]
     },
