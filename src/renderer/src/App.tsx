@@ -41,6 +41,8 @@ import { getWorkflowAutomationService } from './WorkflowAutomationService';
 import { getPluginSystemService } from './PluginSystemService';
 import { WorkflowAutomationService } from './WorkflowAutomationService';
 import { PluginSystemService } from './PluginSystemService';
+import { proactiveAssistant } from './ProactiveAssistant';
+import ProactiveWarningsPanel from './ProactiveWarningsPanel';
 
 // --- LAZY LOAD MODULES ---
 // This prevents the app from loading ALL code at startup.
@@ -115,6 +117,7 @@ const PackagingReleaseWizard = React.lazy(() => import('./PackagingReleaseWizard
 const CKQuestDialogueWizard = React.lazy(() => import('./CKQuestDialogueWizard'));
 const PRPPatchBuilderWizard = React.lazy(() => import('./PRPPatchBuilderWizard'));
 const DuplicateFinder = React.lazy(() => import('./DuplicateFinder'));
+const QuickExportPanel = React.lazy(() => import('./QuickExportPanel'));
 
 // Archive Management
 const BA2Manager = React.lazy(() => import('./BA2Manager').then(module => ({ default: module.BA2Manager })));
@@ -795,6 +798,7 @@ const App: React.FC = () => {
             aria-label="Main content"
           >
             <MossyObserver />
+            <ProactiveWarningsPanel />
             <Suspense fallback={<ModuleLoader />}>
               <Routes>
                 {/* Core Application Routes */}
@@ -808,6 +812,7 @@ const App: React.FC = () => {
                 <Route path="/tools" element={<ErrorBoundary><TheNexus /></ErrorBoundary>} />
                 <Route path="/tools/monitor" element={<SystemMonitor />} />
                 <Route path="/tools/auditor" element={<TheAuditor />} />
+                <Route path="/tools/export" element={<ErrorBoundary><QuickExportPanel /></ErrorBoundary>} />
                 <Route path="/tools/mining" element={<ErrorBoundary><MiningPanel /></ErrorBoundary>} />
                 <Route path="/tools/advanced-analysis" element={<ErrorBoundary><AdvancedAnalysisPanel /></ErrorBoundary>} />
                 <Route path="/tools/assembler" element={<TheAssembler />} />
