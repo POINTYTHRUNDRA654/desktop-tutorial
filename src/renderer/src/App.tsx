@@ -27,6 +27,9 @@ import { WhatsNewDialog, useWhatsNew } from './WhatsNewDialog';
 import { SkeletonLoader } from './SkeletonLoader';
 import { SettingsImportExport } from './SettingsImportExport';
 
+// Import Help & Installation components
+const HowToInstall = React.lazy(() => import('./HowToInstall'));
+
 // Import new performance & reliability managers
 import { cacheManager } from './CacheManager';
 import { workerManager } from './WorkerManager';
@@ -918,6 +921,9 @@ const App: React.FC = () => {
 
                 {/* Support */}
                 <Route path="/support" element={<DonationSupport />} />
+                
+                {/* Help & Installation */}
+                <Route path="/help/install" element={<ErrorBoundary><HowToInstall /></ErrorBoundary>} />
 
                 {/* Legacy Routes - Redirect to new structure */}
                 <Route path="/monitor" element={<Navigate to="/tools/monitor" replace />} />

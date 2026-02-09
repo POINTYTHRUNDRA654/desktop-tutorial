@@ -122,7 +122,10 @@
       "dist-electron/**/*",
       "external/volttech-dist/**/*",
       "public/**/*",
-      ".env.encrypted"
+      ".env.encrypted",
+      "INSTALLATION_GUIDE.md",
+      "README.md",
+      "LICENSE"
     ],
     "extraResources": [
       {
@@ -159,9 +162,24 @@
     "nsis": {
       "oneClick": false,
       "allowToChangeInstallationDirectory": true,
+      "allowElevation": true,
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
-      "shortcutName": "Mossy"
+      "shortcutName": "Mossy",
+      "installerIcon": "public/mossy-avatar.png",
+      "uninstallerIcon": "public/mossy-avatar.png",
+      "installerHeader": "public/mossy-avatar.png",
+      "installerHeaderIcon": "public/mossy-avatar.png",
+      "deleteAppDataOnUninstall": false,
+      "runAfterFinish": true,
+      "menuCategory": true,
+      "include": "build/installer.nsh",
+      "warningsAsErrors": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "license": "LICENSE",
+      "artifactName": "${productName}-Setup-${version}.${ext}",
+      "guid": "d6c1e1e8-5f7a-4b2d-9c3e-8f6a5c4b3d2e"
     },
     "linux": {
       "target": "AppImage",
