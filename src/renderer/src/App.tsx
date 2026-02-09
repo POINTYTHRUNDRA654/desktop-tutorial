@@ -26,6 +26,7 @@ import { GlobalSearch } from './GlobalSearch';
 import { WhatsNewDialog, useWhatsNew } from './WhatsNewDialog';
 import { SkeletonLoader } from './SkeletonLoader';
 import { SettingsImportExport } from './SettingsImportExport';
+import RecentFilesSidebar from './RecentFilesSidebar';
 
 // Import Help & Installation components
 const HowToInstall = React.lazy(() => import('./HowToInstall'));
@@ -566,6 +567,13 @@ const App: React.FC = () => {
         sidebarNav?.focus();
       }
 
+      // Toggle Recent Files Sidebar: Ctrl+Shift+R
+      if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key.toLowerCase() === 'r') {
+        e.preventDefault();
+        // Dispatch event to toggle recent files sidebar
+        window.dispatchEvent(new CustomEvent('toggle-recent-files'));
+      }
+
       // Mobile sidebar toggle
       if (e.key === 'Escape' && sidebarOpen) {
         setSidebarOpen(false);
@@ -721,6 +729,9 @@ const App: React.FC = () => {
             onToggle={() => setSidebarOpen(!sidebarOpen)}
             onClose={() => setSidebarOpen(false)}
           />
+
+          {/* Recent Files & Favorites Sidebar (Quick Win #1) */}
+          <RecentFilesSidebar />
 
           {/* Main Application Header */}
           <header className="main-header bg-slate-900 border-b border-green-500/20 px-4 py-2 grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1.6fr)] items-center gap-4">
