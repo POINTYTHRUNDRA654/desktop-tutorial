@@ -59,7 +59,7 @@ describe('ContextAwareAIService', () => {
 
     const context = service.getCurrentContext();
     expect(context.activeTools).toEqual(mockTools);
-    expect(context.workflowStage).toBe('creating');
+    expect(context.workflowStage).toBe('modeling'); // Updated: now returns specific stage instead of generic 'creating'
     expect(context.userIntent).toBe('3d-modeling');
   });
 
