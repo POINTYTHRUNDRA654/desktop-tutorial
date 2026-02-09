@@ -20,6 +20,7 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { autoSaveManager } from './AutoSaveManager';
 import { useAnalytics } from './utils/analytics';
 import { openExternal } from './utils/openExternal';
+import { contextAwareAIService } from './ContextAwareAIService';
 
 
 type OnboardingState = 'init' | 'scanning' | 'integrating' | 'ready' | 'project_setup';
@@ -1200,6 +1201,29 @@ export const ChatInterface: React.FC = () => {
           }
       }
 
+      // **NEW: Context-Aware AI Integration**
+      let contextAwareInfo = "";
+      try {
+          const aiContext = contextAwareAIService.getCurrentContext();
+          const workflowStage = aiContext.workflowStage;
+          const blenderStage = aiContext.blenderWorkflowStage;
+          const confidence = Math.round(aiContext.stageConfidence * 100);
+          const fileTypes = aiContext.detectedFileTypes.join(', ');
+          
+          contextAwareInfo = `\n**AI WORKFLOW AWARENESS:**\n- Detected Stage: ${workflowStage.toUpperCase()} (${confidence}% confidence)`;
+          if (blenderStage) {
+              contextAwareInfo += `\n- Blender Pipeline: ${blenderStage.toUpperCase()}`;
+          }
+          if (fileTypes) {
+              contextAwareInfo += `\n- Working with: ${fileTypes}`;
+          }
+          contextAwareInfo += `\n- User Intent: ${aiContext.userIntent}`;
+          contextAwareInfo += `\n- Time of Day: ${aiContext.timeOfDay}`;
+          contextAwareInfo += `\n\n**GUIDANCE:** Tailor your response to the user's current ${workflowStage} stage. Provide relevant tips, warnings, and next steps specific to this workflow phase.`;
+      } catch (e) {
+          console.warn('[ChatInterface] Failed to load context-aware info:', e);
+      }
+
       const communityLearningCtx = getCommunityLearningContextForModel();
       const toolPermissionsCtx = getToolPermissionsContextForModel({
           bridgeActive: isBridgeActive,
@@ -1278,6 +1302,7 @@ export const ChatInterface: React.FC = () => {
     ${toolAckLine}
     ${guidanceLine}
     ${monitoringLine}
+    ${contextAwareInfo}
             ${settingsCtx}${gameFolderInfo}
             ${appFeatures}
         ${toolPermissionsCtx}

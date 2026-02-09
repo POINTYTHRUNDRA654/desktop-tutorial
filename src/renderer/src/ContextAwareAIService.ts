@@ -16,14 +16,29 @@ export interface ToolContext {
   };
 }
 
+export type WorkflowStage = 
+  | 'planning'
+  | 'modeling'
+  | 'rigging'
+  | 'animation'
+  | 'texturing'
+  | 'export'
+  | 'testing'
+  | 'debugging'
+  | 'optimizing'
+  | 'packaging';
+
 export interface AIContext {
   activeTools: ToolContext[];
   currentProject?: string;
   recentFiles: string[];
   userIntent: string;
-  workflowStage: 'planning' | 'creating' | 'testing' | 'debugging' | 'optimizing';
+  workflowStage: WorkflowStage;
+  blenderWorkflowStage?: 'modeling' | 'rigging' | 'animation' | 'export';
   timeOfDay: 'morning' | 'afternoon' | 'evening' | 'night';
   sessionDuration: number;
+  stageConfidence: number; // 0-1 confidence in stage detection
+  detectedFileTypes: string[]; // .blend, .nif, .esp, etc.
 }
 
 export interface AISuggestion {
@@ -49,7 +64,9 @@ export class ContextAwareAIService {
     userIntent: 'general-modding',
     workflowStage: 'planning',
     timeOfDay: 'morning',
-    sessionDuration: 0
+    sessionDuration: 0,
+    stageConfidence: 1.0,
+    detectedFileTypes: []
   };
 
   private suggestions: AISuggestion[] = [];
@@ -115,7 +132,20 @@ export class ContextAwareAIService {
     if (project) {
       this.context.currentProject = project;
     }
+    
+    // Detect file types
+    this.context.detectedFileTypes = files
+      .map(f => {
+        const ext = f.substring(f.lastIndexOf('.')).toLowerCase();
+        return ext;
+      })
+      .filter((ext, index, self) => self.indexOf(ext) === index); // unique
+    
+    // Re-infer workflow stage with new file context
+    this.inferWorkflowStage();
+    
     this.saveContext();
+    this.notifyContextUpdate();
   }
 
   private inferWorkflowStage(): void {
@@ -123,25 +153,120 @@ export class ContextAwareAIService {
 
     if (activeTools.length === 0) {
       this.context.workflowStage = 'planning';
+      this.context.stageConfidence = 1.0;
       return;
     }
 
-    // Infer stage based on active tools
+    // Infer stage based on active tools and file types
     const toolNames = activeTools.map(t => t.name.toLowerCase());
+    const fileTypes = this.context.detectedFileTypes;
 
+    // Blender-specific workflow detection
     if (toolNames.some(name => name.includes('blender'))) {
-      this.context.workflowStage = 'creating';
-    } else if (toolNames.some(name => name.includes('creation') || name.includes('ck'))) {
-      this.context.workflowStage = 'creating';
-    } else if (toolNames.some(name => name.includes('xedit') || name.includes('fo4edit'))) {
-      this.context.workflowStage = 'debugging';
-    } else if (toolNames.some(name => name.includes('loot') || name.includes('test'))) {
-      this.context.workflowStage = 'testing';
-    } else if (toolNames.some(name => name.includes('optimizer') || name.includes('auditor'))) {
-      this.context.workflowStage = 'optimizing';
-    } else {
-      this.context.workflowStage = 'planning';
+      this.inferBlenderWorkflowStage(activeTools, fileTypes);
+      return;
     }
+
+    // Creation Kit workflow
+    if (toolNames.some(name => name.includes('creation') || name.includes('ck'))) {
+      if (fileTypes.some(f => f.endsWith('.esp') || f.endsWith('.esm'))) {
+        this.context.workflowStage = 'testing';
+        this.context.stageConfidence = 0.8;
+      } else {
+        this.context.workflowStage = 'modeling';
+        this.context.stageConfidence = 0.7;
+      }
+      return;
+    }
+
+    // xEdit workflow (usually debugging)
+    if (toolNames.some(name => name.includes('xedit') || name.includes('fo4edit'))) {
+      this.context.workflowStage = 'debugging';
+      this.context.stageConfidence = 0.9;
+      return;
+    }
+
+    // Testing tools
+    if (toolNames.some(name => name.includes('loot') || name.includes('test'))) {
+      this.context.workflowStage = 'testing';
+      this.context.stageConfidence = 0.9;
+      return;
+    }
+
+    // Optimization tools
+    if (toolNames.some(name => name.includes('optimizer') || name.includes('auditor'))) {
+      this.context.workflowStage = 'optimizing';
+      this.context.stageConfidence = 0.9;
+      return;
+    }
+
+    // FOMOD/Packaging tools
+    if (toolNames.some(name => name.includes('fomod') || name.includes('assembler'))) {
+      this.context.workflowStage = 'packaging';
+      this.context.stageConfidence = 0.9;
+      return;
+    }
+
+    // Default to planning
+    this.context.workflowStage = 'planning';
+    this.context.stageConfidence = 0.5;
+  }
+
+  private inferBlenderWorkflowStage(activeTools: ToolContext[], fileTypes: string[]): void {
+    // Analyze window titles and file types for Blender workflow stage
+    const windowTitles = activeTools
+      .filter(t => t.name.toLowerCase().includes('blender'))
+      .map(t => (t.windowTitle || '').toLowerCase());
+
+    // Check for rigging-related keywords
+    if (windowTitles.some(title => 
+      title.includes('rig') || 
+      title.includes('armature') || 
+      title.includes('bone') || 
+      title.includes('weight')
+    )) {
+      this.context.workflowStage = 'rigging';
+      this.context.blenderWorkflowStage = 'rigging';
+      this.context.stageConfidence = 0.85;
+      return;
+    }
+
+    // Check for animation-related keywords
+    if (windowTitles.some(title => 
+      title.includes('anim') || 
+      title.includes('action') || 
+      title.includes('keyframe')
+    )) {
+      this.context.workflowStage = 'animation';
+      this.context.blenderWorkflowStage = 'animation';
+      this.context.stageConfidence = 0.85;
+      return;
+    }
+
+    // Check for texturing
+    if (windowTitles.some(title => 
+      title.includes('shader') || 
+      title.includes('material') || 
+      title.includes('texture') ||
+      title.includes('uv')
+    ) || fileTypes.some(f => f.endsWith('.dds') || f.endsWith('.png') || f.endsWith('.jpg'))) {
+      this.context.workflowStage = 'texturing';
+      this.context.stageConfidence = 0.8;
+      return;
+    }
+
+    // Check for export/NIF files
+    if (fileTypes.some(f => f.endsWith('.nif') || f.endsWith('.fbx'))) {
+      this.context.workflowStage = 'export';
+      this.context.blenderWorkflowStage = 'export';
+      this.context.stageConfidence = 0.9;
+      return;
+    }
+
+    // Default to modeling for Blender
+    this.context.workflowStage = 'modeling';
+    this.context.blenderWorkflowStage = 'modeling';
+    this.context.stageConfidence = 0.7;
   }
 
   private inferUserIntent(): void {
@@ -249,19 +374,121 @@ export class ContextAwareAIService {
         });
         break;
 
-      case 'creating':
-        if (this.context.timeOfDay === 'evening' || this.context.timeOfDay === 'night') {
+      case 'modeling':
+        suggestions.push({
+          id: 'workflow-modeling-standards',
+          type: 'tip',
+          title: 'FO4 Modeling Standards',
+          description: 'Remember: Use 1.0 scale in Blender. Keep poly count under 50k triangles for optimal performance.',
+          priority: 'medium',
+          context: 'modeling-stage',
+          actions: [{
+            label: 'View Standards Guide',
+            command: 'navigate',
+            params: { route: '/guides/blender' }
+          }],
+          relevance: 0.85,
+          timestamp: Date.now()
+        });
+        
+        if (this.context.sessionDuration > 1800) { // 30 min
           suggestions.push({
-            id: 'workflow-evening-break',
+            id: 'workflow-modeling-checkpoint',
             type: 'tip',
-            title: 'Evening Session Tip',
-            description: 'Consider taking a break and testing your work tomorrow. Fresh eyes catch more issues.',
-            priority: 'low',
-            context: 'evening-workflow',
+            title: 'Consider Testing Your Model',
+            description: 'Export to NIF and test in-game to catch issues early.',
+            priority: 'medium',
+            context: 'modeling-checkpoint',
             relevance: 0.7,
             timestamp: Date.now()
           });
         }
+        break;
+
+      case 'rigging':
+        suggestions.push({
+          id: 'workflow-rigging-skeleton',
+          type: 'tip',
+          title: 'Skeleton Validation',
+          description: 'Ensure bone names match FO4 skeleton conventions. Check bone hierarchy and weights.',
+          priority: 'high',
+          context: 'rigging-stage',
+          actions: [{
+            label: 'View Rigging Guide',
+            command: 'navigate',
+            params: { route: '/guides/rigging' }
+          }],
+          relevance: 0.9,
+          timestamp: Date.now()
+        });
+        break;
+
+      case 'animation':
+        suggestions.push({
+          id: 'workflow-animation-fps',
+          type: 'warning',
+          title: 'Animation Must Be 30 FPS',
+          description: 'Fallout 4 requires animations at exactly 30 FPS. Verify your timeline settings.',
+          priority: 'high',
+          context: 'animation-stage',
+          actions: [{
+            label: 'Set Timeline to 30 FPS',
+            command: 'blender-set-fps'
+          }],
+          relevance: 0.95,
+          timestamp: Date.now()
+        });
+        break;
+
+      case 'texturing':
+        suggestions.push({
+          id: 'workflow-texturing-pbr',
+          type: 'tip',
+          title: 'PBR Texture Generation',
+          description: 'Use Image Suite to automatically generate normal, roughness, and height maps from your diffuse texture.',
+          priority: 'medium',
+          context: 'texturing-stage',
+          actions: [{
+            label: 'Open Image Suite',
+            command: 'navigate',
+            params: { route: '/media/images' }
+          }],
+          relevance: 0.8,
+          timestamp: Date.now()
+        });
+        break;
+
+      case 'export':
+        suggestions.push({
+          id: 'workflow-export-validation',
+          type: 'action',
+          title: 'Validate Export Settings',
+          description: 'Before exporting, ensure all textures are packed and paths are relative.',
+          priority: 'high',
+          context: 'export-stage',
+          actions: [{
+            label: 'Pre-Export Checklist',
+            command: 'show-export-checklist'
+          }],
+          relevance: 0.9,
+          timestamp: Date.now()
+        });
+
+        suggestions.push({
+          id: 'workflow-export-auditor',
+          type: 'action',
+          title: 'Analyze Exported Files',
+          description: 'Use The Auditor to analyze your NIF files for errors before testing in-game.',
+          priority: 'medium',
+          context: 'export-stage',
+          actions: [{
+            label: 'Open The Auditor',
+            command: 'navigate',
+            params: { route: '/tools/auditor' }
+          }],
+          relevance: 0.85,
+          timestamp: Date.now()
+        });
         break;
 
       case 'testing':
@@ -280,6 +507,71 @@ export class ContextAwareAIService {
           timestamp: Date.now()
         });
         break;
+
+      case 'debugging':
+        suggestions.push({
+          id: 'workflow-debugging-xedit',
+          type: 'tip',
+          title: 'Conflict Resolution',
+          description: 'Use xEdit to identify and resolve conflicts with other mods.',
+          priority: 'medium',
+          context: 'debugging-stage',
+          relevance: 0.8,
+          timestamp: Date.now()
+        });
+        break;
+
+      case 'optimizing':
+        suggestions.push({
+          id: 'workflow-optimizing-performance',
+          type: 'tip',
+          title: 'Performance Optimization Tips',
+          description: 'Focus on reducing poly count, optimizing textures, and using LODs effectively.',
+          priority: 'medium',
+          context: 'optimizing-stage',
+          actions: [{
+            label: 'View Optimization Guide',
+            command: 'navigate',
+            params: { route: '/guides/optimization' }
+          }],
+          relevance: 0.85,
+          timestamp: Date.now()
+        });
+        break;
+
+      case 'packaging':
+        suggestions.push({
+          id: 'workflow-packaging-fomod',
+          type: 'action',
+          title: 'Create FOMOD Installer',
+          description: 'Package your mod with a FOMOD installer for easy distribution.',
+          priority: 'medium',
+          context: 'packaging-stage',
+          actions: [{
+            label: 'Open The Assembler',
+            command: 'navigate',
+            params: { route: '/tools/assembler' }
+          }],
+          relevance: 0.9,
+          timestamp: Date.now()
+        });
+        break;
+    }
+
+    // Evening workflow tip
+    if (this.context.timeOfDay === 'evening' || this.context.timeOfDay === 'night') {
+      if (['modeling', 'rigging', 'animation'].includes(this.context.workflowStage)) {
+        suggestions.push({
+          id: 'workflow-evening-break',
+          type: 'tip',
+          title: 'Evening Session Tip',
+          description: 'Consider taking a break and testing your work tomorrow. Fresh eyes catch more issues.',
+          priority: 'low',
+          context: 'evening-workflow',
+          relevance: 0.7,
+          timestamp: Date.now()
+        });
+      }
     }
 
     return suggestions;
@@ -436,14 +728,33 @@ export class ContextAwareAIService {
       parts.push(`Current Project: ${this.context.currentProject}`);
     }
 
-    // Workflow stage
-    parts.push(`Workflow Stage: ${this.context.workflowStage}`);
+    // Workflow stage with confidence
+    parts.push(`Workflow Stage: ${this.context.workflowStage} (confidence: ${Math.round(this.context.stageConfidence * 100)}%)`);
+    
+    // Blender-specific stage if applicable
+    if (this.context.blenderWorkflowStage) {
+      parts.push(`Blender Pipeline Stage: ${this.context.blenderWorkflowStage}`);
+    }
 
     // User intent
     parts.push(`User Intent: ${this.context.userIntent}`);
 
     // Time context
     parts.push(`Time of Day: ${this.context.timeOfDay}`);
+    
+    // Session duration
+    const hours = Math.floor(this.context.sessionDuration / 3600);
+    const minutes = Math.floor((this.context.sessionDuration % 3600) / 60);
+    if (hours > 0) {
+      parts.push(`Session Duration: ${hours}h ${minutes}m`);
+    } else if (minutes > 0) {
+      parts.push(`Session Duration: ${minutes}m`);
+    }
+
+    // File types being worked on
+    if (this.context.detectedFileTypes.length > 0) {
+      parts.push(`Working with: ${this.context.detectedFileTypes.join(', ')}`);
+    }
 
     // Recent files
     if (this.context.recentFiles.length > 0) {
