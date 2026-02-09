@@ -27,6 +27,8 @@ import { WhatsNewDialog, useWhatsNew } from './WhatsNewDialog';
 import { SkeletonLoader } from './SkeletonLoader';
 import { SettingsImportExport } from './SettingsImportExport';
 import RecentFilesSidebar from './RecentFilesSidebar';
+import { DragDropZone } from './DragDropZone';
+import { fileAnalyzerService } from './FileAnalyzerService';
 
 // Import Help & Installation components
 const HowToInstall = React.lazy(() => import('./HowToInstall'));
@@ -619,6 +621,25 @@ const App: React.FC = () => {
     ensureBrowserTtsSettingsStored();
   }, []);
 
+  // Handle drag-and-drop file analysis (Feature #2: Quick Win)
+  const handleFileDrop = async (files: File[]) => {
+    console.log('[App] Files dropped:', files.map(f => f.name));
+    
+    // Analyze files and show results
+    const results = await fileAnalyzerService.analyzeFiles(files);
+    
+    // Show notification for each file
+    results.forEach(result => {
+      fileAnalyzerService.showNotification(result);
+      
+      // TODO: Navigate to appropriate route if specified
+      if (result.route) {
+        console.log(`[App] File analysis suggests route: ${result.route}`);
+        // Could auto-navigate: navigate(result.route);
+      }
+    });
+  };
+
   // Dev-only: capture uncaught errors with stack traces.
   // This helps pinpoint issues that Electron logs as "source: (0)".
   React.useEffect(() => {
@@ -732,6 +753,9 @@ const App: React.FC = () => {
 
           {/* Recent Files & Favorites Sidebar (Quick Win #1) */}
           <RecentFilesSidebar />
+
+          {/* Drag & Drop File Analysis Zone (Quick Win #2) */}
+          <DragDropZone onFileDrop={handleFileDrop} />
 
           {/* Main Application Header */}
           <header className="main-header bg-slate-900 border-b border-green-500/20 px-4 py-2 grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1.6fr)] items-center gap-4">
