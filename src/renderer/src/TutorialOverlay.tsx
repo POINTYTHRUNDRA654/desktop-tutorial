@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { ArrowDownToLine, CheckCircle2, ArrowRight, X, Monitor, Command, Layout, ChevronRight, Package, Terminal, Pause, Play, Mic2, BrainCircuit, Layers, Zap, ShieldCheck } from 'lucide-react';
+import { ArrowDownToLine, CheckCircle2, ArrowRight, X, Monitor, Command, Layout, ChevronRight, Package, Terminal, Pause, Play, Mic2, BrainCircuit, Layers, Zap, ShieldCheck, Video } from 'lucide-react';
+import VideoTutorial from './VideoTutorial';
 
 interface HighlightRect {
     top: string | number;
@@ -23,6 +24,7 @@ const TutorialOverlay: React.FC = () => {
     const [currentStepIndex, setCurrentStepIndex] = useState(0);
     const [installProgress, setInstallProgress] = useState(0);
     const [bootLogs, setBootLogs] = useState<string[]>([]);
+    const [showVideoTutorial, setShowVideoTutorial] = useState(false);
 
     // --- State Management ---
     
@@ -47,8 +49,18 @@ const TutorialOverlay: React.FC = () => {
             setBootLogs([]);
             setIsOpen(true);
         };
+        
+        // Event listener for video tutorial
+        const handleVideoTutorial = () => {
+            setShowVideoTutorial(true);
+        };
+        
         window.addEventListener('start-tutorial', handleTrigger);
-        return () => window.removeEventListener('start-tutorial', handleTrigger);
+        window.addEventListener('open-video-tutorial', handleVideoTutorial);
+        return () => {
+            window.removeEventListener('start-tutorial', handleTrigger);
+            window.removeEventListener('open-video-tutorial', handleVideoTutorial);
+        };
     }, []);
 
     // Allow Esc to close when open
@@ -108,10 +120,23 @@ const TutorialOverlay: React.FC = () => {
                     <p className="text-lg text-slate-200 font-medium mb-2">
                         Welcome, Architect.
                     </p>
-                    <p className="text-slate-400 text-sm leading-relaxed max-w-md mx-auto">
+                    <p className="text-slate-400 text-sm leading-relaxed max-w-md mx-auto mb-6">
                         I am <strong>Mossy</strong>, your neural interface for creative workflows. 
                         I can see your screen, read your files, and execute code to help you build faster.
                     </p>
+                    <div className="flex flex-col gap-3 mt-6">
+                        <button
+                            onClick={() => {
+                                setShowVideoTutorial(true);
+                                setIsOpen(false);
+                            }}
+                            className="flex items-center justify-center gap-3 px-6 py-3 bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-500 hover:to-blue-500 text-white rounded-lg font-medium transition-all shadow-lg shadow-purple-900/20"
+                        >
+                            <Video className="w-5 h-5" />
+                            Watch Video Tutorial
+                        </button>
+                        <p className="text-xs text-slate-500">or continue with interactive walkthrough below</p>
+                    </div>
                 </div>
             )
         },
@@ -249,9 +274,19 @@ const TutorialOverlay: React.FC = () => {
 
     const currentStep = steps[currentStepIndex];
 
-    if (!isOpen) return null;
+    if (!isOpen && !showVideoTutorial) return null;
 
     return (
+        <>
+            <VideoTutorial 
+                isOpen={showVideoTutorial} 
+                onClose={() => {
+                    setShowVideoTutorial(false);
+                    setIsOpen(true);
+                }} 
+            />
+            
+            {isOpen && (
         <div className="fixed inset-0 z-[9999] overflow-hidden">
             {/* 
                 DYNAMIC SPOTLIGHT SYSTEM
@@ -350,6 +385,8 @@ const TutorialOverlay: React.FC = () => {
                 </div>
             </div>
         </div>
+            )}
+        </>
     );
 };
 
