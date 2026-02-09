@@ -2,6 +2,7 @@
 // Integrates Neural Link data with AI prompts for contextual assistance
 
 import { cacheManager } from './CacheManager';
+import { communityKnowledgeMiner } from './CommunityKnowledgeMiner';
 
 export interface ToolContext {
   name: string;
@@ -759,6 +760,24 @@ export class ContextAwareAIService {
     // Recent files
     if (this.context.recentFiles.length > 0) {
       parts.push(`Recent Files: ${this.context.recentFiles.slice(0, 3).join(', ')}`);
+    }
+    
+    // Community knowledge integration
+    try {
+      const activeTools = this.context.activeTools.filter(t => t.isActive);
+      const patterns = communityKnowledgeMiner.getRelevantPatterns({
+        workflowStage: this.context.workflowStage,
+        activeTools: activeTools.map(t => t.name),
+      });
+      
+      if (patterns.length > 0) {
+        parts.push('\n--- Community Learnings ---');
+        for (const pattern of patterns) {
+          parts.push(`💡 ${pattern.pattern}: ${pattern.suggestedSolution}`);
+        }
+      }
+    } catch (error) {
+      console.error('Failed to add community knowledge to context:', error);
     }
 
     return parts.join('\n');
