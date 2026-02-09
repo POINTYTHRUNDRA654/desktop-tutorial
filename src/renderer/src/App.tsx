@@ -29,6 +29,8 @@ import { SettingsImportExport } from './SettingsImportExport';
 import RecentFilesSidebar from './RecentFilesSidebar';
 import { DragDropZone } from './DragDropZone';
 import { fileAnalyzerService } from './FileAnalyzerService';
+import { ThemeSelector } from './ThemeSelector';
+import { themeService } from './ThemeService';
 
 // Import Help & Installation components
 const HowToInstall = React.lazy(() => import('./HowToInstall'));
@@ -777,6 +779,10 @@ const App: React.FC = () => {
             </div>
             <div className="flex items-center gap-2 justify-self-stretch justify-end min-w-0">
               <GlobalSearch />
+              
+              {/* Theme Selector (Quick Win #3) */}
+              <ThemeSelector />
+              
               <button
                 type="button"
                 onClick={() => window.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', ctrlKey: true }))}
