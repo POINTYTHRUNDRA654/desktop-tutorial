@@ -176,7 +176,6 @@
       "include": "build/installer.nsh",
       "warningsAsErrors": false,
       "perMachine": false,
-      "allowToChangeInstallationDirectory": true,
       "license": "LICENSE",
       "artifactName": "${productName}-Setup-${version}.${ext}",
       "guid": "d6c1e1e8-5f7a-4b2d-9c3e-8f6a5c4b3d2e"
