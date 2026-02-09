@@ -1,1 +1,1 @@
-# Desktop AI Assistant
+# Mossy AI Assistant
