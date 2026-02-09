@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Search, Command, Zap, ArrowRight, CornerDownLeft, BrainCircuit, Loader2, FileCode, LayoutDashboard, Terminal, MessageSquare, Activity, Image, Mic2, Hexagon, Layers, Box, Settings, Sparkles, RefreshCw, Dna, Database, Shield, Radio, Map, Container, Camera, Aperture, Network, GitBranch, PenTool, FlaskConical, Bug, Package, Globe, Smartphone, Heart, Lock, Gamepad2, Monitor, Rocket, ShieldCheck, Feather, Keyboard, Lightbulb } from 'lucide-react';
+import { Search, Command, Zap, ArrowRight, CornerDownLeft, BrainCircuit, Loader2, FileCode, LayoutDashboard, Terminal, MessageSquare, Activity, Image, Mic2, Hexagon, Layers, Box, Settings, Sparkles, RefreshCw, Dna, Database, Shield, Radio, Map, Container, Camera, Aperture, Network, GitBranch, PenTool, FlaskConical, Bug, Package, Globe, Smartphone, Heart, Lock, Gamepad2, Monitor, Rocket, ShieldCheck, Feather, Keyboard, Lightbulb, Video } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 
 interface Action {
@@ -81,7 +81,8 @@ const CommandPalette: React.FC = () => {
         { id: 'sys-voice', title: 'Toggle Voice Mode', subtitle: 'Enable/Disable TTS', icon: Mic2, group: 'System', action: () => { /* Logic integrated via context or event bus in real app */ alert('Voice Toggled'); }, keywords: ['voice', 'tts', 'speech', 'audio'] },
         { id: 'sys-bridge', title: 'Desktop Bridge Status', subtitle: 'Check Localhost Connection', icon: Monitor, group: 'System', action: () => navigate('/bridge'), keywords: ['bridge', 'desktop', 'connection', 'localhost'] },
         { id: 'sys-reload', title: 'Reboot Core', subtitle: 'Reload Application', icon: RefreshCw, group: 'System', action: () => window.location.reload(), keywords: ['reload', 'reboot', 'restart', 'refresh'] },
-        { id: 'sys-tutorial', title: 'Start Tutorial', subtitle: 'Guided tour of features', icon: Lightbulb, group: 'System', action: () => window.dispatchEvent(new CustomEvent('start-welcome-tour')), keywords: ['tutorial', 'guide', 'help', 'onboarding'] },
+        { id: 'sys-tutorial', title: 'Start Interactive Tutorial', subtitle: 'Guided tour of features', icon: Lightbulb, group: 'System', action: () => window.dispatchEvent(new CustomEvent('start-tutorial')), keywords: ['tutorial', 'guide', 'help', 'onboarding', 'walkthrough'] },
+        { id: 'sys-video-tutorial', title: 'Watch Video Tutorial', subtitle: 'Learn with video guide', icon: Video, group: 'System', action: () => window.dispatchEvent(new CustomEvent('open-video-tutorial')), keywords: ['video', 'tutorial', 'watch', 'guide', 'help', 'learn'] },
         { id: 'sys-feature-tour', title: 'Feature Spotlight', subtitle: 'Show new features', icon: Zap, group: 'System', action: () => window.dispatchEvent(new CustomEvent('start-feature-tour')), keywords: ['feature', 'spotlight', 'new', 'updates'] },
     ];
 
