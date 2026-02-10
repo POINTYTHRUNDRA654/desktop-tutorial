@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { FileText, PenTool, RefreshCw, Copy, Check, Upload, Feather, BookOpen, List, Code, Sparkles, Wand2, Globe } from 'lucide-react';
 import { useWheelScrollProxy } from './components/useWheelScrollProxy';
 
@@ -92,6 +93,13 @@ const TheScribe: React.FC = () => {
                     <p className="text-xs text-stone-500 font-mono mt-1">Documentation & Publishing Assistant</p>
                 </div>
                 <div className="flex gap-2">
+                    <Link
+                        to="/reference"
+                        className="px-3 py-2 text-[10px] font-black uppercase tracking-widest rounded-lg bg-amber-900/20 border border-amber-500/30 text-amber-100 hover:bg-amber-900/30 transition-colors"
+                        title="Open help"
+                    >
+                        Help
+                    </Link>
                     <div className="flex bg-stone-900 rounded-lg p-1 border border-stone-800">
                         <button 
                             onClick={() => setActiveTab('readme')}

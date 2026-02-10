@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import { Image as ImageIcon, ScanSearch, ArrowDownToLine, Layers, Upload, CheckCircle2, AlertTriangle } from 'lucide-react';
 import { useLive } from './LiveContext';
 import { ToolsInstallVerifyPanel } from './components/ToolsInstallVerifyPanel';
@@ -304,19 +305,30 @@ const ImageSuite: React.FC = () => {
 
   return (
     <div className="h-full flex flex-col bg-forge-dark text-slate-200">
-      <div className="flex border-b border-slate-700 bg-forge-panel">
-        <button
-          onClick={() => setActiveTab('pbr')}
-          className={`flex-1 p-4 flex items-center justify-center gap-2 font-medium ${activeTab === 'pbr' ? 'border-b-2 border-forge-accent text-forge-accent' : 'text-slate-400 hover:text-white'}`}
-        >
-          <Layers className="w-5 h-5" /> PBR Synthesizer
-        </button>
-        <button
-          onClick={() => setActiveTab('convert')}
-          className={`flex-1 p-4 flex items-center justify-center gap-2 font-medium ${activeTab === 'convert' ? 'border-b-2 border-forge-accent text-forge-accent' : 'text-slate-400 hover:text-white'}`}
-        >
-          <ScanSearch className="w-5 h-5" /> Format Converter
-        </button>
+      <div className="flex border-b border-slate-700 bg-forge-panel items-center">
+        <div className="flex flex-1">
+          <button
+            onClick={() => setActiveTab('pbr')}
+            className={`flex-1 p-4 flex items-center justify-center gap-2 font-medium ${activeTab === 'pbr' ? 'border-b-2 border-forge-accent text-forge-accent' : 'text-slate-400 hover:text-white'}`}
+          >
+            <Layers className="w-5 h-5" /> PBR Synthesizer
+          </button>
+          <button
+            onClick={() => setActiveTab('convert')}
+            className={`flex-1 p-4 flex items-center justify-center gap-2 font-medium ${activeTab === 'convert' ? 'border-b-2 border-forge-accent text-forge-accent' : 'text-slate-400 hover:text-white'}`}
+          >
+            <ScanSearch className="w-5 h-5" /> Format Converter
+          </button>
+        </div>
+        <div className="px-4">
+          <Link
+            to="/reference"
+            className="px-3 py-2 text-[10px] font-black uppercase tracking-widest rounded-lg bg-sky-900/20 border border-sky-500/30 text-sky-100 hover:bg-sky-900/30 transition-colors"
+            title="Open help"
+          >
+            Help
+          </Link>
+        </div>
       </div>
 
       <div className="flex-1 p-6 overflow-y-auto">
@@ -344,11 +356,6 @@ const ImageSuite: React.FC = () => {
             troubleshooting={[
               'If you see a DDS “fallback” warning, either disable “Require real DDS” or configure a real DDS tool path.',
               'If exports fail, open DevTools/console and check IPC errors from the desktop bridge.'
-            ]}
-            shortcuts={[
-              { label: 'Tool Settings', to: '/settings/tools' },
-              { label: 'The Vault', to: '/vault' },
-              { label: 'Workshop', to: '/workshop' },
             ]}
           />
         </div>

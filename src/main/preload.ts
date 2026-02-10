@@ -71,7 +71,7 @@ const electronAPI: ElectronAPI = {
       return () => ipcRenderer.removeListener('MIC_LEVEL', subscription);
     },
   // Messaging
-  sendMessage: (message: string) => ipcRenderer.invoke(IPC_CHANNELS.SEND_MESSAGE, message),
+  sendMessage: (message: any) => ipcRenderer.invoke(IPC_CHANNELS.SEND_MESSAGE, message),
   onMessage: (callback: (message: Message) => void) => {
     const subscription = (_event: Electron.IpcRendererEvent, message: Message) => callback(message);
     ipcRenderer.on(IPC_CHANNELS.ON_MESSAGE, subscription);

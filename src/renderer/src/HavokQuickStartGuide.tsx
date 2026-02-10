@@ -1,10 +1,12 @@
 import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
 import { ToolsInstallVerifyPanel } from './components/ToolsInstallVerifyPanel';
 import { openExternal } from './utils/openExternal';
 
-const HavokQuickStartGuide = () => {
-  const navigate = useNavigate();
+type HavokQuickStartGuideProps = {
+  embedded?: boolean;
+};
+
+const HavokQuickStartGuide: React.FC<HavokQuickStartGuideProps> = ({ embedded = false }) => {
   const [expandedSection, setExpandedSection] = useState<string | null>(null);
 
   const toggleSection = (section: string) => {
@@ -125,14 +127,23 @@ const HavokQuickStartGuide = () => {
     borderBottom: '1px solid #00441a',
   };
 
+  const containerStyle: React.CSSProperties = embedded
+    ? {
+        padding: '16px',
+        backgroundColor: '#0a0e27',
+        color: '#00ff00',
+        fontFamily: 'monospace',
+      }
+    : {
+        padding: '20px',
+        backgroundColor: '#0a0e27',
+        color: '#00ff00',
+        fontFamily: 'monospace',
+        minHeight: '100vh',
+      };
+
   return (
-    <div style={{
-      padding: '20px',
-      backgroundColor: '#0a0e27',
-      color: '#00ff00',
-      fontFamily: 'monospace',
-      minHeight: '100vh'
-    }}>
+    <div style={containerStyle}>
       <h1 style={{ fontSize: '28px', marginBottom: '10px', color: '#00ff00' }}>
         Havok Quick Start Guide
       </h1>
@@ -154,7 +165,6 @@ const HavokQuickStartGuide = () => {
             { label: 'Visual Studio (official download)', href: 'https://visualstudio.microsoft.com/downloads/', kind: 'official', note: 'Needed for MSVC builds on Windows.' },
           ]}
           verify={[
-            'Use the in-page buttons to jump to Animation Guide/Validator and confirm navigation works.',
             'Confirm you can open the tool links above (or copy them) from inside the app.',
             'Confirm your “tiny test” export has a predictable frame rate and duration.'
           ]}
@@ -165,12 +175,6 @@ const HavokQuickStartGuide = () => {
           troubleshooting={[
             'If you are blocked on SDK licensing/installs, switch to the Blender → conversion toolchain path first.',
             'If conversion output is unusable, verify you are targeting the correct FO4 HKX profile/version.'
-          ]}
-          shortcuts={[
-            { label: 'Animation Guide', to: '/animation-guide' },
-            { label: 'Animation Validator', to: '/animation-validator' },
-            { label: 'Export Settings', to: '/export-settings' },
-            { label: 'The Vault', to: '/vault' },
           ]}
         />
       </div>
@@ -183,9 +187,6 @@ const HavokQuickStartGuide = () => {
           Legacy SDK/HavokMax setups exist, but they’re not the easiest first win.
         </div>
         <div style={buttonRowStyle}>
-          <button style={buttonStyle} onClick={() => navigate('/animation-guide')}>In-app: Animation Guide</button>
-          <button style={buttonStyle} onClick={() => navigate('/animation-validator')}>In-app: Animation Validator</button>
-          <button style={buttonStyle} onClick={() => navigate('/vault')}>In-app: The Vault</button>
           <button style={buttonStyle} onClick={() => openNexusSearch('HKXPack')}>Nexus search: HKXPack</button>
           <button style={buttonStyle} onClick={() => openNexusSearch('Bethesda Archive Extractor')}>Nexus search: BAE</button>
         </div>

@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Cpu, Sparkles, Check, X, ArrowRight, Loader, Map } from 'lucide-react';
 import { useI18n, resolveUiLanguage } from './i18n';
+import TutorialVideoPanel from './components/TutorialVideoPanel';
 
 interface OnboardingProps {
     onComplete: () => void;
@@ -23,6 +24,7 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
     const [allApps, setAllApps] = useState<any[]>([]);
     const [userChoices, setUserChoices] = useState<Record<string, boolean>>({});
     const [showAllPrograms, setShowAllPrograms] = useState(false);
+    const [showTutorialVideo, setShowTutorialVideo] = useState(false);
 
     const [uiLanguage, setUiLanguage] = useState<string>('auto');
 
@@ -311,23 +313,53 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
                         >
                             Start System Scan <ArrowRight className="w-5 h-5" />
                         </button>
+
+                        <div className="mt-6">
+                            <button
+                                type="button"
+                                onClick={() => setShowTutorialVideo((prev) => !prev)}
+                                className="text-sm text-amber-300 hover:text-amber-200 underline"
+                            >
+                                {showTutorialVideo ? 'Hide' : 'Watch'} full onboarding tutorial
+                            </button>
+                        </div>
+
+                        {showTutorialVideo && (
+                            <div className="mt-6 text-left">
+                                <TutorialVideoPanel
+                                    title="First-Run Video Guide"
+                                    description="A full walkthrough of setup, scanning, and the core pages you will use most often."
+                                />
+                            </div>
+                        )}
                     </div>
                 )}
 
                 {step === 'scanning' && (
-                    <div className="text-center animate-fade-in">
-                        <Loader className="w-16 h-16 mx-auto mb-6 text-amber-400 animate-spin" />
-                        <h2 className="text-2xl font-bold text-white mb-4">Scanning Your System</h2>
-                        <p className="text-slate-400 mb-6">
-                            Detecting installed programs and tools...
-                        </p>
-                        <div className="w-full bg-slate-800 rounded-full h-3 mb-4">
-                            <div
-                                className="bg-amber-500 h-3 rounded-full transition-all duration-300"
-                                style={{ width: `${scanProgress}%` }}
+                    <div className="animate-fade-in">
+                        <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_320px] gap-6 items-start">
+                            <div className="text-center">
+                                <Loader className="w-16 h-16 mx-auto mb-6 text-amber-400 animate-spin" />
+                                <h2 className="text-2xl font-bold text-white mb-4">Scanning Your System</h2>
+                                <p className="text-slate-400 mb-6">
+                                    Detecting installed programs and tools...
+                                </p>
+                                <div className="w-full bg-slate-800 rounded-full h-3 mb-4">
+                                    <div
+                                        className="bg-amber-500 h-3 rounded-full transition-all duration-300"
+                                        style={{ width: `${scanProgress}%` }}
+                                    />
+                                </div>
+                                <p className="text-sm text-slate-500">{scanProgress}%</p>
+                            </div>
+
+                            <TutorialVideoPanel
+                                compact
+                                title="Watch While We Scan"
+                                description="Quick orientation while your system scan runs."
+                                className="lg:mt-2"
                             />
                         </div>
-                        <p className="text-sm text-slate-500">{scanProgress}%</p>
                     </div>
                 )}
 
@@ -469,7 +501,7 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
                                 <li>• Click <strong>"Live Voice"</strong> in the sidebar to start an always-on voice conversation</li>
                                 <li>• Just speak naturally—I'll detect when you're done (~1 second of silence)</li>
                                 <li>• I remember everything we discuss, so no need to repeat yourself</li>
-                                <li>• Optional: configure STT in settings (OpenAI or Deepgram) for faster recognition</li>
+                                <li>• Optional: configure STT in settings (OpenAI) for faster recognition</li>
                                 <li>• Live Voice is experimental; check Settings if you need to tune permissions or providers</li>
                                 <li>• Use <strong>"Mute"</strong> when you need me to stop listening temporarily</li>
                             </ul>

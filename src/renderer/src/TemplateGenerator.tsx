@@ -1,4 +1,5 @@
 import React, { useRef, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { Wand2, Copy, ArrowDownToLine, Sparkles, Code } from 'lucide-react';
 import { ToolsInstallVerifyPanel } from './components/ToolsInstallVerifyPanel';
 import { useWheelScrollProxyFrom } from './components/useWheelScrollProxy';
@@ -9,7 +10,11 @@ interface GeneratedTemplate {
   scriptName: string;
 }
 
-export const TemplateGenerator: React.FC = () => {
+type TemplateGeneratorProps = {
+  embedded?: boolean;
+};
+
+export const TemplateGenerator: React.FC<TemplateGeneratorProps> = ({ embedded = false }) => {
   const [description, setDescription] = useState('');
   const [generating, setGenerating] = useState(false);
   const [generated, setGenerated] = useState<GeneratedTemplate | null>(null);
@@ -234,16 +239,38 @@ EndFunction`;
     "Quest script with stages and objectives"
   ];
 
+  const containerClassName = embedded
+    ? 'bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 overflow-hidden flex flex-col min-h-0'
+    : 'h-full bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 overflow-hidden flex flex-col min-h-0';
+
+  const headerClassName = embedded
+    ? 'p-4 border-b border-slate-700 bg-slate-800/50'
+    : 'p-6 border-b border-slate-700 bg-slate-800/50';
+
+  const contentPaddingClassName = embedded ? 'px-4 pt-4' : 'px-6 pt-4';
+  const bodyPaddingClassName = embedded ? 'flex-1 min-h-0 overflow-hidden flex gap-4 p-4' : 'flex-1 min-h-0 overflow-hidden flex gap-4 p-6';
+
   return (
-    <div className="h-full bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 overflow-hidden flex flex-col min-h-0" onWheel={wheelProxy}>
+    <div className={containerClassName} onWheel={wheelProxy}>
       {/* Header */}
-      <div className="p-6 border-b border-slate-700 bg-slate-800/50">
-        <div className="flex items-center gap-3 mb-4">
-          <Wand2 className="w-8 h-8 text-emerald-400" />
-          <div>
-            <h1 className="text-2xl font-bold text-white">Papyrus Template Generator</h1>
-            <p className="text-sm text-slate-400">Describe what you want - get working Papyrus code</p>
+      <div className={headerClassName}>
+        <div className="flex items-start justify-between gap-4 mb-4">
+          <div className="flex items-center gap-3">
+            <Wand2 className="w-8 h-8 text-emerald-400" />
+            <div>
+              <h1 className="text-2xl font-bold text-white">Papyrus Template Generator</h1>
+              <p className="text-sm text-slate-400">Describe what you want - get working Papyrus code</p>
+            </div>
           </div>
+          {!embedded && (
+            <Link
+              to="/reference"
+              className="px-3 py-2 text-[10px] font-black uppercase tracking-widest rounded-lg bg-emerald-900/30 border border-emerald-500/30 text-emerald-100 hover:bg-emerald-900/40 transition-colors"
+              title="Open help"
+            >
+              Help
+            </Link>
+          )}
         </div>
 
         {/* Input */}
@@ -275,7 +302,7 @@ EndFunction`;
         </div>
       </div>
 
-      <div className="px-6 pt-4">
+      <div className={contentPaddingClassName}>
         <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
           <ToolsInstallVerifyPanel
             accentClassName="text-emerald-300"
@@ -293,53 +320,12 @@ EndFunction`;
               'If Generate does nothing, ensure the description field is not empty and retry.',
               'If download is blocked, allow downloads/popups in your environment.'
             ]}
-            shortcuts={[
-              { label: 'Tool Settings', to: '/settings/tools' },
-              { label: 'Quick Reference', to: '/reference' },
-              { label: 'Workshop', to: '/workshop' },
-            ]}
           />
-
-          <div className="bg-slate-900 border border-slate-700 rounded-xl p-4">
-            <div className="text-sm font-bold text-white mb-1">Existing Workflow (Legacy)</div>
-            <div className="text-xs text-slate-400 mb-3">
-              Quick access to the original page sections.
-            </div>
-            <div className="flex flex-wrap gap-2">
-              <button
-                onClick={() => descriptionRef.current?.focus()}
-                className="px-3 py-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded text-xs font-bold"
-              >
-                Focus Description
-              </button>
-              <button
-                onClick={() => {
-                  setDescription((prev) => prev.trim() ? prev : 'Create a script that activates when player enters and spawns 3 raiders');
-                  requestAnimationFrame(() => descriptionRef.current?.focus());
-                }}
-                className="px-3 py-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded text-xs font-bold"
-              >
-                Insert Example Prompt
-              </button>
-              <button
-                onClick={() => examplesRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
-                className="px-3 py-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded text-xs font-bold"
-              >
-                Example Prompts
-              </button>
-              <button
-                onClick={() => outputRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
-                className="px-3 py-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded text-xs font-bold"
-              >
-                Generated Output
-              </button>
-            </div>
-          </div>
         </div>
       </div>
 
       {/* Content */}
-      <div className="flex-1 min-h-0 overflow-hidden flex gap-4 p-6">
+      <div className={bodyPaddingClassName}>
         {/* Left: Examples */}
         <div ref={examplesRef} className="w-80 flex flex-col gap-4 min-h-0 overflow-y-auto pr-2">
           <div className="bg-slate-900 border border-slate-700 rounded-xl p-4">

@@ -1,7 +1,9 @@
 import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
 import { ChevronDown, ChevronUp, ArrowDownToLine, Zap, BookOpen, AlertCircle, Users, Hammer, CheckCircle2, HelpCircle, Lightbulb } from 'lucide-react';
 import { openExternal } from './utils/openExternal';
+import SimSettlementsAddonGuide from './SimSettlementsAddonGuide';
+import SimSettlementsUnitsLoadoutsGuide from '../../components/guides/SimSettlementsUnitsLoadoutsGuide';
+import SimSettlementsAddonToolkitsGuide from '../../components/guides/SimSettlementsAddonToolkitsGuide';
 
 interface Section {
   id: string;
@@ -11,8 +13,7 @@ interface Section {
 }
 
 export default function SimSettlementsGuide() {
-  const navigate = useNavigate();
-  const [expandedSection, setExpandedSection] = useState<string | null>('quick-start');
+  const [expandedSection, setExpandedSection] = useState<string | null>('tools-install-verify');
 
   const toggleSection = (id: string) => {
     setExpandedSection(expandedSection === id ? null : id);
@@ -65,15 +66,6 @@ export default function SimSettlementsGuide() {
               <li>Wait for the Stranger quest trigger; if it doesn’t fire, use the SS2 holotape tools to reboot the quest.</li>
               <li>If using F4SE/MCM: confirm the SS2 settings menu exists and loads.</li>
             </ol>
-          </div>
-
-          <div className="bg-black/40 border border-[#004400] rounded p-3">
-            <p className="text-[#00d000] font-bold mb-2">In-app shortcuts</p>
-            <div className="flex flex-wrap gap-2">
-              <button className="px-3 py-1 rounded bg-[#002200] hover:bg-[#003300] text-xs" onClick={() => navigate('/install-wizard')}>Install Wizard</button>
-              <button className="px-3 py-1 rounded bg-[#002200] hover:bg-[#003300] text-xs" onClick={() => navigate('/settings/tools')}>Tool Settings</button>
-              <button className="px-3 py-1 rounded bg-[#002200] hover:bg-[#003300] text-xs" onClick={() => navigate('/vault')}>The Vault</button>
-            </div>
           </div>
 
           <div className="bg-[#1a0000] border border-[#440000] rounded p-3">
@@ -544,6 +536,36 @@ export default function SimSettlementsGuide() {
       )
     },
     {
+      id: 'creator-addon-guide',
+      title: '🧱 Creator Path: Addon Creation Guide',
+      icon: <Hammer className="w-5 h-5 text-[#00ff00]" />,
+      content: (
+        <div className="space-y-4">
+          <SimSettlementsAddonGuide embedded />
+        </div>
+      )
+    },
+    {
+      id: 'creator-units-loadouts',
+      title: '🧭 Creator Path: Units & Loadouts',
+      icon: <Users className="w-5 h-5 text-[#00ff00]" />,
+      content: (
+        <div className="space-y-4">
+          <SimSettlementsUnitsLoadoutsGuide embedded />
+        </div>
+      )
+    },
+    {
+      id: 'creator-toolkits',
+      title: '🧰 Creator Path: Add-On Toolkits',
+      icon: <BookOpen className="w-5 h-5 text-[#00ff00]" />,
+      content: (
+        <div className="space-y-4">
+          <SimSettlementsAddonToolkitsGuide embedded />
+        </div>
+      )
+    },
+    {
       id: 'resources',
       title: '🌐 Community & Resources',
       icon: <Users className="w-5 h-5 text-[#00ff00]" />,
@@ -592,9 +614,20 @@ export default function SimSettlementsGuide() {
     <div className="w-full max-w-4xl mx-auto p-6 bg-[#001a00] text-[#00ff00] font-mono rounded-lg border-2 border-[#00ff00] shadow-2xl">
       {/* Header */}
       <div className="mb-8 pb-4 border-b-2 border-[#00ff00]">
-        <h1 className="text-3xl font-bold text-[#00d000] mb-2">Sim Settlements 2 Guide</h1>
-        <p className="text-sm text-[#008000]">Complete reference for settlement automation, quests, and community content</p>
-        <p className="text-xs text-[#004400] mt-2">Version 1.0 | Updated January 24, 2026</p>
+        <h1 className="text-3xl font-bold text-[#00d000] mb-2">Sim Settlements Hub (All-in-One)</h1>
+        <p className="text-sm text-[#008000]">Player setup, core concepts, and creator paths in one ordered flow</p>
+        <p className="text-xs text-[#004400] mt-2">Version 1.1 | Updated February 9, 2026</p>
+      </div>
+
+      <div className="mb-6 bg-[#001a00] border border-[#00ff00] rounded p-4 text-xs text-[#00d000]">
+        <p className="font-bold text-[#00ff00]">Flow (Read in Order)</p>
+        <ol className="list-decimal list-inside mt-2 space-y-1 text-[#008000]">
+          <li>Player setup + quick start</li>
+          <li>Core concepts and automation</li>
+          <li>Troubleshooting and compatibility</li>
+          <li>Creator path: addons, units/loadouts, toolkits</li>
+          <li>Resources and community</li>
+        </ol>
       </div>
 
       {/* Sections */}

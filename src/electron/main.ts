@@ -37,6 +37,7 @@ import {
 import FormData from 'form-data';
 import OpenAI from 'openai';
 import dotenv from 'dotenv';
+import { File as NodeFile } from 'node:buffer';
 // import { MiningPipelineOrchestrator } from '../mining/mining-pipeline'; // TEMPORARILY DISABLED
 import { ESPParser } from '../mining/esp-parser'; // TEMPORARILY DISABLED
 import { DependencyGraphBuilder } from '../mining/dependency-graph-builder'; // TEMPORARILY DISABLED
@@ -56,7 +57,6 @@ console.log('[Main] path.dirname(process.execPath):', path.dirname(process.execP
 // dotenv@17 supports { quiet: true }.
 const result = dotenv.config({ path: envPath, quiet: true });
 console.log('[Main] dotenv result:', result);
-console.log('[Main] DEEPGRAM_API_KEY loaded:', !!process.env.DEEPGRAM_API_KEY);
 console.log('[Main] OPENAI_API_KEY loaded:', !!process.env.OPENAI_API_KEY);
 console.log('[Main] process.env keys:', Object.keys(process.env).filter(key => key.includes('API') || key.includes('TOKEN')));
 // Never log API keys (even presence-only for renderer-exposed vars).
@@ -95,6 +95,11 @@ if (typeof (global as any).DOMMatrix === 'undefined') {
   };
 }
 
+// Polyfill File for OpenAI uploads on Node < 20
+if (typeof (globalThis as any).File === 'undefined') {
+  (globalThis as any).File = NodeFile;
+}
+
 let mainWindow: BrowserWindow | null = null;
 const bridge = new BridgeServer();
 
@@ -113,6 +118,26 @@ const backendJoin = (cfg: BackendConfig, pathname: string): string => {
   return `${cfg.baseUrl}${p}`;
 };
 
+const pingBackendHealth = async (cfg: BackendConfig): Promise<void> => {
+  try {
+    const healthUrl = backendJoin(cfg, '/health');
+    console.log('[Main] Pinging backend health:', healthUrl);
+    const response = await fetch(healthUrl, {
+      method: 'GET',
+      headers: { 'Content-Type': 'application/json' },
+      signal: AbortSignal.timeout(10000), // 10 second timeout
+    });
+    if (response.ok) {
+      const data = await response.json();
+      console.log('[Main] Backend health check successful:', data);
+    } else {
+      console.warn('[Main] Backend health check failed with status:', response.status);
+    }
+  } catch (error) {
+    console.warn('[Main] Backend health check error:', error instanceof Error ? error.message : error);
+  }
+};
+
 const postFormData = async (
   urlStr: string,
   formData: FormData,
@@ -127,6 +152,14 @@ const postFormData = async (
     ...formData.getHeaders(),
     ...headers,
   };
+  try {
+    const length = formData.getLengthSync();
+    if (Number.isFinite(length) && length > 0) {
+      reqHeaders['Content-Length'] = String(length);
+    }
+  } catch {
+    // Some streams don't report length; allow chunked transfer.
+  }
 
   return await new Promise((resolve, reject) => {
     const req = client.request(
@@ -436,7 +469,13 @@ function setupIpcHandlers() {
       let transcription = '';
 
       // If a backend proxy is configured, try it. Backend-only architecture - no fallbacks.
-      const backend = getBackendConfig();
+      const backendBaseUrl = String(s?.backendBaseUrl || process.env.MOSSY_BACKEND_URL || '').trim();
+      const backendToken = getSecretValue(s, 'backendToken', 'MOSSY_BACKEND_TOKEN');
+      const backend = backendBaseUrl
+        ? { baseUrl: backendBaseUrl.replace(/\/+$/, ''), token: backendToken || undefined }
+        : null;
+      const backendConfigured = Boolean(backend?.baseUrl);
+      const backendTokenConfigured = Boolean(backendToken);
       if (!backend) {
         return { success: false, error: 'Backend service not configured. Please set MOSSY_BACKEND_URL and MOSSY_BACKEND_TOKEN environment variables.' };
       }
@@ -448,21 +487,36 @@ function setupIpcHandlers() {
           return raw.split('-')[0] || raw;
         })();
 
-        const form = new FormData();
-        form.append('audio', audioBuffer, {
-          filename: 'audio.mp3',
-          contentType: 'audio/mpeg',
-        });
-        if (sttLang) form.append('language', sttLang);
-
         const extraHeaders: Record<string, string> = {};
         if (backend.token) extraHeaders.Authorization = `Bearer ${backend.token}`;
 
-        const resp = await postFormData(backendJoin(backend, '/v1/transcribe'), form, extraHeaders, 60000);
+        const tryBackendTranscribe = async (fieldName: 'audio' | 'file') => {
+          const form = new FormData();
+          form.append(fieldName, audioBuffer, {
+            filename: 'audio.mp3',
+            contentType: 'audio/mpeg',
+          });
+          form.append('model', 'whisper-1');
+          if (sttLang) form.append('language', sttLang);
+          return postFormData(backendJoin(backend, '/v1/transcribe'), form, extraHeaders, 60000);
+        };
+
+        let resp = await tryBackendTranscribe('audio');
+        if (!resp.ok) {
+          const msg = String(resp.json?.message || resp.json?.error || resp.text || '');
+          const shouldRetry =
+            (resp.status === 400 || resp.status === 422) &&
+            (/missing/i.test(msg) && /file/i.test(msg) || /body',\s*'file'/.test(msg));
+          if (shouldRetry) {
+            resp = await tryBackendTranscribe('file');
+          }
+        }
+
         if (resp.ok && resp.json?.ok) {
           transcription = String(resp.json?.text || '').trim();
           return { success: true, text: transcription };
         }
+
         const msg = String(resp.json?.message || resp.json?.error || resp.text || `Backend transcribe failed (${resp.status})`);
         console.error('[Transcription] Backend proxy failed:', msg);
         return { success: false, error: msg };
@@ -567,7 +621,7 @@ function setupIpcHandlers() {
     try {
       const s = loadSettings();
       const openaiKey = getSecretValue(s, 'openaiApiKey', 'OPENAI_API_KEY');
-      const deepgramKey = getSecretValue(s, 'deepgramApiKey', 'DEEPGRAM_API_KEY');
+      const hasLocalProviders = Boolean(openaiKey);
 
       const buf = Buffer.from(arrayBuffer);
       const mt = String(mimeType || '').toLowerCase();
@@ -575,33 +629,66 @@ function setupIpcHandlers() {
 
       // If a backend proxy is configured, try it first. This enables "works on download" flows
       // (server holds provider keys; client holds none). If it fails, fall back to local keys.
-      const backend = getBackendConfig();
+      const backendBaseUrl = String(s?.backendBaseUrl || process.env.MOSSY_BACKEND_URL || '').trim();
+      const backendToken = getSecretValue(s, 'backendToken', 'MOSSY_BACKEND_TOKEN');
+      const backend = backendBaseUrl
+        ? { baseUrl: backendBaseUrl.replace(/\/+$/, ''), token: backendToken || undefined }
+        : null;
       if (backend) {
         try {
+          console.log('[Transcription] Backend base URL:', backend.baseUrl);
           const sttLang = (() => {
             const raw = String(s?.sttLanguage || s?.uiLanguage || '').trim().toLowerCase();
             if (!raw || raw === 'auto') return '';
             return raw.split('-')[0] || raw;
           })();
 
-          const form = new FormData();
-          form.append('audio', buf, {
-            filename: `audio${ext}`,
-            contentType: mt || 'application/octet-stream',
-          });
-          if (sttLang) form.append('language', sttLang);
-
           const extraHeaders: Record<string, string> = {};
           if (backend.token) extraHeaders.Authorization = `Bearer ${backend.token}`;
 
-          const resp = await postFormData(backendJoin(backend, '/v1/transcribe'), form, extraHeaders, 45000);
+          const tryBackendTranscribe = async (fieldName: 'audio' | 'file') => {
+            const form = new FormData();
+            form.append(fieldName, buf, {
+              filename: `audio${ext}`,
+              contentType: mt || 'application/octet-stream',
+            });
+            form.append('model', 'whisper-1');
+            if (sttLang) form.append('language', sttLang);
+            return postFormData(backendJoin(backend, '/v1/transcribe'), form, extraHeaders, 45000);
+          };
+
+          let resp = await tryBackendTranscribe('audio');
+          if (!resp.ok) {
+            const msg = String(resp.json?.message || resp.json?.error || resp.text || '');
+            const shouldRetry =
+              (resp.status === 400 || resp.status === 422) &&
+              (/missing/i.test(msg) && /file/i.test(msg) || /body',\s*'file'/.test(msg));
+            if (shouldRetry) {
+              resp = await tryBackendTranscribe('file');
+            }
+          }
+
           if (resp.ok && resp.json?.ok) {
             return { success: true, text: String(resp.json?.text || '').trim() };
           }
+
           const msg = String(resp.json?.message || resp.json?.error || resp.text || `Backend transcribe failed (${resp.status})`);
+          console.warn('[Transcription] Backend proxy response:', { status: resp.status, message: msg });
           console.warn('[Transcription] Backend proxy failed; falling back to local providers:', msg);
+          if (backend?.baseUrl && backendToken) {
+            return { success: false, error: msg };
+          }
+          if (!hasLocalProviders) {
+            return { success: false, error: msg };
+          }
         } catch (e: any) {
           console.warn('[Transcription] Backend proxy error; falling back to local providers:', e?.message || e);
+          if (backend?.baseUrl && backendToken) {
+            return { success: false, error: e?.message || 'Backend service unavailable' };
+          }
+          if (!hasLocalProviders) {
+            return { success: false, error: e?.message || 'Backend service unavailable' };
+          }
         }
       }
 
@@ -609,6 +696,7 @@ function setupIpcHandlers() {
       fs.writeFileSync(tempAudioPath, buf);
 
       // Prefer OpenAI Whisper if configured
+      let lastOpenAiError: string | null = null;
       if (openaiKey) {
         try {
           const client = new OpenAI({ apiKey: openaiKey });
@@ -619,45 +707,17 @@ function setupIpcHandlers() {
           const text = String((result as any)?.text || '').trim();
           return { success: true, text };
         } catch (e: any) {
-          console.warn('[Transcription] OpenAI Whisper failed; will try Deepgram fallback:', e?.message || e);
+          lastOpenAiError = String(e?.message || e);
+          console.warn('[Transcription] OpenAI Whisper failed:', lastOpenAiError);
         }
       }
 
-      // Deepgram fallback if configured
-      if (deepgramKey) {
-        const deepgramLang = (() => {
-          const raw = String(s?.sttLanguage || s?.uiLanguage || '').trim().toLowerCase();
-          if (!raw || raw === 'auto') return 'en';
-          const base = raw.split('-')[0];
-          return base || 'en';
-        })();
-
-        const controller = new AbortController();
-        const timeout = setTimeout(() => controller.abort(), 20000);
-        try {
-          const url = `https://api.deepgram.com/v1/listen?model=nova-2-general&language=${encodeURIComponent(deepgramLang)}&punctuate=true`;
-          const res = await fetch(url, {
-            method: 'POST',
-            headers: {
-              Authorization: `Token ${deepgramKey}`,
-              'Content-Type': mt || 'application/octet-stream',
-            },
-            body: buf,
-            signal: controller.signal,
-          });
-          if (!res.ok) {
-            const t = await res.text().catch(() => '');
-            return { success: false, error: `Deepgram error ${res.status}: ${t || res.statusText}` };
-          }
-          const data: any = await res.json().catch(() => ({}));
-          const transcript = String(data?.results?.channels?.[0]?.alternatives?.[0]?.transcript || '').trim();
-          return { success: true, text: transcript };
-        } finally {
-          clearTimeout(timeout);
-        }
+      if (lastOpenAiError) {
+        return { success: false, error: `OpenAI Whisper failed: ${lastOpenAiError}` };
       }
 
-      return { success: false, error: 'No transcription provider configured (OpenAI/Deepgram)' };
+      const detail = `openaiKey=${hasLocalProviders ? 'yes' : 'no'} backend=${backend?.baseUrl ? 'yes' : 'no'}`;
+      return { success: false, error: `No transcription provider configured (OpenAI) [${detail}]` };
     } catch (error: any) {
       console.error('[Transcription] transcribe-audio error:', error);
       return { success: false, error: error?.message || 'Failed to transcribe audio' };
@@ -929,7 +989,7 @@ function setupIpcHandlers() {
   // Settings management using JSON file storage
   const settingsPath = path.join(app.getPath('userData'), 'settings.json');
 
-  type SecretField = 'elevenLabsApiKey' | 'openaiApiKey' | 'groqApiKey' | 'deepgramApiKey' | 'backendToken';
+  type SecretField = 'elevenLabsApiKey' | 'openaiApiKey' | 'groqApiKey' | 'backendToken';
   const secretEncKey = (k: SecretField) => `${k}Enc` as const;
   const hasOwn = (obj: any, key: string) => Object.prototype.hasOwnProperty.call(obj, key);
 
@@ -991,7 +1051,7 @@ function setupIpcHandlers() {
     const next = { ...settings };
     let migrated = false;
 
-    const fields: SecretField[] = ['elevenLabsApiKey', 'openaiApiKey', 'groqApiKey', 'deepgramApiKey', 'backendToken'];
+    const fields: SecretField[] = ['elevenLabsApiKey', 'openaiApiKey', 'groqApiKey', 'backendToken'];
     for (const field of fields) {
       const encKey = secretEncKey(field);
       const plain = String(next?.[field] || '').trim();
@@ -1011,6 +1071,27 @@ function setupIpcHandlers() {
     }
 
     return { next, migrated };
+  };
+
+  const seedSecretFromEnv = (settings: any, field: SecretField, envName: string): boolean => {
+    const next = settings;
+    const encKey = secretEncKey(field);
+    const hasEnc = String(next?.[encKey] || '').trim();
+    const hasPlain = String(next?.[field] || '').trim();
+    if (hasEnc || hasPlain) return false;
+
+    const envValue = String((process.env as any)?.[envName] || '').trim();
+    if (!envValue) return false;
+
+    const isEnc = envValue.startsWith('enc:');
+    if (!isEnc && !safeStorage.isEncryptionAvailable()) {
+      console.warn(`[Settings] safeStorage unavailable; skipping persist for ${field} (env will be used in-memory).`);
+      return false;
+    }
+
+    next[encKey] = isEnc ? envValue : encryptSecretForStorage(envValue);
+    next[field] = '';
+    return true;
   };
 
   const getSecretValue = (settings: any, field: SecretField, envName?: string): string => {
@@ -1041,10 +1122,33 @@ function setupIpcHandlers() {
         const data = fs.readFileSync(settingsPath, 'utf-8');
         const parsed = JSON.parse(data);
         const { next, migrated } = migratePlainSecretsToEncrypted(parsed);
-        if (migrated) {
+        let cleaned = false;
+        if (hasOwn(next, 'deepgramApiKey')) {
+          delete (next as any).deepgramApiKey;
+          cleaned = true;
+        }
+        if (hasOwn(next, 'deepgramApiKeyEnc')) {
+          delete (next as any).deepgramApiKeyEnc;
+          cleaned = true;
+        }
+        const seeded =
+          seedSecretFromEnv(next, 'backendToken', 'MOSSY_BACKEND_TOKEN') ||
+          seedSecretFromEnv(next, 'openaiApiKey', 'OPENAI_API_KEY') ||
+          seedSecretFromEnv(next, 'groqApiKey', 'GROQ_API_KEY') ||
+          seedSecretFromEnv(next, 'elevenLabsApiKey', 'ELEVENLABS_API_KEY');
+
+        if (migrated || seeded || cleaned) {
           try {
             fs.writeFileSync(settingsPath, JSON.stringify(next, null, 2), 'utf-8');
-            console.log('[Settings] Migrated plaintext secrets to encrypted storage');
+            if (migrated) {
+              console.log('[Settings] Migrated plaintext secrets to encrypted storage');
+            }
+            if (seeded) {
+              console.log('[Settings] Seeded secrets from environment');
+            }
+            if (cleaned) {
+              console.log('[Settings] Removed legacy Deepgram secrets');
+            }
           } catch (e) {
             console.warn('[Settings] Failed to persist migrated secrets:', e);
           }
@@ -1144,8 +1248,6 @@ function setupIpcHandlers() {
       openaiApiKeyEnc: '',
       groqApiKey: '',
       groqApiKeyEnc: '',
-      deepgramApiKey: '',
-      deepgramApiKeyEnc: '',
     };
   };
 
@@ -1161,8 +1263,6 @@ function setupIpcHandlers() {
     if (clone.openaiApiKeyEnc) clone.openaiApiKeyEnc = '';
     if (clone.groqApiKey) clone.groqApiKey = '';
     if (clone.groqApiKeyEnc) clone.groqApiKeyEnc = '';
-    if (clone.deepgramApiKey) clone.deepgramApiKey = '';
-    if (clone.deepgramApiKeyEnc) clone.deepgramApiKeyEnc = '';
     return clone;
   };
 
@@ -1203,7 +1303,7 @@ function setupIpcHandlers() {
 
     // Never persist plaintext secrets. If renderer provides them, encrypt into *Enc fields.
     const next: any = { ...updated };
-    const fields: SecretField[] = ['elevenLabsApiKey', 'openaiApiKey', 'groqApiKey', 'deepgramApiKey', 'backendToken'];
+    const fields: SecretField[] = ['elevenLabsApiKey', 'openaiApiKey', 'groqApiKey', 'backendToken'];
     for (const field of fields) {
       if (!hasOwn(newSettings || {}, field)) continue;
       const encKey = secretEncKey(field);
@@ -3167,12 +3267,25 @@ function setupIpcHandlers() {
       const s = loadSettings();
       const openai = Boolean(getSecretValue(s, 'openaiApiKey', 'OPENAI_API_KEY'));
       const groq = Boolean(getSecretValue(s, 'groqApiKey', 'GROQ_API_KEY'));
-      const deepgram = Boolean(getSecretValue(s, 'deepgramApiKey', 'DEEPGRAM_API_KEY'));
       const elevenlabs = Boolean(getElevenLabsConfig().apiKey);
       const backendToken = Boolean(getSecretValue(s, 'backendToken', 'MOSSY_BACKEND_TOKEN'));
-      return { ok: true, openai, groq, deepgram, elevenlabs, backendToken };
+      return { ok: true, openai, groq, elevenlabs, backendToken };
     } catch (e: any) {
       return { ok: false, error: String(e?.message || e) };
+    }
+  });
+
+  // Reveal settings.json in Explorer/Finder to validate stored secrets.
+  registerHandler(IPC_CHANNELS.REVEAL_SETTINGS_FILE, async () => {
+    try {
+      const settingsFile = path.join(app.getPath('userData'), 'settings.json');
+      if (!fs.existsSync(settingsFile)) {
+        return { success: false, error: `Settings file not found: ${settingsFile}` };
+      }
+      shell.showItemInFolder(settingsFile);
+      return { success: true };
+    } catch (e: any) {
+      return { success: false, error: e?.message || String(e) };
     }
   });
 
@@ -3236,12 +3349,53 @@ function setupIpcHandlers() {
   */
 
   // Voice chat message handler
-  registerHandler('sendMessage', async (_event, message: string) => {
-    console.log('[Main] sendMessage IPC handler called with:', message.substring(0, 100) + (message.length > 100 ? '...' : ''));
+  registerHandler('sendMessage', async (_event, message: any) => {
+    const isPayload = typeof message === 'object' && message !== null && typeof message.text === 'string';
+    const messageText = isPayload ? String(message.text || '') : String(message || '');
+    console.log('[Main] sendMessage IPC handler called with:', messageText.substring(0, 100) + (messageText.length > 100 ? '...' : ''));
     try {
+      if (!messageText.trim()) {
+        throw new Error('Empty voice message');
+      }
+
+      const rawHistory = isPayload && Array.isArray(message.history) ? message.history : [];
+      const history = rawHistory
+        .filter((entry: any) => entry && (entry.role === 'user' || entry.role === 'assistant') && typeof entry.content === 'string')
+        .slice(-30);
+
+      const workingMemory = isPayload && typeof message.workingMemory === 'string' ? message.workingMemory : '';
+      const projectData = isPayload ? message.projectData : null;
+
+      const contextBlocks: string[] = [];
+      if (workingMemory.trim()) {
+        contextBlocks.push(`WORKING MEMORY:\n${workingMemory.trim()}`);
+      }
+      if (projectData && typeof projectData === 'object') {
+        const name = String(projectData.name || '').trim();
+        const type = String(projectData.type || '').trim();
+        const status = String(projectData.status || '').trim();
+        const notes = String(projectData.notes || '').trim();
+        const details = [
+          name ? `Name: ${name}` : '',
+          type ? `Type: ${type}` : '',
+          status ? `Status: ${status}` : '',
+          notes ? `Notes: ${notes}` : ''
+        ].filter(Boolean);
+        if (details.length > 0) {
+          contextBlocks.push(`CURRENT PROJECT:\n${details.join('\n')}`);
+        }
+      }
+
+      const contextSuffix = contextBlocks.length > 0 ? `\n\nContext:\n${contextBlocks.join('\n\n')}` : '';
+
       // Use Groq for voice responses (real-time)
-      const systemPrompt = 'You are Mossy, a helpful AI assistant for Fallout 4 modding. Keep responses concise and conversational for voice chat.';
+      const systemPrompt = 'You are Mossy, a helpful AI assistant for Fallout 4 modding. Keep responses concise and conversational for voice chat.' + contextSuffix;
       const model = 'llama-3.3-70b-versatile';
+      const messages = [
+        { role: 'system', content: systemPrompt },
+        ...history.map((entry: any) => ({ role: entry.role, content: entry.content })),
+        { role: 'user', content: messageText },
+      ];
 
       const backend = getBackendConfig();
       let content = '';
@@ -3258,10 +3412,7 @@ function setupIpcHandlers() {
             body: JSON.stringify({
               provider: 'groq',
               model,
-              messages: [
-                { role: 'system', content: systemPrompt },
-                { role: 'user', content: String(message || '') },
-              ],
+              messages,
             }),
             signal: controller.signal,
           });
@@ -3292,10 +3443,7 @@ function setupIpcHandlers() {
 
         const response = await client.chat.completions.create({
           model,
-          messages: [
-            { role: 'system', content: systemPrompt },
-            { role: 'user', content: message },
-          ],
+          messages,
         });
 
         content = response.choices[0]?.message?.content || '';
@@ -3346,6 +3494,12 @@ app.whenReady().then(() => {
     createWindow();
     setupIpcHandlers();
     bridge.start();
+
+    // Ping backend health to wake up sleeping service (e.g., Render free tier)
+    const backendCfg = getBackendConfig();
+    if (backendCfg) {
+      pingBackendHealth(backendCfg).catch(err => console.error('[Main] Backend ping failed:', err));
+    }
 
     // Try to create desktop shortcut on first run
     if (!DesktopShortcutManager.shortcutExists()) {

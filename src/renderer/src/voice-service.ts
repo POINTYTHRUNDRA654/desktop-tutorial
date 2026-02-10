@@ -1,9 +1,8 @@
 import { loadBrowserTtsSettings, pickBrowserTtsVoice } from './browserTts';
 
 export interface VoiceServiceConfig {
-  sttProvider: 'browser' | 'backend' | 'deepgram';
+  sttProvider: 'browser' | 'backend';
   ttsProvider: 'browser' | 'elevenlabs' | 'cloud';
-  deepgramKey?: string;
   elevenlabsKey?: string;
   elevenlabsVoiceId?: string;
 }
@@ -71,6 +70,9 @@ export class VoiceService {
   private isRecording = false;
   private isListening = false;
   private shouldStop = false;
+  private isBrowserSttActive = false;
+  private isBrowserSttStarting = false;
+  private isUsingBrowserStt = false;
   private onTranscription?: (text: string, sessionId?: number) => void;
   private onError?: (error: string) => void;
   private onModeChange?: (mode: 'idle' | 'listening' | 'processing' | 'speaking') => void;
@@ -109,8 +111,6 @@ export class VoiceService {
       this.startBrowserSTT();
     } else if (this.config.sttProvider === 'backend') {
       this.startBackendSTT();
-    } else if (this.config.sttProvider === 'deepgram') {
-      this.startDeepgramSTT();
     }
   }
 
@@ -118,6 +118,9 @@ export class VoiceService {
     console.log('[VoiceService] stopListening() called, current state:', { isListening: this.isListening, shouldStop: this.shouldStop, isRecording: this.isRecording });
     this.isListening = false;
     this.shouldStop = true;
+    this.isUsingBrowserStt = false;
+    this.isBrowserSttActive = false;
+    this.isBrowserSttStarting = false;
     
     // Stop all speech
     this.stopAllSpeech();
@@ -177,18 +180,82 @@ export class VoiceService {
   }
 
   private async startBrowserSTT(): Promise<void> {
+    if (this.isBrowserSttActive || this.isBrowserSttStarting) {
+      console.log('[VoiceService] Browser STT already active, skipping start');
+      return;
+    }
+    console.log('[VoiceService] Starting browser STT...');
     this.isListening = true;
-    await this.startRecording();
-  }
+    this.isUsingBrowserStt = true;
 
-  private startDeepgramSTT(): void {
-    // TODO: Implement Deepgram WebSocket STT
-    this.onError?.('Deepgram STT not implemented yet');
+    // Check if browser SpeechRecognition is available
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SpeechRecognition) {
+      this.onError?.('Browser speech recognition not supported. Please use a modern browser like Chrome or Edge.');
+      return;
+    }
+
+    try {
+      this.isBrowserSttStarting = true;
+      this.recognition = new SpeechRecognition();
+      this.recognition.continuous = false;
+      this.recognition.interimResults = false;
+      this.recognition.lang = 'en-US'; // Default to English, could be made configurable
+
+      this.recognition.onstart = () => {
+        console.log('[VoiceService] Browser STT started');
+        this.isBrowserSttActive = true;
+        this.isBrowserSttStarting = false;
+        this.onModeChange?.('listening');
+      };
+
+      this.recognition.onresult = (event: SpeechRecognitionEvent) => {
+        const result = event.results[0];
+        if (result.isFinal) {
+          const transcript = result[0].transcript.trim();
+          console.log('[VoiceService] Browser STT result:', transcript);
+          this.onTranscription?.(transcript, this.currentSessionId);
+        }
+      };
+
+      this.recognition.onerror = (event: SpeechRecognitionErrorEvent) => {
+        console.error('[VoiceService] Browser STT error:', event.error, event.message);
+        this.isBrowserSttActive = false;
+        this.isBrowserSttStarting = false;
+        if (!this.shouldStop) {
+          this.onError?.(`Speech recognition error: ${event.error}`);
+        }
+      };
+
+      this.recognition.onend = () => {
+        console.log('[VoiceService] Browser STT ended');
+        this.isBrowserSttActive = false;
+        this.isBrowserSttStarting = false;
+        this.onModeChange?.('idle');
+        // Auto-restart for continuous listening if still active
+        if (this.isListening && !this.shouldStop && this.isUsingBrowserStt) {
+          setTimeout(() => {
+            if (this.recognition && this.isListening && !this.shouldStop && !this.isBrowserSttActive && !this.isBrowserSttStarting) {
+              this.recognition.start();
+            }
+          }, 1000);
+        }
+      };
+
+      // Start recognition
+      this.recognition.start();
+    } catch (error: any) {
+      console.error('[VoiceService] Failed to start browser STT:', error);
+      this.isBrowserSttActive = false;
+      this.isBrowserSttStarting = false;
+      this.onError?.(`Failed to start speech recognition: ${error.message}`);
+    }
   }
 
   private startBackendSTT(): void {
     console.log('[VoiceService] startBackendSTT() called');
     this.isListening = true;
+    this.isUsingBrowserStt = false;
     this.startRecording();
   }
 
@@ -285,14 +352,12 @@ export class VoiceService {
               this.onTranscription?.(result.text.trim(), this.currentSessionId);
             } else {
               const errorMsg = result?.error || 'Unknown transcription error';
-              console.warn('Transcription failed:', errorMsg);
-              // Only report error if not stopping
-              if (!this.shouldStop) {
-                this.onError?.(`Failed to transcribe audio: ${errorMsg}`);
-              }
+              console.warn('Backend transcription failed:', errorMsg);
+              throw new Error(errorMsg); // Re-throw to trigger fallback
             }
           } catch (error: any) {
             console.error('Transcription error:', error);
+
             if (!this.shouldStop) {
               this.onError?.(`Speech recognition failed: ${error?.message || 'Unknown error'}`);
             }
@@ -300,7 +365,7 @@ export class VoiceService {
         }
 
         // Auto-restart for continuous listening (increased delay for stability)
-        if (this.isListening && !this.shouldStop) {
+        if (this.isListening && !this.shouldStop && !this.isUsingBrowserStt) {
           setTimeout(() => this.startRecording(), 1000);
         }
       };

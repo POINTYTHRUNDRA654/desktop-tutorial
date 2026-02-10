@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import { Lock, Database, Share2, Shield, Settings as SettingsIcon, AlertCircle, CheckCircle2, Eye, EyeOff, Clock, Network, Key, Trash2, ArrowDownToLine, RefreshCw } from 'lucide-react';
 import { DEFAULT_SETTINGS, Settings } from '../../shared/types';
 
@@ -12,7 +13,11 @@ interface DataStorageInfo {
   encryptionEnabled: boolean;
 }
 
-function PrivacySettings() {
+type PrivacySettingsProps = {
+  embedded?: boolean;
+};
+
+function PrivacySettings({ embedded = false }: PrivacySettingsProps) {
   console.log('[PrivacySettings] Component rendering');
 
   const [settings, setSettings] = useState<Settings | null>(null);
@@ -184,7 +189,6 @@ function PrivacySettings() {
           // Remove sensitive data from export
           openaiApiKey: undefined,
           groqApiKey: undefined,
-          deepgramApiKey: undefined,
           elevenLabsApiKey: undefined,
           backendToken: undefined
         },
@@ -396,9 +400,17 @@ function PrivacySettings() {
     }
   ];
 
+  const containerClassName = embedded
+    ? 'bg-slate-950 text-slate-100 p-6'
+    : 'min-h-screen bg-slate-950 text-slate-100 p-8 pb-20';
+
+  const loadingClassName = embedded
+    ? 'bg-slate-950 text-slate-100 p-6 flex items-center justify-center'
+    : 'min-h-screen bg-slate-950 p-8 pb-20 flex items-center justify-center';
+
   if (!settings) {
     return (
-      <div className="min-h-screen bg-slate-950 p-8 pb-20 flex items-center justify-center">
+      <div className={loadingClassName}>
         <div className="text-center">
           <RefreshCw className="w-8 h-8 animate-spin text-blue-400 mx-auto mb-4" />
           <p className="text-slate-400">Loading privacy settings...</p>
@@ -408,13 +420,24 @@ function PrivacySettings() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 p-8 pb-20">
+    <div className={containerClassName}>
       <div className="max-w-4xl mx-auto">
         {/* Header */}
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold text-slate-100 mb-2">Privacy & Security Settings</h1>
-          <p className="text-slate-400">Control your data, privacy, and security preferences</p>
-        </div>
+        {!embedded && (
+          <div className="mb-8 flex items-start justify-between gap-3">
+            <div>
+              <h1 className="text-3xl font-bold text-slate-100 mb-2">Privacy & Security Settings</h1>
+              <p className="text-slate-400">Control your data, privacy, and security preferences</p>
+            </div>
+            <Link
+              to="/reference"
+              className="px-3 py-2 text-[10px] font-black uppercase tracking-widest rounded bg-blue-900/20 border border-blue-500/30 text-blue-100 hover:bg-blue-900/30 transition-colors"
+              title="Open help"
+            >
+              Help
+            </Link>
+          </div>
+        )}
 
         {/* Save Status */}
         {saveStatus !== 'idle' && (

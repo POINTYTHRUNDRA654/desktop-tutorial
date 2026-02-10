@@ -158,7 +158,7 @@ Test your mod in Fallout 4:
 
 ### "API Key Missing"
 - Check `.env.local` file exists
-- Configure keys in the Desktop Settings UI (recommended). For development env vars, use `OPENAI_API_KEY`, `GROQ_API_KEY`, `DEEPGRAM_API_KEY`.
+- Configure keys in the Desktop Settings UI (recommended). For development env vars, use `OPENAI_API_KEY`, `GROQ_API_KEY`.
 - Restart app: `npm run dev`
 
 ### Tools Not Detected

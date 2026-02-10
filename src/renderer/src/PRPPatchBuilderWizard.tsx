@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
-import { CheckCircle2, Copy, GitMerge, Send, ShieldCheck, Wrench } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import { CheckCircle2, Copy, GitMerge, ShieldCheck, Wrench } from 'lucide-react';
 import { ToolsInstallVerifyPanel } from './components/ToolsInstallVerifyPanel';
 
 type State = {
@@ -21,8 +21,6 @@ type State = {
 };
 
 const STORAGE_KEY = 'mossy_prp_patch_builder_state_v1';
-const CHAT_PREFILL_KEY = 'mossy_chat_prefill_v1';
-
 const DEFAULT_STATE: State = {
   yourModName: '',
   otherModName: '',
@@ -77,8 +75,11 @@ const InputLabel: React.FC<{ label: string; children: React.ReactNode; hint?: st
   </div>
 );
 
-export const PRPPatchBuilderWizard: React.FC = () => {
-  const navigate = useNavigate();
+type PRPPatchBuilderWizardProps = {
+  embedded?: boolean;
+};
+
+export const PRPPatchBuilderWizard: React.FC<PRPPatchBuilderWizardProps> = ({ embedded = false }) => {
   const [state, setState] = useState<State>(() => safeParse(localStorage.getItem(STORAGE_KEY), DEFAULT_STATE));
 
   useEffect(() => {
@@ -225,29 +226,6 @@ export const PRPPatchBuilderWizard: React.FC = () => {
     return lines.join('\n');
   };
 
-  const buildChatPrefill = () => {
-    const readme = buildReadme();
-    const nexus = state.includeNexusBlock ? buildNexusDescription() : '';
-    const lines: string[] = [];
-    lines.push("I'm using Mossy's PRP Patch Builder. Please help me confirm my compatibility plan step-by-step.");
-    lines.push('');
-    lines.push('Here is my draft patch README:');
-    lines.push('');
-    lines.push(readme);
-    if (state.includeNexusBlock) {
-      lines.push('');
-      lines.push('Here is my Nexus description block:');
-      lines.push('');
-      lines.push(nexus);
-    }
-    lines.push('');
-    lines.push('What I want from you:');
-    lines.push('1) Tell me whether I actually need a precombine rebuild for my edit type.');
-    lines.push('2) Tell me the exact patch target combo and the safest load order.');
-    lines.push('3) Give me a minimal verification checklist (cells/areas + what to look for).');
-    return lines.join('\n');
-  };
-
   const copyReadme = async () => {
     const text = buildReadme();
     try {
@@ -284,27 +262,17 @@ export const PRPPatchBuilderWizard: React.FC = () => {
     }
   };
 
-  const sendToChat = async () => {
-    const draft = buildChatPrefill();
-    try {
-      await navigator.clipboard?.writeText(draft);
-    } catch {
-      // ignore
-    }
-    try {
-      localStorage.setItem(CHAT_PREFILL_KEY, draft);
-    } catch {
-      // ignore
-    }
-    navigate('/chat', { state: { prefill: draft, from: 'prp-patch-builder' } });
-  };
+
+  const containerClassName = embedded
+    ? 'p-4 bg-[#0a0e0a] text-slate-100'
+    : 'min-h-full p-6 md:p-10 bg-[#0a0e0a] text-slate-100';
 
   return (
-    <div className="min-h-full p-6 md:p-10 bg-[#0a0e0a] text-slate-100">
+    <div className={containerClassName}>
       <div className="max-w-6xl mx-auto">
         <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-4 mb-8">
           <div>
-            <div className="text-[10px] font-mono tracking-[0.3em] text-emerald-400/70 uppercase">Mossy Tutor • PRP Patching</div>
+            <div className="text-[10px] font-mono tracking-[0.3em] text-emerald-400/70 uppercase">Mossy Tutor - PRP Patching</div>
             <h1 className="text-3xl md:text-4xl font-black tracking-tight text-white mt-2">PRP Patch Builder</h1>
             <p className="text-sm text-slate-400 mt-2 max-w-2xl">
               Generate a clear patch target (mods + load order) and a ready-to-post README for PRP compatibility patches.
@@ -313,29 +281,15 @@ export const PRPPatchBuilderWizard: React.FC = () => {
           </div>
 
           <div className="flex items-center gap-2">
-            <Link
-              to="/precombine-prp"
-              className="px-3 py-2 text-xs font-bold rounded-lg bg-slate-900 border border-slate-800 hover:border-slate-600 transition-colors"
-              title="Open the Precombine & PRP Guide"
-            >
-              PRP Guide
-            </Link>
-            <Link
-              to="/platforms"
-              className="px-3 py-2 text-xs font-bold rounded-lg bg-slate-900 border border-slate-800 hover:border-slate-600 transition-colors"
-              title="Back to Platforms"
-            >
-              Platforms
-            </Link>
-            <button
-              type="button"
-              onClick={sendToChat}
-              className="inline-flex items-center gap-2 px-3 py-2 text-xs font-bold rounded-lg bg-emerald-900/20 border border-emerald-500/30 text-emerald-100 hover:bg-emerald-900/30 transition-colors"
-              title="Send the generated plan to Chat"
-            >
-              <Send className="w-4 h-4" />
-              Send to Chat
-            </button>
+            {!embedded && (
+              <Link
+                to="/reference"
+                className="px-3 py-2 text-[10px] font-black uppercase tracking-widest rounded-lg bg-emerald-900/20 border border-emerald-500/30 text-emerald-100 hover:bg-emerald-900/30 transition-colors"
+                title="Open help"
+              >
+                Help
+              </Link>
+            )}
             <button
               type="button"
               onClick={() => {
@@ -360,7 +314,7 @@ export const PRPPatchBuilderWizard: React.FC = () => {
           verify={[
             'Fill in “Your mod” + “Other mod” and confirm the README updates.',
             'Copy the README and confirm the clipboard has the full text.',
-            'Use “Send to Chat” and confirm the generated plan is prefilled.'
+            'Toggle “Generate Nexus description block” and confirm it appears.'
           ]}
           firstTestLoop={[
             'Generate the README → build the patch with your PRP workflow → install into a clean test profile.',
@@ -369,12 +323,6 @@ export const PRPPatchBuilderWizard: React.FC = () => {
           troubleshooting={[
             'If you ship only an ESP without required merged precombine files, you will likely get visual breakage; re-check the “ships merged files” toggle.',
             'If you are unsure whether you need a rebuild, use the PRP Guide and treat exterior edits as high risk.'
-          ]}
-          shortcuts={[
-            { label: 'PRP Guide', to: '/precombine-prp' },
-            { label: 'Platforms Hub', to: '/platforms' },
-            { label: 'Install Wizard', to: '/install-wizard' },
-            { label: 'Tool Settings', to: '/settings/tools' },
           ]}
         />
 
@@ -576,7 +524,7 @@ export const PRPPatchBuilderWizard: React.FC = () => {
             </div>
 
             <div className="text-[11px] text-slate-500">
-              Tip: If you want a more detailed “what cells are affected” workflow, open <Link className="text-blue-400 hover:underline" to="/precombine-checker">Precombine Checker</Link>.
+              Tip: If you want a more detailed “what cells are affected” workflow, use the Precombine Checker page.
             </div>
           </div>
         </div>

@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { Link } from 'react-router-dom';
 import { CheckCircle2, ChevronDown, AlertCircle, Zap, BookOpen } from 'lucide-react';
 import { ToolsInstallVerifyPanel } from './components/ToolsInstallVerifyPanel';
 
@@ -15,7 +16,11 @@ interface ChecklistPhase {
   }[];
 }
 
-export const CustomRiggingChecklist: React.FC = () => {
+type CustomRiggingChecklistProps = {
+  embedded?: boolean;
+};
+
+export const CustomRiggingChecklist: React.FC<CustomRiggingChecklistProps> = ({ embedded = false }) => {
   const [phases, setPhases] = useState<ChecklistPhase[]>([
     {
       id: 'setup',
@@ -525,16 +530,39 @@ export const CustomRiggingChecklist: React.FC = () => {
   const totalItems = phases.reduce((sum, p) => sum + p.items.length, 0);
   const completedItems = phases.reduce((sum, p) => sum + p.items.filter((i) => i.completed).length, 0);
 
+  const containerClass = embedded
+    ? 'bg-slate-900/60 border border-slate-700 rounded-lg'
+    : 'h-full bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 overflow-hidden flex flex-col';
+
+  const headerClass = embedded
+    ? 'p-4 border-b border-slate-700 bg-slate-800/50'
+    : 'p-6 border-b border-slate-700 bg-slate-800/50';
+
+  const contentClass = embedded
+    ? 'p-4'
+    : 'flex-1 overflow-y-auto p-6';
+
   return (
-    <div className="h-full bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 overflow-hidden flex flex-col">
+    <div className={containerClass}>
       {/* Header */}
-      <div className="p-6 border-b border-slate-700 bg-slate-800/50">
-        <div className="flex items-center gap-3 mb-4">
-          <CheckCircle2 className="w-8 h-8 text-green-400" />
-          <div>
-            <h1 className="text-2xl font-bold text-white">Custom Rigging Checklist</h1>
-            <p className="text-sm text-slate-400">Step-by-step guide to rig custom characters for Fallout 4</p>
+      <div className={headerClass}>
+        <div className="flex items-start justify-between gap-4 mb-4">
+          <div className="flex items-center gap-3">
+            <CheckCircle2 className="w-8 h-8 text-green-400" />
+            <div>
+              <h1 className="text-2xl font-bold text-white">Custom Rigging Checklist</h1>
+              <p className="text-sm text-slate-400">Step-by-step guide to rig custom characters for Fallout 4</p>
+            </div>
           </div>
+          {!embedded && (
+            <Link
+              to="/reference"
+              className="px-3 py-2 text-[10px] font-black uppercase tracking-widest rounded-lg bg-green-900/30 border border-green-500/30 text-green-100 hover:bg-green-900/40 transition-colors"
+              title="Open help"
+            >
+              Help
+            </Link>
+          )}
         </div>
 
         {/* Progress Bar */}
@@ -557,7 +585,7 @@ export const CustomRiggingChecklist: React.FC = () => {
       </div>
 
       {/* Content */}
-      <div className="flex-1 overflow-y-auto p-6">
+      <div className={contentClass}>
         <div className="max-w-3xl mx-auto space-y-3">
           <ToolsInstallVerifyPanel
             accentClassName="text-cyan-300"
@@ -579,12 +607,6 @@ export const CustomRiggingChecklist: React.FC = () => {
             troubleshooting={[
               'If the game crashes on load, suspect bone naming/hierarchy changes before you suspect weights.',
               'If joints crease hard, re-check weight blending at the joint (two bones should overlap).'
-            ]}
-            shortcuts={[
-              { label: 'Rigging Mistakes', to: '/rigging-mistakes' },
-              { label: 'Export Settings', to: '/export-settings' },
-              { label: 'Animation Validator', to: '/animation-validator' },
-              { label: 'Skeleton Reference', to: '/skeleton-reference' },
             ]}
           />
 
