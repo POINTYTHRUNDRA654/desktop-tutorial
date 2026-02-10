@@ -3,12 +3,14 @@ import { FolderOpen, Plus, Settings, Trash2, GitBranch, Users, BarChart3 } from 
 import { ModProject, ProjectSettings } from '../../shared/types';
 
 interface ProjectManagerProps {
+  embedded?: boolean;
   onProjectSelect?: (project: ModProject) => void;
   onProjectCreate?: () => void;
   onProjectSettings?: (project: ModProject) => void;
 }
 
 export const ProjectManager: React.FC<ProjectManagerProps> = ({
+  embedded = false,
   onProjectSelect,
   onProjectCreate,
   onProjectSettings,
@@ -74,8 +76,10 @@ export const ProjectManager: React.FC<ProjectManagerProps> = ({
     );
   }
 
+  const containerClassName = embedded ? 'p-4 space-y-6' : 'p-6 space-y-6';
+
   return (
-    <div className="p-6 space-y-6">
+    <div className={containerClassName}>
       <div className="flex items-center justify-between">
         <h2 className="text-2xl font-bold text-green-400">Project Manager</h2>
         <button

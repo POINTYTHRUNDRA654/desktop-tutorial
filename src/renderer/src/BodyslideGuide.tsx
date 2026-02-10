@@ -4,7 +4,6 @@
  */
 
 import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
 import { ChevronDown, ChevronUp, ExternalLink, CheckCircle2, AlertCircle } from 'lucide-react';
 import { openExternal } from './utils/openExternal';
 
@@ -16,7 +15,6 @@ interface Section {
 }
 
 const BodyslideGuide: React.FC = () => {
-  const navigate = useNavigate();
   const [expandedSection, setExpandedSection] = useState<string | null>('quickstart');
 
   const toggleSection = (id: string) => {
@@ -254,14 +252,6 @@ const BodyslideGuide: React.FC = () => {
             </div>
           </div>
 
-          <div className="bg-[#0a0e0a] border border-[#00d000] rounded p-3">
-            <h4 className="text-[#00d000] font-bold mb-2">In-app shortcuts</h4>
-            <div className="flex flex-wrap gap-2">
-              <button className="px-3 py-1 rounded bg-black/40 hover:bg-black/60 text-xs" onClick={() => navigate('/install-wizard')}>Install Wizard</button>
-              <button className="px-3 py-1 rounded bg-black/40 hover:bg-black/60 text-xs" onClick={() => navigate('/packaging-release')}>Packaging & Release</button>
-              <button className="px-3 py-1 rounded bg-black/40 hover:bg-black/60 text-xs" onClick={() => navigate('/vault')}>The Vault</button>
-            </div>
-          </div>
         </div>
       )
     },

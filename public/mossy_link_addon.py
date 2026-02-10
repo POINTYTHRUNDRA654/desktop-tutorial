@@ -312,6 +312,8 @@ class MOSSY_PT_MainPanel(bpy.types.Panel):
     def draw(self, context):
         layout = self.layout
         wm = context.window_manager
+        prefs = _get_prefs()
+        port = prefs.port if prefs else 9999
         
         layout.label(text="AI Assistant Integration", icon='PREFERENCES')
         
@@ -319,7 +321,7 @@ class MOSSY_PT_MainPanel(bpy.types.Panel):
         if wm.mossy_link_active:
             box.label(text="✓ Active", icon='CHECKMARK')
             box.label(text="Status: Connected", icon='LINKED')
-            box.label(text="Listening on: 127.0.0.1:9999")
+            box.label(text=f"Listening on: 127.0.0.1:{port}")
         else:
             box.label(text="○ Inactive", icon='CHECKBOX_DEHLT')
         
@@ -336,6 +338,9 @@ class WM_OT_MossyLinkToggle(bpy.types.Operator):
     def execute(self, context):
         global mossy_server
         wm = context.window_manager
+        prefs = _get_prefs()
+        port = prefs.port if prefs else 9999
+        token = prefs.token if prefs else ""
         
         if wm.mossy_link_active:
             # Stop server
@@ -346,10 +351,10 @@ class WM_OT_MossyLinkToggle(bpy.types.Operator):
             self.report({'INFO'}, "Mossy Link disconnected")
         else:
             # Start server
-            mossy_server = MossyLinkServer('127.0.0.1', 9999)
+            mossy_server = MossyLinkServer('127.0.0.1', port, token)
             if mossy_server.start():
                 wm.mossy_link_active = True
-                self.report({'INFO'}, "Mossy Link connected (port 9999)")
+                self.report({'INFO'}, f"Mossy Link connected (port {port})")
             else:
                 self.report({'ERROR'}, "Failed to start Mossy Link server")
                 mossy_server = None
@@ -388,10 +393,17 @@ def _start_server_deferred():
     """Start server with a timer so it doesn't block Blender initialization"""
     global mossy_server
     try:
-        mossy_server = MossyLinkServer('127.0.0.1', 9999)
+        prefs = _get_prefs()
+        port = prefs.port if prefs else 9999
+        token = prefs.token if prefs else ""
+        if prefs and not prefs.autostart:
+            print("[Mossy Link] Autostart disabled; server not started")
+            return None
+
+        mossy_server = MossyLinkServer('127.0.0.1', port, token)
         if mossy_server.start():
-            bpy.types.WindowManager.mossy_link_active = True
-            print("[Mossy Link] Add-on v5.0 server started on port 9999")
+            bpy.context.window_manager.mossy_link_active = True
+            print(f"[Mossy Link] Add-on v5.0 server started on port {port}")
         else:
             print("[Mossy Link] Warning: Could not start server (port may be in use)")
     except Exception as e:

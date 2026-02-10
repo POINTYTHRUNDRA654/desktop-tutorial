@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
-import { BookOpen, CheckCircle2, ExternalLink, ScrollText, Send, ShieldCheck, Wrench } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import { BookOpen, CheckCircle2, ExternalLink, ScrollText, ShieldCheck, Wrench } from 'lucide-react';
 import { ToolsInstallVerifyPanel } from './components/ToolsInstallVerifyPanel';
 import { openExternal } from './utils/openExternal';
 
@@ -21,7 +21,6 @@ type State = {
 };
 
 const STORAGE_KEY = 'mossy_ck_quest_dialogue_state_v1';
-const CHAT_PREFILL_KEY = 'mossy_chat_prefill_v1';
 
 const DEFAULT_STATE: State = {
   checked: {},
@@ -66,8 +65,11 @@ const StepRow: React.FC<{
   </div>
 );
 
-export const CKQuestDialogueWizard: React.FC = () => {
-  const navigate = useNavigate();
+type CKQuestDialogueWizardProps = {
+  embedded?: boolean;
+};
+
+export const CKQuestDialogueWizard: React.FC<CKQuestDialogueWizardProps> = ({ embedded = false }) => {
   const [state, setState] = useState<State>(() => safeParse(localStorage.getItem(STORAGE_KEY), DEFAULT_STATE));
 
   useEffect(() => {
@@ -186,45 +188,15 @@ export const CKQuestDialogueWizard: React.FC = () => {
     ];
   }, []);
 
-  const buildChatPrefill = () => {
-    const goalLabel = state.goal === 'quest' ? 'Quest' : state.goal === 'dialogue' ? 'Dialogue' : 'Quest + Dialogue';
-    const lines: string[] = [];
-    lines.push("I'm using Mossy's CK Quest & Dialogue Wizard. Please guide me step-by-step.");
-    lines.push(`Goal: ${goalLabel}`);
-    lines.push('');
-    lines.push('Checklist progress:');
-    for (const section of sections) {
-      lines.push(`\n${section.title}:`);
-      for (const step of section.steps) {
-        const done = isChecked(section.id, step.id);
-        lines.push(`- [${done ? 'x' : ' '}] ${step.title}`);
-      }
-    }
-    lines.push('\nWhat I want from you:');
-    lines.push('1) Tell me the next 3 unchecked steps, in order.');
-    lines.push('2) Ask for my CK install source + whether I use MO2/Vortex.');
-    lines.push('3) End with verification steps (repeatable test loop).');
-    return lines.join('\n');
-  };
+  const containerClass = embedded
+    ? 'bg-[#0a0e0a] text-slate-100 border border-emerald-500/20 rounded-2xl p-4'
+    : 'min-h-full p-6 md:p-10 bg-[#0a0e0a] text-slate-100';
 
-  const sendToChat = async () => {
-    const draft = buildChatPrefill();
-    try {
-      await navigator.clipboard?.writeText(draft);
-    } catch {
-      // ignore
-    }
-    try {
-      localStorage.setItem(CHAT_PREFILL_KEY, draft);
-    } catch {
-      // ignore
-    }
-    navigate('/chat', { state: { prefill: draft, from: 'ck-quest-dialogue' } });
-  };
+  const bodyClass = embedded ? '' : 'max-w-6xl mx-auto';
 
   return (
-    <div className="min-h-full p-6 md:p-10 bg-[#0a0e0a] text-slate-100">
-      <div className="max-w-6xl mx-auto">
+    <div className={containerClass}>
+      <div className={bodyClass}>
         <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-4 mb-8">
           <div>
             <div className="text-[10px] font-mono tracking-[0.3em] text-emerald-400/70 uppercase">Mossy Tutor • Creation Kit</div>
@@ -235,22 +207,15 @@ export const CKQuestDialogueWizard: React.FC = () => {
           </div>
 
           <div className="flex items-center gap-2">
-            <Link
-              to="/platforms"
-              className="px-3 py-2 text-xs font-bold rounded-lg bg-slate-900 border border-slate-800 hover:border-slate-600 transition-colors"
-              title="Back to Platforms"
-            >
-              Platforms
-            </Link>
-            <button
-              type="button"
-              onClick={sendToChat}
-              className="inline-flex items-center gap-2 px-3 py-2 text-xs font-bold rounded-lg bg-emerald-900/20 border border-emerald-500/30 text-emerald-100 hover:bg-emerald-900/30 transition-colors"
-              title="Send this checklist to Chat"
-            >
-              <Send className="w-4 h-4" />
-              Send to Chat
-            </button>
+            {!embedded && (
+              <Link
+                to="/reference"
+                className="px-3 py-2 text-[10px] font-black uppercase tracking-widest rounded-lg bg-emerald-900/20 border border-emerald-500/30 text-emerald-100 hover:bg-emerald-900/30 transition-colors"
+                title="Open help"
+              >
+                Help
+              </Link>
+            )}
             <button
               type="button"
               onClick={() => {
@@ -275,7 +240,7 @@ export const CKQuestDialogueWizard: React.FC = () => {
           verify={[
             'Pick a goal (Quest / Dialogue / Both) and confirm the checklist updates.',
             'Check off a few steps and refresh; confirm progress persists.',
-            'Click “Send to Chat” and confirm the generated “first boring test” plan appears in Chat.'
+            'Copy your checklist summary and confirm it matches your current selections.'
           ]}
           firstTestLoop={[
             'Create a new plugin → one quest stage → one dialogue line with minimal conditions.',
@@ -285,12 +250,6 @@ export const CKQuestDialogueWizard: React.FC = () => {
           troubleshooting={[
             'If dialogue does not show up, remove conditions and add them back one at a time.',
             'If scripts will not compile, verify your CK install and output paths before editing more logic.'
-          ]}
-          shortcuts={[
-            { label: 'Platforms Hub', to: '/platforms' },
-            { label: 'Template Generator', to: '/template-generator' },
-            { label: 'Quick Reference', to: '/reference' },
-            { label: 'Tool Settings', to: '/settings/tools' },
           ]}
         />
 
@@ -330,30 +289,9 @@ export const CKQuestDialogueWizard: React.FC = () => {
               <div className="text-[11px] text-slate-400 mt-1">Before you write content, prove your toolchain works end-to-end.</div>
             </div>
             <div className="flex gap-2 flex-wrap justify-end">
-              <button
-                type="button"
-                onClick={() => navigate('/install-wizard')}
-                className="px-3 py-2 rounded-lg border text-[11px] font-black transition-colors bg-slate-900/40 border-slate-800 text-slate-300 hover:border-slate-600"
-                title="Prereqs + install verification"
-              >
-                Install Wizard
-              </button>
-              <button
-                type="button"
-                onClick={() => navigate('/tts')}
-                className="px-3 py-2 rounded-lg border text-[11px] font-black transition-colors bg-slate-900/40 border-slate-800 text-slate-300 hover:border-slate-600"
-                title="Audio creation & FO4 voice pipeline notes"
-              >
-                TTS / Audio
-              </button>
-              <button
-                type="button"
-                onClick={() => navigate('/packaging-release')}
-                className="px-3 py-2 rounded-lg border text-[11px] font-black transition-colors bg-slate-900/40 border-slate-800 text-slate-300 hover:border-slate-600"
-                title="Packaging + release sanity checks"
-              >
-                Packaging
-              </button>
+              <div className="text-[11px] text-slate-500">
+                Use the sidebar to open Install Wizard, Audio Studio, or Packaging if you need them.
+              </div>
             </div>
           </div>
 

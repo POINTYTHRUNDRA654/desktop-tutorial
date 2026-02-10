@@ -2,7 +2,6 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { Code, FileCode, Palette, Check, X, AlertTriangle, Zap, Copy, Play, BookOpen, Save, Trash2, Upload, ArrowDownToLine, Info, Search, ExternalLink } from 'lucide-react';
 import ProjectWizard from './components/ProjectWizard';
 import type { ScriptBundle, ScriptTemplate, Settings } from '../../shared/types';
-import { useNavigate } from 'react-router-dom';
 import { openExternal } from './utils/openExternal';
 
 type ScriptType = 'papyrus' | 'xedit' | 'blender';
@@ -14,7 +13,6 @@ interface ValidationError {
 }
 
 export const TheScribe: React.FC = () => {
-  const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState<ScriptType>('papyrus');
   const [code, setCode] = useState('');
   const [validationErrors, setValidationErrors] = useState<ValidationError[]>([]);
@@ -1378,32 +1376,6 @@ print("Batch processing complete")`,
             </button>
           </div>
 
-          <div className="mt-3 flex flex-wrap gap-2">
-            <button
-              onClick={() => navigate('/settings/tools')}
-              className="px-3 py-2 rounded bg-purple-700 hover:bg-purple-600 text-xs font-bold text-white"
-            >
-              Tool Settings
-            </button>
-            <button
-              onClick={() => navigate('/script-analyzer')}
-              className="px-3 py-2 rounded bg-slate-800 hover:bg-slate-700 border border-slate-600 text-xs font-bold text-white"
-            >
-              Script Analyzer
-            </button>
-            <button
-              onClick={() => navigate('/workshop')}
-              className="px-3 py-2 rounded bg-slate-800 hover:bg-slate-700 border border-slate-600 text-xs font-bold text-white"
-            >
-              Workshop
-            </button>
-            <button
-              onClick={() => navigate('/ck-quest-dialogue')}
-              className="px-3 py-2 rounded bg-slate-800 hover:bg-slate-700 border border-slate-600 text-xs font-bold text-white"
-            >
-              CK Wizard
-            </button>
-          </div>
         </div>
       </div>
 

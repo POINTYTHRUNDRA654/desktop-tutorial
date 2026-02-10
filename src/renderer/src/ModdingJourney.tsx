@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import { Trophy, Star, Target, Zap, BookOpen, Clock, CheckCircle2 } from 'lucide-react';
 
 interface Achievement {
@@ -9,7 +10,11 @@ interface Achievement {
     category: 'scripting' | 'world-design' | 'modeling' | 'foundation';
 }
 
-const ModdingJourney: React.FC = () => {
+type ModdingJourneyProps = {
+    embedded?: boolean;
+};
+
+const ModdingJourney: React.FC<ModdingJourneyProps> = ({ embedded = false }) => {
     const [achievements, setAchievements] = useState<Achievement[]>([
         { id: '1', title: 'Neural Link Active', desc: 'Sync Mossy with your desktop processes.', unlocked: false, category: 'foundation' },
         { id: '2', title: 'The First Scan', desc: 'Complete a hardware and software environment audit.', unlocked: false, category: 'foundation' },
@@ -42,15 +47,29 @@ const ModdingJourney: React.FC = () => {
     const unlockedCount = achievements.filter(a => a.unlocked).length;
     const progress = (unlockedCount / achievements.length) * 100;
 
+    const containerClassName = embedded
+        ? 'p-4 bg-[#0a0a0c] text-slate-200'
+        : 'p-8 bg-[#0a0a0c] min-h-full text-slate-200';
+
     return (
-        <div className="p-8 bg-[#0a0a0c] min-h-full text-slate-200">
+        <div className={containerClassName}>
             <div className="max-w-4xl mx-auto">
-                <header className="mb-10">
-                    <h1 className="text-3xl font-bold text-white flex items-center gap-3">
-                        <Trophy className="w-8 h-8 text-yellow-500" />
-                        Modding Journey
-                    </h1>
-                    <p className="text-slate-400 mt-2">Track your progress from beginner to master modder.</p>
+                <header className="mb-10 flex items-start justify-between gap-4">
+                    <div>
+                        <h1 className="text-3xl font-bold text-white flex items-center gap-3">
+                            <Trophy className="w-8 h-8 text-yellow-500" />
+                            Modding Journey
+                        </h1>
+                        <p className="text-slate-400 mt-2">Track your progress from beginner to master modder.</p>
+                    </div>
+                    {!embedded && (
+                        <Link
+                            to="/reference"
+                            className="px-3 py-2 border border-yellow-500/30 text-[10px] font-black uppercase tracking-widest text-yellow-200 rounded-lg bg-yellow-500/10 hover:bg-yellow-500/20 transition-colors"
+                        >
+                            Help
+                        </Link>
+                    )}
                 </header>
 
                 {/* Progress Bar */}

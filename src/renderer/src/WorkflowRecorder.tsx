@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import { WorkflowMacro, WorkflowSession } from './WorkflowAutomationService';
 import { getWorkflowAutomationService } from './WorkflowAutomationService';
 import { Play, Square, Circle, Trash2, ArrowDownToLine, Upload, Settings, Clock, CheckCircle, XCircle } from 'lucide-react';
@@ -196,6 +197,13 @@ export const WorkflowRecorder: React.FC = () => {
                     <p className="text-xs text-slate-400 mt-1">Record and replay common workflows</p>
                 </div>
                 <div className="flex gap-2">
+                    <Link
+                        to="/reference"
+                        className="px-3 py-1 text-[10px] font-black uppercase tracking-widest rounded-lg bg-emerald-900/20 border border-emerald-500/30 text-emerald-100 hover:bg-emerald-900/30 transition-colors"
+                        title="Open help"
+                    >
+                        Help
+                    </Link>
                     <button
                         onClick={() => setShowCreateDialog(true)}
                         className="px-3 py-1 bg-emerald-600 hover:bg-emerald-700 text-white text-sm rounded-lg transition-colors"

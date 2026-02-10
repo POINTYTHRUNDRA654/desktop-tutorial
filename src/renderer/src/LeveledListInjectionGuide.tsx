@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import { List, ChevronDown, ChevronRight, Zap, AlertTriangle, CheckCircle2, Code, FileText, Settings } from 'lucide-react';
 import { openExternal } from './utils/openExternal';
 
@@ -10,8 +10,11 @@ interface GuideSection {
   content: React.ReactNode;
 }
 
-export const LeveledListInjectionGuide: React.FC = () => {
-  const navigate = useNavigate();
+type LeveledListInjectionGuideProps = {
+  embedded?: boolean;
+};
+
+export const LeveledListInjectionGuide: React.FC<LeveledListInjectionGuideProps> = ({ embedded = false }) => {
   const [expandedSection, setExpandedSection] = useState<string>('overview');
 
   const openUrl = (url: string) => {
@@ -41,12 +44,6 @@ export const LeveledListInjectionGuide: React.FC = () => {
                     onClick={() => openUrl('https://store.steampowered.com/search/?term=Creation%20Kit%20Fallout%204')}
                   >
                     Steam search: Creation Kit
-                  </button>
-                  <button
-                    className="px-3 py-1 rounded bg-slate-800 hover:bg-slate-700 text-xs text-white"
-                    onClick={() => navigate('/ck-quest-dialogue')}
-                  >
-                    In-app: CK Quest/Dialogue Wizard
                   </button>
                 </div>
               </li>
@@ -112,21 +109,6 @@ export const LeveledListInjectionGuide: React.FC = () => {
                 <strong>In-game check</strong>: spawn or loot the target container/NPC enough times to prove your item/NPC can appear.
               </li>
             </ol>
-          </div>
-
-          <div className="bg-slate-900/50 border border-slate-700 rounded p-4">
-            <h4 className="font-bold text-white mb-2">In-App Shortcuts</h4>
-            <div className="flex flex-wrap gap-2">
-              <button className="px-3 py-1 rounded bg-slate-800 hover:bg-slate-700 text-xs text-white" onClick={() => navigate('/install-wizard')}>
-                Install Wizard
-              </button>
-              <button className="px-3 py-1 rounded bg-slate-800 hover:bg-slate-700 text-xs text-white" onClick={() => navigate('/settings/tools')}>
-                Tool Settings
-              </button>
-              <button className="px-3 py-1 rounded bg-slate-800 hover:bg-slate-700 text-xs text-white" onClick={() => navigate('/packaging-release')}>
-                Packaging & Release
-              </button>
-            </div>
           </div>
 
           <div className="bg-orange-900/20 border border-orange-700/30 rounded p-4">
@@ -1036,21 +1018,44 @@ EndFunction`}
     }
   ];
 
+  const containerClass = embedded
+    ? 'bg-slate-900/60 border border-slate-700 rounded-lg'
+    : 'h-full bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 overflow-hidden flex flex-col';
+
+  const headerClass = embedded
+    ? 'p-4 border-b border-slate-700 bg-slate-800/50'
+    : 'p-6 border-b border-slate-700 bg-slate-800/50';
+
+  const contentClass = embedded
+    ? 'p-4'
+    : 'flex-1 overflow-y-auto p-6';
+
   return (
-    <div className="h-full bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 overflow-hidden flex flex-col">
+    <div className={containerClass}>
       {/* Header */}
-      <div className="p-6 border-b border-slate-700 bg-slate-800/50">
-        <div className="flex items-center gap-3">
-          <List className="w-8 h-8 text-green-400" />
-          <div>
-            <h1 className="text-2xl font-bold text-white">Leveled List Injection Guide</h1>
-            <p className="text-sm text-slate-400">Automatically spawn creatures, NPCs, and plants without hand-placement</p>
+      <div className={headerClass}>
+        <div className="flex items-start justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <List className="w-8 h-8 text-green-400" />
+            <div>
+              <h1 className="text-2xl font-bold text-white">Leveled List Injection Guide</h1>
+              <p className="text-sm text-slate-400">Automatically spawn creatures, NPCs, and plants without hand-placement</p>
+            </div>
           </div>
+          {!embedded && (
+            <Link
+              to="/reference"
+              className="px-3 py-2 text-[10px] font-black uppercase tracking-widest rounded-lg bg-green-900/30 border border-green-500/30 text-green-100 hover:bg-green-900/40 transition-colors"
+              title="Open help"
+            >
+              Help
+            </Link>
+          )}
         </div>
       </div>
 
       {/* Content */}
-      <div className="flex-1 overflow-y-auto p-6">
+      <div className={contentClass}>
         <div className="max-w-5xl mx-auto space-y-3">
           {sections.map((section) => {
             const Icon = section.icon;

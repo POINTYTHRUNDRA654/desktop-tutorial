@@ -1,4 +1,5 @@
 import { useMemo, useRef, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { GitBranch, Package, HardDrive, Play, Loader2, CheckCircle2, AlertTriangle, Database, Copy, Shield, Settings, Repeat2, ClipboardList, ArrowDownToLine } from 'lucide-react';
 import { ToolsInstallVerifyPanel } from './components/ToolsInstallVerifyPanel';
 import { useWheelScrollProxy } from './components/useWheelScrollProxy';
@@ -272,6 +273,13 @@ const WorkflowOrchestrator = () => {
                     <p className="text-[10px] text-slate-400 font-mono mt-0.5">Asset Processing Pipeline & Shared Storage</p>
                 </div>
                 <div className="flex gap-2">
+                    <Link
+                        to="/reference"
+                        className="px-3 py-1.5 text-[10px] font-bold uppercase tracking-widest rounded border border-purple-500/30 bg-purple-900/20 text-purple-100 hover:bg-purple-900/30 transition-colors"
+                        title="Open help"
+                    >
+                        Help
+                    </Link>
                     <div className="px-3 py-1.5 bg-black rounded border border-slate-700 text-xs text-slate-300 flex items-center gap-2">
                         <Database className="w-3 h-3" /> Storage Ready
                     </div>
@@ -297,12 +305,6 @@ const WorkflowOrchestrator = () => {
                         troubleshooting={[
                             'If a pipeline step “succeeds” but you don’t see results, confirm the command/tool is actually configured.',
                             'Treat any displayed source paths marked EXAMPLE as placeholders; set your real workspace paths.',
-                        ]}
-                        shortcuts={[
-                            { label: 'Workshop', to: '/workshop' },
-                            { label: 'Tool Settings', to: '/settings/tools' },
-                            { label: 'Packaging', to: '/packaging-release' },
-                            { label: 'Diagnostics', to: '/diagnostics' },
                         ]}
                     />
                 </div>

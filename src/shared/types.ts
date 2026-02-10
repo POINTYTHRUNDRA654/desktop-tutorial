@@ -195,7 +195,6 @@ export interface Settings {
     // Secure API keys for backend TTS/STT (main process only)
     openaiApiKey?: string;
     groqApiKey?: string;
-    deepgramApiKey?: string;
     elevenLabsApiKey?: string;
   // Backend configuration
   backendBaseUrl?: string;
@@ -2412,7 +2411,7 @@ export interface ElectronAPI {
     // Real-time mic level
     onMicLevel?: (callback: (level: number) => void) => void;
   // Messaging
-  sendMessage: (message: string) => Promise<void>;
+  sendMessage: (message: string | VoiceChatPayload) => Promise<void>;
   onMessage: (callback: (message: Message) => void) => (() => void);
   
   // Settings
@@ -2452,6 +2451,9 @@ export interface ElectronAPI {
   saveFile: (content: string, filename: string) => Promise<string>;
   // Developer tools
   openDevTools: () => Promise<void>;
+
+  // Advanced analysis (optional)
+  getAdvancedAnalysisEngine?: () => Promise<AdvancedAnalysisEngine>;
   
   // Image Suite
   generateNormalMap: (imageBase64: string) => Promise<string>;
@@ -2532,6 +2534,8 @@ export interface ElectronAPI {
   gitCommit: (projectId: string, message: string, files?: string[]) => Promise<any>;
   gitPush: (projectId: string) => Promise<any>;
   gitPull: (projectId: string) => Promise<any>;
+  joinCollaborationSession?: (sessionId: string) => Promise<CollaborationSession>;
+  leaveCollaborationSession?: (sessionId: string) => Promise<void>;
 
   // Advanced Analytics
   trackAnalyticsEvent: (event: any) => Promise<any>;
@@ -2586,6 +2590,13 @@ export interface ElectronAPI {
 
   // Notification listener for monitoring service
   onNotification: (callback: (notification: any) => void) => (() => void);
+}
+
+export interface VoiceChatPayload {
+  text: string;
+  history?: Array<{ role: 'user' | 'assistant'; content: string }>;
+  workingMemory?: string;
+  projectData?: Record<string, any> | null;
 }
 
 /**

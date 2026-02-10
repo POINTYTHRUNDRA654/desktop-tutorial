@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Mountain, Search, Plus, Save, AlertTriangle, Zap, RefreshCw, Settings, Folder, Database, Copy, CheckCircle2, AlertCircle } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import { Mountain, AlertTriangle, Zap, RefreshCw, Folder, Database, Copy, CheckCircle2 } from 'lucide-react';
 import { ToolsInstallVerifyPanel } from './components/ToolsInstallVerifyPanel';
 import { useWheelScrollProxy } from './components/useWheelScrollProxy';
 
@@ -47,7 +48,11 @@ interface PrecombineJob {
   fullLog?: string;
 }
 
-const Lorekeeper: React.FC = () => {
+type LorekeeperProps = {
+  embedded?: boolean;
+};
+
+const Lorekeeper: React.FC<LorekeeperProps> = ({ embedded = false }) => {
   // --- Parsing Utilities ---
   const parseLODGenOutput = (output: string): Partial<LODAsset> => {
     const result: Partial<LODAsset> = {};
@@ -139,10 +144,6 @@ const Lorekeeper: React.FC = () => {
   const toolPathsSectionRef = useRef<HTMLDivElement | null>(null);
   const lodSectionRef = useRef<HTMLDivElement | null>(null);
   const precombineSectionRef = useRef<HTMLDivElement | null>(null);
-
-  const scrollToSection = (ref: { current: HTMLDivElement | null }) => {
-    ref.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-  };
 
   useEffect(() => {
     const stored = localStorage.getItem('lorekeeper-lod-assets');
@@ -294,23 +295,33 @@ const Lorekeeper: React.FC = () => {
   const mainScrollRef = useRef<HTMLDivElement | null>(null);
   const wheelProxy = useWheelScrollProxy(mainScrollRef);
 
+  const containerClassName = embedded
+    ? 'w-full flex flex-col bg-forge-dark text-slate-200 min-h-[720px] overflow-hidden rounded-lg border border-slate-800'
+    : 'h-full flex flex-col bg-forge-dark text-slate-200 min-h-0 overflow-hidden';
+
   return (
-    <div className="h-full flex flex-col bg-forge-dark text-slate-200 min-h-0 overflow-hidden" onWheel={wheelProxy}>
+    <div className={containerClassName} onWheel={wheelProxy}>
       {/* Header */}
-      <div className="p-4 border-b border-slate-700 bg-forge-panel flex justify-between items-center z-10 shadow-md">
-        <div>
-          <h2 className="text-xl font-bold text-white flex items-center gap-2">
-            <Mountain className="w-6 h-6 text-forge-accent" />
-            The Lorekeeper (LOD Gen & Precombines)
-          </h2>
-          <p className="text-xs text-slate-400 font-mono">LODGEN • PRP • PJM – FO4 Optimization Pipeline</p>
+      {!embedded && (
+        <div className="p-4 border-b border-slate-700 bg-forge-panel flex justify-between items-center z-10 shadow-md">
+          <div>
+            <h2 className="text-xl font-bold text-white flex items-center gap-2">
+              <Mountain className="w-6 h-6 text-forge-accent" />
+              The Lorekeeper (LOD Gen & Precombines)
+            </h2>
+            <p className="text-xs text-slate-400 font-mono">LODGEN • PRP • PJM – FO4 Optimization Pipeline</p>
+          </div>
+          <div className="flex gap-2">
+            <Link
+              to="/reference"
+              className="flex items-center gap-2 px-3 py-1.5 bg-slate-800 hover:bg-slate-700 border border-slate-600 rounded text-[10px] font-black uppercase tracking-widest text-slate-200 transition-colors"
+              title="Open help"
+            >
+              Help
+            </Link>
+          </div>
         </div>
-        <div className="flex gap-2">
-          <button className="flex items-center gap-2 px-3 py-1.5 bg-slate-800 hover:bg-slate-700 border border-slate-600 rounded text-xs transition-colors">
-            <Settings className="w-3 h-3" /> Settings
-          </button>
-        </div>
-      </div>
+      )}
 
       <div className="p-4 max-h-72 overflow-y-auto pr-2">
         <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
@@ -344,40 +355,7 @@ const Lorekeeper: React.FC = () => {
               'If Run does nothing, confirm your executable paths are correct and accessible.',
               'If output paths look wrong, fix presets/targets first—don’t run large batches blindly.',
             ]}
-            shortcuts={[
-              { label: 'Precombine Guide', to: '/precombine-prp' },
-              { label: 'Precombine Checker', to: '/precombine-checker' },
-              { label: 'Tool Settings', to: '/settings/tools' },
-              { label: 'Packaging', to: '/packaging-release' },
-            ]}
           />
-
-          <div className="bg-slate-900/60 border border-slate-800 rounded-xl p-4">
-            <div className="text-sm font-semibold text-white mb-1">Existing Workflow (Legacy)</div>
-            <div className="text-xs text-slate-400 mb-3">
-              Jump straight into the existing panels without scrolling past the tools block.
-            </div>
-            <div className="flex flex-wrap gap-2">
-              <button
-                onClick={() => scrollToSection(toolPathsSectionRef)}
-                className="px-3 py-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded text-xs font-bold"
-              >
-                Tool Paths
-              </button>
-              <button
-                onClick={() => scrollToSection(lodSectionRef)}
-                className="px-3 py-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded text-xs font-bold"
-              >
-                LOD Generation
-              </button>
-              <button
-                onClick={() => scrollToSection(precombineSectionRef)}
-                className="px-3 py-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded text-xs font-bold"
-              >
-                Precombine Jobs
-              </button>
-            </div>
-          </div>
         </div>
       </div>
 

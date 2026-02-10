@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
-import { AlertTriangle, CheckCircle2, Zap, ChevronDown } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
+import { AlertTriangle, CheckCircle2 } from 'lucide-react';
+import { Link } from 'react-router-dom';
 import { openExternal } from './utils/openExternal';
 
 interface CheckItem {
@@ -12,9 +12,11 @@ interface CheckItem {
   solution?: string;
 }
 
-export const PrecombineChecker: React.FC = () => {
-  const navigate = useNavigate();
+type PrecombineCheckerProps = {
+  embedded?: boolean;
+};
 
+export const PrecombineChecker: React.FC<PrecombineCheckerProps> = ({ embedded = false }) => {
   const openUrl = (url: string) => {
     void openExternal(url);
   };
@@ -310,16 +312,38 @@ export const PrecombineChecker: React.FC = () => {
   const passedChecks = checks.filter((c) => c.status === 'pass').length;
   const failedChecks = checks.filter((c) => c.status === 'fail').length;
 
+  const containerClass = embedded
+    ? 'bg-slate-900/60 border border-slate-700 rounded-lg'
+    : 'h-full bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 overflow-hidden flex flex-col';
+
+  const headerClass = embedded
+    ? 'p-4 border-b border-slate-700 bg-slate-800/50'
+    : 'p-6 border-b border-slate-700 bg-slate-800/50';
+
+  const contentClass = embedded
+    ? 'p-4'
+    : 'flex-1 overflow-y-auto p-6';
+
   return (
-    <div className="h-full bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 overflow-hidden flex flex-col">
+    <div className={containerClass}>
       {/* Header */}
-      <div className="p-6 border-b border-slate-700 bg-slate-800/50">
-        <div className="flex items-center gap-3 mb-4">
-          <AlertTriangle className="w-8 h-8 text-orange-400" />
-          <div>
-            <h1 className="text-2xl font-bold text-white">Precombine Checker</h1>
-            <p className="text-sm text-slate-400">Verify your precombine rebuild before release</p>
+      <div className={headerClass}>
+        <div className="flex items-start justify-between gap-4 mb-4">
+          <div className="flex items-center gap-3">
+            <AlertTriangle className="w-8 h-8 text-orange-400" />
+            <div>
+              <h1 className="text-lg font-bold text-white">Precombine Checker</h1>
+              <p className="text-xs text-slate-400">PRP rebuild readiness checklist</p>
+            </div>
           </div>
+          {!embedded && (
+            <Link
+              to="/reference"
+              className="px-3 py-2 border border-orange-500/30 text-[10px] font-black uppercase tracking-widest text-orange-200 rounded-lg bg-orange-500/10 hover:bg-orange-500/20 transition-colors"
+            >
+              Help
+            </Link>
+          )}
         </div>
 
         {/* Progress */}
@@ -363,35 +387,8 @@ export const PrecombineChecker: React.FC = () => {
         <div className="mt-5 bg-slate-950/50 border border-slate-700 rounded-lg p-4">
           <div className="text-sm font-bold text-orange-300 mb-2">🧰 Tools / Install / Verify (No Guesswork)</div>
           <p className="text-xs text-slate-300">
-            This page is a <strong>release readiness</strong> checklist. If you haven’t rebuilt yet, start with the PRP guide, then come back here.
+            This page is a <strong>release readiness</strong> checklist. Run PRP first, verify the output, then use these checks to confirm your mod is safe to ship.
           </p>
-
-          <div className="mt-3 flex flex-wrap gap-2">
-            <button
-              onClick={() => navigate('/precombine-prp')}
-              className="px-3 py-2 rounded bg-orange-700 hover:bg-orange-600 text-xs font-bold text-white"
-            >
-              Open PRP Guide
-            </button>
-            <button
-              onClick={() => navigate('/prp-patch-builder')}
-              className="px-3 py-2 rounded bg-slate-800 hover:bg-slate-700 border border-slate-600 text-xs font-bold text-white"
-            >
-              PRP Patch Builder
-            </button>
-            <button
-              onClick={() => navigate('/packaging-release')}
-              className="px-3 py-2 rounded bg-slate-800 hover:bg-slate-700 border border-slate-600 text-xs font-bold text-white"
-            >
-              Packaging & Release
-            </button>
-            <button
-              onClick={() => navigate('/settings/tools')}
-              className="px-3 py-2 rounded bg-slate-800 hover:bg-slate-700 border border-slate-600 text-xs font-bold text-white"
-            >
-              Tool Settings
-            </button>
-          </div>
 
           <div className="mt-3 flex flex-wrap gap-2">
             <button
@@ -433,7 +430,7 @@ export const PrecombineChecker: React.FC = () => {
       </div>
 
       {/* Content */}
-      <div className="flex-1 overflow-y-auto p-6">
+      <div className={contentClass}>
         <div className="max-w-4xl mx-auto space-y-4">
           {categories.map((category) => (
             <div

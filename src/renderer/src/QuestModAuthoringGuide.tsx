@@ -1,7 +1,11 @@
 import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import { BookOpen, ChevronDown, ChevronRight, Lightbulb, AlertTriangle, CheckCircle2, MessageCircle, Map, Users, Settings, Star, FileText, Wrench, ExternalLink, Rocket } from 'lucide-react';
 import { openExternal } from './utils/openExternal';
+import { CKQuestDialogueWizard } from './CKQuestDialogueWizard';
+import { LeveledListInjectionGuide } from './LeveledListInjectionGuide';
+import { PrecombineAndPRPGuide } from './PrecombineAndPRPGuide';
+import { PrecombineChecker } from './PrecombineChecker';
 
 interface GuideSection {
   id: string;
@@ -10,9 +14,16 @@ interface GuideSection {
   content: React.ReactNode;
 }
 
+type HubStep = {
+  id: string;
+  title: string;
+  description: string;
+  sectionIds?: string[];
+  blocks?: React.ReactNode[];
+};
+
 export const QuestModAuthoringGuide: React.FC = () => {
-  const [expandedSection, setExpandedSection] = useState<string>('overview');
-  const navigate = useNavigate();
+  const [expandedSection, setExpandedSection] = useState<string>('setup');
 
   const openUrl = (url: string) => {
     void openExternal(url);
@@ -77,35 +88,6 @@ export const QuestModAuthoringGuide: React.FC = () => {
             </ul>
           </div>
 
-          <div className="bg-slate-900/50 border border-slate-700 rounded p-4">
-            <h4 className="font-bold text-white mb-3">Shortcuts in Mossy</h4>
-            <div className="flex flex-wrap gap-2">
-              <button
-                onClick={() => navigate('/install-wizard')}
-                className="px-3 py-2 bg-slate-800 hover:bg-slate-700 border border-slate-600 rounded text-xs font-bold text-slate-200"
-              >
-                Install Wizard
-              </button>
-              <button
-                onClick={() => navigate('/ck-quest-dialogue')}
-                className="px-3 py-2 bg-slate-800 hover:bg-slate-700 border border-slate-600 rounded text-xs font-bold text-slate-200"
-              >
-                CK Quest & Dialogue Wizard
-              </button>
-              <button
-                onClick={() => navigate('/packaging-release')}
-                className="px-3 py-2 bg-slate-800 hover:bg-slate-700 border border-slate-600 rounded text-xs font-bold text-slate-200"
-              >
-                Packaging & Release
-              </button>
-              <button
-                onClick={() => navigate('/tts')}
-                className="px-3 py-2 bg-slate-800 hover:bg-slate-700 border border-slate-600 rounded text-xs font-bold text-slate-200"
-              >
-                TTS / Audio Studio
-              </button>
-            </div>
-          </div>
         </div>
       )
     },
@@ -358,39 +340,129 @@ export const QuestModAuthoringGuide: React.FC = () => {
     }
   ];
 
+  const sectionById = (id: string) => sections.find((section) => section.id === id);
+
+  const renderSectionBlock = (id: string) => {
+    const section = sectionById(id);
+    if (!section) return null;
+    const Icon = section.icon;
+
+    return (
+      <div key={section.id} className="bg-slate-800/50 border border-slate-700 rounded-lg overflow-hidden">
+        <div className="px-5 py-4 flex items-center gap-3 border-b border-slate-700">
+          <Icon className="w-5 h-5 text-blue-400" />
+          <h3 className="font-bold text-white text-lg">{section.title}</h3>
+        </div>
+        <div className="px-5 py-4">
+          {section.content}
+        </div>
+      </div>
+    );
+  };
+
+  const hubSteps: HubStep[] = [
+    {
+      id: 'setup',
+      title: 'Setup & First Test Loop',
+      description: 'Install the CK toolchain and prove the smallest quest runs end-to-end.',
+      sectionIds: ['tools', 'first-test'],
+    },
+    {
+      id: 'design',
+      title: 'Quest Design & Structure',
+      description: 'Plan the story, objectives, and stage flow before you script.',
+      sectionIds: ['overview', 'story', 'objectives'],
+    },
+    {
+      id: 'ck',
+      title: 'CK Quest & Dialogue Build',
+      description: 'Build the quest skeleton, dialogue, and minimal test line inside CK.',
+      sectionIds: ['dialogue'],
+      blocks: [
+        <CKQuestDialogueWizard key="ck-quest-dialogue" embedded />,
+      ],
+    },
+    {
+      id: 'scripting',
+      title: 'Scripting & Logic',
+      description: 'Implement Papyrus logic and debug with clean, repeatable tests.',
+      sectionIds: ['scripting'],
+    },
+    {
+      id: 'world',
+      title: 'World Integration',
+      description: 'Place NPCs, objectives, rewards, and ensure lore-friendly placement.',
+      sectionIds: ['world', 'npcs', 'rewards'],
+    },
+    {
+      id: 'leveled-lists',
+      title: 'Leveled Lists & Injection',
+      description: 'Safely inject items/NPCs without load-order conflicts.',
+      blocks: [
+        <LeveledListInjectionGuide key="leveled-lists" embedded />,
+      ],
+    },
+    {
+      id: 'precombines',
+      title: 'Precombines & PRP',
+      description: 'If you touched exterior cells, rebuild and verify precombines.',
+      blocks: [
+        <PrecombineAndPRPGuide key="prp-guide" embedded />,
+        <PrecombineChecker key="prp-checker" embedded />,
+      ],
+    },
+    {
+      id: 'release',
+      title: 'Testing & Release',
+      description: 'Stabilize, document, and ship with fewer surprises.',
+      sectionIds: ['testing', 'docs', 'pitfalls'],
+    },
+  ];
+
   return (
     <div className="h-full bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 overflow-hidden flex flex-col">
       {/* Header */}
       <div className="p-6 border-b border-slate-700 bg-slate-800/50">
-        <div className="flex items-center gap-3">
-          <BookOpen className="w-8 h-8 text-blue-400" />
-          <div>
-            <h1 className="text-2xl font-bold text-white">Quest Mod Authoring Guide</h1>
-            <p className="text-sm text-slate-400">Everything you need to build a lore-friendly Fallout 4 quest mod</p>
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <BookOpen className="w-8 h-8 text-blue-400" />
+            <div>
+              <h1 className="text-2xl font-bold text-white">Creation Kit Hub (All-in-One)</h1>
+              <p className="text-sm text-slate-400">Quest authoring, CK workflows, leveled lists, and precombines in one ordered flow</p>
+            </div>
           </div>
+          <Link
+            to="/reference"
+            className="px-3 py-2 border border-blue-500/30 text-[10px] font-black uppercase tracking-widest text-blue-200 rounded-lg bg-blue-500/10 hover:bg-blue-500/20 transition-colors"
+          >
+            Help
+          </Link>
         </div>
       </div>
 
       {/* Content */}
       <div className="flex-1 overflow-y-auto p-6">
         <div className="max-w-5xl mx-auto space-y-3">
-          {sections.map((section) => {
-            const Icon = section.icon;
-            const isExpanded = expandedSection === section.id;
+          {hubSteps.map((step, index) => {
+            const isExpanded = expandedSection === step.id;
 
             return (
               <div
-                key={section.id}
+                key={step.id}
                 className="bg-slate-800/50 border border-slate-700 rounded-lg overflow-hidden"
               >
-                {/* Section Header */}
                 <button
-                  onClick={() => setExpandedSection(isExpanded ? '' : section.id)}
+                  onClick={() => setExpandedSection(isExpanded ? '' : step.id)}
                   className="w-full px-6 py-4 flex items-center justify-between hover:bg-slate-700/50 transition-colors"
                 >
                   <div className="flex items-center gap-3">
-                    <Icon className="w-5 h-5 text-blue-400" />
-                    <h3 className="font-bold text-white text-lg">{section.title}</h3>
+                    <div className="text-[10px] font-black uppercase tracking-[0.2em] px-2 py-1 rounded border border-blue-500/30 text-blue-200">
+                      Step {index + 1}
+                    </div>
+                    <div>
+                      <h3 className="font-bold text-white text-lg">{step.title}</h3>
+                      <p className="text-xs text-slate-400 mt-1">{step.description}</p>
+                    </div>
                   </div>
                   {isExpanded ? (
                     <ChevronDown className="w-5 h-5 text-slate-400" />
@@ -399,10 +471,19 @@ export const QuestModAuthoringGuide: React.FC = () => {
                   )}
                 </button>
 
-                {/* Section Content */}
                 {isExpanded && (
-                  <div className="px-6 py-4 border-t border-slate-700">
-                    {section.content}
+                  <div className="px-6 py-5 border-t border-slate-700 space-y-4">
+                    {step.sectionIds?.map(renderSectionBlock)}
+
+                    {step.blocks && step.blocks.length > 0 && (
+                      <div className="space-y-4">
+                        {step.blocks.map((block, blockIndex) => (
+                          <div key={`${step.id}-block-${blockIndex}`}>
+                            {block}
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 )}
               </div>

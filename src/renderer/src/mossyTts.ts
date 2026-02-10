@@ -9,7 +9,6 @@ function getVoiceService(): VoiceService {
     const config: VoiceServiceConfig = {
       sttProvider: 'backend',
       ttsProvider: 'browser',
-      deepgramKey: undefined,
       elevenlabsKey: undefined,
     };
     voiceService = new VoiceService(config);

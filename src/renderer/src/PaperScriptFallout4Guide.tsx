@@ -1,9 +1,11 @@
 import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
 import { openExternal } from './utils/openExternal';
 
-const PaperScriptFallout4Guide = () => {
-  const navigate = useNavigate();
+type PaperScriptFallout4GuideProps = {
+  embedded?: boolean;
+};
+
+const PaperScriptFallout4Guide: React.FC<PaperScriptFallout4GuideProps> = ({ embedded = false }) => {
   const [expandedSection, setExpandedSection] = useState<string | null>('fo4-features');
 
   const toggleSection = (id: string) => {
@@ -11,13 +13,13 @@ const PaperScriptFallout4Guide = () => {
   };
 
   const containerStyle: React.CSSProperties = {
-    maxWidth: '1200px',
+    maxWidth: embedded ? '100%' : '1200px',
     margin: '0 auto',
-    padding: '2rem',
+    padding: embedded ? '1.25rem' : '2rem',
     background: '#0a0e27',
     color: '#e0e0e0',
     fontFamily: 'Courier New, monospace',
-    minHeight: '100vh'
+    minHeight: embedded ? undefined : '100vh'
   };
 
   const headerStyle: React.CSSProperties = {
@@ -135,11 +137,6 @@ const PaperScriptFallout4Guide = () => {
           <button style={smallButtonStyle} onClick={() => openUrl('https://github.com/search?q=PaperScript+Papyrus&type=repositories')}>GitHub search: PaperScript</button>
           <button style={smallButtonStyle} onClick={() => openUrl('https://store.steampowered.com/search/?term=Creation%20Kit%20Fallout%204')}>Steam search: Creation Kit</button>
           <button style={smallButtonStyle} onClick={() => openNexusSearch('FO4Edit')}>Nexus search: FO4Edit</button>
-        </div>
-        <div style={buttonRowStyle}>
-          <button style={smallButtonStyle} onClick={() => navigate('/install-wizard')}>In-app: Install Wizard</button>
-          <button style={smallButtonStyle} onClick={() => navigate('/ck-quest-dialogue')}>In-app: CK Quest/Dialogue Wizard</button>
-          <button style={smallButtonStyle} onClick={() => navigate('/packaging-release')}>In-app: Packaging & Release</button>
         </div>
         <div style={{ marginTop: '0.75rem', color: '#b0b0b0' }}>
           <strong>First test loop:</strong> build one script → compile to <code style={{ color: '#00ff00' }}>.pex</code> → ship it in a tiny test plugin → trigger it on game start.

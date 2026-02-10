@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { AlertCircle, CheckCircle2, ChevronDown, Zap } from 'lucide-react';
+import { Link } from 'react-router-dom';
 import { ToolsInstallVerifyPanel } from './components/ToolsInstallVerifyPanel';
 
 interface MistakeExample {
@@ -16,7 +17,11 @@ interface MistakeExample {
   estimated_time: string;
 }
 
-export const RiggingMistakesGallery: React.FC = () => {
+type RiggingMistakesGalleryProps = {
+  embedded?: boolean;
+};
+
+export const RiggingMistakesGallery: React.FC<RiggingMistakesGalleryProps> = ({ embedded = false }) => {
   const [expandedId, setExpandedId] = useState<string>('');
   const [filterCategory, setFilterCategory] = useState<string>('all');
 
@@ -350,16 +355,38 @@ export const RiggingMistakesGallery: React.FC = () => {
     }
   };
 
+  const containerClass = embedded
+    ? 'bg-slate-900/60 border border-slate-700 rounded-lg'
+    : 'h-full bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 overflow-hidden flex flex-col';
+
+  const headerClass = embedded
+    ? 'p-4 border-b border-slate-700 bg-slate-800/50'
+    : 'p-6 border-b border-slate-700 bg-slate-800/50';
+
+  const contentClass = embedded
+    ? 'p-4'
+    : 'flex-1 overflow-y-auto p-6';
+
   return (
-    <div className="h-full bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 overflow-hidden flex flex-col">
+    <div className={containerClass}>
       {/* Header */}
-      <div className="p-6 border-b border-slate-700 bg-slate-800/50">
-        <div className="flex items-center gap-3 mb-4">
-          <AlertCircle className="w-8 h-8 text-red-400" />
-          <div>
-            <h1 className="text-2xl font-bold text-white">Rigging Mistakes Gallery</h1>
-            <p className="text-sm text-slate-400">Learn from common errors before they happen</p>
+      <div className={headerClass}>
+        <div className="flex items-center justify-between gap-3 mb-4">
+          <div className="flex items-center gap-3">
+            <AlertCircle className="w-8 h-8 text-red-400" />
+            <div>
+              <h1 className="text-2xl font-bold text-white">Rigging Mistakes Gallery</h1>
+              <p className="text-sm text-slate-400">Learn from common errors before they happen</p>
+            </div>
           </div>
+          {!embedded && (
+            <Link
+              to="/reference"
+              className="px-3 py-2 border border-red-500/30 text-[10px] font-black uppercase tracking-widest text-red-200 rounded-lg bg-red-500/10 hover:bg-red-500/20 transition-colors"
+            >
+              Help
+            </Link>
+          )}
         </div>
 
         {/* Category Filter */}
@@ -381,7 +408,7 @@ export const RiggingMistakesGallery: React.FC = () => {
       </div>
 
       {/* Content */}
-      <div className="flex-1 overflow-y-auto p-6">
+      <div className={contentClass}>
         <div className="max-w-4xl mx-auto space-y-3">
           <ToolsInstallVerifyPanel
             accentClassName="text-red-300"
@@ -400,12 +427,6 @@ export const RiggingMistakesGallery: React.FC = () => {
             troubleshooting={[
               'If you do not know “what changed”, fix one variable at a time (one bone, one weight group, one export toggle).',
               'If “everything looks wrong”, start with scale + bone naming before touching weights.'
-            ]}
-            shortcuts={[
-              { label: 'Rigging Checklist', to: '/rigging-checklist' },
-              { label: 'Export Settings', to: '/export-settings' },
-              { label: 'Animation Validator', to: '/animation-validator' },
-              { label: 'Animation Guide', to: '/animation-guide' },
             ]}
           />
 

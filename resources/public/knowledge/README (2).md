@@ -15,6 +15,6 @@ View your app in AI Studio: https://ai.studio/apps/drive/1uEKBzDjU2KgB6zleJiVhy7
 
 1. Install dependencies:
    `npm install`
-2. Configure keys in the Desktop app Settings UI (OpenAI/Groq/Deepgram)
+2. Configure keys in the Desktop app Settings UI (OpenAI/Groq)
 3. Run the app:
    `npm run dev`

@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import { PluginInstance, PluginManifest, getPluginSystemService } from './PluginSystemService';
 import { ArrowDownToLine, Upload, Settings, Play, Square, Trash2, AlertTriangle, CheckCircle, XCircle, Package, Zap } from 'lucide-react';
 
@@ -136,6 +137,13 @@ export const PluginManager: React.FC = () => {
                     <p className="text-xs text-slate-400 mt-1">Manage AI extensions and plugins</p>
                 </div>
                 <div className="flex gap-2">
+                    <Link
+                        to="/reference"
+                        className="px-3 py-1 text-[10px] font-black uppercase tracking-widest rounded-lg bg-emerald-900/20 border border-emerald-500/30 text-emerald-100 hover:bg-emerald-900/30 transition-colors"
+                        title="Open help"
+                    >
+                        Help
+                    </Link>
                     <button
                         onClick={() => setShowInstallDialog(true)}
                         disabled={!pluginsEnabled}

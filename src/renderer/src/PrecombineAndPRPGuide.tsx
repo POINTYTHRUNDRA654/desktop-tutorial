@@ -1,6 +1,6 @@
 import React, { useRef, useState } from 'react';
 import { BookOpen, ChevronDown, AlertTriangle, Zap, CheckCircle } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import { useWheelScrollProxy } from './components/useWheelScrollProxy';
 import { openExternal } from './utils/openExternal';
 
@@ -12,19 +12,14 @@ interface GuideSection {
   subsections?: string[];
 }
 
-export const PrecombineAndPRPGuide: React.FC = () => {
+type PrecombineAndPRPGuideProps = {
+  embedded?: boolean;
+};
+
+export const PrecombineAndPRPGuide: React.FC<PrecombineAndPRPGuideProps> = ({ embedded = false }) => {
   const [expandedSection, setExpandedSection] = useState<string>('overview');
-  const navigate = useNavigate();
-  const sectionRefs = useRef<Record<string, HTMLDivElement | null>>({});
   const contentScrollRef = useRef<HTMLDivElement | null>(null);
   const wheelProxy = useWheelScrollProxy(contentScrollRef);
-
-  const openAndScrollTo = (id: string) => {
-    setExpandedSection(id);
-    requestAnimationFrame(() => {
-      sectionRefs.current[id]?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    });
-  };
 
   const openUrl = (url: string) => {
     void openExternal(url);
@@ -645,16 +640,39 @@ After PRP rebuild:
     },
   ];
 
+  const containerClass = embedded
+    ? 'bg-slate-900/60 border border-slate-700 rounded-lg'
+    : 'h-full bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 overflow-hidden flex flex-col min-h-0';
+
+  const headerClass = embedded
+    ? 'p-4 border-b border-slate-700 bg-slate-800/50'
+    : 'p-6 border-b border-slate-700 bg-slate-800/50';
+
+  const contentClass = embedded
+    ? 'p-4'
+    : 'flex-1 min-h-0 overflow-y-auto p-6';
+
   return (
-    <div className="h-full bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 overflow-hidden flex flex-col min-h-0" onWheel={wheelProxy}>
+    <div className={containerClass} onWheel={embedded ? undefined : wheelProxy}>
       {/* Header */}
-      <div className="p-6 border-b border-slate-700 bg-slate-800/50">
-        <div className="flex items-center gap-3">
-          <BookOpen className="w-8 h-8 text-purple-400" />
-          <div>
-            <h1 className="text-2xl font-bold text-white">Precombine & PRP Guide</h1>
-            <p className="text-sm text-slate-400">How to rebuild precombines for Fallout 4 mods</p>
+      <div className={headerClass}>
+        <div className="flex items-start justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <BookOpen className="w-8 h-8 text-purple-400" />
+            <div>
+              <h1 className="text-2xl font-bold text-white">Precombine & PRP Guide</h1>
+              <p className="text-sm text-slate-400">How to rebuild precombines for Fallout 4 mods</p>
+            </div>
           </div>
+          {!embedded && (
+            <Link
+              to="/reference"
+              className="px-3 py-2 text-[10px] font-black uppercase tracking-widest rounded-lg bg-purple-900/30 border border-purple-500/30 text-purple-100 hover:bg-purple-900/40 transition-colors"
+              title="Open help"
+            >
+              Help
+            </Link>
+          )}
         </div>
 
         <div className="mt-5 max-h-72 overflow-y-auto pr-2">
@@ -705,95 +723,32 @@ After PRP rebuild:
             </div>
 
             <div className="bg-black/40 border border-slate-700 rounded-lg p-4">
-              <div className="text-sm font-bold text-emerald-300 mb-2">📦 Existing Install / Workflow (Legacy Section)</div>
+              <div className="text-sm font-bold text-emerald-300 mb-2">📦 Install + Workflow Notes</div>
               <div className="text-xs text-slate-300 mb-3">
-                If the legacy “install / setup” details feel pushed to the bottom, use these quick-open buttons to jump straight to the relevant section.
+                Keep the first verification loop tight before you expand scope or ship compatibility patches.
               </div>
 
-            <div className="flex flex-wrap gap-2">
-              <button
-                onClick={() => openAndScrollTo('prp-intro')}
-                className="px-3 py-2 rounded bg-emerald-900/30 hover:bg-emerald-900/50 border border-emerald-500/30 text-xs font-bold text-white"
-              >
-                Open: PRP Tool section
-              </button>
-              <button
-                onClick={() => openAndScrollTo('do-i-need-rebuild')}
-                className="px-3 py-2 rounded bg-slate-800 hover:bg-slate-700 border border-slate-600 text-xs font-bold text-white"
-              >
-                Open: Do I need a rebuild?
-              </button>
-              <button
-                onClick={() => openAndScrollTo('detecting-breaks')}
-                className="px-3 py-2 rounded bg-slate-800 hover:bg-slate-700 border border-slate-600 text-xs font-bold text-white"
-              >
-                Open: Detecting breaks
-              </button>
-            </div>
-
-            <div className="mt-3 border-t border-slate-700 pt-3">
-              <div className="text-xs font-bold text-slate-200 mb-1">First test loop (10–15 minutes)</div>
-              <ol className="text-xs text-slate-300 list-decimal list-inside space-y-1">
-                <li>In a clean mod-manager profile, enable ONLY your plugin (and DLC requirements).</li>
-                <li>Run PRP in <strong>Analyze</strong> mode against your plugin; note affected exterior cells.</li>
-                <li>Run PRP <strong>Build/Rebuild</strong>; confirm output includes <strong>Meshes\\Precombined\\</strong> files.</li>
-                <li>Install the output as a mod, load in-game, visit one touched cell, rotate camera 360°.</li>
-                <li>If you’re supporting compatibility: build a <strong>merged</strong> PRP patch for one specific combo.</li>
-              </ol>
-            </div>
-
-            <div className="mt-3 flex flex-wrap gap-2">
-              <button
-                onClick={() => navigate('/install-wizard')}
-                className="px-3 py-2 rounded bg-purple-700 hover:bg-purple-600 text-xs font-bold text-white"
-              >
-                Install Wizard
-              </button>
-              <button
-                onClick={() => navigate('/settings/tools')}
-                className="px-3 py-2 rounded bg-slate-800 hover:bg-slate-700 border border-slate-600 text-xs font-bold text-white"
-              >
-                Tool Settings
-              </button>
-              <button
-                onClick={() => navigate('/precombine-checker')}
-                className="px-3 py-2 rounded bg-slate-800 hover:bg-slate-700 border border-slate-600 text-xs font-bold text-white"
-              >
-                Precombine Checker
-              </button>
-              <button
-                onClick={() => navigate('/prp-patch-builder')}
-                className="px-3 py-2 rounded bg-slate-800 hover:bg-slate-700 border border-slate-600 text-xs font-bold text-white"
-              >
-                PRP Patch Builder
-              </button>
-              <button
-                onClick={() => navigate('/packaging-release')}
-                className="px-3 py-2 rounded bg-slate-800 hover:bg-slate-700 border border-slate-600 text-xs font-bold text-white"
-              >
-                Packaging & Release
-              </button>
-              <button
-                onClick={() => navigate('/vault')}
-                className="px-3 py-2 rounded bg-slate-800 hover:bg-slate-700 border border-slate-600 text-xs font-bold text-white"
-              >
-                The Vault
-              </button>
+              <div className="mt-3 border-t border-slate-700 pt-3">
+                <div className="text-xs font-bold text-slate-200 mb-1">First test loop (10–15 minutes)</div>
+                <ol className="text-xs text-slate-300 list-decimal list-inside space-y-1">
+                  <li>In a clean mod-manager profile, enable ONLY your plugin (and DLC requirements).</li>
+                  <li>Run PRP in <strong>Analyze</strong> mode against your plugin; note affected exterior cells.</li>
+                  <li>Run PRP <strong>Build/Rebuild</strong>; confirm output includes <strong>Meshes\\Precombined\\</strong> files.</li>
+                  <li>Install the output as a mod, load in-game, visit one touched cell, rotate camera 360°.</li>
+                  <li>If you’re supporting compatibility: build a <strong>merged</strong> PRP patch for one specific combo.</li>
+                </ol>
+              </div>
             </div>
           </div>
         </div>
       </div>
-      </div>
 
       {/* Content */}
-      <div ref={contentScrollRef} className="flex-1 min-h-0 overflow-y-auto p-6">
+      <div ref={contentScrollRef} className={contentClass}>
         <div className="max-w-4xl mx-auto space-y-3">
           {sections.map((section) => (
             <div
               key={section.id}
-              ref={(el) => {
-                sectionRefs.current[section.id] = el;
-              }}
               className="bg-slate-900 border border-slate-700 rounded-lg overflow-hidden hover:border-purple-500/50 transition-colors"
             >
               <button

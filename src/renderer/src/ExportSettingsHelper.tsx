@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { Link } from 'react-router-dom';
 import { Settings, Copy, CheckCircle2, AlertCircle, ChevronDown } from 'lucide-react';
 import { ToolsInstallVerifyPanel } from './components/ToolsInstallVerifyPanel';
 
@@ -19,7 +20,11 @@ interface ExportScenario {
   common_mistakes: string[];
 }
 
-export const ExportSettingsHelper: React.FC = () => {
+type ExportSettingsHelperProps = {
+  embedded?: boolean;
+};
+
+export const ExportSettingsHelper: React.FC<ExportSettingsHelperProps> = ({ embedded = false }) => {
   const [selectedScenario, setSelectedScenario] = useState<string>('custom-mesh');
   const [copiedSetting, setCopiedSetting] = useState<string>('');
   const [expandedMistake, setExpandedMistake] = useState<string>('');
@@ -225,21 +230,44 @@ export const ExportSettingsHelper: React.FC = () => {
     setTimeout(() => setCopiedSetting(''), 2000);
   };
 
+  const containerClass = embedded
+    ? 'bg-slate-900/60 border border-slate-700 rounded-lg'
+    : 'h-full bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 overflow-hidden flex flex-col';
+
+  const headerClass = embedded
+    ? 'p-4 border-b border-slate-700 bg-slate-800/50'
+    : 'p-6 border-b border-slate-700 bg-slate-800/50';
+
+  const contentClass = embedded
+    ? 'p-4'
+    : 'flex-1 overflow-y-auto p-6';
+
   return (
-    <div className="h-full bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 overflow-hidden flex flex-col">
+    <div className={containerClass}>
       {/* Header */}
-      <div className="p-6 border-b border-slate-700 bg-slate-800/50">
-        <div className="flex items-center gap-3 mb-4">
-          <Settings className="w-8 h-8 text-orange-400" />
-          <div>
-            <h1 className="text-2xl font-bold text-white">Better Blender 3 Export Settings</h1>
-            <p className="text-sm text-slate-400">Exact settings for every export scenario</p>
+      <div className={headerClass}>
+        <div className="flex items-start justify-between gap-4 mb-4">
+          <div className="flex items-center gap-3">
+            <Settings className="w-8 h-8 text-orange-400" />
+            <div>
+              <h1 className="text-2xl font-bold text-white">Better Blender 3 Export Settings</h1>
+              <p className="text-sm text-slate-400">Exact settings for every export scenario</p>
+            </div>
           </div>
+          {!embedded && (
+            <Link
+              to="/reference"
+              className="px-3 py-2 text-[10px] font-black uppercase tracking-widest rounded-lg bg-orange-900/30 border border-orange-500/30 text-orange-100 hover:bg-orange-900/40 transition-colors"
+              title="Open help"
+            >
+              Help
+            </Link>
+          )}
         </div>
       </div>
 
       {/* Content */}
-      <div className="flex-1 overflow-y-auto p-6">
+      <div className={contentClass}>
         <div className="max-w-6xl mx-auto space-y-6">
           <ToolsInstallVerifyPanel
             accentClassName="text-orange-300"
@@ -260,12 +288,6 @@ export const ExportSettingsHelper: React.FC = () => {
             troubleshooting={[
               'If the character is 10× too big/small, your scale is wrong (typically 1.0 vs 0.1).',
               'If the file contains “extra stuff”, re-check “Only Selected” and what is selected at export time.'
-            ]}
-            shortcuts={[
-              { label: 'Animation Guide', to: '/animation-guide' },
-              { label: 'Rigging Checklist', to: '/rigging-checklist' },
-              { label: 'Rigging Mistakes', to: '/rigging-mistakes' },
-              { label: 'Animation Validator', to: '/animation-validator' },
             ]}
           />
 

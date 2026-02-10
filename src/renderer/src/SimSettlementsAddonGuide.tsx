@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { ChevronDown, ChevronUp, Wrench, BookOpen, AlertCircle, Users, Hammer, CheckCircle2, HelpCircle, Lightbulb, Code, Zap } from 'lucide-react';
+import { ChevronDown, ChevronUp, BookOpen, AlertCircle, Users, Hammer, CheckCircle2, HelpCircle, Lightbulb, Code, Zap } from 'lucide-react';
 import { ToolsInstallVerifyPanel } from './components/ToolsInstallVerifyPanel';
 import { openExternal } from './utils/openExternal';
 
@@ -11,8 +10,11 @@ interface Section {
   content: React.ReactNode;
 }
 
-export default function SimSettlementsAddonGuide() {
-  const navigate = useNavigate();
+type SimSettlementsAddonGuideProps = {
+  embedded?: boolean;
+};
+
+export default function SimSettlementsAddonGuide({ embedded = false }: SimSettlementsAddonGuideProps) {
   const [expandedSection, setExpandedSection] = useState<string | null>('quick-start');
 
   const toggleSection = (id: string) => {
@@ -76,11 +78,6 @@ export default function SimSettlementsAddonGuide() {
               <li>You can compile a trivial Papyrus script (produces a <strong>.pex</strong>).</li>
               <li>Your test plugin loads in-game and the new record appears (craftable item, holotape, or building skin).</li>
             </ol>
-            <div className="flex flex-wrap gap-2 mt-2">
-              <button className="px-3 py-1 rounded bg-[#002200] hover:bg-[#003300]" onClick={() => navigate('/ck-quest-dialogue')}>CK Wizard</button>
-              <button className="px-3 py-1 rounded bg-[#002200] hover:bg-[#003300]" onClick={() => navigate('/packaging-release')}>Packaging</button>
-              <button className="px-3 py-1 rounded bg-[#002200] hover:bg-[#003300]" onClick={() => navigate('/settings/tools')}>Tool Settings</button>
-            </div>
           </div>
         </div>
       )
@@ -158,16 +155,6 @@ export default function SimSettlementsAddonGuide() {
           <div className="bg-[#001a00] p-2 rounded text-[#008000] text-xs border border-[#004400]">
             <p><strong>Total Setup Time:</strong> 30-45 minutes for all tools</p>
             <p className="mt-1"><strong>Verify:</strong> CK opens SS2 masters, FO4Edit opens your plugin, NifSkope opens a reference .nif without missing textures.</p>
-          </div>
-
-          <div className="bg-black/40 border border-[#004400] rounded p-3">
-            <p className="text-[#00d000] font-bold mb-2">In-app shortcuts</p>
-            <div className="flex flex-wrap gap-2">
-              <button className="px-3 py-1 rounded bg-[#002200] hover:bg-[#003300] text-xs" onClick={() => navigate('/install-wizard')}>Install Wizard</button>
-              <button className="px-3 py-1 rounded bg-[#002200] hover:bg-[#003300] text-xs" onClick={() => navigate('/ck-quest-dialogue')}>CK Wizard</button>
-              <button className="px-3 py-1 rounded bg-[#002200] hover:bg-[#003300] text-xs" onClick={() => navigate('/packaging-release')}>Packaging</button>
-              <button className="px-3 py-1 rounded bg-[#002200] hover:bg-[#003300] text-xs" onClick={() => navigate('/vault')}>The Vault</button>
-            </div>
           </div>
         </div>
       )
@@ -474,14 +461,18 @@ export default function SimSettlementsAddonGuide() {
     }
   ];
 
+  const containerClassName = `w-full ${embedded ? 'p-4' : 'max-w-4xl mx-auto p-6'} bg-[#001a00] text-[#00ff00] font-mono rounded-lg border-2 border-[#00ff00] shadow-2xl`;
+
   return (
-    <div className="w-full max-w-4xl mx-auto p-6 bg-[#001a00] text-[#00ff00] font-mono rounded-lg border-2 border-[#00ff00] shadow-2xl">
+    <div className={containerClassName}>
       {/* Header */}
-      <div className="mb-8 pb-4 border-b-2 border-[#00ff00]">
-        <h1 className="text-3xl font-bold text-[#00d000] mb-2">Sim Settlements 2 Addon Creator Guide</h1>
-        <p className="text-sm text-[#008000]">Master addon creation: buildings, city plans, HQ content, and advanced systems</p>
-        <p className="text-xs text-[#004400] mt-2">Version 1.0 | Updated January 24, 2026</p>
-      </div>
+      {!embedded && (
+        <div className="mb-8 pb-4 border-b-2 border-[#00ff00]">
+          <h1 className="text-3xl font-bold text-[#00d000] mb-2">Sim Settlements 2 Addon Creator Guide</h1>
+          <p className="text-sm text-[#008000]">Master addon creation: buildings, city plans, HQ content, and advanced systems</p>
+          <p className="text-xs text-[#004400] mt-2">Version 1.0 | Updated January 24, 2026</p>
+        </div>
+      )}
 
       <ToolsInstallVerifyPanel
         accentClassName="text-emerald-300"
@@ -493,7 +484,6 @@ export default function SimSettlementsAddonGuide() {
           { label: 'Nexus search: Addon Maker Toolkit', href: 'https://www.nexusmods.com/fallout4/search/?gsearch=Addon%20Maker%27s%20Toolkit&gsearchtype=mods', kind: 'search', note: 'If you plan to ship SS2-specific scripts/workflows.' },
         ]}
         verify={[
-          'Expand “Quick Start” and confirm you can reach the three in-app buttons (CK Wizard / Packaging / Tool Settings).',
           'Confirm CK can launch and load SS2 masters without missing-file errors.',
           'Confirm you can compile a trivial Papyrus script and it produces a .pex.'
         ]}
@@ -504,12 +494,6 @@ export default function SimSettlementsAddonGuide() {
         troubleshooting={[
           'If CK cannot load masters, stop and resolve missing files/paths first (don’t keep editing).',
           'If scripts do not compile, confirm your CK install is correct before you change more logic.'
-        ]}
-        shortcuts={[
-          { label: 'CK Wizard', to: '/ck-quest-dialogue' },
-          { label: 'Packaging', to: '/packaging-release' },
-          { label: 'Tool Settings', to: '/settings/tools' },
-          { label: 'Quick Reference', to: '/reference' },
         ]}
       />
 

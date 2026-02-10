@@ -7,6 +7,7 @@ export function useLive() {
 import React, { createContext, useState, ReactNode, useRef, useEffect } from 'react';
 import { VoiceService, VoiceServiceConfig } from './voice-service';
 import { contextAwareAIService } from './ContextAwareAIService';
+import { ModProjectStorage } from './services/ModProjectStorage';
 
 export interface LiveContextType {
   isActive: boolean;
@@ -40,6 +41,10 @@ export interface LiveContextType {
 const LiveContext = createContext<LiveContextType | undefined>(undefined);
 
 export const LiveProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
+  const LIVE_HISTORY_KEY = 'mossy_live_history_v1';
+  const LIVE_HISTORY_MAX = 60;
+  const LIVE_NOTES_SNAPSHOT = 10;
+  const LIVE_NOTES_MAX_CHARS = 8000;
   const [isActive, setIsActive] = useState(false);
   const [isDisconnecting, setIsDisconnecting] = useState(false);
   const [transcriptionDisabled, setTranscriptionDisabled] = useState(false);
@@ -61,12 +66,96 @@ export const LiveProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const voiceServiceRef = useRef<VoiceService | null>(null);
   const conversationHistoryRef = useRef<Array<{role: 'user' | 'assistant', content: string}>>([]);
 
+  const loadLiveHistory = () => {
+    try {
+      const raw = localStorage.getItem(LIVE_HISTORY_KEY);
+      if (!raw) return [];
+      const parsed = JSON.parse(raw);
+      if (!Array.isArray(parsed)) return [];
+      return parsed
+        .filter((item) => item && (item.role === 'user' || item.role === 'assistant') && typeof item.content === 'string')
+        .slice(-LIVE_HISTORY_MAX);
+    } catch {
+      return [];
+    }
+  };
+
+  const persistLiveHistory = (history: Array<{ role: 'user' | 'assistant'; content: string }>) => {
+    try {
+      localStorage.setItem(LIVE_HISTORY_KEY, JSON.stringify(history));
+    } catch (e) {
+      console.warn('[LiveContext] Failed to persist live history:', e);
+    }
+  };
+
+  const pushLiveHistory = (entry: { role: 'user' | 'assistant'; content: string }) => {
+    const next = [...conversationHistoryRef.current, entry].slice(-LIVE_HISTORY_MAX);
+    conversationHistoryRef.current = next;
+    persistLiveHistory(next);
+  };
+
+  const getCurrentProjectStepSummary = () => {
+    try {
+      const current = ModProjectStorage.getCurrentMod();
+      if (!current) return '';
+      const inProgress = current.steps.find((step) => step.status === 'in-progress');
+      const pending = current.steps.find((step) => step.status === 'pending');
+      const nextStep = inProgress || pending;
+      if (!nextStep) return '';
+      const status = nextStep.status.replace('-', ' ');
+      return `Current Step: ${nextStep.title} (${status}) [${current.steps.filter(s => s.status === 'completed').length}/${current.steps.length}]`;
+    } catch {
+      return '';
+    }
+  };
+
+  const updateVoiceWorkingMemory = () => {
+    const snapshot = conversationHistoryRef.current.slice(-LIVE_NOTES_SNAPSHOT);
+    if (snapshot.length === 0) return;
+
+    const blockStart = '--- VOICE SESSION NOTES ---';
+    const blockEnd = '--- END VOICE SESSION NOTES ---';
+    const stepSummary = getCurrentProjectStepSummary();
+    const notes = snapshot
+      .map((entry) => `${entry.role === 'user' ? 'User' : 'Mossy'}: ${entry.content}`)
+      .join('\n');
+
+    const stepLine = stepSummary ? `\n${stepSummary}` : '';
+    const nextBlock = `${blockStart}\n${notes}${stepLine}\n${blockEnd}`;
+
+    try {
+      const existing = localStorage.getItem('mossy_working_memory') || '';
+      const withoutBlock = existing.replace(new RegExp(`${blockStart}[\\s\\S]*?${blockEnd}`, 'g'), '').trim();
+      const merged = [withoutBlock, nextBlock].filter(Boolean).join('\n\n').slice(-LIVE_NOTES_MAX_CHARS);
+      localStorage.setItem('mossy_working_memory', merged);
+    } catch (e) {
+      console.warn('[LiveContext] Failed to update working memory:', e);
+    }
+  };
+
+  const buildVoicePayload = (message: string) => {
+    let projectData: any = null;
+    try {
+      const rawProject = localStorage.getItem('mossy_project');
+      projectData = rawProject ? JSON.parse(rawProject) : null;
+    } catch {
+      projectData = null;
+    }
+
+    const workingMemory = localStorage.getItem('mossy_working_memory') || '';
+    return {
+      text: message,
+      history: conversationHistoryRef.current.slice(-LIVE_HISTORY_MAX),
+      workingMemory,
+      projectData,
+    };
+  };
+
   // Initialize voice service
   useEffect(() => {
     const config: VoiceServiceConfig = {
       sttProvider: 'backend', // Use backend STT if available, fallback to browser
       ttsProvider: 'browser',
-      deepgramKey: undefined, // API keys accessed through main process
       elevenlabsKey: undefined, // API keys accessed through main process
     };
 
@@ -106,6 +195,13 @@ export const LiveProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     };
   }, []);
 
+  useEffect(() => {
+    const storedHistory = loadLiveHistory();
+    if (storedHistory.length > 0) {
+      conversationHistoryRef.current = storedHistory;
+    }
+  }, []);
+
   const sendMessageToMain = async (message: string): Promise<string> => {
     console.log('[LiveContext] sendMessageToMain() called with message:', message.substring(0, 100) + (message.length > 100 ? '...' : ''));
     return new Promise((resolve, reject) => {
@@ -134,9 +230,10 @@ export const LiveProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       const enhancedMessage = `[SYSTEM: LIVE SYNAPSE VOICE SESSION ACTIVE - FOLLOW PACING RULES]\n${baseEnhancedMessage}`;
       console.log('[LiveContext] Enhanced message:', enhancedMessage.substring(0, 200) + (enhancedMessage.length > 200 ? '...' : ''));
 
-      // Send the enhanced message
+      // Send the enhanced message with persisted context
       console.log('[LiveContext] Sending message to main process...');
-      api.sendMessage(enhancedMessage).catch((error: any) => {
+      const payload = buildVoicePayload(enhancedMessage);
+      api.sendMessage(payload).catch((error: any) => {
         console.error('[LiveContext] Error sending message to main:', error);
         if (!resolved) {
           resolved = true;
@@ -197,7 +294,7 @@ export const LiveProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
     try {
       // Add to conversation history
-      conversationHistoryRef.current.push({ role: 'user', content: text });
+      pushLiveHistory({ role: 'user', content: text });
 
       // Send to AI for response
       const response = await sendMessageToMain(text);
@@ -209,7 +306,8 @@ export const LiveProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       }
 
       // Add AI response to history
-      conversationHistoryRef.current.push({ role: 'assistant', content: response });
+      pushLiveHistory({ role: 'assistant', content: response });
+      updateVoiceWorkingMemory();
       console.log('[LiveContext] AI response received, about to speak:', response.substring(0, 100) + (response.length > 100 ? '...' : ''));
 
       // Speak the response
@@ -256,6 +354,44 @@ export const LiveProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }
   };
 
+  const checkVoicePipeline = async (): Promise<void> => {
+    const api = (window as any).electron?.api || (window as any).electronAPI;
+    if (!api?.getSettings) {
+      throw new Error('Voice pipeline unavailable: Electron API not ready.');
+    }
+
+    const settings = await api.getSettings();
+    const backendBaseUrl = String(settings?.backendBaseUrl || '').trim().replace(/\/$/, '');
+    const backendTokenConfigured = Boolean(settings?.backendTokenConfigured);
+
+    if (!backendBaseUrl) {
+      throw new Error('Voice backend is not configured. Please set a backend URL.');
+    }
+
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 6000);
+    try {
+      const resp = await fetch(`${backendBaseUrl}/health`, { signal: controller.signal });
+      if (!resp.ok) {
+        throw new Error(`Voice backend health check failed (${resp.status}).`);
+      }
+    } catch (e: any) {
+      const msg = e?.name === 'AbortError' ? 'Voice backend health check timed out.' : (e?.message || String(e));
+      throw new Error(msg);
+    } finally {
+      clearTimeout(timeout);
+    }
+
+    if (typeof api?.getSecretStatus === 'function') {
+      const status = await api.getSecretStatus();
+      const hasOpenAI = Boolean(status?.ok && status.openai);
+      const hasBackend = backendTokenConfigured;
+      if (!hasBackend && !hasOpenAI) {
+        throw new Error('No voice provider configured. Add an OpenAI key in Settings.');
+      }
+    }
+  };
+
   const connect = async () => {
     console.log('[LiveContext] connect() called');
     if (!voiceServiceRef.current) {
@@ -270,6 +406,9 @@ export const LiveProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       console.log('[LiveContext] Resetting flags before starting');
       setTranscriptionDisabled(false);
       setIsDisconnecting(false);
+      setStatus('Checking voice pipeline...');
+
+      await checkVoicePipeline();
       
       // Update session ID to a new unique value
       currentSessionRef.current++;

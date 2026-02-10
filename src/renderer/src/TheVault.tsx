@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import { Container, Search, HardDrive, Lock, Globe, ShieldCheck, Clipboard, CheckCircle2, AlertTriangle, Archive, FilePlus, Upload, Wrench, ChevronDown, ExternalLink } from 'lucide-react';
 import { ToolsInstallVerifyPanel } from './components/ToolsInstallVerifyPanel';
 import { openExternal } from './utils/openExternal';
@@ -25,7 +25,6 @@ interface Asset {
 const initialAssets: Asset[] = [];
 
 const TheVault: React.FC = () => {
-    const navigate = useNavigate();
     const configSectionRef = useRef<HTMLDivElement | null>(null);
     const importSectionRef = useRef<HTMLDivElement | null>(null);
     const manifestSectionRef = useRef<HTMLDivElement | null>(null);
@@ -519,14 +518,13 @@ const TheVault: React.FC = () => {
                         <p className="text-xs text-slate-400 font-mono mt-1">Secure Fallout 4 Asset Library & BA2 staging</p>
                     </div>
                     <div className="flex gap-2">
-                        <button
-                            onClick={() => navigate('/settings/tools')}
-                            className="flex items-center gap-2 px-4 py-2 bg-slate-800 hover:bg-slate-700 border border-slate-600 rounded-lg text-sm font-bold transition-colors"
-                            title="Configure external tool paths"
+                        <Link
+                            to="/reference"
+                            className="px-3 py-2 text-[10px] font-black uppercase tracking-widest rounded-lg bg-sky-900/20 border border-sky-500/30 text-sky-100 hover:bg-sky-900/30 transition-colors"
+                            title="Open help"
                         >
-                            <Wrench className="w-4 h-4" />
-                            Tool Settings
-                        </button>
+                            Help
+                        </Link>
                         <button
                             onClick={handleVerifyAll}
                             className="flex items-center gap-2 px-4 py-2 bg-slate-800 hover:bg-slate-700 border border-slate-600 rounded-lg text-sm font-bold transition-colors"
@@ -561,7 +559,7 @@ const TheVault: React.FC = () => {
                                 ,
                                 kind: 'official'
                                 ,
-                                note: 'If you require real DDS output, install texconv and set its path in Tool Settings.'
+                                note: 'If you require real DDS output, install texconv and set its path in Tool Paths below.'
                             },
                             {
                                 label: 'Fallout 4 Creation Kit (Archive2 for BA2)'
@@ -580,54 +578,14 @@ const TheVault: React.FC = () => {
                         ]}
                         firstTestLoop={[
                             'Add a small texture + a small mesh → stage them → copy the manifest.',
-                            'If you plan to produce game-ready outputs, open Tool Settings and set any external tool paths.',
+                            'If you plan to produce game-ready outputs, set any external tool paths below.',
                             'Run “Verify All” again to confirm the page can invoke whatever tools you configured.'
                         ]}
                         troubleshooting={[
                             'If Verify does nothing, you may be running without the desktop bridge; use the packaged Electron app.',
-                            'If “real DDS” or audio conversion fails, set the external tool path(s) in Tool Settings first.'
-                        ]}
-                        shortcuts={[
-                            { label: 'Tool Settings', to: '/settings/tools' },
-                            { label: 'Workshop', to: '/workshop' },
-                            { label: 'Assembler', to: '/assembler' },
-                            { label: 'Auditor', to: '/auditor' },
+                            'If “real DDS” or audio conversion fails, set the external tool path(s) below first.'
                         ]}
                     />
-
-                    <div className="bg-slate-900/60 border border-slate-800 rounded-xl p-4">
-                        <div className="text-sm font-semibold text-white mb-1">Existing Workflow (Legacy)</div>
-                        <div className="text-xs text-slate-400 mb-3">Jump to the original Vault sections.</div>
-                        <div className="flex flex-wrap gap-2">
-                            <button
-                                onClick={() => {
-                                    setExpandConfig(true);
-                                    setTimeout(() => configSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 0);
-                                }}
-                                className="px-3 py-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded text-xs font-bold"
-                            >
-                                Configuration
-                            </button>
-                            <button
-                                onClick={() => importSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
-                                className="px-3 py-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded text-xs font-bold"
-                            >
-                                Import / Drop Zone
-                            </button>
-                            <button
-                                onClick={() => manifestSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
-                                className="px-3 py-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded text-xs font-bold"
-                            >
-                                BA2 Manifest
-                            </button>
-                            <button
-                                onClick={() => assetsListRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
-                                className="px-3 py-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded text-xs font-bold"
-                            >
-                                Asset List
-                            </button>
-                        </div>
-                    </div>
                 </div>
 
                 <button 
@@ -825,9 +783,6 @@ const TheVault: React.FC = () => {
                                 <button onClick={() => openNexusSearch('xWMAEncode')} className="px-2 py-1 rounded border border-slate-700 bg-slate-900/40 hover:border-slate-500 text-[11px] font-bold flex items-center gap-2">
                                     <ExternalLink className="w-3 h-3" /> Nexus search: xWMAEncode
                                 </button>
-                                <button onClick={() => navigate('/tts')} className="px-2 py-1 rounded border border-slate-700 bg-slate-900/40 hover:border-slate-500 text-[11px] font-bold">
-                                    Audio Studio page
-                                </button>
                             </div>
                             <div className="text-[11px] text-slate-500 mt-2">Verify: convert a short WAV and ensure the game can play it (and package as FUZ for dialogue when needed).</div>
                         </div>
@@ -838,9 +793,6 @@ const TheVault: React.FC = () => {
                             <div className="mt-2 flex flex-wrap gap-2">
                                 <button onClick={() => openNexusSearch('Creation Kit')} className="px-2 py-1 rounded border border-slate-700 bg-slate-900/40 hover:border-slate-500 text-[11px] font-bold flex items-center gap-2">
                                     <ExternalLink className="w-3 h-3" /> Nexus search: Creation Kit
-                                </button>
-                                <button onClick={() => navigate('/ck-quest-dialogue')} className="px-2 py-1 rounded border border-slate-700 bg-slate-900/40 hover:border-slate-500 text-[11px] font-bold">
-                                    CK Wizard
                                 </button>
                             </div>
                             <div className="text-[11px] text-slate-500 mt-2">Verify: compile one tiny script and confirm a <span className="font-mono">.pex</span> lands under <span className="font-mono">Data/Scripts</span>.</div>

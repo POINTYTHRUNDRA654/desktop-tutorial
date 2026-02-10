@@ -26,6 +26,7 @@ const IPC_CHANNELS = {
   OPEN_PROGRAM: 'open-program',
   OPEN_EXTERNAL: 'open-external',
   REVEAL_IN_FOLDER: 'reveal-in-folder',
+  REVEAL_SETTINGS_FILE: 'reveal-settings-file',
   GET_TOOL_VERSION: 'get-tool-version',
   GET_RUNNING_PROCESSES: 'get-running-processes',
   GET_SETTINGS: 'get-settings',
@@ -654,7 +655,7 @@ const electronAPI = {
   /**
    * Voice chat: send a message to main process
    */
-  sendMessage: (message: string): Promise<void> => {
+  sendMessage: (message: any): Promise<void> => {
     return ipcRenderer.invoke('sendMessage', message);
   },
 
@@ -671,15 +672,22 @@ const electronAPI = {
    * Secrets status (presence only). Never returns actual key values.
    */
   getSecretStatus: (): Promise<
-    | { ok: true; openai: boolean; groq: boolean; deepgram: boolean; elevenlabs: boolean }
+    | { ok: true; openai: boolean; groq: boolean; elevenlabs: boolean }
     | { ok: false; error: string }
   > => {
     return ipcRenderer.invoke(IPC_CHANNELS.SECRET_STATUS);
   },
 
   /**
+   * Reveal the app settings.json file in the OS file manager.
+   */
+  revealSettingsFile: (): Promise<{ success: boolean; error?: string }> => {
+    return ipcRenderer.invoke(IPC_CHANNELS.REVEAL_SETTINGS_FILE);
+  },
+
+  /**
    * Speech-to-text for recorded mic audio.
-   * Renderer provides audio bytes; main process uses configured providers (OpenAI/Deepgram).
+  * Renderer provides audio bytes; main process uses configured providers (OpenAI).
    */
   transcribeAudio: (arrayBuffer: ArrayBuffer, mimeType?: string): Promise<{ success: boolean; text?: string; error?: string }> => {
     return ipcRenderer.invoke(IPC_CHANNELS.TRANSCRIBE_AUDIO, arrayBuffer, mimeType);

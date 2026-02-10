@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { openExternal } from './utils/openExternal';
+import { Link } from 'react-router-dom';
 
 type IndexStatus =
   | { ok: true; indexPath: string; indexedChunks: number; indexedSources: number; model: string; createdAt: string }
@@ -12,7 +12,6 @@ type LlmStatus =
   | { ok: false; provider: 'ollama'; baseUrl: string; error: string };
 
 const ROOTS_KEY = 'mossy_knowledge_roots_v1';
-const REPORT_DOC_URL = 'https://github.com/POINTYTHRUNDRA654/desktop-tutorial/issues/new?labels=missing-doc';
 
 function loadRoots(): string[] {
   try {
@@ -30,7 +29,11 @@ function saveRoots(roots: string[]) {
   localStorage.setItem(ROOTS_KEY, JSON.stringify(roots));
 }
 
-export default function KnowledgeSearch(): JSX.Element {
+type KnowledgeSearchProps = {
+  embedded?: boolean;
+};
+
+export default function KnowledgeSearch({ embedded = false }: KnowledgeSearchProps): JSX.Element {
   const api = (window as any).electron?.api || (window as any).electronAPI;
 
   const [indexStatus, setIndexStatus] = useState<IndexStatus | null>(null);
@@ -198,17 +201,11 @@ export default function KnowledgeSearch(): JSX.Element {
     }
   };
 
-  const onReportMissingDoc = () => {
-    const topic = query.trim() || '[topic]';
-    const title = `Missing doc: ${topic}`;
-    const body = `## Topic\n${topic}\n\n## What I expected\n\n## Source link (optional)\n\n## Additional context\n`;
-    const url = `${REPORT_DOC_URL}&title=${encodeURIComponent(title)}&body=${encodeURIComponent(body)}`;
-    void openExternal(url);
-  };
+  const containerClassName = embedded ? 'p-4 space-y-6' : 'p-6 space-y-6';
 
   if (!desktopReady) {
     return (
-      <div className="p-6">
+      <div className={containerClassName}>
         <h2 className="text-xl font-bold text-white mb-2">Knowledge Search</h2>
         <p className="text-slate-300 text-sm">
           This feature requires the desktop app (Electron) so Mossy can index your local files.
@@ -218,19 +215,21 @@ export default function KnowledgeSearch(): JSX.Element {
   }
 
   return (
-    <div className="p-6 space-y-6">
+    <div className={containerClassName}>
       <div className="flex items-center justify-between gap-4">
         <div>
           <h2 className="text-xl font-bold text-white">Knowledge Search</h2>
           <p className="text-slate-300 text-sm">Offline semantic search across your Markdown guides.</p>
         </div>
         <div className="flex items-center gap-2">
-          <button
-            onClick={onReportMissingDoc}
-            className="px-3 py-2 rounded bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold"
-          >
-            Report missing doc
-          </button>
+          {!embedded && (
+            <Link
+              to="/reference"
+              className="px-3 py-2 border border-emerald-500/30 text-[10px] font-black uppercase tracking-widest text-emerald-200 rounded-lg bg-emerald-500/10 hover:bg-emerald-500/20 transition-colors"
+            >
+              Help
+            </Link>
+          )}
           <button
             onClick={onBuildIndex}
             disabled={buildBusy}

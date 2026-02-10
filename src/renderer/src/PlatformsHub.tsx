@@ -1,5 +1,5 @@
 import React from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import {
   BookOpen,
   Bug,
@@ -30,9 +30,11 @@ const openUrl = (url: string) => {
   void openExternal(url);
 };
 
-export const PlatformsHub: React.FC = () => {
-  const navigate = useNavigate();
+type PlatformsHubProps = {
+  embedded?: boolean;
+};
 
+export const PlatformsHub: React.FC<PlatformsHubProps> = ({ embedded = false }) => {
   const cards: PlatformCard[] = [
     {
       title: 'Crash & Bug Triage',
@@ -58,7 +60,7 @@ export const PlatformsHub: React.FC = () => {
     {
       title: 'Install Wizard',
       description: 'Tool installs and setup: xEdit, SS2, PRP, patching.',
-      to: '/install-wizard',
+      to: '/wizards',
       icon: Wrench,
     },
     {
@@ -70,7 +72,7 @@ export const PlatformsHub: React.FC = () => {
     {
       title: 'PRP Patch Builder',
       description: 'Generate a PRP compatibility patch target + README + verification checklist.',
-      to: '/prp-patch-builder',
+      to: '/wizards',
       icon: GitMerge,
       badge: 'Wizard',
     },
@@ -107,28 +109,32 @@ export const PlatformsHub: React.FC = () => {
     },
   ];
 
+  const containerClassName = embedded
+    ? 'p-4 bg-[#0a0e0a] text-slate-100'
+    : 'min-h-full p-6 md:p-10 bg-[#0a0e0a] text-slate-100';
+
   return (
-    <div className="min-h-full p-6 md:p-10 bg-[#0a0e0a] text-slate-100">
+    <div className={containerClassName}>
       <div className="max-w-6xl mx-auto">
         <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-4 mb-8">
           <div>
-            <div className="text-[10px] font-mono tracking-[0.3em] text-emerald-400/70 uppercase">Mossy Tutor • Platforms</div>
+            <div className="text-[10px] font-mono tracking-[0.3em] text-emerald-400/70 uppercase">Mossy Tutor - Platforms</div>
             <h1 className="text-3xl md:text-4xl font-black tracking-tight text-white mt-2">Modding Platforms</h1>
             <p className="text-sm text-slate-400 mt-2 max-w-2xl">
               A practical map of the tools and workflows modders actually use. Each platform links to a guided flow with downloads, install steps, verification, and troubleshooting.
             </p>
           </div>
 
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={() => navigate('/chat')}
-              className="px-3 py-2 text-xs font-bold rounded-lg bg-slate-900 border border-slate-800 hover:border-slate-600 transition-colors"
-              title="Ask Mossy in chat"
-            >
-              Ask Mossy
-            </button>
-          </div>
+          {!embedded && (
+            <div className="flex items-center gap-2">
+              <Link
+                to="/reference"
+                className="px-3 py-2 border border-emerald-500/30 text-[10px] font-black uppercase tracking-widest text-emerald-200 rounded-lg bg-emerald-500/10 hover:bg-emerald-500/20 transition-colors"
+              >
+                Help
+              </Link>
+            </div>
+          )}
         </div>
 
         <ToolsInstallVerifyPanel
@@ -141,12 +147,6 @@ export const PlatformsHub: React.FC = () => {
           firstTestLoop={[
             'Start with “Crash & Bug Triage” if you are unstable, otherwise start with “Install Wizard”.',
             'After completing a wizard’s first loop, jump to Tool Settings to configure only what you actually need.'
-          ]}
-          shortcuts={[
-            { label: 'Diagnostics', to: '/diagnostics' },
-            { label: 'Install Wizard', to: '/install-wizard' },
-            { label: 'Crash Triage', to: '/crash-triage' },
-            { label: 'Tool Settings', to: '/settings/tools' },
           ]}
         />
 
@@ -199,7 +199,7 @@ export const PlatformsHub: React.FC = () => {
         </div>
 
         <div className="mt-8 text-[11px] text-slate-500">
-          Tip: If you’re unsure which platform you need, click “Ask Mossy” and tell her what kind of mod you’re making (quests, weapons, settlements, performance, animation).
+          Tip: Pick the platform that matches what you are doing now (quests, weapons, settlements, performance, animation).
         </div>
       </div>
     </div>

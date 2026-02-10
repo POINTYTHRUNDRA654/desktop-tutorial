@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { AlertCircle, Folder, RefreshCw, Trash2, Eye } from 'lucide-react';
 import { ToolsInstallVerifyPanel } from './components/ToolsInstallVerifyPanel';
 import type { DedupeGroup, DedupeProgress, DedupeScanResult } from '../../electron/types';
@@ -207,11 +208,20 @@ const DuplicateFinder: React.FC = () => {
 
   return (
     <div className="p-6 space-y-6">
-      <div>
-        <h1 className="text-2xl font-black italic text-white tracking-tight">Duplicate Finder</h1>
-        <p className="text-slate-300 text-sm mt-1">
-          Scan folders for byte-identical duplicates (textures/meshes), preview groups, then move selected duplicates to the Recycle Bin.
-        </p>
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-black italic text-white tracking-tight">Duplicate Finder</h1>
+          <p className="text-slate-300 text-sm mt-1">
+            Scan folders for byte-identical duplicates (textures/meshes), preview groups, then move selected duplicates to the Recycle Bin.
+          </p>
+        </div>
+        <Link
+          to="/reference"
+          className="px-3 py-2 text-[10px] font-black uppercase tracking-widest rounded bg-slate-800 border border-slate-600 text-slate-100 hover:bg-slate-700 transition-colors"
+          title="Open help"
+        >
+          Help
+        </Link>
       </div>
 
       <ToolsInstallVerifyPanel

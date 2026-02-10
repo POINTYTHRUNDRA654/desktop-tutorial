@@ -4,15 +4,18 @@
  */
 
 import React, { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import { DataSource, MiningResult, ExtendedMiningResult, ESPFile, ModDependencyGraph } from '../../shared/types';
 
 interface MiningPanelProps {
   // No props needed for route-based component
 }
 
+type MiningResultView = MiningResult & { assetDiscovery?: ExtendedMiningResult['assetDiscovery'] };
+
 export const MiningPanel = () => {
   const [sources, setSources] = useState<DataSource[]>([]);
-  const [miningResult, setMiningResult] = useState<ExtendedMiningResult | null>(null);
+  const [miningResult, setMiningResult] = useState<MiningResultView | null>(null);
   const [isMining, setIsMining] = useState(false);
   const [selectedTab, setSelectedTab] = useState<'pipeline' | 'esp' | 'dependencies' | 'performance' | 'unused-assets' | 'lod' | 'textures' | 'animations'>('pipeline');
 
@@ -41,10 +44,9 @@ export const MiningPanel = () => {
     setIsMining(true);
     try {
       const result = await window.electronAPI.startMiningPipeline(sources);
-      if (result.success) {
-        setMiningResult(result.result);
-      } else {
-        console.error('Mining failed:', result.error);
+      setMiningResult(result);
+      if (result.errors?.length) {
+        console.error('Mining completed with errors:', result.errors);
       }
     } catch (error) {
       console.error('Mining error:', error);
@@ -57,10 +59,8 @@ export const MiningPanel = () => {
     if (!window.electronAPI?.parseESPFile) return;
 
     try {
-      const result = await window.electronAPI.parseESPFile(filePath);
-      if (result.success) {
-        console.log('ESP parsed:', result.result);
-      }
+      const espFile = await window.electronAPI.parseESPFile(filePath);
+      console.log('ESP parsed:', espFile);
     } catch (error) {
       console.error('ESP parsing error:', error);
     }
@@ -68,8 +68,15 @@ export const MiningPanel = () => {
 
   return (
     <div className="mining-panel">
-      <div className="mining-panel-header">
+      <div className="mining-panel-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '12px' }}>
         <h2>Core Mining Infrastructure</h2>
+        <Link
+          to="/reference"
+          className="px-3 py-2 text-[10px] font-black uppercase tracking-widest rounded-lg bg-slate-900/40 border border-slate-700 text-slate-200 hover:bg-slate-900/60 transition-colors"
+          title="Open help"
+        >
+          Help
+        </Link>
       </div>
 
       <div className="mining-panel-tabs">

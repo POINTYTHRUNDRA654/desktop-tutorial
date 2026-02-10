@@ -43,7 +43,7 @@ This file exists because chat sessions/timeouts aren’t durable. Treat this as 
   - Default: browser SpeechSynthesis
   - Optional: ElevenLabs via main-process IPC
 - **STT**:
-  - `transcribe-audio` IPC in main process (OpenAI Whisper or Deepgram)
+  - `transcribe-audio` IPC in main process (OpenAI Whisper)
 - **LLM**:
   - Cloud: Groq via main-process IPC
   - Local option exists via `ml-llm-generate` (Ollama / OpenAI-compatible)

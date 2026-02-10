@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
-import { Cpu, Activity, Zap, Eye, AlertTriangle, CheckCircle2, Terminal, Code, Layers, MessageSquare } from 'lucide-react';
-import { FO4KnowledgeBase } from '../../shared/FO4KnowledgeBase';
+import { Link } from 'react-router-dom';
+import { Cpu, Activity, Eye, Terminal, MessageSquare } from 'lucide-react';
 import { ToolsInstallVerifyPanel } from './components/ToolsInstallVerifyPanel';
 import { contextAwareAIService, ToolContext } from './ContextAwareAIService';
 
@@ -12,7 +12,11 @@ interface RunningProcess {
     windowTitle?: string;
 }
 
-const NeuralLink: React.FC = () => {
+type NeuralLinkProps = {
+    embedded?: boolean;
+};
+
+const NeuralLink: React.FC<NeuralLinkProps> = ({ embedded = false }) => {
     const [runningTools, setRunningTools] = useState<RunningProcess[]>([]);
     const [isScanning, setIsScanning] = useState(false);
     const [lastScan, setLastScan] = useState<Date | null>(null);
@@ -130,14 +134,12 @@ const NeuralLink: React.FC = () => {
         setMossyThoughts(thoughts);
     };
 
-    const injectBlenderFix = async () => {
-        window.dispatchEvent(new CustomEvent('mossy-control', { 
-            detail: { action: 'navigate', payload: { path: '/bridge' } } 
-        }));
-    };
+    const containerClass = embedded
+        ? 'space-y-6 animate-in fade-in duration-500 border border-blue-500/20 rounded-lg p-4 bg-slate-950/40'
+        : 'p-6 space-y-6 animate-in fade-in duration-500';
 
     return (
-        <div data-testid="neural-link" className="p-6 space-y-6 animate-in fade-in duration-500">
+        <div data-testid="neural-link" className={containerClass}>
             <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
                     <div className="p-2 bg-blue-500/20 rounded-lg">
@@ -153,14 +155,25 @@ const NeuralLink: React.FC = () => {
                         )}
                     </div>
                 </div>
-                <button 
-                    onClick={scanProcesses}
-                    disabled={isScanning}
-                    className="flex items-center gap-2 px-3 py-1 bg-blue-500/10 hover:bg-blue-500/20 text-blue-400 rounded-md border border-blue-500/30 transition-all text-xs"
-                >
-                    <Activity size={14} className={isScanning ? 'animate-pulse' : ''} />
-                    {isScanning ? 'Scanning...' : 'Manual Refresh'}
-                </button>
+                <div className="flex items-center gap-2">
+                    {!embedded && (
+                        <Link
+                            to="/reference"
+                            className="px-3 py-1 text-[10px] font-black uppercase tracking-widest rounded-md bg-blue-500/10 border border-blue-500/30 text-blue-200 hover:bg-blue-500/20 transition-colors"
+                            title="Open help"
+                        >
+                            Help
+                        </Link>
+                    )}
+                    <button 
+                        onClick={scanProcesses}
+                        disabled={isScanning}
+                        className="flex items-center gap-2 px-3 py-1 bg-blue-500/10 hover:bg-blue-500/20 text-blue-400 rounded-md border border-blue-500/30 transition-all text-xs"
+                    >
+                        <Activity size={14} className={isScanning ? 'animate-pulse' : ''} />
+                        {isScanning ? 'Scanning...' : 'Manual Refresh'}
+                    </button>
+                </div>
             </div>
 
             {isMonitoringPaused && (
@@ -184,11 +197,6 @@ const NeuralLink: React.FC = () => {
                     troubleshooting={[
                         'If scanning never finds tools, verify you are using the packaged Electron app (not a web preview).',
                         'If tools are running but not detected, check the bridge method availability: window.electron.api.getRunningProcesses.'
-                    ]}
-                    shortcuts={[
-                        { label: 'Desktop Bridge', to: '/bridge' },
-                        { label: 'System Monitor', to: '/monitor' },
-                        { label: 'Workshop', to: '/workshop' },
                     ]}
                 />
 
@@ -256,44 +264,6 @@ const NeuralLink: React.FC = () => {
                         </div>
                     </div>
 
-                    {/* Quick Access Scripts */}
-                    {runningTools.some(t => t.name.toLowerCase().includes('blender')) && (
-                        <div data-testid="standards-alignment" className="bg-yellow-500/10 border border-yellow-500/30 rounded-xl p-4">
-                            <div className="flex items-center gap-2 mb-3">
-                                <Zap size={18} className="text-yellow-400" />
-                                <h3 className="text-sm font-semibold text-yellow-200">Blender Standards Alignment</h3>
-                            </div>
-                            <div className="space-y-3 mb-3">
-                                <div className="flex items-center gap-2">
-                                    <label className="text-xs text-yellow-200/80">Unit Scale:</label>
-                                    <input 
-                                        data-testid="blender-scale"
-                                        type="text" 
-                                        value="1.0" 
-                                        readOnly 
-                                        className="px-2 py-1 bg-yellow-500/10 border border-yellow-500/30 rounded text-xs text-yellow-200 w-16 text-center"
-                                    />
-                                </div>
-                                <div className="flex items-center gap-2">
-                                    <label className="text-xs text-yellow-200/80">Target FPS:</label>
-                                    <input 
-                                        data-testid="blender-fps"
-                                        type="text" 
-                                        value="30" 
-                                        readOnly 
-                                        className="px-2 py-1 bg-yellow-500/10 border border-yellow-500/30 rounded text-xs text-yellow-200 w-16 text-center"
-                                    />
-                                </div>
-                            </div>
-                            <button 
-                                data-testid="generate-script"
-                                onClick={injectBlenderFix}
-                                className="w-full py-2 bg-yellow-500/20 hover:bg-yellow-500/30 text-yellow-400 rounded-lg border border-yellow-500/30 transition-all text-xs font-bold"
-                            >
-                                Generate Alignment Script
-                            </button>
-                        </div>
-                    )}
                 </div>
             </div>
 

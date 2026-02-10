@@ -47,6 +47,13 @@ registerChatRoutes(apiRouter);
 registerTranscriptionRoutes(apiRouter);
 app.use(apiRouter);
 
+// Error handler to return JSON instead of HTML and capture stack traces.
+app.use((err: any, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
+  const message = err?.message || 'Internal Server Error';
+  console.error('[backend] Unhandled error:', message);
+  res.status(500).json({ ok: false, error: 'internal_error', message });
+});
+
 app.use((_req, res) => {
   res.status(404).json({ ok: false, error: 'not_found' });
 });

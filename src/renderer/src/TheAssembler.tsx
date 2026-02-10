@@ -1,8 +1,8 @@
 import React, { useEffect, useState } from 'react';
-import { Package, Plus, Trash2, Eye, Code, Wand2, RefreshCw, FileText, Layers, CheckSquare, Image as ImageIcon, ChevronRight, ChevronDown, ArrowDownToLine, ExternalLink, Info, Settings } from 'lucide-react';
+import { Package, Plus, Trash2, Eye, Code, Wand2, RefreshCw, FileText, Layers, CheckSquare, Image as ImageIcon, ChevronRight, ChevronDown, ArrowDownToLine, ExternalLink, Info } from 'lucide-react';
 import ExternalToolNotice from './components/ExternalToolNotice';
 import { ToolsInstallVerifyPanel } from './components/ToolsInstallVerifyPanel';
-import { useNavigate } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import type { Settings as AppSettings } from '../../shared/types';
 import { openExternal } from './utils/openExternal';
 
@@ -26,7 +26,11 @@ const initialStructure: FomodNode[] = [];
 
 const modFiles: string[] = [];
 
-const TheAssembler: React.FC = () => {
+type TheAssemblerProps = {
+    embedded?: boolean;
+};
+
+const TheAssembler: React.FC<TheAssemblerProps> = ({ embedded = false }) => {
     const [structure, setStructure] = useState<FomodNode[]>([]);
     const [selectedId, setSelectedId] = useState<string | null>(null);
     const [viewMode, setViewMode] = useState<'editor' | 'preview' | 'xml'>('editor');
@@ -37,8 +41,6 @@ const TheAssembler: React.FC = () => {
     const [modVersion, setModVersion] = useState('1.0.0');
     const [modWebsite, setModWebsite] = useState('');
     const [toolSettings, setToolSettings] = useState<AppSettings | null>(null);
-    const navigate = useNavigate();
-
     const openUrl = (url: string) => {
         void openExternal(url);
     };
@@ -417,104 +419,106 @@ After installing, you may need to update the tool path in settings.`;
 
     const selectedNode = selectedId ? findNode(structure, selectedId) : null;
 
-    return (
-        <div className="h-full flex flex-col bg-forge-dark text-slate-200 font-sans">
-            {/* Header */}
-            <div className="p-4 border-b border-slate-700 bg-forge-panel flex justify-between items-center shadow-md z-10">
-                <div>
-                    <h2 className="text-xl font-bold text-white flex items-center gap-3">
-                        <Package className="w-6 h-6 text-purple-400" />
-                        The Assembler
-                    </h2>
-                    <p className="text-xs text-slate-400 font-mono mt-1">FOMOD Creation Tool v1.7</p>
-                </div>
-                <div className="flex gap-2">
-                    <button 
-                        onClick={() => navigate('/settings/tools')}
-                        className="px-4 py-2 bg-slate-800 hover:bg-slate-700 border border-slate-600 rounded text-xs font-bold flex items-center gap-2 transition-all"
-                        title="Configure external tool paths"
-                    >
-                        <Settings className="w-4 h-4" /> Tool Settings
-                    </button>
-                    <button 
-                        onClick={handleLaunchExternalTool}
-                        className="px-4 py-2 bg-blue-700 hover:bg-blue-600 border border-blue-500 rounded text-xs font-bold flex items-center gap-2 transition-all group relative"
-                        title="Launch FOMOD Creation Tool 1.7\n\nRequires: FOMOD Creation Tool (Download from Nexus Mods)\nhttps://www.nexusmods.com/fallout4/mods/6821"
-                    >
-                        <ExternalLink className="w-4 h-4" /> Launch Tool
-                        <Info className="w-3 h-3 text-blue-300 opacity-50 group-hover:opacity-100 transition-opacity" />
-                    </button>
-                    <button 
-                        onClick={handleExportFOMOD}
-                        className="px-4 py-2 bg-emerald-700 hover:bg-emerald-600 border border-emerald-500 rounded text-xs font-bold flex items-center gap-2 transition-all"
-                    >
-                        <ArrowDownToLine className="w-4 h-4" /> Export FOMOD
-                    </button>
-                    <button 
-                        onClick={() => setViewMode('editor')}
-                        className={`px-3 py-1.5 rounded text-xs font-bold flex items-center gap-2 transition-all ${viewMode === 'editor' ? 'bg-purple-600 text-white' : 'bg-slate-800 text-slate-400 hover:text-white'}`}
-                    >
-                        <Layers className="w-4 h-4" /> Structure
-                    </button>
-                    <button 
-                        onClick={() => setViewMode('preview')}
-                        className={`px-3 py-1.5 rounded text-xs font-bold flex items-center gap-2 transition-all ${viewMode === 'preview' ? 'bg-purple-600 text-white' : 'bg-slate-800 text-slate-400 hover:text-white'}`}
-                    >
-                        <Eye className="w-4 h-4" /> Preview
-                    </button>
-                    <button 
-                        onClick={() => setViewMode('xml')}
-                        className={`px-3 py-1.5 rounded text-xs font-bold flex items-center gap-2 transition-all ${viewMode === 'xml' ? 'bg-purple-600 text-white' : 'bg-slate-800 text-slate-400 hover:text-white'}`}
-                    >
-                        <Code className="w-4 h-4" /> XML
-                    </button>
-                </div>
-            </div>
+    const containerClassName = embedded ? 'min-h-[720px] flex flex-col bg-forge-dark text-slate-200 font-sans rounded-lg border border-slate-800' : 'h-full flex flex-col bg-forge-dark text-slate-200 font-sans';
 
-            <div className="px-4 pt-4 max-h-72 overflow-y-auto pr-2">
-                <ToolsInstallVerifyPanel
-                    className="mb-0"
-                    accentClassName="text-purple-300"
-                    description="Assembler lets you design a FOMOD structure and export it. Launching an external FOMOD editor is optional and only works if you set a real path in Tool Settings."
-                    tools={[
-                        {
-                            label: 'FOMOD Creation Tool (optional external editor)',
-                            href: 'https://www.nexusmods.com/fallout4/mods/6821',
-                            note: 'Optional. Use Tool Settings to point Mossy at the executable you installed.',
-                            kind: 'official',
-                        },
-                    ]}
-                    verify={[
-                        'Switch between Structure / Preview / XML to confirm all three views render.',
-                        'Export FOMOD and verify files/folders are written to the chosen output.',
-                        'If you use Launch Tool: set the tool path in Tool Settings first.',
-                    ]}
-                    firstTestLoop={[
-                        'Create a tiny installer (one page, two options, one file mapping).',
-                        'Export and inspect the output in Workshop.',
-                        'Do one install/uninstall cycle in your mod manager before scaling up.',
-                    ]}
-                    troubleshooting={[
-                        'If Launch Tool fails, no default path is assumed—configure it in Tool Settings.',
-                        'If export output is missing, ensure your options include at least one file mapping.',
-                    ]}
-                    shortcuts={[
-                        { label: 'Tool Settings', to: '/settings/tools' },
-                        { label: 'Workshop', to: '/workshop' },
-                        { label: 'Packaging', to: '/packaging-release' },
-                        { label: 'Diagnostics', to: '/diagnostics' },
-                    ]}
-                />
-            </div>
-                        {/* External tool status */}
-                        <div className="px-4 pt-2">
-                                <ExternalToolNotice 
-                                    toolKey="fomodCreatorPath" 
-                                    toolName="FOMOD Creation Tool" 
-                                    nexusUrl="https://www.nexusmods.com/fallout4/mods/6821"
-                                    description="Use the external designer to finalize your installer. Configure the path and launch directly from here."
-                                />
-                        </div>
+    return (
+        <div className={containerClassName}>
+            {/* Header */}
+            {!embedded && (
+                <div className="p-4 border-b border-slate-700 bg-forge-panel flex justify-between items-center shadow-md z-10">
+                    <div>
+                        <h2 className="text-xl font-bold text-white flex items-center gap-3">
+                            <Package className="w-6 h-6 text-purple-400" />
+                            The Assembler
+                        </h2>
+                        <p className="text-xs text-slate-400 font-mono mt-1">FOMOD Creation Tool v1.7</p>
+                    </div>
+                    <div className="flex gap-2">
+                        <Link
+                            to="/reference"
+                            className="px-3 py-2 text-[10px] font-black uppercase tracking-widest rounded-lg bg-purple-900/30 border border-purple-500/30 text-purple-100 hover:bg-purple-900/40 transition-colors"
+                            title="Open help"
+                        >
+                            Help
+                        </Link>
+                        <button 
+                            onClick={handleLaunchExternalTool}
+                            className="px-4 py-2 bg-blue-700 hover:bg-blue-600 border border-blue-500 rounded text-xs font-bold flex items-center gap-2 transition-all group relative"
+                            title="Launch FOMOD Creation Tool 1.7\n\nRequires: FOMOD Creation Tool (Download from Nexus Mods)\nhttps://www.nexusmods.com/fallout4/mods/6821"
+                        >
+                            <ExternalLink className="w-4 h-4" /> Launch Tool
+                            <Info className="w-3 h-3 text-blue-300 opacity-50 group-hover:opacity-100 transition-opacity" />
+                        </button>
+                        <button 
+                            onClick={handleExportFOMOD}
+                            className="px-4 py-2 bg-emerald-700 hover:bg-emerald-600 border border-emerald-500 rounded text-xs font-bold flex items-center gap-2 transition-all"
+                        >
+                            <ArrowDownToLine className="w-4 h-4" /> Export FOMOD
+                        </button>
+                        <button 
+                            onClick={() => setViewMode('editor')}
+                            className={`px-3 py-1.5 rounded text-xs font-bold flex items-center gap-2 transition-all ${viewMode === 'editor' ? 'bg-purple-600 text-white' : 'bg-slate-800 text-slate-400 hover:text-white'}`}
+                        >
+                            <Layers className="w-4 h-4" /> Structure
+                        </button>
+                        <button 
+                            onClick={() => setViewMode('preview')}
+                            className={`px-3 py-1.5 rounded text-xs font-bold flex items-center gap-2 transition-all ${viewMode === 'preview' ? 'bg-purple-600 text-white' : 'bg-slate-800 text-slate-400 hover:text-white'}`}
+                        >
+                            <Eye className="w-4 h-4" /> Preview
+                        </button>
+                        <button 
+                            onClick={() => setViewMode('xml')}
+                            className={`px-3 py-1.5 rounded text-xs font-bold flex items-center gap-2 transition-all ${viewMode === 'xml' ? 'bg-purple-600 text-white' : 'bg-slate-800 text-slate-400 hover:text-white'}`}
+                        >
+                            <Code className="w-4 h-4" /> XML
+                        </button>
+                    </div>
+                </div>
+            )}
+
+            {!embedded && (
+                <>
+                    <div className="px-4 pt-4 max-h-72 overflow-y-auto pr-2">
+                        <ToolsInstallVerifyPanel
+                            className="mb-0"
+                            accentClassName="text-purple-300"
+                            description="Assembler lets you design a FOMOD structure and export it. Launching an external FOMOD editor is optional and only works if you set a real path in Tool Settings."
+                            tools={[
+                                {
+                                    label: 'FOMOD Creation Tool (optional external editor)',
+                                    href: 'https://www.nexusmods.com/fallout4/mods/6821',
+                                    note: 'Optional. Use Tool Settings to point Mossy at the executable you installed.',
+                                    kind: 'official',
+                                },
+                            ]}
+                            verify={[
+                                'Switch between Structure / Preview / XML to confirm all three views render.',
+                                'Export FOMOD and verify files/folders are written to the chosen output.',
+                                'If you use Launch Tool: set the tool path in Tool Settings first.',
+                            ]}
+                            firstTestLoop={[
+                                'Create a tiny installer (one page, two options, one file mapping).',
+                                'Export and inspect the output in Workshop.',
+                                'Do one install/uninstall cycle in your mod manager before scaling up.',
+                            ]}
+                            troubleshooting={[
+                                'If Launch Tool fails, no default path is assumed—configure it in Tool Settings.',
+                                'If export output is missing, ensure your options include at least one file mapping.',
+                            ]}
+                        />
+                    </div>
+                    {/* External tool status */}
+                    <div className="px-4 pt-2">
+                            <ExternalToolNotice 
+                                toolKey="fomodCreatorPath" 
+                                toolName="FOMOD Creation Tool" 
+                                nexusUrl="https://www.nexusmods.com/fallout4/mods/6821"
+                                description="Use the external designer to finalize your installer. Configure the path and launch directly from here."
+                            />
+                    </div>
+                </>
+            )}
 
             <div className="flex-1 flex overflow-hidden">
                 {/* Left: Structure Tree */}

@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Folder, FileCode, FileImage, FileBox, ChevronRight, ChevronDown, Play, Save, RefreshCw, Box, Layers, Code, CheckCircle2, AlertCircle, Share2, Workflow, Plus, Zap, ArrowRight, Package, BookOpen, Copy, Lightbulb, Database, Settings as SettingsIcon } from 'lucide-react';
 import ExternalToolNotice from './components/ExternalToolNotice';
-import { useNavigate } from 'react-router-dom';
 
 // --- Types ---
 interface FileNode {
@@ -410,7 +409,6 @@ const Workshop: React.FC = () => {
   const isPascalFile = selectedFile?.name.endsWith('.pas');
   const activeSnippets = isPascalFile ? xEditSnippets : papyrusSnippets;
 
-    const navigate = useNavigate();
     return (
     <div className="h-full flex flex-col bg-forge-dark text-slate-200 overflow-hidden">
       {/* Toolbar */}
@@ -445,12 +443,6 @@ const Workshop: React.FC = () => {
                   {compiling ? <RefreshCw className="w-3 h-3 animate-spin" /> : <Play className="w-3 h-3 fill-current" />}
                   {compiling ? 'Building...' : 'Compile'}
               </button>
-                            <button 
-                                onClick={() => navigate('/settings/tools')}
-                                className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-800 hover:bg-slate-700 border border-slate-600 rounded text-xs transition-colors"
-                             >
-                                 <SettingsIcon className="w-3 h-3" /> Tool Settings
-                            </button>
           </div>
       </div>
 

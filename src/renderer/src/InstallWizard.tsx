@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
-import { CheckCircle2, ExternalLink, FolderOpen, Hammer, Wrench, ShieldCheck, ArrowDownToLine, RefreshCcw, AlertCircle, Package, GitBranch, Search, Send, Download } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import { CheckCircle2, ExternalLink, FolderOpen, Hammer, Wrench, ShieldCheck, ArrowDownToLine, RefreshCcw, AlertCircle, Package, GitBranch, Search, Download } from 'lucide-react';
 import { ToolsInstallVerifyPanel } from './components/ToolsInstallVerifyPanel';
 import { useI18n } from './i18n';
 import { openExternal } from './utils/openExternal';
@@ -35,7 +35,6 @@ type KnowledgeVaultItem = {
 };
 
 const STORAGE_KEY = 'mossy_install_wizard_state_v1';
-const CHAT_PREFILL_KEY = 'mossy_chat_prefill_v1';
 
 const DEFAULT_STATE: WizardState = {
   topic: 'xedit',
@@ -172,8 +171,11 @@ const StepRow: React.FC<{
   );
 };
 
-export const InstallWizard: React.FC = () => {
-  const navigate = useNavigate();
+type InstallWizardProps = {
+  embedded?: boolean;
+};
+
+export const InstallWizard: React.FC<InstallWizardProps> = ({ embedded = false }) => {
   const { t } = useI18n();
   const [state, setState] = useState<WizardState>(() => safeParseJson(localStorage.getItem(STORAGE_KEY), DEFAULT_STATE));
 
@@ -636,86 +638,42 @@ export const InstallWizard: React.FC = () => {
   } as const;
 
   const activeMeta = topicMeta[state.topic];
+  const topicOptions: Array<{ id: WizardTopic; label: string }> = [
+    { id: 'xedit', label: t('installWizard.topicSelector.xedit', 'xEdit / FO4Edit') },
+    { id: 'ss2', label: t('installWizard.topicSelector.ss2', 'Sim Settlements 2') },
+    { id: 'prp', label: t('installWizard.topicSelector.prp', 'PRP (Previs/Precombine)') },
+    { id: 'patching', label: t('installWizard.topicSelector.patching', 'Build Patches') },
+  ];
+  const modManagerOptions: Array<{ id: 'mo2' | 'vortex' | 'manual'; label: string }> = [
+    { id: 'mo2', label: 'MO2' },
+    { id: 'vortex', label: 'Vortex' },
+    { id: 'manual', label: 'Manual' },
+  ];
 
-  const buildChatPrefill = () => {
-    const topicLabel = `${activeMeta.title} (${state.topic})`;
-    const managerLabel = state.modManager === 'mo2' ? 'MO2' : state.modManager === 'vortex' ? 'Vortex' : 'Manual';
-
-    const lines: string[] = [];
-    lines.push("I'm using Mossy's Install Wizard. Please take over as my modding tutor.");
-    lines.push(`Topic: ${topicLabel}`);
-    lines.push(`Mod manager: ${managerLabel}`);
-    lines.push('');
-    lines.push('Checklist progress:');
-
-    for (const section of sections) {
-      lines.push(`\n${section.title}:`);
-      for (const step of section.steps) {
-        const done = isChecked(state.topic, section.id, step.id);
-        lines.push(`- [${done ? 'x' : ' '}] ${step.title}`);
-      }
-    }
-
-    const builtin = builtInLinks[state.topic].map(l => l.url);
-    const allLinks = uniq([...builtin, ...vaultLinks]).slice(0, 16);
-
-    if (allLinks.length) {
-      lines.push('\nLinks I have available (from Wizard + my Vault):');
-      for (const url of allLinks) lines.push(`- ${url}`);
-    }
-
-    lines.push('\nPlease do this:');
-    lines.push('1) Tell me the next 3 unchecked steps to do, in order.');
-    lines.push('2) For each step, give exact install/verify/troubleshoot checks.');
-    lines.push('3) Ask any critical questions only if needed.');
-
-    return lines.join('\n');
-  };
-
-  const sendToChat = async () => {
-    const draft = buildChatPrefill();
-    try {
-      await navigator.clipboard?.writeText(draft);
-    } catch {
-      // ignore clipboard errors
-    }
-    try {
-      localStorage.setItem(CHAT_PREFILL_KEY, draft);
-    } catch {
-      // ignore
-    }
-
-    navigate('/chat', { state: { prefill: draft, from: 'install-wizard' } });
-  };
+  const containerClassName = embedded
+    ? 'p-4 bg-[#0a0e0a] text-slate-100'
+    : 'min-h-full p-6 md:p-10 bg-[#0a0e0a] text-slate-100';
 
   return (
-    <div className="min-h-full p-6 md:p-10 bg-[#0a0e0a] text-slate-100">
+    <div className={containerClassName}>
       <div className="max-w-6xl mx-auto">
         <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-4 mb-8">
           <div>
-            <div className="text-[10px] font-mono tracking-[0.3em] text-emerald-400/70 uppercase">{t('installWizard.tagline', 'Mossy Tutor • Install Wizard')}</div>
+            <div className="text-[10px] font-mono tracking-[0.3em] text-emerald-400/70 uppercase">{t('installWizard.tagline', 'Mossy Tutor - Install Wizard')}</div>
             <h1 className="text-3xl md:text-4xl font-black tracking-tight text-white mt-2">{activeMeta.title}</h1>
             <p className="text-sm text-slate-400 mt-2 max-w-2xl">{activeMeta.subtitle}</p>
           </div>
 
           <div className="flex items-center gap-2">
-            <Link
-              to="/chat"
-              className="px-3 py-2 text-xs font-bold rounded-lg bg-slate-900 border border-slate-800 hover:border-slate-600 transition-colors"
-              title={t('installWizard.actions.askMossyTitle', 'Ask Mossy in chat')}
-            >
-              {t('installWizard.actions.askMossy', 'Ask Mossy')}
-            </Link>
-
-            <button
-              type="button"
-              onClick={sendToChat}
-              className="inline-flex items-center gap-2 px-3 py-2 text-xs font-bold rounded-lg bg-emerald-900/20 border border-emerald-500/30 text-emerald-100 hover:bg-emerald-900/30 transition-colors"
-              title={t('installWizard.actions.sendToChatTitle', "Send this topic's checklist to Chat")}
-            >
-              <Send className="w-4 h-4" />
-              {t('installWizard.actions.sendToChat', 'Send to Chat')}
-            </button>
+            {!embedded && (
+              <Link
+                to="/reference"
+                className="px-3 py-2 text-[10px] font-black uppercase tracking-widest rounded-lg bg-emerald-900/20 border border-emerald-500/30 text-emerald-100 hover:bg-emerald-900/30 transition-colors"
+                title={t('installWizard.actions.helpTitle', 'Open help')}
+              >
+                Help
+              </Link>
+            )}
 
             <button
               type="button"
@@ -746,83 +704,62 @@ export const InstallWizard: React.FC = () => {
           ]}
           verify={[
             t('installWizard.verifyPanel.verify.0', 'Pick a topic and confirm the checklist renders and checkboxes persist after refresh.'),
-            t('installWizard.verifyPanel.verify.1', 'Open at least one link from “Trusted links” and confirm it opens via openExternal/window.open.'),
-            t('installWizard.verifyPanel.verify.2', 'Use “Send to Chat” and confirm the checklist is copied and prefilled in Chat.'),
+            t('installWizard.verifyPanel.verify.1', 'Open at least one link from "Trusted links" and confirm it opens via openExternal/window.open.'),
+            t('installWizard.verifyPanel.verify.2', 'Use "Send to Chat" and confirm the checklist is copied and prefilled in Chat.'),
           ]}
           firstTestLoop={[
-            t('installWizard.verifyPanel.firstTestLoop.0', 'Start with “xEdit / FO4Edit” and get one clean launch first.'),
-            t('installWizard.verifyPanel.firstTestLoop.1', 'Configure your mod manager choice, then complete only the minimal “verify” steps before expanding.'),
+            t('installWizard.verifyPanel.firstTestLoop.0', 'Start with "xEdit / FO4Edit" and get one clean launch first.'),
+            t('installWizard.verifyPanel.firstTestLoop.1', 'Configure your mod manager choice, then complete only the minimal "verify" steps before expanding.'),
           ]}
           troubleshooting={[
             t('installWizard.verifyPanel.troubleshooting.0', 'If links do not open, check Diagnostics and confirm openExternal is available (desktop app) or allow popups.'),
             t('installWizard.verifyPanel.troubleshooting.1', 'If checkbox state does not persist, verify localStorage is available (see Diagnostics).'),
           ]}
-          shortcuts={[
-            { label: 'Platforms Hub', to: '/platforms' },
-            { label: 'Tool Settings', to: '/settings/tools' },
-            { label: 'Diagnostics', to: '/diagnostics' },
-            { label: 'Chat', to: '/chat' },
-          ]}
         />
 
         <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
           {/* Left: Topic selector */}
-          <div className="lg:col-span-1">
-            <div className="rounded-xl border border-slate-800 bg-black/40 p-4 space-y-3">
-              <div className="text-xs font-black tracking-widest uppercase text-slate-400">{t('installWizard.topics', 'Topics')}</div>
-              {(
-                [
-                  { id: 'xedit' as const, label: t('installWizard.topicSelector.xedit', 'xEdit / FO4Edit') },
-                  { id: 'ss2' as const, label: t('installWizard.topicSelector.ss2', 'SS2 Plot Building') },
-                  { id: 'prp' as const, label: t('installWizard.topicSelector.prp', 'PRP (Previs/Precombine)') },
-                  { id: 'patching' as const, label: t('installWizard.topicSelector.patching', 'Build Patches') },
-                ]
-              ).map((t) => (
-                <button
-                  key={t.id}
-                  type="button"
-                  onClick={() => setState((s) => ({ ...s, topic: t.id }))}
-                  className={`w-full text-left px-3 py-2 rounded-lg border text-xs font-bold transition-colors ${
-                    state.topic === t.id
-                      ? 'bg-emerald-900/30 border-emerald-500/40 text-emerald-200'
-                      : 'bg-slate-900/40 border-slate-800 text-slate-300 hover:border-slate-600'
-                  }`}
-                >
-                  {t.label}
-                </button>
-              ))}
+          <div className="rounded-xl border border-slate-800 bg-black/40 p-4 space-y-3">
+            <div className="text-xs font-black tracking-widest uppercase text-slate-400">{t('installWizard.topics', 'Topics')}</div>
+            {topicOptions.map((topic) => (
+              <button
+                key={topic.id}
+                type="button"
+                onClick={() => setState((s) => ({ ...s, topic: topic.id }))}
+                className={`w-full text-left px-3 py-2 rounded-lg border text-xs font-bold transition-colors ${
+                  state.topic === topic.id
+                    ? 'bg-emerald-900/30 border-emerald-500/40 text-emerald-200'
+                    : 'bg-slate-900/40 border-slate-800 text-slate-300 hover:border-slate-600'
+                }`}
+              >
+                {topic.label}
+              </button>
+            ))}
 
-              <div className="pt-3 border-t border-slate-800">
-                <div className="text-xs font-black tracking-widest uppercase text-slate-400 mb-2">{t('installWizard.modManager', 'Mod Manager')}</div>
-                <div className="flex gap-2">
-                  {(
-                    [
-                      { id: 'mo2' as const, label: 'MO2' },
-                      { id: 'vortex' as const, label: 'Vortex' },
-                      { id: 'manual' as const, label: 'Manual' },
-                    ]
-                  ).map((m) => (
-                    <button
-                      key={m.id}
-                      type="button"
-                      onClick={() => setState((s) => ({ ...s, modManager: m.id }))}
-                      className={`flex-1 px-2 py-2 rounded-lg border text-[11px] font-black transition-colors ${
-                        state.modManager === m.id
-                          ? 'bg-blue-900/30 border-blue-500/40 text-blue-200'
-                          : 'bg-slate-900/40 border-slate-800 text-slate-300 hover:border-slate-600'
-                      }`}
-                    >
-                      {m.label}
-                    </button>
-                  ))}
-                </div>
+            <div className="pt-3 border-t border-slate-800">
+              <div className="text-xs font-black tracking-widest uppercase text-slate-400 mb-2">{t('installWizard.modManager', 'Mod Manager')}</div>
+              <div className="flex gap-2">
+                {modManagerOptions.map((m) => (
+                  <button
+                    key={m.id}
+                    type="button"
+                    onClick={() => setState((s) => ({ ...s, modManager: m.id }))}
+                    className={`flex-1 px-2 py-2 rounded-lg border text-[11px] font-black transition-colors ${
+                      state.modManager === m.id
+                        ? 'bg-blue-900/30 border-blue-500/40 text-blue-200'
+                        : 'bg-slate-900/40 border-slate-800 text-slate-300 hover:border-slate-600'
+                    }`}
+                  >
+                    {m.label}
+                  </button>
+                ))}
               </div>
+            </div>
 
-              <div className="pt-3 border-t border-slate-800 space-y-2">
-                <div className="text-xs font-black tracking-widest uppercase text-slate-400">{t('installWizard.shortcuts.title', 'Shortcuts')}</div>
-                <Link className="block text-xs text-blue-300 hover:underline" to="/settings/tools">{t('installWizard.shortcuts.externalTools', 'External Tools Settings')}</Link>
-                <Link className="block text-xs text-blue-300 hover:underline" to="/precombine-prp">{t('installWizard.shortcuts.precombinePrp', 'Precombine & PRP Guide')}</Link>
-                <Link className="block text-xs text-blue-300 hover:underline" to="/sim-settlements">{t('installWizard.shortcuts.simSettlements', 'Sim Settlements Guide')}</Link>
+            <div className="pt-3 border-t border-slate-800 space-y-2">
+              <div className="text-xs font-black tracking-widest uppercase text-slate-400">{t('installWizard.shortcuts.title', 'Shortcuts')}</div>
+              <div className="text-[11px] text-slate-500">
+                Use the sidebar to open related guides or settings if you need them during setup.
               </div>
             </div>
           </div>
@@ -870,7 +807,7 @@ export const InstallWizard: React.FC = () => {
               <div className="mt-5 border-t border-slate-800 pt-4">
                 <div className="flex items-center justify-between gap-4">
                   <div className="text-xs font-black tracking-widest uppercase text-slate-400">{t('installWizard.fromVault', 'From your Knowledge Vault')}</div>
-                  <Link to="/memory-vault" className="text-[11px] text-emerald-300 hover:underline">{t('installWizard.openVault', 'Open Memory Vault')}</Link>
+                  <div className="text-[11px] text-slate-500">{t('installWizard.openVault', 'Open Memory Vault')}</div>
                 </div>
 
                 {vaultLinks.length === 0 ? (
@@ -936,7 +873,7 @@ export const InstallWizard: React.FC = () => {
                   <Download className="w-4 h-4" />
                   Load bundled vault
                 </button>
-                <Link to="/memory-vault" className="text-[11px] text-emerald-300 hover:underline">Open Memory Vault</Link>
+                <div className="text-[11px] text-slate-500">Open Memory Vault from the sidebar if you need to manage items.</div>
               </div>
               {vaultImportStatus && (
                 <div className="mt-3 text-[11px] text-slate-300">{vaultImportStatus}</div>

@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { Book, Upload, Trash2, Search, Brain, FileText, CheckCircle2, Loader2, Sparkles, Database, Plus, X, Activity, Cloud, Files, Download } from 'lucide-react';
 import { LocalAIEngine } from './LocalAIEngine';
 import { ToolsInstallVerifyPanel } from './components/ToolsInstallVerifyPanel';
@@ -20,7 +21,11 @@ interface MemoryItem {
 
 type TrustFilter = 'all' | 'personal' | 'community' | 'official';
 
-const MossyMemoryVault: React.FC = () => {
+type MossyMemoryVaultProps = {
+    embedded?: boolean;
+};
+
+const MossyMemoryVault: React.FC<MossyMemoryVaultProps> = ({ embedded = false }) => {
     const contentScrollRef = useRef<HTMLDivElement>(null);
     const onWheel = useWheelScrollProxy(contentScrollRef);
 
@@ -294,8 +299,14 @@ const MossyMemoryVault: React.FC = () => {
         );
     });
 
+    const containerClass = embedded
+        ? 'min-h-0 flex flex-col bg-[#0f120f] text-slate-200 font-sans overflow-hidden border border-emerald-900/30 rounded-lg'
+        : 'h-full min-h-0 flex flex-col bg-[#0f120f] text-slate-200 font-sans overflow-hidden';
+
+    const overlayPositionClass = embedded ? 'absolute inset-0' : 'fixed inset-0';
+
     return (
-        <div className="h-full min-h-0 flex flex-col bg-[#0f120f] text-slate-200 font-sans overflow-hidden" onWheel={onWheel}>
+        <div className={containerClass} onWheel={onWheel}>
             {/* Drag and Drop Overlay */}
             {isDragActive && (
                 <div 
@@ -308,7 +319,7 @@ const MossyMemoryVault: React.FC = () => {
                             handleDropText(e);
                         }
                     }}
-                    className="fixed inset-0 z-40 bg-emerald-500/20 border-4 border-dashed border-emerald-400 flex items-center justify-center backdrop-blur-sm"
+                    className={`${overlayPositionClass} z-40 bg-emerald-500/20 border-4 border-dashed border-emerald-400 flex items-center justify-center backdrop-blur-sm`}
                     style={{ pointerEvents: 'auto' }}
                 >
                     <div className="text-center pointer-events-none">
@@ -321,7 +332,7 @@ const MossyMemoryVault: React.FC = () => {
 
             {/* PDF Processing Overlay */}
             {isUploading && !showUploadModal && (
-                <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center">
+                <div className={`${overlayPositionClass} z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center`}>
                     <div className="bg-[#141814] border border-emerald-500/30 rounded-2xl p-8 max-w-md w-full mx-4 shadow-2xl shadow-emerald-500/10">
                         <div className="text-center space-y-4">
                             <Loader2 className="w-12 h-12 text-emerald-400 mx-auto animate-spin" />
@@ -358,6 +369,13 @@ const MossyMemoryVault: React.FC = () => {
                     </div>
                 </div>
                 <div className="flex items-center gap-2">
+                    <Link
+                        to="/reference"
+                        className="px-3 py-2 text-[10px] font-black uppercase tracking-widest rounded-lg bg-emerald-500/10 border border-emerald-500/30 text-emerald-200 hover:bg-emerald-500/20 transition-colors"
+                        title="Open help"
+                    >
+                        Help
+                    </Link>
                     <button
                         onClick={handleExportVault}
                         className="flex items-center gap-2 px-4 py-2 bg-slate-900/50 hover:bg-slate-800 text-slate-100 rounded-lg transition-all border border-slate-700 text-sm font-bold"
@@ -412,11 +430,6 @@ const MossyMemoryVault: React.FC = () => {
                     troubleshooting={[
                         'If PDF or file processing stalls, try a smaller file first to isolate whether it is a parsing issue.',
                         'If offline video transcription is enabled but fails, re-check file names and the external/whisper/ directory structure.'
-                    ]}
-                    shortcuts={[
-                        { label: 'Chat', to: '/chat' },
-                        { label: 'Live Synapse', to: '/live' },
-                        { label: 'The Vault (Assets)', to: '/vault' },
                     ]}
                 />
             </div>

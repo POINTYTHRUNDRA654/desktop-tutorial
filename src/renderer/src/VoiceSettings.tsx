@@ -37,6 +37,7 @@ if (typeof window !== 'undefined' && !(window as any).__voiceSettingsGlobalError
   (window as any).__voiceSettingsGlobalErrorHandler = true;
 }
 import React, { useEffect, useMemo, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { Volume2, Save, ExternalLink, Play, Mic, MicOff } from 'lucide-react';
 import ErrorBoundary from './ErrorBoundary';
 import { VoiceService, VoiceServiceConfig } from './voice-service';
@@ -54,7 +55,11 @@ function getElectronApi(): any {
   return (window as any)?.electron?.api ?? (window as any)?.electronAPI;
 }
 
-const VoiceSettings: React.FC = () => {
+type VoiceSettingsProps = {
+  embedded?: boolean;
+};
+
+const VoiceSettings: React.FC<VoiceSettingsProps> = ({ embedded = false }) => {
   const [voices, setVoices] = useState<SpeechSynthesisVoice[]>([]);
   const [settings, setSettings] = useState<BrowserTtsSettings>(() => loadBrowserTtsSettings());
   const [testText, setTestText] = useState("Howdy. I'm Mossy. Testing voice output.");
@@ -143,7 +148,6 @@ const VoiceSettings: React.FC = () => {
       const config: VoiceServiceConfig = {
         sttProvider: 'backend', // Use backend first, fallback to browser
         ttsProvider: 'browser',
-        deepgramKey: undefined,
         elevenlabsKey: undefined,
       };
       
@@ -191,10 +195,22 @@ const VoiceSettings: React.FC = () => {
 
 
 
+    const containerClass = embedded
+      ? 'bg-slate-900/60 border border-slate-700 rounded-lg'
+      : 'h-full bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 overflow-hidden flex flex-col';
+
+    const headerClass = embedded
+      ? 'p-4 border-b border-slate-700 bg-slate-800/50'
+      : 'p-6 border-b border-slate-700 bg-slate-800/50';
+
+    const contentClass = embedded
+      ? 'p-4 space-y-6'
+      : 'flex-1 overflow-y-auto p-6 space-y-6';
+
     return (
       <ErrorBoundary>
-        <div className="h-full bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 overflow-hidden flex flex-col">
-      <div className="p-6 border-b border-slate-700 bg-slate-800/50">
+        <div className={containerClass}>
+      <div className={headerClass}>
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
             <Volume2 className="w-7 h-7 text-emerald-400" />
@@ -204,18 +220,29 @@ const VoiceSettings: React.FC = () => {
             </div>
           </div>
 
-          <button
-            onClick={onSave}
-            className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-lg flex items-center gap-2 transition-colors"
-            title="Save voice settings"
-          >
-            <Save className="w-4 h-4" />
-            Save
-          </button>
+          <div className="flex items-center gap-2">
+            {!embedded && (
+              <Link
+                to="/reference"
+                className="px-3 py-2 text-[10px] font-black uppercase tracking-widest rounded-lg bg-emerald-900/20 border border-emerald-500/30 text-emerald-100 hover:bg-emerald-900/30 transition-colors"
+                title="Open help"
+              >
+                Help
+              </Link>
+            )}
+            <button
+              onClick={onSave}
+              className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-lg flex items-center gap-2 transition-colors"
+              title="Save voice settings"
+            >
+              <Save className="w-4 h-4" />
+              Save
+            </button>
+          </div>
         </div>
       </div>
 
-      <div className="flex-1 overflow-y-auto p-6 space-y-6">
+      <div className={contentClass}>
         {/* Browser TTS settings only. All cloud TTS and context menu code removed. */}
         {'speechSynthesis' in window && (
           <div className="bg-black/40 border border-white/10 rounded-xl p-5">

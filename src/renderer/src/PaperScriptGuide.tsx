@@ -1,11 +1,10 @@
 import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { ChevronDown } from 'lucide-react';
 import { openExternal } from './utils/openExternal';
+import PaperScriptQuickStartGuide from './PaperScriptQuickStartGuide';
+import PaperScriptFallout4Guide from './PaperScriptFallout4Guide';
 
 const PaperScriptGuide = () => {
-  const navigate = useNavigate();
-  const [expandedSection, setExpandedSection] = useState<string | null>('intro');
+  const [expandedSection, setExpandedSection] = useState<string | null>('quick-start');
 
   const toggleSection = (id: string) => {
     setExpandedSection(expandedSection === id ? null : id);
@@ -133,8 +132,17 @@ const PaperScriptGuide = () => {
   return (
     <div style={containerStyle}>
       <div style={headerStyle}>
-        <h1 style={titleStyle}>PaperScript Guide</h1>
-        <p style={subtitleStyle}>Modern Scripting for Fallout 4</p>
+        <h1 style={titleStyle}>Papyrus Hub (PaperScript)</h1>
+        <p style={subtitleStyle}>Quick start, core guide, and Fallout 4 integration in one flow</p>
+      </div>
+
+      <div style={featureBoxStyle}>
+        <h3 style={{ color: '#00ff00', marginTop: 0 }}>Flow (Read in Order)</h3>
+        <ol style={listStyle}>
+          <li style={listItemStyle}><strong>Quick Start:</strong> run a minimal script end-to-end.</li>
+          <li style={listItemStyle}><strong>Core Guide:</strong> syntax, structure, and language features.</li>
+          <li style={listItemStyle}><strong>Fallout 4 Integration:</strong> compile with CK, test, and ship.</li>
+        </ol>
       </div>
 
       <div style={featureBoxStyle}>
@@ -152,23 +160,34 @@ const PaperScriptGuide = () => {
           <button style={smallButtonStyle} onClick={() => openUrl('https://store.steampowered.com/search/?term=Creation%20Kit%20Fallout%204')}>Steam search: Creation Kit</button>
           <button style={smallButtonStyle} onClick={() => openNexusSearch('FO4Edit')}>Nexus search: FO4Edit</button>
         </div>
-        <div style={buttonRowStyle}>
-          <button style={smallButtonStyle} onClick={() => navigate('/install-wizard')}>In-app: Install Wizard</button>
-          <button style={smallButtonStyle} onClick={() => navigate('/ck-quest-dialogue')}>In-app: CK Quest/Dialogue Wizard</button>
-          <button style={smallButtonStyle} onClick={() => navigate('/packaging-release')}>In-app: Packaging & Release</button>
-        </div>
         <div style={{ color: '#b0b0b0', marginTop: '0.75rem' }}>
           <strong>First test loop:</strong> write one <code style={{ color: '#00ff00' }}>.paper</code> → run PaperScript to generate <code style={{ color: '#00ff00' }}>.psc</code> → compile in CK to <code style={{ color: '#00ff00' }}>.pex</code> → trigger the script in-game.
         </div>
       </div>
 
-      {/* Introduction */}
+      {/* Step 1: Quick Start */}
+      <div style={sectionStyle}>
+        <button
+          onClick={() => toggleSection('quick-start')}
+          style={sectionHeaderStyle(expandedSection === 'quick-start')}
+        >
+          <span>Step 1: Quick Start (PaperScript)</span>
+          <span>{expandedSection === 'quick-start' ? '▼' : '▶'}</span>
+        </button>
+        {expandedSection === 'quick-start' && (
+          <div style={contentStyle}>
+            <PaperScriptQuickStartGuide embedded />
+          </div>
+        )}
+      </div>
+
+      {/* Step 2: Core Guide */}
       <div style={sectionStyle}>
         <button 
           onClick={() => toggleSection('intro')}
           style={sectionHeaderStyle(expandedSection === 'intro')}
         >
-          <span>Introduction to PaperScript</span>
+          <span>Step 2: Core Guide - Introduction</span>
           <span>{expandedSection === 'intro' ? '▼' : '▶'}</span>
         </button>
         {expandedSection === 'intro' && (
@@ -197,7 +216,7 @@ const PaperScriptGuide = () => {
           onClick={() => toggleSection('why')}
           style={sectionHeaderStyle(expandedSection === 'why')}
         >
-          <span>Why Use PaperScript</span>
+          <span>Core Guide - Why PaperScript</span>
           <span>{expandedSection === 'why' ? '▼' : '▶'}</span>
         </button>
         {expandedSection === 'why' && (
@@ -244,7 +263,7 @@ const PaperScriptGuide = () => {
           onClick={() => toggleSection('started')}
           style={sectionHeaderStyle(expandedSection === 'started')}
         >
-          <span>Getting Started</span>
+          <span>Core Guide - Workflow Basics</span>
           <span>{expandedSection === 'started' ? '▼' : '▶'}</span>
         </button>
         {expandedSection === 'started' && (
@@ -293,7 +312,7 @@ const PaperScriptGuide = () => {
           onClick={() => toggleSection('syntax')}
           style={sectionHeaderStyle(expandedSection === 'syntax')}
         >
-          <span>Basic Syntax</span>
+          <span>Core Guide - Basic Syntax</span>
           <span>{expandedSection === 'syntax' ? '▼' : '▶'}</span>
         </button>
         {expandedSection === 'syntax' && (
@@ -348,7 +367,7 @@ while (condition) {
           onClick={() => toggleSection('features')}
           style={sectionHeaderStyle(expandedSection === 'features')}
         >
-          <span>Key Features & Examples</span>
+          <span>Core Guide - Features & Examples</span>
           <span>{expandedSection === 'features' ? '▼' : '▶'}</span>
         </button>
         {expandedSection === 'features' && (
@@ -399,7 +418,7 @@ while (condition) {
           onClick={() => toggleSection('comparison')}
           style={sectionHeaderStyle(expandedSection === 'comparison')}
         >
-          <span>Comparison with Papyrus</span>
+          <span>Core Guide - Papyrus Comparison</span>
           <span>{expandedSection === 'comparison' ? '▼' : '▶'}</span>
         </button>
         {expandedSection === 'comparison' && (
@@ -464,13 +483,29 @@ while (condition) {
         )}
       </div>
 
+      {/* Step 3: Fallout 4 Integration */}
+      <div style={sectionStyle}>
+        <button
+          onClick={() => toggleSection('fo4')}
+          style={sectionHeaderStyle(expandedSection === 'fo4')}
+        >
+          <span>Step 3: Fallout 4 Integration</span>
+          <span>{expandedSection === 'fo4' ? '▼' : '▶'}</span>
+        </button>
+        {expandedSection === 'fo4' && (
+          <div style={contentStyle}>
+            <PaperScriptFallout4Guide embedded />
+          </div>
+        )}
+      </div>
+
       {/* Resources */}
       <div style={sectionStyle}>
         <button 
           onClick={() => toggleSection('resources')}
           style={sectionHeaderStyle(expandedSection === 'resources')}
         >
-          <span>Resources & Community</span>
+          <span>Wrap-Up - Resources & Community</span>
           <span>{expandedSection === 'resources' ? '▼' : '▶'}</span>
         </button>
         {expandedSection === 'resources' && (

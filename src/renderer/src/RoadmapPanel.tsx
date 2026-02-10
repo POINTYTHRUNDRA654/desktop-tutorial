@@ -14,6 +14,7 @@ import {
   FileCode,
   Box
 } from 'lucide-react';
+import { Link } from 'react-router-dom';
 
 interface RoadmapStep {
   id: string;
@@ -139,13 +140,21 @@ const RoadmapPanel: React.FC = () => {
               <p className="text-sm text-slate-400">Step-by-step guidance from Mossy</p>
             </div>
           </div>
-          <button 
-            className="flex items-center gap-2 px-3 py-1.5 bg-slate-800 hover:bg-slate-700 rounded-md text-sm transition-colors border border-slate-700"
-            onClick={() => setActiveRoadmap(null)}
-          >
-            <Plus className="w-4 h-4" />
-            New Goal
-          </button>
+          <div className="flex items-center gap-2">
+            <Link
+              to="/reference"
+              className="px-3 py-2 border border-blue-500/30 text-[10px] font-black uppercase tracking-widest text-blue-200 rounded-lg bg-blue-500/10 hover:bg-blue-500/20 transition-colors"
+            >
+              Help
+            </Link>
+            <button 
+              className="flex items-center gap-2 px-3 py-1.5 bg-slate-800 hover:bg-slate-700 rounded-md text-sm transition-colors border border-slate-700"
+              onClick={() => setActiveRoadmap(null)}
+            >
+              <Plus className="w-4 h-4" />
+              New Goal
+            </button>
+          </div>
         </div>
 
         {/* AI Input */}

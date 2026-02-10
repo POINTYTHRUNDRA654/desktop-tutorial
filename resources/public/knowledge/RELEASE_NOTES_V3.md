@@ -25,7 +25,7 @@ You're getting a **professional, production-ready Fallout 4 modding assistant** 
 1. Download `Mossy-Setup-3.0.0.exe`
 2. Run installer
 3. Follow prompts
-4. Configure AI keys in the Desktop app Settings UI (OpenAI/Groq/Deepgram)
+4. Configure AI keys in the Desktop app Settings UI (OpenAI/Groq)
 5. Configure API key in app settings
 6. Launch Mossy
 

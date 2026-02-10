@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { AlertCircle, CheckCircle, AlertTriangle, FileText, Copy } from 'lucide-react';
+import { Link } from 'react-router-dom';
 import { ToolsInstallVerifyPanel } from './components/ToolsInstallVerifyPanel';
 
 interface ValidationStep {
@@ -14,7 +15,11 @@ interface ValidationStep {
   }[];
 }
 
-export const AnimationValidator: React.FC = () => {
+type AnimationValidatorProps = {
+  embedded?: boolean;
+};
+
+export const AnimationValidator: React.FC<AnimationValidatorProps> = ({ embedded = false }) => {
   const [validationSteps, setValidationSteps] = useState<ValidationStep[]>([
     {
       id: 'setup',
@@ -302,16 +307,38 @@ export const AnimationValidator: React.FC = () => {
     0
   );
 
+  const containerClass = embedded
+    ? 'bg-slate-900/60 border border-slate-700 rounded-lg'
+    : 'h-full bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 overflow-hidden flex flex-col';
+
+  const headerClass = embedded
+    ? 'p-4 border-b border-slate-700 bg-slate-800/50'
+    : 'p-6 border-b border-slate-700 bg-slate-800/50';
+
+  const contentClass = embedded
+    ? 'p-4'
+    : 'flex-1 overflow-y-auto p-6';
+
   return (
-    <div className="h-full bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 overflow-hidden flex flex-col">
+    <div className={containerClass}>
       {/* Header */}
-      <div className="p-6 border-b border-slate-700 bg-slate-800/50">
-        <div className="flex items-center gap-3 mb-4">
-          <CheckCircle className="w-8 h-8 text-green-400" />
-          <div>
-            <h1 className="text-2xl font-bold text-white">Animation Validator</h1>
-            <p className="text-sm text-slate-400">Pre-export checklist for FO4 animations</p>
+      <div className={headerClass}>
+        <div className="flex items-center justify-between gap-3 mb-4">
+          <div className="flex items-center gap-3">
+            <CheckCircle className="w-8 h-8 text-green-400" />
+            <div>
+              <h1 className="text-2xl font-bold text-white">Animation Validator</h1>
+              <p className="text-sm text-slate-400">Pre-export checklist for FO4 animations</p>
+            </div>
           </div>
+          {!embedded && (
+            <Link
+              to="/reference"
+              className="px-3 py-2 border border-green-500/30 text-[10px] font-black uppercase tracking-widest text-green-200 rounded-lg bg-green-500/10 hover:bg-green-500/20 transition-colors"
+            >
+              Help
+            </Link>
+          )}
         </div>
 
         {/* Progress */}
@@ -360,7 +387,7 @@ export const AnimationValidator: React.FC = () => {
       </div>
 
       {/* Content */}
-      <div className="flex-1 overflow-y-auto p-6">
+      <div className={contentClass}>
         <div className="max-w-4xl mx-auto space-y-4">
           <ToolsInstallVerifyPanel
             accentClassName="text-emerald-300"
@@ -379,12 +406,6 @@ export const AnimationValidator: React.FC = () => {
             troubleshooting={[
               'If every check is failing, start with frame rate + bone naming + timeline range; those cause the most downstream confusion.',
               'If you are unsure about a bone name, cross-check with Skeleton Reference before touching the rig.'
-            ]}
-            shortcuts={[
-              { label: 'Animation Guide', to: '/animation-guide' },
-              { label: 'Skeleton Reference', to: '/skeleton-reference' },
-              { label: 'Export Settings', to: '/export-settings' },
-              { label: 'Havok Quick Start', to: '/havok-quick-start' },
             ]}
           />
 

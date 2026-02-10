@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { Link } from 'react-router-dom';
 import { Book, Code, Keyboard, Hash, ChevronDown, ChevronUp, Zap, FileCode, Terminal, Palette } from 'lucide-react';
 import { ToolsInstallVerifyPanel } from './components/ToolsInstallVerifyPanel';
 
@@ -16,7 +17,11 @@ interface ReferenceItem {
   category?: string;
 }
 
-export const QuickReference: React.FC = () => {
+type QuickReferenceProps = {
+  embedded?: boolean;
+};
+
+export const QuickReference: React.FC<QuickReferenceProps> = ({ embedded = false }) => {
   const [expandedSections, setExpandedSections] = useState<string[]>(['papyrus']);
   const [searchQuery, setSearchQuery] = useState('');
 
@@ -205,16 +210,30 @@ export const QuickReference: React.FC = () => {
     )
   })).filter(section => section.items.length > 0);
 
+  const containerClassName = embedded
+    ? 'flex flex-col bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 rounded-lg border border-slate-800'
+    : 'flex flex-col h-full bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900';
+
   return (
-    <div className="flex flex-col h-full bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900">
+    <div className={containerClassName}>
       {/* Header */}
       <div className="p-6 border-b border-slate-700/50 bg-slate-800/50">
-        <div className="flex items-center gap-3 mb-4">
-          <Book className="w-8 h-8 text-emerald-400" />
-          <div>
-            <h1 className="text-2xl font-bold text-white">Quick Reference</h1>
-            <p className="text-sm text-slate-400">Fallout 4 modding essentials</p>
+        <div className="flex items-center justify-between gap-3 mb-4">
+          <div className="flex items-center gap-3">
+            <Book className="w-8 h-8 text-emerald-400" />
+            <div>
+              <h1 className="text-2xl font-bold text-white">Quick Reference</h1>
+              <p className="text-sm text-slate-400">Fallout 4 modding essentials</p>
+            </div>
           </div>
+          {!embedded && (
+            <Link
+              to="/reference"
+              className="px-3 py-2 border border-emerald-500/30 text-[10px] font-black uppercase tracking-widest text-emerald-200 rounded-lg bg-emerald-500/10 hover:bg-emerald-500/20 transition-colors"
+            >
+              Help
+            </Link>
+          )}
         </div>
 
         {/* Search */}
@@ -241,12 +260,7 @@ export const QuickReference: React.FC = () => {
           ]}
           firstTestLoop={[
             'Search for one concept you are working on (e.g., “OnInit” or “precombines”).',
-            'Copy the example into your notes, then open Template Generator to scaffold a full script.'
-          ]}
-          shortcuts={[
-            { label: 'Template Generator', to: '/template-generator' },
-            { label: 'Workshop', to: '/workshop' },
-            { label: 'Install Wizard', to: '/install-wizard' },
+            'Copy the example into your notes and adapt it to your current script.'
           ]}
         />
         {filteredReferences.map((section) => {

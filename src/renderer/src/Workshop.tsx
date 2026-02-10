@@ -1,4 +1,5 @@
 import React, { useRef, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { Folder, FileCode, FileBox, Play, Save, RefreshCw, Home, ChevronUp } from 'lucide-react';
 import { ToolsInstallVerifyPanel } from './components/ToolsInstallVerifyPanel';
 import { useWheelScrollProxy } from './components/useWheelScrollProxy';
@@ -218,6 +219,13 @@ const Workshop: React.FC = () => {
         </div>
 
         <div className="flex gap-2 ml-4">
+          <Link
+            to="/reference"
+            className="px-3 py-1.5 text-[10px] font-black uppercase tracking-widest rounded-lg bg-emerald-900/20 border border-emerald-500/30 text-emerald-100 hover:bg-emerald-900/30 transition-colors"
+            title="Open help"
+          >
+            Help
+          </Link>
           <input
             value={compilerPath}
             onChange={(e) => setCompilerPath(e.target.value)}
@@ -260,12 +268,6 @@ const Workshop: React.FC = () => {
           troubleshooting={[
             'If Browse does nothing, you may be running in web mode (no Electron preload).',
             'If compile fails, confirm the compiler path points to a real compiler executable.',
-          ]}
-          shortcuts={[
-            { label: 'Desktop Bridge', to: '/bridge' },
-            { label: 'Tool Settings', to: '/settings/tools' },
-            { label: 'Script Analyzer', to: '/script-analyzer' },
-            { label: 'Diagnostics', to: '/diagnostics' },
           ]}
         />
       </div>

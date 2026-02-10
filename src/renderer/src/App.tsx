@@ -25,7 +25,6 @@ import AvatarCore from './AvatarCore';
 import { GlobalSearch } from './GlobalSearch';
 import { WhatsNewDialog, useWhatsNew } from './WhatsNewDialog';
 import { SkeletonLoader } from './SkeletonLoader';
-import { SettingsImportExport } from './SettingsImportExport';
 
 // Import new performance & reliability managers
 import { cacheManager } from './CacheManager';
@@ -42,88 +41,47 @@ import { PluginSystemService } from './PluginSystemService';
 // --- LAZY LOAD MODULES ---
 // This prevents the app from loading ALL code at startup.
 // Modules are only loaded when accessed.
-const SystemMonitor = React.lazy(() => import('./SystemMonitor'));
-const LoadOrderAnalyzer = React.lazy(() => import('./LoadOrderAnalyzer').then(module => ({ default: module.LoadOrderAnalyzer })));
-const LoadOrderLab = React.lazy(() => import('./loadOrder/LoadOrderLab').then(module => ({ default: module.LoadOrderLab })));
+const LoadOrderHub = React.lazy(() => import('./LoadOrderHub'));
 const ChatInterface = React.lazy(() => import('./ChatInterface'));
 const VoiceChat = React.lazy(() => import('./VoiceChat'));
 const FirstSuccessWizard = React.lazy(() => import('./FirstSuccessWizard'));
 const ImageSuite = React.lazy(() => import('./ImageSuite'));
-const TTSPanel = React.lazy(() => import('./TTSPanel'));
 const DesktopBridge = React.lazy(() => import('./DesktopBridge'));
 const Workshop = React.lazy(() => import('./Workshop'));
 const WorkflowOrchestrator = React.lazy(() => import('./WorkflowOrchestrator'));
 const WorkflowRunner = React.lazy(() => import('./WorkflowRunner'));
-const Lorekeeper = React.lazy(() => import('./Lorekeeper'));
 const Holodeck = React.lazy(() => import('./Holodeck'));
 const TheVault = React.lazy(() => import('./TheVault'));
-const MossyMemoryVault = React.lazy(() => import('./MossyMemoryVault'));
-const NeuralLink = React.lazy(() => import('./NeuralLink'));
 const TheNexus = React.lazy(() => import('./TheNexus'));
-const TheAssembler = React.lazy(() => import('./TheAssembler'));
 const TheAuditor = React.lazy(() => import('./TheAuditor'));
 const TheBlueprint = React.lazy(() => import('./TheBlueprint'));
 const TheScribe = React.lazy(() => import('./TheScribeEnhanced').then(module => ({ default: module.TheScribe })));
-const PrivacySettings = React.lazy(() => import('./PrivacySettings'));
-const DiagnosticTools = React.lazy(() => import('./DiagnosticTools'));
-const VoiceSettings = React.lazy(() => import('./VoiceSettings'));
-const LanguageSettings = React.lazy(() => import('./LanguageSettings'));
 const DonationSupport = React.lazy(() => import('./DonationSupport').then(module => ({ default: module.DonationSupport })));
-const QuickReference = React.lazy(() => import('./QuickReference').then(module => ({ default: module.QuickReference })));
-const KnowledgeSearch = React.lazy(() => import('./KnowledgeSearch'));
-const LocalCapabilities = React.lazy(() => import('./LocalCapabilities'));
-const ScriptAnalyzer = React.lazy(() => import('./ScriptAnalyzer').then(module => ({ default: module.ScriptAnalyzer })));
-const TemplateGenerator = React.lazy(() => import('./TemplateGenerator').then(module => ({ default: module.TemplateGenerator })));
-const ExternalToolsSettings = React.lazy(() => import('./ExternalToolsSettings'));
+const DevtoolsHub = React.lazy(() => import('./DevtoolsHub'));
 const CosmosWorkflow = React.lazy(() => import('./CosmosWorkflow'));
-const ToolVerify = React.lazy(() => import('./ToolVerify'));
-const CommunityLearning = React.lazy(() => import('./CommunityLearning'));
+const LearningHub = React.lazy(() => import('./LearningHub'));
+const SettingsHub = React.lazy(() => import('./SettingsHub'));
 const BlenderAnimationGuide = React.lazy(() => import('./BlenderAnimationGuide').then(module => ({ default: module.BlenderAnimationGuide })));
-const SkeletonReference = React.lazy(() => import('./SkeletonReference').then(module => ({ default: module.SkeletonReference })));
-const AnimationValidator = React.lazy(() => import('./AnimationValidator').then(module => ({ default: module.AnimationValidator })));
-const CustomRiggingChecklist = React.lazy(() => import('./CustomRiggingChecklist').then(module => ({ default: module.CustomRiggingChecklist })));
-const ExportSettingsHelper = React.lazy(() => import('./ExportSettingsHelper').then(module => ({ default: module.ExportSettingsHelper })));
-const RiggingMistakesGallery = React.lazy(() => import('./RiggingMistakesGallery').then(module => ({ default: module.RiggingMistakesGallery })));
-const PrecombineAndPRPGuide = React.lazy(() => import('./PrecombineAndPRPGuide').then(module => ({ default: module.PrecombineAndPRPGuide })));
-const PrecombineChecker = React.lazy(() => import('./PrecombineChecker').then(module => ({ default: module.PrecombineChecker })));
-const LeveledListInjectionGuide = React.lazy(() => import('./LeveledListInjectionGuide').then(module => ({ default: module.LeveledListInjectionGuide })));
 const QuestModAuthoringGuide = React.lazy(() => import('./QuestModAuthoringGuide').then(module => ({ default: module.QuestModAuthoringGuide })));
-const ModProjectManager = React.lazy(() => import('./ModProjectManager'));
-const ModdingJourney = React.lazy(() => import('./ModdingJourney'));
+const ProjectHub = React.lazy(() => import('./ProjectHub'));
 const BodyslideGuide = React.lazy(() => import('./BodyslideGuide'));
 const SimSettlementsGuide = React.lazy(() => import('./SimSettlementsGuide'));
-const SimSettlementsAddonGuide = React.lazy(() => import('./SimSettlementsAddonGuide'));
-const SimSettlementsUnitsLoadoutsGuide = React.lazy(() => import('../../components/guides/SimSettlementsUnitsLoadoutsGuide'));
-const SimSettlementsAddonToolkitsGuide = React.lazy(() => import('../../components/guides/SimSettlementsAddonToolkitsGuide'));
 const PaperScriptGuide = React.lazy(() => import('./PaperScriptGuide'));
-const PaperScriptQuickStartGuide = React.lazy(() => import('./PaperScriptQuickStartGuide'));
-const PaperScriptFallout4Guide = React.lazy(() => import('./PaperScriptFallout4Guide'));
 
 // AI & Intelligence Features
 const WorkflowRecorder = React.lazy(() => import('./WorkflowRecorder').then(module => ({ default: module.WorkflowRecorder })));
 const PluginManager = React.lazy(() => import('./PluginManager').then(module => ({ default: module.PluginManager })));
-const HavokGuide = React.lazy(() => import('./HavokGuide'));
 const RoadmapPanel = React.lazy(() => import('./RoadmapPanel'));
-const HavokQuickStartGuide = React.lazy(() => import('./HavokQuickStartGuide'));
-const HavokFallout4Guide = React.lazy(() => import('./HavokFallout4Guide'));
-const InstallWizard = React.lazy(() => import('./InstallWizard'));
-const PlatformsHub = React.lazy(() => import('./PlatformsHub'));
-const CrashTriageWizard = React.lazy(() => import('./CrashTriageWizard'));
-const PackagingReleaseWizard = React.lazy(() => import('./PackagingReleaseWizard'));
-const CKQuestDialogueWizard = React.lazy(() => import('./CKQuestDialogueWizard'));
-const PRPPatchBuilderWizard = React.lazy(() => import('./PRPPatchBuilderWizard'));
+const DiagnosticsHub = React.lazy(() => import('./DiagnosticsHub'));
+const PackagingHub = React.lazy(() => import('./PackagingHub'));
+const WizardsHub = React.lazy(() => import('./WizardsHub'));
 const DuplicateFinder = React.lazy(() => import('./DuplicateFinder'));
 
 // Archive Management
 const BA2Manager = React.lazy(() => import('./BA2Manager').then(module => ({ default: module.BA2Manager })));
 
 // Advanced Features
-const ProjectManager = React.lazy(() => import('./ProjectManager').then(module => ({ default: module.ProjectManager })));
-const ProjectCreator = React.lazy(() => import('./ProjectCreator').then(module => ({ default: module.ProjectCreator })));
-const CollaborationManager = React.lazy(() => import('./CollaborationManager').then(module => ({ default: module.CollaborationManager })));
 const ProjectSelector = React.lazy(() => import('./ProjectSelector').then(module => ({ default: module.ProjectSelector })));
-const AnalyticsManager = React.lazy(() => import('./AnalyticsManager').then(module => ({ default: module.AnalyticsManager })));
-const AnalyticsDashboard = React.lazy(() => import('./AnalyticsDashboard').then(module => ({ default: module.AnalyticsDashboard })));
 
 // Mining Infrastructure
 const MiningDashboard = React.lazy(() => import('./MiningDashboard').then(module => ({ default: module.MiningDashboard })));
@@ -281,7 +239,7 @@ const App: React.FC = () => {
   };
 
   const handleOpenProjectManager = () => {
-    window.location.hash = '#/project/manager';
+    window.location.hash = '#/project';
   };
 
   // Guided Tour Event Listeners
@@ -842,11 +800,11 @@ const App: React.FC = () => {
 
                 {/* Core Tools */}
                 <Route path="/tools" element={<ErrorBoundary><TheNexus /></ErrorBoundary>} />
-                <Route path="/tools/monitor" element={<SystemMonitor />} />
+                <Route path="/tools/monitor" element={<Navigate to="/diagnostics" replace />} />
                 <Route path="/tools/auditor" element={<TheAuditor />} />
                 <Route path="/tools/mining" element={<ErrorBoundary><MiningPanel /></ErrorBoundary>} />
                 <Route path="/tools/advanced-analysis" element={<ErrorBoundary><AdvancedAnalysisPanel /></ErrorBoundary>} />
-                <Route path="/tools/assembler" element={<TheAssembler />} />
+                <Route path="/tools/assembler" element={<Navigate to="/packaging-release" replace />} />
                 <Route path="/tools/blueprint" element={<TheBlueprint />} />
                 <Route path="/tools/scribe" element={<TheScribe />} />
                 <Route path="/tools/vault" element={<ErrorBoundary><TheVault /></ErrorBoundary>} />
@@ -859,21 +817,17 @@ const App: React.FC = () => {
                 <Route path="/dev/workshop" element={<Workshop />} />
                 <Route path="/dev/orchestrator" element={<WorkflowOrchestrator />} />
                 <Route path="/dev/workflow-runner" element={<ErrorBoundary><WorkflowRunner /></ErrorBoundary>} />
-                <Route path="/dev/neural-link" element={<NeuralLink />} />
+                <Route path="/dev/neural-link" element={<Navigate to="/live" replace />} />
                 <Route path="/dev/workflow-recorder" element={<ErrorBoundary><WorkflowRecorder /></ErrorBoundary>} />
                 <Route path="/dev/plugin-manager" element={<ErrorBoundary><PluginManager /></ErrorBoundary>} />
                 <Route path="/dev/mining-dashboard" element={<ErrorBoundary><MiningDashboard /></ErrorBoundary>} />
-                <Route path="/dev/load-order" element={
-                  import.meta.env.VITE_ENABLE_LOAD_ORDER_LAB === 'true'
-                    ? <ErrorBoundary><LoadOrderLab /></ErrorBoundary>
-                    : <ErrorBoundary><LoadOrderAnalyzer /></ErrorBoundary>
-                } />
+                <Route path="/dev/load-order" element={<LoadOrderHub />} />
 
                 {/* Media & Assets */}
                 <Route path="/media" element={<ErrorBoundary><TheNexus /></ErrorBoundary>} />
                 <Route path="/media/images" element={<ImageSuite />} />
-                <Route path="/media/tts" element={<TTSPanel />} />
-                <Route path="/media/memory-vault" element={<ErrorBoundary><MossyMemoryVault /></ErrorBoundary>} />
+                <Route path="/media/tts" element={<Navigate to="/live" replace />} />
+                <Route path="/media/memory-vault" element={<Navigate to="/live" replace />} />
 
                 {/* Testing & Deployment */}
                 <Route path="/test" element={<ErrorBoundary><TheNexus /></ErrorBoundary>} />
@@ -882,139 +836,140 @@ const App: React.FC = () => {
                 <Route path="/test/bridge" element={<ErrorBoundary><DesktopBridge /></ErrorBoundary>} />
 
                 {/* Knowledge & Learning */}
-                <Route path="/learn" element={<ErrorBoundary><TheNexus /></ErrorBoundary>} />
-                <Route path="/learn/lore" element={<Lorekeeper />} />
-                <Route path="/learn/knowledge" element={<ErrorBoundary><KnowledgeSearch /></ErrorBoundary>} />
-                <Route path="/learn/reference" element={<QuickReference />} />
-                <Route path="/learn/community" element={<CommunityLearning />} />
-                <Route path="/learn/capabilities" element={<ErrorBoundary><LocalCapabilities /></ErrorBoundary>} />
+                <Route path="/learn" element={<LearningHub />} />
+                <Route path="/learn/lore" element={<Navigate to="/learn" replace />} />
+                <Route path="/learn/knowledge" element={<Navigate to="/learn" replace />} />
+                <Route path="/learn/reference" element={<Navigate to="/learn" replace />} />
+                <Route path="/learn/community" element={<Navigate to="/learn" replace />} />
+                <Route path="/learn/capabilities" element={<Navigate to="/learn" replace />} />
 
                 {/* Guides - Organized by Category */}
                 <Route path="/guides" element={<ErrorBoundary><TheNexus /></ErrorBoundary>} />
                 <Route path="/guides/blender" element={<ErrorBoundary><TheNexus /></ErrorBoundary>} />
                 <Route path="/guides/blender/animation" element={<BlenderAnimationGuide />} />
-                <Route path="/guides/blender/skeleton" element={<SkeletonReference />} />
-                <Route path="/guides/blender/animation-validator" element={<AnimationValidator />} />
-                <Route path="/guides/blender/rigging-checklist" element={<CustomRiggingChecklist />} />
-                <Route path="/guides/blender/export-settings" element={<ExportSettingsHelper />} />
-                <Route path="/guides/blender/rigging-mistakes" element={<RiggingMistakesGallery />} />
+                <Route path="/guides/blender/skeleton" element={<Navigate to="/guides/blender/animation" replace />} />
+                <Route path="/guides/blender/animation-validator" element={<Navigate to="/guides/blender/animation" replace />} />
+                <Route path="/guides/blender/rigging-checklist" element={<Navigate to="/guides/blender/animation" replace />} />
+                <Route path="/guides/blender/export-settings" element={<Navigate to="/guides/blender/animation" replace />} />
+                <Route path="/guides/blender/rigging-mistakes" element={<Navigate to="/guides/blender/animation" replace />} />
 
                 <Route path="/guides/creation-kit" element={<ErrorBoundary><TheNexus /></ErrorBoundary>} />
-                <Route path="/guides/creation-kit/precombine-prp" element={<PrecombineAndPRPGuide />} />
-                <Route path="/guides/creation-kit/precombine-checker" element={<PrecombineChecker />} />
-                <Route path="/guides/creation-kit/leveled-list-injection" element={<LeveledListInjectionGuide />} />
+                <Route path="/guides/creation-kit/precombine-prp" element={<Navigate to="/guides/creation-kit/quest-authoring" replace />} />
+                <Route path="/guides/creation-kit/precombine-checker" element={<Navigate to="/guides/creation-kit/quest-authoring" replace />} />
+                <Route path="/guides/creation-kit/leveled-list-injection" element={<Navigate to="/guides/creation-kit/quest-authoring" replace />} />
                 <Route path="/guides/creation-kit/quest-authoring" element={<QuestModAuthoringGuide />} />
-                <Route path="/guides/creation-kit/ck-quest-dialogue" element={<ErrorBoundary><CKQuestDialogueWizard /></ErrorBoundary>} />
+                <Route path="/guides/creation-kit/ck-quest-dialogue" element={<Navigate to="/guides/creation-kit/quest-authoring" replace />} />
 
-                <Route path="/guides/papyrus" element={<ErrorBoundary><TheNexus /></ErrorBoundary>} />
+                <Route path="/guides/papyrus" element={<Navigate to="/guides/papyrus/guide" replace />} />
                 <Route path="/guides/papyrus/guide" element={<PaperScriptGuide />} />
-                <Route path="/guides/papyrus/quick-start" element={<PaperScriptQuickStartGuide />} />
-                <Route path="/guides/papyrus/fallout4" element={<PaperScriptFallout4Guide />} />
+                <Route path="/guides/papyrus/quick-start" element={<Navigate to="/guides/papyrus/guide" replace />} />
+                <Route path="/guides/papyrus/fallout4" element={<Navigate to="/guides/papyrus/guide" replace />} />
 
                 <Route path="/guides/physics" element={<ErrorBoundary><TheNexus /></ErrorBoundary>} />
-                <Route path="/guides/physics/havok" element={<HavokGuide />} />
-                <Route path="/guides/physics/havok-quick-start" element={<HavokQuickStartGuide />} />
-                <Route path="/guides/physics/havok-fo4" element={<HavokFallout4Guide />} />
+                <Route path="/guides/physics/havok" element={<Navigate to="/guides/blender/animation" replace />} />
+                <Route path="/guides/physics/havok-quick-start" element={<Navigate to="/guides/blender/animation" replace />} />
+                <Route path="/guides/physics/havok-fo4" element={<Navigate to="/guides/blender/animation" replace />} />
 
                 <Route path="/guides/mods" element={<ErrorBoundary><TheNexus /></ErrorBoundary>} />
                 <Route path="/guides/mods/bodyslide" element={<BodyslideGuide />} />
                 <Route path="/guides/mods/sim-settlements" element={<SimSettlementsGuide />} />
-                <Route path="/guides/mods/sim-settlements-addon" element={<SimSettlementsAddonGuide />} />
-                <Route path="/guides/mods/sim-settlements-units-loadouts" element={<SimSettlementsUnitsLoadoutsGuide />} />
-                <Route path="/guides/mods/sim-settlements-addon-toolkits" element={<SimSettlementsAddonToolkitsGuide />} />
+                <Route path="/guides/mods/sim-settlements-addon" element={<Navigate to="/guides/mods/sim-settlements" replace />} />
+                <Route path="/guides/mods/sim-settlements-units-loadouts" element={<Navigate to="/guides/mods/sim-settlements" replace />} />
+                <Route path="/guides/mods/sim-settlements-addon-toolkits" element={<Navigate to="/guides/mods/sim-settlements" replace />} />
 
                 {/* Wizards & Advanced Tools */}
-                <Route path="/wizards" element={<ErrorBoundary><TheNexus /></ErrorBoundary>} />
-                <Route path="/wizards/install" element={<ErrorBoundary><InstallWizard /></ErrorBoundary>} />
-                <Route path="/wizards/platforms" element={<ErrorBoundary><PlatformsHub /></ErrorBoundary>} />
-                <Route path="/wizards/crash-triage" element={<ErrorBoundary><CrashTriageWizard /></ErrorBoundary>} />
-                <Route path="/wizards/packaging-release" element={<ErrorBoundary><PackagingReleaseWizard /></ErrorBoundary>} />
-                <Route path="/wizards/prp-patch-builder" element={<ErrorBoundary><PRPPatchBuilderWizard /></ErrorBoundary>} />
+                <Route path="/wizards" element={<WizardsHub />} />
+                <Route path="/wizards/install" element={<Navigate to="/wizards" replace />} />
+                <Route path="/wizards/platforms" element={<Navigate to="/wizards" replace />} />
+                <Route path="/wizards/crash-triage" element={<Navigate to="/diagnostics" replace />} />
+                <Route path="/wizards/packaging-release" element={<Navigate to="/packaging-release" replace />} />
+                <Route path="/wizards/prp-patch-builder" element={<Navigate to="/wizards" replace />} />
 
                 {/* Development Tools */}
-                <Route path="/devtools" element={<ErrorBoundary><TheNexus /></ErrorBoundary>} />
-                <Route path="/devtools/script-analyzer" element={<ScriptAnalyzer />} />
-                <Route path="/devtools/template-generator" element={<TemplateGenerator />} />
-                <Route path="/devtools/tool-verify" element={<ErrorBoundary><ToolVerify /></ErrorBoundary>} />
-                <Route path="/devtools/diagnostics" element={<DiagnosticTools />} />
+                <Route path="/devtools" element={<DevtoolsHub />} />
+                <Route path="/devtools/script-analyzer" element={<Navigate to="/devtools" replace />} />
+                <Route path="/devtools/template-generator" element={<Navigate to="/devtools" replace />} />
+                <Route path="/devtools/tool-verify" element={<Navigate to="/diagnostics" replace />} />
+                <Route path="/devtools/diagnostics" element={<Navigate to="/diagnostics" replace />} />
 
                 {/* Settings */}
-                <Route path="/settings" element={<ErrorBoundary><TheNexus /></ErrorBoundary>} />
-                <Route path="/settings/privacy" element={<PrivacySettings />} />
-                <Route path="/settings/voice" element={<VoiceSettings />} />
-                <Route path="/settings/language" element={<LanguageSettings />} />
-                <Route path="/settings/tools" element={<ExternalToolsSettings />} />
-                <Route path="/settings/import-export" element={<SettingsImportExport />} />
+                <Route path="/settings" element={<SettingsHub />} />
+                <Route path="/settings/privacy" element={<Navigate to="/settings" replace />} />
+                <Route path="/settings/voice" element={<Navigate to="/live" replace />} />
+                <Route path="/settings/language" element={<Navigate to="/settings" replace />} />
+                <Route path="/settings/tools" element={<Navigate to="/settings" replace />} />
+                <Route path="/settings/import-export" element={<Navigate to="/settings" replace />} />
 
                 {/* Project Management */}
-                <Route path="/project" element={<ErrorBoundary><TheNexus /></ErrorBoundary>} />
-                <Route path="/project/journey" element={<ModProjectManager />} />
-                <Route path="/project/achievements" element={<ErrorBoundary><ModdingJourney /></ErrorBoundary>} />
-                <Route path="/project/manager" element={<ErrorBoundary><ProjectManager /></ErrorBoundary>} />
-                <Route path="/project/create" element={<ErrorBoundary><ProjectCreator /></ErrorBoundary>} />
-                <Route path="/project/collaboration" element={<ErrorBoundary><CollaborationManager /></ErrorBoundary>} />
-                <Route path="/project/analytics" element={<ErrorBoundary><AnalyticsManager /></ErrorBoundary>} />
-                <Route path="/project/analytics-dashboard" element={<ErrorBoundary><AnalyticsDashboard /></ErrorBoundary>} />
+                <Route path="/project" element={<ProjectHub />} />
+                <Route path="/project/journey" element={<Navigate to="/project" replace />} />
+                <Route path="/project/achievements" element={<Navigate to="/project" replace />} />
+                <Route path="/project/manager" element={<Navigate to="/project" replace />} />
+                <Route path="/project/create" element={<Navigate to="/project" replace />} />
+                <Route path="/project/collaboration" element={<Navigate to="/project" replace />} />
+                <Route path="/project/analytics" element={<Navigate to="/project" replace />} />
+                <Route path="/project/analytics-dashboard" element={<Navigate to="/project" replace />} />
 
                 {/* Support */}
                 <Route path="/support" element={<DonationSupport />} />
 
                 {/* Legacy Routes - Redirect to new structure */}
-                <Route path="/monitor" element={<Navigate to="/tools/monitor" replace />} />
+                <Route path="/monitor" element={<Navigate to="/diagnostics" replace />} />
                 <Route path="/load-order" element={<Navigate to="/dev/load-order" replace />} />
-                <Route path="/assembler" element={<Navigate to="/tools/assembler" replace />} />
+                <Route path="/assembler" element={<Navigate to="/packaging-release" replace />} />
                 <Route path="/auditor" element={<Navigate to="/tools/auditor" replace />} />
                 <Route path="/blueprint" element={<Navigate to="/tools/blueprint" replace />} />
                 <Route path="/scribe" element={<Navigate to="/tools/scribe" replace />} />
                 <Route path="/orchestrator" element={<Navigate to="/dev/orchestrator" replace />} />
                 <Route path="/workflow-runner" element={<Navigate to="/dev/workflow-runner" replace />} />
-                <Route path="/lore" element={<Navigate to="/learn/lore" replace />} />
+                <Route path="/lore" element={<Navigate to="/learn" replace />} />
                 <Route path="/holo" element={<Navigate to="/test/holo" replace />} />
                 <Route path="/vault" element={<Navigate to="/tools/vault" replace />} />
-                <Route path="/memory-vault" element={<Navigate to="/media/memory-vault" replace />} />
-                <Route path="/neural-link" element={<Navigate to="/dev/neural-link" replace />} />
+                <Route path="/memory-vault" element={<Navigate to="/live" replace />} />
+                <Route path="/neural-link" element={<Navigate to="/live" replace />} />
                 <Route path="/workshop" element={<Navigate to="/dev/workshop" replace />} />
                 <Route path="/images" element={<Navigate to="/media/images" replace />} />
-                <Route path="/tts" element={<Navigate to="/media/tts" replace />} />
+                <Route path="/tts" element={<Navigate to="/live" replace />} />
                 <Route path="/bridge" element={<Navigate to="/test/bridge" replace />} />
                 <Route path="/dedupe" element={<Navigate to="/tools/dedupe" replace />} />
                 <Route path="/cosmos" element={<Navigate to="/tools/cosmos" replace />} />
-                <Route path="/diagnostics" element={<Navigate to="/devtools/diagnostics" replace />} />
-                <Route path="/tool-verify" element={<Navigate to="/devtools/tool-verify" replace />} />
-                <Route path="/community" element={<Navigate to="/learn/community" replace />} />
-                <Route path="/reference" element={<Navigate to="/learn/reference" replace />} />
-                <Route path="/capabilities" element={<Navigate to="/learn/capabilities" replace />} />
-                <Route path="/script-analyzer" element={<Navigate to="/devtools/script-analyzer" replace />} />
-                <Route path="/template-generator" element={<Navigate to="/devtools/template-generator" replace />} />
-                <Route path="/install-wizard" element={<Navigate to="/wizards/install" replace />} />
-                <Route path="/platforms" element={<Navigate to="/wizards/platforms" replace />} />
-                <Route path="/crash-triage" element={<Navigate to="/wizards/crash-triage" replace />} />
-                <Route path="/packaging-release" element={<Navigate to="/wizards/packaging-release" replace />} />
-                <Route path="/ck-quest-dialogue" element={<Navigate to="/guides/creation-kit/ck-quest-dialogue" replace />} />
-                <Route path="/prp-patch-builder" element={<Navigate to="/wizards/prp-patch-builder" replace />} />
+                <Route path="/diagnostics" element={<DiagnosticsHub />} />
+                <Route path="/tool-verify" element={<Navigate to="/diagnostics" replace />} />
+                <Route path="/community" element={<Navigate to="/learn" replace />} />
+                <Route path="/reference" element={<Navigate to="/learn" replace />} />
+                <Route path="/capabilities" element={<Navigate to="/learn" replace />} />
+                <Route path="/knowledge" element={<Navigate to="/learn" replace />} />
+                <Route path="/script-analyzer" element={<Navigate to="/devtools" replace />} />
+                <Route path="/template-generator" element={<Navigate to="/devtools" replace />} />
+                <Route path="/install-wizard" element={<Navigate to="/wizards" replace />} />
+                <Route path="/platforms" element={<Navigate to="/wizards" replace />} />
+                <Route path="/crash-triage" element={<Navigate to="/diagnostics" replace />} />
+                <Route path="/packaging-release" element={<PackagingHub />} />
+                <Route path="/ck-quest-dialogue" element={<Navigate to="/guides/creation-kit/quest-authoring" replace />} />
+                <Route path="/prp-patch-builder" element={<Navigate to="/wizards" replace />} />
                 <Route path="/animation-guide" element={<Navigate to="/guides/blender/animation" replace />} />
-                <Route path="/skeleton-reference" element={<Navigate to="/guides/blender/skeleton" replace />} />
-                <Route path="/animation-validator" element={<Navigate to="/guides/blender/animation-validator" replace />} />
-                <Route path="/rigging-checklist" element={<Navigate to="/guides/blender/rigging-checklist" replace />} />
-                <Route path="/export-settings" element={<Navigate to="/guides/blender/export-settings" replace />} />
-                <Route path="/rigging-mistakes" element={<Navigate to="/guides/blender/rigging-mistakes" replace />} />
-                <Route path="/precombine-prp" element={<Navigate to="/guides/creation-kit/precombine-prp" replace />} />
-                <Route path="/precombine-checker" element={<Navigate to="/guides/creation-kit/precombine-checker" replace />} />
-                <Route path="/leveled-list-injection" element={<Navigate to="/guides/creation-kit/leveled-list-injection" replace />} />
+                <Route path="/skeleton-reference" element={<Navigate to="/guides/blender/animation" replace />} />
+                <Route path="/animation-validator" element={<Navigate to="/guides/blender/animation" replace />} />
+                <Route path="/rigging-checklist" element={<Navigate to="/guides/blender/animation" replace />} />
+                <Route path="/export-settings" element={<Navigate to="/guides/blender/animation" replace />} />
+                <Route path="/rigging-mistakes" element={<Navigate to="/guides/blender/animation" replace />} />
+                <Route path="/precombine-prp" element={<Navigate to="/guides/creation-kit/quest-authoring" replace />} />
+                <Route path="/precombine-checker" element={<Navigate to="/guides/creation-kit/quest-authoring" replace />} />
+                <Route path="/leveled-list-injection" element={<Navigate to="/guides/creation-kit/quest-authoring" replace />} />
                 <Route path="/quest-mod-authoring-guide" element={<Navigate to="/guides/creation-kit/quest-authoring" replace />} />
                 <Route path="/quest-authoring" element={<Navigate to="/guides/creation-kit/quest-authoring" replace />} />
-                <Route path="/journey" element={<Navigate to="/project/journey" replace />} />
+                <Route path="/journey" element={<Navigate to="/project" replace />} />
                 <Route path="/bodyslide" element={<Navigate to="/guides/mods/bodyslide" replace />} />
                 <Route path="/sim-settlements" element={<Navigate to="/guides/mods/sim-settlements" replace />} />
                 <Route path="/sim-settlements-addon" element={<Navigate to="/guides/mods/sim-settlements-addon" replace />} />
                 <Route path="/sim-settlements-units-loadouts" element={<Navigate to="/guides/mods/sim-settlements-units-loadouts" replace />} />
                 <Route path="/sim-settlements-addon-toolkits" element={<Navigate to="/guides/mods/sim-settlements-addon-toolkits" replace />} />
                 <Route path="/paperscript" element={<Navigate to="/guides/papyrus/guide" replace />} />
-                <Route path="/paperscript-quick-start" element={<Navigate to="/guides/papyrus/quick-start" replace />} />
-                <Route path="/paperscript-fo4" element={<Navigate to="/guides/papyrus/fallout4" replace />} />
-                <Route path="/havok" element={<Navigate to="/guides/physics/havok" replace />} />
-                <Route path="/havok-quick-start" element={<Navigate to="/guides/physics/havok-quick-start" replace />} />
-                <Route path="/havok-fo4" element={<Navigate to="/guides/physics/havok-fo4" replace />} />
+                <Route path="/paperscript-quick-start" element={<Navigate to="/guides/papyrus/guide" replace />} />
+                <Route path="/paperscript-fo4" element={<Navigate to="/guides/papyrus/guide" replace />} />
+                <Route path="/havok" element={<Navigate to="/guides/blender/animation" replace />} />
+                <Route path="/havok-quick-start" element={<Navigate to="/guides/blender/animation" replace />} />
+                <Route path="/havok-fo4" element={<Navigate to="/guides/blender/animation" replace />} />
               </Routes>
             </Suspense>
           </main>

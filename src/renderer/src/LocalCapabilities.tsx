@@ -25,7 +25,11 @@ type LocalAiSettings = {
   cosmosModel?: string;
 };
 
-export default function LocalCapabilities(): JSX.Element {
+type LocalCapabilitiesProps = {
+  embedded?: boolean;
+};
+
+export default function LocalCapabilities({ embedded = false }: LocalCapabilitiesProps): JSX.Element {
   const api = (window as any).electron?.api || (window as any).electronAPI;
 
   const [caps, setCaps] = useState<CapsStatus | null>(null);
@@ -143,8 +147,10 @@ export default function LocalCapabilities(): JSX.Element {
     }
   };
 
+  const containerClassName = embedded ? 'p-4 space-y-6' : 'p-6 space-y-6';
+
   return (
-    <div className="p-6 space-y-6">
+    <div className={containerClassName}>
       <div className="flex items-center justify-between gap-4">
         <div>
           <h2 className="text-xl font-bold text-white">Local Capabilities</h2>

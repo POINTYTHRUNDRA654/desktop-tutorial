@@ -132,6 +132,9 @@ export const IPC_CHANNELS = {
   // Secrets presence-only status
   SECRET_STATUS: 'secret-status',
 
+  // Settings helpers
+  REVEAL_SETTINGS_FILE: 'reveal-settings-file',
+
   // Speech-to-text (main process handles keys)
   TRANSCRIBE_AUDIO: 'transcribe-audio',
 } as const;
@@ -249,7 +252,7 @@ export interface ElectronAPI {
   onMicLevel: (callback: (level: number) => void) => (() => void);
 
   // Messaging
-  sendMessage: (message: string) => Promise<void>;
+  sendMessage: (message: string | VoiceChatPayload) => Promise<void>;
   onMessage: (callback: (message: Message) => void) => (() => void);
 
   // Developer tools
@@ -284,7 +287,7 @@ export interface ElectronAPI {
   >;
 
   getSecretStatus?: () => Promise<
-    | { ok: true; openai: boolean; groq: boolean; deepgram: boolean; elevenlabs: boolean }
+    | { ok: true; openai: boolean; groq: boolean; elevenlabs: boolean }
     | { ok: false; error: string }
   >;
 
@@ -391,6 +394,13 @@ export interface ElectronAPI {
     ok: boolean;
     results: Array<{ path: string; ok: boolean; error?: string }>;
   }>;
+}
+
+export interface VoiceChatPayload {
+  text: string;
+  history?: Array<{ role: 'user' | 'assistant'; content: string }>;
+  workingMemory?: string;
+  projectData?: Record<string, any> | null;
 }
 
 // Window typings live in src/renderer/src/electron.d.ts
