@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { Github, Save, Send, ShieldCheck } from 'lucide-react';
 import type { Settings } from '../../shared/types';
 import { ToolsInstallVerifyPanel } from './components/ToolsInstallVerifyPanel';
@@ -13,7 +14,11 @@ import {
 
 const DEFAULT_LABELS = ['community-learning'];
 
-const CommunityLearning: React.FC = () => {
+type CommunityLearningProps = {
+  embedded?: boolean;
+};
+
+const CommunityLearning: React.FC<CommunityLearningProps> = ({ embedded = false }) => {
   const [settings, setSettings] = useState<Settings | null>(null);
 
   const [contributorName, setContributorName] = useState('');
@@ -122,17 +127,32 @@ const CommunityLearning: React.FC = () => {
     }
   };
 
+  const containerClassName = embedded
+    ? 'w-full bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 p-4 rounded-lg border border-slate-800'
+    : 'h-full w-full bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 p-6 overflow-auto';
+
   return (
-    <div className="h-full w-full bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 p-6 overflow-auto">
+    <div className={containerClassName}>
       <div className="max-w-3xl mx-auto">
-        <div className="flex items-center gap-3 mb-6">
-          <Github className="w-7 h-7 text-emerald-400" />
-          <div>
-            <h1 className="text-2xl font-black text-white tracking-tight">Community Learning</h1>
-            <p className="text-sm text-slate-300">
-              Save what you teach Mossy, then submit it publicly (with credit) as a GitHub Issue.
-            </p>
+        <div className="flex items-center justify-between gap-3 mb-6">
+          <div className="flex items-center gap-3">
+            <Github className="w-7 h-7 text-emerald-400" />
+            <div>
+              <h1 className="text-2xl font-black text-white tracking-tight">Community Learning</h1>
+              <p className="text-sm text-slate-300">
+                Save what you teach Mossy, then submit it publicly (with credit) as a GitHub Issue.
+              </p>
+            </div>
           </div>
+          {!embedded && (
+            <Link
+              to="/reference"
+              className="px-3 py-2 text-[10px] font-black uppercase tracking-widest rounded-lg bg-emerald-900/20 border border-emerald-500/30 text-emerald-100 hover:bg-emerald-900/30 transition-colors"
+              title="Open help"
+            >
+              Help
+            </Link>
+          )}
         </div>
 
         <ToolsInstallVerifyPanel
@@ -151,10 +171,6 @@ const CommunityLearning: React.FC = () => {
           troubleshooting={[
             'If the repo is missing, set VITE_COMMUNITY_REPO (or add it to settings) and reload the page.',
             'If the browser will not open, check Diagnostics and confirm openExternal is available.'
-          ]}
-          shortcuts={[
-            { label: 'Privacy Settings', to: '/settings/privacy' },
-            { label: 'Diagnostics', to: '/diagnostics' },
           ]}
         />
 

@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { Link } from 'react-router-dom';
 import { Archive, FolderOpen, ArrowDownToLine, Upload, FileArchive, HardDrive, AlertCircle, Info, Merge, Plus, X } from 'lucide-react';
 
 interface BA2File {
@@ -336,12 +337,21 @@ export const BA2Manager: React.FC = () => {
     <div className="h-full bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 overflow-hidden flex flex-col">
       {/* Header */}
       <div className="p-6 border-b border-slate-700 bg-slate-800/50">
-        <div className="flex items-center gap-3 mb-4">
-          <Archive className="w-8 h-8 text-amber-400" />
-          <div>
-            <h1 className="text-2xl font-bold text-white">BA2 Archive Manager</h1>
-            <p className="text-sm text-slate-400">Extract, pack, and manage Fallout 4 archive files</p>
+        <div className="flex items-start justify-between gap-3 mb-4">
+          <div className="flex items-center gap-3">
+            <Archive className="w-8 h-8 text-amber-400" />
+            <div>
+              <h1 className="text-2xl font-bold text-white">BA2 Archive Manager</h1>
+              <p className="text-sm text-slate-400">Extract, pack, and manage Fallout 4 archive files</p>
+            </div>
           </div>
+          <Link
+            to="/reference"
+            className="px-3 py-2 text-[10px] font-black uppercase tracking-widest rounded-lg bg-amber-900/20 border border-amber-500/30 text-amber-100 hover:bg-amber-900/30 transition-colors"
+            title="Open help"
+          >
+            Help
+          </Link>
         </div>
 
         {/* File Input */}

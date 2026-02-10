@@ -3,10 +3,11 @@ import { BarChart3, ArrowDownToLine, Settings, Eye, EyeOff, Trash2 } from 'lucid
 import { AnalyticsConfig, UsageMetrics, AnalyticsEvent } from '../../shared/types';
 
 interface AnalyticsManagerProps {
+  embedded?: boolean;
   onClose?: () => void;
 }
 
-export const AnalyticsManager: React.FC<AnalyticsManagerProps> = ({ onClose }) => {
+export const AnalyticsManager: React.FC<AnalyticsManagerProps> = ({ embedded = false, onClose }) => {
   const [config, setConfig] = useState<AnalyticsConfig | null>(null);
   const [metrics, setMetrics] = useState<UsageMetrics | null>(null);
   const [events, setEvents] = useState<AnalyticsEvent[]>([]);
@@ -96,8 +97,10 @@ export const AnalyticsManager: React.FC<AnalyticsManagerProps> = ({ onClose }) =
     );
   }
 
+  const containerClassName = embedded ? 'p-4 space-y-6' : 'p-6 space-y-6';
+
   return (
-    <div className="p-6 space-y-6">
+    <div className={containerClassName}>
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
           <BarChart3 className="w-6 h-6 text-green-400" />
@@ -190,22 +193,33 @@ export const AnalyticsManager: React.FC<AnalyticsManagerProps> = ({ onClose }) =
           <div className="space-y-2">
             <label className="text-white font-medium">Data Categories</label>
             <div className="grid grid-cols-2 gap-4">
-              {Object.entries(config?.categories || {}).map(([category, enabled]) => (
-                <label key={category} className="flex items-center gap-2">
-                  <input
-                    type="checkbox"
-                    checked={enabled}
-                    onChange={(e) => handleConfigUpdate({
-                      categories: {
-                        ...(config?.categories || {}),
-                        [category]: e.target.checked
-                      }
-                    })}
-                    className="rounded border-gray-600 text-green-600 focus:ring-green-500"
-                  />
-                  <span className="text-gray-300 capitalize">{category}</span>
-                </label>
-              ))}
+              {(() => {
+                const categories = config?.categories || {
+                  usage: false,
+                  performance: false,
+                  errors: false,
+                  features: false,
+                };
+
+                return Object.entries(categories).map(([category, enabled]) => (
+                  <label key={category} className="flex items-center gap-2">
+                    <input
+                      type="checkbox"
+                      checked={enabled}
+                      onChange={(e) => {
+                        const nextCategories = {
+                          ...categories,
+                          [category]: e.target.checked,
+                        } as AnalyticsConfig['categories'];
+
+                        handleConfigUpdate({ categories: nextCategories });
+                      }}
+                      className="rounded border-gray-600 text-green-600 focus:ring-green-500"
+                    />
+                    <span className="text-gray-300 capitalize">{category}</span>
+                  </label>
+                ));
+              })()}
             </div>
           </div>
         </div>

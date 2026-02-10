@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { Link as RouterLink } from 'react-router-dom';
 import { Monitor, CheckCircle2, Wifi, Shield, Cpu, Terminal, Power, Layers, Box, Code, Image as ImageIcon, MessageSquare, Activity, RefreshCw, Lock, AlertOctagon, Link, Zap, Eye, Globe, Database, Wrench, FolderOpen, HardDrive, ArrowRightLeft, ArrowRight, Keyboard, ArrowDownToLine, Server, Clipboard, FileType, HelpCircle, AlertTriangle, Settings, Search, ExternalLink, Download } from 'lucide-react';
 import { ToolsInstallVerifyPanel } from './components/ToolsInstallVerifyPanel';
 import { useWheelScrollProxy } from './components/useWheelScrollProxy';
@@ -167,12 +168,6 @@ const DesktopBridge: React.FC = () => {
     const blenderCardRef = useRef<HTMLDivElement>(null);
         const hardwareCardRef = useRef<HTMLDivElement>(null);
 
-    const openTabAndScroll = (tab: typeof activeTab, targetRef: React.RefObject<HTMLDivElement>) => {
-        setActiveTab(tab);
-        setTimeout(() => {
-            targetRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-        }, 50);
-    };
   
   useEffect(() => {
       logEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -1015,471 +1010,30 @@ pause
       addLog('System', 'Generated improved start_mossy.bat', 'success');
   };
 
-  const handleDownloadAddon = () => {
-    const addonCode = `
-import bpy
-import socket
-import json
-import threading
-import time
-import traceback
-
-bl_info = {
-    "name": "Mossy Link",
-    "author": "Mossy Desktop",
-    "version": (6, 0, 0),
-    "blender": (3, 6, 0),
-    "location": "View3D > Sidebar > Mossy",
-    "description": "Socket-based bridge for Mossy (scripts, text blocks, context, export presets)",
-    "category": "System",
-    "support": "COMMUNITY"
-}
-
-MOSSY_SERVER = None
-MOSSY_PORT = 9999
-MOSSY_HOST = '127.0.0.1'
-
-def _safe_json(obj):
-    try:
-        return json.dumps(obj, ensure_ascii=False)
-    except Exception:
-        return json.dumps({"ok": False, "error": "json-encode-failed"})
-
-def _get_context_snapshot():
-    ctx = bpy.context
-    obj = ctx.active_object
-    selected = [o.name for o in ctx.selected_objects] if ctx.selected_objects else []
-    enabled_addons = []
-    try:
-        enabled_addons = sorted(list(getattr(bpy.context.preferences, "addons", {}).keys()))
-    except Exception:
-        enabled_addons = []
-    active_action = ""
-    action_pose_markers = 0
-    nla_track_count = 0
-    nla_strip_count = 0
-    try:
-        if obj and obj.type == "ARMATURE" and obj.animation_data and obj.animation_data.action:
-            active_action = obj.animation_data.action.name
-            try:
-                action_pose_markers = len(obj.animation_data.action.pose_markers)
-            except Exception:
-                action_pose_markers = 0
-    except Exception:
-        active_action = ""
-    try:
-        if obj and obj.type == "ARMATURE" and obj.animation_data and obj.animation_data.nla_tracks:
-            nla_track_count = len(obj.animation_data.nla_tracks)
-            try:
-                nla_strip_count = sum(len(t.strips) for t in obj.animation_data.nla_tracks)
-            except Exception:
-                nla_strip_count = 0
-    except Exception:
-        nla_track_count = 0
-        nla_strip_count = 0
-
-    fps = 0
-    try:
-        fps = int(getattr(ctx.scene.render, "fps", 0)) if getattr(ctx, "scene", None) else 0
-    except Exception:
-        fps = 0
-    return {
-        "blender": bpy.app.version_string,
-        "filepath": bpy.data.filepath or "",
-        "mode": getattr(ctx, "mode", ""),
-        "scene": getattr(ctx.scene, "name", ""),
-        "activeObject": obj.name if obj else "",
-        "activeType": obj.type if obj else "",
-        "activeAction": active_action,
-        "actionPoseMarkers": action_pose_markers,
-        "nlaTracks": nla_track_count,
-        "nlaStrips": nla_strip_count,
-        "fps": fps,
-        "selected": selected,
-        "unitSystem": getattr(ctx.scene.unit_settings, "system", "") if getattr(ctx, "scene", None) else "",
-        "unitScale": getattr(ctx.scene.unit_settings, "scale_length", 1.0) if getattr(ctx, "scene", None) else 1.0,
-        "enabledAddons": enabled_addons,
+  const handleDownloadAddon = async () => {
+    try {
+      // Fetch the pre-built add-on from the bundled public directory
+      const response = await fetch('/mossy_link_addon.py');
+      if (!response.ok) {
+        throw new Error(`Failed to fetch add-on: ${response.status}`);
+      }
+      const addonCode = await response.text();
+      
+      const blob = new Blob([addonCode], { type: 'text/x-python' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'mossy_link_addon.py'; 
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      
+      addLog('System', 'Downloaded Blender Add-on (mossy_link_addon.py) from bundle', 'success');
+    } catch (error) {
+      console.error('Failed to download Blender add-on:', error);
+      addLog('System', 'Failed to download Blender add-on from bundle', 'err');
     }
-
-def _scene_warnings():
-    warnings = []
-    try:
-        ctx = bpy.context
-        sel = ctx.selected_objects or []
-        for o in sel:
-            if o.type in {"MESH", "ARMATURE"}:
-                sx, sy, sz = o.scale
-                if abs(sx - 1.0) > 1e-6 or abs(sy - 1.0) > 1e-6 or abs(sz - 1.0) > 1e-6:
-                    warnings.append(f"Unapplied scale on '{o.name}' ({sx:.3f}, {sy:.3f}, {sz:.3f}). Consider Ctrl+A → Apply Scale.")
-                if sx < 0 or sy < 0 or sz < 0:
-                    warnings.append(f"Negative scale on '{o.name}'. This can break exports.")
-
-        # Animation heuristics
-        active = ctx.active_object
-        if active and active.type == "ARMATURE":
-            ad = getattr(active, "animation_data", None)
-            if not ad or not getattr(ad, "action", None):
-                warnings.append("Active object is an Armature but has no active Action. For animation export, ensure an Action is active or use NLA.")
-            else:
-                try:
-                    if len(ad.action.pose_markers) == 0:
-                        warnings.append("Active Action has no pose markers. Some FO4 pipelines use pose markers for annotations/events.")
-                except Exception:
-                    pass
-
-        # FO4-ish timing heuristic (commonly 30fps)
-        try:
-            fps = int(getattr(ctx.scene.render, "fps", 0)) if getattr(ctx, "scene", None) else 0
-            if fps and fps != 30:
-                warnings.append(f"Scene FPS is {fps}. Many FO4 animation pipelines assume 30fps; confirm your guide's expected FPS.")
-        except Exception:
-            pass
-    except Exception:
-        pass
-
-    # NIF pipeline hint
-    try:
-        enabled = getattr(bpy.context.preferences, "addons", {})
-        has_niftools = any("nif" in k.lower() and "tool" in k.lower() for k in enabled.keys())
-        if not has_niftools:
-            warnings.append("NIF export requires a NifTools-style Blender add-on; Mossy Link focuses on safe script/text export and OBJ/FBX helpers.")
-    except Exception:
-        pass
-    return warnings
-
-def _op_kwargs(op, kwargs):
-    """Filter kwargs to only properties supported by an operator (robust across Blender versions)."""
-    try:
-        props = op.get_rna_type().properties
-        allowed = set(p.identifier for p in props)
-        return {k: v for k, v in kwargs.items() if k in allowed}
-    except Exception:
-        return kwargs
-
-def _run_on_main_thread(fn, timeout=3.0):
-    done = threading.Event()
-    out = {"ok": False, "error": "timeout"}
-
-    def _timer():
-        try:
-            out.update(fn())
-        except Exception as e:
-            out["ok"] = False
-            out["error"] = str(e)
-            out["trace"] = traceback.format_exc(limit=3)
-        finally:
-            done.set()
-        return None
-
-    bpy.app.timers.register(_timer)
-    done.wait(timeout)
-    return out
-
-class MossySocketServer:
-    def __init__(self, host=MOSSY_HOST, port=MOSSY_PORT):
-        self.host = host
-        self.port = port
-        self.socket = None
-        self.running = False
-        self.thread = None
-
-    def start(self):
-        try:
-            self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            self.socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-            self.socket.bind((self.host, self.port))
-            self.socket.listen(8)
-            self.running = True
-            self.thread = threading.Thread(target=self._accept_loop, daemon=True)
-            self.thread.start()
-            print(f"[Mossy Link] Listening on {self.host}:{self.port}")
-        except Exception as e:
-            print(f"[Mossy Link] Failed to start server: {e}")
-
-    def stop(self):
-        self.running = False
-        try:
-            if self.socket:
-                self.socket.close()
-        except Exception:
-            pass
-        self.socket = None
-        print("[Mossy Link] Stopped")
-
-    def _accept_loop(self):
-        while self.running:
-            try:
-                self.socket.settimeout(1.0)
-                client, addr = self.socket.accept()
-                self._handle_client(client, addr)
-            except socket.timeout:
-                continue
-            except Exception as e:
-                if self.running:
-                    print(f"[Mossy Link] Server error: {e}")
-
-    def _handle_client(self, client, addr):
-        try:
-            client.settimeout(3.0)
-            raw = client.recv(1024 * 1024)
-            if not raw:
-                client.close()
-                return
-
-            text = raw.decode('utf-8', errors='replace').strip()
-
-            # Back-compat: raw PING / EXECUTE:
-            if text == 'PING':
-                client.send(b'PONG')
-                client.close()
-                return
-            if text.startswith('EXECUTE:'):
-                code = text.replace('EXECUTE:', '', 1)
-                res = _run_on_main_thread(lambda: self._execute_script(code))
-                client.send(_safe_json(res).encode('utf-8'))
-                client.close()
-                return
-
-            # Preferred: JSON protocol
-            try:
-                msg = json.loads(text)
-            except Exception:
-                client.send(_safe_json({"ok": False, "error": "invalid-json"}).encode('utf-8'))
-                client.close()
-                return
-
-            mtype = str(msg.get('type') or '').strip().lower()
-            if mtype in ('ping', 'health'):
-                payload = {"ok": True, "result": "pong", "context": _get_context_snapshot()}
-                client.send(_safe_json(payload).encode('utf-8'))
-                client.close()
-                return
-
-            if mtype in ('get_context', 'context'):
-                payload = {"ok": True, "context": _get_context_snapshot(), "warnings": _scene_warnings()}
-                client.send(_safe_json(payload).encode('utf-8'))
-                client.close()
-                return
-
-            if mtype == 'script':
-                code = msg.get('code') or msg.get('script') or ''
-                res = _run_on_main_thread(lambda: self._execute_script(code))
-                client.send(_safe_json(res).encode('utf-8'))
-                client.close()
-                return
-
-            if mtype == 'text':
-                name = msg.get('name') or 'MOSSY_SCRIPT'
-                code = msg.get('code') or msg.get('script') or ''
-                run = bool(msg.get('run', False))
-                res = _run_on_main_thread(lambda: self._write_text(name, code, run))
-                client.send(_safe_json(res).encode('utf-8'))
-                client.close()
-                return
-
-            if mtype == 'export_fbx':
-                filepath = msg.get('filepath') or msg.get('path') or ''
-                use_selection = bool(msg.get('use_selection', True))
-                bake_anim = bool(msg.get('bake_anim', False))
-                res = _run_on_main_thread(lambda: self._export_fbx(filepath, use_selection, bake_anim))
-                client.send(_safe_json(res).encode('utf-8'))
-                client.close()
-                return
-
-            if mtype == 'export_obj':
-                filepath = msg.get('filepath') or msg.get('path') or ''
-                use_selection = bool(msg.get('use_selection', True))
-                res = _run_on_main_thread(lambda: self._export_obj(filepath, use_selection))
-                client.send(_safe_json(res).encode('utf-8'))
-                client.close()
-                return
-
-            client.send(_safe_json({"ok": False, "error": f"unknown-type:{mtype}"}).encode('utf-8'))
-            client.close()
-        except Exception as e:
-            try:
-                client.send(_safe_json({"ok": False, "error": str(e)}).encode('utf-8'))
-            except Exception:
-                pass
-            try:
-                client.close()
-            except Exception:
-                pass
-
-    def _execute_script(self, code: str):
-        try:
-            exec(str(code), {'bpy': bpy, 'D': bpy.data, 'C': bpy.context})
-            return {"ok": True, "result": "executed"}
-        except Exception as e:
-            return {"ok": False, "error": str(e), "trace": traceback.format_exc(limit=3)}
-
-    def _write_text(self, name: str, code: str, run: bool):
-        try:
-            name = str(name or 'MOSSY_SCRIPT')
-            text = bpy.data.texts.get(name) or bpy.data.texts.new(name)
-            text.clear()
-            text.write(str(code or ''))
-            if run:
-                exec(text.as_string(), {'bpy': bpy, 'D': bpy.data, 'C': bpy.context})
-            return {"ok": True, "result": f"text:{name}", "ran": bool(run)}
-        except Exception as e:
-            return {"ok": False, "error": str(e), "trace": traceback.format_exc(limit=3)}
-
-    def _export_fbx(self, filepath: str, use_selection: bool, bake_anim: bool):
-        filepath = str(filepath or '').strip()
-        if not filepath:
-            return {"ok": False, "error": "missing-filepath"}
-        try:
-            # Conservative defaults; avoids common skeleton issues.
-            kwargs = {
-                "filepath": filepath,
-                "use_selection": use_selection,
-                "apply_unit_scale": True,
-                "apply_scale_options": 'FBX_SCALE_ALL',
-                "add_leaf_bones": False,
-                "bake_anim": bool(bake_anim),
-            }
-            bpy.ops.export_scene.fbx(**_op_kwargs(bpy.ops.export_scene.fbx, kwargs))
-            return {"ok": True, "result": "exported", "filepath": filepath, "warnings": _scene_warnings()}
-        except Exception as e:
-            return {"ok": False, "error": str(e), "trace": traceback.format_exc(limit=3)}
-
-    def _export_obj(self, filepath: str, use_selection: bool):
-        filepath = str(filepath or '').strip()
-        if not filepath:
-            return {"ok": False, "error": "missing-filepath"}
-        try:
-            # Outfit Studio-friendly defaults.
-            if hasattr(bpy.ops.wm, "obj_export"):
-                kwargs = {
-                    "filepath": filepath,
-                    "export_selected_objects": bool(use_selection),
-                    "export_uv": True,
-                    "export_normals": True,
-                    "export_materials": False,
-                    "export_triangulated_mesh": False,
-                    "export_object_groups": True,
-                    "path_mode": 'AUTO',
-                }
-                bpy.ops.wm.obj_export(**_op_kwargs(bpy.ops.wm.obj_export, kwargs))
-            else:
-                kwargs = {
-                    "filepath": filepath,
-                    "use_selection": bool(use_selection),
-                    "use_mesh_modifiers": True,
-                    "use_normals": True,
-                    "use_uvs": True,
-                    "use_materials": False,
-                    "keep_vertex_order": True,
-                    "axis_forward": '-Z',
-                    "axis_up": 'Y',
-                }
-                bpy.ops.export_scene.obj(**_op_kwargs(bpy.ops.export_scene.obj, kwargs))
-            return {"ok": True, "result": "exported", "filepath": filepath, "warnings": _scene_warnings()}
-        except Exception as e:
-            return {"ok": False, "error": str(e), "trace": traceback.format_exc(limit=3)}
-
-class MOSSY_PT_Panel(bpy.types.Panel):
-    bl_label = "Mossy Neural Link"
-    bl_idname = "MOSSY_PT_Panel"
-    bl_space_type = 'VIEW_3D'
-    bl_region_type = 'UI'
-    bl_category = 'Mossy'
-
-    def draw(self, context):
-        layout = self.layout
-        scene = context.scene
-
-        row = layout.row(align=True)
-        row.prop(scene, "mossy_link_active", text="Link", toggle=True)
-        row.operator("mossy.test_connection", text="Test", icon='NETWORK_DRIVE')
-
-        box = layout.box()
-        if scene.mossy_link_active:
-            box.label(text="✓ Listening", icon='WORLD')
-            box.label(text=f"Host: {MOSSY_HOST}", icon='URL')
-            box.label(text=f"Port: {MOSSY_PORT}", icon='NETWORK_DRIVE')
-        else:
-            box.label(text="✗ Offline", icon='ERROR')
-
-        col = layout.column(align=True)
-        col.label(text="Tip: Keep Blender open, then click Connect in Mossy.")
-
-class MOSSY_OT_TestConnection(bpy.types.Operator):
-    bl_idname = "mossy.test_connection"
-    bl_label = "Test Mossy Connection"
-
-    def execute(self, context):
-        try:
-            sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            sock.settimeout(2)
-            sock.connect((MOSSY_HOST, MOSSY_PORT))
-            sock.send(json.dumps({"type": "ping"}).encode('utf-8'))
-            response = sock.recv(4096).decode('utf-8', errors='replace')
-            sock.close()
-            self.report({'INFO'}, f"Mossy Link: {response[:120]}")
-            return {'FINISHED'}
-        except Exception as e:
-            self.report({'ERROR'}, f"Mossy Link: {str(e)}")
-            return {'CANCELLED'}
-
-def update_mossy_link_active(self, context):
-    global MOSSY_SERVER
-    if self.mossy_link_active:
-        if MOSSY_SERVER is None:
-            MOSSY_SERVER = MossySocketServer()
-            MOSSY_SERVER.start()
-    else:
-        if MOSSY_SERVER is not None:
-            MOSSY_SERVER.stop()
-            MOSSY_SERVER = None
-
-def register():
-    bpy.utils.register_class(MOSSY_PT_Panel)
-    bpy.utils.register_class(MOSSY_OT_TestConnection)
-
-    if hasattr(bpy.types.Scene, 'mossy_link_active'):
-        try:
-            del bpy.types.Scene.mossy_link_active
-        except Exception:
-            pass
-
-    bpy.types.Scene.mossy_link_active = bpy.props.BoolProperty(
-        name="Mossy Link Active",
-        description="Enable Mossy Link socket server",
-        default=False,
-        update=update_mossy_link_active
-    )
-    print("[Mossy Link] Add-on v6.0 registered")
-
-def unregister():
-    global MOSSY_SERVER
-    if MOSSY_SERVER is not None:
-        MOSSY_SERVER.stop()
-        MOSSY_SERVER = None
-
-    if hasattr(bpy.types.Scene, 'mossy_link_active'):
-        try:
-            del bpy.types.Scene.mossy_link_active
-        except Exception:
-            pass
-
-    bpy.utils.unregister_class(MOSSY_OT_TestConnection)
-    bpy.utils.unregister_class(MOSSY_PT_Panel)
-    print("[Mossy Link] Add-on unregistered")
-
-if __name__ == "__main__":
-    register()
-    `;
-    const blob = new Blob([addonCode], { type: 'text/x-python' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = 'mossy_link.py'; 
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-        addLog('System', 'Generated Blender Add-on (mossy_link.py) v6.0', 'success');
   };
 
   const addLog = (source: string, event: string, status: 'ok' | 'warn' | 'err' | 'success' = 'ok') => {
@@ -1765,6 +1319,13 @@ if __name__ == "__main__":
               <p className="text-sm text-slate-400 mt-1">Local system integration - {normalizeHttpUrl(bridgeBaseUrl) || 'http://127.0.0.1:21337'}</p>
           </div>
           <div className="flex items-center gap-4">
+              <RouterLink
+                  to="/reference"
+                  className="px-3 py-2 text-[10px] font-black uppercase tracking-widest rounded-lg bg-emerald-900/20 border border-emerald-500/30 text-emerald-100 hover:bg-emerald-900/30 transition-colors"
+                  title="Open help"
+              >
+                  Help
+              </RouterLink>
               <div className="flex items-center gap-2 bg-slate-900 px-3 py-2 rounded-lg border border-slate-800">
                   <div className={`w-2 h-2 rounded-full ${bridgeConnected ? 'bg-emerald-500 animate-pulse' : 'bg-red-500'}`}></div>
                   <span className="text-xs font-bold text-slate-300 uppercase">
@@ -1807,122 +1368,7 @@ if __name__ == "__main__":
                         'If it stays OFFLINE, confirm the bridge server is running and the port is not blocked by firewall.',
                         'If you get timeouts, try localhost/127.0.0.1 consistency and restart the bridge process.',
                     ]}
-                    shortcuts={[
-                        { label: 'Diagnostics', to: '/diagnostics' },
-                        { label: 'System Monitor', to: '/monitor' },
-                        { label: 'Workshop', to: '/workshop' },
-                        { label: 'Tool Settings', to: '/settings/tools' },
-                    ]}
                 />
-
-                <div className="bg-black/40 border border-slate-700 rounded-lg p-4">
-                    <div className="text-sm font-bold text-emerald-300 mb-2">📦 Existing Setup / Install (Legacy)</div>
-                    <div className="text-xs text-slate-300 mb-3">
-                        Short-form version of the original setup so it’s visible immediately. Full details still live in the tabs below.
-                    </div>
-
-                    <div className="flex flex-wrap gap-2">
-                        <button
-                            type="button"
-                            onClick={() => openTabAndScroll('setup', setupCardRef)}
-                            className="px-3 py-2 rounded bg-emerald-900/30 hover:bg-emerald-900/50 border border-emerald-500/30 text-xs font-bold text-white"
-                        >
-                            Jump: Python Server Setup
-                        </button>
-                        <button
-                            type="button"
-                            onClick={() => openTabAndScroll('hardware', hardwareCardRef)}
-                            className="px-3 py-2 rounded bg-slate-800 hover:bg-slate-700 border border-slate-600 text-xs font-bold text-white"
-                        >
-                            Jump: Hardware Scan
-                        </button>
-                        <button
-                            type="button"
-                            onClick={() => {
-                                setShowHelp(true);
-                                openTabAndScroll('setup', setupCardRef);
-                            }}
-                            className="px-3 py-2 rounded bg-slate-800 hover:bg-slate-700 border border-slate-600 text-xs font-bold text-white"
-                        >
-                            Jump: Troubleshooting
-                        </button>
-                        <button
-                            type="button"
-                            onClick={() => openTabAndScroll('blender', blenderCardRef)}
-                            className="px-3 py-2 rounded bg-slate-800 hover:bg-slate-700 border border-slate-600 text-xs font-bold text-white"
-                        >
-                            Jump: Blender Install
-                        </button>
-                        <button
-                            type="button"
-                            onClick={() => openTabAndScroll('ck', ckCardRef)}
-                            className="px-3 py-2 rounded bg-slate-800 hover:bg-slate-700 border border-slate-600 text-xs font-bold text-white"
-                        >
-                            Jump: Creation Kit Link
-                        </button>
-                    </div>
-
-                    <div className="mt-3 border-t border-slate-700 pt-3">
-                        <div className="text-xs font-bold text-slate-200 mb-1">Quick Start (existing)</div>
-                        <ol className="text-xs text-slate-300 list-decimal list-inside space-y-1">
-                            <li>Download the server (.py) and launcher (.bat).</li>
-                            <li>Put them in a folder like <span className="font-mono bg-slate-800 px-1.5 py-0.5 rounded">C:\\Mossy</span>.</li>
-                            <li>Run <strong>start_mossy.bat</strong> and wait for port <strong>21337</strong>.</li>
-                            <li>Click <strong>Test Connection</strong> until ONLINE.</li>
-                        </ol>
-                        <div className="mt-3 flex flex-wrap gap-2">
-                            <button
-                                type="button"
-                                onClick={handleDownloadServer}
-                                className="px-3 py-2 rounded bg-slate-800 hover:bg-slate-700 border border-slate-600 text-xs font-bold text-white"
-                            >
-                                Download Server (.py)
-                            </button>
-                            <button
-                                type="button"
-                                onClick={handleDownloadBatch}
-                                className="px-3 py-2 rounded bg-emerald-600 hover:bg-emerald-500 text-xs font-bold text-white"
-                            >
-                                Download Launcher (.bat)
-                            </button>
-                        </div>
-                    </div>
-
-                    <div className="mt-3 border-t border-slate-700 pt-3">
-                        <div className="text-xs font-bold text-slate-200 mb-1">Blender Link (existing)</div>
-                        <ul className="text-xs text-slate-300 list-disc list-inside space-y-1">
-                            <li>Install the Mossy Blender add-on and enable it in Blender.</li>
-                            <li>Ensure the add-on is listening (typically port <strong>9999</strong>).</li>
-                            <li>Return here and confirm Blender Link shows CONNECTED.</li>
-                        </ul>
-                        <div className="mt-2 flex flex-wrap gap-2">
-                            <button
-                                type="button"
-                                onClick={() => openTabAndScroll('blender', blenderCardRef)}
-                                className="px-3 py-2 rounded bg-slate-800 hover:bg-slate-700 border border-slate-600 text-xs font-bold text-white"
-                            >
-                                Open Blender Link Tab
-                            </button>
-                        </div>
-                    </div>
-
-                    <div className="mt-3 border-t border-slate-700 pt-3">
-                        <div className="text-xs font-bold text-slate-200 mb-1">Hardware Scan (existing)</div>
-                        <ul className="text-xs text-slate-300 list-disc list-inside space-y-1">
-                            <li>Bridge must be ONLINE.</li>
-                            <li>Click <strong>Scan Hardware</strong> to pull CPU/RAM/GPU details.</li>
-                        </ul>
-                        <div className="mt-2 flex flex-wrap gap-2">
-                            <button
-                                type="button"
-                                onClick={() => openTabAndScroll('hardware', hardwareCardRef)}
-                                className="px-3 py-2 rounded bg-slate-800 hover:bg-slate-700 border border-slate-600 text-xs font-bold text-white"
-                            >
-                                Open Hardware Tab
-                            </button>
-                        </div>
-                    </div>
-                </div>
             </div>
 
       {isOutdated && (

@@ -1,9 +1,11 @@
 import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
 import { openExternal } from './utils/openExternal';
 
-const HavokGuide = () => {
-  const navigate = useNavigate();
+type HavokGuideProps = {
+  embedded?: boolean;
+};
+
+const HavokGuide: React.FC<HavokGuideProps> = ({ embedded = false }) => {
   const [expandedSection, setExpandedSection] = useState<string | null>(null);
 
   const toggleSection = (section: string) => {
@@ -130,14 +132,23 @@ const HavokGuide = () => {
     openUrl(url);
   };
 
+  const containerStyle: React.CSSProperties = embedded
+    ? {
+        padding: '16px',
+        backgroundColor: '#0a0e27',
+        color: '#00ff00',
+        fontFamily: 'monospace',
+      }
+    : {
+        padding: '20px',
+        backgroundColor: '#0a0e27',
+        color: '#00ff00',
+        fontFamily: 'monospace',
+        minHeight: '100vh',
+      };
+
   return (
-    <div style={{ 
-      padding: '20px', 
-      backgroundColor: '#0a0e27', 
-      color: '#00ff00',
-      fontFamily: 'monospace',
-      minHeight: '100vh'
-    }}>
+    <div style={containerStyle}>
       <h1 style={{ fontSize: '28px', marginBottom: '10px', color: '#00ff00' }}>
         Havok Animation System Guide
       </h1>
@@ -155,9 +166,6 @@ const HavokGuide = () => {
           <strong>Fast verification loop:</strong> swap a single known vanilla HKX (in a throwaway test mod), launch game, confirm the new motion plays.
         </div>
         <div style={buttonRowStyle}>
-          <button style={buttonStyle} onClick={() => navigate('/animation-guide')}>In-app: Animation Guide</button>
-          <button style={buttonStyle} onClick={() => navigate('/animation-validator')}>In-app: Animation Validator</button>
-          <button style={buttonStyle} onClick={() => navigate('/vault')}>In-app: The Vault</button>
           <button style={buttonStyle} onClick={() => openNexusSearch('HKXPack')}>Nexus search: HKXPack</button>
           <button style={buttonStyle} onClick={() => openNexusSearch('Bethesda Archive Extractor')}>Nexus search: BAE</button>
         </div>
