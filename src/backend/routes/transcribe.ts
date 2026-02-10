@@ -1,6 +1,7 @@
 import type { Router } from 'express';
 import multer from 'multer';
 import OpenAI from 'openai';
+import { File as NodeFile } from 'node:buffer';
 
 const upload = multer({
   storage: multer.memoryStorage(),
@@ -35,12 +36,13 @@ export function registerTranscriptionRoutes(router: Router) {
 
       const client = getOpenAIClient();
 
-      // OpenAI SDK expects a File-like object in some runtimes; in Node it supports a Blob.
-      const blob = new Blob([file.buffer], { type: file.mimetype || 'application/octet-stream' });
+      // OpenAI expects a File-like object with a filename; use Node's File.
+      const filename = file.originalname || 'audio.webm';
+      const upload = new NodeFile([file.buffer], filename, { type: file.mimetype || 'application/octet-stream' });
 
       const resp = await client.audio.transcriptions.create({
         model,
-        file: blob as any,
+        file: upload as any,
         language,
       });
 
