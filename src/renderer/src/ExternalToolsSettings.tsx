@@ -5,7 +5,11 @@ import { executeMossyTool } from './MossyTools';
 import type { Settings } from '../../shared/types';
 import { ToolsInstallVerifyPanel } from './components/ToolsInstallVerifyPanel';
 
-const ExternalToolsSettings: React.FC = () => {
+type ExternalToolsSettingsProps = {
+  embedded?: boolean;
+};
+
+const ExternalToolsSettings: React.FC<ExternalToolsSettingsProps> = ({ embedded = false }) => {
   const [settings, setSettings] = useState<Settings | null>(null);
   const [draft, setDraft] = useState<Partial<Settings>>({});
   const [saving, setSaving] = useState(false);
@@ -433,26 +437,66 @@ const ExternalToolsSettings: React.FC = () => {
     return '✅ CONFIGURED';
   };
 
-  return (
-    <div className="h-full flex flex-col bg-[#0d1117] text-slate-200 font-sans overflow-hidden">
-      <div className="p-4 border-b border-slate-700 bg-slate-900 flex justify-between items-center z-10 shadow-md">
-        <div>
-          <h2 className="text-xl font-bold text-white flex items-center gap-3">
-            <Wrench className="w-6 h-6 text-emerald-400" /> External Tools Settings
-          </h2>
-          <p className="text-xs text-slate-400 font-mono mt-1">Configure paths to common modding tools</p>
-        </div>
-        <div className="flex gap-2">
-          <button onClick={autoDetect} className="px-4 py-2 bg-purple-900/40 hover:bg-purple-800/60 border border-purple-500 rounded text-xs font-bold flex items-center gap-2 transition-all">
-            <Zap className="w-4 h-4" /> Auto-Detect from Scan
-          </button>
-          <button onClick={save} disabled={saving} className="px-4 py-2 bg-emerald-700 hover:bg-emerald-600 border border-emerald-500 rounded text-xs font-bold flex items-center gap-2 transition-all disabled:opacity-50">
-            <Save className="w-4 h-4" /> Save Settings
-          </button>
-        </div>
-      </div>
+  const containerClassName = embedded
+    ? 'flex flex-col bg-[#0d1117] text-slate-200 font-sans'
+    : 'h-full flex flex-col bg-[#0d1117] text-slate-200 font-sans overflow-hidden';
 
-      <div className="flex-1 overflow-auto p-6">
+  const contentClassName = embedded ? 'p-4' : 'flex-1 overflow-auto p-6';
+
+  return (
+    <div className={containerClassName}>
+      {!embedded && (
+        <div className="p-4 border-b border-slate-700 bg-slate-900 flex justify-between items-center z-10 shadow-md">
+          <div>
+            <h2 className="text-xl font-bold text-white flex items-center gap-3">
+              <Wrench className="w-6 h-6 text-emerald-400" /> External Tools Settings
+            </h2>
+            <p className="text-xs text-slate-400 font-mono mt-1">Configure paths to common modding tools</p>
+          </div>
+          <div className="flex gap-2">
+            <Link
+              to="/reference"
+              className="px-3 py-2 text-[10px] font-black uppercase tracking-widest rounded bg-emerald-900/20 border border-emerald-500/30 text-emerald-100 hover:bg-emerald-900/30 transition-colors"
+              title="Open help"
+            >
+              Help
+            </Link>
+            <button onClick={autoDetect} className="px-4 py-2 bg-purple-900/40 hover:bg-purple-800/60 border border-purple-500 rounded text-xs font-bold flex items-center gap-2 transition-all">
+              <Zap className="w-4 h-4" /> Auto-Detect from Scan
+            </button>
+            <button onClick={save} disabled={saving} className="px-4 py-2 bg-emerald-700 hover:bg-emerald-600 border border-emerald-500 rounded text-xs font-bold flex items-center gap-2 transition-all disabled:opacity-50">
+              <Save className="w-4 h-4" /> Save Settings
+            </button>
+          </div>
+        </div>
+      )}
+
+      <div className={contentClassName}>
+        {embedded && (
+          <div className="mb-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+            <div>
+              <h2 className="text-lg font-bold text-white flex items-center gap-2">
+                <Wrench className="w-5 h-5 text-emerald-400" /> External Tools Settings
+              </h2>
+              <p className="text-xs text-slate-400 font-mono mt-1">Configure paths to common modding tools</p>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <button
+                onClick={autoDetect}
+                className="px-3 py-2 bg-purple-900/40 hover:bg-purple-800/60 border border-purple-500 rounded text-xs font-bold flex items-center gap-2 transition-all"
+              >
+                <Zap className="w-4 h-4" /> Auto-Detect from Scan
+              </button>
+              <button
+                onClick={save}
+                disabled={saving}
+                className="px-3 py-2 bg-emerald-700 hover:bg-emerald-600 border border-emerald-500 rounded text-xs font-bold flex items-center gap-2 transition-all disabled:opacity-50"
+              >
+                <Save className="w-4 h-4" /> Save Settings
+              </button>
+            </div>
+          </div>
+        )}
         <ToolsInstallVerifyPanel
           accentClassName="text-emerald-300"
           description="Use this page to point Mossy at the tools you already have installed. The app does not bundle these executables for you."
@@ -470,11 +514,6 @@ const ExternalToolsSettings: React.FC = () => {
             'If Browse/Test Launch does nothing, you may be missing the desktop bridge; use the packaged Electron app.',
             'If Save warns about file type, ensure you selected the tool’s .exe (not a folder or shortcut).' 
           ]}
-          shortcuts={[
-            { label: 'Workshop', to: '/workshop' },
-            { label: 'Assembler', to: '/assembler' },
-            { label: 'Diagnostics', to: '/diagnostics' },
-          ]}
         />
 
         <div className="mb-6 grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -490,12 +529,6 @@ const ExternalToolsSettings: React.FC = () => {
               >
                 Add to Knowledge Search Roots
               </button>
-              <Link
-                to="/learn/knowledge"
-                className="px-3 py-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded text-[11px] font-bold"
-              >
-                Open Knowledge Search
-              </Link>
             </div>
             <div className="mt-2 text-[10px] text-slate-500">
               Default path: external/nvidia-cosmos/cosmos-transfer2.5
@@ -514,12 +547,6 @@ const ExternalToolsSettings: React.FC = () => {
               >
                 Add to Knowledge Search Roots
               </button>
-              <Link
-                to="/learn/knowledge"
-                className="px-3 py-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded text-[11px] font-bold"
-              >
-                Open Knowledge Search
-              </Link>
             </div>
             <div className="mt-2 text-[10px] text-slate-500">
               Default path: external/nvidia-cosmos/cosmos-predict2.5
@@ -538,12 +565,6 @@ const ExternalToolsSettings: React.FC = () => {
               >
                 Add to Knowledge Search Roots
               </button>
-              <Link
-                to="/learn/knowledge"
-                className="px-3 py-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded text-[11px] font-bold"
-              >
-                Open Knowledge Search
-              </Link>
             </div>
             <div className="mt-2 text-[10px] text-slate-500">
               Default path: external/nvidia-cosmos/cosmos-cookbook
@@ -562,12 +583,6 @@ const ExternalToolsSettings: React.FC = () => {
               >
                 Add to Knowledge Search Roots
               </button>
-              <Link
-                to="/learn/knowledge"
-                className="px-3 py-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded text-[11px] font-bold"
-              >
-                Open Knowledge Search
-              </Link>
             </div>
             <div className="mt-2 text-[10px] text-slate-500">
               Default path: external/nvidia-cosmos/cosmos-rl
@@ -586,12 +601,6 @@ const ExternalToolsSettings: React.FC = () => {
               >
                 Add to Knowledge Search Roots
               </button>
-              <Link
-                to="/learn/knowledge"
-                className="px-3 py-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded text-[11px] font-bold"
-              >
-                Open Knowledge Search
-              </Link>
             </div>
             <div className="mt-2 text-[10px] text-slate-500">
               Default path: external/nvidia-cosmos/cosmos-dependencies
@@ -610,12 +619,6 @@ const ExternalToolsSettings: React.FC = () => {
               >
                 Add to Knowledge Search Roots
               </button>
-              <Link
-                to="/learn/knowledge"
-                className="px-3 py-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded text-[11px] font-bold"
-              >
-                Open Knowledge Search
-              </Link>
             </div>
             <div className="mt-2 text-[10px] text-slate-500">
               Default path: external/nvidia-cosmos/cosmos-curate
@@ -634,12 +637,6 @@ const ExternalToolsSettings: React.FC = () => {
               >
                 Add to Knowledge Search Roots
               </button>
-              <Link
-                to="/learn/knowledge"
-                className="px-3 py-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded text-[11px] font-bold"
-              >
-                Open Knowledge Search
-              </Link>
             </div>
             <div className="mt-2 text-[10px] text-slate-500">
               Default path: external/nvidia-cosmos/cosmos-xenna
@@ -658,12 +655,6 @@ const ExternalToolsSettings: React.FC = () => {
               >
                 Add via Folder Picker
               </button>
-              <Link
-                to="/learn/knowledge"
-                className="px-3 py-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded text-[11px] font-bold"
-              >
-                Open Knowledge Search
-              </Link>
             </div>
             <div className="mt-2 text-[10px] text-slate-500">
               Each user picks their own folder path (not shared or synced).

@@ -201,8 +201,8 @@ I've built a comprehensive guide covering script injection, ESP patches, spawn b
         context: {
           suggestions: [
             { label: 'Leveled List Injection Guide', route: '/leveled-list-injection' },
-            { label: 'Template Generator', route: '/template-generator' },
-            { label: 'Script Analyzer', route: '/script-analyzer' }
+            { label: 'Template Generator', route: '/devtools' },
+            { label: 'Script Analyzer', route: '/devtools' }
           ]
         }
       };
@@ -295,7 +295,7 @@ I've built a comprehensive guide covering script injection, ESP patches, spawn b
       if (lowerQuery.includes('script') || lowerQuery.includes('gameplay')) {
         return {
           content: `Gameplay/Script Compatibility Checklist\n\n1) F4SE: Declare minimum version when used\n2) MCM: Add toggles and safety options\n3) Updates: Prefer RegisterForSingleUpdate over tight loops\n4) Events: Use event-driven patterns (OnInit/OnQuestStart/etc.)\n5) Caching: Store refs/values; avoid repeated lookups\n6) Survival: Don’t force survival settings; respect user configs\n7) Performance: Profile in Live Game Monitor\n8) Errors: Guard None refs; add try/catch-like checks\n9) Load Order: Avoid overwriting vanilla unnecessarily`,
-          context: { suggestions: [ { label: 'Live Game Monitor', route: '/game-monitor' }, { label: 'Template Generator', route: '/template-generator' }, { label: 'Popular Mods Database', route: '/popular-mods' } ] }
+          context: { suggestions: [ { label: 'Live Game Monitor', route: '/game-monitor' }, { label: 'Template Generator', route: '/devtools' }, { label: 'Popular Mods Database', route: '/popular-mods' } ] }
         };
       }
       if (lowerQuery.includes('3d') || lowerQuery.includes('mesh')) {
@@ -409,7 +409,7 @@ RegisterForUpdate(1.0)
 Want me to analyze your specific script? Use the Script Analyzer tool or paste your code here!`,
         context: {
           suggestions: [
-            { label: 'Open Script Analyzer', route: '/script-analyzer' },
+            { label: 'Open Script Analyzer', route: '/devtools' },
             { label: 'View Common Patterns', query: 'Show common Papyrus patterns' },
             { label: 'Debug Checklist', query: 'Papyrus debug checklist' }
           ]
@@ -515,7 +515,7 @@ Want me to analyze your specific assets? Use the Performance Predictor!`,
       // General Papyrus help
       return {
         content: `I can help with Papyrus! What do you want to do?\n\n**Common Tasks:**\n- Detect when player enters area → Use OnCellAttach or OnTriggerEnter\n- Give player items → Game.GetPlayer().AddItem(ItemForm, Count)\n- Start quest stage → MyQuest.SetStage(10)\n- Spawn actors → PlaceActorAtMe(ActorBase)\n- Teleport player → Game.GetPlayer().MoveTo(MarkerRef)\n- Damage actor → SomeActor.DamageValue(ActorValue.Health, 50)\n\nOr try the Template Generator for instant code!`,
-        context: { suggestions: [ { label: 'Template Generator', route: '/template-generator' }, { label: 'Quick Reference', route: '/reference' }, { label: 'Popular Mods Database', route: '/popular-mods' } ] }
+        context: { suggestions: [ { label: 'Template Generator', route: '/devtools' }, { label: 'Quick Reference', route: '/reference' }, { label: 'Popular Mods Database', route: '/popular-mods' } ] }
       };
     }
 

@@ -3,10 +3,11 @@ import { Users, GitBranch, GitCommit, GitPullRequest, Share2, UserPlus, X } from
 import { CollaborationSession, Collaborator, VersionControlConfig } from '../../shared/types';
 
 interface CollaborationManagerProps {
+  embedded?: boolean;
   onClose?: () => void;
 }
 
-export const CollaborationManager: React.FC<CollaborationManagerProps> = ({ onClose }) => {
+export const CollaborationManager: React.FC<CollaborationManagerProps> = ({ embedded = false, onClose }) => {
   const [sessions, setSessions] = useState<CollaborationSession[]>([]);
   const [currentSession, setCurrentSession] = useState<CollaborationSession | null>(null);
   const [gitConfig, setGitConfig] = useState<VersionControlConfig | null>(null);
@@ -159,8 +160,10 @@ export const CollaborationManager: React.FC<CollaborationManagerProps> = ({ onCl
     );
   }
 
+  const containerClassName = embedded ? 'p-4 space-y-6' : 'p-6 space-y-6';
+
   return (
-    <div className="p-6 space-y-6">
+    <div className={containerClassName}>
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
           <Users className="w-6 h-6 text-green-400" />

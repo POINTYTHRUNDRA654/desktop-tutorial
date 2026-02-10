@@ -1,12 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { Zap, Package, Hammer, Radio, Github, Wrench, Database, Mic, Volume2, Activity, AlertCircle, CheckCircle2, Library } from 'lucide-react';
-import AvatarCore from './AvatarCore';
+import { Zap, Wrench, Database, Mic, Volume2, Activity, AlertCircle, CheckCircle2 } from 'lucide-react';
 import { useLive } from './LiveContext';
 import { ToolsInstallVerifyPanel } from './components/ToolsInstallVerifyPanel';
-import { mossyAvatarUrl } from './assets/avatar';
-
-const DEFAULT_MOSSY_AVATAR_URL = mossyAvatarUrl;
 
 interface Insight {
   id: string;
@@ -201,9 +197,17 @@ const TheNexus: React.FC = () => {
                 </h1>
             <p className="text-emerald-400 text-xs tracking-[0.3em] font-bold mt-2">NEURAL ENVIRONMENT • 1.0.4-STABLE</p>
             </div>
-          <div className={`px-4 py-2 border rounded-full text-[10px] font-bold tracking-widest transition-all ${bridgeStatus ? 'bg-emerald-500/10 border-emerald-500 text-emerald-400' : 'bg-red-500/10 border-red-500 text-red-400'}`}>
-                {bridgeStatus ? 'UPLINK SYNCED' : 'UPLINK REQUIRED'}
-            </div>
+          <div className="flex items-center gap-3">
+            <Link
+              to="/reference"
+              className="px-3 py-2 border border-emerald-500/30 text-[10px] font-black uppercase tracking-widest text-emerald-300 rounded-lg bg-emerald-500/10 hover:bg-emerald-500/20 transition-colors"
+            >
+              Help
+            </Link>
+            <div className={`px-4 py-2 border rounded-full text-[10px] font-bold tracking-widest transition-all ${bridgeStatus ? 'bg-emerald-500/10 border-emerald-500 text-emerald-400' : 'bg-red-500/10 border-red-500 text-red-400'}`}>
+                  {bridgeStatus ? 'UPLINK SYNCED' : 'UPLINK REQUIRED'}
+              </div>
+          </div>
         </div>
 
         {/* Quick Health Strip */}
@@ -216,18 +220,11 @@ const TheNexus: React.FC = () => {
             <HealthBadge icon={Mic} label={`Mic (${health.micState})`} status={health.mic} detail="Microphone permission" />
             <HealthBadge icon={Volume2} label={`TTS (${health.ttsCount})`} status={health.tts} detail="speechSynthesis voices" />
           </div>
-          <Link
-            to="/diagnostics"
-            className="text-[10px] font-black uppercase tracking-widest text-emerald-300 border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 rounded-lg hover:bg-emerald-500/20 transition-colors"
-            title="Open Diagnostics"
-          >
-            Diagnostics
-          </Link>
         </div>
 
         <ToolsInstallVerifyPanel
           accentClassName="text-emerald-300"
-          description="The Nexus is your home dashboard: it shows health signals (Electron, storage, bridge, mic/tts) and routes you to the right tools."
+          description="The Nexus is your home dashboard: it shows health signals (Electron, storage, bridge, mic/tts) and keeps you oriented."
           tools={[]}
           verify={[
             'Confirm health badges render and reflect your environment.',
@@ -241,12 +238,6 @@ const TheNexus: React.FC = () => {
           troubleshooting={[
             'If Electron shows WARN/BAD, you may be running web mode or preload failed.',
             'If Mic/TTS show WARN, check permissions in your OS and retry.',
-          ]}
-          shortcuts={[
-            { label: 'Install Wizard', to: '/install-wizard' },
-            { label: 'Chat', to: '/chat' },
-            { label: 'Desktop Bridge', to: '/bridge' },
-            { label: 'Tool Settings', to: '/settings/tools' },
           ]}
         />
 
@@ -266,95 +257,6 @@ const TheNexus: React.FC = () => {
           </div>
         </div>
 
-        {/* Quick Jump Core Modules */}
-    <div className="mb-4">
-      <Link
-        to="/install-wizard"
-        className="group flex items-center justify-between bg-black/50 backdrop-blur-md border border-white/10 hover:border-emerald-500/60 p-5 transition-all rounded-xl relative overflow-hidden"
-      >
-        <div className="absolute top-0 left-0 w-1 h-0 group-hover:h-full bg-emerald-500 transition-all duration-300" />
-        <div className="flex items-center gap-4 min-w-0">
-          <div className="p-2 rounded-lg bg-emerald-500/10 border border-emerald-500/30">
-            <Wrench className="w-5 h-5 text-emerald-300" />
-          </div>
-          <div className="min-w-0">
-            <div className="text-xs font-black text-white uppercase tracking-widest mb-1">Install Wizard</div>
-            <div className="text-[10px] text-emerald-400/70 font-bold uppercase tracking-widest">
-              Step-by-step installs • xEdit • SS2 • PRP • patching
-            </div>
-          </div>
-        </div>
-        <div className="text-[10px] font-black uppercase tracking-widest text-emerald-300 border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 rounded-lg group-hover:bg-emerald-500/20 transition-colors">
-          Open
-        </div>
-      </Link>
-    </div>
-
-    <div className="mb-4">
-      <Link
-        to="/community"
-        className="group flex items-center justify-between bg-black/50 backdrop-blur-md border border-white/10 hover:border-emerald-500/60 p-5 transition-all rounded-xl relative overflow-hidden"
-      >
-        <div className="absolute top-0 left-0 w-1 h-0 group-hover:h-full bg-emerald-500 transition-all duration-300" />
-        <div className="flex items-center gap-4 min-w-0">
-          <div className="p-2 rounded-lg bg-emerald-500/10 border border-emerald-500/30">
-            <Github className="w-5 h-5 text-emerald-300" />
-          </div>
-          <div className="min-w-0">
-            <div className="text-xs font-black text-white uppercase tracking-widest mb-1">Community Learning</div>
-            <div className="text-[10px] text-emerald-400/70 font-bold uppercase tracking-widest">
-              Teach Mossy your modding goals • optional GitHub submission
-            </div>
-          </div>
-        </div>
-        <div className="text-[10px] font-black uppercase tracking-widest text-emerald-300 border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 rounded-lg group-hover:bg-emerald-500/20 transition-colors">
-          Open
-        </div>
-      </Link>
-    </div>
-
-    <div className="mb-4">
-      <Link
-        to="/platforms"
-        className="group flex items-center justify-between bg-black/50 backdrop-blur-md border border-white/10 hover:border-emerald-500/60 p-5 transition-all rounded-xl relative overflow-hidden"
-      >
-        <div className="absolute top-0 left-0 w-1 h-0 group-hover:h-full bg-emerald-500 transition-all duration-300" />
-        <div className="flex items-center gap-4 min-w-0">
-          <div className="p-2 rounded-lg bg-emerald-500/10 border border-emerald-500/30">
-            <Library className="w-5 h-5 text-emerald-300" />
-          </div>
-          <div className="min-w-0">
-            <div className="text-xs font-black text-white uppercase tracking-widest mb-1">Platforms Hub</div>
-            <div className="text-[10px] text-emerald-400/70 font-bold uppercase tracking-widest">
-              Crash triage • Packaging • CK quests & dialogue
-            </div>
-          </div>
-        </div>
-        <div className="text-[10px] font-black uppercase tracking-widest text-emerald-300 border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 rounded-lg group-hover:bg-emerald-500/20 transition-colors">
-          Open
-        </div>
-      </Link>
-    </div>
-
-        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3 sm:gap-4 mt-8">
-            {[
-                { label: 'Neural Link', path: '/neural-link', icon: Zap, detail: 'Process Monitor' },
-                { label: 'The Workshop', path: '/workshop', icon: Hammer, detail: 'Script Compiler' },
-                { label: 'The Vault', path: '/vault', icon: Package, detail: 'Asset Explorer' },
-                { label: 'Live Synapse', path: '/live', icon: Radio, detail: 'Voice Uplink' }
-            ].map((module, idx) => (
-                <Link 
-                    key={idx} 
-                    to={module.path}
-                  className="group bg-black/40 backdrop-blur-md border border-white/5 hover:border-emerald-500/50 p-6 transition-all rounded-xl relative overflow-hidden"
-                >
-                  <div className="absolute top-0 left-0 w-1 h-0 group-hover:h-full bg-emerald-500 transition-all duration-300" />
-                  <module.icon className="w-5 h-5 text-emerald-400 mb-4 group-hover:scale-110 transition-transform" />
-                    <div className="text-xs font-black text-white uppercase tracking-widest mb-1">{module.label}</div>
-                  <div className="text-[9px] text-emerald-400/50 font-bold uppercase tracking-widest">{module.detail}</div>
-                </Link>
-            ))}
-        </div>
       </div>
     </div>
   );

@@ -41,12 +41,47 @@ bl_info = {
     "support": "COMMUNITY",
 }
 
+
+class MossyLinkPreferences(bpy.types.AddonPreferences):
+    bl_idname = __name__
+
+    port: bpy.props.IntProperty(
+        name="Port",
+        description="Port that Mossy connects to",
+        default=9999,
+        min=1024,
+        max=65535,
+    )
+    token: bpy.props.StringProperty(
+        name="Access Token",
+        description="Optional shared secret to authorize Mossy connections",
+        default="",
+        subtype='PASSWORD',
+    )
+    autostart: bpy.props.BoolProperty(
+        name="Autostart",
+        description="Start Mossy Link when Blender launches",
+        default=True,
+    )
+
+    def draw(self, context):
+        layout = self.layout
+        layout.prop(self, "port")
+        layout.prop(self, "token")
+        layout.prop(self, "autostart")
+
+
+def _get_prefs():
+    addon = bpy.context.preferences.addons.get(__name__)
+    return addon.preferences if addon else None
+
 class MossyLinkServer:
     """Socket server for receiving and executing Mossy commands"""
     
-    def __init__(self, host='127.0.0.1', port=9999):
+    def __init__(self, host='127.0.0.1', port=9999, token=""):
         self.host = host
         self.port = port
+        self.token = token
         self.socket = None
         self.running = False
         self.thread = None
@@ -105,32 +140,44 @@ class MossyLinkServer:
     
     def _handle_client(self):
         """Handle a single client connection"""
+        buffer = ""
         try:
             while self.running:
                 # Receive command
                 data = self.client_socket.recv(16384).decode('utf-8')
                 if not data:
                     break
-                
-                print(f"[Mossy Link] Received data: {data[:200]}..." if len(data) > 200 else f"[Mossy Link] Received data: {data}")
-                
-                try:
-                    command = json.loads(data)
-                    print(f"[Mossy Link] Parsed command type: {command.get('type', 'unknown')}")
-                    result = self._execute_command(command)
-                    print(f"[Mossy Link] Command result: {result[:100]}..." if len(str(result)) > 100 else f"[Mossy Link] Command result: {result}")
-                    response = json.dumps({"success": True, "result": result})
-                except json.JSONDecodeError as e:
-                    print(f"[Mossy Link] JSON decode error: {e}")
-                    response = json.dumps({"success": False, "error": f"Invalid JSON: {str(e)}"})
-                except Exception as e:
-                    print(f"[Mossy Link] Command execution error: {e}")
-                    response = json.dumps({"success": False, "error": str(e), "trace": traceback.format_exc()})
-                
-                # Send response
-                print(f"[Mossy Link] Sending response: {response[:200]}..." if len(response) > 200 else f"[Mossy Link] Sending response: {response}")
-                self.client_socket.sendall(response.encode('utf-8'))
-                
+                buffer += data
+
+                while "\n" in buffer:
+                    line, buffer = buffer.split("\n", 1)
+                    line = line.strip()
+                    if not line:
+                        continue
+
+                    print(f"[Mossy Link] Received data: {line[:200]}..." if len(line) > 200 else f"[Mossy Link] Received data: {line}")
+
+                    try:
+                        command = json.loads(line)
+                        command = self._normalize_command(command)
+                        if not self._authorize(command):
+                            response = json.dumps({"success": False, "error": "Unauthorized"})
+                        else:
+                            print(f"[Mossy Link] Parsed command type: {command.get('type', 'unknown')}")
+                            result = self._execute_command(command)
+                            print(f"[Mossy Link] Command result: {result[:100]}..." if len(str(result)) > 100 else f"[Mossy Link] Command result: {result}")
+                            response = json.dumps({"success": True, "result": result})
+                    except json.JSONDecodeError as e:
+                        print(f"[Mossy Link] JSON decode error: {e}")
+                        response = json.dumps({"success": False, "error": f"Invalid JSON: {str(e)}"})
+                    except Exception as e:
+                        print(f"[Mossy Link] Command execution error: {e}")
+                        response = json.dumps({"success": False, "error": str(e), "trace": traceback.format_exc()})
+
+                    # Send response
+                    print(f"[Mossy Link] Sending response: {response[:200]}..." if len(response) > 200 else f"[Mossy Link] Sending response: {response}")
+                    self.client_socket.sendall((response + "\n").encode('utf-8'))
+
         except Exception as e:
             print(f"[Mossy Link] Client handler error: {e}")
         finally:
@@ -138,6 +185,46 @@ class MossyLinkServer:
                 self.client_socket.close()
             except:
                 pass
+
+    def _authorize(self, command):
+        if not self.token:
+            return True
+        return command.get('token') == self.token
+
+    def _normalize_command(self, command):
+        if 'type' in command:
+            return command
+
+        cmd = command.get('command')
+        args = command.get('args', {}) if isinstance(command.get('args', {}), dict) else {}
+        if not cmd:
+            return command
+
+        if cmd == 'script':
+            return {'type': 'script', 'code': args.get('code', ''), 'token': command.get('token')}
+        if cmd == 'text':
+            return {
+                'type': 'text',
+                'code': args.get('code', ''),
+                'name': args.get('name', 'MOSSY_SCRIPT'),
+                'run': bool(args.get('run', False)),
+                'token': command.get('token'),
+            }
+        if cmd == 'property':
+            return {'type': 'property', 'path': args.get('path', ''), 'token': command.get('token')}
+        if cmd == 'status':
+            return {'type': 'status', 'token': command.get('token')}
+        if cmd == 'select':
+            return {'type': 'select', 'name': args.get('name', ''), 'token': command.get('token')}
+        if cmd == 'create':
+            return {
+                'type': 'create',
+                'type_arg': args.get('type', 'MESH'),
+                'name': args.get('name', 'Object'),
+                'token': command.get('token'),
+            }
+
+        return command
     
     def _execute_command(self, command):
         """Execute a command from Mossy"""
@@ -158,7 +245,8 @@ class MossyLinkServer:
         elif cmd_type == 'select':
             return self._select_object(command.get('name', ''))
         elif cmd_type == 'create':
-            return self._create_object(command.get('type', 'MESH'), command.get('name', 'Object'))
+            obj_type = command.get('type_arg', command.get('type', 'MESH'))
+            return self._create_object(obj_type, command.get('name', 'Object'))
         else:
             raise ValueError(f"Unknown command type: {cmd_type}")
     
@@ -312,6 +400,8 @@ class MOSSY_PT_MainPanel(bpy.types.Panel):
     def draw(self, context):
         layout = self.layout
         wm = context.window_manager
+        prefs = _get_prefs()
+        port = prefs.port if prefs else 9999
         
         layout.label(text="AI Assistant Integration", icon='PREFERENCES')
         
@@ -319,7 +409,7 @@ class MOSSY_PT_MainPanel(bpy.types.Panel):
         if wm.mossy_link_active:
             box.label(text="✓ Active", icon='CHECKMARK')
             box.label(text="Status: Connected", icon='LINKED')
-            box.label(text="Listening on: 127.0.0.1:9999")
+            box.label(text=f"Listening on: 127.0.0.1:{port}")
         else:
             box.label(text="○ Inactive", icon='CHECKBOX_DEHLT')
         
@@ -336,6 +426,9 @@ class WM_OT_MossyLinkToggle(bpy.types.Operator):
     def execute(self, context):
         global mossy_server
         wm = context.window_manager
+        prefs = _get_prefs()
+        port = prefs.port if prefs else 9999
+        token = prefs.token if prefs else ""
         
         if wm.mossy_link_active:
             # Stop server
@@ -346,10 +439,10 @@ class WM_OT_MossyLinkToggle(bpy.types.Operator):
             self.report({'INFO'}, "Mossy Link disconnected")
         else:
             # Start server
-            mossy_server = MossyLinkServer('127.0.0.1', 9999)
+            mossy_server = MossyLinkServer('127.0.0.1', port, token)
             if mossy_server.start():
                 wm.mossy_link_active = True
-                self.report({'INFO'}, "Mossy Link connected (port 9999)")
+                self.report({'INFO'}, f"Mossy Link connected (port {port})")
             else:
                 self.report({'ERROR'}, "Failed to start Mossy Link server")
                 mossy_server = None
@@ -388,10 +481,17 @@ def _start_server_deferred():
     """Start server with a timer so it doesn't block Blender initialization"""
     global mossy_server
     try:
-        mossy_server = MossyLinkServer('127.0.0.1', 9999)
+        prefs = _get_prefs()
+        port = prefs.port if prefs else 9999
+        token = prefs.token if prefs else ""
+        if prefs and not prefs.autostart:
+            print("[Mossy Link] Autostart disabled; server not started")
+            return None
+
+        mossy_server = MossyLinkServer('127.0.0.1', port, token)
         if mossy_server.start():
-            bpy.types.WindowManager.mossy_link_active = True
-            print("[Mossy Link] Add-on v5.0 server started on port 9999")
+            bpy.context.window_manager.mossy_link_active = True
+            print(f"[Mossy Link] Add-on v5.0 server started on port {port}")
         else:
             print("[Mossy Link] Warning: Could not start server (port may be in use)")
     except Exception as e:

@@ -3,7 +3,11 @@ import styles from './GuideStyles.module.css';
 import { ExternalLink } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
-export default function SimSettlementsAddonToolkitsGuide() {
+type SimSettlementsAddonToolkitsGuideProps = {
+  embedded?: boolean;
+};
+
+export default function SimSettlementsAddonToolkitsGuide({ embedded = false }: SimSettlementsAddonToolkitsGuideProps) {
   const navigate = useNavigate();
   const [expandedSections, setExpandedSections] = useState<{ [key: string]: boolean }>({});
 
@@ -53,15 +57,24 @@ export default function SimSettlementsAddonToolkitsGuide() {
     openUrl(url);
   };
 
+  const containerClassName = styles.guideContainer || styles.container;
+  const containerStyle: React.CSSProperties = {
+    maxWidth: embedded ? '100%' : undefined,
+    padding: embedded ? '1.25rem' : undefined,
+    minHeight: embedded ? 'auto' : undefined
+  };
+
   return (
-    <div className={styles.guideContainer}>
-      <div className={styles.header}>
-        <h1 className={styles.mainTitle}>Sim Settlements 2: Add-On Toolkits & Tutorials</h1>
-        <p className={styles.versionInfo}>Complete Resource Guide v1.0</p>
-        <p className={styles.scopeInfo}>
-          Essential resources, toolkits, and tutorials for creating Sim Settlements 2 add-on content
-        </p>
-      </div>
+    <div className={containerClassName} style={containerStyle}>
+      {!embedded && (
+        <div className={styles.header}>
+          <h1 className={styles.mainTitle}>Sim Settlements 2: Add-On Toolkits & Tutorials</h1>
+          <p className={styles.versionInfo}>Complete Resource Guide v1.0</p>
+          <p className={styles.scopeInfo}>
+            Essential resources, toolkits, and tutorials for creating Sim Settlements 2 add-on content
+          </p>
+        </div>
+      )}
 
       <div className={styles.contentBlock}>
         <h3>Tools / Install / Verify (No Guesswork)</h3>
@@ -74,12 +87,14 @@ export default function SimSettlementsAddonToolkitsGuide() {
           <button style={{ background: 'rgba(0, 255, 0, 0.08)', border: '1px solid #00d000', color: '#00ff00', padding: '0.35rem 0.6rem', borderRadius: 4, cursor: 'pointer', fontFamily: 'Courier New, monospace', fontSize: '0.85rem' }} onClick={() => openNexusSearch("Add-On Maker's Toolkit")}>Nexus search: Toolkit</button>
           <button style={{ background: 'rgba(0, 255, 0, 0.08)', border: '1px solid #00d000', color: '#00ff00', padding: '0.35rem 0.6rem', borderRadius: 4, cursor: 'pointer', fontFamily: 'Courier New, monospace', fontSize: '0.85rem' }} onClick={() => openNexusSearch('FO4Edit')}>Nexus search: FO4Edit</button>
         </div>
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem', marginTop: '0.75rem' }}>
-          <button style={{ background: 'rgba(0, 255, 0, 0.08)', border: '1px solid #00d000', color: '#00ff00', padding: '0.35rem 0.6rem', borderRadius: 4, cursor: 'pointer', fontFamily: 'Courier New, monospace', fontSize: '0.85rem' }} onClick={() => navigate('/install-wizard')}>In-app: Install Wizard</button>
-          <button style={{ background: 'rgba(0, 255, 0, 0.08)', border: '1px solid #00d000', color: '#00ff00', padding: '0.35rem 0.6rem', borderRadius: 4, cursor: 'pointer', fontFamily: 'Courier New, monospace', fontSize: '0.85rem' }} onClick={() => navigate('/ck-quest-dialogue')}>In-app: CK Wizard</button>
-          <button style={{ background: 'rgba(0, 255, 0, 0.08)', border: '1px solid #00d000', color: '#00ff00', padding: '0.35rem 0.6rem', borderRadius: 4, cursor: 'pointer', fontFamily: 'Courier New, monospace', fontSize: '0.85rem' }} onClick={() => navigate('/packaging-release')}>In-app: Packaging</button>
-          <button style={{ background: 'rgba(0, 255, 0, 0.08)', border: '1px solid #00d000', color: '#00ff00', padding: '0.35rem 0.6rem', borderRadius: 4, cursor: 'pointer', fontFamily: 'Courier New, monospace', fontSize: '0.85rem' }} onClick={() => navigate('/vault')}>In-app: The Vault</button>
-        </div>
+        {!embedded && (
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem', marginTop: '0.75rem' }}>
+            <button style={{ background: 'rgba(0, 255, 0, 0.08)', border: '1px solid #00d000', color: '#00ff00', padding: '0.35rem 0.6rem', borderRadius: 4, cursor: 'pointer', fontFamily: 'Courier New, monospace', fontSize: '0.85rem' }} onClick={() => navigate('/install-wizard')}>In-app: Install Wizard</button>
+            <button style={{ background: 'rgba(0, 255, 0, 0.08)', border: '1px solid #00d000', color: '#00ff00', padding: '0.35rem 0.6rem', borderRadius: 4, cursor: 'pointer', fontFamily: 'Courier New, monospace', fontSize: '0.85rem' }} onClick={() => navigate('/ck-quest-dialogue')}>In-app: CK Wizard</button>
+            <button style={{ background: 'rgba(0, 255, 0, 0.08)', border: '1px solid #00d000', color: '#00ff00', padding: '0.35rem 0.6rem', borderRadius: 4, cursor: 'pointer', fontFamily: 'Courier New, monospace', fontSize: '0.85rem' }} onClick={() => navigate('/packaging-release')}>In-app: Packaging</button>
+            <button style={{ background: 'rgba(0, 255, 0, 0.08)', border: '1px solid #00d000', color: '#00ff00', padding: '0.35rem 0.6rem', borderRadius: 4, cursor: 'pointer', fontFamily: 'Courier New, monospace', fontSize: '0.85rem' }} onClick={() => navigate('/vault')}>In-app: The Vault</button>
+          </div>
+        )}
       </div>
 
       {/* Introduction */}

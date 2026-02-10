@@ -31,12 +31,20 @@ const SystemBus: React.FC = () => {
             };
             
             try {
-                const existing = JSON.parse(localStorage.getItem('mossy_bridge_logs') || '[]');
+                let existing: any[] = [];
+                try {
+                    existing = JSON.parse(localStorage.getItem('mossy_bridge_logs') || '[]');
+                } catch (parseErr) {
+                    console.warn('[SystemBus] Clearing corrupted mossy_bridge_logs:', parseErr);
+                    existing = [];
+                }
                 const updated = [...existing.slice(-49), newLog]; // Keep last 50
                 localStorage.setItem('mossy_bridge_logs', JSON.stringify(updated));
                 // Dispatch storage event for other tabs/components
                 window.dispatchEvent(new Event('storage'));
-            } catch (e) { console.error(e); }
+            } catch (e) {
+                console.error(e);
+            }
         };
 
         const handleBlenderCmd = (e: CustomEvent) => {

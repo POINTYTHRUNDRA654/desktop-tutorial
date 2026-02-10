@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import { Plus, ChevronRight, FileText, Trash2, Settings, CheckCircle2, Clock, AlertCircle, TrendingUp, FolderOpen, Zap } from 'lucide-react';
 import { ModProjectStorage } from './services/ModProjectStorage';
 import type { ModProject, ModProjectListItem, CreateModProjectInput, ModType } from './types/ModProject';
@@ -12,7 +13,11 @@ interface CreateModalState {
   author: string;
 }
 
-const ModProjectManager: React.FC = () => {
+type ModProjectManagerProps = {
+  embedded?: boolean;
+};
+
+const ModProjectManager: React.FC<ModProjectManagerProps> = ({ embedded = false }) => {
   const [projects, setProjects] = useState<ModProjectListItem[]>([]);
   const [currentMod, setCurrentMod] = useState<ModProject | null>(null);
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
@@ -124,8 +129,12 @@ const ModProjectManager: React.FC = () => {
 
   // --- RENDER: LIST VIEW ---
   if (activeView === 'list') {
+    const containerClassName = embedded
+      ? 'flex flex-col bg-[#0c0a09] text-slate-200 font-sans p-4'
+      : 'h-full flex flex-col bg-[#0c0a09] text-slate-200 font-sans overflow-hidden';
+
     return (
-      <div className="h-full flex flex-col bg-[#0c0a09] text-slate-200 font-sans overflow-hidden">
+      <div className={containerClassName}>
         {/* Header */}
         <div className="p-6 border-b border-stone-800 bg-[#1c1917] flex justify-between items-center z-10">
           <div>
@@ -135,13 +144,23 @@ const ModProjectManager: React.FC = () => {
             </h1>
             <p className="text-xs text-stone-500 font-mono mt-1">Create and manage your modding projects</p>
           </div>
-          <button
-            onClick={() => setActiveView('create')}
-            className="flex items-center gap-2 px-4 py-2 bg-amber-700 hover:bg-amber-600 text-white font-bold rounded-lg transition-all"
-          >
-            <Plus className="w-5 h-5" />
-            New Mod
-          </button>
+          <div className="flex items-center gap-2">
+            {!embedded && (
+              <Link
+                to="/reference"
+                className="px-3 py-2 border border-amber-500/30 text-[10px] font-black uppercase tracking-widest text-amber-200 rounded-lg bg-amber-500/10 hover:bg-amber-500/20 transition-colors"
+              >
+                Help
+              </Link>
+            )}
+            <button
+              onClick={() => setActiveView('create')}
+              className="flex items-center gap-2 px-4 py-2 bg-amber-700 hover:bg-amber-600 text-white font-bold rounded-lg transition-all"
+            >
+              <Plus className="w-5 h-5" />
+              New Mod
+            </button>
+          </div>
         </div>
 
         {/* Projects Grid */}
@@ -161,12 +180,6 @@ const ModProjectManager: React.FC = () => {
             troubleshooting={[
               'If projects disappear after refresh, verify you are not in a private/cleared storage mode.',
               'If you feel stuck, reduce scope to the smallest testable change and iterate.'
-            ]}
-            shortcuts={[
-              { label: 'The Vault', to: '/vault' },
-              { label: 'Packaging Wizard', to: '/packaging-release' },
-              { label: 'Crash Triage', to: '/crash-triage' },
-              { label: 'Tool Settings', to: '/settings/tools' },
             ]}
           />
 
@@ -256,18 +269,31 @@ const ModProjectManager: React.FC = () => {
   // --- RENDER: CREATE VIEW ---
   if (activeView === 'create') {
     const modTypes: ModType[] = ['weapon', 'armor', 'quest', 'settlement', 'gameplay', 'texture', 'mesh', 'script', 'other'];
+    const containerClassName = embedded
+      ? 'flex flex-col bg-[#0c0a09] text-slate-200 font-sans p-4'
+      : 'h-full flex flex-col bg-[#0c0a09] text-slate-200 font-sans overflow-hidden';
 
     return (
-      <div className="h-full flex flex-col bg-[#0c0a09] text-slate-200 font-sans overflow-hidden">
+      <div className={containerClassName}>
         {/* Header */}
         <div className="p-6 border-b border-stone-800 bg-[#1c1917] flex justify-between items-center z-10">
           <h1 className="text-2xl font-bold text-stone-200">Create New Mod Project</h1>
-          <button
-            onClick={() => setActiveView('list')}
-            className="px-4 py-2 text-stone-400 hover:text-stone-200 font-bold rounded-lg transition-all"
-          >
-            Cancel
-          </button>
+          <div className="flex items-center gap-2">
+            {!embedded && (
+              <Link
+                to="/reference"
+                className="px-3 py-2 border border-amber-500/30 text-[10px] font-black uppercase tracking-widest text-amber-200 rounded-lg bg-amber-500/10 hover:bg-amber-500/20 transition-colors"
+              >
+                Help
+              </Link>
+            )}
+            <button
+              onClick={() => setActiveView('list')}
+              className="px-4 py-2 text-stone-400 hover:text-stone-200 font-bold rounded-lg transition-all"
+            >
+              Cancel
+            </button>
+          </div>
         </div>
 
         {/* Form */}
@@ -374,6 +400,7 @@ const ModProjectManager: React.FC = () => {
 
     return (
       <DetailView
+        embedded={embedded}
         project={project}
         stats={stats}
         onBack={() => {
@@ -395,13 +422,14 @@ const ModProjectManager: React.FC = () => {
 // --- DETAIL VIEW COMPONENT ---
 
 interface DetailViewProps {
+  embedded?: boolean;
   project: ModProject;
   stats: any;
   onBack: () => void;
   onRefresh: () => void;
 }
 
-const DetailView: React.FC<DetailViewProps> = ({ project, stats, onBack, onRefresh }) => {
+const DetailView: React.FC<DetailViewProps> = ({ embedded = false, project, stats, onBack, onRefresh }) => {
   const [activeTab, setActiveTab] = useState<'overview' | 'steps' | 'settings'>('overview');
   const [editingName, setEditingName] = useState(false);
   const [newStepTitle, setNewStepTitle] = useState('');
@@ -460,8 +488,12 @@ const DetailView: React.FC<DetailViewProps> = ({ project, stats, onBack, onRefre
     }
   };
 
+  const containerClassName = embedded
+    ? 'flex flex-col bg-[#0c0a09] text-slate-200 font-sans p-4'
+    : 'h-full flex flex-col bg-[#0c0a09] text-slate-200 font-sans overflow-hidden';
+
   return (
-    <div className="h-full flex flex-col bg-[#0c0a09] text-slate-200 font-sans overflow-hidden">
+    <div className={containerClassName}>
       {/* Header */}
       <div className="p-6 border-b border-stone-800 bg-[#1c1917] flex justify-between items-center z-10">
         <div className="flex items-center gap-4">
@@ -477,6 +509,14 @@ const DetailView: React.FC<DetailViewProps> = ({ project, stats, onBack, onRefre
           </div>
         </div>
         <div className="flex items-center gap-2">
+          {!embedded && (
+            <Link
+              to="/reference"
+              className="px-3 py-2 border border-amber-500/30 text-[10px] font-black uppercase tracking-widest text-amber-200 rounded-lg bg-amber-500/10 hover:bg-amber-500/20 transition-colors"
+            >
+              Help
+            </Link>
+          )}
           <select
             value={project.status}
             onChange={(e) => handleUpdateProjectStatus(e.target.value)}

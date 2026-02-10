@@ -1,4 +1,5 @@
 import React from 'react';
+import { Link } from 'react-router-dom';
 import { Coffee, Heart, DollarSign, Github, ExternalLink } from 'lucide-react';
 import { ToolsInstallVerifyPanel } from './components/ToolsInstallVerifyPanel';
 
@@ -8,7 +9,7 @@ export const DonationSupport: React.FC = () => {
       <div className="flex-1 overflow-y-auto p-6">
         <div className="max-w-3xl mx-auto space-y-6">
           {/* Header */}
-          <div className="text-center space-y-3 pb-6 border-b border-slate-700/50">
+          <div className="text-center space-y-3 pb-6 border-b border-slate-700/50 relative">
             <div className="flex justify-center">
               <Coffee className="w-16 h-16 text-amber-500" />
             </div>
@@ -16,6 +17,15 @@ export const DonationSupport: React.FC = () => {
             <p className="text-slate-300 text-lg">
               Help keep your Fallout 4 modding companion caffeinated and running! ☕
             </p>
+            <div className="absolute right-0 top-0">
+              <Link
+                to="/reference"
+                className="px-3 py-2 text-[10px] font-black uppercase tracking-widest rounded-lg bg-amber-900/20 border border-amber-500/30 text-amber-100 hover:bg-amber-900/30 transition-colors"
+                title="Open help"
+              >
+                Help
+              </Link>
+            </div>
           </div>
 
           <ToolsInstallVerifyPanel
@@ -27,11 +37,6 @@ export const DonationSupport: React.FC = () => {
             ]}
             troubleshooting={[
               'If links do not open, check Diagnostics and confirm openExternal is available (desktop bridge) or allow popups in your environment.'
-            ]}
-            shortcuts={[
-              { label: 'Community Learning', to: '/community' },
-              { label: 'Privacy Settings', to: '/settings/privacy' },
-              { label: 'Diagnostics', to: '/diagnostics' },
             ]}
           />
 

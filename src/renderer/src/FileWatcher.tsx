@@ -118,7 +118,7 @@ export const FileWatcher: React.FC = () => {
         title: 'Script Files Detected',
         message: `You're working on ${scriptFiles.length} Papyrus script${scriptFiles.length > 1 ? 's' : ''}. I can analyze them for errors.`,
         action: 'Analyze Scripts',
-        route: '/script-analyzer'
+        route: '/devtools'
       });
     }
 

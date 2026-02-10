@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import { Code, Upload, AlertTriangle, CheckCircle2, XCircle, Info, FileCode, Zap } from 'lucide-react';
 import { openExternal } from './utils/openExternal';
 
@@ -20,8 +20,11 @@ interface AnalysisResult {
   lineCount: number;
 }
 
-export const ScriptAnalyzer: React.FC = () => {
-  const navigate = useNavigate();
+type ScriptAnalyzerProps = {
+  embedded?: boolean;
+};
+
+export const ScriptAnalyzer: React.FC<ScriptAnalyzerProps> = ({ embedded = false }) => {
   const [scriptContent, setScriptContent] = useState('');
   const [fileName, setFileName] = useState('');
   const [analysis, setAnalysis] = useState<AnalysisResult | null>(null);
@@ -279,16 +282,35 @@ export const ScriptAnalyzer: React.FC = () => {
     }
   };
 
+  const containerClassName = embedded
+    ? 'bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 overflow-hidden flex flex-col p-4'
+    : 'h-full bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 overflow-hidden flex flex-col';
+
+  const headerClassName = embedded
+    ? 'p-4 border-b border-slate-700 bg-slate-800/50'
+    : 'p-6 border-b border-slate-700 bg-slate-800/50';
+
   return (
-    <div className="h-full bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 overflow-hidden flex flex-col">
+    <div className={containerClassName}>
       {/* Header */}
-      <div className="p-6 border-b border-slate-700 bg-slate-800/50">
-        <div className="flex items-center gap-3 mb-4">
-          <Code className="w-8 h-8 text-purple-400" />
-          <div>
-            <h1 className="text-2xl font-bold text-white">Papyrus Script Analyzer</h1>
-            <p className="text-sm text-slate-400">Detect issues, optimize performance, validate syntax</p>
+      <div className={headerClassName}>
+        <div className="flex items-start justify-between gap-4 mb-4">
+          <div className="flex items-center gap-3">
+            <Code className="w-8 h-8 text-purple-400" />
+            <div>
+              <h1 className="text-2xl font-bold text-white">Papyrus Script Analyzer</h1>
+              <p className="text-sm text-slate-400">Detect issues, optimize performance, validate syntax</p>
+            </div>
           </div>
+          {!embedded && (
+            <Link
+              to="/reference"
+              className="px-3 py-2 text-[10px] font-black uppercase tracking-widest rounded-lg bg-purple-900/30 border border-purple-500/30 text-purple-100 hover:bg-purple-900/40 transition-colors"
+              title="Open help"
+            >
+              Help
+            </Link>
+          )}
         </div>
 
         <div className="mb-4 bg-slate-900/60 border border-slate-700 rounded-lg p-4">
@@ -302,9 +324,6 @@ export const ScriptAnalyzer: React.FC = () => {
             <div className="flex flex-wrap gap-2 pt-1">
               <button className="px-3 py-1 rounded bg-slate-800 hover:bg-slate-700 text-xs text-white" onClick={() => openUrl('https://store.steampowered.com/search/?term=Creation%20Kit%20Fallout%204')}>Steam search: Creation Kit</button>
               <button className="px-3 py-1 rounded bg-slate-800 hover:bg-slate-700 text-xs text-white" onClick={() => openNexusSearch('FO4Edit')}>Nexus search: FO4Edit</button>
-              <button className="px-3 py-1 rounded bg-slate-800 hover:bg-slate-700 text-xs text-white" onClick={() => navigate('/ck-quest-dialogue')}>In-app: CK Wizard</button>
-              <button className="px-3 py-1 rounded bg-slate-800 hover:bg-slate-700 text-xs text-white" onClick={() => navigate('/packaging-release')}>In-app: Packaging</button>
-              <button className="px-3 py-1 rounded bg-slate-800 hover:bg-slate-700 text-xs text-white" onClick={() => navigate('/paperscript')}>In-app: PaperScript</button>
             </div>
           </div>
         </div>

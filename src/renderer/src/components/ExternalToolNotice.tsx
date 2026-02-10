@@ -1,6 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { ExternalLink, Settings as SettingsIcon, Play } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
+import { ExternalLink, Play } from 'lucide-react';
 import type { Settings } from '../../../shared/types';
 
 export type ToolKey = 'xeditPath' | 'nifSkopePath' | 'fomodCreatorPath' | 'creationKitPath' | 'blenderPath';
@@ -22,7 +21,6 @@ const ExternalToolNotice: React.FC<ExternalToolNoticeProps> = ({
 }) => {
   const [settings, setSettings] = useState<Settings | null>(null);
   const [launching, setLaunching] = useState(false);
-  const navigate = useNavigate();
 
   useEffect(() => {
     const init = async () => {
@@ -90,15 +88,13 @@ const ExternalToolNotice: React.FC<ExternalToolNoticeProps> = ({
               <Play className="w-3 h-3" /> Launch
             </button>
           )}
-          <button
-            onClick={() => navigate('/settings/tools')}
-            className="px-2 py-1 bg-slate-800 hover:bg-slate-700 border border-slate-600 rounded text-[11px] font-bold flex items-center gap-1 transition-all"
-            title={`Configure ${toolName} path`}
-          >
-            <SettingsIcon className="w-3 h-3" /> Configure
-          </button>
         </div>
       </div>
+      {!canLaunch && (
+        <div className="mt-2 text-[11px] text-slate-400">
+          Configure this tool in Settings &gt; Tools.
+        </div>
+      )}
       {description && (
         <p className="mt-2 text-slate-300">{description}</p>
       )}

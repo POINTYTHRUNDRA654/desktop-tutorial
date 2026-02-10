@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { Link } from 'react-router-dom';
 import {
   Play,
   Plus,
@@ -513,6 +514,13 @@ const WorkflowRunner: React.FC = () => {
             </p>
           </div>
           <div className="flex gap-2">
+            <Link
+              to="/reference"
+              className="px-3 py-2 text-[10px] font-black uppercase tracking-widest rounded bg-emerald-900/20 border border-emerald-500/30 text-emerald-100 hover:bg-emerald-900/30 transition-colors"
+              title="Open help"
+            >
+              Help
+            </Link>
             <button
               onClick={() => exportWorkflows().catch(() => {})}
               className="px-3 py-2 rounded bg-slate-800 hover:bg-slate-700 border border-slate-700 text-xs font-semibold flex items-center gap-2"
