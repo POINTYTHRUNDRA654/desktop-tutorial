@@ -2,7 +2,8 @@ import React, { useEffect, useRef, useState } from 'react';
 import ExternalToolNotice from './components/ExternalToolNotice';
 import { ToolsInstallVerifyPanel } from './components/ToolsInstallVerifyPanel';
 import ProjectWizard from './components/ProjectWizard';
-import { Scan, FileWarning, CheckCircle2, AlertTriangle, FileImage, Box, FileCode, Search, Wrench, ArrowRight, ShieldCheck, RefreshCw, XCircle, File, MessageSquare } from 'lucide-react';
+import { Scan, CheckCircle2, AlertTriangle, FileImage, Box, FileCode, Search, Wrench, ArrowRight, ShieldCheck, RefreshCw, XCircle, File } from 'lucide-react';
+import { Link } from 'react-router-dom';
 import { useWheelScrollProxyFrom } from './components/useWheelScrollProxy';
 import { workerManager } from './WorkerManager';
 import { cacheManager } from './CacheManager';
@@ -60,10 +61,6 @@ const TheAuditor: React.FC = () => {
             }
         }
         throw new Error('Could not read file');
-    };
-
-    const go = (path: string) => {
-        window.dispatchEvent(new CustomEvent('mossy-control', { detail: { action: 'navigate', payload: { path } } }));
     };
 
     const openUrl = (url: string) => {
@@ -516,11 +513,6 @@ const TheAuditor: React.FC = () => {
         }, 1200);
     };
 
-    const discussWithMossy = () => {
-        // Trigger navigation to Chat
-        window.dispatchEvent(new CustomEvent('mossy-control', { detail: { action: 'navigate', payload: { path: '/chat' } } }));
-    };
-
     return (
         <div data-testid="auditor-section" className="h-full flex flex-col bg-[#0d1117] text-slate-200 font-sans overflow-hidden min-h-0" onWheel={wheelProxy}>
             {/* Info Banner */}
@@ -564,12 +556,6 @@ const TheAuditor: React.FC = () => {
                             'If AI advice is empty, confirm your API key is configured and try again.',
                             'If uploads do nothing, you may be running without native file picker support.',
                         ]}
-                        shortcuts={[
-                            { label: 'Tool Settings', to: '/settings/tools' },
-                            { label: 'Workshop', to: '/workshop' },
-                            { label: 'Chat', to: '/chat' },
-                            { label: 'Diagnostics', to: '/diagnostics' },
-                        ]}
                     />
 
                     <div className="flex flex-col gap-4">
@@ -577,47 +563,6 @@ const TheAuditor: React.FC = () => {
                             wizardId="audit-fixer" 
                             onActionComplete={(res) => setMossyAdvice(res.message)}
                         />
-                        <div className="bg-slate-900/60 border border-slate-800 rounded-xl p-4">
-                            <div className="text-sm font-semibold text-white mb-1">Existing Workflow (Legacy)</div>
-                            <div className="text-xs text-slate-400 mb-3">Quick access to uploads + audit run.</div>
-                            <div className="flex flex-wrap gap-2">
-                            <button
-                                onClick={handleFileUpload}
-                                className="px-3 py-2 bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold rounded border border-blue-700/40"
-                            >
-                                Upload ESP
-                            </button>
-                            <button
-                                onClick={handleMeshUpload}
-                                className="px-3 py-2 bg-purple-600 hover:bg-purple-500 text-white text-xs font-bold rounded border border-purple-700/40"
-                            >
-                                Upload NIF
-                            </button>
-                            <button
-                                onClick={handleTextureUpload}
-                                className="px-3 py-2 bg-pink-600 hover:bg-pink-500 text-white text-xs font-bold rounded border border-pink-700/40"
-                            >
-                                Upload DDS
-                            </button>
-                            <button
-                                onClick={handleMaterialUpload}
-                                className="px-3 py-2 bg-orange-600 hover:bg-orange-500 text-white text-xs font-bold rounded border border-orange-700/40"
-                            >
-                                Upload BGSM
-                            </button>
-                            <button
-                                onClick={runAudit}
-                                disabled={isScanning}
-                                className={`px-3 py-2 rounded text-xs font-bold border transition-colors ${
-                                    isScanning
-                                        ? 'bg-slate-800 border-slate-700 text-slate-500 cursor-not-allowed'
-                                        : 'bg-emerald-600 hover:bg-emerald-500 border-emerald-700/40 text-white'
-                                }`}
-                            >
-                                Run Audit
-                            </button>
-                        </div>
-                    </div>
                 </div>
             </div>
         </div>
@@ -631,6 +576,13 @@ const TheAuditor: React.FC = () => {
                     </h2>
                     <p className="text-xs text-slate-400 font-mono mt-1">Asset Integrity & Code Compliance</p>
                 </div>
+                <Link
+                    to="/reference"
+                    className="px-3 py-2 text-[10px] font-black uppercase tracking-widest rounded-lg bg-emerald-900/20 border border-emerald-500/30 text-emerald-100 hover:bg-emerald-900/30 transition-colors"
+                    title="Open help"
+                >
+                    Help
+                </Link>
                 <div className="flex gap-4 items-center">
                     {isScanning && (
                         <div className="w-48">
@@ -729,32 +681,6 @@ const TheAuditor: React.FC = () => {
                         <div className="px-4 pb-3 bg-slate-900 flex flex-col gap-2">
                             <ExternalToolNotice toolKey="xeditPath" toolName="xEdit / FO4Edit" nexusUrl="https://www.nexusmods.com/fallout4/mods/2737" description="Clean plugins (ITM/UDR), resolve conflicts, and generate patches." />
                             <ExternalToolNotice toolKey="nifSkopePath" toolName="NifSkope" nexusUrl="https://github.com/niftools/nifskope/releases" description="Inspect and fix NIFs: materials, collision, texture paths, and more." />
-                            <div className="flex flex-wrap gap-2">
-                                <button
-                                    onClick={() => go('/settings/tools')}
-                                    className="px-3 py-2 bg-slate-800 hover:bg-slate-700 border border-slate-600 rounded text-xs font-bold"
-                                >
-                                    Tool Settings
-                                </button>
-                                <button
-                                    onClick={() => go('/workshop')}
-                                    className="px-3 py-2 bg-slate-800 hover:bg-slate-700 border border-slate-600 rounded text-xs font-bold"
-                                >
-                                    Workshop
-                                </button>
-                                <button
-                                    onClick={() => go('/vault')}
-                                    className="px-3 py-2 bg-slate-800 hover:bg-slate-700 border border-slate-600 rounded text-xs font-bold"
-                                >
-                                    The Vault
-                                </button>
-                                <button
-                                    onClick={() => go('/packaging-release')}
-                                    className="px-3 py-2 bg-slate-800 hover:bg-slate-700 border border-slate-600 rounded text-xs font-bold"
-                                >
-                                    Packaging & Release
-                                </button>
-                            </div>
                         </div>
 
             <div className="flex-1 min-h-0 flex overflow-hidden">
@@ -818,14 +744,6 @@ const TheAuditor: React.FC = () => {
                                         </div>
                                     </div>
                                     <div className="flex items-center gap-2">
-                                        {selectedFile.issues.length > 0 && (
-                                            <button 
-                                                onClick={discussWithMossy}
-                                                className="flex items-center gap-2 px-4 py-2 bg-purple-900/30 hover:bg-purple-900/50 border border-purple-500/30 rounded-lg text-sm text-purple-300 font-bold transition-colors"
-                                            >
-                                                <MessageSquare className="w-4 h-4" /> Discuss with Mossy
-                                            </button>
-                                        )}
                                         <div className={`px-4 py-2 rounded-lg font-bold text-sm border ${
                                             selectedFile.status === 'clean' ? 'bg-emerald-900/20 text-emerald-400 border-emerald-500/30' :
                                             selectedFile.status === 'error' ? 'bg-red-900/20 text-red-400 border-red-500/30' :

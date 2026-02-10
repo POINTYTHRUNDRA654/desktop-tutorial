@@ -9,6 +9,7 @@
  */
 
 import React, { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import {
   Brain,
   AlertTriangle,
@@ -32,7 +33,10 @@ import {
   MemoryAnalysis,
   CompatibilityMatrix,
   AnalysisData,
-  PatternRecognitionResult
+  PatternRecognitionResult,
+  HardwareProfile,
+  PerformanceData,
+  MemoryData
 } from '../../shared/types';
 
 interface AdvancedAnalysisPanelProps {
@@ -50,10 +54,19 @@ export const AdvancedAnalysisPanel: React.FC<AdvancedAnalysisPanelProps> = ({ on
     compatibility?: CompatibilityMatrix;
   }>({});
 
+  const defaultHardwareProfile: HardwareProfile = {
+    cpu: { model: 'Unknown', cores: 8, threads: 16, baseClock: 3.5, boostClock: 4.2, cache: 16 },
+    gpu: { model: 'Unknown', vram: 8192, driverVersion: 'unknown', dxVersion: '12', rayTracing: false },
+    ram: { total: 32768, speed: 3200, type: 'DDR4', channels: 2 },
+    storage: { type: 'SSD', readSpeed: 3500, writeSpeed: 3000, totalSpace: 1000000, availableSpace: 500000 },
+    os: { name: 'Windows', version: 'unknown', architecture: 'x64' }
+  };
+
   // Get analysis engine from electron API
   const getAnalysisEngine = async (): Promise<AdvancedAnalysisEngine | null> => {
-    if (window.electronAPI?.getAdvancedAnalysisEngine) {
-      return await window.electronAPI.getAdvancedAnalysisEngine();
+    const api = (window as any).electronAPI;
+    if (typeof api?.getAdvancedAnalysisEngine === 'function') {
+      return await api.getAdvancedAnalysisEngine();
     }
     return null;
   };
@@ -71,12 +84,7 @@ export const AdvancedAnalysisPanel: React.FC<AdvancedAnalysisPanelProps> = ({ on
         performanceMetrics: [],
         conflicts: [],
         loadOrder: [],
-        systemInfo: {
-          cpu: { cores: 8, threads: 16, frequency: 3.5 },
-          gpu: { vram: 8192, type: 'RTX 3070' },
-          ram: 32768,
-          storage: { type: 'SSD', size: 1000000 }
-        }
+        systemInfo: defaultHardwareProfile
       };
 
       const result = await engine.patternRecognition.analyze(analysisData);
@@ -122,14 +130,9 @@ export const AdvancedAnalysisPanel: React.FC<AdvancedAnalysisPanelProps> = ({ on
       const engine = await getAnalysisEngine();
       if (!engine?.bottleneckMining) return;
 
-      const performanceData = {
+      const performanceData: PerformanceData = {
         metrics: [], // TODO: Get from performance monitoring
-        systemInfo: {
-          cpu: { cores: 8, threads: 16, frequency: 3.5 },
-          gpu: { vram: 8192, type: 'RTX 3070' },
-          ram: 32768,
-          storage: { type: 'SSD', size: 1000000 }
-        },
+        systemInfo: defaultHardwareProfile,
         loadOrder: [],
         sessionDuration: 3600
       };
@@ -150,17 +153,23 @@ export const AdvancedAnalysisPanel: React.FC<AdvancedAnalysisPanelProps> = ({ on
       const engine = await getAnalysisEngine();
       if (!engine?.memoryAnalysis) return;
 
-      const memoryData = {
+      const memoryData: MemoryData = {
         vramSnapshots: [],
         ramSnapshots: [],
         modLoadOrder: [],
         sessionInfo: {
+          sessionId: `session_${Date.now()}`,
           startTime: Date.now() - 3600000,
           endTime: Date.now(),
           mods: [],
           peakVRAM: 4096,
           peakRAM: 16384,
-          averageFPS: 45
+          averageFPS: 45,
+          initialLoadOrder: [],
+          finalLoadOrder: [],
+          performanceSnapshots: [],
+          events: [],
+          userActions: []
         }
       };
 
@@ -216,6 +225,13 @@ export const AdvancedAnalysisPanel: React.FC<AdvancedAnalysisPanelProps> = ({ on
           Advanced Analysis Engine
         </h2>
         <div className="panel-controls">
+          <Link
+            to="/reference"
+            className="control-button"
+            title="Open help"
+          >
+            Help
+          </Link>
           <button
             className="control-button"
             onClick={() => tabs.find(t => t.id === activeTab)?.action()}
@@ -259,7 +275,7 @@ export const AdvancedAnalysisPanel: React.FC<AdvancedAnalysisPanelProps> = ({ on
                     {analysisResults.patterns.patterns.map((pattern, idx) => (
                       <div key={idx} className="pattern-item">
                         <span className="pattern-type">{pattern.type}</span>
-                        <span className="pattern-confidence">{Math.round(pattern.confidence * 100)}%</span>
+                        <span className="pattern-confidence">Frequency: {pattern.frequency}</span>
                       </div>
                     ))}
                   </div>
@@ -311,9 +327,9 @@ export const AdvancedAnalysisPanel: React.FC<AdvancedAnalysisPanelProps> = ({ on
                       </div>
 
                       <div className="conflict-types">
-                        {prediction.conflictTypes.map((type, typeIdx) => (
+                        {prediction.conflictTypes.map((conflictType, typeIdx) => (
                           <span key={typeIdx} className="conflict-type">
-                            {type.type}
+                            {conflictType}
                           </span>
                         ))}
                       </div>
@@ -321,7 +337,7 @@ export const AdvancedAnalysisPanel: React.FC<AdvancedAnalysisPanelProps> = ({ on
                       <div className="recommendations">
                         <h5>Recommendations:</h5>
                         <ul>
-                          {prediction.recommendations.map((rec, recIdx) => (
+                          {prediction.mitigationStrategies.map((rec, recIdx) => (
                             <li key={recIdx}>{rec}</li>
                           ))}
                         </ul>
@@ -356,17 +372,17 @@ export const AdvancedAnalysisPanel: React.FC<AdvancedAnalysisPanelProps> = ({ on
                 <div className="result-card">
                   <h4>Performance Bottlenecks</h4>
                   <div className="bottlenecks-list">
-                    {analysisResults.bottlenecks.bottlenecks.map((bottleneck, idx) => (
+                    {[...analysisResults.bottlenecks.primaryBottlenecks, ...analysisResults.bottlenecks.secondaryBottlenecks].map((bottleneck, idx) => (
                       <div key={idx} className="bottleneck-item">
                         <div className="bottleneck-header">
-                          <span className="mod-name">{bottleneck.modName}</span>
-                          <span className="impact">-{bottleneck.impact} FPS</span>
+                          <span className="mod-name">{bottleneck.affectedMods.join(', ') || 'Unknown mods'}</span>
+                          <span className="impact">-{bottleneck.impact.fps} FPS</span>
                         </div>
                         <div className="bottleneck-details">
-                          <span className="bottleneck-type">{bottleneck.bottleneckType}</span>
+                          <span className="bottleneck-type">{bottleneck.type}</span>
                           <div className="mitigation-strategies">
                             {bottleneck.mitigationStrategies.map((strategy, stratIdx) => (
-                              <span key={stratIdx} className="strategy">{strategy}</span>
+                              <span key={stratIdx} className="strategy">{strategy.description}</span>
                             ))}
                           </div>
                         </div>
@@ -382,7 +398,7 @@ export const AdvancedAnalysisPanel: React.FC<AdvancedAnalysisPanelProps> = ({ on
                       <div key={idx} className="opportunity-item">
                         <div className="opportunity-header">
                           <span className="opp-type">{opp.type}</span>
-                          <span className="potential-gain">+{opp.potentialGain} FPS</span>
+                          <span className="potential-gain">+{opp.potentialGain.fps} FPS</span>
                         </div>
                         <p className="opp-description">{opp.description}</p>
                         <div className="affected-mods">
@@ -432,14 +448,14 @@ export const AdvancedAnalysisPanel: React.FC<AdvancedAnalysisPanelProps> = ({ on
                     <div className="stat-item">
                       <MemoryStick className="stat-icon" />
                       <div className="stat-details">
-                        <span className="stat-value">{Math.round(analysisResults.memory.ramUsage.total)} MB</span>
+                        <span className="stat-value">{Math.round(analysisResults.memory.systemRamUsage.total)} MB</span>
                         <span className="stat-label">Total RAM</span>
                       </div>
                     </div>
                     <div className="stat-item">
                       <TrendingDown className="stat-icon" />
                       <div className="stat-details">
-                        <span className="stat-value">{Math.round(analysisResults.memory.ramUsage.peakUsage)} MB</span>
+                        <span className="stat-value">{Math.round(analysisResults.memory.systemRamUsage.peakUsage)} MB</span>
                         <span className="stat-label">Peak Usage</span>
                       </div>
                     </div>

@@ -12,11 +12,12 @@ interface VoiceRequirement {
 }
 
 interface VoiceSetupWizardProps {
-  onComplete: () => void;
-  onSkip: () => void;
+  onComplete?: () => void;
+  onSkip?: () => void;
+  embedded?: boolean;
 }
 
-export const VoiceSetupWizard: React.FC<VoiceSetupWizardProps> = ({ onComplete, onSkip }) => {
+export const VoiceSetupWizard: React.FC<VoiceSetupWizardProps> = ({ onComplete = () => {}, onSkip = () => {}, embedded = false }) => {
   const [requirements, setRequirements] = useState<VoiceRequirement[]>([]);
   const [isChecking, setIsChecking] = useState(true);
   const [currentFixing, setCurrentFixing] = useState<string | null>(null);
@@ -220,9 +221,17 @@ export const VoiceSetupWizard: React.FC<VoiceSetupWizardProps> = ({ onComplete, 
   const allOk = requirements.every(r => r.status === 'ok');
   const hasIssues = requirements.some(r => r.status === 'missing' || r.status === 'error');
 
+  const wrapperClass = embedded
+    ? 'bg-slate-900/95 border border-slate-700 rounded-2xl p-6'
+    : 'fixed inset-0 bg-black/95 z-50 flex items-center justify-center p-8';
+
+  const cardClass = embedded
+    ? 'w-full'
+    : 'max-w-2xl w-full max-h-[90vh] overflow-y-auto bg-slate-900/95 backdrop-blur-sm border border-slate-700 rounded-2xl p-8 shadow-2xl';
+
   return (
-    <div className="fixed inset-0 bg-black/95 z-50 flex items-center justify-center p-8">
-      <div className="max-w-2xl w-full max-h-[90vh] overflow-y-auto bg-slate-900/95 backdrop-blur-sm border border-slate-700 rounded-2xl p-8 shadow-2xl">
+    <div className={wrapperClass}>
+      <div className={cardClass}>
         <div className="text-center mb-8">
           <Volume2 className="w-16 h-16 mx-auto mb-4 text-blue-400" />
           <h1 className="text-3xl font-bold text-white mb-2">Voice Setup</h1>

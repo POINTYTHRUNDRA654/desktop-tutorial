@@ -317,6 +317,8 @@ export const ChatInterface: React.FC = () => {
 
     const appliedPrefillRef = useRef(false);
     const CHAT_PREFILL_KEY = 'mossy_chat_prefill_v1';
+    const CHAT_NOTES_SNAPSHOT = 12;
+    const CHAT_NOTES_MAX_CHARS = 8000;
 
   // Global Live State
   const { isActive: isLiveActive, isMuted: isLiveMuted, toggleMute: toggleLiveMute, disconnect: disconnectLive } = useLive();
@@ -553,6 +555,45 @@ export const ChatInterface: React.FC = () => {
   const activeSourceRef = useRef<AudioBufferSourceNode | null>(null);
   const lastSendTimeRef = useRef<number>(0); // Prevent rapid duplicate sends
   const modTagsRef = useRef<string[]>([]);
+
+  const getCurrentProjectStepSummary = () => {
+      try {
+          const current = ModProjectStorage.getCurrentMod();
+          if (!current) return '';
+          const inProgress = current.steps.find((step) => step.status === 'in-progress');
+          const pending = current.steps.find((step) => step.status === 'pending');
+          const nextStep = inProgress || pending;
+          if (!nextStep) return '';
+          const status = nextStep.status.replace('-', ' ');
+          const completed = current.steps.filter(s => s.status === 'completed').length;
+          return `Current Step: ${nextStep.title} (${status}) [${completed}/${current.steps.length}]`;
+      } catch {
+          return '';
+      }
+  };
+
+  const updateChatWorkingMemory = (history: Array<{ role: 'user' | 'assistant'; content: string }>) => {
+      const snapshot = history.slice(-CHAT_NOTES_SNAPSHOT);
+      if (snapshot.length === 0) return;
+
+      const blockStart = '--- CHAT SESSION NOTES ---';
+      const blockEnd = '--- END CHAT SESSION NOTES ---';
+      const stepSummary = getCurrentProjectStepSummary();
+      const notes = snapshot
+          .map((entry) => `${entry.role === 'user' ? 'User' : 'Mossy'}: ${entry.content}`)
+          .join('\n');
+      const stepLine = stepSummary ? `\n${stepSummary}` : '';
+      const nextBlock = `${blockStart}\n${notes}${stepLine}\n${blockEnd}`;
+
+      try {
+          const existing = localStorage.getItem('mossy_working_memory') || '';
+          const withoutBlock = existing.replace(new RegExp(`${blockStart}[\\s\\S]*?${blockEnd}`, 'g'), '').trim();
+          const merged = [withoutBlock, nextBlock].filter(Boolean).join('\n\n').slice(-CHAT_NOTES_MAX_CHARS);
+          localStorage.setItem('mossy_working_memory', merged);
+      } catch (e) {
+          console.warn('[ChatInterface] Failed to update working memory:', e);
+      }
+  };
 
     // Accept a one-time prefill (Install Wizard → Chat handoff, etc.)
     useEffect(() => {
@@ -934,7 +975,7 @@ export const ChatInterface: React.FC = () => {
       // Check if transcription is available
       const api = (window as any).electron?.api || (window as any).electronAPI;
       if (!api?.transcribeAudio) {
-          alert('Voice transcription is not available. Please configure OpenAI or Deepgram API keys in Settings.');
+          alert('Voice transcription is not available. Please configure an OpenAI API key in Settings.');
           return;
       }
       
@@ -967,7 +1008,7 @@ export const ChatInterface: React.FC = () => {
               if (silenceTimer) clearTimeout(silenceTimer);
               if (mediaStream) mediaStream.getTracks().forEach(t => t.stop());
               
-              // Send to Whisper or Deepgram for transcription
+              // Send to Whisper for transcription
               const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
               if (audioBlob.size < 100) {
                   console.log('[ChatInterface] Audio too small, ignoring');
@@ -981,7 +1022,7 @@ export const ChatInterface: React.FC = () => {
                   const api = (window as any).electron?.api || (window as any).electronAPI;
                   if (!api?.transcribeAudio) {
                       console.warn('[VoiceInput] transcribeAudio IPC not available - check if API keys are configured');
-                      alert('Voice transcription is not available. Please configure OpenAI or Deepgram API keys in Settings.');
+                      alert('Voice transcription is not available. Please configure an OpenAI API key in Settings.');
                       return;
                   } else {
                       console.log('[VoiceInput] Transcribing audio via main process... (size:', audioBlob.size, 'bytes)');
@@ -1035,7 +1076,7 @@ export const ChatInterface: React.FC = () => {
                     reason: 'no_transcription'
                   });
 
-                  alert('Voice transcription failed. If you want STT, configure OpenAI or Deepgram in Desktop settings, then try again.');
+                  alert('Voice transcription failed. If you want STT, configure OpenAI in Desktop settings, then try again.');
               }
           };
           
@@ -1626,12 +1667,17 @@ export const ChatInterface: React.FC = () => {
         return;
     }
 
-    const userMessage: Message = {
+        const userMessage: Message = {
       id: Date.now().toString(),
       role: 'user',
       content: textToSend,
       timestamp: Date.now()
     };
+
+        const localHistory: Array<{ role: 'user' | 'assistant'; content: string }> = [
+                ...messages.map((msg) => ({ role: msg.role, content: msg.content })),
+                { role: 'user', content: textToSend }
+        ];
 
     setMessages(prev => [...prev, userMessage]);
     setInputText('');
@@ -1675,13 +1721,14 @@ export const ChatInterface: React.FC = () => {
         setMessages(prev => prev.map(m => m.id === streamId ? { ...m, content: aiResponseText, citations } : m));
 
       // Save chat messages to auto-save manager
-      const assistantMessage: Message = {
+            const assistantMessage: Message = {
         id: streamId,
         role: 'assistant',
         content: aiResponseText,
         timestamp: Date.now()
       };
       autoSaveManager.saveChatMessage(assistantMessage);
+            updateChatWorkingMemory([...localHistory, { role: 'assistant', content: aiResponseText }]);
 
       // Record interaction for self-improvement
       const { selfImprovementEngine } = await import('./SelfImprovementEngine');
@@ -1762,27 +1809,6 @@ export const ChatInterface: React.FC = () => {
                 {isMonitoringPaused ? 'Monitoring Paused' : 'Monitoring On'}
             </div>
 
-            {knowledgeCount > 0 && (
-                <button
-                    type="button"
-                    onClick={() => {
-                        // Track navigation to memory vault
-                        trackEvent('navigation', {
-                            from: 'chat_interface',
-                            to: 'memory_vault',
-                            trigger: 'knowledge_vault_button',
-                            knowledgeCount: knowledgeCount
-                        });
-                        navigate('/memory-vault');
-                    }}
-                    className="hidden md:flex items-center gap-1.5 px-3 py-1 bg-emerald-900/20 border border-emerald-500/30 rounded-full text-xs text-emerald-300 animate-fade-in hover:bg-emerald-500/10 hover:border-emerald-400/40 transition-colors"
-                    title="Open Memory Vault (Knowledge Vault is loaded locally)"
-                    aria-label="Open Memory Vault"
-                >
-                    <Database className="w-3 h-3" />
-                    <span>Knowledge Vault: {knowledgeCount}</span>
-                </button>
-            )}
 
             {projectContext && (
                 <div className="hidden md:flex items-center gap-2 px-3 py-1 bg-slate-800 rounded-full border border-slate-600 text-xs">
@@ -1792,6 +1818,15 @@ export const ChatInterface: React.FC = () => {
             )}
         </div>
         <div className="flex gap-2 items-center">
+            <button
+                type="button"
+                onClick={() => navigate('/reference')}
+                className="hidden lg:flex items-center gap-2 px-3 py-1.5 rounded-lg border text-xs font-bold transition-all bg-emerald-900/20 border-emerald-500/40 text-emerald-300 hover:bg-emerald-900/40"
+                title="Open Help"
+            >
+                <HelpCircle className="w-4 h-4" />
+                Help
+            </button>
             
             {/* Context Locked to Fallout 4 */}
             <div className="hidden xl:flex items-center gap-2 mr-2 bg-slate-900 rounded-lg p-1 border border-slate-700 px-3 opacity-80 cursor-not-allowed" title="Version locked to Fallout 4">
@@ -1895,22 +1930,15 @@ export const ChatInterface: React.FC = () => {
                     tools={[]}
                     verify={[
                         'Send a short message and confirm you receive a response.',
-                        'If Knowledge Vault badge shows, click it and confirm the vault opens.',
+                        'Confirm citations can expand and collapse when sources are present.',
                     ]}
                     firstTestLoop={[
-                        'Run Install Wizard to detect tools (one time).',
                         'Ask Mossy for a tiny “hello world” FO4 mod plan (one record or one script).',
-                        'Execute exactly one action (generate text, analyze a file, or open a guide) and confirm the output is usable.',
+                        'Execute exactly one action (generate text or analyze a file) and confirm the output is usable.',
                     ]}
                     troubleshooting={[
                         'If responses fail, check Settings for API key/model configuration.',
                         'If desktop actions fail, confirm Desktop Bridge/Electron API is available.',
-                    ]}
-                    shortcuts={[
-                        { label: 'Install Wizard', to: '/install-wizard' },
-                        { label: 'Tool Settings', to: '/settings/tools' },
-                        { label: 'Memory Vault', to: '/memory-vault' },
-                        { label: 'Diagnostics', to: '/diagnostics' },
                     ]}
                 />
             </div>

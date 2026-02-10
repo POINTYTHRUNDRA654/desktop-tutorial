@@ -41,6 +41,10 @@
   --pipboy-text: #ffb84d;
   --pipboy-text-dim: #cc9033;
   --pipboy-glow: 0 0 20px rgba(230, 176, 74, 0.6);
+
+  /* Global wording style (non Pip-Boy mode) */
+  --app-text-font: 'Share Tech Mono', 'Orbitron', monospace;
+  --app-text-color: #cbd5e1;
 }
 
 body {
@@ -51,6 +55,38 @@ body {
   color: var(--text-primary);
   text-shadow: 0 0 5px rgba(0, 255, 0, 0.3);
   position: relative;
+}
+
+body:not(.pip-boy-mode) {
+  font-family: var(--app-text-font);
+  color: var(--app-text-color);
+  text-shadow: none;
+}
+
+body:not(.pip-boy-mode) :where(
+  p,
+  span,
+  div,
+  li,
+  label,
+  a,
+  button,
+  input,
+  textarea,
+  select,
+  small,
+  strong,
+  em,
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6
+) {
+  font-family: var(--app-text-font) !important;
+  color: var(--app-text-color) !important;
+  font-weight: 500;
 }
 
 /* Scrollbar Styling - Green Theme */

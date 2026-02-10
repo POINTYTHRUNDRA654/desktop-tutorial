@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { CheckCircle2, AlertTriangle, FolderOpen, Play, RefreshCw } from 'lucide-react';
 import { ToolsInstallVerifyPanel } from './components/ToolsInstallVerifyPanel';
 
@@ -39,7 +40,11 @@ const TOOLS: ToolDef[] = [
   { key: 'baePath', label: 'BAE (Bethesda Archive Extractor)', note: 'Extract BA2 archives.' },
 ];
 
-const ToolVerify: React.FC = () => {
+type ToolVerifyProps = {
+  embedded?: boolean;
+};
+
+const ToolVerify: React.FC<ToolVerifyProps> = ({ embedded = false }) => {
   const bridge = useMemo(() => getBridge(), []);
   const [settings, setSettings] = useState<any>(null);
   const [status, setStatus] = useState<string>('');
@@ -146,26 +151,37 @@ const ToolVerify: React.FC = () => {
     setStatus('revealInFolder not available.');
   };
 
+  const containerClassName = embedded ? 'bg-slate-950 p-4 text-slate-200' : 'min-h-screen bg-slate-950 p-8 pb-24 text-slate-200';
+
   return (
-    <div className="min-h-screen bg-slate-950 p-8 pb-24 text-slate-200">
+    <div className={containerClassName}>
       <div className="max-w-6xl mx-auto">
-        <div className="flex items-start justify-between gap-4 mb-6">
-          <div>
-            <h1 className="text-3xl font-bold text-white">Tool Verify</h1>
-            <p className="text-slate-400 mt-1 text-sm">
-              Point Mossy at your modding tools, verify paths, and do a quick test launch.
-            </p>
+        {!embedded && (
+          <div className="flex items-start justify-between gap-4 mb-6">
+            <div>
+              <h1 className="text-3xl font-bold text-white">Tool Verify</h1>
+              <p className="text-slate-400 mt-1 text-sm">
+                Point Mossy at your modding tools, verify paths, and do a quick test launch.
+              </p>
+            </div>
+            <div className="flex gap-2">
+              <Link
+                to="/reference"
+                className="px-3 py-2 text-[10px] font-black uppercase tracking-widest rounded bg-emerald-900/20 border border-emerald-500/30 text-emerald-100 hover:bg-emerald-900/30 transition-colors"
+                title="Open help"
+              >
+                Help
+              </Link>
+              <button
+                onClick={() => refreshToolChecks().catch(() => {})}
+                className="px-3 py-2 rounded bg-slate-800 hover:bg-slate-700 border border-slate-700 text-xs font-semibold flex items-center gap-2"
+                title="Re-check paths and versions"
+              >
+                <RefreshCw className="w-4 h-4" /> Refresh
+              </button>
+            </div>
           </div>
-          <div className="flex gap-2">
-            <button
-              onClick={() => refreshToolChecks().catch(() => {})}
-              className="px-3 py-2 rounded bg-slate-800 hover:bg-slate-700 border border-slate-700 text-xs font-semibold flex items-center gap-2"
-              title="Re-check paths and versions"
-            >
-              <RefreshCw className="w-4 h-4" /> Refresh
-            </button>
-          </div>
-        </div>
+        )}
 
         {status && <div className="text-xs text-slate-400 font-mono mb-4 break-words">{status}</div>}
 
@@ -200,10 +216,6 @@ const ToolVerify: React.FC = () => {
           troubleshooting={[
             'If you see “Desktop API not available”, you may be running the web build (no filesystem access).',
             'If a path exists but shows no version, that tool may not expose Windows version metadata.',
-          ]}
-          shortcuts={[
-            { label: 'External Tools Settings', to: '/settings/tools' },
-            { label: 'Diagnostics', to: '/diagnostics' },
           ]}
           accentClassName="text-emerald-300"
         />

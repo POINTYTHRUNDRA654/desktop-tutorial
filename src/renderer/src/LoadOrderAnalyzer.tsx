@@ -12,7 +12,11 @@ interface Plugin {
   overrides: number;
 }
 
-export const LoadOrderAnalyzer: React.FC = () => {
+type LoadOrderAnalyzerProps = {
+  embedded?: boolean;
+};
+
+export const LoadOrderAnalyzer: React.FC<LoadOrderAnalyzerProps> = ({ embedded = false }) => {
   const [plugins, setPlugins] = useState<Plugin[]>([]);
   const [loading, setLoading] = useState(false);
   const [autoRefresh, setAutoRefresh] = useState(false);
@@ -100,79 +104,85 @@ export const LoadOrderAnalyzer: React.FC = () => {
     }
   };
 
+  const containerClassName = embedded
+    ? 'w-full bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 overflow-hidden flex flex-col rounded-lg border border-slate-800'
+    : 'h-full bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 overflow-hidden flex flex-col';
+
   return (
-    <div className="h-full bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 overflow-hidden flex flex-col">
+    <div className={containerClassName}>
       {/* Header */}
-      <div className="p-6 border-b border-slate-700 bg-slate-800/50">
-        <div className="flex items-center justify-between mb-4">
-          <div className="flex items-center gap-3">
-            <List className="w-8 h-8 text-indigo-400" />
-            <div>
-              <h1 className="text-2xl font-bold text-white">Load Order Analyzer</h1>
-              <p className="text-sm text-slate-400">Real-time plugin conflict detection</p>
+      {!embedded && (
+        <div className="p-6 border-b border-slate-700 bg-slate-800/50">
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-3">
+              <List className="w-8 h-8 text-indigo-400" />
+              <div>
+                <h1 className="text-2xl font-bold text-white">Load Order Analyzer</h1>
+                <p className="text-sm text-slate-400">Real-time plugin conflict detection</p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-3">
+              <label className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  checked={autoRefresh}
+                  onChange={(e) => setAutoRefresh(e.target.checked)}
+                  className="w-4 h-4 rounded"
+                />
+                <span className="text-sm text-slate-300">Auto-refresh (5s)</span>
+              </label>
+              <button
+                onClick={loadPlugins}
+                disabled={loading}
+                className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white font-bold rounded-lg transition-colors"
+              >
+                {loading ? 'Loading...' : 'Refresh'}
+              </button>
             </div>
           </div>
 
-          <div className="flex items-center gap-3">
-            <label className="flex items-center gap-2">
-              <input
-                type="checkbox"
-                checked={autoRefresh}
-                onChange={(e) => setAutoRefresh(e.target.checked)}
-                className="w-4 h-4 rounded"
-              />
-              <span className="text-sm text-slate-300">Auto-refresh (5s)</span>
-            </label>
+          {/* Stats */}
+          <div className="grid grid-cols-4 gap-3">
+            <div className="bg-slate-900 rounded-lg p-3 border border-slate-700">
+              <div className="text-xs text-slate-400 uppercase mb-1">Total Plugins</div>
+              <div className="text-2xl font-bold text-white">{plugins.length}</div>
+            </div>
+            <div className="bg-slate-900 rounded-lg p-3 border border-slate-700">
+              <div className="text-xs text-slate-400 uppercase mb-1">Enabled</div>
+              <div className="text-2xl font-bold text-green-400">{plugins.filter(p => p.enabled).length}</div>
+            </div>
+            <div className="bg-slate-900 rounded-lg p-3 border border-yellow-700">
+              <div className="text-xs text-slate-400 uppercase mb-1">Conflicts</div>
+              <div className="text-2xl font-bold text-yellow-400">{getTotalConflicts()}</div>
+            </div>
+            <div className="bg-slate-900 rounded-lg p-3 border border-red-700">
+              <div className="text-xs text-slate-400 uppercase mb-1">Missing Masters</div>
+              <div className="text-2xl font-bold text-red-400">{getTotalMissingMasters()}</div>
+            </div>
+          </div>
+
+          {/* Sort Controls */}
+          <div className="mt-4 flex gap-2">
             <button
-              onClick={loadPlugins}
-              disabled={loading}
-              className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white font-bold rounded-lg transition-colors"
+              onClick={() => setSortBy('index')}
+              className={`px-3 py-2 rounded text-sm font-bold transition-colors ${
+                sortBy === 'index' ? 'bg-indigo-600 text-white' : 'bg-slate-800 text-slate-400 hover:bg-slate-700'
+              }`}
             >
-              {loading ? 'Loading...' : 'Refresh'}
+              Sort by Load Order
+            </button>
+            <button
+              onClick={() => setSortBy('conflicts')}
+              className={`px-3 py-2 rounded text-sm font-bold transition-colors ${
+                sortBy === 'conflicts' ? 'bg-indigo-600 text-white' : 'bg-slate-800 text-slate-400 hover:bg-slate-700'
+              }`}
+            >
+              Sort by Conflicts
             </button>
           </div>
         </div>
-
-        {/* Stats */}
-        <div className="grid grid-cols-4 gap-3">
-          <div className="bg-slate-900 rounded-lg p-3 border border-slate-700">
-            <div className="text-xs text-slate-400 uppercase mb-1">Total Plugins</div>
-            <div className="text-2xl font-bold text-white">{plugins.length}</div>
-          </div>
-          <div className="bg-slate-900 rounded-lg p-3 border border-slate-700">
-            <div className="text-xs text-slate-400 uppercase mb-1">Enabled</div>
-            <div className="text-2xl font-bold text-green-400">{plugins.filter(p => p.enabled).length}</div>
-          </div>
-          <div className="bg-slate-900 rounded-lg p-3 border border-yellow-700">
-            <div className="text-xs text-slate-400 uppercase mb-1">Conflicts</div>
-            <div className="text-2xl font-bold text-yellow-400">{getTotalConflicts()}</div>
-          </div>
-          <div className="bg-slate-900 rounded-lg p-3 border border-red-700">
-            <div className="text-xs text-slate-400 uppercase mb-1">Missing Masters</div>
-            <div className="text-2xl font-bold text-red-400">{getTotalMissingMasters()}</div>
-          </div>
-        </div>
-
-        {/* Sort Controls */}
-        <div className="mt-4 flex gap-2">
-          <button
-            onClick={() => setSortBy('index')}
-            className={`px-3 py-2 rounded text-sm font-bold transition-colors ${
-              sortBy === 'index' ? 'bg-indigo-600 text-white' : 'bg-slate-800 text-slate-400 hover:bg-slate-700'
-            }`}
-          >
-            Sort by Load Order
-          </button>
-          <button
-            onClick={() => setSortBy('conflicts')}
-            className={`px-3 py-2 rounded text-sm font-bold transition-colors ${
-              sortBy === 'conflicts' ? 'bg-indigo-600 text-white' : 'bg-slate-800 text-slate-400 hover:bg-slate-700'
-            }`}
-          >
-            Sort by Conflicts
-          </button>
-        </div>
-      </div>
+      )}
 
       {/* Content */}
       <div className="flex-1 overflow-y-auto p-6 space-y-2">

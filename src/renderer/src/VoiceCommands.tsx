@@ -87,12 +87,12 @@ export const VoiceCommands: React.FC = () => {
   const commands: VoiceCommand[] = [
     {
       phrase: 'mossy analyze script',
-      action: () => navigate('/script-analyzer'),
+      action: () => navigate('/devtools'),
       description: 'Open Script Analyzer'
     },
     {
       phrase: 'mossy generate template',
-      action: () => navigate('/template-generator'),
+      action: () => navigate('/devtools'),
       description: 'Open Template Generator'
     },
     {
