@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import { AlertCircle, CheckCircle2, XCircle, Loader2, Play, Copy, ArrowDownToLine } from 'lucide-react';
 import { ToolsInstallVerifyPanel } from './components/ToolsInstallVerifyPanel';
 
@@ -11,7 +12,11 @@ interface DiagnosticCheck {
   errorDetails?: string;
 }
 
-const DiagnosticTools: React.FC = () => {
+type DiagnosticToolsProps = {
+  embedded?: boolean;
+};
+
+const DiagnosticTools: React.FC<DiagnosticToolsProps> = ({ embedded = false }) => {
   const [checks, setChecks] = useState<DiagnosticCheck[]>([
     {
       id: 'electron-api',
@@ -75,12 +80,20 @@ const DiagnosticTools: React.FC = () => {
       description: 'Check speechSynthesis voice availability',
       status: 'idle',
       result: ''
+    },
+    {
+      id: 'secret-status',
+      name: 'Secret Status (Main Process)',
+      description: 'Check if main process can see backend/OpenAI/Groq keys',
+      status: 'idle',
+      result: ''
     }
   ]);
 
   const [testOutput, setTestOutput] = useState<string>('');
   const [isRunningTest, setIsRunningTest] = useState(false);
   const [snapshotStatus, setSnapshotStatus] = useState<string>('');
+  const [revealStatus, setRevealStatus] = useState<string>('');
 
   const runDiagnostics = async () => {
     const updatedChecks: DiagnosticCheck[] = checks.map(c => ({ ...c, status: 'checking', result: '', errorDetails: '' }));
@@ -205,6 +218,33 @@ const DiagnosticTools: React.FC = () => {
       }
     } catch (e) {
       setCheck('tts-voices', { result: 'Error', errorDetails: (e as Error).message, status: 'error' });
+    }
+
+    // Secret status (presence-only, main process)
+    try {
+      if (typeof api?.getSecretStatus !== 'function') {
+        setCheck('secret-status', { result: 'API not available', status: 'error' });
+      } else {
+        const status = await api.getSecretStatus();
+        if (!status?.ok) {
+          setCheck('secret-status', {
+            result: 'Error',
+            errorDetails: String(status?.error || 'Unknown error'),
+            status: 'error',
+          });
+        } else {
+          const flags = [
+            `backend=${status.backendToken ? 'yes' : 'no'}`,
+            `openai=${status.openai ? 'yes' : 'no'}`,
+            `elevenlabs=${status.elevenlabs ? 'yes' : 'no'}`,
+            `groq=${status.groq ? 'yes' : 'no'}`,
+          ].join(' | ');
+          const anyConfigured = status.backendToken || status.openai || status.elevenlabs || status.groq;
+          setCheck('secret-status', { result: flags, status: anyConfigured ? 'success' : 'error' });
+        }
+      }
+    } catch (e) {
+      setCheck('secret-status', { result: 'Error', errorDetails: (e as Error).message, status: 'error' });
     }
 
     setChecks(updatedChecks);
@@ -414,19 +454,51 @@ ${listAvailableAPIs()}
     return Object.keys(api).map(key => `- ${key}: ${typeof api[key]}`).join('\n');
   };
 
+  const revealSettingsFile = async () => {
+    setRevealStatus('Opening settings file...');
+    try {
+      const api = (window as any).electron?.api || (window as any).electronAPI;
+      if (!api?.revealSettingsFile) {
+        setRevealStatus('Not available in this build');
+        return;
+      }
+      const result = await api.revealSettingsFile();
+      if (result?.success) {
+        setRevealStatus('Opened in file explorer');
+      } else {
+        setRevealStatus(result?.error ? `Failed: ${result.error}` : 'Failed to open settings file');
+      }
+    } catch (e) {
+      setRevealStatus(e instanceof Error ? `Failed: ${e.message}` : 'Failed to open settings file');
+    }
+  };
+
+  const containerClassName = embedded ? 'bg-slate-950 p-4' : 'min-h-screen bg-slate-950 p-8 pb-20';
+
   return (
-    <div className="min-h-screen bg-slate-950 p-8 pb-20">
+    <div className={containerClassName}>
       <div className="max-w-4xl mx-auto">
         {/* Header */}
-        <div className="mb-8">
-          <div className="flex items-center gap-3 mb-4">
-            <AlertCircle className="w-8 h-8 text-cyan-400" />
-            <h1 className="text-4xl font-bold text-white">Diagnostic Tools</h1>
+        {!embedded && (
+          <div className="mb-8">
+            <div className="flex items-center justify-between gap-3 mb-4">
+              <div className="flex items-center gap-3">
+                <AlertCircle className="w-8 h-8 text-cyan-400" />
+                <h1 className="text-4xl font-bold text-white">Diagnostic Tools</h1>
+              </div>
+              <Link
+                to="/reference"
+                className="px-3 py-2 text-[10px] font-black uppercase tracking-widest rounded bg-cyan-900/20 border border-cyan-500/30 text-cyan-100 hover:bg-cyan-900/30 transition-colors"
+                title="Open help"
+              >
+                Help
+              </Link>
+            </div>
+            <p className="text-slate-400">
+              Run system diagnostics to check if all Mossy APIs are properly configured. Use this to troubleshoot issues.
+            </p>
           </div>
-          <p className="text-slate-400">
-            Run system diagnostics to check if all Mossy APIs are properly configured. Use this to troubleshoot issues.
-          </p>
-        </div>
+        )}
 
         <ToolsInstallVerifyPanel
           accentClassName="text-cyan-300"
@@ -444,11 +516,6 @@ ${listAvailableAPIs()}
           troubleshooting={[
             'If Electron API is missing, you are likely running a web preview; use the packaged Electron build for bridge features.',
             'If localStorage fails, disable strict privacy modes/extensions that block storage and reload.'
-          ]}
-          shortcuts={[
-            { label: 'Desktop Bridge', to: '/bridge' },
-            { label: 'Tool Settings', to: '/settings/tools' },
-            { label: 'Privacy Settings', to: '/settings/privacy' },
           ]}
         />
 
@@ -492,6 +559,40 @@ ${listAvailableAPIs()}
             >
               <Play className="w-4 h-4" />
               Run All Checks
+            </button>
+          </div>
+        </div>
+
+        {/* Secrets Helper */}
+        <div className="bg-slate-900 border border-slate-700 rounded-xl overflow-hidden mb-8">
+          <div className="bg-slate-800 border-b border-slate-700 p-6">
+            <h2 className="text-xl font-bold text-white">Secrets Helper</h2>
+            <p className="text-slate-400 text-sm mt-2">Quick links to confirm backend tokens and stored settings.</p>
+          </div>
+
+          <div className="p-6 space-y-3">
+            <button
+              onClick={revealSettingsFile}
+              className="w-full px-4 py-3 rounded-lg bg-slate-700 hover:bg-slate-600 text-white font-bold transition-colors"
+            >
+              Reveal settings.json
+            </button>
+
+            {revealStatus && (
+              <div className="text-sm text-slate-300">{revealStatus}</div>
+            )}
+
+            <button
+              onClick={() => {
+                try {
+                  window.location.href = '/settings/privacy';
+                } catch {
+                  // ignore
+                }
+              }}
+              className="w-full px-4 py-3 rounded-lg bg-cyan-700 hover:bg-cyan-600 text-white font-bold transition-colors"
+            >
+              Open Privacy Settings (Backend Token)
             </button>
           </div>
         </div>

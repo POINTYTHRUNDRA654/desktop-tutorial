@@ -195,7 +195,6 @@ desktop-ai-assistant/
      ```env
      OPENAI_API_KEY=your-api-key-here
      GROQ_API_KEY=your-key-here
-     DEEPGRAM_API_KEY=your-key-here
      ELEVENLABS_API_KEY=your-key-here
      ```
    - Security note: do not put secrets in `VITE_*` variables (Vite exposes those to the renderer).
@@ -325,7 +324,6 @@ This app does not use Google / Gemini.
 - Optional (dev only): set main-process env vars in `.env.local`:
    - `OPENAI_API_KEY`
    - `GROQ_API_KEY`
-   - `DEEPGRAM_API_KEY`
    - `ELEVENLABS_API_KEY`
 
 Note: Do not put secrets in `VITE_*` env vars. Vite exposes `VITE_*` to the renderer.

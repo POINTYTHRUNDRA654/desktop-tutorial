@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
-import { AlertCircle, Bug, CheckCircle2, ExternalLink, Send, ShieldCheck, Wrench } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import { AlertCircle, Bug, CheckCircle2, ExternalLink, ShieldCheck, Wrench } from 'lucide-react';
 import { ToolsInstallVerifyPanel } from './components/ToolsInstallVerifyPanel';
 import { openExternal } from './utils/openExternal';
 
@@ -21,7 +21,6 @@ type State = {
 };
 
 const STORAGE_KEY = 'mossy_crash_triage_state_v1';
-const CHAT_PREFILL_KEY = 'mossy_chat_prefill_v1';
 
 const DEFAULT_STATE: State = {
   checked: {},
@@ -78,8 +77,11 @@ const StepRow: React.FC<{
   </div>
 );
 
-export const CrashTriageWizard: React.FC = () => {
-  const navigate = useNavigate();
+type CrashTriageWizardProps = {
+  embedded?: boolean;
+};
+
+export const CrashTriageWizard: React.FC<CrashTriageWizardProps> = ({ embedded = false }) => {
   const [state, setState] = useState<State>(() => safeParse(localStorage.getItem(STORAGE_KEY), DEFAULT_STATE));
 
   useEffect(() => {
@@ -132,22 +134,16 @@ export const CrashTriageWizard: React.FC = () => {
               verify={[
                 'Pick a scenario (CTD / infinite load / broken save) and confirm steps update appropriately.',
                 'Check off 2–3 steps and refresh; confirm progress persists.',
-                'Click “Send to Chat” and confirm the generated summary appears in Chat.'
+                'Copy your checklist summary and confirm it matches your current selections.'
               ]}
               firstTestLoop={[
                 'Reproduce the failure once (same save, same location, same action).',
                 'Collect logs, then disable half your mods to bisect and re-test.',
-                'When you have a minimal repro, send it to Chat for a targeted plan.'
+                'When you have a minimal repro, write it down as a short checklist.'
               ]}
               troubleshooting={[
                 'If you cannot reproduce the issue consistently, stop changing multiple variables at once.',
-                'If you are missing logs/tools, use Install Wizard + Tool Settings to set up only what you need.'
-              ]}
-              shortcuts={[
-                { label: 'Platforms Hub', to: '/platforms' },
-                { label: 'Install Wizard', to: '/install-wizard' },
-                { label: 'Tool Settings', to: '/settings/tools' },
-                { label: 'Diagnostics', to: '/diagnostics' },
+                'If you are missing logs/tools, install only what you need before continuing.'
               ]}
             />
               </>
@@ -258,7 +254,7 @@ export const CrashTriageWizard: React.FC = () => {
             title: 'Patch conflicts (if needed)',
             details: (
               <>
-                If two mods edit the same records, create a compatibility patch in xEdit. Use <Link className="text-blue-400 hover:underline" to="/install-wizard">Install Wizard</Link> for patching basics.
+                If two mods edit the same records, create a compatibility patch in xEdit. Use your patching checklist as the baseline before making changes.
               </>
             ),
           },
@@ -292,94 +288,43 @@ export const CrashTriageWizard: React.FC = () => {
     ];
   }, []);
 
-  const buildChatPrefill = () => {
-    const scenarioLabel =
-      state.scenario === 'ctd_launch'
-        ? 'CTD on launch'
-        : state.scenario === 'ctd_ingame'
-        ? 'CTD in-game'
-        : state.scenario === 'infinite_load'
-        ? 'Infinite loading'
-        : state.scenario === 'broken_save'
-        ? 'Broken save'
-        : 'Weird bug';
-
-    const lines: string[] = [];
-    lines.push("I'm using Mossy's Crash & Bug Triage Wizard. Please guide me step-by-step.");
-    lines.push(`Scenario: ${scenarioLabel}`);
-    lines.push('');
-    lines.push('Checklist progress:');
-    for (const section of sections) {
-      lines.push(`\n${section.title}:`);
-      for (const step of section.steps) {
-        const done = isChecked(section.id, step.id);
-        lines.push(`- [${done ? 'x' : ' '}] ${step.title}`);
-      }
-    }
-    lines.push('\nWhat I want from you:');
-    lines.push('1) Tell me the next 3 unchecked steps to do, in order.');
-    lines.push('2) Ask for the minimum info needed (no guessing).');
-    lines.push('3) End with clear verification steps.');
-    return lines.join('\n');
-  };
-
-  const sendToChat = async () => {
-    const draft = buildChatPrefill();
-    try {
-      await navigator.clipboard?.writeText(draft);
-    } catch {
-      // ignore
-    }
-    try {
-      localStorage.setItem(CHAT_PREFILL_KEY, draft);
-    } catch {
-      // ignore
-    }
-    navigate('/chat', { state: { prefill: draft, from: 'crash-triage' } });
-  };
+  const containerClassName = embedded ? 'bg-[#0a0e0a] text-slate-100 p-4' : 'min-h-full p-6 md:p-10 bg-[#0a0e0a] text-slate-100';
 
   return (
-    <div className="min-h-full p-6 md:p-10 bg-[#0a0e0a] text-slate-100">
+    <div className={containerClassName}>
       <div className="max-w-6xl mx-auto">
-        <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-4 mb-8">
-          <div>
-            <div className="text-[10px] font-mono tracking-[0.3em] text-emerald-400/70 uppercase">Mossy Tutor • Crash Triage</div>
-            <h1 className="text-3xl md:text-4xl font-black tracking-tight text-white mt-2">Crash & Bug Triage</h1>
-            <p className="text-sm text-slate-400 mt-2 max-w-2xl">
-              A repeatable, verification-first workflow for diagnosing crashes and hard bugs. This wizard avoids “try random fixes” and helps you isolate the real cause.
-            </p>
-          </div>
+        {!embedded && (
+          <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-4 mb-8">
+            <div>
+              <div className="text-[10px] font-mono tracking-[0.3em] text-emerald-400/70 uppercase">Mossy Tutor • Crash Triage</div>
+              <h1 className="text-3xl md:text-4xl font-black tracking-tight text-white mt-2">Crash & Bug Triage</h1>
+              <p className="text-sm text-slate-400 mt-2 max-w-2xl">
+                A repeatable, verification-first workflow for diagnosing crashes and hard bugs. This wizard avoids “try random fixes” and helps you isolate the real cause.
+              </p>
+            </div>
 
-          <div className="flex items-center gap-2">
-            <Link
-              to="/platforms"
-              className="px-3 py-2 text-xs font-bold rounded-lg bg-slate-900 border border-slate-800 hover:border-slate-600 transition-colors"
-              title="Back to Platforms"
-            >
-              Platforms
-            </Link>
-            <button
-              type="button"
-              onClick={sendToChat}
-              className="inline-flex items-center gap-2 px-3 py-2 text-xs font-bold rounded-lg bg-emerald-900/20 border border-emerald-500/30 text-emerald-100 hover:bg-emerald-900/30 transition-colors"
-              title="Send this checklist to Chat"
-            >
-              <Send className="w-4 h-4" />
-              Send to Chat
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                localStorage.removeItem(STORAGE_KEY);
-                setState(DEFAULT_STATE);
-              }}
-              className="px-3 py-2 text-xs font-bold rounded-lg bg-red-900/20 border border-red-500/30 text-red-200 hover:bg-red-900/30 transition-colors"
-              title="Reset wizard progress"
-            >
-              Reset
-            </button>
+            <div className="flex items-center gap-2">
+              <Link
+                to="/reference"
+                className="px-3 py-2 text-[10px] font-black uppercase tracking-widest rounded-lg bg-emerald-900/20 border border-emerald-500/30 text-emerald-100 hover:bg-emerald-900/30 transition-colors"
+                title="Open help"
+              >
+                Help
+              </Link>
+              <button
+                type="button"
+                onClick={() => {
+                  localStorage.removeItem(STORAGE_KEY);
+                  setState(DEFAULT_STATE);
+                }}
+                className="px-3 py-2 text-xs font-bold rounded-lg bg-red-900/20 border border-red-500/30 text-red-200 hover:bg-red-900/30 transition-colors"
+                title="Reset wizard progress"
+              >
+                Reset
+              </button>
+            </div>
           </div>
-        </div>
+        )}
 
         <div className="rounded-xl border border-slate-800 bg-black/40 p-5 mb-6">
           <div className="flex items-center justify-between gap-4">
@@ -472,7 +417,7 @@ export const CrashTriageWizard: React.FC = () => {
         </div>
 
         <div className="mt-8 text-[11px] text-slate-500">
-          If you want Mossy to help faster: export your Diagnostics report from <Link className="text-blue-400 hover:underline" to="/diagnostics">Diagnostic Tools</Link>.
+          If you want Mossy to help faster: export your Diagnostics report from the Diagnostic Tools page.
         </div>
       </div>
     </div>

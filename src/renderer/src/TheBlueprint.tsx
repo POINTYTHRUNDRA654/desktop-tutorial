@@ -1,4 +1,5 @@
 import React, { useRef, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { DraftingCompass, Briefcase, CheckCircle2, Copy, ChevronRight, AlertCircle, FileText, Plus, Trash2 } from 'lucide-react';
 import { ToolsInstallVerifyPanel } from './components/ToolsInstallVerifyPanel';
 import { useWheelScrollProxy } from './components/useWheelScrollProxy';
@@ -151,13 +152,6 @@ const TheBlueprint: React.FC = () => {
     const detailsScrollRef = useRef<HTMLDivElement | null>(null);
     const wheelProxy = useWheelScrollProxy(detailsScrollRef);
 
-    const jumpToTab = (tab: 'structure' | 'components' | 'dependencies') => {
-        setExpandedStructure(tab);
-        requestAnimationFrame(() => {
-            detailsScrollRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
-        });
-    };
-
     const handleCopyStructure = async () => {
         const structureText = selectedTemplate.structure
             .map(item => `${item.type === 'folder' ? '📁' : '📄'} ${item.path} - ${item.description}`)
@@ -185,8 +179,17 @@ const TheBlueprint: React.FC = () => {
                     </h2>
                     <p className="text-[10px] text-slate-400 font-mono mt-0.5">Mod Architecture Planner v2.1.0</p>
                 </div>
-                <div className="px-3 py-1 bg-black rounded border border-slate-600 font-mono text-xs text-amber-400">
-                    {MOD_TEMPLATES.length} Templates
+                <div className="flex items-center gap-2">
+                    <div className="px-3 py-1 bg-black rounded border border-slate-600 font-mono text-xs text-amber-400">
+                        {MOD_TEMPLATES.length} Templates
+                    </div>
+                    <Link
+                        to="/reference"
+                        className="px-3 py-1 text-[10px] font-black uppercase tracking-widest rounded-lg bg-amber-900/30 border border-amber-500/30 text-amber-100 hover:bg-amber-900/40 transition-colors"
+                        title="Open help"
+                    >
+                        Help
+                    </Link>
                 </div>
             </div>
 
@@ -209,47 +212,7 @@ const TheBlueprint: React.FC = () => {
                             'If copy fails, your browser/Electron clipboard permission may be blocked; try again after restarting the app.',
                             'If a template doesn’t match your scope, treat it as a baseline and add only what you actually ship.',
                         ]}
-                        shortcuts={[
-                            { label: 'Chat', to: '/chat' },
-                            { label: 'Template Generator', to: '/template-generator' },
-                            { label: 'Packaging', to: '/packaging-release' },
-                            { label: 'Tool Settings', to: '/settings/tools' },
-                        ]}
                     />
-
-                    <div className="bg-[#252526] border border-slate-700 rounded-xl p-4">
-                        <div className="text-sm font-bold text-white mb-1">Existing Workflow (Legacy)</div>
-                        <div className="text-xs text-slate-400 mb-3">
-                            Jump into the original tabs and copy actions.
-                        </div>
-                        <div className="flex flex-wrap gap-2">
-                            <button
-                                onClick={() => jumpToTab('structure')}
-                                className="px-3 py-2 bg-black/40 hover:bg-black/60 border border-slate-700 rounded text-xs font-bold text-amber-200"
-                            >
-                                Folder Structure
-                            </button>
-                            <button
-                                onClick={() => jumpToTab('components')}
-                                className="px-3 py-2 bg-black/40 hover:bg-black/60 border border-slate-700 rounded text-xs font-bold text-amber-200"
-                            >
-                                Components
-                            </button>
-                            <button
-                                onClick={() => jumpToTab('dependencies')}
-                                className="px-3 py-2 bg-black/40 hover:bg-black/60 border border-slate-700 rounded text-xs font-bold text-amber-200"
-                            >
-                                Dependencies
-                            </button>
-                            <button
-                                onClick={handleCopyStructure}
-                                className="px-3 py-2 bg-black/40 hover:bg-black/60 border border-slate-700 rounded text-xs font-bold text-amber-200"
-                                title="Copy the full structure list to clipboard"
-                            >
-                                Copy Structure
-                            </button>
-                        </div>
-                    </div>
                 </div>
             </div>
 
