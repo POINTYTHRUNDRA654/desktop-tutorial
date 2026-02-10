@@ -1,9 +1,11 @@
 import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
 import { openExternal } from './utils/openExternal';
 
-const HavokFallout4Guide = () => {
-  const navigate = useNavigate();
+type HavokFallout4GuideProps = {
+  embedded?: boolean;
+};
+
+const HavokFallout4Guide: React.FC<HavokFallout4GuideProps> = ({ embedded = false }) => {
   const [expandedSection, setExpandedSection] = useState<string | null>(null);
 
   const toggleSection = (section: string) => {
@@ -124,14 +126,23 @@ const HavokFallout4Guide = () => {
     openUrl(url);
   };
 
+  const containerStyle: React.CSSProperties = embedded
+    ? {
+        padding: '16px',
+        backgroundColor: '#0a0e27',
+        color: '#00ff00',
+        fontFamily: 'monospace',
+      }
+    : {
+        padding: '20px',
+        backgroundColor: '#0a0e27',
+        color: '#00ff00',
+        fontFamily: 'monospace',
+        minHeight: '100vh',
+      };
+
   return (
-    <div style={{
-      padding: '20px',
-      backgroundColor: '#0a0e27',
-      color: '#00ff00',
-      fontFamily: 'monospace',
-      minHeight: '100vh'
-    }}>
+    <div style={containerStyle}>
       <h1 style={{ fontSize: '28px', marginBottom: '10px', color: '#00ff00' }}>
         Havok Animation for Fallout 4: Advanced Guide
       </h1>
@@ -152,9 +163,6 @@ const HavokFallout4Guide = () => {
           <li><strong>Validate</strong> format/version issues before launching the game.</li>
         </ul>
         <div style={buttonRowStyle}>
-          <button style={buttonStyle} onClick={() => navigate('/animation-guide')}>In-app: Animation Guide</button>
-          <button style={buttonStyle} onClick={() => navigate('/animation-validator')}>In-app: Animation Validator</button>
-          <button style={buttonStyle} onClick={() => navigate('/vault')}>In-app: The Vault</button>
           <button style={buttonStyle} onClick={() => openNexusSearch('Bethesda Archive Extractor')}>Nexus search: BAE</button>
           <button style={buttonStyle} onClick={() => openNexusSearch('HKXPack')}>Nexus search: HKXPack</button>
         </div>

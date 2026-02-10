@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Bone, Search, Grid, List, ChevronRight } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import { openExternal } from './utils/openExternal';
 
 interface SkeletonBone {
@@ -67,8 +67,11 @@ const FO4_SKELETON: SkeletonBone[] = [
   { name: 'Face', parent: 'Head', group: 'Face', weightable: false, description: 'Facial animation controller.' },
 ];
 
-export const SkeletonReference: React.FC = () => {
-  const navigate = useNavigate();
+type SkeletonReferenceProps = {
+  embedded?: boolean;
+};
+
+export const SkeletonReference: React.FC<SkeletonReferenceProps> = ({ embedded = false }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [viewMode, setViewMode] = useState<'hierarchy' | 'group'>('hierarchy');
   const [selectedBone, setSelectedBone] = useState<SkeletonBone | null>(null);
@@ -131,16 +134,42 @@ export const SkeletonReference: React.FC = () => {
     ]);
   };
 
+  const containerClass = embedded
+    ? 'bg-slate-900/60 border border-slate-700 rounded-lg'
+    : 'h-full bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 overflow-hidden flex flex-col';
+
+  const headerClass = embedded
+    ? 'p-4 border-b border-slate-700 bg-slate-800/50'
+    : 'p-6 border-b border-slate-700 bg-slate-800/50';
+
+  const contentClass = embedded
+    ? 'p-4 flex flex-col gap-6'
+    : 'flex-1 overflow-hidden flex gap-6 p-6';
+
+  const footerClass = embedded
+    ? 'p-3 bg-slate-800/50 border-t border-slate-700 text-xs text-slate-400'
+    : 'p-4 bg-slate-800/50 border-t border-slate-700 text-xs text-slate-400';
+
   return (
-    <div className="h-full bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 overflow-hidden flex flex-col">
+    <div className={containerClass}>
       {/* Header */}
-      <div className="p-6 border-b border-slate-700 bg-slate-800/50">
-        <div className="flex items-center gap-3 mb-4">
-          <Bone className="w-8 h-8 text-green-400" />
-          <div>
-            <h1 className="text-2xl font-bold text-white">Fallout 4 Skeleton Reference</h1>
-            <p className="text-sm text-slate-400">{FO4_SKELETON.length} bones, full hierarchy</p>
+      <div className={headerClass}>
+        <div className="flex items-center justify-between gap-3 mb-4">
+          <div className="flex items-center gap-3">
+            <Bone className="w-8 h-8 text-green-400" />
+            <div>
+              <h1 className="text-2xl font-bold text-white">Fallout 4 Skeleton Reference</h1>
+              <p className="text-sm text-slate-400">{FO4_SKELETON.length} bones, full hierarchy</p>
+            </div>
           </div>
+          {!embedded && (
+            <Link
+              to="/reference"
+              className="px-3 py-2 border border-green-500/30 text-[10px] font-black uppercase tracking-widest text-green-200 rounded-lg bg-green-500/10 hover:bg-green-500/20 transition-colors"
+            >
+              Help
+            </Link>
+          )}
         </div>
 
         {/* Controls */}
@@ -223,43 +252,16 @@ export const SkeletonReference: React.FC = () => {
             </ol>
           </div>
 
-          <div className="mt-3 flex flex-wrap gap-2">
-            <button
-              onClick={() => navigate('/animation-guide')}
-              className="px-3 py-2 rounded bg-cyan-700 hover:bg-cyan-600 text-xs font-bold text-white"
-            >
-              Blender Animation Guide
-            </button>
-            <button
-              onClick={() => navigate('/rigging-checklist')}
-              className="px-3 py-2 rounded bg-slate-800 hover:bg-slate-700 border border-slate-600 text-xs font-bold text-white"
-            >
-              Rigging Checklist
-            </button>
-            <button
-              onClick={() => navigate('/export-settings')}
-              className="px-3 py-2 rounded bg-slate-800 hover:bg-slate-700 border border-slate-600 text-xs font-bold text-white"
-            >
-              Export Settings
-            </button>
-            <button
-              onClick={() => navigate('/animation-validator')}
-              className="px-3 py-2 rounded bg-slate-800 hover:bg-slate-700 border border-slate-600 text-xs font-bold text-white"
-            >
-              Animation Validator
-            </button>
-            <button
-              onClick={() => navigate('/install-wizard')}
-              className="px-3 py-2 rounded bg-slate-800 hover:bg-slate-700 border border-slate-600 text-xs font-bold text-white"
-            >
-              Install Wizard
-            </button>
-          </div>
+          {!embedded && (
+            <div className="mt-3 text-[11px] text-slate-500">
+              Use the sidebar to open animation, rigging, export, or install tools if you need them.
+            </div>
+          )}
         </div>
       </div>
 
       {/* Content */}
-      <div className="flex-1 overflow-hidden flex gap-6 p-6">
+      <div className={contentClass}>
         {/* Bone List */}
         <div className="flex-1 bg-slate-950/50 border border-slate-700 rounded-lg overflow-y-auto">
           <div className="p-4 space-y-2">
@@ -377,7 +379,7 @@ export const SkeletonReference: React.FC = () => {
       </div>
 
       {/* Footer Stats */}
-      <div className="p-4 bg-slate-800/50 border-t border-slate-700 text-xs text-slate-400">
+      <div className={footerClass}>
         <div className="flex justify-between">
           <span>Total Bones: {FO4_SKELETON.length}</span>
           <span>Weightable: {FO4_SKELETON.filter((b) => b.weightable).length}</span>

@@ -20,13 +20,13 @@ const searchIndex: SearchItem[] = [
   // Core Features
   { id: 'home', label: 'Mossy.Space', path: '/', category: 'Home', description: 'Main dashboard and overview' },
   { id: 'chat', label: 'AI Chat', path: '/chat', category: 'Core', description: 'Chat with Mossy AI assistant' },
-  { id: 'projects', label: 'Mod Projects', path: '/journey', category: 'Projects', description: 'Manage your Fallout 4 mod projects' },
+  { id: 'projects', label: 'Mod Projects', path: '/project', category: 'Projects', description: 'Manage your Fallout 4 mod projects' },
 
   // Learning & Reference
   { id: 'reference', label: 'Quick Reference', path: '/reference', category: 'Learning', description: 'Quick reference guides and documentation' },
   { id: 'knowledge', label: 'Knowledge Search', path: '/knowledge', category: 'Learning', description: 'Search through modding knowledge base' },
-  { id: 'install-wizard', label: 'Install Wizard', path: '/install-wizard', category: 'Setup', description: 'Installation and setup wizard' },
-  { id: 'platforms', label: 'Platforms', path: '/platforms', category: 'Learning', description: 'Platform-specific guides and tools' },
+  { id: 'install-wizard', label: 'Install Wizard', path: '/wizards', category: 'Setup', description: 'Installation and setup wizard' },
+  { id: 'platforms', label: 'Platforms', path: '/wizards', category: 'Learning', description: 'Platform-specific guides and tools' },
   { id: 'crash-triage', label: 'Crash Triage', path: '/crash-triage', category: 'Debugging', description: 'Diagnose and fix game crashes' },
   { id: 'packaging', label: 'Packaging & Release', path: '/packaging-release', category: 'Publishing', description: 'Package and release your mods' },
   { id: 'quest-dialogue', label: 'CK Quest & Dialogue', path: '/ck-quest-dialogue', category: 'Content', description: 'Creation Kit quest and dialogue guides' },
@@ -35,15 +35,16 @@ const searchIndex: SearchItem[] = [
   { id: 'rigging-mistakes', label: 'Rigging Mistakes', path: '/rigging-mistakes', category: 'Animation', description: 'Common rigging mistakes and fixes' },
   { id: 'quest-authoring', label: 'Quest Mod Authoring', path: '/quest-authoring', category: 'Content', description: 'Create and author quest mods' },
   { id: 'precombine-prp', label: 'Precombine & PRP Guide', path: '/precombine-prp', category: 'Optimization', description: 'LOD and precombine optimization guides' },
-  { id: 'prp-patch-builder', label: 'PRP Patch Builder', path: '/prp-patch-builder', category: 'Tools', description: 'Build PRP patches for optimization' },
+  { id: 'prp-patch-builder', label: 'PRP Patch Builder', path: '/wizards', category: 'Tools', description: 'Build PRP patches for optimization' },
   { id: 'leveled-list-injection', label: 'Leveled List Injection', path: '/leveled-list-injection', category: 'Content', description: 'Inject items into leveled lists' },
   { id: 'lorekeeper', label: 'The Lorekeeper', path: '/lore', category: 'Reference', description: 'Comprehensive Fallout 4 lore and references' },
 
   // Building Tools
   { id: 'tools', label: 'Tools', path: '/tools', category: 'Tools', description: 'General tools and utilities' },
   { id: 'cosmos-workflow', label: 'Cosmos Workflow', path: '/tools/cosmos', category: 'Tools', description: 'Cosmos Transfer2.5 workflow hub' },
-  { id: 'template-generator', label: 'Template Generator', path: '/template-generator', category: 'Tools', description: 'Generate templates for mods' },
-  { id: 'script-analyzer', label: 'Script Analyzer', path: '/script-analyzer', category: 'Tools', description: 'Analyze Papyrus scripts' },
+  { id: 'devtools', label: 'Devtools', path: '/devtools', category: 'Tools', description: 'Script generation and analysis tools' },
+  { id: 'template-generator', label: 'Template Generator', path: '/devtools', category: 'Tools', description: 'Generate templates for mods' },
+  { id: 'script-analyzer', label: 'Script Analyzer', path: '/devtools', category: 'Tools', description: 'Analyze Papyrus scripts' },
   { id: 'assembler', label: 'The Assembler', path: '/assembler', category: 'Tools', description: 'Create FOMOD packages' },
   { id: 'workshop', label: 'The Workshop', path: '/workshop', category: 'Tools', description: 'Development workshop and tools' },
   { id: 'blueprint', label: 'The Blueprint', path: '/blueprint', category: 'Tools', description: 'Blueprint and planning tools' },
@@ -82,10 +83,10 @@ const searchIndex: SearchItem[] = [
   { id: 'tool-verify', label: 'Tool Verify', path: '/tool-verify', category: 'System', description: 'Verify tool installations' },
 
   // Settings
-  { id: 'privacy-settings', label: 'Privacy Settings', path: '/settings/privacy', category: 'Settings', description: 'Privacy and data sharing settings' },
+  { id: 'privacy-settings', label: 'Privacy Settings', path: '/settings', category: 'Settings', description: 'Privacy and data sharing settings' },
   { id: 'voice-settings', label: 'Voice Settings', path: '/settings/voice', category: 'Settings', description: 'Voice and audio settings' },
-  { id: 'language-settings', label: 'Language Settings', path: '/settings/language', category: 'Settings', description: 'Language and localization settings' },
-  { id: 'settings-import-export', label: 'Settings Import/Export', path: '/settings/import-export', category: 'Settings', description: 'Backup and restore app settings' },
+  { id: 'language-settings', label: 'Language Settings', path: '/settings', category: 'Settings', description: 'Language and localization settings' },
+  { id: 'settings-import-export', label: 'Settings Import/Export', path: '/settings', category: 'Settings', description: 'Backup and restore app settings' },
   { id: 'diagnostic-tools', label: 'Diagnostic Tools', path: '/diagnostics', category: 'System', description: 'System diagnostics and troubleshooting' },
   { id: 'support', label: 'Support Mossy', path: '/support', category: 'Support', description: 'Support and donation options' },
 ];

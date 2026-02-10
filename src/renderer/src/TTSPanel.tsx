@@ -1,11 +1,14 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import { Play, FileAudio, Sliders, Radio, Cpu, Music, ArrowDownToLine, Volume2, Activity, Settings, Upload, Trash2, Folder, ExternalLink } from 'lucide-react';
 import { ToolsInstallVerifyPanel } from './components/ToolsInstallVerifyPanel';
 import { openExternal } from './utils/openExternal';
 
-const AudioStudio: React.FC = () => {
-    const navigate = useNavigate();
+type AudioStudioProps = {
+    embedded?: boolean;
+};
+
+const AudioStudio: React.FC<AudioStudioProps> = ({ embedded = false }) => {
   const [audioBuffer, setAudioBuffer] = useState<AudioBuffer | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [audioFiles, setAudioFiles] = useState<{ name: string; buffer: AudioBuffer; duration: number }[]>([]);
@@ -321,10 +324,30 @@ const AudioStudio: React.FC = () => {
       source.onended = () => setIsPlaying(false);
   };
 
-  return (
-    <div className="h-full flex flex-col bg-forge-dark overflow-hidden">
-      {/* Header */}
-      <div className="p-6 border-b border-slate-700 bg-forge-panel flex justify-between items-center">
+    const containerClass = embedded
+        ? 'bg-forge-dark border border-slate-700 rounded-lg'
+        : 'h-full flex flex-col bg-forge-dark overflow-hidden';
+
+    const headerClass = embedded
+        ? 'p-4 border-b border-slate-700 bg-forge-panel flex justify-between items-center'
+        : 'p-6 border-b border-slate-700 bg-forge-panel flex justify-between items-center';
+
+    const contentWrapClass = embedded
+        ? 'flex flex-col gap-6 p-4'
+        : 'flex-1 flex overflow-hidden';
+
+    const mainContentClass = embedded
+        ? 'flex flex-col gap-6'
+        : 'flex-1 flex flex-col p-6 gap-6 overflow-y-auto';
+
+    const rightPanelClass = embedded
+        ? 'bg-slate-900 border border-slate-800 rounded-lg p-4 flex flex-col gap-4'
+        : 'w-80 bg-slate-900 border-l border-slate-800 p-6 flex flex-col gap-4 overflow-y-auto';
+
+    return (
+        <div className={containerClass}>
+            {/* Header */}
+            <div className={headerClass}>
           <div className="flex items-center gap-4">
             <div className="p-3 bg-purple-500/20 rounded-xl border border-purple-500/30">
                 <Music className="w-6 h-6 text-purple-400" />
@@ -337,6 +360,15 @@ const AudioStudio: React.FC = () => {
             </div>
           </div>
           <div className="flex gap-2">
+              {!embedded && (
+                <Link
+                    to="/reference"
+                    className="px-3 py-2 text-[10px] font-black uppercase tracking-widest rounded-lg bg-purple-900/20 border border-purple-500/30 text-purple-100 hover:bg-purple-900/30 transition-colors"
+                    title="Open help"
+                >
+                    Help
+                </Link>
+              )}
               <div className="flex items-center gap-2 px-3 py-1 bg-slate-800 rounded-full border border-slate-600 text-xs text-slate-300">
                   <Activity className="w-3 h-3 text-purple-400" />
                   Audio Ready
@@ -344,9 +376,9 @@ const AudioStudio: React.FC = () => {
           </div>
       </div>
 
-      <div className="flex-1 flex overflow-hidden">
+      <div className={contentWrapClass}>
           {/* Main Content */}
-          <div className="flex-1 flex flex-col p-6 gap-6 overflow-y-auto">
+          <div className={mainContentClass}>
 
               <ToolsInstallVerifyPanel
                   accentClassName="text-purple-300"
@@ -393,11 +425,6 @@ const AudioStudio: React.FC = () => {
                       'If audio will not play, click Play once to unlock the browser audio context (some environments require a user gesture).',
                       'If FO4 export warns about missing XWM/FUZ/LIP tools, decide which targets you truly need and configure only those.'
                   ]}
-                  shortcuts={[
-                      { label: 'Tool Settings', to: '/settings/tools' },
-                      { label: 'The Vault', to: '/vault' },
-                      { label: 'Workshop', to: '/workshop' },
-                  ]}
               />
 
               {/* Fallout 4 Integration */}
@@ -410,29 +437,6 @@ const AudioStudio: React.FC = () => {
                           <p className="text-xs text-slate-400 mt-1">
                               This panel tells you what’s missing after “Export to WAV”: FO4 typically needs XWM/FUZ + optional LIP.
                           </p>
-                      </div>
-                      <div className="flex flex-wrap gap-2 justify-end">
-                          <button
-                              onClick={() => navigate('/settings/tools')}
-                              className="px-3 py-2 bg-slate-800 hover:bg-slate-700 border border-slate-600 rounded text-xs font-bold text-slate-200"
-                              title="Configure external tools"
-                          >
-                              Tool Settings
-                          </button>
-                          <button
-                              onClick={() => navigate('/ck-quest-dialogue')}
-                              className="px-3 py-2 bg-slate-800 hover:bg-slate-700 border border-slate-600 rounded text-xs font-bold text-slate-200"
-                              title="Quest/dialogue workflow"
-                          >
-                              CK Wizard
-                          </button>
-                          <button
-                              onClick={() => navigate('/packaging-release')}
-                              className="px-3 py-2 bg-slate-800 hover:bg-slate-700 border border-slate-600 rounded text-xs font-bold text-slate-200"
-                              title="Packaging and release checklist"
-                          >
-                              Packaging
-                          </button>
                       </div>
                   </div>
 
@@ -571,7 +575,7 @@ const AudioStudio: React.FC = () => {
           </div>
 
           {/* Right Panel: Processing Controls */}
-          <div className="w-80 bg-slate-900 border-l border-slate-800 p-6 flex flex-col gap-4 overflow-y-auto">
+          <div className={rightPanelClass}>
               {/* Audio Quality */}
               <div>
                   <h4 className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-3 flex items-center gap-2">

@@ -2,9 +2,9 @@ import React, { useState, useEffect, useRef } from 'react';
 import ExternalToolNotice from './components/ExternalToolNotice';
 import { ToolsInstallVerifyPanel } from './components/ToolsInstallVerifyPanel';
 import { Settings as SettingsIcon } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
+import { Link as RouterLink } from 'react-router-dom';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, AreaChart, Area } from 'recharts';
-import { Cpu, HardDrive, Activity, Terminal, Search, CheckCircle2, Zap, Box, BrainCircuit, Link, Play, Monitor, AlertTriangle, Map, Upload, RefreshCw, Database, ShieldCheck, Copy, HardDriveDownload, Package, Settings } from 'lucide-react';
+import { Cpu, HardDrive, Activity, Terminal, Search, CheckCircle2, Zap, Box, BrainCircuit, Link, Play, Monitor, AlertTriangle, Upload, RefreshCw, Database, ShieldCheck, Copy, HardDriveDownload, Package, Settings } from 'lucide-react';
 import { LocalAIEngine } from './LocalAIEngine';
 import { useWheelScrollProxy } from './components/useWheelScrollProxy';
 
@@ -32,48 +32,11 @@ interface SystemProfile {
     isLegacy: boolean;
 }
 
-interface SystemModule {
-    id: string;
-    name: string;
-    description: string;
-    route: string;
-    category: 'Creation' | 'Workflow' | 'Knowledge' | 'System' | 'Output';
-    icon: string;
-}
+type SystemMonitorProps = {
+    embedded?: boolean;
+};
 
-// REAL Mossy Features - Mapped to Actual App Routes
-const modulesList: SystemModule[] = [
-    // Creation Tools
-    { id: 'chat', name: 'AI Chat', description: 'Main conversation interface with Mossy for Fallout 4 modding guidance', route: '/chat', category: 'Creation', icon: '💬' },
-    { id: 'image-suite', name: 'Image Suite', description: 'Texture creation, upscaling, and DDS conversion for mod assets', route: '/image-suite', category: 'Creation', icon: '🎨' },
-    { id: 'audio', name: 'Audio Studio', description: 'Audio file processing, effects, and WAV export for mod sounds', route: '/tts', category: 'Creation', icon: '🎵' },
-    { id: 'lorekeeper', name: 'Lorekeeper', description: 'Story and quest vault for organizing mod narrative elements', route: '/lorekeeper', category: 'Creation', icon: '📖' },
-    
-    // Workflow Tools
-    { id: 'assembler', name: 'FOMOD Assembler', description: 'Build professional mod installers with FOMOD configurations', route: '/fomod', category: 'Workflow', icon: '📦' },
-    { id: 'orchestrator', name: 'Workflow Orchestrator', description: 'Automated asset pipeline management and batch processing', route: '/orchestrator', category: 'Workflow', icon: '🔄' },
-    { id: 'workshop', name: 'Workshop Framework', description: 'Settlement and Workshop object management tools', route: '/workshop', category: 'Workflow', icon: '🏗️' },
-    { id: 'vault', name: 'Version Vault', description: 'Asset versioning, backup, and rollback system', route: '/vault', category: 'Workflow', icon: '🔒' },
-    
-    // Knowledge Base
-    { id: 'knowledge', name: 'FO4 Knowledge', description: 'Comprehensive Fallout 4 modding documentation and guides', route: '/knowledge', category: 'Knowledge', icon: '📚' },
-    { id: 'tools-guide', name: 'Tool Integration', description: 'External tool setup: xEdit, Creation Kit, NifSkope, Blender', route: '/settings/tools', category: 'Knowledge', icon: '🛠️' },
-    { id: 'precombine', name: 'Precombine Guide', description: 'PJM scripting, PRP compatibility, and LOD optimization', route: '/knowledge', category: 'Knowledge', icon: '🧩' },
-    { id: 'papyrus', name: 'Papyrus Library', description: 'Script templates, patterns, and compilation workflows', route: '/knowledge', category: 'Knowledge', icon: '📜' },
-    
-    // System
-    { id: 'bridge', name: 'Desktop Bridge', description: 'Local system integration for hardware access and tool communication', route: '/bridge', category: 'System', icon: '🌉' },
-    { id: 'monitor', name: 'System Monitor', description: 'Hardware profiling, telemetry, and performance tracking', route: '/monitor', category: 'System', icon: '📊' },
-    { id: 'settings', name: 'Settings & Config', description: 'Application preferences, tool paths, and privacy settings', route: '/settings', category: 'System', icon: '⚙️' },
-    
-    // Output/Deployment
-    { id: 'nexus', name: 'Nexus Hub', description: 'Mod upload preparation and Nexus Mods integration', route: '/nexus', category: 'Output', icon: '🌐' },
-    { id: 'package', name: 'Package & Deploy', description: 'Archive creation, testing, and distribution workflows', route: '/monitor', category: 'Output', icon: '🚀' },
-    { id: 'privacy', name: 'Privacy Center', description: 'Data sharing preferences and knowledge base contributions', route: '/settings/privacy', category: 'System', icon: '🔐' },
-];
-
-const SystemMonitor: React.FC = () => {
-    const navigate = useNavigate();
+const SystemMonitor: React.FC<SystemMonitorProps> = ({ embedded = false }) => {
   const [activeTab, setActiveTab] = useState<'telemetry' | 'deploy' | 'hardware'>('telemetry');
   
   // Telemetry State - Initialize from LocalStorage or Bridge
@@ -106,9 +69,7 @@ const SystemMonitor: React.FC = () => {
   const [logs, setLogs] = useState<LogEntry[]>([]);
   const [isScanning, setIsScanning] = useState(false);
   const [scanProgress, setScanProgress] = useState(0);
-  const [modules] = useState<SystemModule[]>(modulesList);
   const [scanError, setScanError] = useState<string | null>(null);
-  const [selectedCategory, setSelectedCategory] = useState<'All' | 'Creation' | 'Workflow' | 'Knowledge' | 'System' | 'Output'>('All');
   
   // Installer Wizard State
   const [showInstaller, setShowInstaller] = useState(false);
@@ -592,77 +553,51 @@ const SystemMonitor: React.FC = () => {
     const mainScrollRef = useRef<HTMLDivElement | null>(null);
     const wheelProxy = useWheelScrollProxy(mainScrollRef);
 
+    const containerClassName = embedded
+      ? 'w-full bg-forge-dark text-slate-200 flex flex-col overflow-hidden relative min-h-[720px] rounded-lg border border-slate-800'
+      : 'h-full w-full bg-forge-dark text-slate-200 flex flex-col overflow-hidden relative min-h-0';
+
     return (
-        <div className="h-full w-full bg-forge-dark text-slate-200 flex flex-col overflow-hidden relative min-h-0" onWheel={wheelProxy}>
+        <div className={containerClassName} onWheel={wheelProxy}>
 
-            <div className="p-4 max-h-64 overflow-y-auto pr-2">
-                <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
-                    <ToolsInstallVerifyPanel
-                        className="mb-0"
-                        accentClassName="text-emerald-300"
-                        description="System Monitor is a status + diagnostics hub. Some capabilities require the Electron API and/or Desktop Bridge to be present."
-                        tools={[]}
-                        verify={[
-                            'Open Telemetry tab and confirm charts/widgets render.',
-                            'Run a scan and confirm the log updates with detected items.',
-                        ]}
-                        firstTestLoop={[
-                            'Run Install Wizard once to populate detected apps/tool paths.',
-                            'Open Desktop Bridge and confirm it’s ONLINE (if you use local features).',
-                            'Return here and run one scan to confirm end-to-end reporting.',
-                        ]}
-                        troubleshooting={[
-                            'If nothing detects, check that Electron API is available (not web mode).',
-                            'If bridge-based checks fail, confirm the bridge process is running and reachable.',
-                        ]}
-                        shortcuts={[
-                            { label: 'Install Wizard', to: '/install-wizard' },
-                            { label: 'Desktop Bridge', to: '/bridge' },
-                            { label: 'Diagnostics', to: '/diagnostics' },
-                            { label: 'Tool Settings', to: '/settings/tools' },
-                        ]}
-                    />
-
-                    <div className="bg-slate-900/60 border border-slate-800 rounded-xl p-4">
-                        <div className="text-sm font-semibold text-white mb-1">Existing Workflow (Legacy)</div>
-                        <div className="text-xs text-slate-400 mb-3">Jump to the original tabs and actions.</div>
-                        <div className="mb-3 rounded border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-[11px] text-amber-200">
-                            Build/release automation is not wired yet. Use the Assembler and Packaging Release Wizard for real output.
+            {!embedded && (
+                <div className="p-4 max-h-64 overflow-y-auto pr-2">
+                    <div className="flex items-center justify-between mb-3">
+                        <div>
+                            <h2 className="text-lg font-bold text-white">System Monitor</h2>
+                            <p className="text-xs text-slate-400">Diagnostics, telemetry, and bridge status</p>
                         </div>
-                        <div className="flex flex-wrap gap-2">
-                            <button
-                                onClick={() => setActiveTab('telemetry')}
-                                className="px-3 py-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded text-xs font-bold"
-                            >
-                                Telemetry
-                            </button>
-                            <button
-                                onClick={() => setActiveTab('hardware')}
-                                className="px-3 py-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded text-xs font-bold"
-                            >
-                                Hardware Profile
-                            </button>
-                            <button
-                                onClick={() => setShowInstaller(true)}
-                                className="px-3 py-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded text-xs font-bold"
-                            >
-                                Bridge Installer
-                            </button>
-                            <button
-                                onClick={startScan}
-                                disabled={isScanning}
-                                className={`px-3 py-2 border rounded text-xs font-bold transition-colors ${
-                                    isScanning
-                                        ? 'bg-slate-800 border-slate-700 text-slate-500 cursor-not-allowed'
-                                        : 'bg-emerald-500/10 border-emerald-600 text-emerald-300 hover:bg-emerald-500/20'
-                                }`}
-                            >
-                                Full System Scan
-                            </button>
-                        </div>
+                        <RouterLink
+                            to="/reference"
+                            className="px-3 py-2 text-[10px] font-black uppercase tracking-widest rounded-lg bg-emerald-900/20 border border-emerald-500/30 text-emerald-100 hover:bg-emerald-900/30 transition-colors"
+                            title="Open help"
+                        >
+                            Help
+                        </RouterLink>
+                    </div>
+                    <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+                        <ToolsInstallVerifyPanel
+                            className="mb-0"
+                            accentClassName="text-emerald-300"
+                            description="System Monitor is a status + diagnostics hub. Some capabilities require the Electron API and/or Desktop Bridge to be present."
+                            tools={[]}
+                            verify={[
+                                'Open Telemetry tab and confirm charts/widgets render.',
+                                'Run a scan and confirm the log updates with detected items.',
+                            ]}
+                            firstTestLoop={[
+                                'Run Install Wizard once to populate detected apps/tool paths.',
+                                'Open Desktop Bridge and confirm it’s ONLINE (if you use local features).',
+                                'Return here and run one scan to confirm end-to-end reporting.',
+                            ]}
+                            troubleshooting={[
+                                'If nothing detects, check that Electron API is available (not web mode).',
+                                'If bridge-based checks fail, confirm the bridge process is running and reachable.',
+                            ]}
+                        />
                     </div>
                 </div>
-            </div>
+            )}
       
       {/* --- VIRTUAL INSTALLER MODAL --- */}
       {showInstaller && (
@@ -850,9 +785,6 @@ const SystemMonitor: React.FC = () => {
                                 <h3 className="text-sm font-bold text-slate-500 flex items-center gap-2 uppercase tracking-widest">
                                     <SettingsIcon className="w-4 h-4" /> External Modding Tools
                                 </h3>
-                                <button onClick={() => navigate('/settings/tools')} className="px-3 py-1 bg-slate-800 hover:bg-slate-700 border border-slate-600 rounded text-[11px] font-bold text-slate-200 flex items-center gap-1">
-                                    <SettingsIcon className="w-3 h-3" /> Tool Settings
-                                </button>
                             </div>
                             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
                                 <ExternalToolNotice toolKey="xeditPath" toolName="xEdit / FO4Edit" nexusUrl="https://www.nexusmods.com/fallout4/mods/2737" description="Clean plugins (ITM/UDR), resolve conflicts, and generate patches." />
@@ -861,65 +793,6 @@ const SystemMonitor: React.FC = () => {
                                 <ExternalToolNotice toolKey="creationKitPath" toolName="Creation Kit" description="Author quests, worldspaces, records, scripts, and data edits." />
                             </div>
                         </div>
-
-            {/* Feature Map - Real Mossy Tools */}
-            <div className="mb-8">
-                <div className="flex justify-between items-center mb-4">
-                    <h3 className="text-sm font-bold text-slate-500 flex items-center gap-2 uppercase tracking-widest">
-                        <Map className="w-4 h-4" /> Mossy Feature Map
-                    </h3>
-                    <div className="flex gap-2">
-                        {['All', 'Creation', 'Workflow', 'Knowledge', 'System', 'Output'].map(cat => (
-                            <button
-                                key={cat}
-                                onClick={() => setSelectedCategory(cat as any)}
-                                className={`px-3 py-1 rounded text-xs font-bold transition-colors ${
-                                    selectedCategory === cat
-                                        ? 'bg-purple-600 text-white'
-                                        : 'bg-slate-800 text-slate-400 hover:bg-slate-700'
-                                }`}
-                            >
-                                {cat}
-                            </button>
-                        ))}
-                    </div>
-                </div>
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                    {modules
-                        .filter(mod => selectedCategory === 'All' || mod.category === selectedCategory)
-                        .map(mod => (
-                            <div 
-                                key={mod.id} 
-                                onClick={() => navigate(mod.route)}
-                                className="bg-slate-900 border border-slate-800 hover:border-purple-500/50 p-4 rounded-lg cursor-pointer transition-all hover:shadow-lg hover:shadow-purple-900/20 group"
-                            >
-                                <div className="flex items-start gap-3 mb-3">
-                                    <div className="text-3xl">{mod.icon}</div>
-                                    <div className="flex-1 min-w-0">
-                                        <h4 className="font-bold text-white text-sm group-hover:text-purple-400 transition-colors truncate">
-                                            {mod.name}
-                                        </h4>
-                                        <span className={`text-[10px] font-bold uppercase px-2 py-0.5 rounded ${
-                                            mod.category === 'Creation' ? 'bg-blue-900/30 text-blue-400' :
-                                            mod.category === 'Workflow' ? 'bg-green-900/30 text-green-400' :
-                                            mod.category === 'Knowledge' ? 'bg-purple-900/30 text-purple-400' :
-                                            mod.category === 'System' ? 'bg-orange-900/30 text-orange-400' :
-                                            'bg-red-900/30 text-red-400'
-                                        }`}>
-                                            {mod.category}
-                                        </span>
-                                    </div>
-                                </div>
-                                <p className="text-xs text-slate-400 leading-relaxed">
-                                    {mod.description}
-                                </p>
-                                <div className="mt-3 flex items-center text-xs text-purple-400 group-hover:text-purple-300 transition-colors">
-                                    <span>Open Tool →</span>
-                                </div>
-                            </div>
-                        ))}
-                </div>
-            </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
                 {/* Charts */}

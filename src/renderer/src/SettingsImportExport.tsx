@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { Link } from 'react-router-dom';
 import { ArrowDownToLine, Upload, Settings, AlertCircle, CheckCircle } from 'lucide-react';
 
 interface SettingsData {
@@ -8,11 +9,13 @@ interface SettingsData {
 interface SettingsImportExportProps {
   onImport?: (data: SettingsData) => void;
   onExport?: () => SettingsData;
+  embedded?: boolean;
 }
 
 export const SettingsImportExport: React.FC<SettingsImportExportProps> = ({
   onImport,
-  onExport
+  onExport,
+  embedded = false
 }) => {
   const [importStatus, setImportStatus] = useState<'idle' | 'success' | 'error'>('idle');
   const [exportStatus, setExportStatus] = useState<'idle' | 'success' | 'error'>('idle');
@@ -106,9 +109,20 @@ export const SettingsImportExport: React.FC<SettingsImportExportProps> = ({
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center gap-3 mb-4">
-        <Settings className="w-5 h-5 text-slate-400" />
-        <h3 className="text-lg font-semibold text-white">Settings Backup</h3>
+      <div className="flex items-center justify-between gap-3 mb-4">
+        <div className="flex items-center gap-3">
+          <Settings className="w-5 h-5 text-slate-400" />
+          <h3 className="text-lg font-semibold text-white">Settings Backup</h3>
+        </div>
+        {!embedded && (
+          <Link
+            to="/reference"
+            className="px-3 py-2 text-[10px] font-black uppercase tracking-widest rounded bg-slate-800 border border-slate-600 text-slate-100 hover:bg-slate-700 transition-colors"
+            title="Open help"
+          >
+            Help
+          </Link>
+        )}
       </div>
 
       <div className="grid gap-4 md:grid-cols-2">

@@ -19,10 +19,11 @@ interface PrivacySettings {
 
 interface MossyOnboardingProps {
   onComplete?: () => void;
+  embedded?: boolean;
 }
 
 /* eslint-disable react/prop-types */
-const MossyOnboarding: React.FC<MossyOnboardingProps> = ({ onComplete = () => {} }) => {
+const MossyOnboarding: React.FC<MossyOnboardingProps> = ({ onComplete = () => {}, embedded = false }) => {
   const [currentStep, setCurrentStep] = useState(0);
   const [privacySettings, setPrivacySettings] = useState<PrivacySettings>({
     keepLocalOnly: true,
@@ -237,9 +238,21 @@ const MossyOnboarding: React.FC<MossyOnboardingProps> = ({ onComplete = () => {}
 
   const step = steps[currentStep];
 
+  const wrapperClass = embedded
+    ? 'bg-slate-900 border-2 border-emerald-500/40 rounded-2xl shadow-2xl overflow-hidden'
+    : 'fixed inset-0 bg-black/90 backdrop-blur-sm z-50 flex items-center justify-center p-4';
+
+  const cardClass = embedded
+    ? 'w-full'
+    : 'w-full max-w-2xl bg-slate-900 border-2 border-emerald-500/40 rounded-2xl shadow-2xl overflow-hidden';
+
+  const contentClass = embedded
+    ? 'p-6 max-h-[70vh] overflow-y-auto'
+    : 'p-8 max-h-96 overflow-y-auto';
+
   return (
-    <div className="fixed inset-0 bg-black/90 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-      <div className="w-full max-w-2xl bg-slate-900 border-2 border-emerald-500/40 rounded-2xl shadow-2xl overflow-hidden" style={{boxShadow: '0 0 40px rgba(0,255,0,0.1)'}}>
+    <div className={wrapperClass}>
+      <div className={cardClass} style={{ boxShadow: '0 0 40px rgba(0,255,0,0.1)' }}>
         {/* Header */}
         <div className="bg-gradient-to-r from-slate-800 to-slate-900 border-b border-slate-700 p-8">
           <div className="flex items-center gap-4 mb-4">
@@ -267,7 +280,7 @@ const MossyOnboarding: React.FC<MossyOnboardingProps> = ({ onComplete = () => {}
         </div>
 
         {/* Content */}
-        <div className="p-8 max-h-96 overflow-y-auto">
+        <div className={contentClass}>
           {step.content}
         </div>
 

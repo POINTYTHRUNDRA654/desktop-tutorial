@@ -1,5 +1,4 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
 import { FolderOpen, FileText, ArrowDownToLine, AlertTriangle, CheckCircle2, ExternalLink } from 'lucide-react';
 import type { LoadOrderModel } from './types';
 import { parseMo2Modlist, parseMo2PluginsTxt } from './parsers';
@@ -14,8 +13,11 @@ const joinPath = (base: string, leaf: string) => {
   return `${trimmed}\\${leaf}`;
 };
 
-export const LoadOrderLab: React.FC = () => {
-  const navigate = useNavigate();
+type LoadOrderLabProps = {
+  embedded?: boolean;
+};
+
+export const LoadOrderLab: React.FC<LoadOrderLabProps> = ({ embedded = false }) => {
   const api = getBridge();
 
   const hasLoadedPersistedState = useRef(false);
@@ -350,98 +352,97 @@ export const LoadOrderLab: React.FC = () => {
   const enabledPlugins = model.plugins.filter(p => p.enabled);
   const disabledPlugins = model.plugins.filter(p => !p.enabled);
 
+  const containerClassName = embedded
+    ? 'w-full overflow-hidden flex flex-col bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 rounded-lg border border-slate-800'
+    : 'h-full w-full overflow-hidden flex flex-col bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950';
+
   return (
-    <div className="h-full w-full overflow-hidden flex flex-col bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950">
-      <div className="p-5 border-b border-slate-700/60 bg-slate-900/40">
-        <div className="flex items-start justify-between gap-4">
-          <div>
-            <h1 className="text-xl font-bold text-slate-100">Load Order Lab (Experimental)</h1>
-            <p className="text-xs text-slate-400 mt-1">
-              MO2 + LOOT import, then generate an xEdit script stub.
-            </p>
-            <div className="mt-3 rounded border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-[11px] text-amber-200">
-              The generated script is a stub placeholder. It only creates an empty patch and does not resolve conflicts for you.
+    <div className={containerClassName}>
+      {!embedded && (
+        <div className="p-5 border-b border-slate-700/60 bg-slate-900/40">
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <h1 className="text-xl font-bold text-slate-100">Load Order Lab (Experimental)</h1>
+              <p className="text-xs text-slate-400 mt-1">
+                MO2 + LOOT import, then generate an xEdit script stub.
+              </p>
+              <div className="mt-3 rounded border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-[11px] text-amber-200">
+                The generated script is a stub placeholder. It only creates an empty patch and does not resolve conflicts for you.
+              </div>
+            </div>
+
+            <div className="flex gap-2 flex-wrap justify-end">
+              <button
+                onClick={() => void pickMo2Profile()}
+                className="px-3 py-2 rounded border border-slate-700 bg-slate-900/40 hover:border-slate-500 text-xs font-bold text-slate-200 flex items-center gap-2"
+              >
+                <FolderOpen className="w-4 h-4" />
+                Pick MO2 Profile
+              </button>
+              <button
+                onClick={() => void pickLootReport()}
+                className="px-3 py-2 rounded border border-slate-700 bg-slate-900/40 hover:border-slate-500 text-xs font-bold text-slate-200 flex items-center gap-2"
+              >
+                <FileText className="w-4 h-4" />
+                Import LOOT Report
+              </button>
+              <button
+                onClick={() => void exportXEditScript()}
+                className="px-3 py-2 rounded border border-emerald-700 bg-emerald-900/20 hover:border-emerald-500 text-xs font-bold text-emerald-200 flex items-center gap-2"
+              >
+                <ArrowDownToLine className="w-4 h-4" />
+                Export xEdit Script
+              </button>
+
+              <button
+                onClick={() => void prepareXEditScriptInAppStorage()}
+                className="px-3 py-2 rounded border border-slate-700 bg-slate-900/40 hover:border-slate-500 text-xs font-bold text-slate-200"
+                title="Writes the script into the app's userData folder (no dialog)"
+              >
+                Prepare Script (App Storage)
+              </button>
+              <button
+                onClick={() => void openXEdit()}
+                className="px-3 py-2 rounded border border-slate-700 bg-slate-900/40 hover:border-slate-500 text-xs font-bold text-slate-200 flex items-center gap-2"
+              >
+                <ExternalLink className="w-4 h-4" />
+                Open xEdit
+              </button>
+              <button
+                onClick={() => void exportXEditCmdLauncher()}
+                className="px-3 py-2 rounded border border-slate-700 bg-slate-900/40 hover:border-slate-500 text-xs font-bold text-slate-200"
+              >
+                Export Launcher (.cmd)
+              </button>
             </div>
           </div>
 
-          <div className="flex gap-2 flex-wrap justify-end">
-            <button
-              onClick={() => void pickMo2Profile()}
-              className="px-3 py-2 rounded border border-slate-700 bg-slate-900/40 hover:border-slate-500 text-xs font-bold text-slate-200 flex items-center gap-2"
-            >
-              <FolderOpen className="w-4 h-4" />
-              Pick MO2 Profile
-            </button>
-            <button
-              onClick={() => void pickLootReport()}
-              className="px-3 py-2 rounded border border-slate-700 bg-slate-900/40 hover:border-slate-500 text-xs font-bold text-slate-200 flex items-center gap-2"
-            >
-              <FileText className="w-4 h-4" />
-              Import LOOT Report
-            </button>
-            <button
-              onClick={() => void exportXEditScript()}
-              className="px-3 py-2 rounded border border-emerald-700 bg-emerald-900/20 hover:border-emerald-500 text-xs font-bold text-emerald-200 flex items-center gap-2"
-            >
-              <ArrowDownToLine className="w-4 h-4" />
-              Export xEdit Script
-            </button>
-
-            <button
-              onClick={() => void prepareXEditScriptInAppStorage()}
-              className="px-3 py-2 rounded border border-slate-700 bg-slate-900/40 hover:border-slate-500 text-xs font-bold text-slate-200"
-              title="Writes the script into the app's userData folder (no dialog)"
-            >
-              Prepare Script (App Storage)
-            </button>
-            <button
-              onClick={() => void openXEdit()}
-              className="px-3 py-2 rounded border border-slate-700 bg-slate-900/40 hover:border-slate-500 text-xs font-bold text-slate-200 flex items-center gap-2"
-            >
-              <ExternalLink className="w-4 h-4" />
-              Open xEdit
-            </button>
-            <button
-              onClick={() => void exportXEditCmdLauncher()}
-              className="px-3 py-2 rounded border border-slate-700 bg-slate-900/40 hover:border-slate-500 text-xs font-bold text-slate-200"
-            >
-              Export Launcher (.cmd)
-            </button>
-            <button
-              onClick={() => navigate('/settings/tools')}
-              className="px-3 py-2 rounded border border-slate-700 bg-slate-900/40 hover:border-slate-500 text-xs font-bold text-slate-200"
-            >
-              Settings → Tools
-            </button>
-          </div>
-        </div>
-
-        <div className="mt-3 grid grid-cols-3 gap-3 text-xs">
-          <div className="rounded border border-slate-700 bg-slate-950/40 p-3">
-            <div className="text-slate-400">MO2 profile</div>
-            <div className="text-slate-200 mt-1 truncate">{model.mo2ProfileDir || '—'}</div>
-          </div>
-          <div className="rounded border border-slate-700 bg-slate-950/40 p-3">
-            <div className="text-slate-400">LOOT report</div>
-            <div className="text-slate-200 mt-1 truncate">{model.lootReportPath || '—'}</div>
-          </div>
-          <div className="rounded border border-slate-700 bg-slate-950/40 p-3">
-            <div className="text-slate-400">Status</div>
-            <div className="mt-1 flex items-center gap-2">
-              {error ? (
-                <>
-                  <AlertTriangle className="w-4 h-4 text-red-400" />
-                  <span className="text-red-300 truncate">{error}</span>
-                </>
-              ) : status ? (
-                <>
-                  <CheckCircle2 className="w-4 h-4 text-emerald-400" />
-                  <span className="text-emerald-200 truncate">{status}</span>
-                </>
-              ) : (
-                <span className="text-slate-500">—</span>
-              )}
+          <div className="mt-3 grid grid-cols-3 gap-3 text-xs">
+            <div className="rounded border border-slate-700 bg-slate-950/40 p-3">
+              <div className="text-slate-400">MO2 profile</div>
+              <div className="text-slate-200 mt-1 truncate">{model.mo2ProfileDir || '—'}</div>
             </div>
+            <div className="rounded border border-slate-700 bg-slate-950/40 p-3">
+              <div className="text-slate-400">LOOT report</div>
+              <div className="text-slate-200 mt-1 truncate">{model.lootReportPath || '—'}</div>
+            </div>
+            <div className="rounded border border-slate-700 bg-slate-950/40 p-3">
+              <div className="text-slate-400">Status</div>
+              <div className="mt-1 flex items-center gap-2">
+                {error ? (
+                  <>
+                    <AlertTriangle className="w-4 h-4 text-red-400" />
+                    <span className="text-red-300 truncate">{error}</span>
+                  </>
+                ) : status ? (
+                  <>
+                    <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+                    <span className="text-emerald-200 truncate">{status}</span>
+                  </>
+                ) : (
+                  <span className="text-slate-500">—</span>
+                )}
+              </div>
           </div>
         </div>
 
@@ -524,6 +525,7 @@ export const LoadOrderLab: React.FC = () => {
           )}
         </div>
       </div>
+      )}
 
       <div className="flex-1 overflow-hidden grid grid-cols-2 gap-0">
         <div className="h-full overflow-hidden border-r border-slate-700/60">
