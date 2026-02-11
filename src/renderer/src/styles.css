@@ -468,6 +468,24 @@ body.pip-boy-mode textarea:focus {
   text-align: right;
 }
 
+.mossy-face-prop {
+  position: absolute;
+  top: 16px;
+  left: 50%;
+  transform: translateX(-50%);
+  opacity: 0.7;
+  pointer-events: none;
+  filter: drop-shadow(0 0 24px rgba(16, 185, 129, 0.35));
+  z-index: 0;
+}
+
+@media (max-width: 1100px) {
+  .mossy-face-prop {
+    top: 8px;
+    opacity: 0.55;
+  }
+}
+
 .input-form {
   padding: 1.5rem;
   background: linear-gradient(135deg, #0a0e0a 0%, #1a1f1a 100%);
