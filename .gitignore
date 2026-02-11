@@ -63,3 +63,6 @@ resources/app.asar
 # Test results
 test-results/
 playwright-report/
+
+# Legacy/archived files
+archive/
