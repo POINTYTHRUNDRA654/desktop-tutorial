@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { ArrowDownToLine, CheckCircle2, ArrowRight, X, Monitor, Command, Layout, ChevronRight, Package, Terminal, Pause, Play, Mic2, BrainCircuit, Layers, Zap, ShieldCheck, Video } from 'lucide-react';
+import { ArrowDownToLine, CheckCircle2, ArrowRight, X, Monitor, Command, Layout, ChevronRight, Package, Terminal, Pause, Play, Mic2, BrainCircuit, Layers, Zap, ShieldCheck, Video, Image } from 'lucide-react';
 import VideoTutorial from './VideoTutorial';
+import ImageTutorial from './ImageTutorial';
 
 interface HighlightRect {
     top: string | number;
@@ -25,6 +26,7 @@ const TutorialOverlay: React.FC = () => {
     const [installProgress, setInstallProgress] = useState(0);
     const [bootLogs, setBootLogs] = useState<string[]>([]);
     const [showVideoTutorial, setShowVideoTutorial] = useState(false);
+    const [showImageTutorial, setShowImageTutorial] = useState(false);
 
     // --- State Management ---
     
@@ -55,11 +57,18 @@ const TutorialOverlay: React.FC = () => {
             setShowVideoTutorial(true);
         };
         
+        // Event listener for image tutorial
+        const handleImageTutorial = () => {
+            setShowImageTutorial(true);
+        };
+        
         window.addEventListener('start-tutorial', handleTrigger);
         window.addEventListener('open-video-tutorial', handleVideoTutorial);
+        window.addEventListener('open-image-tutorial', handleImageTutorial);
         return () => {
             window.removeEventListener('start-tutorial', handleTrigger);
             window.removeEventListener('open-video-tutorial', handleVideoTutorial);
+            window.removeEventListener('open-image-tutorial', handleImageTutorial);
         };
     }, []);
 
@@ -125,6 +134,16 @@ const TutorialOverlay: React.FC = () => {
                         I can see your screen, read your files, and execute code to help you build faster.
                     </p>
                     <div className="flex flex-col gap-3 mt-6">
+                        <button
+                            onClick={() => {
+                                setShowImageTutorial(true);
+                                setIsOpen(false);
+                            }}
+                            className="flex items-center justify-center gap-3 px-6 py-3 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white rounded-lg font-medium transition-all shadow-lg shadow-emerald-900/20"
+                        >
+                            <Image className="w-5 h-5" />
+                            Visual Tutorial (Screenshots)
+                        </button>
                         <button
                             onClick={() => {
                                 setShowVideoTutorial(true);
@@ -274,7 +293,7 @@ const TutorialOverlay: React.FC = () => {
 
     const currentStep = steps[currentStepIndex];
 
-    if (!isOpen && !showVideoTutorial) return null;
+    if (!isOpen && !showVideoTutorial && !showImageTutorial) return null;
 
     return (
         <>
@@ -282,6 +301,14 @@ const TutorialOverlay: React.FC = () => {
                 isOpen={showVideoTutorial} 
                 onClose={() => {
                     setShowVideoTutorial(false);
+                    setIsOpen(true);
+                }} 
+            />
+            
+            <ImageTutorial 
+                isOpen={showImageTutorial} 
+                onClose={() => {
+                    setShowImageTutorial(false);
                     setIsOpen(true);
                 }} 
             />
