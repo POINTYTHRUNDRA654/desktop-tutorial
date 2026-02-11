@@ -11,6 +11,12 @@ lerna-debug.log*
 node_modules
 package-lock.json
 
+# Local dev folders
+.venv/
+act/
+gh-cli/
+desktop-tutorial/
+
 # Build outputs
 dist
 dist-electron
