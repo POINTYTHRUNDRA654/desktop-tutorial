@@ -340,10 +340,24 @@ Users can also upload custom avatars via AvatarCard in the app.
 
 ## 🧪 Testing
 
+Run the full test suite:
+
 ```bash
-npm run test           # Run all tests
-npm run test:watch    # Watch mode
+npm test              # Run all unit tests (111 tests)
+npm run test:watch    # Run tests in watch mode
+npm run smoke         # Run linting + tests
+npm run verify        # Run linting + tests + build
 ```
+
+Run E2E tests (requires full Electron installation):
+
+```bash
+npm run test:e2e         # Run Playwright E2E tests
+npm run test:e2e:ui      # Run E2E tests with UI
+npm run test:e2e:debug   # Debug E2E tests
+```
+
+For detailed test results, see [TEST_REPORT.md](TEST_REPORT.md).
 
 ## 📊 Project Stats
 
@@ -351,6 +365,7 @@ npm run test:watch    # Watch mode
 - **Lines of Real Code**: ~15,000+
 - **Zero Fake Features**: ✅
 - **Production Ready**: ✅
+- **Test Coverage**: 111 unit tests across 12 test files
 
 ## 📝 License
 
@@ -363,20 +378,6 @@ Built with Electron, React, and TypeScript.
 - **macOS**: Accessibility permissions in System Preferences
 - **Windows**: No special permissions required
 - **Linux**: Varies by desktop environment
-
-## 🧪 Testing
-
-Run tests:
-
-```bash
-npm test
-```
-
-Run tests in watch mode:
-
-```bash
-npm run test:watch
-```
 
 ## 📝 Development Notes
 
