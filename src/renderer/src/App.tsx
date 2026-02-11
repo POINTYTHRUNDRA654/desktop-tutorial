@@ -23,7 +23,8 @@ import AvatarCore from './AvatarCore';
 
 // Import Quick Wins components
 import { GlobalSearch } from './GlobalSearch';
-import { WhatsNewDialog, useWhatsNew } from './WhatsNewDialog';
+import { useWhatsNew } from './WhatsNewDialog';
+import WhatsNewPage from './WhatsNewPage';
 import { SkeletonLoader } from './SkeletonLoader';
 
 // Import new performance & reliability managers
@@ -136,6 +137,18 @@ const NeuralController: React.FC = () => {
 };
 
 const ModuleLoader = () => <SkeletonLoader type="module" />;
+
+const WhatsNewRedirect: React.FC<{ enabled: boolean }> = ({ enabled }) => {
+  const navigate = useNavigate();
+  const location = useLocation();
+
+  useEffect(() => {
+    if (!enabled || location.pathname === '/whats-new') return;
+    navigate('/whats-new', { replace: true, state: { from: location.pathname } });
+  }, [enabled, location.pathname, navigate]);
+
+  return null;
+};
 
 const App: React.FC = () => {
   const devBuildId = '2026-01-27-1227-debug-probe';
@@ -694,10 +707,10 @@ const App: React.FC = () => {
           }}
         >
           <NeuralController />
+          <WhatsNewRedirect enabled={showWhatsNew} />
           <CommandPalette />
           <TutorialOverlay />
           <SystemBus />
-          <WhatsNewDialog isOpen={showWhatsNew} onClose={dismissWhatsNew} />
 
           {/* Mobile sidebar overlay */}
           <div
@@ -727,7 +740,7 @@ const App: React.FC = () => {
                 </Suspense>
               </div>
             </div>
-            <div className="flex items-end gap-2 justify-self-center pb-0.5">
+            <div className="flex flex-col items-center gap-1 justify-self-center">
               <AvatarCore className="w-7 h-7" showRings={false} />
               <div className="hidden xl:block text-[10px] text-emerald-300 uppercase tracking-[0.3em] font-bold">Mossy Core</div>
             </div>
@@ -788,14 +801,19 @@ const App: React.FC = () => {
             role="main"
             aria-label="Main content"
           >
-            <MossyObserver />
-            <Suspense fallback={<ModuleLoader />}>
-              <Routes>
+            <div className="mossy-face-prop" aria-hidden="true">
+              <AvatarCore className="w-44 h-44" showRings={false} />
+            </div>
+            <div className="relative z-10">
+              <MossyObserver />
+              <Suspense fallback={<ModuleLoader />}>
+                <Routes>
                 {/* Core Application Routes */}
                 <Route path="/" element={<ErrorBoundary><TheNexus /></ErrorBoundary>} />
                 <Route path="/chat" element={<ErrorBoundary><ChatInterface /></ErrorBoundary>} />
                 <Route path="/first-success" element={<ErrorBoundary><FirstSuccessWizard /></ErrorBoundary>} />
                 <Route path="/roadmap" element={<ErrorBoundary><RoadmapPanel /></ErrorBoundary>} />
+                <Route path="/whats-new" element={<ErrorBoundary><WhatsNewPage onDismiss={dismissWhatsNew} /></ErrorBoundary>} />
                 <Route path="/live" element={<ErrorBoundary><VoiceChat /></ErrorBoundary>} />
 
                 {/* Core Tools */}
@@ -970,8 +988,9 @@ const App: React.FC = () => {
                 <Route path="/havok" element={<Navigate to="/guides/blender/animation" replace />} />
                 <Route path="/havok-quick-start" element={<Navigate to="/guides/blender/animation" replace />} />
                 <Route path="/havok-fo4" element={<Navigate to="/guides/blender/animation" replace />} />
-              </Routes>
-            </Suspense>
+                </Routes>
+              </Suspense>
+            </div>
           </main>
           <GuidedTour
             isOpen={guidedTour.isOpen}
