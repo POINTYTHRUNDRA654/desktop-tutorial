@@ -77,6 +77,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen = false, onToggle, onClose }) 
     { to: '/chat', icon: MessageSquare, label: t('nav.chat', 'AI Chat') },
     { to: '/first-success', icon: CheckCircle2, label: t('nav.firstSuccess', 'First Success') },
     { to: '/roadmap', icon: Target, label: t('nav.roadmap', 'Modding Roadmaps') },
+    { to: '/whats-new', icon: Star, label: "What's New" },
     { to: '/project', icon: Sparkles, label: t('nav.modProjects', 'Mod Projects') },
 
     // === CORE LEARNING: GUIDES & REFERENCES ===
@@ -205,16 +206,6 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen = false, onToggle, onClose }) 
       )}
 
       <nav className="flex-1 p-4 space-y-2 overflow-y-auto custom-scrollbar" role="navigation" aria-label="Main navigation menu">
-        {/* Mobile close button */}
-        <button
-          type="button"
-          className="w-full mb-4 p-2 bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white rounded-lg transition-colors md:hidden focus-visible"
-          onClick={onClose}
-          aria-label="Close navigation menu"
-        >
-          ✕ Close Menu
-        </button>
-
         {navItems.map((item) => (
           <div key={item.to} className="relative group">
             {item.isExternal ? (
