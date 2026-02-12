@@ -12,6 +12,8 @@ import PipBoyStartup from './PipBoyStartup';
 import { FirstRunOnboarding } from './FirstRunOnboarding';
 import { VoiceSetupWizard } from './VoiceSetupWizard';
 import GuidedTour from './GuidedTour';
+import InteractiveTutorial from './InteractiveTutorial';
+import TutorialLaunch from './TutorialLaunch';
 import { NotificationProvider } from './NotificationContext';
 import { ensureBrowserTtsSettingsStored } from './browserTts';
 
@@ -178,6 +180,20 @@ const App: React.FC = () => {
     const hasCompletedVoiceSetup = localStorage.getItem('mossy_voice_setup_complete') === 'true';
     return hasCompletedFirstRun && !hasCompletedVoiceSetup;
   });
+  
+  // Tutorial state
+  const [showTutorialLaunch, setShowTutorialLaunch] = useState(false);
+  const [showInteractiveTutorial, setShowInteractiveTutorial] = useState(() => {
+    // Check if tutorial is in progress
+    const hasCompletedFirstRun = localStorage.getItem('mossy_onboarding_complete') === 'true';
+    const tutorialCompleted = localStorage.getItem('mossy_tutorial_completed') === 'true';
+    const tutorialSkipped = localStorage.getItem('mossy_tutorial_skipped') === 'true';
+    const tutorialStep = localStorage.getItem('mossy_tutorial_step');
+    
+    // Resume tutorial if it was in progress
+    return hasCompletedFirstRun && !tutorialCompleted && !tutorialSkipped && tutorialStep !== null;
+  });
+  
   const [debugHash, setDebugHash] = useState(() => window.location.hash || '');
   const [showDevHud, setShowDevHud] = useState(() => {
     if (!import.meta.env.DEV) return false;
@@ -657,6 +673,10 @@ const App: React.FC = () => {
         <FirstRunOnboarding 
           onComplete={() => {
             setShowFirstRun(false);
+            // Show tutorial launch prompt after onboarding
+            setTimeout(() => {
+              setShowTutorialLaunch(true);
+            }, 500);
           }} 
         />
       );
@@ -998,6 +1018,33 @@ const App: React.FC = () => {
             tourType={guidedTour.type}
             targetModule={guidedTour.targetModule}
           />
+          
+          {/* Tutorial Launch Prompt */}
+          {showTutorialLaunch && (
+            <TutorialLaunch
+              onStartTutorial={() => {
+                setShowTutorialLaunch(false);
+                setShowInteractiveTutorial(true);
+                localStorage.setItem('mossy_tutorial_started', 'true');
+              }}
+              onSkip={() => {
+                setShowTutorialLaunch(false);
+                localStorage.setItem('mossy_tutorial_skipped', 'true');
+              }}
+            />
+          )}
+          
+          {/* Interactive Tutorial */}
+          {showInteractiveTutorial && (
+            <InteractiveTutorial
+              onComplete={() => {
+                setShowInteractiveTutorial(false);
+              }}
+              onSkip={() => {
+                setShowInteractiveTutorial(false);
+              }}
+            />
+          )}
         </div>
       </HashRouter>
     );
