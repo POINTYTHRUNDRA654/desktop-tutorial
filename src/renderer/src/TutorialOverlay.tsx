@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { ArrowDownToLine, CheckCircle2, ArrowRight, X, Monitor, Command, Layout, ChevronRight, Package, Terminal, Pause, Play, Mic2, BrainCircuit, Layers, Zap, ShieldCheck, Video } from 'lucide-react';
 import VideoTutorial from './VideoTutorial';
+import { speakMossy } from './mossyTts';
 
 interface HighlightRect {
     top: string | number;
@@ -14,6 +15,7 @@ interface TutorialStep {
     id: string;
     title: string;
     content: React.ReactNode;
+    narration?: string; // Text for Mossy to speak
     highlight?: HighlightRect;
     placement: 'center' | 'right-of-sidebar' | 'bottom-of-header' | 'center-screen';
     showSkip?: boolean;
@@ -71,6 +73,26 @@ const TutorialOverlay: React.FC = () => {
         return () => window.removeEventListener('keydown', onKey);
     }, [isOpen]);
 
+    // --- Narration: Speak tutorial step content ---
+    useEffect(() => {
+        if (!isOpen || !steps[currentStepIndex]) return;
+        
+        const currentStep = steps[currentStepIndex];
+        const narrationText = currentStep.narration;
+        
+        if (narrationText) {
+            // Small delay to let UI settle before speaking
+            const timer = setTimeout(() => {
+                speakMossy(narrationText, { 
+                    cancelExisting: true,
+                    onError: (err) => console.error('[TutorialOverlay] TTS failed:', err)
+                });
+            }, 500);
+            
+            return () => clearTimeout(timer);
+        }
+    }, [currentStepIndex, isOpen]);
+
     // --- Boot Sequence Simulation (Step 1) ---
     useEffect(() => {
         if (currentStepIndex === 1 && isOpen) {
@@ -110,6 +132,7 @@ const TutorialOverlay: React.FC = () => {
             title: 'System Online',
             placement: 'center',
             highlight: undefined,
+            narration: 'Welcome, Architect. I am Mossy, your neural interface for creative workflows. I can see your screen, read your files, and execute code to help you build faster. You can watch a video tutorial or continue with an interactive walkthrough.',
             content: (
                 <div className="text-center">
                     <div className="flex justify-center mb-6">
@@ -144,6 +167,7 @@ const TutorialOverlay: React.FC = () => {
             id: 'bridge',
             title: 'Establishing Uplink',
             placement: 'center',
+            narration: 'To function effectively, I need to establish a Desktop Bridge to your local environment. This allows me to interact with your tools and files securely.',
             content: (
                 <div className="w-full">
                     <p className="text-slate-400 text-sm mb-4">
@@ -184,6 +208,7 @@ const TutorialOverlay: React.FC = () => {
             title: 'Neural Lattice',
             placement: 'right-of-sidebar',
             highlight: { top: 0, left: 0, width: '256px', height: '100%' }, // Matches w-64 sidebar
+            narration: 'This is your command deck. Navigate between different Neural Modules here. The Workshop is your code and script IDE, and The Cortex is your Knowledge Base with RAG capabilities.',
             content: (
                 <div>
                     <p className="text-slate-300 text-sm mb-4">
@@ -215,6 +240,7 @@ const TutorialOverlay: React.FC = () => {
             // Highlighting the bottom of the sidebar might be tricky without specific refs, 
             // so let's highlight the nav item area generally or just point to it.
             highlight: { top: 'auto', left: 0, width: '256px', height: '100%' }, 
+            narration: 'Need to talk? I am always listening. Select Live Voice in the sidebar for a low-latency, hands-free conversation while you work in other apps.',
             content: (
                 <div>
                     <p className="text-slate-300 text-sm mb-4">
@@ -238,6 +264,7 @@ const TutorialOverlay: React.FC = () => {
             id: 'cmd',
             title: 'Power User Access',
             placement: 'center',
+            narration: 'Expert architects don\'t use the mouse. Press Command K or Control K anywhere to open the Command Palette. Jump to modules, run scripts, or ask me questions instantly.',
             content: (
                 <div className="text-center">
                     <div className="mb-6 inline-flex items-center gap-2">
