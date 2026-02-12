@@ -126,7 +126,7 @@ const TutorialOverlay: React.FC = () => {
 
     // --- Step Definitions ---
     
-    const steps: TutorialStep[] = [
+    const steps: TutorialStep[] = useMemo(() => [
         {
             id: 'welcome',
             title: 'System Online',
@@ -282,7 +282,7 @@ const TutorialOverlay: React.FC = () => {
                 </div>
             )
         }
-    ];
+    ], []); // Empty dependency array since steps are static
 
     // --- Handlers ---
 
