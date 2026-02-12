@@ -12,11 +12,20 @@
 - Real-time tool monitoring (Neural Link)
 - Explicit user permission and audit logging for all direct-write and automation features
 - All modules are functional—no placeholders
+- **Fixed**: Encryption key parity between dev and production builds
+- **Added**: Automatic API key decryption in packaged builds
 
-**Installer:**
+**Important Notes:**
+- Mossy **intentionally recommends** Mod Organizer 2 (MO2) or Vortex when users ask about installation tutorials
+- This is correct behavior for Fallout 4 modding workflows
+- The installer has the same features as the dev environment
+- API keys are automatically decrypted from `.env.encrypted` in packaged builds
+
+**Packaging:**
 - Windows installer is generated via NSIS (`npm run package:win`)
 - Version is auto-set from `package.json` (currently 5.4.21)
-- No separate .nsi script; packaging is handled by Electron Forge and NSIS config
+- See **[PACKAGING_GUIDE.md](PACKAGING_GUIDE.md)** for complete packaging instructions
+- Run `node scripts/fix-env-encryption.mjs` before packaging to ensure API keys work
 
 **Onboarding:**
 - See [BLENDER_ADDON_TUTORIAL.md](resources/public/knowledge/BLENDER_ADDON_TUTORIAL.md) for Blender scripting

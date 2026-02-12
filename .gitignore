@@ -41,6 +41,7 @@ external/volttech-dist/*
 .env.local
 .env.production
 .env.development
+.env.encrypted.backup
 
 # Database
 *.db
