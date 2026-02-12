@@ -1039,12 +1039,6 @@ const App: React.FC = () => {
               </Suspense>
             </div>
           </main>
-          <GuidedTour
-            isOpen={guidedTour.isOpen}
-            onClose={() => setGuidedTour(prev => ({ ...prev, isOpen: false }))}
-            tourType={guidedTour.type}
-            targetModule={guidedTour.targetModule}
-          />
         </div>
       </HashRouter>
     );
@@ -1181,6 +1175,12 @@ const App: React.FC = () => {
             </button>
             <NotificationProvider>
               <TutorialOverlay />
+              <GuidedTour
+                isOpen={guidedTour.isOpen}
+                onClose={() => setGuidedTour(prev => ({ ...prev, isOpen: false }))}
+                tourType={guidedTour.type}
+                targetModule={guidedTour.targetModule}
+              />
               {renderAppContent()}
             </NotificationProvider>
           </PipBoyFrame>
