@@ -1,8 +1,8 @@
 {
   "name": "mossy-desktop",
   "private": true,
-  "version": "5.4.21",
-  "description": "Mossy v5.4.21 - Production-ready Fallout 4 modding assistant with AI, file analysis, asset optimization, and tool integration",
+  "version": "5.4.23",
+  "description": "Mossy v5.4.23 - Production-ready Fallout 4 modding assistant with AI, file analysis, asset optimization, and tool integration",
   "main": "dist-electron/electron/main.js",
   "author": "POINTYTHRUNDRA654",
   "license": "MIT",
