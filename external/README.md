@@ -99,6 +99,26 @@ See `ELECTRON_STORE_GUIDE.md` for integration details.
 
 See `COSMOS_INTEGRATION_GUIDE.md` for complete setup and usage of all Cosmos models.
 
+### 12. Phoenix LiveView
+- **Repository**: https://github.com/plausible/phoenix_live_view
+- **Purpose**: Real-time server-rendered UI framework
+- **Usage**: Live dashboards, monitoring interfaces, collaborative features
+- **License**: MIT
+- **Size**: ~24 MB
+
+To use Phoenix LiveView:
+```bash
+# Install Elixir
+brew install elixir  # macOS
+# or choco install elixir  # Windows
+
+# Create Phoenix app
+mix archive.install hex phx_new
+mix phx.new mossy_web --live
+```
+
+See `PHOENIX_LIVEVIEW_GUIDE.md` for integration details.
+
 ## Setup
 
 These repositories are cloned for reference and integration. They are excluded from git tracking via `.gitignore`.
@@ -118,12 +138,15 @@ git clone https://github.com/nvidia-cosmos/cosmos-rl.git
 git clone https://github.com/nvidia-cosmos/cosmos-dependencies.git
 git clone https://github.com/nvidia-cosmos/cosmos-curate.git
 git clone https://github.com/nvidia-cosmos/cosmos-xenna.git
+git clone https://github.com/plausible/phoenix_live_view.git
 ```
 
 ### Integration
 
 - See `ADVANCED_AI_INTEGRATION.md` for AI tools
 - See `ELECTRON_STORE_GUIDE.md` for settings management
+- See `COSMOS_INTEGRATION_GUIDE.md` for NVIDIA Cosmos platform
+- See `PHOENIX_LIVEVIEW_GUIDE.md` for real-time web UI
 
 ## Why External?
 
@@ -144,6 +167,6 @@ git pull origin main
 ## Notes
 
 - These directories are in `.gitignore`
-- Size: ~500MB combined
-- Python and Node.js required for full functionality
+- Size: ~2.5GB combined
+- Python, Node.js, and Elixir required for full functionality
 - See main documentation for usage examples
