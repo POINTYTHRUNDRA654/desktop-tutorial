@@ -26,9 +26,14 @@ async function emptyDir(dir) {
 async function main() {
   const repoRoot = process.cwd();
   const destDir = path.join(repoRoot, 'public', 'knowledge');
+  const visualsSrcDir = path.join(repoRoot, 'visual-guide-images');
+  const visualsDestDir = path.join(repoRoot, 'public', 'visual-guide-images');
 
   await ensureDir(destDir);
   await emptyDir(destDir);
+
+  await ensureDir(visualsDestDir);
+  await emptyDir(visualsDestDir);
 
   const entries = await fs.readdir(repoRoot, { withFileTypes: true });
   const mdFiles = entries
@@ -42,6 +47,22 @@ async function main() {
     const dest = path.join(destDir, name);
     await fs.copyFile(src, dest);
     copied++;
+  }
+
+  try {
+    const visualEntries = await fs.readdir(visualsSrcDir, { withFileTypes: true });
+    const images = visualEntries.filter((e) => e.isFile());
+    await Promise.all(
+      images.map(async (entry) => {
+        const src = path.join(visualsSrcDir, entry.name);
+        const dest = path.join(visualsDestDir, entry.name);
+        await fs.copyFile(src, dest);
+      })
+    );
+    // eslint-disable-next-line no-console
+    console.log(`[copy-knowledge] Copied ${images.length} tutorial images to ${visualsDestDir}`);
+  } catch {
+    // ignore missing visual guide images
   }
 
   // eslint-disable-next-line no-console
