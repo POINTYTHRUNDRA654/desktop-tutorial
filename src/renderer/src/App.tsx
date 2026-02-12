@@ -727,7 +727,7 @@ const App: React.FC = () => {
           />
 
           {/* Main Application Header */}
-          <header className="main-header bg-slate-900 border-b border-green-500/20 px-4 py-2 grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1.6fr)] items-center gap-4">
+          <header className="main-header bg-slate-900 border-b border-green-500/20 px-4 py-2 grid grid-cols-[minmax(0,1fr)_auto] items-center gap-4">
             <div className="flex items-center gap-4">
               <h1 className="text-xl font-bold text-green-400 font-mono">MOSSY</h1>
               <div className="hidden md:block">
@@ -740,12 +740,12 @@ const App: React.FC = () => {
                 </Suspense>
               </div>
             </div>
-            <div className="flex flex-col items-center gap-1 justify-self-center">
-              <AvatarCore className="w-7 h-7" showRings={false} />
-              <div className="hidden xl:block text-[10px] text-emerald-300 uppercase tracking-[0.3em] font-bold">Mossy Core</div>
-            </div>
-            <div className="flex items-center gap-2 justify-self-stretch justify-end min-w-0">
+            <div className="flex items-center gap-3 justify-self-stretch justify-end min-w-0">
               <GlobalSearch />
+              <div className="flex items-center gap-2">
+                <AvatarCore className="w-7 h-7" showRings={false} />
+                <div className="hidden xl:block text-[10px] text-emerald-300 uppercase tracking-[0.3em] font-bold">Mossy Core</div>
+              </div>
               <button
                 type="button"
                 onClick={() => window.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', ctrlKey: true }))}
@@ -801,9 +801,6 @@ const App: React.FC = () => {
             role="main"
             aria-label="Main content"
           >
-            <div className="mossy-face-prop" aria-hidden="true">
-              <AvatarCore className="w-44 h-44" showRings={false} />
-            </div>
             <div className="relative z-10">
               <MossyObserver />
               <Suspense fallback={<ModuleLoader />}>
