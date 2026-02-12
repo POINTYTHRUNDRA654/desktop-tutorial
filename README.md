@@ -12,11 +12,29 @@
 - Real-time tool monitoring (Neural Link)
 - Explicit user permission and audit logging for all direct-write and automation features
 - All modules are functional—no placeholders
+- **Fixed**: Encryption key parity between dev and production builds
+- **Added**: Automatic API key decryption in packaged builds
+- **New**: Tutorial replay feature - Re-experience the installation tutorial anytime!
 
-**Installer:**
+**Important Notes:**
+- Mossy **intentionally recommends** Mod Organizer 2 (MO2) or Vortex when users ask about installation tutorials
+- This is correct behavior for Fallout 4 modding workflows
+- The installer has the same features as the dev environment
+- API keys are automatically decrypted from `.env.encrypted` in packaged builds
+- **You can now replay the installation tutorial** from Settings → Tutorial & Onboarding
+
+**Replaying the Tutorial:**
+1. Go to Settings (gear icon in sidebar)
+2. Scroll to "Step 5: Tutorial & Onboarding"
+3. Click "Replay Tutorial"
+4. Confirm the reset
+5. App will reload and show the first-run experience again
+
+**Packaging:**
 - Windows installer is generated via NSIS (`npm run package:win`)
 - Version is auto-set from `package.json` (currently 5.4.21)
-- No separate .nsi script; packaging is handled by Electron Forge and NSIS config
+- See **[PACKAGING_GUIDE.md](PACKAGING_GUIDE.md)** for complete packaging instructions
+- Run `node scripts/fix-env-encryption.mjs` before packaging to ensure API keys work
 
 **Onboarding:**
 - See [BLENDER_ADDON_TUTORIAL.md](resources/public/knowledge/BLENDER_ADDON_TUTORIAL.md) for Blender scripting
@@ -29,6 +47,30 @@
 ![Platform](https://img.shields.io/badge/platform-Windows-blue)
 ![Status](https://img.shields.io/badge/status-Production%20Ready-green.svg)
 ![Version](https://img.shields.io/badge/version-5.4.21-blue.svg)
+
+## 💖 Support This Project
+
+Mossy is **100% free** and will always remain free. If you find it helpful, consider supporting development:
+
+[![GitHub Sponsors](https://img.shields.io/badge/Sponsor-GitHub-EA4AAA?style=for-the-badge&logo=github-sponsors&logoColor=white)](https://github.com/sponsors/POINTYTHRUNDRA654)
+[![Buy Me a Coffee](https://img.shields.io/badge/Buy_Me_A_Coffee-FFDD00?style=for-the-badge&logo=buy-me-a-coffee&logoColor=black)](https://buymeacoffee.com/mossy)
+[![Ko-fi](https://img.shields.io/badge/Ko--fi-F16061?style=for-the-badge&logo=ko-fi&logoColor=white)](https://ko-fi.com/mossy)
+[![PayPal](https://img.shields.io/badge/PayPal-00457C?style=for-the-badge&logo=paypal&logoColor=white)](https://paypal.me/mossy)
+
+Your support helps:
+- 💰 Cover AI API costs (OpenAI, embeddings)
+- 🚀 Fund continued development and new features
+- 📚 Expand the Fallout 4 knowledge base
+- ☕ Keep the developer caffeinated
+- 🎮 Enable future versions for other games
+
+**Can't donate?** No problem! You can also help by:
+- ⭐ Starring this repository
+- 📢 Sharing Mossy with the Fallout 4 modding community
+- 🐛 Reporting bugs and issues
+- 📖 Contributing to the knowledge base
+
+> **Note:** The sponsorship links above are placeholders. See [SPONSORSHIP_SETUP_GUIDE.md](SPONSORSHIP_SETUP_GUIDE.md) for setup instructions.
 
 ## 🎯 What's Inside
 
