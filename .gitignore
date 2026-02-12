@@ -66,3 +66,7 @@ Thumbs.db
 Mossy.exe
 Uninstall Mossy.exe
 resources/app.asar
+
+# External AI libraries (cloned repos)
+external/chroma/
+external/langchain/
