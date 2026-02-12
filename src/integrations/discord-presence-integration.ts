@@ -92,7 +92,7 @@ export class DiscordPresence {
       state: this.getStateText(activity),
       startTimestamp: this.startTime,
       largeImageKey: 'mossy-logo',
-      largeImageText: 'Mossy v5.4.21',
+      largeImageText: 'Mossy v5.4.23',
       smallImageKey: this.getSmallIcon(activity),
       smallImageText: this.getActivityName(activity),
       instance: false,
@@ -343,3 +343,4 @@ app.on('will-quit', async () => {
   await discordPresence.destroy();
 });
 */
+
