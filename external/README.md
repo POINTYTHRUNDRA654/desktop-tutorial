@@ -1,6 +1,6 @@
 # External Dependencies
 
-This directory contains cloned repositories for advanced AI features.
+This directory contains cloned repositories for advanced AI features and utilities.
 
 ## Included Repositories
 
@@ -28,7 +28,20 @@ To use LangChain:
 npm install langchain
 ```
 
-### 3. NVIDIA Cosmos
+### 3. electron-store
+- **Repository**: https://github.com/sindresorhus/electron-store
+- **Purpose**: Type-safe settings storage for Electron
+- **Usage**: Better settings management
+- **License**: MIT
+
+To use electron-store:
+```bash
+npm install electron-store
+```
+
+See `ELECTRON_STORE_GUIDE.md` for integration details.
+
+### 4. NVIDIA Cosmos
 - **Repository**: https://github.com/NVIDIA/cosmos
 - **Purpose**: Video generation and analysis
 - **Usage**: Future video features
@@ -44,11 +57,13 @@ The repositories are cloned with:
 ```bash
 git clone --depth 1 https://github.com/chroma-core/chroma.git
 git clone --depth 1 https://github.com/langchain-ai/langchain.git
+git clone --depth 1 https://github.com/sindresorhus/electron-store.git
 ```
 
 ### Integration
 
-See `ADVANCED_AI_INTEGRATION.md` for details on how these are integrated into Mossy.
+- See `ADVANCED_AI_INTEGRATION.md` for AI tools
+- See `ELECTRON_STORE_GUIDE.md` for settings management
 
 ## Why External?
 
