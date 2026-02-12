@@ -1,12 +1,12 @@
 # Blender Add-on Tutorial (Practical Guide)
 
-**Updated for Mossy v5.4.21**
+**Updated for Mossy v5.4.23**
 
 This guide helps technical artists and developers extend Blender with Python add-ons, from first operator to headless automation. Now includes direct-write and headless execution via Mossy.
 
 ---
 
-## 🚀 Mossy Integration & Onboarding (v5.4.21)
+## 🚀 Mossy Integration & Onboarding (v5.4.23)
 
 Mossy now supports:
 - Direct script installation to Blender via The Scribe (IDE)
@@ -119,7 +119,7 @@ Examples:
 blender --background --enable-autoexec "C:\Path\To\my_scene.blend" --render-anim
 ```
 
-## Mossy Direct-Write & Automation (v5.4.21)
+## Mossy Direct-Write & Automation (v5.4.23)
 
 Mossy can:
 - Write scripts directly to your Blender add-ons folder
@@ -163,7 +163,7 @@ Control auto-exec globally and per-file:
 
 See the checklist: [BLENDER_SCRIPT_EXECUTION_CHECKLIST.md](BLENDER_SCRIPT_EXECUTION_CHECKLIST.md)
 
-**Mossy v5.4.21:**
+**Mossy v5.4.23:**
 - The Scribe and Neural Link modules respect Blender's auto-exec and trust settings
 - All direct-write operations are logged and require explicit user permission
 
