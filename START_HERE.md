@@ -149,7 +149,7 @@ git log --all --grep="Visual" --oneline
 
 ## 📁 Repository Information
 
-**Project:** Mossy v5.4.21 - Fallout 4 Modding Assistant  
+**Project:** Mossy v5.4.23 - Fallout 4 Modding Assistant  
 **Type:** Electron + React + TypeScript desktop app  
 **Repository:** https://github.com/POINTYTHRUNDRA654/desktop-tutorial
 
@@ -288,3 +288,4 @@ git checkout master
 
 *Created: February 11, 2026*  
 *For repository: POINTYTHRUNDRA654/desktop-tutorial*
+

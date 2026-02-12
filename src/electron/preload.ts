@@ -104,7 +104,7 @@ const IPC_CHANNELS = {
   // Speech-to-text (main process handles keys)
   TRANSCRIBE_AUDIO: 'transcribe-audio',
 
-  // Roadmap System (v5.4.21+)
+  // Roadmap System (v5.4.23+)
   ROADMAP_GET_ALL: 'roadmap-get-all',
   ROADMAP_GET_ACTIVE: 'roadmap-get-active',
   ROADMAP_CREATE: 'roadmap-create',
@@ -771,3 +771,4 @@ contextBridge.exposeInMainWorld('electronAPI', electronAPI);
  * - Always sanitize user input before processing
  * - Never trust data from the renderer process
  */
+

@@ -33,7 +33,7 @@ The README now includes sponsor badges in the badges section:
 ┌──────────────────────────────────────────────────────────┐
 │ # Mossy - The Fallout 4 Modding Assistant               │
 │                                                           │
-│ [MIT] [Windows] [Production Ready] [v5.4.21]            │
+│ [MIT] [Windows] [Production Ready] [v5.4.23]            │
 │                                                           │
 │ ## 💖 Support This Project                              │
 │                                                           │
@@ -361,3 +361,4 @@ All paths lead to your sponsorship platforms!
 **Risk:** None - everything is optional and free to set up
 
 Ready to set up your accounts? Follow [SPONSORSHIP_QUICKSTART.md](SPONSORSHIP_QUICKSTART.md)!
+

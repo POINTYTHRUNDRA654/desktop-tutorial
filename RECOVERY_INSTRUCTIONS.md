@@ -134,7 +134,7 @@ desktop-tutorial/
 
 ### This is the "Mossy" Project
 - **Full Name:** Mossy - The Fallout 4 Modding Assistant
-- **Version:** v5.4.21
+- **Version:** v5.4.23
 - **Type:** Electron desktop application
 - **Purpose:** AI-powered Fallout 4 modding toolkit
 
@@ -293,3 +293,4 @@ git checkout master && git pull origin master
 
 *Generated: February 11, 2026*
 *Repository: POINTYTHRUNDRA654/desktop-tutorial*
+
