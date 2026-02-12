@@ -1,15 +1,17 @@
 # Tool Extensions User Guide
 
-This guide shows how to use the MO2, xEdit, and Creation Kit extensions in Mossy.
+This guide shows how to use the MO2, xEdit, Creation Kit, ComfyUI, and Upscayl extensions in Mossy.
 
 ---
 
 ## Quick Start
 
-All three extensions are located in the sidebar under "Tool Extensions":
+All five extensions are located in the sidebar under "Tool Extensions":
 - 📦 MO2 Extension
 - 🗄️ xEdit Extension  
 - 🔧 CK Extension
+- 🌐 ComfyUI Extension
+- 🔍 Upscayl Extension
 
 Each extension **automatically activates** when Neural Link detects the tool running.
 
@@ -425,5 +427,304 @@ All three extensions:
 - ✅ Safe and non-invasive
 - ✅ Easy to use
 - ✅ Professional UI
+
+**Start using:** Just run your tool and open the extension!
+
+---
+
+## 4. ComfyUI Extension
+
+### What It Does
+Provides quick access to ComfyUI's node-based AI image generation with pre-built workflows.
+
+### How to Use
+
+**Step 1: Start ComfyUI**
+```
+Launch ComfyUI (default: http://127.0.0.1:8188)
+```
+
+**Step 2: Open Extension**
+```
+Mossy → Sidebar → ComfyUI Extension
+```
+
+**Step 3: Generate Images**
+- Select a model
+- Enter your prompt
+- Click "Generate Image"
+
+### Features
+
+**Quick Generate:**
+- Model selector (SDXL, SD1.5, custom models)
+- Prompt input
+- Negative prompt
+- One-click generation
+
+**Workflow Library:**
+- Text to Image (Basic)
+- Text to Image (Advanced)
+- Image to Image
+- 4x Upscale
+- ControlNet Pose
+
+**Generation Queue:**
+- Real-time progress tracking
+- Multiple generations at once
+- Status indicators
+- Download generated images
+
+**Quick Actions:**
+- Open Output - View saved images
+- Refresh Models - Reload model list
+- Batch Export - Export all generated images
+- Settings - Configure ComfyUI connection
+
+### Example Workflow
+
+```
+1. Start ComfyUI
+2. Open ComfyUI Extension in Mossy
+3. Select "sd_xl_base_1.0.safetensors"
+4. Enter prompt: "detailed fallout 4 armor texture, weathered metal"
+5. Enter negative: "blurry, low quality"
+6. Click "Generate Image"
+7. Watch progress bar (25% → 50% → 75% → 100%)
+8. View generated image
+9. Click download icon
+```
+
+### Use Cases
+
+**For Modders:**
+- Generate concept art for mods
+- Create texture variations
+- Test different styles quickly
+- Generate reference images
+- Create promotional art
+
+**Workflow Categories:**
+- **txt2img**: Create new images from text
+- **img2img**: Transform existing images
+- **upscale**: Enhance resolution
+- **controlnet**: Guided generation
+
+---
+
+## 5. Upscayl Extension
+
+### What It Does
+AI-powered image upscaling specifically for textures and game assets.
+
+### How to Use
+
+**Step 1: Start Upscayl**
+```
+Launch Upscayl.exe
+```
+
+**Step 2: Open Extension**
+```
+Mossy → Sidebar → Upscayl Extension
+```
+
+**Step 3: Configure and Upscale**
+- Select AI model
+- Choose scale factor (2x, 3x, 4x)
+- Pick output format
+- Start upscaling
+
+### Features
+
+**Model Selection:**
+- RealESRGAN x4plus - Best for general images
+- RealESRGAN Anime - Optimized for anime/manga
+- Remacri - High quality for photos
+- Ultramix Balanced - Works for all content
+
+**Scale Options:**
+- 2x - Double resolution
+- 3x - Triple resolution  
+- 4x - Quadruple resolution
+
+**Output Formats:**
+- PNG - Lossless quality
+- JPG - Smaller file size
+- WebP - Modern compression
+
+**Batch Processing:**
+- Enable batch mode
+- Process multiple images
+- Same settings for all
+- Track individual progress
+
+**Processing Queue:**
+- Real-time status
+- Progress bars
+- Completion notifications
+- Error handling
+
+### Example Workflow
+
+```
+1. Start Upscayl
+2. Open Upscayl Extension in Mossy
+3. Select "RealESRGAN x4plus" model
+4. Choose 4x scale
+5. Select PNG format
+6. Enable batch mode
+7. Click "Start Upscaling"
+8. Watch processing queue:
+   - texture_diffuse.png (Processing: 50%)
+   - texture_normal.png (Queued)
+   - texture_specular.png (Queued)
+9. Download upscaled textures
+```
+
+### Use Cases
+
+**For Texture Artists:**
+- Upscale low-res textures to 4K
+- Enhance old mod textures
+- Prepare assets for high-res texture packs
+- Convert 1K textures to 4K
+- Batch process entire texture sets
+
+**Model Recommendations:**
+- **Fallout 4 textures**: RealESRGAN x4plus or Remacri
+- **Character faces**: RealESRGAN x4plus
+- **Anime-style mods**: RealESRGAN Anime
+- **Mixed content**: Ultramix Balanced
+
+### Output Preview
+
+Shows calculated output size:
+```
+Original:  1024 × 1024
+Upscaled:  4096 × 4096 (at 4x)
+Format:    PNG
+```
+
+### Quick Actions
+
+- **Open Output** - View upscaled images
+- **Batch Upload** - Select multiple images
+- **Export All** - Download all results
+- **Settings** - Configure Upscayl
+
+---
+
+## Detection Status (Updated)
+
+All five extensions show connection status:
+
+### What Neural Link Detects
+
+**ComfyUI:**
+- ComfyUI.exe
+- comfyui.exe
+- python.exe (with ComfyUI in path)
+
+**Upscayl:**
+- Upscayl.exe
+- upscayl.exe
+
+Detection updates every 5 seconds automatically.
+
+---
+
+## Tips & Best Practices (Updated)
+
+### ComfyUI Extension
+
+✅ **Do:**
+- Start with pre-built workflows
+- Use descriptive prompts
+- Experiment with different models
+- Save good prompts for reuse
+- Use negative prompts to avoid issues
+
+❌ **Don't:**
+- Generate copyrighted content
+- Use extremely long prompts
+- Run too many simultaneous generations
+- Ignore model compatibility
+
+### Upscayl Extension
+
+✅ **Do:**
+- Backup originals before upscaling
+- Test with single image first
+- Choose model based on content type
+- Use PNG for quality preservation
+- Batch similar content together
+
+❌ **Don't:**
+- Upscale already high-res images
+- Mix different content types in batch
+- Use JPG for textures (lossy)
+- Upscale more than 4x (diminishing returns)
+
+---
+
+## Troubleshooting (Updated)
+
+### ComfyUI Not Detected
+
+**Problem:** Extension shows "Not Running"
+
+**Solutions:**
+1. Verify ComfyUI is actually running
+2. Check http://127.0.0.1:8188 in browser
+3. Wait 5 seconds for detection
+4. Restart ComfyUI if needed
+
+### Upscayl Not Processing
+
+**Problem:** Upscaling stuck at 0%
+
+**Solutions:**
+1. Check Upscayl is running
+2. Verify file path is accessible
+3. Try different model
+4. Restart Upscayl
+
+### ComfyUI Generation Fails
+
+**Problem:** Images not generating
+
+**Solutions:**
+1. Check model is loaded in ComfyUI
+2. Verify prompt isn't empty
+3. Check ComfyUI console for errors
+4. Try simpler workflow
+
+---
+
+## Comparison Table
+
+| Extension | Primary Use | Speed | Best For |
+|-----------|-------------|-------|----------|
+| MO2 | Mod Management | N/A | Load order, conflicts |
+| xEdit | Plugin Cleaning | Fast | ITM removal, conflicts |
+| CK | Level Design | N/A | Auto-save, compilation |
+| ComfyUI | Image Generation | Slow | Concept art, textures |
+| Upscayl | Image Upscaling | Medium | Texture enhancement |
+
+---
+
+## Summary
+
+All five extensions:
+- ✅ Auto-detect when tools run
+- ✅ Provide useful features
+- ✅ Safe and non-invasive
+- ✅ Easy to use
+- ✅ Professional UI
+
+**New AI Tools:**
+- **ComfyUI**: Generate new images with AI
+- **Upscayl**: Enhance existing images with AI
 
 **Start using:** Just run your tool and open the extension!
