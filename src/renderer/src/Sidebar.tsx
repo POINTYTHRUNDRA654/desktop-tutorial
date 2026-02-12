@@ -128,6 +128,8 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen = false, onToggle, onClose }) 
     { to: '/extensions/mo2', icon: Package, label: 'MO2 Extension' },
     { to: '/extensions/xedit', icon: Database, label: 'xEdit Extension' },
     { to: '/extensions/ck', icon: Wrench, label: 'CK Extension' },
+    { to: '/extensions/comfyui', icon: Network, label: 'ComfyUI Extension' },
+    { to: '/extensions/upscayl', icon: Aperture, label: 'Upscayl Extension' },
     
     { to: '/dedupe', icon: Copy, label: t('nav.duplicateFinder', 'Duplicate Finder') },
     { to: '/community', icon: Github, label: t('nav.communityLearning', 'Community Learning') },

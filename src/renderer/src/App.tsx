@@ -959,6 +959,16 @@ const App: React.FC = () => {
                     {React.createElement(React.lazy(() => import('./CKExtension').then(m => ({ default: m.CKExtension }))))}
                   </Suspense>
                 } />
+                <Route path="/extensions/comfyui" element={
+                  <Suspense fallback={<SkeletonLoader />}>
+                    {React.createElement(React.lazy(() => import('./ComfyUIExtension').then(m => ({ default: m.ComfyUIExtension }))))}
+                  </Suspense>
+                } />
+                <Route path="/extensions/upscayl" element={
+                  <Suspense fallback={<SkeletonLoader />}>
+                    {React.createElement(React.lazy(() => import('./UpscaylExtension').then(m => ({ default: m.UpscaylExtension }))))}
+                  </Suspense>
+                } />
                 
                 <Route path="/workshop" element={<Navigate to="/dev/workshop" replace />} />
                 <Route path="/images" element={<Navigate to="/media/images" replace />} />
