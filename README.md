@@ -14,12 +14,21 @@
 - All modules are functional—no placeholders
 - **Fixed**: Encryption key parity between dev and production builds
 - **Added**: Automatic API key decryption in packaged builds
+- **New**: Tutorial replay feature - Re-experience the installation tutorial anytime!
 
 **Important Notes:**
 - Mossy **intentionally recommends** Mod Organizer 2 (MO2) or Vortex when users ask about installation tutorials
 - This is correct behavior for Fallout 4 modding workflows
 - The installer has the same features as the dev environment
 - API keys are automatically decrypted from `.env.encrypted` in packaged builds
+- **You can now replay the installation tutorial** from Settings → Tutorial & Onboarding
+
+**Replaying the Tutorial:**
+1. Go to Settings (gear icon in sidebar)
+2. Scroll to "Step 5: Tutorial & Onboarding"
+3. Click "Replay Tutorial"
+4. Confirm the reset
+5. App will reload and show the first-run experience again
 
 **Packaging:**
 - Windows installer is generated via NSIS (`npm run package:win`)
