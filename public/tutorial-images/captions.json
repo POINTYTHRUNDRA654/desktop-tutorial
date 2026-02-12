@@ -1,0 +1,50 @@
+{
+  "01-welcome.png": {
+    "title": "Welcome to Mossy",
+    "description": "This is the first screen you see when launching Mossy. The dashboard provides quick access to all modules and shows your current project status."
+  },
+  "02-sidebar.png": {
+    "title": "Sidebar Navigation",
+    "description": "Navigate between different modules using the sidebar. All major sections like The Nexus, Talk to Mossy, Live Voice, and tools are accessible here."
+  },
+  "03-nexus-dashboard.png": {
+    "title": "The Nexus Dashboard",
+    "description": "The Nexus is your central hub showing all available modules. Click any card to jump to that tool or feature."
+  },
+  "04-chat-interface.png": {
+    "title": "Chat with Mossy",
+    "description": "Ask Mossy questions about Fallout 4 modding. Mossy has knowledge of Papyrus scripting, Creation Kit, xEdit, and more."
+  },
+  "05-live-voice.png": {
+    "title": "Live Voice Conversation",
+    "description": "Talk to Mossy hands-free with Live Voice. Perfect for getting help while working in other applications like Blender or the Creation Kit."
+  },
+  "06-auditor.png": {
+    "title": "The Auditor",
+    "description": "Analyze your mod files with The Auditor. It checks ESP, NIF, and DDS files for common issues and performance problems."
+  },
+  "07-image-suite.png": {
+    "title": "Image Suite",
+    "description": "Generate PBR textures automatically. Create normal maps, roughness maps, height maps, and more from your base textures."
+  },
+  "08-workshop.png": {
+    "title": "The Workshop",
+    "description": "Write and compile Papyrus scripts in The Workshop. Features syntax highlighting, code snippets, and direct compilation."
+  },
+  "09-vault.png": {
+    "title": "The Vault",
+    "description": "Manage your mod assets in The Vault. Browse files, view metadata, and organize your resources."
+  },
+  "10-bridge.png": {
+    "title": "Desktop Bridge",
+    "description": "Desktop Bridge detects your installed modding tools. Connect Blender, xEdit, NifSkope, and other programs for integrated workflows."
+  },
+  "11-settings.png": {
+    "title": "Settings & Configuration",
+    "description": "Configure Mossy's AI, voice settings, tool paths, and privacy preferences. All settings are stored locally on your computer."
+  },
+  "12-help.png": {
+    "title": "Documentation & Help",
+    "description": "Access comprehensive guides, tutorials, and reference documentation for Fallout 4 modding techniques."
+  }
+}
