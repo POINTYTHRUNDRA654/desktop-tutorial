@@ -41,11 +41,56 @@ npm install electron-store
 
 See `ELECTRON_STORE_GUIDE.md` for integration details.
 
-### 4. NVIDIA Cosmos
-- **Repository**: https://github.com/NVIDIA/cosmos
-- **Purpose**: Video generation and analysis
-- **Usage**: Future video features
+### 4. NVIDIA Cosmos Predict 2.5
+- **Repository**: https://github.com/nvidia-cosmos/cosmos-predict2.5
+- **Purpose**: Video prediction and world simulation
+- **Usage**: Future frame prediction, physics simulation
 - **License**: NVIDIA
+- **Size**: ~154 MB
+
+### 5. NVIDIA Cosmos Transfer 2.5
+- **Repository**: https://github.com/nvidia-cosmos/cosmos-transfer2.5
+- **Purpose**: Video tokenization and encoding
+- **Usage**: Video understanding and representation
+- **License**: NVIDIA
+- **Size**: ~224 MB
+
+### 6. NVIDIA Cosmos Reason 2
+- **Repository**: https://github.com/nvidia-cosmos/cosmos-reason2
+- **Purpose**: Physical AI reasoning VLM
+- **Usage**: Scene understanding, spatial reasoning
+- **License**: NVIDIA
+- **Size**: ~22 MB
+
+### 7. NVIDIA Cosmos Cookbook
+- **Repository**: https://github.com/nvidia-cosmos/cosmos-cookbook
+- **Purpose**: Recipes and examples for Cosmos models
+- **Usage**: Step-by-step guides, post-training scripts
+- **License**: NVIDIA
+- **Size**: ~1.5 GB (includes examples)
+
+### 8. NVIDIA Cosmos RL
+- **Repository**: https://github.com/nvidia-cosmos/cosmos-rl
+- **Purpose**: Reinforcement learning with world models
+- **Usage**: Agent training, policy optimization
+- **License**: NVIDIA
+- **Size**: ~36 MB
+
+### 9. NVIDIA Cosmos Dependencies
+- **Repository**: https://github.com/nvidia-cosmos/cosmos-dependencies
+- **Purpose**: Shared libraries and utilities
+- **Usage**: Common dependencies for all Cosmos models
+- **License**: NVIDIA
+- **Size**: ~12 MB
+
+### 10. NVIDIA Cosmos Curate
+- **Repository**: https://github.com/nvidia-cosmos/cosmos-curate
+- **Purpose**: Data curation and processing pipeline
+- **Usage**: Prepare and process training data
+- **License**: NVIDIA
+- **Size**: ~17 MB
+
+See `COSMOS_INTEGRATION_GUIDE.md` for complete setup and usage of all Cosmos models.
 
 ## Setup
 
@@ -58,6 +103,13 @@ The repositories are cloned with:
 git clone --depth 1 https://github.com/chroma-core/chroma.git
 git clone --depth 1 https://github.com/langchain-ai/langchain.git
 git clone --depth 1 https://github.com/sindresorhus/electron-store.git
+git clone https://github.com/nvidia-cosmos/cosmos-predict2.5.git
+git clone https://github.com/nvidia-cosmos/cosmos-transfer2.5.git
+git clone https://github.com/nvidia-cosmos/cosmos-reason2.git
+git clone https://github.com/nvidia-cosmos/cosmos-cookbook.git
+git clone https://github.com/nvidia-cosmos/cosmos-rl.git
+git clone https://github.com/nvidia-cosmos/cosmos-dependencies.git
+git clone https://github.com/nvidia-cosmos/cosmos-curate.git
 ```
 
 ### Integration
