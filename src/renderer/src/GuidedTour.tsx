@@ -1,7 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import Joyride, { CallBackProps, STATUS, EVENTS, Step } from 'react-joyride';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { BrainCircuit, Terminal, Mic2, Command, Zap, Settings, Search, Layers, FileCode, Monitor } from 'lucide-react';
+import { BrainCircuit, Mic2, Command, Zap, Search, Layers, FileCode, Monitor } from 'lucide-react';
+import { speakMossy } from './mossyTts';
 
 interface GuidedTourProps {
   isOpen: boolean;
@@ -10,10 +11,25 @@ interface GuidedTourProps {
   targetModule?: string;
 }
 
+type TourStepData = {
+  narration?: string;
+  route?: string;
+  stepId?: string;
+};
+
 const GuidedTour: React.FC<GuidedTourProps> = ({ isOpen, onClose, tourType, targetModule }) => {
   const navigate = useNavigate();
   const location = useLocation();
   const [run, setRun] = useState(false);
+  const [pendingRoute, setPendingRoute] = useState<string | null>(null);
+  const lastSpokenStepId = useRef<string | null>(null);
+  const visualGuideSrc = (name: string) => `/visual-guide-images/${encodeURIComponent(name)}`;
+
+  const renderGuideImage = (name: string, alt: string) => (
+    <div className="mt-3 rounded border border-slate-700/80 bg-slate-950/60 p-2">
+      <img src={visualGuideSrc(name)} alt={alt} className="w-full max-h-40 object-cover rounded" loading="lazy" />
+    </div>
+  );
 
   useEffect(() => {
     if (isOpen) {
@@ -22,8 +38,37 @@ const GuidedTour: React.FC<GuidedTourProps> = ({ isOpen, onClose, tourType, targ
       return () => clearTimeout(timer);
     } else {
       setRun(false);
+      setPendingRoute(null);
+      lastSpokenStepId.current = null;
     }
   }, [isOpen]);
+
+  useEffect(() => {
+    if (!pendingRoute) return;
+    if (location.pathname !== pendingRoute) return;
+    const timer = setTimeout(() => {
+      setRun(true);
+      setPendingRoute(null);
+    }, 250);
+    return () => clearTimeout(timer);
+  }, [location.pathname, pendingRoute]);
+
+  const shouldSpeak = () => {
+    try {
+      return localStorage.getItem('mossy_voice_enabled') !== 'false';
+    } catch {
+      return true;
+    }
+  };
+
+  const speakStep = (step?: Step) => {
+    const data = (step?.data ?? {}) as TourStepData;
+    if (!data.narration || !shouldSpeak()) return;
+    const stepId = data.stepId ?? data.narration;
+    if (lastSpokenStepId.current === stepId) return;
+    lastSpokenStepId.current = stepId;
+    void speakMossy(data.narration, { cancelExisting: true });
+  };
 
   const getSteps = (): Step[] => {
     switch (tourType) {
@@ -46,6 +91,10 @@ const GuidedTour: React.FC<GuidedTourProps> = ({ isOpen, onClose, tourType, targ
             ),
             placement: 'center',
             disableBeacon: true,
+            data: {
+              stepId: 'welcome-intro',
+              narration: 'Welcome to Mossy. I will walk you through the core areas of the app so you know where everything lives.'
+            } satisfies TourStepData,
           },
           {
             target: '[data-tour="sidebar"]',
@@ -66,6 +115,10 @@ const GuidedTour: React.FC<GuidedTourProps> = ({ isOpen, onClose, tourType, targ
               </div>
             ),
             placement: 'right',
+            data: {
+              stepId: 'welcome-sidebar',
+              narration: 'On the left is the navigation sidebar. Each module here opens a different tool, guide, or workflow.'
+            } satisfies TourStepData,
           },
           {
             target: '[data-tour="command-palette-trigger"]',
@@ -82,9 +135,13 @@ const GuidedTour: React.FC<GuidedTourProps> = ({ isOpen, onClose, tourType, targ
               </div>
             ),
             placement: 'bottom',
+            data: {
+              stepId: 'welcome-command',
+              narration: 'Use the command palette for fast navigation and actions. Press Control K any time to open it.'
+            } satisfies TourStepData,
           },
           {
-            target: '[data-tour="voice-toggle"]',
+            target: '[data-tour="sidebar"]',
             content: (
               <div>
                 <h4 className="font-bold text-white mb-2 flex items-center gap-2">
@@ -101,7 +158,11 @@ const GuidedTour: React.FC<GuidedTourProps> = ({ isOpen, onClose, tourType, targ
                 </div>
               </div>
             ),
-            placement: 'top',
+            placement: 'right',
+            data: {
+              stepId: 'welcome-voice',
+              narration: 'Voice mode lets you talk to me hands free. You can enable it in Live Voice and configure speech settings in Settings.'
+            } satisfies TourStepData,
           },
           {
             target: '[data-tour="main-content"]',
@@ -127,6 +188,183 @@ const GuidedTour: React.FC<GuidedTourProps> = ({ isOpen, onClose, tourType, targ
               </div>
             ),
             placement: 'center',
+            data: {
+              stepId: 'welcome-main',
+              narration: 'This main workspace is where each module renders its tools and panels. I will now take you through the key pages.'
+            } satisfies TourStepData,
+          },
+          {
+            target: 'body',
+            placement: 'center',
+            disableBeacon: true,
+            content: (
+              <div>
+                <h4 className="font-bold text-white mb-2 flex items-center gap-2">
+                  <BrainCircuit className="w-4 h-4" />
+                  The Nexus
+                </h4>
+                <p className="text-slate-300 text-sm">
+                  This dashboard shows system health, quick actions, and a summary of your current status.
+                </p>
+                {renderGuideImage("Page one. Mossy's space..png", 'Nexus overview')}
+              </div>
+            ),
+            data: {
+              stepId: 'page-nexus',
+              route: '/',
+              narration: 'This is the Nexus dashboard. It shows system health, quick actions, and your overall status at a glance.'
+            } satisfies TourStepData,
+          },
+          {
+            target: 'body',
+            placement: 'center',
+            disableBeacon: true,
+            content: (
+              <div>
+                <h4 className="font-bold text-white mb-2">Chat Interface</h4>
+                <p className="text-slate-300 text-sm">
+                  Ask Mossy anything. Use chat for guidance, research, and step-by-step help.
+                </p>
+                {renderGuideImage('Page two. AI Chat..png', 'Chat interface')}
+              </div>
+            ),
+            data: {
+              stepId: 'page-chat',
+              route: '/chat',
+              narration: 'This is the chat interface. Use it to ask questions, troubleshoot, or request step by step help.'
+            } satisfies TourStepData,
+          },
+          {
+            target: 'body',
+            placement: 'center',
+            disableBeacon: true,
+            content: (
+              <div>
+                <h4 className="font-bold text-white mb-2">Live Voice</h4>
+                <p className="text-slate-300 text-sm">
+                  Talk to Mossy with real-time voice input and spoken responses.
+                </p>
+                {renderGuideImage('Page 35 Live Synapse..png', 'Live voice')}
+              </div>
+            ),
+            data: {
+              stepId: 'page-live',
+              route: '/live',
+              narration: 'Here is Live Voice. Use your microphone to talk to me and hear spoken responses.'
+            } satisfies TourStepData,
+          },
+          {
+            target: 'body',
+            placement: 'center',
+            disableBeacon: true,
+            content: (
+              <div>
+                <h4 className="font-bold text-white mb-2">Workshop</h4>
+                <p className="text-slate-300 text-sm">
+                  The Workshop is your scripting and automation hub.
+                </p>
+                {renderGuideImage('Page 19, the workshop..png', 'Workshop')}
+              </div>
+            ),
+            data: {
+              stepId: 'page-workshop',
+              route: '/dev/workshop',
+              narration: 'This is the Workshop. Use it for scripting, automation, and developer tooling.'
+            } satisfies TourStepData,
+          },
+          {
+            target: 'body',
+            placement: 'center',
+            disableBeacon: true,
+            content: (
+              <div>
+                <h4 className="font-bold text-white mb-2">The Auditor</h4>
+                <p className="text-slate-300 text-sm">
+                  Scan assets and plugins to catch issues and optimize performance.
+                </p>
+                {renderGuideImage('Page 21 the auditor..png', 'Auditor')}
+              </div>
+            ),
+            data: {
+              stepId: 'page-auditor',
+              route: '/tools/auditor',
+              narration: 'The Auditor analyzes assets and plugins for issues, warnings, and performance risks.'
+            } satisfies TourStepData,
+          },
+          {
+            target: 'body',
+            placement: 'center',
+            disableBeacon: true,
+            content: (
+              <div>
+                <h4 className="font-bold text-white mb-2">Image Suite</h4>
+                <p className="text-slate-300 text-sm">
+                  Generate textures, tweak PBR maps, and manage images.
+                </p>
+                {renderGuideImage('Page 34 image Studio..png', 'Image suite')}
+              </div>
+            ),
+            data: {
+              stepId: 'page-images',
+              route: '/media/images',
+              narration: 'The Image Suite helps you generate and refine textures and PBR assets.'
+            } satisfies TourStepData,
+          },
+          {
+            target: 'body',
+            placement: 'center',
+            disableBeacon: true,
+            content: (
+              <div>
+                <h4 className="font-bold text-white mb-2">Packaging Hub</h4>
+                <p className="text-slate-300 text-sm">
+                  Build releases and package your mods for distribution.
+                </p>
+                {renderGuideImage('Page 11. Packaging and release..png', 'Packaging and release')}
+              </div>
+            ),
+            data: {
+              stepId: 'page-packaging',
+              route: '/packaging-release',
+              narration: 'The Packaging Hub walks you through builds and release packaging.'
+            } satisfies TourStepData,
+          },
+          {
+            target: 'body',
+            placement: 'center',
+            disableBeacon: true,
+            content: (
+              <div>
+                <h4 className="font-bold text-white mb-2">Learning Hub</h4>
+                <p className="text-slate-300 text-sm">
+                  Find guides, documentation, and curated modding knowledge.
+                </p>
+                {renderGuideImage('Page 8 knowledge search..png', 'Learning hub')}
+              </div>
+            ),
+            data: {
+              stepId: 'page-learning',
+              route: '/learn',
+              narration: 'The Learning Hub is your library of guides, references, and curated modding knowledge.'
+            } satisfies TourStepData,
+          },
+          {
+            target: 'body',
+            placement: 'center',
+            disableBeacon: true,
+            content: (
+              <div>
+                <h4 className="font-bold text-white mb-2">You are ready</h4>
+                <p className="text-slate-300 text-sm">
+                  That is the core layout. You can revisit this tour any time from the sidebar.
+                </p>
+              </div>
+            ),
+            data: {
+              stepId: 'page-finish',
+              route: '/',
+              narration: 'That completes the welcome tour. You can replay it any time from the sidebar.'
+            } satisfies TourStepData,
           },
         ];
 
@@ -190,11 +428,28 @@ const GuidedTour: React.FC<GuidedTourProps> = ({ isOpen, onClose, tourType, targ
   };
 
   const handleJoyrideCallback = (data: CallBackProps) => {
-    const { status, type } = data;
+    const { status, type, step } = data;
 
     if (status === STATUS.FINISHED || status === STATUS.SKIPPED) {
       setRun(false);
       onClose();
+      return;
+    }
+
+    if (type === EVENTS.STEP_BEFORE) {
+      const stepData = (step?.data ?? {}) as TourStepData;
+      if (stepData.route && location.pathname !== stepData.route) {
+        setRun(false);
+        setPendingRoute(stepData.route);
+        navigate(stepData.route);
+        return;
+      }
+      speakStep(step);
+    }
+
+    if (type === EVENTS.TARGET_NOT_FOUND) {
+      setRun(false);
+      setTimeout(() => setRun(true), 0);
     }
   };
 

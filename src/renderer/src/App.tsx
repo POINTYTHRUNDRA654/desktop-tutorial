@@ -284,6 +284,14 @@ const App: React.FC = () => {
     };
   }, []);
 
+  useEffect(() => {
+    if (!hasBooted || showFirstRun || showOnboarding || showVoiceSetup) return;
+    const hasSeenWelcomeTour = localStorage.getItem('mossy_welcome_tour_seen') === 'true';
+    if (hasSeenWelcomeTour) return;
+    localStorage.setItem('mossy_welcome_tour_seen', 'true');
+    window.dispatchEvent(new CustomEvent('start-welcome-tour'));
+  }, [hasBooted, showFirstRun, showOnboarding, showVoiceSetup]);
+
   // Load current project on app start
   useEffect(() => {
     const loadCurrentProject = async () => {
@@ -723,7 +731,6 @@ const App: React.FC = () => {
           <NeuralController />
           <WhatsNewRedirect enabled={showWhatsNew} />
           <CommandPalette />
-          <TutorialOverlay />
           <SystemBus />
 
           {/* Mobile sidebar overlay */}
@@ -763,6 +770,7 @@ const App: React.FC = () => {
               <button
                 type="button"
                 onClick={() => window.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', ctrlKey: true }))}
+                data-tour="command-palette-trigger"
                 className="hidden md:flex items-center gap-1.5 px-3 py-1.5 bg-slate-800 border border-slate-700 rounded-lg hover:bg-slate-700 transition-colors text-xs text-slate-300"
                 title="Command Palette (Ctrl+K)"
               >
@@ -1172,6 +1180,7 @@ const App: React.FC = () => {
               {isPipBoy ? 'PIP-BOY: ON' : 'PIP-BOY: OFF'}
             </button>
             <NotificationProvider>
+              <TutorialOverlay />
               {renderAppContent()}
             </NotificationProvider>
           </PipBoyFrame>
