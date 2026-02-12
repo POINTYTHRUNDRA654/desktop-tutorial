@@ -70,3 +70,4 @@ resources/app.asar
 # External AI libraries (cloned repos)
 external/chroma/
 external/langchain/
+external/electron-store/
