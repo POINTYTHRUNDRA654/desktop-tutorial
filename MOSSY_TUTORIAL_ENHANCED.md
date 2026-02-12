@@ -1001,3 +1001,541 @@ Current size: 1000x1000 pixels
 Problem: Fallout 4 requires texture dimensions in powers of 2
 Suggested fix: Resize to 1024x1024 pixels
 [Auto-Fix Available] ←
+```
+
+#### **Action Buttons:**
+
+**1. "📋 Details" Button**
+- **What it does:** Shows expanded technical information about the issue
+- **When to use:** Need to understand exactly what's wrong
+- **What happens:** Panel expands with more details, links to documentation
+- **Beginner Tip:** Click this if Mossy's initial explanation isn't clear enough
+
+**2. "🔧 Auto-Fix" Button** (only appears if fix is possible)
+- **What it does:** Automatically fixes the issue
+- **When to use:** When you want Mossy to fix the problem for you
+- **What happens:** Mossy makes the necessary changes to the file
+- **⚠️ Warning:** Always backup your files first! Auto-fix modifies your files
+- **Beginner Tip:** Use this for simple fixes like resizing textures
+
+**3. "Ask Mossy" Button**
+- **What it does:** Opens chat with pre-filled question about this specific issue
+- **When to use:** You don't understand the issue or how to fix it
+- **What happens:** Chat interface opens with context about the error
+- **Beginner Tip:** This is the easiest way to learn! Mossy explains in simple terms
+
+---
+
+### What The Auditor Checks - Detailed
+
+#### **For ESP/ESM/ESL Files (Plugin Files):**
+
+**Check 1: TES4 Header Validation**
+- **What it is:** The first part of the file that identifies it as a Fallout 4 plugin
+- **What's checked:** Correct format, version numbers, required fields
+- **Why it matters:** Invalid header = game won't load your mod
+- **Common issue:** File corruption, incorrect editing tool used
+
+**Check 2: Record Count**
+- **What it is:** How many "records" (items, NPCs, locations, etc.) are in the file
+- **What's checked:** Count matches what's actually in the file
+- **Why it matters:** Mismatch can cause crashes
+- **Common issue:** Using old editing tools
+
+**Check 3: File Size Limits**
+- **What it is:** How big the plugin file is
+- **What's checked:** Doesn't exceed Fallout 4 limits
+- **Why it matters:** Game has a 4GB limit for plugin files
+- **Common issue:** Adding too many records without creating new plugin
+
+**Check 4: Master File Dependencies**
+- **What it is:** Other plugins your mod needs to work
+- **What's checked:** All master files are listed, paths are correct
+- **Why it matters:** Missing masters = crash on load
+- **Common issue:** Forgetting to list dependencies
+
+**Check 5: FormID Conflicts**
+- **What it is:** Unique IDs for every object in your mod
+- **What's checked:** No duplicate IDs, IDs don't conflict with other mods
+- **Why it matters:** Conflicts = objects overwrite each other
+- **Common issue:** Two mods trying to change the same thing
+
+---
+
+#### **For NIF Files (Mesh/3D Model Files):**
+
+**Check 1: Vertex Count**
+- **What it is:** Number of points that make up the 3D model
+- **What's checked:** Count is reasonable for performance
+- **Why it matters:** Too many vertices = game lag
+- **Recommended:** <10,000 for most objects, <50,000 for large structures
+- **Common issue:** Not optimizing meshes after modeling
+
+**Check 2: Triangle Count**
+- **What it is:** Number of triangular faces on the model
+- **What's checked:** Count is optimized
+- **Why it matters:** More triangles = worse performance
+- **Recommended:** <20,000 for most objects
+- **Common issue:** High subdivision in Blender
+
+**Check 3: Texture Path Validity**
+- **What it is:** Where the game looks for texture files
+- **What's checked:** Paths are correct, textures exist
+- **Why it matters:** Missing textures = purple/missing textures in game
+- **Common issue:** Absolute paths (C:\MyFolder\) instead of relative paths (Textures\)
+
+**Check 4: Absolute Path Detection**
+- **What it is:** Hard-coded paths specific to your computer
+- **What's checked:** No paths like "C:\" or "D:\"
+- **Why it matters:** Other users don't have your exact folder structure
+- **Common issue:** Exporting from Blender without fixing paths
+- **How to fix:** Use relative paths or "pack" textures into the mod
+
+**Check 5: Collision Data**
+- **What it is:** Invisible shapes that tell the game what's solid
+- **What's checked:** Collision exists and is not overly complex
+- **Why it matters:** No collision = player falls through object, too complex = performance issues
+- **Common issue:** Forgetting to add collision or using visual mesh as collision
+
+---
+
+#### **For DDS Files (Texture Files):**
+
+**Check 1: Format Compatibility**
+- **What it is:** The compression format of the texture
+- **What's checked:** Using Fallout 4 compatible formats (BC1, BC3, BC5, BC7)
+- **Why it matters:** Wrong format = texture won't display or causes crashes
+- **Recommended:** 
+  - BC1 for diffuse (color) maps
+  - BC3 for diffuse with transparency
+  - BC5 for normal maps
+  - BC7 for high-quality color
+
+**Check 2: Resolution (Power-of-2)**
+- **What it is:** Width and height of the texture in pixels
+- **What's checked:** Both dimensions are powers of 2 (512, 1024, 2048, 4096)
+- **Why it matters:** Non power-of-2 textures cause performance issues or don't load
+- **Valid sizes:** 256x256, 512x512, 1024x1024, 2048x2048, 4096x4096
+- **Also OK:** Non-square but still power-of-2, like 512x1024
+- **Common issue:** Exporting 1000x1000 instead of 1024x1024
+
+**Check 3: Mipmap Presence**
+- **What it is:** Smaller versions of the texture for distant viewing
+- **What's checked:** Mipmaps are generated
+- **Why it matters:** No mipmaps = worse performance and visual quality
+- **Beginner Tip:** Always generate mipmaps when saving DDS files!
+
+**Check 4: Compression Type**
+- **What it is:** How the texture data is compressed
+- **What's checked:** Appropriate compression for texture type
+- **Why it matters:** Wrong compression = worse quality or larger file size
+- **Common issue:** Using BC1 for textures with transparency (need BC3)
+
+**Check 5: File Size Optimization**
+- **What it is:** How big the texture file is
+- **What's checked:** Size is reasonable for resolution and quality
+- **Why it matters:** Oversized textures waste disk space and memory
+- **Recommended:** 4K texture shouldn't be >10MB
+- **Common issue:** Not using compression, saving as PNG instead of DDS
+
+---
+
+### How to Use The Auditor - Complete Walkthrough
+
+#### **Scenario 1: Checking a Single Plugin File**
+
+**Goal:** Make sure your new weapon mod's ESP file is error-free
+
+**Steps:**
+
+1. **Open The Auditor**
+   - Click "The Auditor" in sidebar
+   - Or go to Tools → The Auditor
+
+2. **Select Your File**
+   - Click "Select File" button (top left)
+   - File browser opens
+   - Navigate to your mod folder (usually in Fallout 4/Data/)
+   - Click your .esp file (e.g., "MyWeaponMod.esp")
+   - Click "Open"
+
+3. **Wait for Analysis**
+   - Progress bar appears
+   - Shows "Scanning..." or percentage complete
+   - Usually takes 1-5 seconds for ESP files
+   - Don't close the window!
+
+4. **Review Results**
+   - File appears in left panel with status icon
+   - ✅ = No issues (great!)
+   - ⚠️ = Warnings (should check)
+   - ❌ = Errors (must fix!)
+
+5. **If Issues Found:**
+   - Click the file in left panel
+   - Read each issue in right panel
+   - Click "📋 Details" to understand more
+   - Click "Ask Mossy" if confused
+   - Fix issues manually OR click "🔧 Auto-Fix" if available
+
+6. **Verify Fixes:**
+   - After fixing issues
+   - Click "🔄 Scan Again" button
+   - Check if issues are resolved
+   - Repeat until clean (✅)
+
+**Beginner Tip:** Save your ESP file before using Auto-Fix, just in case!
+
+---
+
+#### **Scenario 2: Scanning Your Entire Mod Folder**
+
+**Goal:** Check all files in your mod project at once
+
+**Steps:**
+
+1. **Open The Auditor**
+
+2. **Select Your Mod Folder**
+   - Click "Select Folder" button
+   - Folder browser opens
+   - Navigate to your mod's root folder
+   - Click "Select Folder" or "OK"
+
+3. **Wait for Bulk Analysis**
+   - This can take time! (30 seconds to several minutes)
+   - Progress shows: "Scanned 5/50 files..."
+   - You can see files appearing in the list as they're scanned
+   - **Don't close the window** - let it finish
+
+4. **Review Summary**
+   - When complete, you'll see:
+     - Total files scanned
+     - Files with errors
+     - Files with warnings
+     - Clean files
+   - Example: "Scanned 47 files: 2 errors, 5 warnings, 40 clean"
+
+5. **Fix Critical Issues First**
+   - Files with ❌ errors are at the top
+   - Click first error file
+   - Read and fix the issue
+   - Move to next error file
+   - Only then handle warnings (⚠️)
+
+6. **Save Your Work**
+   - Click "📥 Export Report" button (if available)
+   - Saves a text file listing all issues
+   - Use this as a todo list!
+
+**Beginner Tip:** Don't try to fix everything at once! Start with errors, then critical warnings.
+
+---
+
+#### **Scenario 3: Understanding a Specific Error**
+
+**Goal:** You see an error but don't understand what it means
+
+**Steps:**
+
+1. **Click the Issue**
+   - In right panel, click the specific error message
+   - It expands to show more details
+
+2. **Read Technical Details**
+   - Shows exactly what's wrong
+   - Includes technical terminology
+
+3. **Click "Ask Mossy" Button**
+   - Chat interface opens
+   - Pre-filled with question about this specific error
+   - Includes context (what file, what type of error)
+
+4. **Have Conversation with Mossy**
+   - Mossy explains in simple terms
+   - Ask follow-up questions like:
+     - "How do I fix this?"
+     - "What tool do I need?"
+     - "Can you show me step-by-step?"
+
+5. **Apply the Solution**
+   - Follow Mossy's instructions
+   - Fix the issue using the appropriate tool
+
+6. **Verify Fix**
+   - Return to The Auditor
+   - Click "🔄 Scan Again"
+   - Check if error is resolved
+
+---
+
+### Common Auditor Issues and Solutions
+
+#### **Issue: "Invalid TES4 Header"**
+
+**What it means:** The plugin file's header is corrupted or malformed
+
+**Causes:**
+- Edited with wrong tool
+- File corruption
+- Saved incorrectly
+
+**How to fix:**
+1. Open in Creation Kit or xEdit
+2. Re-save the file
+3. If still broken, start over from backup
+
+**How to avoid:** Always use proper mod editing tools (Creation Kit, xEdit)
+
+---
+
+#### **Issue: "Non-Power-of-2 Texture Resolution"**
+
+**What it means:** Texture dimensions aren't 512, 1024, 2048, etc.
+
+**Example:** 1000x1000 instead of 1024x1024
+
+**How to fix:**
+1. Open texture in GIMP/Photoshop/Mossy Image Suite
+2. Resize to nearest power-of-2
+   - 1000x1000 → 1024x1024
+   - 1500x1500 → 2048x2048
+3. Re-save as DDS with proper format
+
+**Beginner Tip:** In Mossy Image Suite, use the resize tool - it auto-suggests correct sizes!
+
+---
+
+#### **Issue: "Absolute Path Detected in NIF"**
+
+**What it means:** The 3D model file contains a path like "C:\Users\YourName\..."
+
+**Why it's bad:** Other users don't have that exact path on their computer
+
+**How to fix:**
+1. Open NIF in NifSkope
+2. Find texture path field
+3. Change from: "C:\Users\Me\Desktop\Mods\Textures\myTexture.dds"
+4. Change to: "Textures\MyMod\myTexture.dds" (relative path)
+5. Save NIF file
+
+**Beginner Tip:** Always use paths starting with "Textures\" or "Meshes\"
+
+---
+
+#### **Issue: "High Vertex Count: 150,000 vertices"**
+
+**What it means:** The 3D model is too complex/detailed
+
+**Why it's bad:** Causes lag, especially with many instances
+
+**How to fix:**
+1. Open model in Blender
+2. Use "Decimate" modifier to reduce polygons
+3. Or manually reduce detail in less visible areas
+4. Re-export as NIF
+
+**Target counts:**
+- Small items (weapons, clutter): <5,000 vertices
+- Medium (furniture, creatures): <15,000 vertices
+- Large (buildings): <50,000 vertices
+
+---
+
+### Beginner Tips for The Auditor
+
+**✅ DO:**
+- Scan your files regularly (not just at the end)
+- Fix errors (❌) before warnings (⚠️)
+- Always backup before using Auto-Fix
+- Ask Mossy about issues you don't understand
+- Export reports to track your progress
+
+**❌ DON'T:**
+- Ignore errors - they will cause problems!
+- Auto-fix everything without understanding what changed
+- Delete files to "fix" issues (fix the actual problem instead)
+- Skip warnings - many become errors later
+- Scan while actively editing (save and close files first)
+
+---
+
+**Important:**  The Auditor is your best friend! It catches mistakes BEFORE you test in-game, saving you hours of troubleshooting.
+
+---
+
+## 🤖 Ask Mossy About This Tutorial
+
+At any point while reading this tutorial, you can ask Mossy for help!
+
+### How to Get Tutorial Help from Mossy
+
+#### **Method 1: General Questions**
+
+Open Chat Interface and ask:
+- "Mossy, I'm on the Live Voice Chat page of the tutorial. Can you explain the STT Provider setting?"
+- "I don't understand what FormID conflicts are. Can you explain like I'm five?"
+- "Walk me through using The Auditor step by step"
+
+#### **Method 2: Specific Feature Questions**
+
+While using any page:
+- "What does this button do?" (Mossy knows what page you're on!)
+- "How do I use [feature name]?"
+- "I'm stuck on [page name]. What should I do next?"
+
+#### **Method 3: Tutorial Navigation**
+
+Ask Mossy to guide you:
+- "Which tutorial section should I read first?"
+- "I want to create a weapon. Which pages of the tutorial do I need?"
+- "Take me through the beginner tutorial step by step"
+
+---
+
+## Glossary of Modding Terms
+
+**ESP (Elder Scrolls Plugin)**
+- A file containing mod data
+- Changes or adds to the game
+- Example: MyWeaponMod.esp
+
+**ESM (Elder Scrolls Master)**
+- Like ESP but marked as a "master" file
+- Other mods can depend on it
+- Example: Fallout4.esm
+
+**NIF (NetImmerse File Format)**
+- 3D model file format
+- Contains meshes (shapes)
+- Example: armor_boots.nif
+
+**DDS (DirectDraw Surface)**
+- Texture file format
+- Optimized for games
+- Example: metal_diffuse.dds
+
+**FormID**
+- Unique ID number for game objects
+- Example: 001A0B2C
+- Each object in game has one
+
+**TES4 Header**
+- Beginning of ESP/ESM files
+- Contains file info and metadata
+- Must be valid for mod to load
+
+**Power-of-2**
+- Numbers like 512, 1024, 2048, 4096
+- Required for texture dimensions
+- Based on computer memory architecture
+
+**Papyrus**
+- Fallout 4's scripting language
+- Used for quest logic, AI, mechanics
+- Files end in .psc (source) or .pex (compiled)
+
+**Mipmaps**
+- Smaller versions of textures
+- Used when object is far away
+- Improves performance
+
+**Collision**
+- Invisible shape that blocks movement
+- Tells game what's solid
+- Part of NIF files
+
+**Load Order**
+- Order mods load in game
+- Later mods override earlier ones
+- Managed by tools like LOOT
+
+**xEdit / FO4Edit**
+- Tool for editing ESP files
+- Advanced but powerful
+- See records in detail
+
+**Creation Kit (CK)**
+- Official Fallout 4 mod editor
+- Visual editing of game world
+- Required for some mod types
+
+**Blender**
+- Free 3D modeling software
+- Create/edit meshes (NIF files)
+- Requires special export plugins
+
+---
+
+## What to Read Next
+
+Based on what you want to do:
+
+**"I want to create my first mod"**
+→ Read:
+1. The Nexus page
+2. Chat Interface page
+3. Settings page (set up paths)
+4. Learning Hub page
+
+**"I want to check if my mod is working correctly"**
+→ Read:
+1. The Auditor page (you're here!)
+2. Holodeck page (testing in-game)
+
+**"I want to create custom textures"**
+→ Read:
+1. Image Suite page
+2. The Auditor page (check textures)
+
+**"I want to write Papyrus scripts"**
+→ Read:
+1. Workshop page
+2. The Scribe page
+
+**"I want Mossy to help me while I work"**
+→ Read:
+1. Live Voice Chat page
+2. Settings page (configure voice)
+
+---
+
+## Getting More Help
+
+### Resources in Mossy
+
+1. **Learning Hub** - Comprehensive guides
+2. **Chat with Mossy** - Ask anything!
+3. **First Success Wizard** - Guided first project
+4. **Wizards Hub** - Step-by-step tools
+
+### External Resources
+
+- **Fallout 4 Creation Kit Wiki** - Official documentation
+- **Nexus Mods Forums** - Community help
+- **Reddit r/FalloutMods** - Active community
+
+---
+
+## You're Ready to Start Modding!
+
+This tutorial covered:
+- ✅ First launch and setup
+- ✅ Understanding the interface
+- ✅ Using The Nexus
+- ✅ Talking to Mossy (chat and voice)
+- ✅ Checking files with The Auditor
+
+**Next Steps:**
+1. Open Chat Interface
+2. Say: "Mossy, I finished the beginner tutorial. Help me create my first mod!"
+3. Follow Mossy's guidance
+
+**Remember:** Mossy is always here to help. Ask questions, make mistakes, and learn!
+
+Happy Modding! 🚀
+
+---
+
+*Tutorial Version: 5.4.21 Enhanced*  
+*For more updates and advanced topics, check the Learning Hub in Mossy*
