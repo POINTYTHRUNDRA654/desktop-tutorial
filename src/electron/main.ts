@@ -17,6 +17,7 @@ import { DesktopShortcutManager } from './desktopShortcut';
 import { buildSemanticIndex, getSemanticIndexStatus, querySemanticIndex } from './ml/semanticIndex';
 import { getOllamaStatus, ollamaGenerate } from './ml/ollama';
 import { getOpenAICompatStatus, openAICompatChat } from './ml/openaiCompat';
+import { autoUpdaterService } from './autoUpdater';
 import fs from 'fs';
 import { spawn, exec } from 'child_process';
 import { BridgeServer } from './BridgeServer';
@@ -3465,6 +3466,55 @@ function setupIpcHandlers() {
     }
   });
 
+  // Auto-updater IPC handlers
+  ipcMain.handle('check-for-updates', async () => {
+    try {
+      await autoUpdaterService.checkForUpdates();
+      return { success: true };
+    } catch (error) {
+      console.error('[Main] check-for-updates error:', error);
+      return { success: false, error: error instanceof Error ? error.message : String(error) };
+    }
+  });
+
+  ipcMain.handle('download-update', async () => {
+    try {
+      await autoUpdaterService.downloadUpdate();
+      return { success: true };
+    } catch (error) {
+      console.error('[Main] download-update error:', error);
+      return { success: false, error: error instanceof Error ? error.message : String(error) };
+    }
+  });
+
+  ipcMain.handle('install-update', async () => {
+    try {
+      autoUpdaterService.quitAndInstall();
+      return { success: true };
+    } catch (error) {
+      console.error('[Main] install-update error:', error);
+      return { success: false, error: error instanceof Error ? error.message : String(error) };
+    }
+  });
+
+  ipcMain.handle('get-update-status', async () => {
+    try {
+      return { success: true, status: autoUpdaterService.getStatus() };
+    } catch (error) {
+      console.error('[Main] get-update-status error:', error);
+      return { success: false, error: error instanceof Error ? error.message : String(error) };
+    }
+  });
+
+  ipcMain.handle('get-app-version', async () => {
+    try {
+      return { success: true, version: autoUpdaterService.getCurrentVersion() };
+    } catch (error) {
+      console.error('[Main] get-app-version error:', error);
+      return { success: false, error: error instanceof Error ? error.message : String(error) };
+    }
+  });
+
   // Mark handlers as registered
   (global as any).__ipcHandlersRegistered = true;
   console.log('[Main] IPC handlers registration complete');
@@ -3494,6 +3544,21 @@ app.whenReady().then(() => {
     createWindow();
     setupIpcHandlers();
     bridge.start();
+
+    // Initialize auto-updater service
+    if (mainWindow) {
+      autoUpdaterService.setMainWindow(mainWindow);
+      
+      // Check for updates on startup (after a delay to not interfere with onboarding)
+      setTimeout(() => {
+        if (!isDev && mainWindow && !mainWindow.isDestroyed()) {
+          console.log('[Main] Checking for updates...');
+          autoUpdaterService.checkForUpdates().catch(err => {
+            console.error('[Main] Auto-update check failed:', err);
+          });
+        }
+      }, 10000); // Wait 10 seconds after app launch
+    }
 
     // Ping backend health to wake up sleeping service (e.g., Render free tier)
     const backendCfg = getBackendConfig();

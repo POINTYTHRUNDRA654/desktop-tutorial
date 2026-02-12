@@ -15,6 +15,7 @@ import GuidedTour from './GuidedTour';
 import InteractiveTutorial from './InteractiveTutorial';
 import TutorialLaunch from './TutorialLaunch';
 import { NotificationProvider } from './NotificationContext';
+import AutoUpdateNotifier from './components/AutoUpdateNotifier';
 import { ensureBrowserTtsSettingsStored } from './browserTts';
 
 import { Command, Loader2, Radio, Zap } from 'lucide-react';
@@ -1181,6 +1182,9 @@ const App: React.FC = () => {
             </button>
             <NotificationProvider>
               {renderAppContent()}
+              
+              {/* Auto-Update Notification */}
+              <AutoUpdateNotifier />
             </NotificationProvider>
           </PipBoyFrame>
         </OpenAIVoiceProvider>
