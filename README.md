@@ -1,12 +1,12 @@
 # Mossy - The Fallout 4 Modding Assistant
 
-**Mossy v5.4.21** - A production-ready Electron desktop application for Fallout 4 modding with AI assistance, real-time analysis, direct-write scripting, and professional asset optimization.
+**Mossy v5.4.23** - A production-ready Electron desktop application for Fallout 4 modding with AI assistance, real-time analysis, direct-write scripting, and professional asset optimization.
 
 ---
 
-## 🚀 Onboarding & Installer Notes (v5.4.21)
+## 🚀 Onboarding & Installer Notes (v5.4.23)
 
-**New in v5.4.21:**
+**New in v5.4.23:**
 - Direct-write protocol for Papyrus, xEdit, and Blender scripting
 - Headless automation and batch execution for Blender
 - Real-time tool monitoring (Neural Link)
@@ -32,7 +32,7 @@
 
 **Packaging:**
 - Windows installer is generated via NSIS (`npm run package:win`)
-- Version is auto-set from `package.json` (currently 5.4.21)
+- Version is auto-set from `package.json` (currently 5.4.23)
 - See **[PACKAGING_GUIDE.md](PACKAGING_GUIDE.md)** for complete packaging instructions
 - Run `node scripts/fix-env-encryption.mjs` before packaging to ensure API keys work
 
@@ -46,7 +46,7 @@
 ![License](https://img.shields.io/badge/license-MIT-blue.svg)
 ![Platform](https://img.shields.io/badge/platform-Windows-blue)
 ![Status](https://img.shields.io/badge/status-Production%20Ready-green.svg)
-![Version](https://img.shields.io/badge/version-5.4.21-blue.svg)
+![Version](https://img.shields.io/badge/version-5.4.23-blue.svg)
 
 ## 💖 Support This Project
 
@@ -330,7 +330,7 @@ npm run build        # Build all
 npm run package:win  # Windows installer
 ```
 
-Installer output goes to `release/` (for example: `Mossy Setup 5.4.21.exe`).
+Installer output goes to `release/` (for example: `Mossy Setup 5.4.23.exe`).
 
 ---
 
@@ -572,3 +572,4 @@ For issues, questions, or suggestions:
 - Blender Community: [BLENDER_COMMUNITY.md](BLENDER_COMMUNITY.md)
 - Installing Blender: [BLENDER_INSTALLING.md](BLENDER_INSTALLING.md)
 - Installing on Linux: [BLENDER_INSTALLING_LINUX.md](BLENDER_INSTALLING_LINUX.md)
+
