@@ -224,4 +224,4 @@ If you encounter any issues with the Tutorial Replay feature:
 
 ---
 
-**Note**: This feature was added in Mossy v5.4.21 to allow users to easily replay the installation tutorial without manually clearing data or reinstalling the app.
+**Note**: This feature was added in Mossy v5.4.23 to allow users to easily replay the installation tutorial without manually clearing data or reinstalling the app.

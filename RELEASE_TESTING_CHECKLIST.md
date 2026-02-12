@@ -1,11 +1,11 @@
-# MOSSY RELEASE TESTING CHECKLIST v5.4.21
+# MOSSY RELEASE TESTING CHECKLIST v5.4.23
 
-Use this checklist for validating the Windows installer build (`Mossy Setup 5.4.21.exe`) and core flows.
+Use this checklist for validating the Windows installer build (`Mossy Setup 5.4.23.exe`) and core flows.
 
 ## ✅ CORE FUNCTIONALITY TESTS
 
 ### 0. **Installer + First Run** (CRITICAL)
-- [ ] Install via `Mossy Setup 5.4.21.exe`
+- [ ] Install via `Mossy Setup 5.4.23.exe`
 - [ ] Launch Mossy from Start Menu/desktop shortcut
 - [ ] Onboarding appears on first launch
   - [ ] Language selection is shown

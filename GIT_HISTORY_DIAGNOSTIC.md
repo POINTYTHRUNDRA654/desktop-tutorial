@@ -214,7 +214,7 @@ git log --all --name-status | grep -i visual
 
 ## What's in Your Current Repository?
 
-Your current repository is **Mossy v5.4.21** - a Fallout 4 Modding Assistant desktop application.
+Your current repository is **Mossy v5.4.23** - a Fallout 4 Modding Assistant desktop application.
 
 ### Key Files Present:
 - `VISUAL_GUIDE.md` - Onboarding visual guide (24KB) ✅ EXISTS

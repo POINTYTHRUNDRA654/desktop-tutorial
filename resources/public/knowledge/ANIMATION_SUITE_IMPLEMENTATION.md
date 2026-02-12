@@ -1,6 +1,6 @@
 # Skeletal Rigging & Animation Suite - Implementation Complete
 
-**Updated for Mossy v5.4.21**
+**Updated for Mossy v5.4.23**
 
 ## Overview & Onboarding
 
@@ -402,7 +402,7 @@ src/renderer/src/
 ## What Users Can Now Do
 ---
 
-## 🚀 Mossy v5.4.21 User Workflow
+## 🚀 Mossy v5.4.23 User Workflow
 
 ### Before This Feature
 - "I'm stuck on skeletal rigging" → No guidance in Mossy
@@ -410,7 +410,7 @@ src/renderer/src/
 - "Is my animation export correct?" → Trial and error
 - "What bone do I attach to?" → External research
 
-### After This Feature (v5.4.21)
+### After This Feature (v5.4.23)
 1. **Ask AI Copilot**: "How do I rig a custom character?"
   → Get direct links to 4 comprehensive tools
 2. **Read Guide**: Understand the full pipeline from Blender to FO4

@@ -4,7 +4,7 @@
 
 **Date**: 2026-02-12  
 **Reporter**: POINTYTHRUNDRA654  
-**Version**: Mossy v5.4.21
+**Version**: Mossy v5.4.23
 
 ### User's Report
 
@@ -116,7 +116,7 @@ npm run build
 # Package for Windows
 npm run package:win
 
-# Output: release/Mossy Setup 5.4.21.exe
+# Output: release/Mossy Setup 5.4.23.exe
 ```
 
 ### After Installation
@@ -137,7 +137,7 @@ Expected output:
 
 Use this to confirm the installer works correctly:
 
-- [ ] Install via `Mossy Setup 5.4.21.exe`
+- [ ] Install via `Mossy Setup 5.4.23.exe`
 - [ ] Open app (no errors on startup)
 - [ ] Check console for "✓ Decrypted" messages
 - [ ] Open Mossy chat interface

@@ -2,7 +2,7 @@
 
 ## Feature Overview
 
-This document provides a visual walkthrough of the Tutorial Replay feature added in Mossy v5.4.21.
+This document provides a visual walkthrough of the Tutorial Replay feature added in Mossy v5.4.23.
 
 ## Location
 
@@ -318,7 +318,7 @@ If something goes wrong:
 - Reinstalling the app
 - Using browser DevTools
 
-### After (v5.4.21+)
+### After (v5.4.23+)
 
 ✅ Simple, user-friendly button in Settings
 ✅ Clear information about what happens

@@ -1,10 +1,10 @@
-# Mossy v5.4.21 - Quick Start (5 minutes)
+# Mossy v5.4.23 - Quick Start (5 minutes)
 
 **Welcome to Mossy!** This guide gets you from install → first launch → first useful action.
 
 ## 1) Install (Windows)
 
-1. Download the latest Windows installer (for example: `Mossy Setup 5.4.21.exe`).
+1. Download the latest Windows installer (for example: `Mossy Setup 5.4.23.exe`).
 2. Run the installer and follow the prompts.
 3. Launch Mossy from the Start Menu or desktop shortcut.
 

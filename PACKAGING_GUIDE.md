@@ -182,7 +182,7 @@ dist-electron/          # Electron main output
 After `npm run package:win`:
 ```
 release/
-├── Mossy Setup 5.4.21.exe    # Windows installer
+├── Mossy Setup 5.4.23.exe    # Windows installer
 ├── win-unpacked/              # Unpacked app (for testing)
 └── ...
 ```
