@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { X, Play, Pause, Volume2, VolumeX, Maximize, Minimize, ExternalLink, Youtube, Video } from 'lucide-react';
+import { speakMossy } from './mossyTts';
 
 interface VideoTutorialProps {
     isOpen: boolean;
@@ -40,6 +41,19 @@ export const VideoTutorial: React.FC<VideoTutorialProps> = ({ isOpen, onClose })
             if (videoRef.current) {
                 videoRef.current.pause();
             }
+        } else {
+            // Speak introduction when video tutorial opens
+            const timer = setTimeout(() => {
+                speakMossy(
+                    'Opening video tutorial. This tutorial will guide you through using Mossy step by step. Watch and learn at your own pace.',
+                    { 
+                        cancelExisting: true,
+                        onError: (err) => console.error('[VideoTutorial] TTS failed:', err)
+                    }
+                );
+            }, 500);
+            
+            return () => clearTimeout(timer);
         }
     }, [isOpen]);
 

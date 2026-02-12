@@ -1,12 +1,17 @@
 import React from 'react';
 import { Video, BookOpen, Zap, HelpCircle } from 'lucide-react';
+import { speakMossy } from './mossyTts';
 
 const HomePage: React.FC = () => {
   const handleWatchTutorial = () => {
+    // Announce that the video tutorial is starting
+    speakMossy('Starting video tutorial.', { cancelExisting: true });
     window.dispatchEvent(new CustomEvent('open-video-tutorial'));
   };
 
   const handleStartInteractiveTutorial = () => {
+    // Announce that the interactive tutorial is starting
+    speakMossy('Starting interactive tutorial.', { cancelExisting: true });
     window.dispatchEvent(new CustomEvent('start-tutorial'));
   };
 

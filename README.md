@@ -7,6 +7,10 @@
 ## 🚀 Onboarding & Installer Notes (v5.4.23)
 
 **New in v5.4.23:**
+- Fixed tutorial TTS integration - Mossy now speaks during tutorials
+- All previous v5.4.21 features included
+
+**From v5.4.21:**
 - Direct-write protocol for Papyrus, xEdit, and Blender scripting
 - Headless automation and batch execution for Blender
 - Real-time tool monitoring (Neural Link)
@@ -572,4 +576,3 @@ For issues, questions, or suggestions:
 - Blender Community: [BLENDER_COMMUNITY.md](BLENDER_COMMUNITY.md)
 - Installing Blender: [BLENDER_INSTALLING.md](BLENDER_INSTALLING.md)
 - Installing on Linux: [BLENDER_INSTALLING_LINUX.md](BLENDER_INSTALLING_LINUX.md)
-
