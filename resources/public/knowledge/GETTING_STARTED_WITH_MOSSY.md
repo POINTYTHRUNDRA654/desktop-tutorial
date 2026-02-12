@@ -1,11 +1,11 @@
-# Getting Started with Mossy v5.4.21
+# Getting Started with Mossy v5.4.23
 ## Your Complete Fallout 4 Modding Assistant
 
-Welcome to Mossy v5.4.21! This guide will help you get the most out of your AI modding companion.
+Welcome to Mossy v5.4.23! This guide will help you get the most out of your AI modding companion.
 
 ---
 
-## 🎆 What's New in v5.4.21
+## 🎆 What's New in v5.4.23
 
 ### Revolutionary Direct-Write Protocol
 Mossy now features **direct integration** with your modding tools:
@@ -397,3 +397,4 @@ Start chatting with Mossy and explore all the capabilities. Remember:
 
 *For technical details, see [FALLOUT4_MODDING_GUIDE.md](FALLOUT4_MODDING_GUIDE.md)*  
 *For complete feature list, see [MOSSY_V5_ADVANCED_FEATURES.md](MOSSY_V5_ADVANCED_FEATURES.md)*
+
