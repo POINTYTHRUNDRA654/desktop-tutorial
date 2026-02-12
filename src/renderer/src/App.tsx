@@ -540,6 +540,20 @@ const App: React.FC = () => {
     }
   }, []);
 
+  // If onboarding flags are set but tool memory is missing, re-run first-run flow.
+  useEffect(() => {
+    const hasApps = !!(localStorage.getItem('mossy_apps') || localStorage.getItem('mossy_integrated_tools'));
+    const firstRunComplete = localStorage.getItem('mossy_onboarding_complete') === 'true';
+    const onboardingComplete = localStorage.getItem('mossy_onboarding_completed') === 'true';
+
+    if (!hasApps && (firstRunComplete || onboardingComplete)) {
+      localStorage.removeItem('mossy_onboarding_complete');
+      localStorage.removeItem('mossy_onboarding_completed');
+      setShowFirstRun(true);
+      setShowOnboarding(true);
+    }
+  }, []);
+
   // Reset to first-run state (useful for testing)
   const resetToFirstRun = () => {
     localStorage.removeItem('mossy_has_booted');

@@ -984,8 +984,9 @@ export const ChatInterface: React.FC = () => {
         hasTranscriptionAPI: !!api?.transcribeAudio
       });
       
-      const audioChunks: Blob[] = [];
-      let mediaStream: MediaStream | null = null;
+    const audioChunks: Blob[] = [];
+    let mediaStream: MediaStream | null = null;
+    let meterContext: AudioContext | null = null;
       let silenceTimer: ReturnType<typeof setTimeout> | null = null;
       let silenceDuration = 0;
       const SILENCE_THRESHOLD = 0.05; // More lenient threshold - only stop on actual silence, not quiet parts of speech
@@ -1007,6 +1008,14 @@ export const ChatInterface: React.FC = () => {
               setIsListening(false);
               if (silenceTimer) clearTimeout(silenceTimer);
               if (mediaStream) mediaStream.getTracks().forEach(t => t.stop());
+              if (meterContext) {
+                  try {
+                      await meterContext.close();
+                  } catch {
+                      // ignore close errors
+                  }
+                  meterContext = null;
+              }
               
               // Send to Whisper for transcription
               const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
@@ -1084,16 +1093,25 @@ export const ChatInterface: React.FC = () => {
           
           // Setup silence detection
           const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
+          meterContext = audioContext;
+          if (audioContext.state === 'suspended') {
+              await audioContext.resume();
+          }
           const analyser = audioContext.createAnalyser();
           analyser.fftSize = 2048;
           const source = audioContext.createMediaStreamSource(mediaStream);
           source.connect(analyser);
           
-          const buffer = new Uint8Array(analyser.frequencyBinCount);
+          const buffer = new Uint8Array(analyser.fftSize);
           const checkSilence = () => {
-              analyser.getByteFrequencyData(buffer);
-              const average = buffer.reduce((a, b) => a + b) / buffer.length;
-              const normalized = average / 255;
+              analyser.getByteTimeDomainData(buffer);
+              let sumSquares = 0;
+              for (let i = 0; i < buffer.length; i++) {
+                  const centered = (buffer[i] - 128) / 128;
+                  sumSquares += centered * centered;
+              }
+              const rms = Math.sqrt(sumSquares / buffer.length);
+              const normalized = Math.min(1, rms * 1.6);
               
               // Update audio level meter
               setAudioLevel(Math.round(normalized * 100));

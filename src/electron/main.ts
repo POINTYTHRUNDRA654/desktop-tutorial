@@ -43,6 +43,10 @@ import { ESPParser } from '../mining/esp-parser'; // TEMPORARILY DISABLED
 import { DependencyGraphBuilder } from '../mining/dependency-graph-builder'; // TEMPORARILY DISABLED
 import { DataSource, MiningResult } from '../shared/types';
 
+// Keep dev and packaged builds using the same userData folder for consistent onboarding/memory.
+app.setName('mossy-desktop');
+app.setPath('userData', path.join(app.getPath('appData'), 'mossy-desktop'));
+
 // Load environment variables - use encrypted version for packaged builds
 const envPath = app.isPackaged
   ? path.join(process.cwd(), '.env.encrypted')

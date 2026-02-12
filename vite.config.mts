@@ -69,7 +69,7 @@ export default defineConfig(({ mode }) => {
       {
         name: 'inject-csp',
         transformIndexHtml(html) {
-          return html.replace('%VITE_CSP%', csp);
+          return html.replace('%MOSSY_CSP%', csp);
         },
       },
     ],
