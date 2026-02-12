@@ -1,7 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Cpu, Sparkles, Check, X, ArrowRight, Loader, Map } from 'lucide-react';
 import { useI18n, resolveUiLanguage } from './i18n';
 import TutorialVideoPanel from './components/TutorialVideoPanel';
+import { speakMossy } from './mossyTts';
+import { getBrowserTtsVoices, loadBrowserTtsSettings, saveBrowserTtsSettings } from './browserTts';
 
 interface OnboardingProps {
     onComplete: () => void;
@@ -25,11 +27,24 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
     const [userChoices, setUserChoices] = useState<Record<string, boolean>>({});
     const [showAllPrograms, setShowAllPrograms] = useState(false);
     const [showTutorialVideo, setShowTutorialVideo] = useState(false);
+    const hasSpokenIntro = useRef(false);
+    const scanTutorialStartedRef = useRef(false);
+    const [languageReady, setLanguageReady] = useState(false);
+    const [scanTutorialRequested, setScanTutorialRequested] = useState(false);
+    const [scanTutorialOpenedAt, setScanTutorialOpenedAt] = useState<string | null>(null);
 
     const [uiLanguage, setUiLanguage] = useState<string>('auto');
 
     const getElectronApi = () => {
         return (window as any)?.electron?.api ?? (window as any)?.electronAPI;
+    };
+
+    const shouldSpeak = () => {
+        try {
+            return localStorage.getItem('mossy_voice_enabled') !== 'false';
+        } catch {
+            return true;
+        }
     };
 
     useEffect(() => {
@@ -39,6 +54,21 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
             onComplete();
         }
     }, []);
+
+    useEffect(() => {
+        if (step !== 'welcome') return;
+        if (hasSpokenIntro.current) return;
+        if (!shouldSpeak()) return;
+        hasSpokenIntro.current = true;
+
+        const speakSequence = async () => {
+            await speakMossy("Hello, I'm Mossy.");
+            await speakMossy('Pick your language to begin.');
+            await speakMossy('When you are ready, start the scan.');
+        };
+
+        void speakSequence();
+    }, [step]);
 
     // Load persisted UI language (if available) so the first screen reflects it.
     useEffect(() => {
@@ -53,7 +83,10 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
                 const pref = String(s?.uiLanguage || 'auto');
                 setUiLanguage(pref);
                 if (pref === 'auto') setUiLanguagePref('auto');
-                else setUiLanguagePref(resolveUiLanguage(pref));
+                else {
+                    setUiLanguagePref(resolveUiLanguage(pref));
+                    setLanguageReady(true);
+                }
             } catch {
                 // ignore
             }
@@ -81,11 +114,60 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
         } catch {
             // ignore
         }
+
+        if (value !== 'auto') {
+            const voices = getBrowserTtsVoices();
+            const match = voices.find(v => v.lang?.toLowerCase().startsWith(value.toLowerCase()));
+            if (match) {
+                const settings = loadBrowserTtsSettings();
+                saveBrowserTtsSettings({ ...settings, preferredVoiceName: match.name, enabled: true });
+                localStorage.setItem('mossy_voice_enabled', 'true');
+            }
+        }
+
+        setLanguageReady(true);
     };
+
+    const triggerScanTutorial = useCallback(() => {
+        if (scanTutorialStartedRef.current) return;
+        scanTutorialStartedRef.current = true;
+        try {
+            localStorage.setItem('mossy_force_scan_tutorial', 'true');
+        } catch {
+            // ignore
+        }
+        setScanTutorialRequested(true);
+        const directOpen = (window as any).mossyOpenScanTutorial as undefined | (() => void);
+        if (directOpen) {
+            directOpen();
+        }
+        window.dispatchEvent(new CustomEvent('start-scan-tutorial'));
+        document.dispatchEvent(new CustomEvent('start-scan-tutorial'));
+        window.setTimeout(() => {
+            try {
+                const openedAt = localStorage.getItem('mossy_scan_tutorial_opened_at');
+                if (openedAt) {
+                    const ts = Number(openedAt);
+                    if (Number.isFinite(ts)) {
+                        setScanTutorialOpenedAt(new Date(ts).toLocaleTimeString());
+                    }
+                }
+            } catch {
+                // ignore
+            }
+        }, 200);
+    }, []);
 
     const startScan = async () => {
         setStep('scanning');
         setScanProgress(10);
+
+        if (shouldSpeak()) {
+            void speakMossy('Starting system scan. While I scan, I will walk you through the tutorial so you can get oriented.', { cancelExisting: true });
+        }
+        window.setTimeout(() => {
+            triggerScanTutorial();
+        }, 250);
 
         try {
             const api = getElectronApi();
@@ -235,6 +317,15 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
         }
     };
 
+    useEffect(() => {
+        if (step !== 'scanning') return;
+        if (scanTutorialStartedRef.current) return;
+        const timer = window.setTimeout(() => {
+            triggerScanTutorial();
+        }, 350);
+        return () => window.clearTimeout(timer);
+    }, [step, triggerScanTutorial]);
+
     const handleChoice = (toolName: string, accepted: boolean) => {
         setUserChoices(prev => ({ ...prev, [toolName]: accepted }));
     };
@@ -272,12 +363,12 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
                 {step === 'welcome' && (
                     <div className="text-center animate-fade-in">
                         <Sparkles className="w-20 h-20 mx-auto mb-6 text-amber-400" />
-                        <h1 className="text-4xl font-bold text-white mb-4">Welcome to Mossy v4.0</h1>
+                        <h1 className="text-4xl font-bold text-white mb-4">Welcome to Mossy v5.4.23</h1>
                         <p className="text-xl text-slate-300 mb-8">
                             Your AI-powered Fallout 4 modding assistant with next-gen voice conversation
                         </p>
                         <p className="text-slate-400 mb-6">
-                            <strong className="text-emerald-400">✨ New in v4.0:</strong> Pick your UI language on first launch (or later in Settings), plus a smoother Install Wizard experience.
+                            <strong className="text-emerald-400">✨ New in v5.4.23:</strong> Pick your UI language on first launch (or later in Settings), plus a smoother Install Wizard experience.
                         </p>
                         <p className="text-slate-400 mb-8">
                             Let me scan your system to discover tools I can integrate with.
@@ -351,6 +442,28 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
                                     />
                                 </div>
                                 <p className="text-sm text-slate-500">{scanProgress}%</p>
+                                <div className="mt-6">
+                                    <button
+                                        type="button"
+                                        onClick={triggerScanTutorial}
+                                        className="px-5 py-2 bg-emerald-600/30 hover:bg-emerald-600/40 border border-emerald-500/40 text-emerald-100 rounded-lg text-sm font-semibold transition-colors"
+                                    >
+                                        Start walkthrough
+                                    </button>
+                                    <div className="text-[11px] text-slate-500 mt-2">
+                                        If the tutorial did not auto-start, use this button to launch it.
+                                    </div>
+                                    {scanTutorialRequested && (
+                                        <div className="text-[11px] text-emerald-400 mt-2">
+                                            Launch requested...
+                                        </div>
+                                    )}
+                                    {scanTutorialOpenedAt && (
+                                        <div className="text-[11px] text-emerald-300 mt-1">
+                                            Tutorial opened at {scanTutorialOpenedAt}
+                                        </div>
+                                    )}
+                                </div>
                             </div>
 
                             <TutorialVideoPanel
