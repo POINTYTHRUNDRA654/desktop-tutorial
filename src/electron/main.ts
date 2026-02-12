@@ -57,8 +57,48 @@ console.log('[Main] path.dirname(process.execPath):', path.dirname(process.execP
 // dotenv@17 supports { quiet: true }.
 const result = dotenv.config({ path: envPath, quiet: true });
 console.log('[Main] dotenv result:', result);
+
+// Decrypt encrypted environment variables if in packaged mode
+if (app.isPackaged) {
+  console.log('[Main] Packaged build detected - checking for encrypted env vars...');
+  const crypto = require('crypto');
+  const ENCRYPTION_KEY = 'mossy-2026-packaging-key-change-in-production';
+  
+  const decryptEnvVar = (key: string) => {
+    const value = process.env[key];
+    if (!value || !value.startsWith('enc:')) return;
+    
+    try {
+      const encrypted = value.slice('enc:'.length);
+      const parts = encrypted.split(':');
+      if (parts.length === 2) {
+        const iv = Buffer.from(parts[0], 'hex');
+        const encryptedText = parts[1];
+        const cryptoKey = crypto.scryptSync(ENCRYPTION_KEY, 'salt', 32);
+        const decipher = crypto.createDecipheriv('aes-256-cbc', cryptoKey, iv);
+        let decrypted = decipher.update(encryptedText, 'hex', 'utf8');
+        decrypted += decipher.final('utf8');
+        process.env[key] = decrypted;
+        console.log(`[Main] ✓ Decrypted ${key}`);
+      }
+    } catch (e) {
+      console.error(`[Main] ✗ Failed to decrypt ${key}:`, e instanceof Error ? e.message : e);
+    }
+  };
+  
+  // Decrypt all API keys
+  decryptEnvVar('OPENAI_API_KEY');
+  decryptEnvVar('GROQ_API_KEY');
+  decryptEnvVar('DEEPGRAM_API_KEY');
+  decryptEnvVar('MOSSY_BACKEND_TOKEN');
+  decryptEnvVar('MOSSY_BRIDGE_TOKEN');
+}
+
 console.log('[Main] OPENAI_API_KEY loaded:', !!process.env.OPENAI_API_KEY);
-console.log('[Main] process.env keys:', Object.keys(process.env).filter(key => key.includes('API') || key.includes('TOKEN')));
+console.log('[Main] GROQ_API_KEY loaded:', !!process.env.GROQ_API_KEY);
+console.log('[Main] MOSSY_BACKEND_URL:', process.env.MOSSY_BACKEND_URL || '(not set)');
+console.log('[Main] Environment file loaded from:', envPath);
+console.log('[Main] Is packaged build:', app.isPackaged);
 // Never log API keys (even presence-only for renderer-exposed vars).
 // Never log API keys (even partial prefixes).
 
