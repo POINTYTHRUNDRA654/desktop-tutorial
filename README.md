@@ -48,6 +48,30 @@
 ![Status](https://img.shields.io/badge/status-Production%20Ready-green.svg)
 ![Version](https://img.shields.io/badge/version-5.4.21-blue.svg)
 
+## 💖 Support This Project
+
+Mossy is **100% free** and will always remain free. If you find it helpful, consider supporting development:
+
+[![GitHub Sponsors](https://img.shields.io/badge/Sponsor-GitHub-EA4AAA?style=for-the-badge&logo=github-sponsors&logoColor=white)](https://github.com/sponsors/POINTYTHRUNDRA654)
+[![Buy Me a Coffee](https://img.shields.io/badge/Buy_Me_A_Coffee-FFDD00?style=for-the-badge&logo=buy-me-a-coffee&logoColor=black)](https://buymeacoffee.com/mossy)
+[![Ko-fi](https://img.shields.io/badge/Ko--fi-F16061?style=for-the-badge&logo=ko-fi&logoColor=white)](https://ko-fi.com/mossy)
+[![PayPal](https://img.shields.io/badge/PayPal-00457C?style=for-the-badge&logo=paypal&logoColor=white)](https://paypal.me/mossy)
+
+Your support helps:
+- 💰 Cover AI API costs (OpenAI, embeddings)
+- 🚀 Fund continued development and new features
+- 📚 Expand the Fallout 4 knowledge base
+- ☕ Keep the developer caffeinated
+- 🎮 Enable future versions for other games
+
+**Can't donate?** No problem! You can also help by:
+- ⭐ Starring this repository
+- 📢 Sharing Mossy with the Fallout 4 modding community
+- 🐛 Reporting bugs and issues
+- 📖 Contributing to the knowledge base
+
+> **Note:** The sponsorship links above are placeholders. See [SPONSORSHIP_SETUP_GUIDE.md](SPONSORSHIP_SETUP_GUIDE.md) for setup instructions.
+
 ## 🎯 What's Inside
 
 **Mossy** is a focused, lean toolkit with only real, working features. All modules are production-ready and tested. See onboarding notes above for new user guidance.
