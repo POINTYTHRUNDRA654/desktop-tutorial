@@ -942,6 +942,24 @@ const App: React.FC = () => {
                 <Route path="/vault" element={<Navigate to="/tools/vault" replace />} />
                 <Route path="/memory-vault" element={<Navigate to="/live" replace />} />
                 <Route path="/neural-link" element={<Navigate to="/live" replace />} />
+                
+                {/* Tool Extensions */}
+                <Route path="/extensions/mo2" element={
+                  <Suspense fallback={<SkeletonLoader />}>
+                    {React.createElement(React.lazy(() => import('./MO2Extension').then(m => ({ default: m.MO2Extension }))))}
+                  </Suspense>
+                } />
+                <Route path="/extensions/xedit" element={
+                  <Suspense fallback={<SkeletonLoader />}>
+                    {React.createElement(React.lazy(() => import('./XEditExtension').then(m => ({ default: m.XEditExtension }))))}
+                  </Suspense>
+                } />
+                <Route path="/extensions/ck" element={
+                  <Suspense fallback={<SkeletonLoader />}>
+                    {React.createElement(React.lazy(() => import('./CKExtension').then(m => ({ default: m.CKExtension }))))}
+                  </Suspense>
+                } />
+                
                 <Route path="/workshop" element={<Navigate to="/dev/workshop" replace />} />
                 <Route path="/images" element={<Navigate to="/media/images" replace />} />
                 <Route path="/tts" element={<Navigate to="/live" replace />} />
