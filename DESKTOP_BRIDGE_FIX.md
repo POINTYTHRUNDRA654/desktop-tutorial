@@ -120,6 +120,6 @@ window.electron.api.openExternal('C:\\path\\to\\file.txt');
 ## Environment
 
 - **Electron**: v28.1.4
-- **Vite**: v5.4.21
+- **Vite**: v5.4.23
 - **Node.js**: As configured in workspace
 - **TypeScript**: v5.3.3
