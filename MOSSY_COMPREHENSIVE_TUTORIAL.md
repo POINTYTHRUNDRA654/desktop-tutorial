@@ -96,9 +96,15 @@ The onboarding wizard guides you through initial setup:
 
 ## Main Interface Overview
 
+![Mossy Main Interface](docs/screenshots/nexus-dashboard-overview.png)
+*The Mossy interface showing the main dashboard, sidebar navigation, and header bar*
+
 ### Sidebar Navigation
 
 The sidebar is your primary navigation tool in Mossy.
+
+![Sidebar Navigation](docs/screenshots/sidebar-navigation.png)
+*The sidebar displays all module categories and navigation options*
 
 **Location:** Left side of the screen  
 **Toggle:** Click the menu icon (☰) on mobile/small screens
@@ -185,6 +191,9 @@ The sidebar is your primary navigation tool in Mossy.
 **Path:** `/` (Home)  
 **Purpose:** Central hub showing all available modules and quick actions
 
+![The Nexus Dashboard](docs/screenshots/nexus-dashboard-overview.png)
+*The Nexus shows all available modules organized by category with quick access cards*
+
 **Features:**
 
 - Overview of all tools and modules
@@ -214,6 +223,9 @@ The sidebar is your primary navigation tool in Mossy.
 
 **Path:** `/chat`  
 **Purpose:** Text-based AI conversation for modding assistance
+
+![Chat Interface](docs/screenshots/chat-interface.png)
+*The chat interface with message history and natural language input*
 
 **Features:**
 
@@ -253,6 +265,9 @@ The sidebar is your primary navigation tool in Mossy.
 
 **Path:** `/live`  
 **Purpose:** Voice-based interaction with Mossy AI
+
+![Live Voice Chat](docs/screenshots/live-voice-listening.png)
+*Live voice chat interface showing the avatar in listening mode*
 
 **Features:**
 
@@ -297,6 +312,9 @@ The sidebar is your primary navigation tool in Mossy.
 **Path:** `/media/images`  
 **Purpose:** PBR texture generation and image processing
 
+![Image Suite Interface](docs/screenshots/image-suite-main.png)
+*The Image Suite showing PBR texture generation options*
+
 **Features:**
 
 - **Normal Map Generation** - Sobel edge detection
@@ -334,6 +352,9 @@ The sidebar is your primary navigation tool in Mossy.
 
 **Path:** `/tools/auditor`  
 **Purpose:** Validate and analyze mod assets
+
+![The Auditor Interface](docs/screenshots/auditor-main.png)
+*The Auditor analyzing ESP, NIF, and DDS files for issues*
 
 **Features:**
 
@@ -383,6 +404,9 @@ The sidebar is your primary navigation tool in Mossy.
 
 **Path:** `/dev/workshop`  
 **Purpose:** Write and edit Papyrus scripts with IDE features
+
+![Workshop Code Editor](docs/screenshots/workshop-editor.png)
+*The Workshop showing Papyrus code editing with syntax highlighting*
 
 **Features:**
 
@@ -577,6 +601,9 @@ The sidebar is your primary navigation tool in Mossy.
 **Path:** `/settings`  
 **Purpose:** Configure all app preferences and integrations
 
+![Settings Interface](docs/screenshots/settings-general.png)
+*The Settings hub with various configuration options*
+
 **Settings Categories:**
 
 **1. General**
@@ -631,6 +658,9 @@ The sidebar is your primary navigation tool in Mossy.
 
 **Path:** `/learn`  
 **Purpose:** Access comprehensive modding documentation
+
+![Learning Hub](docs/screenshots/learning-hub-main.png)
+*The Learning Hub provides access to extensive modding guides and documentation*
 
 **Features:**
 

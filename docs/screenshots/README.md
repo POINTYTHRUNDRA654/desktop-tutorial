@@ -2,6 +2,25 @@
 
 This directory contains screenshots for the Mossy Comprehensive Tutorial.
 
+## 📝 Status: Placeholder Screenshots Created
+
+**Current State:** 9 placeholder screenshots have been created to allow the tutorial to be published with image references. These are temporary placeholders that should be replaced with actual application screenshots.
+
+**Placeholders Created:**
+- ✅ Main interface screenshots (dashboard, sidebar, chat)
+- ✅ Core tool screenshots (Image Suite, Auditor, Workshop)
+- ✅ Settings and Learning Hub screenshots
+
+**To Replace Placeholders:**
+Run the automated screenshot capture script when the app is available:
+```bash
+npm run capture-screenshots
+```
+
+Or manually capture screenshots following the guidelines below.
+
+---
+
 ## How to Add Screenshots
 
 ### Capturing Screenshots
@@ -45,25 +64,26 @@ Examples:
 ## Required Screenshots
 
 ### Core Modules
-- [ ] `nexus-dashboard-overview.png` - The Nexus main dashboard
-- [ ] `chat-interface-conversation.png` - Chat with message history
-- [ ] `live-voice-listening.png` - Voice chat in listening mode
+- [x] `nexus-dashboard-overview.png` - The Nexus main dashboard (PLACEHOLDER)
+- [x] `chat-interface.png` - Chat with message history (PLACEHOLDER)
+- [x] `live-voice-listening.png` - Voice chat in listening mode (PLACEHOLDER)
 - [ ] `live-voice-speaking.png` - Voice chat with Mossy speaking
-- [ ] `image-suite-main.png` - Image Suite main interface
+- [x] `image-suite-main.png` - Image Suite main interface (PLACEHOLDER)
 - [ ] `image-suite-normal-map.png` - Normal map generation
+- [x] `auditor-main.png` - Asset analysis main interface (PLACEHOLDER)
 - [ ] `auditor-esp-analysis.png` - ESP file analysis results
 - [ ] `auditor-nif-validation.png` - NIF file validation
-- [ ] `workshop-editor.png` - Workshop code editor
+- [x] `workshop-editor.png` - Workshop code editor (PLACEHOLDER)
 - [ ] `workshop-snippets.png` - Code snippets panel
 - [ ] `vault-browser.png` - The Vault file browser
 - [ ] `scribe-editor.png` - The Scribe text editor
 - [ ] `holodeck-launch.png` - Holodeck game launch interface
 - [ ] `bridge-tools.png` - Desktop Bridge tool detection
-- [ ] `settings-general.png` - General settings page
+- [x] `settings-general.png` - General settings page (PLACEHOLDER)
 - [ ] `settings-ai.png` - AI & Voice settings
 - [ ] `settings-tools.png` - Tools & Paths settings
 - [ ] `settings-privacy.png` - Privacy settings
-- [ ] `learning-hub-main.png` - Learning Hub overview
+- [x] `learning-hub-main.png` - Learning Hub overview (PLACEHOLDER)
 
 ### Development Tools
 - [ ] `workflow-orchestrator.png` - Workflow builder
@@ -80,7 +100,7 @@ Examples:
 - [ ] `guide-sim-settlements.png` - Sim Settlements Guide
 
 ### UI Elements
-- [ ] `sidebar-navigation.png` - Sidebar with all sections
+- [x] `sidebar-navigation.png` - Sidebar with all sections (PLACEHOLDER)
 - [ ] `header-bar.png` - Top header with all components
 - [ ] `pip-boy-theme.png` - Pip-Boy themed interface
 - [ ] `command-palette.png` - Command palette (Ctrl+K)
