@@ -4,7 +4,6 @@ import { useLive } from './LiveContext';
 import AvatarCore from './AvatarCore';
 import { Link } from 'react-router-dom';
 import { ToolsInstallVerifyPanel } from './components/ToolsInstallVerifyPanel';
-import { mossyAvatarUrl } from './assets/avatar';
 import VoiceSettings from './VoiceSettings';
 import AudioStudio from './TTSPanel';
 import MossyMemoryVault from './MossyMemoryVault';
@@ -12,7 +11,6 @@ import NeuralLink from './NeuralLink';
 import MossyOnboarding from './MossyOnboarding';
 import { VoiceSetupWizard } from './VoiceSetupWizard';
 
-const DEFAULT_MOSSY_AVATAR_URL = mossyAvatarUrl;
 
 type MossyStep = {
   id: string;
@@ -227,9 +225,7 @@ const VoiceChat: React.FC = () => {
     <div 
       className="h-full w-full flex flex-col relative overflow-y-auto overflow-x-hidden bg-black"
       style={{
-        backgroundImage: `linear-gradient(to bottom, rgba(0, 0, 0, 0.8), rgba(0, 0, 0, 0.6)), url(${DEFAULT_MOSSY_AVATAR_URL})`,
-        backgroundSize: 'cover',
-        backgroundPosition: 'center'
+        backgroundImage: 'linear-gradient(to bottom, rgba(0, 0, 0, 0.8), rgba(0, 0, 0, 0.6))'
       }}
     >
       {/* Immersive Overlay */}
