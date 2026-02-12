@@ -71,3 +71,10 @@ resources/app.asar
 external/chroma/
 external/langchain/
 external/electron-store/
+external/cosmos-predict2.5/
+external/cosmos-transfer2.5/
+external/cosmos-reason2/
+external/cosmos-cookbook/
+external/cosmos-rl/
+external/cosmos-dependencies/
+external/cosmos-curate/
