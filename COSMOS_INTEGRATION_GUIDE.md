@@ -76,6 +76,16 @@ NVIDIA Cosmos is a platform for physical AI featuring state-of-the-art generativ
 - Dataset curation
 - Processing tools
 
+### 8. Cosmos Xenna
+**Purpose**: High-performance video decoding  
+**Repository**: `external/cosmos-xenna/`  
+**Size**: ~3.3 MB
+
+- Fast video I/O
+- Hardware-accelerated decoding
+- Efficient frame extraction
+- Optimized for Cosmos pipeline
+
 ## Use Cases for Fallout 4 Modding
 
 ### 1. Animation Preview

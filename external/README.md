@@ -90,6 +90,13 @@ See `ELECTRON_STORE_GUIDE.md` for integration details.
 - **License**: NVIDIA
 - **Size**: ~17 MB
 
+### 11. NVIDIA Cosmos Xenna
+- **Repository**: https://github.com/nvidia-cosmos/cosmos-xenna
+- **Purpose**: High-performance video decoding
+- **Usage**: Fast video I/O and processing
+- **License**: NVIDIA
+- **Size**: ~3.3 MB
+
 See `COSMOS_INTEGRATION_GUIDE.md` for complete setup and usage of all Cosmos models.
 
 ## Setup
@@ -110,6 +117,7 @@ git clone https://github.com/nvidia-cosmos/cosmos-cookbook.git
 git clone https://github.com/nvidia-cosmos/cosmos-rl.git
 git clone https://github.com/nvidia-cosmos/cosmos-dependencies.git
 git clone https://github.com/nvidia-cosmos/cosmos-curate.git
+git clone https://github.com/nvidia-cosmos/cosmos-xenna.git
 ```
 
 ### Integration
