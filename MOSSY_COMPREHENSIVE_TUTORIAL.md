@@ -1,7 +1,7 @@
 # Mossy - Comprehensive Tutorial Guide
 ## Your Complete Guide to Using Mossy for Fallout 4 Modding
 
-**Version:** 5.4.21  
+**Version:** 5.4.23  
 **Last Updated:** February 2026  
 **Author:** Mossy Development Team
 
@@ -51,7 +51,7 @@ Mossy is a production-ready Electron desktop application designed specifically f
 ### Installation
 
 1. **Download the Installer**
-   - Get the latest `Mossy Setup 5.4.21.exe` from the releases page
+   - Get the latest `Mossy Setup 5.4.23.exe` from the releases page
    - Run the installer and follow the prompts
 
 2. **First Launch**
@@ -1236,7 +1236,7 @@ A: See CONTRIBUTING.md in the repository for guidelines on contributing code, do
 
 ## Version History
 
-**v5.4.21** (Current)
+**v5.4.23** (Current)
 - Direct-write protocol for scripting
 - Headless Blender automation
 - Real-time tool monitoring (Neural Link)
@@ -1288,3 +1288,4 @@ SOFTWARE.
 For updates and more information, visit the [GitHub repository](https://github.com/POINTYTHRUNDRA654/desktop-tutorial).
 
 Happy Modding! 🎮
+
