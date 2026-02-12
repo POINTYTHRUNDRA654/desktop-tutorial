@@ -729,6 +729,50 @@ const electronAPI = {
   },
 
   /**
+   * Auto-Updater: Check for application updates
+   */
+  checkForUpdates: (): Promise<{ success: boolean; error?: string }> => {
+    return ipcRenderer.invoke('check-for-updates');
+  },
+
+  /**
+   * Auto-Updater: Download the available update
+   */
+  downloadUpdate: (): Promise<{ success: boolean; error?: string }> => {
+    return ipcRenderer.invoke('download-update');
+  },
+
+  /**
+   * Auto-Updater: Install the downloaded update and restart
+   */
+  installUpdate: (): Promise<{ success: boolean; error?: string }> => {
+    return ipcRenderer.invoke('install-update');
+  },
+
+  /**
+   * Auto-Updater: Get current update status
+   */
+  getUpdateStatus: (): Promise<{ success: boolean; status?: any; error?: string }> => {
+    return ipcRenderer.invoke('get-update-status');
+  },
+
+  /**
+   * Auto-Updater: Get current application version
+   */
+  getAppVersion: (): Promise<{ success: boolean; version?: string; error?: string }> => {
+    return ipcRenderer.invoke('get-app-version');
+  },
+
+  /**
+   * Auto-Updater: Listen for update status changes
+   */
+  onUpdateStatus: (callback: (status: any) => void): (() => void) => {
+    const subscription = (_event: any, status: any) => callback(status);
+    ipcRenderer.on('update-status', subscription);
+    return () => ipcRenderer.removeListener('update-status', subscription);
+  },
+
+  /**
    * Generic IPC: Invoke a command in the main process
    */
   invoke: (channel: string, ...args: any[]): Promise<any> => {

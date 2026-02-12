@@ -99,6 +99,7 @@
     "cross-env": "^7.0.3",
     "electron": "^28.1.4",
     "electron-builder": "^24.9.1",
+    "electron-updater": "^6.1.7",
     "eslint": "^8.56.0",
     "eslint-config-prettier": "^9.1.0",
     "eslint-plugin-react": "^7.33.2",
@@ -142,6 +143,12 @@
         ]
       }
     ],
+    "publish": {
+      "provider": "github",
+      "owner": "POINTYTHRUNDRA654",
+      "repo": "desktop-tutorial",
+      "releaseType": "release"
+    },
     "mac": {
       "target": "dmg",
       "category": "public.app-category.productivity"
