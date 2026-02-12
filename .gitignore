@@ -41,6 +41,7 @@ external/volttech-dist/*
 .env.local
 .env.production
 .env.development
+.env.encrypted.backup
 
 # Database
 *.db
@@ -65,3 +66,17 @@ Thumbs.db
 Mossy.exe
 Uninstall Mossy.exe
 resources/app.asar
+
+# External AI libraries (cloned repos)
+external/chroma/
+external/langchain/
+external/electron-store/
+external/cosmos-predict2.5/
+external/cosmos-transfer2.5/
+external/cosmos-reason2/
+external/cosmos-cookbook/
+external/cosmos-rl/
+external/cosmos-dependencies/
+external/cosmos-curate/
+external/cosmos-xenna/
+external/phoenix_live_view/

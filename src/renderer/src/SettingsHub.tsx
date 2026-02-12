@@ -1,9 +1,10 @@
 import React, { useState } from 'react';
-import { ArrowDownToLine, ChevronDown, ChevronUp, Lock, Map, Settings as SettingsIcon, Wrench } from 'lucide-react';
+import { ArrowDownToLine, ChevronDown, ChevronUp, Lock, Map, RotateCcw, Settings as SettingsIcon, Wrench } from 'lucide-react';
 import PrivacySettings from './PrivacySettings';
 import LanguageSettings from './LanguageSettings';
 import ExternalToolsSettings from './ExternalToolsSettings';
 import { SettingsImportExport } from './SettingsImportExport';
+import TutorialResetSettings from './TutorialResetSettings';
 
 type HubSection = {
   id: string;
@@ -49,6 +50,13 @@ const SettingsHub: React.FC = () => {
       icon: ArrowDownToLine,
       content: <SettingsImportExport embedded />,
     },
+    {
+      id: 'tutorial-reset',
+      title: 'Step 5: Tutorial & Onboarding',
+      description: 'Replay the installation tutorial and onboarding experience.',
+      icon: RotateCcw,
+      content: <TutorialResetSettings embedded />,
+    },
   ];
 
   return (
@@ -72,6 +80,7 @@ const SettingsHub: React.FC = () => {
             <li>Choose your preferred UI language</li>
             <li>Verify external tool paths and launches</li>
             <li>Export a clean backup snapshot</li>
+            <li>Replay the installation tutorial if needed</li>
           </ol>
         </div>
 
