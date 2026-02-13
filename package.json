@@ -36,6 +36,7 @@
     "test:e2e:ui": "playwright test --ui",
     "test:e2e:debug": "playwright test --debug",
     "test:e2e:headed": "playwright test --headed",
+    "capture-screenshots": "node scripts/capture-screenshots.mjs",
     "smoke": "npm run lint && npm test",
     "verify": "npm run smoke && npm run build",
     "backend:dev": "tsx watch src/backend/index.ts",
@@ -119,6 +120,7 @@
     "cross-env": "^7.0.3",
     "electron": "^35.7.5",
     "electron-builder": "^26.7.0",
+    "electron-updater": "^6.1.7",
     "eslint": "^8.56.0",
     "eslint-config-prettier": "^9.1.0",
     "eslint-plugin-react": "^7.33.2",
@@ -169,6 +171,12 @@
         ]
       }
     ],
+    "publish": {
+      "provider": "github",
+      "owner": "POINTYTHRUNDRA654",
+      "repo": "desktop-tutorial",
+      "releaseType": "release"
+    },
     "mac": {
       "target": "dmg",
       "category": "public.app-category.productivity"
