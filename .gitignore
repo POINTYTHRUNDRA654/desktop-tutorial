@@ -97,3 +97,10 @@ pip-delete-this-directory.txt
 .pytest_cache/
 .coverage
 htmlcov/
+
+# Test results
+test-results/
+playwright-report/
+
+# Legacy/archived files
+archive/
