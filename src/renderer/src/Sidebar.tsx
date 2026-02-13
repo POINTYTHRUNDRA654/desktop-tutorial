@@ -83,6 +83,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen = false, onToggle, onClose }) 
     // === CORE LEARNING: GUIDES & REFERENCES ===
     { to: '/reference', icon: Book, label: t('nav.quickReference', 'Quick Reference') },
     { to: '/knowledge', icon: Bot, label: t('nav.knowledgeSearch', 'Knowledge Search') },
+    { to: '/memory-vault', icon: Brain, label: t('nav.memoryVault', 'Memory Vault') },
     { to: '/wizards', icon: Wrench, label: t('nav.wizards', 'Wizards') },
     { to: '/crash-triage', icon: Bug, label: t('nav.crashTriage', 'Crash Triage') },
     { to: '/packaging-release', icon: Archive, label: t('nav.packagingRelease', 'Packaging & Release') },

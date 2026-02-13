@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Book, Upload, Trash2, Search, Brain, FileText, CheckCircle2, Loader2, Sparkles, Database, Plus, X, Activity, Cloud, Files, Download } from 'lucide-react';
+import { Book, Upload, Trash2, Search, Brain, FileText, CheckCircle2, Loader2, Sparkles, Database, Plus, X, Activity, Cloud, Files, Download, Share2, Github, Bell, PackageOpen, RefreshCw } from 'lucide-react';
 import { LocalAIEngine } from './LocalAIEngine';
 import { ToolsInstallVerifyPanel } from './components/ToolsInstallVerifyPanel';
 import { useWheelScrollProxy } from './components/useWheelScrollProxy';
@@ -17,6 +17,8 @@ interface MemoryItem {
     date: string;
     tags: string[];
     status: 'digesting' | 'learned';
+    shareWithCommunity?: boolean;
+    sharedDate?: string;
 }
 
 type TrustFilter = 'all' | 'personal' | 'community' | 'official';
@@ -44,6 +46,13 @@ const MossyMemoryVault: React.FC<MossyMemoryVaultProps> = ({ embedded = false })
     const [isDragActive, setIsDragActive] = useState(false);
     const [uploadError, setUploadError] = useState('');
     const [trustFilter, setTrustFilter] = useState<TrustFilter>('all');
+    const [shareWithCommunity, setShareWithCommunity] = useState(false);
+    const [showCommunityPanel, setShowCommunityPanel] = useState(false);
+    const [uploadingFileType, setUploadingFileType] = useState<'pdf' | 'psd' | 'abr' | 'video' | 'audio'>('pdf');
+    const [showKnowledgeLibrary, setShowKnowledgeLibrary] = useState(false);
+    const [availableKnowledge, setAvailableKnowledge] = useState<any[]>([]);
+    const [newKnowledgeCount, setNewKnowledgeCount] = useState(0);
+    const [isLoadingLibrary, setIsLoadingLibrary] = useState(false);
 
     useEffect(() => {
         const stored = localStorage.getItem('mossy_knowledge_vault');
@@ -65,6 +74,86 @@ const MossyMemoryVault: React.FC<MossyMemoryVaultProps> = ({ embedded = false })
         window.dispatchEvent(new Event('mossy-knowledge-updated'));
     }, [memories]);
 
+    // Auto-import bundled knowledge on first run
+    useEffect(() => {
+        const importBundledKnowledge = async () => {
+            const imported = localStorage.getItem('mossy_bundled_knowledge_imported');
+            if (imported) return; // Already imported
+
+            try {
+                const response = await fetch('/bundled-knowledge/manifest.json');
+                if (!response.ok) return;
+                
+                const manifest = await response.json();
+                const autoImportPacks = manifest.packs.filter((p: any) => p.autoImport);
+                
+                for (const pack of autoImportPacks) {
+                    try {
+                        const packResponse = await fetch(`/bundled-knowledge/${pack.file}`);
+                        if (!packResponse.ok) continue;
+                        
+                        const packData = await packResponse.json();
+                        if (!packData.items || !Array.isArray(packData.items)) continue;
+                        
+                        const imported = packData.items.map((item: any) => ({
+                            ...item,
+                            id: `bundled-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+                            trustLevel: item.trustLevel || 'official',
+                            status: 'learned',
+                            date: new Date().toLocaleDateString(),
+                            shareWithCommunity: false
+                        }));
+                        
+                        setMemories(prev => [...imported, ...prev]);
+                    } catch (err) {
+                        console.error('Failed to import pack:', pack.name, err);
+                    }
+                }
+                
+                localStorage.setItem('mossy_bundled_knowledge_imported', 'true');
+                localStorage.setItem('mossy_bundled_knowledge_version', manifest.version);
+            } catch (error) {
+                console.error('Failed to import bundled knowledge:', error);
+            }
+        };
+
+        importBundledKnowledge();
+    }, []);
+
+    // Check for new knowledge from GitHub (every 6 hours)
+    useEffect(() => {
+        const checkForUpdates = async () => {
+            const lastCheck = localStorage.getItem('mossy_knowledge_last_check');
+            const now = Date.now();
+            const sixHours = 6 * 60 * 60 * 1000;
+            
+            if (lastCheck && now - parseInt(lastCheck) < sixHours) {
+                return; // Checked recently
+            }
+
+            try {
+                const repoUrl = 'https://api.github.com/repos/YOUR_USERNAME/mossy-knowledge/contents/community-knowledge';
+                const response = await fetch(repoUrl);
+                if (!response.ok) return;
+                
+                const files = await response.json();
+                const jsonFiles = files.filter((f: any) => f.name.endsWith('.json'));
+                
+                const importedVersions = JSON.parse(localStorage.getItem('mossy_imported_versions') || '{}');
+                const newPacks = jsonFiles.filter((f: any) => !importedVersions[f.name]);
+                
+                setNewKnowledgeCount(newPacks.length);
+                localStorage.setItem('mossy_knowledge_last_check', now.toString());
+            } catch (error) {
+                console.error('Failed to check for knowledge updates:', error);
+            }
+        };
+
+        checkForUpdates();
+        const interval = setInterval(checkForUpdates, 6 * 60 * 60 * 1000); // Every 6 hours
+        return () => clearInterval(interval);
+    }, []);
+
     const handleDrag = (e: React.DragEvent) => {
         e.preventDefault();
         e.stopPropagation();
@@ -77,6 +166,7 @@ const MossyMemoryVault: React.FC<MossyMemoryVaultProps> = ({ embedded = false })
 
     const handleVideoFile = async (file: File) => {
         try {
+            setUploadingFileType(file.type.startsWith('video/') ? 'video' : 'audio');
             setIsUploading(true);
             setUploadProgress(10);
             
@@ -144,9 +234,98 @@ const MossyMemoryVault: React.FC<MossyMemoryVaultProps> = ({ embedded = false })
             return;
         }
         
+        // Check if it's a PSD
+        if (file.name.endsWith('.psd') || file.type === 'application/x-photoshop' || file.type === 'image/vnd.adobe.photoshop') {
+            try {
+                setUploadingFileType('psd');
+                setIsUploading(true);
+                setUploadProgress(10);
+                
+                const arrayBuffer = await file.arrayBuffer();
+                setUploadProgress(30);
+                
+                // Use IPC to parse PSD in main process
+                const result = await (window as any).electron?.api?.parsePSD(arrayBuffer);
+                setUploadProgress(90);
+                
+                if (result?.success) {
+                    const fileName = file.name.replace(/\.psd$/i, '');
+                    setNewTitle(fileName);
+                    // PSD metadata as initial content - user can add tutorial text below
+                    setNewContent(`${result.text}\n\n--- Tutorial Content ---\n\n(Paste your tutorial steps here)`);
+                    setNewSource((prev) => (prev ? prev : `File: ${file.name}`));
+                    setUploadProgress(100);
+                    setIsUploading(false);
+                    setUploadProgress(0);
+                    setShowUploadModal(true);
+                } else {
+                    throw new Error(result?.error || 'PSD parsing failed');
+                }
+            } catch (error: any) {
+                setIsUploading(false);
+                setUploadProgress(0);
+                console.error('PSD error:', error);
+                
+                // Fallback to manual entry
+                const fileName = file.name.replace(/\.psd$/i, '');
+                setNewTitle(fileName);
+                setNewSource((prev) => (prev ? prev : `File: ${file.name}`));
+                setShowUploadModal(true);
+                setTimeout(() => {
+                    alert(`❌ Auto-extraction failed.\n\nPlease describe the PSD tutorial content:\n1. What the tutorial covers\n2. Key steps or techniques\n3. Important layers or settings`);
+                }, 100);
+            }
+            return;
+        }
+        
+        // Check if it's an ABR (Adobe Brush)
+        if (file.name.endsWith('.abr') || file.type === 'application/x-photoshop-abr') {
+            try {
+                setUploadingFileType('abr');
+                setIsUploading(true);
+                setUploadProgress(10);
+                
+                const arrayBuffer = await file.arrayBuffer();
+                setUploadProgress(30);
+                
+                // Use IPC to parse ABR in main process
+                const result = await (window as any).electron?.api?.parseABR(arrayBuffer);
+                setUploadProgress(90);
+                
+                if (result?.success) {
+                    const fileName = file.name.replace(/\.abr$/i, '');
+                    setNewTitle(fileName);
+                    // ABR brush metadata as initial content
+                    setNewContent(`${result.text}\n\n--- Tutorial Content ---\n\n(Describe brush usage, techniques, and best practices here)`);
+                    setNewSource((prev) => (prev ? prev : `File: ${file.name}`));
+                    setUploadProgress(100);
+                    setIsUploading(false);
+                    setUploadProgress(0);
+                    setShowUploadModal(true);
+                } else {
+                    throw new Error(result?.error || 'ABR parsing failed');
+                }
+            } catch (error: any) {
+                setIsUploading(false);
+                setUploadProgress(0);
+                console.error('ABR error:', error);
+                
+                // Fallback to manual entry
+                const fileName = file.name.replace(/\.abr$/i, '');
+                setNewTitle(fileName);
+                setNewSource((prev) => (prev ? prev : `File: ${file.name}`));
+                setShowUploadModal(true);
+                setTimeout(() => {
+                    alert(`❌ Auto-extraction failed.\n\nPlease describe the brush set:\n1. What brushes are included\n2. Best use cases (texturing, painting, etc.)\n3. Recommended settings`);
+                }, 100);
+            }
+            return;
+        }
+        
         // Check if it's a PDF
         if (file.name.endsWith('.pdf') || file.type === 'application/pdf') {
             try {
+                setUploadingFileType('pdf');
                 setIsUploading(true);
                 setUploadProgress(10);
                 
@@ -203,7 +382,7 @@ const MossyMemoryVault: React.FC<MossyMemoryVaultProps> = ({ embedded = false })
             
             reader.readAsText(file);
         } else {
-            alert(`❌ Unsupported file type: ${file.name}\n\nSupported: .pdf, .txt, .md, .json, .bat, .cmd, .xml, .ini, .cfg, .ps1, .sh, .py, .js, .ts, .html, .css, .scss, .sass, .yaml, .yml, .mp4, .webm, .mov, .avi, .mkv, .flv, .wmv, .m4v, .3gp, .mp3, .wav, .flac, .aac, .ogg, .m4a, .wma`);
+            alert(`❌ Unsupported file type: ${file.name}\n\nSupported: .psd, .abr, .pdf, .txt, .md, .json, .bat, .cmd, .xml, .ini, .cfg, .ps1, .sh, .py, .js, .ts, .html, .css, .scss, .sass, .yaml, .yml, .mp4, .webm, .mov, .avi, .mkv, .flv, .wmv, .m4v, .3gp, .mp3, .wav, .flac, .aac, .ogg, .m4a, .wma`);
         }
     };
 
@@ -251,7 +430,9 @@ const MossyMemoryVault: React.FC<MossyMemoryVaultProps> = ({ embedded = false })
             trustLevel: newTrustLevel,
             date: new Date().toLocaleDateString(),
             tags: newTags.split(',').map(t => t.trim()).filter(t => t),
-            status: 'learned'
+            status: 'learned',
+            shareWithCommunity: shareWithCommunity,
+            sharedDate: shareWithCommunity ? new Date().toISOString() : undefined
         };
 
         setMemories([newItem, ...memories]);
@@ -266,8 +447,14 @@ const MossyMemoryVault: React.FC<MossyMemoryVaultProps> = ({ embedded = false })
         setNewTrustLevel('personal');
         setNewTags('');
         setUploadError('');
+        setShareWithCommunity(false);
         // Record for ML tracking
         LocalAIEngine.recordAction('knowledge_ingested', { title: newItem.title, tags: newItem.tags }).catch(() => {});
+        
+        // If shared, trigger community sync
+        if (newItem.shareWithCommunity) {
+            handleSyncCommunityKnowledge([newItem]);
+        }
     };
 
     const handleExportVault = () => {
@@ -284,6 +471,181 @@ const MossyMemoryVault: React.FC<MossyMemoryVaultProps> = ({ embedded = false })
 
     const deleteMemory = (id: string) => {
         setMemories(memories.filter(m => m.id !== id));
+    };
+
+    const toggleShare = (id: string) => {
+        setMemories(memories.map(m => {
+            if (m.id === id) {
+                const willShare = !m.shareWithCommunity;
+                const updated = {
+                    ...m,
+                    shareWithCommunity: willShare,
+                    sharedDate: willShare ? new Date().toISOString() : undefined
+                };
+                if (willShare) {
+                    handleSyncCommunityKnowledge([updated]);
+                }
+                return updated;
+            }
+            return m;
+        }));
+    };
+
+    const handleSyncCommunityKnowledge = async (items: MemoryItem[]) => {
+        // Filter only items approved for sharing
+        const sharedItems = items.filter(item => item.shareWithCommunity);
+        if (sharedItems.length === 0) return;
+
+        try {
+            // Export shared knowledge to JSON
+            const exportData = {
+                version: '1.0',
+                exported: new Date().toISOString(),
+                items: sharedItems.map(item => ({
+                    ...item,
+                    // Remove any private metadata
+                    id: undefined, // Will be regenerated on import
+                }))
+            };
+
+            // Save to downloads folder for manual GitHub upload
+            const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `mossy-community-knowledge-${Date.now()}.json`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+
+            alert(`✅ Exported ${sharedItems.length} shared knowledge item(s)!\n\nNext steps to share with community:\n1. Upload the downloaded JSON to your GitHub repo\n2. Share the link with other Mossy users\n3. They can import it via "Import Community Knowledge"`);
+        } catch (error) {
+            console.error('Community sync error:', error);
+            alert('❌ Failed to export community knowledge. Please try again.');
+        }
+    };
+
+    const handleImportCommunityKnowledge = async () => {
+        const input = document.createElement('input');
+        input.type = 'file';
+        input.accept = '.json';
+        input.onchange = async (e: any) => {
+            const file = e.target.files[0];
+            if (!file) return;
+
+            try {
+                const text = await file.text();
+                const data = JSON.parse(text);
+                
+                if (!data.items || !Array.isArray(data.items)) {
+                    throw new Error('Invalid community knowledge format');
+                }
+
+                const imported = data.items.map((item: any) => ({
+                    ...item,
+                    id: `mem-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+                    trustLevel: 'community' as const,
+                    status: 'learned' as const,
+                    shareWithCommunity: false // Don't auto-share imported content
+                }));
+
+                setMemories([...imported, ...memories]);
+                alert(`✅ Imported ${imported.length} community knowledge item(s)!`);
+            } catch (error) {
+                console.error('Import error:', error);
+                alert('❌ Failed to import community knowledge. Please check the file format.');
+            }
+        };
+        input.click();
+    };
+
+    const handleExportSharedOnly = () => {
+        const sharedItems = memories.filter(m => m.shareWithCommunity);
+        if (sharedItems.length === 0) {
+            alert('No shared items to export. Mark items as "Share with Community" first.');
+            return;
+        }
+        handleSyncCommunityKnowledge(sharedItems);
+    };
+
+    const handleBrowseKnowledgeLibrary = async () => {
+        setIsLoadingLibrary(true);
+        setShowKnowledgeLibrary(true);
+        
+        try {
+            // Try to fetch from GitHub repo (user configurable in settings)
+            const repoUrl = 'https://api.github.com/repos/YOUR_USERNAME/mossy-knowledge/contents/community-knowledge';
+            const response = await fetch(repoUrl);
+            
+            if (response.ok) {
+                const files = await response.json();
+                const jsonFiles = files.filter((f: any) => f.name.endsWith('.json'));
+                
+                // Fetch metadata for each pack
+                const packs = await Promise.all(
+                    jsonFiles.map(async (file: any) => {
+                        try {
+                            const contentResponse = await fetch(file.download_url);
+                            const content = await contentResponse.json();
+                            return {
+                                name: file.name,
+                                downloadUrl: file.download_url,
+                                packName: content.packName || file.name.replace('.json', ''),
+                                description: content.description || 'No description',
+                                itemCount: content.items?.length || 0,
+                                version: content.version || '1.0.0',
+                                author: content.credits?.author || 'Community'
+                            };
+                        } catch {
+                            return null;
+                        }
+                    })
+                );
+                
+                setAvailableKnowledge(packs.filter(p => p !== null));
+            }
+        } catch (error) {
+            console.error('Failed to fetch knowledge library:', error);
+        } finally {
+            setIsLoadingLibrary(false);
+        }
+    };
+
+    const handleDownloadKnowledgePack = async (pack: any) => {
+        try {
+            const response = await fetch(pack.downloadUrl);
+            const data = await response.json();
+            
+            if (!data.items || !Array.isArray(data.items)) {
+                alert('Invalid knowledge pack format');
+                return;
+            }
+            
+            const imported = data.items.map((item: any) => ({
+                ...item,
+                id: `community-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+                trustLevel: 'community' as const,
+                status: 'learned' as const,
+                date: new Date().toLocaleDateString(),
+                shareWithCommunity: false
+            }));
+            
+            setMemories([...imported, ...memories]);
+            
+            // Track imported version
+            const importedVersions = JSON.parse(localStorage.getItem('mossy_imported_versions') || '{}');
+            importedVersions[pack.name] = pack.version;
+            localStorage.setItem('mossy_imported_versions', JSON.stringify(importedVersions));
+            
+            // Decrease new knowledge count
+            setNewKnowledgeCount(Math.max(0, newKnowledgeCount - 1));
+            
+            alert(`✅ Imported ${imported.length} knowledge items from "${pack.packName}"!`);
+        } catch (error) {
+            console.error('Import error:', error);
+            alert('❌ Failed to import knowledge pack. Please try again.');
+        }
     };
 
     const filteredMemories = memories.filter(m => {
@@ -330,16 +692,27 @@ const MossyMemoryVault: React.FC<MossyMemoryVaultProps> = ({ embedded = false })
                 </div>
             )}
 
-            {/* PDF Processing Overlay */}
+            {/* File Processing Overlay */}
             {isUploading && !showUploadModal && (
                 <div className={`${overlayPositionClass} z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center`}>
                     <div className="bg-[#141814] border border-emerald-500/30 rounded-2xl p-8 max-w-md w-full mx-4 shadow-2xl shadow-emerald-500/10">
                         <div className="text-center space-y-4">
                             <Loader2 className="w-12 h-12 text-emerald-400 mx-auto animate-spin" />
-                            <h3 className="text-xl font-bold text-white">Processing PDF...</h3>
+                            <h3 className="text-xl font-bold text-white">
+                                {uploadingFileType === 'psd' && 'Processing PSD...'}
+                                {uploadingFileType === 'abr' && 'Processing Brush File...'}
+                                {uploadingFileType === 'pdf' && 'Processing PDF...'}
+                                {uploadingFileType === 'video' && 'Transcribing Video...'}
+                                {uploadingFileType === 'audio' && 'Transcribing Audio...'}
+                            </h3>
                             <div className="space-y-2">
                                 <div className="flex justify-between text-xs text-slate-400">
-                                    <span>Extracting text</span>
+                                    <span>
+                                        {uploadingFileType === 'psd' && 'Extracting layers & metadata'}
+                                        {uploadingFileType === 'abr' && 'Extracting brush presets'}
+                                        {uploadingFileType === 'pdf' && 'Extracting text'}
+                                        {(uploadingFileType === 'video' || uploadingFileType === 'audio') && 'Extracting audio & text'}
+                                    </span>
                                     <span>{uploadProgress}%</span>
                                 </div>
                                 <div className="w-full bg-slate-900 rounded-full h-2 overflow-hidden border border-white/5">
@@ -355,43 +728,162 @@ const MossyMemoryVault: React.FC<MossyMemoryVaultProps> = ({ embedded = false })
             )}
 
             {/* Header */}
-            <div className="p-6 border-b border-emerald-900/30 bg-[#141814] flex justify-between items-center shadow-lg">
-                <div className="flex items-center gap-3">
-                    <div className="p-2 bg-emerald-500/10 rounded-lg border border-emerald-500/20">
-                        <Brain className="w-6 h-6 text-emerald-400" />
+            <div className="p-4 lg:p-6 border-b border-emerald-900/30 bg-[#141814] shadow-lg">
+                <div className="flex flex-col lg:flex-row lg:justify-between lg:items-center gap-4">
+                    <div className="flex items-center gap-3">
+                        <div className="p-2 bg-emerald-500/10 rounded-lg border border-emerald-500/20">
+                            <Brain className="w-6 h-6 text-emerald-400" />
+                        </div>
+                        <div>
+                            <h2 className="text-lg lg:text-xl font-bold text-white flex items-center gap-2">
+                                Memory Vault
+                                <span className="text-[10px] bg-emerald-500/20 text-emerald-400 px-2 py-0.5 rounded border border-emerald-500/30 font-mono">ENHANCED RAG</span>
+                            </h2>
+                            <p className="text-xs text-slate-400 hidden sm:block">Upload tutorials, snippets, and lore for Mossy to digest into her long-term memory.</p>
+                        </div>
                     </div>
-                    <div>
-                        <h2 className="text-xl font-bold text-white flex items-center gap-2">
-                            Memory Vault
-                            <span className="text-[10px] bg-emerald-500/20 text-emerald-400 px-2 py-0.5 rounded border border-emerald-500/30 font-mono">ENHANCED RAG</span>
-                        </h2>
-                        <p className="text-xs text-slate-400">Upload tutorials, snippets, and lore for Mossy to digest into her long-term memory.</p>
-                    </div>
-                </div>
-                <div className="flex items-center gap-2">
+                    <div className="flex flex-wrap items-center gap-2">
                     <Link
                         to="/reference"
-                        className="px-3 py-2 text-[10px] font-black uppercase tracking-widest rounded-lg bg-emerald-500/10 border border-emerald-500/30 text-emerald-200 hover:bg-emerald-500/20 transition-colors"
+                        className="px-3 py-2 text-[10px] font-black uppercase tracking-widest rounded-lg bg-emerald-500/10 border border-emerald-500/30 text-emerald-200 hover:bg-emerald-500/20 transition-colors hidden sm:inline-flex"
                         title="Open help"
                     >
                         Help
                     </Link>
                     <button
+                        onClick={handleBrowseKnowledgeLibrary}
+                        className="flex items-center gap-1 sm:gap-2 px-2 sm:px-3 py-2 bg-blue-900/50 hover:bg-blue-800 text-blue-100 rounded-lg transition-all border border-blue-700 text-xs font-bold relative"
+                        title="Browse community knowledge library"
+                    >
+                        <PackageOpen className="w-4 h-4" />
+                        <span className="hidden md:inline">Browse Library</span>
+                        <span className="md:hidden hidden sm:inline">Library</span>
+                        {newKnowledgeCount > 0 && (
+                            <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[10px] font-bold rounded-full w-5 h-5 flex items-center justify-center">
+                                {newKnowledgeCount}
+                            </span>
+                        )}
+                    </button>
+                    <button
+                        onClick={handleImportCommunityKnowledge}
+                        className="flex items-center gap-1 sm:gap-2 px-2 sm:px-3 py-2 bg-purple-900/50 hover:bg-purple-800 text-purple-100 rounded-lg transition-all border border-purple-700 text-xs font-bold"
+                        title="Import shared knowledge from community"
+                    >
+                        <Github className="w-4 h-4" />
+                        <span className="hidden sm:inline">Import Community</span>
+                        <span className="sm:hidden">Import</span>
+                    </button>
+                    <button
+                        onClick={handleExportSharedOnly}
+                        className="flex items-center gap-1 sm:gap-2 px-2 sm:px-3 py-2 bg-blue-900/50 hover:bg-blue-800 text-blue-100 rounded-lg transition-all border border-blue-700 text-xs font-bold"
+                        title="Export items marked for sharing"
+                    >
+                        <Share2 className="w-4 h-4" />
+                        <span className="hidden md:inline">Export Shared</span>
+                        <span className="md:hidden hidden sm:inline">Share</span>
+                    </button>
+                    <button
                         onClick={handleExportVault}
-                        className="flex items-center gap-2 px-4 py-2 bg-slate-900/50 hover:bg-slate-800 text-slate-100 rounded-lg transition-all border border-slate-700 text-sm font-bold"
+                        className="flex items-center gap-2 px-3 py-2 bg-slate-900/50 hover:bg-slate-800 text-slate-100 rounded-lg transition-all border border-slate-700 text-xs font-bold hidden md:flex"
+                        title="Export all knowledge (backup)"
                     >
                         <Download className="w-4 h-4" />
-                        Export Vault
+                        Export All
                     </button>
                     <button 
                         onClick={() => setShowUploadModal(true)}
                         className="flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg transition-all shadow-lg shadow-emerald-900/20 text-sm font-bold"
                     >
                         <Plus className="w-4 h-4" />
-                        Ingest Knowledge
+                        <span className="hidden sm:inline">Ingest Knowledge</span>
+                        <span className="sm:hidden">Ingest</span>
                     </button>
                 </div>
+                </div>
             </div>
+
+            {/* Knowledge Library Modal */}
+            {showKnowledgeLibrary && (
+                <div className={`${overlayPositionClass} z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4`}>
+                    <div className="bg-[#141814] border border-emerald-500/30 rounded-2xl max-w-4xl w-full max-h-[80vh] overflow-hidden shadow-2xl shadow-emerald-500/10 flex flex-col">
+                        {/* Modal Header */}
+                        <div className="p-6 border-b border-emerald-900/30 flex justify-between items-center">
+                            <div className="flex items-center gap-3">
+                                <PackageOpen className="w-6 h-6 text-emerald-400" />
+                                <div>
+                                    <h3 className="text-xl font-bold text-white">Community Knowledge Library</h3>
+                                    <p className="text-xs text-slate-400 mt-1">Browse and download curated tutorials from the community</p>
+                                </div>
+                            </div>
+                            <button
+                                onClick={() => setShowKnowledgeLibrary(false)}
+                                className="p-2 hover:bg-slate-800 rounded-lg transition-colors"
+                            >
+                                <X className="w-5 h-5 text-slate-400" />
+                            </button>
+                        </div>
+
+                        {/* Modal Content */}
+                        <div className="flex-1 overflow-y-auto p-6">
+                            {isLoadingLibrary ? (
+                                <div className="flex flex-col items-center justify-center py-12">
+                                    <Loader2 className="w-12 h-12 text-emerald-400 animate-spin mb-4" />
+                                    <p className="text-slate-400 text-sm">Loading knowledge library...</p>
+                                </div>
+                            ) : availableKnowledge.length === 0 ? (
+                                <div className="text-center py-12">
+                                    <Cloud className="w-16 h-16 text-slate-600 mx-auto mb-4" />
+                                    <p className="text-slate-400 mb-2">No knowledge packs available yet</p>
+                                    <p className="text-slate-500 text-xs">Check back later or configure your GitHub repo in Settings</p>
+                                </div>
+                            ) : (
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    {availableKnowledge.map((pack, index) => (
+                                        <div key={index} className="bg-[#0f120f] border border-emerald-900/30 rounded-xl p-4 hover:border-emerald-500/50 transition-all">
+                                            <div className="flex justify-between items-start mb-3">
+                                                <div className="flex-1">
+                                                    <h4 className="text-white font-bold text-sm mb-1">{pack.packName}</h4>
+                                                    <p className="text-slate-400 text-xs mb-2">{pack.description}</p>
+                                                    <div className="flex items-center gap-3 text-[10px] text-slate-500">
+                                                        <span className="flex items-center gap-1">
+                                                            <FileText className="w-3 h-3" />
+                                                            {pack.itemCount} items
+                                                        </span>
+                                                        <span>v{pack.version}</span>
+                                                        <span>by {pack.author}</span>
+                                                    </div>
+                                                </div>
+                                                <button
+                                                    onClick={() => handleDownloadKnowledgePack(pack)}
+                                                    className="flex items-center gap-1 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-bold transition-colors"
+                                                >
+                                                    <Download className="w-3 h-3" />
+                                                    Import
+                                                </button>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+                        </div>
+
+                        {/* Modal Footer */}
+                        <div className="p-4 border-t border-emerald-900/30 bg-[#0f120f]/50">
+                            <div className="flex items-center justify-between text-xs text-slate-400">
+                                <span>💡 Tip: Knowledge packs are automatically checked every 6 hours</span>
+                                <button
+                                    onClick={handleBrowseKnowledgeLibrary}
+                                    disabled={isLoadingLibrary}
+                                    className="flex items-center gap-1 px-3 py-1 hover:bg-slate-800 rounded text-slate-300 hover:text-white transition-colors disabled:opacity-50"
+                                >
+                                    <RefreshCw className={`w-3 h-3 ${isLoadingLibrary ? 'animate-spin' : ''}`} />
+                                    Refresh
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
 
             <div className="px-6 pt-4">
                 <ToolsInstallVerifyPanel
@@ -468,6 +960,28 @@ const MossyMemoryVault: React.FC<MossyMemoryVaultProps> = ({ embedded = false })
                 </div>
             </div>
 
+            {/* Community Knowledge Sharing Info */}
+            <div className="mx-6 mb-2 p-3 bg-purple-500/10 border border-purple-500/30 rounded-lg">
+                <div className="flex items-start gap-3">
+                    <Share2 className="w-4 h-4 text-purple-400 mt-0.5 flex-shrink-0" />
+                    <div className="text-xs text-slate-300 space-y-1">
+                        <div className="font-semibold text-purple-300">🌐 Community Knowledge Sharing</div>
+                        <div className="text-slate-400">
+                            Share your knowledge with other Mossy users while keeping private notes safe:
+                        </div>
+                        <ul className="list-disc list-inside space-y-0.5 text-[11px] text-slate-400 ml-1">
+                            <li><strong className="text-purple-300">Mark as Shared:</strong> Toggle the share icon on any memory to include it in community exports</li>
+                            <li><strong className="text-purple-300">Export Shared:</strong> Creates a JSON file with only your approved items</li>
+                            <li><strong className="text-purple-300">Share via GitHub:</strong> Upload the JSON to a GitHub repo or gist, share the link</li>
+                            <li><strong className="text-purple-300">Import Community:</strong> Download others' JSON files and import them instantly</li>
+                        </ul>
+                        <div className="text-[10px] text-slate-500 mt-1">
+                            💡 Your personal notes stay local unless explicitly marked for sharing. Credits are always preserved.
+                        </div>
+                    </div>
+                </div>
+            </div>
+
             {/* Search */}
             <div className="p-6 bg-[#0f120f]">
                 <div className="relative max-w-2xl mx-auto">
@@ -521,6 +1035,17 @@ const MossyMemoryVault: React.FC<MossyMemoryVaultProps> = ({ embedded = false })
                             <div key={mem.id} className="group bg-[#141814] border border-emerald-900/20 rounded-xl p-5 hover:border-emerald-500/40 transition-all hover:bg-[#1a1f1a] relative overflow-hidden shadow-sm">
                                 <div className="absolute top-0 right-0 p-3 opacity-0 group-hover:opacity-100 transition-opacity flex gap-2">
                                     <button 
+                                        onClick={() => toggleShare(mem.id)}
+                                        className={`p-1.5 rounded border transition-colors ${
+                                            mem.shareWithCommunity
+                                                ? 'bg-purple-900/40 text-purple-300 border-purple-500/40 hover:bg-purple-900/60'
+                                                : 'bg-slate-900/20 text-slate-400 border-slate-700/20 hover:bg-slate-900/40'
+                                        }`}
+                                        title={mem.shareWithCommunity ? 'Remove from community sharing' : 'Share with community'}
+                                    >
+                                        <Share2 className="w-3.5 h-3.5" />
+                                    </button>
+                                    <button 
                                         onClick={() => deleteMemory(mem.id)}
                                         className="p-1.5 bg-red-900/20 text-red-400 hover:bg-red-900/40 rounded border border-red-500/20 transition-colors"
                                         title="Forget memory"
@@ -544,6 +1069,11 @@ const MossyMemoryVault: React.FC<MossyMemoryVaultProps> = ({ embedded = false })
                                             <span className="px-2 py-0.5 rounded-full border border-emerald-500/20 text-[9px] text-emerald-300 bg-emerald-500/10 uppercase">
                                                 Trust: {mem.trustLevel || 'personal'}
                                             </span>
+                                            {mem.shareWithCommunity && (
+                                                <span className="px-2 py-0.5 rounded-full border border-purple-500/20 text-[9px] text-purple-300 bg-purple-500/10 uppercase flex items-center gap-1">
+                                                    <Share2 className="w-2.5 h-2.5" /> Shared
+                                                </span>
+                                            )}
                                             <span className="truncate">Credit: {mem.creditName || 'Uncredited'}</span>
                                             {mem.creditUrl && (
                                                 <button
@@ -740,6 +1270,29 @@ const MossyMemoryVault: React.FC<MossyMemoryVaultProps> = ({ embedded = false })
                                     onChange={(e) => setNewTags(e.target.value)}
                                     disabled={isUploading}
                                 />
+                            </div>
+
+                            {/* Community Sharing */}
+                            <div className="bg-purple-900/10 border border-purple-500/30 rounded-xl p-4">
+                                <div className="flex items-start gap-3">
+                                    <input
+                                        type="checkbox"
+                                        id="shareWithCommunity"
+                                        checked={shareWithCommunity}
+                                        onChange={(e) => setShareWithCommunity(e.target.checked)}
+                                        className="mt-1 w-4 h-4 rounded border-purple-500/50 bg-purple-900/20 text-purple-500 focus:ring-purple-500/50"
+                                        disabled={isUploading}
+                                    />
+                                    <div className="flex-1">
+                                        <label htmlFor="shareWithCommunity" className="text-sm font-semibold text-purple-200 cursor-pointer flex items-center gap-2">
+                                            <Share2 className="w-4 h-4" />
+                                            Share with Community
+                                        </label>
+                                        <p className="text-xs text-slate-400 mt-1">
+                                            This knowledge will be exported to a JSON file you can share via GitHub/Discord. Only approved items are shared - your private notes stay private.
+                                        </p>
+                                    </div>
+                                </div>
                             </div>
 
                             {uploadError && (

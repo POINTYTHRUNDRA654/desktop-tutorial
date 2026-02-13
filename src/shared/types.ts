@@ -2434,6 +2434,10 @@ export interface ElectronAPI {
   transcribeAudio: (arrayBuffer: ArrayBuffer, mimeType?: string) => Promise<{ success: boolean; text?: string; error?: string }>;
   // PDF parsing
   parsePDF: (arrayBuffer: ArrayBuffer) => Promise<{ success: boolean; text?: string; error?: string }>;
+  // PSD parsing
+  parsePSD: (arrayBuffer: ArrayBuffer) => Promise<{ success: boolean; text?: string; metadata?: any; error?: string }>;
+  // ABR parsing (Adobe Brush)
+  parseABR: (arrayBuffer: ArrayBuffer) => Promise<{ success: boolean; text?: string; metadata?: any; error?: string }>;
   // Video transcription
   transcribeVideo: (arrayBuffer: ArrayBuffer, filename: string, projectId?: string, organizationId?: string) => Promise<{ success: boolean; text?: string; error?: string }>;
   getSystemInfo: () => Promise<SystemInfo>;

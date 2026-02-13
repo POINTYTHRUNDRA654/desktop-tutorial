@@ -1,0 +1,30 @@
+{
+  "version": "1.0.0",
+  "exported": "2026-02-13T00:00:00.000Z",
+  "packId": "photoshop-brushes-guide",
+  "packName": "Photoshop Brushes for Fallout 4 Textures",
+  "description": "Complete guide to using Photoshop brushes for creating realistic Fallout 4 textures, including weathering, dirt, and damage effects",
+  "credits": {
+    "author": "Community Contributor",
+    "license": "CC-BY 4.0",
+    "url": "https://github.com/YOUR_USERNAME/mossy-knowledge"
+  },
+  "items": [
+    {
+      "title": "ABR Brush Files - Installation Guide",
+      "content": "ABR (Adobe Brush) Files for Photoshop/Photopea\n\nInstallation:\n1. Download .abr brush file\n2. In Photoshop: Edit → Presets → Preset Manager → Load\n3. In Photopea: www.photopea.com → Window → Brushes → Menu → Import Brushes\n4. Select your .abr file\n5. Brushes appear in Brush panel\n\nBest Practices:\n- Test on separate layer first\n- Adjust opacity (10-30% for subtle effects)\n- Use flow control for gradual application\n- Combine multiple brushes for realism\n- Save as Smart Object for non-destructive editing",
+      "source": "Community Tutorial",
+      "creditName": "Mossy Community",
+      "trustLevel": "community",
+      "tags": ["brushes", "photoshop", "photopea", "abr", "textures"]
+    },
+    {
+      "title": "Weathering Brushes - Rust and Corrosion",
+      "content": "Creating Rust Effects with Brushes:\n\n1. Base Layer: Orange/brown rust color (#B7410E)\n2. Brush Selection: Scattered/splatter brushes\n3. Technique:\n   - Large brush (200-400px) at 10% opacity\n   - Random rotation enabled\n   - Multiple passes for buildup\n   - Vary brush size between passes\n\n4. Advanced Weathering:\n   - Layer 1: Light surface rust (orange)\n   - Layer 2: Deep corrosion (dark brown)\n   - Layer 3: Flaking metal (gray/white)\n   - Use layer masks for control\n\n5. Fallout 4 Specifics:\n   - Rust collects at edges and seams\n   - More rust near ground level\n   - Apply to metal diffuse (_d) texture\n   - Reduce in specular map for matte rust areas",
+      "source": "Community Tutorial",
+      "creditName": "Mossy Community",
+      "trustLevel": "community",
+      "tags": ["weathering", "rust", "corrosion", "brushes", "fallout4"]
+    }
+  ]
+}
