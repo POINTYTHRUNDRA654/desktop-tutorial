@@ -44,6 +44,12 @@ const MossyMemoryVault: React.FC<MossyMemoryVaultProps> = ({ embedded = false })
     const [isDragActive, setIsDragActive] = useState(false);
     const [uploadError, setUploadError] = useState('');
     const [trustFilter, setTrustFilter] = useState<TrustFilter>('all');
+    
+    // Knowledge distribution state
+    const [showLibraryModal, setShowLibraryModal] = useState(false);
+    const [communityPacks, setCommunityPacks] = useState<any[]>([]);
+    const [newKnowledgeCount, setNewKnowledgeCount] = useState(0);
+    const [isLoadingLibrary, setIsLoadingLibrary] = useState(false);
 
     useEffect(() => {
         const stored = localStorage.getItem('mossy_knowledge_vault');
@@ -57,6 +63,15 @@ const MossyMemoryVault: React.FC<MossyMemoryVaultProps> = ({ embedded = false })
                 : [];
             setMemories(normalized);
         }
+        
+        // Auto-import bundled knowledge on first run
+        const hasImportedBundled = localStorage.getItem('mossy_bundled_imported');
+        if (!hasImportedBundled) {
+            importBundledKnowledge().catch(console.error);
+        }
+        
+        // Check for new community knowledge
+        checkGitHubForNewKnowledge().catch(console.error);
     }, []);
 
     useEffect(() => {
@@ -219,6 +234,177 @@ const MossyMemoryVault: React.FC<MossyMemoryVaultProps> = ({ embedded = false })
         }
     };
 
+    // Import bundled knowledge on first run
+    const importBundledKnowledge = async () => {
+        try {
+            const manifestRes = await fetch('/bundled-knowledge/manifest.json');
+            if (!manifestRes.ok) return;
+            
+            const manifest = await manifestRes.json();
+            const currentMemories = JSON.parse(localStorage.getItem('mossy_knowledge_vault') || '[]');
+            let newItems: MemoryItem[] = [];
+            
+            for (const pack of manifest.packs) {
+                if (pack['auto-import']) {
+                    const packRes = await fetch(`/bundled-knowledge/${pack.file}`);
+                    if (packRes.ok) {
+                        const packData = await packRes.json();
+                        newItems = newItems.concat(packData.items);
+                    }
+                }
+            }
+            
+            if (newItems.length > 0) {
+                const combinedMemories = [...newItems, ...currentMemories];
+                setMemories(combinedMemories);
+                localStorage.setItem('mossy_knowledge_vault', JSON.stringify(combinedMemories));
+                localStorage.setItem('mossy_bundled_imported', 'true');
+            }
+        } catch (error) {
+            console.error('Failed to import bundled knowledge:', error);
+        }
+    };
+
+    // Check GitHub for new community knowledge
+    const checkGitHubForNewKnowledge = async () => {
+        try {
+            const lastCheck = localStorage.getItem('mossy_last_github_check');
+            const sixHours = 6 * 60 * 60 * 1000;
+            
+            if (lastCheck && Date.now() - parseInt(lastCheck) < sixHours) {
+                return; // Don't check yet
+            }
+            
+            const repoUrl = 'https://api.github.com/repos/YOUR_USERNAME/mossy-knowledge/contents/community-knowledge';
+            const response = await fetch(repoUrl);
+            
+            if (!response.ok) return;
+            
+            const files = await response.json();
+            const importedVersions = JSON.parse(localStorage.getItem('mossy_imported_knowledge_versions') || '{}');
+            
+            let newCount = 0;
+            for (const file of files) {
+                if (file.name.endsWith('.json')) {
+                    const packId = file.name.replace('.json', '');
+                    if (!importedVersions[packId]) {
+                        newCount++;
+                    }
+                }
+            }
+            
+            setNewKnowledgeCount(newCount);
+            localStorage.setItem('mossy_last_github_check', Date.now().toString());
+        } catch (error) {
+            console.error('Failed to check GitHub for new knowledge:', error);
+        }
+    };
+
+    // Fetch community knowledge from GitHub
+    const fetchCommunityKnowledge = async () => {
+        setIsLoadingLibrary(true);
+        try {
+            const repoUrl = 'https://api.github.com/repos/YOUR_USERNAME/mossy-knowledge/contents/community-knowledge';
+            const response = await fetch(repoUrl);
+            
+            if (!response.ok) {
+                throw new Error('Failed to fetch community knowledge');
+            }
+            
+            const files = await response.json();
+            const packs = [];
+            const importedVersions = JSON.parse(localStorage.getItem('mossy_imported_knowledge_versions') || '{}');
+            
+            for (const file of files) {
+                if (file.name.endsWith('.json')) {
+                    try {
+                        const packRes = await fetch(file.download_url);
+                        const packData = await packRes.json();
+                        const isImported = !!importedVersions[packData.packId];
+                        packs.push({
+                            ...packData,
+                            downloadUrl: file.download_url,
+                            isImported
+                        });
+                    } catch (e) {
+                        console.error(`Failed to load pack ${file.name}:`, e);
+                    }
+                }
+            }
+            
+            setCommunityPacks(packs);
+        } catch (error) {
+            console.error('Failed to fetch community knowledge:', error);
+            alert('Failed to load community knowledge. Please check your internet connection.');
+        } finally {
+            setIsLoadingLibrary(false);
+        }
+    };
+
+    // Import community knowledge pack
+    const importCommunityPack = async (pack: any) => {
+        try {
+            const currentMemories = [...memories];
+            const newItems = pack.items.map((item: any) => ({
+                ...item,
+                id: `${pack.packId}-${item.id}-${Date.now()}`
+            }));
+            
+            const combinedMemories = [...newItems, ...currentMemories];
+            setMemories(combinedMemories);
+            localStorage.setItem('mossy_knowledge_vault', JSON.stringify(combinedMemories));
+            
+            // Mark as imported
+            const importedVersions = JSON.parse(localStorage.getItem('mossy_imported_knowledge_versions') || '{}');
+            importedVersions[pack.packId] = true;
+            localStorage.setItem('mossy_imported_knowledge_versions', JSON.stringify(importedVersions));
+            
+            // Update pack list
+            const updatedPacks = communityPacks.map(p => 
+                p.packId === pack.packId ? { ...p, isImported: true } : p
+            );
+            setCommunityPacks(updatedPacks);
+            
+            // Update badge count
+            setNewKnowledgeCount(prev => Math.max(0, prev - 1));
+            
+            alert(`✅ Imported "${pack.packName}" (${pack.items.length} items)`);
+        } catch (error) {
+            console.error('Failed to import pack:', error);
+            alert('Failed to import knowledge pack. Please try again.');
+        }
+    };
+
+    // Export knowledge for sharing
+    const handleExportShared = () => {
+        const selectedItems = memories.filter(m => m.trustLevel === 'community' || m.trustLevel === 'official');
+        
+        if (selectedItems.length === 0) {
+            alert('No community or official knowledge to export. Mark items as "Community" trust level to share them.');
+            return;
+        }
+        
+        const packData = {
+            packId: `custom-pack-${Date.now()}`,
+            packName: 'Custom Knowledge Pack',
+            packVersion: '1.0.0',
+            exportDate: new Date().toISOString().split('T')[0],
+            description: 'Custom knowledge pack for Mossy',
+            author: 'Community Member',
+            items: selectedItems
+        };
+        
+        const blob = new Blob([JSON.stringify(packData, null, 2)], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `${packData.packId}.json`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+    };
+
     const handleUpload = async () => {
         if (!newTitle || !newContent) return;
         setUploadError('');
@@ -376,6 +562,29 @@ const MossyMemoryVault: React.FC<MossyMemoryVaultProps> = ({ embedded = false })
                     >
                         Help
                     </Link>
+                    <button
+                        onClick={() => {
+                            setShowLibraryModal(true);
+                            fetchCommunityKnowledge();
+                        }}
+                        className="relative flex items-center gap-2 px-4 py-2 bg-blue-900/50 hover:bg-blue-800/50 text-blue-100 rounded-lg transition-all border border-blue-700 text-sm font-bold"
+                    >
+                        <Files className="w-4 h-4" />
+                        Browse Library
+                        {newKnowledgeCount > 0 && (
+                            <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[10px] font-bold rounded-full w-5 h-5 flex items-center justify-center animate-pulse">
+                                {newKnowledgeCount}
+                            </span>
+                        )}
+                    </button>
+                    <button
+                        onClick={handleExportShared}
+                        className="flex items-center gap-2 px-4 py-2 bg-purple-900/50 hover:bg-purple-800/50 text-purple-100 rounded-lg transition-all border border-purple-700 text-sm font-bold"
+                        title="Export knowledge for sharing"
+                    >
+                        <Upload className="w-4 h-4" />
+                        Export Shared
+                    </button>
                     <button
                         onClick={handleExportVault}
                         className="flex items-center gap-2 px-4 py-2 bg-slate-900/50 hover:bg-slate-800 text-slate-100 rounded-lg transition-all border border-slate-700 text-sm font-bold"
@@ -788,6 +997,118 @@ const MossyMemoryVault: React.FC<MossyMemoryVaultProps> = ({ embedded = false })
                                 {isUploading ? 'Digesting...' : 'Start Digestion'}
                                 {!isUploading && <Sparkles className="w-4 h-4" />}
                             </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Browse Library Modal */}
+            {showLibraryModal && (
+                <div 
+                    className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-fade-in"
+                    onClick={(e) => {
+                        if (e.target === e.currentTarget) {
+                            setShowLibraryModal(false);
+                        }
+                    }}
+                >
+                    <div className="bg-[#141814] border border-blue-500/30 w-full max-w-4xl rounded-2xl shadow-2xl shadow-blue-500/10 overflow-hidden transform animate-scale-in max-h-[80vh] flex flex-col">
+                        <div className="p-6 border-b border-blue-900/30 flex justify-between items-center bg-[#1a1f1a]">
+                            <div className="flex items-center gap-3">
+                                <Files className="text-blue-400 w-5 h-5" />
+                                <div>
+                                    <h3 className="text-lg font-bold text-white uppercase tracking-tight">Community Knowledge Library</h3>
+                                    <p className="text-xs text-slate-400 mt-0.5">Browse and import knowledge packs shared by the community</p>
+                                </div>
+                            </div>
+                            <button 
+                                onClick={() => setShowLibraryModal(false)} 
+                                className="text-slate-500 hover:text-white transition-colors"
+                            >
+                                <X className="w-5 h-5" />
+                            </button>
+                        </div>
+                        
+                        <div className="p-6 flex-1 overflow-y-auto">
+                            {isLoadingLibrary ? (
+                                <div className="flex items-center justify-center py-12">
+                                    <Loader2 className="w-8 h-8 text-blue-400 animate-spin" />
+                                    <span className="ml-3 text-slate-400">Loading community knowledge...</span>
+                                </div>
+                            ) : communityPacks.length === 0 ? (
+                                <div className="text-center py-12">
+                                    <Files className="w-16 h-16 text-slate-600 mx-auto mb-4" />
+                                    <p className="text-slate-400 text-sm">
+                                        No community knowledge packs available yet.
+                                    </p>
+                                    <p className="text-slate-500 text-xs mt-2">
+                                        Check back later or share your own knowledge!
+                                    </p>
+                                </div>
+                            ) : (
+                                <div className="space-y-4">
+                                    {communityPacks.map((pack) => (
+                                        <div 
+                                            key={pack.packId}
+                                            className="bg-[#0f120f] border border-blue-900/30 rounded-xl p-5 hover:border-blue-700/50 transition-all"
+                                        >
+                                            <div className="flex justify-between items-start mb-3">
+                                                <div className="flex-1">
+                                                    <h4 className="text-white font-bold text-lg mb-1">{pack.packName}</h4>
+                                                    <p className="text-slate-400 text-sm mb-2">{pack.description || 'No description provided'}</p>
+                                                    <div className="flex items-center gap-4 text-xs text-slate-500">
+                                                        <span>Version: {pack.packVersion}</span>
+                                                        <span>Items: {pack.items?.length || 0}</span>
+                                                        {pack.author && <span>By: {pack.author}</span>}
+                                                        <span>Date: {pack.exportDate}</span>
+                                                    </div>
+                                                </div>
+                                                <button
+                                                    onClick={() => importCommunityPack(pack)}
+                                                    disabled={pack.isImported}
+                                                    className={`px-4 py-2 rounded-lg text-sm font-bold transition-all ${
+                                                        pack.isImported
+                                                            ? 'bg-emerald-900/30 text-emerald-400 border border-emerald-500/30 cursor-not-allowed'
+                                                            : 'bg-blue-600 hover:bg-blue-500 text-white shadow-lg shadow-blue-500/20'
+                                                    }`}
+                                                >
+                                                    {pack.isImported ? '✓ Imported' : 'Import'}
+                                                </button>
+                                            </div>
+                                            {pack.items && pack.items.length > 0 && (
+                                                <div className="mt-3 pt-3 border-t border-slate-800">
+                                                    <p className="text-xs text-slate-500 mb-2">Included items:</p>
+                                                    <div className="flex flex-wrap gap-2">
+                                                        {pack.items.slice(0, 5).map((item: any, idx: number) => (
+                                                            <span 
+                                                                key={idx}
+                                                                className="px-2 py-1 bg-slate-800/50 text-slate-400 text-[10px] rounded border border-slate-700"
+                                                            >
+                                                                {item.title}
+                                                            </span>
+                                                        ))}
+                                                        {pack.items.length > 5 && (
+                                                            <span className="px-2 py-1 text-slate-500 text-[10px]">
+                                                                +{pack.items.length - 5} more
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                            )}
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+                        </div>
+
+                        <div className="p-6 bg-[#1a1f1a] border-t border-blue-900/30">
+                            <div className="text-xs text-slate-400 space-y-1">
+                                <p>💡 <strong>Tip:</strong> Knowledge packs are checked every 6 hours for updates</p>
+                                <p>📤 <strong>Share your knowledge:</strong> Export knowledge with "Export Shared" and contribute to the community!</p>
+                                <p className="text-slate-500 text-[10px] mt-2">
+                                    Last checked: {new Date(parseInt(localStorage.getItem('mossy_last_github_check') || Date.now().toString())).toLocaleString()}
+                                </p>
+                            </div>
                         </div>
                     </div>
                 </div>
