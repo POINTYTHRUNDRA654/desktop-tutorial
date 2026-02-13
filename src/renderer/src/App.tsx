@@ -1,5 +1,5 @@
 import React, { useEffect, Suspense, useState } from 'react';
-import { HashRouter, Routes, Route, Navigate, useNavigate, useLocation } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import Sidebar from './Sidebar';
 import MossyObserver from './MossyObserver';
 import CommandPalette from './CommandPalette';
@@ -711,11 +711,7 @@ const App: React.FC = () => {
     }
 
     return (
-      <HashRouter>
-        {/* Skip links for accessibility */}
-        <a href="#main-content" className="skip-link focus-visible">Skip to main content</a>
-        <a href="#sidebar-navigation" className="skip-link focus-visible" style={{ left: '120px' }}>Skip to navigation</a>
-
+      <BrowserRouter>
         <div
           className="flex h-full w-full overflow-hidden"
           style={{
@@ -1040,7 +1036,7 @@ const App: React.FC = () => {
             </div>
           </main>
         </div>
-      </HashRouter>
+      </BrowserRouter>
     );
   };
 
@@ -1175,12 +1171,14 @@ const App: React.FC = () => {
             </button>
             <NotificationProvider>
               <TutorialOverlay />
-              <GuidedTour
-                isOpen={guidedTour.isOpen}
-                onClose={() => setGuidedTour(prev => ({ ...prev, isOpen: false }))}
-                tourType={guidedTour.type}
-                targetModule={guidedTour.targetModule}
-              />
+              {guidedTour.isOpen && (
+                <GuidedTour
+                  isOpen={guidedTour.isOpen}
+                  onClose={() => setGuidedTour(prev => ({ ...prev, isOpen: false }))}
+                  tourType={guidedTour.type}
+                  targetModule={guidedTour.targetModule}
+                />
+              )}
               {renderAppContent()}
             </NotificationProvider>
           </PipBoyFrame>

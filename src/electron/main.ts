@@ -310,7 +310,7 @@ function createWindow() {
   const testParam = isTestMode ? '?test=true' : '';
   const devUrl = ELECTRON_START_URL || `http://localhost:${devPort}`;
 
-  if (!app.isPackaged && (ELECTRON_START_URL || process.env.VITE_DEV_SERVER_PORT || process.env.DEV_SERVER_PORT)) {
+  if (!app.isPackaged && (ELECTRON_START_URL || process.env.DEV_SERVER_PORT)) {
     // Development with custom or local server URL
     mainWindow.loadURL(`${devUrl}${testParam}`);
     mainWindow.webContents.openDevTools();
