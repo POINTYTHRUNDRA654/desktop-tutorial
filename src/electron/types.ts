@@ -142,6 +142,16 @@ export const IPC_CHANNELS = {
   VOICE_COMMANDS_STOP: 'voice-commands-stop',
   VOICE_COMMANDS_EXECUTE: 'voice-commands-execute',
 
+  // Automation Engine
+  AUTOMATION_START: 'automation-start',
+  AUTOMATION_STOP: 'automation-stop',
+  AUTOMATION_GET_SETTINGS: 'automation-get-settings',
+  AUTOMATION_UPDATE_SETTINGS: 'automation-update-settings',
+  AUTOMATION_TOGGLE_RULE: 'automation-toggle-rule',
+  AUTOMATION_TRIGGER_RULE: 'automation-trigger-rule',
+  AUTOMATION_GET_STATISTICS: 'automation-get-statistics',
+  AUTOMATION_RESET_STATISTICS: 'automation-reset-statistics',
+
   // Roadmap System (Roadmap System)
   ROADMAP_CREATE: 'roadmap-create',
   ROADMAP_GET_ALL: 'roadmap-get-all',
