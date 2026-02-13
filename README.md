@@ -237,6 +237,28 @@ desktop-ai-assistant/
    ```bash
    npm install
    ```
+   
+   **Troubleshooting Installation:**
+   
+   If you encounter crashes during `npm run dev` or `npm run package`, the issue is likely missing binaries:
+   
+   - **Error: "Electron failed to install correctly"**
+     ```bash
+     npm rebuild electron
+     ```
+   
+   - **Error: "concurrently: not found"**
+     ```bash
+     npm install  # Dependencies weren't installed
+     ```
+   
+   - **Network restrictions preventing chromedriver/puppeteer downloads:**
+     - These are optional dependencies for automated testing
+     - The app will work without them
+     - If needed, install manually or use `npm install --ignore-scripts` and then `npm rebuild electron`
+   
+   The postinstall script automatically checks for critical dependencies and will warn if something is missing.
+
 3. (Optional) Install Python dependencies for Gradio Code Assistant:
    ```bash
    pip install -r requirements.txt
