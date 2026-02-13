@@ -525,6 +525,14 @@ const electronAPI = {
    * PDF Parser: Extract text from PDF file
    * Runs in main process with Node.js pdf-parse library
    */
+  parsePSD: (arrayBuffer: ArrayBuffer): Promise<{ success: boolean; text?: string; metadata?: any; error?: string }> => {
+    return ipcRenderer.invoke('parse-psd', arrayBuffer);
+  },
+
+  parseABR: (arrayBuffer: ArrayBuffer): Promise<{ success: boolean; text?: string; metadata?: any; error?: string }> => {
+    return ipcRenderer.invoke('parse-abr', arrayBuffer);
+  },
+
   parsePDF: (arrayBuffer: ArrayBuffer): Promise<{ success: boolean; text?: string; error?: string }> => {
     return ipcRenderer.invoke('parse-pdf', arrayBuffer);
   },

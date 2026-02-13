@@ -1,0 +1,16 @@
+{
+  "version": "1.0.0",
+  "lastUpdated": "2026-02-13",
+  "description": "Mossy's curated knowledge base - bundled with installer",
+  "packs": [
+    {
+      "id": "core-tutorials",
+      "name": "Core Fallout 4 Modding Tutorials",
+      "version": "1.0.0",
+      "file": "core-tutorials.json",
+      "description": "Essential tutorials for getting started with Fallout 4 modding",
+      "itemCount": 0,
+      "autoImport": true
+    }
+  ]
+}

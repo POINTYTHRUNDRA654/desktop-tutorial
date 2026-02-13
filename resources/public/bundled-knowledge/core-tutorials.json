@@ -1,0 +1,22 @@
+{
+  "version": "1.0.0",
+  "exported": "2026-02-13T00:00:00.000Z",
+  "packId": "core-tutorials",
+  "packName": "Core Fallout 4 Modding Tutorials",
+  "description": "Essential tutorials bundled with Mossy",
+  "credits": {
+    "author": "Mossy AI Assistant",
+    "license": "Community Shared Knowledge"
+  },
+  "items": [
+    {
+      "title": "Welcome to Mossy's Memory Vault",
+      "content": "Memory Vault is where you teach Mossy new information. Upload PDFs, PSDs, ABR brush files, videos, or paste text tutorials. Mossy will use this knowledge to provide better answers and guidance.\n\nKey Features:\n- Upload PDF documents (auto-extracted)\n- Upload PSD files (layer structure extracted)\n- Upload ABR brush files (brush presets extracted)\n- Video/audio transcription (requires OpenAI API or local whisper.cpp)\n- Community knowledge sharing (export/import)\n\nGetting Started:\n1. Click 'Ingest Knowledge' button\n2. Paste tutorial content or drag/drop files\n3. Add source URL and credit information\n4. Press 'Start Digestion' to save",
+      "source": "Mossy Built-in Tutorial",
+      "creditName": "Mossy AI",
+      "trustLevel": "official",
+      "tags": ["getting-started", "memory-vault", "tutorial"],
+      "shareWithCommunity": false
+    }
+  ]
+}
