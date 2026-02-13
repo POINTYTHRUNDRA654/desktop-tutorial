@@ -2718,6 +2718,261 @@ function setupIpcHandlers() {
     }
   });
 
+  // ============================================================================
+  // ASSET DUPLICATE SCANNER HANDLERS
+  // ============================================================================
+
+  // Browse for folder
+  registerHandler(IPC_CHANNELS.ASSET_SCANNER_BROWSE_FOLDER, async (_event) => {
+    try {
+      const result = await dialog.showOpenDialog(mainWindow!, {
+        properties: ['openDirectory'],
+        title: 'Select Mod Folder to Scan'
+      });
+      
+      if (result.canceled || result.filePaths.length === 0) {
+        return null;
+      }
+      
+      const selectedPath = result.filePaths[0];
+      console.log(`[Asset Scanner] Selected folder: ${selectedPath}`);
+      return selectedPath;
+    } catch (err) {
+      console.error('Asset Scanner browse error:', err);
+      return null;
+    }
+  });
+
+  // Get last scan path
+  registerHandler(IPC_CHANNELS.ASSET_SCANNER_GET_LAST_PATH, async (_event) => {
+    try {
+      const settingsPath = path.join(app.getPath('userData'), 'asset-scanner-settings.json');
+      if (fs.existsSync(settingsPath)) {
+        const settings = JSON.parse(fs.readFileSync(settingsPath, 'utf-8'));
+        return settings.lastScanPath || null;
+      }
+      return null;
+    } catch (err) {
+      console.error('Asset Scanner get last path error:', err);
+      return null;
+    }
+  });
+
+  // Save last scan path
+  registerHandler(IPC_CHANNELS.ASSET_SCANNER_SAVE_LAST_PATH, async (_event, scanPath: string) => {
+    try {
+      const settingsPath = path.join(app.getPath('userData'), 'asset-scanner-settings.json');
+      fs.writeFileSync(settingsPath, JSON.stringify({ lastScanPath: scanPath }), 'utf-8');
+      return true;
+    } catch (err) {
+      console.error('Asset Scanner save last path error:', err);
+      return false;
+    }
+  });
+
+  // Scan for duplicates
+  registerHandler(IPC_CHANNELS.ASSET_SCANNER_SCAN_DUPLICATES, async (event, scanPath: string) => {
+    try {
+      console.log(`[Asset Scanner] Starting scan: ${scanPath}`);
+      
+      if (!fs.existsSync(scanPath)) {
+        throw new Error(`Path does not exist: ${scanPath}`);
+      }
+
+      const crypto = require('crypto');
+      const fileHashes = new Map<string, any[]>(); // hash -> array of file info
+      let scannedFiles = 0;
+      let scannedFolders = 0;
+
+      // File extensions to scan
+      const extensions = ['.dds', '.png', '.tga', '.nif'];
+
+      // Recursive scan function
+      const scanDirectory = (dirPath: string) => {
+        scannedFolders++;
+        
+        // Send progress update
+        if (scannedFiles % 100 === 0) {
+          event.sender.send('asset-scanner-progress', {
+            percent: 0, // We'll calculate after
+            status: `Scanning... ${scannedFiles} files checked`,
+            scannedFiles,
+            scannedFolders
+          });
+        }
+
+        try {
+          const entries = fs.readdirSync(dirPath, { withFileTypes: true });
+          
+          for (const entry of entries) {
+            const fullPath = path.join(dirPath, entry.name);
+            
+            if (entry.isDirectory()) {
+              // Skip certain directories
+              if (entry.name === 'node_modules' || entry.name === '.git') continue;
+              scanDirectory(fullPath);
+            } else if (entry.isFile()) {
+              const ext = path.extname(entry.name).toLowerCase();
+              if (extensions.includes(ext)) {
+                scannedFiles++;
+                
+                try {
+                  const stats = fs.statSync(fullPath);
+                  const buffer = fs.readFileSync(fullPath);
+                  const hash = crypto.createHash('md5').update(buffer).digest('hex');
+                  
+                  // Extract mod name from path
+                  const pathParts = fullPath.replace(scanPath, '').split(path.sep);
+                  const modName = pathParts[1] || 'Unknown Mod';
+                  
+                  const fileInfo = {
+                    path: fullPath,
+                    name: entry.name,
+                    size: stats.size,
+                    hash,
+                    modName,
+                    lastModified: stats.mtime
+                  };
+                  
+                  if (!fileHashes.has(hash)) {
+                    fileHashes.set(hash, []);
+                  }
+                  fileHashes.get(hash)!.push(fileInfo);
+                } catch (fileErr) {
+                  // Skip files that can't be read
+                  console.error(`[Asset Scanner] Failed to process: ${fullPath}`, fileErr);
+                }
+              }
+            }
+          }
+        } catch (dirErr) {
+          console.error(`[Asset Scanner] Failed to scan directory: ${dirPath}`, dirErr);
+        }
+      };
+
+      // Start scanning
+      scanDirectory(scanPath);
+
+      // Find duplicates (groups with more than 1 file)
+      const duplicateGroups = [];
+      let totalDuplicates = 0;
+      let totalWastedSpace = 0;
+      let totalVramWaste = 0;
+
+      for (const [hash, files] of fileHashes.entries()) {
+        if (files.length > 1) {
+          const fileType = path.extname(files[0].name).toLowerCase();
+          const isTexture = ['.dds', '.png', '.tga'].includes(fileType);
+          
+          // Calculate waste
+          const totalSize = files.reduce((sum, f) => sum + f.size, 0);
+          const wastedSpace = totalSize - files[0].size; // All but one
+          totalWastedSpace += wastedSpace;
+          
+          // Estimate VRAM waste (textures only)
+          let vramWaste = 0;
+          if (isTexture) {
+            // Rough estimate: 1MB on disk ≈ 2MB in VRAM (uncompressed)
+            vramWaste = wastedSpace * 2;
+            totalVramWaste += vramWaste;
+          }
+          
+          // Determine which file to keep (largest = highest quality)
+          const recommended = files.reduce((best, current) => 
+            current.size > best.size ? current : best
+          );
+          
+          duplicateGroups.push({
+            hash,
+            files,
+            totalSize,
+            vramWaste,
+            fileType: isTexture ? 'texture' : fileType === '.nif' ? 'mesh' : 'other',
+            recommended
+          });
+          
+          totalDuplicates += files.length - 1; // Don't count the one we keep
+        }
+      }
+
+      // Sort by waste (descending)
+      duplicateGroups.sort((a, b) => b.vramWaste - a.vramWaste);
+
+      const result = {
+        groups: duplicateGroups,
+        totalDuplicates,
+        totalWastedSpace,
+        totalVramWaste,
+        scannedFiles,
+        scannedFolders
+      };
+
+      console.log(`[Asset Scanner] Scan complete: ${totalDuplicates} duplicates, ${totalWastedSpace} bytes wasted`);
+      
+      // Save last scan path
+      const settingsPath = path.join(app.getPath('userData'), 'asset-scanner-settings.json');
+      fs.writeFileSync(settingsPath, JSON.stringify({ lastScanPath: scanPath }), 'utf-8');
+      
+      return result;
+    } catch (err) {
+      console.error('Asset Scanner scan error:', err);
+      throw err;
+    }
+  });
+
+  // Cleanup duplicates
+  registerHandler(IPC_CHANNELS.ASSET_SCANNER_CLEANUP_DUPLICATES, async (_event, filesToRemove: string[]) => {
+    try {
+      console.log(`[Asset Scanner] Cleaning up ${filesToRemove.length} duplicate files`);
+      
+      const backupDir = path.join(app.getPath('userData'), 'asset-scanner-backups', Date.now().toString());
+      fs.mkdirSync(backupDir, { recursive: true });
+      
+      let removedCount = 0;
+      const errors: string[] = [];
+      
+      for (const filePath of filesToRemove) {
+        try {
+          if (!fs.existsSync(filePath)) {
+            console.warn(`[Asset Scanner] File not found: ${filePath}`);
+            continue;
+          }
+          
+          // Create backup
+          const backupPath = path.join(backupDir, path.basename(filePath));
+          fs.copyFileSync(filePath, backupPath);
+          
+          // Remove original
+          fs.unlinkSync(filePath);
+          removedCount++;
+          
+          console.log(`[Asset Scanner] Removed: ${filePath}`);
+        } catch (fileErr: any) {
+          console.error(`[Asset Scanner] Failed to remove: ${filePath}`, fileErr);
+          errors.push(`${filePath}: ${fileErr.message}`);
+        }
+      }
+      
+      console.log(`[Asset Scanner] Cleanup complete: ${removedCount} removed, ${errors.length} errors`);
+      console.log(`[Asset Scanner] Backups saved to: ${backupDir}`);
+      
+      return {
+        success: errors.length === 0,
+        removedCount,
+        errors,
+        backupDir
+      };
+    } catch (err: any) {
+      console.error('Asset Scanner cleanup error:', err);
+      return {
+        success: false,
+        removedCount: 0,
+        errors: [err.message],
+        backupDir: ''
+      };
+    }
+  });
+
   // --- Workshop: Parse DDS texture preview info ---
   registerHandler(IPC_CHANNELS.WORKSHOP_READ_DDS_PREVIEW, async (_event, filePath: string) => {
     try {
