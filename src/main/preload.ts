@@ -101,6 +101,10 @@ const electronAPI: ElectronAPI = {
   transcribeAudio: (arrayBuffer: ArrayBuffer, mimeType?: string) => ipcRenderer.invoke('transcribe-audio', arrayBuffer, mimeType),
   // PDF parsing
   parsePDF: (arrayBuffer: ArrayBuffer) => ipcRenderer.invoke('parse-pdf', arrayBuffer),
+  // PSD parsing
+  parsePSD: (arrayBuffer: ArrayBuffer) => ipcRenderer.invoke('parse-psd', arrayBuffer),
+  // ABR parsing (Adobe Brush)
+  parseABR: (arrayBuffer: ArrayBuffer) => ipcRenderer.invoke('parse-abr', arrayBuffer),
   // Video transcription
   transcribeVideo: (arrayBuffer: ArrayBuffer, filename: string, projectId?: string, organizationId?: string) => ipcRenderer.invoke('transcribe-video', arrayBuffer, filename, projectId, organizationId),
   // System info and program detection
