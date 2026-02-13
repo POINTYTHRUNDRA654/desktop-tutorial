@@ -10,11 +10,12 @@
 
 import { autoUpdater, UpdateInfo } from 'electron-updater';
 import { BrowserWindow, dialog } from 'electron';
-import log from 'electron-log';
+// import log from 'electron-log';
 
 // Configure logging
-autoUpdater.logger = log;
-log.transports.file.level = 'info';
+// autoUpdater.logger = log;
+// log.transports.file.level = 'info';
+autoUpdater.logger = console;
 
 export interface UpdateStatus {
   checking: boolean;
@@ -55,7 +56,7 @@ export class AutoUpdaterService {
     // Auto-install on quit
     autoUpdater.autoInstallOnAppQuit = true;
 
-    log.info('[AutoUpdater] Configured:', {
+    console.log('[AutoUpdater] Configured:', {
       allowPrerelease: autoUpdater.allowPrerelease,
       autoDownload: autoUpdater.autoDownload,
       channel: autoUpdater.channel
@@ -64,13 +65,13 @@ export class AutoUpdaterService {
 
   private setupListeners() {
     autoUpdater.on('checking-for-update', () => {
-      log.info('[AutoUpdater] Checking for update...');
+      console.log('[AutoUpdater] Checking for update...');
       this.status.checking = true;
       this.sendStatusToRenderer();
     });
 
     autoUpdater.on('update-available', (info: UpdateInfo) => {
-      log.info('[AutoUpdater] Update available:', info.version);
+      console.log('[AutoUpdater] Update available:', info.version);
       this.status.checking = false;
       this.status.available = true;
       this.status.version = info.version;
@@ -82,13 +83,13 @@ export class AutoUpdaterService {
     });
 
     autoUpdater.on('update-not-available', (info: UpdateInfo) => {
-      log.info('[AutoUpdater] Update not available. Current version:', info.version);
+      console.log('[AutoUpdater] Update not available. Current version:', info.version);
       this.status.checking = false;
       this.sendStatusToRenderer();
     });
 
     autoUpdater.on('error', (err) => {
-      log.error('[AutoUpdater] Error:', err);
+      console.error('[AutoUpdater] Error:', err);
       this.status.checking = false;
       this.status.downloading = false;
       this.status.error = err.message;
@@ -97,12 +98,12 @@ export class AutoUpdaterService {
 
     autoUpdater.on('download-progress', (progressObj) => {
       this.status.progress = progressObj.percent;
-      log.info(`[AutoUpdater] Download progress: ${progressObj.percent}%`);
+      console.log(`[AutoUpdater] Download progress: ${progressObj.percent}%`);
       this.sendStatusToRenderer();
     });
 
     autoUpdater.on('update-downloaded', (info: UpdateInfo) => {
-      log.info('[AutoUpdater] Update downloaded:', info.version);
+      console.log('[AutoUpdater] Update downloaded:', info.version);
       this.status.downloading = false;
       this.status.downloaded = true;
       this.sendStatusToRenderer();
@@ -138,7 +139,7 @@ export class AutoUpdaterService {
         this.downloadUpdate();
       }
     }).catch(err => {
-      log.error('[AutoUpdater] Error showing dialog:', err);
+      console.error('[AutoUpdater] Error showing dialog:', err);
     });
   }
 
@@ -163,7 +164,7 @@ export class AutoUpdaterService {
         autoUpdater.quitAndInstall(false, true);
       }
     }).catch(err => {
-      log.error('[AutoUpdater] Error showing dialog:', err);
+      console.error('[AutoUpdater] Error showing dialog:', err);
     });
   }
 
@@ -179,10 +180,10 @@ export class AutoUpdaterService {
    */
   async checkForUpdates(): Promise<void> {
     try {
-      log.info('[AutoUpdater] Manual check for updates triggered');
+      console.log('[AutoUpdater] Manual check for updates triggered');
       await autoUpdater.checkForUpdates();
     } catch (err) {
-      log.error('[AutoUpdater] Error checking for updates:', err);
+      console.error('[AutoUpdater] Error checking for updates:', err);
       this.status.error = err instanceof Error ? err.message : String(err);
       this.sendStatusToRenderer();
     }
@@ -193,13 +194,13 @@ export class AutoUpdaterService {
    */
   async downloadUpdate(): Promise<void> {
     try {
-      log.info('[AutoUpdater] Starting download...');
+      console.log('[AutoUpdater] Starting download...');
       this.status.downloading = true;
       this.status.progress = 0;
       this.sendStatusToRenderer();
       await autoUpdater.downloadUpdate();
     } catch (err) {
-      log.error('[AutoUpdater] Error downloading update:', err);
+      console.error('[AutoUpdater] Error downloading update:', err);
       this.status.downloading = false;
       this.status.error = err instanceof Error ? err.message : String(err);
       this.sendStatusToRenderer();
@@ -210,7 +211,7 @@ export class AutoUpdaterService {
    * Install the downloaded update and restart
    */
   quitAndInstall(): void {
-    log.info('[AutoUpdater] Quitting and installing update...');
+    console.log('[AutoUpdater] Quitting and installing update...');
     autoUpdater.quitAndInstall(false, true);
   }
 
