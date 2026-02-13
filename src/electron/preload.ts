@@ -837,6 +837,184 @@ const electronAPI = {
     },
   },
 
+  // =========================================================================
+  // GAME LOG MONITOR API (Feature 3)
+  // =========================================================================
+  gameLogMonitor: {
+    browseLogFile: (): Promise<string | null> => {
+      return ipcRenderer.invoke(IPC_CHANNELS.GAME_LOG_MONITOR_BROWSE_LOG);
+    },
+
+    startMonitoring: (logPath: string): Promise<boolean> => {
+      return ipcRenderer.invoke(IPC_CHANNELS.GAME_LOG_MONITOR_START, logPath);
+    },
+
+    stopMonitoring: (): Promise<boolean> => {
+      return ipcRenderer.invoke(IPC_CHANNELS.GAME_LOG_MONITOR_STOP);
+    },
+
+    getLastLogPath: (): Promise<string | null> => {
+      return ipcRenderer.invoke(IPC_CHANNELS.GAME_LOG_MONITOR_GET_LAST_PATH);
+    },
+
+    saveLastLogPath: (logPath: string): Promise<boolean> => {
+      return ipcRenderer.invoke(IPC_CHANNELS.GAME_LOG_MONITOR_SAVE_LAST_PATH, logPath);
+    },
+
+    exportLogs: (logs: any[]): Promise<boolean> => {
+      return ipcRenderer.invoke(IPC_CHANNELS.GAME_LOG_MONITOR_EXPORT_LOGS, logs);
+    },
+
+    onLogUpdate: (callback: (entry: any) => void): (() => void) => {
+      const subscription = (_event: any, entry: any) => callback(entry);
+      ipcRenderer.on('log-update', subscription);
+      return () => ipcRenderer.removeListener('log-update', subscription);
+    },
+  },
+
+  // =========================================================================
+  // XEDIT SCRIPT EXECUTOR API (Feature 4)
+  // =========================================================================
+  xEditScriptExecutor: {
+    browseXEdit: (): Promise<string | null> => {
+      return ipcRenderer.invoke(IPC_CHANNELS.XEDIT_SCRIPT_BROWSE_XEDIT);
+    },
+
+    browsePlugin: (): Promise<string | null> => {
+      return ipcRenderer.invoke(IPC_CHANNELS.XEDIT_SCRIPT_BROWSE_PLUGIN);
+    },
+
+    getXEditPath: (): Promise<string | null> => {
+      return ipcRenderer.invoke(IPC_CHANNELS.XEDIT_SCRIPT_GET_XEDIT_PATH);
+    },
+
+    saveXEditPath: (xEditPath: string): Promise<boolean> => {
+      return ipcRenderer.invoke(IPC_CHANNELS.XEDIT_SCRIPT_SAVE_XEDIT_PATH, xEditPath);
+    },
+
+    getPluginList: (): Promise<string[]> => {
+      return ipcRenderer.invoke(IPC_CHANNELS.XEDIT_SCRIPT_GET_PLUGIN_LIST);
+    },
+
+    executeScript: (xEditPath: string, plugin: string, scriptId: string): Promise<any> => {
+      return ipcRenderer.invoke(IPC_CHANNELS.XEDIT_SCRIPT_EXECUTE, xEditPath, plugin, scriptId);
+    },
+
+    onProgress: (callback: (data: { progress: number; text: string }) => void): (() => void) => {
+      const subscription = (_event: any, data: any) => callback(data);
+      ipcRenderer.on('xedit-progress', subscription);
+      return () => ipcRenderer.removeListener('xedit-progress', subscription);
+    },
+  },
+
+  // =========================================================================
+  // PROJECT TEMPLATES API (Feature 5)
+  // =========================================================================
+  projectTemplates: {
+    browsePath: (): Promise<string | null> => {
+      return ipcRenderer.invoke(IPC_CHANNELS.PROJECT_TEMPLATE_BROWSE_PATH);
+    },
+
+    createProject: (config: { templateId: string; projectName: string; projectPath: string; authorName: string }): Promise<{ success: boolean; path?: string; error?: string }> => {
+      return ipcRenderer.invoke(IPC_CHANNELS.PROJECT_TEMPLATE_CREATE, config);
+    },
+
+    downloadTemplate: (templateId: string): Promise<boolean> => {
+      return ipcRenderer.invoke(IPC_CHANNELS.PROJECT_TEMPLATE_DOWNLOAD, templateId);
+    },
+  },
+
+  // =========================================================================
+  // MOD CONFLICT VISUALIZER API (Feature 6)
+  // =========================================================================
+  modConflictVisualizer: {
+    scanLoadOrder: (): Promise<{ plugins: string[]; conflicts: any[] }> => {
+      return ipcRenderer.invoke(IPC_CHANNELS.MOD_CONFLICT_SCAN_LOAD_ORDER);
+    },
+
+    analyze: (): Promise<{ success: boolean }> => {
+      return ipcRenderer.invoke(IPC_CHANNELS.MOD_CONFLICT_ANALYZE);
+    },
+
+    resolve: (): Promise<{ success: boolean }> => {
+      return ipcRenderer.invoke(IPC_CHANNELS.MOD_CONFLICT_RESOLVE);
+    },
+  },
+
+  // =========================================================================
+  // FORMID REMAPPER API (Feature 7)
+  // =========================================================================
+  formIdRemapper: {
+    scanConflicts: (pluginPath: string): Promise<{ count: number }> => {
+      return ipcRenderer.invoke(IPC_CHANNELS.FORMID_REMAPPER_SCAN_CONFLICTS, pluginPath);
+    },
+
+    remapFormIds: (pluginPath: string): Promise<{ success: boolean }> => {
+      return ipcRenderer.invoke(IPC_CHANNELS.FORMID_REMAPPER_REMAP, pluginPath);
+    },
+
+    backup: (): Promise<{ success: boolean }> => {
+      return ipcRenderer.invoke(IPC_CHANNELS.FORMID_REMAPPER_BACKUP);
+    },
+  },
+
+  // =========================================================================
+  // MOD COMPARISON TOOL API (Feature 8)
+  // =========================================================================
+  modComparisonTool: {
+    compare: (mod1: string, mod2: string): Promise<{ differences: any[] }> => {
+      return ipcRenderer.invoke(IPC_CHANNELS.MOD_COMPARISON_COMPARE, mod1, mod2);
+    },
+
+    merge: (): Promise<{ success: boolean }> => {
+      return ipcRenderer.invoke(IPC_CHANNELS.MOD_COMPARISON_MERGE);
+    },
+
+    export: (): Promise<{ success: boolean }> => {
+      return ipcRenderer.invoke(IPC_CHANNELS.MOD_COMPARISON_EXPORT);
+    },
+  },
+
+  // =========================================================================
+  // PRECOMBINE GENERATOR API (Feature 9)
+  // =========================================================================
+  precombineGenerator: {
+    generate: (worldspace: string): Promise<{ success: boolean }> => {
+      return ipcRenderer.invoke(IPC_CHANNELS.PRECOMBINE_GENERATOR_GENERATE, worldspace);
+    },
+
+    validate: (): Promise<{ success: boolean }> => {
+      return ipcRenderer.invoke(IPC_CHANNELS.PRECOMBINE_GENERATOR_VALIDATE);
+    },
+
+    getPJMPath: (): Promise<string | null> => {
+      return ipcRenderer.invoke(IPC_CHANNELS.PRECOMBINE_GENERATOR_GET_PJM_PATH);
+    },
+  },
+
+  // =========================================================================
+  // VOICE COMMANDS API (Feature 10)
+  // =========================================================================
+  voiceCommands: {
+    startListening: (): Promise<{ success: boolean }> => {
+      return ipcRenderer.invoke(IPC_CHANNELS.VOICE_COMMANDS_START);
+    },
+
+    stopListening: (): Promise<{ success: boolean }> => {
+      return ipcRenderer.invoke(IPC_CHANNELS.VOICE_COMMANDS_STOP);
+    },
+
+    execute: (): Promise<{ success: boolean }> => {
+      return ipcRenderer.invoke(IPC_CHANNELS.VOICE_COMMANDS_EXECUTE);
+    },
+
+    onTranscript: (callback: (text: string) => void): (() => void) => {
+      const subscription = (_event: any, text: string) => callback(text);
+      ipcRenderer.on('voice-transcript', subscription);
+      return () => ipcRenderer.removeListener('voice-transcript', subscription);
+    },
+  },
+
   /**
    * Generic IPC: Invoke a command in the main process
    */

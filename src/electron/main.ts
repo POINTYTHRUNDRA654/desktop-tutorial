@@ -3977,6 +3977,391 @@ function setupIpcHandlers() {
     }
   });
 
+  // =========================================================================
+  // GAME LOG MONITOR HANDLERS (Feature 3)
+  // =========================================================================
+
+  // Browse for log file
+  registerHandler(IPC_CHANNELS.GAME_LOG_MONITOR_BROWSE_LOG, async () => {
+    const result = await dialog.showOpenDialog({
+      properties: ['openFile'],
+      filters: [{ name: 'Log Files', extensions: ['log', 'txt'] }]
+    });
+    return result.canceled ? null : result.filePaths[0];
+  });
+
+  // Log file watcher
+  let logWatcher: fs.FSWatcher | null = null;
+
+  // Start monitoring
+  registerHandler(IPC_CHANNELS.GAME_LOG_MONITOR_START, async (event, logPath: string) => {
+    try {
+      if (logWatcher) logWatcher.close();
+      
+      if (!fs.existsSync(logPath)) {
+        throw new Error('Log file does not exist');
+      }
+
+      let lastSize = fs.statSync(logPath).size;
+      
+      logWatcher = fs.watch(logPath, (eventType) => {
+        if (eventType === 'change') {
+          try {
+            const stats = fs.statSync(logPath);
+            if (stats.size > lastSize) {
+              // Read only new content
+              const stream = fs.createReadStream(logPath, {
+                start: lastSize,
+                encoding: 'utf-8'
+              });
+              
+              let buffer = '';
+              stream.on('data', (chunk) => {
+                buffer += chunk;
+                const lines = buffer.split('\n');
+                buffer = lines.pop() || ''; // Keep incomplete line
+                
+                lines.forEach(line => {
+                  if (line.trim()) {
+                    const entry = {
+                      timestamp: new Date().toISOString().split('T')[1].split('.')[0],
+                      level: line.toLowerCase().includes('error') ? 'error' :
+                             line.toLowerCase().includes('warning') ? 'warning' :
+                             line.toLowerCase().includes('crash') ? 'crash' : 'info',
+                      message: line,
+                      category: line.match(/\[(.*?)\]/)?.[1] || undefined
+                    };
+                    event.sender.send('log-update', entry);
+                  }
+                });
+              });
+              
+              lastSize = stats.size;
+            }
+          } catch (err) {
+            console.error('Log monitor read error:', err);
+          }
+        }
+      });
+      
+      return true;
+    } catch (error) {
+      console.error('Game Log Monitor start error:', error);
+      return false;
+    }
+  });
+
+  // Stop monitoring
+  registerHandler(IPC_CHANNELS.GAME_LOG_MONITOR_STOP, async () => {
+    if (logWatcher) {
+      logWatcher.close();
+      logWatcher = null;
+    }
+    return true;
+  });
+
+  // Get last log path
+  registerHandler(IPC_CHANNELS.GAME_LOG_MONITOR_GET_LAST_PATH, async () => {
+    try {
+      const settingsPath = path.join(app.getPath('userData'), 'log-monitor-settings.json');
+      if (fs.existsSync(settingsPath)) {
+        const settings = JSON.parse(fs.readFileSync(settingsPath, 'utf-8'));
+        return settings.lastPath || null;
+      }
+      return null;
+    } catch (err) {
+      console.error('Log Monitor get last path error:', err);
+      return null;
+    }
+  });
+
+  // Save last log path
+  registerHandler(IPC_CHANNELS.GAME_LOG_MONITOR_SAVE_LAST_PATH, async (_event, logPath: string) => {
+    try {
+      const settingsPath = path.join(app.getPath('userData'), 'log-monitor-settings.json');
+      fs.writeFileSync(settingsPath, JSON.stringify({ lastPath: logPath }));
+      return true;
+    } catch (err) {
+      console.error('Log Monitor save last path error:', err);
+      return false;
+    }
+  });
+
+  // Export logs
+  registerHandler(IPC_CHANNELS.GAME_LOG_MONITOR_EXPORT_LOGS, async (_event, logs: any[]) => {
+    try {
+      const result = await dialog.showSaveDialog({
+        defaultPath: `fallout4-logs-${Date.now()}.json`,
+        filters: [{ name: 'JSON', extensions: ['json'] }]
+      });
+      if (!result.canceled && result.filePath) {
+        fs.writeFileSync(result.filePath, JSON.stringify(logs, null, 2));
+        return true;
+      }
+      return false;
+    } catch (err) {
+      console.error('Log Monitor export error:', err);
+      return false;
+    }
+  });
+
+  // =========================================================================
+  // XEDIT SCRIPT EXECUTOR HANDLERS (Feature 4)
+  // =========================================================================
+
+  // Browse for xEdit executable
+  registerHandler(IPC_CHANNELS.XEDIT_SCRIPT_BROWSE_XEDIT, async () => {
+    const result = await dialog.showOpenDialog({
+      properties: ['openFile'],
+      filters: [{ name: 'Executables', extensions: ['exe'] }]
+    });
+    return result.canceled ? null : result.filePaths[0];
+  });
+
+  // Browse for plugin
+  registerHandler(IPC_CHANNELS.XEDIT_SCRIPT_BROWSE_PLUGIN, async () => {
+    const result = await dialog.showOpenDialog({
+      properties: ['openFile'],
+      filters: [{ name: 'Plugins', extensions: ['esp', 'esm', 'esl'] }]
+    });
+    return result.canceled ? null : result.filePaths[0];
+  });
+
+  // Get xEdit path
+  registerHandler(IPC_CHANNELS.XEDIT_SCRIPT_GET_XEDIT_PATH, async () => {
+    try {
+      const settingsPath = path.join(app.getPath('userData'), 'xedit-settings.json');
+      if (fs.existsSync(settingsPath)) {
+        const settings = JSON.parse(fs.readFileSync(settingsPath, 'utf-8'));
+        return settings.xEditPath || null;
+      }
+      return null;
+    } catch (err) {
+      return null;
+    }
+  });
+
+  // Save xEdit path
+  registerHandler(IPC_CHANNELS.XEDIT_SCRIPT_SAVE_XEDIT_PATH, async (_event, xEditPath: string) => {
+    try {
+      const settingsPath = path.join(app.getPath('userData'), 'xedit-settings.json');
+      fs.writeFileSync(settingsPath, JSON.stringify({ xEditPath }));
+      return true;
+    } catch (err) {
+      return false;
+    }
+  });
+
+  // Get plugin list
+  registerHandler(IPC_CHANNELS.XEDIT_SCRIPT_GET_PLUGIN_LIST, async () => {
+    try {
+      const dataPath = path.join(process.env.USERPROFILE || process.env.HOME || '', 'Documents', 'My Games', 'Fallout4');
+      if (fs.existsSync(dataPath)) {
+        const files = fs.readdirSync(dataPath);
+        return files.filter(f => f.endsWith('.esp') || f.endsWith('.esm') || f.endsWith('.esl'));
+      }
+      return [];
+    } catch (err) {
+      return [];
+    }
+  });
+
+  // Execute script
+  registerHandler(IPC_CHANNELS.XEDIT_SCRIPT_EXECUTE, async (event, xEditPath: string, plugin: string, scriptId: string) => {
+    const startTime = Date.now();
+    
+    return new Promise((resolve) => {
+      try {
+        const xedit = spawn(xEditPath, ['-quickautoclean', '-autoload', plugin]);
+        
+        let output = '';
+        let errors: string[] = [];
+        let warnings: string[] = [];
+
+        xedit.stdout?.on('data', (data) => {
+          const text = data.toString();
+          output += text;
+          event.sender.send('xedit-progress', {
+            progress: 50,
+            text: 'Processing...'
+          });
+          
+          if (text.toLowerCase().includes('warning')) {
+            warnings.push(text.trim());
+          }
+        });
+
+        xedit.stderr?.on('data', (data) => {
+          errors.push(data.toString());
+        });
+
+        xedit.on('close', (code) => {
+          resolve({
+            success: code === 0,
+            output,
+            errors,
+            warnings,
+            duration: (Date.now() - startTime) / 1000
+          });
+        });
+
+        xedit.on('error', (err) => {
+          resolve({
+            success: false,
+            output: '',
+            errors: [err.message],
+            warnings: [],
+            duration: (Date.now() - startTime) / 1000
+          });
+        });
+      } catch (error) {
+        resolve({
+          success: false,
+          output: '',
+          errors: [error instanceof Error ? error.message : String(error)],
+          warnings: [],
+          duration: (Date.now() - startTime) / 1000
+        });
+      }
+    });
+  });
+
+  // =========================================================================
+  // PROJECT TEMPLATES HANDLERS (Feature 5)
+  // =========================================================================
+
+  // Browse for path
+  registerHandler(IPC_CHANNELS.PROJECT_TEMPLATE_BROWSE_PATH, async () => {
+    const result = await dialog.showOpenDialog({
+      properties: ['openDirectory']
+    });
+    return result.canceled ? null : result.filePaths[0];
+  });
+
+  // Create project
+  registerHandler(IPC_CHANNELS.PROJECT_TEMPLATE_CREATE, async (_event, config: {
+    templateId: string;
+    projectName: string;
+    projectPath: string;
+    authorName: string;
+  }) => {
+    try {
+      const projectDir = path.join(config.projectPath, config.projectName);
+      
+      // Create directory structure
+      fs.mkdirSync(projectDir, { recursive: true });
+      fs.mkdirSync(path.join(projectDir, 'Textures'), { recursive: true });
+      fs.mkdirSync(path.join(projectDir, 'Meshes'), { recursive: true });
+      fs.mkdirSync(path.join(projectDir, 'Sound'), { recursive: true });
+      fs.mkdirSync(path.join(projectDir, 'Scripts'), { recursive: true });
+      fs.mkdirSync(path.join(projectDir, 'Interface'), { recursive: true });
+
+      // Create README
+      const readme = `# ${config.projectName}\n\nAuthor: ${config.authorName}\nTemplate: ${config.templateId}\n\nCreated with Mossy - Fallout 4 Modding Assistant`;
+      fs.writeFileSync(path.join(projectDir, 'README.md'), readme);
+
+      // Create .gitignore
+      const gitignore = `*.bak\n*.tmp\n*.log\n.DS_Store\nThumbs.db\n*.~*`;
+      fs.writeFileSync(path.join(projectDir, '.gitignore'), gitignore);
+
+      return { success: true, path: projectDir };
+    } catch (error) {
+      return { success: false, error: error instanceof Error ? error.message : String(error) };
+    }
+  });
+
+  // Download template (stub)
+  registerHandler(IPC_CHANNELS.PROJECT_TEMPLATE_DOWNLOAD, async (_event, templateId: string) => {
+    // Stub implementation - would download from online repository
+    console.log(`Download template requested: ${templateId}`);
+    return true;
+  });
+
+  // =========================================================================
+  // STUB HANDLERS FOR FEATURES 6-10
+  // =========================================================================
+
+  // Mod Conflict Visualizer
+  registerHandler(IPC_CHANNELS.MOD_CONFLICT_SCAN_LOAD_ORDER, async () => {
+    return {
+      plugins: ['Fallout4.esm', 'DLCRobot.esm', 'ExampleMod.esp'],
+      conflicts: [
+        {
+          recordType: 'WEAP',
+          formId: '00012345',
+          winners: ['ExampleMod.esp'],
+          losers: ['Fallout4.esm'],
+          severity: 'low'
+        }
+      ]
+    };
+  });
+
+  registerHandler(IPC_CHANNELS.MOD_CONFLICT_ANALYZE, async () => {
+    return { success: true };
+  });
+
+  registerHandler(IPC_CHANNELS.MOD_CONFLICT_RESOLVE, async () => {
+    return { success: true };
+  });
+
+  // FormID Remapper
+  registerHandler(IPC_CHANNELS.FORMID_REMAPPER_SCAN_CONFLICTS, async (_event, pluginPath: string) => {
+    return { count: 5 };
+  });
+
+  registerHandler(IPC_CHANNELS.FORMID_REMAPPER_REMAP, async () => {
+    return { success: true };
+  });
+
+  registerHandler(IPC_CHANNELS.FORMID_REMAPPER_BACKUP, async () => {
+    return { success: true };
+  });
+
+  // Mod Comparison Tool
+  registerHandler(IPC_CHANNELS.MOD_COMPARISON_COMPARE, async (_event, mod1: string, mod2: string) => {
+    return {
+      differences: [
+        { description: `${mod1} has different texture resolution than ${mod2}` },
+        { description: 'Material properties differ' }
+      ]
+    };
+  });
+
+  registerHandler(IPC_CHANNELS.MOD_COMPARISON_MERGE, async () => {
+    return { success: true };
+  });
+
+  registerHandler(IPC_CHANNELS.MOD_COMPARISON_EXPORT, async () => {
+    return { success: true };
+  });
+
+  // Precombine Generator
+  registerHandler(IPC_CHANNELS.PRECOMBINE_GENERATOR_GENERATE, async (_event, worldspace: string) => {
+    return { success: true };
+  });
+
+  registerHandler(IPC_CHANNELS.PRECOMBINE_GENERATOR_VALIDATE, async () => {
+    return { success: true };
+  });
+
+  registerHandler(IPC_CHANNELS.PRECOMBINE_GENERATOR_GET_PJM_PATH, async () => {
+    return null;
+  });
+
+  // Voice Commands
+  registerHandler(IPC_CHANNELS.VOICE_COMMANDS_START, async () => {
+    return { success: true };
+  });
+
+  registerHandler(IPC_CHANNELS.VOICE_COMMANDS_STOP, async () => {
+    return { success: true };
+  });
+
+  registerHandler(IPC_CHANNELS.VOICE_COMMANDS_EXECUTE, async () => {
+    return { success: true };
+  });
+
   // Mark handlers as registered
   (global as any).__ipcHandlersRegistered = true;
   console.log('[Main] IPC handlers registration complete');
