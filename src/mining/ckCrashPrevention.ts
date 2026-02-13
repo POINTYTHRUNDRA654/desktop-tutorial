@@ -6,85 +6,29 @@
 import * as fs from 'fs';
 import * as path from 'path';
 
-export interface CKValidationInput {
-  espPath: string;
-  modName?: string;
-  cellCount?: number;
-}
+// Re-export types from shared types
+export type {
+  CKValidationInput,
+  CKValidationResult,
+  ValidationIssue,
+  ValidationWarning,
+  CKMonitoringSession,
+  CKHealthMetrics,
+  CrashDiagnosis,
+  KnownCKIssue,
+  PreventionPlan,
+  PreventionStep
+} from '../shared/types';
 
-export interface CKValidationResult {
-  safe: boolean;
-  issues: ValidationIssue[];
-  warnings: ValidationWarning[];
-  recommendations: string[];
-  estimatedMemoryUsage: number;
-  riskLevel: 'low' | 'medium' | 'high' | 'critical';
-}
-
-export interface ValidationIssue {
-  type: 'file_size' | 'memory' | 'known_mod' | 'missing_master' | 'corrupted_mesh';
-  severity: 'warning' | 'error' | 'critical';
-  message: string;
-  fix?: string;
-  cellId?: string;
-}
-
-export interface ValidationWarning {
-  message: string;
-  recommendation: string;
-}
-
-export interface CKMonitoringSession {
-  id: string;
-  processId: number;
-  startTime: number;
-  status: 'running' | 'frozen' | 'crashed' | 'completed';
-  currentCell?: string;
-  cellsProcessed: number;
-  totalCells?: number;
-}
-
-export interface CKHealthMetrics {
-  memoryUsage: number;
-  cpuUsage: number;
-  responding: boolean;
-  uptime: number;
-  logErrors: string[];
-}
-
-export interface CrashDiagnosis {
-  exceptionCode?: string;
-  exceptionType: 'access_violation' | 'memory_error' | 'timeout' | 'unknown';
-  problematicCell?: string;
-  knownIssue?: KnownCKIssue;
-  rootCause: string;
-  fixSteps: string[];
-  relatedKnowledgeArticles: string[];
-}
-
-export interface KnownCKIssue {
-  id: string;
-  name: string;
-  description: string;
-  affectedMods: string[];
-  solution: string;
-  workaround?: string;
-}
-
-export interface PreventionPlan {
-  priority: 'low' | 'medium' | 'high';
-  steps: PreventionStep[];
-  estimatedTime: number;
-}
-
-export interface PreventionStep {
-  id: string;
-  title: string;
-  description: string;
-  tool?: string;
-  command?: string;
-  completed: boolean;
-}
+import type {
+  CKValidationInput,
+  CKValidationResult,
+  ValidationIssue,
+  ValidationWarning,
+  CrashDiagnosis,
+  PreventionPlan,
+  PreventionStep
+} from '../shared/types';
 
 export class CKCrashPreventionEngine {
   private knownProblematicMods = [
