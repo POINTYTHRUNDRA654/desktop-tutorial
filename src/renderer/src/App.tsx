@@ -74,6 +74,7 @@ const PaperScriptGuide = React.lazy(() => import('./PaperScriptGuide'));
 
 // INI Configuration Manager
 const IniConfigManager = React.lazy(() => import('./IniConfigManager'));
+const AssetDuplicateScanner = React.lazy(() => import('./AssetDuplicateScanner'));
 
 // AI & Intelligence Features
 const WorkflowRecorder = React.lazy(() => import('./WorkflowRecorder').then(module => ({ default: module.WorkflowRecorder })));
@@ -905,6 +906,7 @@ const App: React.FC = () => {
                 <Route path="/tools/monitor" element={<Navigate to="/diagnostics" replace />} />
                 <Route path="/tools/auditor" element={<TheAuditor />} />
                 <Route path="/tools/ini-config" element={<ErrorBoundary><IniConfigManager /></ErrorBoundary>} />
+                <Route path="/tools/asset-scanner" element={<ErrorBoundary><AssetDuplicateScanner /></ErrorBoundary>} />
                 <Route path="/tools/mining" element={<ErrorBoundary><MiningPanel /></ErrorBoundary>} />
                 <Route path="/tools/advanced-analysis" element={<ErrorBoundary><AdvancedAnalysisPanel /></ErrorBoundary>} />
                 <Route path="/tools/assembler" element={<Navigate to="/packaging-release" replace />} />
