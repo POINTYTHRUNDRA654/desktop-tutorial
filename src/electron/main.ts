@@ -2555,6 +2555,169 @@ function setupIpcHandlers() {
     });
   });
 
+  // --- INI Configuration Manager: Read INI file ---
+  registerHandler(IPC_CHANNELS.INI_MANAGER_READ_FILE, async (_event, filePath: string) => {
+    try {
+      if (!filePath || !fs.existsSync(filePath)) {
+        throw new Error(`INI file not found: ${filePath}`);
+      }
+      const content = fs.readFileSync(filePath, 'utf-8');
+      return content;
+    } catch (err) {
+      console.error('INI Manager read error:', err);
+      throw new Error(`Failed to read INI file: ${filePath}. ${err instanceof Error ? err.message : String(err)}`);
+    }
+  });
+
+  // --- INI Configuration Manager: Write INI file ---
+  registerHandler(IPC_CHANNELS.INI_MANAGER_WRITE_FILE, async (_event, filePath: string, content: string) => {
+    try {
+      // Ensure directory exists
+      const dir = path.dirname(filePath);
+      if (!fs.existsSync(dir)) {
+        fs.mkdirSync(dir, { recursive: true });
+      }
+      fs.writeFileSync(filePath, content, 'utf-8');
+      console.log(`[INI Manager] Saved file: ${filePath}`);
+      return true;
+    } catch (err) {
+      console.error('INI Manager write error:', err);
+      return false;
+    }
+  });
+
+  // --- INI Configuration Manager: Find INI files ---
+  registerHandler(IPC_CHANNELS.INI_MANAGER_FIND_FILES, async (_event, gamePath?: string) => {
+    try {
+      const documentsPath = app.getPath('documents');
+      const fallout4IniPath = path.join(documentsPath, 'My Games', 'Fallout4');
+      
+      const iniFiles = [
+        { name: 'Fallout4.ini', path: path.join(fallout4IniPath, 'Fallout4.ini') },
+        { name: 'Fallout4Prefs.ini', path: path.join(fallout4IniPath, 'Fallout4Prefs.ini') },
+        { name: 'Fallout4Custom.ini', path: path.join(fallout4IniPath, 'Fallout4Custom.ini') },
+      ];
+
+      // Check which files exist
+      const results = iniFiles.map(file => ({
+        ...file,
+        exists: fs.existsSync(file.path)
+      }));
+
+      console.log(`[INI Manager] Found ${results.filter(f => f.exists).length} INI files`);
+      return results;
+    } catch (err) {
+      console.error('INI Manager find files error:', err);
+      return [];
+    }
+  });
+
+  // --- INI Configuration Manager: Get hardware profile ---
+  registerHandler(IPC_CHANNELS.INI_MANAGER_GET_HARDWARE, async (_event) => {
+    try {
+      // Reuse system info logic
+      const cpus = os.cpus();
+      const totalMemGB = Math.round(os.totalmem() / (1024 ** 3));
+      
+      // Get GPU info (Windows only via WMIC)
+      let gpuName = 'Unknown GPU';
+      let vramMB = 0;
+      
+      if (process.platform === 'win32') {
+        try {
+          const { exec } = require('child_process');
+          const wmicGpu = await new Promise<string>((resolve, reject) => {
+            exec('wmic path win32_VideoController get name', (err: any, stdout: string) => {
+              if (err) reject(err);
+              else resolve(stdout);
+            });
+          });
+          
+          const lines = wmicGpu.split('\n').filter(l => l.trim() && !l.includes('Name'));
+          if (lines.length > 0) {
+            gpuName = lines[0].trim();
+          }
+
+          // Get VRAM
+          const wmicVram = await new Promise<string>((resolve, reject) => {
+            exec('wmic path win32_VideoController get AdapterRAM', (err: any, stdout: string) => {
+              if (err) reject(err);
+              else resolve(stdout);
+            });
+          });
+          
+          const vramLines = wmicVram.split('\n').filter(l => l.trim() && !l.includes('AdapterRAM'));
+          if (vramLines.length > 0) {
+            const vramBytes = parseInt(vramLines[0].trim(), 10);
+            if (!isNaN(vramBytes) && vramBytes > 0) {
+              vramMB = Math.round(vramBytes / (1024 * 1024));
+            }
+          }
+        } catch (wmicErr) {
+          console.error('WMIC GPU detection failed:', wmicErr);
+        }
+      }
+
+      // Get display resolution
+      const primaryDisplay = screen.getPrimaryDisplay();
+      const resolution = `${primaryDisplay.bounds.width}x${primaryDisplay.bounds.height}`;
+
+      const hardwareProfile = {
+        cpu: cpus[0]?.model || 'Unknown CPU',
+        ram: totalMemGB,
+        gpu: gpuName,
+        vram: vramMB,
+        resolution
+      };
+
+      console.log('[INI Manager] Hardware profile:', hardwareProfile);
+      return hardwareProfile;
+    } catch (err) {
+      console.error('INI Manager hardware detection error:', err);
+      return {
+        cpu: 'Unknown CPU',
+        ram: 0,
+        gpu: 'Unknown GPU',
+        vram: 0,
+        resolution: '1920x1080'
+      };
+    }
+  });
+
+  // --- INI Configuration Manager: Backup file ---
+  registerHandler(IPC_CHANNELS.INI_MANAGER_BACKUP_FILE, async (_event, filePath: string) => {
+    try {
+      if (!fs.existsSync(filePath)) {
+        throw new Error(`File not found: ${filePath}`);
+      }
+      
+      const backupPath = `${filePath}.backup`;
+      fs.copyFileSync(filePath, backupPath);
+      console.log(`[INI Manager] Backup created: ${backupPath}`);
+      return true;
+    } catch (err) {
+      console.error('INI Manager backup error:', err);
+      return false;
+    }
+  });
+
+  // --- INI Configuration Manager: Restore backup ---
+  registerHandler(IPC_CHANNELS.INI_MANAGER_RESTORE_BACKUP, async (_event, filePath: string) => {
+    try {
+      const backupPath = `${filePath}.backup`;
+      if (!fs.existsSync(backupPath)) {
+        throw new Error(`Backup not found: ${backupPath}`);
+      }
+      
+      fs.copyFileSync(backupPath, filePath);
+      console.log(`[INI Manager] Backup restored: ${filePath}`);
+      return true;
+    } catch (err) {
+      console.error('INI Manager restore error:', err);
+      return false;
+    }
+  });
+
   // --- Workshop: Parse DDS texture preview info ---
   registerHandler(IPC_CHANNELS.WORKSHOP_READ_DDS_PREVIEW, async (_event, filePath: string) => {
     try {
