@@ -32,6 +32,18 @@ const GuidedTour: React.FC<GuidedTourProps> = ({ isOpen, onClose, tourType, targ
   );
 
   useEffect(() => {
+    // Add data attribute to body when tour is active
+    if (isOpen && run) {
+      document.body.setAttribute('data-guided-tour-active', 'true');
+    } else {
+      document.body.removeAttribute('data-guided-tour-active');
+    }
+    return () => {
+      document.body.removeAttribute('data-guided-tour-active');
+    };
+  }, [isOpen, run]);
+
+  useEffect(() => {
     if (isOpen) {
       // Small delay to ensure DOM is ready
       const timer = setTimeout(() => setRun(true), 500);

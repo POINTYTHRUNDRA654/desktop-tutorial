@@ -479,6 +479,20 @@ body.pip-boy-mode textarea:focus {
   z-index: 0;
 }
 
+/* Force hide mossy face during tutorial and guided tours */
+body[data-tutorial-active="true"] .mossy-face-prop,
+body[data-guided-tour-active="true"] .mossy-face-prop,
+body:has([data-tutorial-active="true"]) .mossy-face-prop,
+body:has([class*="react-joyride"]) .mossy-face-prop,
+body:has([data-joyride-active]) .mossy-face-prop,
+[data-route="/tutorial"] ~ * .mossy-face-prop,
+.react-joyride__overlay ~ * .mossy-face-prop {
+  display: none !important;
+  visibility: hidden !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
+}
+
 @media (max-width: 1100px) {
   .mossy-face-prop {
     top: -40px;

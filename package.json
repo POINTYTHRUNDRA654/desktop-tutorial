@@ -82,7 +82,8 @@
     "sharp": "^0.34.5",
     "sqlite3": "5.1.7",
     "ws": "8.18.1",
-    "zod": "4.3.6"
+    "zod": "4.3.6",
+    "electron-updater": "6.7.3"
   },
   "devDependencies": {
     "@playwright/test": "1.58.1",
@@ -106,7 +107,6 @@
     "cross-env": "^7.0.3",
     "electron": "^35.7.5",
     "electron-builder": "^26.7.0",
-    "electron-updater": "^6.1.7",
     "eslint": "^8.56.0",
     "eslint-config-prettier": "^9.1.0",
     "eslint-plugin-react": "^7.33.2",
@@ -185,4 +185,3 @@
     }
   }
 }
-
