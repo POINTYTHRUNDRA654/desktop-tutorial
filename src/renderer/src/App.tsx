@@ -184,16 +184,43 @@ const App: React.FC = () => {
   
   // Tutorial state
   const [showTutorialLaunch, setShowTutorialLaunch] = useState(false);
-  const [showInteractiveTutorial, setShowInteractiveTutorial] = useState(() => {
-    // Check if tutorial is in progress
+  const getTutorialReturnHash = () => {
+    const stored = localStorage.getItem('mossy_tutorial_return');
+    if (stored && stored.startsWith('#/')) return stored;
+    return '#/';
+  };
+
+  const startInteractiveTutorial = () => {
+    const currentHash = window.location.hash || '#/';
+    const returnHash = currentHash.startsWith('#/tutorial') ? '#/' : currentHash;
+    try {
+      localStorage.setItem('mossy_tutorial_return', returnHash);
+    } catch {
+      // ignore
+    }
+    window.location.hash = '#/tutorial';
+  };
+
+  const exitInteractiveTutorial = () => {
+    const returnHash = getTutorialReturnHash();
+    try {
+      localStorage.removeItem('mossy_tutorial_return');
+    } catch {
+      // ignore
+    }
+    window.location.hash = returnHash;
+  };
+
+  useEffect(() => {
     const hasCompletedFirstRun = localStorage.getItem('mossy_onboarding_complete') === 'true';
     const tutorialCompleted = localStorage.getItem('mossy_tutorial_completed') === 'true';
     const tutorialSkipped = localStorage.getItem('mossy_tutorial_skipped') === 'true';
     const tutorialStep = localStorage.getItem('mossy_tutorial_step');
-    
-    // Resume tutorial if it was in progress
-    return hasCompletedFirstRun && !tutorialCompleted && !tutorialSkipped && tutorialStep !== null;
-  });
+
+    if (hasCompletedFirstRun && !tutorialCompleted && !tutorialSkipped && tutorialStep !== null) {
+      startInteractiveTutorial();
+    }
+  }, []);
   
   const [debugHash, setDebugHash] = useState(() => window.location.hash || '');
   const [showDevHud, setShowDevHud] = useState(() => {
@@ -204,6 +231,7 @@ const App: React.FC = () => {
       return false;
     }
   });
+  const [isTutorialRoute, setIsTutorialRoute] = useState(() => window.location.hash.startsWith('#/tutorial'));
   const [isPipBoy, setIsPipBoy] = useState(() => {
     try {
       return localStorage.getItem('mossy_pip_mode') === 'true';
@@ -263,6 +291,13 @@ const App: React.FC = () => {
     return () => window.removeEventListener('keydown', onKeyDown);
   }, [isPipBoy]);
 
+  useEffect(() => {
+    const updateTutorialRoute = () => setIsTutorialRoute(window.location.hash.startsWith('#/tutorial'));
+    updateTutorialRoute();
+    window.addEventListener('hashchange', updateTutorialRoute);
+    return () => window.removeEventListener('hashchange', updateTutorialRoute);
+  }, []);
+
   // Project management handlers
   const handleProjectChange = (project: ModProject) => {
     setCurrentProject(project);
@@ -275,7 +310,7 @@ const App: React.FC = () => {
   // Guided Tour Event Listeners
   useEffect(() => {
     const handleStartWelcomeTour = () => {
-      setGuidedTour({ isOpen: true, type: 'welcome', targetModule: undefined });
+      startInteractiveTutorial();
     };
 
     const handleStartModuleTour = (event: CustomEvent) => {
@@ -290,14 +325,22 @@ const App: React.FC = () => {
       setGuidedTour({ isOpen: true, type: 'feature-spotlight', targetModule: undefined });
     };
 
+    const handleStartInteractiveTutorial = () => {
+      startInteractiveTutorial();
+    };
+
     window.addEventListener('start-welcome-tour', handleStartWelcomeTour);
     window.addEventListener('start-module-tour', handleStartModuleTour as EventListener);
     window.addEventListener('start-feature-tour', handleStartFeatureTour);
+    window.addEventListener('start-tutorial', handleStartInteractiveTutorial);
+    window.addEventListener('start-interactive-tutorial', handleStartInteractiveTutorial);
 
     return () => {
       window.removeEventListener('start-welcome-tour', handleStartWelcomeTour);
       window.removeEventListener('start-module-tour', handleStartModuleTour as EventListener);
       window.removeEventListener('start-feature-tour', handleStartFeatureTour);
+      window.removeEventListener('start-tutorial', handleStartInteractiveTutorial);
+      window.removeEventListener('start-interactive-tutorial', handleStartInteractiveTutorial);
     };
   }, []);
 
@@ -822,15 +865,32 @@ const App: React.FC = () => {
             role="main"
             aria-label="Main content"
           >
-            <div className="mossy-face-prop" aria-hidden="true">
-              <AvatarCore className="w-44 h-44" showRings={false} />
-            </div>
+            {!isTutorialRoute && !guidedTour.isOpen && (
+              <div 
+                className="mossy-face-prop" 
+                aria-hidden="true"
+                style={{ 
+                  display: (guidedTour.isOpen || isTutorialRoute) ? 'none' : undefined 
+                }}
+              >
+                <AvatarCore className="w-44 h-44" showRings={false} />
+              </div>
+            )}
             <div className="relative z-10">
               <MossyObserver />
               <Suspense fallback={<ModuleLoader />}>
                 <Routes>
                 {/* Core Application Routes */}
                 <Route path="/" element={<ErrorBoundary><TheNexus /></ErrorBoundary>} />
+                <Route
+                  path="/tutorial"
+                  element={
+                    <InteractiveTutorial
+                      onComplete={exitInteractiveTutorial}
+                      onSkip={exitInteractiveTutorial}
+                    />
+                  }
+                />
                 <Route path="/chat" element={<ErrorBoundary><ChatInterface /></ErrorBoundary>} />
                 <Route path="/first-success" element={<ErrorBoundary><FirstSuccessWizard /></ErrorBoundary>} />
                 <Route path="/roadmap" element={<ErrorBoundary><RoadmapPanel /></ErrorBoundary>} />
@@ -1025,24 +1085,12 @@ const App: React.FC = () => {
             <TutorialLaunch
               onStartTutorial={() => {
                 setShowTutorialLaunch(false);
-                setShowInteractiveTutorial(true);
                 localStorage.setItem('mossy_tutorial_started', 'true');
+                startInteractiveTutorial();
               }}
               onSkip={() => {
                 setShowTutorialLaunch(false);
                 localStorage.setItem('mossy_tutorial_skipped', 'true');
-              }}
-            />
-          )}
-          
-          {/* Interactive Tutorial */}
-          {showInteractiveTutorial && (
-            <InteractiveTutorial
-              onComplete={() => {
-                setShowInteractiveTutorial(false);
-              }}
-              onSkip={() => {
-                setShowInteractiveTutorial(false);
               }}
             />
           )}

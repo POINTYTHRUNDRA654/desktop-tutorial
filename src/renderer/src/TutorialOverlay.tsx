@@ -44,12 +44,17 @@ const TutorialOverlay: React.FC = () => {
             return () => clearTimeout(timer);
         }
 
-        // Event listener for manual restart (always available)
+    // Event listener for manual restart (always available)
         const handleTrigger = () => {
-            setCurrentStepIndex(0);
-            setInstallProgress(0);
-            setBootLogs([]);
-            setIsOpen(true);
+            // Instead of showing the old tutorial, redirect to the comprehensive InteractiveTutorial
+            window.dispatchEvent(new CustomEvent('start-interactive-tutorial'));
+            return; // Don't show the old tutorial
+            
+            // Old code below - keeping for reference but not used
+            // setCurrentStepIndex(0);
+            // setInstallProgress(0);
+            // setBootLogs([]);
+            // setIsOpen(true);
         };
         
         // Event listener for video tutorial
