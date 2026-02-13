@@ -143,6 +143,7 @@ Your support helps:
 - Text editor with syntax highlighting
 - Tool path management
 - Script editing with line numbers
+- **NEW**: Gradio Python Code Assistant - AI-powered Python writing with templates, formatting, and validation
 
 #### 🎮 **Holodeck** (Testing & Launch)
 - Game launch configuration
@@ -162,6 +163,7 @@ Your support helps:
 - ✅ **Modern Standards** - Built-in support for Blender 4.1 metrics (1.0 scale, 30 FPS)
 - ✅ **Production Asset Analysis** - Real binary format reading for NIF/DDS/ESP
 - ✅ **Advanced Image Processing** - Real Sobel operators and image algorithms
+- ✅ **Gradio Python Assistant** - Interactive web UI for Python code writing with templates, formatting, and validation
 - ✅ **Zero Fake Features** - Everything is functional and tested
 - ✅ **Real IPC Bridge** - Direct Electron API access for system operations
 
@@ -231,11 +233,15 @@ desktop-ai-assistant/
    git clone https://github.com/POINTYTHRUNDRA654/desktop-tutorial.git
    cd desktop-tutorial
    ```
-2. Install dependencies:
+2. Install Node.js dependencies:
    ```bash
    npm install
    ```
-3. (Optional) Set development API keys (Electron main only):
+3. (Optional) Install Python dependencies for Gradio Code Assistant:
+   ```bash
+   pip install -r requirements.txt
+   ```
+4. (Optional) Set development API keys (Electron main only):
    - Create `.env.local` in the project root and add any keys you want to use in dev.
    - Example:
      ```env
@@ -576,3 +582,25 @@ For issues, questions, or suggestions:
 - Blender Community: [BLENDER_COMMUNITY.md](BLENDER_COMMUNITY.md)
 - Installing Blender: [BLENDER_INSTALLING.md](BLENDER_INSTALLING.md)
 - Installing on Linux: [BLENDER_INSTALLING_LINUX.md](BLENDER_INSTALLING_LINUX.md)
+
+## 🐍 Python Code Assistant (Gradio)
+
+Mossy includes a Gradio-powered Python code assistant for writing, formatting, and validating Python scripts:
+
+### Quick Start
+```bash
+# Install Python dependencies
+pip install -r requirements.txt
+
+# Launch the Gradio interface
+python launch_gradio.py
+```
+
+The interface will open at `http://127.0.0.1:7860` with features including:
+- **Code Templates**: Papyrus pseudocode, Blender scripts, Python utilities
+- **Syntax Validation**: Real-time Python syntax checking
+- **Code Formatting**: Black and autopep8 formatters
+- **Safe Execution**: Sandboxed code execution with output capture
+
+See **[GRADIO_PYTHON_ASSISTANT.md](GRADIO_PYTHON_ASSISTANT.md)** for complete documentation.
+
