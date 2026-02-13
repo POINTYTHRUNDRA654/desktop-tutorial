@@ -50,12 +50,27 @@ function checkElectron() {
  */
 function checkOptionalDeps() {
   const optionalDeps = [
-    { name: 'chromedriver', path: join(projectRoot, 'node_modules', 'chromedriver', 'lib', 'chromedriver') },
-    { name: 'puppeteer', path: join(projectRoot, 'node_modules', 'puppeteer', '.local-chromium') }
+    { 
+      name: 'chromedriver', 
+      path: join(projectRoot, 'node_modules', 'chromedriver'),
+      checkFile: 'lib/chromedriver/chromedriver'
+    },
+    { 
+      name: 'puppeteer', 
+      path: join(projectRoot, 'node_modules', 'puppeteer'),
+      checkFile: '.local-chromium'
+    }
   ];
 
   for (const dep of optionalDeps) {
+    // First check if the package directory exists
     if (!existsSync(dep.path)) {
+      continue; // Package not installed at all, skip check
+    }
+    
+    // Check for the expected binary/data directory
+    const fullCheckPath = join(dep.path, dep.checkFile);
+    if (!existsSync(fullCheckPath)) {
       console.warn(`[postinstall] ⚠️  ${dep.name} not fully installed (may be due to network restrictions)`);
       console.warn(`[postinstall]    This is optional and won't prevent the app from running`);
     } else {

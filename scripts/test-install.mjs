@@ -56,13 +56,16 @@ console.log('[4/6] Testing build process...');
 try {
   execSync('npm run build', {
     cwd: projectRoot,
-    stdio: 'pipe', // Suppress verbose output
+    stdio: ['ignore', 'pipe', 'inherit'], // Suppress stdout but show stderr for errors
     timeout: 120000 // 2 minute timeout
   });
   console.log('✅ PASS: Build completed successfully\n');
 } catch (error) {
   console.error('❌ FAIL: Build failed');
-  console.error(error.message);
+  console.error('Error:', error.message);
+  if (error.stderr) {
+    console.error('stderr:', error.stderr.toString());
+  }
   process.exit(1);
 }
 
