@@ -128,6 +128,12 @@ const IPC_CHANNELS = {
   WIZARD_GET_STATE: 'wizard-get-state',
   WIZARD_UPDATE_STEP: 'wizard-update-step',
   WIZARD_SUBMIT_ACTION: 'wizard-submit-action',
+
+  // CK Crash Prevention
+  CK_CRASH_VALIDATE: 'ck-crash-prevention:validate',
+  CK_CRASH_ANALYZE: 'ck-crash-prevention:analyze-crash',
+  CK_CRASH_GENERATE_PLAN: 'ck-crash-prevention:generate-plan',
+  CK_CRASH_PICK_LOG: 'ck-crash-prevention:pick-log-file',
 } as const;
 
 /**
@@ -778,6 +784,34 @@ const electronAPI = {
     const subscription = (_event: any, status: any) => callback(status);
     ipcRenderer.on('update-status', subscription);
     return () => ipcRenderer.removeListener('update-status', subscription);
+  },
+
+  /**
+   * CK Crash Prevention: Validate ESP file before CK operations
+   */
+  ckCrashValidate: (espPath: string, modName?: string, cellCount?: number): Promise<any> => {
+    return ipcRenderer.invoke(IPC_CHANNELS.CK_CRASH_VALIDATE, espPath, modName, cellCount);
+  },
+
+  /**
+   * CK Crash Prevention: Analyze crash log file
+   */
+  ckCrashAnalyze: (logPath: string): Promise<any> => {
+    return ipcRenderer.invoke(IPC_CHANNELS.CK_CRASH_ANALYZE, logPath);
+  },
+
+  /**
+   * CK Crash Prevention: Generate prevention plan from validation results
+   */
+  ckCrashGeneratePlan: (validation: any): Promise<any> => {
+    return ipcRenderer.invoke(IPC_CHANNELS.CK_CRASH_GENERATE_PLAN, validation);
+  },
+
+  /**
+   * CK Crash Prevention: Pick log file via dialog
+   */
+  ckCrashPickLog: (): Promise<any> => {
+    return ipcRenderer.invoke(IPC_CHANNELS.CK_CRASH_PICK_LOG);
   },
 
   /**
