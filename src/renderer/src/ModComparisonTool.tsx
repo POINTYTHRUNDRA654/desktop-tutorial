@@ -8,7 +8,7 @@ export default function ModComparisonTool() {
   const [differences, setDifferences] = useState<any[]>([]);
   const [message, setMessage] = useState('');
 
-  const compareM ods = async () => {
+  const compareMods = async () => {
     try {
       const result = await window.electron.api.modComparisonTool.compare(mod1, mod2);
       setDifferences(result.differences);
