@@ -76,6 +76,16 @@ const PaperScriptGuide = React.lazy(() => import('./PaperScriptGuide'));
 const IniConfigManager = React.lazy(() => import('./IniConfigManager'));
 const AssetDuplicateScanner = React.lazy(() => import('./AssetDuplicateScanner'));
 
+// New Power Tools (Features 3-10)
+const GameLogMonitor = React.lazy(() => import('./GameLogMonitor'));
+const XEditScriptExecutor = React.lazy(() => import('./XEditScriptExecutor'));
+const ProjectTemplates = React.lazy(() => import('./ProjectTemplates'));
+const ModConflictVisualizer = React.lazy(() => import('./ModConflictVisualizer'));
+const FormIdRemapper = React.lazy(() => import('./FormIdRemapper'));
+const ModComparisonTool = React.lazy(() => import('./ModComparisonTool'));
+const PrecombineGenerator = React.lazy(() => import('./PrecombineGenerator'));
+const VoiceCommands = React.lazy(() => import('./VoiceCommands'));
+
 // AI & Intelligence Features
 const WorkflowRecorder = React.lazy(() => import('./WorkflowRecorder').then(module => ({ default: module.WorkflowRecorder })));
 const PluginManager = React.lazy(() => import('./PluginManager').then(module => ({ default: module.PluginManager })));
@@ -907,6 +917,14 @@ const App: React.FC = () => {
                 <Route path="/tools/auditor" element={<TheAuditor />} />
                 <Route path="/tools/ini-config" element={<ErrorBoundary><IniConfigManager /></ErrorBoundary>} />
                 <Route path="/tools/asset-scanner" element={<ErrorBoundary><AssetDuplicateScanner /></ErrorBoundary>} />
+                <Route path="/tools/log-monitor" element={<ErrorBoundary><GameLogMonitor /></ErrorBoundary>} />
+                <Route path="/tools/xedit-executor" element={<ErrorBoundary><XEditScriptExecutor /></ErrorBoundary>} />
+                <Route path="/tools/project-templates" element={<ErrorBoundary><ProjectTemplates /></ErrorBoundary>} />
+                <Route path="/tools/conflict-visualizer" element={<ErrorBoundary><ModConflictVisualizer /></ErrorBoundary>} />
+                <Route path="/tools/formid-remapper" element={<ErrorBoundary><FormIdRemapper /></ErrorBoundary>} />
+                <Route path="/tools/mod-comparison" element={<ErrorBoundary><ModComparisonTool /></ErrorBoundary>} />
+                <Route path="/tools/precombine-generator" element={<ErrorBoundary><PrecombineGenerator /></ErrorBoundary>} />
+                <Route path="/tools/voice-commands" element={<ErrorBoundary><VoiceCommands /></ErrorBoundary>} />
                 <Route path="/tools/mining" element={<ErrorBoundary><MiningPanel /></ErrorBoundary>} />
                 <Route path="/tools/advanced-analysis" element={<ErrorBoundary><AdvancedAnalysisPanel /></ErrorBoundary>} />
                 <Route path="/tools/assembler" element={<Navigate to="/packaging-release" replace />} />
