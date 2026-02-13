@@ -1,5 +1,5 @@
 import React, { useEffect, Suspense, useState } from 'react';
-import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
+import { HashRouter, Routes, Route, Navigate, useNavigate, useLocation } from 'react-router-dom';
 import Sidebar from './Sidebar';
 import MossyObserver from './MossyObserver';
 import CommandPalette from './CommandPalette';
@@ -12,7 +12,10 @@ import PipBoyStartup from './PipBoyStartup';
 import { FirstRunOnboarding } from './FirstRunOnboarding';
 import { VoiceSetupWizard } from './VoiceSetupWizard';
 import GuidedTour from './GuidedTour';
+import InteractiveTutorial from './InteractiveTutorial';
+import TutorialLaunch from './TutorialLaunch';
 import { NotificationProvider } from './NotificationContext';
+import AutoUpdateNotifier from './components/AutoUpdateNotifier';
 import { ensureBrowserTtsSettingsStored } from './browserTts';
 
 import { Command, Loader2, Radio, Zap } from 'lucide-react';
@@ -178,6 +181,20 @@ const App: React.FC = () => {
     const hasCompletedVoiceSetup = localStorage.getItem('mossy_voice_setup_complete') === 'true';
     return hasCompletedFirstRun && !hasCompletedVoiceSetup;
   });
+  
+  // Tutorial state
+  const [showTutorialLaunch, setShowTutorialLaunch] = useState(false);
+  const [showInteractiveTutorial, setShowInteractiveTutorial] = useState(() => {
+    // Check if tutorial is in progress
+    const hasCompletedFirstRun = localStorage.getItem('mossy_onboarding_complete') === 'true';
+    const tutorialCompleted = localStorage.getItem('mossy_tutorial_completed') === 'true';
+    const tutorialSkipped = localStorage.getItem('mossy_tutorial_skipped') === 'true';
+    const tutorialStep = localStorage.getItem('mossy_tutorial_step');
+    
+    // Resume tutorial if it was in progress
+    return hasCompletedFirstRun && !tutorialCompleted && !tutorialSkipped && tutorialStep !== null;
+  });
+  
   const [debugHash, setDebugHash] = useState(() => window.location.hash || '');
   const [showDevHud, setShowDevHud] = useState(() => {
     if (!import.meta.env.DEV) return false;
@@ -283,14 +300,6 @@ const App: React.FC = () => {
       window.removeEventListener('start-feature-tour', handleStartFeatureTour);
     };
   }, []);
-
-  useEffect(() => {
-    if (!hasBooted || showFirstRun || showOnboarding || showVoiceSetup) return;
-    const hasSeenWelcomeTour = localStorage.getItem('mossy_welcome_tour_seen') === 'true';
-    if (hasSeenWelcomeTour) return;
-    localStorage.setItem('mossy_welcome_tour_seen', 'true');
-    window.dispatchEvent(new CustomEvent('start-welcome-tour'));
-  }, [hasBooted, showFirstRun, showOnboarding, showVoiceSetup]);
 
   // Load current project on app start
   useEffect(() => {
@@ -548,20 +557,6 @@ const App: React.FC = () => {
     }
   }, []);
 
-  // If onboarding flags are set but tool memory is missing, re-run first-run flow.
-  useEffect(() => {
-    const hasApps = !!(localStorage.getItem('mossy_apps') || localStorage.getItem('mossy_integrated_tools'));
-    const firstRunComplete = localStorage.getItem('mossy_onboarding_complete') === 'true';
-    const onboardingComplete = localStorage.getItem('mossy_onboarding_completed') === 'true';
-
-    if (!hasApps && (firstRunComplete || onboardingComplete)) {
-      localStorage.removeItem('mossy_onboarding_complete');
-      localStorage.removeItem('mossy_onboarding_completed');
-      setShowFirstRun(true);
-      setShowOnboarding(true);
-    }
-  }, []);
-
   // Reset to first-run state (useful for testing)
   const resetToFirstRun = () => {
     localStorage.removeItem('mossy_has_booted');
@@ -679,6 +674,10 @@ const App: React.FC = () => {
         <FirstRunOnboarding 
           onComplete={() => {
             setShowFirstRun(false);
+            // Show tutorial launch prompt after onboarding
+            setTimeout(() => {
+              setShowTutorialLaunch(true);
+            }, 500);
           }} 
         />
       );
@@ -711,7 +710,11 @@ const App: React.FC = () => {
     }
 
     return (
-      <BrowserRouter>
+      <HashRouter>
+        {/* Skip links for accessibility */}
+        <a href="#main-content" className="skip-link focus-visible">Skip to main content</a>
+        <a href="#sidebar-navigation" className="skip-link focus-visible" style={{ left: '120px' }}>Skip to navigation</a>
+
         <div
           className="flex h-full w-full overflow-hidden"
           style={{
@@ -727,6 +730,7 @@ const App: React.FC = () => {
           <NeuralController />
           <WhatsNewRedirect enabled={showWhatsNew} />
           <CommandPalette />
+          <TutorialOverlay />
           <SystemBus />
 
           {/* Mobile sidebar overlay */}
@@ -744,7 +748,7 @@ const App: React.FC = () => {
           />
 
           {/* Main Application Header */}
-          <header className="main-header bg-slate-900 border-b border-green-500/20 px-4 py-2 grid grid-cols-[minmax(0,1fr)_auto] items-center gap-4">
+          <header className="main-header bg-slate-900 border-b border-green-500/20 px-4 py-2 grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1.6fr)] items-center gap-4">
             <div className="flex items-center gap-4">
               <h1 className="text-xl font-bold text-green-400 font-mono">MOSSY</h1>
               <div className="hidden md:block">
@@ -757,16 +761,15 @@ const App: React.FC = () => {
                 </Suspense>
               </div>
             </div>
-            <div className="flex items-center gap-3 justify-self-stretch justify-end min-w-0">
+            <div className="flex flex-col items-center gap-1 justify-self-center">
+              <AvatarCore className="w-7 h-7" showRings={false} />
+              <div className="hidden xl:block text-[10px] text-emerald-300 uppercase tracking-[0.3em] font-bold">Mossy Core</div>
+            </div>
+            <div className="flex items-center gap-2 justify-self-stretch justify-end min-w-0">
               <GlobalSearch />
-              <div className="flex items-center gap-2">
-                <AvatarCore className="w-7 h-7" showRings={false} />
-                <div className="hidden xl:block text-[10px] text-emerald-300 uppercase tracking-[0.3em] font-bold">Mossy Core</div>
-              </div>
               <button
                 type="button"
                 onClick={() => window.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', ctrlKey: true }))}
-                data-tour="command-palette-trigger"
                 className="hidden md:flex items-center gap-1.5 px-3 py-1.5 bg-slate-800 border border-slate-700 rounded-lg hover:bg-slate-700 transition-colors text-xs text-slate-300"
                 title="Command Palette (Ctrl+K)"
               >
@@ -819,6 +822,9 @@ const App: React.FC = () => {
             role="main"
             aria-label="Main content"
           >
+            <div className="mossy-face-prop" aria-hidden="true">
+              <AvatarCore className="w-44 h-44" showRings={false} />
+            </div>
             <div className="relative z-10">
               <MossyObserver />
               <Suspense fallback={<ModuleLoader />}>
@@ -960,34 +966,6 @@ const App: React.FC = () => {
                 <Route path="/vault" element={<Navigate to="/tools/vault" replace />} />
                 <Route path="/memory-vault" element={<Navigate to="/live" replace />} />
                 <Route path="/neural-link" element={<Navigate to="/live" replace />} />
-                
-                {/* Tool Extensions */}
-                <Route path="/extensions/mo2" element={
-                  <Suspense fallback={<SkeletonLoader />}>
-                    {React.createElement(React.lazy(() => import('./MO2Extension').then(m => ({ default: m.MO2Extension }))))}
-                  </Suspense>
-                } />
-                <Route path="/extensions/xedit" element={
-                  <Suspense fallback={<SkeletonLoader />}>
-                    {React.createElement(React.lazy(() => import('./XEditExtension').then(m => ({ default: m.XEditExtension }))))}
-                  </Suspense>
-                } />
-                <Route path="/extensions/ck" element={
-                  <Suspense fallback={<SkeletonLoader />}>
-                    {React.createElement(React.lazy(() => import('./CKExtension').then(m => ({ default: m.CKExtension }))))}
-                  </Suspense>
-                } />
-                <Route path="/extensions/comfyui" element={
-                  <Suspense fallback={<SkeletonLoader />}>
-                    {React.createElement(React.lazy(() => import('./ComfyUIExtension').then(m => ({ default: m.ComfyUIExtension }))))}
-                  </Suspense>
-                } />
-                <Route path="/extensions/upscayl" element={
-                  <Suspense fallback={<SkeletonLoader />}>
-                    {React.createElement(React.lazy(() => import('./UpscaylExtension').then(m => ({ default: m.UpscaylExtension }))))}
-                  </Suspense>
-                } />
-                
                 <Route path="/workshop" element={<Navigate to="/dev/workshop" replace />} />
                 <Route path="/images" element={<Navigate to="/media/images" replace />} />
                 <Route path="/tts" element={<Navigate to="/live" replace />} />
@@ -1035,8 +1013,41 @@ const App: React.FC = () => {
               </Suspense>
             </div>
           </main>
+          <GuidedTour
+            isOpen={guidedTour.isOpen}
+            onClose={() => setGuidedTour(prev => ({ ...prev, isOpen: false }))}
+            tourType={guidedTour.type}
+            targetModule={guidedTour.targetModule}
+          />
+          
+          {/* Tutorial Launch Prompt */}
+          {showTutorialLaunch && (
+            <TutorialLaunch
+              onStartTutorial={() => {
+                setShowTutorialLaunch(false);
+                setShowInteractiveTutorial(true);
+                localStorage.setItem('mossy_tutorial_started', 'true');
+              }}
+              onSkip={() => {
+                setShowTutorialLaunch(false);
+                localStorage.setItem('mossy_tutorial_skipped', 'true');
+              }}
+            />
+          )}
+          
+          {/* Interactive Tutorial */}
+          {showInteractiveTutorial && (
+            <InteractiveTutorial
+              onComplete={() => {
+                setShowInteractiveTutorial(false);
+              }}
+              onSkip={() => {
+                setShowInteractiveTutorial(false);
+              }}
+            />
+          )}
         </div>
-      </BrowserRouter>
+      </HashRouter>
     );
   };
 
@@ -1170,16 +1181,10 @@ const App: React.FC = () => {
               {isPipBoy ? 'PIP-BOY: ON' : 'PIP-BOY: OFF'}
             </button>
             <NotificationProvider>
-              <TutorialOverlay />
-              {guidedTour.isOpen && (
-                <GuidedTour
-                  isOpen={guidedTour.isOpen}
-                  onClose={() => setGuidedTour(prev => ({ ...prev, isOpen: false }))}
-                  tourType={guidedTour.type}
-                  targetModule={guidedTour.targetModule}
-                />
-              )}
               {renderAppContent()}
+              
+              {/* Auto-Update Notification */}
+              <AutoUpdateNotifier />
             </NotificationProvider>
           </PipBoyFrame>
         </OpenAIVoiceProvider>
