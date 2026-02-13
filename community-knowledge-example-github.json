@@ -1,0 +1,34 @@
+{
+  "packId": "photoshop-brushes-v1",
+  "packName": "Photoshop Brushes for FO4 Textures",
+  "packVersion": "1.0.0",
+  "exportDate": "2026-02-13",
+  "description": "Essential Photoshop brush techniques for creating Fallout 4 textures",
+  "author": "CommunityModder123",
+  "items": [
+    {
+      "id": "brush-basics-fo4",
+      "title": "Photoshop Brush Basics for FO4 Weathering",
+      "content": "# Photoshop Brush Techniques for Fallout 4 Weathering\n\n## Overview\nCreating realistic weathered textures is essential for Fallout 4 modding. This guide covers brush techniques for adding dirt, rust, and damage.\n\n## Essential Brushes\n\n### 1. Grunge Brush\n- Size: 500-1000px\n- Hardness: 0%\n- Opacity: 20-40%\n- Use: Overall dirt and grime layers\n\n### 2. Detail Damage Brush\n- Size: 50-200px\n- Hardness: 50%\n- Opacity: 60-80%\n- Use: Scratches, bullet holes, edge damage\n\n### 3. Rust Brush\n- Size: Variable\n- Hardness: 0%\n- Opacity: 30-50%\n- Flow: 50%\n- Use: Rust spots and corrosion\n\n## Technique: Layered Weathering\n\n1. **Base Layer**: Start with clean texture\n2. **Dirt Layer**: Use grunge brush with dark brown (opacity 20%)\n3. **Edge Wear**: Detail brush on edges where paint would wear\n4. **Rust Layer**: Orange/brown rust spots (blend mode: Multiply)\n5. **Final Details**: Small scratches and bullet impacts\n\n## Color Palette for Wasteland\n\n- Dirt: #3D2E1F\n- Rust: #8B4513, #CD853F\n- Grime: #1A1A1A\n- Dust: #B8957A\n\n## Pro Tips\n\n- Always work on separate layers\n- Use layer masks for non-destructive editing\n- Vary brush opacity for realistic variation\n- Reference real-world rust and decay photos\n- Test in-game with different lighting\n\n## Common Mistakes\n\n❌ Over-weathering everything uniformly\n❌ Using pure black for shadows\n❌ Ignoring normal maps\n❌ Not testing in Creation Kit\n\n✅ Vary weathering by surface type\n✅ Use dark browns/grays instead of black\n✅ Update normal maps to match weathering\n✅ Always preview in-game\n\n## Resources\n\n- Free grunge brushes: DeviantArt, BrushEezy\n- Rust photo references: Textures.com\n- FO4 color palette: Fallout 4 Art Book\n\nHappy texturing! 🎨",
+      "source": "Community Tutorial",
+      "creditName": "CommunityModder123",
+      "creditUrl": "https://nexusmods.com/fallout4/users/123456",
+      "trustLevel": "community",
+      "tags": ["photoshop", "textures", "brushes", "weathering", "tutorial"],
+      "date": "2026-02-13T10:00:00.000Z",
+      "status": "learned"
+    },
+    {
+      "id": "normal-map-brushes",
+      "title": "Creating Normal Maps with Photoshop Brushes",
+      "content": "# Normal Map Creation with Photoshop\n\n## What are Normal Maps?\n\nNormal maps add depth and detail to 3D surfaces without adding geometry. Essential for FO4 modding.\n\n## Tools Needed\n\n1. **NVIDIA Texture Tools** (Photoshop plugin)\n2. **Custom normal map brushes**\n3. **Height map workflow knowledge**\n\n## Workflow: Height to Normal\n\n### Step 1: Create Height Map\n- White = raised areas\n- Black = recessed areas\n- Gray = neutral surface\n\n### Step 2: Add Details with Brushes\n\n**Rivet Brush:**\n```\nSettings:\n- Size: 20-40px\n- Hardness: 100%\n- Color: White (for raised rivets)\n- Spacing: Even distribution\n```\n\n**Panel Line Brush:**\n```\nSettings:\n- Size: 5-10px\n- Hardness: 80%\n- Color: Black (for panel gaps)\n- Shape: Rectangular\n```\n\n### Step 3: Convert to Normal Map\n\n1. Filter → NVIDIA Tools → Normal Map Filter\n2. Settings:\n   - Scale: 3-7 (higher = more pronounced)\n   - Filter: 3x3 or 5x5\n   - Alpha: Height\n\n## Advanced Techniques\n\n### Multi-Layer Normal Maps\n\n1. **Base Layer**: Overall surface bumps\n2. **Detail Layer**: Fine scratches, grain\n3. **Macro Layer**: Large dents, damage\n\nCombine using normal map combine tools.\n\n### Brush Techniques for Realism\n\n**Scratches:**\n- Use thin, varied opacity strokes\n- Follow surface direction\n- Group in logical patterns\n\n**Dents:**\n- Create with dodge/burn\n- Darker center, lighter edges\n- Gradual falloff\n\n**Fabric/Leather Texture:**\n- Use fabric pattern brushes\n- Subtle height variation\n- Follow material flow\n\n## Testing In-Game\n\n1. Export as DXT5 (BC3) format\n2. Place in `Data/Textures/` folder\n3. Load in NifSkope or Creation Kit\n4. Check under different lighting\n\n## Common Issues\n\n**Problem:** Normal map looks inverted\n**Solution:** Flip green channel (Image → Adjustments → Channel Mixer)\n\n**Problem:** Details too strong/weak\n**Solution:** Adjust height map contrast before converting\n\n**Problem:** Seams visible on tiled textures\n**Solution:** Use offset filter, paint seamlessly\n\n## Resources\n\n- Normal map theory: Polycount Wiki\n- Free height brushes: TextureBox\n- NVIDIA Tools: NVIDIA Developer Site\n\nMaster normal maps for professional-quality mods! 🔧",
+      "source": "Community Tutorial",
+      "creditName": "CommunityModder123",
+      "creditUrl": "https://nexusmods.com/fallout4/users/123456",
+      "trustLevel": "community",
+      "tags": ["photoshop", "normal-maps", "textures", "advanced", "tutorial"],
+      "date": "2026-02-13T11:00:00.000Z",
+      "status": "learned"
+    }
+  ]
+}
