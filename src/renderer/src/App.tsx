@@ -72,6 +72,9 @@ const BodyslideGuide = React.lazy(() => import('./BodyslideGuide'));
 const SimSettlementsGuide = React.lazy(() => import('./SimSettlementsGuide'));
 const PaperScriptGuide = React.lazy(() => import('./PaperScriptGuide'));
 
+// INI Configuration Manager
+const IniConfigManager = React.lazy(() => import('./IniConfigManager'));
+
 // AI & Intelligence Features
 const WorkflowRecorder = React.lazy(() => import('./WorkflowRecorder').then(module => ({ default: module.WorkflowRecorder })));
 const PluginManager = React.lazy(() => import('./PluginManager').then(module => ({ default: module.PluginManager })));
@@ -901,6 +904,7 @@ const App: React.FC = () => {
                 <Route path="/tools" element={<ErrorBoundary><TheNexus /></ErrorBoundary>} />
                 <Route path="/tools/monitor" element={<Navigate to="/diagnostics" replace />} />
                 <Route path="/tools/auditor" element={<TheAuditor />} />
+                <Route path="/tools/ini-config" element={<ErrorBoundary><IniConfigManager /></ErrorBoundary>} />
                 <Route path="/tools/mining" element={<ErrorBoundary><MiningPanel /></ErrorBoundary>} />
                 <Route path="/tools/advanced-analysis" element={<ErrorBoundary><AdvancedAnalysisPanel /></ErrorBoundary>} />
                 <Route path="/tools/assembler" element={<Navigate to="/packaging-release" replace />} />
