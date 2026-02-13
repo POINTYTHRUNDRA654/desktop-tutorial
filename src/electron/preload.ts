@@ -809,6 +809,34 @@ const electronAPI = {
     },
   },
 
+  assetScanner: {
+    browseFolder: (): Promise<string | null> => {
+      return ipcRenderer.invoke(IPC_CHANNELS.ASSET_SCANNER_BROWSE_FOLDER);
+    },
+
+    scanForDuplicates: (scanPath: string): Promise<any> => {
+      return ipcRenderer.invoke(IPC_CHANNELS.ASSET_SCANNER_SCAN_DUPLICATES, scanPath);
+    },
+
+    cleanupDuplicates: (filesToRemove: string[]): Promise<any> => {
+      return ipcRenderer.invoke(IPC_CHANNELS.ASSET_SCANNER_CLEANUP_DUPLICATES, filesToRemove);
+    },
+
+    getLastScanPath: (): Promise<string | null> => {
+      return ipcRenderer.invoke(IPC_CHANNELS.ASSET_SCANNER_GET_LAST_PATH);
+    },
+
+    saveLastScanPath: (scanPath: string): Promise<boolean> => {
+      return ipcRenderer.invoke(IPC_CHANNELS.ASSET_SCANNER_SAVE_LAST_PATH, scanPath);
+    },
+
+    onScanProgress: (callback: (progress: any) => void): (() => void) => {
+      const subscription = (_event: any, progress: any) => callback(progress);
+      ipcRenderer.on('asset-scanner-progress', subscription);
+      return () => ipcRenderer.removeListener('asset-scanner-progress', subscription);
+    },
+  },
+
   /**
    * Generic IPC: Invoke a command in the main process
    */

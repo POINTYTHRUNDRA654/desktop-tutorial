@@ -89,6 +89,13 @@ export const IPC_CHANNELS = {
   INI_MANAGER_BACKUP_FILE: 'ini-manager-backup-file',
   INI_MANAGER_RESTORE_BACKUP: 'ini-manager-restore-backup',
 
+  // Asset Duplicate Scanner
+  ASSET_SCANNER_BROWSE_FOLDER: 'asset-scanner-browse-folder',
+  ASSET_SCANNER_SCAN_DUPLICATES: 'asset-scanner-scan-duplicates',
+  ASSET_SCANNER_CLEANUP_DUPLICATES: 'asset-scanner-cleanup-duplicates',
+  ASSET_SCANNER_GET_LAST_PATH: 'asset-scanner-get-last-path',
+  ASSET_SCANNER_SAVE_LAST_PATH: 'asset-scanner-save-last-path',
+
   // Roadmap System (Roadmap System)
   ROADMAP_CREATE: 'roadmap-create',
   ROADMAP_GET_ALL: 'roadmap-get-all',
