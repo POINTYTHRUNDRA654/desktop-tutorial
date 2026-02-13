@@ -80,3 +80,20 @@ external/cosmos-dependencies/
 external/cosmos-curate/
 external/cosmos-xenna/
 external/phoenix_live_view/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+env/
+ENV/
+.venv/
+pip-log.txt
+pip-delete-this-directory.txt
+*.egg-info/
+.pytest_cache/
+.coverage
+htmlcov/
