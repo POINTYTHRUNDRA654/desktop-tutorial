@@ -128,40 +128,37 @@ const IniConfigManager: React.FC = () => {
   const scanForIniFiles = async () => {
     setIsScanning(true);
     try {
-      // Try to find Fallout 4 directory
-      const documentsPath = await api?.getPath?.('documents');
-      const iniPaths = [
-        `${documentsPath}\\My Games\\Fallout4\\Fallout4.ini`,
-        `${documentsPath}\\My Games\\Fallout4\\Fallout4Prefs.ini`,
-        `${documentsPath}\\My Games\\Fallout4\\Fallout4Custom.ini`
-      ];
-
-      const foundFiles: IniFile[] = [];
-      
-      for (const path of iniPaths) {
-        try {
-          if (api?.readFile) {
-            const content = await api.readFile(path);
-            if (content) {
+      // Use the new INI Manager API to find files
+      if (api?.iniConfigManager?.findFiles) {
+        const results = await api.iniConfigManager.findFiles();
+        const foundFiles: IniFile[] = [];
+        
+        // Read content for files that exist
+        for (const result of results) {
+          if (result.exists) {
+            try {
+              const content = await api.iniConfigManager.readFile(result.path);
               foundFiles.push({
-                name: path.split('\\').pop() || 'Unknown',
-                path,
+                name: result.name,
+                path: result.path,
                 content,
                 lastModified: new Date()
               });
+            } catch (err) {
+              console.error(`Failed to read ${result.name}:`, err);
             }
           }
-        } catch (err) {
-          // File doesn't exist, skip
         }
-      }
 
-      setIniFiles(foundFiles);
-      if (foundFiles.length > 0) {
-        setSelectedFile(foundFiles[0]);
-        analyzeFile(foundFiles[0]);
+        setIniFiles(foundFiles);
+        if (foundFiles.length > 0) {
+          setSelectedFile(foundFiles[0]);
+          analyzeFile(foundFiles[0]);
+        } else {
+          showMessage('info', 'No INI files found. Please ensure Fallout 4 is installed.');
+        }
       } else {
-        showMessage('info', 'No INI files found. Please browse to your Fallout 4 folder.');
+        showMessage('error', 'INI Manager API not available');
       }
     } catch (error) {
       console.error('Failed to scan for INI files:', error);
@@ -317,15 +314,24 @@ const IniConfigManager: React.FC = () => {
     
     setIsSaving(true);
     try {
+      // Backup file first
+      if (api?.iniConfigManager?.backupFile) {
+        await api.iniConfigManager.backupFile(selectedFile.path);
+      }
+      
       // Reconstruct INI content
       const content = reconstructIniContent(parameters);
       
-      // Save file
-      if (api?.writeFile) {
-        await api.writeFile(selectedFile.path, content);
-        showMessage('success', 'INI file saved successfully');
+      // Save file using INI Manager API
+      if (api?.iniConfigManager?.writeFile) {
+        const success = await api.iniConfigManager.writeFile(selectedFile.path, content);
+        if (success) {
+          showMessage('success', 'INI file saved successfully (backup created)');
+        } else {
+          showMessage('error', 'Failed to save INI file');
+        }
       } else {
-        showMessage('error', 'File saving not available');
+        showMessage('error', 'INI Manager API not available');
       }
     } catch (error) {
       console.error('Failed to save file:', error);
