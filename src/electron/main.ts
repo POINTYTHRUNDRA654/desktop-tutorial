@@ -5,7 +5,7 @@
  * Handles window creation, IPC communication for program detection and launching.
  */
 
-import { app, BrowserWindow, ipcMain, dialog, shell, safeStorage } from 'electron';
+import { app, BrowserWindow, ipcMain, dialog, shell, safeStorage, screen } from 'electron';
 import path from 'path';
 import os from 'os';
 import { IPC_CHANNELS } from './types';
