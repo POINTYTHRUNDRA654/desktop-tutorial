@@ -4769,6 +4769,124 @@ function setupIpcHandlers() {
     }
   });
 
+  // =========================================================================
+  // AUTOMATION ENGINE
+  // =========================================================================
+
+  const { getAutomationEngine } = require('./automationEngine');
+  const automationEngine = getAutomationEngine();
+
+  // Listen for automation events and forward to renderer
+  automationEngine.on('rule-executed', (data: any) => {
+    // Broadcast to all windows
+    BrowserWindow.getAllWindows().forEach(win => {
+      win.webContents.send('automation:rule-executed', data);
+    });
+  });
+
+  // Handle automation actions
+  automationEngine.on('action:scan-conflicts', async () => {
+    console.log('[Automation] Triggering conflict scan...');
+    // Could trigger IPC event to main window
+  });
+
+  automationEngine.on('action:scan-duplicates', async () => {
+    console.log('[Automation] Triggering duplicate scan...');
+  });
+
+  automationEngine.on('action:start-log-monitor', async () => {
+    console.log('[Automation] Starting log monitor...');
+  });
+
+  automationEngine.on('action:create-backup', async () => {
+    console.log('[Automation] Creating backup...');
+  });
+
+  automationEngine.on('action:run-maintenance', async () => {
+    console.log('[Automation] Running maintenance tasks...');
+  });
+
+  // Automation IPC Handlers
+  registerHandler(IPC_CHANNELS.AUTOMATION_START, async () => {
+    try {
+      automationEngine.start();
+      return { success: true };
+    } catch (error) {
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : String(error)
+      };
+    }
+  });
+
+  registerHandler(IPC_CHANNELS.AUTOMATION_STOP, async () => {
+    try {
+      automationEngine.stop();
+      return { success: true };
+    } catch (error) {
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : String(error)
+      };
+    }
+  });
+
+  registerHandler(IPC_CHANNELS.AUTOMATION_GET_SETTINGS, async () => {
+    return automationEngine.getSettings();
+  });
+
+  registerHandler(IPC_CHANNELS.AUTOMATION_UPDATE_SETTINGS, async (_event, settings: any) => {
+    try {
+      automationEngine.updateSettings(settings);
+      return { success: true };
+    } catch (error) {
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : String(error)
+      };
+    }
+  });
+
+  registerHandler(IPC_CHANNELS.AUTOMATION_TOGGLE_RULE, async (_event, ruleId: string, enabled: boolean) => {
+    try {
+      automationEngine.toggleRule(ruleId, enabled);
+      return { success: true };
+    } catch (error) {
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : String(error)
+      };
+    }
+  });
+
+  registerHandler(IPC_CHANNELS.AUTOMATION_TRIGGER_RULE, async (_event, ruleId: string) => {
+    try {
+      automationEngine.triggerRule(ruleId);
+      return { success: true };
+    } catch (error) {
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : String(error)
+      };
+    }
+  });
+
+  registerHandler(IPC_CHANNELS.AUTOMATION_GET_STATISTICS, async () => {
+    return automationEngine.getStatistics();
+  });
+
+  registerHandler(IPC_CHANNELS.AUTOMATION_RESET_STATISTICS, async () => {
+    try {
+      automationEngine.resetStatistics();
+      return { success: true };
+    } catch (error) {
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : String(error)
+      };
+    }
+  });
+
   // Mark handlers as registered
   (global as any).__ipcHandlersRegistered = true;
   console.log('[Main] IPC handlers registration complete');

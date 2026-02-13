@@ -85,6 +85,7 @@ const FormIdRemapper = React.lazy(() => import('./FormIdRemapper'));
 const ModComparisonTool = React.lazy(() => import('./ModComparisonTool'));
 const PrecombineGenerator = React.lazy(() => import('./PrecombineGenerator'));
 const VoiceCommands = React.lazy(() => import('./VoiceCommands'));
+const AutomationManager = React.lazy(() => import('./AutomationManager'));
 
 // AI & Intelligence Features
 const WorkflowRecorder = React.lazy(() => import('./WorkflowRecorder').then(module => ({ default: module.WorkflowRecorder })));
@@ -925,6 +926,7 @@ const App: React.FC = () => {
                 <Route path="/tools/mod-comparison" element={<ErrorBoundary><ModComparisonTool /></ErrorBoundary>} />
                 <Route path="/tools/precombine-generator" element={<ErrorBoundary><PrecombineGenerator /></ErrorBoundary>} />
                 <Route path="/tools/voice-commands" element={<ErrorBoundary><VoiceCommands /></ErrorBoundary>} />
+                <Route path="/tools/automation" element={<ErrorBoundary><AutomationManager /></ErrorBoundary>} />
                 <Route path="/tools/mining" element={<ErrorBoundary><MiningPanel /></ErrorBoundary>} />
                 <Route path="/tools/advanced-analysis" element={<ErrorBoundary><AdvancedAnalysisPanel /></ErrorBoundary>} />
                 <Route path="/tools/assembler" element={<Navigate to="/packaging-release" replace />} />

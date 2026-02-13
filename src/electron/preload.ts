@@ -189,6 +189,16 @@ const IPC_CHANNELS = {
   VOICE_COMMANDS_START: 'voice-commands-start',
   VOICE_COMMANDS_STOP: 'voice-commands-stop',
   VOICE_COMMANDS_EXECUTE: 'voice-commands-execute',
+
+  // Automation Engine
+  AUTOMATION_START: 'automation-start',
+  AUTOMATION_STOP: 'automation-stop',
+  AUTOMATION_GET_SETTINGS: 'automation-get-settings',
+  AUTOMATION_UPDATE_SETTINGS: 'automation-update-settings',
+  AUTOMATION_TOGGLE_RULE: 'automation-toggle-rule',
+  AUTOMATION_TRIGGER_RULE: 'automation-trigger-rule',
+  AUTOMATION_GET_STATISTICS: 'automation-get-statistics',
+  AUTOMATION_RESET_STATISTICS: 'automation-reset-statistics',
 } as const;
 
 /**
@@ -1065,6 +1075,49 @@ const electronAPI = {
       const subscription = (_event: any, text: string) => callback(text);
       ipcRenderer.on('voice-transcript', subscription);
       return () => ipcRenderer.removeListener('voice-transcript', subscription);
+    },
+  },
+
+  // =========================================================================
+  // AUTOMATION ENGINE API
+  // =========================================================================
+  automation: {
+    start: (): Promise<{ success: boolean }> => {
+      return ipcRenderer.invoke(IPC_CHANNELS.AUTOMATION_START);
+    },
+
+    stop: (): Promise<{ success: boolean }> => {
+      return ipcRenderer.invoke(IPC_CHANNELS.AUTOMATION_STOP);
+    },
+
+    getSettings: (): Promise<any> => {
+      return ipcRenderer.invoke(IPC_CHANNELS.AUTOMATION_GET_SETTINGS);
+    },
+
+    updateSettings: (settings: any): Promise<{ success: boolean }> => {
+      return ipcRenderer.invoke(IPC_CHANNELS.AUTOMATION_UPDATE_SETTINGS, settings);
+    },
+
+    toggleRule: (ruleId: string, enabled: boolean): Promise<{ success: boolean }> => {
+      return ipcRenderer.invoke(IPC_CHANNELS.AUTOMATION_TOGGLE_RULE, ruleId, enabled);
+    },
+
+    triggerRule: (ruleId: string): Promise<{ success: boolean }> => {
+      return ipcRenderer.invoke(IPC_CHANNELS.AUTOMATION_TRIGGER_RULE, ruleId);
+    },
+
+    getStatistics: (): Promise<any> => {
+      return ipcRenderer.invoke(IPC_CHANNELS.AUTOMATION_GET_STATISTICS);
+    },
+
+    resetStatistics: (): Promise<{ success: boolean }> => {
+      return ipcRenderer.invoke(IPC_CHANNELS.AUTOMATION_RESET_STATISTICS);
+    },
+
+    onRuleExecuted: (callback: (data: any) => void): (() => void) => {
+      const subscription = (_event: any, data: any) => callback(data);
+      ipcRenderer.on('automation:rule-executed', subscription);
+      return () => ipcRenderer.removeListener('automation:rule-executed', subscription);
     },
   },
 
