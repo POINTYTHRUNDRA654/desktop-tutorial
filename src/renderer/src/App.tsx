@@ -94,6 +94,9 @@ const MiningDashboard = React.lazy(() => import('./MiningDashboard').then(module
 const MiningPanel = React.lazy(() => import('./MiningPanel').then(module => ({ default: module.MiningPanel })));
 const AdvancedAnalysisPanel = React.lazy(() => import('./AdvancedAnalysisPanel').then(module => ({ default: module.AdvancedAnalysisPanel })));
 
+// CK Crash Prevention
+const CKCrashPrevention = React.lazy(() => import('./CKCrashPrevention'));
+
 // Knowledge & Memory
 const MossyMemoryVault = React.lazy(() => import('./MossyMemoryVault'));
 
@@ -904,6 +907,7 @@ const App: React.FC = () => {
                 <Route path="/tools" element={<ErrorBoundary><TheNexus /></ErrorBoundary>} />
                 <Route path="/tools/monitor" element={<Navigate to="/diagnostics" replace />} />
                 <Route path="/tools/auditor" element={<TheAuditor />} />
+                <Route path="/tools/ck-crash-prevention" element={<CKCrashPrevention />} />
                 <Route path="/tools/mining" element={<ErrorBoundary><MiningPanel /></ErrorBoundary>} />
                 <Route path="/tools/advanced-analysis" element={<ErrorBoundary><AdvancedAnalysisPanel /></ErrorBoundary>} />
                 <Route path="/tools/assembler" element={<Navigate to="/packaging-release" replace />} />
