@@ -12,7 +12,7 @@ export type BrowserTtsSettings = {
 const DEFAULT_SETTINGS: BrowserTtsSettings = {
   enabled: true,
   preferredVoiceName: undefined,
-  rate: 1.0,
+  rate: 0.85,
   pitch: 1.0,
   volume: 0.85,
 };
