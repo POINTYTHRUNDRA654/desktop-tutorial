@@ -2298,6 +2298,60 @@ function setupIpcHandlers() {
     }
   });
 
+  // --- CK Crash Prevention Handlers ---
+  registerHandler('ck-crash-prevention:validate', async (_event, espPath: string, modName?: string, cellCount?: number) => {
+    try {
+      const { CKCrashPreventionEngine } = await import('../mining/ckCrashPrevention');
+      const engine = new CKCrashPreventionEngine();
+      const result = await engine.validateBeforeCK({ espPath, modName, cellCount });
+      return { success: true, result };
+    } catch (error: any) {
+      console.error('CK validation error:', error);
+      return { success: false, error: error.message };
+    }
+  });
+
+  registerHandler('ck-crash-prevention:analyze-crash', async (_event, logPath: string) => {
+    try {
+      const { CKCrashPreventionEngine } = await import('../mining/ckCrashPrevention');
+      const engine = new CKCrashPreventionEngine();
+      const diagnosis = await engine.analyzeCrashLog(logPath);
+      return { success: true, diagnosis };
+    } catch (error: any) {
+      console.error('Crash analysis error:', error);
+      return { success: false, error: error.message };
+    }
+  });
+
+  registerHandler('ck-crash-prevention:generate-plan', async (_event, validation: any) => {
+    try {
+      const { CKCrashPreventionEngine } = await import('../mining/ckCrashPrevention');
+      const engine = new CKCrashPreventionEngine();
+      const plan = engine.generatePreventionPlan(validation);
+      return { success: true, plan };
+    } catch (error: any) {
+      console.error('Plan generation error:', error);
+      return { success: false, error: error.message };
+    }
+  });
+
+  // File picker for crash logs
+  registerHandler('ck-crash-prevention:pick-log-file', async () => {
+    const result = await dialog.showOpenDialog({
+      properties: ['openFile'],
+      filters: [
+        { name: 'Log Files', extensions: ['log', 'txt'] },
+        { name: 'All Files', extensions: ['*'] }
+      ],
+      title: 'Select CK Crash Log'
+    });
+
+    if (!result.canceled && result.filePaths.length > 0) {
+      return { success: true, path: result.filePaths[0] };
+    }
+    return { success: false };
+  });
+
   // --- Workshop: Browse directory and list files ---
   registerHandler(IPC_CHANNELS.WORKSHOP_BROWSE_DIRECTORY, async (_event, startPath?: string) => {
     try {
