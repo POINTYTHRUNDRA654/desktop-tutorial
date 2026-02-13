@@ -128,6 +128,14 @@ const IPC_CHANNELS = {
   WIZARD_GET_STATE: 'wizard-get-state',
   WIZARD_UPDATE_STEP: 'wizard-update-step',
   WIZARD_SUBMIT_ACTION: 'wizard-submit-action',
+
+  // INI Configuration Manager
+  INI_MANAGER_READ_FILE: 'ini-manager-read-file',
+  INI_MANAGER_WRITE_FILE: 'ini-manager-write-file',
+  INI_MANAGER_FIND_FILES: 'ini-manager-find-files',
+  INI_MANAGER_GET_HARDWARE: 'ini-manager-get-hardware',
+  INI_MANAGER_BACKUP_FILE: 'ini-manager-backup-file',
+  INI_MANAGER_RESTORE_BACKUP: 'ini-manager-restore-backup',
 } as const;
 
 /**
@@ -770,6 +778,35 @@ const electronAPI = {
     const subscription = (_event: any, status: any) => callback(status);
     ipcRenderer.on('update-status', subscription);
     return () => ipcRenderer.removeListener('update-status', subscription);
+  },
+
+  /**
+   * INI Configuration Manager: Read an INI file
+   */
+  iniConfigManager: {
+    readFile: (filePath: string): Promise<string> => {
+      return ipcRenderer.invoke(IPC_CHANNELS.INI_MANAGER_READ_FILE, filePath);
+    },
+
+    writeFile: (filePath: string, content: string): Promise<boolean> => {
+      return ipcRenderer.invoke(IPC_CHANNELS.INI_MANAGER_WRITE_FILE, filePath, content);
+    },
+
+    findFiles: (gamePath?: string): Promise<{ name: string; path: string; exists: boolean }[]> => {
+      return ipcRenderer.invoke(IPC_CHANNELS.INI_MANAGER_FIND_FILES, gamePath);
+    },
+
+    getHardwareProfile: (): Promise<any> => {
+      return ipcRenderer.invoke(IPC_CHANNELS.INI_MANAGER_GET_HARDWARE);
+    },
+
+    backupFile: (filePath: string): Promise<boolean> => {
+      return ipcRenderer.invoke(IPC_CHANNELS.INI_MANAGER_BACKUP_FILE, filePath);
+    },
+
+    restoreBackup: (filePath: string): Promise<boolean> => {
+      return ipcRenderer.invoke(IPC_CHANNELS.INI_MANAGER_RESTORE_BACKUP, filePath);
+    },
   },
 
   /**

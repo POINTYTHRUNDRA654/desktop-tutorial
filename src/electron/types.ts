@@ -81,6 +81,14 @@ export const IPC_CHANNELS = {
   WIZARD_UPDATE_STEP: 'wizard-update-step',
   WIZARD_SUBMIT_ACTION: 'wizard-submit-action',
 
+  // INI Configuration Manager
+  INI_MANAGER_READ_FILE: 'ini-manager-read-file',
+  INI_MANAGER_WRITE_FILE: 'ini-manager-write-file',
+  INI_MANAGER_FIND_FILES: 'ini-manager-find-files',
+  INI_MANAGER_GET_HARDWARE: 'ini-manager-get-hardware',
+  INI_MANAGER_BACKUP_FILE: 'ini-manager-backup-file',
+  INI_MANAGER_RESTORE_BACKUP: 'ini-manager-restore-backup',
+
   // Roadmap System (Roadmap System)
   ROADMAP_CREATE: 'roadmap-create',
   ROADMAP_GET_ALL: 'roadmap-get-all',
