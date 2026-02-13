@@ -1,52 +1,13 @@
 import React, { useState } from 'react';
 import { Shield, Upload, FileText, AlertTriangle, CheckCircle2, XCircle, Clock, AlertCircle } from 'lucide-react';
-
-interface ValidationIssue {
-  type: 'file_size' | 'memory' | 'known_mod' | 'missing_master' | 'corrupted_mesh';
-  severity: 'warning' | 'error' | 'critical';
-  message: string;
-  fix?: string;
-  cellId?: string;
-}
-
-interface ValidationWarning {
-  message: string;
-  recommendation: string;
-}
-
-interface ValidationResult {
-  safe: boolean;
-  issues: ValidationIssue[];
-  warnings: ValidationWarning[];
-  recommendations: string[];
-  estimatedMemoryUsage: number;
-  riskLevel: 'low' | 'medium' | 'high' | 'critical';
-}
-
-interface PreventionStep {
-  id: string;
-  title: string;
-  description: string;
-  tool?: string;
-  command?: string;
-  completed: boolean;
-}
-
-interface PreventionPlan {
-  priority: 'low' | 'medium' | 'high';
-  steps: PreventionStep[];
-  estimatedTime: number;
-}
-
-interface CrashDiagnosis {
-  exceptionCode?: string;
-  exceptionType: 'access_violation' | 'memory_error' | 'timeout' | 'unknown';
-  problematicCell?: string;
-  knownIssue?: any;
-  rootCause: string;
-  fixSteps: string[];
-  relatedKnowledgeArticles: string[];
-}
+import type {
+  ValidationIssue,
+  ValidationWarning,
+  CKValidationResult,
+  PreventionStep,
+  PreventionPlan,
+  CrashDiagnosis
+} from '../../shared/types';
 
 const CKCrashPrevention: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'preflight' | 'monitoring' | 'analysis'>('preflight');
@@ -56,7 +17,7 @@ const CKCrashPrevention: React.FC = () => {
   const [modName, setModName] = useState<string>('');
   const [cellCount, setCellCount] = useState<string>('');
   const [isValidating, setIsValidating] = useState(false);
-  const [validationResult, setValidationResult] = useState<ValidationResult | null>(null);
+  const [validationResult, setValidationResult] = useState<CKValidationResult | null>(null);
   const [preventionPlan, setPreventionPlan] = useState<PreventionPlan | null>(null);
   
   // Post-Crash state
