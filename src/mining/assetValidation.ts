@@ -952,7 +952,6 @@ export class AssetValidationEngine {
     const ext = path.extname(file).toLowerCase();
 
     switch (ext) {
-<<<<<<< Updated upstream
       case '.nif': {
         const nifResult = await this.validateNIF(file);
         return nifResult.issues;
@@ -975,7 +974,6 @@ export class AssetValidationEngine {
         const soundResult = await this.validateSound(file);
         return soundResult.issues;
       }
-=======
       case '.nif':
         const nifResult = await this.validateNIF(file);
         return nifResult.issues;
@@ -993,7 +991,6 @@ export class AssetValidationEngine {
       case '.xwm':
         const soundResult = await this.validateSound(file);
         return soundResult.issues;
->>>>>>> Stashed changes
       default:
         return [];
     }
@@ -1126,12 +1123,9 @@ export class AssetValidationEngine {
     const text = buffer.toString('binary');
 
     // Simple regex to find MAST records
-<<<<<<< Updated upstream
     // eslint-disable-next-line no-control-regex
     const mastRegex = new RegExp('MAST.{4}([^\\u0000]+\\.es[mp])', 'gi');
-=======
     const mastRegex = /MAST.{4}([^\x00]+\.es[mp])/gi;
->>>>>>> Stashed changes
     let match;
 
     while ((match = mastRegex.exec(text)) !== null) {
@@ -1186,23 +1180,17 @@ export class AssetValidationEngine {
 
   private extractAuthor(buffer: Buffer): string | undefined {
     const text = buffer.toString('binary', 0, 1024);
-<<<<<<< Updated upstream
     // eslint-disable-next-line no-control-regex
     const authorMatch = text.match(new RegExp('CNAM.{4}([^\\u0000]+)'));
-=======
     const authorMatch = text.match(/CNAM.{4}([^\x00]+)/);
->>>>>>> Stashed changes
     return authorMatch ? authorMatch[1] : undefined;
   }
 
   private extractDescription(buffer: Buffer): string | undefined {
     const text = buffer.toString('binary', 0, 2048);
-<<<<<<< Updated upstream
     // eslint-disable-next-line no-control-regex
     const descMatch = text.match(new RegExp('SNAM.{4}([^\\u0000]+)'));
-=======
     const descMatch = text.match(/SNAM.{4}([^\x00]+)/);
->>>>>>> Stashed changes
     return descMatch ? descMatch[1] : undefined;
   }
 
