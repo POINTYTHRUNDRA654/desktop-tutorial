@@ -843,6 +843,14 @@ export const PluginManager: React.FC = () => {
         <p>Install, manage, and develop plugins to extend Mossy's capabilities</p>
       </div>
 
+      {/* Demo Feature Notice */}
+      <div className="error-banner" style={{ background: 'rgba(59, 130, 246, 0.1)', borderColor: 'rgba(59, 130, 246, 0.3)' }}>
+        <span style={{ color: '#60a5fa' }}>
+          ℹ️ <strong>Demo Feature:</strong> The Plugin Manager is a demonstration of the planned plugin system architecture. 
+          Plugin installation and marketplace features are not yet implemented. This UI showcases the intended user experience.
+        </span>
+      </div>
+
       {/* Error Display */}
       {state.error && (
         <div className="error-banner">
