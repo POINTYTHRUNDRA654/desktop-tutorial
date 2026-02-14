@@ -118,6 +118,11 @@ const AdvancedAnalysisPanel = React.lazy(() => import('./AdvancedAnalysisPanel')
 // CK Crash Prevention
 const CKCrashPrevention = React.lazy(() => import('./CKCrashPrevention'));
 
+// CK Tools
+const CKExtension = React.lazy(() => import('./CKExtension').then(module => ({ default: module.CKExtension })));
+const CKSafetyPanel = React.lazy(() => import('./CKSafetyPanel'));
+const XEditExtension = React.lazy(() => import('./XEditExtension'));
+
 // Knowledge & Memory
 const MossyMemoryVault = React.lazy(() => import('./MossyMemoryVault'));
 const DDSConverter = React.lazy(() => import('./DDSConverter').then(module => ({ default: module.DDSConverter })));
@@ -937,6 +942,9 @@ const App: React.FC = () => {
                 <Route path="/tools/asset-scanner" element={<ErrorBoundary><AssetDuplicateScanner /></ErrorBoundary>} />
                 <Route path="/tools/log-monitor" element={<ErrorBoundary><GameLogMonitor /></ErrorBoundary>} />
                 <Route path="/tools/xedit-executor" element={<ErrorBoundary><XEditScriptExecutor /></ErrorBoundary>} />
+                <Route path="/tools/xedit-extension" element={<ErrorBoundary><XEditExtension /></ErrorBoundary>} />
+                <Route path="/tools/ck-extension" element={<ErrorBoundary><CKExtension /></ErrorBoundary>} />
+                <Route path="/tools/ck-safety" element={<ErrorBoundary><CKSafetyPanel /></ErrorBoundary>} />
                 <Route path="/tools/project-templates" element={<ErrorBoundary><ProjectTemplates /></ErrorBoundary>} />
                 <Route path="/tools/conflict-visualizer" element={<ErrorBoundary><ModConflictVisualizer /></ErrorBoundary>} />
                 <Route path="/tools/formid-remapper" element={<ErrorBoundary><FormIdRemapper /></ErrorBoundary>} />
@@ -1126,6 +1134,10 @@ const App: React.FC = () => {
                 <Route path="/havok" element={<Navigate to="/guides/blender/animation" replace />} />
                 <Route path="/havok-quick-start" element={<Navigate to="/guides/blender/animation" replace />} />
                 <Route path="/havok-fo4" element={<Navigate to="/guides/blender/animation" replace />} />
+                
+                {/* Extension shortcuts */}
+                <Route path="/extensions/xedit" element={<Navigate to="/tools/xedit-extension" replace />} />
+                <Route path="/extensions/ck" element={<Navigate to="/tools/ck-extension" replace />} />
                 </Routes>
               </Suspense>
             </div>
