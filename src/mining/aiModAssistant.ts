@@ -25,11 +25,7 @@ function makeId(prefix = 'ia') { return `${prefix}_${Math.floor(Math.random() * 
  * - Lightweight, deterministic stubs used for UI wiring and unit tests.
  * - Replace with an LLM-backed implementation when integrating with a model provider.
  */
-<<<<<<< Updated upstream
 export class AIModAssistantEngineImpl implements AIModAssistantEngine {
-=======
-export class AIModAssistantEngine implements AIModAssistantEngine {
->>>>>>> Stashed changes
   private conversations: Record<string, { id: string; history: { role: string; content: string }[] }> = {};
   private feedbackLog: Record<string, { interactionId: string; helpful: boolean; at: number }[]> = {};
 
@@ -71,7 +67,6 @@ export class AIModAssistantEngine implements AIModAssistantEngine {
 
   async explainCode(code: string): Promise<Explanation> {
     const summary = `This code appears to be ${code.slice(0, 40)}... (stub explanation)`;
-<<<<<<< Updated upstream
     return {
       summary,
       breakdown: [],
@@ -84,16 +79,7 @@ export class AIModAssistantEngine implements AIModAssistantEngine {
   async refactorCode(code: string, improvements: string[]): Promise<RefactoredCode> {
     const refactored = `${code}\n// Refactored: ${improvements.join(', ')}`;
     return { original: code, refactored, changes: [{ type: 'restructure', description: 'Applied simple refactor', before: code, after: refactored }], improvements, testSuggestions: [] };
-=======
-    const steps = ['Describe purpose', 'Explain main flow', 'Mention possible issues'];
-    return { summary, steps, references: [] };
-  }
 
-  async refactorCode(code: string, improvements: string[]): Promise<RefactoredCode> {
-    const improved = `${code}\n// Refactored: ${improvements.join(', ')}`;
-    const diff = `- original\n+ refactored (stub)`;
-    return { original: code, improved, diff };
->>>>>>> Stashed changes
   }
 
   // ----------------------
