@@ -81,7 +81,7 @@ const AssetDeduplicator = React.lazy(() => import('./AssetDeduplicator'));
 
 // New Power Tools (Features 3-10)
 const GameLogMonitor = React.lazy(() => import('./GameLogMonitor'));
-const XEditScriptExecutor = React.lazy(() => import('./XEditScriptExecutor'));
+const XEditTools = React.lazy(() => import('./XEditTools'));
 const ProjectTemplates = React.lazy(() => import('./ProjectTemplates'));
 const ModConflictVisualizer = React.lazy(() => import('./ModConflictVisualizer'));
 const FormIdRemapper = React.lazy(() => import('./FormIdRemapper'));
@@ -120,7 +120,6 @@ const CKCrashPrevention = React.lazy(() => import('./CKCrashPrevention'));
 
 // CK Tools
 const CKExtension = React.lazy(() => import('./CKExtension').then(module => ({ default: module.CKExtension })));
-const XEditExtension = React.lazy(() => import('./XEditExtension'));
 
 // Knowledge & Memory
 const MossyMemoryVault = React.lazy(() => import('./MossyMemoryVault'));
@@ -943,8 +942,10 @@ const App: React.FC = () => {
                 <Route path="/tools/asset-scanner" element={<Navigate to="/tools/asset-deduplicator" replace />} />
                 <Route path="/tools/dedupe" element={<Navigate to="/tools/asset-deduplicator" replace />} />
                 <Route path="/tools/log-monitor" element={<ErrorBoundary><GameLogMonitor /></ErrorBoundary>} />
-                <Route path="/tools/xedit-executor" element={<ErrorBoundary><XEditScriptExecutor /></ErrorBoundary>} />
-                <Route path="/tools/xedit-extension" element={<ErrorBoundary><XEditExtension /></ErrorBoundary>} />
+                <Route path="/tools/xedit" element={<ErrorBoundary><XEditTools /></ErrorBoundary>} />
+                {/* Legacy xEdit routes redirect to unified tool */}
+                <Route path="/tools/xedit-executor" element={<Navigate to="/tools/xedit" replace />} />
+                <Route path="/tools/xedit-extension" element={<Navigate to="/tools/xedit" replace />} />
                 <Route path="/tools/ck-extension" element={<ErrorBoundary><CKExtension /></ErrorBoundary>} />
                 <Route path="/tools/ck-safety" element={<ErrorBoundary><CKSafetyPanel /></ErrorBoundary>} />
                 <Route path="/tools/project-templates" element={<ErrorBoundary><ProjectTemplates /></ErrorBoundary>} />
@@ -1139,7 +1140,7 @@ const App: React.FC = () => {
                 <Route path="/havok-fo4" element={<Navigate to="/guides/blender/animation" replace />} />
                 
                 {/* Extension shortcuts */}
-                <Route path="/extensions/xedit" element={<Navigate to="/tools/xedit-extension" replace />} />
+                <Route path="/extensions/xedit" element={<Navigate to="/tools/xedit" replace />} />
                 <Route path="/extensions/ck" element={<Navigate to="/tools/ck-extension" replace />} />
                 </Routes>
               </Suspense>
