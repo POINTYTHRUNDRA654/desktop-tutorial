@@ -12,7 +12,43 @@ Object.defineProperty(window, 'electronAPI', {
       startAllEngines: vi.fn(),
       stopAllEngines: vi.fn(),
       refreshAllEngines: vi.fn()
-    }
+    },
+    // CellEditor API mocks
+    loadCell: vi.fn(),
+    saveCell: vi.fn(),
+    createCell: vi.fn(),
+    placeObject: vi.fn(),
+    moveObject: vi.fn(),
+    deleteObject: vi.fn(),
+    duplicateObject: vi.fn(),
+    generateNavmesh: vi.fn(),
+    editNavmesh: vi.fn(),
+    finalizeNavmesh: vi.fn(),
+    placeLight: vi.fn(),
+    bakeAO: vi.fn(),
+    generateCollision: vi.fn(),
+    generateOcclusionPlanes: vi.fn(),
+    createCombinedMesh: vi.fn(),
+
+    // AudioEditor API mocks
+    audioEditor: {
+      convertToXWM: vi.fn(),
+      convertToFUZ: vi.fn(),
+      batchConvertAudio: vi.fn(),
+      generateLipSync: vi.fn(),
+      phonemeAnalysis: vi.fn(),
+      createMusicTrack: vi.fn(),
+      setMusicConditions: vi.fn(),
+      createMusicPlaylist: vi.fn(),
+      createSoundDescriptor: vi.fn(),
+      set3DAttenuation: vi.fn(),
+      playAudio: vi.fn(),
+      stopAudio: vi.fn(),
+      createAmbientSound: vi.fn(),
+      normalizeVolume: vi.fn(),
+      removeNoise: vi.fn(),
+      applyEffect: vi.fn(),
+    },
   },
   writable: true
 });

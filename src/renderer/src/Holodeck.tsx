@@ -15,16 +15,16 @@ interface TestScenario {
 }
 
 interface TestStep {
-    action: string;
-    expectedResult: string;
-    riskAreas: string[];
+    action: 'spawn' | 'teleport' | 'execute-console' | 'wait' | 'interact' | 'screenshot';
+    parameters: Record<string, any>;
+    description: string;
 }
 
 interface TestRun {
     id: string;
     scenarioId: string;
     timestamp: string;
-    status: 'passed' | 'failed' | 'partial';
+    status: 'pass' | 'fail' | 'partial' | 'skip' | 'error';
     issues: string[];
     duration: number;
 }
@@ -294,14 +294,14 @@ const Holodeck = () => {
                                             <div
                                                 key={run.id}
                                                 className={`p-3 rounded border text-xs ${
-                                                    run.status === 'passed'
+                                                    run.status === 'pass'
                                                         ? 'bg-green-900/20 border-green-700/50'
                                                         : 'bg-red-900/20 border-red-700/50'
                                                 }`}
                                             >
                                                 <div className="flex items-center justify-between mb-1">
-                                                    <span className={`font-bold ${run.status === 'passed' ? 'text-green-300' : 'text-red-300'}`}>
-                                                        {run.status === 'passed' ? '✓ PASSED' : '✗ FAILED'}
+                                                    <span className={`font-bold ${run.status === 'pass' ? 'text-green-300' : 'text-red-300'}`}>
+                                                        {run.status === 'pass' ? '✓ PASSED' : '✗ FAILED'}
                                                     </span>
                                                     <span className="text-slate-400">{run.duration}s</span>
                                                 </div>

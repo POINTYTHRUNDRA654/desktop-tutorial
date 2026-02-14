@@ -85,8 +85,8 @@ class BlenderIntegration {
     async exportMesh(sourcePath: string, outputPath: string) {
         const pythonScript = \`
 import bpy
-bpy.ops.import_scene.fbx(filepath='${sourcePath}')
-bpy.ops.export_scene.fbx(filepath='${outputPath}')
+bpy.ops.import_scene.fbx(filepath='\${sourcePath}')
+bpy.ops.export_scene.fbx(filepath='\${outputPath}')
 \`;
         
         const scriptPath = 'temp_export.py';

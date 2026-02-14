@@ -927,78 +927,77 @@ const MossyMemoryVault: React.FC<MossyMemoryVaultProps> = ({ embedded = false })
                         </div>
                     </div>
                     <div className="flex flex-wrap items-center gap-2">
-                    <Link
+                      <Link
                         to="/reference"
                         className="px-3 py-2 text-[10px] font-black uppercase tracking-widest rounded-lg bg-emerald-500/10 border border-emerald-500/30 text-emerald-200 hover:bg-emerald-500/20 transition-colors hidden sm:inline-flex"
                         title="Open help"
-                    >
+                      >
                         Help
-                    </Link>
-                    <button
-                        onClick={() => {
-                            setShowLibraryModal(true);
-                            fetchCommunityKnowledge();
-                        }}
+                      </Link>
+
+                      <button
+                        onClick={() => { setShowLibraryModal(true); fetchCommunityKnowledge(); }}
+                        onDoubleClick={handleBrowseKnowledgeLibrary}
                         className="relative flex items-center gap-2 px-4 py-2 bg-blue-900/50 hover:bg-blue-800/50 text-blue-100 rounded-lg transition-all border border-blue-700 text-sm font-bold"
-                    >
-                        <Files className="w-4 h-4" />
-                        Browse Library
-                        {newKnowledgeCount > 0 && (
-                            <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[10px] font-bold rounded-full w-5 h-5 flex items-center justify-center animate-pulse">
-                        onClick={handleBrowseKnowledgeLibrary}
-                        className="flex items-center gap-1 sm:gap-2 px-2 sm:px-3 py-2 bg-blue-900/50 hover:bg-blue-800 text-blue-100 rounded-lg transition-all border border-blue-700 text-xs font-bold relative"
                         title="Browse community knowledge library"
-                    >
+                      >
                         <PackageOpen className="w-4 h-4" />
                         <span className="hidden md:inline">Browse Library</span>
-                        <span className="md:hidden hidden sm:inline">Library</span>
+                        <span className="md:hidden sm:inline">Library</span>
                         {newKnowledgeCount > 0 && (
-                            <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[10px] font-bold rounded-full w-5 h-5 flex items-center justify-center">
-                                {newKnowledgeCount}
-                            </span>
+                          <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[10px] font-bold rounded-full w-5 h-5 flex items-center justify-center animate-pulse">
+                            {newKnowledgeCount}
+                          </span>
                         )}
-                    </button>
-                    <button
+                      </button>
+
+                      <button
                         onClick={handleExportShared}
                         className="flex items-center gap-2 px-4 py-2 bg-purple-900/50 hover:bg-purple-800/50 text-purple-100 rounded-lg transition-all border border-purple-700 text-sm font-bold"
                         title="Export knowledge for sharing"
-                    >
+                      >
                         <Upload className="w-4 h-4" />
                         Export Shared
+                      </button>
+
+                      <button
                         onClick={handleImportCommunityKnowledge}
-                        className="flex items-center gap-1 sm:gap-2 px-2 sm:px-3 py-2 bg-purple-900/50 hover:bg-purple-800 text-purple-100 rounded-lg transition-all border border-purple-700 text-xs font-bold"
+                        className="flex items-center gap-2 px-3 py-2 bg-purple-900/50 hover:bg-purple-800/50 text-purple-100 rounded-lg transition-all border border-purple-700 text-xs font-bold"
                         title="Import shared knowledge from community"
-                    >
+                      >
                         <Github className="w-4 h-4" />
                         <span className="hidden sm:inline">Import Community</span>
                         <span className="sm:hidden">Import</span>
-                    </button>
-                    <button
+                      </button>
+
+                      <button
                         onClick={handleExportSharedOnly}
                         className="flex items-center gap-1 sm:gap-2 px-2 sm:px-3 py-2 bg-blue-900/50 hover:bg-blue-800 text-blue-100 rounded-lg transition-all border border-blue-700 text-xs font-bold"
                         title="Export items marked for sharing"
-                    >
+                      >
                         <Share2 className="w-4 h-4" />
                         <span className="hidden md:inline">Export Shared</span>
-                        <span className="md:hidden hidden sm:inline">Share</span>
-                    </button>
-                    <button
+                        <span className="md:hidden sm:inline">Share</span>
+                      </button>
+
+                      <button
                         onClick={handleExportVault}
                         className="flex items-center gap-2 px-3 py-2 bg-slate-900/50 hover:bg-slate-800 text-slate-100 rounded-lg transition-all border border-slate-700 text-xs font-bold hidden md:flex"
                         title="Export all knowledge (backup)"
-                    >
+                      >
                         <Download className="w-4 h-4" />
                         Export All
-                    </button>
-                    <button 
+                      </button>
+
+                      <button
                         onClick={() => setShowUploadModal(true)}
                         className="flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg transition-all shadow-lg shadow-emerald-900/20 text-sm font-bold"
-                    >
+                      >
                         <Plus className="w-4 h-4" />
                         <span className="hidden sm:inline">Ingest Knowledge</span>
                         <span className="sm:hidden">Ingest</span>
-                    </button>
-                </div>
+                      </button>
+                    </div>
                 </div>
             </div>
 

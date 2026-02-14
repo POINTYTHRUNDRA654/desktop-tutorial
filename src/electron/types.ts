@@ -174,6 +174,7 @@ export const IPC_CHANNELS = {
 
   // Load Order Lab (experimental)
   LOAD_ORDER_PICK_MO2_PROFILE_DIR: 'load-order-pick-mo2-profile-dir',
+  LOAD_ORDER_PICK_VORTEX_PROFILE_DIR: 'load-order-pick-vortex-profile-dir',
   LOAD_ORDER_PICK_LOOT_REPORT_FILE: 'load-order-pick-loot-report-file',
   LOAD_ORDER_WRITE_USERDATA_FILE: 'load-order-write-userdata-file',
   LOAD_ORDER_LAUNCH_XEDIT: 'load-order-launch-xedit',

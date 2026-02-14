@@ -58,6 +58,7 @@ const Holodeck = React.lazy(() => import('./Holodeck'));
 const TheVault = React.lazy(() => import('./TheVault'));
 const TheNexus = React.lazy(() => import('./TheNexus'));
 const TheAuditor = React.lazy(() => import('./TheAuditor'));
+const SecurityValidator = React.lazy(() => import('./SecurityValidator'));
 const TheBlueprint = React.lazy(() => import('./TheBlueprint'));
 const TheScribe = React.lazy(() => import('./TheScribeEnhanced').then(module => ({ default: module.TheScribe })));
 const DonationSupport = React.lazy(() => import('./DonationSupport').then(module => ({ default: module.DonationSupport })));
@@ -65,6 +66,8 @@ const DevtoolsHub = React.lazy(() => import('./DevtoolsHub'));
 const CosmosWorkflow = React.lazy(() => import('./CosmosWorkflow'));
 const LearningHub = React.lazy(() => import('./LearningHub'));
 const SettingsHub = React.lazy(() => import('./SettingsHub'));
+// Mod browser UI
+const ModBrowser = React.lazy(() => import('./ModBrowser'));
 const BlenderAnimationGuide = React.lazy(() => import('./BlenderAnimationGuide').then(module => ({ default: module.BlenderAnimationGuide })));
 const QuestModAuthoringGuide = React.lazy(() => import('./QuestModAuthoringGuide').then(module => ({ default: module.QuestModAuthoringGuide })));
 const ProjectHub = React.lazy(() => import('./ProjectHub'));
@@ -88,6 +91,9 @@ const VoiceCommands = React.lazy(() => import('./VoiceCommands'));
 const AutomationManager = React.lazy(() => import('./AutomationManager'));
 
 // AI & Intelligence Features
+const AIAssistant = React.lazy(() => import('./AIAssistant'));
+const AIModAssistant = React.lazy(() => import('./AIModAssistant'));
+const CloudSync = React.lazy(() => import('./CloudSync'));
 const WorkflowRecorder = React.lazy(() => import('./WorkflowRecorder').then(module => ({ default: module.WorkflowRecorder })));
 const PluginManager = React.lazy(() => import('./PluginManager').then(module => ({ default: module.PluginManager })));
 const RoadmapPanel = React.lazy(() => import('./RoadmapPanel'));
@@ -114,6 +120,8 @@ const CKCrashPrevention = React.lazy(() => import('./CKCrashPrevention'));
 
 // Knowledge & Memory
 const MossyMemoryVault = React.lazy(() => import('./MossyMemoryVault'));
+const DDSConverter = React.lazy(() => import('./DDSConverter').then(module => ({ default: module.DDSConverter })));
+const TextureGenerator = React.lazy(() => import('./TextureGenerator').then(module => ({ default: module.TextureGenerator })));
 
 // Test Components
 const NotificationTest = React.lazy(() => import('./NotificationTest'));
@@ -913,6 +921,9 @@ const App: React.FC = () => {
                   }
                 />
                 <Route path="/chat" element={<ErrorBoundary><ChatInterface /></ErrorBoundary>} />
+                <Route path="/ai-assistant" element={<ErrorBoundary><AIAssistant /></ErrorBoundary>} />
+                <Route path="/ai-mod-assistant" element={<ErrorBoundary><AIModAssistant /></ErrorBoundary>} />
+                <Route path="/cloud-sync" element={<ErrorBoundary><CloudSync /></ErrorBoundary>} />
                 <Route path="/first-success" element={<ErrorBoundary><FirstSuccessWizard /></ErrorBoundary>} />
                 <Route path="/roadmap" element={<ErrorBoundary><RoadmapPanel /></ErrorBoundary>} />
                 <Route path="/whats-new" element={<ErrorBoundary><WhatsNewPage onDismiss={dismissWhatsNew} /></ErrorBoundary>} />
@@ -934,6 +945,7 @@ const App: React.FC = () => {
                 <Route path="/tools/voice-commands" element={<ErrorBoundary><VoiceCommands /></ErrorBoundary>} />
                 <Route path="/tools/automation" element={<ErrorBoundary><AutomationManager /></ErrorBoundary>} />
                 <Route path="/tools/ck-crash-prevention" element={<CKCrashPrevention />} />
+                <Route path="/tools/security" element={<ErrorBoundary><SecurityValidator /></ErrorBoundary>} />
                 <Route path="/tools/mining" element={<ErrorBoundary><MiningPanel /></ErrorBoundary>} />
                 <Route path="/tools/advanced-analysis" element={<ErrorBoundary><AdvancedAnalysisPanel /></ErrorBoundary>} />
                 <Route path="/tools/assembler" element={<Navigate to="/packaging-release" replace />} />
@@ -947,6 +959,7 @@ const App: React.FC = () => {
                 {/* Development & Workflow */}
                 <Route path="/dev" element={<ErrorBoundary><TheNexus /></ErrorBoundary>} />
                 <Route path="/dev/workshop" element={<Workshop />} />
+                <Route path="/mods" element={<ModBrowser />} />
                 <Route path="/dev/orchestrator" element={<WorkflowOrchestrator />} />
                 <Route path="/dev/workflow-runner" element={<ErrorBoundary><WorkflowRunner /></ErrorBoundary>} />
                 <Route path="/dev/neural-link" element={<Navigate to="/live" replace />} />
@@ -977,6 +990,15 @@ const App: React.FC = () => {
                 
                 {/* Memory Vault */}
                 <Route path="/memory-vault" element={<ErrorBoundary><MossyMemoryVault /></ErrorBoundary>} />
+                
+                {/* CK Crash Prevention */}
+                <Route path="/ck-crash-prevention" element={<ErrorBoundary><CKCrashPrevention /></ErrorBoundary>} />
+                
+                {/* DDS Texture Converter */}
+                <Route path="/dds-converter" element={<ErrorBoundary><DDSConverter /></ErrorBoundary>} />
+                
+                {/* Texture Generator */}
+                <Route path="/texture-generator" element={<ErrorBoundary><TextureGenerator /></ErrorBoundary>} />
 
                 {/* Guides - Organized by Category */}
                 <Route path="/guides" element={<ErrorBoundary><TheNexus /></ErrorBoundary>} />

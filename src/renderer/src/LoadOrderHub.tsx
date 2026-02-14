@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
-import { ChevronDown, ChevronUp, List, Beaker } from 'lucide-react';
+import { ChevronDown, ChevronUp, List, Beaker, Sparkles } from 'lucide-react';
 import { LoadOrderAnalyzer } from './LoadOrderAnalyzer';
 import { LoadOrderLab } from './loadOrder/LoadOrderLab';
+import LoadOrderOptimizer from './LoadOrderOptimizer';
 
 type HubSection = {
   id: string;
@@ -32,6 +33,13 @@ const LoadOrderHub: React.FC = () => {
       description: 'MO2 + LOOT import and xEdit script prep.',
       icon: Beaker,
       content: <LoadOrderLab embedded />,
+    },
+    {
+      id: 'optimizer',
+      title: 'Step 3: Load Order Optimizer',
+      description: 'Conflict analysis, rule-based optimization, and export.',
+      icon: Sparkles,
+      content: <LoadOrderOptimizer embedded />,
     },
   ];
 
