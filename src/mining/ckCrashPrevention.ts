@@ -1,45 +1,29 @@
 /**
- * CK Crash Prevention Engine
- * Provides pre-flight validation, monitoring, and crash analysis for Creation Kit operations
+ * CK Crash Prevention Engine (clean, conflict-free)
+ * - Minimal, deterministic implementation used for validation and unit tests.
+ * - Aligns with `src/shared/types.ts` CK types.
  */
 
 import * as fs from 'fs';
 import * as path from 'path';
-
-// Re-export types from shared types
-export type {
-  CKValidationInput,
-  CKValidationResult,
-  ValidationIssue,
-  ValidationWarning,
-  CKMonitoringSession,
-  CKHealthMetrics,
-  CrashDiagnosis,
-  KnownCKIssue,
-  PreventionPlan,
-  PreventionStep
-} from '../shared/types';
 
 import type {
   CKValidationInput,
   CKValidationResult,
   ValidationIssue,
   ValidationWarning,
-  CrashDiagnosis,
   PreventionPlan,
-  PreventionStep
+  PreventionStep,
+  CrashDiagnosis,
 } from '../shared/types';
 
 export class CKCrashPreventionEngine {
   private knownProblematicMods = [
-    'Fusion City Rising',
-    'Hookers of the Commonwealth',
-    'Outcast and Remnants'
+    'fusion city rising',
+    'hookers of the commonwealth',
+    'outcast and remnants',
   ];
 
-  /**
-   * Validate ESP file before CK operations
-   */
   async validateBeforeCK(input: CKValidationInput): Promise<CKValidationResult> {
     const issues: ValidationIssue[] = [];
     const warnings: ValidationWarning[] = [];
@@ -48,92 +32,38 @@ export class CKCrashPreventionEngine {
     let riskLevel: 'low' | 'medium' | 'high' | 'critical' = 'low';
 
     try {
-      // Check file exists
       if (!fs.existsSync(input.espPath)) {
-        issues.push({
-          type: 'file_size',
-          severity: 'critical',
-          message: 'ESP file not found',
-          fix: 'Verify the file path is correct'
-        });
+        issues.push({ type: 'file_size', severity: 'critical', message: 'ESP file not found', fix: 'Verify path' } as any);
         return { safe: false, issues, warnings, recommendations, estimatedMemoryUsage: 0, riskLevel: 'critical' };
       }
 
-      // Check file size
       const stats = fs.statSync(input.espPath);
       const fileSizeMB = stats.size / (1024 * 1024);
-      estimatedMemoryUsage = fileSizeMB * 4; // Rough estimate
+      estimatedMemoryUsage = Math.round(fileSizeMB * 4);
 
       if (fileSizeMB > 250) {
-        issues.push({
-          type: 'file_size',
-          severity: 'critical',
-          message: `File exceeds Fallout 4's 250MB plugin limit (${fileSizeMB.toFixed(2)}MB)`,
-          fix: 'Split the mod into multiple plugins or reduce content'
-        });
+        issues.push({ type: 'file_size', severity: 'critical', message: `File exceeds 250MB (${fileSizeMB.toFixed(1)}MB)`, fix: 'Split plugin or reduce assets' } as any);
         riskLevel = 'critical';
-      } else if (fileSizeMB > 200) {
-        warnings.push({
-          message: `File approaching 250MB limit (${fileSizeMB.toFixed(2)}MB)`,
-          recommendation: 'Monitor file size carefully during development'
-        });
+      } else if (fileSizeMB > 180) {
+        warnings.push({ message: `Large ESP (${fileSizeMB.toFixed(1)}MB)`, recommendation: 'Monitor memory and consider splitting content' });
         riskLevel = 'high';
       }
 
-      // Check for known problematic mods
-      if (input.modName) {
-        const isProblematic = this.knownProblematicMods.some(mod => 
-          input.modName?.toLowerCase().includes(mod.toLowerCase())
-        );
-        
-        if (isProblematic) {
-          warnings.push({
-            message: `This mod is known to cause CK crashes during precombine generation`,
-            recommendation: 'Exclude problematic cells before running precombine generation'
-          });
-          recommendations.push('Review known crash cells in documentation');
-          if (riskLevel === 'low') riskLevel = 'medium';
-        }
-      }
-
-      // Memory estimation
-      if (input.cellCount && input.cellCount > 5000) {
-        warnings.push({
-          message: `Large number of cells (${input.cellCount}) requires significant RAM`,
-          recommendation: 'Ensure at least 32GB RAM available. Consider moving texture archives temporarily.'
-        });
-        recommendations.push('Move .ba2 texture files to external drive during generation');
+      if (input.modName && this.knownProblematicMods.some(m => input.modName!.toLowerCase().includes(m))) {
+        warnings.push({ message: 'Known problematic mod detected', recommendation: 'Review known issues before editing' });
         if (riskLevel === 'low') riskLevel = 'medium';
       }
 
-      // Generate recommendations
-      if (estimatedMemoryUsage > 8000) {
-        recommendations.push('Increase virtual memory/page file to at least 16GB');
-        recommendations.push('Close all other applications before running CK');
+      if (input.cellCount && input.cellCount > 5000) {
+        warnings.push({ message: `High cell count (${input.cellCount})`, recommendation: 'Requires large RAM / break into smaller regions' });
+        if (riskLevel === 'low') riskLevel = 'medium';
       }
 
-      if (issues.length === 0 && warnings.length === 0) {
-        recommendations.push('File appears safe for CK operations');
-      }
+      if (issues.length === 0 && warnings.length === 0) recommendations.push('File appears safe for CK operations');
 
-      const safe = issues.filter(i => i.severity === 'critical' || i.severity === 'error').length === 0;
-
-      return {
-        safe,
-        issues,
-        warnings,
-        recommendations,
-        estimatedMemoryUsage,
-        riskLevel
-      };
-
-    } catch (error: any) {
-      issues.push({
-        type: 'file_size',
-        severity: 'critical',
-        message: `Validation error: ${error.message}`,
-        fix: 'Check file permissions and path'
-      });
+      return { safe: issues.length === 0, issues, warnings, recommendations, estimatedMemoryUsage, riskLevel };
+    } catch (err: any) {
+      issues.push({ type: 'file_size', severity: 'critical', message: `Validation failed: ${String(err.message || err)}`, fix: 'Inspect file' } as any);
       return { safe: false, issues, warnings, recommendations, estimatedMemoryUsage: 0, riskLevel: 'critical' };
     }
   }
@@ -288,3 +218,5 @@ export class CKCrashPreventionEngine {
     };
   }
 }
+
+export const ckCrashPrevention = new CKCrashPreventionEngine();
