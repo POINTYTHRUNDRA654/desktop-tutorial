@@ -63,11 +63,8 @@ const ModBrowser: React.FC = () => {
       const res = await bridge.modBrowser.downloadMod(id, dest);
       if (res.success) {
         alert(`Downloaded to ${res.filePath} (${(res.size/1024|0)} KB) in ${res.duration} ms`);
-<<<<<<< Updated upstream
         try { window.dispatchEvent(new CustomEvent('security:auto-scan-download', { detail: { filePath: res.filePath } })); } catch (err) { /* ignore dispatch errors */ };
-=======
         try { window.dispatchEvent(new CustomEvent('security:auto-scan-download', { detail: { filePath: res.filePath } })); } catch {};
->>>>>>> Stashed changes
       } else alert('Download failed');
     } catch (err) {
       console.error(err);
