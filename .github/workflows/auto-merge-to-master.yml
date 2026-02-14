@@ -1,0 +1,70 @@
+name: Auto-merge non-master branches into master
+
+on:
+  push:
+    # run on pushes to any branch except master
+    branches-ignore:
+      - 'master'
+  create:
+    # run when a new branch is created
+    branches:
+      - '*'
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  auto-merge:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Attempt merge branch → master (and delete branch when merged)
+        uses: actions/github-script@v6
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            // Determine branch name (works for push & create events)
+            const ref = context.ref || '';
+            const branch = ref.startsWith('refs/heads/') ? ref.replace('refs/heads/', '') : (process.env.GITHUB_HEAD_REF || '');
+            if (!branch) {
+              console.log('No branch detected; nothing to do.');
+              return;
+            }
+            if (branch === 'master') {
+              console.log('Branch is master — nothing to do.');
+              return;
+            }
+
+            const { owner, repo } = context.repo;
+            console.log(`Processing branch: ${branch}`);
+
+            try {
+              // Try fast-forward merge via API
+              const mergeRes = await github.rest.repos.merge({ owner, repo, base: 'master', head: branch });
+              console.log(`Merged ${branch} into master: ${mergeRes.data.sha}`);
+
+              // Delete the branch once merged
+              await github.rest.git.deleteRef({ owner, repo, ref: `heads/${branch}` });
+              console.log(`Deleted branch ${branch}`);
+            } catch (err) {
+              console.log('Automatic merge failed:', err.message || err);
+              // If merge conflict (409) create a PR for manual resolution
+              if (err.status === 409 || String(err.message).toLowerCase().includes('merge conflict')) {
+                const pr = await github.rest.pulls.create({
+                  owner,
+                  repo,
+                  title: `Auto-merge ${branch} → master (manual resolution required)`,
+                  head: branch,
+                  base: 'master',
+                  body: 'This repository enforces a single-branch (master) policy. Automatic merge failed — please resolve conflicts and merge to master. The automation will delete feature branches once merged.'
+                });
+                console.log(`Created PR: ${pr.data.html_url}`);
+                try {
+                  await github.rest.issues.addLabels({ owner, repo, issue_number: pr.data.number, labels: ['needs-merge'] });
+                } catch (labelErr) {
+                  console.log('Failed to add label to PR:', labelErr.message || labelErr);
+                }
+              } else {
+                throw err;
+              }
+            }
