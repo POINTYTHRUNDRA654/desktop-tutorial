@@ -1,0 +1,20 @@
+{
+  "packId": "core-tutorials-v1",
+  "packName": "Core Tutorials",
+  "packVersion": "1.0.0",
+  "exportDate": "2026-02-13",
+  "items": [
+    {
+      "id": "welcome-to-mossy",
+      "title": "Welcome to Mossy Memory Vault",
+      "content": "Welcome to Mossy's Memory Vault! This is your personal knowledge management system for Fallout 4 modding.\n\n## What is the Memory Vault?\n\nThe Memory Vault stores tutorials, guides, code snippets, and modding knowledge that Mossy can reference when helping you. Think of it as Mossy's long-term memory.\n\n## How to Use It\n\n1. **Upload Knowledge**: Drag and drop files (PDFs, videos, text, code) to teach Mossy new concepts\n2. **Search**: Use the search bar to find specific information\n3. **Filter by Trust**: Filter by Personal, Community, or Official knowledge sources\n4. **Export/Import**: Share knowledge packs with other modders\n\n## What Can You Upload?\n\n- **PDFs**: Documentation, tutorials, reference guides\n- **Videos**: Tutorial videos (auto-transcribed)\n- **Audio**: Spoken tutorials or notes\n- **Text Files**: Markdown, code, scripts, notes\n- **Code**: Papyrus scripts, JSON configs, XML files\n\n## Browse Community Knowledge\n\nClick the 'Browse Library' button to discover knowledge packs shared by the community. When new packs are available, you'll see a notification badge.\n\n## Tips for Best Results\n\n- Add detailed titles and tags for better searchability\n- Include credit information for community knowledge\n- Use trust levels to organize your sources\n- Export your best guides to share with others\n\nHappy modding! 🎮",
+      "source": "Mossy Core System",
+      "creditName": "Mossy Team",
+      "creditUrl": "",
+      "trustLevel": "official",
+      "tags": ["getting-started", "tutorial", "memory-vault", "basics"],
+      "date": "2026-02-13T00:00:00.000Z",
+      "status": "learned"
+    }
+  ]
+}
