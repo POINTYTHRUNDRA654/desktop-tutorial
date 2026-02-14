@@ -75,6 +75,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen = false, onToggle, onClose }) 
     // === FOUNDATION: HOME & PROJECTS ===
     { to: '/', icon: LayoutDashboard, label: t('nav.home', 'Mossy.Space') },
     { to: '/chat', icon: MessageSquare, label: t('nav.chat', 'AI Chat') },
+    { to: '/ai-mod-assistant', icon: Code, label: 'AI Mod Assistant' },
     { to: '/first-success', icon: CheckCircle2, label: t('nav.firstSuccess', 'First Success') },
     { to: '/roadmap', icon: Target, label: t('nav.roadmap', 'Modding Roadmaps') },
     { to: '/whats-new', icon: Star, label: "What's New" },
@@ -86,6 +87,9 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen = false, onToggle, onClose }) 
     { to: '/memory-vault', icon: Brain, label: t('nav.memoryVault', 'Memory Vault') },
     { to: '/wizards', icon: Wrench, label: t('nav.wizards', 'Wizards') },
     { to: '/crash-triage', icon: Bug, label: t('nav.crashTriage', 'Crash Triage') },
+    { to: '/ck-crash-prevention', icon: ShieldCheck, label: t('nav.ckCrashPrevention', 'CK Safety') },
+    { to: '/dds-converter', icon: Image, label: t('nav.ddsConverter', 'DDS Converter') },
+    { to: '/texture-generator', icon: Wand2, label: t('nav.textureGenerator', 'Texture Generator') },
     { to: '/packaging-release', icon: Archive, label: t('nav.packagingRelease', 'Packaging & Release') },
     { to: '/animation-guide', icon: Book, label: t('nav.animationGuide', 'Animation Guide') },
     { to: '/quest-authoring', icon: BookOpen, label: t('nav.questModAuthoring', 'Quest Mod Authoring') },

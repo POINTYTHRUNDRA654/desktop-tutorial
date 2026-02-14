@@ -138,7 +138,7 @@ const CKCrashPrevention: React.FC = () => {
       case 'low': return 'text-green-400';
       case 'medium': return 'text-yellow-400';
       case 'high': return 'text-orange-400';
-      case 'critical': return 'text-red-400';
+
       default: return 'text-gray-400';
     }
   };
