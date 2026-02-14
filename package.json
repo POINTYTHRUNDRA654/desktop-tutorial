@@ -1,8 +1,8 @@
 {
   "name": "mossy-desktop",
   "private": true,
-  "version": "5.4.23",
-  "description": "Mossy v5.4.23 - Production-ready Fallout 4 modding assistant with AI, file analysis, asset optimization, and tool integration",
+  "version": "5.4.24",
+  "description": "Mossy v5.4.24 - Production-ready Fallout 4 modding assistant with AI, comprehensive quality audit, real system metrics, and professional asset optimization",
   "main": "dist-electron/electron/main.js",
   "author": "POINTYTHRUNDRA654",
   "license": "MIT",
@@ -51,6 +51,7 @@
     "@lmstudio/sdk": "1.5.0",
     "@types/archiver": "7.0.0",
     "@types/sqlite3": "3.1.11",
+    "@types/uuid": "10.0.0",
     "@upstash/workflow-agents": "^0.1.4",
     "@xenova/transformers": "^2.17.2",
     "ag-psd": "17.0.6",
@@ -88,6 +89,7 @@
     "selenium-webdriver": "4.40.0",
     "sharp": "^0.34.5",
     "sqlite3": "5.1.7",
+    "uuid": "13.0.0",
     "ws": "8.18.1",
     "zod": "4.3.6"
   },

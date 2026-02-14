@@ -279,7 +279,27 @@ const IniConfigManager: React.FC = () => {
 
   const applyPreset = (preset: Preset) => {
     showMessage('info', `Applying ${preset.name} preset...`);
-    // TODO: Apply preset settings
+    
+    // Apply each setting from the preset to the parameters
+    if (preset.settings && preset.settings.length > 0) {
+      const updated = parameters.map(p => {
+        const presetSetting = preset.settings.find(
+          s => s.file === p.file && s.section === p.section && s.key === p.key
+        );
+        
+        if (presetSetting) {
+          // Update both value (file content) and currentValue (UI display) to keep them in sync
+          return { ...p, value: presetSetting.value, currentValue: presetSetting.value };
+        }
+        return p;
+      });
+      
+      setParameters(updated);
+      showMessage('success', `Applied ${preset.name} preset successfully`);
+    } else {
+      // If preset has no settings, show a message
+      showMessage('info', `${preset.name} preset has no settings configured yet`);
+    }
   };
 
   const applyRecommendation = (rec: IniParameter) => {
