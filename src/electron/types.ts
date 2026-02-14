@@ -81,6 +81,77 @@ export const IPC_CHANNELS = {
   WIZARD_UPDATE_STEP: 'wizard-update-step',
   WIZARD_SUBMIT_ACTION: 'wizard-submit-action',
 
+  // INI Configuration Manager
+  INI_MANAGER_READ_FILE: 'ini-manager-read-file',
+  INI_MANAGER_WRITE_FILE: 'ini-manager-write-file',
+  INI_MANAGER_FIND_FILES: 'ini-manager-find-files',
+  INI_MANAGER_GET_HARDWARE: 'ini-manager-get-hardware',
+  INI_MANAGER_BACKUP_FILE: 'ini-manager-backup-file',
+  INI_MANAGER_RESTORE_BACKUP: 'ini-manager-restore-backup',
+
+  // Asset Duplicate Scanner
+  ASSET_SCANNER_BROWSE_FOLDER: 'asset-scanner-browse-folder',
+  ASSET_SCANNER_SCAN_DUPLICATES: 'asset-scanner-scan-duplicates',
+  ASSET_SCANNER_CLEANUP_DUPLICATES: 'asset-scanner-cleanup-duplicates',
+  ASSET_SCANNER_GET_LAST_PATH: 'asset-scanner-get-last-path',
+  ASSET_SCANNER_SAVE_LAST_PATH: 'asset-scanner-save-last-path',
+
+  // Game Log Monitor
+  GAME_LOG_MONITOR_BROWSE_LOG: 'game-log-monitor-browse-log',
+  GAME_LOG_MONITOR_START: 'game-log-monitor-start',
+  GAME_LOG_MONITOR_STOP: 'game-log-monitor-stop',
+  GAME_LOG_MONITOR_GET_LAST_PATH: 'game-log-monitor-get-last-path',
+  GAME_LOG_MONITOR_SAVE_LAST_PATH: 'game-log-monitor-save-last-path',
+  GAME_LOG_MONITOR_EXPORT_LOGS: 'game-log-monitor-export-logs',
+
+  // xEdit Script Executor
+  XEDIT_SCRIPT_BROWSE_XEDIT: 'xedit-script-browse-xedit',
+  XEDIT_SCRIPT_BROWSE_PLUGIN: 'xedit-script-browse-plugin',
+  XEDIT_SCRIPT_GET_XEDIT_PATH: 'xedit-script-get-xedit-path',
+  XEDIT_SCRIPT_SAVE_XEDIT_PATH: 'xedit-script-save-xedit-path',
+  XEDIT_SCRIPT_GET_PLUGIN_LIST: 'xedit-script-get-plugin-list',
+  XEDIT_SCRIPT_EXECUTE: 'xedit-script-execute',
+
+  // Project Templates
+  PROJECT_TEMPLATE_BROWSE_PATH: 'project-template-browse-path',
+  PROJECT_TEMPLATE_CREATE: 'project-template-create',
+  PROJECT_TEMPLATE_DOWNLOAD: 'project-template-download',
+
+  // Mod Conflict Visualizer
+  MOD_CONFLICT_SCAN_LOAD_ORDER: 'mod-conflict-scan-load-order',
+  MOD_CONFLICT_ANALYZE: 'mod-conflict-analyze',
+  MOD_CONFLICT_RESOLVE: 'mod-conflict-resolve',
+
+  // FormID Remapper
+  FORMID_REMAPPER_SCAN_CONFLICTS: 'formid-remapper-scan-conflicts',
+  FORMID_REMAPPER_REMAP: 'formid-remapper-remap',
+  FORMID_REMAPPER_BACKUP: 'formid-remapper-backup',
+
+  // Mod Comparison Tool
+  MOD_COMPARISON_COMPARE: 'mod-comparison-compare',
+  MOD_COMPARISON_MERGE: 'mod-comparison-merge',
+  MOD_COMPARISON_EXPORT: 'mod-comparison-export',
+
+  // Precombine Generator
+  PRECOMBINE_GENERATOR_GENERATE: 'precombine-generator-generate',
+  PRECOMBINE_GENERATOR_VALIDATE: 'precombine-generator-validate',
+  PRECOMBINE_GENERATOR_GET_PJM_PATH: 'precombine-generator-get-pjm-path',
+
+  // Voice Commands
+  VOICE_COMMANDS_START: 'voice-commands-start',
+  VOICE_COMMANDS_STOP: 'voice-commands-stop',
+  VOICE_COMMANDS_EXECUTE: 'voice-commands-execute',
+
+  // Automation Engine
+  AUTOMATION_START: 'automation-start',
+  AUTOMATION_STOP: 'automation-stop',
+  AUTOMATION_GET_SETTINGS: 'automation-get-settings',
+  AUTOMATION_UPDATE_SETTINGS: 'automation-update-settings',
+  AUTOMATION_TOGGLE_RULE: 'automation-toggle-rule',
+  AUTOMATION_TRIGGER_RULE: 'automation-trigger-rule',
+  AUTOMATION_GET_STATISTICS: 'automation-get-statistics',
+  AUTOMATION_RESET_STATISTICS: 'automation-reset-statistics',
+
   // Roadmap System (Roadmap System)
   ROADMAP_CREATE: 'roadmap-create',
   ROADMAP_GET_ALL: 'roadmap-get-all',
