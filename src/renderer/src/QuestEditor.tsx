@@ -1,5 +1,9 @@
 import React, { useState, useRef, useEffect } from 'react';
+<<<<<<< Updated upstream
 import { GitBranch, ArrowDownToLine, ChevronDown, ChevronRight, Plus, Trash2, Copy, Settings, Save, Play } from 'lucide-react';
+=======
+import { ChevronDown, ChevronRight, Plus, Trash2, Copy, Settings, Save, Play } from 'lucide-react';
+>>>>>>> Stashed changes
 import './QuestEditor.css';
 
 // ============================================================================
@@ -524,6 +528,12 @@ export const QuestEditor: React.FC = () => {
       </div>
     </div>
   );
+<<<<<<< Updated upstream
+=======
+};
+
+export default QuestEditor;
+>>>>>>> Stashed changes
 
   const drawCanvas = () => {
     const canvas = canvasRef.current;

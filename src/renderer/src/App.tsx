@@ -92,6 +92,10 @@ const AutomationManager = React.lazy(() => import('./AutomationManager'));
 
 // AI & Intelligence Features
 const AIAssistant = React.lazy(() => import('./AIAssistant'));
+<<<<<<< Updated upstream
+=======
+const AIModAssistant = React.lazy(() => import('./AIModAssistant'));
+>>>>>>> Stashed changes
 const CloudSync = React.lazy(() => import('./CloudSync'));
 const WorkflowRecorder = React.lazy(() => import('./WorkflowRecorder').then(module => ({ default: module.WorkflowRecorder })));
 const PluginManager = React.lazy(() => import('./PluginManager').then(module => ({ default: module.PluginManager })));
@@ -119,6 +123,10 @@ const CKExtension = React.lazy(() => import('./CKExtension').then(module => ({ d
 
 // Knowledge & Memory
 const MossyMemoryVault = React.lazy(() => import('./MossyMemoryVault'));
+<<<<<<< Updated upstream
+=======
+const CKCrashPrevention = React.lazy(() => import('./CKCrashPreventionMining').then(module => ({ default: module.CKCrashPrevention })));
+>>>>>>> Stashed changes
 const DDSConverter = React.lazy(() => import('./DDSConverter').then(module => ({ default: module.DDSConverter })));
 const TextureGenerator = React.lazy(() => import('./TextureGenerator').then(module => ({ default: module.TextureGenerator })));
 
@@ -921,8 +929,12 @@ const App: React.FC = () => {
                 />
                 <Route path="/chat" element={<ErrorBoundary><ChatInterface /></ErrorBoundary>} />
                 <Route path="/ai-assistant" element={<ErrorBoundary><AIAssistant /></ErrorBoundary>} />
+<<<<<<< Updated upstream
                 {/* Redirect AIModAssistant to AIAssistant with mod-creation mode */}
                 <Route path="/ai-mod-assistant" element={<Navigate to="/ai-assistant?mode=mod-creation" replace />} />
+=======
+                <Route path="/ai-mod-assistant" element={<ErrorBoundary><AIModAssistant /></ErrorBoundary>} />
+>>>>>>> Stashed changes
                 <Route path="/cloud-sync" element={<ErrorBoundary><CloudSync /></ErrorBoundary>} />
                 <Route path="/first-success" element={<ErrorBoundary><FirstSuccessWizard /></ErrorBoundary>} />
                 <Route path="/roadmap" element={<ErrorBoundary><RoadmapPanel /></ErrorBoundary>} />
@@ -933,6 +945,7 @@ const App: React.FC = () => {
                 <Route path="/tools" element={<ErrorBoundary><TheNexus /></ErrorBoundary>} />
                 <Route path="/tools/monitor" element={<Navigate to="/diagnostics" replace />} />
                 <Route path="/tools/auditor" element={<TheAuditor />} />
+<<<<<<< Updated upstream
                 <Route path="/tools/ini-config" element={<ErrorBoundary><IniConfigManager /></ErrorBoundary>} />
                 <Route path="/tools/asset-deduplicator" element={<ErrorBoundary><AssetDeduplicator /></ErrorBoundary>} />
                 {/* Legacy routes redirect to new unified deduplicator */}
@@ -960,6 +973,11 @@ const App: React.FC = () => {
                 {/* Legacy mining routes redirect to unified hub */}
                 <Route path="/tools/mining" element={<Navigate to="/tools/mining-hub?tab=pipeline" replace />} />
                 <Route path="/tools/advanced-analysis" element={<Navigate to="/tools/mining-hub?tab=analysis" replace />} />
+=======
+                <Route path="/tools/security" element={<ErrorBoundary><SecurityValidator /></ErrorBoundary>} />
+                <Route path="/tools/mining" element={<ErrorBoundary><MiningPanel /></ErrorBoundary>} />
+                <Route path="/tools/advanced-analysis" element={<ErrorBoundary><AdvancedAnalysisPanel /></ErrorBoundary>} />
+>>>>>>> Stashed changes
                 <Route path="/tools/assembler" element={<Navigate to="/packaging-release" replace />} />
                 <Route path="/tools/blueprint" element={<TheBlueprint />} />
                 <Route path="/tools/scribe" element={<TheScribe />} />
