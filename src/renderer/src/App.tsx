@@ -77,11 +77,11 @@ const PaperScriptGuide = React.lazy(() => import('./PaperScriptGuide'));
 
 // INI Configuration Manager
 const IniConfigManager = React.lazy(() => import('./IniConfigManager'));
-const AssetDuplicateScanner = React.lazy(() => import('./AssetDuplicateScanner'));
+const AssetDeduplicator = React.lazy(() => import('./AssetDeduplicator'));
 
 // New Power Tools (Features 3-10)
 const GameLogMonitor = React.lazy(() => import('./GameLogMonitor'));
-const XEditScriptExecutor = React.lazy(() => import('./XEditScriptExecutor'));
+const XEditTools = React.lazy(() => import('./XEditTools'));
 const ProjectTemplates = React.lazy(() => import('./ProjectTemplates'));
 const ModConflictVisualizer = React.lazy(() => import('./ModConflictVisualizer'));
 const FormIdRemapper = React.lazy(() => import('./FormIdRemapper'));
@@ -92,7 +92,6 @@ const AutomationManager = React.lazy(() => import('./AutomationManager'));
 
 // AI & Intelligence Features
 const AIAssistant = React.lazy(() => import('./AIAssistant'));
-const AIModAssistant = React.lazy(() => import('./AIModAssistant'));
 const CloudSync = React.lazy(() => import('./CloudSync'));
 const WorkflowRecorder = React.lazy(() => import('./WorkflowRecorder').then(module => ({ default: module.WorkflowRecorder })));
 const PluginManager = React.lazy(() => import('./PluginManager').then(module => ({ default: module.PluginManager })));
@@ -100,7 +99,6 @@ const RoadmapPanel = React.lazy(() => import('./RoadmapPanel'));
 const DiagnosticsHub = React.lazy(() => import('./DiagnosticsHub'));
 const PackagingHub = React.lazy(() => import('./PackagingHub'));
 const WizardsHub = React.lazy(() => import('./WizardsHub'));
-const DuplicateFinder = React.lazy(() => import('./DuplicateFinder'));
 
 // Archive Management
 const BA2Manager = React.lazy(() => import('./BA2Manager').then(module => ({ default: module.BA2Manager })));
@@ -109,14 +107,15 @@ const BA2Manager = React.lazy(() => import('./BA2Manager').then(module => ({ def
 const ProjectSelector = React.lazy(() => import('./ProjectSelector').then(module => ({ default: module.ProjectSelector })));
 
 // Mining Infrastructure
-const MiningDashboard = React.lazy(() => import('./MiningDashboard').then(module => ({ default: module.MiningDashboard })));
+const MiningHub = React.lazy(() => import('./MiningHub'));
 
 // Mining Infrastructure
-const MiningPanel = React.lazy(() => import('./MiningPanel').then(module => ({ default: module.MiningPanel })));
-const AdvancedAnalysisPanel = React.lazy(() => import('./AdvancedAnalysisPanel').then(module => ({ default: module.AdvancedAnalysisPanel })));
 
 // CK Crash Prevention
 const CKCrashPrevention = React.lazy(() => import('./CKCrashPrevention'));
+
+// CK Tools
+const CKExtension = React.lazy(() => import('./CKExtension').then(module => ({ default: module.CKExtension })));
 
 // Knowledge & Memory
 const MossyMemoryVault = React.lazy(() => import('./MossyMemoryVault'));
@@ -922,7 +921,8 @@ const App: React.FC = () => {
                 />
                 <Route path="/chat" element={<ErrorBoundary><ChatInterface /></ErrorBoundary>} />
                 <Route path="/ai-assistant" element={<ErrorBoundary><AIAssistant /></ErrorBoundary>} />
-                <Route path="/ai-mod-assistant" element={<ErrorBoundary><AIModAssistant /></ErrorBoundary>} />
+                {/* Redirect AIModAssistant to AIAssistant with mod-creation mode */}
+                <Route path="/ai-mod-assistant" element={<Navigate to="/ai-assistant?mode=mod-creation" replace />} />
                 <Route path="/cloud-sync" element={<ErrorBoundary><CloudSync /></ErrorBoundary>} />
                 <Route path="/first-success" element={<ErrorBoundary><FirstSuccessWizard /></ErrorBoundary>} />
                 <Route path="/roadmap" element={<ErrorBoundary><RoadmapPanel /></ErrorBoundary>} />
@@ -934,25 +934,36 @@ const App: React.FC = () => {
                 <Route path="/tools/monitor" element={<Navigate to="/diagnostics" replace />} />
                 <Route path="/tools/auditor" element={<TheAuditor />} />
                 <Route path="/tools/ini-config" element={<ErrorBoundary><IniConfigManager /></ErrorBoundary>} />
-                <Route path="/tools/asset-scanner" element={<ErrorBoundary><AssetDuplicateScanner /></ErrorBoundary>} />
+                <Route path="/tools/asset-deduplicator" element={<ErrorBoundary><AssetDeduplicator /></ErrorBoundary>} />
+                {/* Legacy routes redirect to new unified deduplicator */}
+                <Route path="/tools/asset-scanner" element={<Navigate to="/tools/asset-deduplicator" replace />} />
+                <Route path="/tools/dedupe" element={<Navigate to="/tools/asset-deduplicator" replace />} />
                 <Route path="/tools/log-monitor" element={<ErrorBoundary><GameLogMonitor /></ErrorBoundary>} />
-                <Route path="/tools/xedit-executor" element={<ErrorBoundary><XEditScriptExecutor /></ErrorBoundary>} />
+                <Route path="/tools/xedit" element={<ErrorBoundary><XEditTools /></ErrorBoundary>} />
+                {/* Legacy xEdit routes redirect to unified tool */}
+                <Route path="/tools/xedit-executor" element={<Navigate to="/tools/xedit" replace />} />
+                <Route path="/tools/xedit-extension" element={<Navigate to="/tools/xedit" replace />} />
+                <Route path="/tools/ck-extension" element={<ErrorBoundary><CKExtension /></ErrorBoundary>} />
                 <Route path="/tools/project-templates" element={<ErrorBoundary><ProjectTemplates /></ErrorBoundary>} />
-                <Route path="/tools/conflict-visualizer" element={<ErrorBoundary><ModConflictVisualizer /></ErrorBoundary>} />
+                {/* Mod packaging tools redirected to PackagingHub */}
+                <Route path="/tools/conflict-visualizer" element={<Navigate to="/packaging-release?section=conflicts" replace />} />
+                <Route path="/tools/mod-comparison" element={<Navigate to="/packaging-release?section=comparison" replace />} />
                 <Route path="/tools/formid-remapper" element={<ErrorBoundary><FormIdRemapper /></ErrorBoundary>} />
-                <Route path="/tools/mod-comparison" element={<ErrorBoundary><ModComparisonTool /></ErrorBoundary>} />
                 <Route path="/tools/precombine-generator" element={<ErrorBoundary><PrecombineGenerator /></ErrorBoundary>} />
                 <Route path="/tools/voice-commands" element={<ErrorBoundary><VoiceCommands /></ErrorBoundary>} />
                 <Route path="/tools/automation" element={<ErrorBoundary><AutomationManager /></ErrorBoundary>} />
                 <Route path="/tools/ck-crash-prevention" element={<CKCrashPrevention />} />
+                {/* Redirect CK Safety to CK Crash Prevention - they serve the same purpose */}
+                <Route path="/tools/ck-safety" element={<Navigate to="/tools/ck-crash-prevention" replace />} />
                 <Route path="/tools/security" element={<ErrorBoundary><SecurityValidator /></ErrorBoundary>} />
-                <Route path="/tools/mining" element={<ErrorBoundary><MiningPanel /></ErrorBoundary>} />
-                <Route path="/tools/advanced-analysis" element={<ErrorBoundary><AdvancedAnalysisPanel /></ErrorBoundary>} />
+                <Route path="/tools/mining-hub" element={<ErrorBoundary><MiningHub /></ErrorBoundary>} />
+                {/* Legacy mining routes redirect to unified hub */}
+                <Route path="/tools/mining" element={<Navigate to="/tools/mining-hub?tab=pipeline" replace />} />
+                <Route path="/tools/advanced-analysis" element={<Navigate to="/tools/mining-hub?tab=analysis" replace />} />
                 <Route path="/tools/assembler" element={<Navigate to="/packaging-release" replace />} />
                 <Route path="/tools/blueprint" element={<TheBlueprint />} />
                 <Route path="/tools/scribe" element={<TheScribe />} />
                 <Route path="/tools/vault" element={<ErrorBoundary><TheVault /></ErrorBoundary>} />
-                <Route path="/tools/dedupe" element={<ErrorBoundary><DuplicateFinder /></ErrorBoundary>} />
                 <Route path="/tools/ba2-manager" element={<ErrorBoundary><BA2Manager /></ErrorBoundary>} />
                 <Route path="/tools/cosmos" element={<ErrorBoundary><CosmosWorkflow /></ErrorBoundary>} />
 
@@ -965,7 +976,8 @@ const App: React.FC = () => {
                 <Route path="/dev/neural-link" element={<Navigate to="/live" replace />} />
                 <Route path="/dev/workflow-recorder" element={<ErrorBoundary><WorkflowRecorder /></ErrorBoundary>} />
                 <Route path="/dev/plugin-manager" element={<ErrorBoundary><PluginManager /></ErrorBoundary>} />
-                <Route path="/dev/mining-dashboard" element={<ErrorBoundary><MiningDashboard /></ErrorBoundary>} />
+                {/* Redirect mining dashboard to unified hub */}
+                <Route path="/dev/mining-dashboard" element={<Navigate to="/tools/mining-hub?tab=dashboard" replace />} />
                 <Route path="/dev/load-order" element={<LoadOrderHub />} />
 
                 {/* Media & Assets */}
@@ -1087,7 +1099,7 @@ const App: React.FC = () => {
                 <Route path="/images" element={<Navigate to="/media/images" replace />} />
                 <Route path="/tts" element={<Navigate to="/live" replace />} />
                 <Route path="/bridge" element={<Navigate to="/test/bridge" replace />} />
-                <Route path="/dedupe" element={<Navigate to="/tools/dedupe" replace />} />
+                <Route path="/dedupe" element={<Navigate to="/tools/asset-deduplicator" replace />} />
                 <Route path="/cosmos" element={<Navigate to="/tools/cosmos" replace />} />
                 <Route path="/diagnostics" element={<DiagnosticsHub />} />
                 <Route path="/tool-verify" element={<Navigate to="/diagnostics" replace />} />
@@ -1126,6 +1138,10 @@ const App: React.FC = () => {
                 <Route path="/havok" element={<Navigate to="/guides/blender/animation" replace />} />
                 <Route path="/havok-quick-start" element={<Navigate to="/guides/blender/animation" replace />} />
                 <Route path="/havok-fo4" element={<Navigate to="/guides/blender/animation" replace />} />
+                
+                {/* Extension shortcuts */}
+                <Route path="/extensions/xedit" element={<Navigate to="/tools/xedit" replace />} />
+                <Route path="/extensions/ck" element={<Navigate to="/tools/ck-extension" replace />} />
                 </Routes>
               </Suspense>
             </div>
