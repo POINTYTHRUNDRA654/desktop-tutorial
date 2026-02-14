@@ -156,4 +156,3 @@ export const aiModAssistant = new AIModAssistantEngineImpl();
 export { AIModAssistantEngineImpl as AIModAssistantEngine };
 
 export default aiModAssistant;
-export default aiModAssistant;
