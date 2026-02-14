@@ -456,6 +456,80 @@ function setupIpcHandlers() {
     }
   });
 
+  // PSD parsing handler (runs in main process with Node.js)
+  registerHandler('parse-psd', async (_event, arrayBuffer: ArrayBuffer) => {
+    try {
+      const buffer = Buffer.from(arrayBuffer);
+      
+      // Dynamic import for ag-psd
+      const { readPsd } = await import('ag-psd');
+      const psd = readPsd(buffer, { skipLayerImageData: true, skipCompositeImageData: true });
+      
+      // Extract useful information
+      const info: string[] = [];
+      info.push(`PSD Document`);
+      info.push(`Dimensions: ${psd.width} x ${psd.height} pixels`);
+      if (psd.bitsPerChannel) info.push(`Bit Depth: ${psd.bitsPerChannel}-bit`);
+      if (psd.colorMode !== undefined) info.push(`Color Mode: ${psd.colorMode}`);
+      
+      // Extract layer structure (names only, no image data)
+      if (psd.children && psd.children.length > 0) {
+        info.push(`\nLayers (${psd.children.length} total):`);
+        const extractLayers = (layers: any[], indent = '') => {
+          for (const layer of layers) {
+            if (layer.name) {
+              info.push(`${indent}- ${layer.name}`);
+            }
+            if (layer.children && layer.children.length > 0) {
+              extractLayers(layer.children, indent + '  ');
+            }
+          }
+        };
+        extractLayers(psd.children);
+      }
+      
+      const text = info.join('\n');
+      return { success: true, text, metadata: { width: psd.width, height: psd.height } };
+    } catch (error: any) {
+      console.error('PSD parsing error:', error);
+      return { success: false, error: error.message || 'Failed to parse PSD' };
+    }
+  });
+
+  // ABR parsing handler (Adobe Brush files)
+  registerHandler('parse-abr', async (_event, arrayBuffer: ArrayBuffer) => {
+    try {
+      const buffer = Buffer.from(arrayBuffer);
+      
+      // Dynamic import for ag-psd
+      const { readAbr } = await import('ag-psd');
+      const abr = readAbr(buffer);
+      
+      // Extract brush information - abr.samples contains the brushes
+      const info: string[] = [];
+      info.push(`Adobe Brush File (.abr)`);
+      
+      const brushes = abr.samples || [];
+      info.push(`Total Brushes: ${brushes.length}`);
+      
+      if (brushes.length > 0) {
+        info.push(`\nBrush Presets:`);
+        brushes.forEach((brush: any, index: number) => {
+          const name = brush.name || `Brush ${index + 1}`;
+          const bounds = brush.bounds;
+          const size = bounds ? ` (${bounds.right - bounds.left}x${bounds.bottom - bounds.top}px)` : '';
+          info.push(`${index + 1}. ${name}${size}`);
+        });
+      }
+      
+      const text = info.join('\n');
+      return { success: true, text, metadata: { brushCount: brushes.length } };
+    } catch (error: any) {
+      console.error('ABR parsing error:', error);
+      return { success: false, error: error.message || 'Failed to parse ABR' };
+    }
+  });
+
   // Video transcription handler (runs in main process with Node.js)
   // NOTE: For security, the renderer should NOT pass API keys. This handler prefers
   // main-process stored secrets (safeStorage-encrypted settings) and env vars.
@@ -2222,6 +2296,60 @@ function setupIpcHandlers() {
     } catch (e: any) {
       return { success: false, error: String(e?.message || e) };
     }
+  });
+
+  // --- CK Crash Prevention Handlers ---
+  registerHandler('ck-crash-prevention:validate', async (_event, espPath: string, modName?: string, cellCount?: number) => {
+    try {
+      const { CKCrashPreventionEngine } = await import('../mining/ckCrashPrevention');
+      const engine = new CKCrashPreventionEngine();
+      const result = await engine.validateBeforeCK({ espPath, modName, cellCount });
+      return { success: true, result };
+    } catch (error: any) {
+      console.error('CK validation error:', error);
+      return { success: false, error: error.message };
+    }
+  });
+
+  registerHandler('ck-crash-prevention:analyze-crash', async (_event, logPath: string) => {
+    try {
+      const { CKCrashPreventionEngine } = await import('../mining/ckCrashPrevention');
+      const engine = new CKCrashPreventionEngine();
+      const diagnosis = await engine.analyzeCrashLog(logPath);
+      return { success: true, diagnosis };
+    } catch (error: any) {
+      console.error('Crash analysis error:', error);
+      return { success: false, error: error.message };
+    }
+  });
+
+  registerHandler('ck-crash-prevention:generate-plan', async (_event, validation: any) => {
+    try {
+      const { CKCrashPreventionEngine } = await import('../mining/ckCrashPrevention');
+      const engine = new CKCrashPreventionEngine();
+      const plan = engine.generatePreventionPlan(validation);
+      return { success: true, plan };
+    } catch (error: any) {
+      console.error('Plan generation error:', error);
+      return { success: false, error: error.message };
+    }
+  });
+
+  // File picker for crash logs
+  registerHandler('ck-crash-prevention:pick-log-file', async () => {
+    const result = await dialog.showOpenDialog({
+      properties: ['openFile'],
+      filters: [
+        { name: 'Log Files', extensions: ['log', 'txt'] },
+        { name: 'All Files', extensions: ['*'] }
+      ],
+      title: 'Select CK Crash Log'
+    });
+
+    if (!result.canceled && result.filePaths.length > 0) {
+      return { success: true, path: result.filePaths[0] };
+    }
+    return { success: false };
   });
 
   // --- Workshop: Browse directory and list files ---
