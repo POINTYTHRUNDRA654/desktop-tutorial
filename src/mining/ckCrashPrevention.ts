@@ -1,216 +1,34 @@
-/**
-<<<<<<< Updated upstream
- * CK Crash Prevention Engine (clean, conflict-free)
- * - Minimal, deterministic implementation used for validation and unit tests.
- * - Aligns with `src/shared/types.ts` CK types.
- */
-
-import * as fs from 'fs';
-import * as path from 'path';
-
+import fs from 'fs';
+import path from 'path';
 import type {
   CKValidationInput,
   CKValidationResult,
-  ValidationIssue,
+  ValidationIssue as SharedValidationIssue,
   ValidationWarning,
   PreventionPlan,
   PreventionStep,
   CrashDiagnosis,
 } from '../shared/types';
 
-export class CKCrashPreventionEngine {
-  private knownProblematicMods = [
-    'fusion city rising',
-    'hookers of the commonwealth',
-    'outcast and remnants',
-  ];
-
-  async validateBeforeCK(input: CKValidationInput): Promise<CKValidationResult> {
-    const issues: ValidationIssue[] = [];
-    const warnings: ValidationWarning[] = [];
-    const recommendations: string[] = [];
-    let estimatedMemoryUsage = 0;
-    let riskLevel: 'low' | 'medium' | 'high' | 'critical' = 'low';
-
-    try {
-      if (!fs.existsSync(input.espPath)) {
-        issues.push({ type: 'file_size', severity: 'critical', message: 'ESP file not found', fix: 'Verify path' } as any);
-        return { safe: false, issues, warnings, recommendations, estimatedMemoryUsage: 0, riskLevel: 'critical' };
-      }
-
-      const stats = fs.statSync(input.espPath);
-      const fileSizeMB = stats.size / (1024 * 1024);
-      estimatedMemoryUsage = Math.round(fileSizeMB * 4);
-
-      if (fileSizeMB > 250) {
-        issues.push({ type: 'file_size', severity: 'critical', message: `File exceeds 250MB (${fileSizeMB.toFixed(1)}MB)`, fix: 'Split plugin or reduce assets' } as any);
-        riskLevel = 'critical';
-      } else if (fileSizeMB > 180) {
-        warnings.push({ message: `Large ESP (${fileSizeMB.toFixed(1)}MB)`, recommendation: 'Monitor memory and consider splitting content' });
-        riskLevel = 'high';
-      }
-
-      if (input.modName && this.knownProblematicMods.some(m => input.modName!.toLowerCase().includes(m))) {
-        warnings.push({ message: 'Known problematic mod detected', recommendation: 'Review known issues before editing' });
-        if (riskLevel === 'low') riskLevel = 'medium';
-      }
-
-      if (input.cellCount && input.cellCount > 5000) {
-        warnings.push({ message: `High cell count (${input.cellCount})`, recommendation: 'Requires large RAM / break into smaller regions' });
-        if (riskLevel === 'low') riskLevel = 'medium';
-      }
-
-      if (issues.length === 0 && warnings.length === 0) recommendations.push('File appears safe for CK operations');
-
-      return { safe: issues.length === 0, issues, warnings, recommendations, estimatedMemoryUsage, riskLevel };
-    } catch (err: any) {
-      issues.push({ type: 'file_size', severity: 'critical', message: `Validation failed: ${String(err.message || err)}`, fix: 'Inspect file' } as any);
-      return { safe: false, issues, warnings, recommendations, estimatedMemoryUsage: 0, riskLevel: 'critical' };
-    }
-  }
-
-  /**
-   * Analyze crash log file
-   */
-  async analyzeCrashLog(logPath: string): Promise<CrashDiagnosis> {
-    try {
-      if (!fs.existsSync(logPath)) {
-        return {
-          exceptionType: 'unknown',
-          rootCause: 'Log file not found',
-          fixSteps: ['Verify log file path', 'Check Documents\\My Games\\Fallout 4 Creation Kit\\'],
-          relatedKnowledgeArticles: []
-        };
-      }
-
-      const logContent = fs.readFileSync(logPath, 'utf-8');
-      const lines = logContent.split('\n');
-
-      // Detect exception code
-      const exceptionLine = lines.find(line => /exception|0xc0000005/i.test(line));
-      let exceptionCode: string | undefined;
-      let exceptionType: CrashDiagnosis['exceptionType'] = 'unknown';
-
-      if (exceptionLine) {
-        if (exceptionLine.includes('0xc0000005')) {
-          exceptionCode = '0xc0000005';
-          exceptionType = 'access_violation';
-        }
-        if (/memory|out of memory/i.test(exceptionLine)) {
-          exceptionType = 'memory_error';
-        }
-      }
-
-      // Detect problematic cell
-      let problematicCell: string | undefined;
-      const cellLine = lines.find(line => /cell|processing/i.test(line));
-      if (cellLine) {
-        const cellMatch = cellLine.match(/cell\s+([A-Fa-f0-9]+)/i);
-        if (cellMatch) {
-          problematicCell = cellMatch[1];
-        }
-      }
-
-      // Generate diagnosis
-      let rootCause = 'Unknown crash cause';
-      const fixSteps: string[] = [];
-      const relatedArticles: string[] = [
-        'RESOLVING_CREATION_KIT_CRASHES.md',
-        'PRP_PATCH_CREATION_GUIDE.md'
-      ];
-
-      if (exceptionType === 'access_violation') {
-        rootCause = 'Access violation (0xc0000005) - Problematic mesh or conflicting geometry';
-        fixSteps.push('Identify the problematic CELL from CK logs');
-        fixSteps.push('Open patch in xEdit and find the problematic CELL record');
-        fixSteps.push('Delete the CELL record from your patch');
-        fixSteps.push('Save and retry precombine generation');
-        fixSteps.push('Document crash cell on GitHub for community');
-      } else if (exceptionType === 'memory_error') {
-        rootCause = 'Out of memory - Insufficient RAM or page file';
-        fixSteps.push('Increase virtual memory/page file to 16GB+');
-        fixSteps.push('Move texture .ba2 files to external drive temporarily');
-        fixSteps.push('Close all other applications');
-        fixSteps.push('Consider upgrading to 32GB RAM for large mods');
-      } else {
-        rootCause = 'Unable to determine exact cause from log';
-        fixSteps.push('Verify CK Fixes 1.81 is installed');
-        fixSteps.push('Verify Steamless applied to CreationKit.exe');
-        fixSteps.push('Check hex edits are applied correctly');
-        fixSteps.push('Try increasing page file size');
-      }
-
-      if (problematicCell) {
-        fixSteps.unshift(`Focus on CELL: ${problematicCell}`);
-      }
-
-      return {
-        exceptionCode,
-        exceptionType,
-        problematicCell,
-        rootCause,
-        fixSteps,
-        relatedKnowledgeArticles: relatedArticles
-      };
-
-    } catch (error: any) {
-      return {
-        exceptionType: 'unknown',
-        rootCause: `Error analyzing log: ${error.message}`,
-        fixSteps: ['Verify log file is readable', 'Check file permissions'],
-        relatedKnowledgeArticles: []
-=======
- * Creation Kit Crash Prevention Engine
- * 
- * Proactive validation, real-time monitoring, and crash diagnosis
- * Location: src/mining/ckCrashPrevention.ts
- */
-
-import fs from 'fs';
-import path from 'path';
-
 // ============================================================================
-// TYPE DEFINITIONS
+// TYPE DEFINITIONS (Local types not in shared - internal use only)
 // ============================================================================
 
-export interface ESPValidationResult {
-  isValid: boolean;
-  severity: 'safe' | 'warning' | 'danger';
-  issues: ValidationIssue[];
-  recommendations: string[];
-  estimatedCrashRisk: number; // 0-100
-  memoryEstimate: number; // MB
-}
-
-export interface ValidationIssue {
+// Internal validation result format
+interface InternalValidationIssue {
   type: 'file_size' | 'missing_master' | 'problematic_mod' | 'memory_intensive' | 'corrupted';
   severity: 'low' | 'medium' | 'high' | 'critical';
   message: string;
   solution: string;
 }
 
-export interface CrashDiagnosis {
-  crashType: 'memory_overflow' | 'access_violation' | 'stack_overflow' | 'navmesh' | 'precombine' | 'unknown';
-  rootCause: string;
-  affectedComponent: string;
+export interface ESPValidationResult {
+  isValid: boolean;
+  severity: 'safe' | 'warning' | 'danger';
+  issues: InternalValidationIssue[];
   recommendations: string[];
-  preventable: boolean;
-  stackTrace?: string[];
-}
-
-export interface PreventionPlan {
-  steps: PreventionStep[];
-  estimatedRiskReduction: number; // percentage
-  estimatedTime: string;
-  priority: 'low' | 'medium' | 'high' | 'critical';
-}
-
-export interface PreventionStep {
-  order: number;
-  action: string;
-  description: string;
-  automated: boolean;
-  tool?: string;
+  estimatedCrashRisk: number; // 0-100
+  memoryEstimate: number; // MB
 }
 
 // ============================================================================
@@ -274,10 +92,41 @@ const PROBLEMATIC_MODS = [
 
 export class CKCrashPreventionEngine {
   /**
+   * Main validation method called from IPC handlers
+   * Validates ESP file before opening in Creation Kit
+   */
+  async validateBeforeCK(input: CKValidationInput): Promise<CKValidationResult> {
+    const espValidation = this.validateESP(input.espPath);
+    
+    // Convert internal validation result to shared CKValidationResult
+    const issues: SharedValidationIssue[] = espValidation.issues.map(issue => ({
+      type: issue.type === 'file_size' ? 'file_size' : 
+            issue.type === 'missing_master' ? 'missing_master' :
+            issue.type === 'corrupted' ? 'corrupted_mesh' :
+            issue.type === 'problematic_mod' ? 'known_mod' : 'memory',
+      severity: issue.severity === 'low' ? 'warning' :
+                issue.severity === 'medium' ? 'warning' :
+                issue.severity === 'high' ? 'error' : 'critical',
+      message: issue.message,
+      fix: issue.solution
+    }));
+    
+    return {
+      safe: espValidation.isValid && espValidation.severity !== 'danger',
+      issues,
+      warnings: [],
+      recommendations: espValidation.recommendations,
+      estimatedMemoryUsage: espValidation.memoryEstimate,
+      riskLevel: espValidation.severity === 'danger' ? 'critical' :
+                 espValidation.severity === 'warning' ? 'medium' : 'low'
+    };
+  }
+
+  /**
    * Validate ESP file before opening in Creation Kit
    */
   validateESP(espPath: string): ESPValidationResult {
-    const issues: ValidationIssue[] = [];
+    const issues: InternalValidationIssue[] = [];
     let crashRisk = 0;
     let memoryEstimate = 0;
 
@@ -425,70 +274,11 @@ export class CKCrashPreventionEngine {
         recommendations: ['Verify file is not in use by another application'],
         estimatedCrashRisk: 100,
         memoryEstimate: 0
->>>>>>> Stashed changes
       };
     }
   }
 
   /**
-<<<<<<< Updated upstream
-   * Generate prevention plan
-   */
-  generatePreventionPlan(validation: CKValidationResult): PreventionPlan {
-    const steps: PreventionStep[] = [];
-    let priority: 'low' | 'medium' | 'high' = 'low';
-    let estimatedTime = 5;
-
-    if (validation.riskLevel === 'critical' || validation.riskLevel === 'high') {
-      priority = 'high';
-      estimatedTime = 30;
-
-      steps.push({
-        id: 'backup',
-        title: 'Backup your work',
-        description: 'Create a backup of your ESP/ESM file before proceeding',
-        completed: false
-      });
-    }
-
-    validation.issues.forEach((issue, index) => {
-      if (issue.fix) {
-        steps.push({
-          id: `fix-issue-${index}`,
-          title: issue.message,
-          description: issue.fix,
-          completed: false
-        });
-      }
-    });
-
-    validation.recommendations.forEach((rec, index) => {
-      steps.push({
-        id: `rec-${index}`,
-        title: rec,
-        description: 'Follow this recommendation before proceeding',
-        completed: false
-      });
-    });
-
-    if (steps.length === 0) {
-      steps.push({
-        id: 'ready',
-        title: 'Ready to proceed',
-        description: 'No critical issues detected. You can safely run CK operations.',
-        completed: false
-      });
-    }
-
-    return {
-      priority,
-      steps,
-      estimatedTime
-    };
-  }
-}
-
-=======
    * Analyze crash log and provide diagnosis
    */
   analyzeCrashLog(logPath: string): CrashDiagnosis {
@@ -497,11 +287,10 @@ export class CKCrashPreventionEngine {
       return this.parseCrashLog(logContent);
     } catch (error) {
       return {
-        crashType: 'unknown',
+        exceptionType: 'unknown',
         rootCause: `Failed to read crash log: ${error instanceof Error ? error.message : 'Unknown error'}`,
-        affectedComponent: 'Unknown',
-        recommendations: ['Verify log file path and permissions'],
-        preventable: false
+        fixSteps: ['Verify log file path and permissions'],
+        relatedKnowledgeArticles: []
       };
     }
   }
@@ -510,82 +299,65 @@ export class CKCrashPreventionEngine {
    * Parse crash log content
    */
   parseCrashLog(logContent: string): CrashDiagnosis {
-    let crashType: CrashDiagnosis['crashType'] = 'unknown';
+    let exceptionType: CrashDiagnosis['exceptionType'] = 'unknown';
     let rootCause = 'Unknown cause';
-    let affectedComponent = 'Unknown';
-    const recommendations: string[] = [];
-    let preventable = false;
+    const fixSteps: string[] = [];
 
     // Pattern 1: Memory overflow
     if (logContent.includes('out of memory') || logContent.includes('std::bad_alloc')) {
-      crashType = 'memory_overflow';
+      exceptionType = 'memory_error';
       rootCause = 'Creation Kit exceeded 4GB memory limit (32-bit application)';
-      affectedComponent = 'Memory Manager';
-      recommendations.push('Split large mods into smaller plugins');
-      recommendations.push('Close unnecessary applications before CK');
-      recommendations.push('Use 64-bit tools (xEdit) for bulk operations');
-      recommendations.push('Restart CK every 30-45 minutes to clear memory');
-      preventable = true;
+      fixSteps.push('Split large mods into smaller plugins');
+      fixSteps.push('Close unnecessary applications before CK');
+      fixSteps.push('Use 64-bit tools (xEdit) for bulk operations');
+      fixSteps.push('Restart CK every 30-45 minutes to clear memory');
     }
 
     // Pattern 2: Access violation with navmesh
     else if (logContent.includes('access violation') && logContent.toLowerCase().includes('navmesh')) {
-      crashType = 'navmesh';
+      exceptionType = 'access_violation';
       rootCause = 'Invalid navmesh operation causing access violation';
-      affectedComponent = 'Navmesh Editor';
-      recommendations.push('Save before editing navmeshes');
-      recommendations.push('Use navmesh cut tool instead of delete');
-      recommendations.push('Avoid dragging large navmesh sections');
-      recommendations.push('Regenerate navmesh if corruption suspected');
-      preventable = true;
+      fixSteps.push('Save before editing navmeshes');
+      fixSteps.push('Use navmesh cut tool instead of delete');
+      fixSteps.push('Avoid dragging large navmesh sections');
+      fixSteps.push('Regenerate navmesh if corruption suspected');
     }
 
     // Pattern 3: Access violation with precombine
     else if (logContent.includes('access violation') && 
              (logContent.toLowerCase().includes('precombine') || 
               logContent.toLowerCase().includes('previs'))) {
-      crashType = 'precombine';
+      exceptionType = 'access_violation';
       rootCause = 'Precombine/Previs data corruption or conflict';
-      affectedComponent = 'Precombine System';
-      recommendations.push('Disable precombines before CK: CompressPSG OFF');
-      recommendations.push('Edit without precombined data');
-      recommendations.push('Regenerate precombines after completion');
-      preventable = true;
+      fixSteps.push('Disable precombines before CK: CompressPSG OFF');
+      fixSteps.push('Edit without precombined data');
+      fixSteps.push('Regenerate precombines after completion');
     }
 
     // Pattern 4: Generic access violation
     else if (logContent.includes('access violation') || logContent.includes('0xC0000005')) {
-      crashType = 'access_violation';
+      exceptionType = 'access_violation';
       rootCause = 'Memory access to invalid address';
-      affectedComponent = 'Unknown';
-      recommendations.push('Run plugin validation with xEdit');
-      recommendations.push('Check for missing assets (meshes, textures)');
-      recommendations.push('Clean plugin with xEdit');
-      recommendations.push('Verify all master files are present');
-      preventable = true;
+      fixSteps.push('Run plugin validation with xEdit');
+      fixSteps.push('Check for missing assets (meshes, textures)');
+      fixSteps.push('Clean plugin with xEdit');
+      fixSteps.push('Verify all master files are present');
     }
 
-    // Pattern 5: Stack overflow
-    else if (logContent.includes('stack overflow') || logContent.includes('0xC00000FD')) {
-      crashType = 'stack_overflow';
-      rootCause = 'Infinite recursion or deeply nested operations';
-      affectedComponent = 'Script System';
-      recommendations.push('Check for circular script references');
-      recommendations.push('Review quest aliases and conditions');
-      recommendations.push('Simplify complex object reference chains');
-      preventable = true;
+    // Pattern 5: Timeout
+    else if (logContent.includes('timeout') || logContent.includes('not responding')) {
+      exceptionType = 'timeout';
+      rootCause = 'Operation took too long and timed out';
+      fixSteps.push('Check for circular script references');
+      fixSteps.push('Review quest aliases and conditions');
+      fixSteps.push('Simplify complex object reference chains');
     }
-
-    // Extract stack trace if available
-    const stackTrace = this.extractStackTrace(logContent);
 
     return {
-      crashType,
+      exceptionType,
       rootCause,
-      affectedComponent,
-      recommendations,
-      preventable,
-      stackTrace
+      fixSteps,
+      relatedKnowledgeArticles: []
     };
   }
 
@@ -594,27 +366,24 @@ export class CKCrashPreventionEngine {
    */
   generatePreventionPlan(validationResult: ESPValidationResult): PreventionPlan {
     const steps: PreventionStep[] = [];
-    let riskReduction = 0;
 
     // Step 1: Clean plugin
     steps.push({
-      order: 1,
-      action: 'Clean Plugin with xEdit',
+      id: 'clean-plugin',
+      title: 'Clean Plugin with xEdit',
       description: 'Remove identical-to-master records and undelete references',
-      automated: true,
-      tool: 'FO4Edit'
+      tool: 'FO4Edit',
+      completed: false
     });
-    riskReduction += 20;
 
     // Step 2: Backup
     steps.push({
-      order: 2,
-      action: 'Create Backup',
+      id: 'backup',
+      title: 'Create Backup',
       description: 'Backup current plugin state before modifications',
-      automated: true,
-      tool: 'File System'
+      tool: 'File System',
+      completed: false
     });
-    riskReduction += 5;
 
     // Step 3: Disable precombines if detected
     const hasPrecombineIssue = validationResult.issues.some(i => 
@@ -622,54 +391,41 @@ export class CKCrashPreventionEngine {
     );
     if (hasPrecombineIssue) {
       steps.push({
-        order: 3,
-        action: 'Disable Precombines',
+        id: 'disable-precombines',
+        title: 'Disable Precombines',
         description: 'Run CompressPSG OFF to remove precombine data',
-        automated: true,
-        tool: 'CompressPSG'
+        tool: 'CompressPSG',
+        completed: false
       });
-      riskReduction += 30;
     }
 
     // Step 4: Memory optimization
     if (validationResult.memoryEstimate > 1000) {
       steps.push({
-        order: steps.length + 1,
-        action: 'Optimize System Memory',
+        id: 'optimize-memory',
+        title: 'Optimize System Memory',
         description: 'Close unnecessary applications, clear Windows cache',
-        automated: false,
-        tool: 'Task Manager'
+        tool: 'Task Manager',
+        completed: false
       });
-      riskReduction += 10;
     }
 
     // Step 5: Verify masters
     steps.push({
-      order: steps.length + 1,
-      action: 'Verify Master Files',
+      id: 'verify-masters',
+      title: 'Verify Master Files',
       description: 'Ensure all required masters are installed and in load order',
-      automated: true,
-      tool: 'LOOT'
+      completed: false
     });
-    riskReduction += 15;
 
-    // Estimate time
-    const estimatedMinutes = steps.length * 3; // ~3 minutes per step
-    const estimatedTime = estimatedMinutes < 60 
-      ? `${estimatedMinutes} minutes`
-      : `${Math.ceil(estimatedMinutes / 60)} hour${estimatedMinutes >= 120 ? 's' : ''}`;
-
-    // Determine priority
-    let priority: PreventionPlan['priority'] = 'low';
-    if (validationResult.estimatedCrashRisk > 70) priority = 'critical';
-    else if (validationResult.estimatedCrashRisk > 50) priority = 'high';
-    else if (validationResult.estimatedCrashRisk > 30) priority = 'medium';
+    const priority: 'low' | 'medium' | 'high' = 
+      validationResult.estimatedCrashRisk > 70 ? 'high' :
+      validationResult.estimatedCrashRisk > 40 ? 'medium' : 'low';
 
     return {
+      priority,
       steps,
-      estimatedRiskReduction: Math.min(riskReduction, 85),
-      estimatedTime,
-      priority
+      estimatedTime: 15 // minutes
     };
   }
 
@@ -678,7 +434,7 @@ export class CKCrashPreventionEngine {
   // ============================================================================
 
   private generateRecommendations(
-    issues: ValidationIssue[], 
+    issues: InternalValidationIssue[], 
     fileSizeMB: number, 
     memoryEstimate: number
   ): string[] {
@@ -730,5 +486,4 @@ export class CKCrashPreventionEngine {
 }
 
 // Singleton instance
->>>>>>> Stashed changes
 export const ckCrashPrevention = new CKCrashPreventionEngine();
