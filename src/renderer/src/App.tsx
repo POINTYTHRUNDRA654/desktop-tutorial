@@ -108,11 +108,9 @@ const BA2Manager = React.lazy(() => import('./BA2Manager').then(module => ({ def
 const ProjectSelector = React.lazy(() => import('./ProjectSelector').then(module => ({ default: module.ProjectSelector })));
 
 // Mining Infrastructure
-const MiningDashboard = React.lazy(() => import('./MiningDashboard').then(module => ({ default: module.MiningDashboard })));
+const MiningHub = React.lazy(() => import('./MiningHub'));
 
 // Mining Infrastructure
-const MiningPanel = React.lazy(() => import('./MiningPanel').then(module => ({ default: module.MiningPanel })));
-const AdvancedAnalysisPanel = React.lazy(() => import('./AdvancedAnalysisPanel').then(module => ({ default: module.AdvancedAnalysisPanel })));
 
 // CK Crash Prevention
 const CKCrashPrevention = React.lazy(() => import('./CKCrashPrevention'));
@@ -960,8 +958,10 @@ const App: React.FC = () => {
                 {/* Redirect CK Safety to CK Crash Prevention - they serve the same purpose */}
                 <Route path="/tools/ck-safety" element={<Navigate to="/tools/ck-crash-prevention" replace />} />
                 <Route path="/tools/security" element={<ErrorBoundary><SecurityValidator /></ErrorBoundary>} />
-                <Route path="/tools/mining" element={<ErrorBoundary><MiningPanel /></ErrorBoundary>} />
-                <Route path="/tools/advanced-analysis" element={<ErrorBoundary><AdvancedAnalysisPanel /></ErrorBoundary>} />
+                <Route path="/tools/mining-hub" element={<ErrorBoundary><MiningHub /></ErrorBoundary>} />
+                {/* Legacy mining routes redirect to unified hub */}
+                <Route path="/tools/mining" element={<Navigate to="/tools/mining-hub?tab=pipeline" replace />} />
+                <Route path="/tools/advanced-analysis" element={<Navigate to="/tools/mining-hub?tab=analysis" replace />} />
                 <Route path="/tools/assembler" element={<Navigate to="/packaging-release" replace />} />
                 <Route path="/tools/blueprint" element={<TheBlueprint />} />
                 <Route path="/tools/scribe" element={<TheScribe />} />
@@ -978,7 +978,8 @@ const App: React.FC = () => {
                 <Route path="/dev/neural-link" element={<Navigate to="/live" replace />} />
                 <Route path="/dev/workflow-recorder" element={<ErrorBoundary><WorkflowRecorder /></ErrorBoundary>} />
                 <Route path="/dev/plugin-manager" element={<ErrorBoundary><PluginManager /></ErrorBoundary>} />
-                <Route path="/dev/mining-dashboard" element={<ErrorBoundary><MiningDashboard /></ErrorBoundary>} />
+                {/* Redirect mining dashboard to unified hub */}
+                <Route path="/dev/mining-dashboard" element={<Navigate to="/tools/mining-hub?tab=dashboard" replace />} />
                 <Route path="/dev/load-order" element={<LoadOrderHub />} />
 
                 {/* Media & Assets */}
