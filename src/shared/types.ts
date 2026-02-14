@@ -3139,11 +3139,7 @@ export interface ChatContext {
   conversationId?: string;
   userId: string;
   currentFile?: string;
-<<<<<<< Updated upstream
   projectContext?: ProjectData;
-=======
-  projectContext?: Project;
->>>>>>> Stashed changes
   recentActions: Action[];
 }
 
@@ -3188,10 +3184,7 @@ export interface Explanation {
   breakdown: CodeBreakdown[];
   concepts: Concept[];
   relatedDocs: string[];
-<<<<<<< Updated upstream
   steps?: string[];
-=======
->>>>>>> Stashed changes
 }
 
 export interface CodeBreakdown {
@@ -3242,10 +3235,7 @@ export interface FeatureSuggestion {
 export interface Intent {
   type: 'question' | 'command' | 'request' | 'feedback';
   action: string;
-<<<<<<< Updated upstream
   name?: string;
-=======
->>>>>>> Stashed changes
   confidence: number;
 }
 
@@ -3263,10 +3253,7 @@ export interface PersonalizationSettings {
 
 export interface ImageAnalysis {
   description: string;
-<<<<<<< Updated upstream
   tags?: string[];
-=======
->>>>>>> Stashed changes
   objects: DetectedObject[];
   answer: string;
   confidence: number;
@@ -3274,10 +3261,7 @@ export interface ImageAnalysis {
 
 export interface DetectedObject {
   label: string;
-<<<<<<< Updated upstream
   name?: string;
-=======
->>>>>>> Stashed changes
   confidence: number;
   boundingBox: BoundingBox;
 }
