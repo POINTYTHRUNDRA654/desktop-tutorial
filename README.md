@@ -8,6 +8,9 @@
 
 **New in v5.4.23:**
 - Fixed tutorial TTS integration - Mossy now speaks during tutorials
+- **Memory Vault** - Now accessible directly from Mossy.Space sidebar
+- **Community Knowledge Sharing** - Export approved knowledge to share with other users
+- **Import Community Knowledge** - Load knowledge packs from other Mossy users
 - All previous v5.4.21 features included
 
 **From v5.4.21:**
@@ -86,10 +89,22 @@ Your support helps:
 - Real-time voice conversation (local Windows voices by default; optional STT providers)
 - **Local ML Inference** - Support for Ollama (Llama 3) for private, offline assistance
 - **Memory Vault (RAG)** - Ingest custom tutorials and documentation to expand Mossy's "brain"
+- **Community Knowledge Sharing** - Share and import knowledge with other Mossy users
 - Custom avatar support with image uploads
 - Mode detection: listening, processing, speaking
 - Fallout 4 modding knowledge base (Modern 2025 Standards)
 - Text and voice input/output
+
+#### 📚 **Memory Vault** (Community Knowledge System)
+- **Upload Multiple Formats** - PDF, text, video (with transcription), and audio files
+- **RAG Integration** - All ingested content becomes searchable and AI-accessible
+- **Community Sharing** - Mark knowledge items for sharing with other users
+- **Export/Import** - JSON-based knowledge packs you can share via GitHub/Discord
+- **Trust Levels** - Personal, Community, or Official classification
+- **Privacy First** - Only explicitly marked items are shared; private notes stay private
+- **Credit Preservation** - Always maintains original author attribution
+- **Offline Transcription** - Optional whisper.cpp support for local video/audio transcription
+- See [COMMUNITY_KNOWLEDGE_SHARING.md](COMMUNITY_KNOWLEDGE_SHARING.md) for detailed guide
 
 #### 🧠 **Neural Link** (Direct Tool Integration)
 - **Active Process Monitoring** - Monitors Blender, Creation Kit, xEdit, and NifSkope in real-time

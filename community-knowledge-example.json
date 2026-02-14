@@ -1,0 +1,57 @@
+{
+  "version": "1.0",
+  "exported": "2026-02-13T12:00:00.000Z",
+  "description": "Example community knowledge pack - Papyrus basics",
+  "items": [
+    {
+      "title": "Papyrus Performance Best Practices",
+      "content": "1. Avoid OnUpdate() spam - use RegisterForSingleUpdate instead\n2. Cache property references at the start of functions\n3. Use arrays instead of multiple individual variables when possible\n4. Keep scripts small and focused on single responsibilities\n5. Unregister for events when no longer needed\n6. Use conditional compilation to remove debug code\n7. Prefer native Papyrus functions over custom implementations\n8. Minimize cross-script calls - they're expensive\n9. Use OnInit() wisely - it runs when save loads\n10. Test with performance monitoring enabled",
+      "source": "https://www.creationkit.com/index.php?title=Category:Papyrus",
+      "creditName": "Bethesda Creation Kit Wiki",
+      "creditUrl": "https://www.creationkit.com",
+      "trustLevel": "official",
+      "tags": ["papyrus", "performance", "optimization", "scripting"],
+      "status": "learned"
+    },
+    {
+      "title": "Quest Stage Best Practices",
+      "content": "When designing quests in the Creation Kit:\n\n- Use stage numbers in multiples of 10 (10, 20, 30...) to leave room for additions\n- Stage 0 is automatically set when quest starts\n- Stage 200+ traditionally used for quest completion\n- Stage 1000+ used for permanent shutdown stages\n- Use GetStage() conditionally in dialogue/scripts\n- SetStage() is one-way - you can't go backwards\n- Document your stage flow in comments\n- Keep stage scripts minimal - move complex logic to separate scripts\n- Test all branching paths thoroughly\n- Use aliases to reference objects, not direct references",
+      "source": "Community guide compiled from multiple sources",
+      "creditName": "r/FalloutMods Community",
+      "creditUrl": "https://reddit.com/r/FalloutMods",
+      "trustLevel": "community",
+      "tags": ["quest", "creation-kit", "stages", "workflow"],
+      "status": "learned"
+    },
+    {
+      "title": "Load Order Conflict Resolution Tips",
+      "content": "Resolving mod conflicts effectively:\n\n1. FormID conflicts:\n   - Open both conflicting mods in xEdit\n   - Check which records overlap (red highlight)\n   - Decide which changes to keep\n   - Create a patch plugin with winning edits\n   - Load patch AFTER both conflicting mods\n\n2. Asset conflicts (meshes/textures):\n   - Later loading mod wins automatically\n   - Use BA2 archives or loose files strategically\n   - Check Data folder structure for duplicates\n   - Use mod managers to handle priorities\n\n3. Script conflicts:\n   - Can't be resolved via load order\n   - May require script patching or recompilation\n   - Check for event registration conflicts\n   - Some script conflicts are fatal - choose one mod\n\n4. Keywords and injected records:\n   - Generally safe to have multiple sources\n   - Last loaded wins for modifications\n   - Leveled lists need special merging\n\nAlways test in-game after resolving conflicts!",
+      "source": "Personal experience + GamerPoets tutorials",
+      "creditName": "GamerPoets & Community Contributors",
+      "creditUrl": "https://www.youtube.com/c/gamerpoets",
+      "trustLevel": "community",
+      "tags": ["load-order", "conflicts", "xedit", "patching"],
+      "status": "learned"
+    },
+    {
+      "title": "NIF File Essentials",
+      "content": "Understanding NIF (NetImmerse File) meshes:\n\n- NIF files are 3D meshes used by Bethesda games\n- Must be exported from Blender using NifTools addon\n- Key components:\n  * BSTriShape: The actual geometry\n  * bhkCollisionObject: Physics collision\n  * NiStringExtraData: Metadata and flags\n  * NiAlphaProperty: Transparency settings\n  * BSLightingShaderProperty: Material/texture refs\n\nCommon issues:\n- Missing collision = players fall through\n- Wrong shader flags = invisible in-game\n- Bad vertex weights = deformed meshes\n- Missing textures = purple placeholder\n- Incorrect scale = size problems in-game\n\nTools:\n- NifSkope: View and edit NIF properties\n- Outfit Studio: Edit bodyslide meshes\n- Blender + NifTools: Create/modify meshes\n\nAlways validate NIFs in NifSkope before packaging!",
+      "source": "https://github.com/niftools/blender_niftools_addon/wiki",
+      "creditName": "NifTools Team",
+      "creditUrl": "https://github.com/niftools",
+      "trustLevel": "official",
+      "tags": ["nif", "meshes", "3d", "blender", "niftools"],
+      "status": "learned"
+    },
+    {
+      "title": "F4SE Script Extender Basics",
+      "content": "Fallout 4 Script Extender (F4SE) adds advanced scripting:\n\n**Installation:**\n1. Download F4SE from f4se.silverlock.org\n2. Extract to Fallout 4 root directory\n3. Launch game via f4se_loader.exe\n4. Verify with 'GetF4SEVersion' in console\n\n**Key Features:**\n- Additional Papyrus functions\n- Enhanced MCM (Mod Configuration Menu) support\n- Better save/load handling\n- UI extensions\n- Game memory improvements\n\n**For Modders:**\n- Check F4SE version in your plugin requirements\n- Use F4SE functions in scripts:\n  * F4SE.GetVersion()\n  * F4SE.GetVersionMinor()\n  * F4SE.GetVersionBeta()\n- Test with and without F4SE to catch dependencies\n- Document F4SE requirement clearly\n\n**Common Issues:**\n- Game updated = F4SE breaks (wait for update)\n- Launching via Steam = F4SE not loaded\n- Outdated F4SE = crashes or missing functions\n\nAlways keep F4SE updated!",
+      "source": "http://f4se.silverlock.org/",
+      "creditName": "F4SE Team",
+      "creditUrl": "http://f4se.silverlock.org/",
+      "trustLevel": "official",
+      "tags": ["f4se", "script-extender", "installation", "requirements"],
+      "status": "learned"
+    }
+  ]
+}

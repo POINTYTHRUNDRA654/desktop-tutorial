@@ -109,6 +109,12 @@ const MiningDashboard = React.lazy(() => import('./MiningDashboard').then(module
 const MiningPanel = React.lazy(() => import('./MiningPanel').then(module => ({ default: module.MiningPanel })));
 const AdvancedAnalysisPanel = React.lazy(() => import('./AdvancedAnalysisPanel').then(module => ({ default: module.AdvancedAnalysisPanel })));
 
+// CK Crash Prevention
+const CKCrashPrevention = React.lazy(() => import('./CKCrashPrevention'));
+
+// Knowledge & Memory
+const MossyMemoryVault = React.lazy(() => import('./MossyMemoryVault'));
+
 // Test Components
 const NotificationTest = React.lazy(() => import('./NotificationTest'));
 
@@ -927,6 +933,7 @@ const App: React.FC = () => {
                 <Route path="/tools/precombine-generator" element={<ErrorBoundary><PrecombineGenerator /></ErrorBoundary>} />
                 <Route path="/tools/voice-commands" element={<ErrorBoundary><VoiceCommands /></ErrorBoundary>} />
                 <Route path="/tools/automation" element={<ErrorBoundary><AutomationManager /></ErrorBoundary>} />
+                <Route path="/tools/ck-crash-prevention" element={<CKCrashPrevention />} />
                 <Route path="/tools/mining" element={<ErrorBoundary><MiningPanel /></ErrorBoundary>} />
                 <Route path="/tools/advanced-analysis" element={<ErrorBoundary><AdvancedAnalysisPanel /></ErrorBoundary>} />
                 <Route path="/tools/assembler" element={<Navigate to="/packaging-release" replace />} />
@@ -967,6 +974,9 @@ const App: React.FC = () => {
                 <Route path="/learn/reference" element={<Navigate to="/learn" replace />} />
                 <Route path="/learn/community" element={<Navigate to="/learn" replace />} />
                 <Route path="/learn/capabilities" element={<Navigate to="/learn" replace />} />
+                
+                {/* Memory Vault */}
+                <Route path="/memory-vault" element={<ErrorBoundary><MossyMemoryVault /></ErrorBoundary>} />
 
                 {/* Guides - Organized by Category */}
                 <Route path="/guides" element={<ErrorBoundary><TheNexus /></ErrorBoundary>} />
@@ -1050,7 +1060,6 @@ const App: React.FC = () => {
                 <Route path="/lore" element={<Navigate to="/learn" replace />} />
                 <Route path="/holo" element={<Navigate to="/test/holo" replace />} />
                 <Route path="/vault" element={<Navigate to="/tools/vault" replace />} />
-                <Route path="/memory-vault" element={<Navigate to="/live" replace />} />
                 <Route path="/neural-link" element={<Navigate to="/live" replace />} />
                 <Route path="/workshop" element={<Navigate to="/dev/workshop" replace />} />
                 <Route path="/images" element={<Navigate to="/media/images" replace />} />
