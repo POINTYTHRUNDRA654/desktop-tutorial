@@ -134,7 +134,21 @@ export const DDSConverter: React.FC = () => {
           setSingleFile(prev => prev ? { ...prev, format: formatResult.format } : null);
         }
         
-        // TODO: Generate preview using sharp library
+        // Generate preview using image info API
+        try {
+          const imageInfo = await window.electronAPI.getImageInfo(filePath);
+          if (imageInfo && imageInfo.data) {
+            // Set preview as base64 data URL
+            setSingleFile(prev => prev ? { 
+              ...prev, 
+              preview: `data:image/${imageInfo.format || 'png'};base64,${imageInfo.data}` 
+            } : null);
+          }
+        } catch (previewError) {
+          console.warn('Failed to generate preview:', previewError);
+          // Preview is optional, don't fail the whole operation
+        }
+        
         setSingleResult(null);
       }
     } catch (error) {

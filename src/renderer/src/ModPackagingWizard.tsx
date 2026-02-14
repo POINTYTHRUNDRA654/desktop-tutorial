@@ -293,20 +293,17 @@ export default function ModPackagingWizard() {
     setUploadProgress(0);
 
     try {
-      // Simulate upload progress (in real implementation, use Nexus API)
-      const progressInterval = setInterval(() => {
-        setUploadProgress(prev => Math.min(prev + 10, 90));
-      }, 500);
-
-      // TODO: Implement actual Nexus Mods API upload
-      // For now, just simulate success
-      await new Promise(resolve => setTimeout(resolve, 5000));
-
-      clearInterval(progressInterval);
-      setUploadProgress(100);
-
-      setSnackbarMessage('Successfully uploaded to Nexus Mods!');
-      setSnackbarOpen(true);
+      // NOTE: Nexus Mods API integration is a planned feature
+      // The Nexus Mods API requires authentication, API keys, and proper permissions
+      // This would require:
+      // 1. User to authenticate with Nexus Mods
+      // 2. OAuth2 or API key configuration
+      // 3. Proper mod categorization and metadata
+      // 4. File chunking for large uploads
+      // 5. Terms of service agreement
+      
+      // For now, inform the user this is not yet implemented
+      setError('Nexus Mods upload is not yet implemented. Please upload manually via nexusmods.com');
       setShowNexusUpload(false);
     } catch (err: any) {
       setError(`Upload failed: ${err.message}`);

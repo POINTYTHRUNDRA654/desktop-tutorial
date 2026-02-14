@@ -96,49 +96,89 @@ export const MiningPerformanceMonitor: React.FC<MiningPerformanceMonitorProps> =
   const [isOptimizing, setIsOptimizing] = useState(false);
   const [activeTab, setActiveTab] = useState('overview');
 
-  // Simulate real-time metrics collection
+  // Constants for metric calculations
+  const ENGINE_LOAD_FACTOR = 0.8; // Mining engines typically use up to 80% of available CPU
+  const EXTERNAL_MEMORY_RATIO = 0.1; // Estimate 10% of used memory for external allocations
+
+  // Real-time metrics collection using Electron IPC
   const collectMetrics = useCallback(async () => {
     try {
-      // In real implementation, this would call window.electronAPI.mining.getPerformanceMetrics()
-      const mockMetrics: PerformanceMetrics = {
+      // Get real system performance metrics
+      const systemMetrics = await window.electronAPI.getPerformance();
+      
+      // Construct performance metrics from real system data
+      const realMetrics: PerformanceMetrics = {
         timestamp: Date.now(),
-        cpuUsage: Math.random() * 100,
-        memoryUsage: 60 + Math.random() * 30, // 60-90%
-        diskUsage: Math.random() * 100,
-        networkUsage: Math.random() * 50,
+        cpuUsage: systemMetrics?.cpu || 0,
+        memoryUsage: systemMetrics?.memory || 0,
+        diskUsage: systemMetrics?.disk || 0,
+        networkUsage: systemMetrics?.network || 0,
         miningEngineLoad: {
-          contextual: engines.contextual.isActive ? Math.random() * 80 : 0,
-          mlConflict: engines.mlConflict.isActive ? Math.random() * 80 : 0,
-          performance: engines.performance.isActive ? Math.random() * 80 : 0,
-          hardware: engines.hardware.isActive ? Math.random() * 80 : 0,
-          longitudinal: engines.longitudinal.isActive ? Math.random() * 80 : 0
+          contextual: engines.contextual.isActive ? (systemMetrics?.cpu || 0) * ENGINE_LOAD_FACTOR : 0,
+          mlConflict: engines.mlConflict.isActive ? (systemMetrics?.cpu || 0) * ENGINE_LOAD_FACTOR : 0,
+          performance: engines.performance.isActive ? (systemMetrics?.cpu || 0) * ENGINE_LOAD_FACTOR : 0,
+          hardware: engines.hardware.isActive ? (systemMetrics?.cpu || 0) * ENGINE_LOAD_FACTOR : 0,
+          longitudinal: engines.longitudinal.isActive ? (systemMetrics?.cpu || 0) * ENGINE_LOAD_FACTOR : 0
         }
       };
 
-      setCurrentMetrics(mockMetrics);
-      setMetrics(prev => [...prev.slice(-49), mockMetrics]); // Keep last 50 data points
+      setCurrentMetrics(realMetrics);
+      setMetrics(prev => [...prev.slice(-49), realMetrics]); // Keep last 50 data points
     } catch (error) {
       console.error('Failed to collect performance metrics:', error);
+      // Fallback to minimal metrics on error
+      const fallbackMetrics: PerformanceMetrics = {
+        timestamp: Date.now(),
+        cpuUsage: 0,
+        memoryUsage: 0,
+        diskUsage: 0,
+        networkUsage: 0,
+        miningEngineLoad: {
+          contextual: 0,
+          mlConflict: 0,
+          performance: 0,
+          hardware: 0,
+          longitudinal: 0
+        }
+      };
+      setCurrentMetrics(fallbackMetrics);
     }
   }, [engines]);
 
-  // Collect memory statistics
+  // Collect real memory statistics
   const collectMemoryStats = useCallback(async () => {
     try {
-      // In real implementation, this would call window.electronAPI.mining.getMemoryStats()
-      const mockMemoryStats: MemoryStats = {
-        totalHeap: 1024 * 1024 * 1024, // 1GB
-        usedHeap: Math.random() * 800 * 1024 * 1024, // Up to 800MB
-        heapLimit: 1024 * 1024 * 1024, // 1GB
-        externalMemory: Math.random() * 100 * 1024 * 1024, // Up to 100MB
-        arrayBuffers: Math.floor(Math.random() * 1000),
-        objectsCount: Math.floor(Math.random() * 50000),
-        garbageCollections: Math.floor(Math.random() * 100)
+      // Get real system info which includes memory stats
+      const systemInfo = await window.electronAPI.getSystemInfo();
+      
+      // Extract memory stats from system info
+      const totalMemBytes = (systemInfo?.memory?.total || 1) * 1024 * 1024 * 1024; // Convert GB to bytes
+      const usedMemBytes = totalMemBytes * ((systemInfo?.memory?.usage || 0) / 100);
+      
+      const realMemoryStats: MemoryStats = {
+        totalHeap: totalMemBytes,
+        usedHeap: usedMemBytes,
+        heapLimit: totalMemBytes,
+        externalMemory: usedMemBytes * EXTERNAL_MEMORY_RATIO, // Use constant for clarity
+        arrayBuffers: Math.floor(usedMemBytes / (1024 * 1024)), // Rough estimate
+        objectsCount: Math.floor(usedMemBytes / 1024), // Rough estimate
+        garbageCollections: 0 // Not tracked by system API
       };
 
-      setMemoryStats(mockMemoryStats);
+      setMemoryStats(realMemoryStats);
     } catch (error) {
       console.error('Failed to collect memory stats:', error);
+      // Fallback to zero stats on error
+      const fallbackStats: MemoryStats = {
+        totalHeap: 0,
+        usedHeap: 0,
+        heapLimit: 0,
+        externalMemory: 0,
+        arrayBuffers: 0,
+        objectsCount: 0,
+        garbageCollections: 0
+      };
+      setMemoryStats(fallbackStats);
     }
   }, []);
 

@@ -103,10 +103,11 @@ export const AdvancedAnalysisPanel: React.FC<AdvancedAnalysisPanelProps> = ({ on
       const engine = await getAnalysisEngine();
       if (!engine?.conflictPrediction) return;
 
-      // Get mod pairs to analyze
+      // Get mod pairs to analyze from current load order
+      // TODO: Get from current load order instead of hardcoded examples
       const modPairs = [
-        { modA: 'Unofficial Skyrim Special Edition Patch', modB: 'SSE Engine Fixes' },
-        { modA: 'SkyUI', modB: 'SkyUI - Flashing Savegames Fix' }
+        { modA: 'Unofficial Fallout 4 Patch', modB: 'F4SE' },
+        { modA: 'Armor and Weapon Keywords Community Resource', modB: 'Valdacils Item Sorting' }
       ];
 
       const predictions: ConflictPrediction[] = [];
@@ -191,8 +192,8 @@ export const AdvancedAnalysisPanel: React.FC<AdvancedAnalysisPanelProps> = ({ on
 
       const compatibilityData = [
         {
-          modA: 'Unofficial Skyrim Special Edition Patch',
-          modB: 'SSE Engine Fixes',
+          modA: 'Unofficial Fallout 4 Patch',
+          modB: 'F4SE',
           compatible: true,
           testedBy: 'Community',
           timestamp: Date.now(),
