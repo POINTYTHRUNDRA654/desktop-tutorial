@@ -137,7 +137,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen = false, onToggle, onClose }) 
     { to: '/extensions/comfyui', icon: Network, label: 'ComfyUI Extension' },
     { to: '/extensions/upscayl', icon: Aperture, label: 'Upscayl Extension' },
     
-    { to: '/dedupe', icon: Copy, label: t('nav.duplicateFinder', 'Duplicate Finder') },
+    { to: '/tools/asset-deduplicator', icon: Copy, label: t('nav.duplicateFinder', 'Asset Deduplicator') },
     { to: '/community', icon: Github, label: t('nav.communityLearning', 'Community Learning') },
     { to: '/tool-verify', icon: CheckCircle2, label: t('nav.toolVerify', 'Tool Verify') },
     { to: '/settings', icon: Settings, label: t('nav.settings', 'Settings') },
