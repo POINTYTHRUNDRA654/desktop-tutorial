@@ -14,7 +14,11 @@ import React, { useState, useRef, useEffect, useCallback } from 'react';
 import './AIAssistant.css';
 
 // Type definitions for AI modes and state
+<<<<<<< Updated upstream
 type AIMode = 'general' | 'code-gen' | 'workflow' | 'troubleshoot' | 'learn' | 'organize' | 'mod-creation';
+=======
+type AIMode = 'general' | 'code-gen' | 'workflow' | 'troubleshoot' | 'learn' | 'organize';
+>>>>>>> Stashed changes
 
 interface ChatMessage {
   id: string;
@@ -69,6 +73,7 @@ interface DocumentationDraft {
  */
 export const AIAssistant: React.FC = () => {
   // State management
+<<<<<<< Updated upstream
   const [currentMode, setCurrentMode] = useState<AIMode>(() => {
     // Check URL params for mode
     const params = new URLSearchParams(window.location.search);
@@ -78,6 +83,9 @@ export const AIAssistant: React.FC = () => {
     }
     return 'general';
   });
+=======
+  const [currentMode, setCurrentMode] = useState<AIMode>('general');
+>>>>>>> Stashed changes
   const [chatHistory, setChatHistory] = useState<ChatMessage[]>([]);
   const [inputText, setInputText] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -174,6 +182,10 @@ export const AIAssistant: React.FC = () => {
    * Handle code generation
    */
   const handleCodeGeneration = async (description: string) => {
+<<<<<<< Updated upstream
+=======
+    try {
+>>>>>>> Stashed changes
       const result = await window.electronAPI.aiGenerateScript({
         description,
         language: codeGenSession?.language || 'papyrus',
@@ -209,12 +221,22 @@ export const AIAssistant: React.FC = () => {
         };
         setChatHistory(prev => [...prev, response]);
       }
+<<<<<<< Updated upstream
+=======
+    } catch (error) {
+      throw error;
+    }
+>>>>>>> Stashed changes
   };
 
   /**
    * Handle workflow planning
    */
   const handleWorkflowPlanning = async (goal: string) => {
+<<<<<<< Updated upstream
+=======
+    try {
+>>>>>>> Stashed changes
       const result = await window.electronAPI.aiPlanWorkflow({
         description: goal,
         goal,
@@ -242,12 +264,22 @@ export const AIAssistant: React.FC = () => {
         };
         setChatHistory(prev => [...prev, response]);
       }
+<<<<<<< Updated upstream
+=======
+    } catch (error) {
+      throw error;
+    }
+>>>>>>> Stashed changes
   };
 
   /**
    * Handle error diagnosis
    */
   const handleErrorDiagnosis = async (errorDescription: string) => {
+<<<<<<< Updated upstream
+=======
+    try {
+>>>>>>> Stashed changes
       const result = await window.electronAPI.aiDiagnoseError({
         errorMessage: errorDescription,
       });
@@ -268,12 +300,22 @@ export const AIAssistant: React.FC = () => {
         };
         setChatHistory(prev => [...prev, response]);
       }
+<<<<<<< Updated upstream
+=======
+    } catch (error) {
+      throw error;
+    }
+>>>>>>> Stashed changes
   };
 
   /**
    * Handle learning requests
    */
   const handleLearning = async (topic: string) => {
+<<<<<<< Updated upstream
+=======
+    try {
+>>>>>>> Stashed changes
       const result = await window.electronAPI.aiExplain({
         concept: topic,
         skillLevel: 'intermediate',
@@ -294,12 +336,22 @@ export const AIAssistant: React.FC = () => {
         };
         setChatHistory(prev => [...prev, response]);
       }
+<<<<<<< Updated upstream
+=======
+    } catch (error) {
+      throw error;
+    }
+>>>>>>> Stashed changes
   };
 
   /**
    * Handle asset organization
    */
   const handleAssetOrganization = async (assetDescription: string) => {
+<<<<<<< Updated upstream
+=======
+    try {
+>>>>>>> Stashed changes
       const result = await window.electronAPI.aiSuggestNames({
         type: 'texture',
         description: assetDescription,
@@ -328,12 +380,22 @@ export const AIAssistant: React.FC = () => {
         };
         setChatHistory(prev => [...prev, response]);
       }
+<<<<<<< Updated upstream
+=======
+    } catch (error) {
+      throw error;
+    }
+>>>>>>> Stashed changes
   };
 
   /**
    * Handle general queries
    */
   const handleGeneralQuery = async (query: string) => {
+<<<<<<< Updated upstream
+=======
+    try {
+>>>>>>> Stashed changes
       const result = await window.electronAPI.aiExplain({
         concept: query,
         includeExamples: true,
@@ -348,6 +410,12 @@ export const AIAssistant: React.FC = () => {
         };
         setChatHistory(prev => [...prev, response]);
       }
+<<<<<<< Updated upstream
+=======
+    } catch (error) {
+      throw error;
+    }
+>>>>>>> Stashed changes
   };
 
   /**
@@ -361,7 +429,10 @@ export const AIAssistant: React.FC = () => {
       'troubleshoot': 'Troubleshooter',
       'learn': 'Learning Hub',
       'organize': 'Asset Organizer',
+<<<<<<< Updated upstream
       'mod-creation': 'Mod Creation Wizard',
+=======
+>>>>>>> Stashed changes
     };
     return names[mode];
   };
@@ -447,7 +518,11 @@ export const AIAssistant: React.FC = () => {
 
       {/* Mode Selector */}
       <div className="ai-modes">
+<<<<<<< Updated upstream
         {(['general', 'code-gen', 'workflow', 'troubleshoot', 'learn', 'organize', 'mod-creation'] as AIMode[]).map(
+=======
+        {(['general', 'code-gen', 'workflow', 'troubleshoot', 'learn', 'organize'] as AIMode[]).map(
+>>>>>>> Stashed changes
           mode => (
             <button
               key={mode}
@@ -541,7 +616,10 @@ export const AIAssistant: React.FC = () => {
           {currentMode === 'troubleshoot' && <TroubleshootPanel chatHistory={chatHistory} />}
           {currentMode === 'learn' && <LearningPanel />}
           {currentMode === 'general' && <GeneralPanel />}
+<<<<<<< Updated upstream
           {currentMode === 'mod-creation' && <ModCreationPanel />}
+=======
+>>>>>>> Stashed changes
         </div>
       </div>
     </div>
@@ -808,6 +886,7 @@ const GeneralPanel: React.FC = () => {
 };
 
 /**
+<<<<<<< Updated upstream
  * Mod Creation Panel Component
  */
 const ModCreationPanel: React.FC = () => {
@@ -836,6 +915,8 @@ const ModCreationPanel: React.FC = () => {
 };
 
 /**
+=======
+>>>>>>> Stashed changes
  * Utility: Get mode icon
  */
 function getModeIcon(mode: AIMode): string {
@@ -846,7 +927,10 @@ function getModeIcon(mode: AIMode): string {
     'troubleshoot': '🔧',
     'learn': '📚',
     'organize': '📦',
+<<<<<<< Updated upstream
     'mod-creation': '🎮',
+=======
+>>>>>>> Stashed changes
   };
   return icons[mode];
 }
@@ -862,7 +946,10 @@ function getModeDescription(mode: AIMode): string {
     'troubleshoot': 'Error analysis\nDiagnostic steps\nFix recommendations',
     'learn': 'Tutorials\nConcept guides\nResource suggestions',
     'organize': 'Asset naming\nBatch operations\nNaming conventions',
+<<<<<<< Updated upstream
     'mod-creation': 'Project setup\nAsset pipeline\nIntegration & testing',
+=======
+>>>>>>> Stashed changes
   };
   return descriptions[mode];
 }
