@@ -14,7 +14,7 @@ import React, { useState, useRef, useEffect, useCallback } from 'react';
 import './AIAssistant.css';
 
 // Type definitions for AI modes and state
-type AIMode = 'general' | 'code-gen' | 'workflow' | 'troubleshoot' | 'learn' | 'organize';
+type AIMode = 'general' | 'code-gen' | 'workflow' | 'troubleshoot' | 'learn' | 'organize' | 'mod-creation';
 
 interface ChatMessage {
   id: string;
@@ -69,7 +69,15 @@ interface DocumentationDraft {
  */
 export const AIAssistant: React.FC = () => {
   // State management
-  const [currentMode, setCurrentMode] = useState<AIMode>('general');
+  const [currentMode, setCurrentMode] = useState<AIMode>(() => {
+    // Check URL params for mode
+    const params = new URLSearchParams(window.location.search);
+    const urlMode = params.get('mode');
+    if (urlMode && ['general', 'code-gen', 'workflow', 'troubleshoot', 'learn', 'organize', 'mod-creation'].includes(urlMode)) {
+      return urlMode as AIMode;
+    }
+    return 'general';
+  });
   const [chatHistory, setChatHistory] = useState<ChatMessage[]>([]);
   const [inputText, setInputText] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -377,6 +385,7 @@ export const AIAssistant: React.FC = () => {
       'troubleshoot': 'Troubleshooter',
       'learn': 'Learning Hub',
       'organize': 'Asset Organizer',
+      'mod-creation': 'Mod Creation Wizard',
     };
     return names[mode];
   };
@@ -462,7 +471,7 @@ export const AIAssistant: React.FC = () => {
 
       {/* Mode Selector */}
       <div className="ai-modes">
-        {(['general', 'code-gen', 'workflow', 'troubleshoot', 'learn', 'organize'] as AIMode[]).map(
+        {(['general', 'code-gen', 'workflow', 'troubleshoot', 'learn', 'organize', 'mod-creation'] as AIMode[]).map(
           mode => (
             <button
               key={mode}
@@ -556,6 +565,7 @@ export const AIAssistant: React.FC = () => {
           {currentMode === 'troubleshoot' && <TroubleshootPanel chatHistory={chatHistory} />}
           {currentMode === 'learn' && <LearningPanel />}
           {currentMode === 'general' && <GeneralPanel />}
+          {currentMode === 'mod-creation' && <ModCreationPanel />}
         </div>
       </div>
     </div>
@@ -822,6 +832,34 @@ const GeneralPanel: React.FC = () => {
 };
 
 /**
+ * Mod Creation Panel Component
+ */
+const ModCreationPanel: React.FC = () => {
+  return (
+    <div className="panel mod-creation-panel">
+      <h3>🎮 Mod Creation Wizard</h3>
+      <div className="placeholder">
+        <p><strong>End-to-end mod creation assistance</strong></p>
+        <p>Get help with:</p>
+        <ul style={{ textAlign: 'left', maxWidth: '500px', margin: '1rem auto' }}>
+          <li>Project setup and structure</li>
+          <li>Asset integration (meshes, textures, scripts)</li>
+          <li>Plugin configuration</li>
+          <li>Testing and iteration</li>
+          <li>Packaging and distribution</li>
+        </ul>
+        <p>Try asking:</p>
+        <ul style={{ textAlign: 'left', maxWidth: '500px', margin: '1rem auto', fontSize: '0.9em', color: '#888' }}>
+          <li>"Help me create a new weapon mod"</li>
+          <li>"Set up a quest mod project structure"</li>
+          <li>"Guide me through adding custom textures"</li>
+        </ul>
+      </div>
+    </div>
+  );
+};
+
+/**
  * Utility: Get mode icon
  */
 function getModeIcon(mode: AIMode): string {
@@ -832,6 +870,7 @@ function getModeIcon(mode: AIMode): string {
     'troubleshoot': '🔧',
     'learn': '📚',
     'organize': '📦',
+    'mod-creation': '🎮',
   };
   return icons[mode];
 }
@@ -847,6 +886,7 @@ function getModeDescription(mode: AIMode): string {
     'troubleshoot': 'Error analysis\nDiagnostic steps\nFix recommendations',
     'learn': 'Tutorials\nConcept guides\nResource suggestions',
     'organize': 'Asset naming\nBatch operations\nNaming conventions',
+    'mod-creation': 'Project setup\nAsset pipeline\nIntegration & testing',
   };
   return descriptions[mode];
 }

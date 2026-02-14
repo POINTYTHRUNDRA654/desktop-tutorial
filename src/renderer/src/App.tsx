@@ -92,7 +92,6 @@ const AutomationManager = React.lazy(() => import('./AutomationManager'));
 
 // AI & Intelligence Features
 const AIAssistant = React.lazy(() => import('./AIAssistant'));
-const AIModAssistant = React.lazy(() => import('./AIModAssistant'));
 const CloudSync = React.lazy(() => import('./CloudSync'));
 const WorkflowRecorder = React.lazy(() => import('./WorkflowRecorder').then(module => ({ default: module.WorkflowRecorder })));
 const PluginManager = React.lazy(() => import('./PluginManager').then(module => ({ default: module.PluginManager })));
@@ -925,7 +924,8 @@ const App: React.FC = () => {
                 />
                 <Route path="/chat" element={<ErrorBoundary><ChatInterface /></ErrorBoundary>} />
                 <Route path="/ai-assistant" element={<ErrorBoundary><AIAssistant /></ErrorBoundary>} />
-                <Route path="/ai-mod-assistant" element={<ErrorBoundary><AIModAssistant /></ErrorBoundary>} />
+                {/* Redirect AIModAssistant to AIAssistant with mod-creation mode */}
+                <Route path="/ai-mod-assistant" element={<Navigate to="/ai-assistant?mode=mod-creation" replace />} />
                 <Route path="/cloud-sync" element={<ErrorBoundary><CloudSync /></ErrorBoundary>} />
                 <Route path="/first-success" element={<ErrorBoundary><FirstSuccessWizard /></ErrorBoundary>} />
                 <Route path="/roadmap" element={<ErrorBoundary><RoadmapPanel /></ErrorBoundary>} />
