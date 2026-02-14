@@ -10,6 +10,7 @@
     "tar": "^7.5.7"
   },
   "scripts": {
+    "install:hooks": "sh scripts/setup-git-hooks.sh",
     "postinstall": "node scripts/postinstall.mjs",
     "dev:killports": "node scripts/kill-ports.mjs 5174 5173 21337",
     "dev:clean": "npm run dev:killports && npm run dev",
