@@ -5668,7 +5668,6 @@ export interface WorkerNode {
   };
 }
 
-<<<<<<< Updated upstream
 /**
  * CK Crash Prevention System Types
  */
@@ -5752,8 +5751,6 @@ export interface PreventionStep {
   completed: boolean;
 }
 
-=======
->>>>>>> Stashed changes
 // ============================================================================
 // QUEST EDITOR TYPES
 // ============================================================================
@@ -5824,7 +5821,6 @@ export interface QuestAlias {
   conditions: Condition[];
 }
 
-<<<<<<< Updated upstream
 export interface ValidationWarning {
   message: string;
   recommendation: string;
@@ -5946,8 +5942,6 @@ export interface QuestAlias {
   conditions: Condition[];
 }
 
-=======
->>>>>>> Stashed changes
 export type EmotionType = 
   | 'happy' | 'sad' | 'angry' | 'fear' | 'disgust' 
   | 'surprise' | 'neutral' | 'custom';
