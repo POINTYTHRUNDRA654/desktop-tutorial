@@ -132,7 +132,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen = false, onToggle, onClose }) 
     
     // === TOOL EXTENSIONS ===
     { to: '/extensions/mo2', icon: Package, label: 'MO2 Extension' },
-    { to: '/tools/xedit-extension', icon: Database, label: 'xEdit Extension' },
+    { to: '/tools/xedit', icon: Database, label: 'xEdit Tools' },
     { to: '/tools/ck-extension', icon: Wrench, label: 'CK Extension' },
     { to: '/extensions/comfyui', icon: Network, label: 'ComfyUI Extension' },
     { to: '/extensions/upscayl', icon: Aperture, label: 'Upscayl Extension' },
