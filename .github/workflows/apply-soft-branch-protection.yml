@@ -1,0 +1,40 @@
+name: Apply soft branch protection to master
+
+on:
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+
+jobs:
+  apply-protection:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Apply branch protection (soft)
+        uses: actions/github-script@v6
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const { owner, repo } = context.repo;
+            console.log(`Applying soft protection to ${owner}/${repo}:master`);
+
+            await github.rest.repos.updateBranchProtection({
+              owner,
+              repo,
+              branch: 'master',
+              required_status_checks: {
+                strict: false,
+                contexts: [] // no specific contexts required yet; CI can be added later
+              },
+              enforce_admins: false, // admins keep ability to push if needed
+              required_pull_request_reviews: {
+                dismiss_stale_reviews: false,
+                require_code_owner_reviews: false,
+                required_approving_review_count: 0
+              },
+              restrictions: null,
+              allow_deletions: false,
+              allow_force_pushes: false
+            });
+
+            console.log('Soft branch protection applied: status checks enforced (no specific contexts), direct pushes allowed.');
