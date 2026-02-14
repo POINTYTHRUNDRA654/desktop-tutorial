@@ -108,8 +108,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen = false, onToggle, onClose }) 
     // === QUALITY ASSURANCE: VALIDATE & VERIFY ===
     { to: '/auditor', icon: ShieldCheck, label: t('nav.auditor', 'The Auditor') },
     { to: '/tools/ck-crash-prevention', icon: Shield, label: t('nav.ckCrashPrevention', 'CK Crash Prevention') },
-    { to: '/tools/mining', icon: Binary, label: t('nav.miningDashboard', 'Mining Dashboard') },
-    { to: '/tools/advanced-analysis', icon: Brain, label: t('nav.advancedAnalysis', 'Advanced Analysis') },
+    { to: '/tools/mining-hub', icon: Binary, label: t('nav.miningHub', 'Mining & Analysis Hub') },
     { to: '/scribe', icon: Feather, label: t('nav.scribe', 'The Scribe') },
     { to: '/monitor', icon: Activity, label: t('nav.systemMonitor', 'System Monitor') },
 
