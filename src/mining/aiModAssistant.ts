@@ -67,7 +67,13 @@ export class AIModAssistantEngineImpl implements AIModAssistantEngine {
 
   async explainCode(code: string): Promise<Explanation> {
     const summary = `This code appears to be ${code.slice(0, 40)}... (stub explanation)`;
-    return { summary, breakdown: [], concepts: [], relatedDocs: [] };
+    return {
+      summary,
+      breakdown: [],
+      concepts: [],
+      relatedDocs: [],
+      steps: ['Read the code', 'Summarize purpose', 'List potential issues'],
+    };
   }
 
   async refactorCode(code: string, improvements: string[]): Promise<RefactoredCode> {
@@ -100,9 +106,9 @@ export class AIModAssistantEngineImpl implements AIModAssistantEngine {
   // ----------------------
   async parseIntent(userInput: string): Promise<Intent> {
     const lowered = userInput.toLowerCase();
-    if (lowered.includes('fix') || lowered.includes('error')) return { type: 'command', action: 'report_issue', confidence: 0.9 };
-    if (lowered.includes('generate') || lowered.includes('create')) return { type: 'command', action: 'generate_code', confidence: 0.85 };
-    return { type: 'question', action: 'unknown', confidence: 0.5 };
+    if (lowered.includes('fix') || lowered.includes('error')) return { type: 'command', action: 'report_issue', name: 'report_issue', confidence: 0.9 };
+    if (lowered.includes('generate') || lowered.includes('create')) return { type: 'command', action: 'generate_code', name: 'generate_code', confidence: 0.85 };
+    return { type: 'question', action: 'unknown', name: 'unknown', confidence: 0.5 };
   }
 
   async extractParameters(intent: Intent, userInput: string): Promise<Parameters> {
@@ -126,7 +132,15 @@ export class AIModAssistantEngineImpl implements AIModAssistantEngine {
   // Multi-modal
   // ----------------------
   async analyzeImage(imagePath: string, question: string): Promise<ImageAnalysis> {
-    return { description: `Image at ${imagePath}`, objects: [{ label: 'button', confidence: 0.98, boundingBox: { x: 0, y: 0, width: 100, height: 40 } }], answer: question, confidence: 0.9 };
+    return {
+      description: `Image at ${imagePath}`,
+      tags: ['button'],
+      objects: [
+        { label: 'button', name: 'button', confidence: 0.98, boundingBox: { x: 0, y: 0, width: 100, height: 40 } },
+      ],
+      answer: question,
+      confidence: 0.9,
+    };
   }
 
   async generateImageDescription(imagePath: string): Promise<string> {

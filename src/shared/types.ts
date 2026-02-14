@@ -3184,6 +3184,7 @@ export interface Explanation {
   breakdown: CodeBreakdown[];
   concepts: Concept[];
   relatedDocs: string[];
+  steps?: string[];
 }
 
 export interface CodeBreakdown {
@@ -3234,6 +3235,7 @@ export interface FeatureSuggestion {
 export interface Intent {
   type: 'question' | 'command' | 'request' | 'feedback';
   action: string;
+  name?: string;
   confidence: number;
 }
 
@@ -3251,6 +3253,7 @@ export interface PersonalizationSettings {
 
 export interface ImageAnalysis {
   description: string;
+  tags?: string[];
   objects: DetectedObject[];
   answer: string;
   confidence: number;
@@ -3258,6 +3261,7 @@ export interface ImageAnalysis {
 
 export interface DetectedObject {
   label: string;
+  name?: string;
   confidence: number;
   boundingBox: BoundingBox;
 }
