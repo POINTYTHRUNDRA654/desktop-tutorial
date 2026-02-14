@@ -99,7 +99,6 @@ const RoadmapPanel = React.lazy(() => import('./RoadmapPanel'));
 const DiagnosticsHub = React.lazy(() => import('./DiagnosticsHub'));
 const PackagingHub = React.lazy(() => import('./PackagingHub'));
 const WizardsHub = React.lazy(() => import('./WizardsHub'));
-const DuplicateFinder = React.lazy(() => import('./DuplicateFinder'));
 
 // Archive Management
 const BA2Manager = React.lazy(() => import('./BA2Manager').then(module => ({ default: module.BA2Manager })));
@@ -945,7 +944,6 @@ const App: React.FC = () => {
                 <Route path="/tools/xedit-executor" element={<Navigate to="/tools/xedit" replace />} />
                 <Route path="/tools/xedit-extension" element={<Navigate to="/tools/xedit" replace />} />
                 <Route path="/tools/ck-extension" element={<ErrorBoundary><CKExtension /></ErrorBoundary>} />
-                <Route path="/tools/ck-safety" element={<ErrorBoundary><CKSafetyPanel /></ErrorBoundary>} />
                 <Route path="/tools/project-templates" element={<ErrorBoundary><ProjectTemplates /></ErrorBoundary>} />
                 {/* Mod packaging tools redirected to PackagingHub */}
                 <Route path="/tools/conflict-visualizer" element={<Navigate to="/packaging-release?section=conflicts" replace />} />
