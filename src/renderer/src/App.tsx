@@ -120,7 +120,6 @@ const CKCrashPrevention = React.lazy(() => import('./CKCrashPrevention'));
 
 // CK Tools
 const CKExtension = React.lazy(() => import('./CKExtension').then(module => ({ default: module.CKExtension })));
-const CKSafetyPanel = React.lazy(() => import('./CKSafetyPanel'));
 const XEditExtension = React.lazy(() => import('./XEditExtension'));
 
 // Knowledge & Memory
@@ -956,6 +955,8 @@ const App: React.FC = () => {
                 <Route path="/tools/voice-commands" element={<ErrorBoundary><VoiceCommands /></ErrorBoundary>} />
                 <Route path="/tools/automation" element={<ErrorBoundary><AutomationManager /></ErrorBoundary>} />
                 <Route path="/tools/ck-crash-prevention" element={<CKCrashPrevention />} />
+                {/* Redirect CK Safety to CK Crash Prevention - they serve the same purpose */}
+                <Route path="/tools/ck-safety" element={<Navigate to="/tools/ck-crash-prevention" replace />} />
                 <Route path="/tools/security" element={<ErrorBoundary><SecurityValidator /></ErrorBoundary>} />
                 <Route path="/tools/mining" element={<ErrorBoundary><MiningPanel /></ErrorBoundary>} />
                 <Route path="/tools/advanced-analysis" element={<ErrorBoundary><AdvancedAnalysisPanel /></ErrorBoundary>} />
