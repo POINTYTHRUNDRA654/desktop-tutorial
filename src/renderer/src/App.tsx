@@ -77,7 +77,7 @@ const PaperScriptGuide = React.lazy(() => import('./PaperScriptGuide'));
 
 // INI Configuration Manager
 const IniConfigManager = React.lazy(() => import('./IniConfigManager'));
-const AssetDuplicateScanner = React.lazy(() => import('./AssetDuplicateScanner'));
+const AssetDeduplicator = React.lazy(() => import('./AssetDeduplicator'));
 
 // New Power Tools (Features 3-10)
 const GameLogMonitor = React.lazy(() => import('./GameLogMonitor'));
@@ -939,7 +939,10 @@ const App: React.FC = () => {
                 <Route path="/tools/monitor" element={<Navigate to="/diagnostics" replace />} />
                 <Route path="/tools/auditor" element={<TheAuditor />} />
                 <Route path="/tools/ini-config" element={<ErrorBoundary><IniConfigManager /></ErrorBoundary>} />
-                <Route path="/tools/asset-scanner" element={<ErrorBoundary><AssetDuplicateScanner /></ErrorBoundary>} />
+                <Route path="/tools/asset-deduplicator" element={<ErrorBoundary><AssetDeduplicator /></ErrorBoundary>} />
+                {/* Legacy routes redirect to new unified deduplicator */}
+                <Route path="/tools/asset-scanner" element={<Navigate to="/tools/asset-deduplicator" replace />} />
+                <Route path="/tools/dedupe" element={<Navigate to="/tools/asset-deduplicator" replace />} />
                 <Route path="/tools/log-monitor" element={<ErrorBoundary><GameLogMonitor /></ErrorBoundary>} />
                 <Route path="/tools/xedit-executor" element={<ErrorBoundary><XEditScriptExecutor /></ErrorBoundary>} />
                 <Route path="/tools/xedit-extension" element={<ErrorBoundary><XEditExtension /></ErrorBoundary>} />
@@ -960,7 +963,6 @@ const App: React.FC = () => {
                 <Route path="/tools/blueprint" element={<TheBlueprint />} />
                 <Route path="/tools/scribe" element={<TheScribe />} />
                 <Route path="/tools/vault" element={<ErrorBoundary><TheVault /></ErrorBoundary>} />
-                <Route path="/tools/dedupe" element={<ErrorBoundary><DuplicateFinder /></ErrorBoundary>} />
                 <Route path="/tools/ba2-manager" element={<ErrorBoundary><BA2Manager /></ErrorBoundary>} />
                 <Route path="/tools/cosmos" element={<ErrorBoundary><CosmosWorkflow /></ErrorBoundary>} />
 
@@ -1095,7 +1097,7 @@ const App: React.FC = () => {
                 <Route path="/images" element={<Navigate to="/media/images" replace />} />
                 <Route path="/tts" element={<Navigate to="/live" replace />} />
                 <Route path="/bridge" element={<Navigate to="/test/bridge" replace />} />
-                <Route path="/dedupe" element={<Navigate to="/tools/dedupe" replace />} />
+                <Route path="/dedupe" element={<Navigate to="/tools/asset-deduplicator" replace />} />
                 <Route path="/cosmos" element={<Navigate to="/tools/cosmos" replace />} />
                 <Route path="/diagnostics" element={<DiagnosticsHub />} />
                 <Route path="/tool-verify" element={<Navigate to="/diagnostics" replace />} />
