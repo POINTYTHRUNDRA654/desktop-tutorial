@@ -96,6 +96,10 @@ export const MiningPerformanceMonitor: React.FC<MiningPerformanceMonitorProps> =
   const [isOptimizing, setIsOptimizing] = useState(false);
   const [activeTab, setActiveTab] = useState('overview');
 
+  // Constants for metric calculations
+  const ENGINE_LOAD_FACTOR = 0.8; // Mining engines typically use up to 80% of available CPU
+  const EXTERNAL_MEMORY_RATIO = 0.1; // Estimate 10% of used memory for external allocations
+
   // Real-time metrics collection using Electron IPC
   const collectMetrics = useCallback(async () => {
     try {
@@ -110,11 +114,11 @@ export const MiningPerformanceMonitor: React.FC<MiningPerformanceMonitorProps> =
         diskUsage: systemMetrics?.disk || 0,
         networkUsage: systemMetrics?.network || 0,
         miningEngineLoad: {
-          contextual: engines.contextual.isActive ? (systemMetrics?.cpu || 0) * 0.8 : 0,
-          mlConflict: engines.mlConflict.isActive ? (systemMetrics?.cpu || 0) * 0.8 : 0,
-          performance: engines.performance.isActive ? (systemMetrics?.cpu || 0) * 0.8 : 0,
-          hardware: engines.hardware.isActive ? (systemMetrics?.cpu || 0) * 0.8 : 0,
-          longitudinal: engines.longitudinal.isActive ? (systemMetrics?.cpu || 0) * 0.8 : 0
+          contextual: engines.contextual.isActive ? (systemMetrics?.cpu || 0) * ENGINE_LOAD_FACTOR : 0,
+          mlConflict: engines.mlConflict.isActive ? (systemMetrics?.cpu || 0) * ENGINE_LOAD_FACTOR : 0,
+          performance: engines.performance.isActive ? (systemMetrics?.cpu || 0) * ENGINE_LOAD_FACTOR : 0,
+          hardware: engines.hardware.isActive ? (systemMetrics?.cpu || 0) * ENGINE_LOAD_FACTOR : 0,
+          longitudinal: engines.longitudinal.isActive ? (systemMetrics?.cpu || 0) * ENGINE_LOAD_FACTOR : 0
         }
       };
 
@@ -155,7 +159,7 @@ export const MiningPerformanceMonitor: React.FC<MiningPerformanceMonitorProps> =
         totalHeap: totalMemBytes,
         usedHeap: usedMemBytes,
         heapLimit: totalMemBytes,
-        externalMemory: usedMemBytes * 0.1, // Estimate 10% for external
+        externalMemory: usedMemBytes * EXTERNAL_MEMORY_RATIO, // Use constant for clarity
         arrayBuffers: Math.floor(usedMemBytes / (1024 * 1024)), // Rough estimate
         objectsCount: Math.floor(usedMemBytes / 1024), // Rough estimate
         garbageCollections: 0 // Not tracked by system API

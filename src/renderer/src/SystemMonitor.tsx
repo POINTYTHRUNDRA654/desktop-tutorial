@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { v4 as uuidv4 } from 'uuid';
 import ExternalToolNotice from './components/ExternalToolNotice';
 import { ToolsInstallVerifyPanel } from './components/ToolsInstallVerifyPanel';
 import { Settings as SettingsIcon } from 'lucide-react';
@@ -440,9 +441,10 @@ const SystemMonitor: React.FC<SystemMonitorProps> = ({ embedded = false }) => {
       const interval = setInterval(() => {
           if (currentStep >= steps.length) {
               clearInterval(interval);
-              // Mark build as complete and generate release URL
+              // Mark build as complete and generate secure release URL
               setBuildStatus('complete');
-              setReleaseUrl(window.location.href.split('#')[0] + '#/beta/invite/' + Math.random().toString(36).substring(7));
+              const inviteCode = uuidv4().split('-')[0]; // Use first segment of UUID for cleaner URL
+              setReleaseUrl(window.location.href.split('#')[0] + '#/beta/invite/' + inviteCode);
               return;
           }
 
