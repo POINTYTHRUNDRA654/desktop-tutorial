@@ -420,10 +420,10 @@ const SystemMonitor: React.FC<SystemMonitorProps> = ({ embedded = false }) => {
 
   // --- Deployment Logic ---
   const startBuild = () => {
-      // TODO: Implement build status, progress, and log state
-      // setBuildStatus('building');
-      // setBuildProgress(0);
-      // setBuildLog(['Initializing Mod Deployment Sequence...']);
+      // Initialize build state
+      setBuildStatus('building');
+      setBuildProgress(0);
+      setBuildLog(['Initializing Mod Deployment Sequence...']);
       
       const steps = [
           "Verifying Plugin Integrity (.esp/.esl)...",
@@ -440,15 +440,15 @@ const SystemMonitor: React.FC<SystemMonitorProps> = ({ embedded = false }) => {
       const interval = setInterval(() => {
           if (currentStep >= steps.length) {
               clearInterval(interval);
-              // TODO: Implement build status and release URL state
-              // setBuildStatus('complete');
-              // setReleaseUrl(window.location.href.split('#')[0] + '#/beta/invite/' + Math.random().toString(36).substring(7));
+              // Mark build as complete and generate release URL
+              setBuildStatus('complete');
+              setReleaseUrl(window.location.href.split('#')[0] + '#/beta/invite/' + Math.random().toString(36).substring(7));
               return;
           }
 
-          // TODO: Implement build log and progress state
-          // setBuildLog(prev => [...prev, `[${new Date().toLocaleTimeString()}] ${steps[currentStep]}`]);
-          // setBuildProgress(prev => Math.min(100, prev + (100 / steps.length)));
+          // Add log entry and update progress
+          setBuildLog(prev => [...prev, `[${new Date().toLocaleTimeString()}] ${steps[currentStep]}`]);
+          setBuildProgress(prev => Math.min(100, prev + (100 / steps.length)));
           currentStep++;
       }, 800);
   };
@@ -543,11 +543,9 @@ const SystemMonitor: React.FC<SystemMonitorProps> = ({ embedded = false }) => {
   };
 
   const copyLink = () => {
-      // TODO: Implement release URL and copied state
-      // if (!releaseUrl) return;
-      // navigator.clipboard.writeText(releaseUrl);
-      // setCopied(true);
-      // setTimeout(() => setCopied(false), 2000);
+      if (!releaseUrl) return;
+      navigator.clipboard.writeText(releaseUrl);
+      addLog('Release URL copied to clipboard!', 'success');
   };
 
     const mainScrollRef = useRef<HTMLDivElement | null>(null);
