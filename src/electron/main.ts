@@ -9,7 +9,7 @@ import { app, BrowserWindow, ipcMain, dialog, shell, safeStorage, screen } from 
 import path from 'path';
 import os from 'os';
 import { IPC_CHANNELS } from './types';
-import { ModProject, CollaborationSession, VersionControlConfig, AnalyticsEvent, UsageMetrics, AnalyticsConfig, Roadmap, ProjectWizardState } from '../shared/types';
+import { ModProject, CollaborationSession, VersionControlConfig, AnalyticsEvent, UsageMetrics, AnalyticsConfig, Roadmap, ProjectWizardState, Quest, QuestType, QuestStage } from '../shared/types';
 import { scanForDuplicates, type DedupeScanState } from './duplicateFinder';
 import { detectPrograms, getSystemInfo } from './detectPrograms';
 import { getRunningModdingTools } from './processMonitor';
@@ -4053,6 +4053,1071 @@ function setupIpcHandlers() {
         mainWindow.webContents.send('message', { role: 'assistant', content: errorMsg });
       }
       return errorMsg;
+    }
+  });
+
+  // ============================================================================
+  // QUEST EDITOR IPC HANDLERS
+  // ============================================================================
+
+  // For now, we'll create a local QuestEditorEngine instance; in production this would
+  // connect to a persistent database or file storage
+  const questEditor = require('../mining/questEditor').questEditor;
+
+  ipcMain.handle('quest:create', async (_event, questData: any) => {
+    try {
+      console.log('[Main] quest:create handler called');
+      const quest = questEditor.createQuest(questData);
+      return { success: true, data: quest };
+    } catch (error: any) {
+      console.error('[Main] quest:create error:', error);
+      return { success: false, error: error instanceof Error ? error.message : String(error) };
+    }
+  });
+
+  ipcMain.handle('quest:load', async (_event, questId: string) => {
+    try {
+      console.log('[Main] quest:load handler called for questId:', questId);
+      const quest = questEditor.loadQuest(questId);
+      if (!quest) {
+        return { success: false, error: 'Quest not found' };
+      }
+      return { success: true, data: quest };
+    } catch (error: any) {
+      console.error('[Main] quest:load error:', error);
+      return { success: false, error: error instanceof Error ? error.message : String(error) };
+    }
+  });
+
+  ipcMain.handle('quest:save', async (_event, questId: string) => {
+    try {
+      console.log('[Main] quest:save handler called for questId:', questId);
+      const result = questEditor.saveQuest(questId);
+      return { success: result.success, errors: result.errors };
+    } catch (error: any) {
+      console.error('[Main] quest:save error:', error);
+      return { success: false, error: error instanceof Error ? error.message : String(error) };
+    }
+  });
+
+  ipcMain.handle('quest:validate', async (_event, questId: string) => {
+    try {
+      console.log('[Main] quest:validate handler called for questId:', questId);
+      const validation = questEditor.validateQuest(questId);
+      return { success: validation.isValid, data: validation };
+    } catch (error: any) {
+      console.error('[Main] quest:validate error:', error);
+      return { success: false, error: error instanceof Error ? error.message : String(error) };
+    }
+  });
+
+  ipcMain.handle('quest:simulate', async (_event, questId: string) => {
+    try {
+      console.log('[Main] quest:simulate handler called for questId:', questId);
+      const result = questEditor.simulateQuestFlow(questId);
+      return { success: result.success, data: result };
+    } catch (error: any) {
+      console.error('[Main] quest:simulate error:', error);
+      return { success: false, error: error instanceof Error ? error.message : String(error) };
+    }
+  });
+
+  ipcMain.handle('quest:generateScript', async (_event, questId: string) => {
+    try {
+      console.log('[Main] quest:generateScript handler called for questId:', questId);
+      const papyrusCode = questEditor.generateQuestScript(questId);
+      if (!papyrusCode) {
+        return { success: false, error: 'Quest not found' };
+      }
+      return { success: true, data: papyrusCode };
+    } catch (error: any) {
+      console.error('[Main] quest:generateScript error:', error);
+      return { success: false, error: error instanceof Error ? error.message : String(error) };
+    }
+  });
+
+  ipcMain.handle('quest:generateDialogueFragments', async (_event, questId: string) => {
+    try {
+      console.log('[Main] quest:generateDialogueFragments handler called for questId:', questId);
+      const fragments = questEditor.generateDialogueFragments(questId);
+      return { success: true, data: fragments };
+    } catch (error: any) {
+      console.error('[Main] quest:generateDialogueFragments error:', error);
+      return { success: false, error: error instanceof Error ? error.message : String(error) };
+    }
+  });
+
+  // --------------------------------------------------------------------------
+  // New `quest-editor:` IPC handlers (renderer -> main) — adapters for QuestEditorEngine
+  // Note: handlers map renderer payloads to the existing QuestEditorEngine API
+  // --------------------------------------------------------------------------
+
+  ipcMain.handle('quest-editor:create-quest', async (_event, name: string, type: QuestType = 'side', description: string = '') => {
+    try {
+      console.log('[Main] quest-editor:create-quest', { name, type });
+      const id = `quest_${Date.now()}`;
+      const quest = questEditor.createQuest({ id, name, description, type, priority: 50 });
+      return { success: true, data: quest };
+    } catch (error: any) {
+      console.error('[Main] quest-editor:create-quest error:', error);
+      return { success: false, error: error instanceof Error ? error.message : String(error) };
+    }
+  });
+
+  ipcMain.handle('quest-editor:load-quest', async (_event, espPath: string | undefined, questId: string) => {
+    try {
+      console.log('[Main] quest-editor:load-quest', { espPath, questId });
+      // espPath support (loading from disk) is not yet implemented — load from in-memory engine
+      const quest = questEditor.loadQuest(questId);
+      if (!quest) return { success: false, error: 'Quest not found' };
+      return { success: true, data: quest };
+    } catch (error: any) {
+      console.error('[Main] quest-editor:load-quest error:', error);
+      return { success: false, error: error instanceof Error ? error.message : String(error) };
+    }
+  });
+
+  ipcMain.handle('quest-editor:save-quest', async (_event, quest: Quest, espPath?: string) => {
+    try {
+      console.log('[Main] quest-editor:save-quest', { questId: quest?.id, espPath });
+      if (!quest || !quest.id) return { success: false, error: 'Invalid quest payload' };
+      const result = questEditor.saveQuest(quest.id);
+      // TODO: persist to ESP file at `espPath` when ESP export is implemented
+      return { success: result.success, errors: result.errors };
+    } catch (error: any) {
+      console.error('[Main] quest-editor:save-quest error:', error);
+      return { success: false, error: error instanceof Error ? error.message : String(error) };
+    }
+  });
+
+  ipcMain.handle('quest-editor:add-stage', async (_event, quest: Quest, stage: QuestStage) => {
+    try {
+      console.log('[Main] quest-editor:add-stage', { questId: quest?.id, stageIndex: stage?.index });
+      if (!quest || !quest.id || !stage) return { success: false, error: 'Invalid payload' };
+      const created = questEditor.addStage(quest.id, { index: stage.index, logEntry: stage.logEntry });
+      if (!created) return { success: false, error: 'Failed to add stage' };
+      return { success: true, data: created };
+    } catch (error: any) {
+      console.error('[Main] quest-editor:add-stage error:', error);
+      return { success: false, error: error instanceof Error ? error.message : String(error) };
+    }
+  });
+
+  ipcMain.handle('quest-editor:generate-script', async (_event, quest: Quest) => {
+    try {
+      console.log('[Main] quest-editor:generate-script', { questId: quest?.id });
+      if (!quest || !quest.id) return { success: false, error: 'Invalid quest payload' };
+      const papyrus = questEditor.generateQuestScript(quest.id);
+      if (!papyrus) return { success: false, error: 'Quest not found' };
+      return { success: true, data: papyrus };
+    } catch (error: any) {
+      console.error('[Main] quest-editor:generate-script error:', error);
+      return { success: false, error: error instanceof Error ? error.message : String(error) };
+    }
+  });
+
+  ipcMain.handle('quest-editor:create-dialogue', async (_event, npc: string, topic: string, questId?: string) => {
+    try {
+      console.log('[Main] quest-editor:create-dialogue', { npc, topic, questId });
+      const id = `dlg_${Date.now()}`;
+      const branch = questEditor.createDialogueBranch({ id, npc, topic, priority: 50, quest: questId });
+      return { success: true, data: branch };
+    } catch (error: any) {
+      console.error('[Main] quest-editor:create-dialogue error:', error);
+      return { success: false, error: error instanceof Error ? error.message : String(error) };
+    }
+  });
+
+  ipcMain.handle('quest-editor:validate', async (_event, quest: Quest) => {
+    try {
+      console.log('[Main] quest-editor:validate', { questId: quest?.id });
+      if (!quest || !quest.id) return { success: false, error: 'Invalid quest payload' };
+      const validation = questEditor.validateQuest(quest.id);
+      return { success: validation.isValid, data: validation };
+    } catch (error: any) {
+      console.error('[Main] quest-editor:validate error:', error);
+      return { success: false, error: error instanceof Error ? error.message : String(error) };
+    }
+  });
+
+  ipcMain.handle('quest-editor:simulate', async (_event, quest: Quest, /* choices: UserChoice[] (ignored) */) => {
+    try {
+      console.log('[Main] quest-editor:simulate', { questId: quest?.id });
+      if (!quest || !quest.id) return { success: false, error: 'Invalid quest payload' };
+      // Note: `choices` are currently ignored by the engine; simulation is deterministic
+      const result = questEditor.simulateQuestFlow(quest.id);
+      return { success: result.success, data: result };
+    } catch (error: any) {
+      console.error('[Main] quest-editor:simulate error:', error);
+      return { success: false, error: error instanceof Error ? error.message : String(error) };
+    }
+  });
+
+  // --------------------------------------------------------------------------
+  // Cell Editor IPC handlers (renderer -> main) — adapters for CellEditorEngine
+  // --------------------------------------------------------------------------
+  const cellEditor = require('../mining/cellEditor').cellEditor;
+
+  ipcMain.handle('cell-editor:load-cell', async (_event, espPath: string | undefined, cellId: string) => {
+    try {
+      console.log('[Main] cell-editor:load-cell', { espPath, cellId });
+      const cell = await cellEditor.loadCell(espPath || '', cellId);
+      return { success: true, data: cell };
+    } catch (error: any) {
+      console.error('[Main] cell-editor:load-cell error:', error);
+      return { success: false, error: error instanceof Error ? error.message : String(error) };
+    }
+  });
+
+  ipcMain.handle('cell-editor:save-cell', async (_event, cell: any, espPath?: string) => {
+    try {
+      console.log('[Main] cell-editor:save-cell', { cellId: cell?.id, espPath });
+      if (!cell || !cell.id) return { success: false, error: 'Invalid cell payload' };
+      const result = await cellEditor.saveCell(cell, espPath || '');
+      return { success: result.success, data: result };
+    } catch (error: any) {
+      console.error('[Main] cell-editor:save-cell error:', error);
+      return { success: false, error: error instanceof Error ? error.message : String(error) };
+    }
+  });
+
+  ipcMain.handle('cell-editor:create-cell', async (_event, name: string, type: string) => {
+    try {
+      console.log('[Main] cell-editor:create-cell', { name, type });
+      const cell = await cellEditor.createCell(name, type as any);
+      return { success: true, data: cell };
+    } catch (error: any) {
+      console.error('[Main] cell-editor:create-cell error:', error);
+      return { success: false, error: error instanceof Error ? error.message : String(error) };
+    }
+  });
+
+  ipcMain.handle('cell-editor:place-object', async (_event, cell: any, baseObject: string, position: any, rotation: any) => {
+    try {
+      console.log('[Main] cell-editor:place-object', { cellId: cell?.id, baseObject, position });
+      const ref = await cellEditor.placeObject(cell, baseObject, position, rotation);
+      return { success: true, data: ref };
+    } catch (error: any) {
+      console.error('[Main] cell-editor:place-object error:', error);
+      return { success: false, error: error instanceof Error ? error.message : String(error) };
+    }
+  });
+
+  ipcMain.handle('cell-editor:move-object', async (_event, refId: string, position: any) => {
+    try {
+      await cellEditor.moveObject(refId, position);
+      return { success: true };
+    } catch (error: any) {
+      console.error('[Main] cell-editor:move-object error:', error);
+      return { success: false, error: error instanceof Error ? error.message : String(error) };
+    }
+  });
+
+  ipcMain.handle('cell-editor:delete-object', async (_event, refId: string) => {
+    try {
+      await cellEditor.deleteObject(refId);
+      return { success: true };
+    } catch (error: any) {
+      console.error('[Main] cell-editor:delete-object error:', error);
+      return { success: false, error: error instanceof Error ? error.message : String(error) };
+    }
+  });
+
+  ipcMain.handle('cell-editor:duplicate-object', async (_event, refId: string, offset: any) => {
+    try {
+      const dup = await cellEditor.duplicateObject(refId, offset);
+      return { success: true, data: dup };
+    } catch (error: any) {
+      console.error('[Main] cell-editor:duplicate-object error:', error);
+      return { success: false, error: error instanceof Error ? error.message : String(error) };
+    }
+  });
+
+  ipcMain.handle('cell-editor:generate-navmesh', async (_event, cell: any, settings: any) => {
+    try {
+      console.log('[Main] cell-editor:generate-navmesh', { cellId: cell?.id });
+      const nm = await cellEditor.generateNavmesh(cell, settings || {});
+      return { success: true, data: nm };
+    } catch (error: any) {
+      console.error('[Main] cell-editor:generate-navmesh error:', error);
+      return { success: false, error: error instanceof Error ? error.message : String(error) };
+    }
+  });
+
+  ipcMain.handle('cell-editor:edit-navmesh', async (_event, navmesh: any, triangles: any[]) => {
+    try {
+      await cellEditor.editNavmesh(navmesh, triangles);
+      return { success: true };
+    } catch (error: any) {
+      console.error('[Main] cell-editor:edit-navmesh error:', error);
+      return { success: false, error: error instanceof Error ? error.message : String(error) };
+    }
+  });
+
+  ipcMain.handle('cell-editor:finalize-navmesh', async (_event, navmesh: any) => {
+    try {
+      await cellEditor.finalizeNavmesh(navmesh);
+      return { success: true };
+    } catch (error: any) {
+      console.error('[Main] cell-editor:finalize-navmesh error:', error);
+      return { success: false, error: error instanceof Error ? error.message : String(error) };
+    }
+  });
+
+  ipcMain.handle('cell-editor:place-light', async (_event, cell: any, light: any) => {
+    try {
+      const ref = await cellEditor.placeLightSource(cell, light);
+      return { success: true, data: ref };
+    } catch (error: any) {
+      console.error('[Main] cell-editor:place-light error:', error);
+      return { success: false, error: error instanceof Error ? error.message : String(error) };
+    }
+  });
+
+  ipcMain.handle('cell-editor:bake-ao', async (_event, cell: any) => {
+    try {
+      const ao = await cellEditor.bakeAmbientOcclusion(cell);
+      return { success: true, data: ao };
+    } catch (error: any) {
+      console.error('[Main] cell-editor:bake-ao error:', error);
+      return { success: false, error: error instanceof Error ? error.message : String(error) };
+    }
+  });
+
+  ipcMain.handle('cell-editor:generate-collision', async (_event, staticCollection: any[]) => {
+    try {
+      const col = await cellEditor.generateCollision(staticCollection);
+      return { success: true, data: col };
+    } catch (error: any) {
+      console.error('[Main] cell-editor:generate-collision error:', error);
+      return { success: false, error: error instanceof Error ? error.message : String(error) };
+    }
+  });
+
+  ipcMain.handle('cell-editor:generate-occlusion-planes', async (_event, cell: any) => {
+    try {
+      const occ = await cellEditor.generateOcclusionPlanes(cell);
+      return { success: true, data: occ };
+    } catch (error: any) {
+      console.error('[Main] cell-editor:generate-occlusion-planes error:', error);
+      return { success: false, error: error instanceof Error ? error.message : String(error) };
+    }
+  });
+
+  // Backwards-compatible alias: some callers use the shorter channel name `generate-occlusion`.
+  ipcMain.handle('cell-editor:generate-occlusion', async (_event, cell: any) => {
+    try {
+      console.log('[Main] cell-editor:generate-occlusion (alias) received', { cellId: cell?.id });
+      const occ = await cellEditor.generateOcclusionPlanes(cell);
+      return { success: true, data: occ };
+    } catch (error: any) {
+      console.error('[Main] cell-editor:generate-occlusion error:', error);
+      return { success: false, error: error instanceof Error ? error.message : String(error) };
+    }
+  });
+
+  ipcMain.handle('cell-editor:create-combined-mesh', async (_event, references: any[]) => {
+    try {
+      const mesh = await cellEditor.createCombinedMesh(references);
+      return { success: true, data: mesh };
+    } catch (error: any) {
+      console.error('[Main] cell-editor:create-combined-mesh error:', error);
+      return { success: false, error: error instanceof Error ? error.message : String(error) };
+    }
+  });
+
+  // --------------------------------------------------------------------------
+  // Audio Editor IPC handlers (renderer -> main) — adapters for AudioEditorEngine
+  // --------------------------------------------------------------------------
+  const audioEditor = require('../mining/audioEditor').audioEditor;
+
+  ipcMain.handle('audio-editor:convert-to-xwm', async (_event, wavPath: string, quality = 80) => {
+    try {
+      const result = await audioEditor.convertToXWM(wavPath, quality);
+      return result;
+    } catch (error: any) {
+      console.error('[Main] audio-editor:convert-to-xwm error:', error);
+      return { success: false, error: error instanceof Error ? error.message : String(error) };
+    }
+  });
+
+  ipcMain.handle('audio-editor:convert-to-fuz', async (_event, wavPath: string, lipPath?: string) => {
+    try {
+      const result = await audioEditor.convertToFUZ(wavPath, lipPath);
+      return result;
+    } catch (error: any) {
+      console.error('[Main] audio-editor:convert-to-fuz error:', error);
+      return { success: false, error: error instanceof Error ? error.message : String(error) };
+    }
+  });
+
+  ipcMain.handle('audio-editor:batch-convert', async (_event, files: string[], format: string) => {
+    try {
+      const result = await audioEditor.batchConvertAudio(files, format as any);
+      return result;
+    } catch (error: any) {
+      console.error('[Main] audio-editor:batch-convert error:', error);
+      return { success: false, error: error instanceof Error ? error.message : String(error) };
+    }
+  });
+
+  ipcMain.handle('audio-editor:generate-lipsync', async (_event, wavPath: string, text: string) => {
+    try {
+      const lip = await audioEditor.generateLipSync(wavPath, text);
+      return { success: true, data: lip };
+    } catch (error: any) {
+      console.error('[Main] audio-editor:generate-lipsync error:', error);
+      return { success: false, error: error instanceof Error ? error.message : String(error) };
+    }
+  });
+
+  ipcMain.handle('audio-editor:phoneme-analysis', async (_event, wavPath: string) => {
+    try {
+      const data = await audioEditor.phonemeAnalysis(wavPath);
+      return { success: true, data };
+    } catch (error: any) {
+      console.error('[Main] audio-editor:phoneme-analysis error:', error);
+      return { success: false, error: error instanceof Error ? error.message : String(error) };
+    }
+  });
+
+  ipcMain.handle('audio-editor:create-music-track', async (_event, name: string, layers: any[], type?: string) => {
+    try {
+      const track = await audioEditor.createMusicTrack(name, layers, type as any);
+      return { success: true, data: track };
+    } catch (error: any) {
+      console.error('[Main] audio-editor:create-music-track error:', error);
+      return { success: false, error: error instanceof Error ? error.message : String(error) };
+    }
+  });
+
+  ipcMain.handle('audio-editor:set-music-conditions', async (_event, track: any, conditions: any[]) => {
+    try {
+      await audioEditor.setMusicConditions(track, conditions);
+      return { success: true };
+    } catch (error: any) {
+      console.error('[Main] audio-editor:set-music-conditions error:', error);
+      return { success: false, error: error instanceof Error ? error.message : String(error) };
+    }
+  });
+
+  ipcMain.handle('audio-editor:create-playlist', async (_event, tracks: string[], transitionType = 'crossfade', transitionDuration = 1.0, shuffle = false) => {
+    try {
+      const pl = await audioEditor.createMusicPlaylist(tracks, transitionType, transitionDuration, shuffle);
+      return { success: true, data: pl };
+    } catch (error: any) {
+      console.error('[Main] audio-editor:create-playlist error:', error);
+      return { success: false, error: error instanceof Error ? error.message : String(error) };
+    }
+  });
+
+  ipcMain.handle('audio-editor:create-descriptor', async (_event, sound: any) => {
+    try {
+      const id = await audioEditor.createSoundDescriptor(sound);
+      return { success: true, data: id };
+    } catch (error: any) {
+      console.error('[Main] audio-editor:create-descriptor error:', error);
+      return { success: false, error: error instanceof Error ? error.message : String(error) };
+    }
+  });
+
+  ipcMain.handle('audio-editor:set-3d-attenuation', async (_event, descriptorId: string, curve: any) => {
+    try {
+      await audioEditor.set3DAttenuation(descriptorId, curve);
+      return { success: true };
+    } catch (error: any) {
+      console.error('[Main] audio-editor:set-3d-attenuation error:', error);
+      return { success: false, error: error instanceof Error ? error.message : String(error) };
+    }
+  });
+
+  ipcMain.handle('audio-editor:play-audio', async (_event, audioPath: string) => {
+    try {
+      await audioEditor.playAudio(audioPath);
+      return { success: true };
+    } catch (error: any) {
+      console.error('[Main] audio-editor:play-audio error:', error);
+      return { success: false, error: error instanceof Error ? error.message : String(error) };
+    }
+  });
+
+  ipcMain.handle('audio-editor:stop-audio', async () => {
+    try {
+      await audioEditor.stopAudio();
+      return { success: true };
+    } catch (error: any) {
+      console.error('[Main] audio-editor:stop-audio error:', error);
+      return { success: false, error: error instanceof Error ? error.message : String(error) };
+    }
+  });
+
+  ipcMain.handle('audio-editor:create-ambient', async (_event, sounds: string[], layering: string) => {
+    try {
+      const amb = await audioEditor.createAmbientSound(sounds, layering as any);
+      return { success: true, data: amb };
+    } catch (error: any) {
+      console.error('[Main] audio-editor:create-ambient error:', error);
+      return { success: false, error: error instanceof Error ? error.message : String(error) };
+    }
+  });
+
+  ipcMain.handle('audio-editor:normalize-volume', async (_event, audioFiles: string[]) => {
+    try {
+      await audioEditor.normalizeVolume(audioFiles);
+      return { success: true };
+    } catch (error: any) {
+      console.error('[Main] audio-editor:normalize-volume error:', error);
+      return { success: false, error: error instanceof Error ? error.message : String(error) };
+    }
+  });
+
+  ipcMain.handle('audio-editor:remove-noise', async (_event, audioPath: string, strength = 0.5) => {
+    try {
+      const out = await audioEditor.removeNoise(audioPath, strength);
+      return { success: true, data: out };
+    } catch (error: any) {
+      console.error('[Main] audio-editor:remove-noise error:', error);
+      return { success: false, error: error instanceof Error ? error.message : String(error) };
+    }
+  });
+
+  ipcMain.handle('audio-editor:apply-effect', async (_event, audioPath: string, effect: any) => {
+    try {
+      const out = await audioEditor.applyEffect(audioPath, effect);
+      return { success: true, data: out };
+    } catch (error: any) {
+      console.error('[Main] audio-editor:apply-effect error:', error);
+      return { success: false, error: error instanceof Error ? error.message : String(error) };
+    }
+  });
+
+  // Backwards-compatible short-channel aliases (use singleton; do NOT new-up engine per call)
+  ipcMain.handle('audio-editor:convert-xwm', async (_event, wavPath: string, quality = 80) => {
+    try {
+      const result = await audioEditor.convertToXWM(wavPath, quality);
+      return result;
+    } catch (error: any) {
+      console.error('[Main] audio-editor:convert-xwm error:', error);
+      return { success: false, error: error instanceof Error ? error.message : String(error) };
+    }
+  });
+
+  // `generate-lipsync` already exists above — keep single implementation
+
+  ipcMain.handle('audio-editor:create-music', async (_event, name: string, layers: any[], type?: string) => {
+    try {
+      const track = await audioEditor.createMusicTrack(name, layers, type as any);
+      return { success: true, data: track };
+    } catch (error: any) {
+      console.error('[Main] audio-editor:create-music error:', error);
+      return { success: false, error: error instanceof Error ? error.message : String(error) };
+    }
+  });
+
+  ipcMain.handle('audio-editor:play', async (_event, audioPath: string) => {
+    try {
+      await audioEditor.playAudio(audioPath);
+      return { success: true };
+    } catch (error: any) {
+      console.error('[Main] audio-editor:play error:', error);
+      return { success: false, error: error instanceof Error ? error.message : String(error) };
+    }
+  });
+
+  ipcMain.handle('audio-editor:stop', async () => {
+    try {
+      await audioEditor.stopAudio();
+      return { success: true };
+    } catch (error: any) {
+      console.error('[Main] audio-editor:stop error:', error);
+      return { success: false, error: error instanceof Error ? error.message : String(error) };
+    }
+  });
+
+  ipcMain.handle('audio-editor:normalize', async (_event, audioFiles: string[]) => {
+    try {
+      await audioEditor.normalizeVolume(audioFiles);
+      return { success: true };
+    } catch (error: any) {
+      console.error('[Main] audio-editor:normalize error:', error);
+      return { success: false, error: error instanceof Error ? error.message : String(error) };
+    }
+  });
+
+  // `remove-noise` already exists above — keep single implementation
+
+  // Documentation generator IPC handlers (renderer -> main) — adapters for DocumentationGeneratorEngine
+  const documentationGenerator = require('../mining/documentationGenerator').documentationGenerator;
+
+  ipcMain.handle('docs:generate-project', async (_event, projectPath: string) => {
+    try {
+      return await documentationGenerator.generateProjectDocs(projectPath);
+    } catch (error: any) {
+      console.error('[Main] docs:generate-project error:', error);
+      return { success: false, error: error instanceof Error ? error.message : String(error) };
+    }
+  });
+
+  ipcMain.handle('docs:generate-readme', async (_event, projectData: any, template?: string) => {
+    try {
+      return await documentationGenerator.generateReadme(projectData, template);
+    } catch (error: any) {
+      console.error('[Main] docs:generate-readme error:', error);
+      return { success: false, error: error instanceof Error ? error.message : String(error) };
+    }
+  });
+
+  ipcMain.handle('docs:generate-api', async (_event, code: string, language: string) => {
+    try {
+      return await documentationGenerator.generateAPIDoc(code, language as any);
+    } catch (error: any) {
+      console.error('[Main] docs:generate-api error:', error);
+      return { success: false, error: error instanceof Error ? error.message : String(error) };
+    }
+  });
+
+  ipcMain.handle('docs:document-assets', async (_event, assetFolder: string) => {
+    try {
+      return await documentationGenerator.documentAssets(assetFolder);
+    } catch (error: any) {
+      console.error('[Main] docs:document-assets error:', error);
+      return { success: false, error: error instanceof Error ? error.message : String(error) };
+    }
+  });
+
+  ipcMain.handle('docs:generate-wiki', async (_event, project: any) => {
+    try {
+      return await documentationGenerator.generateWiki(project);
+    } catch (error: any) {
+      console.error('[Main] docs:generate-wiki error:', error);
+      return { success: false, error: error instanceof Error ? error.message : String(error) };
+    }
+  });
+
+  ipcMain.handle('docs:export', async (_event, doc: any, format: string) => {
+    try {
+      switch (format) {
+        case 'markdown':
+          return await documentationGenerator.exportToMarkdown(doc);
+        case 'html':
+          return await documentationGenerator.exportToHTML(doc, 'default');
+        case 'pdf':
+          return await documentationGenerator.exportToPDF(doc);
+        case 'nexus':
+          return await documentationGenerator.exportToNexusFormat(doc);
+        default:
+          throw new Error(`Unknown format: ${format}`);
+      }
+    } catch (error: any) {
+      console.error('[Main] docs:export error:', error);
+      return { success: false, error: error instanceof Error ? error.message : String(error) };
+    }
+  });
+
+  // LearningHub IPC handlers (renderer -> main)
+  const { learningHub: learningEngine } = require('../mining/learningHub');
+
+  ipcMain.handle('learning:get-tutorial', async (_event, tutorialId: string) => {
+    try {
+      return await learningEngine.getTutorial(tutorialId);
+    } catch (error: any) {
+      console.error('[Main] learning:get-tutorial error:', error);
+      return { success: false, error: error instanceof Error ? error.message : String(error) };
+    }
+  });
+
+  ipcMain.handle('learning:list-tutorials', async (_event, category?: string) => {
+    try {
+      return await learningEngine.listTutorials(category);
+    } catch (error: any) {
+      console.error('[Main] learning:list-tutorials error:', error);
+      return { success: false, error: error instanceof Error ? error.message : String(error) };
+    }
+  });
+
+  ipcMain.handle('learning:track-progress', async (_event, userId: string, tutorialId: string, step: number | string) => {
+    try {
+      // support either step index (number) or stepId (string)
+      const tut = await learningEngine.getTutorial(tutorialId);
+      if (!tut) throw new Error('Tutorial not found');
+      let stepId: string | undefined;
+      if (typeof step === 'number') stepId = tut.steps?.[step]?.id;
+      else stepId = String(step);
+      if (!stepId) throw new Error('Step not found');
+      await learningEngine.trackProgress(userId, tutorialId, stepId);
+      return { success: true };
+    } catch (error: any) {
+      console.error('[Main] learning:track-progress error:', error);
+      return { success: false, error: error instanceof Error ? error.message : String(error) };
+    }
+  });
+
+  ipcMain.handle('learning:submit-exercise', async (_event, exerciseId: string, answer: any) => {
+    try {
+      return await learningEngine.validateExercise(exerciseId, answer);
+    } catch (error: any) {
+      console.error('[Main] learning:submit-exercise error:', error);
+      return { success: false, error: error instanceof Error ? error.message : String(error) };
+    }
+  });
+
+  ipcMain.handle('learning:get-achievements', async (_event, userId: string) => {
+    try {
+      const all = await learningEngine.listAchievements();
+      const prog = await learningEngine.getUserProgress(userId);
+      const unlocked = prog?.achievements || [];
+      const unlockedDetails = all.filter(a => unlocked.includes(a.id));
+      return { unlocked: unlockedDetails, all };
+    } catch (error: any) {
+      console.error('[Main] learning:get-achievements error:', error);
+      return { success: false, error: error instanceof Error ? error.message : String(error) };
+    }
+  });
+
+  ipcMain.handle('learning:get-user-progress', async (_event, userId: string) => {
+    try {
+      return await learningEngine.getUserProgress(userId);
+    } catch (error: any) {
+      console.error('[Main] learning:get-user-progress error:', error);
+      return { success: false, error: error instanceof Error ? error.message : String(error) };
+    }
+  });
+
+  ipcMain.handle('learning:complete-step', async (_event, userId: string, stepId: string) => {
+    try {
+      return await learningEngine.completeStep(userId, stepId);
+    } catch (error: any) {
+      console.error('[Main] learning:complete-step error:', error);
+      return { success: false, error: error instanceof Error ? error.message : String(error) };
+    }
+  });
+
+  ipcMain.handle('learning:provide-hint', async (_event, exerciseId: string, currentAttempt: any) => {
+    try {
+      return await learningEngine.provideHint(exerciseId, currentAttempt);
+    } catch (error: any) {
+      console.error('[Main] learning:provide-hint error:', error);
+      return { success: false, error: error instanceof Error ? error.message : String(error) };
+    }
+  });
+
+  ipcMain.handle('learning:unlock-achievement', async (_event, userId: string, achievementId: string) => {
+    try {
+      return await learningEngine.unlockAchievement(userId, achievementId);
+    } catch (error: any) {
+      console.error('[Main] learning:unlock-achievement error:', error);
+      return { success: false, error: error instanceof Error ? error.message : String(error) };
+    }
+  });
+
+  // Mod Browser IPC handlers (renderer -> main)
+  const { modBrowser: modBrowserEngine } = require('../mining/modBrowser');
+
+  ipcMain.handle('mod-browser:search', async (_event, query: string, filters: any) => {
+    try {
+      return await modBrowserEngine.searchMods(query, filters || { game: 'fallout4', sortBy: 'trending', nsfw: false });
+    } catch (error: any) {
+      console.error('[Main] mod-browser:search error:', error);
+      return { success: false, error: error instanceof Error ? error.message : String(error) };
+    }
+  });
+
+  ipcMain.handle('mod-browser:get-details', async (_event, modId: string) => {
+    try {
+      return await modBrowserEngine.getModDetails(modId);
+    } catch (error: any) {
+      console.error('[Main] mod-browser:get-details error:', error);
+      return { success: false, error: error instanceof Error ? error.message : String(error) };
+    }
+  });
+
+  ipcMain.handle('mod-browser:download', async (_event, modId: string, destination: string) => {
+    try {
+      return await modBrowserEngine.downloadMod(modId, destination);
+    } catch (error: any) {
+      console.error('[Main] mod-browser:download error:', error);
+      return { success: false, error: error instanceof Error ? error.message : String(error) };
+    }
+  });
+
+  ipcMain.handle('mod-browser:rate', async (_event, modId: string, rating: number, review: string) => {
+    try {
+      await modBrowserEngine.rateMod(modId, rating, review);
+      return { success: true };
+    } catch (error: any) {
+      console.error('[Main] mod-browser:rate error:', error);
+      return { success: false, error: error instanceof Error ? error.message : String(error) };
+    }
+  });
+
+  ipcMain.handle('mod-browser:authenticate-nexus', async (_event, apiKey: string) => {
+    try {
+      return await modBrowserEngine.authenticateNexus(apiKey);
+    } catch (error: any) {
+      console.error('[Main] mod-browser:authenticate-nexus error:', error);
+      return { success: false, error: error instanceof Error ? error.message : String(error) };
+    }
+  });
+
+  ipcMain.handle('mod-browser:get-reviews', async (_event, modId: string) => {
+    try {
+      return await modBrowserEngine.getModReviews(modId);
+    } catch (error: any) {
+      console.error('[Main] mod-browser:get-reviews error:', error);
+      return { success: false, error: error instanceof Error ? error.message : String(error) };
+    }
+  });
+
+  ipcMain.handle('mod-browser:create-collection', async (_event, name: string, mods: string[], description?: string) => {
+    try {
+      return await modBrowserEngine.createCollection(name, mods, description);
+    } catch (error: any) {
+      console.error('[Main] mod-browser:create-collection error:', error);
+      return { success: false, error: error instanceof Error ? error.message : String(error) };
+    }
+  });
+
+  ipcMain.handle('mod-browser:share-collection', async (_event, collectionId: string) => {
+    try {
+      return await modBrowserEngine.shareCollection(collectionId);
+    } catch (error: any) {
+      console.error('[Main] mod-browser:share-collection error:', error);
+      return { success: false, error: error instanceof Error ? error.message : String(error) };
+    }
+  });
+
+  ipcMain.handle('mod-browser:endorse-mod', async (_event, modId: string) => {
+    try {
+      await modBrowserEngine.endorseMod(modId);
+      return { success: true };
+    } catch (error: any) {
+      console.error('[Main] mod-browser:endorse-mod error:', error);
+      return { success: false, error: error instanceof Error ? error.message : String(error) };
+    }
+  });
+
+  ipcMain.handle('mod-browser:trending', async (_event, timeframe?: string) => {
+    try {
+      return await modBrowserEngine.getTrendingMods(timeframe || 'week');
+    } catch (error: any) {
+      console.error('[Main] mod-browser:trending error:', error);
+      return { success: false, error: error instanceof Error ? error.message : String(error) };
+    }
+  });
+
+  // Security validator IPC handlers (renderer -> main)
+  const { securityValidator: securityEngine } = require('../mining/securityValidator');
+
+  ipcMain.handle('security:scan-file', async (_event, path: string) => {
+    try {
+      return await securityEngine.scanFile(path);
+    } catch (error: any) {
+      console.error('[Main] security:scan-file error:', error);
+      return { success: false, error: error instanceof Error ? error.message : String(error) };
+    }
+  });
+
+  ipcMain.handle('security:scan-archive', async (_event, path: string) => {
+    try {
+      return await securityEngine.scanArchive(path);
+    } catch (error: any) {
+      console.error('[Main] security:scan-archive error:', error);
+      return { success: false, error: error instanceof Error ? error.message : String(error) };
+    }
+  });
+
+  ipcMain.handle('security:scan-script', async (_event, path: string) => {
+    try {
+      return await securityEngine.scanScript(path);
+    } catch (error: any) {
+      console.error('[Main] security:scan-script error:', error);
+      return { success: false, error: error instanceof Error ? error.message : String(error) };
+    }
+  });
+
+  ipcMain.handle('security:analyze-papyrus', async (_event, code: string) => {
+    try {
+      return await securityEngine.analyzePapyrusScript(code);
+    } catch (error: any) {
+      console.error('[Main] security:analyze-papyrus error:', error);
+      return { success: false, error: error instanceof Error ? error.message : String(error) };
+    }
+  });
+
+  ipcMain.handle('security:generate-checksum', async (_event, path: string, algorithm = 'sha256') => {
+    try {
+      return await securityEngine.generateChecksum(path, algorithm);
+    } catch (error: any) {
+      console.error('[Main] security:generate-checksum error:', error);
+      return { success: false, error: error instanceof Error ? error.message : String(error) };
+    }
+  });
+
+  // Verify checksum (added)
+  ipcMain.handle('security:verify-checksum', async (_event, path: string, expectedHash: string) => {
+    try {
+      return await securityEngine.verifyChecksum(path, expectedHash);
+    } catch (error: any) {
+      console.error('[Main] security:verify-checksum error:', error);
+      return { success: false, error: error instanceof Error ? error.message : String(error) };
+    }
+  });
+
+  ipcMain.handle('security:verify-signature', async (_event, path: string, signature: string, publicKey: string) => {
+    try {
+      return await securityEngine.verifySignature(path, signature, publicKey);
+    } catch (error: any) {
+      console.error('[Main] security:verify-signature error:', error);
+      return { success: false, error: error instanceof Error ? error.message : String(error) };
+    }
+  });
+
+  ipcMain.handle('security:run-sandbox', async (_event, exe: string, args: string[], config?: any) => {
+    try {
+      return await securityEngine.runInSandbox(exe, args, config);
+    } catch (error: any) {
+      console.error('[Main] security:run-sandbox error:', error);
+      return { success: false, error: error instanceof Error ? error.message : String(error) };
+    }
+  });
+
+  // Threat database update (alias)
+  ipcMain.handle('security:update-db', async () => {
+    try {
+      return await securityEngine.updateThreatDatabase();
+    } catch (error: any) {
+      console.error('[Main] security:update-db error:', error);
+      return { success: false, error: error instanceof Error ? error.message : String(error) };
+    }
+  });
+
+  // New handler name requested: 'security:update-threats' -> same implementation
+  ipcMain.handle('security:update-threats', async () => {
+    try {
+      return await securityEngine.updateThreatDatabase();
+    } catch (error: any) {
+      console.error('[Main] security:update-threats error:', error);
+      return { success: false, error: error instanceof Error ? error.message : String(error) };
+    }
+  });
+
+  ipcMain.handle('security:check-db', async (_event, hash: string) => {
+    try {
+      return await securityEngine.checkAgainstDatabase(hash);
+    } catch (error: any) {
+      console.error('[Main] security:check-db error:', error);
+      return { success: false, error: error instanceof Error ? error.message : String(error) };
+    }
+  });
+
+  // Testing suite IPC handlers (renderer -> main)
+  const { testingSuite: testingEngine } = require('../mining/testingSuite');
+
+  ipcMain.handle('testing:create-suite', async (_event, name: string, type: string) => {
+    try {
+      return await testingEngine.createTestSuite(name, type as any);
+    } catch (error: any) {
+      console.error('[Main] testing:create-suite error:', error);
+      return { success: false, error: error instanceof Error ? error.message : String(error) };
+    }
+  });
+
+  ipcMain.handle('testing:run-tests', async (_event, suiteId: string) => {
+    try {
+      return await testingEngine.runTests(suiteId);
+    } catch (error: any) {
+      console.error('[Main] testing:run-tests error:', error);
+      return { success: false, error: error instanceof Error ? error.message : String(error) };
+    }
+  });
+
+  ipcMain.handle('testing:run-single-test', async (_event, testId: string) => {
+    try {
+      return await testingEngine.runSingleTest(testId);
+    } catch (error: any) {
+      console.error('[Main] testing:run-single-test error:', error);
+      return { success: false, error: error instanceof Error ? error.message : String(error) };
+    }
+  });
+
+  ipcMain.handle('testing:test-load-order', async (_event, plugins: string[]) => {
+    try {
+      return await testingEngine.testLoadOrder(plugins);
+    } catch (error: any) {
+      console.error('[Main] testing:test-load-order error:', error);
+      return { success: false, error: error instanceof Error ? error.message : String(error) };
+    }
+  });
+
+  ipcMain.handle('testing:test-save-compat', async (_event, savePath: string, modList: string[]) => {
+    try {
+      return await testingEngine.testSaveGameCompatibility(savePath, modList);
+    } catch (error: any) {
+      console.error('[Main] testing:test-save-compat error:', error);
+      return { success: false, error: error instanceof Error ? error.message : String(error) };
+    }
+  });
+
+  ipcMain.handle('testing:test-scripts', async (_event, scripts: string[]) => {
+    try {
+      return await testingEngine.testScriptCompilation(scripts);
+    } catch (error: any) {
+      console.error('[Main] testing:test-scripts error:', error);
+      return { success: false, error: error instanceof Error ? error.message : String(error) };
+    }
+  });
+
+  ipcMain.handle('testing:test-assets', async (_event, assets: string[]) => {
+    try {
+      return await testingEngine.testAssetIntegrity(assets);
+    } catch (error: any) {
+      console.error('[Main] testing:test-assets error:', error);
+      return { success: false, error: error instanceof Error ? error.message : String(error) };
+    }
+  });
+
+  ipcMain.handle('testing:benchmark', async (_event, mod: string) => {
+    try {
+      return await testingEngine.benchmarkModPerformance(mod);
+    } catch (error: any) {
+      console.error('[Main] testing:benchmark error:', error);
+      return { success: false, error: error instanceof Error ? error.message : String(error) };
+    }
+  });
+
+  ipcMain.handle('testing:create-baseline', async (_event, modVersion: string) => {
+    try {
+      return await testingEngine.createBaseline(modVersion);
+    } catch (error: any) {
+      console.error('[Main] testing:create-baseline error:', error);
+      return { success: false, error: error instanceof Error ? error.message : String(error) };
+    }
+  });
+
+  ipcMain.handle('testing:compare-baseline', async (_event, current: any, baseline: any) => {
+    try {
+      return await testingEngine.compareToBaseline(current, baseline);
+    } catch (error: any) {
+      console.error('[Main] testing:compare-baseline error:', error);
+      return { success: false, error: error instanceof Error ? error.message : String(error) };
+    }
+  });
+
+  ipcMain.handle('testing:generate-report', async (_event, results: any) => {
+    try {
+      return await testingEngine.generateTestReport(results);
+    } catch (error: any) {
+      console.error('[Main] testing:generate-report error:', error);
+      return { success: false, error: error instanceof Error ? error.message : String(error) };
+    }
+  });
+
+  ipcMain.handle('testing:export-results', async (_event, results: any, format: string) => {
+    try {
+      return await testingEngine.exportTestResults(results, format as any);
+    } catch (error: any) {
+      console.error('[Main] testing:export-results error:', error);
+      return { success: false, error: error instanceof Error ? error.message : String(error) };
     }
   });
 
