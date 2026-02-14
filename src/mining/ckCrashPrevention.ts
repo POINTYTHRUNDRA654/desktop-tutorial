@@ -316,8 +316,8 @@ export class CKCrashPreventionEngine {
       estimatedTime
     };
   }
-}
 
+  /**
    * Analyze crash log and provide diagnosis
    */
   analyzeCrashLog(logPath: string): CrashDiagnosis {
