@@ -129,6 +129,76 @@ const IPC_CHANNELS = {
   WIZARD_UPDATE_STEP: 'wizard-update-step',
   WIZARD_SUBMIT_ACTION: 'wizard-submit-action',
 
+  // INI Configuration Manager
+  INI_MANAGER_READ_FILE: 'ini-manager-read-file',
+  INI_MANAGER_WRITE_FILE: 'ini-manager-write-file',
+  INI_MANAGER_FIND_FILES: 'ini-manager-find-files',
+  INI_MANAGER_GET_HARDWARE: 'ini-manager-get-hardware',
+  INI_MANAGER_BACKUP_FILE: 'ini-manager-backup-file',
+  INI_MANAGER_RESTORE_BACKUP: 'ini-manager-restore-backup',
+
+  // Asset Duplicate Scanner
+  ASSET_SCANNER_BROWSE_FOLDER: 'asset-scanner-browse-folder',
+  ASSET_SCANNER_SCAN_DUPLICATES: 'asset-scanner-scan-duplicates',
+  ASSET_SCANNER_CLEANUP_DUPLICATES: 'asset-scanner-cleanup-duplicates',
+  ASSET_SCANNER_GET_LAST_PATH: 'asset-scanner-get-last-path',
+  ASSET_SCANNER_SAVE_LAST_PATH: 'asset-scanner-save-last-path',
+
+  // Game Log Monitor
+  GAME_LOG_MONITOR_BROWSE_LOG: 'game-log-monitor-browse-log',
+  GAME_LOG_MONITOR_START: 'game-log-monitor-start',
+  GAME_LOG_MONITOR_STOP: 'game-log-monitor-stop',
+  GAME_LOG_MONITOR_GET_LAST_PATH: 'game-log-monitor-get-last-path',
+  GAME_LOG_MONITOR_SAVE_LAST_PATH: 'game-log-monitor-save-last-path',
+  GAME_LOG_MONITOR_EXPORT_LOGS: 'game-log-monitor-export-logs',
+
+  // xEdit Script Executor
+  XEDIT_SCRIPT_BROWSE_XEDIT: 'xedit-script-browse-xedit',
+  XEDIT_SCRIPT_BROWSE_PLUGIN: 'xedit-script-browse-plugin',
+  XEDIT_SCRIPT_GET_XEDIT_PATH: 'xedit-script-get-xedit-path',
+  XEDIT_SCRIPT_SAVE_XEDIT_PATH: 'xedit-script-save-xedit-path',
+  XEDIT_SCRIPT_GET_PLUGIN_LIST: 'xedit-script-get-plugin-list',
+  XEDIT_SCRIPT_EXECUTE: 'xedit-script-execute',
+
+  // Project Templates
+  PROJECT_TEMPLATE_BROWSE_PATH: 'project-template-browse-path',
+  PROJECT_TEMPLATE_CREATE: 'project-template-create',
+  PROJECT_TEMPLATE_DOWNLOAD: 'project-template-download',
+
+  // Mod Conflict Visualizer
+  MOD_CONFLICT_SCAN_LOAD_ORDER: 'mod-conflict-scan-load-order',
+  MOD_CONFLICT_ANALYZE: 'mod-conflict-analyze',
+  MOD_CONFLICT_RESOLVE: 'mod-conflict-resolve',
+
+  // FormID Remapper
+  FORMID_REMAPPER_SCAN_CONFLICTS: 'formid-remapper-scan-conflicts',
+  FORMID_REMAPPER_REMAP: 'formid-remapper-remap',
+  FORMID_REMAPPER_BACKUP: 'formid-remapper-backup',
+
+  // Mod Comparison Tool
+  MOD_COMPARISON_COMPARE: 'mod-comparison-compare',
+  MOD_COMPARISON_MERGE: 'mod-comparison-merge',
+  MOD_COMPARISON_EXPORT: 'mod-comparison-export',
+
+  // Precombine Generator
+  PRECOMBINE_GENERATOR_GENERATE: 'precombine-generator-generate',
+  PRECOMBINE_GENERATOR_VALIDATE: 'precombine-generator-validate',
+  PRECOMBINE_GENERATOR_GET_PJM_PATH: 'precombine-generator-get-pjm-path',
+
+  // Voice Commands
+  VOICE_COMMANDS_START: 'voice-commands-start',
+  VOICE_COMMANDS_STOP: 'voice-commands-stop',
+  VOICE_COMMANDS_EXECUTE: 'voice-commands-execute',
+
+  // Automation Engine
+  AUTOMATION_START: 'automation-start',
+  AUTOMATION_STOP: 'automation-stop',
+  AUTOMATION_GET_SETTINGS: 'automation-get-settings',
+  AUTOMATION_UPDATE_SETTINGS: 'automation-update-settings',
+  AUTOMATION_TOGGLE_RULE: 'automation-toggle-rule',
+  AUTOMATION_TRIGGER_RULE: 'automation-trigger-rule',
+  AUTOMATION_GET_STATISTICS: 'automation-get-statistics',
+  AUTOMATION_RESET_STATISTICS: 'automation-reset-statistics',
   // CK Crash Prevention
   CK_CRASH_VALIDATE: 'ck-crash-prevention:validate',
   CK_CRASH_ANALYZE: 'ck-crash-prevention:analyze-crash',
@@ -787,6 +857,281 @@ const electronAPI = {
   },
 
   /**
+   * INI Configuration Manager: Read an INI file
+   */
+  iniConfigManager: {
+    readFile: (filePath: string): Promise<string> => {
+      return ipcRenderer.invoke(IPC_CHANNELS.INI_MANAGER_READ_FILE, filePath);
+    },
+
+    writeFile: (filePath: string, content: string): Promise<boolean> => {
+      return ipcRenderer.invoke(IPC_CHANNELS.INI_MANAGER_WRITE_FILE, filePath, content);
+    },
+
+    findFiles: (gamePath?: string): Promise<{ name: string; path: string; exists: boolean }[]> => {
+      return ipcRenderer.invoke(IPC_CHANNELS.INI_MANAGER_FIND_FILES, gamePath);
+    },
+
+    getHardwareProfile: (): Promise<any> => {
+      return ipcRenderer.invoke(IPC_CHANNELS.INI_MANAGER_GET_HARDWARE);
+    },
+
+    backupFile: (filePath: string): Promise<boolean> => {
+      return ipcRenderer.invoke(IPC_CHANNELS.INI_MANAGER_BACKUP_FILE, filePath);
+    },
+
+    restoreBackup: (filePath: string): Promise<boolean> => {
+      return ipcRenderer.invoke(IPC_CHANNELS.INI_MANAGER_RESTORE_BACKUP, filePath);
+    },
+  },
+
+  assetScanner: {
+    browseFolder: (): Promise<string | null> => {
+      return ipcRenderer.invoke(IPC_CHANNELS.ASSET_SCANNER_BROWSE_FOLDER);
+    },
+
+    scanForDuplicates: (scanPath: string): Promise<any> => {
+      return ipcRenderer.invoke(IPC_CHANNELS.ASSET_SCANNER_SCAN_DUPLICATES, scanPath);
+    },
+
+    cleanupDuplicates: (filesToRemove: string[]): Promise<any> => {
+      return ipcRenderer.invoke(IPC_CHANNELS.ASSET_SCANNER_CLEANUP_DUPLICATES, filesToRemove);
+    },
+
+    getLastScanPath: (): Promise<string | null> => {
+      return ipcRenderer.invoke(IPC_CHANNELS.ASSET_SCANNER_GET_LAST_PATH);
+    },
+
+    saveLastScanPath: (scanPath: string): Promise<boolean> => {
+      return ipcRenderer.invoke(IPC_CHANNELS.ASSET_SCANNER_SAVE_LAST_PATH, scanPath);
+    },
+
+    onScanProgress: (callback: (progress: any) => void): (() => void) => {
+      const subscription = (_event: any, progress: any) => callback(progress);
+      ipcRenderer.on('asset-scanner-progress', subscription);
+      return () => ipcRenderer.removeListener('asset-scanner-progress', subscription);
+    },
+  },
+
+  // =========================================================================
+  // GAME LOG MONITOR API (Feature 3)
+  // =========================================================================
+  gameLogMonitor: {
+    browseLogFile: (): Promise<string | null> => {
+      return ipcRenderer.invoke(IPC_CHANNELS.GAME_LOG_MONITOR_BROWSE_LOG);
+    },
+
+    startMonitoring: (logPath: string): Promise<boolean> => {
+      return ipcRenderer.invoke(IPC_CHANNELS.GAME_LOG_MONITOR_START, logPath);
+    },
+
+    stopMonitoring: (): Promise<boolean> => {
+      return ipcRenderer.invoke(IPC_CHANNELS.GAME_LOG_MONITOR_STOP);
+    },
+
+    getLastLogPath: (): Promise<string | null> => {
+      return ipcRenderer.invoke(IPC_CHANNELS.GAME_LOG_MONITOR_GET_LAST_PATH);
+    },
+
+    saveLastLogPath: (logPath: string): Promise<boolean> => {
+      return ipcRenderer.invoke(IPC_CHANNELS.GAME_LOG_MONITOR_SAVE_LAST_PATH, logPath);
+    },
+
+    exportLogs: (logs: any[]): Promise<boolean> => {
+      return ipcRenderer.invoke(IPC_CHANNELS.GAME_LOG_MONITOR_EXPORT_LOGS, logs);
+    },
+
+    onLogUpdate: (callback: (entry: any) => void): (() => void) => {
+      const subscription = (_event: any, entry: any) => callback(entry);
+      ipcRenderer.on('log-update', subscription);
+      return () => ipcRenderer.removeListener('log-update', subscription);
+    },
+  },
+
+  // =========================================================================
+  // XEDIT SCRIPT EXECUTOR API (Feature 4)
+  // =========================================================================
+  xEditScriptExecutor: {
+    browseXEdit: (): Promise<string | null> => {
+      return ipcRenderer.invoke(IPC_CHANNELS.XEDIT_SCRIPT_BROWSE_XEDIT);
+    },
+
+    browsePlugin: (): Promise<string | null> => {
+      return ipcRenderer.invoke(IPC_CHANNELS.XEDIT_SCRIPT_BROWSE_PLUGIN);
+    },
+
+    getXEditPath: (): Promise<string | null> => {
+      return ipcRenderer.invoke(IPC_CHANNELS.XEDIT_SCRIPT_GET_XEDIT_PATH);
+    },
+
+    saveXEditPath: (xEditPath: string): Promise<boolean> => {
+      return ipcRenderer.invoke(IPC_CHANNELS.XEDIT_SCRIPT_SAVE_XEDIT_PATH, xEditPath);
+    },
+
+    getPluginList: (): Promise<string[]> => {
+      return ipcRenderer.invoke(IPC_CHANNELS.XEDIT_SCRIPT_GET_PLUGIN_LIST);
+    },
+
+    executeScript: (xEditPath: string, plugin: string, scriptId: string): Promise<any> => {
+      return ipcRenderer.invoke(IPC_CHANNELS.XEDIT_SCRIPT_EXECUTE, xEditPath, plugin, scriptId);
+    },
+
+    onProgress: (callback: (data: { progress: number; text: string }) => void): (() => void) => {
+      const subscription = (_event: any, data: any) => callback(data);
+      ipcRenderer.on('xedit-progress', subscription);
+      return () => ipcRenderer.removeListener('xedit-progress', subscription);
+    },
+  },
+
+  // =========================================================================
+  // PROJECT TEMPLATES API (Feature 5)
+  // =========================================================================
+  projectTemplates: {
+    browsePath: (): Promise<string | null> => {
+      return ipcRenderer.invoke(IPC_CHANNELS.PROJECT_TEMPLATE_BROWSE_PATH);
+    },
+
+    createProject: (config: { templateId: string; projectName: string; projectPath: string; authorName: string }): Promise<{ success: boolean; path?: string; error?: string }> => {
+      return ipcRenderer.invoke(IPC_CHANNELS.PROJECT_TEMPLATE_CREATE, config);
+    },
+
+    downloadTemplate: (templateId: string): Promise<boolean> => {
+      return ipcRenderer.invoke(IPC_CHANNELS.PROJECT_TEMPLATE_DOWNLOAD, templateId);
+    },
+  },
+
+  // =========================================================================
+  // MOD CONFLICT VISUALIZER API (Feature 6)
+  // =========================================================================
+  modConflictVisualizer: {
+    scanLoadOrder: (): Promise<{ plugins: string[]; conflicts: any[] }> => {
+      return ipcRenderer.invoke(IPC_CHANNELS.MOD_CONFLICT_SCAN_LOAD_ORDER);
+    },
+
+    analyze: (): Promise<{ success: boolean }> => {
+      return ipcRenderer.invoke(IPC_CHANNELS.MOD_CONFLICT_ANALYZE);
+    },
+
+    resolve: (): Promise<{ success: boolean }> => {
+      return ipcRenderer.invoke(IPC_CHANNELS.MOD_CONFLICT_RESOLVE);
+    },
+  },
+
+  // =========================================================================
+  // FORMID REMAPPER API (Feature 7)
+  // =========================================================================
+  formIdRemapper: {
+    scanConflicts: (pluginPath: string): Promise<{ count: number }> => {
+      return ipcRenderer.invoke(IPC_CHANNELS.FORMID_REMAPPER_SCAN_CONFLICTS, pluginPath);
+    },
+
+    remapFormIds: (pluginPath: string): Promise<{ success: boolean }> => {
+      return ipcRenderer.invoke(IPC_CHANNELS.FORMID_REMAPPER_REMAP, pluginPath);
+    },
+
+    backup: (): Promise<{ success: boolean }> => {
+      return ipcRenderer.invoke(IPC_CHANNELS.FORMID_REMAPPER_BACKUP);
+    },
+  },
+
+  // =========================================================================
+  // MOD COMPARISON TOOL API (Feature 8)
+  // =========================================================================
+  modComparisonTool: {
+    compare: (mod1: string, mod2: string): Promise<{ differences: any[] }> => {
+      return ipcRenderer.invoke(IPC_CHANNELS.MOD_COMPARISON_COMPARE, mod1, mod2);
+    },
+
+    merge: (): Promise<{ success: boolean }> => {
+      return ipcRenderer.invoke(IPC_CHANNELS.MOD_COMPARISON_MERGE);
+    },
+
+    export: (): Promise<{ success: boolean }> => {
+      return ipcRenderer.invoke(IPC_CHANNELS.MOD_COMPARISON_EXPORT);
+    },
+  },
+
+  // =========================================================================
+  // PRECOMBINE GENERATOR API (Feature 9)
+  // =========================================================================
+  precombineGenerator: {
+    generate: (worldspace: string): Promise<{ success: boolean }> => {
+      return ipcRenderer.invoke(IPC_CHANNELS.PRECOMBINE_GENERATOR_GENERATE, worldspace);
+    },
+
+    validate: (): Promise<{ success: boolean }> => {
+      return ipcRenderer.invoke(IPC_CHANNELS.PRECOMBINE_GENERATOR_VALIDATE);
+    },
+
+    getPJMPath: (): Promise<string | null> => {
+      return ipcRenderer.invoke(IPC_CHANNELS.PRECOMBINE_GENERATOR_GET_PJM_PATH);
+    },
+  },
+
+  // =========================================================================
+  // VOICE COMMANDS API (Feature 10)
+  // =========================================================================
+  voiceCommands: {
+    startListening: (): Promise<{ success: boolean }> => {
+      return ipcRenderer.invoke(IPC_CHANNELS.VOICE_COMMANDS_START);
+    },
+
+    stopListening: (): Promise<{ success: boolean }> => {
+      return ipcRenderer.invoke(IPC_CHANNELS.VOICE_COMMANDS_STOP);
+    },
+
+    execute: (): Promise<{ success: boolean }> => {
+      return ipcRenderer.invoke(IPC_CHANNELS.VOICE_COMMANDS_EXECUTE);
+    },
+
+    onTranscript: (callback: (text: string) => void): (() => void) => {
+      const subscription = (_event: any, text: string) => callback(text);
+      ipcRenderer.on('voice-transcript', subscription);
+      return () => ipcRenderer.removeListener('voice-transcript', subscription);
+    },
+  },
+
+  // =========================================================================
+  // AUTOMATION ENGINE API
+  // =========================================================================
+  automation: {
+    start: (): Promise<{ success: boolean }> => {
+      return ipcRenderer.invoke(IPC_CHANNELS.AUTOMATION_START);
+    },
+
+    stop: (): Promise<{ success: boolean }> => {
+      return ipcRenderer.invoke(IPC_CHANNELS.AUTOMATION_STOP);
+    },
+
+    getSettings: (): Promise<any> => {
+      return ipcRenderer.invoke(IPC_CHANNELS.AUTOMATION_GET_SETTINGS);
+    },
+
+    updateSettings: (settings: any): Promise<{ success: boolean }> => {
+      return ipcRenderer.invoke(IPC_CHANNELS.AUTOMATION_UPDATE_SETTINGS, settings);
+    },
+
+    toggleRule: (ruleId: string, enabled: boolean): Promise<{ success: boolean }> => {
+      return ipcRenderer.invoke(IPC_CHANNELS.AUTOMATION_TOGGLE_RULE, ruleId, enabled);
+    },
+
+    triggerRule: (ruleId: string): Promise<{ success: boolean }> => {
+      return ipcRenderer.invoke(IPC_CHANNELS.AUTOMATION_TRIGGER_RULE, ruleId);
+    },
+
+    getStatistics: (): Promise<any> => {
+      return ipcRenderer.invoke(IPC_CHANNELS.AUTOMATION_GET_STATISTICS);
+    },
+
+    resetStatistics: (): Promise<{ success: boolean }> => {
+      return ipcRenderer.invoke(IPC_CHANNELS.AUTOMATION_RESET_STATISTICS);
+    },
+
+    onRuleExecuted: (callback: (data: any) => void): (() => void) => {
+      const subscription = (_event: any, data: any) => callback(data);
+      ipcRenderer.on('automation:rule-executed', subscription);
+      return () => ipcRenderer.removeListener('automation:rule-executed', subscription);
+    },
    * CK Crash Prevention: Validate ESP file before CK operations
    */
   ckCrashValidate: (espPath: string, modName?: string, cellCount?: number): Promise<any> => {
