@@ -288,6 +288,7 @@ const IniConfigManager: React.FC = () => {
         );
         
         if (presetSetting) {
+          // Update both value (file content) and currentValue (UI display) to keep them in sync
           return { ...p, value: presetSetting.value, currentValue: presetSetting.value };
         }
         return p;
