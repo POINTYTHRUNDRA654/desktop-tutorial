@@ -174,7 +174,6 @@ export const AIAssistant: React.FC = () => {
    * Handle code generation
    */
   const handleCodeGeneration = async (description: string) => {
-    try {
       const result = await window.electronAPI.aiGenerateScript({
         description,
         language: codeGenSession?.language || 'papyrus',
@@ -210,16 +209,12 @@ export const AIAssistant: React.FC = () => {
         };
         setChatHistory(prev => [...prev, response]);
       }
-    } catch (error) {
-      throw error;
-    }
   };
 
   /**
    * Handle workflow planning
    */
   const handleWorkflowPlanning = async (goal: string) => {
-    try {
       const result = await window.electronAPI.aiPlanWorkflow({
         description: goal,
         goal,
@@ -247,16 +242,12 @@ export const AIAssistant: React.FC = () => {
         };
         setChatHistory(prev => [...prev, response]);
       }
-    } catch (error) {
-      throw error;
-    }
   };
 
   /**
    * Handle error diagnosis
    */
   const handleErrorDiagnosis = async (errorDescription: string) => {
-    try {
       const result = await window.electronAPI.aiDiagnoseError({
         errorMessage: errorDescription,
       });
@@ -277,16 +268,12 @@ export const AIAssistant: React.FC = () => {
         };
         setChatHistory(prev => [...prev, response]);
       }
-    } catch (error) {
-      throw error;
-    }
   };
 
   /**
    * Handle learning requests
    */
   const handleLearning = async (topic: string) => {
-    try {
       const result = await window.electronAPI.aiExplain({
         concept: topic,
         skillLevel: 'intermediate',
@@ -307,16 +294,12 @@ export const AIAssistant: React.FC = () => {
         };
         setChatHistory(prev => [...prev, response]);
       }
-    } catch (error) {
-      throw error;
-    }
   };
 
   /**
    * Handle asset organization
    */
   const handleAssetOrganization = async (assetDescription: string) => {
-    try {
       const result = await window.electronAPI.aiSuggestNames({
         type: 'texture',
         description: assetDescription,
@@ -345,16 +328,12 @@ export const AIAssistant: React.FC = () => {
         };
         setChatHistory(prev => [...prev, response]);
       }
-    } catch (error) {
-      throw error;
-    }
   };
 
   /**
    * Handle general queries
    */
   const handleGeneralQuery = async (query: string) => {
-    try {
       const result = await window.electronAPI.aiExplain({
         concept: query,
         includeExamples: true,
@@ -369,9 +348,6 @@ export const AIAssistant: React.FC = () => {
         };
         setChatHistory(prev => [...prev, response]);
       }
-    } catch (error) {
-      throw error;
-    }
   };
 
   /**

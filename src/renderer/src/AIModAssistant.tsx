@@ -63,10 +63,10 @@ const AIModAssistant: React.FC = () => {
   const toggleListening = async () => {
     if (!listening) {
       setListening(true);
-      try { await bridge.sttStart?.(); } catch {}
+      try { await bridge.sttStart?.(); } catch (err) { /* ignore - STT optional */ }
     } else {
       setListening(false);
-      try { await bridge.sttStop?.(); } catch {}
+      try { await bridge.sttStop?.(); } catch (err) { /* ignore - STT optional */ }
     }
   };
 
