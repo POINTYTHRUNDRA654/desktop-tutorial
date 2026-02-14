@@ -199,6 +199,11 @@ const IPC_CHANNELS = {
   AUTOMATION_TRIGGER_RULE: 'automation-trigger-rule',
   AUTOMATION_GET_STATISTICS: 'automation-get-statistics',
   AUTOMATION_RESET_STATISTICS: 'automation-reset-statistics',
+  // CK Crash Prevention
+  CK_CRASH_VALIDATE: 'ck-crash-prevention:validate',
+  CK_CRASH_ANALYZE: 'ck-crash-prevention:analyze-crash',
+  CK_CRASH_GENERATE_PLAN: 'ck-crash-prevention:generate-plan',
+  CK_CRASH_PICK_LOG: 'ck-crash-prevention:pick-log-file',
 } as const;
 
 /**
@@ -596,6 +601,14 @@ const electronAPI = {
    * PDF Parser: Extract text from PDF file
    * Runs in main process with Node.js pdf-parse library
    */
+  parsePSD: (arrayBuffer: ArrayBuffer): Promise<{ success: boolean; text?: string; metadata?: any; error?: string }> => {
+    return ipcRenderer.invoke('parse-psd', arrayBuffer);
+  },
+
+  parseABR: (arrayBuffer: ArrayBuffer): Promise<{ success: boolean; text?: string; metadata?: any; error?: string }> => {
+    return ipcRenderer.invoke('parse-abr', arrayBuffer);
+  },
+
   parsePDF: (arrayBuffer: ArrayBuffer): Promise<{ success: boolean; text?: string; error?: string }> => {
     return ipcRenderer.invoke('parse-pdf', arrayBuffer);
   },
@@ -1119,6 +1132,31 @@ const electronAPI = {
       ipcRenderer.on('automation:rule-executed', subscription);
       return () => ipcRenderer.removeListener('automation:rule-executed', subscription);
     },
+   * CK Crash Prevention: Validate ESP file before CK operations
+   */
+  ckCrashValidate: (espPath: string, modName?: string, cellCount?: number): Promise<any> => {
+    return ipcRenderer.invoke(IPC_CHANNELS.CK_CRASH_VALIDATE, espPath, modName, cellCount);
+  },
+
+  /**
+   * CK Crash Prevention: Analyze crash log file
+   */
+  ckCrashAnalyze: (logPath: string): Promise<any> => {
+    return ipcRenderer.invoke(IPC_CHANNELS.CK_CRASH_ANALYZE, logPath);
+  },
+
+  /**
+   * CK Crash Prevention: Generate prevention plan from validation results
+   */
+  ckCrashGeneratePlan: (validation: any): Promise<any> => {
+    return ipcRenderer.invoke(IPC_CHANNELS.CK_CRASH_GENERATE_PLAN, validation);
+  },
+
+  /**
+   * CK Crash Prevention: Pick log file via dialog
+   */
+  ckCrashPickLog: (): Promise<any> => {
+    return ipcRenderer.invoke(IPC_CHANNELS.CK_CRASH_PICK_LOG);
   },
 
   /**
