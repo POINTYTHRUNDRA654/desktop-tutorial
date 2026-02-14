@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
-import { MessageSquare, Radio, Image, Activity, Heart, Leaf, Monitor, Wifi, WifiOff, Hammer, GitBranch, Network, Gamepad2, Container, SquareTerminal, Aperture, LayoutDashboard, Satellite, Workflow, Hexagon, DraftingCompass, Dna, Sparkles, Flame, Binary, Triangle, PenTool, FlaskConical, FileDigit, Bug, Package, Watch, ShieldCheck, Shield, Feather, Power, Volume2, VolumeX, Settings, Coffee, Book, Code, Archive, Eye, Save, FileCode as FileCodeIcon, Bot, Box, Gauge, Clock, Share2, Github, Bone, CheckCircle2, AlertCircle, BookOpen, Wrench, Copy, Star, Brain, Target, ExternalLink, Globe, Database } from 'lucide-react';
+import { MessageSquare, Radio, Image, Activity, Heart, Leaf, Monitor, Wifi, WifiOff, Hammer, GitBranch, Network, Gamepad2, Container, SquareTerminal, Aperture, LayoutDashboard, Satellite, Workflow, Hexagon, DraftingCompass, Dna, Sparkles, Flame, Binary, Triangle, PenTool, FlaskConical, FileDigit, Bug, Package, Watch, ShieldCheck, Shield, Feather, Power, Volume2, VolumeX, Settings, Coffee, Book, Code, Archive, Eye, Save, FileCode as FileCodeIcon, Bot, Box, Gauge, Clock, Share2, Github, Bone, CheckCircle2, AlertCircle, BookOpen, Wrench, Copy, Star, Brain, Target, ExternalLink, Globe, Database, Wand2 } from 'lucide-react';
 import { useLive } from './LiveContext';
 import { useI18n } from './i18n';
 import TourLauncher from './TourLauncher';
@@ -132,8 +132,8 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen = false, onToggle, onClose }) 
     
     // === TOOL EXTENSIONS ===
     { to: '/extensions/mo2', icon: Package, label: 'MO2 Extension' },
-    { to: '/extensions/xedit', icon: Database, label: 'xEdit Extension' },
-    { to: '/extensions/ck', icon: Wrench, label: 'CK Extension' },
+    { to: '/tools/xedit-extension', icon: Database, label: 'xEdit Extension' },
+    { to: '/tools/ck-extension', icon: Wrench, label: 'CK Extension' },
     { to: '/extensions/comfyui', icon: Network, label: 'ComfyUI Extension' },
     { to: '/extensions/upscayl', icon: Aperture, label: 'Upscayl Extension' },
     
