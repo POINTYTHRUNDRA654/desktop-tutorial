@@ -40,6 +40,7 @@ export default function ModComparisonTool({ embedded = false }: ModComparisonToo
             <button onClick={() => setSkillLevel('advanced')} className={`px-4 py-2 rounded ${skillLevel === 'advanced' ? 'bg-red-600' : 'bg-slate-700'} text-white`}>🔴 Advanced</button>
           </div>
         </div>
+        )}
 
         {message && <div className="mb-4 p-4 bg-blue-900/50 border border-blue-500 rounded text-blue-200">{message}</div>}
 
