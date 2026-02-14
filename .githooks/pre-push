@@ -1,0 +1,10 @@
+#!/bin/sh
+# Prevent pushing any branch other than master (local safeguard)
+branch="$(git rev-parse --abbrev-ref HEAD)"
+if [ "$branch" != "master" ]; then
+  echo "\n[repo policy] Push blocked: only 'master' branch is allowed.\n"
+  echo "To contribute: commit on 'master' and push, or open a PR via the web UI." 
+  echo "Run 'sh scripts/setup-git-hooks.sh' to install the local hook that enforces this policy.\n"
+  exit 1
+fi
+exit 0
