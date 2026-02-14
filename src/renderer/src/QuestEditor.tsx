@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { ChevronDown, ChevronRight, Plus, Trash2, Copy, Settings, Save, Play } from 'lucide-react';
+import { GitBranch, ArrowDownToLine, ChevronDown, ChevronRight, Plus, Trash2, Copy, Settings, Save, Play } from 'lucide-react';
 import './QuestEditor.css';
 
 // ============================================================================
@@ -524,9 +524,6 @@ export const QuestEditor: React.FC = () => {
       </div>
     </div>
   );
-};
-
-export default QuestEditor;
 
   const drawCanvas = () => {
     const canvas = canvasRef.current;
@@ -969,3 +966,5 @@ export default QuestEditor;
     </div>
   );
 };
+
+export default QuestEditor;
