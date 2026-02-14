@@ -142,7 +142,17 @@ Your support helps:
 - Launch applications with file paths
 - System program detection and automation
 
-#### 📊 **System Monitor**
+#### �️ **CK Crash Prevention Engine** (Safety System)
+- **Pre-Launch Validation** - Analyze plugins before opening in Creation Kit
+- **Risk Assessment** - 0-100% crash risk score based on file analysis
+- **Real-Time Monitoring** - Track CK memory, CPU, handles every 2 seconds
+- **Crash Log Analysis** - Automatic diagnosis of crash causes and solutions
+- **Prevention Plans** - Step-by-step guides to reduce crash risk
+- **Common Pattern Detection** - Recognizes memory overflow, navmesh crashes, precombine conflicts
+- **Proactive Warnings** - Alerts when memory approaches 4GB limit (32-bit CK)
+- See [CK_CRASH_PREVENTION_GUIDE.md](CK_CRASH_PREVENTION_GUIDE.md) for detailed usage
+
+#### �📊 **System Monitor**
 - Real-time CPU usage
 - RAM consumption tracking
 - GPU memory monitoring

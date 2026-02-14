@@ -77,6 +77,7 @@ const IPC_CHANNELS = {
   DEDUPE_TRASH: 'dedupe-trash',
   // Load Order Lab (experimental)
   LOAD_ORDER_PICK_MO2_PROFILE_DIR: 'load-order-pick-mo2-profile-dir',
+  LOAD_ORDER_PICK_VORTEX_PROFILE_DIR: 'load-order-pick-vortex-profile-dir',
   LOAD_ORDER_PICK_LOOT_REPORT_FILE: 'load-order-pick-loot-report-file',
   LOAD_ORDER_WRITE_USERDATA_FILE: 'load-order-write-userdata-file',
   LOAD_ORDER_LAUNCH_XEDIT: 'load-order-launch-xedit',
@@ -627,6 +628,807 @@ const electronAPI = {
   },
 
   /**
+   * CK Crash Prevention: Get plugin metadata
+   */
+  getPluginMetadata: (pluginPath: string): Promise<{ 
+    success: boolean; 
+    metadata?: {
+      pluginPath: string;
+      pluginName: string;
+      masters: string[];
+      recordCount: number;
+      fileSize: number;
+      lastModified: Date;
+      hasScripts: boolean;
+      hasNavmesh: boolean;
+      hasPrecombines: boolean;
+    };
+    error?: string;
+  }> => {
+    return ipcRenderer.invoke('get-plugin-metadata', pluginPath);
+  },
+
+  /**
+   * CK Crash Prevention: Get process metrics
+   */
+  getProcessMetrics: (pid: number): Promise<{
+    success: boolean;
+    metrics?: {
+      timestamp: number;
+      memoryUsageMB: number;
+      handleCount: number;
+      threadCount: number;
+      cpuPercent: number;
+      responsiveness: 'normal' | 'slow' | 'frozen';
+      warningSignals: string[];
+    };
+    error?: string;
+  }> => {
+    return ipcRenderer.invoke('get-process-metrics', pid);
+  },
+
+  /**
+   * CK Crash Prevention: Read crash log
+   */
+  readCrashLog: (logPath: string): Promise<{ success: boolean; content?: string; error?: string }> => {
+    return ipcRenderer.invoke('read-crash-log', logPath);
+  },
+
+  /**
+   * CK Crash Prevention: Validate plugin before CK launch
+   */
+  ckValidate: (modData: any): Promise<any> => {
+    return ipcRenderer.invoke('ck-crash-prevention:validate', modData);
+  },
+
+  /**
+   * CK Crash Prevention: Generate prevention plan
+   */
+  ckGeneratePreventionPlan: (modContext: any): Promise<any> => {
+    return ipcRenderer.invoke('ck-crash-prevention:generate-plan', modContext);
+  },
+
+  /**
+   * CK Crash Prevention: Analyze crash log content
+   */
+  ckAnalyzeCrash: (logPath: string): Promise<any> => {
+    return ipcRenderer.invoke('ck-crash-prevention:analyze-crash', logPath);
+  },
+
+  /**
+   * CK Crash Prevention: Pick crash log file with file dialog
+   */
+  ckPickLogFile: (): Promise<{ success: boolean; path?: string; content?: string; error?: string }> => {
+    return ipcRenderer.invoke('ck-crash-prevention:pick-log-file');
+  },
+
+  /**
+   * DDS Converter: Convert single texture file
+   */
+  ddsConvert: (input: any): Promise<any> => {
+    return ipcRenderer.invoke('dds-converter:convert', input);
+  },
+
+  /**
+   * DDS Converter: Batch convert multiple textures
+   */
+  ddsConvertBatch: (files: any[], options?: any): Promise<any> => {
+    return ipcRenderer.invoke('dds-converter:convert-batch', files, options);
+  },
+
+  /**
+   * DDS Converter: Detect texture format
+   */
+  ddsDetectFormat: (filePath: string): Promise<{ success: boolean; format?: string; error?: string }> => {
+    return ipcRenderer.invoke('dds-converter:detect-format', filePath);
+  },
+
+  /**
+   * DDS Converter: Generate mipmap chain
+   */
+  ddsGenerateMipmaps: (imagePath: string, levels?: number): Promise<{ success: boolean; mipmaps?: any; error?: string }> => {
+    return ipcRenderer.invoke('dds-converter:generate-mipmaps', imagePath, levels);
+  },
+
+  /**
+   * DDS Converter: Get compression preset for texture type
+   */
+  ddsGetPreset: (type: string): Promise<{ success: boolean; preset?: any; error?: string }> => {
+    return ipcRenderer.invoke('dds-converter:get-preset', type);
+  },
+
+  /**
+   * DDS Converter: Get all compression presets
+   */
+  ddsGetAllPresets: (): Promise<{ success: boolean; presets?: any; error?: string }> => {
+    return ipcRenderer.invoke('dds-converter:get-all-presets');
+  },
+
+  /**
+   * DDS Converter: Get default format mapping rules
+   */
+  ddsGetDefaultFormatRules: (): Promise<{ success: boolean; rules?: any[]; error?: string }> => {
+    return ipcRenderer.invoke('dds-converter:get-default-format-rules');
+  },
+
+  /**
+   * DDS Converter: Pick texture files with file dialog
+   */
+  ddsPickFiles: (): Promise<{ success: boolean; paths?: string[]; error?: string }> => {
+    return ipcRenderer.invoke('dds-converter:pick-files');
+  },
+
+  /**
+   * Texture Generator: Generate complete PBR material set
+   */
+  textureGenerateMaterialSet: (input: any): Promise<any> => {
+    return ipcRenderer.invoke('texture-generator:generate-material-set', input);
+  },
+
+  /**
+   * Texture Generator: Generate specific map type
+   */
+  textureGenerateMap: (type: string, source: string, settings: any): Promise<any> => {
+    return ipcRenderer.invoke('texture-generator:generate-map', type, source, settings);
+  },
+
+  /**
+   * Texture Generator: Make texture seamlessly tileable
+   */
+  textureMakeSeamless: (imagePath: string, blendRadius?: number): Promise<any> => {
+    return ipcRenderer.invoke('texture-generator:make-seamless', imagePath, blendRadius);
+  },
+
+  /**
+   * Texture Generator: AI upscale texture
+   */
+  textureUpscale: (imagePath: string, factor: 2 | 4): Promise<any> => {
+    return ipcRenderer.invoke('texture-generator:upscale', imagePath, factor);
+  },
+
+  /**
+   * Texture Generator: Generate procedural texture
+   */
+  textureGenerateProcedural: (type: string, settings: any): Promise<any> => {
+    return ipcRenderer.invoke('texture-generator:generate-procedural', type, settings);
+  },
+
+  /**
+   * External Tool Integration: Detect all installed tools
+   */
+  externalToolDetectTools: (): Promise<any> => {
+    return ipcRenderer.invoke('external-tool:detect-tools');
+  },
+
+  /**
+   * External Tool Integration: Verify specific tool
+   */
+  externalToolVerifyTool: (toolName: string): Promise<any> => {
+    return ipcRenderer.invoke('external-tool:verify-tool', toolName);
+  },
+
+  /**
+   * External Tool Integration: Run xEdit script
+   */
+  externalToolRunXEditScript: (scriptPath: string, pluginList: string[]): Promise<any> => {
+    return ipcRenderer.invoke('external-tool:run-xedit-script', scriptPath, pluginList);
+  },
+
+  /**
+   * External Tool Integration: Clean plugin with xEdit
+   */
+  externalToolCleanPlugin: (pluginPath: string, mode: 'quick' | 'manual'): Promise<any> => {
+    return ipcRenderer.invoke('external-tool:clean-plugin', pluginPath, mode);
+  },
+
+  /**
+   * External Tool Integration: Find conflicts between plugins
+   */
+  externalToolFindConflicts: (plugins: string[]): Promise<any> => {
+    return ipcRenderer.invoke('external-tool:find-conflicts', plugins);
+  },
+
+  /**
+   * External Tool Integration: Optimize NIF file
+   */
+  externalToolOptimizeNIF: (nifPath: string, settings: any): Promise<any> => {
+    return ipcRenderer.invoke('external-tool:optimize-nif', nifPath, settings);
+  },
+
+  /**
+   * External Tool Integration: Batch fix NIF files
+   */
+  externalToolBatchFixNIFs: (folder: string, issues: string[]): Promise<any> => {
+    return ipcRenderer.invoke('external-tool:batch-fix-nifs', folder, issues);
+  },
+
+  /**
+   * External Tool Integration: Extract NIF metadata
+   */
+  externalToolExtractNIFInfo: (nifPath: string): Promise<any> => {
+    return ipcRenderer.invoke('external-tool:extract-nif-info', nifPath);
+  },
+
+  /**
+   * External Tool Integration: Import FBX into Blender
+   */
+  externalToolImportFBX: (fbxPath: string, settings: any): Promise<any> => {
+    return ipcRenderer.invoke('external-tool:import-fbx', fbxPath, settings);
+  },
+
+  /**
+   * External Tool Integration: Export NIF from Blender
+   */
+  externalToolExportNIF: (blendPath: string, settings: any): Promise<any> => {
+    return ipcRenderer.invoke('external-tool:export-nif', blendPath, settings);
+  },
+
+  /**
+   * External Tool Integration: Batch convert meshes with Blender
+   */
+  externalToolBatchConvertMeshes: (files: string[], workflow: string): Promise<any> => {
+    return ipcRenderer.invoke('external-tool:batch-convert-meshes', files, workflow);
+  },
+
+  /**
+   * External Tool Integration: Run Creation Kit command
+   */
+  externalToolRunCKCommand: (command: string, args: string[]): Promise<any> => {
+    return ipcRenderer.invoke('external-tool:run-ck-command', command, args);
+  },
+
+  /**
+   * External Tool Integration: Generate precombines
+   */
+  externalToolGeneratePrecombines: (espPath: string, cells?: string[]): Promise<any> => {
+    return ipcRenderer.invoke('external-tool:generate-precombines', espPath, cells);
+  },
+
+  /**
+   * External Tool Integration: Pack BA2 archive
+   */
+  externalToolPackArchive: (folder: string, archiveName: string, format: 'General' | 'DDS' | 'BA2'): Promise<any> => {
+    return ipcRenderer.invoke('external-tool:pack-archive', folder, archiveName, format);
+  },
+
+  /**
+   * External Tool Integration: Unpack BA2 archive
+   */
+  externalToolUnpackArchive: (ba2Path: string, outputFolder: string): Promise<any> => {
+    return ipcRenderer.invoke('external-tool:unpack-archive', ba2Path, outputFolder);
+  },
+
+  // ============================================================================
+  // TOOL WRAPPER-SPECIFIC API METHODS
+  // ============================================================================
+
+  /**
+   * xEdit: Clean plugin (remove ITM/UDR records)
+   */
+  xeditClean: (pluginPath: string, mode?: 'quick' | 'manual'): Promise<any> => {
+    return ipcRenderer.invoke('tool-integration:xedit-clean', pluginPath, mode);
+  },
+
+  /**
+   * xEdit: Execute custom PascalScript
+   */
+  xeditExecuteScript: (scriptPath: string, plugins: string[], parameters?: any): Promise<any> => {
+    return ipcRenderer.invoke('tool-integration:xedit-script', scriptPath, plugins, parameters);
+  },
+
+  /**
+   * xEdit: Export records to CSV
+   */
+  xeditExportCSV: (plugin: string, recordTypes: string[], outputPath?: string): Promise<any> => {
+    return ipcRenderer.invoke('tool-integration:xedit-export-csv', plugin, recordTypes, outputPath);
+  },
+
+  /**
+   * xEdit: Find load order conflicts
+   */
+  xeditFindConflicts: (plugins: string[]): Promise<any> => {
+    return ipcRenderer.invoke('tool-integration:xedit-find-conflicts', plugins);
+  },
+
+  /**
+   * NifSkope: Optimize NIF file
+   */
+  nifOptimize: (nifPath: string, options?: any): Promise<any> => {
+    return ipcRenderer.invoke('tool-integration:nif-optimize', nifPath, options);
+  },
+
+  /**
+   * NifSkope: Batch optimize NIF files
+   */
+  nifBatchOptimize: (nifFiles: string[], options?: any): Promise<any> => {
+    return ipcRenderer.invoke('tool-integration:nif-batch-optimize', nifFiles, options);
+  },
+
+  /**
+   * NifSkope: Change texture path in NIF
+   */
+  nifChangeTexture: (nifPath: string, oldPath: string, newPath: string): Promise<any> => {
+    return ipcRenderer.invoke('tool-integration:nif-change-texture', nifPath, oldPath, newPath);
+  },
+
+  /**
+   * NifSkope: Fix collision data
+   */
+  nifFixCollision: (nifPath: string, options?: any): Promise<any> => {
+    return ipcRenderer.invoke('tool-integration:nif-fix-collision', nifPath, options);
+  },
+
+  /**
+   * NifSkope: Extract NIF metadata
+   */
+  nifExtractMetadata: (nifPath: string): Promise<any> => {
+    return ipcRenderer.invoke('tool-integration:nif-extract-metadata', nifPath);
+  },
+
+  /**
+   * NifSkope: Validate NIF file structure
+   */
+  nifValidate: (nifPath: string): Promise<any> => {
+    return ipcRenderer.invoke('tool-integration:nif-validate', nifPath);
+  },
+
+  /**
+   * Blender: Convert FBX to NIF
+   */
+  blenderConvertFBXToNIF: (fbxPath: string, nifPath: string, options?: any): Promise<any> => {
+    return ipcRenderer.invoke('tool-integration:blender-convert-fbx-to-nif', fbxPath, nifPath, options);
+  },
+
+  /**
+   * Blender: Convert NIF to FBX
+   */
+  blenderConvertNIFToFBX: (nifPath: string, fbxPath: string, options?: any): Promise<any> => {
+    return ipcRenderer.invoke('tool-integration:blender-convert-nif-to-fbx', nifPath, fbxPath, options);
+  },
+
+  /**
+   * Blender: Execute custom Python script
+   */
+  blenderExecuteScript: (scriptContent: string, args?: any, options?: any): Promise<any> => {
+    return ipcRenderer.invoke('tool-integration:blender-script', scriptContent, args, options);
+  },
+
+  /**
+   * Blender: Batch process files
+   */
+  blenderBatchProcess: (files: string[], operation: string, options?: any): Promise<any> => {
+    return ipcRenderer.invoke('tool-integration:blender-batch-process', files, operation, options);
+  },
+
+  /**
+   * Blender: Check if NIF plugin is installed
+   */
+  blenderCheckNIFPlugin: (): Promise<any> => {
+    return ipcRenderer.invoke('tool-integration:blender-check-nif-plugin');
+  },
+
+  /**
+   * Creation Kit: Launch with ESP
+   */
+  ckLaunch: (espPath?: string, options?: any): Promise<any> => {
+    return ipcRenderer.invoke('tool-integration:ck-launch', espPath, options);
+  },
+
+  /**
+   * Creation Kit: Get log contents
+   */
+  ckGetLog: (): Promise<any> => {
+    return ipcRenderer.invoke('tool-integration:ck-get-log');
+  },
+
+  /**
+   * Creation Kit: Get log errors
+   */
+  ckGetLogErrors: (): Promise<any> => {
+    return ipcRenderer.invoke('tool-integration:ck-get-log-errors');
+  },
+
+  /**
+   * Creation Kit: Validate ESP file
+   */
+  ckValidateESP: (espPath: string): Promise<any> => {
+    return ipcRenderer.invoke('tool-integration:ck-validate-esp', espPath);
+  },
+
+  /**
+   * Creation Kit: Get master files from ESP
+   */
+  ckGetMasters: (espPath: string): Promise<any> => {
+    return ipcRenderer.invoke('tool-integration:ck-get-masters', espPath);
+  },
+
+  /**
+   * Creation Kit: Create backup of ESP
+   */
+  ckBackupESP: (espPath: string): Promise<any> => {
+    return ipcRenderer.invoke('tool-integration:ck-backup-esp', espPath);
+  },
+
+  /**
+   * Creation Kit: Check if CK is running
+   */
+  ckIsRunning: (): Promise<any> => {
+    return ipcRenderer.invoke('tool-integration:ck-is-running');
+  },
+
+  /**
+   * Creation Kit: Kill CK process
+   */
+  ckKill: (): Promise<any> => {
+    return ipcRenderer.invoke('tool-integration:ck-kill');
+  },
+
+  // ============================================================================
+  // ASSET VALIDATION API METHODS
+  // ============================================================================
+
+  /**
+   * Asset Validation: Validate entire mod folder
+   */
+  assetValidateMod: (modPath: string, depth: 'quick' | 'standard' | 'deep', progressCallback?: (progress: number, file: string) => void): Promise<any> => {
+    return ipcRenderer.invoke('asset-validation:validate-mod', modPath, depth, progressCallback);
+  },
+
+  /**
+   * Asset Validation: Validate NIF mesh file
+   */
+  assetValidateNIF: (nifPath: string): Promise<any> => {
+    return ipcRenderer.invoke('asset-validation:validate-nif', nifPath);
+  },
+
+  /**
+   * Asset Validation: Validate DDS texture file
+   */
+  assetValidateDDS: (ddsPath: string): Promise<any> => {
+    return ipcRenderer.invoke('asset-validation:validate-dds', ddsPath);
+  },
+
+  /**
+   * Asset Validation: Validate ESP/ESM plugin file
+   */
+  assetValidateESP: (espPath: string): Promise<any> => {
+    return ipcRenderer.invoke('asset-validation:validate-esp', espPath);
+  },
+
+  /**
+   * Asset Validation: Validate Papyrus script
+   */
+  assetValidateScript: (pscPath: string): Promise<any> => {
+    return ipcRenderer.invoke('asset-validation:validate-script', pscPath);
+  },
+
+  /**
+   * Asset Validation: Validate sound file
+   */
+  assetValidateSound: (wavPath: string): Promise<any> => {
+    return ipcRenderer.invoke('asset-validation:validate-sound', wavPath);
+  },
+
+  /**
+   * Asset Validation: Batch validate multiple files
+   */
+  assetValidateBatch: (files: string[], progressCallback?: (progress: number, file: string) => void): Promise<any> => {
+    return ipcRenderer.invoke('asset-validation:batch-validate', files, progressCallback);
+  },
+
+  /**
+   * Asset Validation: Auto-fix supported issues
+   */
+  assetValidationAutoFix: (issues: any[]): Promise<any> => {
+    return ipcRenderer.invoke('asset-validation:auto-fix', issues);
+  },
+
+  // ============================================================================
+  // ASSET VALIDATOR API (Alternative namespace)
+  // ============================================================================
+
+  /**
+   * Asset Validator: Validate single file
+   */
+  assetValidatorValidateFile: (filePath: string, type: string): Promise<any> => {
+    return ipcRenderer.invoke('asset-validator:validate-file', filePath, type);
+  },
+
+  /**
+   * Asset Validator: Validate mod folder
+   */
+  assetValidatorValidateMod: (modPath: string, depth: 'quick' | 'standard' | 'deep'): Promise<any> => {
+    return ipcRenderer.invoke('asset-validator:validate-mod', modPath, depth);
+  },
+
+  /**
+   * Asset Validator: Auto-fix issues
+   */
+  assetValidatorAutoFix: (issues: any[]): Promise<any> => {
+    return ipcRenderer.invoke('asset-validator:auto-fix', issues);
+  },
+
+  /**
+   * Asset Validator: Export report
+   */
+  assetValidatorExportReport: (report: any, format: 'json' | 'html'): Promise<any> => {
+    return ipcRenderer.invoke('asset-validator:export-report', report, format);
+  },
+
+  // ============================================================================
+  // MOD PACKAGING API
+  // ============================================================================
+
+  /**
+   * Start a new packaging session
+   */
+  modPackagingStart: (modPath: string): Promise<any> => {
+    return ipcRenderer.invoke('mod-packaging:start', modPath);
+  },
+
+  /**
+   * Validate mod folder structure
+   */
+  modPackagingValidateStructure: (modPath: string): Promise<any> => {
+    return ipcRenderer.invoke('mod-packaging:validate-structure', modPath);
+  },
+
+  /**
+   * Create archive package
+   */
+  modPackagingCreateArchive: (settings: any): Promise<any> => {
+    return ipcRenderer.invoke('mod-packaging:create-archive', settings);
+  },
+
+  /**
+   * Generate README file
+   */
+  modPackagingGenerateReadme: (modInfo: any, template: string): Promise<string> => {
+    return ipcRenderer.invoke('mod-packaging:generate-readme', modInfo, template);
+  },
+
+  /**
+   * Append to changelog
+   */
+  modPackagingAppendChangelog: (changelogPath: string, version: string, changes: string[]): Promise<any> => {
+    return ipcRenderer.invoke('mod-packaging:append-changelog', changelogPath, version, changes);
+  },
+
+  /**
+   * Prepare mod for Nexus Mods upload
+   */
+  modPackagingPrepareNexus: (modPackage: any): Promise<any> => {
+    return ipcRenderer.invoke('mod-packaging:prepare-nexus', modPackage);
+  },
+
+  /**
+   * Increment version number
+   */
+  modPackagingIncrementVersion: (currentVersion: string, type: 'major' | 'minor' | 'patch'): Promise<string> => {
+    return ipcRenderer.invoke('mod-packaging:increment-version', currentVersion, type);
+  },
+
+  /**
+   * Get packaging session
+   */
+  modPackagingGetSession: (sessionId: string): Promise<any> => {
+    return ipcRenderer.invoke('mod-packaging:get-session', sessionId);
+  },
+
+  /**
+   * Update packaging session
+   */
+  modPackagingUpdateSession: (sessionId: string, updates: any): Promise<any> => {
+    return ipcRenderer.invoke('mod-packaging:update-session', sessionId, updates);
+  },
+
+  // ============================================================================
+  // FOMOD BUILDER API
+  // ============================================================================
+
+  /**
+   * Create new FOMOD project
+   */
+  fomodCreate: (modPath: string, modInfo?: any): Promise<any> => {
+    return ipcRenderer.invoke('fomod:create', modPath, modInfo);
+  },
+
+  /**
+   * Generate ModuleConfig.xml
+   */
+  fomodGenerateModuleConfig: (fomod: any): Promise<string> => {
+    return ipcRenderer.invoke('fomod:generate-module-config', fomod);
+  },
+
+  /**
+   * Generate info.xml
+   */
+  fomodGenerateInfoXML: (modInfo: any): Promise<string> => {
+    return ipcRenderer.invoke('fomod:generate-info-xml', modInfo);
+  },
+
+  /**
+   * Validate FOMOD structure
+   */
+  fomodValidate: (fomodPath: string): Promise<any> => {
+    return ipcRenderer.invoke('fomod:validate', fomodPath);
+  },
+
+  /**
+   * Preview installer flow
+   */
+  fomodPreview: (fomod: any, selections?: Map<string, string[]>): Promise<any> => {
+    return ipcRenderer.invoke('fomod:preview', fomod, selections);
+  },
+
+  /**
+   * Export FOMOD to directory
+   */
+  fomodExport: (fomod: any, outputPath: string, sourceModPath: string): Promise<any> => {
+    return ipcRenderer.invoke('fomod:export', fomod, outputPath, sourceModPath);
+  },
+
+  /**
+   * Load existing FOMOD
+   */
+  fomodLoad: (fomodPath: string): Promise<any> => {
+    return ipcRenderer.invoke('fomod:load', fomodPath);
+  },
+
+  /**
+   * Save FOMOD project metadata
+   */
+  fomodSaveProject: (fomod: any, projectPath: string): Promise<any> => {
+    return ipcRenderer.invoke('fomod:save-project', fomod, projectPath);
+  },
+
+  // ============================================================================
+  // LOAD ORDER OPTIMIZER
+  // ============================================================================
+
+  /**
+   * Analyze current load order for conflicts, dependencies, and performance
+   */
+  loadOrderAnalyze: (plugins: any[]): Promise<any> => {
+    return ipcRenderer.invoke('load-order:analyze', plugins);
+  },
+
+  /**
+   * Generate optimized load order based on rules and algorithms
+   */
+  loadOrderOptimize: (plugins: any[], rules: any): Promise<any> => {
+    return ipcRenderer.invoke('load-order:optimize', plugins, rules);
+  },
+
+  /**
+   * Detect conflicts between plugins
+   */
+  loadOrderDetectConflicts: (plugins: any[]): Promise<any> => {
+    return ipcRenderer.invoke('load-order:detect-conflicts', plugins);
+  },
+
+  /**
+   * Build dependency graph for plugins
+   */
+  loadOrderResolveDependencies: (plugins: any[]): Promise<any> => {
+    return ipcRenderer.invoke('load-order:resolve-dependencies', plugins);
+  },
+
+  /**
+   * Predict performance impact of current load order
+   */
+  loadOrderPredictPerformance: (plugins: any[]): Promise<any> => {
+    return ipcRenderer.invoke('load-order:predict-performance', plugins);
+  },
+
+  /**
+   * Apply custom sorting rules to plugins
+   */
+  loadOrderApplyRules: (plugins: any[], rules: any[]): Promise<any> => {
+    return ipcRenderer.invoke('load-order:apply-rules', plugins, rules);
+  },
+
+  /**
+   * Import load order from Mod Organizer 2 or Vortex
+   */
+  loadOrderImport: (source: 'mo2' | 'vortex', sourcePath?: string): Promise<any> => {
+    return ipcRenderer.invoke('load-order:import', source, sourcePath);
+  },
+
+  /**
+   * Export load order to Mod Organizer 2 or Vortex
+   */
+  loadOrderExport: (plugins: any[], destination: 'mo2' | 'vortex', destPath?: string): Promise<any> => {
+    return ipcRenderer.invoke('load-order:export', plugins, destination, destPath);
+  },
+
+  /**
+   * Parse single plugin file for metadata
+   */
+  loadOrderParsePlugin: (pluginPath: string): Promise<any> => {
+    return ipcRenderer.invoke('load-order:parse-plugin', pluginPath);
+  },
+
+  /**
+   * Save optimization results to file
+   */
+  loadOrderSaveOptimization: (optimization: any, filePath: string): Promise<any> => {
+    return ipcRenderer.invoke('load-order:save-optimization', optimization, filePath);
+  },
+
+  // ============================================================================
+  // CONFLICT RESOLUTION
+  // ============================================================================
+
+  /**
+   * Analyze conflicts across plugins
+   */
+  conflictAnalyze: (plugins: string[]): Promise<any> => {
+    return ipcRenderer.invoke('conflict-resolution:analyze', plugins);
+  },
+
+  /**
+   * Compare record types between two plugins
+   */
+  conflictCompareRecords: (pluginA: string, pluginB: string, recordIdentifier: string): Promise<any> => {
+    return ipcRenderer.invoke('conflict-resolution:compare-records', pluginA, pluginB, recordIdentifier);
+  },
+
+  /**
+   * Generate patch metadata from conflicts
+   */
+  conflictGeneratePatch: (conflicts: any[], strategy: any): Promise<any> => {
+    return ipcRenderer.invoke('conflict-resolution:generate-patch', conflicts, strategy);
+  },
+
+  /**
+   * Check compatibility between two mods
+   */
+  conflictCheckCompatibility: (modA: string, modB: string): Promise<any> => {
+    return ipcRenderer.invoke('conflict-resolution:check-compatibility', modA, modB);
+  },
+
+  /**
+   * Recommend merge candidates
+   */
+  conflictRecommendMerge: (plugins: string[]): Promise<any> => {
+    return ipcRenderer.invoke('conflict-resolution:recommend-merge', plugins);
+  },
+
+  /**
+   * Apply conflict resolution rules
+   */
+  conflictApplyRules: (conflicts: any[], rules: any[]): Promise<any> => {
+    return ipcRenderer.invoke('conflict-resolution:apply-rules', conflicts, rules);
+  },
+  conflictSavePatch: (patch: any, outputPath: string): Promise<any> => {
+    return ipcRenderer.invoke('conflict-resolution:save-patch', patch, outputPath);
+  },
+  gameDetectGame: (): Promise<any> => {
+    return ipcRenderer.invoke('game-integration:detect-game');
+  },
+  gameExecuteConsoleCommand: (command: string, game: string): Promise<any> => {
+    return ipcRenderer.invoke('game-integration:console-command', command, game);
+  },
+  gameAnalyzeSave: (savePath: string): Promise<any> => {
+    return ipcRenderer.invoke('game-integration:analyze-save', savePath);
+  },
+  gameGetActiveMods: (game: any): Promise<any> => {
+    return ipcRenderer.invoke('game-integration:get-active-mods', game);
+  },
+  gameStartMonitoring: (pid: number): Promise<any> => {
+    return ipcRenderer.invoke('game-integration:start-monitoring', pid);
+  },
+  gameCaptureScreenshot: (): Promise<any> => {
+    return ipcRenderer.invoke('game-integration:screenshot');
+  },
+  gameInjectPlugin: (dllPath: string, game: any): Promise<any> => {
+    return ipcRenderer.invoke('game-integration:inject-plugin', dllPath, game);
+  },
+
+  // ============================================================================
+
+  /**
    * Save file to user's system (with dialog to choose location)
    * Used for exporting error reports, logs, etc.
    */
@@ -697,6 +1499,13 @@ const electronAPI = {
    */
   pickMo2ProfileDir: (): Promise<string> => {
     return ipcRenderer.invoke(IPC_CHANNELS.LOAD_ORDER_PICK_MO2_PROFILE_DIR);
+  },
+
+  /**
+   * Load Order Lab: Pick Vortex profile directory
+   */
+  pickVortexProfileDir: (): Promise<string> => {
+    return ipcRenderer.invoke(IPC_CHANNELS.LOAD_ORDER_PICK_VORTEX_PROFILE_DIR);
   },
 
   /**
@@ -1132,6 +1941,8 @@ const electronAPI = {
       ipcRenderer.on('automation:rule-executed', subscription);
       return () => ipcRenderer.removeListener('automation:rule-executed', subscription);
     },
+  },
+  /**
    * CK Crash Prevention: Validate ESP file before CK operations
    */
   ckCrashValidate: (espPath: string, modName?: string, cellCount?: number): Promise<any> => {
