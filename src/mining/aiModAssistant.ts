@@ -135,4 +135,9 @@ export class AIModAssistantEngineImpl implements AIModAssistantEngine {
 }
 
 export const aiModAssistant = new AIModAssistantEngineImpl();
+
+// Export the implementation under the historical/test-friendly name so existing
+// tests and callers that do `new AIModAssistantEngine()` continue to work.
+export { AIModAssistantEngineImpl as AIModAssistantEngine };
+
 export default aiModAssistant;
