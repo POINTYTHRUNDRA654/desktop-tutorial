@@ -949,9 +949,10 @@ const App: React.FC = () => {
                 <Route path="/tools/ck-extension" element={<ErrorBoundary><CKExtension /></ErrorBoundary>} />
                 <Route path="/tools/ck-safety" element={<ErrorBoundary><CKSafetyPanel /></ErrorBoundary>} />
                 <Route path="/tools/project-templates" element={<ErrorBoundary><ProjectTemplates /></ErrorBoundary>} />
-                <Route path="/tools/conflict-visualizer" element={<ErrorBoundary><ModConflictVisualizer /></ErrorBoundary>} />
+                {/* Mod packaging tools redirected to PackagingHub */}
+                <Route path="/tools/conflict-visualizer" element={<Navigate to="/packaging-release?section=conflicts" replace />} />
+                <Route path="/tools/mod-comparison" element={<Navigate to="/packaging-release?section=comparison" replace />} />
                 <Route path="/tools/formid-remapper" element={<ErrorBoundary><FormIdRemapper /></ErrorBoundary>} />
-                <Route path="/tools/mod-comparison" element={<ErrorBoundary><ModComparisonTool /></ErrorBoundary>} />
                 <Route path="/tools/precombine-generator" element={<ErrorBoundary><PrecombineGenerator /></ErrorBoundary>} />
                 <Route path="/tools/voice-commands" element={<ErrorBoundary><VoiceCommands /></ErrorBoundary>} />
                 <Route path="/tools/automation" element={<ErrorBoundary><AutomationManager /></ErrorBoundary>} />

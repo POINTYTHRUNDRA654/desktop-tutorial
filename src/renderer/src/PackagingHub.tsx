@@ -1,7 +1,9 @@
 import React, { useState } from 'react';
-import { Archive, ChevronDown, ChevronUp, Package } from 'lucide-react';
+import { Archive, ChevronDown, ChevronUp, Package, Search, GitCompare } from 'lucide-react';
 import PackagingReleaseWizard from './PackagingReleaseWizard';
 import TheAssembler from './TheAssembler';
+import ModConflictVisualizer from './ModConflictVisualizer';
+import ModComparisonTool from './ModComparisonTool';
 
 type HubSection = {
   id: string;
@@ -12,7 +14,11 @@ type HubSection = {
 };
 
 const PackagingHub: React.FC = () => {
-  const [expandedSection, setExpandedSection] = useState<string>('checklist');
+  // Check URL params for section to open
+  const [expandedSection, setExpandedSection] = useState<string>(() => {
+    const params = new URLSearchParams(window.location.search);
+    return params.get('section') || 'checklist';
+  });
 
   const toggleSection = (id: string) => {
     setExpandedSection((current) => (current === id ? '' : id));
@@ -27,8 +33,22 @@ const PackagingHub: React.FC = () => {
       content: <PackagingReleaseWizard embedded />,
     },
     {
+      id: 'conflicts',
+      title: 'Step 2: Conflict Analysis',
+      description: 'Visualize record conflicts between your mod and others.',
+      icon: Search,
+      content: <ModConflictVisualizer embedded />,
+    },
+    {
+      id: 'comparison',
+      title: 'Step 3: Mod Comparison',
+      description: 'Compare your mod with similar mods for compatibility.',
+      icon: GitCompare,
+      content: <ModComparisonTool embedded />,
+    },
+    {
       id: 'assembler',
-      title: 'Step 2: FOMOD Installer (Assembler)',
+      title: 'Step 4: FOMOD Installer (Assembler)',
       description: 'Build and export a FOMOD installer for your release package.',
       icon: Package,
       content: <TheAssembler embedded />,
@@ -42,7 +62,7 @@ const PackagingHub: React.FC = () => {
           <div className="text-[10px] font-mono tracking-[0.3em] text-emerald-400/70 uppercase">Mossy Tutor • Packaging</div>
           <h1 className="text-3xl md:text-4xl font-black tracking-tight text-white">Packaging Hub (All-in-One)</h1>
           <p className="text-sm font-medium text-slate-300 max-w-2xl">
-            A single flow for packaging, FOMOD installers, and release readiness. Use the checklist first, then build your installer.
+            Complete workflow for packaging, conflict analysis, comparison, and FOMOD installers. Follow the steps in order for best results.
           </p>
         </div>
 
@@ -50,6 +70,8 @@ const PackagingHub: React.FC = () => {
           <div className="font-bold text-slate-200">Flow (Read in Order)</div>
           <ol className="list-decimal list-inside mt-2 space-y-1 text-slate-300">
             <li>Run the packaging checklist</li>
+            <li>Check for conflicts with other mods</li>
+            <li>Compare with similar mods for compatibility</li>
             <li>Build your FOMOD installer</li>
             <li>Export, test, and release</li>
           </ol>
