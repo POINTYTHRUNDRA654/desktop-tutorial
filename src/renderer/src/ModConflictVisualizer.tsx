@@ -9,7 +9,11 @@ interface Conflict {
   severity: 'low' | 'medium' | 'high';
 }
 
-export default function ModConflictVisualizer() {
+interface ModConflictVisualizerProps {
+  embedded?: boolean;
+}
+
+export default function ModConflictVisualizer({ embedded = false }: ModConflictVisualizerProps) {
   const [skillLevel, setSkillLevel] = useState<'beginner' | 'intermediate' | 'advanced'>('intermediate');
   const [loadOrder, setLoadOrder] = useState<string[]>([]);
   const [conflicts, setConflicts] = useState<Conflict[]>([]);
@@ -31,8 +35,9 @@ export default function ModConflictVisualizer() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 p-8">
+    <div className={embedded ? "p-4" : "min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 p-8"}>
       <div className="max-w-7xl mx-auto">
+        {!embedded && (
         <div className="flex items-center justify-between mb-8">
           <div>
             <h1 className="text-4xl font-bold text-green-400 flex items-center gap-3">
@@ -77,6 +82,11 @@ export default function ModConflictVisualizer() {
               ))}
             </div>
           </div>
+        )}
+        {!embedded && (
+        <div className="mt-8 p-4 bg-blue-900/20 border border-blue-700 rounded text-blue-200 text-sm">
+          💡 Tip: Review conflicts carefully. Not all conflicts are bad - some are intentional overrides.
+        </div>
         )}
       </div>
     </div>

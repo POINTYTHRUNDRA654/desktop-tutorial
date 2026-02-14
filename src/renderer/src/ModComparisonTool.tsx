@@ -1,7 +1,11 @@
 import { useState } from 'react';
 import { GitCompare, ArrowLeftRight } from 'lucide-react';
 
-export default function ModComparisonTool() {
+interface ModComparisonToolProps {
+  embedded?: boolean;
+}
+
+export default function ModComparisonTool({ embedded = false }: ModComparisonToolProps) {
   const [skillLevel, setSkillLevel] = useState<'beginner' | 'intermediate' | 'advanced'>('intermediate');
   const [mod1, setMod1] = useState('');
   const [mod2, setMod2] = useState('');
@@ -19,8 +23,9 @@ export default function ModComparisonTool() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 p-8">
+    <div className={embedded ? "p-4" : "min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 p-8"}>
       <div className="max-w-7xl mx-auto">
+        {!embedded && (
         <div className="flex items-center justify-between mb-8">
           <div>
             <h1 className="text-4xl font-bold text-green-400 flex items-center gap-3">
@@ -61,6 +66,11 @@ export default function ModComparisonTool() {
               ))}
             </div>
           </div>
+        )}
+        {!embedded && (
+        <div className="mt-8 p-4 bg-blue-900/20 border border-blue-700 rounded text-blue-200 text-sm">
+          💡 Tip: Look for patterns in differences to identify compatibility issues early.
+        </div>
         )}
       </div>
     </div>
