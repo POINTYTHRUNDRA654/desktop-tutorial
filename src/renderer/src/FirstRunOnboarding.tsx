@@ -363,12 +363,12 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
                 {step === 'welcome' && (
                     <div className="text-center animate-fade-in">
                         <Sparkles className="w-20 h-20 mx-auto mb-6 text-amber-400" />
-                        <h1 className="text-4xl font-bold text-white mb-4">Welcome to Mossy v5.4.23</h1>
+                        <h1 className="text-4xl font-bold text-white mb-4">Welcome to Mossy v5.4.24</h1>
                         <p className="text-xl text-slate-300 mb-8">
                             Your AI-powered Fallout 4 modding assistant with next-gen voice conversation
                         </p>
                         <p className="text-slate-400 mb-6">
-                            <strong className="text-emerald-400">✨ New in v5.4.23:</strong> Pick your UI language on first launch (or later in Settings), plus a smoother Install Wizard experience.
+                            <strong className="text-emerald-400">✨ New in v5.4.24:</strong> Pick your UI language on first launch (or later in Settings), plus a smoother Install Wizard experience.
                         </p>
                         <p className="text-slate-400 mb-8">
                             Let me scan your system to discover tools I can integrate with.
