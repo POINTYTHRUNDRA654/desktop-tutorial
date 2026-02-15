@@ -68,7 +68,9 @@ function validateVersionConsistency() {
   
   log(`\n📦 Package Version: ${version}`, 'bold');
   log(`📝 Package Name: ${pkg.name}`, 'bold');
-  log(`📄 Description: ${pkg.description.substring(0, 80)}...`, 'bold');
+  const description = pkg.description || '';
+  const displayDesc = description.length > 80 ? description.substring(0, 80) + '...' : description;
+  log(`📄 Description: ${displayDesc}`, 'bold');
   log('');
 
   let hasErrors = false;
