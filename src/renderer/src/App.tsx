@@ -361,6 +361,7 @@ const App: React.FC = () => {
     const handleStartScanTutorial = () => {
       console.log('[App] Scan tutorial event received - launching interactive tutorial');
       try {
+        // Store timestamp consistently with FirstRunOnboarding's expectation
         localStorage.setItem('mossy_scan_tutorial_opened_at', Date.now().toString());
       } catch {
         // ignore
@@ -376,8 +377,8 @@ const App: React.FC = () => {
     window.addEventListener('start-feature-tour', handleStartFeatureTour);
     window.addEventListener('start-tutorial', handleStartInteractiveTutorial);
     window.addEventListener('start-interactive-tutorial', handleStartInteractiveTutorial);
+    // Only listen on window since FirstRunOnboarding calls the function directly first
     window.addEventListener('start-scan-tutorial', handleStartScanTutorial);
-    document.addEventListener('start-scan-tutorial', handleStartScanTutorial);
 
     return () => {
       window.removeEventListener('start-welcome-tour', handleStartWelcomeTour);
@@ -386,7 +387,6 @@ const App: React.FC = () => {
       window.removeEventListener('start-tutorial', handleStartInteractiveTutorial);
       window.removeEventListener('start-interactive-tutorial', handleStartInteractiveTutorial);
       window.removeEventListener('start-scan-tutorial', handleStartScanTutorial);
-      document.removeEventListener('start-scan-tutorial', handleStartScanTutorial);
       delete (window as any).mossyOpenScanTutorial;
     };
   }, []);
