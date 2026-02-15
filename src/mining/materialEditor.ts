@@ -611,6 +611,8 @@ void main()
         'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==';
 
       return {
+        id: `${material.id}_preview`,
+        path: previewPath,
         dataUrl: mockDataUrl,
         format: 'png',
         width: 512,
@@ -682,7 +684,7 @@ void main()
 
       return {
         success: true,
-        resolution,
+        resolution: { width: resolution, height: resolution },
         textures,
         fileSize: bakedDir_stats.size,
         bakingTime,
@@ -690,7 +692,7 @@ void main()
     } catch (error) {
       return {
         success: false,
-        resolution,
+        resolution: { width: resolution, height: resolution },
         textures: {},
         fileSize: 0,
         bakingTime: Date.now() - startTime,

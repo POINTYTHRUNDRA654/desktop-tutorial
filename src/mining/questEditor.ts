@@ -389,7 +389,8 @@ EndFunction
 
     return {
       scriptName: scriptName,
-      scriptBody: template,
+      code: template,
+      properties: [],
       fragments: this.generateDialogueFragments(questId),
       formId: questFormId,
       dependencies: this.extractScriptDependencies(quest),
@@ -526,11 +527,15 @@ ${this.generateDialogueConditionChecks(branch)}
     if (!quest) {
       return {
         questId,
+        path: [],
+        choices: [],
         totalStages: 0,
         executedStages: [],
         completionPath: [],
+        finalStage: 0,
         estimatedDuration: 0,
         issues: ['Quest not found'],
+        warnings: [],
         success: false,
       };
     }
@@ -560,11 +565,15 @@ ${this.generateDialogueConditionChecks(branch)}
 
     return {
       questId,
+      path: quest.stages,
+      choices: [],
       totalStages: quest.stages.length,
       executedStages,
       completionPath,
+      finalStage: quest.stages.length,
       estimatedDuration,
       issues: [...issues, ...validation.errors],
+      warnings: [],
       success: validation.isValid,
     };
   }

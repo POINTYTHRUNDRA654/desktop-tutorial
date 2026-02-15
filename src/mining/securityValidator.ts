@@ -95,7 +95,7 @@ export class SecurityValidatorEngine {
     const complexity = Math.min(100, Math.max(1, (code.match(/if\b|while\b|for\b|switch\b/g) || []).length + 1));
     const maintainability = Math.max(0, 100 - complexity);
     const safe = issues.filter(i=>i.severity==='error').length===0;
-    return { safe, issues, complexity, maintainability };
+    return { safe, issues, complexity: { cyclomatic: complexity, maintainability }, recommendations: [] };
   }
 
   async detectSuspiciousPatterns(code: string): Promise<Pattern[]> {
@@ -151,7 +151,8 @@ export class SecurityValidatorEngine {
     const filesModified: string[] = [];
     const networkActivity = [{ timestamp: Date.now(), url: 'http://example.local/ping', method: 'GET', dataSize: 0 }];
     const safe = true;
-    return { exitCode: 0, output, errors: [], filesCreated, filesModified, networkActivity, safe } as SandboxResult;
+    const durationMs = Date.now() - start;
+    return { exitCode: 0, output, errors: [], filesCreated, filesModified, networkActivity, safe, durationMs } as SandboxResult;
   }
 
   // -------------------------

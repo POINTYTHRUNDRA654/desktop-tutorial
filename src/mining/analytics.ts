@@ -533,18 +533,7 @@ export class AnalyticsEngine {
       .slice(0, 10);
   }
 
-  private getAssetsByType(events: AnalyticsEvent[]): Record<string, number> {
-    const typeCounts: Record<string, number> = {};
 
-    events.forEach(e => {
-      if (e.metadata && e.metadata.assetType) {
-        const type = e.metadata.assetType as string;
-        typeCounts[type] = (typeCounts[type] || 0) + 1;
-      }
-    });
-
-    return typeCounts;
-  }
 
   private calculateOptimizationSavings(events: AnalyticsEvent[]): number {
     // Calculate potential space savings from unused assets
