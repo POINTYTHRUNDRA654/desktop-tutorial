@@ -283,7 +283,7 @@ export class GameIntegrationEngine {
 
     const results: CommandResult[] = [];
     for (const command of macro.commands) {
-      const result = await this.executeConsoleCommand(command, game);
+      const result = await this.executeConsoleCommand(command.command, game);
       results.push(result);
 
       // Small delay between commands
@@ -438,8 +438,10 @@ export class GameIntegrationEngine {
     return {
       fps: 60,
       frameTime: 16.67,
-      memoryUsage: 2048,
+      memory: 2048,
+      cpu: 45,
       cpuUsage: 45,
+      gpu: 30,
       gpuUsage: 30,
       scriptLag: 0,
       timestamp: Date.now(),

@@ -162,7 +162,7 @@ export class AnimationFrameAnalyzer {
     }
 
     // Check for common optimization patterns
-    const frameRateOpts = optimizations.filter(opt => opt.recommendedFrameRate < opt.animation.frameRate).length;
+    const frameRateOpts = optimizations.filter(opt => ('frameRate' in opt.animation) && opt.recommendedFrameRate < (opt.animation as AnimationInfo).frameRate).length;
     if (frameRateOpts > 0) {
       recommendations.push(`${frameRateOpts} animations can benefit from frame rate reduction to 30fps`);
     }

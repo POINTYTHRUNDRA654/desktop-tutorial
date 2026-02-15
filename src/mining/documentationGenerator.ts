@@ -15,12 +15,20 @@ import type {
   AssetDocumentation,
   ItemCatalog,
   QuestGuide,
+  StageEntry,
+  QuestEntry,
+  Requirement,
+  InstallStep,
+  TroubleshootingEntry,
+  NavigationTree,
+  WikiMetadata,
   TutorialStep,
   Tutorial,
   InstallGuide,
   Wiki,
   WikiPage,
   Documentation,
+  DocumentationUnion,
 } from '../shared/types';
 
 export class DocumentationGeneratorEngine {
