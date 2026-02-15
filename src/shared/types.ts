@@ -3710,7 +3710,7 @@ export interface ShareResult { success: boolean; projectId?: string; inviteCode?
 export interface ProjectJoinResult { success: boolean; projectId?: string; projectName?: string; role?: string; permissions?: string[]; joinedAt?: number; error?: string }
 export interface CDNUrl { url: string; region?: string; provider?: string; expiresAt?: number; metadata?: any }
 export interface ChangeSubscription { id?: string; projectId: string; callbackUrl?: string; lastSeen?: number; filters?: any; callback?: (change: ProjectChange) => void; subscriptionId?: string }
-export interface ProjectChange { projectId?: string; filePath?: string; path?: string; changeType?: 'modified'|'added'|'deleted'|'renamed'; diff?: any; author?: string; timestamp?: number; metadata?: any }
+export interface ProjectChange { id?: string; projectId?: string; filePath?: string; path?: string; changeType?: 'modified'|'added'|'deleted'|'renamed'|'participant_left'|'participant_joined'|'session_ended'|'session_started'; diff?: any; author?: string; timestamp?: number; metadata?: any; description?: string }
 export interface SyncResult { success: boolean; direction?: string; filesSync?: number; bytesSync?: number; conflictsDetected?: number; conflictsResolved?: number; duration?: number; timestamp?: number; error?: string }
 export interface ProjectState { projectId: string; version?: string; files?: Map<string, { checksum?: string; timestamp: number; author?: string }>; metadata?: any; settings?: any; lastSyncTime?: number }
 
