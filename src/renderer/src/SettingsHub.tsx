@@ -5,6 +5,7 @@ import LanguageSettings from './LanguageSettings';
 import ExternalToolsSettings from './ExternalToolsSettings';
 import { SettingsImportExport } from './SettingsImportExport';
 import TutorialResetSettings from './TutorialResetSettings';
+import VersionInfo from './VersionInfo';
 
 type HubSection = {
   id: string;
@@ -118,6 +119,11 @@ const SettingsHub: React.FC = () => {
               </div>
             );
           })}
+        </div>
+
+        {/* Version Info - Always Visible */}
+        <div className="mt-8">
+          <VersionInfo embedded />
         </div>
       </div>
     </div>
