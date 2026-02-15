@@ -533,8 +533,17 @@ export class VoiceService {
         resolve();
       };
       utterance.onerror = (event) => {
+        // Treat explicit cancellations and interruptions as normal completion (do not surface as an error).
+        if (event?.error === 'canceled' || event?.error === 'interrupted') {
+          console.warn('[VoiceService] Speech utterance was canceled/interrupted — resolving quietly', event);
+          this.onModeChange?.('idle');
+          resolve();
+          return;
+        }
+
         console.error('[VoiceService] Speech utterance error:', event.error, event);
         this.onModeChange?.('idle');
+
         if (this.shouldStop) {
           resolve();
         } else {
