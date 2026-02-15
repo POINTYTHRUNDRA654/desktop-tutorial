@@ -1970,6 +1970,139 @@ const electronAPI = {
     return ipcRenderer.invoke(IPC_CHANNELS.CK_CRASH_PICK_LOG);
   },
 
+  // =========================================================================
+  // CLOUD SYNC API
+  // =========================================================================
+  cloudSync: {
+    /**
+     * Synchronize a project with cloud storage
+     */
+    syncProject: (projectId: string, direction?: 'push' | 'pull' | 'bidirectional'): Promise<{ success: boolean; data?: any; error?: string }> => {
+      return ipcRenderer.invoke('cloud-sync:sync-project', projectId, direction);
+    },
+
+    /**
+     * Enable automatic synchronization for a project
+     */
+    enableAutoSync: (projectId: string, interval?: number): Promise<{ success: boolean; error?: string }> => {
+      return ipcRenderer.invoke('cloud-sync:enable-auto-sync', projectId, interval);
+    },
+
+    /**
+     * Share a project with collaborators
+     */
+    shareProject: (projectId: string, collaborators: string[]): Promise<{ success: boolean; data?: any; error?: string }> => {
+      return ipcRenderer.invoke('cloud-sync:share-project', projectId, collaborators);
+    },
+
+    /**
+     * Join a shared project using invite code
+     */
+    joinProject: (inviteCode: string): Promise<{ success: boolean; data?: any; error?: string }> => {
+      return ipcRenderer.invoke('cloud-sync:join-project', inviteCode);
+    },
+
+    /**
+     * Leave a collaboration session (with automatic sync)
+     */
+    leaveCollaborationSession: (sessionId: string, userId: string): Promise<{ success: boolean; error?: string }> => {
+      return ipcRenderer.invoke('cloud-sync:leave-collaboration-session', sessionId, userId);
+    },
+
+    /**
+     * End a collaboration session gracefully
+     */
+    endCollaborationSession: (sessionId: string): Promise<{ success: boolean; error?: string }> => {
+      return ipcRenderer.invoke('cloud-sync:end-collaboration-session', sessionId);
+    },
+
+    /**
+     * Broadcast a change to all collaborators
+     */
+    broadcastChange: (change: any): Promise<{ success: boolean; error?: string }> => {
+      return ipcRenderer.invoke('cloud-sync:broadcast-change', change);
+    },
+
+    /**
+     * Subscribe to real-time changes
+     */
+    subscribeToChanges: (projectId: string, filters?: any): Promise<{ success: boolean; subscriptionId?: string; error?: string }> => {
+      return ipcRenderer.invoke('cloud-sync:subscribe-to-changes', projectId, filters);
+    },
+
+    /**
+     * Unsubscribe from changes
+     */
+    unsubscribeFromChanges: (subscriptionId: string): Promise<{ success: boolean; error?: string }> => {
+      return ipcRenderer.invoke('cloud-sync:unsubscribe-from-changes', subscriptionId);
+    },
+
+    /**
+     * Detect conflicts in a project
+     */
+    detectConflicts: (projectId: string): Promise<{ success: boolean; data?: any; error?: string }> => {
+      return ipcRenderer.invoke('cloud-sync:detect-conflicts', projectId);
+    },
+
+    /**
+     * Resolve a sync conflict
+     */
+    resolveConflict: (conflict: any, resolution: any): Promise<{ success: boolean; error?: string }> => {
+      return ipcRenderer.invoke('cloud-sync:resolve-conflict', conflict, resolution);
+    },
+
+    /**
+     * Get project history snapshots
+     */
+    getProjectHistory: (projectId: string): Promise<{ success: boolean; data?: any; error?: string }> => {
+      return ipcRenderer.invoke('cloud-sync:get-project-history', projectId);
+    },
+
+    /**
+     * Restore a project snapshot
+     */
+    restoreSnapshot: (snapshotId: string): Promise<{ success: boolean; error?: string }> => {
+      return ipcRenderer.invoke('cloud-sync:restore-snapshot', snapshotId);
+    },
+
+    /**
+     * Upload an asset to CDN
+     */
+    uploadAsset: (assetPath: string, projectId: string): Promise<{ success: boolean; data?: any; error?: string }> => {
+      return ipcRenderer.invoke('cloud-sync:upload-asset', assetPath, projectId);
+    },
+
+    /**
+     * Download an asset from CDN
+     */
+    downloadAsset: (cdnUrl: string, localPath: string): Promise<{ success: boolean; error?: string }> => {
+      return ipcRenderer.invoke('cloud-sync:download-asset', cdnUrl, localPath);
+    },
+
+    /**
+     * Get sync status for a project
+     */
+    getSyncStatus: (projectId: string): Promise<{ success: boolean; data?: any; error?: string }> => {
+      return ipcRenderer.invoke('cloud-sync:get-status', projectId);
+    },
+
+    /**
+     * Get active collaboration session for a project
+     */
+    getCollaborationSession: (projectId: string): Promise<{ success: boolean; data?: any; error?: string }> => {
+      return ipcRenderer.invoke('cloud-sync:get-collaboration-session', projectId);
+    },
+
+    /**
+     * Listen for incoming changes from collaborators
+     */
+    onChangeReceived: (callback: (data: { subscriptionId: string; change: any }) => void): (() => void) => {
+      const subscription = (_event: any, data: any) => callback(data);
+      ipcRenderer.on('cloud-sync:change-received', subscription);
+      return () => ipcRenderer.removeListener('cloud-sync:change-received', subscription);
+    },
+  },
+
   /**
    * Generic IPC: Invoke a command in the main process
    */
