@@ -358,11 +358,32 @@ const App: React.FC = () => {
       startInteractiveTutorial();
     };
 
+    const handleStartScanTutorial = () => {
+      console.log('[App] Scan tutorial event received - launching interactive tutorial');
+      try {
+        // Store timestamp consistently with FirstRunOnboarding's expectation
+        localStorage.setItem('mossy_scan_tutorial_opened_at', Date.now().toString());
+      } catch (err) {
+        // localStorage may be unavailable (private browsing, quota exceeded, etc.)
+        console.warn('[App] Failed to store scan tutorial timestamp:', err);
+      }
+      startInteractiveTutorial();
+    };
+
+    // Expose the scan tutorial function for FirstRunOnboarding to call directly.
+    // FirstRunOnboarding tries direct function call first (synchronous), then falls back
+    // to dispatching events if the function doesn't exist. This dual approach ensures
+    // the tutorial launches reliably even if timing issues prevent event listeners from
+    // being registered in time.
+    (window as any).mossyOpenScanTutorial = handleStartScanTutorial;
+
     window.addEventListener('start-welcome-tour', handleStartWelcomeTour);
     window.addEventListener('start-module-tour', handleStartModuleTour as EventListener);
     window.addEventListener('start-feature-tour', handleStartFeatureTour);
     window.addEventListener('start-tutorial', handleStartInteractiveTutorial);
     window.addEventListener('start-interactive-tutorial', handleStartInteractiveTutorial);
+    // Event listener for scan tutorial (backup mechanism if direct function call fails)
+    window.addEventListener('start-scan-tutorial', handleStartScanTutorial);
 
     return () => {
       window.removeEventListener('start-welcome-tour', handleStartWelcomeTour);
@@ -370,6 +391,8 @@ const App: React.FC = () => {
       window.removeEventListener('start-feature-tour', handleStartFeatureTour);
       window.removeEventListener('start-tutorial', handleStartInteractiveTutorial);
       window.removeEventListener('start-interactive-tutorial', handleStartInteractiveTutorial);
+      window.removeEventListener('start-scan-tutorial', handleStartScanTutorial);
+      delete (window as any).mossyOpenScanTutorial;
     };
   }, []);
 
