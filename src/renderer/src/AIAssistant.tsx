@@ -15,6 +15,7 @@ import './AIAssistant.css';
 
 // Type definitions for AI modes and state
 type AIMode = 'general' | 'code-gen' | 'workflow' | 'troubleshoot' | 'learn' | 'organize' | 'mod-creation';
+type AIMode = 'general' | 'code-gen' | 'workflow' | 'troubleshoot' | 'learn' | 'organize';
 
 interface ChatMessage {
   id: string;
@@ -174,54 +175,54 @@ export const AIAssistant: React.FC = () => {
    * Handle code generation
    */
   const handleCodeGeneration = async (description: string) => {
-      const result = await window.electronAPI.aiGenerateScript({
+    const result = await window.electronAPI.aiGenerateScript({
+      description,
+      language: codeGenSession?.language || 'papyrus',
+      context: { projectType: 'Fallout4 mod' },
+      style: 'commented',
+    });
+
+    if (result.success && result.scripts && result.scripts.length > 0) {
+      const script = result.scripts[0];
+      
+      // Update session
+      setCodeGenSession(prev => ({
+        ...prev!,
+        id: `session_${Date.now()}`,
+        language: result.scripts[0].language as any,
         description,
-        language: codeGenSession?.language || 'papyrus',
-        context: { projectType: 'Fallout4 mod' },
-        style: 'commented',
-      });
+        generatedCode: script.code,
+        history: [
+          ...(prev?.history || []),
+          { code: script.code, timestamp: Date.now() },
+        ],
+      }));
 
-      if (result.success && result.scripts && result.scripts.length > 0) {
-        const script = result.scripts[0];
-        
-        // Update session
-        setCodeGenSession(prev => ({
-          ...prev!,
-          id: `session_${Date.now()}`,
-          language: result.scripts[0].language as any,
-          description,
-          generatedCode: script.code,
-          history: [
-            ...(prev?.history || []),
-            { code: script.code, timestamp: Date.now() },
-          ],
-        }));
-
-        // Add assistant response
-        const response: ChatMessage = {
-          id: `msg_${Date.now()}`,
-          role: 'assistant',
-          content: `I've generated ${script.language} code for you. Check the code preview panel below. ${
-            script.warnings?.length ? `\n\nWarnings: ${script.warnings.join(', ')}` : ''
-          }`,
-          timestamp: Date.now(),
-          metadata: { codeId: script.code.substring(0, 50) },
-        };
-        setChatHistory(prev => [...prev, response]);
-      }
+      // Add assistant response
+      const response: ChatMessage = {
+        id: `msg_${Date.now()}`,
+        role: 'assistant',
+        content: `I've generated ${script.language} code for you. Check the code preview panel below. ${
+          script.warnings?.length ? `\n\nWarnings: ${script.warnings.join(', ')}` : ''
+        }`,
+        timestamp: Date.now(),
+        metadata: { codeId: script.code.substring(0, 50) },
+      };
+      setChatHistory(prev => [...prev, response]);
+    }
   };
 
   /**
    * Handle workflow planning
    */
   const handleWorkflowPlanning = async (goal: string) => {
-      const result = await window.electronAPI.aiPlanWorkflow({
-        description: goal,
-        goal,
-        timeEstimate: 'medium',
-      });
+    const result = await window.electronAPI.aiPlanWorkflow({
+      description: goal,
+      goal,
+      timeEstimate: 'medium',
+    });
 
-      if (result.success && result.plan) {
+    if (result.success && result.plan) {
         setWorkflowSession({
           id: `workflow_${Date.now()}`,
           goal,
@@ -248,61 +249,61 @@ export const AIAssistant: React.FC = () => {
    * Handle error diagnosis
    */
   const handleErrorDiagnosis = async (errorDescription: string) => {
-      const result = await window.electronAPI.aiDiagnoseError({
-        errorMessage: errorDescription,
-      });
+    const result = await window.electronAPI.aiDiagnoseError({
+      errorMessage: errorDescription,
+    });
 
-      if (result.success && result.diagnosis) {
-        const diagnosis = result.diagnosis;
-        
-        const response: ChatMessage = {
-          id: `msg_${Date.now()}`,
-          role: 'assistant',
-          content: `**Root Cause:** ${diagnosis.rootCause}\n\n**Severity:** ${diagnosis.severity}\n\n**Explanation:** ${
-            diagnosis.explanation
-          }\n\nTry these fixes:\n${diagnosis.possibleFixes
-            ?.map((fix, i) => `${i + 1}. ${fix.fix} (Difficulty: ${fix.difficulty})`)
-            .join('\n')}`,
-          timestamp: Date.now(),
-          metadata: { diagnosisId: diagnosis.errorType },
-        };
-        setChatHistory(prev => [...prev, response]);
-      }
+    if (result.success && result.diagnosis) {
+      const diagnosis = result.diagnosis;
+      
+      const response: ChatMessage = {
+        id: `msg_${Date.now()}`,
+        role: 'assistant',
+        content: `**Root Cause:** ${diagnosis.rootCause}\n\n**Severity:** ${diagnosis.severity}\n\n**Explanation:** ${
+          diagnosis.explanation
+        }\n\nTry these fixes:\n${diagnosis.possibleFixes
+          ?.map((fix, i) => `${i + 1}. ${fix.fix} (Difficulty: ${fix.difficulty})`)
+          .join('\n')}`,
+        timestamp: Date.now(),
+        metadata: { diagnosisId: diagnosis.errorType },
+      };
+      setChatHistory(prev => [...prev, response]);
+    }
   };
 
   /**
    * Handle learning requests
    */
   const handleLearning = async (topic: string) => {
-      const result = await window.electronAPI.aiExplain({
-        concept: topic,
-        skillLevel: 'intermediate',
-        includeExamples: true,
-      });
+    const result = await window.electronAPI.aiExplain({
+      concept: topic,
+      skillLevel: 'intermediate',
+      includeExamples: true,
+    });
 
-      if (result.success && result.explanation) {
-        const explanation = result.explanation;
-        
-        const response: ChatMessage = {
-          id: `msg_${Date.now()}`,
-          role: 'assistant',
-          content: `**${explanation.title}**\n\n${explanation.summary}\n\n**Key Points:**\n${explanation.keyPoints
-            ?.map((p: string) => `• ${p}`)
-            .join('\n')}\n\nWant more details? Ask follow-up questions!`,
-          timestamp: Date.now(),
-          metadata: { explanationId: topic },
-        };
-        setChatHistory(prev => [...prev, response]);
-      }
+    if (result.success && result.explanation) {
+      const explanation = result.explanation;
+      
+      const response: ChatMessage = {
+        id: `msg_${Date.now()}`,
+        role: 'assistant',
+        content: `**${explanation.title}**\n\n${explanation.summary}\n\n**Key Points:**\n${explanation.keyPoints
+          ?.map((p: string) => `• ${p}`)
+          .join('\n')}\n\nWant more details? Ask follow-up questions!`,
+        timestamp: Date.now(),
+        metadata: { explanationId: topic },
+      };
+      setChatHistory(prev => [...prev, response]);
+    }
   };
 
   /**
    * Handle asset organization
    */
   const handleAssetOrganization = async (assetDescription: string) => {
-      const result = await window.electronAPI.aiSuggestNames({
-        type: 'texture',
-        description: assetDescription,
+    const result = await window.electronAPI.aiSuggestNames({
+      type: 'texture',
+      description: assetDescription,
         enforceLdFormat: true,
       });
 
@@ -334,22 +335,20 @@ export const AIAssistant: React.FC = () => {
    * Handle general queries
    */
   const handleGeneralQuery = async (query: string) => {
-      const result = await window.electronAPI.aiExplain({
-        concept: query,
-        includeExamples: true,
-      });
+    const result = await window.electronAPI.aiExplain({
+      concept: query,
+      includeExamples: true,
+    });
 
-      if (result.success && result.explanation) {
-        const response: ChatMessage = {
-          id: `msg_${Date.now()}`,
-          role: 'assistant',
+    if (result.success && result.explanation) {
+      const response: ChatMessage = {
+        id: `msg_${Date.now()}`,
+        role: 'assistant',
           content: result.explanation.fullExplanation,
           timestamp: Date.now(),
         };
         setChatHistory(prev => [...prev, response]);
       }
-
-
   };
 
   /**
@@ -363,9 +362,7 @@ export const AIAssistant: React.FC = () => {
       'troubleshoot': 'Troubleshooter',
       'learn': 'Learning Hub',
       'organize': 'Asset Organizer',
-
       'mod-creation': 'Mod Creation Wizard',
-
     };
     return names[mode];
   };
@@ -451,9 +448,7 @@ export const AIAssistant: React.FC = () => {
 
       {/* Mode Selector */}
       <div className="ai-modes">
-
         {(['general', 'code-gen', 'workflow', 'troubleshoot', 'learn', 'organize', 'mod-creation'] as AIMode[]).map(
-
           mode => (
             <button
               key={mode}
@@ -547,9 +542,7 @@ export const AIAssistant: React.FC = () => {
           {currentMode === 'troubleshoot' && <TroubleshootPanel chatHistory={chatHistory} />}
           {currentMode === 'learn' && <LearningPanel />}
           {currentMode === 'general' && <GeneralPanel />}
-
           {currentMode === 'mod-creation' && <ModCreationPanel />}
-
         </div>
       </div>
     </div>
@@ -816,7 +809,6 @@ const GeneralPanel: React.FC = () => {
 };
 
 /**
-
  * Mod Creation Panel Component
  */
 const ModCreationPanel: React.FC = () => {
@@ -845,7 +837,6 @@ const ModCreationPanel: React.FC = () => {
 };
 
 /**
-
  * Utility: Get mode icon
  */
 function getModeIcon(mode: AIMode): string {
@@ -856,9 +847,7 @@ function getModeIcon(mode: AIMode): string {
     'troubleshoot': '🔧',
     'learn': '📚',
     'organize': '📦',
-
     'mod-creation': '🎮',
-
   };
   return icons[mode];
 }
@@ -874,9 +863,7 @@ function getModeDescription(mode: AIMode): string {
     'troubleshoot': 'Error analysis\nDiagnostic steps\nFix recommendations',
     'learn': 'Tutorials\nConcept guides\nResource suggestions',
     'organize': 'Asset naming\nBatch operations\nNaming conventions',
-
     'mod-creation': 'Project setup\nAsset pipeline\nIntegration & testing',
-
   };
   return descriptions[mode];
 }
