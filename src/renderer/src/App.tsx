@@ -213,6 +213,7 @@ const App: React.FC = () => {
   
   // Tutorial state
   const [showTutorialLaunch, setShowTutorialLaunch] = useState(false);
+  const [showInteractiveTutorialOverlay, setShowInteractiveTutorialOverlay] = useState(false);
   const getTutorialReturnHash = () => {
     const stored = localStorage.getItem('mossy_tutorial_return');
     if (stored && stored.startsWith('#/')) return stored;
@@ -220,6 +221,13 @@ const App: React.FC = () => {
   };
 
   const startInteractiveTutorial = () => {
+    // If we're in FirstRunOnboarding, show tutorial as overlay
+    if (showFirstRun) {
+      setShowInteractiveTutorialOverlay(true);
+      return;
+    }
+    
+    // Otherwise navigate to tutorial route
     const currentHash = window.location.hash || '#/';
     const returnHash = currentHash.startsWith('#/tutorial') ? '#/' : currentHash;
     try {
@@ -231,6 +239,13 @@ const App: React.FC = () => {
   };
 
   const exitInteractiveTutorial = () => {
+    // If shown as overlay, just hide it
+    if (showInteractiveTutorialOverlay) {
+      setShowInteractiveTutorialOverlay(false);
+      return;
+    }
+    
+    // Otherwise navigate back
     const returnHash = getTutorialReturnHash();
     try {
       localStorage.removeItem('mossy_tutorial_return');
@@ -766,15 +781,30 @@ const App: React.FC = () => {
 
     if (showFirstRun) {
       return (
-        <FirstRunOnboarding 
-          onComplete={() => {
-            setShowFirstRun(false);
-            // Show tutorial launch prompt after onboarding
-            setTimeout(() => {
-              setShowTutorialLaunch(true);
-            }, 500);
-          }} 
-        />
+        <>
+          <FirstRunOnboarding 
+            onComplete={() => {
+              setShowFirstRun(false);
+              // Show tutorial launch prompt after onboarding
+              setTimeout(() => {
+                setShowTutorialLaunch(true);
+              }, 500);
+            }} 
+          />
+          {showInteractiveTutorialOverlay && (
+            <div 
+              className="fixed inset-0 z-[100]"
+              role="dialog"
+              aria-modal="true"
+              aria-label="Interactive Tutorial"
+            >
+              <InteractiveTutorial
+                onComplete={exitInteractiveTutorial}
+                onSkip={exitInteractiveTutorial}
+              />
+            </div>
+          )}
+        </>
       );
     }
 
