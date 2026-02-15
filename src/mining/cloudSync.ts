@@ -527,6 +527,140 @@ export class CloudSyncEngine {
   }
 
   /**
+   * Leave a collaboration session with automatic sync
+   * Ensures all pending changes are synced before leaving
+   */
+  async leaveCollaborationSession(sessionId: string, userId: string): Promise<void> {
+    if (!this.initialized) {
+      throw new Error('Cloud sync engine not initialized');
+    }
+
+    const session = Array.from(this.collaborationSessions.values()).find(
+      (s) => s.id === sessionId
+    );
+
+    if (!session) {
+      throw new Error(`Collaboration session not found: ${sessionId}`);
+    }
+
+    try {
+      console.log(`[CloudSync] User ${userId} leaving collaboration session ${sessionId}...`);
+
+      // Step 1: Sync all pending changes before leaving
+      console.log(`[CloudSync] Syncing pending changes for project ${session.projectId}...`);
+      const syncResult = await this.syncProject(session.projectId, 'push');
+      console.log(
+        `[CloudSync] Synced ${syncResult.filesSync} files (${syncResult.bytesSync} bytes)`
+      );
+
+      // Step 2: Remove user from participants
+      const updatedParticipants = session.participants.filter((p) => p.id !== userId);
+      const updatedSession: CollaborationSession = {
+        ...session,
+        participants: updatedParticipants,
+        lastActivity: Date.now(),
+        status: updatedParticipants.length === 0 ? 'ended' : session.status,
+      };
+
+      // Step 3: Update session state
+      this.collaborationSessions.set(session.projectId, updatedSession);
+
+      // Step 4: Notify other participants
+      await this.broadcastChange({
+        id: `change_${Date.now()}`,
+        projectId: session.projectId,
+        changeType: 'participant_left',
+        filePath: '',
+        author: userId,
+        timestamp: Date.now(),
+        description: `User ${userId} left the collaboration session`,
+      });
+
+      // Step 5: Clean up user's subscriptions for this project
+      const userSubscriptions = Array.from(this.activeSubscriptions.entries()).filter(
+        ([_, sub]) => sub.projectId === session.projectId
+      );
+      for (const [subId] of userSubscriptions) {
+        this.unsubscribeFromChanges(subId);
+      }
+
+      // Step 6: If session is now empty, perform final cleanup
+      if (updatedSession.status === 'ended') {
+        await this.endCollaborationSession(sessionId);
+      }
+
+      console.log(`[CloudSync] User ${userId} successfully left session ${sessionId}`);
+    } catch (error) {
+      console.error(`[CloudSync] Error leaving collaboration session:`, error);
+      throw new Error(`Failed to leave collaboration session: ${error}`);
+    }
+  }
+
+  /**
+   * End a collaboration session gracefully
+   * Performs final sync and cleanup operations
+   */
+  async endCollaborationSession(sessionId: string): Promise<void> {
+    if (!this.initialized) {
+      throw new Error('Cloud sync engine not initialized');
+    }
+
+    const session = Array.from(this.collaborationSessions.values()).find(
+      (s) => s.id === sessionId
+    );
+
+    if (!session) {
+      console.log(`[CloudSync] Session ${sessionId} not found or already ended`);
+      return;
+    }
+
+    try {
+      console.log(`[CloudSync] Ending collaboration session ${sessionId}...`);
+
+      // Step 1: Final sync of all changes
+      console.log(`[CloudSync] Performing final sync for project ${session.projectId}...`);
+      const syncResult = await this.syncProject(session.projectId, 'bidirectional');
+      console.log(
+        `[CloudSync] Final sync: ${syncResult.filesSync} files, ${syncResult.conflictsResolved} conflicts resolved`
+      );
+
+      // Step 2: Create a final snapshot for version history
+      const snapshot = await this.createSnapshot(
+        session.projectId,
+        `Collaboration session ${sessionId} ended`
+      );
+      console.log(`[CloudSync] Created final snapshot: ${snapshot.id}`);
+
+      // Step 3: Notify all remaining participants
+      await this.broadcastChange({
+        id: `change_${Date.now()}`,
+        projectId: session.projectId,
+        changeType: 'session_ended',
+        filePath: '',
+        author: 'system',
+        timestamp: Date.now(),
+        description: `Collaboration session ${sessionId} has ended`,
+      });
+
+      // Step 4: Clean up all subscriptions for this project
+      const projectSubscriptions = Array.from(this.activeSubscriptions.entries()).filter(
+        ([_, sub]) => sub.projectId === session.projectId
+      );
+      for (const [subId] of projectSubscriptions) {
+        this.unsubscribeFromChanges(subId);
+      }
+
+      // Step 5: Remove session from active sessions
+      this.collaborationSessions.delete(session.projectId);
+
+      console.log(`[CloudSync] Collaboration session ${sessionId} ended successfully`);
+    } catch (error) {
+      console.error(`[CloudSync] Error ending collaboration session:`, error);
+      throw new Error(`Failed to end collaboration session: ${error}`);
+    }
+  }
+
+  /**
    * Unsubscribe from changes
    */
   unsubscribeFromChanges(subscriptionId: string): void {
