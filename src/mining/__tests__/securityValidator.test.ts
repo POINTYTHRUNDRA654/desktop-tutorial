@@ -20,7 +20,10 @@ describe('SecurityValidatorEngine (stub)', () => {
     const code = `Scriptname TestScript\nEvent OnUpdate()\n  ; do stuff\nEndEvent`;
     const analysis = await engine.analyzePapyrusScript(code);
     expect(analysis.issues.length).toBeGreaterThan(0);
-    expect(typeof analysis.complexity).toBe('number');
+    // `complexity` is a structured analysis result (cyclomatic + maintainability)
+    expect(typeof analysis.complexity).toBe('object');
+    expect(typeof (analysis.complexity as any).cyclomatic).toBe('number');
+    expect(typeof (analysis.complexity as any).maintainability).toBe('number');
   });
 
   it('verifyChecksum/generateChecksum roundtrip', async () => {
@@ -37,7 +40,7 @@ describe('SecurityValidatorEngine (stub)', () => {
     const up = await engine.updateThreatDatabase();
     expect(up.success).toBe(true);
     const some = Array.from((engine as any).threatDb.keys())[0];
-    const found = await engine.checkAgainstDatabase(some);
+    const found = await engine.checkAgainstDatabase(some as string);
     expect(found).not.toBeNull();
   });
 });

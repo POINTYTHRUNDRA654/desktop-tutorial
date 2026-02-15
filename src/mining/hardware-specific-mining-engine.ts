@@ -9,6 +9,7 @@ import {
   HardwareOptimization,
   HardwareRecommendation,
   HardwarePerformancePrediction,
+  PerformanceBenchmark,
   TextureOptimization,
   MeshOptimization
 } from '../shared/types';

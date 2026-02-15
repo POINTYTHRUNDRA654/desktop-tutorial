@@ -45,7 +45,7 @@ describe('TestingSuiteEngine (stubs)', () => {
   });
 
   it('executes a structured TestScript and validates assertions', async () => {
-    const script: TestScript = {
+    const script: any = {
       name: 'simple-script',
       steps: [
         { action: 'execute-console', parameters: { command: 'echo', output: 'READY' }, description: 'emit READY' },
