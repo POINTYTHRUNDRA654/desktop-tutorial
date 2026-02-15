@@ -196,10 +196,12 @@ export class CKCrashPreventionEngine {
       // Check 4: Extract and validate masters
       const fileContent = buffer.toString('latin1');
       const masters: string[] = [];
+      // eslint-disable-next-line no-control-regex
       const mastMatches = fileContent.match(/MAST\x00\x00[\s\S]{4}(.+?)\x00/g);
       
       if (mastMatches) {
         mastMatches.forEach((match) => {
+          // eslint-disable-next-line no-control-regex
           const masterName = match.replace(/MAST\x00\x00[\s\S]{4}/, '').replace(/\x00/g, '');
           if (masterName) masters.push(masterName);
         });
