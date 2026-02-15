@@ -792,7 +792,12 @@ const App: React.FC = () => {
             }} 
           />
           {showInteractiveTutorialOverlay && (
-            <div className="fixed inset-0 z-[100]">
+            <div 
+              className="fixed inset-0 z-[100]"
+              role="dialog"
+              aria-modal="true"
+              aria-label="Interactive Tutorial"
+            >
               <InteractiveTutorial
                 onComplete={exitInteractiveTutorial}
                 onSkip={exitInteractiveTutorial}
