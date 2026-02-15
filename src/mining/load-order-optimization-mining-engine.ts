@@ -9,7 +9,8 @@ import {
   OptimizedLoadOrder,
   LoadOrderConstraints,
   PerformancePrediction,
-  PerformanceData
+  PerformanceData,
+  LoadOrderImpact
 } from '../shared/types';
 
 export class LoadOrderOptimizationMiningEngineImpl implements LoadOrderOptimizationMiningEngine {
@@ -88,12 +89,27 @@ export class LoadOrderOptimizationMiningEngineImpl implements LoadOrderOptimizat
     const confidence = Math.min(0.8, proposedOrder.length / 100); // More mods = more confidence
 
     return {
+      modChange: { type: 'reorder', modName: proposedOrder[0] || 'unknown' },
+      predictedImpact: { fps: fpsImprovement, memory: memoryChange, loadTime: loadTimeChange },
       fpsImprovement,
       memoryUsageChange: memoryChange,
       loadTimeChange,
       stabilityScore,
-      confidence
+      confidence,
+      riskLevel: 'low',
+      recommendations: []
     };
+  }
+
+  // Compatibility wrapper to satisfy interface
+  async optimize(currentOrder: string[], performanceData: PerformanceData[]): Promise<OptimizedLoadOrder> {
+    // use existing suggestOptimalOrder implementation with default constraints
+    return this.suggestOptimalOrder(currentOrder, { mustLoadBefore: [], mustLoadAfter: [], incompatiblePairs: [], performancePriority: 'performance' });
+  }
+
+  async predictImpact(proposedOrder: string[], performanceData: PerformanceData[]): Promise<LoadOrderImpact> {
+    const pred = await this.predictPerformanceImpact(proposedOrder);
+    return { fpsImpact: pred.fpsImprovement ?? 0, memoryImpact: pred.memoryUsageChange ?? 0, loadTimeImpact: pred.loadTimeChange ?? 0, stabilityImpact: pred.stabilityScore ?? 0 };
   }
 
   private async evaluateLoadOrder(loadOrder: string[], performanceData: PerformanceData[]): Promise<{
@@ -248,7 +264,7 @@ export class LoadOrderOptimizationMiningEngineImpl implements LoadOrderOptimizat
 
     // Use actual performance data if available
     if (performanceData.length > 0) {
-      const avgFps = performanceData.reduce((sum, data) => sum + (data.fps || 0), 0) / performanceData.length;
+      const avgFps = performanceData.reduce((sum, data) => sum + ((data.metrics && data.metrics[0] && data.metrics[0].fps) || 0), 0) / performanceData.length;
       score = Math.min(100, avgFps);
     }
 
