@@ -20,11 +20,10 @@ let changed = 0;
 
 for (const file of files) {
   let txt = fs.readFileSync(file, 'utf8');
-  if (!txt.includes('<<<<<<< Updated upstream')) continue;
+  if (!txt.includes('')) continue;
 
   const before = txt;
-  // Replace conflict blocks by keeping the 'Updated upstream' side (content before '=======')
-  txt = txt.replace(/<<<<<<< Updated upstream([\s\S]*?)=======[\s\S]*?>>>>>>> Stashed changes/g, (_, keep) => keep);
+  // Replace conflict blocks by keeping the 'Updated upstream' side (content before '/g, (_, keep) => keep);
 
   if (txt !== before) {
     fs.writeFileSync(file, txt, 'utf8');

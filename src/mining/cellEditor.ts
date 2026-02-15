@@ -17,6 +17,7 @@ import type {
   HeightMap,
   NavmeshSettings,
   Navmesh,
+  NavTriangle,
   Triangle,
   LightSource,
   AOData,
@@ -208,9 +209,10 @@ export class CellEditorEngine {
     return JSON.parse(JSON.stringify(nm));
   }
 
-  async editNavmesh(navmesh: Navmesh, triangles: Triangle[]): Promise<void> {
+  async editNavmesh(navmesh: Navmesh, triangles: NavTriangle[]): Promise<void> {
     const stored = this.navmeshes.get(navmesh.id);
     if (!stored) throw new Error('Navmesh not found');
+    // store indexed/nav-style triangles
     stored.triangles = triangles.slice();
     stored.triangleCount = triangles.length;
   }

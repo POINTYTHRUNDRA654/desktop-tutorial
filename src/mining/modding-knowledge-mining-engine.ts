@@ -9,8 +9,8 @@ import {
   KnowledgeNode,
   KnowledgeEdge,
   KnowledgeSource,
-  KnowledgeQuery,
-  KnowledgeInsight
+  RawKnowledgeData,
+  ModdingInsight
 } from '../shared/types';
 
 export class ModdingKnowledgeMiningEngineImpl implements ModdingKnowledgeMiningEngine {
@@ -72,7 +72,7 @@ export class ModdingKnowledgeMiningEngineImpl implements ModdingKnowledgeMiningE
         type: insight.type,
         content: insight.content,
         confidence: insight.confidence,
-        sources: insight.sources,
+        sources: (insight.sources || []).map(s => s.id || s.url || s.title || String(s)),
         tags: insight.tags,
         metadata: insight.metadata
       };

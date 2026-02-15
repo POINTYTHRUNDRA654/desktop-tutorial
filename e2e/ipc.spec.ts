@@ -7,7 +7,7 @@ test.describe('IPC Communication Tests', () => {
   test.beforeAll(async () => {
     // Launch Electron app
     electronApp = await _electron.launch({
-      args: ['dist-electron/main/main.js'],
+      args: ['dist-electron/electron/main.js'],
       cwd: process.cwd(),
       env: {
         ...process.env,

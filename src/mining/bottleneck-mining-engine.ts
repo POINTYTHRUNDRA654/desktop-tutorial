@@ -26,24 +26,71 @@ export class BottleneckMiningEngine implements IBottleneckMiningEngine {
     const optimizationOpportunities = await this.findOptimizationOpportunities(performanceData);
     const systemLimitations = this.identifySystemLimitations(performanceData.systemInfo, performanceData.metrics);
 
+    // Map internal OptimizationOpportunity -> shared OptimizationRecommendation
+    const mappedOpportunities = optimizationOpportunities.map(o => ({
+      type: o.type as any,
+      description: o.description,
+      potentialGain: { fps: typeof o.potentialGain === 'number' ? o.potentialGain : 0, memory: 0, loadTime: 0 },
+      difficulty: o.difficulty,
+      prerequisites: [],
+      affectedMods: o.affectedMods || []
+    }));
+
+    // Map internal SystemLimitation -> Phase2SystemLimitation when possible
+    const mappedSystemLimitations: any[] = systemLimitations.map(s => ({
+      component: s.component,
+      currentCapacity: s.capacity ?? s.currentUsage,
+      recommendedMinimum: 0,
+      isLimiting: !!s.bottleneck,
+      upgradeSuggestions: s.recommendation ? [s.recommendation] : []
+    }));
+
+    // Convert legacy PerformanceBottleneck[] into Phase2PerformanceBottleneck[]
+    const phase2Bottlenecks = bottlenecks.map(b => ({
+      type: (b.bottleneckType || 'cpu') as any,
+      severity: b.confidence > 0.75 ? 'high' : (b.confidence > 0.4 ? 'medium' : 'low'),
+      impact: { fps: b.impact || 0, memory: 0, loadTime: 0 },
+      affectedMods: [b.modName],
+      rootCause: b.modName,
+      mitigationStrategies: (b.mitigationStrategies || []).map(s => ({ type: 'optimize', description: s, difficulty: 'medium', expectedImprovement: { fps: 0, memory: 0, loadTime: 0 }, affectedMods: [b.modName] })),
+      evidence: (b.evidence || []).map(e => ({ metric: e.metric, observedValue: e.value, expectedValue: e.threshold, deviation: (e.value - e.threshold), confidence: b.confidence }))
+    }));
+
+    const primaryBottlenecks = phase2Bottlenecks.filter(b => b.severity === 'high' || b.severity === 'critical');
+    const secondaryBottlenecks = phase2Bottlenecks.filter(b => b.severity === 'medium' || b.severity === 'low');
+
     return {
-      bottlenecks,
+      primaryBottlenecks,
+      secondaryBottlenecks,
       criticalPath,
-      optimizationOpportunities,
-      systemLimitations
-    };
+      systemLimitations: mappedSystemLimitations,
+      optimizationOpportunities: mappedOpportunities,
+      confidence: phase2Bottlenecks.length > 0 ? Math.min(1, phase2Bottlenecks.reduce((s, x) => s + ((x as any).impact?.fps || 0), 0) / 100) : 0
+    } as any;
   }
 
   async identify(performanceData: PerformanceMetric[]): Promise<PerformanceBottleneck[]> {
     const tempData: PerformanceData = {
       metrics: performanceData,
-      systemInfo: { cpu: 'unknown', gpu: 'unknown', ram: 16, storage: 'unknown', os: 'unknown' },
+      // provide a loose-typed placeholder to satisfy HardwareProfile in this stub
+      systemInfo: {} as any,
       loadOrder: [],
       sessionDuration: 0
     };
 
-    const analysis = await this.analyze(tempData);
-    return analysis.bottlenecks;
+    const analysis = await this.analyze(tempData) as any;
+
+    // Convert Phase2PerformanceBottleneck[] -> legacy PerformanceBottleneck[] for callers
+    const combined = [ ...(analysis.primaryBottlenecks || []), ...(analysis.secondaryBottlenecks || []) ];
+
+    return combined.map((b: any) => ({
+      modName: (b.affectedMods && b.affectedMods[0]) || 'unknown',
+      bottleneckType: b.type || 'cpu',
+      impact: (b.impact && b.impact.fps) || 0,
+      confidence: b.severity === 'critical' ? 0.99 : b.severity === 'high' ? 0.8 : b.severity === 'medium' ? 0.5 : 0.2,
+      evidence: (b.evidence || []).map((e: any) => ({ metric: e.metric, value: e.observedValue || e.value, threshold: e.expectedValue || e.threshold, description: e.description || '' })),
+      mitigationStrategies: (b.mitigationStrategies || []).map((m: any) => typeof m === 'string' ? m : (m.description || 'mitigate'))
+    }));
   }
 
   private findBaselinePerformance(metrics: PerformanceMetric[]): PerformanceMetric | null {
@@ -357,7 +404,8 @@ export class BottleneckMiningEngine implements IBottleneckMiningEngine {
           description: `Load order optimization could improve FPS by up to ${(bestFps - worstFps).toFixed(1)}`,
           potentialGain: bestFps - worstFps,
           difficulty: 'easy',
-          affectedMods: sortedByFps[0].modCombination
+          affectedMods: sortedByFps[0].modCombination,
+          prerequisites: []
         });
       }
     }
@@ -382,7 +430,8 @@ export class BottleneckMiningEngine implements IBottleneckMiningEngine {
           description: `Memory leak detected (${memoryTrend.toFixed(0)}MB/hour). Memory optimization needed.`,
           potentialGain: Math.min(memoryTrend * 0.5, 10), // Estimate 50% reduction in leak rate
           difficulty: 'hard',
-          affectedMods: timeSortedMetrics[timeSortedMetrics.length - 1].modCombination
+          affectedMods: timeSortedMetrics[timeSortedMetrics.length - 1].modCombination,
+          prerequisites: []
         });
       }
     }
@@ -438,7 +487,8 @@ export class BottleneckMiningEngine implements IBottleneckMiningEngine {
 
     // RAM limitation
     const maxRamUsage = Math.max(...metrics.map(m => m.memoryUsage));
-    const ramUsagePercent = (maxRamUsage / (systemInfo.ram * 1024)) * 100;
+    const totalRamMb = (systemInfo.ram && (systemInfo.ram.total ?? (systemInfo.ram as any))) || 0;
+    const ramUsagePercent = totalRamMb > 0 ? (maxRamUsage / totalRamMb) * 100 : 0;
     if (ramUsagePercent > 85) {
       limitations.push({
         component: 'ram',
