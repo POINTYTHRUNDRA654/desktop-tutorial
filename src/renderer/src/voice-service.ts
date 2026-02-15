@@ -464,13 +464,17 @@ export class VoiceService {
     }
     console.log('[VoiceService] SpeechSynthesis is available');
 
-    // Clear any stuck speech synthesis state before attempting to speak
-    // This fixes the issue where clicking stop while speaking locks up the browser TTS
+    // Clear any stuck speech synthesis state before attempting to speak.
+    // This fixes the issue where clicking stop while speaking locks up the browser TTS.
+    // Some browsers (Chrome/Edge) can leave speechSynthesis in a stuck state after cancel(),
+    // preventing all future speech attempts until the page is reloaded.
+    const SPEECH_SYNTHESIS_CLEAR_DELAY_MS = 100;
     if (window.speechSynthesis.speaking || window.speechSynthesis.pending) {
       console.log('[VoiceService] Clearing stuck speech synthesis state');
       window.speechSynthesis.cancel();
-      // Small delay to let the browser fully clear the state
-      await new Promise(resolve => setTimeout(resolve, 100));
+      // Wait for the browser to fully clear the synthesis queue.
+      // Without this delay, the new utterance may fail silently in some browsers.
+      await new Promise(resolve => setTimeout(resolve, SPEECH_SYNTHESIS_CLEAR_DELAY_MS));
     }
 
     return new Promise((resolve, reject) => {
