@@ -113,7 +113,7 @@ const MiningHub = React.lazy(() => import('./MiningHub'));
 // Mining Infrastructure
 
 // CK Crash Prevention
-const CKCrashPrevention = React.lazy(() => import('./CKCrashPreventionMining').then(module => ({ default: module.CKCrashPrevention })));
+const CKCrashPrevention = React.lazy(() => import('./CKCrashPrevention'));
 
 // CK Tools
 const CKExtension = React.lazy(() => import('./CKExtension').then(module => ({ default: module.CKExtension })));
@@ -922,8 +922,7 @@ const App: React.FC = () => {
                 />
                 <Route path="/chat" element={<ErrorBoundary><ChatInterface /></ErrorBoundary>} />
                 <Route path="/ai-assistant" element={<ErrorBoundary><AIAssistant /></ErrorBoundary>} />
-                {/* Redirect AIModAssistant to AIAssistant with mod-creation mode */}
-                <Route path="/ai-mod-assistant" element={<Navigate to="/ai-assistant?mode=mod-creation" replace />} />
+                <Route path="/ai-mod-assistant" element={<ErrorBoundary><AIModAssistant /></ErrorBoundary>} />
                 <Route path="/cloud-sync" element={<ErrorBoundary><CloudSync /></ErrorBoundary>} />
                 <Route path="/first-success" element={<ErrorBoundary><FirstSuccessWizard /></ErrorBoundary>} />
                 <Route path="/roadmap" element={<ErrorBoundary><RoadmapPanel /></ErrorBoundary>} />
@@ -958,8 +957,9 @@ const App: React.FC = () => {
                 <Route path="/tools/ck-safety" element={<Navigate to="/tools/ck-crash-prevention" replace />} />
                 <Route path="/tools/security" element={<ErrorBoundary><SecurityValidator /></ErrorBoundary>} />
                 <Route path="/tools/mining-hub" element={<ErrorBoundary><MiningHub /></ErrorBoundary>} />
-                <Route path="/tools/mining" element={<ErrorBoundary><MiningPanel /></ErrorBoundary>} />
-                <Route path="/tools/advanced-analysis" element={<ErrorBoundary><AdvancedAnalysisPanel /></ErrorBoundary>} />
+                {/* Legacy mining routes redirect to unified hub */}
+                <Route path="/tools/mining" element={<Navigate to="/tools/mining-hub?tab=pipeline" replace />} />
+                <Route path="/tools/advanced-analysis" element={<Navigate to="/tools/mining-hub?tab=analysis" replace />} />
                 <Route path="/tools/assembler" element={<Navigate to="/packaging-release" replace />} />
                 <Route path="/tools/blueprint" element={<TheBlueprint />} />
                 <Route path="/tools/scribe" element={<TheScribe />} />
