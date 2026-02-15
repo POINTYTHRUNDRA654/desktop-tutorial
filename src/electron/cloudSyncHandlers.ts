@@ -185,6 +185,24 @@ export function registerCloudSyncHandlers(): void {
     }
   });
 
+  ipcMain.handle('cloud-sync:leave-collaboration-session', async (event, sessionId: string, userId: string) => {
+    try {
+      await cloudSyncEngine.leaveCollaborationSession(sessionId, userId);
+      return { success: true };
+    } catch (error) {
+      return { success: false, error: String(error) };
+    }
+  });
+
+  ipcMain.handle('cloud-sync:end-collaboration-session', async (event, sessionId: string) => {
+    try {
+      await cloudSyncEngine.endCollaborationSession(sessionId);
+      return { success: true };
+    } catch (error) {
+      return { success: false, error: String(error) };
+    }
+  });
+
   console.log('[CloudSync IPC] Handlers registered successfully');
 }
 
@@ -221,4 +239,8 @@ export const cloudSyncIpcHandlers = [
   // Status
   'cloud-sync:get-status',            // (projectId) => SyncStatus | null
   'cloud-sync:get-collaboration-session', // (projectId) => CollaborationSession | null
+  
+  // Session Management
+  'cloud-sync:leave-collaboration-session', // (sessionId, userId) => void
+  'cloud-sync:end-collaboration-session',   // (sessionId) => void
 ];
