@@ -66,7 +66,7 @@ const AIModAssistant: React.FC = () => {
       try { await bridge.sttStart?.(); } catch (err) { /* ignore - STT optional */ }
     } else {
       setListening(false);
-      try { await bridge.sttStop?.(); } catch {}
+      try { await bridge.sttStop?.(); } catch (err) { /* ignore - STT optional */ }
     }
   };
 
