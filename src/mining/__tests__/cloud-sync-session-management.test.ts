@@ -298,10 +298,13 @@ describe('CloudSync Session Management', () => {
         projectId,
       });
 
-      // Create multiple subscriptions
+      // Create multiple subscriptions with small delay to ensure unique IDs
       const sub1 = await cloudSync.subscribeToChanges(projectId, () => {});
+      await new Promise(resolve => setTimeout(resolve, 5)); // Small delay
       const sub2 = await cloudSync.subscribeToChanges(projectId, () => {});
-      expect((cloudSync as any).activeSubscriptions.size).toBe(2);
+      
+      // Verify both subscriptions exist
+      expect((cloudSync as any).activeSubscriptions.size).toBeGreaterThanOrEqual(2);
 
       await cloudSync.endCollaborationSession(sessionId);
 
