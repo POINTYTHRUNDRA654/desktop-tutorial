@@ -80,7 +80,7 @@ export class NexusModsClient {
       //   headers: {
       //     'apikey': this.apiKey,
       //     'Application-Name': 'Mossy',
-      //     'Application-Version': '5.4.23'
+      //     'Application-Version': '5.4.24'
       //   }
       // });
       // return response.data;
