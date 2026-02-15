@@ -131,20 +131,48 @@ export interface ProjectWizardState {
   lastUpdated: number;
 }
 
+// --- FOMOD Installer types (shared with FOMOD builder) ---
+export interface FOMODFile { source: string; destination?: string; priority?: number; alwaysInstall?: boolean }
+export interface FOMODFlags { selected?: boolean; required?: boolean; recommended?: boolean }
+export interface FOMODOption { id: string; name: string; description?: string; files?: FOMODFile[]; flags?: FOMODFlags; conditions?: FOMODCondition[]; image?: string; }
+export interface FOMODGroup { id: string; name: string; type?: string; options: FOMODOption[] }
+export interface FOMODStep { id: string; name: string; description?: string; type?: string; sortOrder?: number; groups: FOMODGroup[]; conditions?: FOMODCondition[] }
+export interface FOMODProject { id?: string; name: string; author?: string; version?: string; website?: string; description?: string; steps: FOMODStep[]; requiredFiles?: string[]; headerImage?: string; metadata?: Record<string, any> }
+export interface FOMODCondition { type?: string; operator?: 'equals' | 'notEquals' | 'in' | 'notIn' | 'greaterThan' | 'lessThan' | string; value?: any; variable?: string; expression?: string; expectedValue?: any; negate?: boolean; children?: FOMODCondition[] }
+export interface FOMODValidationError { severity: 'error' | 'warning' | 'info' | string; message: string; path?: string }
+export interface FOMODValidationWarning { severity?: 'error' | 'warning' | 'info' | string; message: string; suggestion?: string; path?: string }
+export interface FOMODValidation { success?: boolean; valid?: boolean; errors: FOMODValidationError[]; warnings: FOMODValidationWarning[]; fileCount?: number; estimatedSize?: number }
+
 /**
  * Analytics types
  */
 export interface AnalyticsEvent {
   id: string;
   timestamp: number;
+  // short event name (e.g. 'build', 'file-create', 'tool-launch')
   event: string;
-  category: 'usage' | 'performance' | 'error' | 'feature';
+  // legacy/alternate label used by some analytics callers
+  type?: string;
+  category?: 'usage' | 'performance' | 'error' | 'feature' | string;
   properties: Record<string, any>;
+  metadata?: Record<string, any>;
+  success?: boolean;
+  duration?: number;
   userId?: string; // Anonymous ID
-  sessionId: string;
-  version: string;
-  platform: string;
-}
+  sessionId?: string;
+  version?: string;
+  platform?: string;
+} 
+
+export interface TimeRange { start: number; end: number; period?: 'day' | 'week' | 'month' | 'year' }
+
+export interface MetricsSummary { totalEvents: number; buildCount: number; successRate: number; averageBuildTime: number; assetsCreated: number; errorsEncountered: number; timeSpent: number; topFeatures: Array<{ feature: string; usage: number }>; }
+
+export interface BuildStatistics { totalBuilds: number; successfulBuilds: number; failedBuilds: number; averageTime: number; buildTrend: Array<{ timestamp: number; value: number }>; errorFrequency: Record<string, number> }
+
+export interface AssetUsageReport { totalAssets: number; assetsByType: Record<string, number>; mostReferenced: Array<{ name: string; references: number }>; unusedAssets: string[]; optimizationSavings: number }
+
+export interface PerformanceHistory { dataPoints: Array<{ timestamp: number; fps: number; memory: number; cpu: number }>; averageFps: number; memoryTrend: Array<{ timestamp: number; value: number }>; buildTimeTrend: Array<{ timestamp: number; value: number }> }
 
 export interface AnalyticsConfig {
   enabled: boolean;
@@ -215,10 +243,206 @@ export interface ScriptScanResult { scriptPath: string; suspiciousPatterns: Patt
 export interface Pattern { id: string; description: string; severity: 'low' | 'medium' | 'high' | 'critical'; match: string }
 
 export interface CodeIssue { line: number; severity: 'info' | 'warning' | 'error'; message: string; ruleId?: string }
-export interface CodeAnalysis { issues: CodeIssue[]; complexity: { cyclomatic: number; maintainability: number }; recommendations: string[] }
+export interface CodeAnalysis { safe?: boolean; score?: number; issues: CodeIssue[]; complexity: { cyclomatic: number; maintainability: number }; recommendations: string[] }
 
 export interface SandboxResult { exitCode: number; stdout?: string; stderr?: string; timedOut?: boolean; durationMs: number; isolationId?: string }
-export interface UpdateResult { success: boolean; updatedAt?: number; version?: string; error?: string }
+export interface UpdateResult { success: boolean; updatedAt?: number; version?: string; oldVersion?: string; newVersion?: string; changelog?: string; updateTime?: number; error?: string }
+
+// --- Plugin / Extension API (back-compat types expected by mining / plugins) ---
+export interface DialogOptions { title?: string; message?: string; buttons?: string[]; defaultButton?: number; checkboxLabel?: string; checkboxChecked?: boolean; type?: 'info' | 'warning' | 'error' | 'question' | string }
+export interface DialogResult { response: number; checkboxChecked?: boolean; filePaths?: string[] }
+export interface NotificationOptions { title: string; message: string; type?: 'info'|'warning'|'error'|'success'; silent?: boolean; actions?: Array<{ id: string; label: string }>; duration?: number }
+
+export interface FileSystemAPI {
+  readFile(filePath: string): Promise<Buffer>;
+  readJson(filePath: string): Promise<any>;
+  writeFile(filePath: string, content: Buffer | string): Promise<void>;
+  writeJson(filePath: string, data: any): Promise<void>;
+  exists(filePath: string): Promise<boolean>;
+  delete(filePath: string): Promise<void>;
+  mkdir(dirPath: string): Promise<void>;
+  readdir(dirPath: string): Promise<string[]>;
+  stat(filePath: string): Promise<{ isFile(): boolean; isDirectory(): boolean; size: number; mtime: Date }>;
+  watch(filePath: string, callback: (event: 'change' | 'rename', filename: string) => void): () => void;
+}
+
+export interface UIAPI {
+  showDialog(options: DialogOptions): Promise<DialogResult>;
+  showInputDialog(options: any): Promise<string | null>;
+  showNotification(options: NotificationOptions): void;
+  showOpenDialog(options: any): Promise<string[] | null>;
+  showSaveDialog(options: any): Promise<string | null>;
+  showSelectFolder(options: any): Promise<string | null>;
+  getTheme(): 'light' | 'dark';
+  onThemeChange(cb: (theme: 'light' | 'dark') => void): () => void;
+  setTheme(theme: 'light' | 'dark'): void;
+}
+
+export interface MenuAPI { add(section: string, label: string, commandId: string, options?: any): void; remove(section: string, label: string): void; addSeparator(section: string): void; insertSubmenu(section: string, label: string, items: any[]): void; refresh(): void }
+export interface CommandAPI { register(id: string, handler: (args?: any) => Promise<any>, options?: any): void; unregister(id: string): void; execute(id: string, args?: any): Promise<any> }
+export interface SettingsAPI { getSettings(): Promise<any>; setSettings(s: Partial<any>): Promise<void>; onSettingsUpdated(cb: (s: any) => void): void; register?(schema: SettingSchema): void; watch?(key: string, cb: (newValue: any, oldValue: any) => void): () => void; }
+export interface EventEmitterAPI {
+  on(event: string, handler: (...args: any[]) => void): () => void;
+  once?(event: string, handler: (...args: any[]) => void): () => void;
+  off(event: string, handler: (...args: any[]) => void): void;
+  emit(event: string, payload?: any): void;
+}
+
+export interface CommandRegistration { id: string; title?: string; description?: string }
+export interface SettingSchema {
+  key: string;
+  title?: string;
+  description?: string;
+  type: 'string' | 'number' | 'boolean' | 'object' | 'enum';
+  default?: any;
+  enumOptions?: Array<{ value: any; label: string }>;
+  minimum?: number;
+  maximum?: number;
+  category?: string;
+  order?: number;
+}
+export interface AssetMetadata { path: string; type?: string; size?: number; checksum?: string }
+export interface ProjectInfo { id: string; name: string; path: string; modified?: number; game?: string }
+
+export interface MossyPluginAPI {
+  fileSystem: FileSystemAPI;
+  ui: UIAPI;
+  menu: MenuAPI;
+  command: CommandAPI;
+  settings: SettingsAPI;
+  tools?: ToolsAPI;
+  assets?: AssetsAPI;
+  projects?: ProjectsAPI;
+  events?: EventEmitterAPI;
+}
+
+export interface ToolsAPI {
+  blender: {
+    isRunning: () => Promise<boolean>;
+    launch: (options?: any) => Promise<void>;
+    runScript: (script: string) => Promise<string>;
+    getVersion: () => Promise<string>;
+    onSessionChange: (cb: (running: boolean) => void) => (() => void);
+  };
+  nifskope: {
+    isRunning: () => Promise<boolean>;
+    launch: (files?: string[]) => Promise<void>;
+    getVersion: () => Promise<string>;
+    onSessionChange: (cb: (running: boolean) => void) => (() => void);
+  };
+  xEdit: {
+    isRunning: () => Promise<boolean>;
+    launch: (plugins?: string[]) => Promise<void>;
+    getVersion: () => Promise<string>;
+    onSessionChange: (cb: (running: boolean) => void) => (() => void);
+  };
+}
+
+export interface AssetMetadata { id?: string; path: string; type?: string; size?: number; name?: string; tags?: string[]; dependencies?: string[]; mtime?: number; checksum?: string; description?: string }
+
+export interface AssetsAPI {
+  import(sourcePath: string, assetType: string, options?: any): Promise<AssetMetadata>;
+  export(assetId: string, format: string, outputPath: string): Promise<void>;
+  search?: (query: string) => Promise<AssetMetadata[]>;
+  get?: (id: string) => Promise<AssetMetadata | undefined>;
+  list?: (filter?: any) => Promise<AssetMetadata[]>;
+}
+
+export interface ProjectsAPI {
+  createProject?: (info: any) => Promise<ProjectInfo>;
+  create?: (name: string, game: string, path: string) => Promise<ProjectInfo>;
+  getProject?: (id: string) => Promise<ProjectInfo | null>;
+  listProjects?: () => Promise<ProjectInfo[]>;
+  onProjectChange?: (cb: (project: ProjectInfo | null) => void) => () => void;
+}
+
+export interface ImportResult { success: boolean; assetId?: string; metadata?: AssetMetadata; warnings?: string[]; error?: string }
+export interface ExportResult { success: boolean; outputPath?: string; bytesWritten?: number; warnings?: string[]; error?: string }
+
+export interface ExtensionContext { extensionId: string; pluginId: string; type: ExtensionType; api: MossyPluginAPI; metadata?: Record<string, any> }
+
+export interface ExtensionPointRegistry {
+  register(type: ExtensionType, extension: any, pluginId: string, api?: MossyPluginAPI): void;
+  unregister(extensionId: string): void;
+  get<T extends ExtensionType>(type: T, extensionId?: string): any | any[] | null;
+  getForType(type: ExtensionType): any[];
+  invoke<T extends ExtensionType>(type: T, extensionId: string, method: string, ...args: any[]): Promise<any>;
+  getAllExtensions(): Map<ExtensionType, any[]>;
+  getStatistics(): Record<ExtensionType, number>;
+}
+
+export interface ImporterExtension { id: string; name: string; fileTypes: string[]; description?: string; import(filePath: string, options?: any): Promise<ImportResult> }
+export interface ExporterExtension { id: string; name: string; format: string; description?: string; export(data: any, outputPath: string, options?: any): Promise<ExportResult> }
+export interface ValidatorExtension { id: string; name: string; assetTypes: string[]; validate(assetPath: string, options?: any): Promise<ValidationIssue[]> }
+export interface ToolWrapperExtension { id: string; name?: string; toolName: string; isRunning(): Promise<boolean>; launch?(args?: any): Promise<void>; execute(command: string, args?: any): Promise<any> }
+export interface LanguageExtension { id: string; name?: string; languageId: string; fileExtensions: string[]; grammar?: any }
+export interface ThemeExtension { id: string; name?: string; colors: Record<string, string>; preview?: string }
+export interface SnippetExtension { id: string; name?: string; language: string; snippets: Array<{ prefix: string; body: string | string[]; description?: string }> }
+export interface CommandExtension { id: string; name?: string; command: string; execute(args?: any): Promise<any> }
+export interface PanelExtension { id: string; name?: string; title: string; render: (props?: any) => any }
+export interface WizardExtension { id: string; name?: string; steps: any[]; start?: (initialData?: any) => Promise<any> }
+
+export type ActivationEvent = string; // e.g. 'onStartup' | 'onCommand' | 'onFileType:*.esp'
+
+export interface PluginManifest {
+  id: string;
+  name: string;
+  version?: string;
+  description?: string;
+  author?: string;
+  main?: string;
+  engines?: { [key: string]: any };
+  permissions?: string[];
+  dependencies?: Record<string, string>;
+  tags?: string[];
+  license?: string;
+  modified?: number;
+  path?: string;
+  activationEvents?: ActivationEvent[];
+}
+
+export interface Plugin {
+  id: string;
+  name: string;
+  manifest?: PluginManifest;
+  author?: string;
+  enabled?: boolean;
+  installed?: boolean;
+  version?: string;
+  description?: string;
+  created?: number;
+  modified?: number;
+  path?: string;
+  permissions?: string[];
+  dependencies?: string[];
+  tags?: string[];
+  warnings?: string[];
+  rating?: number;
+  installTime?: number;
+  updateTime?: number;
+}
+
+export interface PluginListing {
+  id: string;
+  name: string;
+  summary?: string;
+  description?: string;
+  author?: string;
+  version?: string;
+  downloads?: number;
+  endorsements?: number;
+  tags?: string[];
+  permissions?: string[];
+  rating?: number;
+  repository?: string;
+}
+
+export interface InstallResult { success: boolean; error?: string; plugin?: Plugin; warnings?: string[]; installTime?: number }
+export interface PluginValidationResult { valid?: boolean; success?: boolean; errors?: string[]; warnings?: string[]; risks?: SecurityRisk[]; checksumValid?: boolean; details?: any }
+export interface SecurityRisk { level: 'low' | 'medium' | 'high' | 'critical'; permission?: string; description?: string }
+
+export type ExtensionType = string; export type ExtensionHandler = any; export interface ExtensionPoint { id?: string; name?: string; pluginId?: string; type?: ExtensionType; handler: ExtensionHandler; data?: any; metadata?: Record<string, any> }
+
 
 export interface SandboxConfig { timeoutMs?: number; memoryLimitMb?: number; cpuLimit?: number }
 
@@ -808,6 +1032,10 @@ export interface DDSFile {
   };
 }
 
+export type TextureFormat = 'DXT1' | 'DXT3' | 'DXT5' | 'BC7' | 'BC6H' | 'RGBA8' | 'DDS' | 'PNG' | 'TGA' | 'JPEG' | 'UNCOMPRESSED';
+export type TextureResolution = number | { width: number; height: number }
+export interface TextureAnalysis { path: string; format: TextureFormat; resolution: number; size: number; mipmaps?: boolean; compression?: string; alphaChannel?: boolean; colorSpace?: 'sRGB' | 'linear'; usage?: 'diffuse' | 'normal' | 'specular' | 'other' }
+
 export interface NIFFile {
   fileName: string;
   path: string;
@@ -838,6 +1066,11 @@ export interface INIFile {
     hash?: string;
   };
 }
+
+export interface IniParameter { section: string; key: string; value: string; defaultValue?: any; description?: string; category?: string }
+export interface ParameterRecommendation { parameter: string; currentValue: any; recommendedValue: any; expectedPerformanceGain?: number; stabilityImpact?: number; visualQualityImpact?: number; reason?: string; implementationSteps?: string[] }
+export interface PerformanceProfile { targetFps?: number; qualityPreset?: 'low'|'medium'|'high'|'ultra'; memoryBudgetMb?: number; cpu?: Partial<CPUInfo>; gpu?: Partial<GPUInfo>; ram?: Partial<RAMInfo> }
+export interface CompatibilityCheck { parameter: string; conflictingValue: any; recommendedValue: any; severity: 'low'|'medium'|'high' | string; reason?: string; fixSteps?: string[] }
 
 // Asset Correlation Types
 export interface AssetReference {
@@ -907,6 +1140,7 @@ export interface ModListing {
   thumbnailUrl: string;
   uploadedAt: number;
   updatedAt: number;
+  tags?: string[];
 }
 
 export interface ModFile {
@@ -1066,6 +1300,8 @@ export interface OptimizationOpportunity {
   potentialGain: number; // FPS gain
   difficulty: 'easy' | 'medium' | 'hard';
   affectedMods: string[];
+  // Optional back-compat / guidance
+  prerequisites?: string[];
 }
 
 // Backwards-compatible alias expected across the codebase
@@ -1453,6 +1689,7 @@ export interface Navmesh {
   edges: NavEdge[];               // connectivity / door links
   coverTriangles: CoverTriangle[];
   bounds?: { min: Vector3; max: Vector3 };
+  triangleCount?: number;
 }
 
 export interface LightSource {
@@ -1779,6 +2016,9 @@ export interface HistoricalData {
   loadTime?: number;
   metrics?: PerformanceMetric;
   conflicts?: ModConflict[];
+  // legacy/alias
+  modCombination?: string[];
+  conflictCount?: number;
 }
 
 export interface PerformanceData {
@@ -1802,12 +2042,19 @@ export interface MemorySnapshot {
 }
 
 export interface SessionData {
+  sessionId?: string;
   startTime: number;
   endTime: number;
   mods: string[];
-  peakVRAM: number;
-  peakRAM: number;
-  averageFPS: number;
+  peakVRAM?: number;
+  peakRAM?: number;
+  averageFPS?: number;
+  // Optional extended fields (back-compat / richer session info)
+  initialLoadOrder?: string[];
+  finalLoadOrder?: string[];
+  performanceSnapshots?: PerformanceSnapshot[];
+  events?: SessionEvent[];
+  userActions?: UserAction[];
 }
 
 export interface CompatibilityData {
@@ -1905,10 +2152,12 @@ export interface Phase2MiningEngine {
 export interface Phase2MiningResult {
   engine: string;
   timestampNum: number;
+  timestamp?: number | Date;
   predictions: any[];
   insights: any[];
   recommendations: any[];
   resultMetadata: Record<string, any>;
+  metadata?: Record<string, any>;
 }
 
 // ML-based Conflict Prediction Engine
@@ -1919,15 +2168,19 @@ export interface MLConflictPredictionEngine extends Phase2MiningEngine {
   updateWithFeedback(feedback: ConflictFeedback[]): Promise<void>;
 }
 
+export interface PredictedConflictType { type: 'override' | 'script' | 'load_order' | 'resource' | string; description?: string; confidence: number }
+
 export interface ConflictPrediction {
   modA: string;
   modB: string;
   probability: number; // 0-1
-  conflictTypes: string[];
-  severity: 'low' | 'medium' | 'high' | 'critical';
+  conflictTypes: Array<string | PredictedConflictType>;
+  // allow both terminology used across modules: low/medium/high OR minor/major/critical
+  severity: 'low' | 'medium' | 'high' | 'critical' | 'minor' | 'major';
   evidence: ConflictEvidence[];
-  mitigationStrategies: string[];
-  confidence: number;
+  mitigationStrategies?: string[];
+  recommendations?: string[]; // alias used elsewhere
+  confidence?: number;
 }
 
 export interface ConflictEvidence {
@@ -1940,14 +2193,16 @@ export interface ConflictEvidence {
 export interface ConflictTrainingData {
   modA: string;
   modB: string;
-  actualConflict: boolean;
+  // back-compat: some modules use `conflict`, others `actualConflict`
+  conflict?: boolean;
+  actualConflict?: boolean;
   conflictType?: string;
-  severity?: number;
+  severity?: 'minor' | 'major' | 'critical' | number;
   context: {
-    gameVersion: string;
-    modVersions: { [modName: string]: string };
-    hardwareProfile: HardwareProfile;
-    loadOrder: string[];
+    gameVersion?: string;
+    modVersions?: { [modName: string]: string };
+    hardwareProfile?: HardwareProfile;
+    loadOrder?: string[];
   };
 }
 
@@ -2026,6 +2281,11 @@ export interface PerformancePrediction {
     memory: number;
     loadTime: number;
   };
+  // convenience fields used across optimization engines
+  fpsImprovement?: number;
+  memoryUsageChange?: number;
+  loadTimeChange?: number;
+  stabilityScore?: number;
   confidence: number;
   riskLevel: 'low' | 'medium' | 'high';
   recommendations: string[];
@@ -2077,6 +2337,16 @@ export interface Phase2SystemLimitation {
   upgradeSuggestions: string[];
 }
 
+// Back-compat/system-friendly shape used by bottleneck detection
+export interface SystemLimitation {
+  component: 'cpu' | 'gpu' | 'ram' | 'storage' | 'io' | string;
+  currentUsage: number; // percent or absolute value depending on component
+  capacity?: number;
+  bottleneck?: boolean;
+  details?: string;
+  recommendation?: string;
+}
+
 // Hardware-Aware Mining Engine
 export interface HardwareAwareMiningEngine extends Phase2MiningEngine {
   analyzeHardwareCompatibility(mods: string[]): Promise<HardwareCompatibility[]>;
@@ -2108,33 +2378,56 @@ export interface HardwareRequirements {
 }
 
 export interface HardwareRecommendation {
-  type: 'upgrade' | 'downgrade' | 'alternative' | 'optimization';
-  component: 'cpu' | 'gpu' | 'ram' | 'storage';
-  description: string;
-  priority: 'low' | 'medium' | 'high';
+  // Generic hardware suggestion (back-compat & extended)
+  // Optionally used for upgrade/downgrade suggestions
+  type?: 'upgrade' | 'downgrade' | 'alternative' | 'optimization' | string;
+  component?: 'cpu' | 'gpu' | 'ram' | 'storage' | string;
+  description?: string;
+  priority?: 'low' | 'medium' | 'high' | number | string;
   costEstimate?: number;
-  performanceGain: number;
-  affectedMods: string[];
+  performanceGain?: number;
+  affectedMods?: string[];
+
+  // Optionally used for settings/INI & optimization recommendations
+  iniSettings?: Record<string, any>;
+  loadOrderAdjustments?: string[];
+  textureSettings?: TextureOptimization[];
+  meshSettings?: MeshOptimization[];
+  expectedPerformance?: HardwarePerformancePrediction;
 }
 
 export interface HardwarePerformancePrediction {
-  baselinePerformance: PerformanceMetric;
-  predictedPerformance: PerformanceMetric;
-  confidence: number;
-  limitingFactors: string[];
-  optimizationSuggestions: HardwareOptimization[];
+  // Canonical predictive metric pair (structured)
+  baselinePerformance?: PerformanceMetric;
+  predictedPerformance?: PerformanceMetric;
+  confidence?: number;
+  limitingFactors?: string[];
+  optimizationSuggestions?: HardwareOptimization[];
+
+  // Back-compat / simplified shape used by some mining engines
+  averageFps?: number;
+  minimumFps?: number;
+  memoryUsage?: number;
+  loadTime?: number;
+  stabilityScore?: number;
+  bottlenecks?: string[] | LoadOrderBottleneck[];
 }
 
+export interface PerformanceBenchmark { cpuScore: number; gpuScore: number; ramScore: number; storageScore: number; overallScore: number; bottleneckIdentified?: string; recommendations?: string[] }
+
 export interface HardwareOptimization {
-  type: 'texture_resolution' | 'mesh_lod' | 'shadow_quality' | 'draw_distance' | 'anti_aliasing';
-  description: string;
-  currentSetting: any;
-  recommendedSetting: any;
-  performanceImpact: {
-    fps: number;
-    quality: number;
-  };
-  compatibility: string[]; // Affected mods
+  type?: 'texture_resolution' | 'mesh_lod' | 'shadow_quality' | 'draw_distance' | 'anti_aliasing' | string;
+  component?: 'cpu' | 'gpu' | 'ram' | 'storage' | string; // optional component for hardware-specific recommendations
+  description?: string;
+  setting?: string;
+  currentSetting?: any;
+  currentValue?: any;
+  recommendedSetting?: any;
+  recommendedValue?: any;
+  performanceImpact?: number | { fps: number; quality: number };
+  stabilityImpact?: number;
+  compatibility?: string[]; // Affected mods
+  reasoning?: string;
 }
 
 // Longitudinal Mining Engine
@@ -2225,17 +2518,7 @@ export interface UpdateImpactAnalysis {
   rollbackAdvice?: string;
 }
 
-export interface SessionData {
-  sessionId: string;
-  startTime: number;
-  endTime: number;
-  mods: string[];
-  initialLoadOrder: string[];
-  finalLoadOrder: string[];
-  performanceSnapshots: PerformanceSnapshot[];
-  events: SessionEvent[];
-  userActions: UserAction[];
-}
+// Duplicate `SessionData` removed — consolidated into the canonical `SessionData` above.
 
 export interface PerformanceSnapshot {
   timestamp: number;
@@ -2643,6 +2926,53 @@ export interface TextureResolutionReport {
   potentialQualityImprovement: number;
 }
 
+// Mesh analysis and optimization types
+export interface MeshAnalysis {
+  path: string;
+  vertexCount: number;
+  triangleCount: number;
+  lodLevels?: number;
+  materials?: number;
+  textures?: number;
+  bounds?: { min: Vector3; max: Vector3 };
+  format?: string;
+  hasNormals?: boolean;
+  hasUVs?: boolean;
+  hasTangents?: boolean;
+  isSkinned?: boolean;
+  boneCount?: number;
+}
+
+export interface MeshSimplification {
+  type: 'lod_generation' | 'vertex_decimation' | 'material_consolidation' | string;
+  targetVertexCount: number;
+  targetTriangleCount: number;
+  method: string;
+  qualityPreservation: number; // 0-1
+  performanceGain: number; // arbitrary score (higher = better)
+  implementationSteps: string[];
+}
+
+export interface LODRecommendation {
+  level: number;
+  targetVertexCount: number;
+  targetTriangleCount: number;
+  simplificationMethod: string;
+  expectedQualityLoss: number;
+  performanceGain: number;
+  generationSteps: string[];
+}
+
+export interface VertexOptimization {
+  meshPath: string;
+  originalVertexCount: number;
+  optimizedVertexCount: number;
+  memorySavings: number;
+  performanceGain: number;
+  optimizationTechniques: string[];
+  implementationSteps: string[];
+}
+
 // Animation Frame Mining
 export interface AnimationKeyframe {
   time: number;
@@ -2652,17 +2982,60 @@ export interface AnimationKeyframe {
 }
 
 export interface AnimationInfo {
-  path: string;
+  path?: string;
   duration: number;
   frameRate: number;
   keyframeCount: number;
   boneCount: number;
-  keyframes: AnimationKeyframe[];
-  compressionRatio: number; // Current compression level
+  keyframes?: AnimationKeyframe[];
+  compressionRatio?: number; // 0-1
 }
 
+// Common math primitives used by animation types
+export interface Quaternion { x: number; y: number; z: number; w: number }
+export interface Transform { position: Vector3; rotation: Quaternion | { x: number; y: number; z: number; w: number }; scale?: Vector3 }
+
+// Skeleton / rigging types (used by the animation system)
+export interface Bone { id: string; name: string; parentId?: string; index?: number; length?: number; transform: Transform; children: string[]; constraints?: BoneConstraint[] }
+export interface VertexWeight { vertex: number; bone: string; weight: number }
+export interface Mesh { id?: string; name?: string; vertices: Vector3[]; indices?: number[]; normals?: Vector3[]; tangents?: Vector3[]; uvs?: Array<[number, number]>; weights: VertexWeight[]; materials?: string[]; bounds?: { min: Vector3; max: Vector3 }; metadata?: Record<string, any> }
+export interface Skeleton { id: string; name: string; bones: Bone[]; rootBone?: string; created?: number; modified?: number; metadata?: Record<string, any> }
+export interface HierarchyChange { boneId: string; type: 'rename' | 'reparent' | 'mirror' | 'delete' | 'create'; newName?: string; parentId?: string; mirrorAxis?: 'x' | 'y' | 'z' }
+export interface RigResult { success: boolean; skeleton?: Skeleton; mesh?: Mesh; warnings?: string[]; duration?: number }
+export interface BoneConstraint { type?: string; targetBone?: string; axis?: 'x' | 'y' | 'z'; min?: number; max?: number }
+
+// Animation runtime/editor types
+export type InterpolationMethod = 'linear' | 'bezier' | 'catmullrom' | 'catmull-rom' | 'spline' | 'ease-in-out' | 'step'
+export interface Keyframe extends AnimationKeyframe { easing?: string; transform?: Transform }
+export interface AnimationLayer { id?: string; name?: string; weight?: number; enabled?: boolean }
+export interface Animation {
+  id: string;
+  name: string;
+  duration: number;
+  frameRate: number;
+  totalFrames: number;
+  tracks: Record<string, Keyframe[]>; // boneId -> keyframes
+  layers: AnimationLayer[];
+  created?: number;
+  modified?: number;
+}
+
+export interface Frame { frameNumber: number; timestamp: number; boneTransforms: Record<string, Transform> }
+export interface AnimationData { frames: Frame[]; duration: number }
+
+export interface CollisionShape { type: 'box' | 'sphere' | 'capsule' | 'mesh' | string; size?: Vector3; offset?: Vector3; material?: string }
+export interface PhysicsConstraint { type: string; boneA: string; boneB: string; limits?: { min: number; max: number } }
+
+export interface AnimationState { id: string; name: string; clip?: string; loop?: boolean; speed?: number; transitions?: Transition[] }
+export interface Transition { id?: string; fromState: string; toState: string; conditions?: Condition[]; duration?: number; canInterruptSelf?: boolean }
+export interface BehaviorGraph { id: string; name?: string; states: AnimationState[]; transitions: Transition[]; parameters: Record<string, any>; defaultState?: string }
+
+export interface BlendTree { id?: string; children: BlendTreeChild[]; parameter?: string }
+export interface BlendTreeChild { id?: string; weight?: number; node?: string }
+export interface ExportOptions { format?: 'hkx' | 'fbx' | 'glb' | string; optimize?: boolean; embedSkeleton?: boolean; targetFrameRate?: number }
+
 export interface AnimationOptimization {
-  animation: AnimationInfo;
+  animation: AnimationKeyframe | AnimationInfo;
   recommendedFrameRate: number;
   recommendedKeyframeReduction: number;
   potentialSavings: {
@@ -2899,7 +3272,7 @@ export interface CurrentTutorial {
 }
 
 export interface StepCompletion { userId: string; stepId: string; completedAt: number; success: boolean; xpEarned?: number }
-export interface ValidationResult { success: boolean; score?: number; feedback?: string }
+export interface ValidationResult { success?: boolean; valid?: boolean; isValid?: boolean; errors?: string[]; warnings?: string[]; missingTextures?: string[]; score?: number; feedback?: string; nodeCount?: number; connectionCount?: number; timestamp?: number }
 export interface Hint { text: string; hintLevel?: number }
 
 export interface Achievement {
@@ -3554,7 +3927,7 @@ export interface ElectronAPI {
   deleteObject?: (refId: string) => Promise<{ success: boolean; error?: string }>;
   duplicateObject?: (refId: string, offset: Vector3) => Promise<{ success: boolean; data?: Reference; error?: string }>;
   generateNavmesh?: (cell: Cell, settings?: NavmeshSettings) => Promise<{ success: boolean; data?: Navmesh; error?: string }>;
-  editNavmesh?: (navmesh: Navmesh, triangles: Triangle[]) => Promise<{ success: boolean; error?: string }>;
+  editNavmesh?: (navmesh: Navmesh, triangles: NavTriangle[]) => Promise<{ success: boolean; error?: string }>;
   finalizeNavmesh?: (navmesh: Navmesh) => Promise<{ success: boolean; error?: string }>;
   placeLight?: (cell: Cell, light: LightSource) => Promise<{ success: boolean; data?: Reference; error?: string }>;
   bakeAO?: (cell: Cell) => Promise<{ success: boolean; data?: AOData; error?: string }>;
@@ -3824,6 +4197,8 @@ export interface ElectronAPI {
   conflictApplyRules?: (conflicts: any[], rules: any[]) => Promise<any>;
   conflictSavePatch?: (patch: any, outputPath: string) => Promise<any>;
 
+  
+  // (game types declared at top-level - see GameProcess, CommandResult, SaveGameAnalysis, ModStatus, PerformanceStream, InjectionResult, ConsoleCommand, MacroCommand)
   // Game integration helpers
   gameDetectGame?: () => Promise<{ id: string; path?: string; version?: string } | null>;
   gameExecuteConsoleCommand?: (command: string, game: string) => Promise<{ success: boolean; output?: string; error?: string }>;
@@ -4006,26 +4381,40 @@ export interface VoiceChatPayload {
 
 // Load Order Optimization
 export interface LoadOrderOptimizationMiningEngine {
-  analyze: (performanceData: PerformanceData[]) => Promise<LoadOrderOptimization[]>;
+  analyze: (loadOrder: string[], performanceData: PerformanceData[]) => Promise<LoadOrderOptimization[]>;
   optimize: (currentOrder: string[], performanceData: PerformanceData[]) => Promise<OptimizedLoadOrder>;
   predictImpact: (proposedOrder: string[], performanceData: PerformanceData[]) => Promise<LoadOrderImpact>;
 }
 
 export interface LoadOrderOptimization {
   currentOrder: string[];
-  suggestedOrder: string[];
-  performanceImprovement: number;
-  stabilityScore: number;
+  suggestedOrder?: string[];
+  optimizedOrder?: string[];
+  performanceImprovement?: number;
+  performanceGain?: number;
+  stabilityScore?: number;
+  stabilityImprovement?: number;
   conflictReduction: number;
   reasoning: string[];
 }
 
 export interface OptimizedLoadOrder {
-  order: string[];
-  expectedPerformanceGain: number;
-  stabilityRating: number;
-  conflictScore: number;
-  implementationSteps: string[];
+  // Core representation used by different optimizer components
+  order?: string[];
+  plugins?: string[];
+  changes?: LoadOrderChange[];
+
+  expectedPerformanceGain?: number;
+  expectedPerformance?: HardwarePerformancePrediction;
+  conflictScore?: number;
+  stabilityRating?: number;
+  implementationSteps?: string[];
+
+  // UI/optimizer summary fields
+  improvements?: { conflictsResolved?: number; dependenciesFixed?: number; stabilityGain?: number; performanceGain?: number };
+  warnings?: string[];
+  appliedRules?: string[];
+  score?: { before?: number; after?: number };
 }
 
 export interface LoadOrderConstraints {
@@ -4043,43 +4432,7 @@ export interface SimpleHardwarePerformancePrediction {
   confidence: number;
 }
 
-// Texture Optimization
-export interface TextureOptimizationMiningEngine {
-  analyze: (ddsFiles: DDSFile[], hardwareProfile: HardwareProfile) => Promise<TextureOptimization[]>;
-  recommendCompression: (texture: DDSFile) => Promise<CompressionRecommendation>;
-  batchOptimize: (textures: DDSFile[]) => Promise<BatchOptimizationResult>;
-}
 
-export interface TextureOptimization {
-  texturePath: string;
-  currentFormat: string;
-  recommendedFormat: string;
-  compressionRatio: number;
-  qualityImpact: number;
-  performanceGain: number;
-  memorySavings: number;
-}
-
-export interface CompressionRecommendation {
-  originalFormat: string;
-  recommendedFormat: 'DXT1' | 'DXT3' | 'DXT5' | 'BC7' | 'BC6H' | 'RGBA8';
-  compressionSettings: {
-    quality: number;
-    mips: boolean;
-    alpha: boolean;
-  };
-  expectedSavings: number;
-  qualityLoss: number;
-}
-
-export interface BatchOptimizationResult {
-  totalTextures: number;
-  optimizedTextures: number;
-  totalMemorySavings: number;
-  averageQualityLoss: number;
-  processingTime: number;
-  recommendations: TextureOptimization[];
-}
 
 // Mesh Optimization
 export interface MeshOptimizationMiningEngine {
@@ -4089,19 +4442,35 @@ export interface MeshOptimizationMiningEngine {
 }
 
 export interface MeshOptimization {
-  meshPath: string;
-  currentTriangles: number;
-  recommendedTriangles: number;
-  lodSuggestions: LODSuggestion[];
-  performanceImpact: number;
-  visualQualityLoss: number;
+  // Flexible mesh optimization result
+  meshPath?: string;
+  currentTriangles?: number;
+  recommendedTriangles?: number;
+  currentVertexCount?: number;
+  optimizedVertexCount?: number;
+  lodSuggestions?: LODSuggestion[];
+  lodLevels?: LODLevel[];
+  expectedPerformanceGain?: number;
+  performanceImpact?: number;
+  visualQualityLoss?: number;
+  qualityLoss?: number;
+  recommendations?: string[];
 }
 
 export interface LODSuggestion {
-  distance: number;
-  triangleReduction: number;
-  quality: 'high' | 'medium' | 'low';
-  performanceGain: number;
+  // Flexible LOD suggestion shape used across mining engines
+  distance?: number;
+  triangleReduction?: number;
+  quality?: 'high' | 'medium' | 'low' | string;
+  performanceGain?: number;
+
+  // Alternative/expanded fields used by different modules
+  meshPath?: string;
+  lodLevels?: LODLevel[];
+  totalReduction?: number;
+  performanceImpact?: number;
+  generationMethod?: string;
+  reasoning?: string;
 }
 
 export interface LODSettings {
@@ -4128,37 +4497,46 @@ export interface IniParameterMiningEngine {
 
 export interface IniOptimization {
   iniPath: string;
-  section: string;
-  key: string;
-  currentValue: string;
-  recommendedValue: string;
-  performanceImpact: number;
-  stabilityImpact: number;
-  reasoning: string;
+  // granular single-parameter form (back-compat)
+  section?: string;
+  key?: string;
+  currentValue?: string;
+  recommendedValue?: string;
+  performanceImpact?: number;
+  stabilityImpact?: number;
+  reasoning?: string;
+
+  // richer mining-engine shape
+  currentParameters?: any[];
+  recommendations?: ParameterRecommendation[];
+  expectedPerformanceGain?: number;
+  stabilityScore?: number;
+  compatibilityWarnings?: string[];
 }
 
 export interface INISettingsRecommendation {
   settings: IniOptimization[];
-  profile: string;
-  expectedPerformanceGain: number;
-  stabilityRating: number;
-  compatibilityScore: number;
-  warnings: string[];
+  profile?: string;
+  expectedPerformanceGain?: number;
+  stabilityRating?: number;
+  compatibilityScore?: number;
+  warnings?: string[];
 }
 
 export interface ConfigurationValidation {
   isValid: boolean;
   errors: string[];
   warnings: string[];
-  performanceScore: number;
-  stabilityScore: number;
+  performanceScore?: number;
+  stabilityScore?: number;
+  recommendations?: string[];
 }
 
 /**
  * Knowledge Graph Construction Mining Engines
  */
 
-// Modding Knowledge Mining
+// Modding Knowledge Mining (canonical, consolidated)
 export interface ModdingKnowledgeMiningEngine {
   mineFromSources: (sources: KnowledgeSource[]) => Promise<KnowledgeGraph>;
   extractInsights: (rawData: RawKnowledgeData[]) => Promise<ModdingInsight[]>;
@@ -4167,60 +4545,70 @@ export interface ModdingKnowledgeMiningEngine {
 
 export interface KnowledgeSource {
   id: string;
-  type: 'forum' | 'wiki' | 'discord' | 'tutorial' | 'documentation';
-  url: string;
-  title: string;
-  lastUpdated: number;
-  credibility: number;
+  type: 'forum' | 'wiki' | 'discord' | 'tutorial' | 'documentation' | string;
+  url?: string;
+  title?: string;
+  lastUpdated?: number | string;
+  credibility?: number;
   content?: string;
   timestamp?: number;
+  tags?: string[];
 }
 
 export interface RawKnowledgeData {
   source: KnowledgeSource;
-  topic: string;
-  content: string;
-  sentiment: number;
-  relevance: number;
+  topic?: string;
+  content?: string;
+  sentiment?: number;
+  relevance?: number;
+  extractedAt?: number;
+  processingMetadata?: Record<string, any>;
 }
 
 export interface ModdingInsight {
   id: string;
-  type: 'solution' | 'warning' | 'optimization' | 'compatibility' | 'tutorial';
-  title: string;
-  description: string;
-  confidence: number;
-  sources: KnowledgeSource[];
+  type: 'solution' | 'warning' | 'optimization' | 'compatibility' | 'tutorial' | string;
+  title?: string;
+  description?: string;
+  content?: string;
+  confidence?: number;
+  sources?: KnowledgeSource[];
   relatedMods?: string[];
+  relatedNodes?: string[];
+  actionableSteps?: string[];
+  relationships?: Array<{ targetId: string; type: string; strength?: number; metadata?: any }>;
   tags?: string[];
-  timestamp?: number;
+  metadata?: Record<string, any>;
+  timestamp?: number | string;
 }
 
 export interface KnowledgeGraph {
   nodes: KnowledgeNode[];
   edges: KnowledgeEdge[];
-  insights: ModdingInsight[];
-  lastUpdated: number;
+  insights?: ModdingInsight[];
+  lastUpdated?: number | string;
+  metadata?: { totalNodes?: number; totalEdges?: number; sourcesProcessed?: number; confidence?: number } | Record<string, any>;
 }
 
 export interface KnowledgeNode {
   id: string;
-  type: 'concept' | 'problem' | 'solution' | 'tutorial' | 'tool' | 'technique';
-  label: string;
-  content: string;
-  source: string;
-  confidence: number;
-  tags: string[];
-  metadata: Record<string, any>;
+  type: 'concept' | 'problem' | 'solution' | 'tutorial' | 'tool' | 'technique' | 'warning' | 'optimization' | 'compatibility' | string;
+  label?: string;
+  content?: string;
+  source?: string;
+  sources?: string[]; // plural form for aggregated inputs (back-compat)
+  confidence?: number;
+  tags?: string[];
+  metadata?: Record<string, any>;
 }
 
 export interface KnowledgeEdge {
-  id: string;
+  id?: string;
   source: string;
   target: string;
-  type: 'requires' | 'solves' | 'related' | 'prerequisite' | 'improves' | 'conflicts';
-  weight: number;
-  evidence: string[];
+  type?: string | 'requires' | 'solves' | 'related' | 'prerequisite' | 'improves' | 'conflicts';
+  weight?: number;
+  evidence?: any[];
   metadata?: Record<string, any>;
 }
 
@@ -4342,6 +4730,8 @@ export interface VersionCompatibilityGraph {
 export interface CompatibilityPrediction {
   compatibility: 'compatible' | 'incompatible' | 'unknown' | 'risky';
   confidence: number;
+  issues?: string[];
+  recommendations?: string[];
 }
 
 // --- Testing suite types ---
@@ -4374,6 +4764,8 @@ export interface Test {
   expected: ExpectedResult;
   timeout: number; // ms
 }
+
+export type TestCase = Test;
 
 export interface TestSuite {
   id: string;
@@ -4408,7 +4800,7 @@ export interface TestResults {
   summary: string; // human-readable summary
 }
 
-export interface Conflict {
+export interface SimpleConflict {
   id?: string;
   type?: string;
   description?: string;
@@ -4417,7 +4809,7 @@ export interface Conflict {
 }
 
 export interface LoadOrderTestResult extends TestResult {
-  conflicts: Conflict[];
+  conflicts: SimpleConflict[];
   missingMasters: string[];
   circularDependencies: string[][];
   recommendations: string[];
@@ -4516,8 +4908,92 @@ export interface BenchmarkResult {
   comparison?: ComparisonData;
 }
 
+// --- Version control / Git types ---
+export interface Remote { name: string; url?: string; fetchUrl?: string; pushUrl?: string }
+export interface GitRepo { path: string; initialized: boolean; currentBranch: string; remotes: Remote[]; uncommittedChanges: number }
+export interface CommitResult { success: boolean; hash?: string; message?: string; filesChanged?: number; timestamp?: number; error?: string }
+export interface BranchResult { success: boolean; branchName?: string; error?: string }
+export interface MergeResult { success: boolean; merged?: boolean; fastForward?: boolean; conflicts?: string[]; error?: string }
+export interface CommitHistory { hash: string; message: string; author: string; email: string; timestamp: number; branch?: string; filesChanged?: string[] }
+export interface DiffLine { type: 'add' | 'delete' | 'context'; content: string; lineNumber: number }
+export interface DiffChunk { oldStart: number; oldLines: number; newStart: number; newLines: number; lines: DiffLine[] }
+export interface DiffResult { fileA: string; fileB: string; additions: number; deletions: number; chunks: DiffChunk[] }
+export interface CommitChanges { hash: string; message: string; author: string; date: number; files: DiffResult[] }
+export interface PushResult { success: boolean; pushed: number; rejected: number; error?: string }
+export interface PullResult { success: boolean; merged: number; fetched: number; conflicts?: string[]; error?: string }
+export interface CloneResult { success: boolean; path?: string; error?: string }
+export interface Backup { id: string; timestamp: number; size: number; path: string; description?: string }
+export interface BackupResult { success: boolean; backupId?: string; path?: string; size?: number; timestamp?: number; error?: string }
+export interface RestoreResult { success: boolean; restoredFiles: number; error?: string }
+
+
 export interface PluginLoadTime { plugin: string; loadTime: number; percentage: number }
 export interface AssetLoadTime { assetType: string; loadTime: number; count: number; averagePerAsset: number }
+
+// --- Load order / plugin analysis types ---
+export interface PluginInfo { fileName: string; name?: string; enabled?: boolean; type?: 'esm' | 'esl' | 'esp' | string; masters?: string[]; overrides?: string[]; conflicts?: PluginConflict[]; version?: string; author?: string; size?: number; recordCount?: number; loadIndex?: number; filePath?: string; modifiedDate?: Date | number }
+export interface HeatmapCell { x: number; y: number; value: number; severity: 'none' | 'minor' | 'major' | 'critical'; plugins?: string[] }
+export interface ConflictMatrix { plugins: string[]; conflicts: number[][]; severityMap: ('none'|'minor'|'major'|'critical')[][]; heatmapData: HeatmapCell[] }
+export interface DependencyNode { id: string; plugin?: string; type?: string; level?: number; dependencies?: string[]; dependents?: string[] }
+export interface DependencyEdge { from: string; to: string; type?: 'master' | 'override' | string; required?: boolean }
+export interface DependencyGraph { nodes: DependencyNode[]; edges: DependencyEdge[]; cycles?: string[][]; loadOrder?: string[]; levels?: string[][] }
+
+export interface LoadOrderBottleneck { plugin: string; type?: string; severity?: 'low' | 'medium' | 'high' | 'critical' | string; impact?: number; suggestion?: string }
+export interface PerformanceEstimate { loadTime: number; memoryUsage: number; scriptLoad: number; cellLoadImpact: number; overallScore: number; bottlenecks: LoadOrderBottleneck[] }
+
+// --- Conflict resolution types used by mining/conflictResolution.ts ---
+export type ConflictSeverity = 'low' | 'minor' | 'major' | 'critical' | 'warning' | 'error' | string;
+export type ConflictType = 'override' | 'delete' | 'navmesh' | 'script' | 'asset' | string;
+
+export interface Conflict {
+  formId?: string;
+  recordType?: string;
+  editorId?: string | number;
+  affectedPlugins: string[];
+  winningPlugin?: string;
+  losingPlugins?: string[];
+  severity?: ConflictSeverity;
+  conflictType?: ConflictType;
+  resolutionSuggestion?: string;
+  resolutionDetails?: any;
+}
+
+export interface ConflictAnalysis {
+  totalConflicts: number;
+  criticalConflicts: number;
+  plugins: PluginConflictInfo[];
+  conflictMatrix: ConflictMatrix;
+  recommendations: string[];
+}
+
+export interface RecordData { pluginName: string; formId?: string; recordType?: string; fields: Record<string, any>; editorId?: string }
+export interface FieldDifference { fieldName: string; valueA: any; valueB: any; important?: boolean }
+export interface RecordComparison { formId?: string; recordType?: string; pluginA: RecordData; pluginB: RecordData; differences: FieldDifference[]; recommendation?: 'keep-a' | 'keep-b' | 'merge' | 'manual' }
+
+export type ResolutionStrategy = 'last-wins' | 'first-wins' | 'merge-all' | 'manual' | 'rule-based' | string;
+export interface FieldChange { field: string; note?: string; oldValue?: any; newValue?: any }
+export interface PatchRecord { formId?: string; recordType?: string; sourcePlugin?: string; fields?: FieldChange[]; resolution?: 'keep' | 'discard' | 'merge' | string }
+export interface PatchESP { fileName: string; records: PatchRecord[]; masters?: string[]; loadPosition?: 'first' | 'last' | string; description?: string }
+
+export interface CompatibilityReport { modA: string; modB: string; compatible: boolean; severity?: ConflictSeverity; conflicts: Conflict[]; summary?: string; recommendations?: string[] }
+export interface MergeRecommendation { plugins: string[]; conflictCount: number; severity: ConflictSeverity; reason?: string }
+
+export interface ConflictRule { id?: string; name: string; enabled?: boolean; priority?: number; match?: { type?: ConflictType; recordType?: string; severity?: ConflictSeverity; plugin?: string }; action?: { resolution?: string; } }
+export interface ResolvedConflicts { resolved: Conflict[]; unresolved: Conflict[]; appliedRules: string[] }
+export interface PluginConflictInfo { pluginName: string; conflictCount: number; criticalCount: number; affectedRecords?: string[] }
+
+export interface LoadOrderChange { plugin: string; from: number; to: number; type?: 'move'|'enable'|'disable'; reason?: string }
+
+export interface PluginConflict { id?: string; type?: string; severity?: 'none'|'low'|'minor'|'major'|'critical'|'error'|'warning' | string; description?: string; files?: string[] }
+export interface DependencyIssue { plugin?: string; issue?: string; missingMasters?: string[]; affectedPlugins?: string[]; severity?: 'low'|'medium'|'high'|'warning'|'error'|string; description?: string }
+export interface LoadOrderChange { plugin: string; from: number; to: number; type?: 'move'|'enable'|'disable'; reason?: string }
+export interface LoadOrderRecommendation { type?: string; message?: string; confidence?: number; plugin?: string; priority?: number | 'low' | 'medium' | 'high' | 'critical' | string; suggestedAction?: string; description?: string; impact?: { stabilityImprovement?: number; performanceImprovement?: number; conflictReduction?: number } }
+export interface LoadOrderAnalysis { totalPlugins: number; enabledPlugins: number; conflicts: PluginConflict[]; dependencyIssues: DependencyIssue[]; circularDependencies: string[][]; missingMasters: Array<string | { plugin: string; missingMaster: string }>; performanceScore: number; stabilityScore: number; recommendations: LoadOrderRecommendation[]; conflictMatrix: ConflictMatrix; dependencyGraph: DependencyGraph }
+export interface SortingRule { id: string; name: string; enabled?: boolean; priority?: number; description?: string; condition?: any; action?: any }
+export interface PriorityPlugin { fileName: string; plugin?: string; priority?: number | 'first' | 'last' | 'before' | 'after'; anchor?: string }
+export interface OptimizationRules { algorithm: 'loot'|'boss'|'stability'|'performance'|'custom'; priorityPlugins: PriorityPlugin[]; customRules: SortingRule[]; overrides?: Record<string, any>; enableESLFirst?: boolean; communityRules?: boolean }
+export interface LoadOrderRecommendationResult { plugins: string[]; changes: LoadOrderChange[]; improvements: { conflictsResolved: number; dependenciesFixed: number; stabilityGain: number; performanceGain: number }; warnings: string[]; appliedRules?: string[]; score?: { before: number; after: number } }
+
 
 export interface LoadTimeResult {
   totalTime: number; // ms
@@ -4600,6 +5076,18 @@ export interface CompatibleVersionSet {
   knownIssues: VersionIssue[];
 }
 
+// --- Material / shader types ---
+export type MaterialType = 'pbr' | 'bgsm' | 'bgem' | 'advanced' | string;
+export interface Material { id: string; name: string; type: MaterialType; created?: number; modified?: number; tags?: string[]; properties: Record<string, any>; textures: Record<string, string> }
+export interface PBRMaterial extends Material { properties: { baseColor?: string; normalMap?: string; metallic?: number; roughness?: number; ambientOcclusion?: string; }; }
+export interface BGSMMaterial extends Material { properties: { diffuse?: string; normal?: string; specular?: { strength?: number; glossiness?: number }; shaderFlags?: Record<string, boolean>; alphaBlending?: boolean } }
+export interface BGEMMaterial extends Material { properties: { effectShader?: string; particleSize?: number; colorAnimation?: { enabled: boolean; frameCount: number; frameDelay: number } } }
+export interface AdvancedMaterial extends Material { features?: string[]; advancedSettings?: Record<string, any> }
+export interface CompiledShader { vertex?: string; fragment?: string; vertexShader?: string; fragmentShader?: string; uniforms?: any[]; varyings?: any[]; errors?: string[]; warnings?: string[]; success?: boolean; compilationTime?: number }
+export interface PreviewImage { id: string; path: string; width: number; height: number; dataUrl?: string; format?: string; timestamp?: number }
+export interface BakedTextures { diffuse?: string; normal?: string; metallic?: string; roughness?: string; emissive?: string; success?: boolean; error?: string; resolution?: { width: number; height: number }; textures?: Record<string, string>; fileSize?: number; bakingTime?: number }
+export interface SaveResult { success: boolean; path?: string; format?: string; fileSize?: number; timestamp?: number; errors?: string[] }
+
 // Hardware-Specific Mining
 export interface HardwareSpecificMiningEngine {
   analyzeHardwareProfile: (hardware: HardwareProfile) => Promise<HardwareOptimization[]>;
@@ -4622,6 +5110,7 @@ export interface CPUInfo {
   baseClock: number;
   boostClock: number;
   cache: number;
+  architecture?: string;
 }
 
 export interface GPUInfo {
@@ -4651,17 +5140,12 @@ export interface OSInfo {
   name: string;
   version: string;
   architecture: 'x64' | 'x86' | 'arm64';
+  build?: string;
 }
 
 
 
-export interface HardwareRecommendation {
-  iniSettings: Record<string, any>;
-  loadOrderAdjustments: string[];
-  textureSettings: TextureOptimization[];
-  meshSettings: MeshOptimization[];
-  expectedPerformance: HardwarePerformancePrediction;
-}
+// HardwareRecommendation (defined earlier as a unified type)
 
 export interface DetailedHardwarePerformancePrediction {
   averageFps: number;
@@ -4674,7 +5158,7 @@ export interface DetailedHardwarePerformancePrediction {
 
 // Predictive Optimization Mining Engines
 export interface LoadOrderOptimizationMiningEngine {
-  analyze: (performanceData: PerformanceData[]) => Promise<LoadOrderOptimization[]>;
+  analyze: (loadOrder: string[], performanceData: PerformanceData[]) => Promise<LoadOrderOptimization[]>;
   optimize: (currentOrder: string[], performanceData: PerformanceData[]) => Promise<OptimizedLoadOrder>;
   predictImpact: (proposedOrder: string[], performanceData: PerformanceData[]) => Promise<LoadOrderImpact>;
 }
@@ -4707,18 +5191,33 @@ export interface ModdingKnowledgeMiningEngine {
 // Additional supporting types for Predictive Optimization
 export interface LoadOrderOptimization {
   currentOrder: string[];
-  optimizedOrder: string[];
-  performanceGain: number;
-  stabilityImprovement: number;
+  suggestedOrder?: string[];
+  optimizedOrder?: string[];
+  performanceImprovement?: number;
+  performanceGain?: number;
+  stabilityScore?: number;
+  stabilityImprovement?: number;
   conflictReduction: number;
   reasoning: string[];
 }
 
 export interface OptimizedLoadOrder {
-  order: string[];
-  expectedPerformance: HardwarePerformancePrediction;
-  conflictScore: number;
-  stabilityRating: number;
+  // Core representation used by different optimizer components
+  order?: string[];
+  plugins?: string[];
+  changes?: LoadOrderChange[];
+
+  expectedPerformanceGain?: number;
+  expectedPerformance?: HardwarePerformancePrediction;
+  conflictScore?: number;
+  stabilityRating?: number;
+  implementationSteps?: string[];
+
+  // UI/optimizer summary fields
+  improvements?: { conflictsResolved?: number; dependenciesFixed?: number; stabilityGain?: number; performanceGain?: number };
+  warnings?: string[];
+  appliedRules?: string[];
+  score?: { before?: number; after?: number };
 }
 
 export interface LoadOrderImpact {
@@ -4732,26 +5231,41 @@ export interface TextureOptimization {
   texturePath: string;
   currentFormat: string;
   recommendedFormat: string;
-  expectedSavings: number;
-  performanceGain: number;
-  compatibilityNotes: string[];
+  compressionRatio?: number;
+  qualityImpact?: number;
+  performanceGain?: number;
+  memorySavings?: number;
+  expectedSavings?: number;
+  compatibilityNotes?: string[];
 }
 
 export interface CompressionRecommendation {
-  texturePath: string;
-  suggestedFormat: string;
-  suggestedResolution: { width: number; height: number };
-  performanceGain: number;
-  fileSizeReduction: number;
-  qualityImpact: number;
-  compatibility: string[];
+  texturePath?: string;
+  originalFormat?: string;
+  recommendedFormat?: TextureFormat;
+  suggestedFormat?: TextureFormat;
+  suggestedResolution?: { width: number; height: number } | number;
+  compressionSettings?: { quality?: number; mips?: boolean; alpha?: boolean };
+  compressionRatio?: number;
+  expectedSavings?: number;
+  qualityLoss?: number;
+  performanceGain?: number;
+  fileSizeReduction?: number;
+  compatibilityNotes?: string[];
+  implementationSteps?: string[];
 }
 
 export interface BatchOptimizationResult {
-  optimizations: TextureOptimization[];
-  totalSavings: number;
-  averagePerformanceGain: number;
-  incompatibleTextures: string[];
+  totalTextures?: number;
+  optimizedTextures?: number;
+  totalMemorySavings?: number;
+  averageQualityLoss?: number;
+  processingTime?: number;
+  recommendations?: CompressionRecommendation[];
+  optimizations?: TextureOptimization[];
+  totalSavings?: number;
+  averagePerformanceGain?: number;
+  incompatibleTextures?: string[];
 }
 
 export interface LODSettings {
@@ -4763,22 +5277,22 @@ export interface LODSettings {
 }
 
 export interface MeshOptimization {
-  meshPath: string;
-  currentVertexCount: number;
-  optimizedVertexCount: number;
-  lodLevels: number;
-  expectedPerformanceGain: number;
-  qualityLoss: number;
-  recommendations: string[];
+  // Flexible mesh optimization result
+  meshPath?: string;
+  currentTriangles?: number;
+  recommendedTriangles?: number;
+  currentVertexCount?: number;
+  optimizedVertexCount?: number;
+  lodSuggestions?: LODSuggestion[];
+  lodLevels?: LODLevel[];
+  expectedPerformanceGain?: number;
+  performanceImpact?: number;
+  visualQualityLoss?: number;
+  qualityLoss?: number;
+  recommendations?: string[];
 }
 
-export interface LODSuggestion {
-  meshPath: string;
-  lodLevels: LODLevel[];
-  totalReduction: number;
-  performanceImpact: number;
-  generationMethod: string;
-}
+// LODSuggestion (unified above)
 
 export interface LODLevel {
   level: number;
@@ -4804,92 +5318,42 @@ export interface LODGenerationStats {
 
 export interface IniOptimization {
   iniPath: string;
-  section: string;
-  key: string;
-  currentValue: string;
-  recommendedValue: string;
-  performanceImpact: number;
-  stabilityImpact: number;
-  reasoning: string;
+  // granular single-parameter form (back-compat)
+  section?: string;
+  key?: string;
+  currentValue?: string;
+  recommendedValue?: string;
+  performanceImpact?: number;
+  stabilityImpact?: number;
+  reasoning?: string;
+
+  // richer mining-engine shape
+  currentParameters?: any[];
+  recommendations?: ParameterRecommendation[];
+  expectedPerformanceGain?: number;
+  stabilityScore?: number;
+  compatibilityWarnings?: string[];
 }
 
 export interface INISettingsRecommendation {
   settings: IniOptimization[];
-  profile: string;
-  expectedPerformanceGain: number;
-  compatibilityWarnings: string[];
+  profile?: string;
+  expectedPerformanceGain?: number;
+  compatibilityWarnings?: string[];
+  warnings?: string[];
 }
 
 export interface ConfigurationValidation {
   isValid: boolean;
   errors: string[];
   warnings: string[];
-  performanceScore: number;
-  recommendations: string[];
+  performanceScore?: number;
+  stabilityScore?: number;
+  recommendations?: string[];
 }
 
-// Additional supporting types for Knowledge Graph Construction
-export interface KnowledgeSource {
-  id: string;
-  type: 'forum' | 'wiki' | 'discord' | 'tutorial' | 'documentation';
-  url: string;
-  title: string;
-  lastUpdated: number;
-  credibility: number;
-  tags: string[];
-}
+// (duplicate knowledge-type declarations removed — use canonical definitions above)
 
-export interface KnowledgeGraph {
-  nodes: KnowledgeNode[];
-  edges: KnowledgeEdge[];
-  metadata: {
-    totalNodes: number;
-    totalEdges: number;
-    sourcesProcessed: number;
-    lastUpdated: string;
-    confidence: number;
-  };
-}
-
-export interface KnowledgeNode {
-  id: string;
-  type: 'concept' | 'problem' | 'solution' | 'tutorial' | 'tool' | 'technique';
-  label: string;
-  content: string;
-  source: string;
-  confidence: number;
-  tags: string[];
-  metadata: Record<string, any>;
-}
-
-export interface KnowledgeEdge {
-  id: string;
-  source: string;
-  target: string;
-  type: 'requires' | 'solves' | 'related' | 'prerequisite' | 'improves' | 'conflicts';
-  weight: number;
-  evidence: string[];
-  metadata?: Record<string, any>;
-}
-
-export interface RawKnowledgeData {
-  source: KnowledgeSource;
-  content: string;
-  extractedAt: number;
-  processingMetadata: Record<string, any>;
-}
-
-export interface ModdingInsight {
-  id: string;
-  type: 'solution' | 'warning' | 'optimization' | 'compatibility' | 'tutorial';
-  title: string;
-  description: string;
-  confidence: number;
-  sources: KnowledgeSource[];
-  relatedNodes: string[];
-  actionableSteps: string[];
-  metadata: Record<string, any>;
-}
 
 // Update AdvancedAnalysisEngine interface
 export interface AdvancedAnalysisEngine {
@@ -5687,8 +6151,10 @@ export interface CKValidationResult {
 }
 
 export interface ValidationIssue {
-  type: 'file_size' | 'memory' | 'known_mod' | 'missing_master' | 'corrupted_mesh';
-  severity: 'warning' | 'error' | 'critical';
+  type?: 'file_size' | 'memory' | 'known_mod' | 'missing_master' | 'corrupted_mesh' | string;
+  severity: 'info' | 'warning' | 'error' | 'critical';
+  code?: string;
+  suggestion?: string;
   message: string;
   fix?: string;
   cellId?: string;
@@ -5791,10 +6257,10 @@ export interface QuestStage {
 }
 
 export interface StageFlags {
-  startGameEnabled: boolean;
-  completeQuest: boolean;
-  failQuest: boolean;
-  shutDownStage: boolean;
+  startGameEnabled?: boolean;
+  completeQuest?: boolean;
+  failQuest?: boolean;
+  shutDownStage?: boolean;
 }
 
 export interface Condition {
@@ -5821,20 +6287,111 @@ export interface QuestAlias {
   conditions: Condition[];
 }
 
-export interface ValidationWarning {
-  message: string;
-  recommendation: string;
+export type EmotionType = 
+  | 'happy' | 'sad' | 'angry' | 'fear' | 'disgust' 
+  | 'surprise' | 'neutral' | 'custom';
+
+export interface DialogueBranch {
+  id: string;
+  npc: string;
+  topic: string;
+  priority?: number;
+  nodes: DialogueNode[];
+  quest?: string;
+  conditions?: Condition[];
 }
 
-export interface CKMonitoringSession {
+export interface DialogueNode {
   id: string;
-  processId: number;
-  startTime: number;
-  status: 'running' | 'frozen' | 'crashed' | 'completed';
-  currentCell?: string;
-  cellsProcessed: number;
-  totalCells?: number;
+  speaker: 'player' | 'npc' | 'other';
+  text: string;
+  prompt?: string; // Player choice text
+  responses?: DialogueResponse[];
+  conditions?: Condition[];
+  actions?: DialogueAction[];
+  emotions?: EmotionType;
+  animation?: string;
 }
+
+export interface DialogueResponse {
+  targetNodeId: string;
+  conditions?: Condition[];
+  chance?: number; // Random selection
+}
+
+export interface DialogueAction {
+  type: 'script' | 'set-stage' | 'give-item' | 'add-perk' | 'start-combat';
+  parameters?: Record<string, any>;
+}
+
+export interface UserChoice {
+  dialogueNodeId: string;
+  responseIndex: number;
+}
+
+export interface SimulationResult {
+  path: QuestStage[];
+  choices: UserChoice[];
+  finalStage: number;
+  success: boolean;
+  warnings: string[];
+  estimatedDuration?: number;
+  issues?: string[];
+}
+
+// Backwards-compatibility alias
+export type QuestSimulationResult = SimulationResult;
+
+export interface PapyrusCode {
+  scriptName: string;
+  code: string;
+  properties: QuestProperty[];
+  createdAt?: number;
+}
+
+// Backwards-compatible augmentations for legacy mining/editor code
+export interface Quest {
+  // legacy aliases
+  questId?: string;
+  questName?: string;
+  // legacy collections
+  objectives?: QuestObjective[];
+  rewards?: any[];
+  dialogueLinks?: string[];
+}
+
+export interface QuestStage {
+  // legacy aliases
+  stageIndex?: number;
+  description?: string;
+  scriptFragments?: string[];
+}
+
+export interface StageFlags {
+  // legacy flag used by older code
+  run?: boolean;
+  startUpStage?: boolean;
+  keepInstanceFlag?: boolean;
+  completeAllObjectives?: boolean;
+  completeQuest?: boolean;
+  failQuest?: boolean;
+  startGameEnabled?: boolean;
+}
+
+export interface QuestObjective {
+  objectiveId?: string;
+  marker?: { formId?: string; coordinate?: { x?: number; y?: number } };
+  targetFormId?: string;
+  description?: string;
+  stageIndex?: number;
+  scriptActions?: string[];
+}
+
+export interface DialogueNode { nodeId?: string; scriptActions?: string[]; }
+export interface SimulationResult { questId?: string; totalStages?: number; executedStages?: number[]; completionPath?: any[]; }
+export interface Quest { questId?: string; questName?: string; objectives?: QuestObjective[]; rewards?: any[]; dialogueLinks?: string[] }
+export interface PapyrusCode { scriptBody?: string; fragments?: string[]; formId?: string | number; dependencies?: string[]; }
+
 
 export interface CKHealthMetrics {
   memoryUsage: number;
@@ -5878,131 +6435,42 @@ export interface PreventionStep {
   completed: boolean;
 }
 
-// ============================================================================
-// QUEST EDITOR TYPES
-// ============================================================================
+// Duplicate quest-editor block removed (consolidated earlier)
 
-         // Miscellaneous objective
 
-export interface Quest {
-  id: string;
-  name: string;
-  description: string;
-  type: QuestType;
-  priority: number;
-  stages: QuestStage[];
-  aliases: QuestAlias[];
-  properties: QuestProperty[];
-  script?: string;
-}
 
-export interface QuestProperty {
-  name: string;
-  type: 'ObjectReference' | 'Int' | 'Float' | 'Bool' | 'String';
-  value: any;
-}
 
-export interface QuestStage {
-  index: number;
-  logEntry?: string;
-  objectives: QuestObjective[];
-  conditions: Condition[];
-  resultScript?: string;
-  flags: StageFlags;
-}
+// CommandRegistration augmentation
+export interface CommandRegistration { category?: string; keybinding?: string; handler?: any }
 
-export interface StageFlags {
-  startGameEnabled: boolean;
-  completeQuest: boolean;
-  failQuest: boolean;
-  shutDownStage: boolean;
-}
+// --- Game / runtime integration types (top-level declarations) ---
+export interface GameProcess { pid: number; name: string; executablePath?: string; path?: string; version?: string; uptime?: number; runningSince?: number; status?: 'running' | 'stopped' | 'crashed'; f4seDetected?: boolean; skseDetected?: boolean; }
+export interface CommandResult { success: boolean; output?: string; error?: string; exitCode?: number }
+export interface SaveGameAnalysis { fileName: string; playerName?: string; level?: number; playTime?: number; location?: string; pluginList?: string[]; missingPlugins?: string[]; formCount?: number; scriptInstanceCount?: number; suspendedStackCount?: number; changeFormCount?: number; corruptionRisk?: 'low'|'medium'|'high' | string; recommendations?: string[]; size?: number; timestamp?: number }
+export interface ModStatus { id: string; name?: string; installed: boolean; enabled: boolean; version?: string; source?: string; conflicts?: string[] }
+export interface PerformanceStream { timestamp: number; fps: number; cpu: number; cpuUsage?: number; gpu: number; gpuUsage?: number; memory: number; frameTime?: number; scriptLag?: number }
+export interface InjectionResult { success: boolean; error?: string; injectedAt?: number; details?: any; dllPath?: string; injectionTime?: number; communicationEstablished?: boolean }
+export interface ConsoleCommand { command: string; args?: string[]; description?: string; category?: string; dangerous?: boolean }
+export interface MacroCommand { id?: string; name?: string; commands: ConsoleCommand[] }
 
-export interface Condition {
-  function: string; // GetStage, GetItemCount, etc.
-  parameters: any[];
-  operator: '==' | '!=' | '>' | '<' | '>=' | '<=';
-  value: any;
-  runOnTarget?: boolean;
-}
+// Projects API augmentation
+export interface ProjectInfo { created?: number; }
+export interface ProjectsAPI { createProject?: (info: any) => Promise<ProjectInfo>; getProject?: (id: string) => Promise<ProjectInfo | null>; listProjects?: () => Promise<ProjectInfo[]>; }
 
-export interface QuestObjective {
-  id: string;
-  displayText: string;
-  target?: string; // RefID or Alias
-  targetCount?: number;
-  completed: boolean;
-  conditions: Condition[];
-}
+// Other auxiliary types used by mining
+// removed duplicate lightweight RawKnowledgeData (canonical type defined above)
+export interface ShaderGraph { nodes?: ShaderNode[]; connections?: NodeConnection[]; outputs?: NodeOutput[]; metadata?: any } 
 
-export interface QuestAlias {
-  name: string;
-  type: 'reference' | 'location' | 'item';
-  fillType: 'specific' | 'unique' | 'find' | 'create';
-  conditions: Condition[];
-}
+export type ShaderNodeType = 'input'|'output'|'math'|'color'|'vector'|'texture'|'sampler'|'combine'|'custom';
+export interface NodeInput { id: string; name: string; type: string; defaultValue?: any }
+export interface NodeOutput { id: string; name: string; type: string; slot?: string; connectedNode?: string }
+export interface NodeConnection { fromNode?: string; fromOutput?: string; toNode?: string; toInput?: string; outputNode?: string; inputNode?: string; outputSocket?: string; inputSocket?: string }
+export interface NodeDefinition { id: string; category?: string; name?: string; description?: string; inputs?: NodeInput[]; outputs?: NodeOutput[]; metadata?: any }
+export interface ShaderNode { id: string; type: ShaderNodeType | string; definitionId?: string; inputs: NodeInput[]; outputs: NodeOutput[]; position?: { x: number; y: number }; metadata?: any; operation?: MathOperation | ColorOperation | VectorOperation | string; properties?: Record<string, any> }
+export interface OutputNode { id: string; slot?: string; connectedNode?: string; outputs?: NodeOutput[]; }
+export type MathOperation = 'add'|'subtract'|'multiply'|'divide'|'power'|'clamp'|'lerp'
+export type ColorOperation = 'rgb-split'|'rgb-combine'|'hsv-adjust'|'adjust-contrast'|'invert'
+export type VectorOperation = 'normalize'|'length'|'dot'|'cross'
+export interface ShaderGraphValidationResult { valid: boolean; errors: string[]; warnings?: string[]; metrics?: any; stats?: Record<string, any> }
+export interface CompiledShaderOutput { success?: boolean; vertexShader?: string; fragmentShader?: string; vertex?: string; fragment?: string; errors?: string[]; warnings?: string[]; compilationTime?: number; stats?: { instructionCount?: number; textureCount?: number; parameterCount?: number }; uniforms?: any[]; varyings?: any[]; outputs?: any[]; metadata?: any }
 
-export type EmotionType = 
-  | 'happy' | 'sad' | 'angry' | 'fear' | 'disgust' 
-  | 'surprise' | 'neutral' | 'custom';
-
-export interface DialogueBranch {
-  id: string;
-  npc: string;
-  topic: string;
-  priority: number;
-  nodes: DialogueNode[];
-  quest?: string;
-}
-
-export interface DialogueNode {
-  id: string;
-  speaker: 'player' | 'npc' | 'other';
-  text: string;
-  prompt?: string; // Player choice text
-  responses: DialogueResponse[];
-  conditions: Condition[];
-  actions: DialogueAction[];
-  emotions?: EmotionType;
-  animation?: string;
-}
-
-export interface DialogueResponse {
-  targetNodeId: string;
-  conditions: Condition[];
-  chance?: number; // Random selection
-}
-
-export interface DialogueAction {
-  type: 'script' | 'set-stage' | 'give-item' | 'add-perk' | 'start-combat';
-  parameters: Record<string, any>;
-}
-
-export interface ValidationResult {
-  isValid: boolean;
-  errors: string[];
-  warnings: string[];
-  timestamp?: number;
-}
-
-export interface SimulationResult {
-  path: QuestStage[];
-  choices: UserChoice[];
-  finalStage: number;
-  success: boolean;
-  warnings: string[];
-}
-
-// Backwards-compatibility alias
-export type QuestSimulationResult = SimulationResult;
-
-export interface UserChoice {
-  dialogueNodeId: string;
-  responseIndex: number;
-} 
-
-export interface PapyrusCode {
-  scriptName: string;
-  code: string;
-  properties: QuestProperty[];
-}

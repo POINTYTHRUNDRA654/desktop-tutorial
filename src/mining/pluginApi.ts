@@ -1,4 +1,5 @@
-import fs from 'fs/promises';
+import fs from 'fs';
+import fsp from 'fs/promises';
 import path from 'path';
 import { EventEmitter } from 'events';
 import {
@@ -28,7 +29,7 @@ import {
 export class FileSystemAPIImpl implements FileSystemAPI {
   async readFile(filePath: string): Promise<Buffer> {
     try {
-      return await fs.readFile(filePath);
+      return await fsp.readFile(filePath);
     } catch (error) {
       throw new Error(`Failed to read file ${filePath}: ${error instanceof Error ? error.message : String(error)}`);
     }
@@ -36,7 +37,7 @@ export class FileSystemAPIImpl implements FileSystemAPI {
 
   async readJson(filePath: string): Promise<any> {
     try {
-      const content = await fs.readFile(filePath, 'utf-8');
+      const content = await fsp.readFile(filePath, 'utf-8');
       return JSON.parse(content);
     } catch (error) {
       throw new Error(`Failed to read JSON from ${filePath}: ${error instanceof Error ? error.message : String(error)}`);
@@ -45,8 +46,8 @@ export class FileSystemAPIImpl implements FileSystemAPI {
 
   async writeFile(filePath: string, content: Buffer | string): Promise<void> {
     try {
-      await fs.mkdir(path.dirname(filePath), { recursive: true });
-      await fs.writeFile(filePath, content);
+      await fsp.mkdir(path.dirname(filePath), { recursive: true });
+      await fsp.writeFile(filePath, content);
     } catch (error) {
       throw new Error(`Failed to write file ${filePath}: ${error instanceof Error ? error.message : String(error)}`);
     }
@@ -62,7 +63,7 @@ export class FileSystemAPIImpl implements FileSystemAPI {
 
   async exists(filePath: string): Promise<boolean> {
     try {
-      await fs.access(filePath);
+      await fsp.access(filePath);
       return true;
     } catch {
       return false;
@@ -71,11 +72,11 @@ export class FileSystemAPIImpl implements FileSystemAPI {
 
   async delete(filePath: string): Promise<void> {
     try {
-      const stat = await fs.stat(filePath);
+      const stat = await fsp.stat(filePath);
       if (stat.isDirectory()) {
-        await fs.rm(filePath, { recursive: true, force: true });
+        await fsp.rm(filePath, { recursive: true, force: true });
       } else {
-        await fs.unlink(filePath);
+        await fsp.unlink(filePath);
       }
     } catch (error) {
       throw new Error(`Failed to delete ${filePath}: ${error instanceof Error ? error.message : String(error)}`);
@@ -84,7 +85,7 @@ export class FileSystemAPIImpl implements FileSystemAPI {
 
   async mkdir(dirPath: string): Promise<void> {
     try {
-      await fs.mkdir(dirPath, { recursive: true });
+      await fsp.mkdir(dirPath, { recursive: true });
     } catch (error) {
       throw new Error(`Failed to create directory ${dirPath}: ${error instanceof Error ? error.message : String(error)}`);
     }
@@ -92,7 +93,7 @@ export class FileSystemAPIImpl implements FileSystemAPI {
 
   async readdir(dirPath: string): Promise<string[]> {
     try {
-      return await fs.readdir(dirPath);
+      return await fsp.readdir(dirPath);
     } catch (error) {
       throw new Error(`Failed to read directory ${dirPath}: ${error instanceof Error ? error.message : String(error)}`);
     }
@@ -100,7 +101,7 @@ export class FileSystemAPIImpl implements FileSystemAPI {
 
   async stat(filePath: string): Promise<{ isFile(): boolean; isDirectory(): boolean; size: number; mtime: Date }> {
     try {
-      const stat = await fs.stat(filePath);
+      const stat = await fsp.stat(filePath);
       return {
         isFile: () => stat.isFile(),
         isDirectory: () => stat.isDirectory(),
@@ -283,6 +284,7 @@ export class CommandAPIImpl implements CommandAPI {
 export class SettingsAPIImpl implements SettingsAPI {
   private settings: Map<string, any> = new Map();
   private watchers: Map<string, Set<(newValue: any, oldValue: any) => void>> = new Map();
+  private globalWatchers: Set<(s: any) => void> = new Set();
 
   register(schema: SettingSchema): void {
     if (!this.settings.has(schema.key)) {
@@ -304,6 +306,10 @@ export class SettingsAPIImpl implements SettingsAPI {
         watcher(value, oldValue);
       }
     }
+
+    // Notify global watchers
+    const snapshot = Object.fromEntries(this.settings);
+    for (const g of this.globalWatchers) g(snapshot);
   }
 
   watch(key: string, callback: (newValue: any, oldValue: any) => void): () => void {
@@ -315,6 +321,25 @@ export class SettingsAPIImpl implements SettingsAPI {
     return () => {
       this.watchers.get(key)?.delete(callback);
     };
+  }
+
+  // -- Methods required by the exported SettingsAPI interface --
+  async getSettings(): Promise<any> {
+    return Object.fromEntries(this.settings);
+  }
+
+  async setSettings(s: Partial<any>): Promise<void> {
+    for (const k of Object.keys(s || {})) {
+      // reuse existing set to trigger watchers
+      await this.set(k, (s as any)[k]);
+    }
+  }
+
+  onSettingsUpdated(cb: (s: any) => void): () => void {
+    this.globalWatchers.add(cb);
+    // call immediately with current snapshot
+    cb(Object.fromEntries(this.settings));
+    return () => this.globalWatchers.delete(cb);
   }
 }
 
@@ -394,7 +419,7 @@ export class AssetsAPIImpl implements AssetsAPI {
 
   async import(sourcePath: string, assetType: string, options?: Record<string, any>): Promise<AssetMetadata> {
     try {
-      const stat = await fs.stat(sourcePath);
+      const stat = await fsp.stat(sourcePath);
       const assetId = `asset-${++this.assetCount}`;
       const metadata: AssetMetadata = {
         id: assetId,
@@ -470,7 +495,7 @@ export class AssetsAPIImpl implements AssetsAPI {
     const errors: string[] = [];
     try {
       // Check if file exists
-      await fs.access(asset.path);
+      await fsp.access(asset.path);
     } catch {
       errors.push(`Asset file not found at ${asset.path}`);
     }
@@ -508,9 +533,22 @@ export class ProjectsAPIImpl implements ProjectsAPI {
     };
 
     this.projects.set(projectId, project);
-    await fs.mkdir(projectPath, { recursive: true });
+    await fsp.mkdir(projectPath, { recursive: true });
 
     return project;
+  }
+
+  // Compatibility wrappers matching ProjectsAPI interface
+  async createProject(info: any): Promise<ProjectInfo> {
+    return this.create(info.name, info.game, info.path);
+  }
+
+  async getProject(id: string): Promise<ProjectInfo | null> {
+    return this.projects.get(id) || null;
+  }
+
+  async listProjects(): Promise<ProjectInfo[]> {
+    return this.list();
   }
 
   async open(projectId: string): Promise<void> {
@@ -530,7 +568,7 @@ export class ProjectsAPIImpl implements ProjectsAPI {
     }
 
     try {
-      await fs.rm(project.path, { recursive: true, force: true });
+      await fsp.rm(project.path, { recursive: true, force: true });
     } catch (error) {
       console.warn(`Failed to delete project directory: ${error}`);
     }

@@ -18,6 +18,13 @@ import type {
   QuestFlowResult,
   TestReport,
   ExportFormat,
+  CompilationError,
+  CompilationWarning,
+  BenchmarkMetrics,
+  MetricRegression,
+  AssetLoadTime,
+  PluginLoadTime,
+  QuestStage,
 } from '../shared/types';
 
 function now() { return Date.now(); }

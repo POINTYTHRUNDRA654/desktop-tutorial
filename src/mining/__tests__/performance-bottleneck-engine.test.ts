@@ -47,9 +47,9 @@ describe('PerformanceBottleneckDetectionEngine', () => {
         } as any,
         loadOrder: ['mod1', 'mod2', 'mod3'],
         sessionDuration: 180
-      };
+      } as any;
 
-      const analysis = await engine.analyzeBottlenecks(performanceData);
+      const analysis = await engine.analyzeBottlenecks(performanceData as any);
 
       expect(analysis).toHaveProperty('primaryBottlenecks');
       expect(analysis).toHaveProperty('secondaryBottlenecks');
@@ -67,9 +67,9 @@ describe('PerformanceBottleneckDetectionEngine', () => {
         systemInfo: {} as any,
         loadOrder: [],
         sessionDuration: 60
-      };
+      } as any;
 
-      const analysis = await engine.analyzeBottlenecks(performanceData);
+      const analysis = await engine.analyzeBottlenecks(performanceData as any);
 
       expect(analysis.primaryBottlenecks.length).toBeGreaterThan(0);
       const fpsBottleneck = analysis.primaryBottlenecks.find(b => b.type === 'cpu');
@@ -87,9 +87,9 @@ describe('PerformanceBottleneckDetectionEngine', () => {
         } as any,
         loadOrder: [],
         sessionDuration: 60
-      };
+      } as any;
 
-      const analysis = await engine.analyzeBottlenecks(performanceData);
+      const analysis = await engine.analyzeBottlenecks(performanceData as any);
 
       const memoryBottleneck = analysis.primaryBottlenecks.find(b => b.type === 'memory');
       expect(memoryBottleneck).toBeDefined();
@@ -128,11 +128,12 @@ describe('PerformanceBottleneckDetectionEngine', () => {
 
   describe('optimization opportunities', () => {
     it('should identify optimization opportunities', async () => {
-      const systemProfile = {
+      const systemProfile: any = {
         cpu: { cores: 2, baseClock: 2.5 },
         gpu: [{ vram: 2 }],
         ram: { total: 4 },
-        storage: { type: 'HDD' as const }
+        storage: { type: 'HDD' as const },
+        os: { name: 'Unknown', version: '0', architecture: 'x64' }
       };
 
       const opportunities = await engine.identifyOptimizationOpportunities(systemProfile);
