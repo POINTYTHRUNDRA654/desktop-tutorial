@@ -46,7 +46,8 @@ const VersionInfo: React.FC<VersionInfoProps> = ({ embedded = false }) => {
     };
 
     fetchAppVersion();
-  }, [packageVersion]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // packageVersion is a constant from build-time import, doesn't need to be in deps
 
   const containerClass = embedded
     ? 'bg-slate-900/30 border border-slate-800 rounded-lg p-4'
