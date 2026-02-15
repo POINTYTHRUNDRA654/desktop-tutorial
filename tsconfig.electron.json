@@ -11,6 +11,6 @@
     "noImplicitAny": false,
     "skipLibCheck": true
   },
-  "include": ["src/main/**/*", "src/electron/**/*", "src/shared/**/*"],
+  "include": ["src/main/**/*", "src/electron/**/*", "src/shared/**/*", "src/mining/**/*"],
   "exclude": ["node_modules", "src/renderer"]
 }

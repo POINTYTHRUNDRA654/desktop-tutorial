@@ -6092,11 +6092,18 @@ function setupIpcHandlers() {
 
 app.whenReady().then(() => {
   // Handle second instance (ensure single instance) - DO THIS FIRST
-  const gotTheLock = app.requestSingleInstanceLock();
+  const isTestMode = process.env.ELECTRON_IS_TEST === 'true';
 
-  if (!gotTheLock) {
-    app.quit();
+  if (isTestMode) {
+    console.log('[Main] ELECTRON_IS_TEST=true - skipping single-instance lock for tests');
   } else {
+    const gotTheLock = app.requestSingleInstanceLock();
+    if (!gotTheLock) {
+      console.log('[Main] Another instance is running - quitting');
+      app.quit();
+      return;
+    }
+
     app.on('second-instance', () => {
       // Focus the main window if a second instance is launched
       if (mainWindow) {
@@ -6104,45 +6111,45 @@ app.whenReady().then(() => {
         mainWindow.focus();
       }
     });
-
-    // ...existing code...
-    createWindow();
-    setupIpcHandlers();
-    bridge.start();
-
-    // Initialize auto-updater service
-    if (mainWindow) {
-      autoUpdaterService.setMainWindow(mainWindow);
-      
-      // Check for updates on startup (after a delay to not interfere with onboarding)
-      setTimeout(() => {
-        if (!isDev && mainWindow && !mainWindow.isDestroyed()) {
-          console.log('[Main] Checking for updates...');
-          autoUpdaterService.checkForUpdates().catch(err => {
-            console.error('[Main] Auto-update check failed:', err);
-          });
-        }
-      }, 10000); // Wait 10 seconds after app launch
-    }
-
-    // Ping backend health to wake up sleeping service (e.g., Render free tier)
-    const backendCfg = getBackendConfig();
-    if (backendCfg) {
-      pingBackendHealth(backendCfg).catch(err => console.error('[Main] Backend ping failed:', err));
-    }
-
-    // Try to create desktop shortcut on first run
-    if (!DesktopShortcutManager.shortcutExists()) {
-      DesktopShortcutManager.createDesktopShortcut();
-    }
-
-    app.on('activate', () => {
-      // On macOS, re-create window when dock icon is clicked and no windows are open
-      if (BrowserWindow.getAllWindows().length === 0) {
-        createWindow();
-      }
-    });
   }
+
+  // Continue normal startup
+  createWindow();
+  setupIpcHandlers();
+  bridge.start();
+
+  // Initialize auto-updater service
+  if (mainWindow) {
+    autoUpdaterService.setMainWindow(mainWindow);
+    
+    // Check for updates on startup (after a delay to not interfere with onboarding)
+    setTimeout(() => {
+      if (!isDev && mainWindow && !mainWindow.isDestroyed()) {
+        console.log('[Main] Checking for updates...');
+        autoUpdaterService.checkForUpdates().catch(err => {
+          console.error('[Main] Auto-update check failed:', err);
+        });
+      }
+    }, 10000); // Wait 10 seconds after app launch
+  }
+
+  // Ping backend health to wake up sleeping service (e.g., Render free tier)
+  const backendCfg = getBackendConfig();
+  if (backendCfg) {
+    pingBackendHealth(backendCfg).catch(err => console.error('[Main] Backend ping failed:', err));
+  }
+
+  // Try to create desktop shortcut on first run
+  if (!DesktopShortcutManager.shortcutExists()) {
+    DesktopShortcutManager.createDesktopShortcut();
+  }
+
+  app.on('activate', () => {
+    // On macOS, re-create window when dock icon is clicked and no windows are open
+    if (BrowserWindow.getAllWindows().length === 0) {
+      createWindow();
+    }
+  });
 });
 
 app.on('window-all-closed', () => {
