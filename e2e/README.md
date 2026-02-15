@@ -120,10 +120,29 @@ DEBUG=pw:api node e2e/test-runner.js dev --debug
 
 ## Continuous Integration
 
-Add to your CI pipeline:
+**Note:** E2E tests require a display environment and proper Electron sandbox permissions. In CI environments without display servers (like GitHub Actions), E2E tests may fail. The default `npm test` and `npm run verify` commands now only run unit tests to ensure CI builds pass.
+
+To run E2E tests:
+```bash
+# Run all tests including E2E (local development only)
+npm run test:all
+
+# Or run E2E tests directly
+npm run test:e2e
+```
+
+Add to your CI pipeline for unit tests only:
+```yaml
+- name: Run Tests
+  run: npm test  # Only runs unit tests
+```
+
+For full E2E testing in CI, you'll need:
 ```yaml
 - name: Run E2E Tests
-  run: node e2e/test-runner.js all
+  run: |
+    # Setup display server (xvfb)
+    xvfb-run --auto-servernum npm run test:e2e
 ```
 
 ## Troubleshooting
