@@ -52,9 +52,14 @@
 - Run `node scripts/fix-env-encryption.mjs` before packaging to ensure API keys work
 
 **Onboarding:**
-- See [BLENDER_ADDON_TUTORIAL.md](resources/public/knowledge/BLENDER_ADDON_TUTORIAL.md) for Blender scripting
-- See [ANIMATION_SUITE_IMPLEMENTATION.md](resources/public/knowledge/ANIMATION_SUITE_IMPLEMENTATION.md) for animation workflow
-- See [BLENDER_SCRIPT_EXECUTION_CHECKLIST.md](resources/public/knowledge/BLENDER_SCRIPT_EXECUTION_CHECKLIST.md) for script execution and trust
+- **📚 Documentation Guide:** See [DOCUMENTATION_GUIDE.md](DOCUMENTATION_GUIDE.md) - Navigation guide for all documentation
+- **Getting Started:** See [GETTING_STARTED.md](GETTING_STARTED.md) for quick-start information
+- **Visual Guide:** See [VISUAL_GUIDE.md](VISUAL_GUIDE.md) for page-by-page screenshots and explanations (55+ pages)
+- **Comprehensive Tutorial:** See [MOSSY_COMPREHENSIVE_TUTORIAL.md](MOSSY_COMPREHENSIVE_TUTORIAL.md) for detailed feature documentation
+- **Enhanced Tutorial:** See [MOSSY_TUTORIAL_ENHANCED.md](MOSSY_TUTORIAL_ENHANCED.md) for beginner-friendly step-by-step guide
+- **Blender Integration:** See [BLENDER_ADDON_TUTORIAL.md](resources/public/knowledge/BLENDER_ADDON_TUTORIAL.md) for Blender scripting
+- **Animation Workflow:** See [ANIMATION_SUITE_IMPLEMENTATION.md](resources/public/knowledge/ANIMATION_SUITE_IMPLEMENTATION.md) for animation workflow
+- **Script Execution:** See [BLENDER_SCRIPT_EXECUTION_CHECKLIST.md](resources/public/knowledge/BLENDER_SCRIPT_EXECUTION_CHECKLIST.md) for script execution and trust
 
 ---
 
