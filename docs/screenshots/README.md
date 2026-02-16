@@ -1,23 +1,40 @@
 # Screenshots Directory
 
-This directory contains screenshots for the Mossy Comprehensive Tutorial.
+This directory contains screenshots for Mossy tutorial documentation.
 
-## 📝 Status: Placeholder Screenshots Created
+## 📝 Status: Screenshots Available
 
-**Current State:** 9 placeholder screenshots have been created to allow the tutorial to be published with image references. These are temporary placeholders that should be replaced with actual application screenshots.
+**Current State:** This directory contains 9 core interface screenshots used for quick reference in tutorials. For comprehensive page-by-page screenshots, see `/visual-guide-images/` which has 55+ actual application screenshots.
 
-**Placeholders Created:**
-- ✅ Main interface screenshots (dashboard, sidebar, chat)
-- ✅ Core tool screenshots (Image Suite, Auditor, Workshop)
-- ✅ Settings and Learning Hub screenshots
+## Available Screenshots
 
-**To Replace Placeholders:**
-Run the automated screenshot capture script when the app is available:
-```bash
-npm run capture-screenshots
-```
+### Core Interface Screenshots (This Directory)
+- ✅ nexus-dashboard-overview.png - Main dashboard
+- ✅ sidebar-navigation.png - Navigation menu
+- ✅ chat-interface.png - AI chat interface  
+- ✅ live-voice-listening.png - Voice chat mode
+- ✅ image-suite-main.png - Image Suite tool
+- ✅ auditor-main.png - File analysis tool
+- ✅ workshop-editor.png - Code editor
+- ✅ settings-general.png - Settings page
+- ✅ learning-hub-main.png - Learning resources
 
-Or manually capture screenshots following the guidelines below.
+### Comprehensive Page Screenshots
+For detailed screenshots of all 55+ pages, see `/visual-guide-images/`
+
+## Screenshot Locations
+
+### Visual Guide Images (`/visual-guide-images/`)
+- **55+ screenshots** covering every page in Mossy
+- **Format:** "Page X, [feature name].png"
+- **Used by:** VISUAL_GUIDE.md
+- **Coverage:** Complete application documentation
+
+### Tutorial Reference (`/docs/screenshots/`)
+- **9 screenshots** of core interfaces
+- **Format:** "[feature]-[description].png" 
+- **Used by:** MOSSY_COMPREHENSIVE_TUTORIAL.md, MOSSY_TUTORIAL_ENHANCED.md
+- **Coverage:** Most commonly referenced pages
 
 ---
 
