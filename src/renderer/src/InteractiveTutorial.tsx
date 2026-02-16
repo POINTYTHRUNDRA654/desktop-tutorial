@@ -34,8 +34,49 @@ import {
   Map,
   FileText
 } from 'lucide-react';
-import { tutorialContexts } from './tutorialContext';
+import { tutorialContexts, type TutorialPageContext } from './tutorialContext';
 import { speakMossy } from './mossyTts';
+
+// Helper exported for unit tests: builds the textual tutorial content for a page context
+export function buildTutorialText(context: TutorialPageContext, pageIndex: number, hasPreconfiguredApiKeys = false) {
+  let detailedText = `Welcome to ${context.pageName}. ${context.purpose}.`;
+
+  if (context.features.length > 0) {
+    const featureList = context.features.slice(0, 4).join(', ');
+    detailedText += ` Key features include: ${featureList}.`;
+  }
+
+  if (context.controls.length > 0) {
+    detailedText += ` Let me explain the main buttons and controls. `;
+    context.controls.slice(0, 3).forEach((control) => {
+      detailedText += `The ${control.name} ${control.description}. Use this ${control.whenToUse}. `;
+    });
+  }
+
+  if (context.guides.length > 0 && context.guides[0].steps.length > 0) {
+    detailedText += `Here's how to use this page: `;
+    const guide = context.guides[0];
+    guide.steps.slice(0, 3).forEach((step, idx) => {
+      detailedText += `Step ${idx + 1}, ${step}. `;
+    });
+  }
+
+  if (context.commonMistakes.length > 0) {
+    detailedText += `Important beginner tip: ${context.commonMistakes[0]}. `;
+  }
+
+  // If keys are preconfigured in the build, remove any mention of API keys or provider setup from the tutorial text
+  if (hasPreconfiguredApiKeys) {
+    // Remove entire sentences that reference API keys or common providers (OpenAI, Groq, ElevenLabs)
+    detailedText = detailedText.replace(/[^.?!]*(?:API key|api key|OpenAI|openai|Groq|groq|ElevenLabs|elevenlabs|api-key|api_key)[^.?!]*[.?!]?/gi, '');
+    // Cleanup extra whitespace and stray punctuation
+    detailedText = detailedText.replace(/\s{2,}/g, ' ').replace(/^[.?!\s]+|[.?!\s]+$/g, '').trim();
+  }
+
+  detailedText += `Take your time to explore this page. When you're ready, click Next Step to continue.`;
+  return detailedText;
+}
+
 
 interface InteractiveTutorialProps {
   onComplete: () => void;
@@ -61,7 +102,37 @@ export const InteractiveTutorial: React.FC<InteractiveTutorialProps> = ({
   const [currentStepIndex, setCurrentStepIndex] = useState(0);
   const [completedSteps, setCompletedSteps] = useState<string[]>([]);
   const [isTransitioning, setIsTransitioning] = useState(false);
+  const [hasPreconfiguredApiKeys, setHasPreconfiguredApiKeys] = useState(false);
   const lastSpokenStepId = useRef<string | null>(null);
+
+  useEffect(() => {
+    const detectPackagedKeys = async () => {
+      try {
+        const api = (window as any).electronAPI ?? (window as any).electron?.api;
+        if (api?.getSecretStatus) {
+          const st = await api.getSecretStatus();
+          if (st && st.ok && (st.backendToken || st.openai || st.openaiApiKey || st.openaiKey)) {
+            setHasPreconfiguredApiKeys(true);
+            return;
+          }
+        }
+
+        // Fallback to environment/localStorage checks (renderer-safe and synchronous)
+        if (
+          Boolean(process?.env?.REACT_APP_OPENAI_API_KEY) ||
+          Boolean((import.meta as any).env?.VITE_OPENAI_API_KEY) ||
+          Boolean(localStorage.getItem('openai_api_key')) ||
+          Boolean(localStorage.getItem('mossy_backend_token'))
+        ) {
+          setHasPreconfiguredApiKeys(true);
+        }
+      } catch (err) {
+        // non-fatal - leave default (false)
+      }
+    };
+
+    void detectPackagedKeys();
+  }, []);
 
   const steps: TutorialStep[] = [
     {
@@ -74,38 +145,8 @@ export const InteractiveTutorial: React.FC<InteractiveTutorialProps> = ({
     },
     // Dynamically generate steps from tutorial contexts
     ...Object.values(tutorialContexts).map((context, index) => {
-      // Build detailed professional tutorial text
-      let detailedText = `Welcome to ${context.pageName}. ${context.purpose}.`;
-      
-      // Add key features
-      if (context.features.length > 0) {
-        const featureList = context.features.slice(0, 4).join(', ');
-        detailedText += ` Key features include: ${featureList}.`;
-      }
-      
-      // Explain buttons and controls in detail
-      if (context.controls.length > 0) {
-        detailedText += ` Let me explain the main buttons and controls. `;
-        context.controls.slice(0, 3).forEach((control) => {
-          detailedText += `The ${control.name} ${control.description}. Use this ${control.whenToUse}. `;
-        });
-      }
-      
-      // Add step-by-step guide
-      if (context.guides.length > 0 && context.guides[0].steps.length > 0) {
-        detailedText += `Here's how to use this page: `;
-        const guide = context.guides[0];
-        guide.steps.slice(0, 3).forEach((step, idx) => {
-          detailedText += `Step ${idx + 1}, ${step}. `;
-        });
-      }
-      
-      // Add beginner tip
-      if (context.commonMistakes.length > 0) {
-        detailedText += `Important beginner tip: ${context.commonMistakes[0]}. `;
-      }
-      
-      detailedText += `Take your time to explore this page. When you're ready, click Next Step to continue.`;
+      // Build detailed professional tutorial text (extracted helper used for testability)
+      const detailedText = buildTutorialText(context, index, hasPreconfiguredApiKeys);
       
       return {
         id: context.pageId,
@@ -354,6 +395,7 @@ export const InteractiveTutorial: React.FC<InteractiveTutorialProps> = ({
   return (
     <div className="min-h-full bg-slate-950 text-slate-100" data-tutorial-active="true">
       <div className="flex h-full flex-col">
+
         <div className="border-b border-emerald-500/40 bg-slate-950/80">
           <div className="max-w-6xl mx-auto px-6 py-4">
             <div className="flex items-center justify-between">
@@ -395,7 +437,7 @@ export const InteractiveTutorial: React.FC<InteractiveTutorialProps> = ({
           </div>
         </div>
 
-        <div className="flex-1 overflow-hidden">
+        <div className="flex-1 min-h-0 overflow-hidden">
           <div className="h-full overflow-y-auto px-6 py-6">
             <div className="max-w-6xl mx-auto grid grid-cols-1 lg:grid-cols-2 gap-6">
               <div
@@ -426,12 +468,12 @@ export const InteractiveTutorial: React.FC<InteractiveTutorialProps> = ({
                   Visual Guide
                 </div>
                 {stepImage ? (
-                  <div className="flex-1 flex flex-col">
-                    <div className="bg-slate-950/60 border border-slate-700 rounded-xl p-4 flex-1">
+                  <div className="flex-1 flex flex-col min-h-0">
+                    <div className="bg-slate-950/60 border border-slate-700 rounded-xl p-4 flex-1 overflow-hidden max-h-[48vh] md:max-h-[56vh]">
                       <img
                         src={stepImage}
                         alt={`${currentStep.title} screenshot`}
-                        className="w-full h-auto rounded border border-slate-600"
+                        className="w-full h-auto max-h-full rounded border border-slate-600 object-contain"
                         loading="lazy"
                       />
                     </div>
