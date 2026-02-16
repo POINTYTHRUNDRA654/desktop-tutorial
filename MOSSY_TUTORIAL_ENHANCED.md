@@ -185,6 +185,9 @@ When you first launch Mossy, you'll see:
 
 When Mossy opens, you'll see three main areas:
 
+![Mossy Main Interface](docs/screenshots/nexus-dashboard-overview.png)
+*The main Mossy interface showing the Nexus dashboard, sidebar navigation, and header bar*
+
 ```
 ┌─────────────┬──────────────────────────────────────┬──────────┐
 │   SIDEBAR   │         MAIN CONTENT AREA           │  AVATAR  │
@@ -219,6 +222,9 @@ When Mossy opens, you'll see three main areas:
 ---
 
 ### The Sidebar (Left Side)
+
+![Sidebar Navigation](docs/screenshots/sidebar-navigation.png)
+*The sidebar showing all module categories and navigation options*
 
 This is YOUR MAIN NAVIGATION. Everything is organized into sections:
 
@@ -415,6 +421,9 @@ You'll see colorful cards organized by category:
 **Path:** Click "Chat Interface" in sidebar (💬 icon) OR `/chat`  
 **Purpose:** Type questions and get answers from Mossy AI
 
+![Chat Interface](docs/screenshots/chat-interface.png)
+*The chat interface with message history and natural language input*
+
 ### What You'll See
 
 The Chat Interface has three main areas:
@@ -609,6 +618,9 @@ is corrupted or incorrectly formatted. Here's how to fix it...
 
 **Path:** Click "Live Voice Chat" in sidebar (🎤 icon) OR `/live`  
 **Purpose:** Talk to Mossy using your voice instead of typing
+
+![Live Voice Chat](docs/screenshots/live-voice-listening.png)
+*Live voice chat interface showing the avatar in listening mode*
 
 **⚠️ Important:** Voice chat requires:
 - A working microphone
@@ -911,6 +923,9 @@ When you click Settings, you'll see:
 
 **Path:** Click "The Auditor" in sidebar OR Tools → The Auditor OR `/tools/auditor`  
 **Purpose:** Scan your mod files for errors, problems, and potential issues
+
+![The Auditor](visual-guide-images/Page%2025%20the%20auditor..png)
+*The Auditor interface for analyzing ESP, NIF, and DDS files*
 
 **Why this matters:** The Auditor catches mistakes before you test in-game, saving hours of troubleshooting!
 
