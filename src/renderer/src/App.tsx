@@ -1,5 +1,5 @@
 import React, { useEffect, Suspense, useState } from 'react';
-import { HashRouter, Routes, Route, Navigate, useNavigate, useLocation } from 'react-router-dom';
+import { HashRouter, MemoryRouter, Routes, Route, Navigate, useNavigate, useLocation } from 'react-router-dom';
 import Sidebar from './Sidebar';
 import MossyObserver from './MossyObserver';
 import CommandPalette from './CommandPalette';
@@ -75,6 +75,11 @@ const BodyslideGuide = React.lazy(() => import('./BodyslideGuide'));
 const SimSettlementsGuide = React.lazy(() => import('./SimSettlementsGuide'));
 const PaperScriptGuide = React.lazy(() => import('./PaperScriptGuide'));
 
+// Tool extensions (lazy-loaded named exports mapped to default for React.lazy)
+const MO2Extension = React.lazy(() => import('./MO2Extension').then(module => ({ default: module.MO2Extension })));
+const ComfyUIExtension = React.lazy(() => import('./ComfyUIExtension').then(module => ({ default: module.ComfyUIExtension })));
+const UpscaylExtension = React.lazy(() => import('./UpscaylExtension').then(module => ({ default: module.UpscaylExtension })));
+
 // INI Configuration Manager
 const IniConfigManager = React.lazy(() => import('./IniConfigManager'));
 const AssetDeduplicator = React.lazy(() => import('./AssetDeduplicator'));
@@ -113,7 +118,9 @@ const MiningHub = React.lazy(() => import('./MiningHub'));
 // Mining Infrastructure
 
 // CK Crash Prevention
-const CKCrashPrevention = React.lazy(() => import('./CKCrashPrevention'));
+// CKCrashPrevention is a named export; map it to `default` for React.lazy
+const CKCrashPrevention = React.lazy(() => import('./CKCrashPrevention').then(module => ({ default: module.CKCrashPrevention })));
+
 
 // CK Tools
 const CKExtension = React.lazy(() => import('./CKExtension').then(module => ({ default: module.CKExtension })));
@@ -173,11 +180,19 @@ const ModuleLoader = () => <SkeletonLoader type="module" />;
 const WhatsNewRedirect: React.FC<{ enabled: boolean }> = ({ enabled }) => {
   const navigate = useNavigate();
   const location = useLocation();
+  const hasRedirectedRef = React.useRef(false);
 
   useEffect(() => {
-    if (!enabled || location.pathname === '/whats-new') return;
+    // Only perform a one-time redirect while the notice is enabled to avoid trapping
+    if (!enabled || location.pathname === '/whats-new' || hasRedirectedRef.current) return;
+    hasRedirectedRef.current = true;
     navigate('/whats-new', { replace: true, state: { from: location.pathname } });
   }, [enabled, location.pathname, navigate]);
+
+  // Reset guard when the notice is dismissed so it can run on next session if needed
+  useEffect(() => {
+    if (!enabled) hasRedirectedRef.current = false;
+  }, [enabled]);
 
   return null;
 };
@@ -793,15 +808,19 @@ const App: React.FC = () => {
           />
           {showInteractiveTutorialOverlay && (
             <div 
-              className="fixed inset-0 z-[100]"
+              className="fixed inset-0 z-[100] flex items-start justify-center pt-8 p-6 bg-black/60 backdrop-blur-sm overflow-auto"
               role="dialog"
               aria-modal="true"
               aria-label="Interactive Tutorial"
             >
-              <InteractiveTutorial
-                onComplete={exitInteractiveTutorial}
-                onSkip={exitInteractiveTutorial}
-              />
+              <MemoryRouter initialEntries={["/tutorial"]}>
+                <div className="w-full max-w-6xl h-full max-h-[90vh] overflow-hidden rounded-2xl shadow-2xl">
+                  <InteractiveTutorial
+                    onComplete={exitInteractiveTutorial}
+                    onSkip={exitInteractiveTutorial}
+                  />
+                </div>
+              </MemoryRouter>
             </div>
           )}
         </>
@@ -894,6 +913,7 @@ const App: React.FC = () => {
               <GlobalSearch />
               <button
                 type="button"
+                data-tour="command-palette-trigger"
                 onClick={() => window.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', ctrlKey: true }))}
                 className="hidden md:flex items-center gap-1.5 px-3 py-1.5 bg-slate-800 border border-slate-700 rounded-lg hover:bg-slate-700 transition-colors text-xs text-slate-300"
                 title="Command Palette (Ctrl+K)"
@@ -1005,7 +1025,7 @@ const App: React.FC = () => {
                 <Route path="/tools/precombine-generator" element={<ErrorBoundary><PrecombineGenerator /></ErrorBoundary>} />
                 <Route path="/tools/voice-commands" element={<ErrorBoundary><VoiceCommands /></ErrorBoundary>} />
                 <Route path="/tools/automation" element={<ErrorBoundary><AutomationManager /></ErrorBoundary>} />
-                <Route path="/tools/ck-crash-prevention" element={<CKCrashPrevention />} />
+                <Route path="/tools/ck-crash-prevention" element={<ErrorBoundary><CKCrashPrevention /></ErrorBoundary>} />
                 {/* Redirect CK Safety to CK Crash Prevention - they serve the same purpose */}
                 <Route path="/tools/ck-safety" element={<Navigate to="/tools/ck-crash-prevention" replace />} />
                 <Route path="/tools/security" element={<ErrorBoundary><SecurityValidator /></ErrorBoundary>} />
@@ -1193,6 +1213,9 @@ const App: React.FC = () => {
                 <Route path="/havok-fo4" element={<Navigate to="/guides/blender/animation" replace />} />
                 
                 {/* Extension shortcuts */}
+                <Route path="/extensions/mo2" element={<ErrorBoundary><MO2Extension /></ErrorBoundary>} />
+                <Route path="/extensions/comfyui" element={<ErrorBoundary><ComfyUIExtension /></ErrorBoundary>} />
+                <Route path="/extensions/upscayl" element={<ErrorBoundary><UpscaylExtension /></ErrorBoundary>} />
                 <Route path="/extensions/xedit" element={<Navigate to="/tools/xedit" replace />} />
                 <Route path="/extensions/ck" element={<Navigate to="/tools/ck-extension" replace />} />
                 </Routes>
