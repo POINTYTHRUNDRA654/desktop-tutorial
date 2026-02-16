@@ -44,7 +44,12 @@ export const WhatsNewDialog: React.FC<WhatsNewDialogProps> = ({ isOpen, onClose 
 
   const handleClose = () => {
     if (dontShowAgain) {
-      localStorage.setItem('mossy_whats_new_dismissed', 'true');
+      try {
+        localStorage.setItem('mossy_whats_new_dismissed', 'true');
+      } catch (err) {
+        // Don't block closing the dialog if storage is unavailable
+        console.warn('[WhatsNewDialog] could not persist dismissal:', err);
+      }
     }
     onClose();
   };
@@ -114,18 +119,30 @@ export const useWhatsNew = () => {
   const [showWhatsNew, setShowWhatsNew] = useState(false);
 
   useEffect(() => {
-    // Check if user has dismissed the dialog before
-    const dismissed = localStorage.getItem('mossy_whats_new_dismissed');
-    if (!dismissed) {
+    // Respect permanent dismissal (localStorage) or a session dismissal (sessionStorage)
+    const permanentlyDismissed = (() => {
+      try { return localStorage.getItem('mossy_whats_new_dismissed') === 'true'; } catch { return false; }
+    })();
+    const sessionDismissed = (() => {
+      try { return sessionStorage.getItem('mossy_whats_new_session_dismissed') === 'true'; } catch { return false; }
+    })();
+
+    if (!permanentlyDismissed && !sessionDismissed) {
       // Show after a brief delay to avoid overwhelming new users
-      const timer = setTimeout(() => {
-        setShowWhatsNew(true);
-      }, 2000);
+      const timer = setTimeout(() => setShowWhatsNew(true), 2000);
       return () => clearTimeout(timer);
     }
+
+    return;
   }, []);
 
-  const dismissWhatsNew = () => setShowWhatsNew(false);
+  // Dismiss for the current session (and optionally persist permanently elsewhere)
+  const dismissWhatsNew = (persistSession = true) => {
+    setShowWhatsNew(false);
+    if (persistSession) {
+      try { sessionStorage.setItem('mossy_whats_new_session_dismissed', 'true'); } catch { /* ignore */ }
+    }
+  };
 
   return { showWhatsNew, dismissWhatsNew };
 };

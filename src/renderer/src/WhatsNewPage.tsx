@@ -49,9 +49,17 @@ const WhatsNewPage: React.FC<WhatsNewPageProps> = ({ onDismiss }) => {
 
   const handleBack = () => {
     if (dontShowAgain) {
-      localStorage.setItem('mossy_whats_new_dismissed', 'true');
+      try {
+        localStorage.setItem('mossy_whats_new_dismissed', 'true');
+      } catch (err) {
+        // Don't block navigation if storage fails
+        console.warn('[WhatsNewPage] could not persist dismissal:', err);
+      }
     }
+
+    // Notify parent/hook (will at minimum set a session-dismiss flag)
     onDismiss?.();
+
     const from = (location.state as { from?: string } | null)?.from;
     if (from && from !== '/whats-new') {
       navigate(from, { replace: true });
