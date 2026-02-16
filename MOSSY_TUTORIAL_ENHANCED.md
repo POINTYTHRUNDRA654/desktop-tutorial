@@ -924,6 +924,9 @@ When you click Settings, you'll see:
 **Path:** Click "The Auditor" in sidebar OR Tools → The Auditor OR `/tools/auditor`  
 **Purpose:** Scan your mod files for errors, problems, and potential issues
 
+![The Auditor](visual-guide-images/Page%2025%20the%20auditor..png)
+*The Auditor interface for analyzing ESP, NIF, and DDS files*
+
 **Why this matters:** The Auditor catches mistakes before you test in-game, saving hours of troubleshooting!
 
 ### What You'll See
