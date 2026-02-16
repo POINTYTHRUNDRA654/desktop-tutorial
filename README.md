@@ -52,6 +52,7 @@
 - Run `node scripts/fix-env-encryption.mjs` before packaging to ensure API keys work
 
 **Onboarding:**
+- **📚 Documentation Guide:** See [DOCUMENTATION_GUIDE.md](DOCUMENTATION_GUIDE.md) - Navigation guide for all documentation
 - **Getting Started:** See [GETTING_STARTED.md](GETTING_STARTED.md) for quick-start information
 - **Visual Guide:** See [VISUAL_GUIDE.md](VISUAL_GUIDE.md) for page-by-page screenshots and explanations (55+ pages)
 - **Comprehensive Tutorial:** See [MOSSY_COMPREHENSIVE_TUTORIAL.md](MOSSY_COMPREHENSIVE_TUTORIAL.md) for detailed feature documentation

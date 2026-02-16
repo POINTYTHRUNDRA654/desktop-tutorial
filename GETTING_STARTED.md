@@ -2,6 +2,10 @@
 
 Consolidated quick-start and onboarding material.
 
+## 📚 Choose Your Learning Path
+
+**Not sure where to start?** See **[DOCUMENTATION_GUIDE.md](DOCUMENTATION_GUIDE.md)** for a complete navigation guide to all Mossy documentation.
+
 ## 📚 Documentation Guide
 
 **New to Mossy?** Choose your learning path:
