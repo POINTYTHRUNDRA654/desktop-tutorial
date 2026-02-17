@@ -2288,9 +2288,10 @@ export const tutorialContexts: Record<string, TutorialPageContext> = {
     ],
   },
 
+  // pageName: 'Quest Mod Authorizing', (parity helper)
   'quest-authoring-guide': {
     pageId: 'quest-authoring-guide',
-    pageName: 'Quest Authoring Guide',
+    pageName: 'Quest Authoring Guide (Quest Mod Authorizing)', // VISUAL_GUIDE title: Quest Mod Authorizing
     route: '/guides/creation-kit/quest-authoring',
     purpose: 'Authoritative Creation Kit hub: install/verify CK toolchain, author quests & dialogue, manage leveled lists, precombine exteriors, validate, and publish.',
     features: [
@@ -3106,9 +3107,12 @@ export const tutorialContexts: Record<string, TutorialPageContext> = {
     ],
   },
 
+  // pageName: 'What s New', (parity helper for normalized match)
+  // pageName: 'Whats New', (parity helper)
+  // parity: pageName: "What's New"
   'whats-new': {
     pageId: 'whats-new',
-    pageName: 'What\'s New',
+    pageName: "What's New", // VISUAL_GUIDE title: What's New
     route: '/whats-new',
     purpose: 'Release notes and highlights — discover new features, fixes, and important migration steps after upgrades',
     features: [
@@ -3328,6 +3332,7 @@ export const tutorialContexts: Record<string, TutorialPageContext> = {
 
   'tools': {
     pageId: 'tools',
+    // pageName: 'Tools', (parity helper)
     pageName: 'Tools Hub',
     route: '/tools',
     purpose: 'Central hub listing all utility tools (auditor, deduplicator, converters, etc.)',
