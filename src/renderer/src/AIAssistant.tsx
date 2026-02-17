@@ -14,8 +14,11 @@ import React, { useState, useRef, useEffect, useCallback } from 'react';
 import './AIAssistant.css';
 
 // Type definitions for AI modes and state
+<<<<<<< Updated upstream
 type AIMode = 'general' | 'code-gen' | 'workflow' | 'troubleshoot' | 'learn' | 'organize' | 'mod-creation';
+=======
 type AIMode = 'general' | 'code-gen' | 'workflow' | 'troubleshoot' | 'learn' | 'organize';
+>>>>>>> Stashed changes
 
 interface ChatMessage {
   id: string;
@@ -70,6 +73,7 @@ interface DocumentationDraft {
  */
 export const AIAssistant: React.FC = () => {
   // State management
+<<<<<<< Updated upstream
   const [currentMode, setCurrentMode] = useState<AIMode>(() => {
     // Check URL params for mode
     const params = new URLSearchParams(window.location.search);
@@ -79,6 +83,9 @@ export const AIAssistant: React.FC = () => {
     }
     return 'general';
   });
+=======
+  const [currentMode, setCurrentMode] = useState<AIMode>('general');
+>>>>>>> Stashed changes
   const [chatHistory, setChatHistory] = useState<ChatMessage[]>([]);
   const [inputText, setInputText] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -175,52 +182,66 @@ export const AIAssistant: React.FC = () => {
    * Handle code generation
    */
   const handleCodeGeneration = async (description: string) => {
-    const result = await window.electronAPI.aiGenerateScript({
-      description,
-      language: codeGenSession?.language || 'papyrus',
-      context: { projectType: 'Fallout4 mod' },
-      style: 'commented',
-    });
-
-    if (result.success && result.scripts && result.scripts.length > 0) {
-      const script = result.scripts[0];
-      
-      // Update session
-      setCodeGenSession(prev => ({
-        ...prev!,
-        id: `session_${Date.now()}`,
-        language: result.scripts[0].language as any,
+<<<<<<< Updated upstream
+=======
+    try {
+>>>>>>> Stashed changes
+      const result = await window.electronAPI.aiGenerateScript({
         description,
-        generatedCode: script.code,
-        history: [
-          ...(prev?.history || []),
-          { code: script.code, timestamp: Date.now() },
-        ],
-      }));
+        language: codeGenSession?.language || 'papyrus',
+        context: { projectType: 'Fallout4 mod' },
+        style: 'commented',
+      });
 
-      // Add assistant response
-      const response: ChatMessage = {
-        id: `msg_${Date.now()}`,
-        role: 'assistant',
-        content: `I've generated ${script.language} code for you. Check the code preview panel below. ${
-          script.warnings?.length ? `\n\nWarnings: ${script.warnings.join(', ')}` : ''
-        }`,
-        timestamp: Date.now(),
-        metadata: { codeId: script.code.substring(0, 50) },
-      };
-      setChatHistory(prev => [...prev, response]);
+      if (result.success && result.scripts && result.scripts.length > 0) {
+        const script = result.scripts[0];
+        
+        // Update session
+        setCodeGenSession(prev => ({
+          ...prev!,
+          id: `session_${Date.now()}`,
+          language: result.scripts[0].language as any,
+          description,
+          generatedCode: script.code,
+          history: [
+            ...(prev?.history || []),
+            { code: script.code, timestamp: Date.now() },
+          ],
+        }));
+
+        // Add assistant response
+        const response: ChatMessage = {
+          id: `msg_${Date.now()}`,
+          role: 'assistant',
+          content: `I've generated ${script.language} code for you. Check the code preview panel below. ${
+            script.warnings?.length ? `\n\nWarnings: ${script.warnings.join(', ')}` : ''
+          }`,
+          timestamp: Date.now(),
+          metadata: { codeId: script.code.substring(0, 50) },
+        };
+        setChatHistory(prev => [...prev, response]);
+      }
+<<<<<<< Updated upstream
+=======
+    } catch (error) {
+      throw error;
     }
+>>>>>>> Stashed changes
   };
 
   /**
    * Handle workflow planning
    */
   const handleWorkflowPlanning = async (goal: string) => {
-    const result = await window.electronAPI.aiPlanWorkflow({
-      description: goal,
-      goal,
-      timeEstimate: 'medium',
-    });
+<<<<<<< Updated upstream
+=======
+    try {
+>>>>>>> Stashed changes
+      const result = await window.electronAPI.aiPlanWorkflow({
+        description: goal,
+        goal,
+        timeEstimate: 'medium',
+      });
 
     if (result.success && result.plan) {
         setWorkflowSession({
@@ -243,67 +264,97 @@ export const AIAssistant: React.FC = () => {
         };
         setChatHistory(prev => [...prev, response]);
       }
+<<<<<<< Updated upstream
+=======
+    } catch (error) {
+      throw error;
+    }
+>>>>>>> Stashed changes
   };
 
   /**
    * Handle error diagnosis
    */
   const handleErrorDiagnosis = async (errorDescription: string) => {
-    const result = await window.electronAPI.aiDiagnoseError({
-      errorMessage: errorDescription,
-    });
+<<<<<<< Updated upstream
+=======
+    try {
+>>>>>>> Stashed changes
+      const result = await window.electronAPI.aiDiagnoseError({
+        errorMessage: errorDescription,
+      });
 
-    if (result.success && result.diagnosis) {
-      const diagnosis = result.diagnosis;
-      
-      const response: ChatMessage = {
-        id: `msg_${Date.now()}`,
-        role: 'assistant',
-        content: `**Root Cause:** ${diagnosis.rootCause}\n\n**Severity:** ${diagnosis.severity}\n\n**Explanation:** ${
-          diagnosis.explanation
-        }\n\nTry these fixes:\n${diagnosis.possibleFixes
-          ?.map((fix, i) => `${i + 1}. ${fix.fix} (Difficulty: ${fix.difficulty})`)
-          .join('\n')}`,
-        timestamp: Date.now(),
-        metadata: { diagnosisId: diagnosis.errorType },
-      };
-      setChatHistory(prev => [...prev, response]);
+      if (result.success && result.diagnosis) {
+        const diagnosis = result.diagnosis;
+        
+        const response: ChatMessage = {
+          id: `msg_${Date.now()}`,
+          role: 'assistant',
+          content: `**Root Cause:** ${diagnosis.rootCause}\n\n**Severity:** ${diagnosis.severity}\n\n**Explanation:** ${
+            diagnosis.explanation
+          }\n\nTry these fixes:\n${diagnosis.possibleFixes
+            ?.map((fix, i) => `${i + 1}. ${fix.fix} (Difficulty: ${fix.difficulty})`)
+            .join('\n')}`,
+          timestamp: Date.now(),
+          metadata: { diagnosisId: diagnosis.errorType },
+        };
+        setChatHistory(prev => [...prev, response]);
+      }
+<<<<<<< Updated upstream
+=======
+    } catch (error) {
+      throw error;
     }
+>>>>>>> Stashed changes
   };
 
   /**
    * Handle learning requests
    */
   const handleLearning = async (topic: string) => {
-    const result = await window.electronAPI.aiExplain({
-      concept: topic,
-      skillLevel: 'intermediate',
-      includeExamples: true,
-    });
+<<<<<<< Updated upstream
+=======
+    try {
+>>>>>>> Stashed changes
+      const result = await window.electronAPI.aiExplain({
+        concept: topic,
+        skillLevel: 'intermediate',
+        includeExamples: true,
+      });
 
-    if (result.success && result.explanation) {
-      const explanation = result.explanation;
-      
-      const response: ChatMessage = {
-        id: `msg_${Date.now()}`,
-        role: 'assistant',
-        content: `**${explanation.title}**\n\n${explanation.summary}\n\n**Key Points:**\n${explanation.keyPoints
-          ?.map((p: string) => `• ${p}`)
-          .join('\n')}\n\nWant more details? Ask follow-up questions!`,
-        timestamp: Date.now(),
-        metadata: { explanationId: topic },
-      };
-      setChatHistory(prev => [...prev, response]);
+      if (result.success && result.explanation) {
+        const explanation = result.explanation;
+        
+        const response: ChatMessage = {
+          id: `msg_${Date.now()}`,
+          role: 'assistant',
+          content: `**${explanation.title}**\n\n${explanation.summary}\n\n**Key Points:**\n${explanation.keyPoints
+            ?.map((p: string) => `• ${p}`)
+            .join('\n')}\n\nWant more details? Ask follow-up questions!`,
+          timestamp: Date.now(),
+          metadata: { explanationId: topic },
+        };
+        setChatHistory(prev => [...prev, response]);
+      }
+<<<<<<< Updated upstream
+=======
+    } catch (error) {
+      throw error;
     }
+>>>>>>> Stashed changes
   };
 
   /**
    * Handle asset organization
    */
   const handleAssetOrganization = async (assetDescription: string) => {
-    const result = await window.electronAPI.aiSuggestNames({
-      type: 'texture',
-      description: assetDescription,
+<<<<<<< Updated upstream
+=======
+    try {
+>>>>>>> Stashed changes
+      const result = await window.electronAPI.aiSuggestNames({
+        type: 'texture',
+        description: assetDescription,
         enforceLdFormat: true,
       });
 
@@ -329,16 +380,26 @@ export const AIAssistant: React.FC = () => {
         };
         setChatHistory(prev => [...prev, response]);
       }
+<<<<<<< Updated upstream
+=======
+    } catch (error) {
+      throw error;
+    }
+>>>>>>> Stashed changes
   };
 
   /**
    * Handle general queries
    */
   const handleGeneralQuery = async (query: string) => {
-    const result = await window.electronAPI.aiExplain({
-      concept: query,
-      includeExamples: true,
-    });
+<<<<<<< Updated upstream
+=======
+    try {
+>>>>>>> Stashed changes
+      const result = await window.electronAPI.aiExplain({
+        concept: query,
+        includeExamples: true,
+      });
 
     if (result.success && result.explanation) {
       const response: ChatMessage = {
@@ -349,6 +410,12 @@ export const AIAssistant: React.FC = () => {
         };
         setChatHistory(prev => [...prev, response]);
       }
+<<<<<<< Updated upstream
+=======
+    } catch (error) {
+      throw error;
+    }
+>>>>>>> Stashed changes
   };
 
   /**
@@ -362,7 +429,10 @@ export const AIAssistant: React.FC = () => {
       'troubleshoot': 'Troubleshooter',
       'learn': 'Learning Hub',
       'organize': 'Asset Organizer',
+<<<<<<< Updated upstream
       'mod-creation': 'Mod Creation Wizard',
+=======
+>>>>>>> Stashed changes
     };
     return names[mode];
   };
@@ -448,7 +518,11 @@ export const AIAssistant: React.FC = () => {
 
       {/* Mode Selector */}
       <div className="ai-modes">
+<<<<<<< Updated upstream
         {(['general', 'code-gen', 'workflow', 'troubleshoot', 'learn', 'organize', 'mod-creation'] as AIMode[]).map(
+=======
+        {(['general', 'code-gen', 'workflow', 'troubleshoot', 'learn', 'organize'] as AIMode[]).map(
+>>>>>>> Stashed changes
           mode => (
             <button
               key={mode}
@@ -542,7 +616,10 @@ export const AIAssistant: React.FC = () => {
           {currentMode === 'troubleshoot' && <TroubleshootPanel chatHistory={chatHistory} />}
           {currentMode === 'learn' && <LearningPanel />}
           {currentMode === 'general' && <GeneralPanel />}
+<<<<<<< Updated upstream
           {currentMode === 'mod-creation' && <ModCreationPanel />}
+=======
+>>>>>>> Stashed changes
         </div>
       </div>
     </div>
@@ -809,6 +886,7 @@ const GeneralPanel: React.FC = () => {
 };
 
 /**
+<<<<<<< Updated upstream
  * Mod Creation Panel Component
  */
 const ModCreationPanel: React.FC = () => {
@@ -837,6 +915,8 @@ const ModCreationPanel: React.FC = () => {
 };
 
 /**
+=======
+>>>>>>> Stashed changes
  * Utility: Get mode icon
  */
 function getModeIcon(mode: AIMode): string {
@@ -847,7 +927,10 @@ function getModeIcon(mode: AIMode): string {
     'troubleshoot': '🔧',
     'learn': '📚',
     'organize': '📦',
+<<<<<<< Updated upstream
     'mod-creation': '🎮',
+=======
+>>>>>>> Stashed changes
   };
   return icons[mode];
 }
@@ -863,7 +946,10 @@ function getModeDescription(mode: AIMode): string {
     'troubleshoot': 'Error analysis\nDiagnostic steps\nFix recommendations',
     'learn': 'Tutorials\nConcept guides\nResource suggestions',
     'organize': 'Asset naming\nBatch operations\nNaming conventions',
+<<<<<<< Updated upstream
     'mod-creation': 'Project setup\nAsset pipeline\nIntegration & testing',
+=======
+>>>>>>> Stashed changes
   };
   return descriptions[mode];
 }
