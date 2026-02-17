@@ -52,7 +52,7 @@ export interface TutorialPageContext {
 export const tutorialContexts: Record<string, TutorialPageContext> = {
   'nexus': {
     pageId: 'nexus',
-    pageName: 'The Nexus (Dashboard)',
+    pageName: 'Mossy.Space (Home Dashboard)',
     route: '/',
     purpose: 'Central hub showing all available modules and quick actions',
     features: [
@@ -152,7 +152,7 @@ export const tutorialContexts: Record<string, TutorialPageContext> = {
   
   'chat': {
     pageId: 'chat',
-    pageName: 'Chat Interface',
+    pageName: 'AI Chat',
     route: '/chat',
     purpose: 'Text-based AI conversation for modding assistance',
     features: [
@@ -256,7 +256,7 @@ export const tutorialContexts: Record<string, TutorialPageContext> = {
   
   'live-voice': {
     pageId: 'live-voice',
-    pageName: 'Live Voice Chat (Live Synapse)',
+    pageName: 'Live Synapse',
     route: '/live',
     purpose: 'Real-time, voice-driven interaction with Mossy — live transcription, mic monitoring and embedded audio tools.',
     features: [
@@ -430,7 +430,7 @@ export const tutorialContexts: Record<string, TutorialPageContext> = {
   
   'image-suite': {
     pageId: 'image-suite',
-    pageName: 'Image Suite',
+    pageName: 'Image Studio',
     route: '/media/images',
     purpose: 'PBR texture generation, format conversion and FO4-ready exports — includes visual previews, presets and DDS tooling integration.',
     features: [
@@ -555,7 +555,7 @@ export const tutorialContexts: Record<string, TutorialPageContext> = {
 
   'orchestrator': {
     pageId: 'orchestrator',
-    pageName: 'Workflow Orchestrator',
+    pageName: 'The Orchestrator',
     route: '/dev/orchestrator',
     purpose: 'Automate complex modding workflows and batch operations',
     features: [
@@ -693,7 +693,7 @@ export const tutorialContexts: Record<string, TutorialPageContext> = {
 
   'holodeck': {
     pageId: 'holodeck',
-    pageName: 'Holodeck',
+    pageName: 'The Holodeck',
     route: '/test/holo',
     purpose: 'Test mods in a virtual environment before in-game testing',
     features: [
@@ -834,7 +834,7 @@ export const tutorialContexts: Record<string, TutorialPageContext> = {
 
   'learning-hub': {
     pageId: 'learning-hub',
-    pageName: 'Learning Hub',
+    pageName: 'Quick Reference',
     route: '/learn',
     purpose: 'Comprehensive Fallout 4 modding education and reference',
     features: [
@@ -903,7 +903,7 @@ export const tutorialContexts: Record<string, TutorialPageContext> = {
 
   'settings': {
     pageId: 'settings',
-    pageName: 'Settings Hub',
+    pageName: 'Settings',
     route: '/settings',
     purpose: 'Configure Mossy preferences and system integration',
     features: [
@@ -978,7 +978,7 @@ export const tutorialContexts: Record<string, TutorialPageContext> = {
 
   'project-hub': {
     pageId: 'project-hub',
-    pageName: 'Project Hub',
+    pageName: 'Mod Projects',
     route: '/project',
     purpose: 'Create, organize and track mod projects end-to-end (planning → implementation → release).',
     features: [
@@ -1102,9 +1102,37 @@ export const tutorialContexts: Record<string, TutorialPageContext> = {
     ],
   },
 
+  'monitor': {
+    pageId: 'monitor',
+    pageName: 'System Monitor',
+    route: '/monitor',
+    purpose: 'System Monitor is the status & diagnostics hub — run hardware and tool detection, inspect Desktop Bridge status, and collect exportable diagnostic snapshots.',
+    features: [
+      'Hardware & tool detection (detectPrograms)',
+      'Desktop Bridge & bridge connectivity status',
+      'Live performance & logs',
+      'Exportable scan reports',
+      'Quick-fix suggestions (Tool Verify links)',
+    ],
+    controls: [
+      { name: 'Full System Scan', type: 'button', description: 'Run hardware and tool detection scans', whenToUse: 'After installing tools or when integrations fail' },
+      { name: 'View Logs', type: 'button', description: 'Open recent system and bridge logs', whenToUse: 'When diagnosing connectivity or install issues' },
+      { name: 'Export Scan Report', type: 'button', description: 'Download a diagnostic scan report', whenToUse: 'When sharing troubleshooting data' },
+    ],
+    commonMistakes: [
+      'Not running the scanner after installing tools',
+      'Assuming bridge is online without checking status',
+    ],
+    guides: [
+      { title: 'Run your first scan', steps: ['Open System Monitor from the sidebar', 'Click Full System Scan', 'Verify detected tools and bridge status', 'Open Tool Verify for any failed tools'] },
+    ],
+    tutorialSections: ['System Monitor - Scans & Health', 'Bridge & Tool Detection'],
+    suggestedQuestions: ['How do I run a hardware scan?', 'Why is Desktop Bridge offline?'],
+  },
+
   'diagnostics': {
     pageId: 'diagnostics',
-    pageName: 'Diagnostics Hub',
+    pageName: 'Diagnostic Tools',
     route: '/diagnostics',
     purpose: 'All-in-one system checks: verify the desktop bridge, tool paths, API/secret visibility, permissions, and collect exportable diagnostic snapshots for triage.',
     features: [
@@ -1218,7 +1246,7 @@ export const tutorialContexts: Record<string, TutorialPageContext> = {
 
   'devtools': {
     pageId: 'devtools',
-    pageName: 'DevTools Hub',
+    pageName: 'Dev Tools',
     route: '/devtools',
     purpose: 'Generate, analyze and validate Papyrus scripts — scaffold code, detect issues, and prepare scripts for compilation.',
     features: [
@@ -2867,7 +2895,7 @@ export const tutorialContexts: Record<string, TutorialPageContext> = {
 
   'ba2-manager': {
     pageId: 'ba2-manager',
-    pageName: 'BA2 Archive Manager',
+    pageName: 'BA2 Manager',
     route: '/tools/ba2-manager',
     purpose: 'Create and manage Bethesda Archive files for Fallout 4 mods',
     features: [
@@ -3796,6 +3824,267 @@ export const tutorialContexts: Record<string, TutorialPageContext> = {
     ],
     tutorialSections: ['CK Safety (legacy route)'],
     suggestedQuestions: ['How to analyze CK crash logs?'],
+  },
+
+  /* NEW: pages added so VISUAL_GUIDE.md titles have matching in-app contexts */
+  'wizards': {
+    pageId: 'wizards',
+    pageName: 'Wizards',
+    route: '/wizards',
+    purpose: 'Browse and run prebuilt wizards to automate common modding tasks.',
+    features: ['Wizard gallery', 'One-click run', 'Example prompts'],
+    controls: [ { name: 'Run Wizard', type: 'button', description: 'Execute the selected wizard', whenToUse: 'When you want a guided, automated flow' } ],
+    commonMistakes: ['Running a wizard without reading the prerequisites'],
+    guides: [ { title: 'Run a wizard', steps: ['Open Wizards', 'Choose a wizard', 'Read the notes, then click Run'] } ],
+    tutorialSections: ['Wizards - Guided Flows'],
+    suggestedQuestions: ['Which wizard should I use for textures?', 'How do I cancel a running wizard?'],
+  },
+
+  'knowledge-search': {
+    pageId: 'knowledge-search',
+    pageName: 'Knowledge Search',
+    route: '/search',
+    purpose: 'Search the built‑in knowledge base and indexed project documentation for fast answers.',
+    features: ['Full-text indexing', 'Search filters', 'Index builder'],
+    controls: [ { name: 'Search Box', type: 'input', description: 'Type keywords or file names to search', whenToUse: 'When you need docs or examples quickly' } ],
+    commonMistakes: ['Not rebuilding the index after adding docs'],
+    guides: [ { title: 'Index and query', steps: ['Open Knowledge Search', 'Click Build Index', 'Type a query and press Enter'] } ],
+    tutorialSections: ['Indexing & Querying'],
+    suggestedQuestions: ['How do I add repo docs to the index?', 'How do I limit search to a project?'],
+  },
+
+  'crash-triage': {
+    pageId: 'crash-triage',
+    pageName: 'Crash Triage',
+    route: '/tools/crash-triage',
+    purpose: 'Collect and triage crash reports with guided diagnostics and reproduction hints.',
+    features: ['Crash snapshots', 'Log collator', 'Suggested fixes'],
+    controls: [ { name: 'Collect Snapshot', type: 'button', description: 'Gather logs and stack traces', whenToUse: 'After a crash occurs' } ],
+    commonMistakes: ['Sharing raw logs without redaction'],
+    guides: [ { title: 'Create a crash snapshot', steps: ['Open Crash Triage', 'Reproduce the crash', 'Click Collect Snapshot and save the JSON'] } ],
+    tutorialSections: ['Collecting & Sharing Crash Data'],
+    suggestedQuestions: ['How do I capture a reproducible crash?'],
+  },
+
+  'packaging': {
+    pageId: 'packaging',
+    pageName: 'Packaging and Release',
+    route: '/packaging',
+    purpose: 'Prepare, validate and export mod packages for release (BA2, ZIP, Nexus-friendly bundles).',
+    features: ['Package validation', 'BA2 export', 'Upload helpers'],
+    controls: [ { name: 'Create Package', type: 'button', description: 'Assemble release artifacts', whenToUse: 'When you are ready to publish' } ],
+    commonMistakes: ['Forgetting to validate file names and mod metadata'],
+    guides: [ { title: 'Create a release package', steps: ['Open Packaging', 'Select files and metadata', 'Run validation and export'] } ],
+    tutorialSections: ['Validation & Export'],
+    suggestedQuestions: ['How do I create a BA2 file?'],
+  },
+
+  'blender-animation-guide': {
+    pageId: 'blender-animation-guide',
+    pageName: 'Animation Guide',
+    route: '/guides/animation',
+    purpose: 'Animation authoring and export workflows (Blender → NIF) for Fallout 4.',
+    features: ['Export presets', 'Animation retarget tips', 'NIF exporter guidance'],
+    controls: [ { name: 'Export Preset', type: 'dropdown', description: 'Choose an animation export preset', whenToUse: 'When exporting animations for FO4' } ],
+    commonMistakes: ['Incorrect root bone or scale settings'],
+    guides: [ { title: 'Export animation to NIF', steps: ['Open Animation Guide', 'Select export preset', 'Export and verify in NifSkope'] } ],
+    tutorialSections: ['Blender → NIF Workflow'],
+    suggestedQuestions: ['How do I retarget an animation?'],
+  },
+
+  'quest-authoring-guide': {
+    pageId: 'quest-authoring-guide',
+    pageName: 'Quest Mod Authorizing',
+    route: '/guides/quests',
+    purpose: 'Author and validate quest flows: Papyrus scaffolding, stage handling and testing tips.',
+    features: ['Quest templates', 'Event scaffolding', 'Test harness'],
+    controls: [ { name: 'Create Quest Template', type: 'button', description: 'Scaffold a new quest', whenToUse: 'When starting quest authoring' } ],
+    commonMistakes: ['Missing stage increments or event bindings'],
+    guides: [ { title: 'Scaffold a simple quest', steps: ['Open Quest Guide', 'Pick a template', 'Generate and open in Workshop'] } ],
+    tutorialSections: ['Templates & Testing'],
+    suggestedQuestions: ['How do I test quest stages?'],
+  },
+
+  'the-lorekeeper': {
+    pageId: 'the-lorekeeper',
+    pageName: 'The LoreKeeper',
+    route: '/lorekeeper',
+    purpose: 'In‑app knowledge and lore manager for quest/dialogue consistency.',
+    features: ['Dialogue snippets', 'Lore notes', 'Searchable references'],
+    controls: [ { name: 'Add Note', type: 'button', description: 'Save lore notes or character bios', whenToUse: 'When documenting NPCs or locations' } ],
+    commonMistakes: ['Inconsistent NPC naming across scripts'],
+    guides: [ { title: 'Add a lore note', steps: ['Open The LoreKeeper', 'Click Add Note', 'Fill fields and save'] } ],
+    tutorialSections: ['Notes & Dialogue'],
+    suggestedQuestions: ['How do I export lore notes?'],
+  },
+
+  'tools': {
+    pageId: 'tools',
+    pageName: 'Tools',
+    route: '/tools',
+    purpose: 'Overview of local integrations (Creation Kit, Blender, xEdit, MO2).',
+    features: ['Path verification', 'Install / Verify helpers', 'One‑click launchers'],
+    controls: [ { name: 'Verify Paths', type: 'button', description: 'Run Tool Verify for all configured tools', whenToUse: 'After installing or moving a tool' } ],
+    commonMistakes: ['Not verifying a tool path after install'],
+    guides: [ { title: 'Verify a tool', steps: ['Open Tools', 'Click Verify', 'Fix any missing paths in Settings'] } ],
+    tutorialSections: ['Install & Verify'],
+    suggestedQuestions: ['How do I set Creation Kit path?'],
+  },
+
+  'assembler': {
+    pageId: 'assembler',
+    pageName: 'The Assembler',
+    route: '/tools/assembler',
+    purpose: 'Assemble final plugin/output bundles and run preflight checks before packaging.',
+    features: ['Plugin assembly', 'Precombine / mesh checks', 'Export helpers'],
+    controls: [ { name: 'Assemble Plugin', type: 'button', description: 'Build and validate an ESP/ESM package', whenToUse: 'Before packaging or testing in-game' } ],
+    commonMistakes: ['Missing masters or unresolved references'],
+    guides: [ { title: 'Assemble a plugin', steps: ['Open The Assembler', 'Select files and run Assemble', 'Fix reported errors and re-run'] } ],
+    tutorialSections: ['Assembly & Validation'],
+    suggestedQuestions: ['How do I resolve master errors?'],
+  },
+
+  'advanced-analysis': {
+    pageId: 'advanced-analysis',
+    pageName: 'Advanced Analysis',
+    route: '/tools/analysis',
+    purpose: 'Deep asset and plugin analysis with AI-suggested fixes and batch scanning.',
+    features: ['Batch scans', 'Severity grouping', 'AI remediation suggestions'],
+    controls: [ { name: 'Run Advanced Scan', type: 'button', description: 'Perform a deep analysis of selected files', whenToUse: 'When triaging complex issues' } ],
+    commonMistakes: ['Running wide-scoped scans without filters'],
+    guides: [ { title: 'Run an advanced scan', steps: ['Open Advanced Analysis', 'Choose scope and start scan', 'Review grouped results'] } ],
+    tutorialSections: ['Deep Analysis & Fixes'],
+    suggestedQuestions: ['How do I limit scan scope?'],
+  },
+
+  'local-capabilities': {
+    pageId: 'local-capabilities',
+    pageName: 'Local Capabilities',
+    route: '/local',
+    purpose: 'Detect and list local system capabilities and available native integrations.',
+    features: ['Detected tools', 'Bridge status', 'Environment checks'],
+    controls: [ { name: 'Refresh Capabilities', type: 'button', description: 'Re-scan local system for available integrations', whenToUse: 'After installing new local tools' } ],
+    commonMistakes: ['Assuming remote-only features are available locally'],
+    guides: [ { title: 'Refresh local capabilities', steps: ['Open Local Capabilities', 'Click Refresh', 'Review detected services'] } ],
+    tutorialSections: ['Local Integrations'],
+    suggestedQuestions: ['How do I enable Desktop Bridge?'],
+  },
+
+  'community-learning': {
+    pageId: 'community-learning',
+    pageName: 'Community Learning',
+    route: '/community',
+    purpose: 'Access community-contributed guides, tutorials and examples.',
+    features: ['Curated guides', 'User examples', 'Upvote & bookmark'],
+    controls: [ { name: 'Open Guide', type: 'button', description: 'Open a community guide', whenToUse: 'When you want a community example' } ],
+    commonMistakes: ['Assuming community content is always canonical'],
+    guides: [ { title: 'Browse community guides', steps: ['Open Community Learning', 'Filter by topic', 'Open and bookmark useful guides'] } ],
+    tutorialSections: ['Community Content'],
+    suggestedQuestions: ['How do I submit a guide?'],
+  },
+
+  'tool-verify': {
+    pageId: 'tool-verify',
+    pageName: 'Tool Verify',
+    route: '/tools/verify',
+    purpose: 'Verify configured tool paths and versions (Creation Kit, Blender, MO2, xEdit).',
+    features: ['Path checks', 'Version detection', 'Auto-fix suggestions'],
+    controls: [ { name: 'Verify', type: 'button', description: 'Verify all configured tool paths', whenToUse: 'After installing or moving a tool' } ],
+    commonMistakes: ['Not running verification after installs'],
+    guides: [ { title: 'Verify tools', steps: ['Open Tool Verify', 'Click Verify', 'Follow suggested fix links'] } ],
+    tutorialSections: ['Path & Version Checks'],
+    suggestedQuestions: ['How do I fix a missing path?'],
+  },
+
+  'support': {
+    pageId: 'support',
+    pageName: 'Support Mossy',
+    route: '/support',
+    purpose: 'Ways to support the project, report bugs and donate.',
+    features: ['Bug reporter', 'Donation links', 'Contributing guide'],
+    controls: [ { name: 'Report Issue', type: 'button', description: 'Open bug report form', whenToUse: 'When you find a reproducible problem' } ],
+    commonMistakes: ['Not providing repro steps when filing a bug'],
+    guides: [ { title: 'Report a bug', steps: ['Collect logs', 'Open Support → Report Issue', 'Attach logs and repro steps'] } ],
+    tutorialSections: ['Bug Reporting & Support'],
+    suggestedQuestions: ['How do I report a crash?'],
+  },
+
+  'ck-extension': {
+    pageId: 'ck-extension',
+    pageName: 'CK Extensions',
+    route: '/extensions/ck',
+    purpose: 'Manage Creation Kit related extensions and integrations.',
+    features: ['Extension list', 'Install/enable toggles'],
+    controls: [ { name: 'Enable Extension', type: 'toggle', description: 'Turn on an extension', whenToUse: 'When you need extra CK tooling' } ],
+    commonMistakes: ['Enabling incompatible extensions together'],
+    guides: [ { title: 'Install a CK extension', steps: ['Open CK Extensions', 'Select extension and enable', 'Restart app if prompted'] } ],
+    tutorialSections: ['CK Integrations'],
+    suggestedQuestions: ['How do I install a CK extension?'],
+  },
+
+  'comfyui-extension': {
+    pageId: 'comfyui-extension',
+    pageName: 'ComFyui Extensions',
+    route: '/extensions/comfyui',
+    purpose: 'Integration points for ComfyUI-based image workflows.',
+    features: ['Node presets', 'Export connectors'],
+    controls: [ { name: 'Connect', type: 'button', description: 'Establish connection to ComfyUI', whenToUse: 'When using local ComfyUI nodes' } ],
+    commonMistakes: ['Mismatch between local node versions'],
+    guides: [ { title: 'Connect ComfyUI', steps: ['Open ComFyui Extensions', 'Enter host/port and connect', 'Test a sample flow'] } ],
+    tutorialSections: ['ComFyui Integration'],
+    suggestedQuestions: ['How do I configure ComfyUI?'],
+  },
+
+  'upscayl-extension': {
+    pageId: 'upscayl-extension',
+    pageName: 'Upscayl / Upscale Extension',
+    route: '/extensions/upscayl',
+    purpose: 'Upscaling integration for texture enhancement workflows.',
+    features: ['Local/remote upscaling', 'Preset management'],
+    controls: [ { name: 'Upscale Image', type: 'button', description: 'Run upscale on selected image', whenToUse: 'When improving texture resolution' } ],
+    commonMistakes: ['Using too-large upscale factors for game assets'],
+    guides: [ { title: 'Upscale a texture', steps: ['Open Upscale Extension', 'Select source image and preset', 'Run upscale and inspect results'] } ],
+    tutorialSections: ['Upscaling Workflows'],
+    suggestedQuestions: ['Which preset is safe for FO4 textures?'],
+  },
+
+  'guided-tours': {
+    pageId: 'guided-tours',
+    pageName: 'Guided Tours',
+    route: '/tours',
+    purpose: 'Curated guided tours through common workflows and multi-step tutorials.',
+    features: ['Step-by-step tours', 'Progress saved'],
+    controls: [ { name: 'Start Tour', type: 'button', description: 'Begin a guided tour', whenToUse: 'When learning a new workflow' } ],
+    commonMistakes: ['Skipping steps in a tour'],
+    guides: [ { title: 'Start a guided tour', steps: ['Open Guided Tours', 'Pick a tour and click Start'] } ],
+    tutorialSections: ['Tours & Walkthroughs'],
+    suggestedQuestions: ['How long does a guided tour take?'],
+  },
+
+  'fallout4-wiki': {
+    pageId: 'fallout4-wiki',
+    pageName: 'Fallout 4 Wiki (Reference)',
+    route: '/reference/wiki',
+    purpose: 'Quick links and reference to community and official Fallout 4 resources.',
+    features: ['External links', 'Search shortcuts'],
+    controls: [ { name: 'Open Wiki', type: 'button', description: 'Open the Fallout 4 Wiki link', whenToUse: 'When looking up game data' } ],
+    commonMistakes: ['Relying on outdated wiki pages'],
+    guides: [ { title: 'Open wiki reference', steps: ['Open Fallout 4 Wiki page', 'Use search to find the entry you need'] } ],
+    tutorialSections: ['External Reference Links'],
+    suggestedQuestions: ['Where can I find physics/animation references?'],
+  },
+
+  'pip-boy-mode': {
+    pageId: 'pip-boy-mode',
+    pageName: 'Pip‑Boy Mode',
+    route: '/pip-boy',
+    purpose: 'Toggle the Pip‑Boy UI mode for an immersive, game-like view of Mossy.',
+    features: ['Pip‑Boy theme', 'Compact HUD'],
+    controls: [ { name: 'Toggle Pip‑Boy', type: 'toggle', description: 'Enable or disable pip‑boy mode', whenToUse: 'When you want the compact, themed UI' } ],
+    commonMistakes: ['Expecting full feature parity with standard UI in Pip‑Boy mode'],
+    guides: [ { title: 'Enable Pip‑Boy mode', steps: ['Open Settings → Appearance', 'Enable Pip‑Boy Mode', 'Restart UI if required'] } ],
+    tutorialSections: ['Appearance & Themes'],
+    suggestedQuestions: ['How do I return to normal UI?'],
   },
 
 };
