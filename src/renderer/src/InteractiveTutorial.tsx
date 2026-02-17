@@ -248,6 +248,13 @@ export const InteractiveTutorial: React.FC<InteractiveTutorialProps> = ({
       'mining-dashboard': '/visual-guide-images/Page 7. Quick reference.png', // Using general guide image
       'advanced-analysis-panel': '/visual-guide-images/Page 21 the auditor..png', // Similar to auditor
       'plugin-manager': '/visual-guide-images/Page 17 dev tools..png', // Similar to dev tools
+      'ck-extension': '/visual-guide-images/Page 43. CK Extensions..png',
+      'comfyui-extension': '/visual-guide-images/Page 44. ComFyui Extensions..png',
+      'upscayl-extension': '/visual-guide-images/Page 45. Upscale Extension.png',
+      'mo2-extension': '/visual-guide-images/Page 41. MO2 Extension.png',
+      'xedit-tools': '/visual-guide-images/Page 42 Xedit Tools.png',
+      'dds-converter': '/visual-guide-images/Page 14. DDS Converter..png',
+      'texture-generator': '/visual-guide-images/Page 15. Texture generator..png',
       'roadmap-panel': '/visual-guide-images/Page 4 Modding RoadMaps..png', // Modding Roadmaps image
       'ba2-manager': '/visual-guide-images/Page 11. Packaging and release..png', // Similar to packaging
       'workflow-recorder': '/visual-guide-images/Page 26 the Orchestrator..png', // Similar to orchestrator
