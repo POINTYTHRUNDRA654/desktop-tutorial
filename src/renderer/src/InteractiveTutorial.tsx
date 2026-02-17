@@ -260,6 +260,8 @@ export const InteractiveTutorial: React.FC<InteractiveTutorialProps> = ({
       'workflow-recorder': '/visual-guide-images/Page 26 the Orchestrator..png', // Similar to orchestrator
       'first-success': '/visual-guide-images/Page 4. First success..png',
       'whats-new': '/visual-guide-images/Page 5.%20What\'s%20New.png', // What's New image
+      'formid-remapper': '/visual-guide-images/Page 21 the auditor..png', // Use Auditor image for remapper
+      'precombine-generator': '/visual-guide-images/Page 18 the assembler..png', // Use Assembler image for precombine
       'mining-panel': '/visual-guide-images/Page 7. Quick reference.png', // Using general guide image
     };
     return imageMap[pageId];
