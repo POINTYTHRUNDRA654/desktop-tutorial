@@ -392,7 +392,7 @@ const GuidedTour: React.FC<GuidedTourProps> = ({ isOpen, onClose, tourType, targ
                 <p className="text-slate-300 text-sm">
                   Talk to Mossy with real-time voice input and spoken responses.
                 </p>
-                {renderGuideImage('Page 35 Live Synapse..png', 'Live voice')}
+                {renderGuideImage('Page 39. Live Synapse..png', 'Live voice')}
               </div>
             ),
             data: {
