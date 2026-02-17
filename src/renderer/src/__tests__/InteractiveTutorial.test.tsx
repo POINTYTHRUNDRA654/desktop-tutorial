@@ -9,7 +9,7 @@ vi.mock('../mossyTts', () => ({
   speakMossy: vi.fn().mockResolvedValue(undefined),
 }));
 
-import InteractiveTutorial, { buildTutorialText } from '../InteractiveTutorial';
+import InteractiveTutorial, { buildTutorialText, getOrderedTutorialContexts } from '../InteractiveTutorial';
 import { tutorialContexts } from '../tutorialContext';
 
 describe('InteractiveTutorial layout & navigation', () => {
