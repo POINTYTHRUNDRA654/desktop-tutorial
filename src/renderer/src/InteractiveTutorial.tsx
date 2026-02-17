@@ -223,7 +223,7 @@ export const InteractiveTutorial: React.FC<InteractiveTutorialProps> = ({
     const imageMap: Record<string, string> = {
       'nexus': '/visual-guide-images/Page 1, mossy space..png',
       'chat': '/visual-guide-images/Page 2 AI chat..png',
-      'live-voice': '/visual-guide-images/Page 35 Live Synapse..png',
+      'live-voice': '/visual-guide-images/Page 39. Live Synapse..png',
       'auditor': '/visual-guide-images/Page 21 the auditor..png',
       'image-suite': '/visual-guide-images/Page 34 image Studio..png',
       'workshop': '/visual-guide-images/Page 19, the workshop..png',
@@ -259,9 +259,7 @@ export const InteractiveTutorial: React.FC<InteractiveTutorialProps> = ({
       'bodyslide-guide': '/visual-guide-images/Page 7. Quick reference.png', // Using general guide image
       'sim-settlements-guide': '/visual-guide-images/Page 7. Quick reference.png', // Using general guide image
       'paperscript-guide': '/visual-guide-images/Page 7. Quick reference.png', // Using general guide image
-      'support': '/visual-guide-images/Page 42 support Mossy..png',
       'mining-dashboard': '/visual-guide-images/Page 7. Quick reference.png', // Using general guide image
-      'advanced-analysis-panel': '/visual-guide-images/Page 21 the auditor..png', // Similar to auditor
       'plugin-manager': '/visual-guide-images/Page 17 dev tools..png', // Similar to dev tools
       'ck-extension': '/visual-guide-images/Page 43. CK Extensions..png',
       'comfyui-extension': '/visual-guide-images/Page 44. ComFyui Extensions..png',
