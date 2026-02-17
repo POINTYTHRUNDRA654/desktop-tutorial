@@ -215,16 +215,40 @@ const GuidedTour: React.FC<GuidedTourProps> = ({ isOpen, onClose, tourType, targ
                   <BrainCircuit className="w-4 h-4" />
                   The Nexus
                 </h4>
-                <p className="text-slate-300 text-sm">
-                  This dashboard shows system health, quick actions, and a summary of your current status.
-                </p>
+
+                <div className="bg-slate-900/50 border border-slate-700 rounded p-3 font-mono text-xs leading-tight text-emerald-300">
+                  <div className="font-semibold text-emerald-300 mb-2">MOSSY.SPACE — NEURAL ENVIRONMENT · 1.0</div>
+                  <div>Tools / Install / Verify (No Guest)</div>
+
+                  <div className="mt-3"><strong>The Nexus is your home dashboard:</strong> it keeps you oriented.</div>
+
+                  <div className="mt-3 font-semibold">Tools</div>
+                  <div>No external tools required for this part</div>
+
+                  <div className="mt-3 font-semibold">Verify (quick)</div>
+                  <div>Confirm health badges render and reflect your status.</div>
+                  <div>Open Diagnostics and return back without navigation errors.</div>
+
+                  <div className="mt-3 font-semibold">First test loop</div>
+                  <div>Run Install Wizard once to detect tools and set up paths.</div>
+                  <div>Open Chat and confirm you can send a message and receive a response.</div>
+                  <div>Open Desktop Bridge and confirm ONLINE if you use local features.</div>
+
+                  <div className="mt-3 font-semibold">Troubleshooting</div>
+                  <div>If Electron shows WARN/BAD, you may be running web mode or preload failed.</div>
+                  <div>If Mic/TTS show WARN, check permissions in your OS and retry.</div>
+
+                  <div className="mt-4 text-center uppercase text-xs text-slate-400">CORE INITIALIZED. GOOD AFTERNOON.</div>
+                  <div className="text-center text-xs text-slate-500 mt-1">THE NEURAL LINK IS ACTIVE AND MONITORING YOUR WORKSPACE</div>
+                </div>
+
                 {renderGuideImage("Page one. Mossy's space..png", 'Nexus overview')}
               </div>
             ),
             data: {
               stepId: 'page-nexus',
               route: '/',
-              narration: 'This is the Nexus dashboard. It shows system health, quick actions, and your overall status at a glance.'
+              narration: 'Mossy.Space — Nexus dashboard. Verify health badges, run Install Wizard, open Chat and Desktop Bridge; troubleshoot Electron or Mic/TTS warnings.'
             } satisfies TourStepData,
           },
           {
@@ -234,18 +258,130 @@ const GuidedTour: React.FC<GuidedTourProps> = ({ isOpen, onClose, tourType, targ
             content: (
               <div>
                 <h4 className="font-bold text-white mb-2">Chat Interface</h4>
-                <p className="text-slate-300 text-sm">
-                  Ask Mossy anything. Use chat for guidance, research, and step-by-step help.
-                </p>
+
+                <div className="bg-slate-900/50 border border-slate-700 rounded p-3 font-mono text-xs leading-tight text-emerald-300">
+                  <div className="font-semibold text-emerald-300 mb-2">MOSSY — FO4 EDITION</div>
+                  <div>Tools / Install / Verify (No Guesswork)</div>
+                  <div className="mt-2">Chat is the main interface. Optional features (desktop actions) require the relevant integrations to be active.</div>
+
+                  <div className="mt-3 font-semibold">Tools</div>
+                  <div>No external tools required for this page.</div>
+
+                  <div className="mt-3 font-semibold">Verify (quick)</div>
+                  <div>Send a short message and confirm you receive a response.</div>
+                  <div>Confirm citations can expand and collapse.</div>
+
+                  <div className="mt-3 font-semibold">First test loop</div>
+                  <div>Ask Mossy for a tiny "hello world" FO4 mod plan (one record or one script).</div>
+                  <div>Execute exactly one action (generate text or analyze a file) and confirm the output is usable.</div>
+
+                  <div className="mt-3 font-semibold">Troubleshooting</div>
+                  <div>If responses fail, check Settings for API key/model configuration.</div>
+                  <div>If desktop actions fail, confirm Desktop Bridge/Electron API is available.</div>
+                </div>
+
+                <div className="mt-3 bg-slate-800/20 border border-slate-700 rounded p-2 text-sm">
+                  <div className="font-mono text-emerald-300 text-xs">MOSSY</div>
+                  <div className="text-slate-200 font-semibold">👋 Welcome back, Vault Dweller!</div>
+                  <div className="text-slate-400 text-sm mt-1">What are we working on today?</div>
+                </div>
+
                 {renderGuideImage('Page two. AI Chat..png', 'Chat interface')}
               </div>
             ),
             data: {
               stepId: 'page-chat',
               route: '/chat',
-              narration: 'This is the chat interface. Use it to ask questions, troubleshoot, or request step by step help.'
+              narration: 'Chat is the main interface — send a short message, verify citations and responses, test a tiny "hello world" FO4 mod plan; check API keys or Desktop Bridge if actions fail.'
             } satisfies TourStepData,
           },
+          {
+            target: 'body',
+            placement: 'center',
+            disableBeacon: true,
+            content: (
+              <div>
+                <h4 className="font-bold text-white mb-2">AI Mod Assistant - Chat</h4>
+
+                <div className="bg-slate-900/50 border border-slate-700 rounded p-3 font-mono text-xs leading-tight text-emerald-300">
+                  <div className="font-semibold text-emerald-300 mb-2">AI MOD ASSISTANT - CHAT</div>
+                  <div>Start a conversation - ask for code, fixes, or smart actions.</div>
+
+                  <div className="mt-3 font-semibold">Prompt</div>
+                  <div>Ask the assistant or paste code...</div>
+
+                  <div className="mt-3 font-semibold">Smart Actions</div>
+                  <div className="grid grid-cols-4 gap-2 text-xs mt-2">
+                    <div className="bg-transparent border border-emerald-500 rounded py-2 text-center">GENERATE SCRIPT</div>
+                    <div className="bg-transparent border border-emerald-500 rounded py-2 text-center">INLINE SUGGESTIONS</div>
+                    <div className="bg-transparent border border-emerald-500 rounded py-2 text-center">REFACTOR</div>
+                    <div className="bg-transparent border border-emerald-500 rounded py-2 text-center">QUICK FIX</div>
+                  </div>
+
+                  <div className="mt-3 font-semibold">Code Assistant</div>
+                  <div>Inline suggestions, quick fixes, and refactoring previews appear here.</div>
+                  <div className="mt-1 text-slate-400">No code preview</div>
+
+                  <div className="mt-3 font-semibold">Suggestions</div>
+                  <div className="text-slate-400">No suggestions</div>
+
+                  <div className="mt-3 font-semibold">Learning Mode</div>
+                  <div className="text-slate-400">Off</div>
+                </div>
+
+                {renderGuideImage('Page 3. AI Mod assistant..png', 'AI Mod Assistant')}
+              </div>
+            ),
+            data: {
+              stepId: 'page-mod-assistant',
+              route: '/ai-mod-assistant',
+              narration: 'AI Mod Assistant — chat-driven code and smart actions. Paste code or ask for fixes, use Smart Actions (Generate Script, Inline Suggestions, Refactor, Quick Fix), and check Code Assistant for previews or suggestions.'
+            } satisfies TourStepData,
+          },
+
+          {
+            target: 'body',
+            placement: 'center',
+            disableBeacon: true,
+            content: (
+              <div>
+                <h4 className="font-bold text-white mb-2">First Success Wizard</h4>
+
+                <div className="bg-slate-900/50 border border-slate-700 rounded p-3 font-mono text-xs leading-tight text-emerald-300">
+                  <div className="font-semibold text-emerald-300 mb-2">✅ FIRST SUCCESS WIZARD</div>
+                  <div>A quick path to your first win. Each step uses real tools already in Mossy.</div>
+
+                  <div className="mt-3"><strong>1) Run a system scan</strong></div>
+                  <div className="text-slate-400">Detect installed tools so Mossy can personalize her guidance.</div>
+                  <div className="text-slate-500 italic">Open the System Monitor from the sidebar and run the scan once.</div>
+
+                  <div className="mt-3"><strong>2) Verify your tools</strong></div>
+                  <div className="text-slate-400">Confirm key modding tools are detected and configured.</div>
+                  <div className="text-slate-500 italic">Use the Tool Verify page to confirm paths and versions.</div>
+
+                  <div className="mt-3"><strong>3) Index your guides</strong></div>
+                  <div className="text-slate-400">Build the knowledge index or add your own notes to the Memory Vault.</div>
+                  <div className="text-slate-500 italic">Use Knowledge Search to review built-in docs, then add your own notes to Memory Vault.</div>
+
+                  <div className="mt-3"><strong>4) Ask your first question</strong></div>
+                  <div className="text-slate-400">Mossy will use your scans and knowledge vault to answer precisely.</div>
+                  <div className="border border-emerald-800 bg-emerald-950/20 p-1 mt-1 text-emerald-400/80">
+                    Example: How do I build a simple quest in the Creation Kit?
+                  </div>
+
+                  <div className="mt-3 text-slate-400">Done with the basics? Explore advanced modules when you are ready using the sidebar.</div>
+                </div>
+
+                {renderGuideImage('Page 4. First success..png', 'First Success Wizard')}
+              </div>
+            ),
+            data: {
+              stepId: 'page-first-success',
+              route: '/first-success',
+              narration: 'The First Success Wizard is a fast onboarding checklist. Run a system scan, verify your tools, index your guides, and ask your first question to get started.'
+            } satisfies TourStepData,
+          },
+
           {
             target: 'body',
             placement: 'center',
