@@ -1437,6 +1437,60 @@ Pip‑Boy Mode changes the app's look to a retro Fallout CRT/pip‑boy theme and
 - Pip‑Boy is cosmetic only — it does not affect tool behavior.
 - Use full‑screen for the most authentic look.
 
+## Page 54 - FormID Remapper
+
+![Page 54 - FormID Remapper](visual-guide-images/Page%2021%20the%20auditor..png)
+
+**What this page is for**
+Safely remap FormIDs across plugins to avoid conflicts when merging multiple ESP/ESM files — useful when consolidating work from multiple authors or toolchains.
+
+**How to use it (step‑by‑step)**
+1. Open the FormID Remapper and add the plugins you want to merge or adjust.
+2. Run the Analyze action to surface collisions and cross‑references.
+3. Review the suggested remaps and backup your files.
+4. Apply the remap and run a validation / quick audit.
+
+**Page functions (what each part does)**
+- Analyze: detects conflicts and overlapping FormIDs.
+- Preview: shows proposed remap ranges and affected records.
+- Apply Remap: executes changes with an automatic backup.
+
+**Screenshot callouts**
+- Left: plugin list and detected conflicts.
+- Center: remap preview and affected records.
+- Bottom: Apply/Undo controls with backup status.
+
+**Beginner tips**
+- Always create a backup before applying a remap. ✅
+- Run the Auditor after remapping to confirm no references were lost.
+
+## Page 55 - Precombine Generator
+
+![Page 55 - Precombine Generator](visual-guide-images/Page%2018%20the%20assembler..png)
+
+**What this page is for**
+Generate PRP / precombine patches to fix rendering and lighting issues caused by complex meshes — helps improve performance and correct in‑game lighting artifacts.
+
+**How to use it (step‑by‑step)**
+1. Scan your mod folder to find meshes flagged for precombine.
+2. Inspect flagged objects and preview how precombine will change geometry groups.
+3. Generate the PRP patch and test in the Holodeck or a small test profile.
+4. Iterate only on items that improve the in‑game result.
+
+**Page functions (what each part does)**
+- Scan: finds mesh assets with precombine concerns.
+- Preview: shows expected PRP changes and warnings.
+- Generate Patch: creates a PRP/patch file you can apply and test.
+
+**Screenshot callouts**
+- Scan results list with severity badges.
+- Preview pane showing mesh group changes.
+- Generate button and output location.
+
+**Beginner tips**
+- Test patches on a small profile before wide application.
+- Precombine helps lighting/performance but may require mesh rework.
+
 ## Onboarding Flow Diagram
 
 ```
