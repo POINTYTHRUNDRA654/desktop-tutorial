@@ -115,7 +115,7 @@ AI Chat is Mossy’s primary conversation workspace — ask questions, troublesh
 
 ## Page 03 - AI Mod Assistant
 
-![Page 03 - AI Mod Assistant](visual-guide-images/Page%203.%20AI%20Mod%20assistant..png)
+![Page 03 - AI Mod Assistant](visual-guide-images/page-3-ai-mod-assistant.png)
 
 **What this page is for**
 The AI Mod Assistant is a focused, development‑oriented chat for mod creation: generate Papyrus scripts, scaffold quests, validate code, and get one‑click starter assets. It’s optimized for developers and creators who need precise, actionable code and templates.
@@ -146,7 +146,7 @@ The AI Mod Assistant is a focused, development‑oriented chat for mod creation:
 
 ## Page 04 - First Success Wizard
 
-![Page 04 - First Success Wizard](visual-guide-images/Page%204.%20First%20success..png)
+![Page 04 - First Success Wizard](visual-guide-images/page-4-first-success.png)
 
 **What this page is for**
 The First Success Wizard is a short, guided onboarding checklist that ensures Mossy knows your environment and can give precise, tool‑aware help. It walks you through the minimum steps required for your first successful modding task.
@@ -207,9 +207,9 @@ Modding Roadmaps converts a mod idea into a practical, ordered plan — generate
 - After generation, edit or split large steps into smaller sub‑tasks.
 - Use Roadmaps together with the Workshop and Project Hub to keep work organized.
 
-## Page 06 - What's New
+## Page 06 - Whats New
 
-![Page 06 - What's New](visual-guide-images/page-6-whats-new.png)
+![Page 06 - Whats New](visual-guide-images/page-6-whats-new.png)
 
 **What this page is for**
 What's New is the release‑notes hub inside Mossy — the single place to see version highlights, breaking changes, and short migration steps so you can update safely and take advantage of new features immediately.
@@ -246,7 +246,7 @@ What's New is the release‑notes hub inside Mossy — the single place to see v
 
 ## Page 07 - Mod Projects
 
-![Page 07 - Mod Projects](visual-guide-images/Page%207.%20Mod%20projects..png)
+![Page 07 - Mod Projects](visual-guide-images/page-7-mod-projects.png)
 
 **What this page is for**
 Mod Projects is your project hub. It organizes mod plans, progress, and collaboration in one place so you can manage everything from idea to release.
@@ -269,7 +269,7 @@ Mod Projects is your project hub. It organizes mod plans, progress, and collabor
 
 ## Page 08 - Quick Reference
 
-![Page 08 - Quick Reference](visual-guide-images/Page%208.%20Quick%20reference..png)
+![Page 08 - Quick Reference](visual-guide-images/page-8-quick-reference.png)
 
 **What this page is for**
 Quick Reference is a fast lookup page for common actions, shortcuts, and first-aid steps when you are stuck. It is the place you open when you want immediate guidance without reading a full guide.
@@ -293,7 +293,7 @@ Quick Reference is a fast lookup page for common actions, shortcuts, and first-a
 
 ## Page 09 - Knowledge Search
 
-![Page 09 - Knowledge Search](visual-guide-images/Page%209.%20Knowledge%20search..png)
+![Page 09 - Knowledge Search](visual-guide-images/page-9-knowledge-search.png)
 
 **What this page is for**
 Knowledge Search is the built-in library browser. It lets you search the guides, docs, and vault notes so you can find answers without leaving Mossy.
@@ -607,7 +607,7 @@ The Workshop is your hands-on creation space. It is where you shape assets, conf
 
 ## Page 21 - The Blueprint
 
-![Page 21 - The Blueprint](visual-guide-images/Page%2020%20the%20blueprint..png)
+![Page 21 - The Blueprint](visual-guide-images/page-20-the-blueprint.png)
 
 **What this page is for**
 The Blueprint is the planning and specification page. It helps you define scope, dependencies, and required assets before you build, so your mod stays consistent and manageable.
@@ -715,7 +715,7 @@ Advanced Analysis is the deep-dive diagnostics area. It helps you inspect comple
 
 ## Page 26 - System Monitor
 
-![Page 26 - System Monitor](visual-guide-images/Page%2029%20System%20Monitor..png)
+![Page 26 - System Monitor](visual-guide-images/page-29-system-monitor.png)
 **What this page is for**
 The Scribe is your writing and documentation workspace. It helps you draft quest dialogue, notes, changelogs, and internal documentation so your mod stays consistent and easy to maintain.
 
@@ -1186,7 +1186,7 @@ Support Mossy is the community support and sustainability page. It explains how 
 
 ## Page 44 - CK Extensions
 
-![Page 44 - CK Extensions](visual-guide-images/Page%2043.%20CK%20Extensions..png)
+![Page 44 - CK Extensions](visual-guide-images/page-43-ck-extensions.png)
 
 **What this page is for**
 Integration helpers and safety features for the Creation Kit (CK): launch helpers, preflight checks and crash‑prevention tools.
@@ -1212,7 +1212,7 @@ Integration helpers and safety features for the Creation Kit (CK): launch helper
 
 ## Page 45 - ComFyui Extensions
 
-![Page 45 - ComFyui Extensions](visual-guide-images/Page%2044.%20ComFyui%20Extensions..png)
+![Page 45 - ComFyui Extensions](visual-guide-images/page-44-comfyui-extensions.png)
 
 **What this page is for**
 Connect and control ComfyUI image‑pipeline instances from inside Mossy — run pipelines, manage presets, and preview outputs.
@@ -1239,7 +1239,7 @@ Connect and control ComfyUI image‑pipeline instances from inside Mossy — run
 
 ## Page 46 - Upscayl / Upscale Extension
 
-![Page 46 - Upscayl Extension](visual-guide-images/Page%2045.%20Upscale%20Extension.png)
+![Page 46 - Upscayl Extension](visual-guide-images/page-45-upscale-extension.png)
 
 **What this page is for**
 Run local Upscayl upscaling from Mossy to improve texture resolution with presets and batch operations.
@@ -1266,7 +1266,7 @@ Run local Upscayl upscaling from Mossy to improve texture resolution with preset
 
 ## Page 47 - MO2 Extension
 
-![Page 47 - MO2 Extension](visual-guide-images/Page%2041.%20MO2%20Extension.png)
+![Page 47 - MO2 Extension](visual-guide-images/page-41-mo2-extension.png)
 
 **What this page is for**
 Integration with Mod Organizer 2 (MO2): surface profiles, load orders and profile‑scoped operations.
@@ -1293,7 +1293,7 @@ Integration with Mod Organizer 2 (MO2): surface profiles, load orders and profil
 
 ## Page 48 - xEdit Tools
 
-![Page 48 - XEdit Tools](visual-guide-images/Page%2042%20Xedit%20Tools.png)
+![Page 48 - XEdit Tools](visual-guide-images/page-42-xedit-tools.png)
 
 **What this page is for**
 Utilities for xEdit/FO4Edit: export load orders, run xEdit scripts, and produce patch‑friendly lists.
@@ -1318,7 +1318,7 @@ Utilities for xEdit/FO4Edit: export load orders, run xEdit scripts, and produce 
 
 ## Page 49 - DDS Converter
 
-![Page 49 - DDS Converter](visual-guide-images/Page%2014.%20DDS%20Converter..png)
+![Page 49 - DDS Converter](visual-guide-images/page-14-dds-converter.png)
 
 **What this page is for**
 Convert textures between DDS and common formats (PNG/JPEG) with game‑safe presets and mipmap options.
@@ -1344,7 +1344,7 @@ Convert textures between DDS and common formats (PNG/JPEG) with game‑safe pres
 
 ## Page 50 - Texture Generator
 
-![Page 50 - Texture Generator](visual-guide-images/Page%2015.%20Texture%20generator..png)
+![Page 50 - Texture Generator](visual-guide-images/page-15-texture-generator.png)
 
 **What this page is for**
 AI‑assisted texture creation and enhancement (bakes, style presets, seamless generation).
@@ -1370,7 +1370,7 @@ AI‑assisted texture creation and enhancement (bakes, style presets, seamless g
 
 ## Page 51 - Guided Tours
 
-![Page 51 - Guided Tours](visual-guide-images/Page%2054.%20Guided%20tours..png)
+![Page 51 - Guided Tours](visual-guide-images/page-54-guided-tours.png)
 
 **What this page is for**
 Prebuilt, interactive tours (Welcome, Feature Spotlight, Module tours) that walk you through Mossy step‑by‑step.
@@ -1396,7 +1396,7 @@ Prebuilt, interactive tours (Welcome, Feature Spotlight, Module tours) that walk
 
 ## Page 52 - Fallout 4 Wiki (Reference)
 
-![Page 52 - Fallout 4 Wiki](visual-guide-images/Page%2053.%20Fallout%204%20wiki..png)
+![Page 52 - Fallout 4 Wiki](visual-guide-images/page-53-fallout-4-wiki.png)
 
 **What this page is for**
 Quick access to community references (Fallout 4 Wiki, common form lists, and game‑specific docs) inside the Learning Hub.
@@ -1417,7 +1417,7 @@ Quick access to community references (Fallout 4 Wiki, common form lists, and gam
 
 ## Page 53 - Pip‑Boy Mode
 
-![Page 53 - Pip‑Boy Mode](visual-guide-images/Page%2055.%20Pip%20boy.%20On.%20Off..png)
+![Page 53 - Pip‑Boy Mode](visual-guide-images/page-55-pip-boy-on-off.png)
 
 **What this page is for**
 Pip‑Boy Mode changes the app's look to a retro Fallout CRT/pip‑boy theme and provides themed UI affordances for immersion.
