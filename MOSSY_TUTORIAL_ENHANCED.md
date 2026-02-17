@@ -614,7 +614,115 @@ is corrupted or incorrectly formatted. Here's how to fix it...
 
 ---
 
+## AI Mod Assistant - Chat
+
+**Path:** Click "AI Mod Assistant" in the sidebar (</> icon) OR open `/ai-mod-assistant`  
+**Purpose:** Development‑focused assistant for mod creation — generate and validate Papyrus scripts, scaffold quests, get code previews, and apply one‑click fixes. Optimized for translating high‑level mod ideas into runnable code and small, testable steps.
+
+![AI Mod Assistant](docs/screenshots/ai-mod-assistant.png)
+*AI Mod Assistant — paste code, ask for a script, or use Smart Actions to implement fixes.*
+
+### What you'll see
+- **Message input** — paste code or type a precise request (errors, function spec, quest behavior).
+- **Smart Actions** — `Generate Script`, `Inline Suggestions`, `Refactor`, `Quick Fix` for immediate, safe edits.
+- **Code Assistant panel** — preview generated code and validation output before exporting to the Workshop.
+- **Learning Mode toggle** — show guided examples and step explanations for new scripters.
+
+### How to use AI Mod Assistant (step‑by‑step)
+1. Paste a small code sample or describe exactly what you want (include game/version and intent).
+2. Click **Generate Script** to scaffold functions or **Quest Template** (if starting a quest).
+3. Use **Validate Script** to run lint/quick checks and review warnings in the Code Assistant.
+4. Apply **Inline Suggestions** or **Quick Fix** to accept small changes instantly, then export to `Workshop` for further editing.
+
+### Controls & UI explained
+- **Generate Script:** Produces starter code with comments and usage examples.
+- **Validate Script:** Runs fast validation checks (syntax, common Papyrus pitfalls).
+- **Inline Suggestions / Refactor / Quick Fix:** One‑click UI for small improvements (rename, optimize, fix syntax).
+- **Code Assistant:** Shows generated code, allows copy/export to Workshop, and displays validation messages.
+
+### Example workflow
+Request: "Generate a Papyrus script that gives the player 100 caps when they activate a lever."
+- Mossy returns a complete script with comments, event hooks, and a short test checklist.
+- Click **Validate Script**, then **Export to Workshop** to save and test inside Creation Kit.
+
+### Beginner tips
+- Start small: request one function or event at a time.
+- Always run **Validate Script** before loading into the Creation Kit.
+- Use Learning Mode for step‑by‑step examples if you're new to Papyrus.
+
+---
+
+## What's New — Release Notes & Highlights
+
+**Path:** Click "What's New" in the sidebar (★ icon) or open `/whats-new`
+
+**Purpose:** See what changed in the latest Mossy release — highlights, fixes, migration tips, and quick links to try new features. This page is presented in an "install‑tutorial" style so you can skim the most important points and follow short step‑by‑step migration instructions when necessary.
+
+### How to use What's New (install‑tutorial format)
+1. Read the **Highlights** banner for the top 3–5 changes that affect everyday workflows.
+2. If the Highlights mention a breaking change, open the **Changelog** panel and follow the Migration Tips for the specific steps to update your project.
+3. Use **Quick Action** tiles to open demos or the updated tools (safe sandbox recommended).
+4. Export or share the release notes with your team using the **Share / Export** button.
+5. Toggle **Auto‑open on update** if you want this page shown automatically after future updates.
+
+### Page sections explained
+- **Highlights:** Short bullets — first place to look after an update.
+- **Changelog:** Full grouped release notes (features, fixes, security, breaking).
+- **Quick Actions:** Try or open updated modules from the page.
+- **Migration Tips:** Short step lists for updating projects affected by breaking changes.
+- **Auto‑open toggle / Export:** Controls for appearance and sharing.
+
+### Beginner checklist
+- Did the Highlights mention any breaking changes? If yes — follow Migration Tips now.
+- Try new UI features in a test project before applying to live work.
+- Export the notes if you need to notify collaborators.
+
+---
+
 ## Live Voice Chat - Speak to Mossy
+
+---
+
+## Modding Roadmaps
+
+**Path:** Click "Modding Roadmaps" in the sidebar (target icon) or open `/roadmap`
+
+**Purpose:** Turn a concise mod idea into an ordered, actionable plan. Roadmaps give beginners a clear sequence of small tasks, recommended tools, and progress tracking so you always know the next step.
+
+### What you'll see
+- **New Goal input:** a single-line field where you write a short objective (example placeholder: "Create a custom plasma rifle").
+- **Roadmap cards:** grid/list of saved goals with progress bars and completion counts.
+- **Roadmap details view:** ordered step list with tool badges, short descriptions, and effort estimates.
+- **Step controls:** mark complete, edit description, open recommended tool, or split the step.
+- **Export / Share:** save roadmap as JSON or Markdown to share with collaborators.
+
+### How to use Modding Roadmaps (step‑by‑step)
+1. Click **New Goal** and enter a focused objective (be specific: what, not "make a mod").
+2. Press **Generate (lightning icon)** — Mossy drafts a practical roadmap with recommended tools and time estimates.
+3. Open the roadmap to inspect each step; click a step to reveal details and the `Open tool` quick action.
+4. Edit or split any oversized step into smaller, testable tasks.
+5. As you finish tasks, click the step circle to mark it complete — progress updates automatically.
+6. Export the roadmap for backup or collaboration, or link it into a Project Hub workspace.
+
+### Controls & UI explained
+- **New Goal / Goal Input:** where you type the outcome you want.
+- **Generate (AI):** uses Mossy to propose ordered steps and recommended tools.
+- **Step list:** each item shows a `tool badge`, `estimate`, and `quick actions` (open tool, edit, add note).
+- **Status toggle / progress bar:** visually tracks completion percentage.
+- **Back to Roadmap List:** returns to the grid of all goals.
+
+### Example: "Custom plasma rifle with new textures"
+- Mossy generates steps such as: research reference → model/mesh update → texture creation → packaging → test in Holodeck.
+- Suggested tools: Blender (model), Image Suite (textures), The Assembler (package), Holodeck (test).
+- After generation, split large steps (e.g., "texture creation") into sub‑tasks like bake normal maps → paint albedo → export DDS.
+
+### Best practices & beginner tips
+- Keep goals short and measurable (good: "Add a new pistol with new textures" — bad: "Make a great mod").
+- Review AI estimates and split any vague steps into smaller tasks.
+- Use Roadmaps alongside Project Hub and the Workshop: plan → implement → test.
+- Reuse Roadmaps as templates for similar mod ideas.
+
+---
 
 **Path:** Click "Live Voice Chat" in sidebar (🎤 icon) OR `/live`  
 **Purpose:** Talk to Mossy using your voice instead of typing
