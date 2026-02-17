@@ -15,6 +15,9 @@ export interface TutorialPageContext {
   /** Human-readable page name */
   pageName: string;
   
+  /** Optional: canonical VISUAL_GUIDE page number (if available) */
+  visualGuidePage?: number;
+  
   /** Route path (e.g., "/chat", "/tools/auditor") */
   route: string;
   
@@ -257,6 +260,7 @@ export const tutorialContexts: Record<string, TutorialPageContext> = {
   'live-voice': {
     pageId: 'live-voice',
     pageName: 'Live Synapse',
+    visualGuidePage: 39,
     route: '/live',
     purpose: 'Real-time, voice-driven interaction with Mossy — live transcription, mic monitoring and embedded audio tools.',
     features: [
@@ -3827,18 +3831,7 @@ export const tutorialContexts: Record<string, TutorialPageContext> = {
   },
 
   /* NEW: pages added so VISUAL_GUIDE.md titles have matching in-app contexts */
-  'wizards': {
-    pageId: 'wizards',
-    pageName: 'Wizards',
-    route: '/wizards',
-    purpose: 'Browse and run prebuilt wizards to automate common modding tasks.',
-    features: ['Wizard gallery', 'One-click run', 'Example prompts'],
-    controls: [ { name: 'Run Wizard', type: 'button', description: 'Execute the selected wizard', whenToUse: 'When you want a guided, automated flow' } ],
-    commonMistakes: ['Running a wizard without reading the prerequisites'],
-    guides: [ { title: 'Run a wizard', steps: ['Open Wizards', 'Choose a wizard', 'Read the notes, then click Run'] } ],
-    tutorialSections: ['Wizards - Guided Flows'],
-    suggestedQuestions: ['Which wizard should I use for textures?', 'How do I cancel a running wizard?'],
-  },
+
 
   'knowledge-search': {
     pageId: 'knowledge-search',
@@ -3866,44 +3859,11 @@ export const tutorialContexts: Record<string, TutorialPageContext> = {
     suggestedQuestions: ['How do I capture a reproducible crash?'],
   },
 
-  'packaging': {
-    pageId: 'packaging',
-    pageName: 'Packaging and Release',
-    route: '/packaging',
-    purpose: 'Prepare, validate and export mod packages for release (BA2, ZIP, Nexus-friendly bundles).',
-    features: ['Package validation', 'BA2 export', 'Upload helpers'],
-    controls: [ { name: 'Create Package', type: 'button', description: 'Assemble release artifacts', whenToUse: 'When you are ready to publish' } ],
-    commonMistakes: ['Forgetting to validate file names and mod metadata'],
-    guides: [ { title: 'Create a release package', steps: ['Open Packaging', 'Select files and metadata', 'Run validation and export'] } ],
-    tutorialSections: ['Validation & Export'],
-    suggestedQuestions: ['How do I create a BA2 file?'],
-  },
 
-  'blender-animation-guide': {
-    pageId: 'blender-animation-guide',
-    pageName: 'Animation Guide',
-    route: '/guides/animation',
-    purpose: 'Animation authoring and export workflows (Blender → NIF) for Fallout 4.',
-    features: ['Export presets', 'Animation retarget tips', 'NIF exporter guidance'],
-    controls: [ { name: 'Export Preset', type: 'dropdown', description: 'Choose an animation export preset', whenToUse: 'When exporting animations for FO4' } ],
-    commonMistakes: ['Incorrect root bone or scale settings'],
-    guides: [ { title: 'Export animation to NIF', steps: ['Open Animation Guide', 'Select export preset', 'Export and verify in NifSkope'] } ],
-    tutorialSections: ['Blender → NIF Workflow'],
-    suggestedQuestions: ['How do I retarget an animation?'],
-  },
 
-  'quest-authoring-guide': {
-    pageId: 'quest-authoring-guide',
-    pageName: 'Quest Mod Authorizing',
-    route: '/guides/quests',
-    purpose: 'Author and validate quest flows: Papyrus scaffolding, stage handling and testing tips.',
-    features: ['Quest templates', 'Event scaffolding', 'Test harness'],
-    controls: [ { name: 'Create Quest Template', type: 'button', description: 'Scaffold a new quest', whenToUse: 'When starting quest authoring' } ],
-    commonMistakes: ['Missing stage increments or event bindings'],
-    guides: [ { title: 'Scaffold a simple quest', steps: ['Open Quest Guide', 'Pick a template', 'Generate and open in Workshop'] } ],
-    tutorialSections: ['Templates & Testing'],
-    suggestedQuestions: ['How do I test quest stages?'],
-  },
+
+
+
 
   'the-lorekeeper': {
     pageId: 'the-lorekeeper',
@@ -3918,18 +3878,7 @@ export const tutorialContexts: Record<string, TutorialPageContext> = {
     suggestedQuestions: ['How do I export lore notes?'],
   },
 
-  'tools': {
-    pageId: 'tools',
-    pageName: 'Tools',
-    route: '/tools',
-    purpose: 'Overview of local integrations (Creation Kit, Blender, xEdit, MO2).',
-    features: ['Path verification', 'Install / Verify helpers', 'One‑click launchers'],
-    controls: [ { name: 'Verify Paths', type: 'button', description: 'Run Tool Verify for all configured tools', whenToUse: 'After installing or moving a tool' } ],
-    commonMistakes: ['Not verifying a tool path after install'],
-    guides: [ { title: 'Verify a tool', steps: ['Open Tools', 'Click Verify', 'Fix any missing paths in Settings'] } ],
-    tutorialSections: ['Install & Verify'],
-    suggestedQuestions: ['How do I set Creation Kit path?'],
-  },
+
 
   'assembler': {
     pageId: 'assembler',
@@ -3996,18 +3945,7 @@ export const tutorialContexts: Record<string, TutorialPageContext> = {
     suggestedQuestions: ['How do I fix a missing path?'],
   },
 
-  'support': {
-    pageId: 'support',
-    pageName: 'Support Mossy',
-    route: '/support',
-    purpose: 'Ways to support the project, report bugs and donate.',
-    features: ['Bug reporter', 'Donation links', 'Contributing guide'],
-    controls: [ { name: 'Report Issue', type: 'button', description: 'Open bug report form', whenToUse: 'When you find a reproducible problem' } ],
-    commonMistakes: ['Not providing repro steps when filing a bug'],
-    guides: [ { title: 'Report a bug', steps: ['Collect logs', 'Open Support → Report Issue', 'Attach logs and repro steps'] } ],
-    tutorialSections: ['Bug Reporting & Support'],
-    suggestedQuestions: ['How do I report a crash?'],
-  },
+
 
   'ck-extension': {
     pageId: 'ck-extension',
@@ -4022,31 +3960,9 @@ export const tutorialContexts: Record<string, TutorialPageContext> = {
     suggestedQuestions: ['How do I install a CK extension?'],
   },
 
-  'comfyui-extension': {
-    pageId: 'comfyui-extension',
-    pageName: 'ComFyui Extensions',
-    route: '/extensions/comfyui',
-    purpose: 'Integration points for ComfyUI-based image workflows.',
-    features: ['Node presets', 'Export connectors'],
-    controls: [ { name: 'Connect', type: 'button', description: 'Establish connection to ComfyUI', whenToUse: 'When using local ComfyUI nodes' } ],
-    commonMistakes: ['Mismatch between local node versions'],
-    guides: [ { title: 'Connect ComfyUI', steps: ['Open ComFyui Extensions', 'Enter host/port and connect', 'Test a sample flow'] } ],
-    tutorialSections: ['ComFyui Integration'],
-    suggestedQuestions: ['How do I configure ComfyUI?'],
-  },
 
-  'upscayl-extension': {
-    pageId: 'upscayl-extension',
-    pageName: 'Upscayl / Upscale Extension',
-    route: '/extensions/upscayl',
-    purpose: 'Upscaling integration for texture enhancement workflows.',
-    features: ['Local/remote upscaling', 'Preset management'],
-    controls: [ { name: 'Upscale Image', type: 'button', description: 'Run upscale on selected image', whenToUse: 'When improving texture resolution' } ],
-    commonMistakes: ['Using too-large upscale factors for game assets'],
-    guides: [ { title: 'Upscale a texture', steps: ['Open Upscale Extension', 'Select source image and preset', 'Run upscale and inspect results'] } ],
-    tutorialSections: ['Upscaling Workflows'],
-    suggestedQuestions: ['Which preset is safe for FO4 textures?'],
-  },
+
+
 
   'guided-tours': {
     pageId: 'guided-tours',
