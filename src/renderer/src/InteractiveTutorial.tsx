@@ -150,7 +150,7 @@ export const InteractiveTutorial: React.FC<InteractiveTutorialProps> = ({
       
       return {
         id: context.pageId,
-        title: `${context.pageName} - Page ${index + 2}`,
+        title: `${context.pageName} - Page ${typeof context.visualGuidePage === 'number' ? context.visualGuidePage : index + 2}`,
         mossyText: detailedText,
         route: context.route,
         action: `Explore ${context.pageName} and try the main features`,
