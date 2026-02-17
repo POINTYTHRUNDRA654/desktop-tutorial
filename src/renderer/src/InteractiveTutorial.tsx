@@ -77,6 +77,39 @@ export function buildTutorialText(context: TutorialPageContext, pageIndex: numbe
   return detailedText;
 }
 
+// Return tutorial contexts ordered to match VISUAL_GUIDE page numbers when available.
+// Ordering priority:
+//  1. context.visualGuidePage if provided
+//  2. numeric page embedded in the image filename returned by getImageForPage (e.g. "Page 39")
+//  3. fallback to alphabetical by pageName
+export function getOrderedTutorialContexts(allContexts: Record<string, TutorialPageContext>) {
+  const contexts = Object.values(allContexts);
+
+  function extractPageNumber(ctx: TutorialPageContext): number | null {
+    if (typeof (ctx as any).visualGuidePage === 'number') return (ctx as any).visualGuidePage;
+    try {
+      // attempt to read the image mapping and parse a "Page N" number
+      const img = getImageForPage(ctx.pageId);
+      if (!img) return null;
+      const m = img.match(/Page\s*([0-9]{1,3})/);
+      if (m) return parseInt(m[1], 10);
+    } catch (e) {
+      // ignore
+    }
+    return null;
+  }
+
+  return contexts
+    .map((c) => ({ c, page: extractPageNumber(c) }))
+    .sort((a, b) => {
+      if (a.page != null && b.page != null) return a.page - b.page;
+      if (a.page != null) return -1;
+      if (b.page != null) return 1;
+      return a.c.pageName.localeCompare(b.c.pageName);
+    })
+    .map((x) => x.c);
+}
+
 
 interface InteractiveTutorialProps {
   onComplete: () => void;
@@ -144,13 +177,13 @@ export const InteractiveTutorial: React.FC<InteractiveTutorialProps> = ({
       icon: <Home className="w-8 h-8" />,
     },
     // Dynamically generate steps from tutorial contexts
-    ...Object.values(tutorialContexts).map((context, index) => {
+    ...getOrderedTutorialContexts(tutorialContexts).map((context, index) => {
       // Build detailed professional tutorial text (extracted helper used for testability)
       const detailedText = buildTutorialText(context, index, hasPreconfiguredApiKeys);
       
       return {
         id: context.pageId,
-        title: `${context.pageName} - Page ${index + 2}`,
+        title: `${context.pageName} - Page ${typeof context.visualGuidePage === 'number' ? context.visualGuidePage : index + 2}`,
         mossyText: detailedText,
         route: context.route,
         action: `Explore ${context.pageName} and try the main features`,
@@ -223,46 +256,44 @@ export const InteractiveTutorial: React.FC<InteractiveTutorialProps> = ({
     const imageMap: Record<string, string> = {
       'nexus': '/visual-guide-images/Page 1, mossy space..png',
       'chat': '/visual-guide-images/Page 2 AI chat..png',
-      'live-voice': '/visual-guide-images/Page 35 Live Synapse..png',
-      'auditor': '/visual-guide-images/Page 21 the auditor..png',
-      'image-suite': '/visual-guide-images/Page 34 image Studio..png',
-      'workshop': '/visual-guide-images/Page 19, the workshop..png',
-      'orchestrator': '/visual-guide-images/Page 26 the Orchestrator..png',
+      'live-voice': '/visual-guide-images/Page 39. Live Synapse..png',
+      'auditor': '/visual-guide-images/Page 25 the auditor..png',
+      'image-suite': '/visual-guide-images/Page 38. Image Studio..png',
+      'workshop': '/visual-guide-images/Page 24, the workshop..png',
+      'orchestrator': '/visual-guide-images/Page 30. The orchestrator..png',
       'load-order': '/visual-guide-images/Page 36. Plugin manager.png',
       'monitor': '/visual-guide-images/Page 29 System Monitor..png',
-      'holodeck': '/visual-guide-images/Page 28. The holodeck..png',
-      'packaging': '/visual-guide-images/Page 11. Packaging and release..png',
-      'learning-hub': '/visual-guide-images/Page 7. Quick reference.png',
+      'holodeck': '/visual-guide-images/Page 32 the holodeck..png',
+      'packaging': '/visual-guide-images/Page 16 Packaging & release..png',
+      'learning-hub': '/visual-guide-images/Page 8. Quick reference..png',
       'knowledge-search': '/visual-guide-images/Page 9. Knowledge search..png',
-      'settings': '/visual-guide-images/Page 40 settings..png',
-      'project-hub': '/visual-guide-images/Page 6 mod projects..png',
-      'diagnostics': '/visual-guide-images/Page 41 Diagnostic Tools..png',
+      'settings': '/visual-guide-images/Page 49. Settings..png',
+      'project-hub': '/visual-guide-images/Page 7. Mod projects..png',
+      'diagnostics': '/visual-guide-images/Page 50 Diagnostic Tools..png',
       'crash-triage': '/visual-guide-images/Page 12. Crash triage..png',
-      'devtools': '/visual-guide-images/Page 17 dev tools..png',
-      'wizards': '/visual-guide-images/Page 9 wizards..png',
+      'devtools': '/visual-guide-images/Page 22. DevTools.png',
+      'wizards': '/visual-guide-images/Page 11. Wizards..png',
       'the-lorekeeper': '/visual-guide-images/Page 19. The LoreKeeper..png',
       'assembler': '/visual-guide-images/Page 23. The assembler..png',
       'local-capabilities': '/visual-guide-images/Page 37 Local Capabilities..png',
       'community-learning': '/visual-guide-images/Page 47 Community Learning..png',
       'tool-verify': '/visual-guide-images/Page 48. Tool Verify.png',
-      'support': '/visual-guide-images/Page 42 support Mossy..png',
-      'advanced-analysis-panel': '/visual-guide-images/Page 21 the auditor..png', // Similar to auditor
+      'support': '/visual-guide-images/Page 51. Support Mossy..png',
+      'advanced-analysis-panel': '/visual-guide-images/Page 25 the auditor..png', // Similar to auditor
       'blueprint': '/visual-guide-images/Page 20 the blueprint..png',
-      'scribe': '/visual-guide-images/Page 24 The Scribe..png',
-      'vault': '/visual-guide-images/Page 29 the Vault..png',
-      'duplicate-finder': '/visual-guide-images/Page 37. Duplicate. Finder..png',
-      'cosmos-workflow': '/visual-guide-images/Page 16 Cosmos Workflow..png',
-      'workflow-runner': '/visual-guide-images/Page 27 workflow runner..png',
-      'desktop-bridge': '/visual-guide-images/Page 36, Desktop Bridge..png',
-      'blender-animation-guide': '/visual-guide-images/Page 12 Animation Guide..png',
-      'quest-authoring-guide': '/visual-guide-images/Page 13. Quest mod authorizing. .png',
+      'scribe': '/visual-guide-images/Page 28. The scribe..png',
+      'vault': '/visual-guide-images/Page 33 the Vault..png',
+      'duplicate-finder': '/visual-guide-images/Page 46. Duplicate. Finder..png',
+      'cosmos-workflow': '/visual-guide-images/Page 21. Cosmos workflow..png',
+      'workflow-runner': '/visual-guide-images/Page 31. Workflow runner..png',
+      'desktop-bridge': '/visual-guide-images/Page 40 Desktop Bridge..png',
+      'blender-animation-guide': '/visual-guide-images/Page 17 Animation Guide..png',
+      'quest-authoring-guide': '/visual-guide-images/Page 18. Quest mod authorizing..png',
       'bodyslide-guide': '/visual-guide-images/Page 7. Quick reference.png', // Using general guide image
       'sim-settlements-guide': '/visual-guide-images/Page 7. Quick reference.png', // Using general guide image
       'paperscript-guide': '/visual-guide-images/Page 7. Quick reference.png', // Using general guide image
-      'support': '/visual-guide-images/Page 42 support Mossy..png',
       'mining-dashboard': '/visual-guide-images/Page 7. Quick reference.png', // Using general guide image
-      'advanced-analysis-panel': '/visual-guide-images/Page 21 the auditor..png', // Similar to auditor
-      'plugin-manager': '/visual-guide-images/Page 17 dev tools..png', // Similar to dev tools
+      'plugin-manager': '/visual-guide-images/Page 36. Plugin manager.png', // Similar to dev tools
       'ck-extension': '/visual-guide-images/Page 43. CK Extensions..png',
       'comfyui-extension': '/visual-guide-images/Page 44. ComFyui Extensions..png',
       'upscayl-extension': '/visual-guide-images/Page 45. Upscale Extension.png',
@@ -270,13 +301,13 @@ export const InteractiveTutorial: React.FC<InteractiveTutorialProps> = ({
       'xedit-tools': '/visual-guide-images/Page 42 Xedit Tools.png',
       'dds-converter': '/visual-guide-images/Page 14. DDS Converter..png',
       'texture-generator': '/visual-guide-images/Page 15. Texture generator..png',
-      'roadmap-panel': '/visual-guide-images/Page 4 Modding RoadMaps..png', // Modding Roadmaps image
-      'ba2-manager': '/visual-guide-images/Page 11. Packaging and release..png', // Similar to packaging
-      'workflow-recorder': '/visual-guide-images/Page 26 the Orchestrator..png', // Similar to orchestrator
+      'roadmap-panel': '/visual-guide-images/Page 5. Modding RoadMaps..png', // Modding Roadmaps image
+      'ba2-manager': '/visual-guide-images/Page 16 Packaging & release..png', // Similar to packaging
+      'workflow-recorder': '/visual-guide-images/Page 30. The orchestrator..png', // Similar to orchestrator
       'first-success': '/visual-guide-images/Page 4. First success..png',
       'whats-new': '/visual-guide-images/Page 6 What`s New.png', // What's New image
-      'formid-remapper': '/visual-guide-images/Page 21 the auditor..png', // Use Auditor image for remapper
-      'precombine-generator': '/visual-guide-images/Page 18 the assembler..png', // Use Assembler image for precombine
+      'formid-remapper': '/visual-guide-images/Page 25 the auditor..png', // Use Auditor image for remapper
+      'precombine-generator': '/visual-guide-images/Page 23. The assembler..png', // Use Assembler image for precombine
       'mining-panel': '/visual-guide-images/Page 7. Quick reference.png', // Using general guide image
     };
     return imageMap[pageId];
