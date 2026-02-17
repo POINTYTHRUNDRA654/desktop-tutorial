@@ -248,11 +248,11 @@ export const InteractiveTutorial: React.FC<InteractiveTutorialProps> = ({
       'mining-dashboard': '/visual-guide-images/Page 7. Quick reference.png', // Using general guide image
       'advanced-analysis-panel': '/visual-guide-images/Page 21 the auditor..png', // Similar to auditor
       'plugin-manager': '/visual-guide-images/Page 17 dev tools..png', // Similar to dev tools
-      'roadmap-panel': '/visual-guide-images/Page 7. Quick reference.png', // Using general guide image
+      'roadmap-panel': '/visual-guide-images/Page 4 Modding RoadMaps..png', // Modding Roadmaps image
       'ba2-manager': '/visual-guide-images/Page 11. Packaging and release..png', // Similar to packaging
       'workflow-recorder': '/visual-guide-images/Page 26 the Orchestrator..png', // Similar to orchestrator
-      'first-success': '/visual-guide-images/Page 7. Quick reference.png', // Using general guide image
-      'whats-new': '/visual-guide-images/Page 7. Quick reference.png', // Using general guide image
+      'first-success': '/visual-guide-images/Page 4. First success..png',
+      'whats-new': '/visual-guide-images/Page 5.%20What\'s%20New.png', // What's New image
       'mining-panel': '/visual-guide-images/Page 7. Quick reference.png', // Using general guide image
     };
     return imageMap[pageId];
