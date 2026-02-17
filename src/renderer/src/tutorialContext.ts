@@ -774,7 +774,7 @@ export const tutorialContexts: Record<string, TutorialPageContext> = {
 
   'packaging': {
     pageId: 'packaging',
-    pageName: 'Packaging Hub',
+    pageName: 'Packaging and Release',
     visualGuidePage: 12, // synced from VISUAL_GUIDE.md
     route: '/packaging-release',
     purpose: 'Package and distribute your completed mods',
@@ -1363,7 +1363,7 @@ export const tutorialContexts: Record<string, TutorialPageContext> = {
 
   'wizards': {
     pageId: 'wizards',
-    pageName: 'Wizards Hub',
+    pageName: 'Wizards',
     visualGuidePage: 10, // synced from VISUAL_GUIDE.md
     route: '/wizards',
     purpose: 'Guided, checklist-driven workflows for platform setup, installs, patch building and other repeatable modding tasks (Install Wizard, PRP Patch Builder, platform selector).',
@@ -2178,7 +2178,7 @@ export const tutorialContexts: Record<string, TutorialPageContext> = {
 
   'blender-animation-guide': {
     pageId: 'blender-animation-guide',
-    pageName: 'Blender Animation Guide',
+    pageName: 'Animation Guide',
     visualGuidePage: 13, // synced from VISUAL_GUIDE.md
     route: '/guides/blender/animation',
     purpose: 'End-to-end Fallout 4 animation pipeline: skeleton import, rigging, authoring, FBX export and HKX conversion, validation and in‑game testing.',
@@ -2616,7 +2616,7 @@ export const tutorialContexts: Record<string, TutorialPageContext> = {
 
   'support': {
     pageId: 'support',
-    pageName: 'Support & Donations',
+    pageName: 'Support Mossy',
     route: '/support',
     purpose: 'Support the development of Mossy and access premium features',
     features: [
@@ -3419,7 +3419,8 @@ export const tutorialContexts: Record<string, TutorialPageContext> = {
 
   'ck-extension': {
     pageId: 'ck-extension',
-    pageName: 'Creation Kit Extension',
+    pageName: 'CK Extensions',
+    visualGuidePage: 44,
     route: '/tools/ck-extension',
     purpose: 'Integration helpers and safety features for the Creation Kit',
     features: ['Launch CK via MO2', 'Preflight checks', 'Crash prevention hooks'],
@@ -3738,7 +3739,7 @@ export const tutorialContexts: Record<string, TutorialPageContext> = {
 
   'guides-blender': {
     pageId: 'guides-blender',
-    pageName: 'Blender Animation Guide',
+    pageName: 'Animation Guide',
     route: '/guides/blender',
     purpose: 'Blender workflows and export settings tailored for Fallout 4 assets',
     features: ['Export presets', 'Rigging checklists', 'Animation validator guidance'],
@@ -3818,7 +3819,7 @@ export const tutorialContexts: Record<string, TutorialPageContext> = {
 
   'comfyui-extension': {
     pageId: 'comfyui-extension',
-    pageName: 'ComfyUI Extension',
+    pageName: 'ComFyui Extensions',
     visualGuidePage: 45, // synced from VISUAL_GUIDE.md
     route: '/extensions/comfyui',
     purpose: 'Connect to ComfyUI instances for specialized image pipeline integrations',
@@ -3834,7 +3835,7 @@ export const tutorialContexts: Record<string, TutorialPageContext> = {
 
   'upscayl-extension': {
     pageId: 'upscayl-extension',
-    pageName: 'Upscayl Extension',
+    pageName: 'Upscayl / Upscale Extension',
     visualGuidePage: 46, // synced from VISUAL_GUIDE.md
     route: '/extensions/upscayl',
     purpose: 'Use Upscayl upscaler from within Mossy for high-quality texture upscaling',
@@ -3993,19 +3994,7 @@ export const tutorialContexts: Record<string, TutorialPageContext> = {
 
 
 
-  'ck-extension': {
-    pageId: 'ck-extension',
-    pageName: 'CK Extensions',
-    visualGuidePage: 44,
-    route: '/extensions/ck',
-    purpose: 'Manage Creation Kit related extensions and integrations.',
-    features: ['Extension list', 'Install/enable toggles'],
-    controls: [ { name: 'Enable Extension', type: 'toggle', description: 'Turn on an extension', whenToUse: 'When you need extra CK tooling' } ],
-    commonMistakes: ['Enabling incompatible extensions together'],
-    guides: [ { title: 'Install a CK extension', steps: ['Open CK Extensions', 'Select extension and enable', 'Restart app if prompted'] } ],
-    tutorialSections: ['CK Integrations'],
-    suggestedQuestions: ['How do I install a CK extension?'],
-  },
+
 
 
 
