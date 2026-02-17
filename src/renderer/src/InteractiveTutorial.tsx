@@ -216,8 +216,8 @@ export const InteractiveTutorial: React.FC<InteractiveTutorialProps> = ({
   // Helper function to get appropriate image for each page
   function getImageForPage(pageId: string): string | undefined {
     const imageMap: Record<string, string> = {
-      'nexus': '/visual-guide-images/Page one. Mossy\'s space..png',
-      'chat': '/visual-guide-images/Page two. AI Chat..png',
+      'nexus': '/visual-guide-images/Page 1, mossy space..png',
+      'chat': '/visual-guide-images/Page 2 AI chat..png',
       'live-voice': '/visual-guide-images/Page 35 Live Synapse..png',
       'auditor': '/visual-guide-images/Page 21 the auditor..png',
       'image-suite': '/visual-guide-images/Page 34 image Studio..png',
@@ -259,7 +259,7 @@ export const InteractiveTutorial: React.FC<InteractiveTutorialProps> = ({
       'ba2-manager': '/visual-guide-images/Page 11. Packaging and release..png', // Similar to packaging
       'workflow-recorder': '/visual-guide-images/Page 26 the Orchestrator..png', // Similar to orchestrator
       'first-success': '/visual-guide-images/Page 4. First success..png',
-      'whats-new': '/visual-guide-images/Page 5.%20What\'s%20New.png', // What's New image
+      'whats-new': '/visual-guide-images/Page 6 What`s New.png', // What's New image
       'formid-remapper': '/visual-guide-images/Page 21 the auditor..png', // Use Auditor image for remapper
       'precombine-generator': '/visual-guide-images/Page 18 the assembler..png', // Use Assembler image for precombine
       'mining-panel': '/visual-guide-images/Page 7. Quick reference.png', // Using general guide image
