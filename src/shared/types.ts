@@ -3512,7 +3512,11 @@ export interface ChatContext {
   conversationId?: string;
   userId: string;
   currentFile?: string;
+<<<<<<< Updated upstream
   projectContext?: ProjectData;
+=======
+  projectContext?: Project;
+>>>>>>> Stashed changes
   recentActions: Action[];
 }
 
@@ -3557,7 +3561,10 @@ export interface Explanation {
   breakdown: CodeBreakdown[];
   concepts: Concept[];
   relatedDocs: string[];
+<<<<<<< Updated upstream
   steps?: string[];
+=======
+>>>>>>> Stashed changes
 }
 
 export interface CodeBreakdown {
@@ -3608,7 +3615,10 @@ export interface FeatureSuggestion {
 export interface Intent {
   type: 'question' | 'command' | 'request' | 'feedback';
   action: string;
+<<<<<<< Updated upstream
   name?: string;
+=======
+>>>>>>> Stashed changes
   confidence: number;
 }
 
@@ -3626,7 +3636,10 @@ export interface PersonalizationSettings {
 
 export interface ImageAnalysis {
   description: string;
+<<<<<<< Updated upstream
   tags?: string[];
+=======
+>>>>>>> Stashed changes
   objects: DetectedObject[];
   answer: string;
   confidence: number;
@@ -3634,7 +3647,10 @@ export interface ImageAnalysis {
 
 export interface DetectedObject {
   label: string;
+<<<<<<< Updated upstream
   name?: string;
+=======
+>>>>>>> Stashed changes
   confidence: number;
   boundingBox: BoundingBox;
 }
@@ -6132,6 +6148,7 @@ export interface WorkerNode {
   };
 }
 
+<<<<<<< Updated upstream
 /**
  * CK Crash Prevention System Types
  */
@@ -6217,6 +6234,8 @@ export interface PreventionStep {
   completed: boolean;
 }
 
+=======
+>>>>>>> Stashed changes
 // ============================================================================
 // QUEST EDITOR TYPES
 // ============================================================================
@@ -6287,18 +6306,10 @@ export interface QuestAlias {
   conditions: Condition[];
 }
 
-export type EmotionType = 
-  | 'happy' | 'sad' | 'angry' | 'fear' | 'disgust' 
-  | 'surprise' | 'neutral' | 'custom';
-
-export interface DialogueBranch {
-  id: string;
-  npc: string;
-  topic: string;
-  priority?: number;
-  nodes: DialogueNode[];
-  quest?: string;
-  conditions?: Condition[];
+<<<<<<< Updated upstream
+export interface ValidationWarning {
+  message: string;
+  recommendation: string;
 }
 
 export interface DialogueNode {
@@ -6474,3 +6485,69 @@ export type VectorOperation = 'normalize'|'length'|'dot'|'cross'
 export interface ShaderGraphValidationResult { valid: boolean; errors: string[]; warnings?: string[]; metrics?: any; stats?: Record<string, any> }
 export interface CompiledShaderOutput { success?: boolean; vertexShader?: string; fragmentShader?: string; vertex?: string; fragment?: string; errors?: string[]; warnings?: string[]; compilationTime?: number; stats?: { instructionCount?: number; textureCount?: number; parameterCount?: number }; uniforms?: any[]; varyings?: any[]; outputs?: any[]; metadata?: any }
 
+=======
+>>>>>>> Stashed changes
+export type EmotionType = 
+  | 'happy' | 'sad' | 'angry' | 'fear' | 'disgust' 
+  | 'surprise' | 'neutral' | 'custom';
+
+export interface DialogueBranch {
+  id: string;
+  npc: string;
+  topic: string;
+  priority: number;
+  nodes: DialogueNode[];
+  quest?: string;
+}
+
+export interface DialogueNode {
+  id: string;
+  speaker: 'player' | 'npc' | 'other';
+  text: string;
+  prompt?: string; // Player choice text
+  responses: DialogueResponse[];
+  conditions: Condition[];
+  actions: DialogueAction[];
+  emotions?: EmotionType;
+  animation?: string;
+}
+
+export interface DialogueResponse {
+  targetNodeId: string;
+  conditions: Condition[];
+  chance?: number; // Random selection
+}
+
+export interface DialogueAction {
+  type: 'script' | 'set-stage' | 'give-item' | 'add-perk' | 'start-combat';
+  parameters: Record<string, any>;
+}
+
+export interface ValidationResult {
+  isValid: boolean;
+  errors: string[];
+  warnings: string[];
+  timestamp?: number;
+}
+
+export interface SimulationResult {
+  path: QuestStage[];
+  choices: UserChoice[];
+  finalStage: number;
+  success: boolean;
+  warnings: string[];
+}
+
+// Backwards-compatibility alias
+export type QuestSimulationResult = SimulationResult;
+
+export interface UserChoice {
+  dialogueNodeId: string;
+  responseIndex: number;
+} 
+
+export interface PapyrusCode {
+  scriptName: string;
+  code: string;
+  properties: QuestProperty[];
+}
