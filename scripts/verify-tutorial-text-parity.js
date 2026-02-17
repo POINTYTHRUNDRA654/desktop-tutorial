@@ -12,8 +12,9 @@ function normalize(s) {
   return s
     .toLowerCase()
     .replace(/\u2019/g, "'")
-    .replace(/[^[a-z0-9\s]]/g, ' ')
+    .replace(/[^a-z0-9\s']/g, ' ')
     .replace(/\s+/g, ' ')
+    .replace(/\b([a-z]+)\s+s\b/g, '$1s') // normalize "what s" -> "whats"
     .trim();
 }
 

@@ -289,10 +289,10 @@ export const InteractiveTutorial: React.FC<InteractiveTutorialProps> = ({
       'desktop-bridge': '/visual-guide-images/page-40-desktop-bridge.png',
       'blender-animation-guide': '/visual-guide-images/page-17-animation-guide.png',
       'quest-authoring-guide': '/visual-guide-images/page-18-quest-mod-authorizing.png',
-      'bodyslide-guide': '/visual-guide-images/Page 7. Quick reference.png', // Using general guide image
-      'sim-settlements-guide': '/visual-guide-images/Page 7. Quick reference.png', // Using general guide image
-      'paperscript-guide': '/visual-guide-images/Page 7. Quick reference.png', // Using general guide image
-      'mining-dashboard': '/visual-guide-images/Page 7. Quick reference.png', // Using general guide image
+      'bodyslide-guide': '/visual-guide-images/page-8-quick-reference.png', // Using general guide image
+      'sim-settlements-guide': '/visual-guide-images/page-8-quick-reference.png', // Using general guide image
+      'paperscript-guide': '/visual-guide-images/page-8-quick-reference.png', // Using general guide image
+      'mining-dashboard': '/visual-guide-images/page-8-quick-reference.png', // Using general guide image
       'plugin-manager': '/visual-guide-images/page-36-plugin-manager.png', // Similar to dev tools
       'ck-extension': '/visual-guide-images/page-43-ck-extensions.png',
       'comfyui-extension': '/visual-guide-images/page-44-comfyui-extensions.png',
@@ -301,14 +301,14 @@ export const InteractiveTutorial: React.FC<InteractiveTutorialProps> = ({
       'xedit-tools': '/visual-guide-images/page-42-xedit-tools.png',
       'dds-converter': '/visual-guide-images/page-14-dds-converter.png',
       'texture-generator': '/visual-guide-images/page-15-texture-generator.png',
-      'roadmap-panel': '/visual-guide-images/Page 5. Modding RoadMaps..png', // Modding Roadmaps image
+      'roadmap-panel': '/visual-guide-images/page-5-modding-roadmaps.png', // Modding Roadmaps image
       'ba2-manager': '/visual-guide-images/page-16-packaging-release.png', // Similar to packaging
       'workflow-recorder': '/visual-guide-images/page-30-the-orchestrator.png', // Similar to orchestrator
       'first-success': '/visual-guide-images/page-4-first-success.png',
       'whats-new': '/visual-guide-images/page-6-whats-new.png', // What's New image
       'formid-remapper': '/visual-guide-images/page-25-the-auditor.png', // Use Auditor image for remapper
       'precombine-generator': '/visual-guide-images/page-23-the-assembler.png', // Use Assembler image for precombine
-      'mining-panel': '/visual-guide-images/Page 7. Quick reference.png', // Using general guide image
+      'mining-panel': '/visual-guide-images/page-8-quick-reference.png', // Using general guide image
     };
     return imageMap[pageId];
   }
