@@ -321,6 +321,8 @@ This will:
 2. Launch Electron with hot reload enabled
 3. Open DevTools automatically
 
+_Note: Vite (build/dev server) is v7.x; Vitest (the test runner) is v4.x — the `v4.x` version you see in test output refers to Vitest, not Vite._
+
 ### Building
 Build the application for production:
 ```bash
