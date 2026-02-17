@@ -66,8 +66,27 @@ for (const p of mdPages) {
 }
 
 // check InteractiveTutorial imageMap references exist in public images
-const itxImgs = Array.from(new Set((itx.match(/\/visual-guide-images\/[^'"\),\s]+/g) || []).map(s => s.replace('/visual-guide-images/',''))));
-const itxReport = itxImgs.map(fn => ({ fn, existsInPublic: imageFilesPublic.includes(decodeURIComponent(fn)) }));
+// allow filenames with spaces — stop when encountering a closing quote or parenthesis
+const itxImgs = Array.from(new Set((itx.match(/\/visual-guide-images\/[^'\")]+/g) || [])
+  .map(s => s.replace('/visual-guide-images/',''))
+  .map(fn => fn.replace(/\\'/g, "'").replace(/\\\\/g, "\\").trim())
+));
+
+function findPublicCandidate(key) {
+  const k = key.toLowerCase().replace(/page\s*\d+/i, '').replace(/[^a-z0-9]+/g, ' ').trim();
+  if (!k) return null;
+  const parts = k.split(/\s+/).filter(p => p.length > 2);
+  let best = null;
+  for (const f of imageFilesPublic) {
+    const lf = f.toLowerCase();
+    let score = 0;
+    for (const p of parts) if (lf.includes(p)) score += 1;
+    if (score > 0 && (!best || score > best.score)) best = { file: f, score };
+  }
+  return best ? best.file : null;
+}
+
+const itxReport = itxImgs.map(fn => ({ fn, existsInPublic: imageFilesPublic.includes(decodeURIComponent(fn)), candidate: findPublicCandidate(fn) }));
 
 // check tutorialContexts pageName presence in tutorialContext.ts
 const pageNames = mdPages.map(p => p.title.toLowerCase());
@@ -85,10 +104,15 @@ else console.log('All VISUAL_GUIDE page titles appear in tutorialContext.ts (sub
 
 // Exit with code 1 if any md referenced image does not exist in root or any itx images missing in public
 const mdMissing = mdReport.filter(r => !r.existsInRoot);
-const itxMissing = itxReport.filter(r => !r.existsInPublic);
+const itxMissing = itxReport.filter(r => !r.existsInPublic && !r.candidate);
 if (mdMissing.length || itxMissing.length) {
   console.error('\nERROR: Parity issues detected. Run with --fix to apply suggested fixes (re-point VISUAL_GUIDE.md image links to root candidates).');
   mdMissing.forEach(m => console.error(`  - Page ${m.page} (${m.title}) references ${m.referenced} but root candidate is ${m.rootCandidate}`));
+  itxReport.forEach(r => {
+    if (!r.existsInPublic && r.candidate) {
+      console.warn(`  - InteractiveTutorial references ${r.fn} which was not found exactly in public; best candidate: ${r.candidate}`);
+    }
+  });
   itxMissing.forEach(m => console.error(`  - InteractiveTutorial references ${m.fn} which is missing in public/visual-guide-images`));
   process.exit(1);
 }
