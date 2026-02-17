@@ -329,7 +329,7 @@ const GuidedTour: React.FC<GuidedTourProps> = ({ isOpen, onClose, tourType, targ
                   <div className="text-slate-400">Off</div>
                 </div>
 
-                {renderGuideImage('Page 3. AI Mod assistant..png', 'AI Mod Assistant')}
+                {renderGuideImage('page-3-ai-mod-assistant.png', 'AI Mod Assistant')}
               </div>
             ),
             data: {
@@ -372,7 +372,7 @@ const GuidedTour: React.FC<GuidedTourProps> = ({ isOpen, onClose, tourType, targ
                   <div className="mt-3 text-slate-400">Done with the basics? Explore advanced modules when you are ready using the sidebar.</div>
                 </div>
 
-                {renderGuideImage('Page 4. First success..png', 'First Success Wizard')}
+                {renderGuideImage('page-4-first-success.png', 'First Success Wizard')}
               </div>
             ),
             data: {
@@ -392,7 +392,7 @@ const GuidedTour: React.FC<GuidedTourProps> = ({ isOpen, onClose, tourType, targ
                 <p className="text-slate-300 text-sm">
                   Talk to Mossy with real-time voice input and spoken responses.
                 </p>
-                {renderGuideImage('Page 39. Live Synapse..png', 'Live voice')}
+                {renderGuideImage('page-39-live-synapse.png', 'Live voice')}
               </div>
             ),
             data: {
@@ -665,3 +665,5 @@ const GuidedTour: React.FC<GuidedTourProps> = ({ isOpen, onClose, tourType, targ
 };
 
 export default GuidedTour;
+
+
