@@ -1184,6 +1184,259 @@ Support Mossy is the community support and sustainability page. It explains how 
 - Share clear bug reports with steps to reproduce.
 - Support only through official links.
 
+## Page 44 - CK Extensions
+
+![Page 44 - CK Extensions](visual-guide-images/Page%2043.%20CK%20Extensions..png)
+
+**What this page is for**
+Integration helpers and safety features for the Creation Kit (CK): launch helpers, preflight checks and crash‑prevention tools.
+
+**How to use it (step‑by‑step)**
+1. Run the Preflight checks before opening CK to catch missing masters and path issues.
+2. Launch CK through the MO2/Launcher integration when working with virtual profiles.
+3. Use the safety hints if CK reports missing data or crashes on load.
+4. Re-run the preflight after major plugin edits.
+
+**Page functions (what each part does)**
+- Launch CK: open Creation Kit with the correct profile and environment.
+- Preflight: run sanity checks to reduce crash risk.
+- Safety hints: actions to fix common CK startup failures.
+
+**Screenshot callouts**
+- Launch button — respects MO2 profiles.
+- Preflight panel — lists warnings and suggested fixes.
+
+**Beginner tips**
+- Always backup before opening CK with experimental plugins. ✅
+- Use Preflight when you see CK crashes on load.
+
+## Page 45 - ComFyui Extensions
+
+![Page 45 - ComFyui Extensions](visual-guide-images/Page%2044.%20ComFyui%20Extensions..png)
+
+**What this page is for**
+Connect and control ComfyUI image‑pipeline instances from inside Mossy — run pipelines, manage presets, and preview outputs.
+
+**How to use it (step‑by‑step)**
+1. Start your local ComfyUI server and confirm it’s reachable.
+2. Open the ComFyUI extension in Mossy and check the status indicator.
+3. Select a preset/pipeline and click Run to process images.
+4. Review previews and export outputs to your project.
+
+**Page functions (what each part does)**
+- Status view: shows connection state to ComfyUI.
+- Pipeline selector: pick a saved pipeline preset.
+- Run/Preview: execute and preview results before exporting.
+
+**Screenshot callouts**
+- Top: connection status and start/stop controls.
+- Center: pipeline list and preset selector.
+- Bottom: preview pane with quick‑export.
+
+**Beginner tips**
+- Start ComfyUI before opening this page.
+- Use small test images when trying a new pipeline.
+
+## Page 46 - Upscayl / Upscale Extension
+
+![Page 46 - Upscayl Extension](visual-guide-images/Page%2045.%20Upscale%20Extension.png)
+
+**What this page is for**
+Run local Upscayl upscaling from Mossy to improve texture resolution with presets and batch operations.
+
+**How to use it (step‑by‑step)**
+1. Open the Upscayl extension and add textures to the queue.
+2. Choose an upscaling preset appropriate for UI or in‑game art.
+3. Run the batch job and inspect generated outputs.
+4. Import results into Image Studio or the Workshop.
+
+**Page functions (what each part does)**
+- File queue: add/remove textures to process.
+- Preset selector: choose transform & strength.
+- Batch controls: run, pause or cancel jobs.
+
+**Screenshot callouts**
+- Queue pane — adds input files for processing.
+- Preset dropdown — pick quality/scale settings.
+- Result preview — compare before/after.
+
+**Beginner tips**
+- Upscale then manually retouch for best results.
+- Use presets matched to asset type (UI vs textures).
+
+## Page 47 - MO2 Extension
+
+![Page 47 - MO2 Extension](visual-guide-images/Page%2041.%20MO2%20Extension.png)
+
+**What this page is for**
+Integration with Mod Organizer 2 (MO2): surface profiles, load orders and profile‑scoped operations.
+
+**How to use it (step‑by‑step)**
+1. Start MO2 and ensure your profile is active.
+2. Open the MO2 Extension and click Refresh to load profile data.
+3. Inspect load order, enable/disable mods or export lists for tools.
+4. Use the integration when packaging or running audits.
+
+**Page functions (what each part does)**
+- Profile detection: shows the active MO2 profile.
+- Load order preview: quick snapshot of plugin order.
+- Export list: produce files for auditors or patchers.
+
+**Screenshot callouts**
+- Top-left: detected MO2 profile name.
+- Center: mod list and load‑order preview.
+- Action buttons: refresh & export.
+
+**Beginner tips**
+- Always refresh after changing profiles in MO2.
+- Use exported load lists for reproducible tests.
+
+## Page 48 - xEdit Tools
+
+![Page 48 - XEdit Tools](visual-guide-images/Page%2042%20Xedit%20Tools.png)
+
+**What this page is for**
+Utilities for xEdit/FO4Edit: export load orders, run xEdit scripts, and produce patch‑friendly lists.
+
+**How to use it (step‑by‑step)**
+1. Open XEdit Tools and choose Export Load Order to create a plugin list.
+2. Use Run Script for batch fixes (always backup first).
+3. Import exported lists into Auditors or patch generators.
+
+**Page functions (what each part does)**
+- Export load order: produces plugins.txt or JSON lists.
+- Run script: execute xEdit scripts in a safe, sandboxed flow.
+- Profile awareness: respects active MO2/Vortex profiles.
+
+**Screenshot callouts**
+- Export button — select output format.
+- Scripts panel — available batch scripts.
+
+**Beginner tips**
+- Backup your plugins before running scripts.
+- Prefer read‑only exports until you’re confident.
+
+## Page 49 - DDS Converter
+
+![Page 49 - DDS Converter](visual-guide-images/Page%2014.%20DDS%20Converter..png)
+
+**What this page is for**
+Convert textures between DDS and common formats (PNG/JPEG) with game‑safe presets and mipmap options.
+
+**How to use it (step‑by‑step)**
+1. Select the source texture(s) and pick a target preset (FO4 UI, Albedo, Normal).
+2. Choose mipmap and compression options.
+3. Click Convert and inspect the output in Image Studio.
+4. Save converted textures to your project folder.
+
+**Page functions (what each part does)**
+- Preset selector: pick output rules for the game.
+- Mipmap controls: generate or strip mipmaps.
+- Convert button: run the transformation.
+
+**Screenshot callouts**
+- Preset dropdown and sample preview.
+- Compression/format controls.
+
+**Beginner tips**
+- Use the FO4 texture presets to avoid in‑game artifacts.
+- Keep originals backed up before converting.
+
+## Page 50 - Texture Generator
+
+![Page 50 - Texture Generator](visual-guide-images/Page%2015.%20Texture%20generator..png)
+
+**What this page is for**
+AI‑assisted texture creation and enhancement (bakes, style presets, seamless generation).
+
+**How to use it (step‑by‑step)**
+1. Upload or select a base texture.
+2. Choose a generator preset (seamless, weathering, upscaling).
+3. Run generation and iterate until satisfied.
+4. Export to Image Studio for final edits.
+
+**Page functions (what each part does)**
+- Presets: quick style/goal selection.
+- Generate: starts the AI pipeline.
+- Batch: process multiple textures at once.
+
+**Screenshot callouts**
+- Preset gallery — choose generation style.
+- Preview pane — inspect before export.
+
+**Beginner tips**
+- Start with low-strength presets and iterate.
+- Combine generator output with manual touch‑ups.
+
+## Page 51 - Guided Tours
+
+![Page 51 - Guided Tours](visual-guide-images/Page%2054.%20Guided%20tours..png)
+
+**What this page is for**
+Prebuilt, interactive tours (Welcome, Feature Spotlight, Module tours) that walk you through Mossy step‑by‑step.
+
+**How to use it (step‑by‑step)**
+1. Open Guided Tours and pick a tour (Welcome, Workshop, Feature Spotlight).
+2. Follow each on‑screen step; Mossy will highlight UI elements and explain actions.
+3. Use Next/Previous to control pace or Exit to stop.
+4. Re-run tours anytime via the Command Palette (Ctrl+K).
+
+**Page functions (what each part does)**
+- Tour list: choose which guided flow to run.
+- Step overlay: highlights UI and shows instructions.
+- Replay controls: restart or step through the tour.
+
+**Screenshot callouts**
+- Tour chooser — list of available tours.
+- Overlay sample — shows a highlighted UI area and narration.
+
+**Beginner tips**
+- Use the Welcome tour on first launch.
+- Re-run the Workshop tour when learning a new tool.
+
+## Page 52 - Fallout 4 Wiki (Reference)
+
+![Page 52 - Fallout 4 Wiki](visual-guide-images/Page%2053.%20Fallout%204%20wiki..png)
+
+**What this page is for**
+Quick access to community references (Fallout 4 Wiki, common form lists, and game‑specific docs) inside the Learning Hub.
+
+**How to use it (step‑by‑step)**
+1. Search the wiki from the Learning Hub or open this reference page.
+2. Use filters to find NPC, quest, or asset references.
+3. Save frequently used pages to your Vault.
+
+**Page functions (what each part does)**
+- Search bar: find game references quickly.
+- Result list: links to external docs and internal knowledge.
+- Save action: add to Memory Vault.
+
+**Beginner tips**
+- Keep a shortlist of 3 wiki pages you use most.
+- Save critical references to your Vault for offline access.
+
+## Page 53 - Pip‑Boy Mode
+
+![Page 53 - Pip‑Boy Mode](visual-guide-images/Page%2055.%20Pip%20boy.%20On.%20Off..png)
+
+**What this page is for**
+Pip‑Boy Mode changes the app's look to a retro Fallout CRT/pip‑boy theme and provides themed UI affordances for immersion.
+
+**How to use it (step‑by‑step)**
+1. Toggle the Pip‑Boy icon in the header or press the Pip‑Boy hotkey.
+2. Choose green or amber color variants in Settings.
+3. Use full‑screen for the classic Pip‑Boy experience.
+4. Toggle off anytime to return to normal mode.
+
+**Page functions (what each part does)**
+- Theme toggle: switch Pip‑Boy mode on/off.
+- Color presets: select green/amber variants.
+- Window styling:CRT frame, scanlines, and themed accents.
+
+**Beginner tips**
+- Pip‑Boy is cosmetic only — it does not affect tool behavior.
+- Use full‑screen for the most authentic look.
+
 ## Onboarding Flow Diagram
 
 ```
