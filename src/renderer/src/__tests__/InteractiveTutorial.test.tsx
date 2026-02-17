@@ -76,4 +76,13 @@ describe('InteractiveTutorial layout & navigation', () => {
     expect(/Enter your OpenAI API key/i.test(withPackaged)).toBeFalsy();
     expect(/(API key|OpenAI|openai|Groq|elevenlabs)/i.test(withPackaged)).toBeFalsy();
   });
+
+  it('orders tutorial contexts to follow VISUAL_GUIDE.md when page numbers exist', () => {
+    const ordered = getOrderedTutorialContexts(tutorialContexts);
+    const nums = ordered.map(c => (c as any).visualGuidePage).filter(n => typeof n === 'number') as number[];
+    // ensure the numeric sequence (when present) is non-decreasing
+    for (let i = 1; i < nums.length; i++) {
+      expect(nums[i]).toBeGreaterThanOrEqual(nums[i - 1]);
+    }
+  });
 });
