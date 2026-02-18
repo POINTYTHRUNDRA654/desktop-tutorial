@@ -99,6 +99,8 @@
 
 **Already have Mossy installed on your desktop?** Here's how to safely upgrade:
 
+> 📘 **Detailed Guide:** See [UPGRADE_GUIDE.md](UPGRADE_GUIDE.md) for complete upgrade instructions and troubleshooting.
+
 #### ✅ Safe Upgrade Process (Recommended)
 
 1. **Download** the new version installer from [GitHub Releases](https://github.com/POINTYTHRUNDRA654/desktop-tutorial/releases/latest)
@@ -112,6 +114,8 @@
    - ✅ API keys
    - ✅ Project configurations
    - ✅ Tutorial progress
+
+**Quick Summary:** The installer safely upgrades without conflicts. Your data stays in `%APPDATA%/mossy-desktop/` and is automatically preserved.
 
 #### 📁 What Gets Preserved
 
