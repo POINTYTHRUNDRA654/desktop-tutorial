@@ -1,24 +1,4 @@
 /**
-<<<<<<< Updated upstream
- * CK Crash Prevention Engine (clean, conflict-free)
- * - Minimal, deterministic implementation used for validation and unit tests.
- * - Aligns with `src/shared/types.ts` CK types.
- */
-
-import * as fs from 'fs';
-import * as path from 'path';
-
-import type {
-  CKValidationInput,
-  CKValidationResult,
-  ValidationIssue as SharedValidationIssue,
-  ValidationWarning,
-  PreventionPlan,
-  PreventionStep,
-  CrashDiagnosis,
-} from '../shared/types';
-
-// ============================================================================
 // TYPE DEFINITIONS (Local types not in shared - internal use only)
 // ============================================================================
 
@@ -567,147 +547,12 @@ export class CKCrashPreventionEngine {
         recommendations: ['Verify file is not in use by another application'],
         estimatedCrashRisk: 100,
         memoryEstimate: 0
->>>>>>> Stashed changes
+
       };
     }
   }
 
   /**
-<<<<<<< Updated upstream
-   * Generate prevention plan
-   */
-  parseCrashLog(logContent: string): CrashDiagnosis {
-    let exceptionType: CrashDiagnosis['exceptionType'] = 'unknown';
-    let rootCause = 'Unknown cause';
-    const fixSteps: string[] = [];
-
-    // Pattern 1: Memory overflow
-    if (logContent.includes('out of memory') || logContent.includes('std::bad_alloc')) {
-      exceptionType = 'memory_error';
-      rootCause = 'Creation Kit exceeded 4GB memory limit (32-bit application)';
-      fixSteps.push('Split large mods into smaller plugins');
-      fixSteps.push('Close unnecessary applications before CK');
-      fixSteps.push('Use 64-bit tools (xEdit) for bulk operations');
-      fixSteps.push('Restart CK every 30-45 minutes to clear memory');
-    }
-
-    // Pattern 2: Access violation with navmesh
-    else if (logContent.includes('access violation') && logContent.toLowerCase().includes('navmesh')) {
-      exceptionType = 'access_violation';
-      rootCause = 'Invalid navmesh operation causing access violation';
-      fixSteps.push('Save before editing navmeshes');
-      fixSteps.push('Use navmesh cut tool instead of delete');
-      fixSteps.push('Avoid dragging large navmesh sections');
-      fixSteps.push('Regenerate navmesh if corruption suspected');
-    }
-
-    // Pattern 3: Access violation with precombine
-    else if (logContent.includes('access violation') && 
-             (logContent.toLowerCase().includes('precombine') || 
-              logContent.toLowerCase().includes('previs'))) {
-      exceptionType = 'access_violation';
-      rootCause = 'Precombine/Previs data corruption or conflict';
-      fixSteps.push('Disable precombines before CK: CompressPSG OFF');
-      fixSteps.push('Edit without precombined data');
-      fixSteps.push('Regenerate precombines after completion');
-    }
-
-    // Pattern 4: Generic access violation
-    else if (logContent.includes('access violation') || logContent.includes('0xC0000005')) {
-      exceptionType = 'access_violation';
-      rootCause = 'Memory access to invalid address';
-      fixSteps.push('Run plugin validation with xEdit');
-      fixSteps.push('Check for missing assets (meshes, textures)');
-      fixSteps.push('Clean plugin with xEdit');
-      fixSteps.push('Verify all master files are present');
-    }
-
-    // Pattern 5: Timeout
-    else if (logContent.includes('timeout') || logContent.includes('not responding')) {
-      exceptionType = 'timeout';
-      rootCause = 'Operation took too long and timed out';
-      fixSteps.push('Check for circular script references');
-      fixSteps.push('Review quest aliases and conditions');
-      fixSteps.push('Simplify complex object reference chains');
-    }
-
-    return {
-      exceptionType,
-      rootCause,
-      fixSteps,
-      relatedKnowledgeArticles: []
-    };
-  }
-
-  /**
-   * Generate prevention plan based on validation results
-   */
-  generatePreventionPlan(validationResult: ESPValidationResult): PreventionPlan {
-    const steps: PreventionStep[] = [];
-
-    // Step 1: Clean plugin
-    steps.push({
-      id: 'clean-plugin',
-      title: 'Clean Plugin with xEdit',
-      description: 'Remove identical-to-master records and undelete references',
-      tool: 'FO4Edit',
-      completed: false
-    });
-
-    // Step 2: Backup
-    steps.push({
-      id: 'backup',
-      title: 'Create Backup',
-      description: 'Backup current plugin state before modifications',
-      tool: 'File System',
-      completed: false
-    });
-
-    // Step 3: Disable precombines if detected
-    const hasPrecombineIssue = validationResult.issues.some(i => 
-      i.message.toLowerCase().includes('precombine')
-    );
-    if (hasPrecombineIssue) {
-      steps.push({
-        id: 'disable-precombines',
-        title: 'Disable Precombines',
-        description: 'Run CompressPSG OFF to remove precombine data',
-        tool: 'CompressPSG',
-        completed: false
-      });
-    }
-
-    // Step 4: Memory optimization
-    if (validationResult.memoryEstimate > 1000) {
-      steps.push({
-        id: 'optimize-memory',
-        title: 'Optimize System Memory',
-        description: 'Close unnecessary applications, clear Windows cache',
-        tool: 'Task Manager',
-        completed: false
-      });
-    }
-
-    // Step 5: Verify masters
-    steps.push({
-      id: 'verify-masters',
-      title: 'Verify Master Files',
-      description: 'Ensure all required masters are installed and in load order',
-      completed: false
-    });
-
-    const priority: 'low' | 'medium' | 'high' = 
-      validationResult.estimatedCrashRisk > 70 ? 'high' :
-      validationResult.estimatedCrashRisk > 40 ? 'medium' : 'low';
-
-    return {
-      priority,
-      steps,
-      estimatedTime: 15 // minutes
-    };
-  }
-
-  // ============================================================================
   // PRIVATE HELPER METHODS
   // ============================================================================
 
@@ -1005,5 +850,5 @@ export class CKCrashPreventionEngine {
 }
 
 // Singleton instance
->>>>>>> Stashed changes
+
 export const ckCrashPrevention = new CKCrashPreventionEngine();
