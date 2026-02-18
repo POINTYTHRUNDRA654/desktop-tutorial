@@ -68,12 +68,12 @@ export class GameIntegrationEngine {
         result = await this.executeViaMemoryInjection(command, gameProcess);
       }
 
-      // Add to command history
+      // Add to command history (store only supported ConsoleCommand fields)
       this.commandHistory.push({
         command,
+        timestamp: Date.now(),
         description: `Executed: ${command}`,
-        category: this.categorizeCommand(command),
-        dangerous: this.isDangerousCommand(command),
+        result: result?.output ?? ''
       });
 
       return result;
@@ -82,6 +82,7 @@ export class GameIntegrationEngine {
         success: false,
         output: '',
         error: error.message,
+        timestamp: Date.now(),
       };
     }
   }
@@ -113,19 +114,15 @@ export class GameIntegrationEngine {
 
       return {
         fileName: path.basename(savePath),
+        characterName: header.playerName || 'Player',
         playerName: header.playerName,
         level: header.playerLevel,
-        location: 'Unknown', // Would need to extract from save data
         playTime: header.playTime,
-        pluginList: plugins,
-        missingPlugins,
-        formCount: this.countForms(buffer),
-        scriptInstanceCount: this.countScriptInstances(buffer),
-        suspendedStackCount: this.countSuspendedStacks(buffer),
-        changeFormCount: this.countChangeForms(buffer),
-        corruptionRisk: this.assessCorruptionRisk(buffer),
-        recommendations: this.generateSaveRecommendations(missingPlugins, this.countScriptInstances(buffer)),
-      };
+        location: 'Unknown',
+        activeMods: plugins,
+        missingMods: missingPlugins,
+        issues: this.detectCorruption(buffer) ? ['possible corruption detected'] : [],
+      } as SaveGameAnalysis;
     } catch (error: any) {
       throw new Error(`Failed to analyze save game: ${error.message}`);
     }
@@ -217,25 +214,19 @@ export class GameIntegrationEngine {
         return {
           success: true,
           dllPath,
-          injectionTime: Date.now() - startTime,
-          communicationEstablished,
         };
       } else {
         return {
           success: false,
           dllPath,
-          injectionTime: Date.now() - startTime,
           error: 'DLL injection failed',
-          communicationEstablished: false,
         };
       }
     } catch (error: any) {
       return {
         success: false,
         dllPath,
-        injectionTime: Date.now() - startTime,
         error: error.message,
-        communicationEstablished: false,
       };
     }
   }
@@ -283,7 +274,7 @@ export class GameIntegrationEngine {
 
     const results: CommandResult[] = [];
     for (const command of macro.commands) {
-      const result = await this.executeConsoleCommand(command.command, game);
+      const result = await this.executeConsoleCommand(command, game);
       results.push(result);
 
       // Small delay between commands
@@ -326,14 +317,16 @@ export class GameIntegrationEngine {
     // Get detailed process information
     const pid = await this.getProcessId(process.name);
 
+    const execPath = await this.getProcessPath(pid);
     return {
       name: process.name === 'Fallout4.exe' ? 'Fallout4' : 'SkyrimSE',
       pid,
-      executablePath: await this.getProcessPath(pid),
+      path: execPath,
+      isRunning: true,
+      executablePath: execPath,
       version: await this.getGameVersion(pid),
       f4seDetected: await this.detectF4SE(pid),
       skseDetected: await this.detectSKSE(pid),
-      uptime: await this.getProcessUptime(pid),
     };
   }
 
@@ -343,6 +336,7 @@ export class GameIntegrationEngine {
     return {
       success: true,
       output: `Command executed via ${game.f4seDetected ? 'F4SE' : 'SKSE'}: ${command}`,
+      timestamp: Date.now(),
     };
   }
 
@@ -353,6 +347,7 @@ export class GameIntegrationEngine {
       success: false,
       output: '',
       error: 'Memory injection not implemented - requires F4SE/SKSE',
+      timestamp: Date.now(),
     };
   }
 
@@ -438,12 +433,8 @@ export class GameIntegrationEngine {
     return {
       fps: 60,
       frameTime: 16.67,
-      memory: 2048,
-      cpu: 45,
+      memoryUsage: 2048,
       cpuUsage: 45,
-      gpu: 30,
-      gpuUsage: 30,
-      scriptLag: 0,
       timestamp: Date.now(),
     }; // Placeholder
   }

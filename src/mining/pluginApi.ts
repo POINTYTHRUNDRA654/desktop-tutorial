@@ -270,7 +270,7 @@ export class CommandAPIImpl implements CommandAPI {
         category: options?.category,
         description: options?.description,
         keybinding: options?.keybinding,
-        handler,
+
       });
     }
     return result;
