@@ -5232,6 +5232,7 @@ export interface ShaderGraph {
 export interface NodeDefinition {
   type: ShaderNodeType;
   label: string;
+  name?: string; // optional legacy/display name
   description?: string;
   category?: string;
   inputs: Array<{ id?: string; name: string; type: string; defaultValue?: any }>;

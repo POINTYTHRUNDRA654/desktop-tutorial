@@ -38,12 +38,12 @@ export class AIModAssistantEngine implements AIModAssistantEngineType {
     const reply = `Echo: ${message}. (assistant stub)`;
     this.conversations[convId].history.push({ role: 'assistant', content: reply });
     const suggested = ['Show code', 'Explain this'];
-    const suggestions = suggested.map(t => ({ text: t, type: 'command', confidence: 0.9 }));
+    const suggestions = suggested.map((t) => ({ text: t, type: 'command' as const, confidence: 0.9 }));
     return { conversationId: convId, message: reply, suggestions, suggestedActions: suggested, actions: [], confidence: 0.99, metadata: { timestamp: now() } };
   }
 
   async continueConversation(conversationId: string, message: string): Promise<ChatResponse> {
-    return this.chat(message, { conversationId });
+    return this.chat(message, { conversationId, userId: 'system', recentActions: [] });
   }
 
   // ----------------------
@@ -59,14 +59,14 @@ export class AIModAssistantEngine implements AIModAssistantEngineType {
   async explainCode(code: string): Promise<Explanation> {
     const summary = `This code appears to be ${code.slice(0, 40)}... (stub explanation)`;
     const steps = ['Describe purpose', 'Explain main flow', 'Mention possible issues'];
-    const breakdown = [{ lineRange: [1, Math.min(10, code.split('\n').length)], explanation: 'High-level overview', purpose: 'Clarify intent' }];
+    const breakdown = [{ lineRange: [1, Math.min(10, code.split('\n').length)] as [number, number], explanation: 'High-level overview', purpose: 'Clarify intent' }];
     return { summary, breakdown, concepts: [], relatedDocs: [], steps, references: [] };
   }
 
   async refactorCode(code: string, improvements: string[]): Promise<RefactoredCode> {
     const improved = `${code}\n// Refactored: ${improvements.join(', ')}`;
     const diff = `- original\n+ refactored (stub)`;
-    const changes = [{ type: 'extract', description: 'Stub extraction', before: code, after: improved }];
+    const changes = [{ type: 'extract' as const, description: 'Stub extraction', before: code, after: improved }];
     return { original: code, refactored: improved, improved, changes, improvements, testSuggestions: [], diff };
   }
 
