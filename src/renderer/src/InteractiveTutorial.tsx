@@ -1,41 +1,67 @@
-/**
- * Interactive Tutorial Mode
- * 
- * Guides users through Mossy step-by-step after onboarding completes
- * Mossy actively explains features and has users try them
- */
+// Interactive Tutorial Mode: guides users through Mossy step-by-step after onboarding completes
 
-import React, { useState, useEffect, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { 
-  BrainCircuit, 
-  MessageCircle, 
-  Mic, 
-  Search, 
-  FileSearch, 
-  ImagePlus,
-  CheckCircle2,
+import React, { useEffect, useRef, useState } from 'react';
+import {
   ArrowRight,
-  Home,
-  Sparkles,
-  Play,
-  XCircle,
+  BrainCircuit,
+  CheckCircle2,
   Code,
-  Workflow,
-  ListChecks,
-  TestTube,
-  Package,
-  BookOpen,
-  Settings,
+  FileSearch,
+  FileText,
   FolderOpen,
-  Stethoscope,
-  Wrench,
-  Wand2,
+  Home,
+  ImagePlus,
+  ListChecks,
   Map,
-  FileText
+  MessageCircle,
+  Mic,
+  BookOpen,
+  Package,
+  Play,
+  Search,
+  Settings,
+  Sparkles,
+  Stethoscope,
+  TestTube,
+  Wand2,
+  Workflow,
+  Wrench,
+  XCircle,
 } from 'lucide-react';
 import { tutorialContexts, type TutorialPageContext } from './tutorialContext';
+import { imageMap } from './generatedImageMap';
 import { speakMossy } from './mossyTts';
+
+// Map a tutorial pageId to its visual guide image asset with alias fallbacks for legacy ids
+const getImageForPage = (pageId: keyof typeof imageMap | string): string | undefined => {
+  const alias: Record<string, keyof typeof imageMap> = {
+    nexus: 'mossy-space',
+    'live-voice': 'live-synapse',
+    auditor: 'the-auditor',
+    workshop: 'the-workshop',
+    blueprint: 'the-blueprint',
+    assembler: 'the-assembler',
+    vault: 'the-vault',
+    'learning-hub': 'quick-reference',
+    'roadmap-panel': 'modding-roadmaps',
+    'mining-dashboard': 'mining-and-analysis-hub',
+    'image-suite': 'image-studio',
+    packaging: 'packaging-release',
+    diagnostics: 'diagnostic-tools',
+    support: 'support-mossy',
+    'fallout4-wiki': 'fallout-4-wiki',
+    'pip-boy-mode': 'pip-boy-on-off',
+  };
+
+  // Explicit fallbacks for images that exist on disk but were omitted from the auto-generated map
+  const missingImages: Record<string, string> = {
+    'guided-tours': 'page-54-guided-tours.png',
+  };
+
+  const resolvedId = (imageMap as Record<string, string>)[pageId] ? (pageId as keyof typeof imageMap) : alias[pageId];
+  const filename = resolvedId ? imageMap[resolvedId] : missingImages[pageId];
+  return filename ? `/visual-guide-images/${filename}` : undefined;
+};
 
 // Helper exported for unit tests: builds the textual tutorial content for a page context
 export function buildTutorialText(context: TutorialPageContext, pageIndex: number, hasPreconfiguredApiKeys = false) {
@@ -65,11 +91,8 @@ export function buildTutorialText(context: TutorialPageContext, pageIndex: numbe
     detailedText += `Important beginner tip: ${context.commonMistakes[0]}. `;
   }
 
-  // If keys are preconfigured in the build, remove any mention of API keys or provider setup from the tutorial text
   if (hasPreconfiguredApiKeys) {
-    // Remove entire sentences that reference API keys or common providers (OpenAI, Groq, ElevenLabs)
     detailedText = detailedText.replace(/[^.?!]*(?:API key|api key|OpenAI|openai|Groq|groq|ElevenLabs|elevenlabs|api-key|api_key)[^.?!]*[.?!]?/gi, '');
-    // Cleanup extra whitespace and stray punctuation
     detailedText = detailedText.replace(/\s{2,}/g, ' ').replace(/^[.?!\s]+|[.?!\s]+$/g, '').trim();
   }
 
@@ -78,38 +101,104 @@ export function buildTutorialText(context: TutorialPageContext, pageIndex: numbe
 }
 
 // Return tutorial contexts ordered to match VISUAL_GUIDE page numbers when available.
-// Ordering priority:
-//  1. context.visualGuidePage if provided
-//  2. numeric page embedded in the image filename returned by getImageForPage (e.g. "Page 39")
-//  3. fallback to alphabetical by pageName
 export function getOrderedTutorialContexts(allContexts: Record<string, TutorialPageContext>) {
   const contexts = Object.values(allContexts);
+  const contextsById = Object.fromEntries(contexts.map((c) => [c.pageId, c] as const));
 
-  function extractPageNumber(ctx: TutorialPageContext): number | null {
-    if (typeof (ctx as any).visualGuidePage === 'number') return (ctx as any).visualGuidePage;
-    try {
-      // attempt to read the image mapping and parse a "Page N" number
-      const img = getImageForPage(ctx.pageId);
-      if (!img) return null;
-      const m = img.match(/Page\s*([0-9]{1,3})/);
-      if (m) return parseInt(m[1], 10);
-    } catch (e) {
-      // ignore
-    }
-    return null;
-  }
+  // Manual overrides take priority over image filenames for ordering
+  const manualPageOverride: Record<string, number> = {
+    'fallout4-wiki': 52,
+    'guided-tours': 53,
+    'pip-boy-mode': 54,
+  };
 
-  return contexts
-    .map((c) => ({ c, page: extractPageNumber(c) }))
+  const aliasToImage: Record<string, keyof typeof imageMap> = {
+    nexus: 'mossy-space',
+    'live-voice': 'live-synapse',
+    auditor: 'the-auditor',
+    workshop: 'the-workshop',
+    blueprint: 'the-blueprint',
+    assembler: 'the-assembler',
+    vault: 'the-vault',
+    'learning-hub': 'quick-reference',
+    'roadmap-panel': 'modding-roadmaps',
+    'mining-dashboard': 'mining-and-analysis-hub',
+    'image-suite': 'image-studio',
+    packaging: 'packaging-release',
+    diagnostics: 'diagnostic-tools',
+    support: 'support-mossy',
+    'fallout4-wiki': 'fallout-4-wiki',
+    'pip-boy-mode': 'pip-boy-on-off',
+    monitor: 'system-monitor',
+  };
+
+  const imageToContext: Record<string, string> = Object.fromEntries(
+    Object.entries(aliasToImage).map(([ctxId, imageId]) => [imageId, ctxId])
+  );
+
+  const parsePageNumber = (filename: string | undefined) => {
+    if (!filename) return null;
+    const match = filename.match(/page-(\d+)/i);
+    return match ? parseInt(match[1], 10) : null;
+  };
+
+  // Build a list from the generated map plus known manual entries
+  const imageEntries: { key: string; filename?: string; page: number | null }[] = [
+    ...Object.entries(imageMap).map(([key, filename]) => ({ key, filename, page: parsePageNumber(filename) })),
+    { key: 'guided-tours', filename: 'page-54-guided-tours.png', page: 54 },
+  ];
+
+  const seenPages = new Set<number>();
+
+  const ordered = imageEntries
+    .filter((entry) => entry.page != null)
     .sort((a, b) => {
-      if (a.page != null && b.page != null) return a.page - b.page;
-      if (a.page != null) return -1;
-      if (b.page != null) return 1;
-      return a.c.pageName.localeCompare(b.c.pageName);
+      if (a.page! !== b.page!) return a.page! - b.page!;
+      return a.key.localeCompare(b.key);
     })
-    .map((x) => x.c);
-}
+    .map((entry) => {
+      const ctxId = contextsById[entry.key]
+        ? entry.key
+        : imageToContext[entry.key]
+          ? imageToContext[entry.key]
+          : entry.key;
 
+      const ctx = contextsById[ctxId];
+      const manualOverride = manualPageOverride[ctxId];
+      const visualGuidePage = manualOverride ?? entry.page ?? (ctx as any)?.visualGuidePage ?? null;
+
+      if (seenPages.has(visualGuidePage ?? -1)) return null;
+      if (visualGuidePage != null) seenPages.add(visualGuidePage);
+
+      if (ctx) {
+        return { ...ctx, visualGuidePage: visualGuidePage ?? (ctx as any).visualGuidePage ?? undefined } as TutorialPageContext;
+      }
+
+      const fallbackName = ctxId
+        .split('-')
+        .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+        .join(' ');
+
+      const placeholder: TutorialPageContext = {
+        pageId: ctxId,
+        pageName: fallbackName,
+        visualGuidePage: visualGuidePage ?? undefined,
+        route: '/',
+        purpose: 'Placeholder tutorial step (context not yet defined).',
+        features: [],
+        controls: [],
+        commonMistakes: [],
+        guides: [],
+        tutorialSections: [],
+        suggestedQuestions: [],
+      };
+
+      return placeholder;
+    })
+    .filter(Boolean) as TutorialPageContext[];
+
+  return ordered;
+}
 
 interface InteractiveTutorialProps {
   onComplete: () => void;
@@ -129,12 +218,7 @@ interface TutorialStep {
   image?: string;
 }
 
-export const InteractiveTutorial: React.FC<InteractiveTutorialProps> = ({ 
-  onComplete, 
-  onSkip,
-  testPipMode
-}) => {
-  const navigate = useNavigate();
+export const InteractiveTutorial: React.FC<InteractiveTutorialProps> = ({ onComplete, onSkip, testPipMode }) => {
   const [currentStepIndex, setCurrentStepIndex] = useState(0);
   const [completedSteps, setCompletedSteps] = useState<string[]>([]);
   const [isTransitioning, setIsTransitioning] = useState(false);
@@ -153,7 +237,6 @@ export const InteractiveTutorial: React.FC<InteractiveTutorialProps> = ({
           }
         }
 
-        // Fallback to environment/localStorage checks (renderer-safe and synchronous)
         if (
           Boolean(process?.env?.REACT_APP_OPENAI_API_KEY) ||
           Boolean((import.meta as any).env?.VITE_OPENAI_API_KEY) ||
@@ -193,16 +276,15 @@ export const InteractiveTutorial: React.FC<InteractiveTutorialProps> = ({
     {
       id: 'welcome',
       title: 'Welcome to Mossy! Your Complete Fallout 4 Modding Guide',
-      mossyText: `Hello! I'm Mossy, your artificial intelligence assistant for Fallout 4 modding. I'm here to guide you through every feature of this application. This comprehensive tutorial covers 40 different pages, each dedicated to a specific tool or module. For each page, I will explain what the tool is designed for, describe every button and control, and show you exactly how to use it step by step. You'll see actual screenshots of each page, along with beginner tips to help you avoid common mistakes. The complete tutorial takes approximately 15 to 20 minutes. You can pause at any time by clicking the Exit Tutorial button, and your progress will be saved. You can also use the Previous Step button to review any page. Ready to begin? Let's start with The Nexus, your main dashboard. Click the Next Step button when you're ready to proceed.`,
+      mossyText:
+        "Hello! I'm Mossy, your artificial intelligence assistant for Fallout 4 modding. I'm here to guide you through every feature of this application. This comprehensive tutorial covers 40 different pages, each dedicated to a specific tool or module. For each page, I will explain what the tool is designed for, describe every button and control, and show you exactly how to use it step by step. You'll see actual screenshots of each page, along with beginner tips to help you avoid common mistakes. The complete tutorial takes approximately 15 to 20 minutes. You can pause at any time by clicking the Exit Tutorial button, and your progress will be saved. You can also use the Previous Step button to review any page. Ready to begin? Let's start with The Nexus, your main dashboard. Click the Next Step button when you're ready to proceed.",
       route: '/',
       action: 'Get familiar with The Nexus dashboard - this is your home base',
       icon: <Home className="w-8 h-8" />,
     },
     // Dynamically generate steps from tutorial contexts
     ...getOrderedTutorialContexts(tutorialContexts).map((context, index) => {
-      // Build detailed professional tutorial text (extracted helper used for testability)
       const detailedText = buildTutorialText(context, index, hasPreconfiguredApiKeys);
-      
       return {
         id: context.pageId,
         title: `${context.pageName} - Page ${typeof context.visualGuidePage === 'number' ? context.visualGuidePage : index + 2}`,
@@ -210,24 +292,25 @@ export const InteractiveTutorial: React.FC<InteractiveTutorialProps> = ({
         route: context.route,
         action: `Explore ${context.pageName} and try the main features`,
         icon: getIconForPage(context.pageId),
-        image: getImageForPage(context.pageId),
+        image: getImageForPage(context.pageId as keyof typeof imageMap),
       };
     }),
     {
       id: 'complete',
-      title: '🎉 Tutorial Complete! You\'re Ready to Start Modding!',
-      mossyText: `Congratulations! You have successfully completed the entire tutorial. You've now been introduced to all 40 pages of tools and features available in this application. You understand what each module does, how to use the buttons and controls, and have seen step-by-step guides for common tasks. You are now ready to begin your modding journey. Here are your next steps. First, I recommend starting with a simple texture modification to get comfortable with the workflow. Second, use the Chat module whenever you have questions - I'm here 24/7 to assist you. Third, visit the Learning Hub for in-depth guides on specific topics like scripting, animation, and quest design. Fourth, explore the Project Hub to organize your work and track your progress. Remember, every expert modder was once a beginner just like you. Don't be intimidated by the tools - take your time and experiment. If you encounter any problems or get stuck, simply click the chat icon in the navigation bar and ask me for help. I'm always here to guide you. Now go create something amazing! Happy modding!`,
+      title: "🎉 Tutorial Complete! You're Ready to Start Modding!",
+      mossyText:
+        "Congratulations! You have successfully completed the entire tutorial. You've now been introduced to all 40 pages of tools and features available in this application. You understand what each module does, how to use the buttons and controls, and have seen step-by-step guides for common tasks. You are now ready to begin your modding journey. Here are your next steps. First, I recommend starting with a simple texture modification to get comfortable with the workflow. Second, use the Chat module whenever you have questions - I'm here 24/7 to assist you. Third, visit the Learning Hub for in-depth guides on specific topics like scripting, animation, and quest design. Fourth, explore the Project Hub to organize your work and track your progress. Remember, every expert modder was once a beginner just like you. Don't be intimidated by the tools - take your time and experiment. If you encounter any problems or get stuck, simply click the chat icon in the navigation bar and ask me for help. I'm always here to guide you. Now go create something amazing! Happy modding!",
       route: '/',
       action: 'Start exploring on your own - try the Chat or Learning Hub!',
       icon: <CheckCircle2 className="w-8 h-8" />,
     },
   ];
 
-  // Helper function to get appropriate icon for each page
   function getIconForPage(pageId: string) {
     const iconMap: Record<string, React.ReactNode> = {
       'nexus': <Home className="w-8 h-8" />,
-      'chat': <MessageCircle className="w-8 h-8" />,
+      'ai-chat': <MessageCircle className="w-8 h-8" />,
+      'ai-mod-assistant': <BrainCircuit className="w-8 h-8" />,
       'live-voice': <Mic className="w-8 h-8" />,
       'auditor': <FileSearch className="w-8 h-8" />,
       'image-suite': <ImagePlus className="w-8 h-8" />,
@@ -273,96 +356,27 @@ export const InteractiveTutorial: React.FC<InteractiveTutorialProps> = ({
     return iconMap[pageId] || <Sparkles className="w-8 h-8" />;
   }
 
-  // Helper function to get appropriate image for each page
-  function getImageForPage(pageId: string): string | undefined {
-    const imageMap: Record<string, string> = {
-      'nexus': '/visual-guide-images/page-1-mossy-space.png',
-      'chat': '/visual-guide-images/page-2-ai-chat.png',
-      'live-voice': '/visual-guide-images/page-39-live-synapse.png',
-      'auditor': '/visual-guide-images/page-25-the-auditor.png',
-      'image-suite': '/visual-guide-images/page-38-image-studio.png',
-      'workshop': '/visual-guide-images/page-24-the-workshop.png',
-      'orchestrator': '/visual-guide-images/page-30-the-orchestrator.png',
-      'load-order': '/visual-guide-images/page-36-plugin-manager.png',
-      'monitor': '/visual-guide-images/page-29-system-monitor.png',
-      'holodeck': '/visual-guide-images/page-32-the-holodeck.png',
-      'packaging': '/visual-guide-images/page-16-packaging-release.png',
-      'learning-hub': '/visual-guide-images/page-8-quick-reference.png',
-      'knowledge-search': '/visual-guide-images/page-9-knowledge-search.png',
-      'settings': '/visual-guide-images/page-49-settings.png',
-      'project-hub': '/visual-guide-images/page-7-mod-projects.png',
-      'diagnostics': '/visual-guide-images/page-50-diagnostic-tools.png',
-      'crash-triage': '/visual-guide-images/page-12-crash-triage.png',
-      'devtools': '/visual-guide-images/page-22-devtools.png',
-      'wizards': '/visual-guide-images/page-11-wizards.png',
-      'the-lorekeeper': '/visual-guide-images/page-19-the-lorekeeper.png',
-      'assembler': '/visual-guide-images/page-23-the-assembler.png',
-      'local-capabilities': '/visual-guide-images/page-37-local-capabilities.png',
-      'community-learning': '/visual-guide-images/page-47-community-learning.png',
-      'tool-verify': '/visual-guide-images/page-48-tool-verify.png',
-      'support': '/visual-guide-images/page-51-support-mossy.png',
-      'advanced-analysis-panel': '/visual-guide-images/page-25-the-auditor.png', // Similar to auditor
-      'blueprint': '/visual-guide-images/page-20-the-blueprint.png',
-      'scribe': '/visual-guide-images/page-28-the-scribe.png',
-      'vault': '/visual-guide-images/page-33-the-vault.png',
-      'duplicate-finder': '/visual-guide-images/page-46-duplicate-finder.png',
-      'cosmos-workflow': '/visual-guide-images/page-21-cosmos-workflow.png',
-      'workflow-runner': '/visual-guide-images/page-31-workflow-runner.png',
-      'desktop-bridge': '/visual-guide-images/page-40-desktop-bridge.png',
-      'blender-animation-guide': '/visual-guide-images/page-17-animation-guide.png',
-      'quest-authoring-guide': '/visual-guide-images/page-18-quest-mod-authorizing.png',
-      'bodyslide-guide': '/visual-guide-images/page-8-quick-reference.png', // Using general guide image
-      'sim-settlements-guide': '/visual-guide-images/page-8-quick-reference.png', // Using general guide image
-      'paperscript-guide': '/visual-guide-images/page-8-quick-reference.png', // Using general guide image
-      'mining-dashboard': '/visual-guide-images/page-8-quick-reference.png', // Using general guide image
-      'plugin-manager': '/visual-guide-images/page-36-plugin-manager.png', // Similar to dev tools
-      'ck-extension': '/visual-guide-images/page-43-ck-extensions.png',
-      'comfyui-extension': '/visual-guide-images/page-44-comfyui-extensions.png',
-      'upscayl-extension': '/visual-guide-images/page-45-upscale-extension.png',
-      'mo2-extension': '/visual-guide-images/page-41-mo2-extension.png',
-      'xedit-tools': '/visual-guide-images/page-42-xedit-tools.png',
-      'dds-converter': '/visual-guide-images/page-14-dds-converter.png',
-      'texture-generator': '/visual-guide-images/page-15-texture-generator.png',
-      'roadmap-panel': '/visual-guide-images/page-5-modding-roadmaps.png', // Modding Roadmaps image
-      'ba2-manager': '/visual-guide-images/page-16-packaging-release.png', // Similar to packaging
-      'workflow-recorder': '/visual-guide-images/page-30-the-orchestrator.png', // Similar to orchestrator
-      'first-success': '/visual-guide-images/page-4-first-success.png',
-      'whats-new': '/visual-guide-images/page-6-whats-new.png', // What's New image
-      'formid-remapper': '/visual-guide-images/page-25-the-auditor.png', // Use Auditor image for remapper
-      'precombine-generator': '/visual-guide-images/page-23-the-assembler.png', // Use Assembler image for precombine
-      'mining-panel': '/visual-guide-images/page-8-quick-reference.png', // Using general guide image
-    };
-    return imageMap[pageId];
-  }
-
   const currentStep = steps[currentStepIndex];
   const progress = ((currentStepIndex + 1) / steps.length) * 100;
-  const stepImage = currentStep.image ?? (currentStep.id === 'welcome' ? getImageForPage('nexus') : undefined);
+  const stepImage = currentStep.image ?? (currentStep.id === 'welcome' ? getImageForPage('mossy-space') : undefined);
 
-  // Targeted visual sizing: reduce the Visual Guide max-height for specific "large" pages
-  // (AI/chat and First‑Success startup pages) so the footer remains visible on smaller viewports.
-  // Further reduce sizes when Pip‑Boy frame is active because the bezel reduces usable height.
-  // Read flags once per render (explicit so tests can observe these values reliably)
   const bodyHasPip = typeof document !== 'undefined' && document.body.classList.contains('pip-boy-mode');
   const localPipFlag = typeof window !== 'undefined' && localStorage.getItem('mossy_pip_mode') === 'true';
-  const isPipBoyMode = typeof testPipMode === 'boolean' ? testPipMode : (bodyHasPip || localPipFlag);
+  const isPipBoyMode = typeof testPipMode === 'boolean' ? testPipMode : bodyHasPip || localPipFlag;
 
   const visualMaxClass = (() => {
     if (isPipBoyMode) {
-      // More compact when rendered inside the Pip‑Boy bezel
-      return ['chat', 'first-success'].includes(currentStep.id)
-        ? 'max-h-[26vh] md:max-h-[34vh]'
-        : 'max-h-[40vh] md:max-h-[48vh]';
+      return ['ai-chat', 'first-success'].includes(currentStep.id)
+        ? 'max-h-[24vh] md:max-h-[32vh]'
+        : 'max-h-[34vh] md:max-h-[42vh]';
     }
 
-    // Default desktop sizing
-    return ['chat', 'first-success'].includes(currentStep.id)
-      ? 'max-h-[30vh] md:max-h-[40vh]'
-      : 'max-h-[48vh] md:max-h-[56vh]';
+    return ['ai-chat', 'first-success'].includes(currentStep.id)
+      ? 'max-h-[36vh] md:max-h-[44vh]'
+      : 'max-h-[44vh] md:max-h-[52vh]';
   })();
 
   useEffect(() => {
-    // Save progress
     localStorage.setItem('mossy_tutorial_step', currentStepIndex.toString());
     localStorage.setItem('mossy_tutorial_completed_steps', JSON.stringify(completedSteps));
   }, [currentStepIndex, completedSteps]);
@@ -375,12 +389,7 @@ export const InteractiveTutorial: React.FC<InteractiveTutorialProps> = ({
     }
   };
 
-  const normalizeForSpeech = (text: string) =>
-    text
-      .replace(/\*\*/g, '')
-      .replace(/•/g, '')
-      .replace(/\s+/g, ' ')
-      .trim();
+  const normalizeForSpeech = (text: string) => text.replace(/\*\*/g, '').replace(/•/g, '').replace(/\s+/g, ' ').trim();
 
   useEffect(() => {
     if (!shouldSpeak()) return;
@@ -394,19 +403,16 @@ export const InteractiveTutorial: React.FC<InteractiveTutorialProps> = ({
 
   const handleNext = () => {
     if (currentStepIndex < steps.length - 1) {
-      // Mark current step as completed
       if (!completedSteps.includes(currentStep.id)) {
         setCompletedSteps([...completedSteps, currentStep.id]);
       }
 
       setIsTransitioning(true);
-
       setTimeout(() => {
         setCurrentStepIndex(currentStepIndex + 1);
         setIsTransitioning(false);
       }, 300);
     } else {
-      // Tutorial complete!
       handleComplete();
     }
   };
@@ -414,7 +420,6 @@ export const InteractiveTutorial: React.FC<InteractiveTutorialProps> = ({
   const handlePrevious = () => {
     if (currentStepIndex > 0) {
       setIsTransitioning(true);
-
       setTimeout(() => {
         setCurrentStepIndex(currentStepIndex - 1);
         setIsTransitioning(false);
@@ -492,9 +497,8 @@ export const InteractiveTutorial: React.FC<InteractiveTutorialProps> = ({
   };
 
   return (
-    <div className="min-h-full bg-slate-950 text-slate-100" data-tutorial-active="true">
-      <div className="flex h-full flex-col">
-
+    <div className="min-h-screen bg-slate-950 text-slate-100 overflow-y-auto" data-tutorial-active="true">
+      <div className="flex flex-col min-h-screen">
         <div className="border-b border-emerald-500/40 bg-slate-950/80">
           <div className="max-w-6xl mx-auto px-6 py-4">
             <div className="flex items-center justify-between">
@@ -506,50 +510,30 @@ export const InteractiveTutorial: React.FC<InteractiveTutorialProps> = ({
                   <div className="flex items-center gap-2">
                     <BrainCircuit className="w-4 h-4 text-emerald-400" />
                     <span className="text-xs text-emerald-400 font-bold uppercase tracking-wider">Mossy Tutorial</span>
-                    <span className="text-xs text-slate-400">
-                      Step {currentStepIndex + 1} of {steps.length}
-                    </span>
-                    <span className="text-xs text-slate-500">
-                      {Math.max(steps.length - currentStepIndex - 1, 0)} left
-                    </span>
+                    <span className="text-xs text-slate-400">Step {currentStepIndex + 1} of {steps.length}</span>
+                    <span className="text-xs text-slate-500">{Math.max(steps.length - currentStepIndex - 1, 0)} left</span>
                   </div>
-                  <h2 className="text-2xl font-bold text-white">
-                    {currentStep.title}
-                  </h2>
+                  <h2 className="text-2xl font-bold text-white">{currentStep.title}</h2>
                 </div>
               </div>
 
-              <button
-                onClick={handleSkipTutorial}
-                className="text-slate-400 hover:text-slate-200 text-sm flex items-center gap-1 transition-colors"
-              >
+              <button onClick={handleSkipTutorial} className="text-slate-400 hover:text-slate-200 text-sm flex items-center gap-1 transition-colors">
                 <XCircle className="w-4 h-4" />
                 Exit Tutorial
               </button>
             </div>
           </div>
           <div className="h-1 bg-slate-800">
-            <div
-              className="h-full bg-gradient-to-r from-emerald-500 to-blue-500 transition-all duration-500"
-              style={{ width: `${progress}%` }}
-            />
+            <div className="h-full bg-gradient-to-r from-emerald-500 to-blue-500 transition-all duration-500" style={{ width: `${progress}%` }} />
           </div>
         </div>
 
-        <div className="flex-1 min-h-0 overflow-hidden">
-          <div className="h-full overflow-y-auto px-6 py-6">
+        <div className="flex-1 min-h-0">
+          <div className="px-6 py-6 pb-36">
             <div className="max-w-6xl mx-auto grid grid-cols-1 lg:grid-cols-2 gap-6">
-              <div
-                className={`bg-slate-900/60 border border-slate-700 rounded-2xl p-6 space-y-4 transition-opacity duration-300 ${
-                  isTransitioning ? 'opacity-0' : 'opacity-100'
-                }`}
-              >
-                <div className="text-sm font-semibold text-emerald-300 uppercase tracking-wider">
-                  Mossy Says
-                </div>
-                <div className="space-y-3 text-base">
-                  {renderMossyText(currentStep.mossyText)}
-                </div>
+              <div className={`bg-slate-900/60 border border-slate-700 rounded-2xl p-6 space-y-4 transition-opacity duration-300 ${isTransitioning ? 'opacity-0' : 'opacity-100'}`}>
+                <div className="text-sm font-semibold text-emerald-300 uppercase tracking-wider">Mossy Says</div>
+                <div className="space-y-3 text-base">{renderMossyText(currentStep.mossyText)}</div>
 
                 <div className="bg-blue-900/20 border border-blue-500/30 rounded-xl p-4">
                   <div className="flex items-center gap-3">
@@ -563,9 +547,7 @@ export const InteractiveTutorial: React.FC<InteractiveTutorialProps> = ({
               </div>
 
               <div className="bg-slate-900/60 border border-slate-700 rounded-2xl p-6 flex flex-col">
-                <div className="text-sm font-semibold text-emerald-300 uppercase tracking-wider mb-4">
-                  Visual Guide
-                </div>
+                <div className="text-sm font-semibold text-emerald-300 uppercase tracking-wider mb-4">Visual Guide</div>
                 {stepImage ? (
                   <div className="flex-1 flex flex-col min-h-0">
                     <div
@@ -573,7 +555,8 @@ export const InteractiveTutorial: React.FC<InteractiveTutorialProps> = ({
                       data-pip-mode={isPipBoyMode ? 'true' : 'false'}
                       data-body-pip={bodyHasPip ? 'true' : 'false'}
                       data-local-pip={localPipFlag ? 'true' : 'false'}
-                      className={`bg-slate-950/60 border border-slate-700 rounded-xl p-4 flex-1 overflow-hidden ${visualMaxClass}`}>
+                      className={`bg-slate-950/60 border border-slate-700 rounded-xl p-4 flex-1 overflow-auto ${visualMaxClass}`}
+                    >
                       <img
                         src={stepImage}
                         alt={`${currentStep.title} screenshot`}
@@ -581,9 +564,7 @@ export const InteractiveTutorial: React.FC<InteractiveTutorialProps> = ({
                         loading="lazy"
                       />
                     </div>
-                    <p className="text-xs text-slate-400 text-center mt-3">
-                      Screenshot of {currentStep.title.replace(' - Page ' + (currentStepIndex + 1), '')}
-                    </p>
+                    <p className="text-xs text-slate-400 text-center mt-3">Screenshot of {currentStep.title.replace(' - Page ' + (currentStepIndex + 1), '')}</p>
                   </div>
                 ) : (
                   <div className="flex-1 flex items-center justify-center text-slate-400 text-sm border border-dashed border-slate-700 rounded-xl">
@@ -595,7 +576,7 @@ export const InteractiveTutorial: React.FC<InteractiveTutorialProps> = ({
           </div>
         </div>
 
-        <div className="border-t border-slate-800 bg-slate-950/80">
+        <div className="border-t border-slate-800 bg-slate-950/95 backdrop-blur-sm sticky bottom-0 z-10">
           <div className="max-w-6xl mx-auto px-6 py-4">
             <div className="flex flex-wrap items-center justify-between gap-4">
               <div className="flex flex-wrap items-center gap-2">
@@ -603,11 +584,7 @@ export const InteractiveTutorial: React.FC<InteractiveTutorialProps> = ({
                   <div
                     key={step.id}
                     className={`w-2.5 h-2.5 rounded-full transition-colors ${
-                      index < currentStepIndex
-                        ? 'bg-emerald-500'
-                        : index === currentStepIndex
-                        ? 'bg-blue-500'
-                        : 'bg-slate-700'
+                      index < currentStepIndex ? 'bg-emerald-500' : index === currentStepIndex ? 'bg-blue-500' : 'bg-slate-700'
                     }`}
                     title={step.title}
                   />
@@ -616,10 +593,7 @@ export const InteractiveTutorial: React.FC<InteractiveTutorialProps> = ({
 
               <div className="flex gap-3">
                 {currentStepIndex > 0 && (
-                  <button
-                    onClick={handlePrevious}
-                    className="px-6 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded-lg font-medium transition-colors"
-                  >
+                  <button onClick={handlePrevious} className="px-6 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded-lg font-medium transition-colors">
                     Previous
                   </button>
                 )}
@@ -634,9 +608,7 @@ export const InteractiveTutorial: React.FC<InteractiveTutorialProps> = ({
               </div>
             </div>
 
-            <div className="mt-3 text-center text-xs text-slate-500">
-              💡 Tip: You can always access this tutorial again from Settings → Help
-            </div>
+            <div className="mt-3 text-center text-xs text-slate-500">💡 Tip: You can always access this tutorial again from Settings → Help</div>
           </div>
         </div>
       </div>
@@ -645,46 +617,3 @@ export const InteractiveTutorial: React.FC<InteractiveTutorialProps> = ({
 };
 
 export default InteractiveTutorial;
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
