@@ -1,195 +1,3 @@
-<<<<<<< Updated upstream
-import React, { useState } from 'react';
-import { Shield, Upload, FileText, AlertTriangle, CheckCircle2, XCircle, Clock, AlertCircle } from 'lucide-react';
-import type {
-  ValidationIssue,
-  ValidationWarning,
-  CKValidationResult,
-  PreventionStep,
-  PreventionPlan,
-  CrashDiagnosis
-} from '../../shared/types';
-
-const CKCrashPrevention: React.FC = () => {
-  const [activeTab, setActiveTab] = useState<'preflight' | 'monitoring' | 'analysis'>('preflight');
-  
-  // Pre-flight state
-  const [espPath, setEspPath] = useState<string>('');
-  const [validationStatus, setValidationStatus] = useState<ValidationStatus>('idle');
-  const [validationResult, setValidationResult] = useState<ESPValidationResult | null>(null);
-  const [preventionPlan, setPreventionPlan] = useState<PreventionPlan | null>(null);
-  
-  // Monitoring state
-  const [monitoringStatus, setMonitoringStatus] = useState<MonitoringStatus>('idle');
-  const [ckPid, setCkPid] = useState<number | null>(null);
-  const [metrics, setMetrics] = useState<ProcessMetrics | null>(null);
-  const [metricsHistory, setMetricsHistory] = useState<ProcessMetrics[]>([]);
-  const monitorIntervalRef = useRef<NodeJS.Timeout | null>(null);
-  
-  // Post-crash state
-  const [crashLogPath, setCrashLogPath] = useState<string>('');
-  const [crashDiagnosis, setCrashDiagnosis] = useState<CrashDiagnosis | null>(null);
-  const [isAnalyzing, setIsAnalyzing] = useState(false);
-
-  // Cleanup on unmount
-  useEffect(() => {
-    return () => {
-      if (monitorIntervalRef.current) {
-        clearInterval(monitorIntervalRef.current);
-      }
-    };
-  }, []);
-
-  /**
-   * PRE-FLIGHT TAB: ESP File Validation
-   */
-  const handlePickESP = async () => {
-    try {
-      const result = await window.electron.api.openDialog({
-        title: 'Select ESP/ESM File',
-        filters: [
-          { name: 'Plugin Files', extensions: ['esp', 'esm', 'esl'] },
-          { name: 'All Files', extensions: ['*'] }
-        ],
-        properties: ['openFile']
-      });
-
-      if (result && result.length > 0) {
-        setEspPath(result[0]);
-        setValidationStatus('idle');
-        setValidationResult(null);
-        setPreventionPlan(null);
-      }
-    } catch (error) {
-      console.error('File picker error:', error);
-      alert('Failed to open file picker');
-    }
-  };
-
-  const handleValidate = async () => {
-    if (!espPath) {
-      alert('Please select an ESP file first');
-      return;
-    }
-
-    setValidationStatus('validating');
-    setValidationResult(null);
-    setPreventionPlan(null);
-
-    try {
-      // Call mining engine via IPC
-      const result: ESPValidationResult = await (window.electron.api as any).ckValidate(espPath);
-      setValidationResult(result);
-      setValidationStatus(result.valid ? 'valid' : 'invalid');
-
-      // Generate prevention plan
-      const plan: PreventionPlan = await (window.electron.api as any).ckGeneratePreventionPlan(result);
-      setPreventionPlan(plan);
-    } catch (error) {
-      console.error('Validation error:', error);
-      alert('Validation failed: ' + (error instanceof Error ? error.message : 'Unknown error'));
-      setValidationStatus('idle');
-    }
-  };
-
-  /**
-   * MONITORING TAB: Live CK Process Monitoring
-   */
-  const handleStartMonitoring = async () => {
-    // Check if CK is running
-    const processes = window.electron.api.listProcesses ? 
-      await window.electron.api.listProcesses('CreationKit') : [];
-    
-    if (processes.length === 0) {
-      alert('Creation Kit is not running. Please launch CK first.');
-      return;
-    }
-
-    const ckProcess = processes[0];
-    setCkPid(ckProcess.pid);
-    setMonitoringStatus('monitoring');
-    setMetricsHistory([]);
-
-    // Start polling metrics
-    monitorIntervalRef.current = setInterval(async () => {
-      try {
-        const metricsResult = await window.electron.api.getProcessMetrics(ckProcess.pid);
-        if (metricsResult.success && metricsResult.metrics) {
-          const newMetrics: ProcessMetrics = {
-            cpuPercent: metricsResult.metrics.cpuPercent || 0,
-            memoryMB: metricsResult.metrics.memoryMB || 0,
-            handleCount: metricsResult.metrics.handleCount || 0,
-            threadCount: metricsResult.metrics.threadCount || 0
-          };
-          setMetrics(newMetrics);
-          setMetricsHistory(prev => [...prev.slice(-59), newMetrics]); // Keep last 60 samples
-        }
-      } catch (error) {
-        console.error('Metrics polling error:', error);
-        handleStopMonitoring();
-      }
-    }, 1000);
-  };
-
-  const handleStopMonitoring = () => {
-    if (monitorIntervalRef.current) {
-      clearInterval(monitorIntervalRef.current);
-      monitorIntervalRef.current = null;
-    }
-    setMonitoringStatus('idle');
-    setCkPid(null);
-    setMetrics(null);
-  };
-
-  /**
-   * POST-CRASH TAB: Crash Log Analysis
-   */
-  const handlePickCrashLog = async () => {
-    try {
-      const result = await (window.electron.api as any).ckPickLogFile();
-      
-      if (result.success && result.path) {
-        setCrashLogPath(result.path);
-        setCrashDiagnosis(null);
-        
-        // Auto-analyze
-        await handleAnalyzeCrash(result.path);
-      }
-    } catch (error) {
-      console.error('Log file picker error:', error);
-      alert('Failed to open log file');
-    }
-  };
-
-  const handleAnalyzeCrash = async (logPath?: string) => {
-    const pathToAnalyze = logPath || crashLogPath;
-    
-    if (!pathToAnalyze) {
-      alert('Please select a crash log file first');
-      return;
-    }
-
-    setIsAnalyzing(true);
-    setCrashDiagnosis(null);
-
-    try {
-      const diagnosis: CrashDiagnosis = await (window.electron.api as any).ckAnalyzeCrash(pathToAnalyze);
-      setCrashDiagnosis(diagnosis);
-    } catch (error) {
-      console.error('Crash analysis error:', error);
-      alert('Analysis failed: ' + (error instanceof Error ? error.message : 'Unknown error'));
-    } finally {
-      setIsAnalyzing(false);
-    }
-  };
-
-  const getRiskLevelColor = (level: string) => {
-    switch (level) {
-      case 'low': return 'text-green-400';
-      case 'medium': return 'text-yellow-400';
-      case 'high': return 'text-orange-400';
-
-=======
 /**
  * CK Crash Prevention Component
  * Full-featured UI for Creation Kit crash prevention, monitoring, and recovery
@@ -517,19 +325,11 @@ export const CKCrashPrevention: React.FC<CKCrashPreventionProps> = ({
                           validationResult?.severity === 'warning' ? 'text-yellow-400' : 'text-green-400';
       case 'monitoring': return 'text-blue-400 animate-pulse';
       case 'crashed': return 'text-red-400';
->>>>>>> Stashed changes
+
       default: return 'text-gray-400';
     }
   };
 
-<<<<<<< Updated upstream
-  const getSeverityIcon = (severity: string) => {
-    switch (severity) {
-      case 'critical': return <XCircle className="w-5 h-5 text-red-400" />;
-      case 'error': return <AlertCircle className="w-5 h-5 text-orange-400" />;
-      case 'warning': return <AlertTriangle className="w-5 h-5 text-yellow-400" />;
-      default: return <AlertTriangle className="w-5 h-5 text-gray-400" />;
-=======
   const getStatusIcon = () => {
     switch (phase) {
       case 'idle': return <Shield className="w-6 h-6" />;
@@ -549,180 +349,11 @@ export const CKCrashPrevention: React.FC<CKCrashPreventionProps> = ({
       case 'monitoring': return 'Monitoring CK...';
       case 'crashed': return 'Crash Detected';
       default: return 'Unknown';
->>>>>>> Stashed changes
+
     }
   };
 
   return (
-<<<<<<< Updated upstream
-    <div className="flex flex-col h-full bg-slate-950">
-      {/* Header */}
-      <div className="border-b border-slate-800 p-6 bg-gradient-to-r from-slate-900 to-slate-800">
-        <div className="flex items-center gap-3">
-          <Shield className="w-8 h-8 text-blue-400" />
-          <div>
-            <h1 className="text-2xl font-bold text-white">CK Crash Prevention</h1>
-            <p className="text-sm text-slate-400 mt-1">
-              Prevent and diagnose Creation Kit crashes
-            </p>
-          </div>
-        </div>
-      </div>
-
-  /**
-   * RENDER: Tab Navigation
-   */
-  const renderTabs = () => (
-    <div className="flex border-b border-gray-700 mb-6">
-      <button
-        className={`px-6 py-3 font-semibold transition-colors flex items-center gap-2 ${
-          activeTab === 'preflight'
-            ? 'text-cyan-400 border-b-2 border-cyan-400'
-            : 'text-gray-400 hover:text-gray-200'
-        }`}
-        onClick={() => setActiveTab('preflight')}
-      >
-        <ShieldCheck className="w-5 h-5" />
-        Pre-Flight Checks
-      </button>
-      <button
-        className={`px-6 py-3 font-semibold transition-colors flex items-center gap-2 ${
-          activeTab === 'monitoring'
-            ? 'text-cyan-400 border-b-2 border-cyan-400'
-            : 'text-gray-400 hover:text-gray-200'
-        }`}
-        onClick={() => setActiveTab('monitoring')}
-      >
-        <Activity className="w-5 h-5" />
-        Live Monitoring
-      </button>
-      <button
-        className={`px-6 py-3 font-semibold transition-colors flex items-center gap-2 ${
-          activeTab === 'postcrash'
-            ? 'text-cyan-400 border-b-2 border-cyan-400'
-            : 'text-gray-400 hover:text-gray-200'
-        }`}
-        onClick={() => setActiveTab('postcrash')}
-      >
-        <FileText className="w-5 h-5" />
-        Post-Crash Analysis
-      </button>
-    </div>
-  );
-
-  /**
-   * RENDER: Pre-Flight Tab
-   */
-  const renderPreFlightTab = () => (
-    <div className="space-y-6">
-      {/* File Selection */}
-      <div className="bg-gray-800/50 rounded-lg p-6 border border-gray-700">
-        <h3 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
-          <FolderOpen className="w-5 h-5 text-cyan-400" />
-          Select ESP/ESM File
-        </h3>
-        <div className="flex gap-3">
-          <input
-            type="text"
-            value={espPath}
-            onChange={(e) => setEspPath(e.target.value)}
-            placeholder="Path to ESP/ESM file..."
-            className="flex-1 px-4 py-2 bg-gray-900 border border-gray-700 rounded text-white"
-          />
-          <button
-            onClick={handlePickESP}
-            className="px-4 py-2 bg-cyan-600 hover:bg-cyan-700 text-white rounded transition-colors"
-          >
-            Browse
-          </button>
-          <button
-            onClick={handleValidate}
-            disabled={!espPath || validationStatus === 'validating'}
-            className="px-6 py-2 bg-green-600 hover:bg-green-700 disabled:bg-gray-600 disabled:cursor-not-allowed text-white rounded transition-colors flex items-center gap-2"
-          >
-            <Shield className="w-4 h-4" />
-            {validationStatus === 'validating' ? 'Validating...' : 'Validate'}
-          </button>
-        </div>
-      </div>
-
-      {/* Validation Results */}
-      {validationResult && (
-        <>
-          <div className="bg-gray-800/50 rounded-lg p-6 border border-gray-700">
-            <h3 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
-              {validationResult.valid ? (
-                <CheckCircle className="w-5 h-5 text-green-400" />
-              ) : (
-                <AlertTriangle className="w-5 h-5 text-red-400" />
-              )}
-              Validation Results
-            </h3>
-
-            <div className="grid grid-cols-3 gap-4 mb-4">
-              <div className="bg-gray-900/50 rounded p-4">
-                <div className="text-sm text-gray-400 mb-1">Crash Risk</div>
-                <div className={`text-2xl font-bold ${getRiskColor(validationResult.crashRisk)}`}>
-                  {validationResult.crashRisk}%
-                </div>
-              </div>
-              <div className="bg-gray-900/50 rounded p-4">
-                <div className="text-sm text-gray-400 mb-1">Memory Est.</div>
-                <div className="text-2xl font-bold text-white">
-                  {validationResult.memoryEstimateMB} MB
-                </div>
-              </div>
-              <div className="bg-gray-900/50 rounded p-4">
-                <div className="text-sm text-gray-400 mb-1">Issues Found</div>
-                <div className="text-2xl font-bold text-white">
-                  {validationResult.issues.length}
-                </div>
-              </div>
-            </div>
-
-            {/* Issues List */}
-            {validationResult.issues.length > 0 && (
-              <div className="space-y-2">
-                <h4 className="font-semibold text-white text-sm mb-2">Issues:</h4>
-                {validationResult.issues.map((issue, idx) => (
-                  <div key={idx} className="bg-gray-900/50 rounded p-3 border-l-4 border-orange-500">
-                    <div className="flex items-start gap-3">
-                      <AlertTriangle className={`w-4 h-4 mt-1 ${getSeverityColor(issue.severity)}`} />
-                      <div className="flex-1">
-                        <div className="flex items-center gap-2 mb-1">
-                          <span className="font-semibold text-white">{issue.type}</span>
-                          <span className={`text-xs px-2 py-0.5 rounded border ${getSeverityBadge(issue.severity)}`}>
-                            {issue.severity}
-                          </span>
-                        </div>
-                        <p className="text-sm text-gray-300 mb-1">{issue.message}</p>
-                        <p className="text-xs text-cyan-400">{issue.solution}</p>
-                      </div>
-                    </div>
-                  </div>
-                )}
-
-                {/* Recommendations */}
-                {validationResult.recommendations.length > 0 && (
-                  <div className="mb-4">
-                    <h3 className="text-lg font-semibold text-white mb-2">Recommendations</h3>
-                    <ul className="space-y-2">
-                      {validationResult.recommendations.map((rec, index) => (
-                        <li key={index} className="flex items-start gap-2 text-slate-300">
-                          <span className="text-blue-400">•</span>
-                          <span>{rec}</span>
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                )}
-
-                {/* Memory Usage */}
-                <div className="bg-slate-800 p-4 rounded border border-slate-700">
-                  <p className="text-sm text-slate-400">
-                    Estimated Memory Usage: <span className="text-white font-medium">{validationResult.estimatedMemoryUsage.toFixed(2)} MB</span>
-                  </p>
-=======
     <div className="flex flex-col h-full bg-mossy-darker text-mossy-text">
       {/* Header */}
       <div className="flex items-center justify-between p-4 border-b border-mossy-border">
@@ -838,82 +469,11 @@ export const CKCrashPrevention: React.FC<CKCrashPreventionProps> = ({
                       </div>
                     </div>
                   ))}
->>>>>>> Stashed changes
+
                 </div>
               </div>
             )}
 
-<<<<<<< Updated upstream
-            {/* Prevention Plan */}
-            {preventionPlan && (
-              <div className="bg-slate-900 rounded-lg p-6 border border-slate-800">
-                <div className="flex items-center justify-between mb-4">
-                  <h2 className="text-xl font-semibold text-white">Prevention Plan</h2>
-                  <div className="flex items-center gap-4">
-                    <span className="text-sm text-slate-400">
-                      Priority: <span className={`font-bold ${
-                        preventionPlan.priority === 'high' ? 'text-red-400' :
-                        preventionPlan.priority === 'medium' ? 'text-yellow-400' : 'text-green-400'
-                      }`}>{preventionPlan.priority.toUpperCase()}</span>
-                    </span>
-                    <span className="text-sm text-slate-400">
-                      Est. Time: <span className="text-white font-medium">{preventionPlan.estimatedTime} min</span>
-                    </span>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-
-          {/* Prevention Plan */}
-          {preventionPlan && preventionPlan.steps.length > 0 && (
-            <div className="bg-gray-800/50 rounded-lg p-6 border border-gray-700">
-              <h3 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
-                <Brain className="w-5 h-5 text-purple-400" />
-                Prevention Plan
-              </h3>
-              
-              <div className="mb-4 flex gap-4 text-sm">
-                <div>
-                  <span className="text-gray-400">Risk Reduction: </span>
-                  <span className="text-green-400 font-semibold">{preventionPlan.estimatedRiskReduction}%</span>
-                </div>
-                <div>
-                  <span className="text-gray-400">Est. Time: </span>
-                  <span className="text-white font-semibold">{preventionPlan.estimatedTime}</span>
-                </div>
-                <div>
-                  <span className="text-gray-400">Priority: </span>
-                  <span className={`font-semibold ${getSeverityColor(preventionPlan.priority)}`}>
-                    {preventionPlan.priority.toUpperCase()}
-                  </span>
-                </div>
-              </div>
-
-              <div className="space-y-3">
-                {preventionPlan.steps.map((step, idx) => (
-                  <div key={idx} className="bg-gray-900/50 rounded p-3 border-l-4 border-purple-500">
-                    <div className="flex items-start gap-3">
-                      <div className="flex-none w-6 h-6 rounded-full bg-purple-600 text-white text-xs flex items-center justify-center font-bold">
-                        {idx + 1}
-                      </div>
-                      <div className="flex-1">
-                        <p className="text-sm text-white mb-1">{step.description}</p>
-                        {step.command && (
-                          <code className="text-xs text-cyan-400 bg-gray-800 px-2 py-1 rounded block mt-1">
-                            {step.command}
-                          </code>
-                        )}
-                        <div className="flex gap-4 mt-2 text-xs">
-                          <span className="text-gray-400">
-                            Time: <span className="text-white">{step.estimatedTime}</span>
-                          </span>
-                          <span className={getSeverityColor(step.priority)}>
-                            Priority: {step.priority.toUpperCase()}
-                          </span>
-                        </div>
-                      </div>
-=======
             {/* Recommendations */}
             {validationResult.recommendations.length > 0 && (
               <div className="space-y-2">
@@ -923,7 +483,7 @@ export const CKCrashPrevention: React.FC<CKCrashPreventionProps> = ({
                     <div key={idx} className="flex items-start gap-2 text-sm">
                       <Zap className="w-3 h-3 mt-1 text-mossy-accent flex-shrink-0" />
                       <span>{rec}</span>
->>>>>>> Stashed changes
+
                     </div>
                   </div>
                 ))}
@@ -995,18 +555,6 @@ export const CKCrashPrevention: React.FC<CKCrashPreventionProps> = ({
           </div>
         )}
 
-<<<<<<< Updated upstream
-        {/* Monitoring Tab */}
-        {activeTab === 'monitoring' && (
-          <div className="max-w-4xl mx-auto">
-            <div className="bg-slate-900 rounded-lg p-12 border border-slate-800 text-center">
-              <Clock className="w-16 h-16 text-slate-600 mx-auto mb-4" />
-              <h2 className="text-2xl font-semibold text-white mb-2">Live Monitoring</h2>
-              <p className="text-slate-400">
-                Real-time CK process monitoring is coming soon. This feature will track memory usage, 
-                detect freezes, and alert you to potential crashes before they happen.
-              </p>
-=======
         {/* Prevention Plan */}
         {preventionPlan && phase !== 'crashed' && (
           <div className="bg-mossy-bg p-4 rounded-lg border border-mossy-border space-y-3">
@@ -1050,7 +598,7 @@ export const CKCrashPrevention: React.FC<CKCrashPreventionProps> = ({
                   </div>
                 </div>
               ))}
->>>>>>> Stashed changes
+
             </div>
           </div>
         )}
@@ -1058,82 +606,6 @@ export const CKCrashPrevention: React.FC<CKCrashPreventionProps> = ({
     </div>
   );
 
-<<<<<<< Updated upstream
-        {/* Post-Crash Analysis Tab */}
-        {activeTab === 'analysis' && (
-          <div className="max-w-4xl mx-auto space-y-6">
-            <div className="bg-slate-900 rounded-lg p-6 border border-slate-800">
-              <h2 className="text-xl font-semibold text-white mb-4">Crash Log Analysis</h2>
-              
-              <div className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-slate-300 mb-2">
-                    CK Crash Log File
-                  </label>
-                  <div className="flex gap-2">
-                    <input
-                      type="text"
-                      value={logPath}
-                      readOnly
-                      placeholder="No log file selected"
-                      className="flex-1 bg-slate-800 border border-slate-700 rounded px-3 py-2 text-slate-200 placeholder-slate-500"
-                    />
-                    <button
-                      onClick={handlePickLogFile}
-                      className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded flex items-center gap-2"
-                    >
-                      <FileText className="w-4 h-4" />
-                      Browse
-                    </button>
-                  </div>
-                  <p className="text-xs text-slate-500 mt-1">
-                    Typically found in Documents\My Games\Fallout 4 Creation Kit\
-                  </p>
-                </div>
-
-      {crashDiagnosis && (
-        <div className="bg-gray-800/50 rounded-lg p-6 border border-gray-700">
-          <h3 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
-            <AlertCircle className={`w-5 h-5 ${getSeverityColor(crashDiagnosis.severity)}`} />
-            Crash Diagnosis
-          </h3>
-
-          <div className="grid grid-cols-2 gap-4 mb-4">
-            <div className="bg-gray-900/50 rounded p-4">
-              <div className="text-sm text-gray-400 mb-1">Crash Type</div>
-              <div className="text-lg font-bold text-white">{crashDiagnosis.crashType}</div>
-            </div>
-            <div className="bg-gray-900/50 rounded p-4">
-              <div className="text-sm text-gray-400 mb-1">Severity</div>
-              <div className={`text-lg font-bold ${getSeverityColor(crashDiagnosis.severity)}`}>
-                {crashDiagnosis.severity.toUpperCase()}
-              </div>
-            </div>
-          </div>
-
-          <div className="space-y-4">
-            <div>
-              <h4 className="text-sm font-semibold text-gray-400 mb-2">Root Cause:</h4>
-              <p className="text-white">{crashDiagnosis.rootCause}</p>
-            </div>
-
-            <div>
-              <h4 className="text-sm font-semibold text-gray-400 mb-2">Likely Plugin:</h4>
-              <p className="text-cyan-400 font-mono">{crashDiagnosis.likelyPlugin}</p>
-            </div>
-
-            <div>
-              <h4 className="text-sm font-semibold text-gray-400 mb-2 flex items-center gap-2">
-                <Lightbulb className="w-4 h-4 text-yellow-400" />
-                Recommendations:
-              </h4>
-              <div className="space-y-2">
-                {crashDiagnosis.recommendations.map((rec, idx) => (
-                  <div key={idx} className="text-sm text-gray-300 pl-6">
-                    • {rec}
-                  </div>
-                )}
-=======
         {/* Real-time Monitoring */}
         {phase === 'monitoring' && healthMetrics && (
           <div className="bg-mossy-bg p-4 rounded-lg border border-green-500/30 space-y-4">
@@ -1200,13 +672,11 @@ export const CKCrashPrevention: React.FC<CKCrashPreventionProps> = ({
                     {signal}
                   </div>
                 ))}
->>>>>>> Stashed changes
+
               </div>
             )}
           </div>
         )}
-<<<<<<< Updated upstream
-=======
 
         {/* Crash Diagnosis */}
         {crashDiagnosis && phase === 'crashed' && (
@@ -1355,13 +825,9 @@ export const CKCrashPrevention: React.FC<CKCrashPreventionProps> = ({
             </button>
           )}
         </div>
->>>>>>> Stashed changes
+
       </div>
     </div>
   );
 };
-<<<<<<< Updated upstream
 
-export default CKCrashPrevention;
-=======
->>>>>>> Stashed changes
