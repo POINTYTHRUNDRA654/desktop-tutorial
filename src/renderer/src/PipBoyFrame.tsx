@@ -140,7 +140,8 @@ const PipBoyFrame: React.FC<{ children: React.ReactNode }> = ({ children }) => {
           width: 100%;
           height: 100%;
           border-radius: 40px;
-          overflow: hidden;
+          /* Allow the inner app (including the tutorial footer) to scroll instead of being clipped by the bezel */
+          overflow: auto;
           background: #000;
         }
 
