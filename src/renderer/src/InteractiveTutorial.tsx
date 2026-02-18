@@ -114,6 +114,8 @@ export function getOrderedTutorialContexts(allContexts: Record<string, TutorialP
 interface InteractiveTutorialProps {
   onComplete: () => void;
   onSkip: () => void;
+  /** Test-only override to force Pip‑Boy sizing in unit tests */
+  testPipMode?: boolean;
 }
 
 interface TutorialStep {
@@ -129,7 +131,8 @@ interface TutorialStep {
 
 export const InteractiveTutorial: React.FC<InteractiveTutorialProps> = ({ 
   onComplete, 
-  onSkip 
+  onSkip,
+  testPipMode
 }) => {
   const navigate = useNavigate();
   const [currentStepIndex, setCurrentStepIndex] = useState(0);
@@ -165,6 +168,25 @@ export const InteractiveTutorial: React.FC<InteractiveTutorialProps> = ({
     };
 
     void detectPackagedKeys();
+  }, []);
+
+  // Restore saved tutorial position (if present) so re-opening the tutorial preserves progress
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem('mossy_tutorial_step');
+      if (saved) {
+        const idx = parseInt(saved, 10);
+        if (!Number.isNaN(idx) && idx >= 0) setCurrentStepIndex(idx);
+      }
+
+      const completed = localStorage.getItem('mossy_tutorial_completed_steps');
+      if (completed) {
+        const arr = JSON.parse(completed);
+        if (Array.isArray(arr)) setCompletedSteps(arr);
+      }
+    } catch (e) {
+      // ignore - safe fallback
+    }
   }, []);
 
   const steps: TutorialStep[] = [
@@ -316,6 +338,28 @@ export const InteractiveTutorial: React.FC<InteractiveTutorialProps> = ({
   const currentStep = steps[currentStepIndex];
   const progress = ((currentStepIndex + 1) / steps.length) * 100;
   const stepImage = currentStep.image ?? (currentStep.id === 'welcome' ? getImageForPage('nexus') : undefined);
+
+  // Targeted visual sizing: reduce the Visual Guide max-height for specific "large" pages
+  // (AI/chat and First‑Success startup pages) so the footer remains visible on smaller viewports.
+  // Further reduce sizes when Pip‑Boy frame is active because the bezel reduces usable height.
+  // Read flags once per render (explicit so tests can observe these values reliably)
+  const bodyHasPip = typeof document !== 'undefined' && document.body.classList.contains('pip-boy-mode');
+  const localPipFlag = typeof window !== 'undefined' && localStorage.getItem('mossy_pip_mode') === 'true';
+  const isPipBoyMode = typeof testPipMode === 'boolean' ? testPipMode : (bodyHasPip || localPipFlag);
+
+  const visualMaxClass = (() => {
+    if (isPipBoyMode) {
+      // More compact when rendered inside the Pip‑Boy bezel
+      return ['chat', 'first-success'].includes(currentStep.id)
+        ? 'max-h-[26vh] md:max-h-[34vh]'
+        : 'max-h-[40vh] md:max-h-[48vh]';
+    }
+
+    // Default desktop sizing
+    return ['chat', 'first-success'].includes(currentStep.id)
+      ? 'max-h-[30vh] md:max-h-[40vh]'
+      : 'max-h-[48vh] md:max-h-[56vh]';
+  })();
 
   useEffect(() => {
     // Save progress
@@ -524,7 +568,12 @@ export const InteractiveTutorial: React.FC<InteractiveTutorialProps> = ({
                 </div>
                 {stepImage ? (
                   <div className="flex-1 flex flex-col min-h-0">
-                    <div className="bg-slate-950/60 border border-slate-700 rounded-xl p-4 flex-1 overflow-hidden max-h-[48vh] md:max-h-[56vh]">
+                    <div
+                      data-prop-test-pip={typeof testPipMode === 'boolean' ? String(testPipMode) : 'unset'}
+                      data-pip-mode={isPipBoyMode ? 'true' : 'false'}
+                      data-body-pip={bodyHasPip ? 'true' : 'false'}
+                      data-local-pip={localPipFlag ? 'true' : 'false'}
+                      className={`bg-slate-950/60 border border-slate-700 rounded-xl p-4 flex-1 overflow-hidden ${visualMaxClass}`}>
                       <img
                         src={stepImage}
                         alt={`${currentStep.title} screenshot`}
