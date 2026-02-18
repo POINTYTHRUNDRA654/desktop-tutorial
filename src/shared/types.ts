@@ -291,7 +291,7 @@ export interface EventEmitterAPI {
   emit(event: string, payload?: any): void;
 }
 
-export interface CommandRegistration { id: string; title?: string; description?: string; category?: string }
+export interface CommandRegistration { id: string; title?: string; description?: string; category?: string; keybinding?: string }
 export interface SettingSchema {
   key: string;
   title?: string;
@@ -376,7 +376,7 @@ export interface ExtensionPointRegistry {
 
 export interface ImporterExtension { id: string; name: string; fileTypes: string[]; description?: string; import(filePath: string, options?: any): Promise<ImportResult> }
 export interface ExporterExtension { id: string; name: string; format: string; description?: string; export(data: any, outputPath: string, options?: any): Promise<ExportResult> }
-export interface ValidationIssue { type: 'error' | 'warning'; message: string; file?: string; line?: number; severity?: 'low' | 'medium' | 'high' }
+export interface ValidationIssue { type: 'error' | 'warning' | 'info'; message: string; file?: string; line?: number; severity?: 'low' | 'medium' | 'high' | 'error' | 'warning' | 'info' }
 export interface ValidatorExtension { id: string; name: string; assetTypes: string[]; validate(assetPath: string, options?: any): Promise<ValidationIssue[]> }
 export interface ToolWrapperExtension { id: string; name?: string; toolName: string; isRunning(): Promise<boolean>; launch?(args?: any): Promise<void>; execute(command: string, args?: any): Promise<any> }
 export interface LanguageExtension { id: string; name?: string; languageId: string; fileExtensions: string[]; grammar?: any }
@@ -1230,6 +1230,9 @@ export interface GameProcess {
   path: string;
   version?: string;
   isRunning: boolean;
+  executablePath?: string;
+  f4seDetected?: boolean;
+  skseDetected?: boolean;
 }
 
 export interface CommandResult {
@@ -1242,6 +1245,7 @@ export interface CommandResult {
 export interface SaveGameAnalysis {
   fileName: string;
   characterName: string;
+  playerName?: string; // Alternate name field
   level: number;
   playTime: number;
   location: string;
@@ -1252,7 +1256,7 @@ export interface SaveGameAnalysis {
 
 export interface ModStatus {
   enabled: boolean;
-  load Order: number;
+  loadOrder: number;
   conflicts: string[];
   dependencies: string[];
 }
@@ -1262,11 +1266,13 @@ export interface PerformanceStream {
   memoryUsage: number;
   cpuUsage: number;
   timestamp: number;
+  frameTime?: number;
 }
 
 export interface InjectionResult {
   success: boolean;
   injectedDll?: string;
+  dllPath?: string;
   error?: string;
 }
 
@@ -1274,6 +1280,7 @@ export interface ConsoleCommand {
   command: string;
   timestamp: number;
   result?: string;
+  description?: string;
 }
 
 export interface MacroCommand {
@@ -5209,6 +5216,8 @@ export interface NodeConnection {
   fromOutput: string;
   toNode: string;
   toInput: string;
+  outputNode?: string; // Alternate from field
+  inputNode?: string; // Alternate to field
 }
 
 export interface OutputNode extends ShaderNode {
@@ -5228,8 +5237,8 @@ export interface NodeDefinition {
   type: ShaderNodeType;
   label: string;
   description?: string;
-  inputs: Array<{ name: string; type: string; defaultValue?: any }>;
-  outputs: Array<{ name: string; type: string }>;
+  inputs: Array<{ id?: string; name: string; type: string; defaultValue?: any }>;
+  outputs: Array<{ id?: string; name: string; type: string }>;
   generateCode?: (node: ShaderNode, inputs: Record<string, string>) => string;
 }
 
@@ -6356,6 +6365,7 @@ export interface StageFlags {
   failQuest?: boolean;
   shutDownStage?: boolean;
   run?: boolean; // Run immediately flag
+  startUpStage?: boolean; // Alternate startup flag
 }
 
 export interface Condition {
@@ -6370,7 +6380,9 @@ export interface QuestObjective {
   id: string;
   objectiveId?: string; // Alternate ID field
   displayText: string;
+  description?: string; // Alternate text field
   target?: string; // RefID or Alias
+  targetFormId?: string; // Specific form ID
   targetCount?: number;
   completed: boolean;
   conditions: Condition[];
@@ -6441,6 +6453,7 @@ export interface SimulationResult {
   completionPath?: string[];
   issues?: string[];
   questId?: string; // Quest being simulated
+  totalStages?: number;
 }
 
 // Backwards-compatibility alias
@@ -6456,4 +6469,5 @@ export interface PapyrusCode {
   code: string;
   properties: QuestProperty[];
   fragments?: string[]; // Script fragments for stages/dialogue
+  formId?: string; // Associated form ID
 }
