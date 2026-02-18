@@ -30,7 +30,28 @@ export interface TutorialPageContext {
   /** Buttons and controls with descriptions */
   controls: {
     name: string;
-    type: 'button' | 'input' | 'dropdown' | 'slider' | 'toggle';
+    // Control taxonomy widened to reflect actual UI elements referenced in contexts
+    type:
+      | 'button'
+      | 'input'
+      | 'dropdown'
+      | 'slider'
+      | 'toggle'
+      | 'indicator'
+      | 'panel'
+      | 'task'
+      | 'list'
+      | 'form'
+      | 'navigation'
+      | 'tool'
+      | 'links'
+      | 'walkthrough'
+      | 'widget'
+      | 'viewer'
+      | 'text'
+      | 'card'
+      | 'controls'
+      | 'input/button';
     description: string;
     whenToUse: string;
   }[];
@@ -154,8 +175,8 @@ export const tutorialContexts: Record<string, TutorialPageContext> = {
     ],
   },
   
-  'chat': {
-    pageId: 'chat',
+  'ai-chat': {
+    pageId: 'ai-chat',
     pageName: 'AI Chat',
     visualGuidePage: 2,
     route: '/chat',
@@ -179,83 +200,118 @@ export const tutorialContexts: Record<string, TutorialPageContext> = {
       {
         name: 'Reset Memory / Session',
         type: 'button',
-        description: 'Reset conversation context and session-specific working memory',
-        whenToUse: 'When you want to clear project-scoped state or start fresh',
+        description: 'Clears AI memory of prior context',
+        whenToUse: 'When the AI is stuck or giving irrelevant answers',
       },
       {
-        name: 'Export Chat Button',
+        name: 'Send-to-Chat Button',
         type: 'button',
-        description: 'Saves conversation as a text file',
-        whenToUse: 'When you want to keep instructions or solutions for later reference',
-      },
-      {
-        name: 'Message Input Box',
-        type: 'input',
-        description: 'Text field where you type your questions',
-        whenToUse: 'Always - this is where you communicate with Mossy',
-      },
-      {
-        name: 'Send Button',
-        type: 'button',
-        description: 'Sends your message to Mossy',
-        whenToUse: 'After typing your complete question (or press Enter)',
-      },
-      {
-        name: 'Open Saved Path / Open Folder',
-        type: 'button',
-        description: 'Opens the filesystem folder for a saved file referenced in chat',
-        whenToUse: 'When Mossy provides a saved file path (e.g. generated script or export)',
+        description: 'Transfers selected text or code to the chat input',
+        whenToUse: 'When you want to ask about a specific code snippet or text',
       },
     ],
     commonMistakes: [
-      'Asking one-word questions without context',
-      'Clearing history too often (Mossy forgets context)',
-      'Not providing error messages when troubleshooting',
-      'Expecting Mossy to know what file you\'re working on without telling her',
+      'Not clearing history when switching topics',
+      'Forgetting to reset memory when AI responses become irrelevant',
+      'Not using Send-to-Chat for quick context transfer',
     ],
     guides: [
       {
-        title: 'Having Your First Conversation',
+        title: 'Starting a New Chat',
         steps: [
-          'Click in the message input box at the bottom',
-          'Type a specific question like "How do I create a normal map?"',
-          'Press Enter or click the Send button',
-          'Wait for Mossy to respond (usually 1-3 seconds)',
-          'Read the response and ask follow-up questions',
+          'Click the Clear History button',
+          'Type your question or topic in the input box',
+          'Press Enter or click Send',
         ],
       },
       {
-        title: 'Getting Help with an Error',
+        title: 'Using Send-to-Chat',
         steps: [
-          'Copy the error message from wherever you saw it',
-          'Type in chat: "I got this error: [paste error]"',
-          'Add context: "I was trying to [what you were doing]"',
-          'Send the message',
-          'Follow Mossy\'s troubleshooting steps',
-        ],
-      },
-      {
-        title: 'Using Send-to-Chat & Saved Files',
-        steps: [
-          'From another page, click "Send to Chat" to prefill the prompt or checklist',
-          'Switch to the Chat page and confirm the prefilled message',
-          'If Mossy provides a saved file path, click "Open folder" to jump to it',
-          'Export the chat if you want to keep the conversation for later',
+          'Highlight the text or code you want to ask about',
+          'Click the Send-to-Chat button',
+          'Review the prefilled input and press Enter',
         ],
       },
     ],
     tutorialSections: [
-      'Chat Interface - Talk to Mossy',
-      'Getting Help',
-      'Send-to-Chat & Saved Files',
+      'Getting Started with AI Chat',
+      'Advanced Chat Features',
+      'Troubleshooting AI Responses',
     ],
     suggestedQuestions: [
-      'How do I ask good questions?',
-      'Can you write code for me?',
-      'What should I do if I don\'t understand your answer?',
-      'Do you remember our previous conversation?',
-      'How do I open a saved file referenced in chat?',
-      'How do I send a checklist from another page to Chat?',
+      'How do I clear chat history?',
+      'What does Reset Memory do?',
+      'How do I use Send-to-Chat?',
+      'Why is the AI giving irrelevant answers?',
+    ],
+  },
+
+  'ai-mod-assistant': {
+    pageId: 'ai-mod-assistant',
+    pageName: 'AI Mod Assistant',
+    visualGuidePage: 3,
+    route: '/mod-assistant',
+    purpose: 'AI-powered assistance for building and managing mods end-to-end.',
+    features: [
+      'Generate mod ideas and scope them into actionable tasks',
+      'Automate repetitive modding chores (renames, folder setup, batch operations)',
+      'Provide step-by-step modding guidance and checklists',
+      'Analyze mod files for errors, conflicts, and optimization',
+      'Suggest compatible tools, dependencies, and integrations',
+    ],
+    controls: [
+      {
+        name: 'Generate Mod Idea',
+        type: 'button',
+        description: 'Creates a new mod concept from your prompt and turns it into tasks',
+        whenToUse: 'When brainstorming or starting a new project',
+      },
+      {
+        name: 'Analyze Mod Files',
+        type: 'button',
+        description: 'Scans your mod assets/plugins for errors or optimization opportunities',
+        whenToUse: 'Before packaging, or when something behaves oddly in-game',
+      },
+      {
+        name: 'Task Automation',
+        type: 'button',
+        description: 'Automates repetitive chores (renaming, folder prep, batch conversions)',
+        whenToUse: 'When you want to save time on mechanical steps',
+      },
+    ],
+    commonMistakes: [
+      'Skipping analysis before publishing and missing broken assets',
+      'Doing repetitive chores manually instead of using automation',
+      'Starting from scratch without scoping tasks from the generated idea',
+    ],
+    guides: [
+      {
+        title: 'Creating a New Mod',
+        steps: [
+          'Click Generate Mod Idea and describe the concept you want',
+          'Review the generated plan and accept or edit the tasks',
+          'Follow the guided steps to create assets and scripts',
+        ],
+      },
+      {
+        title: 'Analyzing Mod Files',
+        steps: [
+          'Click Analyze Mod Files and select your project folder or ESP/ESM',
+          'Review the report for errors, conflicts, and optimizations',
+          'Apply the recommended fixes, then re-run analysis if needed',
+        ],
+      },
+    ],
+    tutorialSections: [
+      'Getting Started with AI Mod Assistant',
+      'Automations and Batch Operations',
+      'Pre-publish Checks and Fixes',
+    ],
+    suggestedQuestions: [
+      'Can you draft a mod idea for me?',
+      'What issues did you find in my mod files?',
+      'How do I automate my repetitive tasks?',
+      'What should I fix before releasing?',
     ],
   },
   
@@ -1723,7 +1779,7 @@ export const tutorialContexts: Record<string, TutorialPageContext> = {
       },
     ],
     commonMistakes: [
-      'Not configuring tool paths before running conversions (causes missing executable errors)',
+      'Skipping verification before assuming assets are ready',
       'Relying on auto-convert without verifying expected DDS format (mismatch can break textures)',
       'Assuming vault automatically publishes assets — it stages and verifies only',
       'Deleting items from vault without exporting or backing up manifests',
@@ -3107,7 +3163,7 @@ export const tutorialContexts: Record<string, TutorialPageContext> = {
     ],
   },
 
-  // pageName: 'What s New', (parity helper for normalized match)
+  // pageName: 'What s New', (parity helper)
   // pageName: 'Whats New', (parity helper)
   // parity: pageName: "What's New"
   'whats-new': {
@@ -3181,7 +3237,6 @@ export const tutorialContexts: Record<string, TutorialPageContext> = {
     ],
   },
 
-
   'mining-panel': {
     pageId: 'mining-panel',
     pageName: 'Mining Panel',
@@ -3242,717 +3297,32 @@ export const tutorialContexts: Record<string, TutorialPageContext> = {
     ],
   },
 
-  /* ------------------------- NEW / UPDATED PAGES ------------------------- */
-
-  'tutorial': {
-    pageId: 'tutorial',
-    pageName: 'Interactive Tutorial',
-    route: '/tutorial',
-    purpose: 'Step‑by‑step guided walkthrough covering Mossy features and workflows',
-    features: [
-      'Guided steps for each page',
-      'Screenshots and inline tips',
-      'Progress tracking and resume',
-      'Voice narration (TTS) option',
-    ],
-    controls: [
-      { name: 'Next Step', type: 'button', description: 'Advance to the next tutorial page', whenToUse: 'When ready to continue' },
-      { name: 'Previous Step', type: 'button', description: 'Go back to the previous step', whenToUse: 'To review earlier instructions' },
-      { name: 'Exit Tutorial', type: 'button', description: 'Close the tutorial and save progress', whenToUse: 'When you want to stop the tutorial' },
-      { name: 'Enable Voice', type: 'toggle', description: 'Turn on spoken guidance', whenToUse: 'When you prefer audio narration' },
-    ],
-    commonMistakes: [
-      'Skipping steps before trying the actions',
-      'Expecting the tutorial to change app layout (it only guides)',
-    ],
-    guides: [
-      { title: 'Using the Tutorial', steps: ['Open the tutorial from the Home page', 'Follow the text and screenshot guidance', 'Try the suggested actions on each page', 'Use Previous/Next to navigate'] },
-    ],
-    tutorialSections: ['Interactive Tutorial Overview'],
-    suggestedQuestions: ['How do I resume the tutorial?', 'Can I replay a step?'],
-  },
-
-  'ai-assistant': {
-    pageId: 'ai-assistant',
-    pageName: 'AI Assistant',
-    route: '/ai-assistant',
-    purpose: 'Task-oriented AI assistant for workflows, automation, and code assistance',
-    features: ['Context-aware workflows', 'Automation suggestions', 'Task runner integrations', 'Plugin-aware recommendations'],
-    controls: [
-      { name: 'Ask Assistant', type: 'input', description: 'Type your task or question', whenToUse: 'When you need step-by-step help or automation' },
-      { name: 'Run Suggestion', type: 'button', description: 'Execute a suggested workflow', whenToUse: 'After reviewing a suggested action' },
-      { name: 'Create Workflow', type: 'button', description: 'Convert instructions into an automated workflow', whenToUse: 'To automate repetitive tasks' },
-    ],
-    commonMistakes: ['Pasting huge logs without context', 'Running suggested workflows without review'],
-    guides: [
-      { title: 'Ask for a Workflow', steps: ['Describe the task you want automated', 'Review the assistant’s proposed steps', 'Click Create Workflow to save it', 'Test the workflow on safe data'] },
-    ],
-    tutorialSections: ['AI Assistant - Automate tasks', 'Converting advice into actions'],
-    suggestedQuestions: ['Create a workflow to import textures', 'Generate a script to rename assets'],
-  },
-
-  'ai-mod-assistant': {
-    pageId: 'ai-mod-assistant',
-    pageName: 'AI Mod Assistant',
-    visualGuidePage: 3,
-    route: '/ai-mod-assistant',
-    purpose: 'Specialized assistant focused on mod creation tasks (scripting, quests, assets)',
-    features: ['Papyrus script generation', 'Quest-authoring templates', 'Asset optimization advice', 'Code snippets and validation'],
-    controls: [
-      { name: 'Generate Script', type: 'button', description: 'Create a Papyrus script from a prompt', whenToUse: 'When you need starter code or examples' },
-      { name: 'Validate Script', type: 'button', description: 'Run linting/validation on a script', whenToUse: 'Before testing in the CK' },
-      { name: 'Quest Template', type: 'dropdown', description: 'Choose a quest-authoring template', whenToUse: 'Starting a new quest' },
-    ],
-    commonMistakes: ['Not telling the assistant which game/version you target', 'Skipping validation before testing in CK'],
-    guides: [
-      { title: 'Create a Simple Quest', steps: ['Choose Quest Template', 'Fill NPC and objective details', 'Generate script and validate', 'Test in Creation Kit'] },
-    ],
-    tutorialSections: ['AI Mod Assistant - Scripting & Quests'],
-    suggestedQuestions: ['Create a Papyrus function to open a door', 'How to structure a quest script?'],
-  },
-
-  'cloud-sync': {
-    pageId: 'cloud-sync',
-    pageName: 'Cloud Sync',
-    route: '/cloud-sync',
-    purpose: 'Sync projects and sessions to the cloud for collaboration and backups',
-    features: ['Session synchronization', 'Conflict resolution', 'Auto‑backup', 'Collaborator presence'],
-    controls: [
-      { name: 'Start Sync', type: 'button', description: 'Upload local changes to the cloud', whenToUse: 'After finishing local edits' },
-      { name: 'Restore Backup', type: 'button', description: 'Restore a previous snapshot', whenToUse: 'When recovery is needed' },
-      { name: 'Session Invite', type: 'button', description: 'Invite collaborators to session', whenToUse: 'To collaborate in real time' },
-    ],
-    commonMistakes: ['Not resolving conflicts before pushing', 'Relying on auto-sync without checking status'],
-    guides: [
-      { title: 'Share a Project', steps: ['Open Cloud Sync', 'Create or join a session', 'Invite collaborators', 'Push changes and confirm sync status'] },
-    ],
-    tutorialSections: ['Cloud Sync - Collaboration & Backups'],
-    suggestedQuestions: ['How to resolve a sync conflict?', 'How to restore a snapshot?'],
-  },
-
-  'tools': {
-    pageId: 'tools',
-    // pageName: 'Tools', (parity helper)
-    pageName: 'Tools Hub',
-    route: '/tools',
-    purpose: 'Central hub listing all utility tools (auditor, deduplicator, converters, etc.)',
-    features: ['Quick access to utility tools', 'Search & filter tools', 'Tool status indicators'],
-    controls: [
-      { name: 'Tool Card', type: 'button', description: 'Opens that tool', whenToUse: 'When you need to use a specific utility' },
-      { name: 'Search Tools', type: 'input', description: 'Filter tools by name', whenToUse: 'To quickly find a tool' },
-    ],
-    commonMistakes: ['Using the wrong tool for a task (e.g., using dedupe instead of auditor)'],
-    guides: [
-      { title: 'Find the Right Tool', steps: ['Open Tools Hub', 'Type keywords in search', 'Click the matching tool card'] },
-    ],
-    tutorialSections: ['Tools Hub Overview'],
-    suggestedQuestions: ['Which tool checks textures?', 'How do I merge duplicate assets?'],
-  },
-
-  'ini-config': {
-    pageId: 'ini-config',
-    pageName: 'INI Configuration Manager',
-    route: '/tools/ini-config',
-    purpose: 'Edit and manage important INI settings for game and tools',
-    features: ['Preset profiles', 'Safe-editing', 'Export/Import INI sets'],
-    controls: [
-      { name: 'Select Profile', type: 'dropdown', description: 'Choose a preset configuration', whenToUse: 'To apply recommended settings' },
-      { name: 'Edit Field', type: 'input', description: 'Change an INI key value', whenToUse: 'When adjusting advanced settings' },
-    ],
-    commonMistakes: ['Editing without backup', 'Applying incompatible presets'],
-    guides: [
-      { title: 'Apply a Preset', steps: ['Open INI Manager', 'Choose preset', 'Click Apply', 'Test the game'] },
-    ],
-    tutorialSections: ['INI Edits & Safety'],
-    suggestedQuestions: ['How to revert INI changes?', 'Which preset is best for performance?'],
-  },
-
-  'asset-deduplicator': {
-    pageId: 'asset-deduplicator',
-    pageName: 'Asset Deduplicator',
-    route: '/tools/asset-deduplicator',
-    purpose: 'Find and resolve duplicate textures/meshes to reduce package size and conflicts',
-    features: ['Duplicate detection', 'Similarity thresholds', 'Batch actions', 'Export reports'],
-    controls: [
-      { name: 'Scan Folder', type: 'button', description: 'Scan chosen directories for duplicates', whenToUse: 'When analysing asset libraries' },
-      { name: 'Merge/Remove', type: 'button', description: 'Resolve duplicates by merging or removing', whenToUse: 'After reviewing groups' },
-    ],
-    commonMistakes: ['Blindly deleting duplicates without preview', 'Using too low a similarity threshold'],
-    guides: [
-      { title: 'Remove Duplicate Textures', steps: ['Scan folder', 'Review groups', 'Preview assets', 'Select merge action'] },
-    ],
-    tutorialSections: ['Asset Deduplication Workflow'],
-    suggestedQuestions: ['How to preview duplicates?', 'What similarity threshold should I use?'],
-  },
-
-  'log-monitor': {
-    pageId: 'log-monitor',
-    pageName: 'Game Log Monitor',
-    route: '/tools/log-monitor',
-    purpose: 'Monitor real-time logs from the game or tools for errors and warnings',
-    features: ['Real-time tailing', 'Filter by severity', 'Persisted logs'],
-    controls: [
-      { name: 'Start Tail', type: 'button', description: 'Begin live log monitoring', whenToUse: 'When reproducing crashes or issues' },
-      { name: 'Filter', type: 'input', description: 'Narrow log output by keywords', whenToUse: 'To find specific errors' },
-    ],
-    commonMistakes: ['Not filtering noisy info messages', 'Missing the relevant timestamp window'],
-    guides: [
-      { title: 'Diagnose a Crash', steps: ['Start the log monitor', 'Reproduce the crash', 'Filter for ERROR or EXCEPTION', 'Copy timestamp and share with Mossy'] },
-    ],
-    tutorialSections: ['Live Log Monitoring'],
-    suggestedQuestions: ['How to capture a crash log?', 'Which log lines matter most?'],
-  },
-
-  'xedit-tools': {
-    pageId: 'xedit-tools',
-    pageName: 'xEdit Tools',
-    visualGuidePage: 48,
-    route: '/tools/xedit',
-    purpose: 'Utilities and integrations for xEdit/FO4Edit (load order, exports, scripts)',
-    features: ['Export load order', 'Run xEdit scripts', 'Profile-aware operations'],
-    controls: [
-      { name: 'Export Load Order', type: 'button', description: 'Generate a plugins.txt or patch-friendly list', whenToUse: 'Before running comparators or auditors' },
-      { name: 'Run Script', type: 'button', description: 'Execute an xEdit script', whenToUse: 'When applying batch fixes' },
-    ],
-    commonMistakes: ['Running destructive scripts without backup', 'Not using MO2 profile when required'],
-    guides: [
-      { title: 'Exporting for Patches', steps: ['Open xEdit Tools', 'Click Export Load Order', 'Save and use with patcher'] },
-    ],
-    tutorialSections: ['xEdit Integrations & Exporting'],
-    suggestedQuestions: ['How to export a load order for xEdit?', 'Can I run xEdit scripts from Mossy?'],
-  },
-
-  'ck-extension': {
-    pageId: 'ck-extension',
-    pageName: 'CK Extensions',
-    visualGuidePage: 44,
-    route: '/tools/ck-extension',
-    purpose: 'Integration helpers and safety features for the Creation Kit',
-    features: ['Launch CK via MO2', 'Preflight checks', 'Crash prevention hooks'],
-    controls: [
-      { name: 'Launch CK', type: 'button', description: 'Start Creation Kit (respects MO2 profile)', whenToUse: 'When editing quests or ESPs' },
-      { name: 'Preflight', type: 'button', description: 'Run sanity checks before CK launch', whenToUse: 'To reduce crash risk' },
-    ],
-    commonMistakes: ['Launching CK without MO2 when files are in virtual file system', 'Skipping preflight before heavy edits'],
-    guides: [
-      { title: 'Safe CK Launch', steps: ['Run Preflight Checks', 'Launch CK through MO2 if applicable', 'Open your plugin within CK'] },
-    ],
-    tutorialSections: ['CK Integration & Safety'],
-    suggestedQuestions: ['How to launch CK from MO2?', 'Why does CK crash on load?'],
-  },
-
-  'project-templates': {
-    pageId: 'project-templates',
-    pageName: 'Project Templates',
-    route: '/tools/project-templates',
-    purpose: 'Create new mod projects from curated templates to jumpstart workflows',
-    features: ['Multiple templates (quest, textures, overhaul)', 'Preview & customize', 'Initialize repo structure'],
-    controls: [
-      { name: 'Choose Template', type: 'dropdown', description: 'Select a starting template', whenToUse: 'When creating a new project' },
-      { name: 'Initialize Project', type: 'button', description: 'Create project files and folders', whenToUse: 'After choosing a template' },
-    ],
-    commonMistakes: ['Choosing the wrong template for project goals', 'Not editing metadata after initialization'],
-    guides: [
-      { title: 'Start a New Mod', steps: ['Open Project Templates', 'Select an appropriate template', 'Click Initialize', 'Open the new project in Project Hub'] },
-    ],
-    tutorialSections: ['Project Templates & Initialization'],
-    suggestedQuestions: ['Which template is best for quest mods?', 'How to customize template files?'],
-  },
-
-  'formid-remapper': {
-    pageId: 'formid-remapper',
-    pageName: 'FormID Remapper',
-    visualGuidePage: 54,
-    route: '/tools/formid-remapper',
-    purpose: 'Safely remap FormIDs to avoid conflicts when merging multiple plugins',
-    features: ['Automated remapping', 'Preview changes', 'Undo support'],
-    controls: [
-      { name: 'Analyze Plugins', type: 'button', description: 'Scan plugin FormIDs for conflicts', whenToUse: 'Before remapping' },
-      { name: 'Apply Remap', type: 'button', description: 'Execute remapping with backup', whenToUse: 'After review' },
-    ],
-    commonMistakes: ['Not creating backups before remapping', 'Remapping active live plugins without testing'],
-    guides: [
-      { title: 'Remap FormIDs', steps: ['Analyze plugins', 'Review suggested remaps', 'Backup and Apply', 'Test in game'] },
-    ],
-    tutorialSections: ['FormID Management & Safety'],
-    suggestedQuestions: ['When should I remap FormIDs?', 'How to revert a remap?'],
-  },
-
-  'precombine-generator': {
-    pageId: 'precombine-generator',
-    pageName: 'Precombine Generator',
-    visualGuidePage: 55,
-    route: '/tools/precombine-generator',
-    purpose: 'Generate PRP/precombine patches to fix rendering/performance issues',
-    features: ['Automatic precombine generation', 'Compatibility checks', 'Export PRP patches'],
-    controls: [
-      { name: 'Scan for Precombine Issues', type: 'button', description: 'Detect problematic objects', whenToUse: 'When seeing performance or lighting issues' },
-      { name: 'Generate Patch', type: 'button', description: 'Create precombine PRP patches', whenToUse: 'After scanning' },
-    ],
-    commonMistakes: ['Applying precombine patches without testing on a copy'],
-    guides: [
-      { title: 'Create Precombine Patch', steps: ['Scan mod assets', 'Review flagged objects', 'Generate patch and test in-game'] },
-    ],
-    tutorialSections: ['Precombine & PRP Patches'],
-    suggestedQuestions: ['What is precombine?', 'How does this affect lighting?'],
-  },
-
-  'voice-commands': {
-    pageId: 'voice-commands',
-    pageName: 'Voice Commands',
-    route: '/tools/voice-commands',
-    purpose: 'Configure and use voice command mappings for hands-free control',
-    features: ['Map phrases to actions', 'Hotword support', 'Voice macros'],
-    controls: [
-      { name: 'Add Command', type: 'button', description: 'Create a new voice-to-action mapping', whenToUse: 'To add hands-free shortcuts' },
-      { name: 'Test Command', type: 'button', description: 'Verify voice trigger and action', whenToUse: 'After adding a command' },
-    ],
-    commonMistakes: ['Using ambiguous phrases that trigger multiple actions'],
-    guides: [
-      { title: 'Create a Voice Macro', steps: ['Open Voice Commands', 'Click Add Command', 'Record phrase and assign action', 'Test and save'] },
-    ],
-    tutorialSections: ['Voice Commands & Macros'],
-    suggestedQuestions: ['How to trigger a workflow by voice?', 'Can I use custom hotwords?'],
-  },
-
-  'automation-manager': {
-    pageId: 'automation-manager',
-    pageName: 'Automation Manager',
-    route: '/tools/automation',
-    purpose: 'Schedule and manage background automation tasks and workflows',
-    features: ['Scheduled jobs', 'Retry policies', 'Task logs', 'Workflow triggers'],
-    controls: [
-      { name: 'Create Job', type: 'button', description: 'Schedule a recurring or one-time automation', whenToUse: 'When you want routine tasks automated' },
-      { name: 'Run Now', type: 'button', description: 'Execute the job immediately', whenToUse: 'For testing or urgent runs' },
-    ],
-    commonMistakes: ['Scheduling heavy jobs during peak work hours'],
-    guides: [
-      { title: 'Schedule a Task', steps: ['Create job', 'Choose trigger (cron/datetime)', 'Assign workflow', 'Save and monitor logs'] },
-    ],
-    tutorialSections: ['Automation Manager - Background Tasks'],
-    suggestedQuestions: ['How to run a workflow nightly?', 'Where are automation logs stored?'],
-  },
-
-  'ck-crash-prevention': {
-    pageId: 'ck-crash-prevention',
-    pageName: 'CK Crash Prevention',
-    route: '/tools/ck-crash-prevention',
-    purpose: 'Protect Creation Kit sessions by validating plugins and monitoring CK health',
-    features: ['ESP validation', 'Live CK monitoring', 'Crash log analysis', 'Prevention plans'],
-    controls: [
-      { name: 'Validate ESP', type: 'button', description: 'Run validation checks on a plugin file', whenToUse: 'Before loading plugin in CK' },
-      { name: 'Start Monitoring', type: 'button', description: 'Attach to CK process and monitor metrics', whenToUse: 'When running Creation Kit' },
-    ],
-    commonMistakes: ['Ignoring warnings before loading large plugins in CK'],
-    guides: [
-      { title: 'Preflight a Plugin', steps: ['Open CK Crash Prevention', 'Select ESP file', 'Click Validate', 'Apply prevention plan if suggested'] },
-    ],
-    tutorialSections: ['CK Safety & Preflight Checks'],
-    suggestedQuestions: ['How to analyze a CK crash log?', 'What prevention steps can I take?'],
-  },
-
-  'security-validator': {
-    pageId: 'security-validator',
-    pageName: 'Security Validator',
-    route: '/tools/security',
-    purpose: 'Scan projects and assets for common security and privacy concerns',
-    features: ['Vulnerability checks', 'Dependency scanning', 'Report generation'],
-    controls: [
-      { name: 'Run Scan', type: 'button', description: 'Perform a security scan', whenToUse: 'When auditing a project for release' },
-    ],
-    commonMistakes: ['Assuming only code needs security checks (assets can also leak data)'],
-    guides: [
-      { title: 'Perform Security Audit', steps: ['Click Run Scan', 'Review flagged items', 'Remediate and rescan'] },
-    ],
-    tutorialSections: ['Security Validation'],
-    suggestedQuestions: ['What does the security scan check?', 'How to fix flagged items?'],
-  },
-
-  'mining-hub': {
-    pageId: 'mining-hub',
-    pageName: 'Mining & Analysis Hub',
-    route: '/tools/mining-hub',
-    purpose: 'Advanced data analysis, ML conflict prediction and large-scale asset mining',
-    features: ['Longitudinal analytics', 'Conflict prediction', 'Performance profiling'],
-    controls: [
-      { name: 'Start Analysis', type: 'button', description: 'Run an analytics job', whenToUse: 'When preparing reports or ML datasets' },
-    ],
-    commonMistakes: ['Running large analyses without resource planning'],
-    guides: [
-      { title: 'Run Conflict Prediction', steps: ['Open Mining Hub', 'Select dataset or profile', 'Run prediction job', 'Review results'] },
-    ],
-    tutorialSections: ['Mining Hub - Large Scale Analysis'],
-    suggestedQuestions: ['How accurate is conflict prediction?', 'How to limit analysis scope?'],
-  },
-
-  'dev': {
-    pageId: 'dev',
-    pageName: 'Developer Hub',
-    route: '/dev',
-    purpose: 'Developer tools, debugging and extension testing area',
-    features: ['Dev utilities', 'Workflows for plugin authors', 'Debug consoles'],
-    controls: [
-      { name: 'Open Devtools', type: 'button', description: 'Open developer utilities', whenToUse: 'When debugging or testing extensions' },
-    ],
-    commonMistakes: ['Running devtools in production mode'],
-    guides: [
-      { title: 'Start Developer Debugging', steps: ['Open Dev Hub', 'Select tool (console, profiler)', 'Reproduce issue and inspect logs'] },
-    ],
-    tutorialSections: ['Developer Tools & Debugging'],
-    suggestedQuestions: ['How to enable debug logging?', 'How to test an extension?'],
-  },
-
-  'mods': {
-    pageId: 'mods',
-    pageName: 'Mod Browser',
-    route: '/mods',
-    purpose: 'Browse, search and inspect installed mods and plugins',
-    features: ['Filter by category', 'Inspect load order', 'Plugin metadata'],
-    controls: [
-      { name: 'Search Mods', type: 'input', description: 'Search installed mods', whenToUse: 'To find a specific mod quickly' },
-    ],
-    commonMistakes: ['Assuming mod list is authoritative when MO2 profile differs'],
-    guides: [
-      { title: 'Inspect a Mod', steps: ['Open Mod Browser', 'Search or filter', 'Click a mod to view details'] },
-    ],
-    tutorialSections: ['Mod Browser - Inspecting Mods'],
-    suggestedQuestions: ['How to find a mod by author?', 'How to export mod metadata?'],
-  },
-
-  'media': {
-    pageId: 'media',
-    pageName: 'Media & Assets',
-    route: '/media',
-    purpose: 'Manage images, textures, and media assets used in mod projects',
-    features: ['Image suite', 'TTS/voice previews', 'Asset previews'],
-    controls: [
-      { name: 'Open Image Suite', type: 'button', description: 'Edit and preview images', whenToUse: 'When preparing textures and icons' },
-    ],
-    commonMistakes: ['Uploading very large files without optimization'],
-    guides: [
-      { title: 'Optimize a Texture', steps: ['Open Image Suite', 'Apply conversion/resize', 'Export optimized file'] },
-    ],
-    tutorialSections: ['Media Management & Optimization'],
-    suggestedQuestions: ['How to convert DDS to PNG?', 'How to preview textures?'],
-  },
-
-  'test': {
-    pageId: 'test',
-    pageName: 'Test & Sandbox',
-    route: '/test',
-    purpose: 'Testing area for experimental features and sandboxed tools',
-    features: ['Experimental modules', 'Sandbox environment', 'Diagnostics'],
-    controls: [
-      { name: 'Run Sandbox', type: 'button', description: 'Launch a test instance of a module', whenToUse: 'When validating new features' },
-    ],
-    commonMistakes: ['Using sandbox data for production decisions'],
-    guides: [
-      { title: 'Try an Experimental Feature', steps: ['Open Test Hub', 'Select experimental feature', 'Run and provide feedback'] },
-    ],
-    tutorialSections: ['Testing & Experimental Features'],
-    suggestedQuestions: ['How to report a bug?', 'Can I enable experimental tools?'],
-  },
-
-  'notification-test': {
-    pageId: 'notification-test',
-    pageName: 'Notification Test',
-    route: '/test/notification-test',
-    purpose: 'Simulate in-app notifications and verify behavior',
-    features: ['Simulate success/error/ info notifications', 'Toast previews'],
-    controls: [
-      { name: 'Trigger Notification', type: 'button', description: 'Show a test notification', whenToUse: 'To confirm notification appearance' },
-    ],
-    commonMistakes: ['Assuming notification delivery equals persistence'],
-    guides: [
-      { title: 'Test Notifications', steps: ['Open Notification Test', 'Trigger each type', 'Observe behavior and timing'] },
-    ],
-    tutorialSections: ['Notifications & Feedback'],
-    suggestedQuestions: ['How to customize notification settings?'],
-  },
-
-  'memory-vault': {
-    pageId: 'memory-vault',
-    pageName: 'Memory Vault',
-    route: '/memory-vault',
-    purpose: 'Persistent knowledge and memory repository for Mossy to recall project context',
-    features: ['Saved notes & snippets', 'Searchable memory', 'Export/import memory'],
-    controls: [
-      { name: 'Save Note', type: 'button', description: 'Store context or snippets', whenToUse: 'To preserve important project details' },
-      { name: 'Search Memory', type: 'input', description: 'Find stored entries', whenToUse: 'To recall prior guidance' },
-    ],
-    commonMistakes: ['Putting secrets into memory (avoid API keys)'],
-    guides: [
-      { title: 'Store Useful Info', steps: ['Open Memory Vault', 'Click Add', 'Fill title and content', 'Save entry'] },
-    ],
-    tutorialSections: ['Memory Vault - Save & Recall'],
-    suggestedQuestions: ['How long is memory retained?', 'Can I export memory?'],
-  },
-
-  'dds-converter': {
-    pageId: 'dds-converter',
-    pageName: 'DDS Converter',
-    visualGuidePage: 49,
-    route: '/dds-converter',
-    purpose: 'Convert between DDS and common formats, with texture presets for games',
-    features: ['Convert DDS ↔ PNG/JPEG', 'Mipmap generation', 'Preset export settings'],
-    controls: [
-      { name: 'Select File', type: 'button', description: 'Choose a texture to convert', whenToUse: 'When converting asset formats' },
-      { name: 'Convert', type: 'button', description: 'Run conversion with chosen preset', whenToUse: 'After selecting options' },
-    ],
-    commonMistakes: ['Overwriting original files without backup'],
-    guides: [
-      { title: 'Convert a Texture', steps: ['Select file', 'Choose preset', 'Click Convert', 'Verify output in game or preview'] },
-    ],
-    tutorialSections: ['Texture Conversion & Presets'],
-    suggestedQuestions: ['Which DDS format should I use?', 'How to keep mipmaps?'],
-  },
-
-  'texture-generator': {
-    pageId: 'texture-generator',
-    pageName: 'Texture Generator',
-    visualGuidePage: 50,
-    route: '/texture-generator',
-    purpose: 'Generate or enhance textures using AI-assisted tools and presets',
-    features: ['AI upscaling', 'Style-presets', 'Seamless texture baking'],
-    controls: [
-      { name: 'Generate', type: 'button', description: 'Create or upscale a texture using selected model', whenToUse: 'When producing or improving assets' },
-    ],
-    commonMistakes: ['Expecting perfect results without iteration'],
-    guides: [
-      { title: 'Upscale a Texture', steps: ['Open Texture Generator', 'Upload texture', 'Choose upscaler preset', 'Generate and review'] },
-    ],
-    tutorialSections: ['AI Texture Generation'],
-    suggestedQuestions: ['How to remove seams?', 'Which presets fit clothing textures?'],
-  },
-
-  'guides': {
-    pageId: 'guides',
-    pageName: 'Guides & Learning Hub',
-    route: '/guides',
-    purpose: 'Centralized learning resources, step-by-step guides and references',
-    features: ['Curated tutorials', 'Searchable knowledge base', 'Community-contributed guides'],
-    controls: [
-      { name: 'Search Guides', type: 'input', description: 'Find guides by topic', whenToUse: 'When looking for how-to documentation' },
-    ],
-    commonMistakes: ['Skipping prerequisites for advanced guides'],
-    guides: [
-      { title: 'Find a Guide', steps: ['Open Guides', 'Search or browse category', 'Open guide and follow steps'] },
-    ],
-    tutorialSections: ['Learning Hub Overview'],
-    suggestedQuestions: ['Where to learn Papyrus scripting?', 'Which guide covers texture baking?'],
-  },
-
-  'guides-blender': {
-    pageId: 'guides-blender',
-    pageName: 'Animation Guide',
-    route: '/guides/blender',
-    purpose: 'Blender workflows and export settings tailored for Fallout 4 assets',
-    features: ['Export presets', 'Rigging checklists', 'Animation validator guidance'],
-    controls: [
-      { name: 'Export Preset', type: 'dropdown', description: 'Choose export settings compatible with game', whenToUse: 'When exporting FBX/NIF' },
-    ],
-    commonMistakes: ['Incorrect bone naming conventions', 'Exporting with wrong scale/orientation'],
-    guides: [
-      { title: 'Export an Animation', steps: ['Prepare rig', 'Apply export preset', 'Export and validate in toolchain'] },
-    ],
-    tutorialSections: ['Blender Export & Rigging'],
-    suggestedQuestions: ['How to export for NIF?', 'What naming conventions to use?'],
-  },
-
-  'guides-creation-kit': {
-    pageId: 'guides-creation-kit',
-    pageName: 'Creation Kit Guides',
-    route: '/guides/creation-kit',
-    purpose: 'Authoritative Creation Kit tutorials for quest authoring and plugins',
-    features: ['Quest templates', 'Leveled list guidance', 'Script examples'],
-    controls: [],
-    commonMistakes: ['Editing live ESPs without backups'],
-    guides: [
-      { title: 'Create a Dialogue', steps: ['Open Creation Kit', 'Create quest and dialogue views', 'Test in CK and game'] },
-    ],
-    tutorialSections: ['Quest Authoring', 'Papyrus Examples'],
-    suggestedQuestions: ['How to inject leveled lists?', 'Best practices for quest debugging?'],
-  },
-
-  'guides-physics': {
-    pageId: 'guides-physics',
-    pageName: 'Physics & Havok Guides',
-    route: '/guides/physics',
-    purpose: 'Physics export and havok troubleshooting guides for animations and collision',
-    features: ['Havok export tips', 'Collision setup', 'Previs guidance'],
-    controls: [],
-    commonMistakes: ['Missing precombine steps for complex meshes'],
-    guides: [
-      { title: 'Prepare collision', steps: ['Simplify mesh', 'Generate collision primitives', 'Export and test'] },
-    ],
-    tutorialSections: ['Physics & Collision'],
-    suggestedQuestions: ['How to export collision for Havok?', 'Why is my navmesh broken?'],
-  },
-
-  'guides-mods': {
-    pageId: 'guides-mods',
-    pageName: 'Modding Guides',
-    route: '/guides/mods',
-    purpose: 'Practical how‑tos for common modding tasks (BodySlide, Sim Settlements, etc.)',
-    features: ['Step-by-step tutorials', 'Tool-specific best practices'],
-    controls: [],
-    commonMistakes: ['Missing platform-specific steps (MO2 vs Vortex)'],
-    guides: [
-      { title: 'Mod Packaging Checklist', steps: ['Verify assets', 'Run Auditor', 'Build archive', 'Test in clean load order'] },
-    ],
-    tutorialSections: ['Mod Packaging & Testing'],
-    suggestedQuestions: ['How to build a distributable mod?', 'Packaging best practices?'],
-  },
-
-  'mo2-extension': {
-    pageId: 'mo2-extension',
-    pageName: 'MO2 Extension',
-    visualGuidePage: 47,
-    route: '/extensions/mo2',
-    purpose: 'Integrate with Mod Organizer 2 to surface profiles, load order and mod management',
-    features: ['Profile detection', 'Load order preview', 'Export lists'],
-    controls: [
-      { name: 'Refresh', type: 'button', description: 'Reload MO2 profile and mod list', whenToUse: 'When MO2 changes' },
-    ],
-    commonMistakes: ['Not running MO2 before expecting live data'],
-    guides: [
-      { title: 'Link MO2', steps: ['Start MO2', 'Open MO2 Extension', 'Refresh and verify detected mods'] },
-    ],
-    tutorialSections: ['MO2 Integration'],
-    suggestedQuestions: ['How to use MO2 with Mossy?', 'Why is MO2 not detected?'],
-  },
-
-  'comfyui-extension': {
-    pageId: 'comfyui-extension',
-    pageName: 'ComFyui Extensions',
-    visualGuidePage: 45, // synced from VISUAL_GUIDE.md
-    route: '/extensions/comfyui',
-    purpose: 'Connect to ComfyUI instances for specialized image pipeline integrations',
-    features: ['Status detection', 'Pipeline launching', 'Preset management'],
-    controls: [],
-    commonMistakes: ['Not starting ComfyUI before opening the extension'],
-    guides: [
-      { title: 'Use ComfyUI', steps: ['Start ComfyUI', 'Open extension', 'Run pipeline or preview'] },
-    ],
-    tutorialSections: ['ComfyUI Integration'],
-    suggestedQuestions: ['How to connect ComfyUI?', 'What pipelines are supported?'],
-  },
-
-  'upscayl-extension': {
-    pageId: 'upscayl-extension',
-    pageName: 'Upscayl / Upscale Extension',
-    visualGuidePage: 46, // synced from VISUAL_GUIDE.md
-    route: '/extensions/upscayl',
-    purpose: 'Use Upscayl upscaler from within Mossy for high-quality texture upscaling',
-    features: ['Local upscaling', 'Preset selection', 'Batch processing'],
-    controls: [
-      { name: 'Upscale', type: 'button', description: 'Upscale selected texture', whenToUse: 'When improving texture resolution' },
-    ],
-    commonMistakes: ['Expecting pixel-perfect results without manual touchups'],
-    guides: [
-      { title: 'Upscale a Texture', steps: ['Open Upscayl Extension', 'Select file(s)', 'Choose preset and run'] },
-    ],
-    tutorialSections: ['Upscayl Integration'],
-    suggestedQuestions: ['What presets work best for UI art?', 'How to batch-upscale?'],
-  },
-
-  /* Backwards-compatible route: /ck-crash-prevention (also available at /tools/ck-crash-prevention) */
-  'ck-crash-prevention-legacy': {
-    pageId: 'ck-crash-prevention-legacy',
-    pageName: 'CK Crash Prevention (legacy route)',
-    route: '/ck-crash-prevention',
-    purpose: 'Legacy/alternate route mapping for CK crash prevention content',
-    features: ['ESP validation', 'Live CK monitoring', 'Crash log analysis'],
-    controls: [
-      { name: 'Validate ESP', type: 'button', description: 'Run quick validation before loading in CK' },
-    ],
-    commonMistakes: ['Skipping preflight checks before launching CK'],
-    guides: [
-      { title: 'Use CK Crash Prevention (legacy)', steps: ['Open the CK Crash Prevention page', 'Run Validate ESP', 'Start monitoring if you run CK'] },
-    ],
-    tutorialSections: ['CK Safety (legacy route)'],
-    suggestedQuestions: ['How to analyze CK crash logs?'],
-  },
-
-  /* NEW: pages added so VISUAL_GUIDE.md titles have matching in-app contexts */
-
-
-  'knowledge-search': {
-    pageId: 'knowledge-search',
-    pageName: 'Knowledge Search',
-    visualGuidePage: 9,
-    route: '/search',
-    purpose: 'Search the built‑in knowledge base and indexed project documentation for fast answers.',
-    features: ['Full-text indexing', 'Search filters', 'Index builder'],
-    controls: [ { name: 'Search Box', type: 'input', description: 'Type keywords or file names to search', whenToUse: 'When you need docs or examples quickly' } ],
-    commonMistakes: ['Not rebuilding the index after adding docs'],
-    guides: [ { title: 'Index and query', steps: ['Open Knowledge Search', 'Click Build Index', 'Type a query and press Enter'] } ],
-    tutorialSections: ['Indexing & Querying'],
-    suggestedQuestions: ['How do I add repo docs to the index?', 'How do I limit search to a project?'],
-  },
-
-  'crash-triage': {
-    pageId: 'crash-triage',
-    pageName: 'Crash Triage',
-    visualGuidePage: 11,
-    route: '/tools/crash-triage',
-    purpose: 'Collect and triage crash reports with guided diagnostics and reproduction hints.',
-    features: ['Crash snapshots', 'Log collator', 'Suggested fixes'],
-    controls: [ { name: 'Collect Snapshot', type: 'button', description: 'Gather logs and stack traces', whenToUse: 'After a crash occurs' } ],
-    commonMistakes: ['Sharing raw logs without redaction'],
-    guides: [ { title: 'Create a crash snapshot', steps: ['Open Crash Triage', 'Reproduce the crash', 'Click Collect Snapshot and save the JSON'] } ],
-    tutorialSections: ['Collecting & Sharing Crash Data'],
-    suggestedQuestions: ['How do I capture a reproducible crash?'],
-  },
-
-
-
-
-
-
-
-  'the-lorekeeper': {
-    pageId: 'the-lorekeeper',
-    pageName: 'The LoreKeeper',
-    visualGuidePage: 15,
-    route: '/lorekeeper',
-    purpose: 'In‑app knowledge and lore manager for quest/dialogue consistency.',
-    features: ['Dialogue snippets', 'Lore notes', 'Searchable references'],
-    controls: [ { name: 'Add Note', type: 'button', description: 'Save lore notes or character bios', whenToUse: 'When documenting NPCs or locations' } ],
-    commonMistakes: ['Inconsistent NPC naming across scripts'],
-    guides: [ { title: 'Add a lore note', steps: ['Open The LoreKeeper', 'Click Add Note', 'Fill fields and save'] } ],
-    tutorialSections: ['Notes & Dialogue'],
-    suggestedQuestions: ['How do I export lore notes?'],
-  },
-
-
-
-  'assembler': {
-    pageId: 'assembler',
-    pageName: 'The Assembler',
-    visualGuidePage: 19,
-    route: '/tools/assembler',
-    purpose: 'Assemble final plugin/output bundles and run preflight checks before packaging.',
-    features: ['Plugin assembly', 'Precombine / mesh checks', 'Export helpers'],
-    controls: [ { name: 'Assemble Plugin', type: 'button', description: 'Build and validate an ESP/ESM package', whenToUse: 'Before packaging or testing in-game' } ],
-    commonMistakes: ['Missing masters or unresolved references'],
-    guides: [ { title: 'Assemble a plugin', steps: ['Open The Assembler', 'Select files and run Assemble', 'Fix reported errors and re-run'] } ],
-    tutorialSections: ['Assembly & Validation'],
-    suggestedQuestions: ['How do I resolve master errors?'],
-  },
-
   'advanced-analysis': {
     pageId: 'advanced-analysis',
     pageName: 'Advanced Analysis',
     visualGuidePage: 24,
     route: '/tools/analysis',
     purpose: 'Deep asset and plugin analysis with AI-suggested fixes and batch scanning.',
-    features: ['Batch scans', 'Severity grouping', 'AI remediation suggestions'],
-    controls: [ { name: 'Run Advanced Scan', type: 'button', description: 'Perform a deep analysis of selected files', whenToUse: 'When triaging complex issues' } ],
-    commonMistakes: ['Running wide-scoped scans without filters'],
-    guides: [ { title: 'Run an advanced scan', steps: ['Open Advanced Analysis', 'Choose scope and start scan', 'Review grouped results'] } ],
-    tutorialSections: ['Deep Analysis & Fixes'],
-    suggestedQuestions: ['How do I limit scan scope?'],
+    features: [
+      'Batch scans',
+      'Severity grouping',
+      'AI remediation suggestions',
+    ],
+    controls: [
+      { name: 'Run Advanced Scan', type: 'button', description: 'Perform a deep analysis of selected files', whenToUse: 'When triaging complex issues' },
+    ],
+    commonMistakes: [
+      'Running wide-scoped scans without filters',
+    ],
+    guides: [
+      { title: 'Run an advanced scan', steps: ['Open Advanced Analysis', 'Choose scope and start scan', 'Review grouped results'] },
+    ],
+    tutorialSections: [
+      'Deep Analysis & Fixes',
+    ],
+    suggestedQuestions: [
+      'How do I limit scan scope?',
+    ],
   },
 
   'local-capabilities': {
@@ -3961,12 +3331,26 @@ export const tutorialContexts: Record<string, TutorialPageContext> = {
     visualGuidePage: 34,
     route: '/local',
     purpose: 'Detect and list local system capabilities and available native integrations.',
-    features: ['Detected tools', 'Bridge status', 'Environment checks'],
-    controls: [ { name: 'Refresh Capabilities', type: 'button', description: 'Re-scan local system for available integrations', whenToUse: 'After installing new local tools' } ],
-    commonMistakes: ['Assuming remote-only features are available locally'],
-    guides: [ { title: 'Refresh local capabilities', steps: ['Open Local Capabilities', 'Click Refresh', 'Review detected services'] } ],
-    tutorialSections: ['Local Integrations'],
-    suggestedQuestions: ['How do I enable Desktop Bridge?'],
+    features: [
+      'Detected tools',
+      'Bridge status',
+      'Environment checks',
+    ],
+    controls: [
+      { name: 'Refresh Capabilities', type: 'button', description: 'Re-scan local system for available integrations', whenToUse: 'After installing new local tools' },
+    ],
+    commonMistakes: [
+      'Assuming remote-only features are available locally',
+    ],
+    guides: [
+      { title: 'Refresh local capabilities', steps: ['Open Local Capabilities', 'Click Refresh', 'Review detected services'] },
+    ],
+    tutorialSections: [
+      'Local Integrations',
+    ],
+    suggestedQuestions: [
+      'How do I enable Desktop Bridge?',
+    ],
   },
 
   'community-learning': {
@@ -3975,12 +3359,26 @@ export const tutorialContexts: Record<string, TutorialPageContext> = {
     visualGuidePage: 39,
     route: '/community',
     purpose: 'Access community-contributed guides, tutorials and examples.',
-    features: ['Curated guides', 'User examples', 'Upvote & bookmark'],
-    controls: [ { name: 'Open Guide', type: 'button', description: 'Open a community guide', whenToUse: 'When you want a community example' } ],
-    commonMistakes: ['Assuming community content is always canonical'],
-    guides: [ { title: 'Browse community guides', steps: ['Open Community Learning', 'Filter by topic', 'Open and bookmark useful guides'] } ],
-    tutorialSections: ['Community Content'],
-    suggestedQuestions: ['How do I submit a guide?'],
+    features: [
+      'Curated guides',
+      'User examples',
+      'Upvote & bookmark',
+    ],
+    controls: [
+      { name: 'Open Guide', type: 'button', description: 'Open a community guide', whenToUse: 'When you want a community example' },
+    ],
+    commonMistakes: [
+      'Assuming community content is always canonical',
+    ],
+    guides: [
+      { title: 'Browse community guides', steps: ['Open Community Learning', 'Filter by topic', 'Open and bookmark useful guides'] },
+    ],
+    tutorialSections: [
+      'Community Content',
+    ],
+    suggestedQuestions: [
+      'How do I submit a guide?',
+    ],
   },
 
   'tool-verify': {
@@ -3989,34 +3387,53 @@ export const tutorialContexts: Record<string, TutorialPageContext> = {
     visualGuidePage: 40,
     route: '/tools/verify',
     purpose: 'Verify configured tool paths and versions (Creation Kit, Blender, MO2, xEdit).',
-    features: ['Path checks', 'Version detection', 'Auto-fix suggestions'],
-    controls: [ { name: 'Verify', type: 'button', description: 'Verify all configured tool paths', whenToUse: 'After installing or moving a tool' } ],
-    commonMistakes: ['Not running verification after installs'],
-    guides: [ { title: 'Verify tools', steps: ['Open Tool Verify', 'Click Verify', 'Follow suggested fix links'] } ],
-    tutorialSections: ['Path & Version Checks'],
-    suggestedQuestions: ['How do I fix a missing path?'],
+    features: [
+      'Path checks',
+      'Version detection',
+      'Auto-fix suggestions',
+    ],
+    controls: [
+      { name: 'Verify', type: 'button', description: 'Verify all configured tool paths', whenToUse: 'After installing or moving a tool' },
+    ],
+    commonMistakes: [
+      'Not running verification after installs',
+    ],
+    guides: [
+      { title: 'Verify tools', steps: ['Open Tool Verify', 'Click Verify', 'Follow suggested fix links'] },
+    ],
+    tutorialSections: [
+      'Path & Version Checks',
+    ],
+    suggestedQuestions: [
+      'How do I fix a missing path?',
+    ],
   },
-
-
-
-
-
-
-
-
 
   'guided-tours': {
     pageId: 'guided-tours',
     pageName: 'Guided Tours',
-    visualGuidePage: 51,
+    visualGuidePage: 53,
     route: '/tours',
     purpose: 'Curated guided tours through common workflows and multi-step tutorials.',
-    features: ['Step-by-step tours', 'Progress saved'],
-    controls: [ { name: 'Start Tour', type: 'button', description: 'Begin a guided tour', whenToUse: 'When learning a new workflow' } ],
-    commonMistakes: ['Skipping steps in a tour'],
-    guides: [ { title: 'Start a guided tour', steps: ['Open Guided Tours', 'Pick a tour and click Start'] } ],
-    tutorialSections: ['Tours & Walkthroughs'],
-    suggestedQuestions: ['How long does a guided tour take?'],
+    features: [
+      'Step-by-step tours',
+      'Progress saved',
+    ],
+    controls: [
+      { name: 'Start Tour', type: 'button', description: 'Begin a guided tour', whenToUse: 'When learning a new workflow' },
+    ],
+    commonMistakes: [
+      'Skipping steps in a tour',
+    ],
+    guides: [
+      { title: 'Start a guided tour', steps: ['Open Guided Tours', 'Pick a tour and click Start'] },
+    ],
+    tutorialSections: [
+      'Tours & Walkthroughs',
+    ],
+    suggestedQuestions: [
+      'How long does a guided tour take?',
+    ],
   },
 
   'fallout4-wiki': {
@@ -4025,26 +3442,52 @@ export const tutorialContexts: Record<string, TutorialPageContext> = {
     visualGuidePage: 52,
     route: '/reference/wiki',
     purpose: 'Quick links and reference to community and official Fallout 4 resources.',
-    features: ['External links', 'Search shortcuts'],
-    controls: [ { name: 'Open Wiki', type: 'button', description: 'Open the Fallout 4 Wiki link', whenToUse: 'When looking up game data' } ],
-    commonMistakes: ['Relying on outdated wiki pages'],
-    guides: [ { title: 'Open wiki reference', steps: ['Open Fallout 4 Wiki page', 'Use search to find the entry you need'] } ],
-    tutorialSections: ['External Reference Links'],
-    suggestedQuestions: ['Where can I find physics/animation references?'],
+    features: [
+      'External links',
+      'Search shortcuts',
+    ],
+    controls: [
+      { name: 'Open Wiki', type: 'button', description: 'Open the Fallout 4 Wiki link', whenToUse: 'When looking up game data' },
+    ],
+    commonMistakes: [
+      'Relying on outdated wiki pages',
+    ],
+    guides: [
+      { title: 'Open wiki reference', steps: ['Open Fallout 4 Wiki page', 'Use search to find the entry you need'] },
+    ],
+    tutorialSections: [
+      'External Reference Links',
+    ],
+    suggestedQuestions: [
+      'Where can I find physics/animation references?',
+    ],
   },
 
   'pip-boy-mode': {
     pageId: 'pip-boy-mode',
     pageName: 'Pip‑Boy Mode',
-    visualGuidePage: 53,
+    visualGuidePage: 54,
     route: '/pip-boy',
     purpose: 'Toggle the Pip‑Boy UI mode for an immersive, game-like view of Mossy.',
-    features: ['Pip‑Boy theme', 'Compact HUD'],
-    controls: [ { name: 'Toggle Pip‑Boy', type: 'toggle', description: 'Enable or disable pip‑boy mode', whenToUse: 'When you want the compact, themed UI' } ],
-    commonMistakes: ['Expecting full feature parity with standard UI in Pip‑Boy mode'],
-    guides: [ { title: 'Enable Pip‑Boy mode', steps: ['Open Settings → Appearance', 'Enable Pip‑Boy Mode', 'Restart UI if required'] } ],
-    tutorialSections: ['Appearance & Themes'],
-    suggestedQuestions: ['How do I return to normal UI?'],
+    features: [
+      'Pip‑Boy theme',
+      'Compact HUD',
+    ],
+    controls: [
+      { name: 'Toggle Pip‑Boy', type: 'toggle', description: 'Enable or disable pip‑boy mode', whenToUse: 'When you want the compact, themed UI' },
+    ],
+    commonMistakes: [
+      'Expecting full feature parity with standard UI in Pip‑Boy mode',
+    ],
+    guides: [
+      { title: 'Enable Pip‑Boy mode', steps: ['Open Settings → Appearance', 'Enable Pip‑Boy Mode', 'Restart UI if required'] },
+    ],
+    tutorialSections: [
+      'Appearance & Themes',
+    ],
+    suggestedQuestions: [
+      'How do I return to normal UI?',
+    ],
   },
 
 };
