@@ -68,6 +68,39 @@
 ![Status](https://img.shields.io/badge/status-Production%20Ready-green.svg)
 ![Version](https://img.shields.io/badge/version-5.4.24-blue.svg)
 
+---
+
+## 📥 Download & Install
+
+### Quick Download
+
+**Ready to use Mossy?** Download the latest installer:
+
+👉 **[Download Mossy v5.4.24 from GitHub Releases](https://github.com/POINTYTHRUNDRA654/desktop-tutorial/releases/latest)**
+
+### System Requirements
+
+- **OS:** Windows 10/11 (64-bit)
+- **RAM:** 8GB minimum, 16GB recommended
+- **Storage:** 500MB for application + space for mods
+- **Optional:** OpenAI API key for AI features (can be added later)
+
+### Installation Steps
+
+1. **Download** the installer from the [Releases page](https://github.com/POINTYTHRUNDRA654/desktop-tutorial/releases/latest)
+2. **Run** the `.exe` installer (Windows) or `.dmg` (macOS)
+3. **Follow** the installation wizard
+4. **Launch** Mossy from your desktop or start menu
+5. **Complete** the first-run tutorial to learn the basics
+
+> **Note:** Windows may show a SmartScreen warning for new releases. Click "More info" → "Run anyway" to proceed. Mossy is open source and safe.
+
+### Building from Source
+
+Prefer to build from source? See the [Development Setup](#-development-setup) section below.
+
+---
+
 ## 💖 Support This Project
 
 Mossy is **100% free** and will always remain free. If you find it helpful, consider supporting development:
@@ -259,7 +292,9 @@ desktop-ai-assistant/
 
 ---
 
-## 🏁 Quick Start
+## 🏁 Quick Start (Development Setup)
+
+Want to build from source or contribute? Follow these steps:
 
 ### Prerequisites
 - **Node.js** (v18 or higher)
