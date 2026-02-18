@@ -451,7 +451,7 @@ export class ShaderGraphValidator {
     }
 
     return {
-      valid: errors.length === 0,
+      isValid: errors.length === 0,
       errors,
       warnings,
       stats: {
@@ -619,7 +619,7 @@ export class ShaderGraphCompiler {
 
     // Validate first
     const validation = this.validator.validate(graph);
-    if (!validation.valid) {
+    if (!validation.isValid) {
       errors.push(...validation.errors);
     }
     warnings.push(...validation.warnings);
