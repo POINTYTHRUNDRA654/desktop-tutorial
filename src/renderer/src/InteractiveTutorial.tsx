@@ -33,6 +33,14 @@ import { imageMap } from './generatedImageMap';
 import { speakMossy } from './mossyTts';
 
 // Map a tutorial pageId to its visual guide image asset with alias fallbacks for legacy ids
+const resolveImageUrl = (filename: string): string => {
+  try {
+    return new URL(`./visual-guide-images/${filename}`, window.location.href).toString();
+  } catch {
+    return `visual-guide-images/${filename}`;
+  }
+};
+
 const getImageForPage = (pageId: keyof typeof imageMap | string): string | undefined => {
   const alias: Record<string, keyof typeof imageMap> = {
     nexus: 'mossy-space',
@@ -60,7 +68,7 @@ const getImageForPage = (pageId: keyof typeof imageMap | string): string | undef
 
   const resolvedId = (imageMap as Record<string, string>)[pageId] ? (pageId as keyof typeof imageMap) : alias[pageId];
   const filename = resolvedId ? imageMap[resolvedId] : missingImages[pageId];
-  return filename ? `/visual-guide-images/${filename}` : undefined;
+  return filename ? resolveImageUrl(filename) : undefined;
 };
 
 // Helper exported for unit tests: builds the textual tutorial content for a page context
@@ -219,6 +227,8 @@ interface TutorialStep {
 }
 
 export const InteractiveTutorial: React.FC<InteractiveTutorialProps> = ({ onComplete, onSkip, testPipMode }) => {
+  const orderedContexts = getOrderedTutorialContexts(tutorialContexts);
+  const totalPages = orderedContexts.length;
   const [currentStepIndex, setCurrentStepIndex] = useState(0);
   const [completedSteps, setCompletedSteps] = useState<string[]>([]);
   const [isTransitioning, setIsTransitioning] = useState(false);
@@ -277,13 +287,13 @@ export const InteractiveTutorial: React.FC<InteractiveTutorialProps> = ({ onComp
       id: 'welcome',
       title: 'Welcome to Mossy! Your Complete Fallout 4 Modding Guide',
       mossyText:
-        "Hello! I'm Mossy, your artificial intelligence assistant for Fallout 4 modding. I'm here to guide you through every feature of this application. This comprehensive tutorial covers 40 different pages, each dedicated to a specific tool or module. For each page, I will explain what the tool is designed for, describe every button and control, and show you exactly how to use it step by step. You'll see actual screenshots of each page, along with beginner tips to help you avoid common mistakes. The complete tutorial takes approximately 15 to 20 minutes. You can pause at any time by clicking the Exit Tutorial button, and your progress will be saved. You can also use the Previous Step button to review any page. Ready to begin? Let's start with The Nexus, your main dashboard. Click the Next Step button when you're ready to proceed.",
+        `Hello! I'm Mossy, your artificial intelligence assistant for Fallout 4 modding. I'm here to guide you through every feature of this application. This comprehensive tutorial covers ${totalPages} different pages, each dedicated to a specific tool or module. For each page, I will explain what the tool is designed for, describe every button and control, and show you exactly how to use it step by step. You'll see actual screenshots of each page, along with beginner tips to help you avoid common mistakes. The complete tutorial takes approximately 15 to 20 minutes. You can pause at any time by clicking the Exit Tutorial button, and your progress will be saved. You can also use the Previous Step button to review any page. Ready to begin? Let's start with The Nexus, your main dashboard. Click the Next Step button when you're ready to proceed.`,
       route: '/',
       action: 'Get familiar with The Nexus dashboard - this is your home base',
       icon: <Home className="w-8 h-8" />,
     },
     // Dynamically generate steps from tutorial contexts
-    ...getOrderedTutorialContexts(tutorialContexts).map((context, index) => {
+    ...orderedContexts.map((context, index) => {
       const detailedText = buildTutorialText(context, index, hasPreconfiguredApiKeys);
       return {
         id: context.pageId,
