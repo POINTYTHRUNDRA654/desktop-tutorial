@@ -5233,6 +5233,7 @@ export interface NodeDefinition {
   type: ShaderNodeType;
   label: string;
   description?: string;
+  category?: string;
   inputs: Array<{ id?: string; name: string; type: string; defaultValue?: any }>;
   outputs: Array<{ id?: string; name: string; type: string }>;
   generateCode?: (node: ShaderNode, inputs: Record<string, string>) => string;
@@ -5253,6 +5254,8 @@ export interface CompiledShaderOutput {
   success: boolean;
   errors?: string[];
   warnings?: string[];
+  compilationTime?: number;
+  stats?: { nodeCount: number; connectionCount: number; };
 }
 export interface PreviewImage { id: string; path: string; width: number; height: number; dataUrl?: string; format?: string; timestamp?: number }
 export interface BakedTextures { diffuse?: string; normal?: string; metallic?: string; roughness?: string; emissive?: string; success?: boolean; error?: string; resolution?: { width: number; height: number }; textures?: Record<string, string>; fileSize?: number; bakingTime?: number }
@@ -6424,13 +6427,6 @@ export interface DialogueResponse {
 export interface DialogueAction {
   type: 'script' | 'set-stage' | 'give-item' | 'add-perk' | 'start-combat';
   parameters: Record<string, any>;
-}
-
-export interface ValidationResult {
-  isValid: boolean;
-  errors: string[];
-  warnings: string[];
-  timestamp?: number;
 }
 
 export interface SimulationResult {
