@@ -9,11 +9,29 @@ Consolidated quick-start and onboarding material.
 **Download the latest release:**
 👉 **[Download from GitHub Releases](https://github.com/POINTYTHRUNDRA654/desktop-tutorial/releases/latest)**
 
-**Installation:**
+**First-Time Installation:**
 1. Download the appropriate installer for your platform (Windows .exe, macOS .dmg, or Linux .AppImage)
 2. Run the installer and follow the setup wizard
 3. Launch Mossy from your desktop or start menu
 4. Complete the first-run tutorial
+
+**Upgrading an Existing Installation:**
+
+If you already have Mossy installed on your desktop:
+
+1. **Close Mossy** completely (check system tray)
+2. **Download** the new installer from GitHub Releases
+3. **Run** the installer - it will automatically upgrade your installation
+4. **Your data is safe**: Settings, API keys, Memory Vault, and projects are preserved
+5. **Launch** the updated version
+
+The installer replaces only the application files while keeping all your user data in `%APPDATA%/mossy-desktop/` (Windows) or equivalent on other platforms.
+
+**Troubleshooting Updates:**
+- If issues occur, you can uninstall via Windows Settings → Apps
+- Your settings remain in AppData even after uninstall
+- Reinstalling will restore your settings automatically
+- For a fresh start, manually delete `%APPDATA%/mossy-desktop/` after uninstalling
 
 **System Requirements:**
 - Windows 10/11, macOS 10.15+, or modern Linux

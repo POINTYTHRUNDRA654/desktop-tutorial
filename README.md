@@ -85,7 +85,7 @@
 - **Storage:** 500MB for application + space for mods
 - **Optional:** OpenAI API key for AI features (can be added later)
 
-### Installation Steps
+### First-Time Installation
 
 1. **Download** the installer from the [Releases page](https://github.com/POINTYTHRUNDRA654/desktop-tutorial/releases/latest)
 2. **Run** the `.exe` installer (Windows) or `.dmg` (macOS)
@@ -95,9 +95,60 @@
 
 > **Note:** Windows may show a SmartScreen warning for new releases. Click "More info" → "Run anyway" to proceed. Mossy is open source and safe.
 
+### Upgrading from a Previous Version
+
+**Already have Mossy installed on your desktop?** Here's how to safely upgrade:
+
+#### ✅ Safe Upgrade Process (Recommended)
+
+1. **Download** the new version installer from [GitHub Releases](https://github.com/POINTYTHRUNDRA654/desktop-tutorial/releases/latest)
+2. **Close** Mossy completely (check system tray if it's running in background)
+3. **Run** the new installer
+   - The installer will detect your existing installation
+   - Choose "Install" - it will automatically upgrade over the existing version
+4. **Your data is preserved:**
+   - ✅ Settings and preferences
+   - ✅ Memory Vault content
+   - ✅ API keys
+   - ✅ Project configurations
+   - ✅ Tutorial progress
+
+#### 📁 What Gets Preserved
+
+The installer **keeps** all your user data:
+- Settings stored in: `%APPDATA%/mossy-desktop/` (Windows)
+- Memory Vault data
+- Encrypted API keys
+- Recent projects list
+
+The installer **replaces**:
+- Application files
+- Built-in knowledge base
+- System dependencies
+
+#### ⚠️ If You Have Issues
+
+**Option 1: Clean Reinstall (keeps settings)**
+1. Uninstall the current version via Windows Settings → Apps
+2. Your data stays in `%APPDATA%/mossy-desktop/`
+3. Install the new version
+4. Settings will be automatically restored
+
+**Option 2: Fresh Start (removes everything)**
+1. Uninstall via Windows Settings → Apps
+2. Delete: `%APPDATA%/mossy-desktop/` (backs up your settings first if needed)
+3. Install the new version
+4. Will run the first-time setup again
+
+#### 💡 Pro Tips
+
+- **Back up your Memory Vault**: Settings → Memory Vault → Export before major upgrades
+- **Note your API keys**: Settings are preserved, but it's good to have backups
+- **Check release notes**: Review changes at [Releases page](https://github.com/POINTYTHRUNDRA654/desktop-tutorial/releases)
+
 ### Building from Source
 
-Prefer to build from source? See the [Development Setup](#-development-setup) section below.
+Prefer to build from source? See the [Development Setup](#-quick-start-development-setup) section below.
 
 ---
 
