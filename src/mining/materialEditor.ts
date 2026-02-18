@@ -580,7 +580,7 @@ void main()
 
     // Check for missing textures
     for (const node of graph.nodes || []) {
-      if (node.type === 'TextureSample' && !node.properties.path) {
+      if (node.type === 'texture' && !node.properties?.path) {
         missingTextures.push(`Texture slot: ${node.id}`);
       }
     }

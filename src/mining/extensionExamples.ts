@@ -265,8 +265,8 @@ export class MeshValidatorExtension implements ValidatorExtension {
 
       if (stats.size === 0) {
         issues.push({
+          type: 'error',
           severity: 'error',
-          code: 'EMPTY_FILE',
           message: 'Mesh file is empty',
         });
         return issues;
@@ -275,10 +275,10 @@ export class MeshValidatorExtension implements ValidatorExtension {
       if (stats.size > 100 * 1024 * 1024) {
         // 100MB
         issues.push({
+          type: 'warning',
           severity: 'warning',
-          code: 'LARGE_FILE',
           message: 'Mesh file is very large (>100MB)',
-          suggestion: 'Consider using LOD (Level of Detail) or optimization',
+
         });
       }
 
@@ -286,8 +286,8 @@ export class MeshValidatorExtension implements ValidatorExtension {
       const ext = path.extname(assetPath).toLowerCase();
       if (!['.nif', '.fbx', '.obj', '.gltf', '.glb'].includes(ext)) {
         issues.push({
+          type: 'warning',
           severity: 'warning',
-          code: 'UNSUPPORTED_FORMAT',
           message: `Unsupported mesh format: ${ext}`,
         });
       }
@@ -295,8 +295,8 @@ export class MeshValidatorExtension implements ValidatorExtension {
       return issues;
     } catch (error) {
       issues.push({
+        type: 'error',
         severity: 'error',
-        code: 'VALIDATION_ERROR',
         message: error instanceof Error ? error.message : 'Validation failed',
       });
       return issues;
@@ -325,38 +325,38 @@ export class TextureValidatorExtension implements ValidatorExtension {
 
       if (!validFormats.includes(ext)) {
         issues.push({
+          type: 'error',
           severity: 'error',
-          code: 'INVALID_FORMAT',
           message: `Invalid texture format: ${ext}`,
-          suggestion: 'Use DDS, TGA, or standard image formats',
+
         });
       }
 
       if (stats.size > 50 * 1024 * 1024) {
         // 50MB
         issues.push({
+          type: 'warning',
           severity: 'warning',
-          code: 'LARGE_TEXTURE',
           message: 'Texture file is very large',
-          suggestion: 'Optimize resolution or compression settings',
+
         });
       }
 
       // Check for common naming issues
       if (!assetPath.includes('normal') && !assetPath.includes('diffuse') && !assetPath.includes('pbr')) {
         issues.push({
+          type: 'info',
           severity: 'info',
-          code: 'UNCLEAR_PURPOSE',
           message: 'Texture purpose unclear from filename',
-          suggestion: 'Include texture type in filename (normal, diffuse, pbr, etc.)',
+
         });
       }
 
       return issues;
     } catch (error) {
       issues.push({
+        type: 'error',
         severity: 'error',
-        code: 'VALIDATION_ERROR',
         message: error instanceof Error ? error.message : 'Validation failed',
       });
       return issues;
