@@ -15,12 +15,12 @@ interface ImageTutorialProps {
 }
 
 /**
- * ImageTutorial - Displays a slideshow tutorial using user-provided screenshots
+ * ImageTutorial - Displays a comprehensive slideshow tutorial with 55+ pages
  * 
- * Images should be placed in: public/tutorial-images/
- * Named as: 01-welcome.png, 02-sidebar.png, etc.
+ * Images are loaded from: public/visual-guide-images/
+ * Named as: page-1-mossy-space.png, page-2-ai-chat.png, etc.
  * 
- * Captions can be provided in: public/tutorial-images/captions.json
+ * Captions are auto-generated from page titles in filenames
  */
 export const ImageTutorial: React.FC<ImageTutorialProps> = ({ isOpen, onClose }) => {
   const [slides, setSlides] = useState<TutorialSlide[]>([]);
@@ -37,61 +37,89 @@ export const ImageTutorial: React.FC<ImageTutorialProps> = ({ isOpen, onClose })
     setError(null);
 
     try {
-      // Try to load captions file
-      let captions: Record<string, { title: string; description: string }> = {};
-      try {
-        const captionsResponse = await fetch('/tutorial-images/captions.json');
-        if (captionsResponse.ok) {
-          captions = await captionsResponse.json();
-        }
-      } catch (err) {
-        console.log('No captions.json found, using auto-generated titles');
-      }
-
-      // Expected slide filenames (in order)
-      const expectedSlides = [
-        '01-welcome',
-        '02-sidebar',
-        '03-nexus-dashboard',
-        '04-chat-interface',
-        '05-live-voice',
-        '06-auditor',
-        '07-image-suite',
-        '08-workshop',
-        '09-vault',
-        '10-bridge',
-        '11-settings',
-        '12-help',
+      // All visual guide images (pages 1-55, with some duplicates)
+      const visualGuidePages = [
+        'page-1-mossy-space',
+        'page-2-ai-chat',
+        'page-3-ai-mod-assistant',
+        'page-4-first-success',
+        'page-5-modding-roadmaps',
+        'page-6-whats-new',
+        'page-7-mod-projects',
+        'page-8-quick-reference',
+        'page-9-knowledge-search',
+        'page-10-memory-vault',
+        'page-11-wizards',
+        'page-12-crash-triage',
+        'page-13-ck-safety',
+        'page-14-dds-converter',
+        'page-15-texture-generator',
+        'page-16-packaging-release',
+        'page-17-animation-guide',
+        'page-18-quest-mod-authorizing',
+        'page-19-the-lorekeeper',
+        'page-20-the-blueprint',
+        'page-21-cosmos-workflow',
+        'page-22-devtools',
+        'page-23-the-assembler',
+        'page-24-the-workshop',
+        'page-25-the-auditor',
+        'page-26-ck-crash-prevention',
+        'page-27-mining-and-analysis-hub',
+        'page-28-the-scribe',
+        'page-29-system-monitor',
+        'page-30-the-orchestrator',
+        'page-31-workflow-runner',
+        'page-32-the-holodeck',
+        'page-33-the-vault',
+        'page-34-ba2-manager',
+        'page-35-workflow-recorder',
+        'page-36-plugin-manager',
+        'page-37-local-capabilities',
+        'page-38-image-studio',
+        'page-39-live-synapse',
+        'page-40-desktop-bridge',
+        'page-41-mo2-extension',
+        'page-42-xedit-tools',
+        'page-43-ck-extensions',
+        'page-44-comfyui-extensions',
+        'page-45-upscale-extension',
+        'page-46-duplicate-finder',
+        'page-47-community-learning',
+        'page-48-tool-verify',
+        'page-49-settings',
+        'page-50-diagnostic-tools',
+        'page-51-support-mossy',
+        'page-53-fallout-4-wiki',
+        'page-54-guided-tours',
+        'page-55-pip-boy-on-off',
       ];
 
-      // Try to load each image
+      // Load all images from visual-guide-images directory
       const loadedSlides: TutorialSlide[] = [];
       
-      for (let i = 0; i < expectedSlides.length; i++) {
-        const filename = expectedSlides[i];
-        const pngPath = `/tutorial-images/${filename}.png`;
-        const jpgPath = `/tutorial-images/${filename}.jpg`;
+      for (let i = 0; i < visualGuidePages.length; i++) {
+        const filename = visualGuidePages[i];
+        const imagePath = `/visual-guide-images/${filename}.png`;
         
-        // Try PNG first, then JPG
-        const imagePath = await checkImageExists(pngPath) ? pngPath : 
-                         await checkImageExists(jpgPath) ? jpgPath : null;
+        // Check if image exists
+        const exists = await checkImageExists(imagePath);
         
-        if (imagePath) {
-          const caption = captions[`${filename}.png`] || captions[`${filename}.jpg`];
-          const autoTitle = generateTitleFromFilename(filename);
+        if (exists) {
+          const title = generateTitleFromFilename(filename);
           
           loadedSlides.push({
             id: i + 1,
             filename: filename,
             imagePath: imagePath,
-            title: caption?.title || autoTitle,
-            description: caption?.description || ''
+            title: title,
+            description: `Page ${i + 1} - ${title}`
           });
         }
       }
 
       if (loadedSlides.length === 0) {
-        setError('No tutorial images found. Please add screenshots to public/tutorial-images/');
+        setError('No tutorial images found in visual-guide-images directory.');
       } else {
         setSlides(loadedSlides);
       }
@@ -112,9 +140,9 @@ export const ImageTutorial: React.FC<ImageTutorialProps> = ({ isOpen, onClose })
   };
 
   const generateTitleFromFilename = (filename: string): string => {
-    // Convert "01-welcome" to "Welcome"
-    // Convert "03-nexus-dashboard" to "Nexus Dashboard"
-    const parts = filename.split('-').slice(1); // Remove number prefix
+    // Convert "page-1-mossy-space" to "Mossy Space"
+    // Convert "page-25-the-auditor" to "The Auditor"
+    const parts = filename.split('-').slice(2); // Remove "page" and number
     return parts
       .map(word => word.charAt(0).toUpperCase() + word.slice(1))
       .join(' ');
@@ -160,10 +188,10 @@ export const ImageTutorial: React.FC<ImageTutorialProps> = ({ isOpen, onClose })
               <ImageIcon className="w-5 h-5 text-emerald-400" />
             </div>
             <div>
-              <h2 className="text-xl font-bold text-white">Visual Tutorial</h2>
+              <h2 className="text-xl font-bold text-white">Visual Tutorial - Complete Guide</h2>
               {!loading && !error && (
                 <p className="text-sm text-slate-400">
-                  Step {currentSlide + 1} of {slides.length}
+                  Page {currentSlide + 1} of {slides.length} - All App Features
                 </p>
               )}
             </div>
@@ -192,13 +220,11 @@ export const ImageTutorial: React.FC<ImageTutorialProps> = ({ isOpen, onClose })
                 <h3 className="text-xl font-bold text-white mb-2">No Tutorial Images Found</h3>
                 <p className="text-slate-400 mb-4">{error}</p>
                 <div className="bg-slate-900 rounded-lg p-4 text-left text-sm">
-                  <p className="text-slate-300 font-medium mb-2">To add tutorial images:</p>
+                  <p className="text-slate-300 font-medium mb-2">Tutorial images should be in:</p>
                   <ol className="text-slate-400 space-y-1 list-decimal list-inside">
-                    <li>See <code className="text-emerald-400">SCREENSHOT_GUIDE_FOR_TUTORIAL.md</code></li>
-                    <li>Capture screenshots of each page</li>
-                    <li>Place them in <code className="text-emerald-400">public/tutorial-images/</code></li>
-                    <li>Name them: 01-welcome.png, 02-sidebar.png, etc.</li>
-                    <li>Reload this tutorial</li>
+                    <li><code className="text-emerald-400">public/visual-guide-images/</code></li>
+                    <li>Named as: page-1-mossy-space.png, page-2-ai-chat.png, etc.</li>
+                    <li>55+ comprehensive screenshots of all app pages</li>
                   </ol>
                 </div>
                 <button
