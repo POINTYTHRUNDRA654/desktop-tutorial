@@ -129,8 +129,8 @@ export class QuestEditorEngine {
         run: false,
         startUpStage: false,
         shutDownStage: false,
-        keepInstanceFlag: false,
-        completeAllObjectives: false,
+        startGameEnabled: false,
+        completeQuest: false,
       },
     };
 
@@ -393,8 +393,6 @@ EndFunction
       properties: [],
       fragments: this.generateDialogueFragments(questId),
       formId: questFormId,
-      dependencies: this.extractScriptDependencies(quest),
-      createdAt: Date.now(),
     };
   }
 
@@ -533,7 +531,6 @@ ${this.generateDialogueConditionChecks(branch)}
         executedStages: [],
         completionPath: [],
         finalStage: 0,
-        estimatedDuration: 0,
         issues: ['Quest not found'],
         warnings: [],
         success: false,
@@ -542,7 +539,7 @@ ${this.generateDialogueConditionChecks(branch)}
 
     const executedStages: number[] = [];
     const completionPath: string[] = [];
-    let estimatedDuration = 0;
+
     const issues: string[] = [];
 
     // Simulate stage progression
@@ -557,7 +554,7 @@ ${this.generateDialogueConditionChecks(branch)}
 
       // Estimate time based on objectives
       const stageObjectives = quest.objectives.filter((o) => o.stageIndex === stage.stageIndex);
-      estimatedDuration += stageObjectives.length * 5; // 5 minutes per objective
+
     }
 
     // Validate completion
@@ -571,7 +568,7 @@ ${this.generateDialogueConditionChecks(branch)}
       executedStages,
       completionPath,
       finalStage: quest.stages.length,
-      estimatedDuration,
+
       issues: [...issues, ...validation.errors],
       warnings: [],
       success: validation.isValid,
