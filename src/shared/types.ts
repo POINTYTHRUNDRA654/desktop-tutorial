@@ -25,6 +25,9 @@ export interface ModProject {
   };
 }
 
+// Type alias for compatibility
+export type Project = ModProject;
+
 export interface ProjectSettings {
   // Tool paths specific to this project
   xeditPath?: string;
@@ -288,7 +291,7 @@ export interface EventEmitterAPI {
   emit(event: string, payload?: any): void;
 }
 
-export interface CommandRegistration { id: string; title?: string; description?: string }
+export interface CommandRegistration { id: string; title?: string; description?: string; category?: string; keybinding?: string }
 export interface SettingSchema {
   key: string;
   title?: string;
@@ -302,7 +305,7 @@ export interface SettingSchema {
   order?: number;
 }
 export interface AssetMetadata { path: string; type?: string; size?: number; checksum?: string }
-export interface ProjectInfo { id: string; name: string; path: string; modified?: number; game?: string }
+export interface ProjectInfo { id: string; name: string; path: string; modified?: number; game?: string; created?: number }
 
 export interface MossyPluginAPI {
   fileSystem: FileSystemAPI;
@@ -373,6 +376,7 @@ export interface ExtensionPointRegistry {
 
 export interface ImporterExtension { id: string; name: string; fileTypes: string[]; description?: string; import(filePath: string, options?: any): Promise<ImportResult> }
 export interface ExporterExtension { id: string; name: string; format: string; description?: string; export(data: any, outputPath: string, options?: any): Promise<ExportResult> }
+export interface ValidationIssue { type: 'error' | 'warning' | 'info'; message: string; file?: string; line?: number; severity?: 'low' | 'medium' | 'high' | 'error' | 'warning' | 'info' }
 export interface ValidatorExtension { id: string; name: string; assetTypes: string[]; validate(assetPath: string, options?: any): Promise<ValidationIssue[]> }
 export interface ToolWrapperExtension { id: string; name?: string; toolName: string; isRunning(): Promise<boolean>; launch?(args?: any): Promise<void>; execute(command: string, args?: any): Promise<any> }
 export interface LanguageExtension { id: string; name?: string; languageId: string; fileExtensions: string[]; grammar?: any }
@@ -1219,6 +1223,72 @@ export interface PerformanceReport {
   compatibilityMatrix: Map<string, Map<string, number>>; // Mod pairs and compatibility score
 }
 
+// Game Integration Types
+export interface GameProcess {
+  pid: number;
+  name: string;
+  path: string;
+  version?: string;
+  isRunning: boolean;
+  executablePath?: string;
+  f4seDetected?: boolean;
+  skseDetected?: boolean;
+}
+
+export interface CommandResult {
+  success: boolean;
+  output?: string;
+  error?: string;
+  timestamp: number;
+}
+
+export interface SaveGameAnalysis {
+  fileName: string;
+  characterName: string;
+  playerName?: string; // Alternate name field
+  level: number;
+  playTime: number;
+  location: string;
+  activeMods: string[];
+  missingMods: string[];
+  issues?: string[];
+}
+
+export interface ModStatus {
+  enabled: boolean;
+  loadOrder: number;
+  conflicts: string[];
+  dependencies: string[];
+}
+
+export interface PerformanceStream {
+  fps: number;
+  memoryUsage: number;
+  cpuUsage: number;
+  timestamp: number;
+  frameTime?: number;
+}
+
+export interface InjectionResult {
+  success: boolean;
+  injectedDll?: string;
+  dllPath?: string;
+  error?: string;
+}
+
+export interface ConsoleCommand {
+  command: string;
+  timestamp: number;
+  result?: string;
+  description?: string;
+}
+
+export interface MacroCommand {
+  name: string;
+  commands: string[];
+  description?: string;
+}
+
 export interface PerformanceImpact {
   fpsDelta: number;
   memoryDelta: number;
@@ -1296,12 +1366,16 @@ export interface BottleneckEvidence {
 
 export interface OptimizationOpportunity {
   type: 'texture' | 'mesh' | 'script' | 'config' | 'load_order';
+  area?: string; // Alternate field name
+  suggestion?: string; // Alternate description
+  estimatedGain?: string | number; // Alternate potentialGain
   description: string;
   potentialGain: number; // FPS gain
   difficulty: 'easy' | 'medium' | 'hard';
   affectedMods: string[];
   // Optional back-compat / guidance
   prerequisites?: string[];
+  impact?: string; // Alternate gain description
 }
 
 // Backwards-compatible alias expected across the codebase
@@ -1762,10 +1836,10 @@ export interface AnalysisQuestObjective {
 }
 
 export interface QuestReward {
-  type: 'item' | 'perk' | 'experience' | 'faction' | 'misc';
+  type: 'item' | 'perk' | 'experience' | 'faction' | 'misc' | 'gold' | 'xp';
   formId?: string;
   amount?: number;
-  description: string;
+  description?: string;
 }
 
 export interface QuestDependency {
@@ -3512,11 +3586,7 @@ export interface ChatContext {
   conversationId?: string;
   userId: string;
   currentFile?: string;
-<<<<<<< Updated upstream
-  projectContext?: ProjectData;
-=======
   projectContext?: Project;
->>>>>>> Stashed changes
   recentActions: Action[];
 }
 
@@ -3524,8 +3594,10 @@ export interface ChatResponse {
   conversationId: string;
   message: string;
   suggestions: Suggestion[];
+  suggestedActions?: string[]; // Alternate field
   actions: AIAction[];
   confidence: number;
+  metadata?: Record<string, any>;
 }
 
 export interface Suggestion {
@@ -3547,6 +3619,7 @@ export interface GeneratedCode {
   explanation: string;
   warnings: string[];
   alternatives: CodeAlternative[];
+  files?: Array<{ name: string; content: string }>; // Generated files
 }
 
 export interface CodeAlternative {
@@ -3561,10 +3634,8 @@ export interface Explanation {
   breakdown: CodeBreakdown[];
   concepts: Concept[];
   relatedDocs: string[];
-<<<<<<< Updated upstream
-  steps?: string[];
-=======
->>>>>>> Stashed changes
+  steps?: string[]; // Step-by-step explanation
+  references?: string[]; // References to docs
 }
 
 export interface CodeBreakdown {
@@ -3582,9 +3653,11 @@ export interface Concept {
 export interface RefactoredCode {
   original: string;
   refactored: string;
+  improved?: string; // Alternate field for refactored code
   changes: Change[];
   improvements: string[];
   testSuggestions: string[];
+  diff?: string; // Diff output
 }
 
 export interface Change {
@@ -3596,8 +3669,10 @@ export interface Change {
 
 export interface Fix {
   title: string;
+  id?: string; // Unique identifier
   description: string;
   code?: string;
+  patch?: string; // Code patch
   steps: string[];
   confidence: number;
   estimatedTime: number;
@@ -3605,7 +3680,10 @@ export interface Fix {
 
 export interface FeatureSuggestion {
   name: string;
+  title?: string; // Alternate name field
   description: string;
+  benefit?: string; // Feature benefit
+  effort?: string; // Implementation effort
   difficulty: 'easy' | 'medium' | 'hard';
   estimatedTime: number;
   dependencies: string[];
@@ -3614,11 +3692,8 @@ export interface FeatureSuggestion {
 
 export interface Intent {
   type: 'question' | 'command' | 'request' | 'feedback';
+  name?: string; // Alternate action field
   action: string;
-<<<<<<< Updated upstream
-  name?: string;
-=======
->>>>>>> Stashed changes
   confidence: number;
 }
 
@@ -3628,18 +3703,17 @@ export interface Parameters {
 
 export interface PersonalizationSettings {
   userId: string;
+  tone?: string; // Communication tone
   preferredLanguage: string;
   skillLevel: 'beginner' | 'intermediate' | 'advanced';
   interests: string[];
   frequentActions: string[];
+  preferredExamples?: string[]; // Preferred example types
 }
 
 export interface ImageAnalysis {
   description: string;
-<<<<<<< Updated upstream
-  tags?: string[];
-=======
->>>>>>> Stashed changes
+  tags?: string[]; // Image tags
   objects: DetectedObject[];
   answer: string;
   confidence: number;
@@ -3647,10 +3721,7 @@ export interface ImageAnalysis {
 
 export interface DetectedObject {
   label: string;
-<<<<<<< Updated upstream
-  name?: string;
-=======
->>>>>>> Stashed changes
+  name?: string; // Alternate label field
   confidence: number;
   boundingBox: BoundingBox;
 }
@@ -5100,6 +5171,92 @@ export interface BGSMMaterial extends Material { properties: { diffuse?: string;
 export interface BGEMMaterial extends Material { properties: { effectShader?: string; particleSize?: number; colorAnimation?: { enabled: boolean; frameCount: number; frameDelay: number } } }
 export interface AdvancedMaterial extends Material { features?: string[]; advancedSettings?: Record<string, any> }
 export interface CompiledShader { vertex?: string; fragment?: string; vertexShader?: string; fragmentShader?: string; uniforms?: any[]; varyings?: any[]; errors?: string[]; warnings?: string[]; success?: boolean; compilationTime?: number }
+
+// Shader Graph System Types
+export type ShaderNodeType = 'texture' | 'math' | 'color' | 'vector' | 'output' | 'constant' | 'normal' | 'blend';
+export type MathOperation = 'add' | 'subtract' | 'multiply' | 'divide' | 'power' | 'sqrt' | 'clamp' | 'mix';
+export type ColorOperation = 'rgb_split' | 'rgb-split' | 'hsv_adjust' | 'color_ramp' | 'invert' | 'brightness_contrast';
+export type VectorOperation = 'normalize' | 'length' | 'dot' | 'cross' | 'reflect' | 'refract';
+
+export interface ShaderNode {
+  id: string;
+  type: ShaderNodeType;
+  label?: string;
+  operation?: MathOperation | ColorOperation | VectorOperation;
+  inputs: NodeInput[];
+  outputs: NodeOutput[];
+  position?: { x: number; y: number };
+  properties?: Record<string, any>;
+}
+
+export interface NodeInput {
+  id?: string;
+  name: string;
+  type: 'float' | 'vec2' | 'vec3' | 'vec4' | 'sampler2D';
+  value?: any;
+  connectedFrom?: { nodeId: string; outputName: string };
+}
+
+export interface NodeOutput {
+  id?: string;
+  name: string;
+  type: 'float' | 'vec2' | 'vec3' | 'vec4' | 'sampler2D';
+}
+
+export interface NodeConnection {
+  id: string;
+  fromNode: string;
+  fromOutput: string;
+  toNode: string;
+  toInput: string;
+  outputNode?: string; // Alternate from field
+  inputNode?: string; // Alternate to field
+}
+
+export interface OutputNode extends ShaderNode {
+  type: 'output';
+  shaderType: 'vertex' | 'fragment' | 'compute';
+  connectedNode?: string; // Node connected to this output
+  slot?: string; // Output slot name
+}
+
+export interface ShaderGraph {
+  id: string;
+  name: string;
+  nodes: ShaderNode[];
+  connections: NodeConnection[];
+  outputNodes: OutputNode[];
+  outputs?: OutputNode[]; // Alternate field
+}
+
+export interface NodeDefinition {
+  type: ShaderNodeType;
+  label: string;
+  description?: string;
+  category?: string;
+  inputs: Array<{ id?: string; name: string; type: string; defaultValue?: any }>;
+  outputs: Array<{ id?: string; name: string; type: string }>;
+  generateCode?: (node: ShaderNode, inputs: Record<string, string>) => string;
+}
+
+export interface ShaderGraphValidationResult {
+  isValid: boolean;
+  errors: string[];
+  warnings: string[];
+  unusedNodes?: string[];
+}
+
+export interface CompiledShaderOutput {
+  vertexShader: string;
+  fragmentShader: string;
+  computeShader?: string;
+  uniforms: Array<{ name: string; type: string }>;
+  success: boolean;
+  errors?: string[];
+  warnings?: string[];
+  compilationTime?: number;
+  stats?: { nodeCount: number; connectionCount: number; };
+}
 export interface PreviewImage { id: string; path: string; width: number; height: number; dataUrl?: string; format?: string; timestamp?: number }
 export interface BakedTextures { diffuse?: string; normal?: string; metallic?: string; roughness?: string; emissive?: string; success?: boolean; error?: string; resolution?: { width: number; height: number }; textures?: Record<string, string>; fileSize?: number; bakingTime?: number }
 export interface SaveResult { success: boolean; path?: string; format?: string; fileSize?: number; timestamp?: number; errors?: string[] }
@@ -6148,94 +6305,6 @@ export interface WorkerNode {
   };
 }
 
-<<<<<<< Updated upstream
-/**
- * CK Crash Prevention System Types
- */
-export interface CKValidationInput {
-  espPath: string;
-  modName?: string;
-  cellCount?: number;
-}
-
-export interface CKValidationResult {
-  safe: boolean;
-  issues: ValidationIssue[];
-  warnings: ValidationWarning[];
-  recommendations: string[];
-  estimatedMemoryUsage: number;
-  riskLevel: 'low' | 'medium' | 'high' | 'critical';
-}
-
-export interface ValidationIssue {
-  type?: 'file_size' | 'memory' | 'known_mod' | 'missing_master' | 'corrupted_mesh' | string;
-  severity: 'info' | 'warning' | 'error' | 'critical';
-  code?: string;
-  suggestion?: string;
-  message: string;
-  fix?: string;
-  cellId?: string;
-}
-
-export interface ValidationWarning {
-  message: string;
-  recommendation: string;
-}
-
-export interface CKMonitoringSession {
-  id: string;
-  processId: number;
-  startTime: number;
-  status: 'running' | 'frozen' | 'crashed' | 'completed';
-  currentCell?: string;
-  cellsProcessed: number;
-  totalCells?: number;
-}
-
-export interface CKHealthMetrics {
-  memoryUsage: number;
-  cpuUsage: number;
-  responding: boolean;
-  uptime: number;
-  logErrors: string[];
-}
-
-export interface CrashDiagnosis {
-  exceptionCode?: string;
-  exceptionType: 'access_violation' | 'memory_error' | 'timeout' | 'unknown';
-  problematicCell?: string;
-  knownIssue?: KnownCKIssue;
-  rootCause: string;
-  fixSteps: string[];
-  relatedKnowledgeArticles: string[];
-}
-
-export interface KnownCKIssue {
-  id: string;
-  name: string;
-  description: string;
-  affectedMods: string[];
-  solution: string;
-  workaround?: string;
-}
-
-export interface PreventionPlan {
-  priority: 'low' | 'medium' | 'high';
-  steps: PreventionStep[];
-  estimatedTime: number;
-}
-
-export interface PreventionStep {
-  id: string;
-  title: string;
-  description: string;
-  tool?: string;
-  command?: string;
-  completed: boolean;
-}
-
-=======
->>>>>>> Stashed changes
 // ============================================================================
 // QUEST EDITOR TYPES
 // ============================================================================
@@ -6250,7 +6319,9 @@ export type QuestType =
 
 export interface Quest {
   id: string;
+  questId?: string; // Alternate ID field
   name: string;
+  questName?: string; // Alternate name field
   description: string;
   type: QuestType;
   priority: number;
@@ -6258,6 +6329,9 @@ export interface Quest {
   aliases: QuestAlias[];
   properties: QuestProperty[];
   script?: string;
+  objectives?: QuestObjective[]; // Top-level objectives array
+  rewards?: QuestReward[]; // Rewards array
+  dialogueLinks?: string[]; // References to dialogue branches
 }
 
 export interface QuestProperty {
@@ -6268,10 +6342,13 @@ export interface QuestProperty {
 
 export interface QuestStage {
   index: number;
+  stageIndex?: number; // Alternate index field
   logEntry?: string;
+  description?: string; // Alternate description field
   objectives: QuestObjective[];
   conditions: Condition[];
   resultScript?: string;
+  scriptFragments?: string[]; // Script code fragments
   flags: StageFlags;
 }
 
@@ -6280,6 +6357,8 @@ export interface StageFlags {
   completeQuest?: boolean;
   failQuest?: boolean;
   shutDownStage?: boolean;
+  run?: boolean; // Run immediately flag
+  startUpStage?: boolean; // Alternate startup flag
 }
 
 export interface Condition {
@@ -6292,11 +6371,16 @@ export interface Condition {
 
 export interface QuestObjective {
   id: string;
+  objectiveId?: string; // Alternate ID field
   displayText: string;
+  description?: string; // Alternate text field
   target?: string; // RefID or Alias
+  targetFormId?: string; // Specific form ID
   targetCount?: number;
   completed: boolean;
   conditions: Condition[];
+  stageIndex?: number; // Stage this objective belongs to
+  marker?: { formId?: string; coordinate?: { x: number; y: number; z: number } };
 }
 
 export interface QuestAlias {
@@ -6306,187 +6390,6 @@ export interface QuestAlias {
   conditions: Condition[];
 }
 
-<<<<<<< Updated upstream
-export interface ValidationWarning {
-  message: string;
-  recommendation: string;
-}
-
-export interface DialogueNode {
-  id: string;
-  speaker: 'player' | 'npc' | 'other';
-  text: string;
-  prompt?: string; // Player choice text
-  responses?: DialogueResponse[];
-  conditions?: Condition[];
-  actions?: DialogueAction[];
-  emotions?: EmotionType;
-  animation?: string;
-}
-
-export interface DialogueResponse {
-  targetNodeId: string;
-  conditions?: Condition[];
-  chance?: number; // Random selection
-}
-
-export interface DialogueAction {
-  type: 'script' | 'set-stage' | 'give-item' | 'add-perk' | 'start-combat';
-  parameters?: Record<string, any>;
-}
-
-export interface UserChoice {
-  dialogueNodeId: string;
-  responseIndex: number;
-}
-
-export interface SimulationResult {
-  path: QuestStage[];
-  choices: UserChoice[];
-  finalStage: number;
-  success: boolean;
-  warnings: string[];
-  estimatedDuration?: number;
-  issues?: string[];
-}
-
-// Backwards-compatibility alias
-export type QuestSimulationResult = SimulationResult;
-
-export interface PapyrusCode {
-  scriptName: string;
-  code: string;
-  properties: QuestProperty[];
-  createdAt?: number;
-}
-
-// Backwards-compatible augmentations for legacy mining/editor code
-export interface Quest {
-  // legacy aliases
-  questId?: string;
-  questName?: string;
-  // legacy collections
-  objectives?: QuestObjective[];
-  rewards?: any[];
-  dialogueLinks?: string[];
-}
-
-export interface QuestStage {
-  // legacy aliases
-  stageIndex?: number;
-  description?: string;
-  scriptFragments?: string[];
-}
-
-export interface StageFlags {
-  // legacy flag used by older code
-  run?: boolean;
-  startUpStage?: boolean;
-  keepInstanceFlag?: boolean;
-  completeAllObjectives?: boolean;
-  completeQuest?: boolean;
-  failQuest?: boolean;
-  startGameEnabled?: boolean;
-}
-
-export interface QuestObjective {
-  objectiveId?: string;
-  marker?: { formId?: string; coordinate?: { x?: number; y?: number } };
-  targetFormId?: string;
-  description?: string;
-  stageIndex?: number;
-  scriptActions?: string[];
-}
-
-export interface DialogueNode { nodeId?: string; scriptActions?: string[]; }
-export interface SimulationResult { questId?: string; totalStages?: number; executedStages?: number[]; completionPath?: any[]; }
-export interface Quest { questId?: string; questName?: string; objectives?: QuestObjective[]; rewards?: any[]; dialogueLinks?: string[] }
-export interface PapyrusCode { scriptBody?: string; fragments?: string[]; formId?: string | number; dependencies?: string[]; }
-
-
-export interface CKHealthMetrics {
-  memoryUsage: number;
-  cpuUsage: number;
-  responding: boolean;
-  uptime: number;
-  logErrors: string[];
-}
-
-export interface CrashDiagnosis {
-  exceptionCode?: string;
-  exceptionType: 'access_violation' | 'memory_error' | 'timeout' | 'unknown';
-  problematicCell?: string;
-  knownIssue?: KnownCKIssue;
-  rootCause: string;
-  fixSteps: string[];
-  relatedKnowledgeArticles: string[];
-}
-
-export interface KnownCKIssue {
-  id: string;
-  name: string;
-  description: string;
-  affectedMods: string[];
-  solution: string;
-  workaround?: string;
-}
-
-export interface PreventionPlan {
-  priority: 'low' | 'medium' | 'high';
-  steps: PreventionStep[];
-  estimatedTime: number;
-}
-
-export interface PreventionStep {
-  id: string;
-  title: string;
-  description: string;
-  tool?: string;
-  command?: string;
-  completed: boolean;
-}
-
-// Duplicate quest-editor block removed (consolidated earlier)
-
-
-
-
-// CommandRegistration augmentation
-export interface CommandRegistration { category?: string; keybinding?: string; handler?: any }
-
-// --- Game / runtime integration types (top-level declarations) ---
-export interface GameProcess { pid: number; name: string; executablePath?: string; path?: string; version?: string; uptime?: number; runningSince?: number; status?: 'running' | 'stopped' | 'crashed'; f4seDetected?: boolean; skseDetected?: boolean; }
-export interface CommandResult { success: boolean; output?: string; error?: string; exitCode?: number }
-export interface SaveGameAnalysis { fileName: string; playerName?: string; level?: number; playTime?: number; location?: string; pluginList?: string[]; missingPlugins?: string[]; formCount?: number; scriptInstanceCount?: number; suspendedStackCount?: number; changeFormCount?: number; corruptionRisk?: 'low'|'medium'|'high' | string; recommendations?: string[]; size?: number; timestamp?: number }
-export interface ModStatus { id: string; name?: string; installed: boolean; enabled: boolean; version?: string; source?: string; conflicts?: string[] }
-export interface PerformanceStream { timestamp: number; fps: number; cpu: number; cpuUsage?: number; gpu: number; gpuUsage?: number; memory: number; frameTime?: number; scriptLag?: number }
-export interface InjectionResult { success: boolean; error?: string; injectedAt?: number; details?: any; dllPath?: string; injectionTime?: number; communicationEstablished?: boolean }
-export interface ConsoleCommand { command: string; args?: string[]; description?: string; category?: string; dangerous?: boolean }
-export interface MacroCommand { id?: string; name?: string; commands: ConsoleCommand[] }
-
-// Projects API augmentation
-export interface ProjectInfo { created?: number; }
-export interface ProjectsAPI { createProject?: (info: any) => Promise<ProjectInfo>; getProject?: (id: string) => Promise<ProjectInfo | null>; listProjects?: () => Promise<ProjectInfo[]>; }
-
-// Other auxiliary types used by mining
-// removed duplicate lightweight RawKnowledgeData (canonical type defined above)
-export interface ShaderGraph { nodes?: ShaderNode[]; connections?: NodeConnection[]; outputs?: NodeOutput[]; metadata?: any } 
-
-export type ShaderNodeType = 'input'|'output'|'math'|'color'|'vector'|'texture'|'sampler'|'combine'|'custom';
-export interface NodeInput { id: string; name: string; type: string; defaultValue?: any }
-export interface NodeOutput { id: string; name: string; type: string; slot?: string; connectedNode?: string }
-export interface NodeConnection { fromNode?: string; fromOutput?: string; toNode?: string; toInput?: string; outputNode?: string; inputNode?: string; outputSocket?: string; inputSocket?: string }
-export interface NodeDefinition { id: string; category?: string; name?: string; description?: string; inputs?: NodeInput[]; outputs?: NodeOutput[]; metadata?: any }
-export interface ShaderNode { id: string; type: ShaderNodeType | string; definitionId?: string; inputs: NodeInput[]; outputs: NodeOutput[]; position?: { x: number; y: number }; metadata?: any; operation?: MathOperation | ColorOperation | VectorOperation | string; properties?: Record<string, any> }
-export interface OutputNode { id: string; slot?: string; connectedNode?: string; outputs?: NodeOutput[]; }
-export type MathOperation = 'add'|'subtract'|'multiply'|'divide'|'power'|'clamp'|'lerp'
-export type ColorOperation = 'rgb-split'|'rgb-combine'|'hsv-adjust'|'adjust-contrast'|'invert'
-export type VectorOperation = 'normalize'|'length'|'dot'|'cross'
-export interface ShaderGraphValidationResult { valid: boolean; errors: string[]; warnings?: string[]; metrics?: any; stats?: Record<string, any> }
-export interface CompiledShaderOutput { success?: boolean; vertexShader?: string; fragmentShader?: string; vertex?: string; fragment?: string; errors?: string[]; warnings?: string[]; compilationTime?: number; stats?: { instructionCount?: number; textureCount?: number; parameterCount?: number }; uniforms?: any[]; varyings?: any[]; outputs?: any[]; metadata?: any }
-
-=======
->>>>>>> Stashed changes
 export type EmotionType = 
   | 'happy' | 'sad' | 'angry' | 'fear' | 'disgust' 
   | 'surprise' | 'neutral' | 'custom';
@@ -6498,10 +6401,12 @@ export interface DialogueBranch {
   priority: number;
   nodes: DialogueNode[];
   quest?: string;
+  conditions?: Condition[]; // Branch-level conditions
 }
 
 export interface DialogueNode {
   id: string;
+  nodeId?: string; // Alternate ID field
   speaker: 'player' | 'npc' | 'other';
   text: string;
   prompt?: string; // Player choice text
@@ -6510,6 +6415,7 @@ export interface DialogueNode {
   actions: DialogueAction[];
   emotions?: EmotionType;
   animation?: string;
+  scriptActions?: string[]; // Script code for this node
 }
 
 export interface DialogueResponse {
@@ -6523,19 +6429,17 @@ export interface DialogueAction {
   parameters: Record<string, any>;
 }
 
-export interface ValidationResult {
-  isValid: boolean;
-  errors: string[];
-  warnings: string[];
-  timestamp?: number;
-}
-
 export interface SimulationResult {
   path: QuestStage[];
   choices: UserChoice[];
   finalStage: number;
   success: boolean;
   warnings: string[];
+  executedStages?: number[];
+  completionPath?: string[];
+  issues?: string[];
+  questId?: string; // Quest being simulated
+  totalStages?: number;
 }
 
 // Backwards-compatibility alias
@@ -6550,4 +6454,6 @@ export interface PapyrusCode {
   scriptName: string;
   code: string;
   properties: QuestProperty[];
+  fragments?: string[]; // Script fragments for stages/dialogue
+  formId?: string; // Associated form ID
 }

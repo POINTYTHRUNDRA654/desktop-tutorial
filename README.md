@@ -2,6 +2,10 @@
 
 **Mossy v5.4.24** - A production-ready Electron desktop application for Fallout 4 modding with AI assistance, real-time analysis, direct-write scripting, and professional asset optimization.
 
+> 🔄 **For Contributors:** If you have this repository cloned and want to update your local copy with recent bug fixes, see [GIT_UPDATE_GUIDE.md](GIT_UPDATE_GUIDE.md)
+> 
+> 🔀 **Merge & Cleanup:** Ready to merge to master or clean up temporary files? See [MERGE_TO_MASTER_GUIDE.md](MERGE_TO_MASTER_GUIDE.md) and [REPOSITORY_CLEANUP_GUIDE.md](REPOSITORY_CLEANUP_GUIDE.md)
+
 ---
 
 ## 🚀 Onboarding & Installer Notes (v5.4.24)
@@ -67,6 +71,94 @@
 ![Platform](https://img.shields.io/badge/platform-Windows-blue)
 ![Status](https://img.shields.io/badge/status-Production%20Ready-green.svg)
 ![Version](https://img.shields.io/badge/version-5.4.24-blue.svg)
+
+---
+
+## 📥 Download & Install
+
+### Quick Download
+
+**Ready to use Mossy?** Download the latest installer:
+
+👉 **[Download Mossy v5.4.24 from GitHub Releases](https://github.com/POINTYTHRUNDRA654/desktop-tutorial/releases/latest)**
+
+### System Requirements
+
+- **OS:** Windows 10/11 (64-bit)
+- **RAM:** 8GB minimum, 16GB recommended
+- **Storage:** 500MB for application + space for mods
+- **Optional:** OpenAI API key for AI features (can be added later)
+
+### First-Time Installation
+
+1. **Download** the installer from the [Releases page](https://github.com/POINTYTHRUNDRA654/desktop-tutorial/releases/latest)
+2. **Run** the `.exe` installer (Windows) or `.dmg` (macOS)
+3. **Follow** the installation wizard
+4. **Launch** Mossy from your desktop or start menu
+5. **Complete** the first-run tutorial to learn the basics
+
+> **Note:** Windows may show a SmartScreen warning for new releases. Click "More info" → "Run anyway" to proceed. Mossy is open source and safe.
+
+### Upgrading from a Previous Version
+
+**Already have Mossy installed on your desktop?** Here's how to safely upgrade:
+
+> 📘 **Detailed Guide:** See [UPGRADE_GUIDE.md](UPGRADE_GUIDE.md) for complete upgrade instructions and troubleshooting.
+
+#### ✅ Safe Upgrade Process (Recommended)
+
+1. **Download** the new version installer from [GitHub Releases](https://github.com/POINTYTHRUNDRA654/desktop-tutorial/releases/latest)
+2. **Close** Mossy completely (check system tray if it's running in background)
+3. **Run** the new installer
+   - The installer will detect your existing installation
+   - Choose "Install" - it will automatically upgrade over the existing version
+4. **Your data is preserved:**
+   - ✅ Settings and preferences
+   - ✅ Memory Vault content
+   - ✅ API keys
+   - ✅ Project configurations
+   - ✅ Tutorial progress
+
+**Quick Summary:** The installer safely upgrades without conflicts. Your data stays in `%APPDATA%/mossy-desktop/` and is automatically preserved.
+
+#### 📁 What Gets Preserved
+
+The installer **keeps** all your user data:
+- Settings stored in: `%APPDATA%/mossy-desktop/` (Windows)
+- Memory Vault data
+- Encrypted API keys
+- Recent projects list
+
+The installer **replaces**:
+- Application files
+- Built-in knowledge base
+- System dependencies
+
+#### ⚠️ If You Have Issues
+
+**Option 1: Clean Reinstall (keeps settings)**
+1. Uninstall the current version via Windows Settings → Apps
+2. Your data stays in `%APPDATA%/mossy-desktop/`
+3. Install the new version
+4. Settings will be automatically restored
+
+**Option 2: Fresh Start (removes everything)**
+1. Uninstall via Windows Settings → Apps
+2. Delete: `%APPDATA%/mossy-desktop/` (backs up your settings first if needed)
+3. Install the new version
+4. Will run the first-time setup again
+
+#### 💡 Pro Tips
+
+- **Back up your Memory Vault**: Settings → Memory Vault → Export before major upgrades
+- **Note your API keys**: Settings are preserved, but it's good to have backups
+- **Check release notes**: Review changes at [Releases page](https://github.com/POINTYTHRUNDRA654/desktop-tutorial/releases)
+
+### Building from Source
+
+Prefer to build from source? See the [Development Setup](#-quick-start-development-setup) section below.
+
+---
 
 ## 💖 Support This Project
 
@@ -257,9 +349,13 @@ desktop-ai-assistant/
 
 ## 🚀 Getting Started
 
+> **👨‍💻 For Developers:** If you have this repository cloned and need to pull the latest fixes, see [GIT_UPDATE_GUIDE.md](GIT_UPDATE_GUIDE.md) for GitHub Desktop instructions.
+
 ---
 
-## 🏁 Quick Start
+## 🏁 Quick Start (Development Setup)
+
+Want to build from source or contribute? Follow these steps:
 
 ### Prerequisites
 - **Node.js** (v18 or higher)
