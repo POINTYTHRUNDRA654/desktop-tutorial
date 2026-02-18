@@ -71,7 +71,7 @@
     "functions": "- Search bar: your main input for finding topics.\n- Filter chips: limit results to the content type you need.\n- Result list: shows the title, snippet, and source.\n- Preview panel: lets you read without leaving the search page.\n- Save/Favorite action: stores key pages in your vault for later.",
     "tips": "- Use two or three keywords instead of a whole sentence.\n- If results feel noisy, add the tool name (\"xEdit\", \"CK\", \"Blender\").\n- Save your top 3 references so you can return in one click."
   },
-  "page-10-memory-vault.png": {
+  "page-11-wizards.png": {
     "title": "Wizards",
     "description": "Wizards is the guided workflow hub. Each wizard is a step-by-step flow that sets up tools, validates prerequisites, and walks you through complex tasks without guessing.\n\nKey functions:\n- Wizard header: shows the active wizard name and a one-line description.\n- Step checklist: ordered tasks with short instructions and a progress state.\n- Wizard list: categories like Crash Triage, Install Wizard, PRP Patch Builder.\n- Tool hint line: points to required tools and verification shortcuts.\n- Scrollable content area: keeps long workflows usable on one page.\n\n💡 Beginner tips:\n- Start with Install Wizard if you are brand new or tools are missing.\n- If the app feels unstable, run Crash Triage before anything else.\n- Stick to one wizard at a time so your progress stays consistent.",
     "whatFor": "Wizards is the guided workflow hub. Each wizard is a step-by-step flow that sets up tools, validates prerequisites, and walks you through complex tasks without guessing.",
@@ -79,7 +79,7 @@
     "functions": "- Wizard header: shows the active wizard name and a one-line description.\n- Step checklist: ordered tasks with short instructions and a progress state.\n- Wizard list: categories like Crash Triage, Install Wizard, PRP Patch Builder.\n- Tool hint line: points to required tools and verification shortcuts.\n- Scrollable content area: keeps long workflows usable on one page.",
     "tips": "- Start with Install Wizard if you are brand new or tools are missing.\n- If the app feels unstable, run Crash Triage before anything else.\n- Stick to one wizard at a time so your progress stays consistent."
   },
-  "page-11-wizards.png": {
+  "page-12-crash-triage.png": {
     "title": "Crash Triage",
     "description": "Crash Triage is the stability first-aid station. It helps you confirm system health, verify tool paths, and diagnose crashes or freezes before you start modding work.\n\nKey functions:\n- Diagnostics header: shows the active triage hub and its purpose.\n- System Monitor section: displays telemetry and module status.\n- Full system scan: checks tool paths, permissions, and bridge status.\n- Active integrations list: confirms detected software and plug-ins.\n- External modding tools list: shows key apps and their launch state.\n- Launch buttons: open a detected tool directly if configured.\n\n💡 Beginner tips:\n- Run Crash Triage first if the app feels slow or unstable.\n- Green status means safe to continue; yellow means fix soon; red means stop and repair.\n- If a tool shows \"not detected\", confirm install path in Tool Verify.",
     "whatFor": "Crash Triage is the stability first-aid station. It helps you confirm system health, verify tool paths, and diagnose crashes or freezes before you start modding work.",
@@ -87,7 +87,7 @@
     "functions": "- Diagnostics header: shows the active triage hub and its purpose.\n- System Monitor section: displays telemetry and module status.\n- Full system scan: checks tool paths, permissions, and bridge status.\n- Active integrations list: confirms detected software and plug-ins.\n- External modding tools list: shows key apps and their launch state.\n- Launch buttons: open a detected tool directly if configured.",
     "tips": "- Run Crash Triage first if the app feels slow or unstable.\n- Green status means safe to continue; yellow means fix soon; red means stop and repair.\n- If a tool shows \"not detected\", confirm install path in Tool Verify."
   },
-  "page-12-crash-triage.png": {
+  "page-16-packaging-release.png": {
     "title": "Packaging and Release",
     "description": "Packaging and Release is the final checkpoint before you publish. It walks you through packaging, sanity checks, test installs, and release notes so your mod ships cleanly.\n\nKey functions:\n- Packaging hub header: confirms you are in the release workflow.\n- Checklist panel: ordered steps for packaging and validation.\n- Tool links: quick opens for required tools like Archive2 or 7-Zip.\n- Verify (quick): fast sanity checks to catch missing masters or bad paths.\n- Distribution section: helps pick a release target and readiness level.\n- Install & verify list: the minimum steps to prove your package works.\n\n💡 Beginner tips:\n- Always test in a clean profile before uploading.\n- If assets are missing, re-check archive paths and file structure.\n- Keep release notes short and list changes plus requirements.",
     "whatFor": "Packaging and Release is the final checkpoint before you publish. It walks you through packaging, sanity checks, test installs, and release notes so your mod ships cleanly.",
@@ -95,7 +95,7 @@
     "functions": "- Packaging hub header: confirms you are in the release workflow.\n- Checklist panel: ordered steps for packaging and validation.\n- Tool links: quick opens for required tools like Archive2 or 7-Zip.\n- Verify (quick): fast sanity checks to catch missing masters or bad paths.\n- Distribution section: helps pick a release target and readiness level.\n- Install & verify list: the minimum steps to prove your package works.",
     "tips": "- Always test in a clean profile before uploading.\n- If assets are missing, re-check archive paths and file structure.\n- Keep release notes short and list changes plus requirements."
   },
-  "page-13-ck-safety.png": {
+  "page-17-animation-guide.png": {
     "title": "Animation Guide",
     "description": "Animation Guide is the end-to-end pipeline page for Fallout 4 animations. It keeps the required tools, reference files, and validation steps in one ordered flow so you can build animations that import and play correctly in game.\n\nKey functions:\n- Pipeline header: explains the goal and the recommended order.\n- Tools list: links to required downloads and add-ons.\n- Verify (quick): small checks to confirm your environment is correct.\n- Step cards: guide each stage (reference skeleton, export, conversion, test).\n- Troubleshooting notes: common fixes for scale, bone names, and HKX issues.\n\n💡 Beginner tips:\n- Always start from the correct FO4 reference skeleton.\n- Test a short clip first to validate scale and bone names.\n- If animations do nothing in game, double-check export settings and target skeleton.",
     "whatFor": "Animation Guide is the end-to-end pipeline page for Fallout 4 animations. It keeps the required tools, reference files, and validation steps in one ordered flow so you can build animations that import and play correctly in game.",
@@ -103,7 +103,7 @@
     "functions": "- Pipeline header: explains the goal and the recommended order.\n- Tools list: links to required downloads and add-ons.\n- Verify (quick): small checks to confirm your environment is correct.\n- Step cards: guide each stage (reference skeleton, export, conversion, test).\n- Troubleshooting notes: common fixes for scale, bone names, and HKX issues.",
     "tips": "- Always start from the correct FO4 reference skeleton.\n- Test a short clip first to validate scale and bone names.\n- If animations do nothing in game, double-check export settings and target skeleton."
   },
-  "page-14-dds-converter.png": {
+  "page-18-quest-mod-authorizing.png": {
     "title": "Quest Mod Authorizing",
     "description": "Quest Mod Authorizing is the all-in-one workflow hub for building a quest mod. It organizes your Creation Kit steps, validation checks, and first-test loop so you can create a working quest without missing required setup.\n\nKey functions:\n- Header and workflow label: shows the quest authoring focus and the recommended order.\n- Tools / Install / Verify block: lists required apps and where to get them safely.\n- Setup & First Test Loop: the required setup to prove your toolchain works end-to-end.\n- Minimal Working Quest list: the smallest quest that still runs in game.\n- Validation notes: common checks to catch missing masters or bad stage setup.\n- Troubleshooting hints: quick fixes for common failures (stages not firing, wrong plugin order).\n\n💡 Beginner tips:\n- Keep the first quest tiny: one start stage, one trigger, one objective.\n- Test in a clean profile so you know your plugin is the only variable.\n- If the quest never starts, check stage indexes and confirm the plugin is enabled.",
     "whatFor": "Quest Mod Authorizing is the all-in-one workflow hub for building a quest mod. It organizes your Creation Kit steps, validation checks, and first-test loop so you can create a working quest without missing required setup.",
@@ -111,7 +111,7 @@
     "functions": "- Header and workflow label: shows the quest authoring focus and the recommended order.\n- Tools / Install / Verify block: lists required apps and where to get them safely.\n- Setup & First Test Loop: the required setup to prove your toolchain works end-to-end.\n- Minimal Working Quest list: the smallest quest that still runs in game.\n- Validation notes: common checks to catch missing masters or bad stage setup.\n- Troubleshooting hints: quick fixes for common failures (stages not firing, wrong plugin order).",
     "tips": "- Keep the first quest tiny: one start stage, one trigger, one objective.\n- Test in a clean profile so you know your plugin is the only variable.\n- If the quest never starts, check stage indexes and confirm the plugin is enabled."
   },
-  "page-15-texture-generator.png": {
+  "page-19-the-lorekeeper.png": {
     "title": "The LoreKeeper",
     "description": "The LoreKeeper is your worldbuilding and canon guardrail. It helps you keep factions, timelines, locations, and character details consistent so your quest mod feels like it belongs in Fallout 4.\n\nKey functions:\n- Lore scope header: defines the setting boundaries your quest should respect.\n- Faction references: lists key groups, goals, and relationships that impact your quest.\n- Timeline notes: shows when major events occur so you can avoid contradictions.\n- Location checks: helps verify places, ownership, and lore-accurate naming.\n- Character consistency: ensures NPC backstories and motivations stay aligned.\n- Custom notes area: tracks your original additions and why they fit.\n\n💡 Beginner tips:\n- If you invent something new, write a short justification so it stays consistent.\n- Use the timeline before scripting events or dialogue.\n- Keep a running list of names so you do not accidentally duplicate or conflict.",
     "whatFor": "The LoreKeeper is your worldbuilding and canon guardrail. It helps you keep factions, timelines, locations, and character details consistent so your quest mod feels like it belongs in Fallout 4.",
@@ -119,7 +119,7 @@
     "functions": "- Lore scope header: defines the setting boundaries your quest should respect.\n- Faction references: lists key groups, goals, and relationships that impact your quest.\n- Timeline notes: shows when major events occur so you can avoid contradictions.\n- Location checks: helps verify places, ownership, and lore-accurate naming.\n- Character consistency: ensures NPC backstories and motivations stay aligned.\n- Custom notes area: tracks your original additions and why they fit.",
     "tips": "- If you invent something new, write a short justification so it stays consistent.\n- Use the timeline before scripting events or dialogue.\n- Keep a running list of names so you do not accidentally duplicate or conflict."
   },
-  "page-16-packaging-release.png": {
+  "page-20-tools.png": {
     "title": "Tools",
     "description": "Tools is your command center for launching and verifying the modding apps Mossy integrates with. It shows what is installed, what is missing, and gives you safe launch and config shortcuts.\n\nKey functions:\n- Tools status list: shows installed, missing, or warning states.\n- Tool cards: open details, config paths, and launch actions.\n- Install links: jump to official sources or setup guides.\n- Verify actions: check versions, paths, and required plug-ins.\n- Refresh detection: re-scan your system for changes.\n- Notes panel: explains why each tool matters in your workflow.\n\n💡 Beginner tips:\n- Verify tools right after installing so Mossy can detect paths.\n- Keep tools in stable locations to avoid broken paths.\n- If a tool is missing, install it before starting any wizard.",
     "whatFor": "Tools is your command center for launching and verifying the modding apps Mossy integrates with. It shows what is installed, what is missing, and gives you safe launch and config shortcuts.",
@@ -127,7 +127,7 @@
     "functions": "- Tools status list: shows installed, missing, or warning states.\n- Tool cards: open details, config paths, and launch actions.\n- Install links: jump to official sources or setup guides.\n- Verify actions: check versions, paths, and required plug-ins.\n- Refresh detection: re-scan your system for changes.\n- Notes panel: explains why each tool matters in your workflow.",
     "tips": "- Verify tools right after installing so Mossy can detect paths.\n- Keep tools in stable locations to avoid broken paths.\n- If a tool is missing, install it before starting any wizard."
   },
-  "page-17-animation-guide.png": {
+  "page-21-cosmos-workflow.png": {
     "title": "Cosmos Workflow",
     "description": "Cosmos Workflow is the structured pipeline for building larger, story-driven mods. It connects lore, quest design, asset creation, and testing into a single ordered flow so you can move from concept to playable build without losing track.\n\nKey functions:\n- Workflow header: describes the goal and overall sequence.\n- Stage cards: group tasks by phase (plan, build, test, polish).\n- Step checklists: show the exact actions to complete each stage.\n- Tool hints: map steps to required software (CK, xEdit, Blender).\n- Progress markers: help track what is done and what is next.\n- Notes and warnings: call out common pitfalls before they happen.\n\n💡 Beginner tips:\n- Do not skip the planning stage; it prevents rework later.\n- Keep builds small until your first end-to-end test passes.\n- If you get stuck, jump back to Tools or Quick Reference for help.",
     "whatFor": "Cosmos Workflow is the structured pipeline for building larger, story-driven mods. It connects lore, quest design, asset creation, and testing into a single ordered flow so you can move from concept to playable build without losing track.",
@@ -135,7 +135,7 @@
     "functions": "- Workflow header: describes the goal and overall sequence.\n- Stage cards: group tasks by phase (plan, build, test, polish).\n- Step checklists: show the exact actions to complete each stage.\n- Tool hints: map steps to required software (CK, xEdit, Blender).\n- Progress markers: help track what is done and what is next.\n- Notes and warnings: call out common pitfalls before they happen.",
     "tips": "- Do not skip the planning stage; it prevents rework later.\n- Keep builds small until your first end-to-end test passes.\n- If you get stuck, jump back to Tools or Quick Reference for help."
   },
-  "page-18-quest-mod-authorizing.png": {
+  "page-22-devtools.png": {
     "title": "Dev Tools",
     "description": "Dev Tools is the advanced utilities hub. It surfaces diagnostic, profiling, and automation helpers used to validate mods, inspect assets, and streamline repetitive tasks.\n\nKey functions:\n- Tool categories: groups utilities by purpose (diagnostics, validation, automation).\n- Tool cards: open the utility, show inputs, and explain expected output.\n- Run controls: start or stop a tool with clear status feedback.\n- Output panel: shows logs, warnings, and next-step hints.\n- Safety notes: explain when a tool can change files or needs backups.\n\n💡 Beginner tips:\n- Always back up before running batch or cleanup tools.\n- Start with diagnostics before assuming a tool is broken.\n- If a tool reports warnings, fix those before continuing your build.",
     "whatFor": "Dev Tools is the advanced utilities hub. It surfaces diagnostic, profiling, and automation helpers used to validate mods, inspect assets, and streamline repetitive tasks.",
@@ -143,7 +143,7 @@
     "functions": "- Tool categories: groups utilities by purpose (diagnostics, validation, automation).\n- Tool cards: open the utility, show inputs, and explain expected output.\n- Run controls: start or stop a tool with clear status feedback.\n- Output panel: shows logs, warnings, and next-step hints.\n- Safety notes: explain when a tool can change files or needs backups.",
     "tips": "- Always back up before running batch or cleanup tools.\n- Start with diagnostics before assuming a tool is broken.\n- If a tool reports warnings, fix those before continuing your build."
   },
-  "page-19-the-lorekeeper.png": {
+  "page-23-the-assembler.png": {
     "title": "The Assembler",
     "description": "The Assembler is your build-and-bundle workspace. It helps you gather assets, validate structure, and assemble a clean, release-ready package without missing required files.\n\nKey functions:\n- Input sources list: shows what assets and plugins will be included.\n- Structure checks: validates folder layout and required files.\n- Assemble button: builds a clean staging output.\n- Output summary: lists what was built and any warnings.\n- Quick links: shortcuts to fixes (missing files, bad paths, failed checks).\n\n💡 Beginner tips:\n- Keep assets organized before assembling to avoid missing references.\n- Fix warnings early; they often become in-game errors later.\n- Rebuild the staging output after any asset change.",
     "whatFor": "The Assembler is your build-and-bundle workspace. It helps you gather assets, validate structure, and assemble a clean, release-ready package without missing required files.",
@@ -151,7 +151,7 @@
     "functions": "- Input sources list: shows what assets and plugins will be included.\n- Structure checks: validates folder layout and required files.\n- Assemble button: builds a clean staging output.\n- Output summary: lists what was built and any warnings.\n- Quick links: shortcuts to fixes (missing files, bad paths, failed checks).",
     "tips": "- Keep assets organized before assembling to avoid missing references.\n- Fix warnings early; they often become in-game errors later.\n- Rebuild the staging output after any asset change."
   },
-  "page-20-the-blueprint.png": {
+  "page-24-the-workshop.png": {
     "title": "The Workshop",
     "description": "The Workshop is your hands-on creation space. It is where you shape assets, configure files, and iterate quickly before sending content to packaging or release.\n\nKey functions:\n- Task area list: groups workshop work by type (assets, scripts, UI, testing).\n- Step checklist: ordered actions to keep changes consistent.\n- Tool shortcuts: one-click open to the tool used for that task.\n- Status notes: show which steps are done or still pending.\n- Output preview: quick view of recent changes or builds.\n\n💡 Beginner tips:\n- Make small changes and test often.\n- Keep notes on what you changed so you can undo or repeat.\n- If a step is unclear, jump to Quick Reference for a fast reminder.",
     "whatFor": "The Workshop is your hands-on creation space. It is where you shape assets, configure files, and iterate quickly before sending content to packaging or release.",
@@ -159,7 +159,7 @@
     "functions": "- Task area list: groups workshop work by type (assets, scripts, UI, testing).\n- Step checklist: ordered actions to keep changes consistent.\n- Tool shortcuts: one-click open to the tool used for that task.\n- Status notes: show which steps are done or still pending.\n- Output preview: quick view of recent changes or builds.",
     "tips": "- Make small changes and test often.\n- Keep notes on what you changed so you can undo or repeat.\n- If a step is unclear, jump to Quick Reference for a fast reminder."
   },
-  "page-21-cosmos-workflow.png": {
+  "page-20-the-blueprint.png": {
     "title": "The Blueprint",
     "description": "The Blueprint is the planning and specification page. It helps you define scope, dependencies, and required assets before you build, so your mod stays consistent and manageable.\n\nKey functions:\n- Scope definition: documents the boundaries of the mod.\n- Dependencies list: tracks required tools, DLC, and other mods.\n- Asset inventory: names the files and resources you must create.\n- Milestone checklist: splits the plan into testable steps.\n- Risk notes: flags known problems before you start building.\n\n💡 Beginner tips:\n- Keep the first blueprint small; you can expand later.\n- If you add a dependency, note why it is required.\n- Use the milestones as checkpoints for playtests.",
     "whatFor": "The Blueprint is the planning and specification page. It helps you define scope, dependencies, and required assets before you build, so your mod stays consistent and manageable.",
@@ -167,7 +167,7 @@
     "functions": "- Scope definition: documents the boundaries of the mod.\n- Dependencies list: tracks required tools, DLC, and other mods.\n- Asset inventory: names the files and resources you must create.\n- Milestone checklist: splits the plan into testable steps.\n- Risk notes: flags known problems before you start building.",
     "tips": "- Keep the first blueprint small; you can expand later.\n- If you add a dependency, note why it is required.\n- Use the milestones as checkpoints for playtests."
   },
-  "page-22-devtools.png": {
+  "page-25-the-auditor.png": {
     "title": "The Auditor",
     "description": "The Auditor is your quality control checkpoint. It scans assets, plugins, and references to detect errors early, so you can fix issues before packaging or release.\n\nKey functions:\n- Audit targets: lets you pick what to scan.\n- Run audit button: starts the validation process.\n- Results list: groups errors, warnings, and notes.\n- Fix suggestions: gives next steps or tool links.\n- Export report: saves results for tracking or sharing.\n\n💡 Beginner tips:\n- Always fix errors before moving on to packaging.\n- Do not ignore warnings; they often become in-game bugs.\n- Audit after any large content change or merge.",
     "whatFor": "The Auditor is your quality control checkpoint. It scans assets, plugins, and references to detect errors early, so you can fix issues before packaging or release.",
@@ -175,15 +175,7 @@
     "functions": "- Audit targets: lets you pick what to scan.\n- Run audit button: starts the validation process.\n- Results list: groups errors, warnings, and notes.\n- Fix suggestions: gives next steps or tool links.\n- Export report: saves results for tracking or sharing.",
     "tips": "- Always fix errors before moving on to packaging.\n- Do not ignore warnings; they often become in-game bugs.\n- Audit after any large content change or merge."
   },
-  "page-23-the-assembler.png": {
-    "title": "Mining Dashboard",
-    "description": "Mining Dashboard is the data discovery hub. It helps you scan docs, files, and references to surface useful patterns, common fixes, and related topics for your current modding task.\n\nKey functions:\n- Source picker: choose which content to scan.\n- Run mining button: starts the discovery process.\n- Highlights panel: shows the most relevant findings first.\n- Related links: jumps to full guides or notes.\n- Save to vault: stores insights for later use.\n\n💡 Beginner tips:\n- Mine a narrow topic first for cleaner results.\n- Save the top 3 findings so you can reuse them later.\n- If results feel broad, add a tool name or keyword.",
-    "whatFor": "Mining Dashboard is the data discovery hub. It helps you scan docs, files, and references to surface useful patterns, common fixes, and related topics for your current modding task.",
-    "howTo": "",
-    "functions": "- Source picker: choose which content to scan.\n- Run mining button: starts the discovery process.\n- Highlights panel: shows the most relevant findings first.\n- Related links: jumps to full guides or notes.\n- Save to vault: stores insights for later use.",
-    "tips": "- Mine a narrow topic first for cleaner results.\n- Save the top 3 findings so you can reuse them later.\n- If results feel broad, add a tool name or keyword."
-  },
-  "page-24-the-workshop.png": {
+  "page-27-mining-and-analysis-hub.png": {
     "title": "Advanced Analysis",
     "description": "Advanced Analysis is the deep-dive diagnostics area. It helps you inspect complex issues across plugins, assets, and workflows so you can pinpoint root causes and plan precise fixes.\n\nKey functions:\n- Analysis type selector: picks the tool or method for the scan.\n- Scope controls: limit the scan to specific files or folders.\n- Results explorer: groups findings by severity and category.\n- Detail panel: shows why a flag occurred and how to fix it.\n- Export option: saves results for tracking or sharing.\n\n💡 Beginner tips:\n- Start with a narrow scope to avoid noisy results.\n- Fix errors first, then tackle warnings.\n- Keep notes on changes so you can compare results after re-runs.",
     "whatFor": "Advanced Analysis is the deep-dive diagnostics area. It helps you inspect complex issues across plugins, assets, and workflows so you can pinpoint root causes and plan precise fixes.",
@@ -191,7 +183,7 @@
     "functions": "- Analysis type selector: picks the tool or method for the scan.\n- Scope controls: limit the scan to specific files or folders.\n- Results explorer: groups findings by severity and category.\n- Detail panel: shows why a flag occurred and how to fix it.\n- Export option: saves results for tracking or sharing.",
     "tips": "- Start with a narrow scope to avoid noisy results.\n- Fix errors first, then tackle warnings.\n- Keep notes on changes so you can compare results after re-runs."
   },
-  "page-25-the-auditor.png": {
+  "page-28-the-scribe.png": {
     "title": "The Scribe",
     "description": "",
     "whatFor": "",
@@ -199,7 +191,7 @@
     "functions": "",
     "tips": ""
   },
-  "page-26-ck-crash-prevention.png": {
+  "page-29-system-monitor.png": {
     "title": "System Monitor",
     "description": "The Scribe is your writing and documentation workspace. It helps you draft quest dialogue, notes, changelogs, and internal documentation so your mod stays consistent and easy to maintain.\n\nKey functions:\n- Writing templates: structured formats for dialogue and docs.\n- Draft editor: the main area to write and edit text.\n- Reference links: quick access to lore or quest data.\n- Version notes: tracks changes between drafts.\n- Export options: saves text to your vault or project files.\n\n💡 Beginner tips:\n- Keep dialogue short and test it in game early.\n- Use consistent naming across notes and scripts.\n- Write a quick changelog after each major edit.\n\n\n**Beginner tips**\n- Always run a scan after changing tool installs.\n- Yellow means fix soon; red means stop and repair before continuing.\n- If the bridge is offline, restart Mossy before troubleshooting deeper.",
     "whatFor": "The Scribe is your writing and documentation workspace. It helps you draft quest dialogue, notes, changelogs, and internal documentation so your mod stays consistent and easy to maintain.",
@@ -207,7 +199,7 @@
     "functions": "- Writing templates: structured formats for dialogue and docs.\n- Draft editor: the main area to write and edit text.\n- Reference links: quick access to lore or quest data.\n- Version notes: tracks changes between drafts.\n- Export options: saves text to your vault or project files.",
     "tips": "- Keep dialogue short and test it in game early.\n- Use consistent naming across notes and scripts.\n- Write a quick changelog after each major edit.\n\n\n**Beginner tips**\n- Always run a scan after changing tool installs.\n- Yellow means fix soon; red means stop and repair before continuing.\n- If the bridge is offline, restart Mossy before troubleshooting deeper."
   },
-  "page-27-mining-and-analysis-hub.png": {
+  "page-30-the-orchestrator.png": {
     "title": "The Orchestrator",
     "description": "The Orchestrator coordinates complex, multi-tool workflows. It keeps long processes in order, tracks dependencies, and makes sure each stage runs in the correct sequence.\n\nKey functions:\n- Workflow selector: chooses the multi-step process to run.\n- Dependency checklist: confirms required tools and data are ready.\n- Stage runner: executes each step in order with status feedback.\n- Log panel: records actions, warnings, and errors.\n- Resume controls: let you continue after fixing a problem.\n\n💡 Beginner tips:\n- Start with a shorter workflow before running a full build pipeline.\n- Do not skip failed steps; fix and resume to keep results clean.\n- Keep logs from successful runs so you can repeat them later.",
     "whatFor": "The Orchestrator coordinates complex, multi-tool workflows. It keeps long processes in order, tracks dependencies, and makes sure each stage runs in the correct sequence.",
@@ -215,7 +207,7 @@
     "functions": "- Workflow selector: chooses the multi-step process to run.\n- Dependency checklist: confirms required tools and data are ready.\n- Stage runner: executes each step in order with status feedback.\n- Log panel: records actions, warnings, and errors.\n- Resume controls: let you continue after fixing a problem.",
     "tips": "- Start with a shorter workflow before running a full build pipeline.\n- Do not skip failed steps; fix and resume to keep results clean.\n- Keep logs from successful runs so you can repeat them later."
   },
-  "page-28-the-scribe.png": {
+  "page-31-workflow-runner.png": {
     "title": "Workflow Runner",
     "description": "Workflow Runner is the execution console for predefined tasks. It lets you run a specific workflow end-to-end while showing live progress, outputs, and any required actions.\n\nKey functions:\n- Workflow picker: chooses which task sequence to run.\n- Steps list: shows each action and its current status.\n- Run controls: start, pause, or retry steps.\n- Live output panel: displays logs and results as they happen.\n- Action hints: gives fix guidance when a step fails.\n\n💡 Beginner tips:\n- Run one workflow at a time to avoid conflicts.\n- Read the steps first so you are not surprised by tool prompts.\n- Save logs from failed runs to help troubleshooting.",
     "whatFor": "Workflow Runner is the execution console for predefined tasks. It lets you run a specific workflow end-to-end while showing live progress, outputs, and any required actions.",
@@ -223,7 +215,7 @@
     "functions": "- Workflow picker: chooses which task sequence to run.\n- Steps list: shows each action and its current status.\n- Run controls: start, pause, or retry steps.\n- Live output panel: displays logs and results as they happen.\n- Action hints: gives fix guidance when a step fails.",
     "tips": "- Run one workflow at a time to avoid conflicts.\n- Read the steps first so you are not surprised by tool prompts.\n- Save logs from failed runs to help troubleshooting."
   },
-  "page-29-system-monitor.png": {
+  "page-32-the-holodeck.png": {
     "title": "The Holodeck",
     "description": "The Holodeck is your safe test space. It lets you simulate workflows, preview outcomes, and run sandbox checks before you commit changes to your live project.\n\nKey functions:\n- Scenario selector: picks the type of simulation to run.\n- Input configuration: sets mock data or paths for the test.\n- Run simulation button: starts the sandbox process.\n- Results panel: shows success, warnings, and errors.\n- Action recommendations: suggests what to fix before going live.\n\n💡 Beginner tips:\n- Use the holodeck before big changes or releases.\n- Treat warnings as signals to improve stability.\n- Keep test inputs close to your real setup for accurate results.",
     "whatFor": "The Holodeck is your safe test space. It lets you simulate workflows, preview outcomes, and run sandbox checks before you commit changes to your live project.",
@@ -231,7 +223,7 @@
     "functions": "- Scenario selector: picks the type of simulation to run.\n- Input configuration: sets mock data or paths for the test.\n- Run simulation button: starts the sandbox process.\n- Results panel: shows success, warnings, and errors.\n- Action recommendations: suggests what to fix before going live.",
     "tips": "- Use the holodeck before big changes or releases.\n- Treat warnings as signals to improve stability.\n- Keep test inputs close to your real setup for accurate results."
   },
-  "page-30-the-orchestrator.png": {
+  "page-33-the-vault.png": {
     "title": "The Vault",
     "description": "The Vault is your personal knowledge store. It keeps notes, saved answers, references, and project context so you can reuse what you learn across multiple modding sessions.\n\nKey functions:\n- Search and filter: find notes by keyword or tag.\n- Note list: shows all saved entries with dates.\n- Note editor: write or update your saved knowledge.\n- Tags and folders: organize by project or tool.\n- Pinning: keep top references at the top of the list.\n\n💡 Beginner tips:\n- Write down fixes the moment you solve a problem.\n- Use consistent tags so searches stay fast.\n- Keep one note per issue so it is easy to update later.",
     "whatFor": "The Vault is your personal knowledge store. It keeps notes, saved answers, references, and project context so you can reuse what you learn across multiple modding sessions.",
@@ -239,7 +231,7 @@
     "functions": "- Search and filter: find notes by keyword or tag.\n- Note list: shows all saved entries with dates.\n- Note editor: write or update your saved knowledge.\n- Tags and folders: organize by project or tool.\n- Pinning: keep top references at the top of the list.",
     "tips": "- Write down fixes the moment you solve a problem.\n- Use consistent tags so searches stay fast.\n- Keep one note per issue so it is easy to update later."
   },
-  "page-31-workflow-runner.png": {
+  "page-34-ba2-manager.png": {
     "title": "BA2 Manager",
     "description": "BA2 Manager handles Fallout 4 archive files. It helps you pack, inspect, and verify BA2 archives so your assets load correctly in game.\n\nKey functions:\n- Build section: create new BA2 archives from selected assets.\n- Inspect section: open an existing BA2 to review contents.\n- Verify checks: validates paths, file types, and missing assets.\n- Output settings: controls archive name and location.\n- Log panel: shows warnings and build results.\n\n💡 Beginner tips:\n- Keep textures, meshes, and materials in the correct folder structure.\n- Verify after every build to catch missing files early.\n- Use clear archive names so you can identify them later.",
     "whatFor": "BA2 Manager handles Fallout 4 archive files. It helps you pack, inspect, and verify BA2 archives so your assets load correctly in game.",
@@ -247,7 +239,7 @@
     "functions": "- Build section: create new BA2 archives from selected assets.\n- Inspect section: open an existing BA2 to review contents.\n- Verify checks: validates paths, file types, and missing assets.\n- Output settings: controls archive name and location.\n- Log panel: shows warnings and build results.",
     "tips": "- Keep textures, meshes, and materials in the correct folder structure.\n- Verify after every build to catch missing files early.\n- Use clear archive names so you can identify them later."
   },
-  "page-32-the-holodeck.png": {
+  "page-35-workflow-recorder.png": {
     "title": "Workflow Recorder",
     "description": "Workflow Recorder captures your steps as you work so you can replay, share, or automate them later. It helps turn your manual process into a repeatable workflow.\n\nKey functions:\n- Record controls: start, pause, and stop capturing.\n- Step list: shows each captured action in order.\n- Step editor: rename or remove steps.\n- Save workflow: stores the sequence for later playback.\n- Export option: share or back up the workflow.\n\n💡 Beginner tips:\n- Record short sequences first so they are easy to debug.\n- Add labels that describe why each step matters.\n- Test the recorded workflow once before relying on it.",
     "whatFor": "Workflow Recorder captures your steps as you work so you can replay, share, or automate them later. It helps turn your manual process into a repeatable workflow.",
@@ -255,7 +247,7 @@
     "functions": "- Record controls: start, pause, and stop capturing.\n- Step list: shows each captured action in order.\n- Step editor: rename or remove steps.\n- Save workflow: stores the sequence for later playback.\n- Export option: share or back up the workflow.",
     "tips": "- Record short sequences first so they are easy to debug.\n- Add labels that describe why each step matters.\n- Test the recorded workflow once before relying on it."
   },
-  "page-33-the-vault.png": {
+  "page-36-plugin-manager.png": {
     "title": "Plugin Manager",
     "description": "Plugin Manager helps you organize and validate your ESP/ESM/ESL files. It keeps load order clean, highlights conflicts, and ensures required masters are present before you test.\n\nKey functions:\n- Plugin list: shows all detected ESP/ESM/ESL files.\n- Status indicators: flags missing masters or conflicts.\n- Enable/disable toggles: control which plugins are active.\n- Load order tools: sort, lock, or apply rules.\n- Save/load profiles: store different setups for testing.\n\n💡 Beginner tips:\n- Keep only the plugins you need active for testing.\n- Fix missing masters before launching the game.\n- Save a clean baseline profile you can return to.",
     "whatFor": "Plugin Manager helps you organize and validate your ESP/ESM/ESL files. It keeps load order clean, highlights conflicts, and ensures required masters are present before you test.",
@@ -263,7 +255,7 @@
     "functions": "- Plugin list: shows all detected ESP/ESM/ESL files.\n- Status indicators: flags missing masters or conflicts.\n- Enable/disable toggles: control which plugins are active.\n- Load order tools: sort, lock, or apply rules.\n- Save/load profiles: store different setups for testing.",
     "tips": "- Keep only the plugins you need active for testing.\n- Fix missing masters before launching the game.\n- Save a clean baseline profile you can return to."
   },
-  "page-34-ba2-manager.png": {
+  "page-37-local-capabilities.png": {
     "title": "Local Capabilities",
     "description": "Local Capabilities shows what Mossy can do on your machine right now. It summarizes detected tools, available integrations, and permissions so you know which features are ready to use.\n\nKey functions:\n- Capability list: shows features and their current readiness.\n- Status badges: indicate OK, warning, or missing states.\n- Permission details: explains what access is required.\n- Fix links: point to Install Wizard or Tool Verify.\n- Refresh scan: re-checks your system for changes.\n\n💡 Beginner tips:\n- Capabilities depend on installed tools and permissions.\n- Fix warnings before starting complex workflows.\n- Use this page as your first check when a feature is disabled.",
     "whatFor": "Local Capabilities shows what Mossy can do on your machine right now. It summarizes detected tools, available integrations, and permissions so you know which features are ready to use.",
@@ -271,7 +263,7 @@
     "functions": "- Capability list: shows features and their current readiness.\n- Status badges: indicate OK, warning, or missing states.\n- Permission details: explains what access is required.\n- Fix links: point to Install Wizard or Tool Verify.\n- Refresh scan: re-checks your system for changes.",
     "tips": "- Capabilities depend on installed tools and permissions.\n- Fix warnings before starting complex workflows.\n- Use this page as your first check when a feature is disabled."
   },
-  "page-35-workflow-recorder.png": {
+  "page-38-image-studio.png": {
     "title": "Image Studio",
     "description": "Image Studio is your texture and UI art workspace. It helps you prepare images for Fallout 4 by resizing, converting formats, and validating texture rules before you ship.\n\nKey functions:\n- Import panel: selects images to process.\n- Format selector: sets DDS or other required output types.\n- Size and mip settings: controls resolution and mipmap generation.\n- Preview window: shows the processed result before saving.\n- Export controls: saves to a chosen folder with correct naming.\n\n💡 Beginner tips:\n- Use power-of-two sizes for textures (512, 1024, 2048).\n- Always preview before saving to avoid compression artifacts.\n- Keep a backup of the original source image.",
     "whatFor": "Image Studio is your texture and UI art workspace. It helps you prepare images for Fallout 4 by resizing, converting formats, and validating texture rules before you ship.",
@@ -279,7 +271,7 @@
     "functions": "- Import panel: selects images to process.\n- Format selector: sets DDS or other required output types.\n- Size and mip settings: controls resolution and mipmap generation.\n- Preview window: shows the processed result before saving.\n- Export controls: saves to a chosen folder with correct naming.",
     "tips": "- Use power-of-two sizes for textures (512, 1024, 2048).\n- Always preview before saving to avoid compression artifacts.\n- Keep a backup of the original source image."
   },
-  "page-36-plugin-manager.png": {
+  "page-39-live-synapse.png": {
     "title": "Live Synapse",
     "description": "Live Synapse is the real-time activity feed. It monitors tool activity, file changes, and workflow events so you can see what Mossy is detecting as you work.\n\nKey functions:\n- Live event feed: shows real-time activity and detections.\n- Filters: narrow events by tool, file, or severity.\n- Event detail panel: explains what changed and why it matters.\n- Pause/resume: controls the flow of incoming events.\n- Export log: saves a timeline for later review.\n\n💡 Beginner tips:\n- Use filters to reduce noise when debugging.\n- If nothing appears, confirm your integrations are enabled.\n- Export logs before asking for help.",
     "whatFor": "Live Synapse is the real-time activity feed. It monitors tool activity, file changes, and workflow events so you can see what Mossy is detecting as you work.",
@@ -287,7 +279,7 @@
     "functions": "- Live event feed: shows real-time activity and detections.\n- Filters: narrow events by tool, file, or severity.\n- Event detail panel: explains what changed and why it matters.\n- Pause/resume: controls the flow of incoming events.\n- Export log: saves a timeline for later review.",
     "tips": "- Use filters to reduce noise when debugging.\n- If nothing appears, confirm your integrations are enabled.\n- Export logs before asking for help."
   },
-  "page-37-local-capabilities.png": {
+  "page-40-desktop-bridge.png": {
     "title": "Desktop Bridge",
     "description": "Desktop Bridge is the connection layer between Mossy and your installed tools. It manages permissions, detects running apps, and enables safe automation.\n\nKey functions:\n- Bridge status indicator: shows online/offline state.\n- Detected tools list: confirms connected apps.\n- Permissions panel: manages access controls.\n- Test actions: verifies communication with tools.\n- Troubleshooting hints: common fixes if the bridge is offline.\n\n💡 Beginner tips:\n- Keep the bridge online before running workflows.\n- Only grant permissions for tools you actively use.\n- If a tool is missing, re-scan in System Monitor.",
     "whatFor": "Desktop Bridge is the connection layer between Mossy and your installed tools. It manages permissions, detects running apps, and enables safe automation.",
@@ -295,7 +287,7 @@
     "functions": "- Bridge status indicator: shows online/offline state.\n- Detected tools list: confirms connected apps.\n- Permissions panel: manages access controls.\n- Test actions: verifies communication with tools.\n- Troubleshooting hints: common fixes if the bridge is offline.",
     "tips": "- Keep the bridge online before running workflows.\n- Only grant permissions for tools you actively use.\n- If a tool is missing, re-scan in System Monitor."
   },
-  "page-38-image-studio.png": {
+  "page-46-duplicate-finder.png": {
     "title": "Duplicate Finder",
     "description": "Duplicate Finder helps you detect repeated or conflicting assets. It scans files and plugins to find duplicates so you can avoid wasted space and in-game overrides you did not intend.\n\nKey functions:\n- Scan scope selector: targets specific folders or plugins.\n- Run scan button: starts detection.\n- Results list: groups duplicates by type and location.\n- Action hints: suggests which file to keep or remove.\n- Export report: saves the duplicate list for review.\n\n💡 Beginner tips:\n- Duplicates can cause texture or mesh overrides.\n- Always back up before removing files.\n- Rebuild archives after deleting duplicates.",
     "whatFor": "Duplicate Finder helps you detect repeated or conflicting assets. It scans files and plugins to find duplicates so you can avoid wasted space and in-game overrides you did not intend.",
@@ -303,7 +295,7 @@
     "functions": "- Scan scope selector: targets specific folders or plugins.\n- Run scan button: starts detection.\n- Results list: groups duplicates by type and location.\n- Action hints: suggests which file to keep or remove.\n- Export report: saves the duplicate list for review.",
     "tips": "- Duplicates can cause texture or mesh overrides.\n- Always back up before removing files.\n- Rebuild archives after deleting duplicates."
   },
-  "page-39-live-synapse.png": {
+  "page-47-community-learning.png": {
     "title": "Community Learning",
     "description": "Community Learning is the shared knowledge hub. It helps you discover tutorials, proven workflows, and community tips so you can learn faster and avoid common mistakes.\n\nKey functions:\n- Featured topics: highlights popular or recommended guides.\n- Search bar: find specific community content.\n- Filters: narrow by tool, difficulty, or topic.\n- Guide list: shows titles with brief summaries.\n- Save action: adds a guide to your Vault.\n\n💡 Beginner tips:\n- Start with beginner-tagged guides to avoid overload.\n- Save anything that solves a current problem.\n- Compare two guides if steps conflict.",
     "whatFor": "Community Learning is the shared knowledge hub. It helps you discover tutorials, proven workflows, and community tips so you can learn faster and avoid common mistakes.",
@@ -311,7 +303,7 @@
     "functions": "- Featured topics: highlights popular or recommended guides.\n- Search bar: find specific community content.\n- Filters: narrow by tool, difficulty, or topic.\n- Guide list: shows titles with brief summaries.\n- Save action: adds a guide to your Vault.",
     "tips": "- Start with beginner-tagged guides to avoid overload.\n- Save anything that solves a current problem.\n- Compare two guides if steps conflict."
   },
-  "page-40-desktop-bridge.png": {
+  "page-48-tool-verify.png": {
     "title": "Tool Verify",
     "description": "\n\nKey functions:\n- Tool list: shows required apps and detection status.\n- Verify button: runs validation checks.\n- Status details: explains missing files or mismatched versions.\n- Fix links: open setup guides or settings.\n- Refresh scan: re-checks after changes.\n\n💡 Beginner tips:\n- Verify tools before starting any wizard.\n- Keep tool installs in stable locations to avoid broken paths.\n- If verification fails, use Install Wizard or Settings to update paths.",
     "whatFor": "",
@@ -319,7 +311,7 @@
     "functions": "- Tool list: shows required apps and detection status.\n- Verify button: runs validation checks.\n- Status details: explains missing files or mismatched versions.\n- Fix links: open setup guides or settings.\n- Refresh scan: re-checks after changes.",
     "tips": "- Verify tools before starting any wizard.\n- Keep tool installs in stable locations to avoid broken paths.\n- If verification fails, use Install Wizard or Settings to update paths."
   },
-  "page-41-mo2-extension.png": {
+  "page-49-settings.png": {
     "title": "Settings",
     "description": "Settings is where you customize how Mossy behaves. It controls preferences like integrations, storage, privacy options, and UI defaults so the app matches your workflow.\n\nKey functions:\n- Integrations: toggle connections to external tools.\n- Paths and storage: set where Mossy stores data and scans files.\n- Privacy controls: manage data sharing and local-only options.\n- UI preferences: change display or behavior settings.\n- Reset options: restore defaults if something breaks.\n\n💡 Beginner tips:\n- Only enable integrations you plan to use.\n- Keep storage paths in a safe, backed-up location.\n- If something feels off, reset that section and reconfigure.",
     "whatFor": "Settings is where you customize how Mossy behaves. It controls preferences like integrations, storage, privacy options, and UI defaults so the app matches your workflow.",
@@ -327,7 +319,7 @@
     "functions": "- Integrations: toggle connections to external tools.\n- Paths and storage: set where Mossy stores data and scans files.\n- Privacy controls: manage data sharing and local-only options.\n- UI preferences: change display or behavior settings.\n- Reset options: restore defaults if something breaks.",
     "tips": "- Only enable integrations you plan to use.\n- Keep storage paths in a safe, backed-up location.\n- If something feels off, reset that section and reconfigure."
   },
-  "page-42-xedit-tools.png": {
+  "page-50-diagnostic-tools.png": {
     "title": "Diagnostic Tools",
     "description": "Diagnostic Tools provides focused utilities to troubleshoot problems. It helps you isolate crashes, missing assets, and tool integration issues before they block your workflow.\n\nKey functions:\n- Tool list: groups diagnostics by problem type.\n- Run controls: start and stop checks safely.\n- Results panel: shows errors, warnings, and next steps.\n- Fix links: jump to the exact repair flow.\n- Export report: saves results for later review.\n\n💡 Beginner tips:\n- Start with the simplest diagnostic first.\n- Fix errors before chasing warnings.\n- Keep reports for issues that repeat.",
     "whatFor": "Diagnostic Tools provides focused utilities to troubleshoot problems. It helps you isolate crashes, missing assets, and tool integration issues before they block your workflow.",
@@ -335,7 +327,7 @@
     "functions": "- Tool list: groups diagnostics by problem type.\n- Run controls: start and stop checks safely.\n- Results panel: shows errors, warnings, and next steps.\n- Fix links: jump to the exact repair flow.\n- Export report: saves results for later review.",
     "tips": "- Start with the simplest diagnostic first.\n- Fix errors before chasing warnings.\n- Keep reports for issues that repeat."
   },
-  "page-43-ck-extensions.png": {
+  "page-51-support-mossy.png": {
     "title": "Support Mossy",
     "description": "Support Mossy is the community support and sustainability page. It explains how you can contribute, share feedback, and help keep the project active.\n\nKey functions:\n- Support options list: outlines ways to help.\n- Contribution links: opens the official support channels.\n- Feedback section: directs you to report bugs or ideas.\n- Community notes: explains how contributions are used.\n\n💡 Beginner tips:\n- Feedback is just as valuable as donations.\n- Share clear bug reports with steps to reproduce.\n- Support only through official links.",
     "whatFor": "Support Mossy is the community support and sustainability page. It explains how you can contribute, share feedback, and help keep the project active.",
@@ -343,7 +335,7 @@
     "functions": "- Support options list: outlines ways to help.\n- Contribution links: opens the official support channels.\n- Feedback section: directs you to report bugs or ideas.\n- Community notes: explains how contributions are used.",
     "tips": "- Feedback is just as valuable as donations.\n- Share clear bug reports with steps to reproduce.\n- Support only through official links."
   },
-  "page-44-comfyui-extensions.png": {
+  "page-43-ck-extensions.png": {
     "title": "CK Extensions",
     "description": "Integration helpers and safety features for the Creation Kit (CK): launch helpers, preflight checks and crash‑prevention tools.\n\nHow to use:\n1. Run the Preflight checks before opening CK to catch missing masters and path issues.\n2. Launch CK through the MO2/Launcher integration when working with virtual profiles.\n3. Use the safety hints if CK reports missing data or crashes on load.\n4. Re-run the preflight after major plugin edits.\n\nKey functions:\n- Launch CK: open Creation Kit with the correct profile and environment.\n- Preflight: run sanity checks to reduce crash risk.\n- Safety hints: actions to fix common CK startup failures.\n\n💡 Beginner tips:\n- Always backup before opening CK with experimental plugins. ✅\n- Use Preflight when you see CK crashes on load.",
     "whatFor": "Integration helpers and safety features for the Creation Kit (CK): launch helpers, preflight checks and crash‑prevention tools.",
@@ -351,7 +343,7 @@
     "functions": "- Launch CK: open Creation Kit with the correct profile and environment.\n- Preflight: run sanity checks to reduce crash risk.\n- Safety hints: actions to fix common CK startup failures.",
     "tips": "- Always backup before opening CK with experimental plugins. ✅\n- Use Preflight when you see CK crashes on load."
   },
-  "page-45-upscale-extension.png": {
+  "page-44-comfyui-extensions.png": {
     "title": "ComFyui Extensions",
     "description": "Connect and control ComfyUI image‑pipeline instances from inside Mossy — run pipelines, manage presets, and preview outputs.\n\nHow to use:\n1. Start your local ComfyUI server and confirm it’s reachable.\n2. Open the ComFyUI extension in Mossy and check the status indicator.\n3. Select a preset/pipeline and click Run to process images.\n4. Review previews and export outputs to your project.\n\nKey functions:\n- Status view: shows connection state to ComfyUI.\n- Pipeline selector: pick a saved pipeline preset.\n- Run/Preview: execute and preview results before exporting.\n\n💡 Beginner tips:\n- Start ComfyUI before opening this page.\n- Use small test images when trying a new pipeline.",
     "whatFor": "Connect and control ComfyUI image‑pipeline instances from inside Mossy — run pipelines, manage presets, and preview outputs.",
@@ -359,7 +351,7 @@
     "functions": "- Status view: shows connection state to ComfyUI.\n- Pipeline selector: pick a saved pipeline preset.\n- Run/Preview: execute and preview results before exporting.",
     "tips": "- Start ComfyUI before opening this page.\n- Use small test images when trying a new pipeline."
   },
-  "page-46-duplicate-finder.png": {
+  "page-45-upscale-extension.png": {
     "title": "Upscayl / Upscale Extension",
     "description": "Run local Upscayl upscaling from Mossy to improve texture resolution with presets and batch operations.\n\nHow to use:\n1. Open the Upscayl extension and add textures to the queue.\n2. Choose an upscaling preset appropriate for UI or in‑game art.\n3. Run the batch job and inspect generated outputs.\n4. Import results into Image Studio or the Workshop.\n\nKey functions:\n- File queue: add/remove textures to process.\n- Preset selector: choose transform & strength.\n- Batch controls: run, pause or cancel jobs.\n\n💡 Beginner tips:\n- Upscale then manually retouch for best results.\n- Use presets matched to asset type (UI vs textures).",
     "whatFor": "Run local Upscayl upscaling from Mossy to improve texture resolution with presets and batch operations.",
@@ -367,7 +359,7 @@
     "functions": "- File queue: add/remove textures to process.\n- Preset selector: choose transform & strength.\n- Batch controls: run, pause or cancel jobs.",
     "tips": "- Upscale then manually retouch for best results.\n- Use presets matched to asset type (UI vs textures)."
   },
-  "page-47-community-learning.png": {
+  "page-41-mo2-extension.png": {
     "title": "MO2 Extension",
     "description": "Integration with Mod Organizer 2 (MO2): surface profiles, load orders and profile‑scoped operations.\n\nHow to use:\n1. Start MO2 and ensure your profile is active.\n2. Open the MO2 Extension and click Refresh to load profile data.\n3. Inspect load order, enable/disable mods or export lists for tools.\n4. Use the integration when packaging or running audits.\n\nKey functions:\n- Profile detection: shows the active MO2 profile.\n- Load order preview: quick snapshot of plugin order.\n- Export list: produce files for auditors or patchers.\n\n💡 Beginner tips:\n- Always refresh after changing profiles in MO2.\n- Use exported load lists for reproducible tests.",
     "whatFor": "Integration with Mod Organizer 2 (MO2): surface profiles, load orders and profile‑scoped operations.",
@@ -375,7 +367,7 @@
     "functions": "- Profile detection: shows the active MO2 profile.\n- Load order preview: quick snapshot of plugin order.\n- Export list: produce files for auditors or patchers.",
     "tips": "- Always refresh after changing profiles in MO2.\n- Use exported load lists for reproducible tests."
   },
-  "page-48-tool-verify.png": {
+  "page-42-xedit-tools.png": {
     "title": "xEdit Tools",
     "description": "Utilities for xEdit/FO4Edit: export load orders, run xEdit scripts, and produce patch‑friendly lists.\n\nHow to use:\n1. Open XEdit Tools and choose Export Load Order to create a plugin list.\n2. Use Run Script for batch fixes (always backup first).\n3. Import exported lists into Auditors or patch generators.\n\nKey functions:\n- Export load order: produces plugins.txt or JSON lists.\n- Run script: execute xEdit scripts in a safe, sandboxed flow.\n- Profile awareness: respects active MO2/Vortex profiles.\n\n💡 Beginner tips:\n- Backup your plugins before running scripts.\n- Prefer read‑only exports until you’re confident.",
     "whatFor": "Utilities for xEdit/FO4Edit: export load orders, run xEdit scripts, and produce patch‑friendly lists.",
@@ -383,7 +375,7 @@
     "functions": "- Export load order: produces plugins.txt or JSON lists.\n- Run script: execute xEdit scripts in a safe, sandboxed flow.\n- Profile awareness: respects active MO2/Vortex profiles.",
     "tips": "- Backup your plugins before running scripts.\n- Prefer read‑only exports until you’re confident."
   },
-  "page-49-settings.png": {
+  "page-14-dds-converter.png": {
     "title": "DDS Converter",
     "description": "Convert textures between DDS and common formats (PNG/JPEG) with game‑safe presets and mipmap options.\n\nHow to use:\n1. Select the source texture(s) and pick a target preset (FO4 UI, Albedo, Normal).\n2. Choose mipmap and compression options.\n3. Click Convert and inspect the output in Image Studio.\n4. Save converted textures to your project folder.\n\nKey functions:\n- Preset selector: pick output rules for the game.\n- Mipmap controls: generate or strip mipmaps.\n- Convert button: run the transformation.\n\n💡 Beginner tips:\n- Use the FO4 texture presets to avoid in‑game artifacts.\n- Keep originals backed up before converting.",
     "whatFor": "Convert textures between DDS and common formats (PNG/JPEG) with game‑safe presets and mipmap options.",
@@ -391,7 +383,7 @@
     "functions": "- Preset selector: pick output rules for the game.\n- Mipmap controls: generate or strip mipmaps.\n- Convert button: run the transformation.",
     "tips": "- Use the FO4 texture presets to avoid in‑game artifacts.\n- Keep originals backed up before converting."
   },
-  "page-50-diagnostic-tools.png": {
+  "page-15-texture-generator.png": {
     "title": "Texture Generator",
     "description": "AI‑assisted texture creation and enhancement (bakes, style presets, seamless generation).\n\nHow to use:\n1. Upload or select a base texture.\n2. Choose a generator preset (seamless, weathering, upscaling).\n3. Run generation and iterate until satisfied.\n4. Export to Image Studio for final edits.\n\nKey functions:\n- Presets: quick style/goal selection.\n- Generate: starts the AI pipeline.\n- Batch: process multiple textures at once.\n\n💡 Beginner tips:\n- Start with low-strength presets and iterate.\n- Combine generator output with manual touch‑ups.",
     "whatFor": "AI‑assisted texture creation and enhancement (bakes, style presets, seamless generation).",
@@ -399,7 +391,7 @@
     "functions": "- Presets: quick style/goal selection.\n- Generate: starts the AI pipeline.\n- Batch: process multiple textures at once.",
     "tips": "- Start with low-strength presets and iterate.\n- Combine generator output with manual touch‑ups."
   },
-  "page-51-support-mossy.png": {
+  "page-54-guided-tours.png": {
     "title": "Guided Tours",
     "description": "Prebuilt, interactive tours (Welcome, Feature Spotlight, Module tours) that walk you through Mossy step‑by‑step.\n\nHow to use:\n1. Open Guided Tours and pick a tour (Welcome, Workshop, Feature Spotlight).\n2. Follow each on‑screen step; Mossy will highlight UI elements and explain actions.\n3. Use Next/Previous to control pace or Exit to stop.\n4. Re-run tours anytime via the Command Palette (Ctrl+K).\n\nKey functions:\n- Tour list: choose which guided flow to run.\n- Step overlay: highlights UI and shows instructions.\n- Replay controls: restart or step through the tour.\n\n💡 Beginner tips:\n- Use the Welcome tour on first launch.\n- Re-run the Workshop tour when learning a new tool.",
     "whatFor": "Prebuilt, interactive tours (Welcome, Feature Spotlight, Module tours) that walk you through Mossy step‑by‑step.",
@@ -408,6 +400,14 @@
     "tips": "- Use the Welcome tour on first launch.\n- Re-run the Workshop tour when learning a new tool."
   },
   "page-53-fallout-4-wiki.png": {
+    "title": "Fallout 4 Wiki (Reference)",
+    "description": "Quick access to community references (Fallout 4 Wiki, common form lists, and game‑specific docs) inside the Learning Hub.\n\nHow to use:\n1. Search the wiki from the Learning Hub or open this reference page.\n2. Use filters to find NPC, quest, or asset references.\n3. Save frequently used pages to your Vault.\n\nKey functions:\n- Search bar: find game references quickly.\n- Result list: links to external docs and internal knowledge.\n- Save action: add to Memory Vault.\n\n💡 Beginner tips:\n- Keep a shortlist of 3 wiki pages you use most.\n- Save critical references to your Vault for offline access.",
+    "whatFor": "Quick access to community references (Fallout 4 Wiki, common form lists, and game‑specific docs) inside the Learning Hub.",
+    "howTo": "1. Search the wiki from the Learning Hub or open this reference page.\n2. Use filters to find NPC, quest, or asset references.\n3. Save frequently used pages to your Vault.",
+    "functions": "- Search bar: find game references quickly.\n- Result list: links to external docs and internal knowledge.\n- Save action: add to Memory Vault.",
+    "tips": "- Keep a shortlist of 3 wiki pages you use most.\n- Save critical references to your Vault for offline access."
+  },
+  "page-55-pip-boy-on-off.png": {
     "title": "Pip‑Boy Mode",
     "description": "Pip‑Boy Mode changes the app's look to a retro Fallout CRT/pip‑boy theme and provides themed UI affordances for immersion.\n\nHow to use:\n1. Toggle the Pip‑Boy icon in the header or press the Pip‑Boy hotkey.\n2. Choose green or amber color variants in Settings.\n3. Use full‑screen for the classic Pip‑Boy experience.\n4. Toggle off anytime to return to normal mode.\n\nKey functions:\n- Theme toggle: switch Pip‑Boy mode on/off.\n- Color presets: select green/amber variants.\n- Window styling:CRT frame, scanlines, and themed accents.\n\n💡 Beginner tips:\n- Pip‑Boy is cosmetic only — it does not affect tool behavior.\n- Use full‑screen for the most authentic look.",
     "whatFor": "Pip‑Boy Mode changes the app's look to a retro Fallout CRT/pip‑boy theme and provides themed UI affordances for immersion.",
@@ -415,20 +415,28 @@
     "functions": "- Theme toggle: switch Pip‑Boy mode on/off.\n- Color presets: select green/amber variants.\n- Window styling:CRT frame, scanlines, and themed accents.",
     "tips": "- Pip‑Boy is cosmetic only — it does not affect tool behavior.\n- Use full‑screen for the most authentic look."
   },
-  "page-54-guided-tours.png": {
-    "title": "FormID Remapper",
-    "description": "Safely remap FormIDs across plugins to avoid conflicts when merging multiple ESP/ESM files — useful when consolidating work from multiple authors or toolchains.\n\nHow to use:\n1. Open the FormID Remapper and add the plugins you want to merge or adjust.\n2. Run the Analyze action to surface collisions and cross‑references.\n3. Review the suggested remaps and backup your files.\n4. Apply the remap and run a validation / quick audit.\n\nKey functions:\n- Analyze: detects conflicts and overlapping FormIDs.\n- Preview: shows proposed remap ranges and affected records.\n- Apply Remap: executes changes with an automatic backup.\n\n💡 Beginner tips:\n- Always create a backup before applying a remap. ✅\n- Run the Auditor after remapping to confirm no references were lost.",
-    "whatFor": "Safely remap FormIDs across plugins to avoid conflicts when merging multiple ESP/ESM files — useful when consolidating work from multiple authors or toolchains.",
-    "howTo": "1. Open the FormID Remapper and add the plugins you want to merge or adjust.\n2. Run the Analyze action to surface collisions and cross‑references.\n3. Review the suggested remaps and backup your files.\n4. Apply the remap and run a validation / quick audit.",
-    "functions": "- Analyze: detects conflicts and overlapping FormIDs.\n- Preview: shows proposed remap ranges and affected records.\n- Apply Remap: executes changes with an automatic backup.",
-    "tips": "- Always create a backup before applying a remap. ✅\n- Run the Auditor after remapping to confirm no references were lost."
+  "page-10-memory-vault.png": {
+    "title": "Memory Vault",
+    "description": "Memory Vault - Comprehensive feature documentation coming soon.",
+    "whatFor": "",
+    "howTo": "",
+    "functions": "",
+    "tips": ""
   },
-  "page-55-pip-boy-on-off.png": {
-    "title": "Precombine Generator",
-    "description": "Generate PRP / precombine patches to fix rendering and lighting issues caused by complex meshes — helps improve performance and correct in‑game lighting artifacts.\n\nHow to use:\n1. Scan your mod folder to find meshes flagged for precombine.\n2. Inspect flagged objects and preview how precombine will change geometry groups.\n3. Generate the PRP patch and test in the Holodeck or a small test profile.\n4. Iterate only on items that improve the in‑game result.\n\nKey functions:\n- Scan: finds mesh assets with precombine concerns.\n- Preview: shows expected PRP changes and warnings.\n- Generate Patch: creates a PRP/patch file you can apply and test.\n\n💡 Beginner tips:\n- Test patches on a small profile before wide application.\n- Precombine helps lighting/performance but may require mesh rework.",
-    "whatFor": "Generate PRP / precombine patches to fix rendering and lighting issues caused by complex meshes — helps improve performance and correct in‑game lighting artifacts.",
-    "howTo": "1. Scan your mod folder to find meshes flagged for precombine.\n2. Inspect flagged objects and preview how precombine will change geometry groups.\n3. Generate the PRP patch and test in the Holodeck or a small test profile.\n4. Iterate only on items that improve the in‑game result.",
-    "functions": "- Scan: finds mesh assets with precombine concerns.\n- Preview: shows expected PRP changes and warnings.\n- Generate Patch: creates a PRP/patch file you can apply and test.",
-    "tips": "- Test patches on a small profile before wide application.\n- Precombine helps lighting/performance but may require mesh rework."
+  "page-13-ck-safety.png": {
+    "title": "Ck Safety",
+    "description": "Ck Safety - Comprehensive feature documentation coming soon.",
+    "whatFor": "",
+    "howTo": "",
+    "functions": "",
+    "tips": ""
+  },
+  "page-26-ck-crash-prevention.png": {
+    "title": "Ck Crash Prevention",
+    "description": "Ck Crash Prevention - Comprehensive feature documentation coming soon.",
+    "whatFor": "",
+    "howTo": "",
+    "functions": "",
+    "tips": ""
   }
 }
