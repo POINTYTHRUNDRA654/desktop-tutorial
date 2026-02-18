@@ -2,6 +2,8 @@
 
 **Mossy v5.4.24** - A production-ready Electron desktop application for Fallout 4 modding with AI assistance, real-time analysis, direct-write scripting, and professional asset optimization.
 
+> 🔄 **For Contributors:** If you have this repository cloned and want to update your local copy with recent bug fixes, see [GIT_UPDATE_GUIDE.md](GIT_UPDATE_GUIDE.md)
+
 ---
 
 ## 🚀 Onboarding & Installer Notes (v5.4.24)
@@ -344,6 +346,8 @@ desktop-ai-assistant/
 ```
 
 ## 🚀 Getting Started
+
+> **👨‍💻 For Developers:** If you have this repository cloned and need to pull the latest fixes, see [GIT_UPDATE_GUIDE.md](GIT_UPDATE_GUIDE.md) for GitHub Desktop instructions.
 
 ---
 
