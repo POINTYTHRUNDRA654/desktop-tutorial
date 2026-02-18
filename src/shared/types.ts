@@ -1366,12 +1366,16 @@ export interface BottleneckEvidence {
 
 export interface OptimizationOpportunity {
   type: 'texture' | 'mesh' | 'script' | 'config' | 'load_order';
+  area?: string; // Alternate field name
+  suggestion?: string; // Alternate description
+  estimatedGain?: string | number; // Alternate potentialGain
   description: string;
   potentialGain: number; // FPS gain
   difficulty: 'easy' | 'medium' | 'hard';
   affectedMods: string[];
   // Optional back-compat / guidance
   prerequisites?: string[];
+  impact?: string; // Alternate gain description
 }
 
 // Backwards-compatible alias expected across the codebase
@@ -1832,10 +1836,10 @@ export interface AnalysisQuestObjective {
 }
 
 export interface QuestReward {
-  type: 'item' | 'perk' | 'experience' | 'faction' | 'misc';
+  type: 'item' | 'perk' | 'experience' | 'faction' | 'misc' | 'gold' | 'xp';
   formId?: string;
   amount?: number;
-  description: string;
+  description?: string;
 }
 
 export interface QuestDependency {
@@ -3697,19 +3701,6 @@ export interface Parameters {
   [key: string]: any;
 }
 
-export interface Optimization {
-  area: string;
-  suggestion: string;
-  estimatedGain: string;
-}
-
-export interface OptimizationOpportunity {
-  area?: string; // Alternate field
-  type?: string;
-  description?: string;
-  impact?: string;
-}
-
 export interface PersonalizationSettings {
   userId: string;
   tone?: string; // Communication tone
@@ -5184,7 +5175,7 @@ export interface CompiledShader { vertex?: string; fragment?: string; vertexShad
 // Shader Graph System Types
 export type ShaderNodeType = 'texture' | 'math' | 'color' | 'vector' | 'output' | 'constant' | 'normal' | 'blend';
 export type MathOperation = 'add' | 'subtract' | 'multiply' | 'divide' | 'power' | 'sqrt' | 'clamp' | 'mix';
-export type ColorOperation = 'rgb_split' | 'hsv_adjust' | 'color_ramp' | 'invert' | 'brightness_contrast';
+export type ColorOperation = 'rgb_split' | 'rgb-split' | 'hsv_adjust' | 'color_ramp' | 'invert' | 'brightness_contrast';
 export type VectorOperation = 'normalize' | 'length' | 'dot' | 'cross' | 'reflect' | 'refract';
 
 export interface ShaderNode {
@@ -5199,6 +5190,7 @@ export interface ShaderNode {
 }
 
 export interface NodeInput {
+  id?: string;
   name: string;
   type: 'float' | 'vec2' | 'vec3' | 'vec4' | 'sampler2D';
   value?: any;
@@ -5206,6 +5198,7 @@ export interface NodeInput {
 }
 
 export interface NodeOutput {
+  id?: string;
   name: string;
   type: 'float' | 'vec2' | 'vec3' | 'vec4' | 'sampler2D';
 }
@@ -5223,6 +5216,8 @@ export interface NodeConnection {
 export interface OutputNode extends ShaderNode {
   type: 'output';
   shaderType: 'vertex' | 'fragment' | 'compute';
+  connectedNode?: string; // Node connected to this output
+  slot?: string; // Output slot name
 }
 
 export interface ShaderGraph {
@@ -5231,6 +5226,7 @@ export interface ShaderGraph {
   nodes: ShaderNode[];
   connections: NodeConnection[];
   outputNodes: OutputNode[];
+  outputs?: OutputNode[]; // Alternate field
 }
 
 export interface NodeDefinition {
@@ -5256,6 +5252,7 @@ export interface CompiledShaderOutput {
   uniforms: Array<{ name: string; type: string }>;
   success: boolean;
   errors?: string[];
+  warnings?: string[];
 }
 export interface PreviewImage { id: string; path: string; width: number; height: number; dataUrl?: string; format?: string; timestamp?: number }
 export interface BakedTextures { diffuse?: string; normal?: string; metallic?: string; roughness?: string; emissive?: string; success?: boolean; error?: string; resolution?: { width: number; height: number }; textures?: Record<string, string>; fileSize?: number; bakingTime?: number }
@@ -6332,13 +6329,6 @@ export interface Quest {
   objectives?: QuestObjective[]; // Top-level objectives array
   rewards?: QuestReward[]; // Rewards array
   dialogueLinks?: string[]; // References to dialogue branches
-}
-
-export interface QuestReward {
-  type: 'item' | 'gold' | 'xp' | 'faction' | 'perk';
-  formId?: string;
-  amount?: number;
-  description?: string;
 }
 
 export interface QuestProperty {
