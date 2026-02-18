@@ -12,7 +12,7 @@ import type {
   Parameters,
   PersonalizationSettings,
   ImageAnalysis,
-  AIModAssistantEngine,
+  AIModAssistantEngine as AIModAssistantEngineType,
 } from '../shared/types';
 
 function now() { return Date.now(); }
@@ -23,7 +23,7 @@ function makeId(prefix = 'ia') { return `${prefix}_${Math.floor(Math.random() * 
  * - Lightweight, deterministic stubs used for UI wiring and unit tests.
  * - Replace with an LLM-backed implementation when integrating with a model provider.
  */
-export class AIModAssistantEngine implements AIModAssistantEngine {
+export class AIModAssistantEngine implements AIModAssistantEngineType {
   private conversations: Record<string, { id: string; history: { role: string; content: string }[] }> = {};
   private feedbackLog: Record<string, { interactionId: string; helpful: boolean; at: number }[]> = {};
 
@@ -37,7 +37,9 @@ export class AIModAssistantEngine implements AIModAssistantEngine {
 
     const reply = `Echo: ${message}. (assistant stub)`;
     this.conversations[convId].history.push({ role: 'assistant', content: reply });
-    return { conversationId: convId, message: reply, suggestedActions: ['Show code', 'Explain this'], metadata: { timestamp: now() } };
+    const suggested = ['Show code', 'Explain this'];
+    const suggestions = suggested.map(t => ({ text: t, type: 'command', confidence: 0.9 }));
+    return { conversationId: convId, message: reply, suggestions, suggestedActions: suggested, actions: [], confidence: 0.99, metadata: { timestamp: now() } };
   }
 
   async continueConversation(conversationId: string, message: string): Promise<ChatResponse> {
@@ -51,19 +53,21 @@ export class AIModAssistantEngine implements AIModAssistantEngine {
     const code = language === 'papyrus'
       ? `Scriptname GeneratedByAIModAssistant\n; Prompt: ${prompt}\nEvent OnInit()\n\t; TODO: implement\nEndEvent` 
       : `// TypeScript generated from prompt: ${prompt}\nexport function generated() { return 'hello from AI'; }`;
-    return { language, code, files: [{ name: `generated.${language === 'papyrus' ? 'psc' : 'ts'}`, content: code }] };
+    return { code, language, explanation: `Generated stub for prompt: ${prompt}`, warnings: [], alternatives: [], files: [{ name: `generated.${language === 'papyrus' ? 'psc' : 'ts'}`, content: code }] };
   }
 
   async explainCode(code: string): Promise<Explanation> {
     const summary = `This code appears to be ${code.slice(0, 40)}... (stub explanation)`;
     const steps = ['Describe purpose', 'Explain main flow', 'Mention possible issues'];
-    return { summary, steps, references: [] };
+    const breakdown = [{ lineRange: [1, Math.min(10, code.split('\n').length)], explanation: 'High-level overview', purpose: 'Clarify intent' }];
+    return { summary, breakdown, concepts: [], relatedDocs: [], steps, references: [] };
   }
 
   async refactorCode(code: string, improvements: string[]): Promise<RefactoredCode> {
     const improved = `${code}\n// Refactored: ${improvements.join(', ')}`;
     const diff = `- original\n+ refactored (stub)`;
-    return { original: code, improved, diff };
+    const changes = [{ type: 'extract', description: 'Stub extraction', before: code, after: improved }];
+    return { original: code, refactored: improved, improved, changes, improvements, testSuggestions: [], diff };
   }
 
   // ----------------------
@@ -71,18 +75,18 @@ export class AIModAssistantEngine implements AIModAssistantEngine {
   // ----------------------
   async suggestFixes(error: string, context: any): Promise<Fix[]> {
     return [
-      { id: makeId('fix'), description: `Check null for ${error}`, patch: '// fix: add null check', confidence: 0.85 },
+      { id: makeId('fix'), title: 'Null-check guard', description: `Check null for ${error}`, code: undefined, patch: '// fix: add null check', steps: ['Add null guard', 'Add unit test'], confidence: 0.85, estimatedTime: 5 },
     ];
   }
 
   async suggestOptimizations(mod: string): Promise<Optimization[]> {
-    return [{ area: 'performance', suggestion: 'Reduce OnUpdate usage', estimatedGain: '10-20% faster startup' }];
+    return [{ type: 'script', description: 'Reduce OnUpdate usage to lower CPU cost', potentialGain: 10, difficulty: 'easy', affectedMods: [mod] }];
   }
 
   async suggestFeatures(modDescription: string): Promise<FeatureSuggestion[]> {
     return [
-      { title: 'Optional QoL tweak', benefit: 'Improves UX for players', effort: 'low' },
-      { title: 'New AI companion', benefit: 'Adds emergent gameplay', effort: 'high' },
+      { name: 'qol-tweak', title: 'Optional QoL tweak', description: 'Improves UX for players', difficulty: 'easy', estimatedTime: 2, dependencies: [] },
+      { name: 'ai-companion', title: 'New AI companion', description: 'Adds emergent gameplay', difficulty: 'hard', estimatedTime: 40, dependencies: [] },
     ];
   }
 
@@ -91,9 +95,9 @@ export class AIModAssistantEngine implements AIModAssistantEngine {
   // ----------------------
   async parseIntent(userInput: string): Promise<Intent> {
     const lowered = userInput.toLowerCase();
-    if (lowered.includes('fix') || lowered.includes('error')) return { name: 'report_issue', confidence: 0.9 };
-    if (lowered.includes('generate') || lowered.includes('create')) return { name: 'generate_code', confidence: 0.85 };
-    return { name: 'unknown', confidence: 0.5 };
+    if (lowered.includes('fix') || lowered.includes('error')) return { type: 'command', name: 'report_issue', action: 'report_issue', confidence: 0.9 };
+    if (lowered.includes('generate') || lowered.includes('create')) return { type: 'request', name: 'generate_code', action: 'generate_code', confidence: 0.85 };
+    return { type: 'question', name: 'unknown', action: 'unknown', confidence: 0.5 };
   }
 
   async extractParameters(intent: Intent, userInput: string): Promise<Parameters> {
@@ -110,7 +114,7 @@ export class AIModAssistantEngine implements AIModAssistantEngine {
   }
 
   async personalizeResponses(userId: string): Promise<PersonalizationSettings> {
-    return { tone: 'friendly', preferredExamples: [], userId };
+    return { userId, tone: 'friendly', preferredLanguage: 'en', skillLevel: 'intermediate', interests: [], frequentActions: [], preferredExamples: [] };
   }
 
   // ----------------------
@@ -118,7 +122,7 @@ export class AIModAssistantEngine implements AIModAssistantEngine {
   // ----------------------
   async analyzeImage(imagePath: string, question: string): Promise<ImageAnalysis> {
     // stub: pretend to detect objects and tags
-    return { tags: ['screenshot', 'ui'], description: `Image at ${imagePath} seems to contain UI elements. Answer: ${question}`, objects: [{ name: 'button', confidence: 0.98 }] };
+    return { description: `Image at ${imagePath} seems to contain UI elements.`, tags: ['screenshot', 'ui'], objects: [{ label: 'button', name: 'button', confidence: 0.98, boundingBox: { x: 0, y: 0, width: 100, height: 40 } }], answer: `It contains UI elements; ${question}`, confidence: 0.95 };
   }
 
   async generateImageDescription(imagePath: string): Promise<string> {

@@ -2303,7 +2303,7 @@ function setupIpcHandlers() {
     try {
       const { CKCrashPreventionEngine } = await import('../mining/ckCrashPrevention');
       const engine = new CKCrashPreventionEngine();
-      const result = await engine.validateBeforeCK({ espPath, modName, cellCount });
+      const result = await engine.validateESP(espPath);
       return { success: true, result };
     } catch (error: any) {
       console.error('CK validation error:', error);
