@@ -37,6 +37,18 @@ export const ImageTutorial: React.FC<ImageTutorialProps> = ({ isOpen, onClose })
     setError(null);
 
     try {
+      // Load comprehensive captions from visual-guide-images
+      let captions: Record<string, { title: string; description: string; whatFor?: string; howTo?: string; functions?: string; tips?: string }> = {};
+      try {
+        const captionsResponse = await fetch('/visual-guide-images/captions.json');
+        if (captionsResponse.ok) {
+          captions = await captionsResponse.json();
+          console.log('Loaded comprehensive captions for', Object.keys(captions).length, 'pages');
+        }
+      } catch (err) {
+        console.log('No captions.json found, using auto-generated descriptions');
+      }
+
       // All visual guide images (pages 1-55, with some duplicates)
       const visualGuidePages = [
         'page-1-mossy-space',
@@ -101,19 +113,22 @@ export const ImageTutorial: React.FC<ImageTutorialProps> = ({ isOpen, onClose })
       for (let i = 0; i < visualGuidePages.length; i++) {
         const filename = visualGuidePages[i];
         const imagePath = `/visual-guide-images/${filename}.png`;
+        const imageFilename = `${filename}.png`;
         
         // Check if image exists
         const exists = await checkImageExists(imagePath);
         
         if (exists) {
-          const title = generateTitleFromFilename(filename);
+          const caption = captions[imageFilename];
+          const title = caption?.title || generateTitleFromFilename(filename);
+          const description = caption?.description || `Page ${i + 1} - ${title}`;
           
           loadedSlides.push({
             id: i + 1,
             filename: filename,
             imagePath: imagePath,
             title: title,
-            description: `Page ${i + 1} - ${title}`
+            description: description
           });
         }
       }
@@ -122,6 +137,7 @@ export const ImageTutorial: React.FC<ImageTutorialProps> = ({ isOpen, onClose })
         setError('No tutorial images found in visual-guide-images directory.');
       } else {
         setSlides(loadedSlides);
+        console.log(`Loaded ${loadedSlides.length} tutorial pages with comprehensive descriptions`);
       }
     } catch (err) {
       setError(`Failed to load tutorial: ${err}`);
@@ -240,7 +256,7 @@ export const ImageTutorial: React.FC<ImageTutorialProps> = ({ isOpen, onClose })
           {!loading && !error && slide && (
             <div className="w-full h-full flex flex-col">
               {/* Image Container */}
-              <div className="flex-1 flex items-center justify-center mb-4">
+              <div className="flex-1 flex items-center justify-center mb-4 min-h-0">
                 <img
                   src={slide.imagePath}
                   alt={slide.title}
@@ -248,23 +264,25 @@ export const ImageTutorial: React.FC<ImageTutorialProps> = ({ isOpen, onClose })
                 />
               </div>
 
-              {/* Slide Info */}
-              <div className="bg-slate-800/80 backdrop-blur-sm rounded-xl p-6 border border-slate-700">
+              {/* Slide Info - Now with scrollable comprehensive description */}
+              <div className="bg-slate-800/80 backdrop-blur-sm rounded-xl p-6 border border-slate-700 max-h-64 overflow-y-auto">
                 <div className="flex items-start justify-between gap-4">
                   <div className="flex-1">
-                    <div className="flex items-center gap-2 mb-2">
+                    <div className="flex items-center gap-2 mb-3">
                       <span className="px-2 py-1 bg-emerald-500/20 text-emerald-400 rounded text-xs font-bold">
                         {String(slide.id).padStart(2, '0')}
                       </span>
                       <h3 className="text-xl font-bold text-white">{slide.title}</h3>
                     </div>
                     {slide.description && (
-                      <p className="text-slate-300 leading-relaxed">{slide.description}</p>
+                      <div className="text-slate-300 leading-relaxed whitespace-pre-line text-sm">
+                        {slide.description}
+                      </div>
                     )}
                   </div>
                   
                   {/* Progress Indicators */}
-                  <div className="flex gap-1">
+                  <div className="flex gap-1 flex-shrink-0">
                     {slides.map((_, index) => (
                       <button
                         key={index}

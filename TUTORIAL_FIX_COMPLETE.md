@@ -145,3 +145,24 @@ The fix was minimal and surgical:
 **Pull Request:** copilot/fix-tutorial-issues  
 **Commits:** 3 (images + merge conflict fixes + cleanup)  
 **Status:** Ready for merge
+
+---
+
+## Update (2026-02-18): Tutorial Upgraded to 55 Pages!
+
+The tutorial system has been **further enhanced** to use all 55 comprehensive visual guide images instead of just the initial 12 basic screenshots.
+
+### What Changed
+- **Image count:** 12 → 55 pages
+- **Image source:** `tutorial-images/` → `visual-guide-images/`
+- **Coverage:** Basic overview → Complete walkthrough of every feature
+
+See **[TUTORIAL_UPGRADE_55_PAGES.md](TUTORIAL_UPGRADE_55_PAGES.md)** for full details.
+
+### Benefits
+- Complete coverage of all Mossy features
+- Professional high-quality screenshots
+- Comprehensive visual documentation
+- Better user onboarding experience
+
+**Status:** ✅ Live and ready for users!
