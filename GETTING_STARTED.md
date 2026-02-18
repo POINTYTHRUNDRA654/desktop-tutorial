@@ -2,6 +2,30 @@
 
 Consolidated quick-start and onboarding material.
 
+## 📥 How to Download Mossy
+
+### For End Users (Pre-built Installer)
+
+**Download the latest release:**
+👉 **[Download from GitHub Releases](https://github.com/POINTYTHRUNDRA654/desktop-tutorial/releases/latest)**
+
+**Installation:**
+1. Download the appropriate installer for your platform (Windows .exe, macOS .dmg, or Linux .AppImage)
+2. Run the installer and follow the setup wizard
+3. Launch Mossy from your desktop or start menu
+4. Complete the first-run tutorial
+
+**System Requirements:**
+- Windows 10/11, macOS 10.15+, or modern Linux
+- 8GB RAM minimum (16GB recommended)
+- 500MB storage for application
+
+### For Developers (Build from Source)
+
+See the [Development Setup](#quick-start-recommended) section below for build instructions.
+
+---
+
 ## 📚 Choose Your Learning Path
 
 **Not sure where to start?** See **[DOCUMENTATION_GUIDE.md](DOCUMENTATION_GUIDE.md)** for a complete navigation guide to all Mossy documentation.
