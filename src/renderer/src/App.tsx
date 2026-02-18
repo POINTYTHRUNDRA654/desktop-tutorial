@@ -792,7 +792,7 @@ const App: React.FC = () => {
 
     if (showFirstRun) {
       return (
-        <>
+        <div className="relative h-full w-full min-h-0">
           <FirstRunOnboarding 
             onComplete={() => {
               setShowFirstRun(false);
@@ -804,13 +804,13 @@ const App: React.FC = () => {
           />
           {showInteractiveTutorialOverlay && (
             <div 
-              className="fixed inset-0 z-[100] flex items-start justify-center pt-8 p-6 bg-black/60 backdrop-blur-sm overflow-auto"
+              className="absolute inset-0 z-[100] flex items-center justify-center p-2 sm:p-4 bg-black/60 backdrop-blur-sm overflow-hidden"
               role="dialog"
               aria-modal="true"
               aria-label="Interactive Tutorial"
             >
               <MemoryRouter initialEntries={["/tutorial"]}>
-                <div className="w-full max-w-6xl h-full max-h-[90vh] overflow-hidden rounded-2xl shadow-2xl">
+                <div className="w-full max-w-6xl h-full max-h-full min-h-0 overflow-hidden rounded-2xl shadow-2xl">
                   <InteractiveTutorial
                     onComplete={exitInteractiveTutorial}
                     onSkip={exitInteractiveTutorial}
@@ -819,7 +819,7 @@ const App: React.FC = () => {
               </MemoryRouter>
             </div>
           )}
-        </>
+        </div>
       );
     }
 

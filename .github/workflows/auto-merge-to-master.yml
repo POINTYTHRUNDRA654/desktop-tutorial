@@ -7,8 +7,8 @@ on:
       - 'master'
   create:
     # run when a new branch is created
-    branches:
-      - '*'
+    branches-ignore:
+      - 'master'
 
 permissions:
   contents: write
