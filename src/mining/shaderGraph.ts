@@ -52,7 +52,8 @@ export class NodeRegistry {
   private registerBuiltInNodes(): void {
     // Texture Nodes
     this.register({
-      id: 'texture-sample',
+      type: 'texture',
+      label: 'texture-sample',
       category: 'texture',
       name: 'Texture Sample',
       description: 'Sample a texture at UV coordinates',
@@ -68,7 +69,8 @@ export class NodeRegistry {
     });
 
     this.register({
-      id: 'texture-combine',
+      type: 'texture',
+      label: 'texture-combine',
       category: 'texture',
       name: 'Texture Combine',
       description: 'Combine RGB channels from multiple textures',
@@ -84,7 +86,8 @@ export class NodeRegistry {
 
     // Math Nodes
     this.register({
-      id: 'multiply',
+      type: 'math',
+      label: 'multiply',
       category: 'math',
       name: 'Multiply',
       description: 'Multiply two values',
@@ -98,7 +101,8 @@ export class NodeRegistry {
     });
 
     this.register({
-      id: 'add',
+      type: 'math',
+      label: 'add',
       category: 'math',
       name: 'Add',
       description: 'Add two values',
@@ -112,7 +116,8 @@ export class NodeRegistry {
     });
 
     this.register({
-      id: 'subtract',
+      type: 'math',
+      label: 'subtract',
       category: 'math',
       name: 'Subtract',
       description: 'Subtract B from A',
@@ -126,7 +131,8 @@ export class NodeRegistry {
     });
 
     this.register({
-      id: 'divide',
+      type: 'math',
+      label: 'divide',
       category: 'math',
       name: 'Divide',
       description: 'Divide A by B',
@@ -140,7 +146,8 @@ export class NodeRegistry {
     });
 
     this.register({
-      id: 'power',
+      type: 'math',
+      label: 'power',
       category: 'math',
       name: 'Power',
       description: 'Raise A to power B',
@@ -154,7 +161,8 @@ export class NodeRegistry {
     });
 
     this.register({
-      id: 'clamp',
+      type: 'math',
+      label: 'clamp',
       category: 'math',
       name: 'Clamp',
       description: 'Clamp value between min and max',
@@ -169,7 +177,8 @@ export class NodeRegistry {
     });
 
     this.register({
-      id: 'lerp',
+      type: 'math',
+      label: 'lerp',
       category: 'math',
       name: 'Lerp',
       description: 'Linear interpolation between A and B',
@@ -185,7 +194,8 @@ export class NodeRegistry {
 
     // Color Nodes
     this.register({
-      id: 'rgb-split',
+      type: 'color',
+      label: 'rgb-split',
       category: 'color',
       name: 'RGB Split',
       description: 'Split color into RGB channels',
@@ -200,7 +210,8 @@ export class NodeRegistry {
     });
 
     this.register({
-      id: 'rgb-combine',
+      type: 'color',
+      label: 'rgb-combine',
       category: 'color',
       name: 'RGB Combine',
       description: 'Combine RGB channels into a color',
@@ -215,7 +226,8 @@ export class NodeRegistry {
     });
 
     this.register({
-      id: 'hsv-adjust',
+      type: 'color',
+      label: 'hsv-adjust',
       category: 'color',
       name: 'HSV Adjust',
       description: 'Adjust hue, saturation, value',
@@ -231,7 +243,8 @@ export class NodeRegistry {
     });
 
     this.register({
-      id: 'color-ramp',
+      type: 'color',
+      label: 'color-ramp',
       category: 'color',
       name: 'Color Ramp',
       description: 'Map value to gradient',
@@ -244,7 +257,8 @@ export class NodeRegistry {
     });
 
     this.register({
-      id: 'invert',
+      type: 'color',
+      label: 'invert',
       category: 'color',
       name: 'Invert',
       description: 'Invert color channels',
@@ -258,7 +272,8 @@ export class NodeRegistry {
 
     // Normal Nodes
     this.register({
-      id: 'normal-map',
+      type: 'normal',
+      label: 'normal-map',
       category: 'normal',
       name: 'Normal Map',
       description: 'Sample and process normal map',
@@ -272,7 +287,8 @@ export class NodeRegistry {
     });
 
     this.register({
-      id: 'normal-blend',
+      type: 'normal',
+      label: 'normal-blend',
       category: 'normal',
       name: 'Normal Blend',
       description: 'Blend two normal maps',
@@ -288,7 +304,8 @@ export class NodeRegistry {
 
     // Vector Nodes
     this.register({
-      id: 'normalize',
+      type: 'vector',
+      label: 'normalize',
       category: 'vector',
       name: 'Normalize',
       description: 'Normalize vector to unit length',
@@ -301,7 +318,8 @@ export class NodeRegistry {
     });
 
     this.register({
-      id: 'vector-length',
+      type: 'vector',
+      label: 'vector-length',
       category: 'vector',
       name: 'Length',
       description: 'Get vector length',
@@ -314,7 +332,8 @@ export class NodeRegistry {
     });
 
     this.register({
-      id: 'dot-product',
+      type: 'vector',
+      label: 'dot-product',
       category: 'vector',
       name: 'Dot Product',
       description: 'Calculate dot product of two vectors',
@@ -329,7 +348,8 @@ export class NodeRegistry {
 
     // Output Nodes
     this.register({
-      id: 'output-base-color',
+      type: 'output',
+      label: 'output-base-color',
       category: 'output',
       name: 'Base Color Output',
       description: 'Final base color output',
@@ -340,9 +360,9 @@ export class NodeRegistry {
     });
 
     this.register({
-      id: 'output-normal',
+      type: 'output',
+      label: 'output-normal',
       category: 'output',
-      name: 'Normal Output',
       description: 'Final normal map output',
       inputs: [
         { id: 'normal', name: 'Normal', type: 'vector3' },
@@ -351,9 +371,9 @@ export class NodeRegistry {
     });
 
     this.register({
-      id: 'output-metallic',
+      type: 'output',
+      label: 'output-metallic',
       category: 'output',
-      name: 'Metallic Output',
       description: 'Final metallic output',
       inputs: [
         { id: 'metallic', name: 'Metallic', type: 'float', defaultValue: 0 },
@@ -362,9 +382,9 @@ export class NodeRegistry {
     });
 
     this.register({
-      id: 'output-roughness',
+      type: 'output',
+      label: 'output-roughness',
       category: 'output',
-      name: 'Roughness Output',
       description: 'Final roughness output',
       inputs: [
         { id: 'roughness', name: 'Roughness', type: 'float', defaultValue: 0.5 },
@@ -377,7 +397,7 @@ export class NodeRegistry {
    * Register a new node type
    */
   register(definition: NodeDefinition): void {
-    this.nodeDefinitions.set(definition.id, definition);
+    this.nodeDefinitions.set(definition.label, definition);
   }
 
   /**
@@ -454,12 +474,7 @@ export class ShaderGraphValidator {
       isValid: errors.length === 0,
       errors,
       warnings,
-      stats: {
-        nodeCount: graph.nodes.length,
-        connectionCount: graph.connections.length,
-        outputCount: graph.outputs.length,
-        unreachableNodes,
-      },
+      unusedNodes: unreachableNodes,
     };
   }
 
@@ -626,15 +641,12 @@ export class ShaderGraphCompiler {
 
     if (errors.length > 0) {
       return {
-        success: false,
-        errors,
+        success: false,        vertexShader: '',
+        fragmentShader: '',
+        uniforms: [],        errors,
         warnings,
         compilationTime: Date.now() - startTime,
-        stats: {
-          instructionCount: 0,
-          textureCount: 0,
-          parameterCount: 0,
-        },
+        stats: { nodeCount: graph.nodes.length, connectionCount: graph.connections.length },
       };
     }
 
@@ -642,7 +654,7 @@ export class ShaderGraphCompiler {
       const vertexShader = this.generateVertexShader(graph);
       const fragmentShader = this.generateFragmentShader(graph);
 
-      const instructionCount = this.estimateInstructionCount(graph);
+      const instructionCount = this.estimateInstructionCount(graph); // retained for telemetry but no longer part of stats shape
       const textureCount = graph.nodes.filter(
         (n) => n.type === 'texture'
       ).length;
@@ -655,14 +667,11 @@ export class ShaderGraphCompiler {
         success: true,
         vertexShader,
         fragmentShader,
+        uniforms: [],
         errors,
         warnings,
         compilationTime: Date.now() - startTime,
-        stats: {
-          instructionCount,
-          textureCount,
-          parameterCount,
-        },
+        stats: { nodeCount: graph.nodes.length, connectionCount: graph.connections.length },
       };
     } catch (error) {
       errors.push(
@@ -670,14 +679,13 @@ export class ShaderGraphCompiler {
       );
       return {
         success: false,
+        vertexShader: '',
+        fragmentShader: '',
+        uniforms: [],
         errors,
         warnings,
         compilationTime: Date.now() - startTime,
-        stats: {
-          instructionCount: 0,
-          textureCount: 0,
-          parameterCount: 0,
-        },
+        stats: { nodeCount: graph.nodes.length, connectionCount: graph.connections.length },
       };
     }
   }
