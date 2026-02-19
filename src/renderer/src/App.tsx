@@ -114,6 +114,8 @@ const ProjectSelector = React.lazy(() => import('./ProjectSelector').then(module
 
 // Mining Infrastructure
 const MiningHub = React.lazy(() => import('./MiningHub'));
+const MiningPanel = React.lazy(() => import('./MiningPanel').then(module => ({ default: module.MiningPanel })));
+const AdvancedAnalysisPanel = React.lazy(() => import('./AdvancedAnalysisPanel').then(module => ({ default: module.AdvancedAnalysisPanel })));
 
 // Mining Infrastructure
 
