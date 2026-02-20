@@ -10,6 +10,12 @@ numpy>=1.21.0
 # HTTP requests (for desktop tutorial app integration)
 requests>=2.27.0
 
+# 3D mesh processing (used by mesh helpers and image-to-mesh pipeline)
+trimesh>=3.20.0
+
+# PDF parsing for advisor knowledge ingestion
+PyPDF2>=3.0.0
+
 # JSON handling (usually built-in, but good to specify)
 # json (built-in)
 

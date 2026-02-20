@@ -23,6 +23,18 @@ PyPDF2>=3.0.0
 # Gradio for web interfaces (optional)
 gradio>=3.35.0
 
+# Image processing for Real-ESRGAN upscaling
+opencv-python>=4.7.0
+
+# Motion capture / pose estimation (used by HyMotion helpers)
+mediapipe>=0.10.0
+
+# Diffusion models for Stable Diffusion pipelines
+diffusers>=0.20.0
+
+# Required by diffusers for model loading / mixed precision
+accelerate>=0.20.0
+
 # Note: For specific AI models, additional installation is needed:
 # - Shap-E: gh repo clone openai/shap-e && cd shap-e && pip install -e .
 # - Point-E: gh repo clone openai/point-e && cd point-e && pip install -e .

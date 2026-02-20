@@ -120,31 +120,23 @@ def register():
     tutorial_system.initialize_tutorials()
     
     # Check for core Python dependencies — install automatically if missing
-    missing = []
-    for pkg in ("PIL", "numpy", "requests"):
-        try:
-            __import__(pkg)
-        except ImportError:
-            missing.append(pkg)
+    import importlib.util as _ilu
+    _core_packages = {
+        "PIL": "Pillow",
+        "numpy": "numpy",
+        "requests": "requests",
+        "trimesh": "trimesh",
+        "PyPDF2": "PyPDF2",
+    }
+    missing = [pip_name for mod, pip_name in _core_packages.items() if _ilu.find_spec(mod) is None]
     if missing:
         print(f"⚠ Missing Python packages: {', '.join(missing)}")
-        print("  Attempting automatic installation via pip …")
-        try:
-            import sys
-            import subprocess
-            install_names = {"PIL": "Pillow", "numpy": "numpy", "requests": "requests"}
-            pkgs = [install_names[p] for p in missing]
-            subprocess.check_call(
-                [sys.executable, "-m", "pip", "install", "--quiet"] + pkgs,
-                timeout=120,
-            )
-            print(f"✓ Successfully installed: {', '.join(pkgs)}")
-        except subprocess.CalledProcessError as _e:
-            print(f"  pip install failed (return code {_e.returncode}). "
-                  "Check your internet connection or run Blender as administrator.")
-            print("  Use the 'Install Core Dependencies' button in the Fallout 4 sidebar panel.")
-        except Exception as _e:
-            print(f"  Auto-install failed: {_e}")
+        print("  Attempting automatic installation from requirements.txt …")
+        ok, msg = tool_installers.install_python_requirements(include_optional=False)
+        if ok:
+            print(f"✓ {msg}")
+        else:
+            print(f"  Auto-install failed: {msg}")
             print("  Use the 'Install Core Dependencies' button in the Fallout 4 sidebar panel.")
     else:
         print("✓ All core Python dependencies present")

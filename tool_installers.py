@@ -134,11 +134,23 @@ def install_python_requirements(include_optional: bool = False) -> tuple[bool, s
     """Run pip install on requirements.txt (and optional if requested)."""
     try:
         import subprocess
-        files = ["requirements.txt"]
+        addon_dir = Path(__file__).resolve().parent
+        files = [addon_dir / "requirements.txt"]
         if include_optional:
-            files.append("requirements-optional.txt")
+            files.append(addon_dir / "requirements-optional.txt")
         for f in files:
-            subprocess.check_call([sys.executable, "-m", "pip", "install", "-r", f])
+            if not f.exists():
+                return False, f"Requirements file not found: {f}"
+            try:
+                subprocess.check_call(
+                    [sys.executable, "-m", "pip", "install", "--quiet", "-r", str(f)],
+                    timeout=300,
+                )
+            except subprocess.TimeoutExpired:
+                return False, (
+                    f"pip install timed out after 300 s while processing {f.name}. "
+                    "Check your internet connection or install dependencies manually."
+                )
         return True, "Python dependencies installed"
     except Exception as e:
         return False, f"Failed to install python reqs: {e}"
