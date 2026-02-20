@@ -38,14 +38,30 @@ See [NEW_FEATURES.md](NEW_FEATURES.md) for detailed information about all enhanc
 
 ## Installation
 
-1. Download or clone this repository
-2. Open Blender
-3. Go to `Edit > Preferences > Add-ons`
-4. Click `Install...` button
-5. Navigate to the `__init__.py` file in this repository
-6. Select it and click `Install Add-on`
-7. Enable the add-on by checking the checkbox next to "Desktop Tutorial Integration"
-8. For Fallout 4 NIF export, install the Blender Niftools add-on (see [NIFTOOLS_SETUP.md](NIFTOOLS_SETUP.md) and [TOOLS_SETUP.md](TOOLS_SETUP.md) for automated and manual steps)
+> **Note:** The repository directory name (`Blender-add-on.`) is not a valid Python
+> identifier, so you **must** install via a properly packaged zip — not by pointing
+> Blender at the raw `__init__.py` file from a GitHub download.
+
+### Recommended: prebuilt zip
+
+1. Download **`fallout4_tutorial_helper-v2.1.2.zip`** from the repository (or the
+   GitHub Releases page).
+2. In Blender go to `Edit > Preferences > Add-ons` and click `Install...`.
+3. Select the downloaded zip and click `Install Add-on`.
+4. Enable the add-on by checking the checkbox next to **"Fallout 4 Tutorial Helper"**.
+5. For Fallout 4 NIF export, install the Blender Niftools add-on (see
+   [NIFTOOLS_SETUP.md](NIFTOOLS_SETUP.md) and [TOOLS_SETUP.md](TOOLS_SETUP.md) for
+   automated and manual steps).
+
+### Alternative: build the zip yourself
+
+Clone or download this repository, then from the repository root run:
+```
+python makezip.py
+```
+This creates `fallout4_tutorial_helper-v<version>.zip` with the add-on files inside a
+`fallout4_tutorial_helper/` folder (a valid Python package name). Install that zip as
+described above.
 
 ## Configuration
 
