@@ -196,13 +196,13 @@ class FO4AddonPreferences(bpy.types.AddonPreferences):
 
     auto_install_tools: bpy.props.BoolProperty(
         name="Auto Install Tools",
-        default=False,
+        default=True,
         description="If enabled, missing CLI tools will be downloaded automatically on startup",
     )
 
     auto_install_python: bpy.props.BoolProperty(
         name="Auto Install Python",
-        default=False,
+        default=True,
         description="If enabled, core Python dependencies will be installed on startup",
     )
 

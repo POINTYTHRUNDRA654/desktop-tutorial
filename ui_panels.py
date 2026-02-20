@@ -767,22 +767,6 @@ class FO4_PT_AutomationQuickPanel(Panel):
         info_box.label(text="4. Texture validation")
 
 
-class FO4_PT_BatchProcessingPanel(Panel):
-    """Placeholder batch processing panel to keep registration stable."""
-    bl_label = "Batch Processing"
-    bl_idname = "FO4_PT_batch_processing_panel"
-    bl_space_type = 'VIEW_3D'
-    bl_region_type = 'UI'
-    bl_category = 'Fallout 4'
-    bl_parent_id = "FO4_PT_main_panel"
-    bl_options = {'DEFAULT_CLOSED'}
-
-    def draw(self, context):
-        layout = self.layout
-        box = layout.box()
-        box.label(text="Batch actions coming soon", icon='TIME')
-        box.label(text="You can queue exports once available.")
-
 
 class FO4_PT_Havok2FBXPanel(Panel):
     """Expose Havok2FBX path from add-on preferences."""
@@ -812,30 +796,6 @@ class FO4_PT_Havok2FBXPanel(Panel):
             status_box.label(text=f"Configured: {path}", icon='CHECKMARK')
         else:
             status_box.label(text="Path not found. Set the folder above.", icon='ERROR')
-
-
-class FO4_PT_ExportPanel(Panel):
-    """Export helpers and Havok2FBX status."""
-    bl_label = "Export Helpers"
-    bl_idname = "FO4_PT_export_panel"
-    bl_space_type = 'VIEW_3D'
-    bl_region_type = 'UI'
-    bl_category = 'Fallout 4'
-    bl_parent_id = "FO4_PT_main_panel"
-    bl_options = {'DEFAULT_CLOSED'}
-
-    def draw(self, context):
-        layout = self.layout
-        path = preferences.get_havok2fbx_path()
-
-        box = layout.box()
-        box.label(text="Havok2FBX Path", icon='FILE_FOLDER')
-        box.label(text=path if path else "Not configured", icon='CHECKMARK' if path else 'ERROR')
-
-        info = layout.box()
-        info.label(text="Exports currently route through FBX.", icon='INFO')
-        info.label(text="Use Havok2FBX externally to convert FBX to HKX.")
-
 
 
 class FO4_PT_VegetationPanel(Panel):
@@ -1328,8 +1288,60 @@ class FO4_PT_DesktopTutorialPanel(Panel):
             info_box.label(text="python example_tutorial_server.py")
 
 
+class FO4_PT_SetupPanel(Panel):
+    """First-run setup panel: shows dependency status and one-click install."""
+    bl_label = "Setup & Status"
+    bl_idname = "FO4_PT_setup_panel"
+    bl_space_type = 'VIEW_3D'
+    bl_region_type = 'UI'
+    bl_category = 'Fallout 4'
+    bl_parent_id = "FO4_PT_main_panel"
+
+    def draw(self, context):
+        layout = self.layout
+
+        # ── Core Python dependencies ──────────────────────────────────────
+        box = layout.box()
+        box.label(text="Core Python Dependencies", icon='SCRIPT')
+        core_deps = [
+            ("PIL", "Pillow (image processing)"),
+            ("numpy", "NumPy (math / 3D data)"),
+            ("requests", "Requests (HTTP / downloads)"),
+        ]
+        all_ok = True
+        for mod, label in core_deps:
+            ok = False
+            try:
+                __import__(mod)
+                ok = True
+            except ImportError:
+                pass
+            icon = 'CHECKMARK' if ok else 'ERROR'
+            prefix = "✓" if ok else "✗"
+            box.label(text=f"{prefix}  {label}", icon=icon)
+            if not ok:
+                all_ok = False
+
+        if not all_ok:
+            box.separator()
+            box.label(text="Click below to install missing packages:", icon='INFO')
+            box.operator("fo4.install_python_deps", text="Install Core Dependencies",
+                         icon='PACKAGE')
+            box.separator()
+            box.label(text="Restart Blender after installing.", icon='ERROR')
+        else:
+            box.separator()
+            box.label(text="All core dependencies ready!", icon='CHECKMARK')
+
+        # ── Quick actions ─────────────────────────────────────────────────
+        row = layout.row(align=True)
+        row.operator("fo4.self_test", text="Environment Check", icon='CHECKMARK')
+        row.operator("fo4.install_python_deps", text="Re-install Deps", icon='FILE_REFRESH')
+
+
 classes = (
     FO4_PT_MainPanel,
+    FO4_PT_SetupPanel,
     FO4_PT_MeshPanel,
     FO4_PT_TexturePanel,
     FO4_PT_ImageToMeshPanel,
