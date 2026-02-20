@@ -23,7 +23,7 @@ def read_version() -> str:
 
 def should_skip(rel: pathlib.Path, zip_name: str = "") -> bool:
     """Skip development, cache, and virtual env paths from the ZIP."""
-    skip_roots = {".git"}
+    skip_roots = {".git", ".github"}
     cache_dirs = {"__pycache__", ".mypy_cache", ".pytest_cache", ".idea", ".vscode"}
     if rel.parts and (rel.parts[0] in skip_roots or rel.parts[0].startswith(".venv")):
         return True
