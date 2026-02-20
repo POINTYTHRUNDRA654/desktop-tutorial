@@ -357,7 +357,7 @@ gh repo clone AIGODLIKE/EasyBakeNode
 
 ```bash
 # Windows
-cd %USERPROFILE%\AppData\Roaming\Blender Foundation\blender\%version%\scripts\addons
+cd %USERPROFILE%\\AppData\\Roaming\\Blender Foundation\\blender\\%version%\\scripts\\addons
 git clone https://github.com/AIGODLIKE/ComfyUI-BlenderAI-node.git --recursive
 
 # Linux

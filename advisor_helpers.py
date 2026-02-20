@@ -243,3 +243,11 @@ class AdvisorHelpers:
     def stop_auto_monitor():
         # Timers self-remove when returning None; mark as not registered
         AdvisorHelpers._timer_registered = False
+
+
+def register():
+    pass
+
+
+def unregister():
+    pass

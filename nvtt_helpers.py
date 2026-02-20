@@ -3,6 +3,8 @@ NVIDIA Texture Tools (NVTT) integration helper
 Provides DDS texture conversion functionality for Fallout 4 modding
 """
 
+from __future__ import annotations
+
 import bpy
 import os
 import subprocess

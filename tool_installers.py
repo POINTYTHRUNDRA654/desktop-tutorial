@@ -142,3 +142,11 @@ def install_python_requirements(include_optional: bool = False) -> tuple[bool, s
         return True, "Python dependencies installed"
     except Exception as e:
         return False, f"Failed to install python reqs: {e}"
+
+
+def register():
+    pass
+
+
+def unregister():
+    pass

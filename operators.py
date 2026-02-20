@@ -1939,7 +1939,7 @@ class FO4_OT_SelfTest(Operator):
     bl_label = "Environment Self-Test"
 
     def execute(self, context):
-        import knowledge_helpers, ue_importer_helpers, umodel_tools_helpers, unity_fbx_importer_helpers
+        from . import knowledge_helpers, ue_importer_helpers, umodel_tools_helpers, unity_fbx_importer_helpers
         lines = []
         lines.append("Tool status: " + str(knowledge_helpers.tool_status()))
         lines.append("UE importer: " + str(ue_importer_helpers.status()))

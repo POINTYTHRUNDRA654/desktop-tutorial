@@ -7,6 +7,8 @@ Knowledge helpers for the advisor.
 - Keeps snippets short to avoid large prompts.
 """
 
+from __future__ import annotations
+
 import os
 from pathlib import Path
 
@@ -181,3 +183,11 @@ def tool_status() -> dict:
         status["texconv"] = tx is not None
 
     return status
+
+
+def register():
+    pass
+
+
+def unregister():
+    pass
