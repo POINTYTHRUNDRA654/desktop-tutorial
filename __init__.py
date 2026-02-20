@@ -128,9 +128,10 @@ def register():
         "trimesh": "trimesh",
         "PyPDF2": "PyPDF2",
     }
-    missing = [pip_name for mod, pip_name in _core_packages.items() if _ilu.find_spec(mod) is None]
+    missing = {mod: pip for mod, pip in _core_packages.items() if _ilu.find_spec(mod) is None}
     if missing:
-        print(f"⚠ Missing Python packages: {', '.join(missing)}")
+        missing_desc = ", ".join(f"{pip} (import {mod})" for mod, pip in missing.items())
+        print(f"⚠ Missing Python packages: {missing_desc}")
         print("  Attempting automatic installation from requirements.txt …")
         ok, msg = tool_installers.install_python_requirements(include_optional=False)
         if ok:

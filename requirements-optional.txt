@@ -35,7 +35,20 @@ diffusers>=0.20.0
 # Required by diffusers for model loading / mixed precision
 accelerate>=0.20.0
 
-# Note: For specific AI models, additional installation is needed:
-# - Shap-E: gh repo clone openai/shap-e && cd shap-e && pip install -e .
-# - Point-E: gh repo clone openai/point-e && cd point-e && pip install -e .
-# - Other models: See RECOMMENDED_RESOURCES.md for installation instructions
+# Real-ESRGAN super-resolution (basicsr + realesrgan + their face-enhancement deps)
+basicsr>=1.4.2
+realesrgan>=0.3.0
+facexlib>=0.3.0
+gfpgan>=1.3.8
+
+# libigl mesh-processing library (imported as `igl`, used by RigNet helpers)
+libigl>=2.4.1
+
+# Speech-to-text (installed separately by the "Install Whisper" button but listed here
+# so it can also be pulled in with the optional requirements file)
+openai-whisper>=20231117
+
+# OpenAI Shap-E and Point-E 3D generation models (GitHub-only packages).
+# These are installed from source because they are not published on PyPI.
+shap-e @ git+https://github.com/openai/shap-e.git
+point-e @ git+https://github.com/openai/point-e.git
