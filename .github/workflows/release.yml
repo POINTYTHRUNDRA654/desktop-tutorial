@@ -1,0 +1,49 @@
+name: Build and Release Add-on ZIP
+
+on:
+  push:
+    branches: [main]
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Build add-on ZIP
+        run: python makezip.py
+
+      - name: Upload ZIP as artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: addon-zip
+          path: fallout4_tutorial_helper-v*.zip
+
+      - name: Create GitHub Release (on tag push)
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: fallout4_tutorial_helper-v*.zip
+          body: |
+            ## Installation
+
+            Download `fallout4_tutorial_helper-v*.zip` from the assets below.
+
+            In Blender: **Edit → Preferences → Add-ons → Install…**, select the zip,
+            then enable **"Fallout 4 Tutorial Helper"**.
+
+            > **Do not** install the raw GitHub source ZIP — it contains a folder named
+            > `Blender-add-on.` which is not a valid Python package name and will cause
+            > `No module named 'Blender-add-on'` errors.
