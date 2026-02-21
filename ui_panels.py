@@ -538,7 +538,8 @@ class FO4_PT_ToolsLinks(Panel):
             ("texconv", "texconv"),
         ):
             ok = status.get(key, False)
-            sum_box.label(text=f"{label}: {'Available' if ok else 'Missing'}", icon='CHECKMARK' if ok else 'ERROR')
+            tool_status = "Available" if ok else "Missing"
+            sum_box.label(text=f"{label}: {tool_status}", icon='CHECKMARK' if ok else 'ERROR')
 
         box = layout.box()
         box.label(text="Core", icon='URL')
@@ -615,20 +616,23 @@ class FO4_PT_ToolsLinks(Panel):
         if prefs:
             man_box.prop(prefs, "ffmpeg_path", text="FFmpeg")
             ffmpeg_ok = preferences.get_configured_ffmpeg_path()
+            ffmpeg_status = "OK \u2714" if ffmpeg_ok else "not found"
             man_box.label(
-                text=f"FFmpeg: {'OK ✔' if ffmpeg_ok else 'not found'}",
+                text=f"FFmpeg: {ffmpeg_status}",
                 icon='CHECKMARK' if ffmpeg_ok else 'ERROR',
             )
             man_box.prop(prefs, "nvtt_path", text="nvcompress")
             nvcompress_ok = preferences.get_configured_nvcompress_path()
+            nvcompress_status = "OK \u2714" if nvcompress_ok else "not found"
             man_box.label(
-                text=f"nvcompress: {'OK ✔' if nvcompress_ok else 'not found'}",
+                text=f"nvcompress: {nvcompress_status}",
                 icon='CHECKMARK' if nvcompress_ok else 'ERROR',
             )
             man_box.prop(prefs, "texconv_path", text="texconv")
             texconv_ok = preferences.get_configured_texconv_path()
+            texconv_status = "OK \u2714" if texconv_ok else "not found"
             man_box.label(
-                text=f"texconv: {'OK ✔' if texconv_ok else 'not found'}",
+                text=f"texconv: {texconv_status}",
                 icon='CHECKMARK' if texconv_ok else 'ERROR',
             )
         else:
@@ -650,7 +654,8 @@ class FO4_PT_ExportPanel(Panel):
         status_box = layout.box()
         available, message = export_helpers.ExportHelpers.nif_exporter_available()
         icon = 'CHECKMARK' if available else 'ERROR'
-        status_box.label(text=f"NIF Exporter: {'Available' if available else 'Not detected'}", icon=icon)
+        nif_status = "Available" if available else "Not detected"
+        status_box.label(text=f"NIF Exporter: {nif_status}", icon=icon)
         status_box.label(text=message, icon='INFO')
         if not available:
             status_box.label(text="Fallback: FBX export enabled", icon='EXPORT')
