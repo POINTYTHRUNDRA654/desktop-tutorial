@@ -54,6 +54,8 @@ from . import knowledge_helpers
 from . import ue_importer_helpers
 from . import umodel_tools_helpers
 from . import unity_fbx_importer_helpers
+from . import asset_studio_helpers
+from . import asset_ripper_helpers
 from . import tool_installers
 
 modules = [
@@ -81,6 +83,8 @@ modules = [
     ue_importer_helpers,
     umodel_tools_helpers,
     unity_fbx_importer_helpers,
+    asset_studio_helpers,
+    asset_ripper_helpers,
     tool_installers,
     export_helpers,
     image_to_mesh_helpers,
@@ -154,8 +158,10 @@ def register():
                 bpy.ops.fo4.check_ue_importer()
                 bpy.ops.fo4.check_umodel_tools()
                 bpy.ops.fo4.check_unity_fbx_importer()
+                bpy.ops.fo4.check_asset_studio()
+                bpy.ops.fo4.check_asset_ripper()
                 # attempt auto-download missing repos too
-                from . import ue_importer_helpers, umodel_tools_helpers, unity_fbx_importer_helpers, preferences
+                from . import ue_importer_helpers, umodel_tools_helpers, unity_fbx_importer_helpers, asset_studio_helpers, asset_ripper_helpers, preferences
                 prefs = preferences.get_preferences()
                 if not ue_importer_helpers.status()[0]:
                     ue_importer_helpers.download_latest()
@@ -165,6 +171,10 @@ def register():
                     umodel_tools_helpers.register()
                 if not unity_fbx_importer_helpers.status()[0]:
                     unity_fbx_importer_helpers.download_latest()
+                if not asset_studio_helpers.status()[0]:
+                    asset_studio_helpers.download_latest()
+                if not asset_ripper_helpers.status()[0]:
+                    asset_ripper_helpers.download_latest()
                 # optionally auto-install CLI tools
                 if prefs and getattr(prefs, 'auto_install_tools', False):
                     bpy.ops.fo4.install_all_tools()

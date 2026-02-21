@@ -53,7 +53,7 @@ class NVTTHelpers:
         install_msg = (
             "NVIDIA Texture Tools not found. To install:\n"
             "- Preferred: set nvcompress in add-on preferences (path or folder)\n"
-            "- Or put nvcompress in PATH. Source: gh repo clone castano/nvidia-texture-tools\n"
+            "- Or put nvcompress in PATH. Source: https://github.com/castano/nvidia-texture-tools\n"
             "- Or use DirectXTex texconv (add path in preferences)"
         )
         return False, install_msg

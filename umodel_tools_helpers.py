@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import importlib.util
 import shutil
+import subprocess
 import sys
 import tempfile
 import urllib.request
@@ -28,6 +29,30 @@ _state: dict[str, object | None] = {
 }
 
 
+def _install_deps() -> tuple[bool, str]:
+    """Install Python dependencies required by umodel_tools."""
+
+    req_file = TOOL_DIR / "requirements.txt"
+    try:
+        if req_file.exists():
+            subprocess.check_call(
+                [sys.executable, "-m", "pip", "install", "--quiet", "-r", str(req_file)],
+                timeout=300,
+            )
+        else:
+            subprocess.check_call(
+                [sys.executable, "-m", "pip", "install", "--quiet", "ordered_set", "lark"],
+                timeout=300,
+            )
+        return True, "UModel Tools dependencies installed"
+    except subprocess.TimeoutExpired:
+        return False, "pip install timed out while installing UModel Tools dependencies"
+    except subprocess.CalledProcessError as exc:
+        return False, f"pip install failed (exit code {exc.returncode}) for UModel Tools dependencies"
+    except Exception as exc:  # noqa: BLE001
+        return False, f"Failed to install UModel Tools dependencies: {exc}"
+
+
 def _load_module():
     """Load the upstream umodel_tools package from disk."""
 
@@ -35,6 +60,12 @@ def _load_module():
         _state["status"] = "missing"
         _state["error"] = f"Missing umodel_tools at {TOOL_DIR}"
         return False, _state["error"]
+
+    ok, msg = _install_deps()
+    if not ok:
+        _state["status"] = "error"
+        _state["error"] = msg
+        return False, msg
 
     try:
         spec = importlib.util.spec_from_file_location(
