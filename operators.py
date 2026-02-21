@@ -1792,22 +1792,31 @@ class FO4_OT_InstallFFmpeg(Operator):
     bl_label = "Install FFmpeg"
 
     def execute(self, context):
+        import threading
         from . import tool_installers, preferences
-        ok, msg = tool_installers.install_ffmpeg()
-        level = 'INFO' if ok else 'ERROR'
-        self.report({level}, msg)
-        notification_system.FO4_NotificationSystem.notify(msg, level)
-        print("FFMPEG INSTALL", msg)
-        if ok:
-            # attempt to configure preference to point at downloaded exe
-            prefs = preferences.get_preferences()
-            if prefs:
-                # search for ffmpeg.exe under tools/ffmpeg
+
+        def _run():
+            ok, msg = tool_installers.install_ffmpeg()
+            level = 'INFO' if ok else 'ERROR'
+            print("FFMPEG INSTALL", msg)
+            if ok:
                 from pathlib import Path
                 base = Path(__file__).resolve().parent / "tools" / "ffmpeg"
-                for exe in base.rglob("ffmpeg.exe"):
-                    prefs.ffmpeg_path = str(exe)
-                    break
+                prefs = preferences.get_preferences()
+            else:
+                base = None
+                prefs = None
+
+            def _notify():
+                notification_system.FO4_NotificationSystem.notify(msg, level)
+                if prefs and base:
+                    for exe in base.rglob("ffmpeg.exe"):
+                        prefs.ffmpeg_path = str(exe)
+                        break
+            bpy.app.timers.register(_notify, first_interval=0.0)
+
+        threading.Thread(target=_run, daemon=True).start()
+        self.report({'INFO'}, "FFmpeg installation started in the background. Check the console for progress.")
         return {'FINISHED'}
 
 
@@ -1817,19 +1826,27 @@ class FO4_OT_InstallNVTT(Operator):
     bl_label = "Install NVTT"
 
     def execute(self, context):
+        import threading
         from . import tool_installers, preferences
-        ok, msg = tool_installers.install_nvtt()
-        level = 'INFO' if ok else 'ERROR'
-        self.report({level}, msg)
-        notification_system.FO4_NotificationSystem.notify(msg, level)
-        print("NVTT INSTALL", msg)
-        if ok:
-            prefs = preferences.get_preferences()
-            if prefs:
-                base = Path(__file__).resolve().parent / "tools" / "nvtt"
-                for exe in base.rglob("nvcompress.exe"):
-                    prefs.nvtt_path = str(exe)
-                    break
+
+        def _run():
+            from pathlib import Path
+            ok, msg = tool_installers.install_nvtt()
+            level = 'INFO' if ok else 'ERROR'
+            print("NVTT INSTALL", msg)
+            prefs = preferences.get_preferences() if ok else None
+
+            def _notify():
+                notification_system.FO4_NotificationSystem.notify(msg, level)
+                if prefs:
+                    base = Path(__file__).resolve().parent / "tools" / "nvtt"
+                    for exe in base.rglob("nvcompress.exe"):
+                        prefs.nvtt_path = str(exe)
+                        break
+            bpy.app.timers.register(_notify, first_interval=0.0)
+
+        threading.Thread(target=_run, daemon=True).start()
+        self.report({'INFO'}, "NVTT installation started in the background. Check the console for progress.")
         return {'FINISHED'}
 
 
@@ -1839,19 +1856,27 @@ class FO4_OT_InstallTexconv(Operator):
     bl_label = "Install texconv"
 
     def execute(self, context):
+        import threading
         from . import tool_installers, preferences
-        ok, msg = tool_installers.install_texconv()
-        level = 'INFO' if ok else 'ERROR'
-        self.report({level}, msg)
-        notification_system.FO4_NotificationSystem.notify(msg, level)
-        print("TEXCONV INSTALL", msg)
-        if ok:
-            prefs = preferences.get_preferences()
-            if prefs:
-                base = Path(__file__).resolve().parent / "tools" / "texconv"
-                for exe in base.rglob("texconv.exe"):
-                    prefs.texconv_path = str(exe)
-                    break
+
+        def _run():
+            from pathlib import Path
+            ok, msg = tool_installers.install_texconv()
+            level = 'INFO' if ok else 'ERROR'
+            print("TEXCONV INSTALL", msg)
+            prefs = preferences.get_preferences() if ok else None
+
+            def _notify():
+                notification_system.FO4_NotificationSystem.notify(msg, level)
+                if prefs:
+                    base = Path(__file__).resolve().parent / "tools" / "texconv"
+                    for exe in base.rglob("texconv.exe"):
+                        prefs.texconv_path = str(exe)
+                        break
+            bpy.app.timers.register(_notify, first_interval=0.0)
+
+        threading.Thread(target=_run, daemon=True).start()
+        self.report({'INFO'}, "texconv installation started in the background. Check the console for progress.")
         return {'FINISHED'}
 
 
@@ -1861,12 +1886,20 @@ class FO4_OT_InstallWhisper(Operator):
     bl_label = "Install Whisper"
 
     def execute(self, context):
+        import threading
         from . import tool_installers
-        ok, msg = tool_installers.install_whisper()
-        level = 'INFO' if ok else 'ERROR'
-        self.report({level}, msg)
-        notification_system.FO4_NotificationSystem.notify(msg, level)
-        print("WHISPER INSTALL", msg)
+
+        def _run():
+            ok, msg = tool_installers.install_whisper()
+            level = 'INFO' if ok else 'ERROR'
+            print("WHISPER INSTALL", msg)
+
+            def _notify():
+                notification_system.FO4_NotificationSystem.notify(msg, level)
+            bpy.app.timers.register(_notify, first_interval=0.0)
+
+        threading.Thread(target=_run, daemon=True).start()
+        self.report({'INFO'}, "Whisper installation started in the background. Check the console for progress.")
         return {'FINISHED'}
 
 
@@ -1881,12 +1914,21 @@ class FO4_OT_InstallNiftools(Operator):
     )
 
     def execute(self, context):
+        import threading
         from . import tool_installers
-        ok, msg = tool_installers.install_niftools(self.blender_version)
-        level = 'INFO' if ok else 'ERROR'
-        self.report({level}, msg)
-        notification_system.FO4_NotificationSystem.notify(msg, level)
-        print("NIFTOOLS INSTALL", msg)
+        blender_version = self.blender_version
+
+        def _run():
+            ok, msg = tool_installers.install_niftools(blender_version)
+            level = 'INFO' if ok else 'ERROR'
+            print("NIFTOOLS INSTALL", msg)
+
+            def _notify():
+                notification_system.FO4_NotificationSystem.notify(msg, level)
+            bpy.app.timers.register(_notify, first_interval=0.0)
+
+        threading.Thread(target=_run, daemon=True).start()
+        self.report({'INFO'}, "Niftools installation started in the background. Check the console for progress.")
         return {'FINISHED'}
 
 
@@ -1901,35 +1943,56 @@ class FO4_OT_InstallPythonDeps(Operator):
     )
 
     def execute(self, context):
+        import threading
         from . import tool_installers
-        ok, msg = tool_installers.install_python_requirements(self.optional)
-        level = 'INFO' if ok else 'ERROR'
-        self.report({level}, msg)
-        notification_system.FO4_NotificationSystem.notify(msg, level)
-        print("PYTHON DEPS", msg)
+        optional = self.optional
+
+        def _run():
+            ok, msg = tool_installers.install_python_requirements(optional)
+            level = 'INFO' if ok else 'ERROR'
+            print("PYTHON DEPS", msg)
+
+            def _notify():
+                notification_system.FO4_NotificationSystem.notify(msg, level)
+            bpy.app.timers.register(_notify, first_interval=0.0)
+
+        threading.Thread(target=_run, daemon=True).start()
+        self.report({'INFO'}, "Python dependency installation started in the background. Check the console for progress.")
         return {'FINISHED'}
 
 
 class FO4_OT_RunAllInstallers(Operator):
-    """Run all available installers sequentially."""
+    """Run all available installers in the background."""
     bl_idname = "fo4.install_all_tools"
     bl_label = "Install All Tools"
 
     def execute(self, context):
+        import threading
         from . import tool_installers
-        results = []
-        for func in (
-            tool_installers.install_ffmpeg,
-            tool_installers.install_nvtt,
-            tool_installers.install_texconv,
-            tool_installers.install_whisper,
-        ):
-            ok, msg = func()
-            results.append(msg)
-        summary = "; ".join(results)
-        self.report({'INFO'}, summary)
-        notification_system.FO4_NotificationSystem.notify(summary, 'INFO')
-        print("ALL TOOL INSTALL RESULTS", summary)
+
+        def _run():
+            results = []
+            any_failed = False
+            for func in (
+                tool_installers.install_ffmpeg,
+                tool_installers.install_nvtt,
+                tool_installers.install_texconv,
+                tool_installers.install_whisper,
+            ):
+                ok, msg = func()
+                if not ok:
+                    any_failed = True
+                results.append(msg)
+            summary = "; ".join(results)
+            level = 'ERROR' if any_failed else 'INFO'
+            print("ALL TOOL INSTALL RESULTS", summary)
+
+            def _notify():
+                notification_system.FO4_NotificationSystem.notify(summary, level)
+            bpy.app.timers.register(_notify, first_interval=0.0)
+
+        threading.Thread(target=_run, daemon=True).start()
+        self.report({'INFO'}, "Tool installation started in the background. Check the console for progress.")
         return {'FINISHED'}
 
 
