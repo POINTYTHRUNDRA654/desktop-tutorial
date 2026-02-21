@@ -37,7 +37,7 @@ class FO4_PT_MainPanel(Panel):
             notif_box = layout.box()
             notif_box.label(text="Notifications", icon='INFO')
             for notif in scene.fo4_notifications[-3:]:  # Show last 3
-                notif_box.label(text=notif, icon='DOT')
+                notif_box.label(text=notif.message, icon='DOT')
 
 class FO4_PT_MeshPanel(Panel):
     """Mesh creation helpers panel"""
@@ -606,6 +606,33 @@ class FO4_PT_ToolsLinks(Panel):
         op.optional = True
         box.operator("fo4.install_all_tools", text="Install All Tools", icon='PACKAGE')
         box.operator("fo4.self_test", text="Run Environment Self-Test", icon='CHECKMARK')
+
+        # Manual path override — use existing installations when auto-install fails
+        prefs = preferences.get_preferences()
+        man_box = layout.box()
+        man_box.label(text="Manual Path Override", icon='FILE_FOLDER')
+        man_box.label(text="Already have a tool? Point to it here.", icon='INFO')
+        if prefs:
+            man_box.prop(prefs, "ffmpeg_path", text="FFmpeg")
+            ffmpeg_ok = preferences.get_configured_ffmpeg_path()
+            man_box.label(
+                text=f"FFmpeg: {'OK \u2714' if ffmpeg_ok else 'not found'}",
+                icon='CHECKMARK' if ffmpeg_ok else 'ERROR',
+            )
+            man_box.prop(prefs, "nvtt_path", text="nvcompress")
+            nvcompress_ok = preferences.get_configured_nvcompress_path()
+            man_box.label(
+                text=f"nvcompress: {'OK \u2714' if nvcompress_ok else 'not found'}",
+                icon='CHECKMARK' if nvcompress_ok else 'ERROR',
+            )
+            man_box.prop(prefs, "texconv_path", text="texconv")
+            texconv_ok = preferences.get_configured_texconv_path()
+            man_box.label(
+                text=f"texconv: {'OK \u2714' if texconv_ok else 'not found'}",
+                icon='CHECKMARK' if texconv_ok else 'ERROR',
+            )
+        else:
+            man_box.label(text="Enable the add-on to set paths.", icon='ERROR')
 
 class FO4_PT_ExportPanel(Panel):
     """Export panel for Fallout 4"""
