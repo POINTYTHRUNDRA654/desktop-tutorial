@@ -37,7 +37,7 @@ class FO4_PT_MainPanel(Panel):
             notif_box = layout.box()
             notif_box.label(text="Notifications", icon='INFO')
             for notif in scene.fo4_notifications[-3:]:  # Show last 3
-                notif_box.label(text=notif, icon='DOT')
+                notif_box.label(text=notif.message, icon='DOT')
 
 class FO4_PT_MeshPanel(Panel):
     """Mesh creation helpers panel"""
