@@ -4,7 +4,7 @@ UI Panels for the Fallout 4 Tutorial Add-on
 
 import bpy
 from bpy.types import Panel
-from . import hunyuan3d_helpers, gradio_helpers, hymotion_helpers, nvtt_helpers, rignet_helpers, preferences, ue_importer_helpers, umodel_tools_helpers, unity_fbx_importer_helpers, knowledge_helpers
+from . import hunyuan3d_helpers, gradio_helpers, hymotion_helpers, nvtt_helpers, rignet_helpers, preferences, ue_importer_helpers, umodel_tools_helpers, unity_fbx_importer_helpers, asset_studio_helpers, asset_ripper_helpers, knowledge_helpers
 
 class FO4_PT_MainPanel(Panel):
     """Main tutorial panel in the 3D View sidebar"""
@@ -569,6 +569,18 @@ class FO4_PT_ToolsLinks(Panel):
         box.label(text=f"Repo: {unity_fbx_importer_helpers.repo_path()}", icon='FILE_FOLDER')
         box.label(text=f"Pkg: {unity_fbx_importer_helpers.package_path()}", icon='PACKAGE')
         box.operator("fo4.check_unity_fbx_importer", text="Check/Install Unity FBX Importer", icon='FILE_REFRESH')
+
+        as_ready, as_message = asset_studio_helpers.status()
+        as_icon = 'CHECKMARK' if as_ready else 'ERROR'
+        box.label(text=as_message, icon=as_icon)
+        box.label(text=f"Repo: {asset_studio_helpers.repo_path()}", icon='FILE_FOLDER')
+        box.operator("fo4.check_asset_studio", text="Check/Install AssetStudio", icon='FILE_REFRESH')
+
+        ar_ready, ar_message = asset_ripper_helpers.status()
+        ar_icon = 'CHECKMARK' if ar_ready else 'ERROR'
+        box.label(text=ar_message, icon=ar_icon)
+        box.label(text=f"Repo: {asset_ripper_helpers.repo_path()}", icon='FILE_FOLDER')
+        box.operator("fo4.check_asset_ripper", text="Check/Install AssetRipper", icon='FILE_REFRESH')
 
         box = layout.box()
         box.label(text="Unreal extraction", icon='URL')

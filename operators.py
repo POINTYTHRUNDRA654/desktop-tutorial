@@ -5,7 +5,7 @@ Operators for the Fallout 4 Tutorial Add-on
 import bpy
 from bpy.types import Operator
 from bpy.props import StringProperty, EnumProperty, IntProperty, FloatProperty, BoolProperty
-from . import tutorial_system, mesh_helpers, texture_helpers, animation_helpers, export_helpers, notification_system, image_to_mesh_helpers, hunyuan3d_helpers, gradio_helpers, hymotion_helpers, nvtt_helpers, realesrgan_helpers, get3d_helpers, stylegan2_helpers, instantngp_helpers, imageto3d_helpers, advanced_mesh_helpers, rignet_helpers, motion_generation_helpers, quest_helpers, npc_helpers, world_building_helpers, item_helpers, preset_library, automation_system, desktop_tutorial_client, shap_e_helpers, point_e_helpers, advisor_helpers, ue_importer_helpers, umodel_tools_helpers, unity_fbx_importer_helpers
+from . import tutorial_system, mesh_helpers, texture_helpers, animation_helpers, export_helpers, notification_system, image_to_mesh_helpers, hunyuan3d_helpers, gradio_helpers, hymotion_helpers, nvtt_helpers, realesrgan_helpers, get3d_helpers, stylegan2_helpers, instantngp_helpers, imageto3d_helpers, advanced_mesh_helpers, rignet_helpers, motion_generation_helpers, quest_helpers, npc_helpers, world_building_helpers, item_helpers, preset_library, automation_system, desktop_tutorial_client, shap_e_helpers, point_e_helpers, advisor_helpers, ue_importer_helpers, umodel_tools_helpers, unity_fbx_importer_helpers, asset_studio_helpers, asset_ripper_helpers
 from . import knowledge_helpers
 
 # Tutorial Operators
@@ -1785,6 +1785,56 @@ class FO4_OT_CheckUnityFBXImporter(Operator):
         return {'FINISHED'}
 
 
+class FO4_OT_CheckAssetStudio(Operator):
+    """Check and (if missing) download AssetStudio repo."""
+    bl_idname = "fo4.check_asset_studio"
+    bl_label = "Check AssetStudio"
+
+    def execute(self, context):
+        ready, message = asset_studio_helpers.status()
+        actions = []
+
+        if not ready:
+            ok, msg = asset_studio_helpers.download_latest()
+            actions.append(msg)
+            ready, message = asset_studio_helpers.status()
+
+        status_lines = [message] + actions
+        status_text = "; ".join([s for s in status_lines if s])
+        level = 'INFO' if ready else 'ERROR'
+        self.report({level}, status_text)
+        notification_system.FO4_NotificationSystem.notify(status_text, level)
+        print("ASSET STUDIO STATUS")
+        print(status_text)
+        print(f"Repo: {asset_studio_helpers.repo_path()}")
+        return {'FINISHED'}
+
+
+class FO4_OT_CheckAssetRipper(Operator):
+    """Check and (if missing) download AssetRipper repo."""
+    bl_idname = "fo4.check_asset_ripper"
+    bl_label = "Check AssetRipper"
+
+    def execute(self, context):
+        ready, message = asset_ripper_helpers.status()
+        actions = []
+
+        if not ready:
+            ok, msg = asset_ripper_helpers.download_latest()
+            actions.append(msg)
+            ready, message = asset_ripper_helpers.status()
+
+        status_lines = [message] + actions
+        status_text = "; ".join([s for s in status_lines if s])
+        level = 'INFO' if ready else 'ERROR'
+        self.report({level}, status_text)
+        notification_system.FO4_NotificationSystem.notify(status_text, level)
+        print("ASSET RIPPER STATUS")
+        print(status_text)
+        print(f"Repo: {asset_ripper_helpers.repo_path()}")
+        return {'FINISHED'}
+
+
 # Installation Operators ----------------------------------------------------
 class FO4_OT_InstallFFmpeg(Operator):
     """Download and install FFmpeg to the workspace."""
@@ -2002,12 +2052,14 @@ class FO4_OT_SelfTest(Operator):
     bl_label = "Environment Self-Test"
 
     def execute(self, context):
-        from . import knowledge_helpers, ue_importer_helpers, umodel_tools_helpers, unity_fbx_importer_helpers
+        from . import knowledge_helpers, ue_importer_helpers, umodel_tools_helpers, unity_fbx_importer_helpers, asset_studio_helpers, asset_ripper_helpers
         lines = []
         lines.append("Tool status: " + str(knowledge_helpers.tool_status()))
         lines.append("UE importer: " + str(ue_importer_helpers.status()))
         lines.append("UModel Tools: " + str(umodel_tools_helpers.status()))
         lines.append("Unity FBX importer: " + str(unity_fbx_importer_helpers.status()))
+        lines.append("AssetStudio: " + str(asset_studio_helpers.status()))
+        lines.append("AssetRipper: " + str(asset_ripper_helpers.status()))
         summary = "\n".join(lines)
         print("=== ENVIRONMENT SELF-TEST ===")
         print(summary)
@@ -6522,6 +6574,8 @@ classes = (
     FO4_OT_CheckUEImporter,
     FO4_OT_CheckUModelTools,
     FO4_OT_CheckUnityFBXImporter,
+    FO4_OT_CheckAssetStudio,
+    FO4_OT_CheckAssetRipper,
     FO4_OT_InstallFFmpeg,
     FO4_OT_InstallNVTT,
     FO4_OT_InstallTexconv,
