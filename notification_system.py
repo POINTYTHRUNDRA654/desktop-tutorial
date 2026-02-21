@@ -17,18 +17,27 @@ class FO4_NotificationSystem:
     @staticmethod
     def notify(message, notification_type='INFO'):
         """Add a notification to the system"""
-        scene = bpy.context.scene
-        
-        # Initialize notifications list if it doesn't exist
+        try:
+            scene = bpy.context.scene
+        except AttributeError:
+            print(f"[FO4 Notifications] {notification_type}: {message}")
+            return
+
+        # fo4_notifications must be a registered CollectionProperty.  If it is
+        # missing (e.g. registration failed) fall back gracefully.
         if not hasattr(scene, 'fo4_notifications'):
-            scene.fo4_notifications = []
-        
-        # Add notification
-        scene.fo4_notifications.append(f"[{notification_type}] {message}")
-        
-        # Keep only last 10 notifications
-        if len(scene.fo4_notifications) > 10:
-            scene.fo4_notifications = scene.fo4_notifications[-10:]
+            print(f"[FO4 Notifications] fo4_notifications not registered — {notification_type}: {message}")
+            return
+
+        # Add notification item in-place (CollectionProperty does not support
+        # direct slice assignment; use add() / remove() instead).
+        item = scene.fo4_notifications.add()
+        item.message = f"[{notification_type}] {message}"
+        item.notification_type = notification_type
+
+        # Keep only the last 10 notifications by removing oldest entries
+        while len(scene.fo4_notifications) > 10:
+            scene.fo4_notifications.remove(0)
         
         # Also show in Blender's UI
         if notification_type == 'ERROR':
@@ -96,9 +105,11 @@ class FO4_NotificationSystem:
 
 def register():
     """Register notification classes"""
-    bpy.types.Scene.fo4_notifications = []
+    bpy.utils.register_class(FO4_NotificationItem)
+    bpy.types.Scene.fo4_notifications = CollectionProperty(type=FO4_NotificationItem)
 
 def unregister():
     """Unregister notification classes"""
     if hasattr(bpy.types.Scene, 'fo4_notifications'):
         del bpy.types.Scene.fo4_notifications
+    bpy.utils.unregister_class(FO4_NotificationItem)
