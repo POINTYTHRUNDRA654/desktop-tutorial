@@ -616,19 +616,19 @@ class FO4_PT_ToolsLinks(Panel):
             man_box.prop(prefs, "ffmpeg_path", text="FFmpeg")
             ffmpeg_ok = preferences.get_configured_ffmpeg_path()
             man_box.label(
-                text=f"FFmpeg: {'OK \u2714' if ffmpeg_ok else 'not found'}",
+                text=f"FFmpeg: {'OK ✔' if ffmpeg_ok else 'not found'}",
                 icon='CHECKMARK' if ffmpeg_ok else 'ERROR',
             )
             man_box.prop(prefs, "nvtt_path", text="nvcompress")
             nvcompress_ok = preferences.get_configured_nvcompress_path()
             man_box.label(
-                text=f"nvcompress: {'OK \u2714' if nvcompress_ok else 'not found'}",
+                text=f"nvcompress: {'OK ✔' if nvcompress_ok else 'not found'}",
                 icon='CHECKMARK' if nvcompress_ok else 'ERROR',
             )
             man_box.prop(prefs, "texconv_path", text="texconv")
             texconv_ok = preferences.get_configured_texconv_path()
             man_box.label(
-                text=f"texconv: {'OK \u2714' if texconv_ok else 'not found'}",
+                text=f"texconv: {'OK ✔' if texconv_ok else 'not found'}",
                 icon='CHECKMARK' if texconv_ok else 'ERROR',
             )
         else:
