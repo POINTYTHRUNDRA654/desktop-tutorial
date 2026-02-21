@@ -31,9 +31,9 @@ try:
     # Try to import the necessary dependencies
     import torch
     TORCH_AVAILABLE = True
-except ImportError:
+except (ImportError, RuntimeError, OSError):
     TORCH_AVAILABLE = False
-    ZOEDEPTH_ERROR = "PyTorch not installed"
+    ZOEDEPTH_ERROR = "PyTorch not available (import failed)"
 
 # We don't actually import ZoeDepth here to keep the add-on lightweight
 # It will be imported dynamically when needed
