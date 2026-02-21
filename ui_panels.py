@@ -4,7 +4,7 @@ UI Panels for the Fallout 4 Tutorial Add-on
 
 import bpy
 from bpy.types import Panel
-from . import hunyuan3d_helpers, gradio_helpers, hymotion_helpers, nvtt_helpers, rignet_helpers, preferences, ue_importer_helpers, umodel_tools_helpers, unity_fbx_importer_helpers, asset_studio_helpers, asset_ripper_helpers, knowledge_helpers
+from . import hunyuan3d_helpers, gradio_helpers, hymotion_helpers, nvtt_helpers, rignet_helpers, preferences, ue_importer_helpers, umodel_tools_helpers, unity_fbx_importer_helpers, asset_studio_helpers, asset_ripper_helpers, knowledge_helpers, export_helpers
 
 class FO4_PT_MainPanel(Panel):
     """Main tutorial panel in the 3D View sidebar"""
