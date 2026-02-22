@@ -166,44 +166,38 @@ export const AIAssistant: React.FC = () => {
    * Handle code generation
    */
   const handleCodeGeneration = async (description: string) => {
-    try {
-      const result = await window.electronAPI.aiGenerateScript({
+    const result = await window.electronAPI.aiGenerateScript({
+      description,
+      language: codeGenSession?.language || 'papyrus',
+      context: { projectType: 'Fallout4 mod' },
+      style: 'commented',
+    });
+
+    if (result.success && result.scripts && result.scripts.length > 0) {
+      const script = result.scripts[0];
+      
+      setCodeGenSession(prev => ({
+        ...prev!,
+        id: `session_${Date.now()}`,
+        language: result.scripts[0].language as any,
         description,
-        language: codeGenSession?.language || 'papyrus',
-        context: { projectType: 'Fallout4 mod' },
-        style: 'commented',
-      });
+        generatedCode: script.code,
+        history: [
+          ...(prev?.history || []),
+          { code: script.code, timestamp: Date.now() },
+        ],
+      }));
 
-      if (result.success && result.scripts && result.scripts.length > 0) {
-        const script = result.scripts[0];
-        
-        // Update session
-        setCodeGenSession(prev => ({
-          ...prev!,
-          id: `session_${Date.now()}`,
-          language: result.scripts[0].language as any,
-          description,
-          generatedCode: script.code,
-          history: [
-            ...(prev?.history || []),
-            { code: script.code, timestamp: Date.now() },
-          ],
-        }));
-
-        // Add assistant response
-        const response: ChatMessage = {
-          id: `msg_${Date.now()}`,
-          role: 'assistant',
-          content: `I've generated ${script.language} code for you. Check the code preview panel below. ${
-            script.warnings?.length ? `\n\nWarnings: ${script.warnings.join(', ')}` : ''
-          }`,
-          timestamp: Date.now(),
-          metadata: { codeId: script.code.substring(0, 50) },
-        };
-        setChatHistory(prev => [...prev, response]);
-      }
-    } catch (error) {
-      throw error;
+      const response: ChatMessage = {
+        id: `msg_${Date.now()}`,
+        role: 'assistant',
+        content: `I've generated ${script.language} code for you. Check the code preview panel below. ${
+          script.warnings?.length ? `\n\nWarnings: ${script.warnings.join(', ')}` : ''
+        }`,
+        timestamp: Date.now(),
+        metadata: { codeId: script.code.substring(0, 50) },
+      };
+      setChatHistory(prev => [...prev, response]);
     }
   };
 
@@ -211,36 +205,32 @@ export const AIAssistant: React.FC = () => {
    * Handle workflow planning
    */
   const handleWorkflowPlanning = async (goal: string) => {
-    try {
-      const result = await window.electronAPI.aiPlanWorkflow({
-        description: goal,
-        goal,
-        timeEstimate: 'medium',
-      });
+    const result = await window.electronAPI.aiPlanWorkflow({
+      description: goal,
+      goal,
+      timeEstimate: 'medium',
+    });
 
     if (result.success && result.plan) {
-        setWorkflowSession({
-          id: `workflow_${Date.now()}`,
-          goal,
-          steps: result.plan.steps || [],
-          currentStep: 0,
-          isExecuting: false,
-          progress: 0,
-        });
+      setWorkflowSession({
+        id: `workflow_${Date.now()}`,
+        goal,
+        steps: result.plan.steps || [],
+        currentStep: 0,
+        isExecuting: false,
+        progress: 0,
+      });
 
-        const response: ChatMessage = {
-          id: `msg_${Date.now()}`,
-          role: 'assistant',
-          content: `I've created a workflow with ${result.plan.steps?.length || 0} steps. Total estimated time: ${
-            result.plan.totalEstimatedTime
-          } minutes. Review it in the workflow panel and click "Execute" to begin.`,
-          timestamp: Date.now(),
-          metadata: { workflowId: result.plan.id },
-        };
-        setChatHistory(prev => [...prev, response]);
-      }
-    } catch (error) {
-      throw error;
+      const response: ChatMessage = {
+        id: `msg_${Date.now()}`,
+        role: 'assistant',
+        content: `I've created a workflow with ${result.plan.steps?.length || 0} steps. Total estimated time: ${
+          result.plan.totalEstimatedTime
+        } minutes. Review it in the workflow panel and click "Execute" to begin.`,
+        timestamp: Date.now(),
+        metadata: { workflowId: result.plan.id },
+      };
+      setChatHistory(prev => [...prev, response]);
     }
   };
 
@@ -248,29 +238,25 @@ export const AIAssistant: React.FC = () => {
    * Handle error diagnosis
    */
   const handleErrorDiagnosis = async (errorDescription: string) => {
-    try {
-      const result = await window.electronAPI.aiDiagnoseError({
-        errorMessage: errorDescription,
-      });
+    const result = await window.electronAPI.aiDiagnoseError({
+      errorMessage: errorDescription,
+    });
 
-      if (result.success && result.diagnosis) {
-        const diagnosis = result.diagnosis;
-        
-        const response: ChatMessage = {
-          id: `msg_${Date.now()}`,
-          role: 'assistant',
-          content: `**Root Cause:** ${diagnosis.rootCause}\n\n**Severity:** ${diagnosis.severity}\n\n**Explanation:** ${
-            diagnosis.explanation
-          }\n\nTry these fixes:\n${diagnosis.possibleFixes
-            ?.map((fix, i) => `${i + 1}. ${fix.fix} (Difficulty: ${fix.difficulty})`)
-            .join('\n')}`,
-          timestamp: Date.now(),
-          metadata: { diagnosisId: diagnosis.errorType },
-        };
-        setChatHistory(prev => [...prev, response]);
-      }
-    } catch (error) {
-      throw error;
+    if (result.success && result.diagnosis) {
+      const diagnosis = result.diagnosis;
+      
+      const response: ChatMessage = {
+        id: `msg_${Date.now()}`,
+        role: 'assistant',
+        content: `**Root Cause:** ${diagnosis.rootCause}\n\n**Severity:** ${diagnosis.severity}\n\n**Explanation:** ${
+          diagnosis.explanation
+        }\n\nTry these fixes:\n${diagnosis.possibleFixes
+          ?.map((fix, i) => `${i + 1}. ${fix.fix} (Difficulty: ${fix.difficulty})`)
+          .join('\n')}`,
+        timestamp: Date.now(),
+        metadata: { diagnosisId: diagnosis.errorType },
+      };
+      setChatHistory(prev => [...prev, response]);
     }
   };
 
@@ -278,29 +264,25 @@ export const AIAssistant: React.FC = () => {
    * Handle learning requests
    */
   const handleLearning = async (topic: string) => {
-    try {
-      const result = await window.electronAPI.aiExplain({
-        concept: topic,
-        skillLevel: 'intermediate',
-        includeExamples: true,
-      });
+    const result = await window.electronAPI.aiExplain({
+      concept: topic,
+      skillLevel: 'intermediate',
+      includeExamples: true,
+    });
 
-      if (result.success && result.explanation) {
-        const explanation = result.explanation;
-        
-        const response: ChatMessage = {
-          id: `msg_${Date.now()}`,
-          role: 'assistant',
-          content: `**${explanation.title}**\n\n${explanation.summary}\n\n**Key Points:**\n${explanation.keyPoints
-            ?.map((p: string) => `• ${p}`)
-            .join('\n')}\n\nWant more details? Ask follow-up questions!`,
-          timestamp: Date.now(),
-          metadata: { explanationId: topic },
-        };
-        setChatHistory(prev => [...prev, response]);
-      }
-    } catch (error) {
-      throw error;
+    if (result.success && result.explanation) {
+      const explanation = result.explanation;
+      
+      const response: ChatMessage = {
+        id: `msg_${Date.now()}`,
+        role: 'assistant',
+        content: `**${explanation.title}**\n\n${explanation.summary}\n\n**Key Points:**\n${explanation.keyPoints
+          ?.map((p: string) => `• ${p}`)
+          .join('\n')}\n\nWant more details? Ask follow-up questions!`,
+        timestamp: Date.now(),
+        metadata: { explanationId: topic },
+      };
+      setChatHistory(prev => [...prev, response]);
     }
   };
 
@@ -308,37 +290,33 @@ export const AIAssistant: React.FC = () => {
    * Handle asset organization
    */
   const handleAssetOrganization = async (assetDescription: string) => {
-    try {
-      const result = await window.electronAPI.aiSuggestNames({
-        type: 'texture',
-        description: assetDescription,
-        enforceLdFormat: true,
-      });
+    const result = await window.electronAPI.aiSuggestNames({
+      type: 'texture',
+      description: assetDescription,
+      enforceLdFormat: true,
+    });
 
-      if (result.success && result.suggestions) {
-        const operations: AssetRenameOperation[] = result.suggestions.map(
-          (suggestion, idx) => ({
-            oldName: `asset_${idx}`,
-            newName: suggestion.name,
-            type: 'texture',
-            reason: suggestion.explanation,
-            applied: false,
-          })
-        );
-        
-        setAssetOperations(operations);
+    if (result.success && result.suggestions) {
+      const operations: AssetRenameOperation[] = result.suggestions.map(
+        (suggestion, idx) => ({
+          oldName: `asset_${idx}`,
+          newName: suggestion.name,
+          type: 'texture',
+          reason: suggestion.explanation,
+          applied: false,
+        })
+      );
+      
+      setAssetOperations(operations);
 
-        const response: ChatMessage = {
-          id: `msg_${Date.now()}`,
-          role: 'assistant',
-          content: `Suggested ${operations.length} naming options. Review them in the Asset Organizer panel. The top suggestion follows LD naming conventions.`,
-          timestamp: Date.now(),
-          metadata: { operationCount: operations.length },
-        };
-        setChatHistory(prev => [...prev, response]);
-      }
-    } catch (error) {
-      throw error;
+      const response: ChatMessage = {
+        id: `msg_${Date.now()}`,
+        role: 'assistant',
+        content: `Suggested ${operations.length} naming options. Review them in the Asset Organizer panel. The top suggestion follows LD naming conventions.`,
+        timestamp: Date.now(),
+        metadata: { operationCount: operations.length },
+      };
+      setChatHistory(prev => [...prev, response]);
     }
   };
 
@@ -346,23 +324,19 @@ export const AIAssistant: React.FC = () => {
    * Handle general queries
    */
   const handleGeneralQuery = async (query: string) => {
-    try {
-      const result = await window.electronAPI.aiExplain({
-        concept: query,
-        includeExamples: true,
-      });
+    const result = await window.electronAPI.aiExplain({
+      concept: query,
+      includeExamples: true,
+    });
 
     if (result.success && result.explanation) {
       const response: ChatMessage = {
         id: `msg_${Date.now()}`,
         role: 'assistant',
-          content: result.explanation.fullExplanation,
-          timestamp: Date.now(),
-        };
-        setChatHistory(prev => [...prev, response]);
-      }
-    } catch (error) {
-      throw error;
+        content: result.explanation.fullExplanation,
+        timestamp: Date.now(),
+      };
+      setChatHistory(prev => [...prev, response]);
     }
   };
 
