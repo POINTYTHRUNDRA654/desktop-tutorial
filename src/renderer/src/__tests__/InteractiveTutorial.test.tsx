@@ -69,7 +69,7 @@ describe('InteractiveTutorial layout & navigation', () => {
   it('uses a smaller visual guide height for AI (chat) and startup (first-success) pages', async () => {
     // Determine the numeric step indices for the pages we want to assert
     const ordered = getOrderedTutorialContexts(tutorialContexts);
-    const chatStep = 1 + ordered.findIndex((c) => c.pageId === 'chat'); // +1 for the initial welcome step
+    const chatStep = 1 + ordered.findIndex((c) => c.pageId === 'ai-chat'); // +1 for the initial welcome step
     const firstSuccessStep = 1 + ordered.findIndex((c) => c.pageId === 'first-success');
 
     // Render the tutorial directly at the AI Chat step by restoring saved progress

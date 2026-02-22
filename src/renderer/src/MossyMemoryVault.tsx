@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Book, Upload, Trash2, Search, Brain, FileText, CheckCircle2, Loader2, Sparkles, Database, Plus, X, Activity, Cloud, Files, Download, Share2, Github, Bell, PackageOpen, RefreshCw } from 'lucide-react';
+import { Book, Upload, Trash2, Search, Brain, FileText, CheckCircle2, Loader2, Sparkles, Database, Plus, X, Activity, Cloud, Files, Download, Share2, Github, Bell, PackageOpen, RefreshCw, Box } from 'lucide-react';
 import { LocalAIEngine } from './LocalAIEngine';
 import { ToolsInstallVerifyPanel } from './components/ToolsInstallVerifyPanel';
 import { useWheelScrollProxy } from './components/useWheelScrollProxy';
@@ -987,6 +987,26 @@ const MossyMemoryVault: React.FC<MossyMemoryVaultProps> = ({ embedded = false })
                       >
                         <Download className="w-4 h-4" />
                         Export All
+                      </button>
+
+                      <button
+                        onClick={() => {
+                          setNewTitle('');
+                          setNewContent('');
+                          setNewTags('blender-addon, blender, fallout-4');
+                          setNewSource('');
+                          setNewCreditName('');
+                          setNewCreditUrl('');
+                          setNewTrustLevel('personal');
+                          setUploadError('');
+                          setShowUploadModal(true);
+                        }}
+                        className="flex items-center gap-2 px-4 py-2 bg-blue-700 hover:bg-blue-600 text-white rounded-lg transition-all shadow-lg shadow-blue-900/20 text-sm font-bold"
+                        title="Paste a 3rd-party Blender add-on tutorial so Mossy can guide you in Blender"
+                      >
+                        <Box className="w-4 h-4" />
+                        <span className="hidden sm:inline">Blender Add-on Tutorial</span>
+                        <span className="sm:hidden">Blender</span>
                       </button>
 
                       <button

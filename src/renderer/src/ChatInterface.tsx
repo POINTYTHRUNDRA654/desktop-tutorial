@@ -15,7 +15,7 @@ import { useActivityMonitor } from './hooks/useActivityMonitor';
 import { SuggestionPanel } from './components/SuggestionPanel';
 import { ToolsInstallVerifyPanel } from './components/ToolsInstallVerifyPanel';
 import { SelfImprovementPanel } from './components/SelfImprovementPanel';
-import { buildKnowledgeManifestForModel, buildRelevantKnowledgeVaultContext, KnowledgeCitation } from './knowledgeRetrieval';
+import { buildKnowledgeManifestForModel, buildRelevantKnowledgeVaultContext, buildBlenderAddonContext, KnowledgeCitation } from './knowledgeRetrieval';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { autoSaveManager } from './AutoSaveManager';
 import { useAnalytics } from './utils/analytics';
@@ -1278,9 +1278,12 @@ export const ChatInterface: React.FC = () => {
       }
       
       const bridgeStatus = isBridgeActive ? "ONLINE" : "OFFLINE";
-      const blenderContext = isBlenderLinked 
-          ? "**BLENDER LINK: ACTIVE (v4.0 Clipboard Relay)**\nYou can execute Python scripts in Blender.\nIMPORTANT: Tell the user they MUST click the 'Run Command' button that appears in the chat to execute the script." 
-          : "**BLENDER LINK: OFFLINE**\n(If the user asks to control Blender, tell them to go to the Desktop Bridge and install the 'Mossy Link v4.0' add-on first.)";
+      const blenderAddonKnowledge = isBlenderLinked
+          ? (() => { try { return buildBlenderAddonContext(); } catch { return ''; } })()
+          : '';
+      const blenderContext = isBlenderLinked
+          ? `**BLENDER LINK: ACTIVE (Mossy Link v6 — Fallout 4 Edition)**\nYou are co-piloting the user's Blender session. You can see their scene context, execute Python scripts, and run FO4 automation presets.\nIMPORTANT: Tell the user they MUST click the 'Run Command' button that appears in the chat to execute any script.${blenderAddonKnowledge ? '\n' + blenderAddonKnowledge : ''}`
+          : "**BLENDER LINK: OFFLINE**\n(If the user asks to control Blender, tell them to go to the Desktop Bridge and install the 'Mossy Link v6' add-on first.)";
       const toolAck = localStorage.getItem('mossy_tool_connection_ack') === 'true';
       const toolAckLine = `**Tool Connection Notice:** ${toolAck ? 'ACKNOWLEDGED (do not repeat unless asked)' : 'NOT ACKNOWLEDGED'}`;
       const monitoringLine = `**Monitoring Status:** ${isMonitoringPaused ? 'PAUSED' : 'ACTIVE'}`;
