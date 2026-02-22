@@ -55,7 +55,7 @@ All variations will work!
   NVIDIA Canvas <span className="text-slate-500 text-xs">(Vita Canvas)</span>
 </div>
 <span className="text-[11px] text-slate-400">
-  AI-powered landscape painting - Look for NVIDIACanvas.exe
+  AI-powered landscape painting - Look for Canvas.exe (some builds use NVIDIACanvas.exe)
 </span>
 ```
 
@@ -76,7 +76,7 @@ placeholder="C:\\Path\\To\\Canvas.exe"
 
 **After**:
 ```tsx
-placeholder="C:\\Program Files\\NVIDIA Corporation\\NVIDIA Canvas\\NVIDIACanvas.exe"
+placeholder="D:\\Program Files\\NVIDIA Corporation\\NVIDIA Canvas\\Canvas.exe"
 ```
 
 **Impact**: Shows the actual default installation path
@@ -95,9 +95,12 @@ async function findSpecialPrograms(): Promise<InstalledProgram[]> {
   const specialPaths = [
     {
       paths: [
-        'C:\\Program Files\\NVIDIA Corporation\\NVIDIA Canvas\\NVIDIACanvas.exe',
-        'C:\\Program Files (x86)\\NVIDIA Corporation\\NVIDIA Canvas\\NVIDIACanvas.exe',
-        'C:\\Program Files\\NVIDIA\\Canvas\\NVIDIACanvas.exe',
+          'D\\Program Files\\NVIDIA Corporation\\NVIDIA Canvas\\Canvas.exe',
+          'D\\Program Files (x86)\\NVIDIA Corporation\\NVIDIA Canvas\\Canvas.exe',
+          'D\\Program Files\\NVIDIA\\Canvas\\Canvas.exe',
+          'D\\Program Files\\NVIDIA Corporation\\NVIDIA Canvas\\NVIDIACanvas.exe',
+          'D\\Program Files (x86)\\NVIDIA Corporation\\NVIDIA Canvas\\NVIDIACanvas.exe',
+          'D\\Program Files\\NVIDIA\\Canvas\\NVIDIACanvas.exe',
       ],
       displayName: 'NVIDIA Canvas (Vita)',
       name: 'NVIDIACanvas'
@@ -132,12 +135,13 @@ NVIDIA Canvas requires:
 • Installed from: https://www.nvidia.com/en-us/studio/canvas/
 
 Default install location:
-C:\\Program Files\\NVIDIA Corporation\\NVIDIA Canvas\\NVIDIACanvas.exe
+Default install location:
+D:\\Program Files\\NVIDIA Corporation\\NVIDIA Canvas\\Canvas.exe (some builds use NVIDIACanvas.exe)
 
 **To configure manually:**
 1. Go to External Tools settings (⚙️)
 2. Find "NVIDIA Canvas (Vita Canvas)"
-3. Click Browse and select NVIDIACanvas.exe
+3. Click Browse and select Canvas.exe (or NVIDIACanvas.exe)
 4. Click Save Settings
 
 **Not installed?** Download from NVIDIA's website (requires RTX GPU).
@@ -175,7 +179,7 @@ To verify the fix works:
 - [ ] Open External Tools settings
 - [ ] Check if "NVIDIA Canvas (Vita Canvas)" shows the clarified name
 - [ ] Check if placeholder shows correct path
-- [ ] Browse for NVIDIACanvas.exe
+- [ ] Browse for Canvas.exe
 - [ ] Save settings
 - [ ] Test launch using "Test Launch" button
 - [ ] Ask Mossy to "Open Canvas"
@@ -193,8 +197,8 @@ To verify the fix works:
 2. Go to **Settings** (⚙️ gear icon)
 3. Scroll to **"NVIDIA Canvas (Vita Canvas)"**
 4. Click **"Browse"**
-5. Navigate to: `C:\Program Files\NVIDIA Corporation\NVIDIA Canvas\`
-6. Select: `NVIDIACanvas.exe`
+5. Navigate to: `D:\Program Files\NVIDIA Corporation\NVIDIA Canvas\`
+6. Select: `Canvas.exe` (or `NVIDIACanvas.exe`)
 7. Click **"Save Settings"**
 8. Test with **"Test Launch"**
 

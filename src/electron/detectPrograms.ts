@@ -470,9 +470,18 @@ async function findSpecialPrograms(): Promise<InstalledProgram[]> {
     // NVIDIA Canvas (Vita Canvas)
     {
       paths: [
-        'C:\\Program Files\\NVIDIA Corporation\\NVIDIA Canvas\\NVIDIACanvas.exe',
-        'C:\\Program Files (x86)\\NVIDIA Corporation\\NVIDIA Canvas\\NVIDIACanvas.exe',
-        'C:\\Program Files\\NVIDIA\\Canvas\\NVIDIACanvas.exe',
+        'D\\Program Files\\NVIDIA Corporation\\NVIDIA Canvas\\Canvas.exe',
+        'D\\Program Files (x86)\\NVIDIA Corporation\\NVIDIA Canvas\\Canvas.exe',
+        'D\\Program Files\\NVIDIA\\Canvas\\Canvas.exe',
+        'D:\\Program Files\\NVIDIA Corporation\\NVIDIA Canvas\\NVIDIACanvas.exe',
+        'D:\\Program Files (x86)\\NVIDIA Corporation\\NVIDIA Canvas\\NVIDIACanvas.exe',
+        'D:\\Program Files\\NVIDIA\\Canvas\\NVIDIACanvas.exe',
+        'C\\Program Files\\NVIDIA Corporation\\NVIDIA Canvas\\Canvas.exe',
+        'C\\Program Files (x86)\\NVIDIA Corporation\\NVIDIA Canvas\\Canvas.exe',
+        'C\\Program Files\\NVIDIA\\Canvas\\Canvas.exe',
+        'C\\Program Files\\NVIDIA Corporation\\NVIDIA Canvas\\NVIDIACanvas.exe',
+        'C\\Program Files (x86)\\NVIDIA Corporation\\NVIDIA Canvas\\NVIDIACanvas.exe',
+        'C\\Program Files\\NVIDIA\\Canvas\\NVIDIACanvas.exe',
       ],
       displayName: 'NVIDIA Canvas (Vita)',
       name: 'NVIDIACanvas'
@@ -480,6 +489,8 @@ async function findSpecialPrograms(): Promise<InstalledProgram[]> {
     // NVIDIA Omniverse
     {
       paths: [
+        'D:\\Program Files\\omniverse-launcher\\omniverse-launcher.exe',
+        'D:\\Program Files\\NVIDIA Corporation\\Omniverse\\Launcher\\omniverse-launcher.exe',
         'C:\\Program Files\\NVIDIA Corporation\\Omniverse\\Launcher\\omniverse-launcher.exe',
         'C:\\Users\\Public\\NVIDIA\\Omniverse\\Launcher\\omniverse-launcher.exe',
       ],
