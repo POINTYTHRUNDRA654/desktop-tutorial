@@ -67,6 +67,17 @@ const expandAliasKeywords = (rawQuery: string): string[] => {
     extras.push('patch', 'conflict', 'load order', 'mo2', 'vortex', 'xedit');
   }
 
+  // Blender add-on / plugin topics
+  if (/(\bblender\b|\b3d\s*model\b|\bblend\s*file\b|\bblend\b|\bnif\s*(tools|plugin)\b|\bio_scene_nif\b|\bblender[\s_-]?addon\b|\bblender[\s_-]?plugin\b)/i.test(rawQuery)) {
+    extras.push('blender', 'blender-addon', '3d modeling', 'mesh', 'nif');
+  }
+
+  // Third-party Blender add-on look-up (e.g. "how do I use RigifyPlus in Blender")
+  if (/(\badd[\s-]?on\b|\bplugin\b|\bextension\b)/i.test(rawQuery) &&
+      /\bblender\b/i.test(rawQuery)) {
+    extras.push('blender-addon', 'blender', 'third-party');
+  }
+
   return extras;
 };
 
@@ -239,4 +250,73 @@ export const buildRecentKnowledgeIndex = (maxItems = 10): string => {
     .join('\n');
 
   return `\n**KNOWLEDGE VAULT (RECENT INDEX):**\n${list}\n`;
+};
+
+/**
+ * Returns a formatted context block containing all vault items tagged as
+ * Blender add-on tutorials. Injected into the system prompt whenever Blender
+ * is linked, so Mossy can guide the user with any third-party add-on docs they
+ * have ingested.
+ *
+ * @param addonName  Optional: narrow results to a specific add-on name.
+ */
+export const buildBlenderAddonContext = (addonName?: string, opts?: {
+  maxItems?: number;
+  maxChars?: number;
+}): string => {
+  const items = loadKnowledgeVault();
+  if (items.length === 0) return '';
+
+  const maxItems = opts?.maxItems ?? 10;
+  const maxChars = opts?.maxChars ?? 6000;
+
+  const normalize = (s: unknown) => String(s || '').toLowerCase();
+
+  // Keep items that are tagged as blender-addon or blender
+  const addonItems = items.filter((it) => {
+    const tags = (it.tags || []).map((t) => normalize(t));
+    const hasAddonTag =
+      tags.some((t) => t.includes('blender-addon') || t.includes('blender_addon')) ||
+      tags.includes('blender');
+    if (!hasAddonTag) return false;
+
+    // If a specific add-on name was requested, filter by it
+    if (addonName) {
+      const needle = normalize(addonName);
+      return (
+        normalize(it.title).includes(needle) ||
+        (it.tags || []).some((t) => normalize(t).includes(needle)) ||
+        normalize(it.content).includes(needle)
+      );
+    }
+    return true;
+  });
+
+  if (addonItems.length === 0) return '';
+
+  let used = 0;
+  const lines: string[] = [];
+  for (const it of addonItems.slice(0, maxItems)) {
+    const title = String(it.title || 'Untitled').trim();
+    const tags = Array.isArray(it.tags) && it.tags.length ? ` [${it.tags.join(', ')}]` : '';
+    const credit = it.creditName ? ` credit:${it.creditName}` : '';
+    const source = it.source ? ` source:${it.source}` : '';
+    const content = String(it.content || '').replace(/\s+/g, ' ').trim();
+    const excerptMax = 1200;
+    const excerpt = content.length > 0
+      ? content.slice(0, excerptMax) + (content.length > excerptMax ? '…' : '')
+      : '';
+    const block = `- ${title}${tags}${credit}${source}${excerpt ? `: ${excerpt}` : ''}`;
+    if (used + block.length > maxChars) break;
+    lines.push(block);
+    used += block.length;
+  }
+
+  if (lines.length === 0) return '';
+  return (
+    `\n**BLENDER ADD-ON KNOWLEDGE (${lines.length} tutorial${lines.length === 1 ? '' : 's'} loaded):**\n` +
+    `Use the following docs to guide the user with their Blender add-on(s). ` +
+    `Always credit the original author when citing steps.\n` +
+    lines.join('\n') + '\n'
+  );
 };
