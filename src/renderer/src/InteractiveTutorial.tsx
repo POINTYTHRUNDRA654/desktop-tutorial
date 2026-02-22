@@ -377,12 +377,12 @@ export const InteractiveTutorial: React.FC<InteractiveTutorialProps> = ({ onComp
   const visualMaxClass = (() => {
     if (isPipBoyMode) {
       return ['ai-chat', 'first-success'].includes(currentStep.id)
-        ? 'max-h-[24vh] md:max-h-[32vh]'
+        ? 'max-h-[26vh]'
         : 'max-h-[34vh] md:max-h-[42vh]';
     }
 
     return ['ai-chat', 'first-success'].includes(currentStep.id)
-      ? 'max-h-[36vh] md:max-h-[44vh]'
+      ? 'max-h-[30vh]'
       : 'max-h-[44vh] md:max-h-[52vh]';
   })();
 
@@ -507,7 +507,7 @@ export const InteractiveTutorial: React.FC<InteractiveTutorialProps> = ({ onComp
   };
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 overflow-y-auto" data-tutorial-active="true">
+    <div className="min-h-screen bg-slate-950 text-slate-100" data-tutorial-active="true">
       <div className="flex flex-col min-h-screen">
         <div className="border-b border-emerald-500/40 bg-slate-950/80">
           <div className="max-w-6xl mx-auto px-6 py-4">
@@ -538,7 +538,7 @@ export const InteractiveTutorial: React.FC<InteractiveTutorialProps> = ({ onComp
           </div>
         </div>
 
-        <div className="flex-1 min-h-0">
+        <div className="flex-1 min-h-0 overflow-y-auto">
           <div className="px-6 py-6 pb-36">
             <div className="max-w-6xl mx-auto grid grid-cols-1 lg:grid-cols-2 gap-6">
               <div className={`bg-slate-900/60 border border-slate-700 rounded-2xl p-6 space-y-4 transition-opacity duration-300 ${isTransitioning ? 'opacity-0' : 'opacity-100'}`}>
