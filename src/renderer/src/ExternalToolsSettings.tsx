@@ -1178,10 +1178,10 @@ const ExternalToolsSettings: React.FC<ExternalToolsSettingsProps> = ({ embedded 
             <Palette className="w-5 h-5 text-green-300" />
             <div>
               <div className="text-sm font-bold text-white">NVIDIA Canvas <span className="text-slate-500 text-xs">(Vita Canvas)</span></div>
-              <span className="text-[11px] text-slate-400">AI-powered landscape painting - Look for NVIDIACanvas.exe</span>
+              <span className="text-[11px] text-slate-400">AI-powered landscape painting - Look for Canvas.exe</span>
             </div>
           </div>
-          <input value={draft.nvidiaCanvasPath || ''} onChange={(e) => handleChange('nvidiaCanvasPath', e.target.value)} placeholder="C:\\Program Files\\NVIDIA Corporation\\NVIDIA Canvas\\NVIDIACanvas.exe" className="w-full bg-slate-800 border border-slate-700 rounded px-3 py-2 text-sm text-white" />
+          <input value={draft.nvidiaCanvasPath || ''} onChange={(e) => handleChange('nvidiaCanvasPath', e.target.value)} placeholder="D:\\Program Files\\NVIDIA Corporation\\NVIDIA Canvas\\Canvas.exe" className="w-full bg-slate-800 border border-slate-700 rounded px-3 py-2 text-sm text-white" />
           <div className="mt-2 flex gap-2">
             <button onClick={() => browsePath('nvidiaCanvasPath', 'NVIDIA Canvas')} className="px-3 py-1 bg-slate-700 hover:bg-slate-600 border border-slate-600 rounded text-[11px] font-bold flex items-center gap-1"><FolderOpen className="w-3 h-3" /> Browse</button>
             <button onClick={() => testLaunch(draft.nvidiaCanvasPath, 'NVIDIA Canvas')} className="px-3 py-1 bg-emerald-700 hover:bg-emerald-600 border border-emerald-500 rounded text-[11px] font-bold flex items-center gap-1"><Play className="w-3 h-3" /> Test Launch</button>

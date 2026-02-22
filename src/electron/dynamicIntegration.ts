@@ -211,7 +211,7 @@ class NvidiaTextureTools {
 export default NvidiaTextureTools;
       `,
       configuration: {
-        nvcompressPath: 'C:\\Program Files\\NVIDIA Corporation\\NVIDIA Texture Tools\\nvcompress.exe'
+        nvcompressPath: 'D:\\NVIDIA Texture Tools\\nvcompress.exe'
       },
       testingSteps: [
         'Verify NVTT installation',
