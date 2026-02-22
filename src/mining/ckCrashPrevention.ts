@@ -5,6 +5,7 @@
  * Location: src/mining/ckCrashPrevention.ts
  */
 
+/* eslint-disable no-control-regex */
 import fs from 'fs';
 import path from 'path';
 
@@ -186,6 +187,7 @@ export class CKCrashPreventionEngine {
       // Check 4: Extract and validate masters
       const fileContent = buffer.toString('latin1');
       const masters: string[] = [];
+      // eslint-disable-next-line no-control-regex
       const mastMatches = fileContent.match(/MAST\x00\x00[\s\S]{4}(.+?)\x00/g);
       
       if (mastMatches) {
