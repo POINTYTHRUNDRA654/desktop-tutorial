@@ -952,23 +952,28 @@ export class AssetValidationEngine {
     const ext = path.extname(file).toLowerCase();
 
     switch (ext) {
-      case '.nif':
+      case '.nif': {
         const nifResult = await this.validateNIF(file);
         return nifResult.issues;
-      case '.dds':
+      }
+      case '.dds': {
         const ddsResult = await this.validateDDS(file);
         return ddsResult.issues;
+      }
       case '.esp':
-      case '.esm':
+      case '.esm': {
         const espResult = await this.validateESP(file);
         return espResult.issues;
-      case '.psc':
+      }
+      case '.psc': {
         const scriptResult = await this.validateScript(file);
         return scriptResult.issues;
+      }
       case '.wav':
-      case '.xwm':
+      case '.xwm': {
         const soundResult = await this.validateSound(file);
         return soundResult.issues;
+      }
       default:
         return [];
     }
@@ -1101,6 +1106,7 @@ export class AssetValidationEngine {
     const text = buffer.toString('binary');
 
     // Simple regex to find MAST records
+    // eslint-disable-next-line no-control-regex
     const mastRegex = /MAST.{4}([^\x00]+\.es[mp])/gi;
     let match;
 
@@ -1156,12 +1162,14 @@ export class AssetValidationEngine {
 
   private extractAuthor(buffer: Buffer): string | undefined {
     const text = buffer.toString('binary', 0, 1024);
+    // eslint-disable-next-line no-control-regex
     const authorMatch = text.match(/CNAM.{4}([^\x00]+)/);
     return authorMatch ? authorMatch[1] : undefined;
   }
 
   private extractDescription(buffer: Buffer): string | undefined {
     const text = buffer.toString('binary', 0, 2048);
+    // eslint-disable-next-line no-control-regex
     const descMatch = text.match(/SNAM.{4}([^\x00]+)/);
     return descMatch ? descMatch[1] : undefined;
   }
