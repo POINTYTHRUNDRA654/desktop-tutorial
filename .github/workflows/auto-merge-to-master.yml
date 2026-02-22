@@ -6,9 +6,7 @@ on:
     branches-ignore:
       - 'master'
   create:
-    # run when a new branch is created
-    branches-ignore:
-      - 'master'
+    # run when a new branch is created (master filtered in job condition)
 
 permissions:
   contents: write
@@ -16,6 +14,7 @@ permissions:
 
 jobs:
   auto-merge:
+    if: github.ref_name != 'master'
     runs-on: ubuntu-latest
     steps:
       - name: Attempt merge branch → master (and delete branch when merged)
