@@ -1,0 +1,63 @@
+[submodule "CV-CUDA"]
+	path = CV-CUDA
+	url = https://github.com/CVCUDA/CV-CUDA.git
+[submodule "ComfyUI-Flowty-TripoSR"]
+	path = ComfyUI-Flowty-TripoSR
+	url = https://github.com/flowtyone/ComfyUI-Flowty-TripoSR.git
+[submodule "DALI"]
+	path = DALI
+	url = https://github.com/NVIDIA/DALI.git
+[submodule "NVTX"]
+	path = NVTX
+	url = https://github.com/NVIDIA/NVTX.git
+[submodule "TensorRT"]
+	path = TensorRT
+	url = https://github.com/NVIDIA/TensorRT.git
+[submodule "TripoSF"]
+	path = TripoSF
+	url = https://github.com/VAST-AI-Research/TripoSF.git
+[submodule "TripoSR"]
+	path = TripoSR
+	url = https://github.com/VAST-AI-Research/TripoSR.git
+[submodule "cml"]
+	path = cml
+	url = https://github.com/iterative/cml.git
+[submodule "cudnn-frontend"]
+	path = cudnn-frontend
+	url = https://github.com/NVIDIA/cudnn-frontend.git
+[submodule "external/nvidia-cosmos/cosmos-cookbook"]
+	path = external/nvidia-cosmos/cosmos-cookbook
+	url = https://github.com/nvidia-cosmos/cosmos-cookbook.git
+[submodule "external/nvidia-cosmos/cosmos-curate"]
+	path = external/nvidia-cosmos/cosmos-curate
+	url = https://github.com/nvidia-cosmos/cosmos-curate.git
+[submodule "external/nvidia-cosmos/cosmos-dependencies"]
+	path = external/nvidia-cosmos/cosmos-dependencies
+	url = https://github.com/nvidia-cosmos/cosmos-dependencies.git
+[submodule "external/nvidia-cosmos/cosmos-predict2.5"]
+	path = external/nvidia-cosmos/cosmos-predict2.5
+	url = https://github.com/nvidia-cosmos/cosmos-predict2.5.git
+[submodule "external/nvidia-cosmos/cosmos-rl"]
+	path = external/nvidia-cosmos/cosmos-rl
+	url = https://github.com/nvidia-cosmos/cosmos-rl.git
+[submodule "external/nvidia-cosmos/cosmos-transfer2.5"]
+	path = external/nvidia-cosmos/cosmos-transfer2.5
+	url = https://github.com/nvidia-cosmos/cosmos-transfer2.5.git
+[submodule "external/nvidia-cosmos/cosmos-xenna"]
+	path = external/nvidia-cosmos/cosmos-xenna
+	url = https://github.com/nvidia-cosmos/cosmos-xenna.git
+[submodule "shared_external"]
+	path = shared_external
+	url = https://github.com/nvpro-samples/shared_external.git
+[submodule "src/integrations/cosmos-reason2"]
+	path = src/integrations/cosmos-reason2
+	url = https://github.com/nvidia-cosmos/cosmos-reason2.git
+[submodule "tripo-3d-for-blender"]
+	path = tripo-3d-for-blender
+	url = https://github.com/VAST-AI-Research/tripo-3d-for-blender.git
+[submodule "tripo-python-sdk"]
+	path = tripo-python-sdk
+	url = https://github.com/VAST-AI-Research/tripo-python-sdk.git
+[submodule "triposr-texture-gen"]
+	path = triposr-texture-gen
+	url = https://github.com/ejones/triposr-texture-gen.git
