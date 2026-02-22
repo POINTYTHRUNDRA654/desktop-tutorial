@@ -1012,27 +1012,29 @@ pause
 
   const handleDownloadAddon = async () => {
     try {
-      // Fetch the pre-built add-on from the bundled public directory
-      const response = await fetch('/mossy_link_addon.py');
+      // Fetch the pre-built ZIP package from the bundled public directory.
+      // Use a relative path so it resolves correctly in both dev (Vite server)
+      // and packaged Electron (file:// protocol, dist/ folder).
+      const response = await fetch('./mossy-blender-addons.zip');
       if (!response.ok) {
-        throw new Error(`Failed to fetch add-on: ${response.status}`);
+        throw new Error(`Failed to fetch add-on ZIP: ${response.status}`);
       }
-      const addonCode = await response.text();
-      
-      const blob = new Blob([addonCode], { type: 'text/x-python' });
+      const buffer = await response.arrayBuffer();
+
+      const blob = new Blob([buffer], { type: 'application/zip' });
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = 'mossy_link_addon.py'; 
+      a.download = 'mossy-blender-addons.zip';
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
-      
-      addLog('System', 'Downloaded Blender Add-on (mossy_link_addon.py) from bundle', 'success');
+
+      addLog('System', 'Downloaded Blender Add-on package (mossy-blender-addons.zip)', 'success');
     } catch (error) {
-      console.error('Failed to download Blender add-on:', error);
-      addLog('System', 'Failed to download Blender add-on from bundle', 'err');
+      console.error('Failed to download Blender add-on ZIP:', error);
+      addLog('System', 'Failed to download Blender add-on ZIP — ensure the app is fully built', 'err');
     }
   };
 
@@ -2220,9 +2222,9 @@ pause
                             </h4>
                             <ol className="text-xs text-slate-300 space-y-2 list-decimal pl-4">
                                                                 <li>Install Blender for Windows (if needed)</li>
-                                <li>Download <strong>mossy_link.py</strong> below</li>
+                                <li>Download <strong>mossy-blender-addons.zip</strong> below</li>
                                 <li>In Blender: <em>Edit &gt; Preferences &gt; Add-ons</em></li>
-                                <li>Click <strong>Install...</strong> and select the file</li>
+                                <li>Click <strong>Install...</strong> and select the <strong>.zip</strong> file</li>
                                 <li>Enable &quot;System: Mossy Link&quot; checkbox</li>
                                                                 <li>In the 3D View sidebar: open the <strong>Mossy</strong> tab and toggle <strong>Link</strong> ON</li>
                             </ol>
@@ -2267,7 +2269,7 @@ pause
                             className="w-full py-3 border border-blue-500/30 hover:bg-blue-500/10 text-blue-400 text-sm font-bold rounded-xl flex items-center justify-center gap-3 transition-all group"
                         >
                             <ArrowDownToLine className="w-5 h-5 group-hover:animate-bounce" />
-                                                        Download Mossy Link Add-on (v6.0)
+                                                        Download Mossy Link Add-on (.zip)
                         </button>
                     </div>
                 </div>
