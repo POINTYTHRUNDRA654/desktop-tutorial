@@ -1,0 +1,5 @@
+# This repository has no submodules.
+# This file is intentionally present and empty to explicitly communicate
+# that there are no active submodule definitions. Any submodule entries
+# previously registered locally can be safely removed with:
+#   git submodule deinit --all -f
