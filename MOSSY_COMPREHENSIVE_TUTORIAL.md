@@ -887,6 +887,67 @@ The sidebar is your primary navigation tool in Mossy.
 - Export settings
 - Common mistakes to avoid
 
+### Blender Add-on Integration
+
+Mossy ships with Blender add-ons that extend your workflow. All add-ons are located in `scripts/blender/` and `public/mossy_link_addon.py`.
+
+#### Mossy Link Add-on (`public/mossy_link_addon.py`)
+
+The **Mossy Link** add-on connects Blender directly to the Mossy Desktop Bridge, enabling real-time AI-driven script execution from within Blender.
+
+**Install:**
+1. Open Blender → Edit → Preferences → Add-ons → Install…
+2. Select `public/mossy_link_addon.py` and click **Install Add-on**
+3. Search for "Mossy Link" and enable it
+4. The add-on starts a local socket server on port `9999` automatically
+
+**Features:**
+- Execute Python scripts in Blender from Mossy's chat or The Scribe IDE
+- Read and set object properties remotely
+- Create and select objects via AI commands
+- Panel at View3D → Mossy Link with a toggle and bridge test button
+
+**Supported command types:**
+
+| Type | Description |
+|------|-------------|
+| `script` | Execute arbitrary Python in Blender's context |
+| `text` | Write (and optionally run) a Text datablock |
+| `property` | Read a `bpy.context` property by dot-path |
+| `status` | Return Blender version, scene, object counts |
+| `select` | Select an object by name |
+| `create` | Create a new mesh object |
+
+#### Example Add-ons (`scripts/blender/`)
+
+Two ready-to-install add-ons are included for learning and automation:
+
+**`blender_move_x.py` — Move X by One**
+- Moves every object in the scene `+1` unit along the X axis
+- Available via Operator Search (`F3`) or the Object menu
+
+```powershell
+# Run headless via the helper script
+./scripts/blender/run_blender_ops.ps1 -BlendFile "C:\scene.blend" -Operator move_x -EnableAutoExec
+```
+
+**`blender_cursor_array.py` — Cursor Array**
+- Creates linked duplicates between the active object and the 3D cursor
+- `Steps` property controls instance count (default 2, max 100)
+- Shortcut: `Ctrl+Shift+T` in Object Mode
+- Available via Operator Search or the Object menu
+
+```powershell
+# Run headless with 8 steps
+./scripts/blender/run_blender_ops.ps1 -BlendFile "C:\scene.blend" -Operator cursor_array -Total 8 -EnableAutoExec
+```
+
+**Install either add-on:**
+1. Blender → Edit → Preferences → Add-ons → Install… → select the `.py` file → enable
+2. Or open in the Text Editor and click **Run Script** (session-only)
+
+For full details see [`scripts/blender/README_BLENDER_ADDONS.md`](scripts/blender/README_BLENDER_ADDONS.md) and [`resources/public/knowledge/BLENDER_ADDON_TUTORIAL.md`](resources/public/knowledge/BLENDER_ADDON_TUTORIAL.md).
+
 ### Quest Mod Authoring Guide
 
 **Path:** `/guides/creation-kit/quest-authoring`  
