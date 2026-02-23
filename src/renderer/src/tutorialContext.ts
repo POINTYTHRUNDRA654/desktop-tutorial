@@ -3490,6 +3490,230 @@ export const tutorialContexts: Record<string, TutorialPageContext> = {
     ],
   },
 
+  'knowledge-search': {
+    pageId: 'knowledge-search',
+    pageName: 'Knowledge Search',
+    visualGuidePage: 9,
+    route: '/knowledge',
+    purpose: 'Search the Mossy knowledge base for Fallout 4 modding information.',
+    features: ['Full-text search', 'Category filters', 'Bookmarks'],
+    controls: [
+      { name: 'Search', type: 'input', description: 'Enter keywords to search', whenToUse: 'When looking for specific information' },
+    ],
+    commonMistakes: ['Using overly broad search terms'],
+    guides: [{ title: 'Search the knowledge base', steps: ['Open Knowledge Search', 'Enter a keyword', 'Browse results'] }],
+    tutorialSections: ['Search'],
+    suggestedQuestions: ['How do I search for specific topics?'],
+  },
+
+  'crash-triage': {
+    pageId: 'crash-triage',
+    pageName: 'Crash Triage',
+    visualGuidePage: 11,
+    route: '/crash-triage',
+    purpose: 'Diagnose and triage Fallout 4 crash logs to identify mod conflicts.',
+    features: ['Crash log analysis', 'Conflict detection', 'Fix suggestions'],
+    controls: [
+      { name: 'Analyze', type: 'button', description: 'Analyze a crash log', whenToUse: 'After a game crash' },
+    ],
+    commonMistakes: ['Not providing the most recent crash log'],
+    guides: [{ title: 'Triage a crash', steps: ['Open Crash Triage', 'Upload crash log', 'Review detected conflicts'] }],
+    tutorialSections: ['Crash Analysis'],
+    suggestedQuestions: ['How do I find my crash log?'],
+  },
+
+  'the-lorekeeper': {
+    pageId: 'the-lorekeeper',
+    pageName: 'The LoreKeeper',
+    visualGuidePage: 15,
+    route: '/lore',
+    purpose: 'Browse and search Fallout 4 lore, world-building references and modding lore docs.',
+    features: ['Lore search', 'Reference cards', 'Bookmarks'],
+    controls: [
+      { name: 'Search Lore', type: 'input', description: 'Search lore entries', whenToUse: 'When researching lore for your mod' },
+    ],
+    commonMistakes: ['Confusing lore accuracy with gameplay mechanics'],
+    guides: [{ title: 'Research lore', steps: ['Open The LoreKeeper', 'Enter a search term', 'Read lore entries'] }],
+    tutorialSections: ['Lore Reference'],
+    suggestedQuestions: ['Where can I find lore about the Institute?'],
+  },
+
+  'tools': {
+    pageId: 'tools',
+    pageName: 'Tools',
+    visualGuidePage: 16,
+    route: '/tools',
+    purpose: 'Central hub for all Mossy modding tools and utilities.',
+    features: ['Tool launcher', 'Quick access', 'Tool status'],
+    controls: [
+      { name: 'Open Tool', type: 'button', description: 'Launch a specific tool', whenToUse: 'When you need a specific utility' },
+    ],
+    commonMistakes: ['Not verifying tool paths before use'],
+    guides: [{ title: 'Use the Tools hub', steps: ['Open Tools', 'Select the desired tool', 'Follow tool instructions'] }],
+    tutorialSections: ['Tools Hub'],
+    suggestedQuestions: ['Which tool should I use for texture editing?'],
+  },
+
+  'the-assembler': {
+    pageId: 'the-assembler',
+    pageName: 'The Assembler',
+    visualGuidePage: 19,
+    route: '/tools/assembler',
+    purpose: 'Assemble and package mod files for distribution.',
+    features: ['File assembly', 'Archive creation', 'Validation'],
+    controls: [
+      { name: 'Assemble', type: 'button', description: 'Assemble mod files into a package', whenToUse: 'When preparing a mod for release' },
+    ],
+    commonMistakes: ['Forgetting to validate before assembling'],
+    guides: [{ title: 'Assemble a mod', steps: ['Open The Assembler', 'Select files', 'Run assembly'] }],
+    tutorialSections: ['Mod Assembly'],
+    suggestedQuestions: ['How do I create a BA2 archive?'],
+  },
+
+  'ck-extensions': {
+    pageId: 'ck-extensions',
+    pageName: 'CK Extensions',
+    visualGuidePage: 44,
+    route: '/tools/ck-extension',
+    purpose: 'Creation Kit extensions and integrations for advanced modding workflows.',
+    features: ['CK plugin list', 'Extension manager', 'CK integration'],
+    controls: [
+      { name: 'Enable Extension', type: 'toggle', description: 'Enable a CK extension', whenToUse: 'When adding CK functionality' },
+    ],
+    commonMistakes: ['Enabling incompatible extensions simultaneously'],
+    guides: [{ title: 'Set up CK Extensions', steps: ['Open CK Extensions', 'Enable desired extensions', 'Restart CK if required'] }],
+    tutorialSections: ['CK Integration'],
+    suggestedQuestions: ['What CK extensions are available?'],
+  },
+
+  'comfyui-extensions': {
+    pageId: 'comfyui-extensions',
+    pageName: 'ComFyui Extensions',
+    visualGuidePage: 45,
+    route: '/extensions/comfyui',
+    purpose: 'ComfyUI workflow integration for AI-assisted texture and image generation.',
+    features: ['ComfyUI workflow runner', 'Preset workflows', 'Output preview'],
+    controls: [
+      { name: 'Run Workflow', type: 'button', description: 'Execute a ComfyUI workflow', whenToUse: 'When generating AI textures' },
+    ],
+    commonMistakes: ['Not having ComfyUI installed locally before use'],
+    guides: [{ title: 'Use ComfyUI Extension', steps: ['Install ComfyUI', 'Open ComfyUI Extensions', 'Run a preset workflow'] }],
+    tutorialSections: ['AI Image Generation'],
+    suggestedQuestions: ['How do I connect to my local ComfyUI instance?'],
+  },
+
+  'upscayl-extension': {
+    pageId: 'upscayl-extension',
+    pageName: 'Upscayl / Upscale Extension',
+    visualGuidePage: 46,
+    route: '/extensions/upscayl',
+    purpose: 'AI-powered texture upscaling using Upscayl for higher-resolution mod assets.',
+    features: ['Batch upscaling', 'Model selection', 'Preview comparison'],
+    controls: [
+      { name: 'Upscale', type: 'button', description: 'Upscale selected textures', whenToUse: 'When improving texture resolution' },
+    ],
+    commonMistakes: ['Upscaling textures that are already high resolution'],
+    guides: [{ title: 'Upscale textures', steps: ['Open Upscayl Extension', 'Select textures', 'Choose a model and upscale'] }],
+    tutorialSections: ['Texture Upscaling'],
+    suggestedQuestions: ['Which upscaling model should I use?'],
+  },
+
+  'mo2-extension': {
+    pageId: 'mo2-extension',
+    pageName: 'MO2 Extension',
+    visualGuidePage: 47,
+    route: '/extensions/mo2',
+    purpose: 'Mod Organizer 2 integration for managing mod load order and profiles.',
+    features: ['MO2 connection', 'Load order sync', 'Profile management'],
+    controls: [
+      { name: 'Sync Load Order', type: 'button', description: 'Sync load order from MO2', whenToUse: 'After changing load order in MO2' },
+    ],
+    commonMistakes: ['Not pointing Mossy to the correct MO2 installation'],
+    guides: [{ title: 'Connect MO2', steps: ['Open MO2 Extension', 'Set MO2 path', 'Sync profiles'] }],
+    tutorialSections: ['MO2 Integration'],
+    suggestedQuestions: ['How do I link Mossy to MO2?'],
+  },
+
+  'xedit-tools': {
+    pageId: 'xedit-tools',
+    pageName: 'xEdit Tools',
+    visualGuidePage: 48,
+    route: '/tools/xedit',
+    purpose: 'xEdit (FO4Edit) integration for editing ESP/ESL/ESM plugin records.',
+    features: ['Record browser', 'Script runner', 'Conflict resolver'],
+    controls: [
+      { name: 'Open xEdit', type: 'button', description: 'Launch xEdit', whenToUse: 'When editing plugin records' },
+    ],
+    commonMistakes: ['Editing master files without a backup'],
+    guides: [{ title: 'Use xEdit Tools', steps: ['Open xEdit Tools', 'Load your plugin', 'Browse or edit records'] }],
+    tutorialSections: ['Plugin Editing'],
+    suggestedQuestions: ['How do I resolve record conflicts in xEdit?'],
+  },
+
+  'dds-converter': {
+    pageId: 'dds-converter',
+    pageName: 'DDS Converter',
+    visualGuidePage: 49,
+    route: '/dds-converter',
+    purpose: 'Convert image files to and from DDS format for Fallout 4 textures.',
+    features: ['Batch conversion', 'Format selection', 'Mip map generation'],
+    controls: [
+      { name: 'Convert', type: 'button', description: 'Convert selected images to DDS', whenToUse: 'When preparing textures for the game' },
+    ],
+    commonMistakes: ['Using wrong compression format for the texture type'],
+    guides: [{ title: 'Convert textures to DDS', steps: ['Open DDS Converter', 'Add source images', 'Select format and convert'] }],
+    tutorialSections: ['Texture Conversion'],
+    suggestedQuestions: ['What DDS format should I use for diffuse textures?'],
+  },
+
+  'texture-generator': {
+    pageId: 'texture-generator',
+    pageName: 'Texture Generator',
+    visualGuidePage: 50,
+    route: '/texture-generator',
+    purpose: 'Generate and edit textures for Fallout 4 mods using AI and manual tools.',
+    features: ['AI generation', 'Manual editing', 'Template library'],
+    controls: [
+      { name: 'Generate', type: 'button', description: 'Generate a new texture', whenToUse: 'When creating new mod textures' },
+    ],
+    commonMistakes: ['Not checking texture dimensions match game requirements'],
+    guides: [{ title: 'Generate a texture', steps: ['Open Texture Generator', 'Choose a template or describe the texture', 'Generate and export'] }],
+    tutorialSections: ['Texture Creation'],
+    suggestedQuestions: ['What resolution should my textures be?'],
+  },
+
+  'formid-remapper': {
+    pageId: 'formid-remapper',
+    pageName: 'FormID Remapper',
+    visualGuidePage: 54,
+    route: '/tools/formid-remapper',
+    purpose: 'Remap FormIDs in ESP/ESL/ESM plugins to resolve conflicts.',
+    features: ['Conflict detection', 'Automatic remapping', 'Validation'],
+    controls: [
+      { name: 'Remap', type: 'button', description: 'Remap FormIDs to resolve conflicts', whenToUse: 'When plugins have FormID conflicts' },
+    ],
+    commonMistakes: ['Remapping without backing up plugins first'],
+    guides: [{ title: 'Remap FormIDs', steps: ['Open FormID Remapper', 'Load conflicting plugins', 'Run remap'] }],
+    tutorialSections: ['FormID Management'],
+    suggestedQuestions: ['When should I remap FormIDs?'],
+  },
+
+  'precombine-generator': {
+    pageId: 'precombine-generator',
+    pageName: 'Precombine Generator',
+    visualGuidePage: 55,
+    route: '/tools/precombine-generator',
+    purpose: 'Generate precombine and previs data for Fallout 4 cell optimization.',
+    features: ['Precombine generation', 'Previs build', 'CK integration'],
+    controls: [
+      { name: 'Generate', type: 'button', description: 'Generate precombine data', whenToUse: 'After modifying world cells' },
+    ],
+    commonMistakes: ['Not generating previs after precombines'],
+    guides: [{ title: 'Generate precombines', steps: ['Open Precombine Generator', 'Select target cells', 'Run generation'] }],
+    tutorialSections: ['Precombine & Previs'],
+    suggestedQuestions: ['How long does precombine generation take?'],
+  },
+
 };
 
 /**
