@@ -1,5 +1,23 @@
-# This repository has no submodules.
-# This file is intentionally present and empty to explicitly communicate
-# that there are no active submodule definitions. Any submodule entries
-# previously registered locally can be safely removed with:
-#   git submodule deinit --all -f
+# Submodule URL rewrite: use HTTPS instead of SSH to avoid key/access issues.
+# If you previously had SSH-based submodule failures (git@github.com:...), run:
+#   git config --global url."https://github.com/".insteadOf "git@github.com:"
+# Then re-initialize with:
+#   git submodule deinit -f .
+#   git submodule sync --recursive
+#   git submodule update --init --recursive
+
+[submodule "external/CV-CUDA"]
+	path = external/CV-CUDA
+	url = https://github.com/CVCUDA/CV-CUDA.git
+
+[submodule "external/DALI"]
+	path = external/DALI
+	url = https://github.com/NVIDIA/DALI.git
+
+[submodule "external/TensorRT"]
+	path = external/TensorRT
+	url = https://github.com/NVIDIA/TensorRT.git
+
+[submodule "external/tripo-3d-for-blender"]
+	path = external/tripo-3d-for-blender
+	url = https://github.com/VAST-AI-Research/tripo-3d-for-blender.git
