@@ -1,5 +1,4 @@
-import { defineConfig, devices } from '@playwright/test';
-import { _electron } from 'playwright';
+import { defineConfig } from '@playwright/test';
 
 /**
  * @see https://playwright.dev/docs/test-configuration
@@ -34,16 +33,13 @@ export default defineConfig({
     {
       name: 'electron-dev',
       testDir: './e2e',
-      use: {
-        // Electron dev app testing - set test mode to disable single instance lock
-        ...devices['Desktop Chrome'],
-      },
+      use: {},
     }
   ],
 
   /* Run your local dev server before starting the tests */
   webServer: {
-    command: 'npm run dev',
+    command: 'npm run dev:vite',
     url: 'http://127.0.0.1:5174',
     reuseExistingServer: !process.env.CI,
   },
