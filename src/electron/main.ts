@@ -6,17 +6,6 @@
  */
 
 import { app, BrowserWindow, ipcMain, dialog, shell, safeStorage, screen } from 'electron';
-
-// during debugging we sometimes need to emulate a packaged build without
-// actually running the installer. setting FORCE_PACKAGED will flip the flag
-// so that `app.isPackaged` returns true and the production code paths are used.
-if (process.env.FORCE_PACKAGED === 'true') {
-  // override the readonly getter so `app.isPackaged` returns true
-  Object.defineProperty(app, 'isPackaged', {
-    get: () => true,
-  });
-  console.log('[Main] ⚠️ FORCE_PACKAGED env enabled - treating as packaged build');
-}
 import path from 'path';
 import os from 'os';
 import { IPC_CHANNELS } from './types';
@@ -56,20 +45,6 @@ import { DependencyGraphBuilder } from '../mining/dependency-graph-builder'; // 
 import { DataSource, MiningResult } from '../shared/types';
 
 // Keep dev and packaged builds using the same userData folder for consistent onboarding/memory.
-// In tests we may not launch an actual packaged executable, so force the
-// packaged flag early so subsequent logic (env paths, directory layout, etc.)
-// behaves the same as a real install.
-if (process.env.ELECTRON_IS_TEST === 'true') {
-  try {
-    Object.defineProperty(app, 'isPackaged', {
-      get: () => true,
-    });
-    console.log('[Main] TEST MODE: overrode app.isPackaged -> true');
-  } catch (e) {
-    console.warn('[Main] TEST MODE: failed to override app.isPackaged', e);
-  }
-}
-
 app.setName('mossy-desktop');
 app.setPath('userData', path.join(app.getPath('appData'), 'mossy-desktop'));
 
@@ -352,23 +327,18 @@ function createWindow() {
 
   // Load the app based on environment
   const isTestMode = process.env.ELECTRON_IS_TEST === 'true';
-  const devPort = Number(process.env.VITE_DEV_SERVER_PORT || process.env.DEV_SERVER_PORT || 5174);
+  const devPort = Number(process.env.VITE_DEV_SERVER_PORT || process.env.DEV_SERVER_PORT || 5173);
   const testParam = isTestMode ? '?test=true' : '';
   const devUrl = ELECTRON_START_URL || `http://localhost:${devPort}`;
 
-  const shouldOpenDevTools = !process.env.ELECTRON_IS_TEST;
-  console.log('[Main] computed flags: isPackaged=', app.isPackaged, 'isDev=', isDev, 'isTestMode=', isTestMode, 'DEV_SERVER_PORT=', process.env.DEV_SERVER_PORT, 'ELECTRON_START_URL=', ELECTRON_START_URL);
   if (!app.isPackaged && (ELECTRON_START_URL || process.env.DEV_SERVER_PORT)) {
-    console.log('[Main] branch 1: dev URL selected', `${devUrl}${testParam}`, 'isPackaged=', app.isPackaged, 'isDev=', isDev);
     // Development with custom or local server URL
     mainWindow.loadURL(`${devUrl}${testParam}`);
-    if (shouldOpenDevTools) mainWindow.webContents.openDevTools();
+    mainWindow.webContents.openDevTools();
   } else if (isDev) {
-    console.log('[Main] branch 2: dev fallback', `${devUrl}${testParam}`, 'isPackaged=', app.isPackaged, 'isDev=', isDev);
     // Development fallback
     mainWindow.loadURL(`${devUrl}${testParam}`);
-    if (shouldOpenDevTools) mainWindow.webContents.openDevTools();
-
+    mainWindow.webContents.openDevTools();
   } else {
     console.log('[Main] branch 3: production file URL isPackaged=', app.isPackaged, 'isDev=', isDev);
     // Production: load bundled Vite build from /dist (packaged by electron-builder)
@@ -6144,8 +6114,8 @@ app.whenReady().then(() => {
   setupIpcHandlers();
   bridge.start();
 
-  // Initialize auto-updater service (skip entirely in test mode)
-  if (mainWindow && !isTestMode) {
+  // Initialize auto-updater service
+  if (mainWindow) {
     autoUpdaterService.setMainWindow(mainWindow);
     
     // Check for updates on startup (after a delay to not interfere with onboarding)
@@ -6157,8 +6127,6 @@ app.whenReady().then(() => {
         });
       }
     }, 10000); // Wait 10 seconds after app launch
-  } else if (mainWindow && isTestMode) {
-    console.log('[Main] Test mode - auto-updater disabled');
   }
 
   // Ping backend health to wake up sleeping service (e.g., Render free tier)
