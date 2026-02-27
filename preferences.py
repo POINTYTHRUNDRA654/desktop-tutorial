@@ -206,6 +206,28 @@ class FO4AddonPreferences(bpy.types.AddonPreferences):
         description="If enabled, core Python dependencies will be installed on startup",
     )
 
+    # ---- Mossy Link ----
+    port: bpy.props.IntProperty(
+        name="Mossy Link Port",
+        default=9999,
+        min=1024,
+        max=65535,
+        description="TCP port the Mossy Link server listens on",
+    )
+
+    token: bpy.props.StringProperty(
+        name="Mossy Link Token",
+        default="",
+        subtype='PASSWORD',
+        description="Optional shared secret; leave blank to disable auth",
+    )
+
+    autostart: bpy.props.BoolProperty(
+        name="Auto-start Mossy Link",
+        default=True,
+        description="Start the Mossy Link server automatically when the add-on loads",
+    )
+
     def draw(self, context):
         layout = self.layout
 
@@ -264,6 +286,12 @@ class FO4AddonPreferences(bpy.types.AddonPreferences):
         auto_box.label(text="Automatic Tool Installation", icon="FILE_REFRESH")
         auto_box.prop(self, "auto_install_tools", text="Auto-install missing CLI tools at startup")
         auto_box.prop(self, "auto_install_python", text="Auto-install Python deps at startup")
+
+        ml_box = layout.box()
+        ml_box.label(text="Mossy Link", icon="LINKED")
+        ml_box.prop(self, "port")
+        ml_box.prop(self, "token")
+        ml_box.prop(self, "autostart")
 
 
 def register():
