@@ -23,6 +23,7 @@ dist-ssr
 dist-backend
 release
 release-test
+tmp-release/
 *.local
 
 # Local release artifacts
