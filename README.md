@@ -38,6 +38,24 @@ See [NEW_FEATURES.md](NEW_FEATURES.md) for detailed information about all enhanc
 
 ## Installation
 
+> ⚠️ **GitHub Desktop / Windows users — cannot clone directly**
+>
+> The repository is named `Blender-add-on.` (with a trailing period).  Windows does
+> not allow folder names that end with a period, so **GitHub Desktop and
+> `git clone` on Windows will fail** with an error such as *"could not create
+> directory"* or *"invalid path"*.
+>
+> **Workaround — use the prebuilt zip instead (recommended for all platforms):**
+>
+> 1. Open the repository on GitHub in your browser.
+> 2. Click the green **`<> Code`** button → **Download ZIP**.
+> 3. Extract the ZIP anywhere you like — Windows handles this without issues.
+> 4. Follow the [Blender installation steps](#recommended-prebuilt-zip) below.
+>
+> If you specifically need a git clone (e.g. to contribute), use **Git Bash**,
+> **WSL**, **macOS**, or **Linux** and clone to a path that does not already have a
+> trailing-period component, then work from there.
+
 > **Note:** The repository directory name (`Blender-add-on.`) is not a valid Python
 > identifier, so you **must** install via a properly packaged zip — not by pointing
 > Blender at the raw `__init__.py` file from a GitHub download.
