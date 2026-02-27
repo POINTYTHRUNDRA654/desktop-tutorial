@@ -4,13 +4,22 @@ This guide will help you get started with the Desktop Tutorial Integration add-o
 
 ## Step 1: Install the Add-on
 
-1. Download the `__init__.py` file from this repository
-2. Open Blender
-3. Go to **Edit → Preferences → Add-ons**
-4. Click the **Install...** button at the top
-5. Navigate to the downloaded `__init__.py` file
-6. Click **Install Add-on**
-7. Enable it by checking the checkbox next to "Development: Desktop Tutorial Integration"
+> ⚠️ **GitHub Desktop / Windows users:** The repository name ends with a period
+> (`Blender-add-on.`), which Windows does not allow as a folder name.  GitHub
+> Desktop and `git clone` on Windows will therefore fail.  Use the **Download ZIP**
+> method below instead.
+
+1. Go to the repository on GitHub and click **`<> Code` → Download ZIP**, then
+   extract the archive.  *(Alternatively, download the latest
+   `fallout4_tutorial_helper-vX.Y.Z.zip` directly from the repository root — this
+   is the ready-to-install add-on zip.)*
+2. Open Blender.
+3. Go to **Edit → Preferences → Add-ons**.
+4. Click the **Install...** button at the top.
+5. Select the downloaded `fallout4_tutorial_helper-vX.Y.Z.zip` file (or run
+   `python makezip.py` inside the extracted folder to build it yourself).
+6. Click **Install Add-on**.
+7. Enable it by checking the checkbox next to **"Fallout 4 Tutorial Helper"**.
 
 ## Step 2: Start the Example Tutorial Server
 
