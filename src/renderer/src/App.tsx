@@ -211,11 +211,12 @@ const App: React.FC = () => {
   const [hasBooted, setHasBooted] = useState(() => {
     // Skip boot sequence in test mode - check multiple sources
     const urlParams = new URLSearchParams(window.location.search);
-    const forced = urlParams.has('test') ||
+    if (urlParams.has('test') ||
         window.location.search.includes('test') ||
         window.localStorage.getItem('mossy_test_mode') === 'true' ||
-        window.localStorage.getItem('mossy_has_booted') === 'true';
-    if (forced) return true;
+        window.localStorage.getItem('mossy_has_booted') === 'true') {
+      return true;
+    }
     // Persist boot so we don't show the startup sequence every launch.
     return localStorage.getItem('mossy_has_booted') === 'true';
   });
@@ -242,16 +243,6 @@ const App: React.FC = () => {
     const hasCompletedVoiceSetup = localStorage.getItem('mossy_voice_setup_complete') === 'true';
     return hasCompletedFirstRun && !hasCompletedVoiceSetup;
   });
-
-
-  // signal test harness when UI is actually visible (avoid early flag loss)
-  useEffect(() => {
-    if (hasBooted && !showFirstRun && !showOnboarding) {
-      try {
-        (window as any).__MOSSY_TEST_READY__ = true;
-      } catch {}
-    }
-  }, [hasBooted, showFirstRun, showOnboarding]);
   
   // Tutorial state
   const [showTutorialLaunch, setShowTutorialLaunch] = useState(false);
