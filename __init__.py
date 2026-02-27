@@ -57,6 +57,7 @@ from . import unity_fbx_importer_helpers
 from . import asset_studio_helpers
 from . import asset_ripper_helpers
 from . import tool_installers
+from . import mossy_link
 
 modules = [
     preferences,
@@ -86,6 +87,7 @@ modules = [
     asset_studio_helpers,
     asset_ripper_helpers,
     tool_installers,
+    mossy_link,
     export_helpers,
     image_to_mesh_helpers,
     hunyuan3d_helpers,
