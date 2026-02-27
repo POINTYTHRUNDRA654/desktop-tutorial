@@ -21,15 +21,15 @@ def read_version() -> str:
     return f"{major}.{minor}.{patch}"
 
 
-def should_skip(rel: pathlib.Path, zip_name: str = "") -> bool:
+def should_skip(rel: pathlib.Path) -> bool:
     """Skip development, cache, and virtual env paths from the ZIP."""
     skip_roots = {".git", ".github"}
     cache_dirs = {"__pycache__", ".mypy_cache", ".pytest_cache", ".idea", ".vscode"}
     if rel.parts and (rel.parts[0] in skip_roots or rel.parts[0].startswith(".venv")):
         return True
-    # Exclude only the add-on's own output zip to avoid self-referential archives.
+    # Exclude all previously-built add-on zips to avoid bundling stale archives.
     # Other .zip files (bundled assets, tools) are kept.
-    if zip_name and rel.name == zip_name:
+    if rel.name.startswith(f"{ADDON_PACKAGE}-") and rel.name.endswith(".zip"):
         return True
     return any(part in cache_dirs or part.endswith(".pyc") for part in rel.parts)
 
@@ -46,7 +46,7 @@ def main() -> None:
             if not path.is_file():
                 continue
             rel = path.relative_to(root)
-            if should_skip(rel, zip_name):
+            if should_skip(rel):
                 continue
             arcname = pathlib.Path(ADDON_PACKAGE) / rel
             zf.write(path, arcname)
