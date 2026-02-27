@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
+import toast from 'react-hot-toast';
 import { AlertCircle, CheckCircle2, XCircle, Loader2, Play, Copy, ArrowDownToLine } from 'lucide-react';
 import { ToolsInstallVerifyPanel } from './components/ToolsInstallVerifyPanel';
 
@@ -96,6 +97,7 @@ const DiagnosticTools: React.FC<DiagnosticToolsProps> = ({ embedded = false }) =
   const [revealStatus, setRevealStatus] = useState<string>('');
 
   const runDiagnostics = async () => {
+    toast('Running diagnostics...', { icon: <Loader2 className="w-4 h-4 animate-spin" /> });
     const updatedChecks: DiagnosticCheck[] = checks.map(c => ({ ...c, status: 'checking', result: '', errorDetails: '' }));
 
     const setCheck = (id: string, patch: Partial<DiagnosticCheck>) => {
@@ -248,6 +250,7 @@ const DiagnosticTools: React.FC<DiagnosticToolsProps> = ({ embedded = false }) =
     }
 
     setChecks(updatedChecks);
+    toast.success('Diagnostics complete');
   };
 
   // Auto-run when opening the page (quick health view)

@@ -71,7 +71,15 @@ export const ToolsInstallVerifyPanel: React.FC<ToolsInstallVerifyPanelProps> = (
   return (
     <div className={`bg-slate-900/60 border border-slate-700 rounded-lg p-4 mb-6 ${className ?? ''}`}>
       <div className={`text-sm font-bold mb-2 ${accentClassName}`}>{title}</div>
-      {description ? <div className="text-sm text-slate-200 mb-3">{description}</div> : null}
+      {description ? (
+        <div className="text-sm text-slate-200 mb-3">{description}</div>
+      ) : (
+        <div className="text-sm text-slate-400 mb-3">
+          No description is available for this page yet. Use the &quot;Help&quot; link or
+          the tutorial videos to learn what this screen is intended for and how to
+          operate it.
+        </div>
+      )}
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div>

@@ -37,6 +37,11 @@ interface PluginTemplate {
 // ============================================================================
 
 export const PluginManager: React.FC = () => {
+  // WARNING: this page is a *mocked prototype*. Many controls are demo-only and
+  // do not communicate with a real backend. Buttons will appear functional but
+  // merely simulate the action for layout/testing purposes.
+  //
+  // Remove or fully implement this component before considering it "ready".
   const [state, setState] = useState<PluginManagerState>({
     installedPlugins: [],
     availablePlugins: [],
@@ -57,7 +62,7 @@ export const PluginManager: React.FC = () => {
     enableTelemetry: true,
   });
 
-  // Load initial data
+  // Load initial data (mocked)
   useEffect(() => {
     loadInstalledPlugins();
     loadMarketplacePlugins();
@@ -846,7 +851,7 @@ export const PluginManager: React.FC = () => {
       {/* Demo Feature Notice */}
       <div className="error-banner" style={{ background: 'rgba(59, 130, 246, 0.1)', borderColor: 'rgba(59, 130, 246, 0.3)' }}>
         <span style={{ color: '#60a5fa' }}>
-          ℹ️ <strong>Demo Feature:</strong> The Plugin Manager is a demonstration of the planned plugin system architecture. 
+          ℹ️ <strong>Demo/Prototype Feature:</strong> The Plugin Manager is a prototype demonstration of the planned plugin system architecture. 
           Plugin installation and marketplace features are not yet implemented. This UI showcases the intended user experience.
         </span>
       </div>

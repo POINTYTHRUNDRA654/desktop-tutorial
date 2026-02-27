@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import toast from 'react-hot-toast';
 import { Link as RouterLink } from 'react-router-dom';
 import { Monitor, CheckCircle2, Wifi, Shield, Cpu, Terminal, Power, Layers, Box, Code, Image as ImageIcon, MessageSquare, Activity, RefreshCw, Lock, AlertOctagon, Link, Zap, Eye, Globe, Database, Wrench, FolderOpen, HardDrive, ArrowRightLeft, ArrowRight, Keyboard, ArrowDownToLine, Server, Clipboard, FileType, HelpCircle, AlertTriangle, Settings, Search, ExternalLink, Download } from 'lucide-react';
 import { ToolsInstallVerifyPanel } from './components/ToolsInstallVerifyPanel';
@@ -31,6 +32,42 @@ const initialDrivers: Driver[] = [
     { id: 'ck', name: 'Creation Kit Telemetry', icon: Wrench, status: 'active', version: '1.10', latency: 80, permissions: ['cell.view'] },
     { id: 'vscode', name: 'VS Code Host', icon: Code, status: 'inactive', version: '1.85.1', latency: 0, permissions: ['editor.action', 'workspace'] },
 ];
+
+// helper that returns raw ArrayBuffer for the ZIP. exported for tests.
+export const fetchBlenderAddon = async (): Promise<ArrayBuffer> => {
+  const base = import.meta.env.BASE_URL || '/';
+  const candidates = [`${base}mossy-blender-addons.zip`, `${base}public/mossy-blender-addons.zip`];
+
+  for (const url of candidates) {
+    try {
+      const resp = await fetch(url);
+      if (resp.ok) {
+        return await resp.arrayBuffer();
+      }
+    } catch {
+      // ignore and try next candidate
+    }
+  }
+
+  // last resort: ask Electron main process for the blob (base64 encoded)
+  const api = (window as any).electron?.api || (window as any).electronAPI;
+  if (api?.readBlenderZip) {
+    console.log('[DesktopBridge] falling back to electron.readBlenderZip()');
+    try {
+      const b64: string = await api.readBlenderZip();
+      const byteString = atob(b64);
+      const arr = new Uint8Array(byteString.length);
+      for (let i = 0; i < byteString.length; i++) {
+        arr[i] = byteString.charCodeAt(i);
+      }
+      return arr.buffer;
+    } catch (e) {
+      console.warn('Electron API readBlenderZip failed:', e);
+    }
+  }
+
+  throw new Error('Failed to fetch Blender add-on ZIP');
+};
 
 const DesktopBridge: React.FC = () => {
   const [drivers, setDrivers] = useState<Driver[]>(() => {
@@ -81,6 +118,21 @@ const DesktopBridge: React.FC = () => {
           return 'http://127.0.0.1:21337';
       }
   });
+
+  const [addonMissing, setAddonMissing] = useState(false);
+
+  // check for presence of the Blender add-on ZIP at startup (try both possible paths)
+  useEffect(() => {
+      const base = import.meta.env.BASE_URL || '/';
+      const candidates = [
+        `${base}mossy-blender-addons.zip`,
+        `${base}public/mossy-blender-addons.zip`
+      ];
+      Promise.all(candidates.map((u) => fetch(u, { method: 'HEAD' }).then(r => r.ok).catch(() => false)))
+        .then(results => {
+          if (!results.some(Boolean)) setAddonMissing(true);
+        });
+  }, []);
 
     const [blenderContext, setBlenderContext] = useState<any | null>(null);
     const [blenderContextRaw, setBlenderContextRaw] = useState<string>('');
@@ -170,7 +222,10 @@ const DesktopBridge: React.FC = () => {
 
   
   useEffect(() => {
-      logEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+      const el = logEndRef.current as any;
+      if (el && typeof el.scrollIntoView === 'function') {
+          el.scrollIntoView({ behavior: 'smooth' });
+      }
   }, [logs]);
 
   useEffect(() => {
@@ -1011,15 +1066,18 @@ pause
   };
 
   const handleDownloadAddon = async () => {
+    // In development we don't ship the ZIP via Vite; warn early instead of
+    // repeatedly failing.
+    if (import.meta.env.DEV) {
+      console.warn('[DesktopBridge] download disabled in DEV mode');
+      addLog('System', 'Blender add-on download is disabled in development build', 'warn');
+      toast.error('Cannot download add-on in development; build the app first.');
+      return;
+    }
+
     try {
-      // Fetch the pre-built ZIP package from the bundled public directory.
-      // Use a relative path so it resolves correctly in both dev (Vite server)
-      // and packaged Electron (file:// protocol, dist/ folder).
-      const response = await fetch('./mossy-blender-addons.zip');
-      if (!response.ok) {
-        throw new Error(`Failed to fetch add-on ZIP: ${response.status}`);
-      }
-      const buffer = await response.arrayBuffer();
+      // use helper for fetch logic
+      const buffer = await fetchBlenderAddon();
 
       const blob = new Blob([buffer], { type: 'application/zip' });
       const url = URL.createObjectURL(blob);
@@ -1034,9 +1092,15 @@ pause
       addLog('System', 'Downloaded Blender Add-on package (mossy-blender-addons.zip)', 'success');
     } catch (error) {
       console.error('Failed to download Blender add-on ZIP:', error);
-      addLog('System', 'Failed to download Blender add-on ZIP — ensure the app is fully built', 'err');
+      const msg = import.meta.env.DEV
+        ? 'Could not download add-on in development mode.'
+        : 'Failed to download Blender add-on ZIP — ensure the app is fully built';
+      console.error('Failed to download Blender add-on ZIP:', error);
+      addLog('System', msg, 'err');
+      toast.error('Could not download Blender add-on; see system log for details.');
     }
   };
+
 
   const addLog = (source: string, event: string, status: 'ok' | 'warn' | 'err' | 'success' = 'ok') => {
       const newLog = {
@@ -1349,6 +1413,14 @@ pause
               </button>
           </div>
       </div>
+
+      {addonMissing && (
+        <div className="p-4 mx-6 mt-2 rounded-lg bg-yellow-900/20 border border-yellow-700 text-yellow-200 text-sm text-center">
+          ⚠️ Blender add-on package is missing from the build. The download button below will
+          not work until you run <code>npm run predev</code> (development) or rebuild/package
+          the app. Refer to the README or developer docs for instructions.
+        </div>
+      )}
 
       {/* Scrollable content (everything below header) */}
       <div ref={mainScrollRef} className="flex-1 min-h-0 overflow-y-auto pb-32">
@@ -2266,11 +2338,26 @@ pause
                         
                         <button 
                             onClick={handleDownloadAddon}
-                            className="w-full py-3 border border-blue-500/30 hover:bg-blue-500/10 text-blue-400 text-sm font-bold rounded-xl flex items-center justify-center gap-3 transition-all group"
+                            disabled={import.meta.env.DEV || addonMissing}
+                            title={import.meta.env.DEV
+                                ? 'Disabled in development mode'
+                                : addonMissing
+                                ? 'Build/package the app before downloading'
+                                : undefined}
+                            className={
+                                `w-full py-3 border border-blue-500/30 text-sm font-bold rounded-xl flex items-center justify-center gap-3 transition-all group` +
+                                (import.meta.env.DEV || addonMissing
+                                    ? ' opacity-50 cursor-not-allowed'
+                                    : ' hover:bg-blue-500/10')
+                            }
                         >
                             <ArrowDownToLine className="w-5 h-5 group-hover:animate-bounce" />
-                                                        Download Mossy Link Add-on (.zip)
+                            Download Mossy Link Add-on (.zip)
                         </button>
+                        <p className="mt-1 text-[10px] text-slate-400">
+                          If clicking does nothing, run <code>npm run predev</code> or build
+                          the app so the ZIP package is generated.
+                        </p>
                     </div>
                 </div>
 

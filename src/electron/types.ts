@@ -45,6 +45,8 @@ export const IPC_CHANNELS = {
   WORKSHOP_READ_DDS_PREVIEW: 'workshop-read-dds-preview',
   WORKSHOP_READ_NIF_INFO: 'workshop-read-nif-info',
   WORKSHOP_PARSE_SCRIPT_DEPS: 'workshop-parse-script-deps',
+  // special helper for blender add-on ZIP (binary data encoded as base64)
+  WORKSHOP_READ_BLENDER_ZIP: 'workshop-read-blender-zip',
   
   // Image Suite
   IMAGE_GENERATE_NORMAL_MAP: 'image-generate-normal-map',

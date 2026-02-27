@@ -56,6 +56,23 @@ describe('Desktop Bridge Tests', () => {
     // Check that /test/bridge route is defined
     expect(true).toBe(true);
   });
+
+  test('Blender add-on download button triggers fetch', async () => {
+    // simulate a successful fetch using global.fetch mock
+    const fakeResponse = { ok: true, status: 200, arrayBuffer: () => Promise.resolve(new ArrayBuffer(0)) };
+    const fetchMock = vi.spyOn(global, 'fetch').mockResolvedValue(fakeResponse as any);
+
+    const { DesktopBridge } = require('../src/DesktopBridge');
+    const { render, screen } = require('@testing-library/react');
+
+    render(<DesktopBridge />);
+    const button = await screen.findByText(/Download Mossy Link Add-on/i);
+    expect(button).toBeInTheDocument();
+    userEvent.click(button);
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalled());
+    vi.restoreAllMocks();
+  });
 });
 
 // Test Voice Service
@@ -89,6 +106,20 @@ describe('Integration Tests', () => {
       require('../src/DesktopBridge');
       require('../src/voice-service');
     }).not.toThrow();
+  });
+
+  test('PluginManager shows prototype warning', () => {
+    const { PluginManager } = require('../src/PluginManager');
+    const { render, screen } = require('@testing-library/react');
+    render(<PluginManager />);
+    expect(screen.getByText(/prototype/i)).toBeInTheDocument();
+  });
+
+  test('AdvancedAnalysisPanel shows prototype warning', () => {
+    const { AdvancedAnalysisPanel } = require('../src/AdvancedAnalysisPanel');
+    const { render, screen } = require('@testing-library/react');
+    render(<AdvancedAnalysisPanel />);
+    expect(screen.getByText(/prototype/i)).toBeInTheDocument();
   });
 
   test('All routes are defined', () => {

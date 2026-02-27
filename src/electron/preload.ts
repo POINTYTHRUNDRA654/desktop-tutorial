@@ -67,6 +67,7 @@ const IPC_CHANNELS = {
   WORKSHOP_RUN_PAPYRUS_COMPILER: 'workshop-run-papyrus-compiler',
   WORKSHOP_READ_DDS_PREVIEW: 'workshop-read-dds-preview',
   WORKSHOP_READ_NIF_INFO: 'workshop-read-nif-info',
+  WORKSHOP_READ_BLENDER_ZIP: 'workshop-read-blender-zip',
   WORKSHOP_PARSE_SCRIPT_DEPS: 'workshop-parse-script-deps',
   // Image Suite
   IMAGE_GENERATE_NORMAL_MAP: 'image-generate-normal-map',
@@ -490,6 +491,10 @@ const electronAPI = {
    */
   readFile: (filePath: string): Promise<string> => {
     return ipcRenderer.invoke(IPC_CHANNELS.WORKSHOP_READ_FILE, filePath);
+  },
+  // read binary contents of blender add-on zip; returns base64 string
+  readBlenderZip: (): Promise<string> => {
+    return ipcRenderer.invoke(IPC_CHANNELS.WORKSHOP_READ_BLENDER_ZIP as string);
   },
 
   /**
