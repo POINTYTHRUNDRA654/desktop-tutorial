@@ -25,9 +25,9 @@ try:
     # Try to import the necessary dependencies
     import torch
     TORCH_AVAILABLE = True
-except (ImportError, RuntimeError, OSError):
+except Exception:
     TORCH_AVAILABLE = False
-    HUNYUAN3D_ERROR = "PyTorch not available (import failed)"
+    HUNYUAN3D_ERROR = "PyTorch not available (import failed or DLL initialization error)"
 
 # We don't actually import Hunyuan3D here to keep the add-on lightweight
 # It will be imported dynamically when needed
