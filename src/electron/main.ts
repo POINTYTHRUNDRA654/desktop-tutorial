@@ -368,6 +368,7 @@ function createWindow() {
     // Development fallback
     mainWindow.loadURL(`${devUrl}${testParam}`);
     if (shouldOpenDevTools) mainWindow.webContents.openDevTools();
+
   } else {
     console.log('[Main] branch 3: production file URL isPackaged=', app.isPackaged, 'isDev=', isDev);
     // Production: load bundled Vite build from /dist (packaged by electron-builder)
