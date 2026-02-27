@@ -1,13 +1,19 @@
+<<<<<<< HEAD
 import { test, expect } from '@playwright/test';
 import { launchElectronApp } from './utils/electronHarness';
 
 // extend timeout for slow startup/loading; individual waits also increased below
 test.setTimeout(120000);
+=======
+import { test, expect, _electron } from '@playwright/test';
+import * as path from 'path';
+>>>>>>> 7fc8ed4cf64803aee0ee7d1400034ae62c90ea17
 
 test.describe('Mossy Desktop App - Comprehensive Testing Suite', () => {
   let electronApp: any;
   let page: any;
 
+<<<<<<< HEAD
   async function waitForSidebar(p: any, timeout = 60000) {
     const start = Date.now();
     let htmlSnapshot: string | null = null;
@@ -36,17 +42,40 @@ test.describe('Mossy Desktop App - Comprehensive Testing Suite', () => {
     const launched = await launchElectronApp(testInfo.project.name);
     electronApp = launched.electronApp;
     page = launched.page;
+=======
+  test.beforeAll(async () => {
+    // Launch Electron app in development mode with test parameters
+    electronApp = await _electron.launch({
+      args: ['dist-electron/electron/main.js'], // Use built main process
+      cwd: process.cwd(),
+      env: {
+        ...process.env,
+        ELECTRON_IS_TEST: 'true', // This will make isDev = true
+        NODE_ENV: 'development', // Ensure development mode
+      },
+    });
+
+    // Get the first window
+    page = await electronApp.firstWindow();
+>>>>>>> 7fc8ed4cf64803aee0ee7d1400034ae62c90ea17
 
     // Capture renderer console and uncaught errors for debugging
     page.on('console', msg => console.log('[renderer console]', msg.type(), msg.text()));
     page.on('pageerror', err => console.error('[renderer error]', err));
 
+<<<<<<< HEAD
+=======
+    // Navigate to the dev server with test parameter
+    await page.goto('http://localhost:5174?test=true');
+
+>>>>>>> 7fc8ed4cf64803aee0ee7d1400034ae62c90ea17
     // Log the current URL for debugging
     const currentUrl = page.url();
     console.log('Electron app loaded URL:', currentUrl);
 
     // Wait for the app to load
     await page.waitForLoadState('networkidle');
+<<<<<<< HEAD
     await page.waitForTimeout(4000); // Extra time for Electron app initialization
 
     // wait for renderer readiness flag (boot sequence complete)
@@ -69,6 +98,12 @@ test.describe('Mossy Desktop App - Comprehensive Testing Suite', () => {
     await waitForSidebar(page, 60000);
     // also ensure initial loading indicator is present so tests know page has mounted
     await page.waitForSelector('.pipboy-outer-container', { timeout: 60000 });
+=======
+    await page.waitForTimeout(2000); // Extra time for Electron app initialization
+
+    // Wait for React app to fully load - look for actual app content, not loading screen
+    await page.waitForSelector('.sidebar, nav, [data-testid="sidebar"], .pipboy-outer-container', { timeout: 30000 });
+>>>>>>> 7fc8ed4cf64803aee0ee7d1400034ae62c90ea17
   });
 
   test.afterAll(async () => {
@@ -77,7 +112,10 @@ test.describe('Mossy Desktop App - Comprehensive Testing Suite', () => {
   });
 
   test('App launches successfully', async () => {
+<<<<<<< HEAD
     test.setTimeout(120000);
+=======
+>>>>>>> 7fc8ed4cf64803aee0ee7d1400034ae62c90ea17
     // Check that the main app loaded
     const title = await page.title();
     console.log('Page title:', title);
@@ -88,7 +126,11 @@ test.describe('Mossy Desktop App - Comprehensive Testing Suite', () => {
     console.log('Loading screen detected');
 
     // Wait for the loading screen to disappear and sidebar to appear
+<<<<<<< HEAD
     await waitForSidebar(page, 30000);
+=======
+    await page.waitForSelector('.sidebar, nav, [data-testid="sidebar"]', { timeout: 30000 });
+>>>>>>> 7fc8ed4cf64803aee0ee7d1400034ae62c90ea17
     console.log('App loaded, sidebar found');
 
     expect(title).toMatch(/Mossy|OmniForge/); // Accept either title for now
@@ -99,9 +141,14 @@ test.describe('Mossy Desktop App - Comprehensive Testing Suite', () => {
   });
 
   test('Navigation works correctly', async () => {
+<<<<<<< HEAD
     test.setTimeout(90000);
     // App should already be loaded from beforeAll, but wait for sidebar
     await waitForSidebar(page, 60000);
+=======
+    // App should already be loaded from beforeAll, but wait for sidebar
+    await page.waitForSelector('.sidebar, nav, [data-testid="sidebar"]', { timeout: 10000 });
+>>>>>>> 7fc8ed4cf64803aee0ee7d1400034ae62c90ea17
 
     // Test sidebar navigation - look for chat link
     const chatLink = page.locator('a[href="/chat"], [data-testid="nav-chat"], button:has-text("Chat"), a:has-text("Chat")');
@@ -119,9 +166,14 @@ test.describe('Mossy Desktop App - Comprehensive Testing Suite', () => {
   });
 
   test('AI Chat functionality', async () => {
+<<<<<<< HEAD
     test.setTimeout(90000);
     // App should already be loaded, wait for sidebar
     await waitForSidebar(page, 60000);
+=======
+    // App should already be loaded, wait for sidebar
+    await page.waitForSelector('nav, .sidebar', { timeout: 10000 });
+>>>>>>> 7fc8ed4cf64803aee0ee7d1400034ae62c90ea17
 
     // Navigate to chat using sidebar
     const chatLink = page.locator('a[href="/chat"], [data-testid="nav-chat"], button:has-text("Chat"), a:has-text("Chat")');
@@ -157,7 +209,11 @@ test.describe('Mossy Desktop App - Comprehensive Testing Suite', () => {
 
   test('Desktop Bridge loads correctly', async () => {
     // Wait for app to load
+<<<<<<< HEAD
     await waitForSidebar(page, 10000);
+=======
+    await page.waitForSelector('nav, .sidebar', { timeout: 10000 });
+>>>>>>> 7fc8ed4cf64803aee0ee7d1400034ae62c90ea17
 
     // Navigate to bridge using sidebar
     const bridgeLink = page.locator('a[href="/bridge"], [data-testid="nav-bridge"], button:has-text("Bridge"), a:has-text("Bridge")');
@@ -185,9 +241,14 @@ test.describe('Mossy Desktop App - Comprehensive Testing Suite', () => {
   });
 
   test('Voice/TTS functionality', async () => {
+<<<<<<< HEAD
     console.log('[e2e] running Voice/TTS test with waitForSidebar');
     // Wait for app to load
     await waitForSidebar(page, 10000);
+=======
+    // Wait for app to load
+    await page.waitForSelector('nav, .sidebar', { timeout: 10000 });
+>>>>>>> 7fc8ed4cf64803aee0ee7d1400034ae62c90ea17
 
     // Navigate to chat where voice is used
     const chatLink = page.locator('a[href="/chat"], [data-testid="nav-chat"], button:has-text("Chat"), a:has-text("Chat")');
@@ -226,7 +287,11 @@ test.describe('Mossy Desktop App - Comprehensive Testing Suite', () => {
 
   test('System Monitor loads', async () => {
     // Wait for app to load
+<<<<<<< HEAD
     await waitForSidebar(page, 60000);
+=======
+    await page.waitForSelector('nav, .sidebar', { timeout: 10000 });
+>>>>>>> 7fc8ed4cf64803aee0ee7d1400034ae62c90ea17
 
     // Navigate to system using sidebar
     const systemLink = page.locator('a[href="/system"], [data-testid="nav-system"], button:has-text("System"), a:has-text("System")');
@@ -249,6 +314,7 @@ test.describe('Mossy Desktop App - Comprehensive Testing Suite', () => {
 
   test('Settings panel works', async () => {
     // Wait for app to load
+<<<<<<< HEAD
     await waitForSidebar(page, 90000);
 
     // Look for settings button/link (accounts for nav-settings testid)
@@ -265,11 +331,29 @@ test.describe('Mossy Desktop App - Comprehensive Testing Suite', () => {
     // as a fallback, also allow generic container styles
     const settingsPanel = page.locator('[data-testid="settings"], .settings');
     await expect(settingsPanel.first()).toBeVisible({ timeout: 10000 });
+=======
+    await page.waitForSelector('nav, .sidebar', { timeout: 10000 });
+
+    // Look for settings button/link
+    const settingsLink = page.locator('a[href*="settings"], [data-testid="settings"]');
+    if (await settingsLink.isVisible()) {
+      await settingsLink.click();
+      await page.waitForTimeout(1000);
+
+      // Check settings interface
+      const settingsPanel = page.locator('[data-testid="settings"], .settings');
+      await expect(settingsPanel).toBeVisible({ timeout: 5000 });
+    }
+>>>>>>> 7fc8ed4cf64803aee0ee7d1400034ae62c90ea17
   });
 
   test('Error boundaries work', async () => {
     // Wait for app to load
+<<<<<<< HEAD
     await waitForSidebar(page, 90000);
+=======
+    await page.waitForSelector('nav, .sidebar', { timeout: 10000 });
+>>>>>>> 7fc8ed4cf64803aee0ee7d1400034ae62c90ea17
 
     // Try to navigate to a non-existent route using React Router
     await page.evaluate(() => {
@@ -287,7 +371,11 @@ test.describe('Mossy Desktop App - Comprehensive Testing Suite', () => {
 
   test('Memory and performance', async () => {
     // Wait for app to load
+<<<<<<< HEAD
     await page.waitForSelector('nav, .sidebar', { timeout: 60000 });
+=======
+    await page.waitForSelector('nav, .sidebar', { timeout: 10000 });
+>>>>>>> 7fc8ed4cf64803aee0ee7d1400034ae62c90ea17
 
     // Navigate through multiple pages to test memory usage
     const routes = ['/chat', '/system', '/bridge', '/'];

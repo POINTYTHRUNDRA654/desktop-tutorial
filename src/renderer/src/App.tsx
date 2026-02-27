@@ -243,6 +243,7 @@ const App: React.FC = () => {
     return hasCompletedFirstRun && !hasCompletedVoiceSetup;
   });
 
+
   // signal test harness when UI is actually visible (avoid early flag loss)
   useEffect(() => {
     if (hasBooted && !showFirstRun && !showOnboarding) {
