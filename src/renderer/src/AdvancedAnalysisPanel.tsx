@@ -44,6 +44,10 @@ interface AdvancedAnalysisPanelProps {
 }
 
 export const AdvancedAnalysisPanel: React.FC<AdvancedAnalysisPanelProps> = ({ onClose }) => {
+  // Note: the advanced analysis engine lives in the backend and is usually
+  // unavailable in lightweight/dev builds. Until that API is wired up,
+  // the "Run" buttons will quietly do nothing. Treat this panel as a
+  // placeholder/prototype rather than production-ready.
   const [activeTab, setActiveTab] = useState<'patterns' | 'conflicts' | 'bottlenecks' | 'memory' | 'compatibility'>('patterns');
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [analysisResults, setAnalysisResults] = useState<{
@@ -221,6 +225,11 @@ export const AdvancedAnalysisPanel: React.FC<AdvancedAnalysisPanelProps> = ({ on
   return (
     <div className="advanced-analysis-panel">
       <div className="panel-header">
+        <div className="mb-2 p-2 bg-yellow-800/30 border border-yellow-700 text-yellow-200 rounded text-sm">
+          ⚠️ This panel is a prototype/demo. The analysis engine may be unavailable
+          and buttons will not produce real results until the backend API is
+          implemented. Use as a visual reference only.
+        </div>
         <h2 className="panel-title">
           <Brain className="panel-icon" />
           Advanced Analysis Engine

@@ -2556,6 +2556,33 @@ function setupIpcHandlers() {
     }
   });
 
+  // --- Workshop: Read Blender add-on ZIP (binary) ---
+  registerHandler(IPC_CHANNELS.WORKSHOP_READ_BLENDER_ZIP, async () => {
+    // attempt several likely locations; the file may live inside resources or public
+    const candidates: string[] = [];
+    try {
+      // app.getAppPath() points to the root of the app (asar in production)
+      candidates.push(path.join(app.getAppPath(), 'public', 'mossy-blender-addons.zip'));
+      candidates.push(path.join(app.getAppPath(), 'mossy-blender-addons.zip'));
+    } catch {}
+    try {
+      // process.resourcesPath points to the resources folder (outside asar)
+      candidates.push(path.join(process.resourcesPath, 'public', 'mossy-blender-addons.zip'));
+      candidates.push(path.join(process.resourcesPath, 'mossy-blender-addons.zip'));
+    } catch {}
+    for (const p of candidates) {
+      try {
+        if (fs.existsSync(p)) {
+          const buf = fs.readFileSync(p);
+          return buf.toString('base64');
+        }
+      } catch {
+        // ignore and try next
+      }
+    }
+    throw new Error('Blender add-on ZIP not found in any expected location');
+  });
+
   // --- Workshop: Write file content ---
   registerHandler(IPC_CHANNELS.WORKSHOP_WRITE_FILE, async (_event, filePath: string, content: string) => {
     try {

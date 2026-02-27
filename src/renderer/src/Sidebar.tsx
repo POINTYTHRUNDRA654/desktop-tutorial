@@ -119,8 +119,6 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen = false, onToggle, onClose }) 
     { to: '/holo', icon: Gamepad2, label: t('nav.holodeck', 'The Holodeck') },
     { to: '/vault', icon: Container, label: t('nav.vault', 'The Vault') },
     { to: '/tools/ba2-manager', icon: Archive, label: t('nav.ba2Manager', 'BA2 Manager') },
-    { to: '/dev/workflow-recorder', icon: Clock, label: t('nav.workflowRecorder', 'Workflow Recorder') },
-    { to: '/dev/plugin-manager', icon: Package, label: t('nav.pluginManager', 'Plugin Manager') },
     { to: '/capabilities', icon: Gauge, label: t('nav.localCapabilities', 'Local Capabilities') },
 
     // === CONTENT CREATION ===
@@ -220,7 +218,9 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen = false, onToggle, onClose }) 
       )}
 
       <nav className="flex-1 p-4 space-y-2 overflow-y-auto custom-scrollbar" role="navigation" aria-label="Main navigation menu">
-        {navItems.map((item) => (
+        {navItems
+            .filter(item => process.env.NODE_ENV !== 'production' || !item.to.startsWith('/dev'))
+            .map((item) => (
           <div key={item.to} className="relative group">
             {item.isExternal ? (
                 <a

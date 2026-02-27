@@ -891,6 +891,7 @@ export const IPC_CHANNELS = {
   WORKSHOP_READ_DDS_PREVIEW: 'workshop-read-dds-preview',
   WORKSHOP_READ_NIF_INFO: 'workshop-read-nif-info',
   WORKSHOP_PARSE_SCRIPT_DEPS: 'workshop-parse-script-deps',
+  WORKSHOP_READ_BLENDER_ZIP: 'workshop-read-blender-zip',
 
   // Image Suite
   IMAGE_GET_INFO: 'image-get-info',
