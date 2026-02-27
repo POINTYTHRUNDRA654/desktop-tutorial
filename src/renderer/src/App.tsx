@@ -197,18 +197,37 @@ const WhatsNewRedirect: React.FC<{ enabled: boolean }> = ({ enabled }) => {
 
 const App: React.FC = () => {
   const devBuildId = '2026-01-27-1227-debug-probe';
+
+  // Debug: log test mode detection and initial URL for E2E troubleshooting
+  useEffect(() => {
+    console.log('[App] initial URL', window.location.href);
+    console.log('[App] location.search', window.location.search);
+    console.log('[App] test mode checks', {
+      urlHasTest: window.location.search.includes('test'),
+      localStorageTestMode: window.localStorage.getItem('mossy_test_mode'),
+      localStorageBooted: window.localStorage.getItem('mossy_has_booted'),
+    });
+  }, []);
   const [hasBooted, setHasBooted] = useState(() => {
     // Skip boot sequence in test mode - check multiple sources
     const urlParams = new URLSearchParams(window.location.search);
-    if (urlParams.has('test') ||
+    const forced = urlParams.has('test') ||
         window.location.search.includes('test') ||
         window.localStorage.getItem('mossy_test_mode') === 'true' ||
-        window.localStorage.getItem('mossy_has_booted') === 'true') {
-      return true;
-    }
+        window.localStorage.getItem('mossy_has_booted') === 'true';
+    if (forced) return true;
     // Persist boot so we don't show the startup sequence every launch.
     return localStorage.getItem('mossy_has_booted') === 'true';
   });
+
+  // expose readiness flag for tests whenever we boot
+  useEffect(() => {
+    if (hasBooted) {
+      try {
+        (window as any).__MOSSY_TEST_READY__ = true;
+      } catch {}
+    }
+  }, [hasBooted]);
   const [showFirstRun, setShowFirstRun] = useState(() => {
     // Check if user has completed first-run onboarding
     return localStorage.getItem('mossy_onboarding_complete') !== 'true';
@@ -223,6 +242,15 @@ const App: React.FC = () => {
     const hasCompletedVoiceSetup = localStorage.getItem('mossy_voice_setup_complete') === 'true';
     return hasCompletedFirstRun && !hasCompletedVoiceSetup;
   });
+
+  // signal test harness when UI is actually visible (avoid early flag loss)
+  useEffect(() => {
+    if (hasBooted && !showFirstRun && !showOnboarding) {
+      try {
+        (window as any).__MOSSY_TEST_READY__ = true;
+      } catch {}
+    }
+  }, [hasBooted, showFirstRun, showOnboarding]);
   
   // Tutorial state
   const [showTutorialLaunch, setShowTutorialLaunch] = useState(false);

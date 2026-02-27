@@ -1,3 +1,4 @@
+/// <reference lib="dom" />
 /**
  * Electron Preload Script for Volt Tech Desktop Wrapper
  * 
@@ -10,6 +11,24 @@
  */
 
 import { contextBridge, ipcRenderer } from 'electron';
+
+// tests rely on boot/onboarding flags being present before React loads.  Preload
+// runs before any renderer scripts, so we can safely mutate localStorage here
+// when running under test mode.
+try {
+  if (process.env.ELECTRON_IS_TEST === 'true') {
+    // set items; some tests also look for mossy_test_mode/has_booted
+    window.localStorage.setItem('mossy_onboarding_completed', 'true');
+    window.localStorage.setItem('mossy_onboarding_complete', 'true');
+    window.localStorage.setItem('mossy_has_booted', 'true');
+    window.localStorage.setItem('mossy_test_mode', 'true');
+    // readiness flag may be read from preload later too
+    (window as any).__MOSSY_TEST_READY__ = true;
+  }
+} catch (e) {
+  // ignore; environment may restrict localStorage in some contexts
+}
+
 
 // Inline types to avoid module resolution issues in sandbox
 interface InstalledProgram {

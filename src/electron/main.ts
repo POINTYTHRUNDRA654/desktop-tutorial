@@ -6,6 +6,17 @@
  */
 
 import { app, BrowserWindow, ipcMain, dialog, shell, safeStorage, screen } from 'electron';
+
+// during debugging we sometimes need to emulate a packaged build without
+// actually running the installer. setting FORCE_PACKAGED will flip the flag
+// so that `app.isPackaged` returns true and the production code paths are used.
+if (process.env.FORCE_PACKAGED === 'true') {
+  // override the readonly getter so `app.isPackaged` returns true
+  Object.defineProperty(app, 'isPackaged', {
+    get: () => true,
+  });
+  console.log('[Main] ⚠️ FORCE_PACKAGED env enabled - treating as packaged build');
+}
 import path from 'path';
 import os from 'os';
 import { IPC_CHANNELS } from './types';
@@ -45,6 +56,20 @@ import { DependencyGraphBuilder } from '../mining/dependency-graph-builder'; // 
 import { DataSource, MiningResult } from '../shared/types';
 
 // Keep dev and packaged builds using the same userData folder for consistent onboarding/memory.
+// In tests we may not launch an actual packaged executable, so force the
+// packaged flag early so subsequent logic (env paths, directory layout, etc.)
+// behaves the same as a real install.
+if (process.env.ELECTRON_IS_TEST === 'true') {
+  try {
+    Object.defineProperty(app, 'isPackaged', {
+      get: () => true,
+    });
+    console.log('[Main] TEST MODE: overrode app.isPackaged -> true');
+  } catch (e) {
+    console.warn('[Main] TEST MODE: failed to override app.isPackaged', e);
+  }
+}
+
 app.setName('mossy-desktop');
 app.setPath('userData', path.join(app.getPath('appData'), 'mossy-desktop'));
 
@@ -297,74 +322,74 @@ function createWindow() {
 
   const windowRef = mainWindow;
 
-  windowRef.webContents.on('did-finish-load', () => {
+  windowRef.webContents.on('did-finish-load', async () => {
     try {
       console.log('[Main] Renderer loaded URL:', windowRef.webContents.getURL());
     } catch {
       // ignore
     }
+    // network logging for production simulation
+    if (process.env.NODE_ENV === 'production' || process.env.FORCE_PACKAGED === 'true') {
+      const sess = windowRef.webContents.session;
+      sess.webRequest.onCompleted((details) => {
+        if (details.statusCode >= 400) {
+          console.warn('[Main] network error', details.statusCode, details.url);
+        }
+      });
+    }
+    // when debugging production/file:// problems, save a screenshot
+    if (process.env.FORCE_PACKAGED === 'true' || process.env.DEBUG_PACKAGED === 'true') {
+      try {
+        const img = await windowRef.webContents.capturePage();
+        const outPath = path.join(process.cwd(), 'packaged-screenshot.png');
+        fs.writeFileSync(outPath, img.toPNG());
+        console.log('[Main] saved packaged screenshot to', outPath);
+      } catch (e) {
+        console.warn('[Main] failed to capture screenshot', e);
+      }
+    }
   });
 
   // Load the app based on environment
   const isTestMode = process.env.ELECTRON_IS_TEST === 'true';
-  const devPort = Number(process.env.VITE_DEV_SERVER_PORT || process.env.DEV_SERVER_PORT || 5173);
+  const devPort = Number(process.env.VITE_DEV_SERVER_PORT || process.env.DEV_SERVER_PORT || 5174);
   const testParam = isTestMode ? '?test=true' : '';
   const devUrl = ELECTRON_START_URL || `http://localhost:${devPort}`;
 
+  const shouldOpenDevTools = !process.env.ELECTRON_IS_TEST;
+  console.log('[Main] computed flags: isPackaged=', app.isPackaged, 'isDev=', isDev, 'isTestMode=', isTestMode, 'DEV_SERVER_PORT=', process.env.DEV_SERVER_PORT, 'ELECTRON_START_URL=', ELECTRON_START_URL);
   if (!app.isPackaged && (ELECTRON_START_URL || process.env.DEV_SERVER_PORT)) {
+    console.log('[Main] branch 1: dev URL selected', `${devUrl}${testParam}`, 'isPackaged=', app.isPackaged, 'isDev=', isDev);
     // Development with custom or local server URL
     mainWindow.loadURL(`${devUrl}${testParam}`);
-    mainWindow.webContents.openDevTools();
+    if (shouldOpenDevTools) mainWindow.webContents.openDevTools();
   } else if (isDev) {
+    console.log('[Main] branch 2: dev fallback', `${devUrl}${testParam}`, 'isPackaged=', app.isPackaged, 'isDev=', isDev);
     // Development fallback
     mainWindow.loadURL(`${devUrl}${testParam}`);
-    mainWindow.webContents.openDevTools();
+    if (shouldOpenDevTools) mainWindow.webContents.openDevTools();
   } else {
+    console.log('[Main] branch 3: production file URL isPackaged=', app.isPackaged, 'isDev=', isDev);
     // Production: load bundled Vite build from /dist (packaged by electron-builder)
     const indexPath = path.join(__dirname, '../../dist/index.html');
-    mainWindow.loadFile(indexPath).catch(err => {
-      console.error('Failed to load front-end from dist build:', err);
-      // Fallback: show error page
-      mainWindow?.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(`
-        <!DOCTYPE html>
-        <html>
-          <head>
-            <title>Error - Volt Tech Desktop</title>
-            <style>
-              body {
-                font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-                display: flex;
-                justify-content: center;
-                align-items: center;
-                height: 100vh;
-                margin: 0;
-                background: #f5f5f5;
-              }
-              .error-box {
-                background: white;
-                padding: 2rem;
-                border-radius: 8px;
-                box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-                max-width: 500px;
-                text-align: center;
-              }
-              h1 { color: #e74c3c; margin-top: 0; }
-              p { color: #555; line-height: 1.6; }
-              code { background: #f0f0f0; padding: 2px 6px; border-radius: 3px; }
-            </style>
-          </head>
-          <body>
-            <div class="error-box">
-              <h1>⚠️ Front-end Not Found</h1>
-              <p>The Volt Tech front-end assets could not be found.</p>
-              <p>Please ensure the built assets are placed in:</p>
-              <p><code>./external/volttech-dist/</code></p>
-              <p>with an <code>index.html</code> file as the entry point.</p>
-            </div>
-          </body>
-        </html>
-      `)}`);
-    });
+    if (isTestMode) {
+      // packaged test: load the file URL with ?test parameter so renderer skips startup
+      const fileUrl = `file://${indexPath}${testParam}`;
+      mainWindow.loadURL(fileUrl).catch(err => {
+        console.error('Failed to load front-end from dist build via URL:', err);
+        // fallback to plain file load
+        mainWindow?.loadFile(indexPath).catch(err2 => {
+          console.error('Also failed to load front-end file:', err2);
+        });
+      });
+      // do not open devtools during automated tests (makes firstWindow wrong)
+      console.log('[Main] test mode - skipping devtools');
+    } else {
+      mainWindow.loadFile(indexPath).catch(err => {
+        console.error('Failed to load front-end from dist build:', err);
+        // cannot do much else
+      });
+    }
   }
 
   // Show window when ready
@@ -6118,8 +6143,8 @@ app.whenReady().then(() => {
   setupIpcHandlers();
   bridge.start();
 
-  // Initialize auto-updater service
-  if (mainWindow) {
+  // Initialize auto-updater service (skip entirely in test mode)
+  if (mainWindow && !isTestMode) {
     autoUpdaterService.setMainWindow(mainWindow);
     
     // Check for updates on startup (after a delay to not interfere with onboarding)
@@ -6131,6 +6156,8 @@ app.whenReady().then(() => {
         });
       }
     }, 10000); // Wait 10 seconds after app launch
+  } else if (mainWindow && isTestMode) {
+    console.log('[Main] Test mode - auto-updater disabled');
   }
 
   // Ping backend health to wake up sleeping service (e.g., Render free tier)
