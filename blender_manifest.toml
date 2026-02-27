@@ -1,0 +1,27 @@
+schema_version = "1.0.0"
+
+# The 'id' field becomes the Python module name that Blender uses to import
+# this add-on.  It MUST be a valid Python identifier (letters, digits, and
+# underscores only — no hyphens or periods).  This is the authoritative fix
+# for "No module named 'Blender-add-on'" errors that occur when users install
+# directly from the GitHub source download whose folder is named
+# 'Blender-add-on.' (an illegal Python identifier).
+id = "fallout4_tutorial_helper"
+version = "2.1.2"
+name = "Fallout 4 Tutorial Helper"
+tagline = "Tutorial system and helpers for Fallout 4 mod creation"
+maintainer = "Tutorial Team"
+type = "add-on"
+
+blender_version_min = "4.2.0"
+
+license = ["SPDX:MIT"]
+
+[build]
+paths_exclude_pattern = [
+  "__pycache__/",
+  "*.pyc",
+  ".git/",
+  ".github/",
+  "*.zip",
+]
