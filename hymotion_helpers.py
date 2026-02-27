@@ -26,9 +26,9 @@ try:
     # Check if PyTorch is available (required for motion model)
     import torch
     TORCH_AVAILABLE = True
-except (ImportError, RuntimeError, OSError):
+except Exception:
     TORCH_AVAILABLE = False
-    HYMOTION_ERROR = "PyTorch not available (import failed)"
+    HYMOTION_ERROR = "PyTorch not available (import failed or DLL initialization error)"
 
 
 def check_git_lfs():
