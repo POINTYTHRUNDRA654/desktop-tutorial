@@ -200,6 +200,17 @@ class FO4AddonPreferences(bpy.types.AddonPreferences):
         description="If enabled, missing CLI tools will be downloaded automatically on startup",
     )
 
+    auto_register_tools: bpy.props.BoolProperty(
+        name="Auto Register External Tools",
+        default=False,
+        description=(
+            "If enabled, third-party integrations (UE importer, UModel, AssetStudio, "
+            "etc.) will be downloaded/loaded automatically on add-on startup. "
+            "This may trigger \"policy violation\" warnings from Blender; leave "
+            "disabled to load them manually."
+        ),
+    )
+
     auto_install_python: bpy.props.BoolProperty(
         name="Auto Install Python",
         default=True,
@@ -286,6 +297,8 @@ class FO4AddonPreferences(bpy.types.AddonPreferences):
         auto_box.label(text="Automatic Tool Installation", icon="FILE_REFRESH")
         auto_box.prop(self, "auto_install_tools", text="Auto-install missing CLI tools at startup")
         auto_box.prop(self, "auto_install_python", text="Auto-install Python deps at startup")
+        auto_box.prop(self, "auto_register_tools", text="Auto-register third-party add-ons")
+        auto_box.label(text="(disable to avoid policy warnings at startup)", icon='INFO')
 
         ml_box = layout.box()
         ml_box.label(text="Mossy Link", icon="LINKED")

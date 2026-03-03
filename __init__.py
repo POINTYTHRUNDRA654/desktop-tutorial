@@ -20,7 +20,7 @@ from . import preferences
 from . import ui_panels
 from . import operators
 from . import tutorial_system
-from . import mesh_helpers
+from .import mesh_helpers
 from . import advanced_mesh_helpers
 from . import texture_helpers
 from . import animation_helpers
@@ -51,14 +51,9 @@ from . import shap_e_helpers
 from . import point_e_helpers
 from . import advisor_helpers
 from . import knowledge_helpers
-from . import ue_importer_helpers
-from . import umodel_tools_helpers
-from . import unity_fbx_importer_helpers
-from . import asset_studio_helpers
-from . import asset_ripper_helpers
-from . import tool_installers
 from . import mossy_link
 
+# core modules that are safe to import and register unconditionally.
 modules = [
     preferences,
     tutorial_system,
@@ -81,12 +76,17 @@ modules = [
     point_e_helpers,
     advisor_helpers,
     knowledge_helpers,
-    ue_importer_helpers,
-    umodel_tools_helpers,
-    unity_fbx_importer_helpers,
-    asset_studio_helpers,
-    asset_ripper_helpers,
-    tool_installers,
+    # the external integration helpers are intentionally omitted from the
+    # automatic registration list.  They are heavy and may trigger policy
+    # violations when the wrapped upstream add‑ons are loaded at import time.
+    # Users can enable each integration manually via the sidebar buttons or
+    # the "Check ..." operators.
+    # ue_importer_helpers,
+    # umodel_tools_helpers,
+    # unity_fbx_importer_helpers,
+    # asset_studio_helpers,
+    # asset_ripper_helpers,
+    # tool_installers,
     mossy_link,
     export_helpers,
     image_to_mesh_helpers,
@@ -156,33 +156,58 @@ def register():
         # Python will treat it as a local variable and raise UnboundLocalError
         def _post_register():
             try:
+                # query the status of builtin tools; these are always safe and
+                # do not trigger policy warnings.  We leave external integrations alone
+                # until the user explicitly requests them.
                 bpy.ops.fo4.check_kb_tools()
-                bpy.ops.fo4.check_ue_importer()
-                bpy.ops.fo4.check_umodel_tools()
-                bpy.ops.fo4.check_unity_fbx_importer()
-                bpy.ops.fo4.check_asset_studio()
-                bpy.ops.fo4.check_asset_ripper()
-                # attempt auto-download missing repos too
-                from . import ue_importer_helpers, umodel_tools_helpers, unity_fbx_importer_helpers, asset_studio_helpers, asset_ripper_helpers, preferences
+
+                # for convenience we can also log the status values of the external
+                # helpers without triggering their registration logic.
+                from . import (
+                    ue_importer_helpers,
+                    umodel_tools_helpers,
+                    unity_fbx_importer_helpers,
+                    asset_studio_helpers,
+                    asset_ripper_helpers,
+                )
+                print("UE importer status:", ue_importer_helpers.status())
+                print("UModel tools status:", umodel_tools_helpers.status())
+                print("Unity FBX importer status:", unity_fbx_importer_helpers.status())
+                print("Asset Studio status:", asset_studio_helpers.status())
+                print("Asset Ripper status:", asset_ripper_helpers.status())
+
+                # conditional auto-register based on preference
+                from . import preferences
                 prefs = preferences.get_preferences()
-                if not ue_importer_helpers.status()[0]:
-                    ue_importer_helpers.download_latest()
-                    ue_importer_helpers.register()
-                if not umodel_tools_helpers.status()[0]:
-                    umodel_tools_helpers.download_latest()
-                    umodel_tools_helpers.register()
-                if not unity_fbx_importer_helpers.status()[0]:
-                    unity_fbx_importer_helpers.download_latest()
-                if not asset_studio_helpers.status()[0]:
-                    asset_studio_helpers.download_latest()
-                if not asset_ripper_helpers.status()[0]:
-                    asset_ripper_helpers.download_latest()
+                if prefs and getattr(prefs, "auto_register_tools", False):
+                    from . import (
+                        ue_importer_helpers,
+                        umodel_tools_helpers,
+                        unity_fbx_importer_helpers,
+                        asset_studio_helpers,
+                        asset_ripper_helpers,
+                    )
+                    if not ue_importer_helpers.status()[0]:
+                        ue_importer_helpers.download_latest()
+                        ue_importer_helpers.register()
+                    if not umodel_tools_helpers.status()[0]:
+                        umodel_tools_helpers.download_latest()
+                        umodel_tools_helpers.register()
+                    if not unity_fbx_importer_helpers.status()[0]:
+                        unity_fbx_importer_helpers.download_latest()
+                    if not asset_studio_helpers.status()[0]:
+                        asset_studio_helpers.download_latest()
+                    if not asset_ripper_helpers.status()[0]:
+                        asset_ripper_helpers.download_latest()
+
                 # optionally auto-install CLI tools
                 if prefs and getattr(prefs, 'auto_install_tools', False):
                     bpy.ops.fo4.install_all_tools()
+
                 # optionally auto-install python reqs
                 if prefs and getattr(prefs, 'auto_install_python', False):
                     bpy.ops.fo4.install_python_deps()
+
                 # auto-install Niftools if exporter missing
                 try:
                     nif_ok, _ = export_helpers.ExportHelpers.nif_exporter_available()
@@ -190,16 +215,15 @@ def register():
                         bpy.ops.fo4.install_niftools()
                 except Exception:
                     pass
+
                 # if ffmpeg not configured, try to auto-assign from PATH or tools
                 if prefs and not prefs.ffmpeg_path:
                     from .knowledge_helpers import tool_status
                     status = tool_status()
                     if status.get('ffmpeg'):
-                        # find executable either in PATH or tools
                         from shutil import which
                         exe = which('ffmpeg')
                         if not exe:
-                            # search tools folder
                             from pathlib import Path
                             base = Path(__file__).resolve().parent / 'tools' / 'ffmpeg'
                             for p in base.rglob('ffmpeg.exe'):
@@ -208,11 +232,13 @@ def register():
                         if exe:
                             prefs.ffmpeg_path = exe
             except Exception:
+                # ignore any issues in post-register diagnostics
                 pass
             return None  # only run once
-        bpy.app.timers.register(_post_register, first_interval=1.0)
-    except Exception:
-        pass
+        # use a timer to avoid re‑entrancy during registration
+        bpy.app.timers.register(_post_register, first_interval=0.1)
+    except Exception as e:
+        print(f"Post-register environment check failed: {e}")
     
     # Show version-specific notes if needed
     if blender_version[0] < 3:
