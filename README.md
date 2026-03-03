@@ -2,7 +2,11 @@
 
 **A comprehensive, user-friendly, and highly automated Blender add-on for creating Fallout 4 mods with desktop tutorial integration.**
 
-**✅ Compatible with Blender 2.80 through 4.5.5+** (All modern versions!)
+**✅ Compatible with Blender 2.80 through 5.x+** (All modern versions!)
+
+> ⚠ Blender 5.0 users: initial reports of errors have surfaced.  Toss your
+> system console output into an issue and the add-on will gracefully
+> continue loading thanks to new import/registration safeguards.
 
 ## 🆕 What's New - Enhanced Features!
 
@@ -163,7 +167,7 @@ Blender-add-on/
 ## Troubleshooting
 
 ### Add-on won't enable
-- Make sure you're using Blender 2.80 or higher
+- Make sure you're using Blender 2.80 or higher (Blender 5.x supported)
 - Check the Blender console for error messages
 
 ### Cannot connect to tutorial app

@@ -14,6 +14,7 @@ This add-on is compatible with ALL modern versions of Blender, including the ver
 | **Blender 3.0 - 3.6** | ✅ Fully Compatible | Recommended for stability |
 | **Blender 4.0 - 4.2** | ✅ Fully Compatible | Latest LTS features |
 | **Blender 4.3 - 4.5+** | ✅ Fully Compatible | **Including 4.5.5** ⭐ |
+| **Blender 5.0+ (experimental)** | ⚠ Untested / In progress | Report any errors with console log |
 
 **✨ Confirmed Working on Blender 4.5.5!** (User tested)
 
@@ -40,6 +41,14 @@ This add-on is compatible with ALL modern versions of Blender, including the ver
 - ✅ Future-proof implementation
 - ✅ **Blender 4.5.5 confirmed working** ⭐
 - 💡 Tip: All 4.x versions fully supported
+
+**Blender 5.x:**
+- ⚠ First releases of 5.x may introduce breaking API changes
+- ✅ Add-on should work exactly like 4.x, but there is no official
+  validation yet
+- 📋 If you see errors on Blender 5, copy the System Console output and
+  open an issue at the GitHub repository; the enhanced import/registration
+  logging will show which module failed
 
 ### Installation on Any Blender Version
 

@@ -16,45 +16,80 @@ bl_info = {
 }
 
 import bpy
-from . import preferences
-from . import ui_panels
-from . import operators
-from . import tutorial_system
-from .import mesh_helpers
-from . import advanced_mesh_helpers
-from . import texture_helpers
-from . import animation_helpers
-from . import export_helpers
-from . import notification_system
-from . import image_to_mesh_helpers
-from . import hunyuan3d_helpers
-from . import zoedepth_helpers
-from . import gradio_helpers
-from . import hymotion_helpers
-from . import nvtt_helpers
-from . import realesrgan_helpers
-from . import get3d_helpers
-from . import stylegan2_helpers
-from . import instantngp_helpers
-from . import imageto3d_helpers
-from . import rignet_helpers
-from . import motion_generation_helpers
-from . import quest_helpers
-from . import npc_helpers
-from . import world_building_helpers
-from . import item_helpers
-from . import preset_library
-from . import automation_system
-from . import addon_integration
-from . import desktop_tutorial_client
-from . import shap_e_helpers
-from . import point_e_helpers
-from . import advisor_helpers
-from . import knowledge_helpers
-from . import mossy_link
+import importlib
+
+# helper for resilient imports – some modules may fail under untested Blender
+# releases (e.g. Blender 5.x during early testing).  We log failures but
+# allow the addon to initialize so users can still see the error message and
+# report it.
+
+def _try_import(name: str):
+    """Attempt to import a submodule of this package by name.
+
+    Returns the module object on success or None on failure.  A warning is
+    printed to the console so testers know which component raised an exception.
+    """
+    full = f"{__package__}.{name}"
+    try:
+        return importlib.import_module(full)
+    except Exception as exc:  # pragma: no cover - safety belt
+        print(f"⚠ Failed to import {{name}} ({{full}}): {{exc}}")
+        import traceback
+        traceback.print_exc()
+        return None
+
+# import core submodules; missing components will be skipped but reported.
+preferences = _try_import("preferences")
+ui_panels = _try_import("ui_panels")
+operators = _try_import("operators")
+tutorial_system = _try_import("tutorial_system")
+mesh_helpers = _try_import("mesh_helpers")
+advanced_mesh_helpers = _try_import("advanced_mesh_helpers")
+texture_helpers = _try_import("texture_helpers")
+animation_helpers = _try_import("animation_helpers")
+export_helpers = _try_import("export_helpers")
+notification_system = _try_import("notification_system")
+image_to_mesh_helpers = _try_import("image_to_mesh_helpers")
+hunyuan3d_helpers = _try_import("hunyuan3d_helpers")
+zoedepth_helpers = _try_import("zoedepth_helpers")
+gradio_helpers = _try_import("gradio_helpers")
+hymotion_helpers = _try_import("hymotion_helpers")
+nvtt_helpers = _try_import("nvtt_helpers")
+realesrgan_helpers = _try_import("realesrgan_helpers")
+get3d_helpers = _try_import("get3d_helpers")
+stylegan2_helpers = _try_import("stylegan2_helpers")
+instantngp_helpers = _try_import("instantngp_helpers")
+imageto3d_helpers = _try_import("imageto3d_helpers")
+rignet_helpers = _try_import("rigent_helpers")
+motion_generation_helpers = _try_import("motion_generation_helpers")
+quest_helpers = _try_import("quest_helpers")
+npc_helpers = _try_import("npc_helpers")
+world_building_helpers = _try_import("world_building_helpers")
+item_helpers = _try_import("item_helpers")
+preset_library = _try_import("preset_library")
+automation_system = _try_import("automation_system")
+addon_integration = _try_import("addon_integration")
+desktop_tutorial_client = _try_import("desktop_tutorial_client")
+shap_e_helpers = _try_import("shap_e_helpers")
+point_e_helpers = _try_import("point_e_helpers")
+advisor_helpers = _try_import("advisor_helpers")
+knowledge_helpers = _try_import("knowledge_helpers")
+mossy_link = _try_import("mossy_link")
+
+# tool_installers is not registered automatically but may be used during
+# registration-time dependency checks.  Import it here so the name exists.
+# we don't add it to `modules` because it has no register()/unregister().
+tool_installers = _try_import("tool_installers")
 
 # core modules that are safe to import and register unconditionally.
-modules = [
+# a few of the optional/external helpers are only added lazily; any module
+# that failed to import (due to missing APIs in an untested Blender release)
+# will be replaced with None by the `_try_import` helper above.  We strip
+# those out here so the registration loop can proceed without crashing.
+def _filter(mod):
+    return mod is not None
+
+modules = list(filter(_filter, [
     preferences,
     tutorial_system,
     notification_system,
@@ -102,7 +137,7 @@ modules = [
     imageto3d_helpers,
     operators,
     ui_panels,
-]
+]))
 
 def register():
     """Register all add-on classes and handlers"""
@@ -112,9 +147,16 @@ def register():
     
     print(f"Fallout 4 Tutorial Helper - Initializing for Blender {version_string}")
     
-    # Register all modules
+    # Register all modules, but continue even if one fails so the
+    # user can see the error in the console and report it.
     for module in modules:
-        module.register()
+        try:
+            module.register()
+        except Exception as e:  # pragma: no cover
+            name = getattr(module, '__name__', str(module))
+            print(f"⚠ Error registering module {name}: {e}")
+            import traceback
+            traceback.print_exc()
 
     # Start advisor auto-monitor (opt-out in preferences)
     try:
@@ -139,7 +181,14 @@ def register():
         missing_desc = ", ".join(f"{pip} (import {mod})" for mod, pip in missing.items())
         print(f"⚠ Missing Python packages: {missing_desc}")
         print("  Attempting automatic installation from requirements.txt …")
-        ok, msg = tool_installers.install_python_requirements(include_optional=False)
+        if tool_installers:
+            try:
+                ok, msg = tool_installers.install_python_requirements(include_optional=False)
+            except Exception as e:
+                ok, msg = False, f"installation routine threw: {e}"
+        else:
+            ok, msg = False, "tool_installers module unavailable"
+
         if ok:
             print(f"✓ {msg}")
         else:
@@ -240,11 +289,22 @@ def register():
     except Exception as e:
         print(f"Post-register environment check failed: {e}")
     
-    # Show version-specific notes if needed
+    # Show version-specific notes if needed.  Blender 5 is effectively the
+    # same as 4 for our purposes, but we call it out explicitly since the
+    # first tester reported errors on 5.0.
     if blender_version[0] < 3:
         print("  Note: Some features work best with Blender 3.0+")
-    elif blender_version[0] >= 4:
+    elif blender_version[0] == 3:
+        # nothing special to say; 3.x is the historically best-tested range
+        pass
+    elif blender_version[0] == 4:
         print("  Note: Blender 4.x support - please report any issues")
+    else:
+        # future major versions (5+)
+        print(
+            "  Note: Blender {0}.x detected; support is experimental — please"
+            " include version details when reporting defects.".format(blender_version[0])
+        )
 
 def unregister():
     """Unregister all add-on classes and handlers"""
@@ -253,7 +313,13 @@ def unregister():
     except Exception:
         pass
     for module in reversed(modules):
-        module.unregister()
+        try:
+            module.unregister()
+        except Exception as e:  # pragma: no cover
+            name = getattr(module, '__name__', str(module))
+            print(f"⚠ Error unregistering module {name}: {e}")
+            import traceback
+            traceback.print_exc()
     
     print("Fallout 4 Tutorial Helper unregistered")
 

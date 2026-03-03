@@ -72,7 +72,7 @@ Now you can:
 - Verify no firewall is blocking the connection
 
 ### Add-on won't enable?
-- Make sure you're using Blender 2.80 or higher
+- Make sure you're using Blender 2.80 or higher (Blender 5.x should work; see compatibility notes)
 - Check the Blender console (Window → Toggle System Console) for errors
 
 ## What's Next?

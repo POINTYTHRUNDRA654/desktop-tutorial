@@ -61,3 +61,27 @@ so future changes don't accidentally reintroduce bugs or regressions.
 
 - This file should be updated whenever similar platform-specific workarounds
   or new high-level features are introduced.
+
+## Blender Version Smoke‑Testing
+
+- To help ensure compatibility across the many Blender releases we support,
+  a helper script has been added at `tools/check_blenders.py`.
+
+  Usage example:
+
+  ```powershell
+  python tools/check_blenders.py \
+      "C:\Program Files\Blender Foundation\Blender 2.93\blender.exe" \
+      "C:\Program Files\Blender Foundation\Blender 3.6\blender.exe" \
+      "C:\Program Files\Blender Foundation\Blender 5.0\blender.exe"
+  ```
+
+  The script will launch each specified executable in background mode, import
+  the add-on, register it, and report whether the operation succeeded.  Any
+  exceptions are printed to the console along with the version string.  The
+  exit status is zero only if *all* builds passed.
+
+- This makes it easy for developers and automated CI jobs to verify that a
+  single ZIP build works on every tested Blender version (2.80‑4.x‑5.x).
+  There is no need to produce separate zip files per version: the same
+  package is used everywhere.
