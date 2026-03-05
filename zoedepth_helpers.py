@@ -98,17 +98,59 @@ def estimate_depth_from_image(image_path, output_path=None, model_type="ZoeD_N")
         return False, f"ZoeDepth not available: {message}", 0, 0
     
     try:
-        # PLACEHOLDER IMPLEMENTATION
-        # This is a stub that requires actual integration with ZoeDepth's inference code.
-        # To integrate:
-        #   1. Import ZoeDepth modules
-        #   2. Load the model weights
-        #   3. Run inference on the input image
-        #   4. Return the depth map as a numpy array
-        # See: https://github.com/isl-org/ZoeDepth for API documentation
-        
-        return False, "ZoeDepth depth estimation not yet fully integrated. Please use the ZoeDepth CLI directly.", 0, 0
-        
+        import numpy as np
+        from PIL import Image as _PIL_Image
+
+        # Locate the ZoeDepth installation directory
+        possible_paths = [
+            os.path.expanduser("~/ZoeDepth"),
+            os.path.expanduser("~/Projects/ZoeDepth"),
+            "/opt/ZoeDepth",
+            os.path.join(os.path.dirname(__file__), "..", "ZoeDepth"),
+        ]
+        zoedepth_path = None
+        for p in possible_paths:
+            if os.path.exists(p) and os.path.isdir(p):
+                zoedepth_path = p
+                break
+
+        if zoedepth_path is None:
+            return False, "ZoeDepth directory not found.", 0, 0
+
+        # Make ZoeDepth importable
+        if zoedepth_path not in sys.path:
+            sys.path.insert(0, zoedepth_path)
+
+        import torch
+        from zoedepth.models.builder import build_model
+        from zoedepth.utils.config import get_config
+
+        # Build the requested model variant
+        conf = get_config(model_type, "infer")
+        model = build_model(conf)
+        model.eval()
+
+        # Load and pre-process the input image
+        image = _PIL_Image.open(image_path).convert("RGB")
+
+        # Run inference — ZoeDepth's infer_pil returns a float32 numpy depth map
+        with torch.no_grad():
+            depth = model.infer_pil(image)  # shape (H, W), metric depth in metres
+
+        h, w = depth.shape
+
+        # Optionally persist the depth map as a 16-bit PNG
+        if output_path:
+            d_min, d_max = float(depth.min()), float(depth.max())
+            if d_max > d_min:
+                depth_norm = (depth - d_min) / (d_max - d_min)
+            else:
+                depth_norm = depth
+            depth_uint16 = (depth_norm * 65535).astype(np.uint16)
+            _PIL_Image.fromarray(depth_uint16).save(output_path)
+
+        return True, depth, w, h
+
     except Exception as e:
         return False, f"Error estimating depth: {str(e)}", 0, 0
 

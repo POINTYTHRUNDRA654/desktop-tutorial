@@ -33,7 +33,7 @@ def _try_import(name: str):
     try:
         return importlib.import_module(full)
     except Exception as exc:  # pragma: no cover - safety belt
-        print(f"⚠ Failed to import {{name}} ({{full}}): {{exc}}")
+        print(f"⚠ Failed to import {name} ({full}): {exc}")
         import traceback
         traceback.print_exc()
         return None
@@ -60,7 +60,7 @@ get3d_helpers = _try_import("get3d_helpers")
 stylegan2_helpers = _try_import("stylegan2_helpers")
 instantngp_helpers = _try_import("instantngp_helpers")
 imageto3d_helpers = _try_import("imageto3d_helpers")
-rignet_helpers = _try_import("rigent_helpers")
+rignet_helpers = _try_import("rignet_helpers")
 motion_generation_helpers = _try_import("motion_generation_helpers")
 quest_helpers = _try_import("quest_helpers")
 npc_helpers = _try_import("npc_helpers")
