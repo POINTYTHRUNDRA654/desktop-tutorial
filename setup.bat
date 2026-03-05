@@ -51,9 +51,12 @@ set "PATH=%GIT_LFS_DIR%;%PATH%"
 REM Also write it into the user's permanent PATH so GitHub Desktop finds it.
 REM (setx writes to HKCU; no admin rights required.  GitHub Desktop must be
 REM  restarted after this for the new PATH to take effect.)
+set "CURRENT_USER_PATH="
 for /f "tokens=2*" %%A in (
     'reg query "HKCU\Environment" /v PATH 2^>nul'
 ) do set "CURRENT_USER_PATH=%%B"
+REM If the registry key didn't exist, fall back to the current process PATH
+if not defined CURRENT_USER_PATH set "CURRENT_USER_PATH=%PATH%"
 
 REM Only append if the directory is not already in the user PATH
 echo %CURRENT_USER_PATH% | find /i "%GIT_LFS_DIR%" >nul 2>&1
