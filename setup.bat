@@ -8,6 +8,55 @@ echo Fallout 4 Blender Add-on - Setup Script
 echo ================================================
 echo.
 
+REM ------------------------------------------------
+REM Check and initialise Git LFS
+REM ------------------------------------------------
+echo Checking for Git LFS...
+
+REM Try git lfs via PATH first
+git lfs version >nul 2>&1
+if %errorlevel% equ 0 (
+    echo [OK] Git LFS found on PATH
+    goto :run_lfs_install
+)
+
+REM Not on PATH - search common D:\Program Files locations (Git for Windows on D:)
+set GIT_LFS_FOUND=0
+for %%P in (
+    "D:\Program Files\Git\cmd\git-lfs.exe"
+    "D:\Program Files\Git LFS\git-lfs.exe"
+    "D:\Programs\Git\cmd\git-lfs.exe"
+    "D:\Programs\Git LFS\git-lfs.exe"
+) do (
+    if exist %%P (
+        echo [OK] Git LFS found at %%P
+        for %%D in (%%~dpP.) do set "PATH=%%~fD;%PATH%"
+        set GIT_LFS_FOUND=1
+        goto :run_lfs_install
+    )
+)
+
+if %GIT_LFS_FOUND% equ 0 (
+    echo [WARNING] Git LFS not found.
+    echo.
+    echo Please install Git LFS from: https://git-lfs.github.com/
+    echo After installation, re-run this script or run: git lfs install
+    echo.
+    goto :after_lfs
+)
+
+:run_lfs_install
+echo Initialising Git LFS hooks...
+git lfs install
+if %errorlevel% equ 0 (
+    echo [OK] Git LFS initialised
+) else (
+    echo [WARNING] git lfs install returned an error - check your Git LFS installation
+)
+
+:after_lfs
+echo.
+
 REM Check if Python is installed
 python --version >nul 2>&1
 if %errorlevel% neq 0 (
