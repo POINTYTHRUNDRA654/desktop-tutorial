@@ -1390,6 +1390,44 @@ class FO4_PT_SetupPanel(Panel):
         row.operator("fo4.install_python_deps", text="Re-install Deps", icon='FILE_REFRESH')
 
 
+class FO4_PT_OperationLogPanel(Panel):
+    """Panel that shows every operation recorded by the add-on"""
+    bl_label = "Operation Log"
+    bl_idname = "FO4_PT_operation_log_panel"
+    bl_space_type = 'VIEW_3D'
+    bl_region_type = 'UI'
+    bl_category = 'Fallout 4'
+    bl_parent_id = "FO4_PT_main_panel"
+    bl_options = {'DEFAULT_CLOSED'}
+
+    def draw(self, context):
+        layout = self.layout
+        from . import notification_system
+
+        entries = notification_system.OperationLog.get_entries(limit=50)
+
+        if not entries:
+            layout.label(text="No operations recorded yet.", icon='INFO')
+        else:
+            # Show newest first
+            for entry in reversed(entries):
+                box = layout.box()
+                ts = entry.get('timestamp', '')
+                msg = entry.get('message', '')
+                etype = entry.get('type', 'INFO')
+                icon = 'ERROR' if etype == 'ERROR' else ('CANCEL' if etype == 'WARNING' else 'CHECKMARK')
+                box.label(text=f"[{ts}]", icon=icon)
+                # Wrap long messages across multiple lines (Blender max ~60 chars/line)
+                while len(msg) > 60:
+                    box.label(text=msg[:60])
+                    msg = msg[60:]
+                if msg:
+                    box.label(text=msg)
+
+        layout.separator()
+        layout.operator("fo4.clear_operation_log", text="Clear Log", icon='TRASH')
+
+
 classes = (
     FO4_PT_MainPanel,
     FO4_PT_SetupPanel,
@@ -1419,6 +1457,8 @@ classes = (
     FO4_PT_AutomationMacrosPanel,
     FO4_PT_AddonIntegrationPanel,
     FO4_PT_DesktopTutorialPanel,
+    # Operation log — records every process for reference
+    FO4_PT_OperationLogPanel,
 )
 
 def register():

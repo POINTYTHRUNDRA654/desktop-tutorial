@@ -6526,6 +6526,21 @@ class FO4_OT_GeneratePointEImage(Operator):
 
 # Register all operators
 
+class FO4_OT_ClearOperationLog(Operator):
+    """Clear the persistent operation log"""
+    bl_idname = "fo4.clear_operation_log"
+    bl_label = "Clear Operation Log"
+    bl_options = {'REGISTER'}
+
+    def execute(self, context):
+        notification_system.OperationLog.clear()
+        self.report({'INFO'}, "Operation log cleared")
+        return {'FINISHED'}
+
+    def invoke(self, context, event):
+        return context.window_manager.invoke_confirm(self, event)
+
+
 classes = (
     FO4_OT_StartTutorial,
     FO4_OT_ShowHelp,
@@ -6700,6 +6715,8 @@ classes = (
     FO4_OT_ShowPointEInfo,
     FO4_OT_GeneratePointEText,
     FO4_OT_GeneratePointEImage,
+    # Operation log
+    FO4_OT_ClearOperationLog,
 )
 
 def register():
