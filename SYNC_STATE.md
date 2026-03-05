@@ -13,9 +13,9 @@
 | Key | Value |
 |-----|-------|
 | Branch | `copilot/install-git-lfs` |
-| HEAD commit | `1cfeacd` |
-| Generated at | 2026-03-05 22:37 UTC |
-| Total commits tracked | 171 |
+| HEAD commit | `8a4e47c` |
+| Generated at | 2026-03-05 23:09 UTC |
+| Total commits tracked | 174 |
 | Total files tracked | 141 |
 
 ---
@@ -24,6 +24,9 @@
 
 | SHA | Date (UTC) | Author | Side | Summary |
 |-----|-----------|--------|------|---------|
+| `27068d46cc` | 2026-03-05 23:05 UTC | github-actions[bot] | 🤖 GitHub | chore: update SYNC_STATE.md [skip ci] |
+| `8e3372d56b` | 2026-03-05 22:10 UTC | POINTYTHRUNDRA654 | 🖥️ Desktop | patch |
+| `8a4e47cae6` | 2026-03-05 22:38 UTC | copilot-swe-agent[bot] | 🤖 GitHub | fix: stop CI pushing SYNC_STATE.md to main (root cause of pe |
 | `1cfeacd125` | 2026-03-05 22:31 UTC | copilot-swe-agent[bot] | 🤖 GitHub | feat: restore all 35 missing operator buttons and rebuild zi |
 | `d38cd0809a` | 2026-03-05 22:24 UTC | copilot-swe-agent[bot] | 🤖 GitHub | fix: guard operator property assignment against None return  |
 | `963718c264` | 2026-03-05 22:21 UTC | copilot-swe-agent[bot] | 🤖 GitHub | plan: fix AttributeError in ui_panels.py operator property c |
@@ -31,9 +34,6 @@
 | `8ffe041119` | 2026-03-05 22:15 UTC | copilot-swe-agent[bot] | 🤖 GitHub | feat: configure Git LFS tracking for binary and large files |
 | `12a59cc10f` | 2026-03-05 22:14 UTC | copilot-swe-agent[bot] | 🤖 GitHub | Initial plan |
 | `a8f116d692` | 2026-03-05 21:54 UTC | github-actions[bot] | 🤖 GitHub | chore: update SYNC_STATE.md [skip ci] |
-| `b2f85181e9` | 2026-03-05 21:54 UTC | Pointytundra654 | 🖥️ Desktop | Merge pull request #29 from POINTYTHRUNDRA654/copilot/fix-de |
-| `52cc29151e` | 2026-03-05 21:53 UTC | copilot-swe-agent[bot] | 🤖 GitHub | Add Extensions-format zip + reload operator for in-place Ble |
-| `ff494a9da6` | 2026-03-05 21:48 UTC | copilot-swe-agent[bot] | 🤖 GitHub | Plan: Extensions-format zip + reload operator for in-place u |
 
 ---
 
@@ -45,8 +45,7 @@ possible change and document it in the Desktop Notes section below.
 
 | File | Last changed | Commit |
 |------|-------------|--------|
-| `.gitattributes` | 2026-03-05 22:15 UTC | 8ffe041119 |
-| `.github/workflows/release.yml` | 2026-03-05 19:33 UTC | cd3bf13148 |
+| `.github/workflows/release.yml` | 2026-03-05 22:38 UTC | 8a4e47cae6 |
 | `.gitignore` | 2026-03-05 19:27 UTC | ac0192c1f6 |
 | `BRANCH_MERGE_STATUS.md` | 2026-02-19 01:19 UTC | e40c6261c5 |
 | `CHANGELOG.md` | 2026-03-05 21:12 UTC | af90ec023a |
@@ -79,7 +78,7 @@ possible change and document it in the Desktop Notes section below.
 | `LICENSE` | 2026-02-12 23:24 UTC | 0e245a226d |
 | `MASTER_INDEX.md` | 2026-02-18 00:28 UTC | 9e78f577b2 |
 | `MERGE_COMPLETION_SUMMARY.md` | 2026-02-19 01:20 UTC | 60fcc77834 |
-| `MERGE_GUIDE.md` | 2026-03-05 22:21 UTC | 963718c264 |
+| `MERGE_GUIDE.md` | 2026-03-05 22:38 UTC | 8a4e47cae6 |
 | `ML_RESOURCES_REFERENCE.md` | 2026-02-16 04:07 UTC | 87f14b522c |
 | `NVIDIA_RESOURCES.md` | 2026-02-15 03:59 UTC | b764efb0e0 |
 | `PRODUCTIVITY_FEATURES.md` | 2026-02-17 23:16 UTC | 42b9aa55f9 |
@@ -92,7 +91,7 @@ possible change and document it in the Desktop Notes section below.
 | `SHAP_E_INTEGRATION.md` | 2026-02-17 23:29 UTC | df56233f8e |
 | `STATUS_REPORT.md` | 2026-02-15 05:23 UTC | 130e057030 |
 | `STRATEGIC_RECOMMENDATIONS.md` | 2026-02-15 04:48 UTC | 05d9f21a7f |
-| `SYNC_STATE.md` | 2026-03-05 21:54 UTC | a8f116d692 |
+| `SYNC_STATE.md` | 2026-03-05 23:05 UTC | 27068d46cc |
 | `T2I_ADAPTER_INTEGRATION.md` | 2026-02-18 00:03 UTC | d0506c9def |
 | `TESTING.md` | 2026-02-21 00:44 UTC | 23e8a593ce |
 | `TUTORIALS.md` | 2026-02-13 00:06 UTC | 5e2098ba37 |
@@ -107,13 +106,11 @@ possible change and document it in the Desktop Notes section below.
 | `asset_studio_helpers.py` | 2026-02-21 02:18 UTC | 0dbc3ae1e7 |
 | `automation_system.py` | 2026-02-17 23:16 UTC | 42b9aa55f9 |
 | `blender_manifest.toml` | 2026-03-05 18:44 UTC | 543ce1c942 |
-| `build.log` | 2026-03-05 21:53 UTC | 52cc29151e |
 | `build.py` | 2026-03-05 21:53 UTC | 52cc29151e |
 | `desktop_tutorial_client.py` | 2026-02-17 23:26 UTC | 22b987c436 |
 | `example_image_to_mesh.py` | 2026-02-12 23:45 UTC | bdfee2fe76 |
 | `example_script.py` | 2026-02-12 23:30 UTC | 8b0b7f3b5b |
 | `example_tutorial_server.py` | 2026-02-12 23:22 UTC | 27b3e9cf12 |
-| `fallout4_tutorial_helper-v2.1.2.zip` | 2026-03-05 22:31 UTC | 1cfeacd125 |
 | `ffmpeg` | 2026-03-05 19:27 UTC | ac0192c1f6 |
 | `get3d_helpers.py` | 2026-03-05 19:16 UTC | 9df629793c |
 | `gradio_helpers.py` | 2026-02-13 00:11 UTC | b78ee32c01 |
@@ -207,20 +204,28 @@ git push
 
 ### Last desktop sync
 - Date: 2026-03-05
-- Desktop git SHA: e8a63cb
+- Desktop git SHA: `8e3372d` ("patch" commit pushed to `main`)
 
-### Files I changed on the desktop
-| File | Why I changed it | OK to push? |
-|------|-----------------|-------------|
-| `mesh_helpers.py` | Resolved merge conflict and merged UV-safe optimization with remote changes | Yes |
-| `fallout4_tutorial_helper-v2.1.2.zip` | Chose remote version to resolve conflict | Yes |
+### ✅ Desktop push verification — commit `8e3372d` ("patch")
+
+Checked that the desktop push did **not** accidentally override any Copilot/CI-authored changes.
+
+| File changed | What happened | Safe? |
+|---|---|---|
+| `.gitattributes` | Created with `*.zip` LFS rule. This PR extends it to 10 entries — no conflict. | ✅ |
+| `build.log` | Appended one desktop build timestamp. Merged into this branch. | ✅ |
+| `fallout4_tutorial_helper-v2.1.2.zip` | Real binary → LFS pointer (desktop had LFS enabled). This PR rebuilds it fresh. | ✅ |
+
+**Files confirmed intact after desktop push (none were overridden):**
+`operators.py`, `preferences.py`, `animation_helpers.py`, `build.py`, `makezip.py`,
+`INSTALL.md`, `tools/check_blenders.py`, `ui_panels.py`, `hymotion_helpers.py`
 
 ### Notes / reminders
-- After this merge, need to rebuild the zip archive with `python makezip.py` on D: drive
+- The zip in `main` is now an LFS pointer; this PR provides a freshly-built replacement.
 - C drive is full; ensure all operations remain on D:
 
 <!-- DESKTOP_NOTES_END -->
 
 ---
 
-*Last regenerated: 2026-03-05 22:37 UTC by `sync_state.py` on `copilot/install-git-lfs` @ `1cfeacd`*
+*Last regenerated: 2026-03-05 23:09 UTC by `sync_state.py` on `copilot/install-git-lfs` @ `8a4e47c`*
