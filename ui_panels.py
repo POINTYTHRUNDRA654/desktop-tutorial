@@ -52,20 +52,63 @@ class FO4_PT_MeshPanel(Panel):
     def draw(self, context):
         layout = self.layout
         
-        box = layout.box()
-        box.label(text="Mesh Creation", icon='MESH_CUBE')
-        box.operator("fo4.create_base_mesh", text="Create Base Mesh", icon='MESH_DATA')
-        box.operator("fo4.optimize_mesh", text="Optimize for FO4", icon='MOD_DECIM')
-        box.operator("fo4.validate_mesh", text="Validate Mesh", icon='CHECKMARK')
-        
-        # Advanced mesh tools
-        adv_box = layout.box()
-        adv_box.label(text="Advanced Mesh Tools", icon='MODIFIER')
-        adv_box.operator("fo4.analyze_mesh_quality", text="Analyze Quality", icon='INFO')
-        adv_box.operator("fo4.auto_repair_mesh", text="Auto-Repair", icon='TOOL_SETTINGS')
-        adv_box.operator("fo4.smart_decimate", text="Smart Decimate", icon='MOD_DECIM')
-        adv_box.operator("fo4.generate_lod", text="Generate LOD Chain", icon='OUTLINER_OB_MESH')
-        adv_box.operator("fo4.optimize_uvs", text="Optimize UVs", icon='UV')
+        prefs = preferences.get_preferences()
+        unified = prefs.mesh_panel_unified if prefs else True
+        if unified:
+            # unified mesh helper section
+            box = layout.box()
+            box.label(text="Mesh Helpers", icon='MESH_CUBE')
+            # basic operations
+            box.operator("fo4.create_base_mesh", text="Create Base Mesh", icon='MESH_DATA')
+            box.operator("fo4.optimize_mesh", text="Optimize for FO4", icon='MOD_DECIM')
+            box.operator("fo4.validate_mesh", text="Validate Mesh", icon='CHECKMARK')
+            box.separator()
+            # collision controls
+            box.label(text="Collision", icon='MESH_ICOSPHERE')
+            if context.active_object and context.active_object.type == 'MESH':
+                box.prop(context.active_object, "fo4_collision_type", text="Type")
+            row = box.row()
+            row.operator("fo4.set_collision_type", text="Change Type", icon='PRESET')
+            row = box.row()
+            row.enabled = context.active_object and context.active_object.type == 'MESH' and context.active_object.get('fo4_collision_type','DEFAULT') not in ('NONE','GRASS','MUSHROOM')
+            row.operator("fo4.generate_collision_mesh", text="Generate Collision", icon='MESH_DATA')
+            row = box.row()
+            row.operator("fo4.export_mesh_with_collision", text="Generate+Export NIF", icon='EXPORT')
+            box.separator()
+            # advanced operations
+            box.label(text="Advanced Mesh Tools", icon='MODIFIER')
+            box.operator("fo4.analyze_mesh_quality", text="Analyze Quality", icon='INFO')
+            box.operator("fo4.auto_repair_mesh", text="Auto-Repair", icon='TOOL_SETTINGS')
+            box.operator("fo4.smart_decimate", text="Smart Decimate", icon='MOD_DECIM')
+            box.operator("fo4.generate_lod", text="Generate LOD Chain", icon='OUTLINER_OB_MESH')
+            box.operator("fo4.optimize_uvs", text="Optimize UVs", icon='UV')
+        else:
+            # original layout: separate boxes
+            box = layout.box()
+            box.label(text="Mesh Creation", icon='MESH_CUBE')
+            box.operator("fo4.create_base_mesh", text="Create Base Mesh", icon='MESH_DATA')
+            box.operator("fo4.optimize_mesh", text="Optimize for FO4", icon='MOD_DECIM')
+            box.operator("fo4.validate_mesh", text="Validate Mesh", icon='CHECKMARK')
+            
+            col_box = layout.box()
+            col_box.label(text="Collision", icon='MESH_ICOSPHERE')
+            if context.active_object and context.active_object.type == 'MESH':
+                col_box.prop(context.active_object, "fo4_collision_type", text="Type")
+            row = col_box.row()
+            row.operator("fo4.set_collision_type", text="Change Type", icon='PRESET')
+            row = col_box.row()
+            row.enabled = context.active_object and context.active_object.type == 'MESH' and context.active_object.get('fo4_collision_type','DEFAULT') not in ('NONE','GRASS','MUSHROOM')
+            row.operator("fo4.generate_collision_mesh", text="Generate Collision", icon='MESH_DATA')
+            row = col_box.row()
+            row.operator("fo4.export_mesh_with_collision", text="Generate+Export NIF", icon='EXPORT')
+            
+            adv_box = layout.box()
+            adv_box.label(text="Advanced Mesh Tools", icon='MODIFIER')
+            adv_box.operator("fo4.analyze_mesh_quality", text="Analyze Quality", icon='INFO')
+            adv_box.operator("fo4.auto_repair_mesh", text="Auto-Repair", icon='TOOL_SETTINGS')
+            adv_box.operator("fo4.smart_decimate", text="Smart Decimate", icon='MOD_DECIM')
+            adv_box.operator("fo4.generate_lod", text="Generate LOD Chain", icon='OUTLINER_OB_MESH')
+            adv_box.operator("fo4.optimize_uvs", text="Optimize UVs", icon='UV')
 
         # Collision mesh
         col_box = layout.box()
@@ -304,7 +347,17 @@ class FO4_PT_AnimationPanel(Panel):
         box = layout.box()
         box.label(text="Animation Setup", icon='ANIM')
         box.operator("fo4.setup_armature", text="Setup FO4 Armature", icon='ARMATURE_DATA')
+        box.operator("fo4.auto_weight_paint", text="Auto Weight Paint", icon='AUTO')
         box.operator("fo4.validate_animation", text="Validate Animation", icon='CHECKMARK')
+        box.operator("fo4.generate_wind_weights", text="Generate Wind Weights", icon='FORCE_WIND')
+        box.operator("fo4.apply_wind_animation", text="Apply Wind Animation", icon='ANIM')
+        box.separator()
+        box.label(text="Batch Operations", icon='SEQ_SEQUENCER')
+        row = box.row()
+        row.operator("fo4.batch_generate_wind_weights", text="Batch Wind Weights")
+        row.operator("fo4.batch_apply_wind_animation", text="Batch Wind Anim")
+        box.operator("fo4.batch_auto_weight_paint", text="Batch Auto‑Weight")
+        box.operator("fo4.toggle_wind_preview", text="Toggle Wind Preview", icon='PLAY')
 
 class FO4_PT_RigNetPanel(Panel):
     """RigNet auto-rigging panel"""
@@ -798,9 +851,20 @@ class FO4_PT_AutomationQuickPanel(Panel):
         # Collision mesh
         box = layout.box()
         box.label(text="Collision Mesh", icon='MESH_ICOSPHERE')
+        if obj and obj.type == 'MESH':
+            box.prop(obj, "fo4_collision_type", text="Type")
         row = box.row()
         row.enabled = obj and obj.type == 'MESH'
+        row.operator("fo4.set_collision_type", text="Change Type", icon='PRESET')
+        row = box.row()
+        row.enabled = obj and obj.type == 'MESH'
+        row.operator("fo4.set_collision_type", text="Change Type (Selected)", icon='PRESET').apply_to_all = True
+        row = box.row()
+        row.enabled = obj and obj.type == 'MESH' and obj.get('fo4_collision_type','DEFAULT') not in ('NONE','GRASS','MUSHROOM')
         row.operator("fo4.generate_collision_mesh", text="Generate Collision", icon='MESH_DATA')
+        row = box.row()
+        row.enabled = obj and obj.type == 'MESH'
+        row.operator("fo4.export_mesh_with_collision", text="Generate + Export NIF", icon='EXPORT')
         
         # Smart material
         box = layout.box()
@@ -839,6 +903,9 @@ class FO4_PT_Havok2FBXPanel(Panel):
 
         if prefs:
             box.prop(prefs, "havok2fbx_path", text="Folder")
+            row = box.row()
+            row.operator("fo4.install_havok2fbx", text="Get Havok2FBX", icon='URL')
+            row.operator("fo4.check_tool_paths", text="Check Paths", icon='INFO')
         else:
             box.label(text="Preferences not available (addon not registered)", icon='ERROR')
 

@@ -74,6 +74,57 @@ We have integrated support for multiple state-of-the-art auto-rigging and motion
 
 ### Auto-Rigging Workflow
 
+## Vegetation Wind Weight Generation
+
+A new helper operator (`Generate Wind Weights`) and corresponding API
+function (`AnimationHelpers.generate_wind_weights`) automatically create a
+linear vertex‑group suitable for FO4's procedural wind system.  The group is
+named "Wind" by default and can be driven by a simple bone or modifier to
+produce leafy/grass/tree swaying without manual weight painting.
+
+Usage steps:
+1. Select the plant or tree mesh you wish to animate.
+2. In the **Animation Helpers** panel click **Generate Wind Weights** (or use
+   the batch button to process multiple selected meshes at once).
+3. Click **Apply Wind Animation**; you can choose a preset (Grass/Shrub/Tree)
+   or enter custom amplitude/period/axis values.
+4. The mesh will be parented to a small armature and the timeline will now
+   show a looping wind action; press play to preview.
+
+Batch operations are also available:
+* **Batch Wind Weights** / **Batch Wind Anim** / **Batch Auto‑Weight** apply the
+  corresponding helper to every selected mesh, saving time on forests.
+* **Toggle Wind Preview** will start/stop a lightweight handler that rotates
+  any Wind bone incrementally on each frame change so you can see the effect
+  without needing to play the animation timeline.
+
+Optionally adjust the weight group, axis or invert the falloff via scripting
+using the API call.
+
+This replaces the previous manual process of weight‑painting a "vortex" channel
+and ensures consistent behaviour across asset types.
+
+## Automatic Skinning for FO4
+
+The add-on now includes a general-purpose skinning helper with a dedicated
+button in the animation panel.  When you select a mesh and either select or
+parent an FO4-compatible armature, clicking **Auto Weight Paint** will skin the
+mesh automatically.  
+
+Under the hood the helper will try to load the `libigl` Python package and
+calculate bounded biharmonic weights (BBW) for every bone in the armature –
+this produces much cleaner deformation than Blender’s built-in method,
+particularly on complex or non-manifold geometry.  If `libigl` isn’t installed
+the operator falls back to Blender’s `ARMATURE_AUTO` method and will attempt a
+`pip install libigl` automatically when possible.
+
+The corresponding API method is
+`AnimationHelpers.auto_weight_paint(mesh_obj, armature_obj)` which returns a
+(success, message) tuple and can be used from scripts.
+
+
+## Auto-Rigging Workflow
+
 **Option A: Full Auto-Rigging with RigNet**
 1. Select character mesh
 2. Click "Prepare Mesh" (simplifies to optimal vertex count)

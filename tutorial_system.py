@@ -98,7 +98,15 @@ def create_animation_tutorial():
         ),
         TutorialStep(
             "Weight Paint",
-            "Enter Weight Paint mode and paint vertex weights for each bone.",
+            "Enter Weight Paint mode and paint vertex weights for each bone."
+        ),
+        TutorialStep(
+            "Wind Weights",
+            "Use 'Generate Wind Weights' to automatically prepare vegetation meshes."
+        ),
+        TutorialStep(
+            "Wind Animation",
+            "Use 'Apply Wind Animation' to add a swaying action for Fallout 4."
         ),
         TutorialStep(
             "Create Animation",

@@ -40,6 +40,9 @@ def _get_prefs():
 # Server
 # ---------------------------------------------------------------------------
 
+# module-level server instance, kept alive even when the current .blend changes
+_server = None
+
 class MossyLinkServer:
     def __init__(self, host='127.0.0.1', port=9999, token=""):
         self.host, self.port, self.token = host, port, token
@@ -169,6 +172,24 @@ class MossyLinkServer:
             return {"success": False, "error": str(e)}
 
 
+
+
+def _get_server():
+    """Return the singleton server, creating it if needed.
+
+    We store a reference at module level rather than on ``Scene`` so that the
+    socket remains open when the user loads a new file.  ``WindowManager``
+    carries a simple boolean that mirrors the connection state for the UI.
+    """
+    global _server
+    if _server is None:
+        prefs = _get_prefs()
+        port = prefs.port if prefs else 9999
+        token = prefs.token if prefs else ""
+        _server = MossyLinkServer(port=port, token=token)
+    return _server
+
+
 # ---------------------------------------------------------------------------
 # Client helper (can be called from external scripts or Blender's text editor)
 # ---------------------------------------------------------------------------
@@ -196,13 +217,13 @@ class WM_OT_MossyLinkToggle(bpy.types.Operator):
 
     def execute(self, context):
         wm = context.window_manager
-        prefs = _get_prefs()
-        port = prefs.port if prefs else 9999
+        # ensure we have an up‑to‑date server object
+        server = _get_server()
         if wm.mossy_link_active:
             wm.mossy_link_active = False
-            context.scene.mossy_link_server.stop()
+            server.stop()
         else:
-            wm.mossy_link_active = context.scene.mossy_link_server.start()
+            wm.mossy_link_active = server.start()
         return {'FINISHED'}
 
 
@@ -232,27 +253,45 @@ class MOSSY_PT_LinkPanel(bpy.types.Panel):
 # Registration
 # ---------------------------------------------------------------------------
 
+def _on_load_post(dummy=None):
+    """Handler run after a file is loaded.
+
+    If the link was active when the previous file closed (or the user has
+    autostart enabled) we want the socket to be listening again.  The server
+    object itself is preserved at module scope.
+    """
+    wm = bpy.context.window_manager
+    prefs = _get_prefs()
+    server = _get_server()
+    if (prefs and prefs.autostart) or wm.mossy_link_active:
+        server.start()
+        wm.mossy_link_active = True
+
+
 def register():
     bpy.utils.register_class(WM_OT_MossyLinkToggle)
     bpy.utils.register_class(MOSSY_PT_LinkPanel)
     # … other operators …
     bpy.types.WindowManager.mossy_link_active = bpy.props.BoolProperty(default=False)
+    # create the singleton server once
+    _get_server()
+    # optionally start immediately based on preferences
     prefs = _get_prefs()
-    port = prefs.port if prefs else 9999
-    token = prefs.token if prefs else ""
-    bpy.types.Scene.mossy_link_server = MossyLinkServer(port=port, token=token)
     if prefs and prefs.autostart:
-        bpy.types.Scene.mossy_link_server.start()
+        _server.start()
+        bpy.context.window_manager.mossy_link_active = True
+
+    # register file‑load handler so the connection survives new-blend events
+    bpy.app.handlers.load_post.append(_on_load_post)
 
 
 def unregister():
-    server = getattr(bpy.types.Scene, 'mossy_link_server', None)
-    if server:
-        server.stop()
-    try:
-        del bpy.types.Scene.mossy_link_server
-    except AttributeError:
-        pass
+    # stop the persistent server when the addon is disabled
+    if _server:
+        _server.stop()
+    # cleanup handlers and properties
+    if _on_load_post in bpy.app.handlers.load_post:
+        bpy.app.handlers.load_post.remove(_on_load_post)
     try:
         del bpy.types.WindowManager.mossy_link_active
     except AttributeError:

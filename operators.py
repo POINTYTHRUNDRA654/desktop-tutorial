@@ -96,7 +96,31 @@ class FO4_OT_OptimizeMesh(Operator):
     bl_idname = "fo4.optimize_mesh"
     bl_label = "Optimize Mesh"
     bl_options = {'REGISTER', 'UNDO'}
-    
+
+    apply_transforms: bpy.props.BoolProperty(
+        name="Apply Transforms",
+        default=True,
+        description="Apply object transformations before optimization",
+    )
+    threshold: bpy.props.FloatProperty(
+        name="Remove Doubles Thresh",
+        default=0.0001,
+        min=0.0,
+        max=0.01,
+        description="Distance under which vertices are merged",
+    )
+    preserve_uvs: bpy.props.BoolProperty(
+        name="Preserve UVs",
+        default=True,
+        description="Avoid collapsing vertices across UV seams",
+    )
+
+    def draw(self, context):
+        layout = self.layout
+        layout.prop(self, "apply_transforms")
+        layout.prop(self, "threshold")
+        layout.prop(self, "preserve_uvs")
+
     def execute(self, context):
         obj = context.active_object
         
@@ -104,6 +128,12 @@ class FO4_OT_OptimizeMesh(Operator):
             self.report({'ERROR'}, "No mesh object selected")
             return {'CANCELLED'}
         
+        # override global preferences with operator values
+        prefs = preferences.get_preferences()
+        if prefs:
+            prefs.optimize_apply_transforms = self.apply_transforms
+            prefs.optimize_remove_doubles_threshold = self.threshold
+            prefs.optimize_preserve_uvs = self.preserve_uvs
         success, message = mesh_helpers.MeshHelpers.optimize_mesh(obj)
         
         if success:
@@ -286,6 +316,218 @@ class FO4_OT_ValidateAnimation(Operator):
                 notification_system.FO4_NotificationSystem.notify(issue, 'WARNING')
         
         return {'FINISHED'}
+
+
+class FO4_OT_GenerateWindWeights(Operator):
+    """Generate a wind/vortex weight group for the active mesh"""
+    bl_idname = "fo4.generate_wind_weights"
+    bl_label = "Generate Wind Weights"
+    bl_options = {'REGISTER', 'UNDO'}
+
+    def execute(self, context):
+        obj = context.active_object
+        if not obj or obj.type != 'MESH':
+            self.report({'ERROR'}, "Select a mesh object")
+            return {'CANCELLED'}
+
+        ok, msg = animation_helpers.AnimationHelpers.generate_wind_weights(obj)
+        if ok:
+            self.report({'INFO'}, msg)
+            notification_system.FO4_NotificationSystem.notify(msg, 'INFO')
+            return {'FINISHED'}
+        else:
+            self.report({'ERROR'}, msg)
+            notification_system.FO4_NotificationSystem.notify(msg, 'ERROR')
+            return {'CANCELLED'}
+
+
+class FO4_OT_AutoWeightPaint(Operator):
+    """Automatically skin a mesh to the selected FO4 armature"""
+    bl_idname = "fo4.auto_weight_paint"
+    bl_label = "Auto Weight Paint"
+    bl_options = {'REGISTER', 'UNDO'}
+
+    def execute(self, context):
+        mesh = context.active_object
+        if not mesh or mesh.type != 'MESH':
+            self.report({'ERROR'}, "Select a mesh object first")
+            return {'CANCELLED'}
+
+        # try to find an armature in the selection or parent
+        arm = None
+        for obj in context.selected_objects:
+            if obj.type == 'ARMATURE':
+                arm = obj
+                break
+        if arm is None and mesh.parent and mesh.parent.type == 'ARMATURE':
+            arm = mesh.parent
+
+        if arm is None:
+            self.report({'ERROR'}, "No armature selected or parented")
+            return {'CANCELLED'}
+
+        ok, msg = animation_helpers.AnimationHelpers.auto_weight_paint(mesh, arm)
+        if ok:
+            self.report({'INFO'}, msg)
+            notification_system.FO4_NotificationSystem.notify(msg, 'INFO')
+            return {'FINISHED'}
+        else:
+            self.report({'ERROR'}, msg)
+            notification_system.FO4_NotificationSystem.notify(msg, 'ERROR')
+            return {'CANCELLED'}
+
+
+class FO4_OT_BatchGenerateWindWeights(Operator):
+    """Generate wind weights on all selected mesh objects"""
+    bl_idname = "fo4.batch_generate_wind_weights"
+    bl_label = "Batch: Wind Weights"
+
+    def execute(self, context):
+        meshes = [obj for obj in context.selected_objects if obj.type == 'MESH']
+        if not meshes:
+            self.report({'ERROR'}, "No mesh objects selected")
+            return {'CANCELLED'}
+        for m in meshes:
+            animation_helpers.AnimationHelpers.generate_wind_weights(m)
+        self.report({'INFO'}, f"Processed {len(meshes)} meshes")
+        return {'FINISHED'}
+
+class FO4_OT_BatchApplyWindAnimation(Operator):
+    """Apply wind animation to all selected mesh objects"""
+    bl_idname = "fo4.batch_apply_wind_animation"
+    bl_label = "Batch: Wind Animation"
+
+    def execute(self, context):
+        meshes = [obj for obj in context.selected_objects if obj.type == 'MESH']
+        if not meshes:
+            self.report({'ERROR'}, "No mesh objects selected")
+            return {'CANCELLED'}
+        for m in meshes:
+            animation_helpers.AnimationHelpers.apply_wind_animation(m)
+        self.report({'INFO'}, f"Processed {len(meshes)} meshes")
+        return {'FINISHED'}
+
+class FO4_OT_BatchAutoWeightPaint(Operator):
+    """Auto weight paint all selected meshes to the first armature found"""
+
+
+class FO4_OT_ToggleWindPreview(Operator):
+    """Toggle live wind preview (rotates Wind bone slightly each frame)"""
+    bl_idname = "fo4.toggle_wind_preview"
+    bl_label = "Toggle Wind Preview"
+
+    enabling: bpy.props.BoolProperty(default=False)
+
+    def execute(self, context):
+        if not self.enabling:
+            ok, msg = animation_helpers.AnimationHelpers.start_wind_preview()
+            if ok:
+                self.enabling = True
+                self.report({'INFO'}, msg)
+            else:
+                self.report({'WARNING'}, msg)
+        else:
+            ok, msg = animation_helpers.AnimationHelpers.stop_wind_preview()
+            if ok:
+                self.enabling = False
+                self.report({'INFO'}, msg)
+            else:
+                self.report({'WARNING'}, msg)
+        return {'FINISHED'}
+    bl_idname = "fo4.batch_auto_weight_paint"
+    bl_label = "Batch: Auto Weight Paint"
+
+    def execute(self, context):
+        meshes = [obj for obj in context.selected_objects if obj.type == 'MESH']
+        arm = next((o for o in context.selected_objects if o.type == 'ARMATURE'), None)
+        if not arm and meshes:
+            # try parent of first mesh
+            if meshes[0].parent and meshes[0].parent.type == 'ARMATURE':
+                arm = meshes[0].parent
+        if not meshes or not arm:
+            self.report({'ERROR'}, "Need at least one mesh and an armature")
+            return {'CANCELLED'}
+        for m in meshes:
+            animation_helpers.AnimationHelpers.auto_weight_paint(m, arm)
+        self.report({'INFO'}, f"Processed {len(meshes)} meshes")
+        return {'FINISHED'}
+
+        ok, msg = animation_helpers.AnimationHelpers.auto_weight_paint(mesh, arm)
+        if ok:
+            self.report({'INFO'}, msg)
+            notification_system.FO4_NotificationSystem.notify(msg, 'INFO')
+            return {'FINISHED'}
+        else:
+            self.report({'ERROR'}, msg)
+            notification_system.FO4_NotificationSystem.notify(msg, 'ERROR')
+            return {'CANCELLED'}
+
+
+class FO4_OT_ApplyWindAnimation(Operator):
+    """Add wind armature and animation to the selected mesh"""
+    bl_idname = "fo4.apply_wind_animation"
+    bl_label = "Apply Wind Animation"
+    bl_options = {'REGISTER', 'UNDO'}
+
+    preset: bpy.props.EnumProperty(
+        name="Preset",
+        items=[
+            ('NONE', 'Custom', ''),
+            ('GRASS', 'Grass', 'Light, fast swaying'),
+            ('SHRUB', 'Shrub', 'Medium amplitude/period'),
+            ('TREE', 'Tree', 'Slow, heavy movement'),
+        ],
+        default='NONE',
+    )
+    amplitude: bpy.props.FloatProperty(
+        name="Amplitude",
+        default=0.2,
+        description="Rotation strength in radians for the wind bone"
+    )
+    period: bpy.props.FloatProperty(
+        name="Period",
+        default=60.0,
+        description="Frame length of the wind animation loop"
+    )
+    axis: bpy.props.EnumProperty(
+        name="Axis",
+        items=[('X','X',''),('Y','Y',''),('Z','Z','')],
+        default='X',
+        description="Axis to rotate for wind motion"
+    )
+
+    def draw(self, context):
+        layout = self.layout
+        layout.prop(self, "preset")
+        if self.preset == 'NONE':
+            layout.prop(self, "amplitude")
+            layout.prop(self, "period")
+            layout.prop(self, "axis")
+    
+    def execute(self, context):
+        # apply presets if selected
+        if self.preset == 'GRASS':
+            self.amplitude = 0.1; self.period = 40.0
+        elif self.preset == 'SHRUB':
+            self.amplitude = 0.15; self.period = 80.0
+        elif self.preset == 'TREE':
+            self.amplitude = 0.3; self.period = 120.0
+
+        mesh = context.active_object
+        if not mesh or mesh.type != 'MESH':
+            self.report({'ERROR'}, "Select a mesh object first")
+            return {'CANCELLED'}
+        ok, msg = animation_helpers.AnimationHelpers.apply_wind_animation(
+            mesh, self.amplitude, self.period, self.axis
+        )
+        if ok:
+            self.report({'INFO'}, msg)
+            notification_system.FO4_NotificationSystem.notify(msg, 'INFO')
+            return {'FINISHED'}
+        else:
+            self.report({'ERROR'}, msg)
+            notification_system.FO4_NotificationSystem.notify(msg, 'ERROR')
+            return {'CANCELLED'}
 
 # RigNet Auto-Rigging Operators
 
@@ -522,7 +764,12 @@ class FO4_OT_ExportMesh(Operator):
         if not obj or obj.type != 'MESH':
             self.report({'ERROR'}, "No mesh object selected")
             return {'CANCELLED'}
-        
+
+        # avoid exporting a generated collision mesh by mistake
+        if obj.get("fo4_collision") or obj.name.upper().endswith("_COLLISION"):
+            self.report({'ERROR'}, "Active object looks like a collision mesh; select the original mesh instead")
+            return {'CANCELLED'}
+
         success, message = export_helpers.ExportHelpers.export_mesh_to_nif(
             obj, self.filepath
         )
@@ -541,6 +788,119 @@ class FO4_OT_ExportMesh(Operator):
         context.window_manager.fileselect_add(self)
         return {'RUNNING_MODAL'}
 
+
+class FO4_OT_SetCollisionType(Operator):
+    """Choose and assign a collision category to the selected mesh"""
+    bl_idname = "fo4.set_collision_type"
+    bl_label = "Set Collision Type"
+    bl_options = {'REGISTER', 'UNDO'}
+
+    collision_type: EnumProperty(
+        name="Collision Type",
+        description="Category used when generating/exporting collision meshes",
+        items=mesh_helpers.MeshHelpers.COLLISION_TYPES,
+        default='DEFAULT'
+    )
+
+    apply_to_all: bpy.props.BoolProperty(
+        name="Apply to Selected",
+        description="Also set the type for all selected mesh objects",
+        default=False
+    )
+
+    def execute(self, context):
+        obj = context.active_object
+        if not obj or obj.type != 'MESH':
+            self.report({'ERROR'}, "No mesh object selected")
+            return {'CANCELLED'}
+        # determine presets for chosen type
+        sound = mesh_helpers.MeshHelpers._SOUND_PRESETS.get(self.collision_type)
+        weight = mesh_helpers.MeshHelpers._WEIGHT_PRESETS.get(self.collision_type)
+        objs = [obj]
+        if self.apply_to_all:
+            objs = [o for o in context.selected_objects if o.type == 'MESH']
+        for o in objs:
+            o["fo4_collision_type"] = self.collision_type
+            if sound is not None:
+                o["fo4_collision_sound"] = sound
+            if weight is not None:
+                o["fo4_collision_weight"] = weight
+        self.report({'INFO'}, f"Collision type set to {self.collision_type} on {len(objs)} object(s)")
+        return {'FINISHED'}
+
+    def invoke(self, context, event):
+        obj = context.active_object
+        if obj and obj.type == 'MESH':
+            self.collision_type = obj.get("fo4_collision_type",
+                                        mesh_helpers.MeshHelpers.infer_collision_type(obj))
+        return context.window_manager.invoke_props_dialog(self)
+
+
+class FO4_OT_ExportMeshWithCollision(Operator):
+    """Generate a collision mesh and export both original and collision to NIF"""
+    bl_idname = "fo4.export_mesh_with_collision"
+    bl_label = "Export Mesh + Collision"
+    
+    filepath: StringProperty(subtype='FILE_PATH')
+    simplify_ratio: FloatProperty(
+        name="Simplification",
+        description="How much to simplify the generated collision mesh",
+        default=0.25,
+        min=0.01,
+        max=1.0
+    )
+    collision_type: EnumProperty(
+        name="Collision Type",
+        description="Category of physics collision to create",
+        items=mesh_helpers.MeshHelpers.COLLISION_TYPES,
+        default='DEFAULT'
+    )
+    
+    def execute(self, context):
+        obj = context.active_object
+        if not obj or obj.type != 'MESH':
+            self.report({'ERROR'}, "No mesh object selected")
+            return {'CANCELLED'}
+
+        # record choice on the source object
+        obj["fo4_collision_type"] = self.collision_type
+
+        # create/update collision mesh
+        try:
+            collision = mesh_helpers.MeshHelpers.add_collision_mesh(
+                obj,
+                simplify_ratio=self.simplify_ratio,
+                collision_type=self.collision_type
+            )
+            if self.collision_type in ('NONE','GRASS','MUSHROOM'):
+                # nothing to build, skip but still proceed to export
+                collision = None
+        except Exception as e:
+            self.report({'ERROR'}, f"Collision generation failed: {e}")
+            return {'CANCELLED'}
+
+        # perform export which will automatically include any collision mesh found
+        success, message = export_helpers.ExportHelpers.export_mesh_to_nif(obj, self.filepath)
+        if success:
+            self.report({'INFO'}, message)
+            notification_system.FO4_NotificationSystem.notify(message, 'INFO')
+        else:
+            self.report({'ERROR'}, message)
+            notification_system.FO4_NotificationSystem.notify(message, 'ERROR')
+            return {'CANCELLED'}
+        
+        return {'FINISHED'}
+    
+    def invoke(self, context, event):
+        obj = context.active_object
+        if obj and obj.type == 'MESH':
+            inferred = mesh_helpers.MeshHelpers.infer_collision_type(obj)
+            self.collision_type = obj.get("fo4_collision_type", inferred)
+            if self.simplify_ratio == 0.25:
+                self.simplify_ratio = mesh_helpers.MeshHelpers._TYPE_DEFAULT_RATIOS.get(self.collision_type, 0.25)
+        context.window_manager.fileselect_add(self)
+        return {'RUNNING_MODAL'}
+
 class FO4_OT_ExportAll(Operator):
     """Export complete mod"""
     bl_idname = "fo4.export_all"
@@ -554,7 +914,10 @@ class FO4_OT_ExportAll(Operator):
         )
         
         if success:
-            self.report({'INFO'}, f"Exported {len(results['meshes'])} meshes")
+            info_msg = f"Exported {len(results['meshes'])} meshes"
+            if results.get('skipped'):
+                info_msg += f", skipped {len(results['skipped'])} collision meshes"
+            self.report({'INFO'}, info_msg)
             notification_system.FO4_NotificationSystem.notify(
                 "Mod exported successfully!", 'INFO'
             )
@@ -1953,6 +2316,29 @@ class FO4_OT_InstallWhisper(Operator):
         return {'FINISHED'}
 
 
+class FO4_OT_InstallHavok2FBX(Operator):
+    """Open browser to download Havok2FBX and prepare tools folder."""
+    bl_idname = "fo4.install_havok2fbx"
+    bl_label = "Get Havok2FBX"
+
+    def execute(self, context):
+        import threading
+        from . import tool_installers
+
+        def _run():
+            ok, msg = tool_installers.install_havok2fbx()
+            level = 'INFO' if ok else 'ERROR'
+            print("HAVOK2FBX INSTALL", msg)
+
+            def _notify():
+                notification_system.FO4_NotificationSystem.notify(msg, level)
+            bpy.app.timers.register(_notify, first_interval=0.0)
+
+        threading.Thread(target=_run, daemon=True).start()
+        self.report({'INFO'}, "Havok2FBX helper started (browser may open).")
+        return {'FINISHED'}
+
+
 class FO4_OT_InstallNiftools(Operator):
     """Run the PowerShell script to install Niftools Blender add-on."""
     bl_idname = "fo4.install_niftools"
@@ -1991,6 +2377,46 @@ class FO4_OT_InstallPythonDeps(Operator):
         name="Include Optional",
         default=False,
     )
+
+
+class FO4_OT_CheckToolPaths(Operator):
+    """Report the status of configured tool paths and FO4 utilities."""
+    bl_idname = "fo4.check_tool_paths"
+    bl_label = "Check Tool Paths"
+
+    def execute(self, context):
+        from . import preferences, tool_installers
+        import subprocess, sys
+        prefs = preferences.get_preferences()
+        lines = []
+        if prefs:
+            ff = preferences.get_configured_ffmpeg_path()
+            nv = preferences.get_configured_nvcompress_path()
+            tx = preferences.get_configured_texconv_path()
+            hb = preferences.get_havok2fbx_path()
+            def version(path, args):
+                try:
+                    out = subprocess.check_output([path] + args, stderr=subprocess.STDOUT, text=True)
+                    return out.splitlines()[0]
+                except Exception:
+                    return None
+            ffv = version(ff, ['-version']) if ff else None
+            nvv = version(nv, ['--version']) if nv else None
+            txv = version(tx, ['-?']) if tx else None
+            hbv = None
+            if hb and tool_installers.check_havok2fbx(hb):
+                exe = os.path.join(hb, 'havok2fbx.exe')
+                hbv = version(exe, ['--version']) or 'present'
+            lines.append(f"ffmpeg: {ff or 'not set'}{('  '+ffv) if ffv else ''}")
+            lines.append(f"nvcompress: {nv or 'not set'}{('  '+nvv) if nvv else ''}")
+            lines.append(f"texconv: {tx or 'not set'}{('  '+txv) if txv else ''}")
+            lines.append(f"Havok2FBX: {hb or 'not set'}{('  '+hbv) if hbv else ''}")
+        else:
+            lines.append("Preferences not available")
+        for l in lines:
+            self.report({'INFO'}, l)
+            print(l)
+        return {'FINISHED'}
 
     def execute(self, context):
         import threading
@@ -4582,6 +5008,12 @@ class FO4_OT_GenerateCollisionMesh(Operator):
         min=0.01,
         max=1.0
     )
+    collision_type: EnumProperty(
+        name="Collision Type",
+        description="Category of physics collision to create",
+        items=mesh_helpers.MeshHelpers.COLLISION_TYPES,
+        default='DEFAULT'
+    )
     
     def execute(self, context):
         obj = context.active_object
@@ -4590,22 +5022,26 @@ class FO4_OT_GenerateCollisionMesh(Operator):
             self.report({'ERROR'}, "No mesh object selected")
             return {'CANCELLED'}
         
+        # remember the selected collision type on the source object
+        obj["fo4_collision_type"] = self.collision_type
+
+        # skip generation for types that don't require it
+        if self.collision_type in ('NONE', 'GRASS', 'MUSHROOM'):
+            self.report({'INFO'}, f"Collision type '{self.collision_type}' skips creation")
+            return {'FINISHED'}
+
         try:
-            # Duplicate the object
-            bpy.ops.object.duplicate()
-            collision_obj = context.active_object
-            collision_obj.name = f"{obj.name}_COLLISION"
+            # use the helper; it duplicates and simplifies for us
+            collision_obj = mesh_helpers.MeshHelpers.add_collision_mesh(
+                obj,
+                simplify_ratio=self.simplify_ratio,
+                collision_type=self.collision_type
+            )
+            if not collision_obj:
+                raise RuntimeError("helper failed to create collision mesh")
             
-            # Simplify the mesh
-            modifier = collision_obj.modifiers.new(name="Decimate", type='DECIMATE')
-            modifier.ratio = self.simplify_ratio
-            bpy.ops.object.modifier_apply(modifier="Decimate")
-            
-            # Remove materials (collision meshes don't need them)
+            # ensure no materials remain (helper doesn't remove them)
             collision_obj.data.materials.clear()
-            
-            # Move slightly to the side
-            collision_obj.location.x += 2.0
             
             self.report({'INFO'}, f"Created collision mesh: {collision_obj.name}")
             notification_system.FO4_NotificationSystem.notify(
@@ -4618,6 +5054,12 @@ class FO4_OT_GenerateCollisionMesh(Operator):
             return {'CANCELLED'}
     
     def invoke(self, context, event):
+        obj = context.active_object
+        if obj and obj.type == 'MESH':
+            inferred = mesh_helpers.MeshHelpers.infer_collision_type(obj)
+            self.collision_type = obj.get("fo4_collision_type", inferred)
+            if self.simplify_ratio == 0.25:
+                self.simplify_ratio = mesh_helpers.MeshHelpers._TYPE_DEFAULT_RATIOS.get(self.collision_type, 0.25)
         return context.window_manager.invoke_props_dialog(self)
 
 
@@ -6599,6 +7041,12 @@ classes = (
     FO4_OT_ValidateTextures,
     FO4_OT_SetupArmature,
     FO4_OT_ValidateAnimation,
+    FO4_OT_GenerateWindWeights,
+    FO4_OT_AutoWeightPaint,
+    FO4_OT_ApplyWindAnimation,
+    FO4_OT_BatchGenerateWindWeights,
+    FO4_OT_BatchApplyWindAnimation,
+    FO4_OT_BatchAutoWeightPaint,
     FO4_OT_CheckRigNetInstallation,
     FO4_OT_ShowRigNetInfo,
     FO4_OT_PrepareForRigNet,
@@ -6607,6 +7055,8 @@ classes = (
     FO4_OT_CheckLibiglInstallation,
     FO4_OT_ComputeBBWSkinning,
     FO4_OT_ExportMesh,
+    FO4_OT_SetCollisionType,
+    FO4_OT_ExportMeshWithCollision,
     FO4_OT_ExportAll,
     FO4_OT_ValidateExport,
     FO4_OT_ImageToMesh,
@@ -6641,6 +7091,7 @@ classes = (
     FO4_OT_InstallNVTT,
     FO4_OT_InstallTexconv,
     FO4_OT_InstallWhisper,
+    FO4_OT_InstallHavok2FBX,
     FO4_OT_InstallNiftools,
     FO4_OT_InstallPythonDeps,
     FO4_OT_RunAllInstallers,

@@ -146,6 +146,24 @@ def register():
     version_string = f"{blender_version[0]}.{blender_version[1]}.{blender_version[2]}"
     
     print(f"Fallout 4 Tutorial Helper - Initializing for Blender {version_string}")
+    # show recent development notes to help recall recent changes
+    try:
+        notes_path = bpy.path.abspath("//DEVELOPMENT_NOTES.md")
+        # if running from unpacked directory use workspace file as fallback
+        import os
+        if not os.path.isfile(notes_path):
+            notes_path = os.path.join(os.path.dirname(__file__), "DEVELOPMENT_NOTES.md")
+        if os.path.isfile(notes_path):
+            with open(notes_path, "r", encoding="utf-8") as f:
+                lines = f.readlines()
+            # print last 20 non-empty lines
+            print("--- recent dev notes ---")
+            for ln in lines[-40:]:
+                if ln.strip():
+                    print(ln.rstrip())
+            print("------------------------")
+    except Exception as e:
+        print(f"Could not read DEVELOPMENT_NOTES.md: {e}")
     
     # Register all modules, but continue even if one fails so the
     # user can see the error in the console and report it.

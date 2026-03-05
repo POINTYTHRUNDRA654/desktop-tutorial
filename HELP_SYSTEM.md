@@ -15,11 +15,31 @@ Every operator button includes helpful tooltips that appear on hover:
 **Examples:**
 - **Optimize Mesh**: "Reduces polygon count while maintaining visual quality. Recommended for game assets."
 - **Generate Collision**: "Creates a simplified collision mesh for physics. Essential for static objects."
+  Use the **Collision Type** dropdown to choose the appropriate category (rock, tree,
+  building, creature, etc.); the add-on will also guess a reasonable type based on
+  the object name.  Buildings receive heavier, less‑aggressive simplification;
+  creatures are tagged for custom physics and no mesh is generated.  Some types such
+  as grass or mushrooms automatically skip collision creation.  Collision type
+  selections automatically assign default sound and weight presets (`fo4_collision_sound`
+  and `_weight`) which are written to the object for export tools.  You can also
+  click **Change Type** in the panel header to pick a category from a popup list
+  without opening the sidebar, and an "Apply to Selected" option lets you tag
+  multiple objects at once.
+- **Generate + Export NIF**: "One‑click tool that makes a collision mesh and exports both the source
+  and collision to a NIF file with correct naming/metadata. Use when preparing assets
+  for FO4.  The current collision type will also be written so Havok tools can assign
+  proper weights, sounds and material tags."
 - **Smart Material Setup**: "Auto-detects and loads textures from a directory. Saves manual work."
 
 ### 2. Panel Descriptions
 
-Each UI panel includes a description header explaining its purpose:
+Each UI panel includes a description header explaining its purpose.  The
+**Mesh Helpers** panel now also contains collision controls (type dropdown,
+change/type buttons and export) so you can configure physics directly alongside
+optimize/validate tools.  If you prefer the original boxed layout, open
+Edit → Preferences → Add-ons → Fallout 4 and uncheck **Unified Mesh Panel**
+under *User Interface*.
+
 
 ```python
 # Example from code:

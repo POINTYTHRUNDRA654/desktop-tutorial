@@ -44,11 +44,14 @@ Optimizes a mesh for Fallout 4 compatibility.
 - `message` (str): Status message
 
 **Features:**
-- Applies transformations
-- Removes duplicate vertices
+- Applies transformations (optional via preference)
+- Removes duplicate vertices using a configurable threshold; can respect UVs
+  to avoid texture distortion
 - Recalculates normals
 - Triangulates faces (FO4 requirement)
 
+Optimization behaviour is driven by add-on preferences located under the
+"Mesh Optimization" section of the add-on settings.
 **Example:**
 ```python
 success, message = MeshHelpers.optimize_mesh(obj)
@@ -82,7 +85,27 @@ if not success:
 ```
 
 ### add_collision_mesh(obj)
-Creates a collision mesh for an object.
+Creates a collision mesh for an object. The new mesh receives a `fo4_collision` custom property
+and is named `<original>_COLLISION` (upper‑case suffix); the operator automatically re‑selects the source mesh so that
+exporters won’t accidentally use the simplified mesh.
+
+You can categorize meshes by setting the `Collision Type` dropdown on the active object
+(`None`, `Default`, `Rock`, `Tree`, `Building`, `Grass`, `Mushroom`, `Creature`).  If you
+don’t choose a type the add-on will attempt to infer one from the object name (rocks →
+**Rock**, trees → **Tree**, buildings → **Building**, etc.).  Types marked `None`,
+`Grass` or `Mushroom` will skip collision generation; `Creature` indicates that an
+external Havok hull/capsule should be created instead and the mesh is left untouched.
+The chosen type is stored in the custom property `fo4_collision_type` and the add-on
+also automatically assigns corresponding **sound** and **weight** presets (`fo4_collision_sound`
+and `fo4_collision_weight`) which can be used by export tools or Havok pipelines.
+
+You can also set the type after the fact with the `fo4.set_collision_type` operator
+(the **Change Type** button in the Collision Mesh panel) – this pops up a list so
+you don’t have to open the sidebar, and you may check **"Apply to Selected"** to set
+an entire selection at once.
+
+Collision meshes are **ignored** by `export_mesh_to_nif` and `export_complete_mod` – attempting to
+export them will produce an error informing you to select the original object.
 
 **Parameters:**
 - `obj` (bpy.types.Object): The mesh object
@@ -212,6 +235,86 @@ success, msg = AnimationHelpers.auto_weight_paint(mesh, armature)
 print(msg)
 ```
 
+### generate_wind_weights(mesh_obj, group_name="Wind", axis='Z', invert=False)
+Create or update a vertex group containing a linear weight falloff along the
+specified axis.  Useful for FO4 vegetation portals that drive wind animation
+(the community often calls the resulting channel "vortex weight").
+
+**Parameters:**
+- `mesh_obj` (bpy.types.Object): The mesh to process
+- `group_name` (str): Name for the vertex group to generate
+- `axis` (str): Axis used for falloff; one of `'X','Y','Z'` (default `'Z'`)
+- `invert` (bool): Swap the direction of the falloff
+
+**Returns:**
+- `success` (bool)
+- `message` (str)
+
+**Example:**
+```python
+ok, msg = AnimationHelpers.generate_wind_weights(obj, group_name="wind")
+print(msg)
+```
+
+### apply_wind_animation(mesh_obj, amplitude=0.2, period=60.0, axis='X')
+Add a wind armature and looping bone animation suitable for Fallout 4
+vegetation.
+
+**Parameters:**
+- `mesh_obj` (bpy.types.Object): The mesh to animate
+- `amplitude` (float): Rotation strength in radians
+- `period` (float): Frame length of the wind animation loop
+- `axis` (str): Rotation axis (`'X'`, `'Y'`, or `'Z'`)
+
+**Returns:**
+- `success` (bool)
+- `message` (str)
+
+**Example:**
+```python
+ok, msg = AnimationHelpers.apply_wind_animation(my_mesh)
+print(msg)
+```
+### start_wind_preview(speed=0.05, axis='X')
+Begin a live preview where any `Wind` bones rotate slightly on each frame
+change.  Useful to see the effect without playing the timeline.
+
+**Parameters:**
+- `speed` (float): increment per frame in radians
+- `axis` (str): axis to rotate (`'X'`,`'Y'`,`'Z'`)
+
+**Returns:**
+- `success` (bool)
+- `message` (str)
+
+### stop_wind_preview()
+Stop the live wind preview handler installed by `start_wind_preview()`.
+
+**Returns:**
+- `success` (bool)
+- `message` (str)
+
+### auto_weight_paint(mesh_obj, armature_obj)
+Skin a mesh to the given FO4 armature.  Automatically uses Blender’s
+`ARMATURE_AUTO` parent operation; if the `libigl` Python package is present it
+will instead compute bounded biharmonic weights (BBW) for higher‑quality
+skinning.  The method will attempt to install `libigl` via `pip` when first
+called.
+
+**Parameters:**
+- `mesh_obj` (bpy.types.Object): The mesh to weight
+- `armature_obj` (bpy.types.Object): The armature to use for skinning
+
+**Returns:**
+- `success` (bool)
+- `message` (str)
+
+**Example:**
+```python
+ok, msg = AnimationHelpers.auto_weight_paint(mesh, armature)
+print(msg)
+```
+
 ### validate_animation(armature_obj)
 Validates an armature and animation for Fallout 4.
 
@@ -286,6 +389,14 @@ if success:
 ### export_mesh_to_nif(obj, filepath)
 Exports a mesh to NIF format (via FBX).
 
+If the mesh contains vertex groups but isn’t skinned to an armature the NIF exporter will
+produce corrupted geometry; the helper now detects this situation and returns an error so
+that weights can be removed or the mesh rigged before retrying.  Collision meshes marked by
+`add_collision_mesh` are also skipped.
+
+See :func:`export_mesh_with_collision` for a convenience wrapper that also generates a
+collision mesh first.
+
 **Parameters:**
 - `obj` (bpy.types.Object): The mesh object to export
 - `filepath` (str): Destination file path
@@ -304,6 +415,20 @@ success, msg = ExportHelpers.export_mesh_to_nif(
 )
 print(msg)
 ```
+
+### export_mesh_with_collision(obj, filepath, simplify_ratio=0.25)
+Generate a collision mesh for *obj* (using the object's ``fo4_collision_type`` property)
+and export both original and collision in a single NIF.
+
+- `obj` (bpy.types.Object): mesh to export
+- `filepath` (str): output path
+- `simplify_ratio` (float): decimation ratio for collision (0–1); if ``None`` a default
+  is chosen based on the collision type
+
+When collision type is ``NONE``, ``GRASS`` or ``MUSHROOM`` the helper does nothing and
+simply exports the source mesh.  The property on the object is updated so other
+scripts/operators can query it.  This helper is used by the
+`fo4.export_mesh_with_collision` operator.
 
 ### export_complete_mod(scene, output_dir)
 Exports a complete mod with all assets.

@@ -278,6 +278,28 @@ def install_python_requirements(include_optional: bool = False) -> tuple[bool, s
     return True, msg
 
 
+def check_havok2fbx(path: str) -> bool:
+    """Return True if the given folder appears to contain Havok2FBX binaries."""
+    exe = Path(path) / "havok2fbx.exe"
+    dll = Path(path) / "libfbxsdk.dll"
+    return exe.is_file() and dll.is_file()
+
+
+def install_havok2fbx() -> tuple[bool, str]:
+    """Placeholder for Havok2FBX installation.
+
+    Automatic download is not possible due to licensing.  This function
+    simply creates the tools/havok2fbx folder and opens the GitHub release
+    page in the browser so the user can manually obtain the binaries.
+    """
+    folder = _ensure_tools_dir("havok2fbx")
+    try:
+        import webbrowser
+        webbrowser.open("https://github.com/dfm/havok2fbx/releases")
+        return False, f"Please download Havok2FBX manually and place binaries in {folder}"
+    except Exception as e:
+        return False, f"Unable to open download page: {e}" 
+
 def install_niftools(blender_version: str = "3.6") -> tuple[bool, str]:
     """Invoke the PowerShell installer for the niftools add-on if on Windows."""
     if os.name != "nt":

@@ -8,7 +8,76 @@ from mathutils import Vector
 
 class MeshHelpers:
     """Helper functions for mesh creation and optimization"""
-    
+
+    # collision categories used throughout the add-on
+    COLLISION_TYPES = [
+        ('NONE', 'None', 'No collision will be generated or exported'),
+        ('DEFAULT', 'Default', 'Standard collision mesh'),
+        ('ROCK', 'Rock', 'Rough rock-style collision'),
+        ('TREE', 'Tree', 'Hollow/branching tree collision'),
+        ('BUILDING', 'Building', 'Large static structure collision'),
+        ('GRASS', 'Grass', 'No collision (thin vegetation)'),
+        ('MUSHROOM', 'Mushroom', 'No collision (small decorative)'),
+        ('CREATURE', 'Creature', 'Use Havok tools (capsule/convex)')
+    ]
+    # default simplification per type (used if caller passes None)
+    _TYPE_DEFAULT_RATIOS = {
+        'DEFAULT': 0.25,
+        'ROCK': 0.5,
+        'TREE': 0.2,
+        'BUILDING': 0.15,  # less aggressive simplification for structures
+        'GRASS': 1.0,      # no simplification needed since we skip
+        'MUSHROOM': 1.0,
+        'CREATURE': 1.0,   # creatures typically use external physics shapes
+        'NONE': 1.0
+    }
+
+    # automatic sound/weight presets by collision type
+    _SOUND_PRESETS = {
+        'DEFAULT': 'default_collision',
+        'ROCK': 'stone_hit',
+        'TREE': 'wood_hit',
+        'BUILDING': 'stone_hit',
+        'GRASS': 'grass_step',
+        'MUSHROOM': 'grass_step',
+        'CREATURE': 'flesh_hit',
+        'NONE': None
+    }
+    _WEIGHT_PRESETS = {
+        'DEFAULT': 'medium',
+        'ROCK': 'heavy',
+        'TREE': 'medium',
+        'BUILDING': 'heavy',
+        'GRASS': 'light',
+        'MUSHROOM': 'light',
+        'CREATURE': 'variable',
+        'NONE': None
+    }
+
+    @staticmethod
+    def infer_collision_type(obj):
+        """Guess an appropriate collision type based on the object name.
+
+        This simple heuristic is used to prefill dialogs so that rocks get rock
+        collision, trees get tree collision, and small plant meshes skip it.
+        """
+        if not obj or obj.type != 'MESH':
+            return 'DEFAULT'
+        name = obj.name.lower()
+        if any(w in name for w in ['rock', 'stone', 'boulder']):
+            return 'ROCK'
+        if any(w in name for w in ['tree', 'trunk', 'branch']):
+            return 'TREE'
+        if any(w in name for w in ['house', 'building', 'wall', 'door']):
+            return 'BUILDING'
+        if any(w in name for w in ['grass', 'blade', 'fern']):
+            return 'GRASS'
+        if 'mushroom' in name:
+            return 'MUSHROOM'
+        if any(w in name for w in ['npc', 'creature', 'beast', 'character']):
+            return 'CREATURE'
+        return 'DEFAULT'
+
     @staticmethod
     def create_base_mesh(mesh_type='CUBE'):
         """Create a base mesh optimized for Fallout 4"""
@@ -31,35 +100,43 @@ class MeshHelpers:
         if obj.type != 'MESH':
             return False, "Object is not a mesh"
         
-        # Switch to object mode
+        prefs = preferences.get_preferences()
+        apply_trans = prefs.optimize_apply_transforms if prefs else True
+        threshold = prefs.optimize_remove_doubles_threshold if prefs else 0.0001
+        preserve_uvs = prefs.optimize_preserve_uvs if prefs else True
+
+        # Switch to object mode and optionally apply transforms
         if bpy.context.mode != 'OBJECT':
             bpy.ops.object.mode_set(mode='OBJECT')
-        
-        # Select the object
         bpy.context.view_layer.objects.active = obj
         obj.select_set(True)
-        
-        # Apply transformations
-        bpy.ops.object.transform_apply(location=False, rotation=True, scale=True)
-        
-        # Remove doubles
-        bpy.ops.object.mode_set(mode='EDIT')
-        bpy.ops.mesh.select_all(action='SELECT')
-        # Remove doubles (operator renamed in Blender 2.91; old name removed in 5.0)
-        if hasattr(bpy.ops.mesh, 'merge_by_distance'):
-            bpy.ops.mesh.merge_by_distance(threshold=0.0001)
-        else:
-            bpy.ops.mesh.remove_doubles(threshold=0.0001)
-        
-        # Recalculate normals
-        bpy.ops.mesh.normals_make_consistent(inside=False)
-        
-        # Triangulate (Fallout 4 uses triangles)
-        bpy.ops.mesh.quads_convert_to_tris()
-        
-        bpy.ops.object.mode_set(mode='OBJECT')
-        
-        return True, "Mesh optimized successfully"
+        if apply_trans:
+            bpy.ops.object.transform_apply(location=False, rotation=True, scale=True)
+
+        # Use bmesh for operations
+        me = obj.data
+        bm = bmesh.new()
+        bm.from_mesh(me)
+
+        # UV-aware remove doubles
+        uv_layer = bm.loops.layers.uv.active
+        remove_kwargs = {'verts': bm.verts, 'dist': threshold}
+        if preserve_uvs and uv_layer is not None:
+            remove_kwargs['use_uvs'] = True
+        bmesh.ops.remove_doubles(bm, **remove_kwargs)
+
+        # Recalculate normals consistently
+        bm.normal_update()
+
+        # Triangulate
+        bmesh.ops.triangulate(bm, faces=bm.faces[:])
+
+        # write back to mesh
+        bm.to_mesh(me)
+        bm.free()
+
+        return True, "Mesh optimized successfully (UV-safe)"
+
     
     @staticmethod
     def validate_mesh(obj):
@@ -103,26 +180,64 @@ class MeshHelpers:
         return False, issues
     
     @staticmethod
-    def add_collision_mesh(obj):
-        """Add a collision mesh for the object"""
+    def add_collision_mesh(obj, simplify_ratio: float = None, collision_type: str = 'DEFAULT'):
+        """Add a collision mesh for *obj* and return the new object.
+
+        ``collision_type`` is one of ``MeshHelpers.COLLISION_TYPES``; meshes marked
+        ``NONE``, ``GRASS`` or ``MUSHROOM`` are skipped.  If ``simplify_ratio`` is
+        ``None`` the helper chooses a reasonable default based on the collision
+        type.
+        """
         if obj.type != 'MESH':
             return None
-        
-        # Duplicate object for collision
+
+        # record presets on source object
+        obj["fo4_collision_type"] = collision_type
+        sound = MeshHelpers._SOUND_PRESETS.get(collision_type)
+        weight = MeshHelpers._WEIGHT_PRESETS.get(collision_type)
+        if sound is not None:
+            obj["fo4_collision_sound"] = sound
+        if weight is not None:
+            obj["fo4_collision_weight"] = weight
+
+        # skip types that shouldn't have collision
+        if collision_type in ('NONE', 'GRASS', 'MUSHROOM'):
+            return None
+
+        # pick a default simplification if not specified
+        if simplify_ratio is None:
+            simplify_ratio = MeshHelpers._TYPE_DEFAULT_RATIOS.get(collision_type, 0.25)
+
+        # make sure we're operating on a clean selection
         bpy.ops.object.select_all(action='DESELECT')
         obj.select_set(True)
         bpy.context.view_layer.objects.active = obj
         bpy.ops.object.duplicate()
-        
+
         collision_obj = bpy.context.active_object
-        collision_obj.name = f"{obj.name}_collision"
-        
-        # Simplify collision mesh
-        bpy.ops.object.mode_set(mode='EDIT')
-        bpy.ops.mesh.select_all(action='SELECT')
-        bpy.ops.mesh.dissolve_limited(angle_limit=0.1)
-        bpy.ops.object.mode_set(mode='OBJECT')
-        
+        # mark it so that exporters can skip it and tools can find it
+        collision_obj["fo4_collision"] = True
+        collision_obj["fo4_collision_type"] = collision_type
+        obj["fo4_collision_type"] = collision_type
+        # copy presets
+        if sound is not None:
+            collision_obj["fo4_collision_sound"] = sound
+            obj["fo4_collision_sound"] = sound
+        if weight is not None:
+            collision_obj["fo4_collision_weight"] = weight
+            obj["fo4_collision_weight"] = weight
+        collision_obj.name = f"{obj.name}_COLLISION"
+
+        # simplify using a decimate modifier (more predictable than dissolve)
+        modifier = collision_obj.modifiers.new(name="Decimate", type='DECIMATE')
+        modifier.ratio = simplify_ratio
+        bpy.ops.object.modifier_apply(modifier="Decimate")
+
+        # restore original object as active/selected
+        bpy.context.view_layer.objects.active = obj
+        obj.select_set(True)
+        collision_obj.select_set(False)
+
         return collision_obj
 
 def register():

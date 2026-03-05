@@ -43,6 +43,15 @@ so future changes don't accidentally reintroduce bugs or regressions.
   Blender (see notes above).  The module is self-contained and may be
   imported independently for unit testing.
 
+- **Historical quirk:** older versions stored the server on the current
+  `Scene` datablock.  As a result a fresh mesh import or opening a blank
+  file would break the connection and users had to manually click the
+  panel’s “Disconnect / Connect to Mossy” button before the external app
+  would talk to Blender again.  The server is now kept at module scope and
+  a `load_post` handler automatically restarts it, so the connection
+  survives new scenes; the helper UI still offers a manual toggle for
+  debugging.
+
 ## Notes for Future Work
 
 - When adding new external integrations, consult this document first to
@@ -61,6 +70,66 @@ so future changes don't accidentally reintroduce bugs or regressions.
 
 - This file should be updated whenever similar platform-specific workarounds
   or new high-level features are introduced.
+
+## Advanced Weighting Features (Mar 2026)
+
+- Vegetation artists were repeatedly hand‑painting "vortex" or "vortex weight"
+  channels for plants and trees so that Fallout 4’s wind system could bend
+  leaves/branches.  The add-on now provides three automatic helpers:
+  * `AnimationHelpers.generate_wind_weights()` / **Generate Wind Weights**
+    operator – computes a simple linear falloff along a chosen axis and stores
+    it in a vertex group (default name "Wind").  Works on arbitrary meshes and
+    requires no manual painting.
+  * `AnimationHelpers.apply_wind_animation()` / **Apply Wind Animation**
+    operator – one click to create a minimal armature with a "Wind" bone and
+    a looping noise‑driven rotation action.  Play the timeline to see the
+    mesh sway; the resulting animation is exported for FO4.
+  * `AnimationHelpers.auto_weight_paint()` / **Auto Weight Paint** operator –
+    skins a mesh to an FO4 armature.  By default it uses Blender’s
+    `ARMATURE_AUTO` parent operation, but if the `libigl` Python package is
+    installed (the operator will attempt to `pip install` it automatically)
+    it instead computes bounded biharmonic weights (BBW) for cleaner
+    deformations.  This brings the add-on in line with the latest community
+    workflows and removes the need for external tools or manual weight
+    painting.
+
+- Both operators are accessible via the **Animation Helpers** sidebar panel
+  and are fully scriptable.  They have been tested on Blender 3.6–5.0 and
+  correctly handle missing dependencies by falling back to built-in behaviour.
+
+- **Mesh optimization issue:** the previous `Optimize Mesh` routine could
+  collapse vertices across UV seams and corrupt textures when the user
+  reported "eating" of texture.  The function has been rewritten to use a
+  UV-aware bmesh remove‑doubles operation; textures are now preserved after
+  optimization.  Additionally, the operation is now driven by preferences
+  (threshold, UV preservation toggle, apply transforms flag) under the
+  "Mesh Optimization" section in the add-on settings so users may fine-tune
+  behaviour for their assets.  The optimizer button also exposes these
+  options directly via a popup for per-object overrides.
+
+- When modifying or extending these helpers later, remember:
+  * weight computation should always be deterministic and not rely on external
+    network resources except for optional `pip` installs;
+  * keep the panel buttons and API methods in sync to avoid UX drift;
+  * update `API_REFERENCE.md`, `CHANGELOG.md` and `RIGGING_AND_MOTION_INTEGRATION.md`
+    when changes are made (this file tracks the rationale).
+  * if new batch or preset functionality is added, consider expanding the
+    smoke-test script so CI exercises the new operators automatically.
+
+## Other recent improvements
+
+- Added batch processing operators for wind weights, wind animation and
+  auto-weight painting; these are exposed in the UI and allow multi-selection
+  workflows.
+- Wind animation operator now supports built-in presets (Grass, Shrub, Tree)
+  for one-click styling.
+- Added **Toggle Wind Preview** operator and handler; can be toggled from the
+  panel to see a live swaying effect without playing the timeline.
+- `tools/check_blenders.py` was extended to instantiate a test mesh, run the
+  new operators (including batch and preview toggle) and verify they complete
+  without error, ensuring CI catches regressions in automation logic.
+- Automatic dependency installation will prefer local wheel files placed in
+  `tools/`, enabling offline setups.
 
 ## Blender Version Smoke‑Testing
 

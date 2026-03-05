@@ -90,11 +90,40 @@ class ExportHelpers:
         return kwargs
     
     @staticmethod
+    def _find_collision_mesh(obj):
+        """Return a collision object associated with *obj*, if any.
+
+        The helper looks in all scenes where *obj* appears and checks for the
+        custom ``fo4_collision`` flag or the standard ``<name>_collision`` suffix.
+        """
+        target_name = f"{obj.name}_COLLISION".upper()
+        for scene in getattr(obj, 'users_scene', []):
+            for o in scene.objects:
+                if o is obj:
+                    continue
+                if o.get("fo4_collision") or o.name.upper() == target_name:
+                    return o
+        return None
+
     def export_mesh_to_nif(obj, filepath):
-        """Export mesh to NIF format using Niftools when available, else fall back to FBX."""
+        """Export mesh to NIF format using Niftools when available, else fall back to FBX.
+
+        The Niftools/FBX exporters are notoriously sensitive to stray vertex groups.  If a
+        mesh contains weights but isn't skinned to an armature the export can produce
+        collapsed or otherwise corrupted geometry.  We fail early in that case so the
+        user can clean up the mesh.
+        """
         
         if obj.type != 'MESH':
             return False, "Object is not a mesh"
+        
+        # Do not export collision meshes created by the addon
+        if obj.get("fo4_collision") or obj.name.upper().endswith("_COLLISION"):
+            return False, "Collision meshes are not intended for export; select the source mesh instead"
+
+        # reject meshes with orphaned weights
+        if obj.vertex_groups and not ExportHelpers._has_armature(obj):
+            return False, "Mesh has vertex groups but no armature – remove weights or parent to an armature before exporting"
         
         # Validate first
         success, issues = ExportHelpers.validate_before_export(obj)
@@ -106,15 +135,36 @@ class ExportHelpers:
         # Try native NIF export first when available
         if nif_available:
             try:
+                # gather objects to export (main mesh + optional collision)
+                selection = [obj]
+                # only include a collision object if the mesh is expected to have one
+                ctype = obj.get("fo4_collision_type", "DEFAULT")
+                if ctype not in ('NONE', 'GRASS', 'MUSHROOM'):
+                    coll = ExportHelpers._find_collision_mesh(obj)
+                    if coll:
+                        selection.append(coll)
+
                 bpy.ops.object.select_all(action='DESELECT')
-                obj.select_set(True)
+                for o in selection:
+                    o.select_set(True)
                 bpy.context.view_layer.objects.active = obj
 
                 kwargs = ExportHelpers._build_nif_export_kwargs(filepath)
                 result = bpy.ops.export_scene.nif(**kwargs)
 
                 if isinstance(result, set) and 'FINISHED' in result:
-                    return True, f"Exported NIF: {filepath}"
+                    ctype = obj.get("fo4_collision_type", "DEFAULT")
+                    sound = obj.get("fo4_collision_sound")
+                    weight = obj.get("fo4_collision_weight")
+                    extras = []
+                    if ctype:
+                        extras.append(f"type={ctype}")
+                    if sound:
+                        extras.append(f"sound={sound}")
+                    if weight:
+                        extras.append(f"weight={weight}")
+                    note = " (" + ", ".join(extras) + ")" if extras else ""
+                    return True, f"Exported NIF: {filepath}{note}"
 
                 # If operator returns without FINISHED, fall back to FBX
                 fallback_msg = f"NIF export did not finish ({result}); falling back to FBX."
@@ -140,11 +190,63 @@ class ExportHelpers:
                 mesh_smooth_type='FACE'
             )
 
-            return True, f"{fallback_msg} Exported FBX: {fbx_path}"
+            ctype = obj.get("fo4_collision_type", "DEFAULT")
+            sound = obj.get("fo4_collision_sound")
+            weight = obj.get("fo4_collision_weight")
+            extras = []
+            if ctype:
+                extras.append(f"type={ctype}")
+            if sound:
+                extras.append(f"sound={sound}")
+            if weight:
+                extras.append(f"weight={weight}")
+            note = " (" + ", ".join(extras) + ")" if extras else ""
+            return True, f"{fallback_msg} Exported FBX: {fbx_path}{note}"
         except Exception as e:
             return False, f"Export failed: {str(e)}"
     
     @staticmethod
+    @staticmethod
+    def _has_armature(obj):
+        """Return True if *obj* is skinned to an armature (parent or modifier).
+        """
+        if obj.parent and obj.parent.type == 'ARMATURE':
+            return True
+        for mod in getattr(obj, 'modifiers', []):
+            if mod.type == 'ARMATURE':
+                return True
+        return False
+
+    def export_mesh_with_collision(obj, filepath, simplify_ratio: float = 0.25):
+        """Helper to generate a collision mesh and then export the pair to NIF.
+
+        This mirrors the behaviour of the ``fo4.export_mesh_with_collision`` operator
+        by creating a new collision mesh (or replacing an existing one) then calling
+        :func:`export_mesh_to_nif` on the original object.
+
+        Parameters
+        ----------
+        obj : bpy.types.Object
+            Source mesh object
+        filepath : str
+            Destination NIF file path
+        simplify_ratio : float, optional
+            Simplification ratio for the collision mesh, by default 0.25
+        """
+        from . import mesh_helpers
+
+        # ensure source object is ok
+        if obj.type != 'MESH':
+            return False, "Object is not a mesh"
+
+        # generate or update collision mesh
+        collision = mesh_helpers.MeshHelpers.add_collision_mesh(obj, simplify_ratio=simplify_ratio)
+        if not collision:
+            return False, "Failed to create collision mesh"
+
+        # now export both
+        return ExportHelpers.export_mesh_to_nif(obj, filepath)
+
     def export_complete_mod(scene, output_dir):
         """Export complete mod with all assets"""
         if not os.path.exists(output_dir):
@@ -154,7 +256,8 @@ class ExportHelpers:
             'meshes': [],
             'textures': [],
             'animations': [],
-            'errors': []
+            'errors': [],
+            'skipped': []  # collision or otherwise excluded meshes
         }
         
         # Create directory structure
@@ -167,9 +270,14 @@ class ExportHelpers:
         # Export all mesh objects
         for obj in scene.objects:
             if obj.type == 'MESH':
+                # skip collision meshes generated by the add-on
+                if obj.get("fo4_collision") or obj.name.upper().endswith("_COLLISION"):
+                    results['skipped'].append(obj.name)
+                    continue
+
                 mesh_path = os.path.join(mesh_dir, f"{obj.name}.nif")
                 success, message = ExportHelpers.export_mesh_to_nif(obj, mesh_path)
-                
+
                 if success:
                     results['meshes'].append(obj.name)
                 else:

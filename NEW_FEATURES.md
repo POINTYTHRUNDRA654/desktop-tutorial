@@ -73,6 +73,19 @@ One-click solutions for common workflows.
 - Automatically detects and fixes problems
 
 **Generate Collision Mesh:**
+
+*New in this release:* you can now create a collision mesh and export both it and
+the source mesh in one step by using the **"Export Mesh + Collision"** operator
+(or run ``ExportHelpers.export_mesh_with_collision`` from a script).  The
+button appears alongside the existing collision tool.  Objects now have a
+"Collision Type" property – choose a type such as `Rock` or `Tree` to automatically
+select an appropriate simplification level, or pick `Grass`/`Mushroom`/`None` to
+skip collision entirely.  The add-on will also guess a sensible
+  collision type from the mesh name, so a file called "rock01" automatically gets
+  rock‑style collision unless you override it.
+
+A new **Unified Mesh Panel** preference lets you toggle between the modern single‑box layout and the previous multi‑box style; adjust it under Add‑on Preferences → User Interface if you prefer the old look.
+
 - Creates simplified collision version
 - Adjustable simplification ratio
 - Automatic material cleanup

@@ -376,11 +376,22 @@ def register():
         default=True
     )
 
+    # per-object collision category used by our collision utilities
+    from . import mesh_helpers
+    bpy.types.Object.fo4_collision_type = bpy.props.EnumProperty(
+        name="Collision Type",
+        description="Category used when generating/exporting collision meshes",
+        items=mesh_helpers.MeshHelpers.COLLISION_TYPES,
+        default='DEFAULT'
+    )
+
 def unregister():
     """Unregister third-party integration classes"""
     if hasattr(bpy.types.Scene, 'fo4_third_party_addons'):
         del bpy.types.Scene.fo4_third_party_addons
     if hasattr(bpy.types.Scene, 'fo4_show_addon_tutorials'):
         del bpy.types.Scene.fo4_show_addon_tutorials
+    if hasattr(bpy.types.Object, 'fo4_collision_type'):
+        del bpy.types.Object.fo4_collision_type
     
     bpy.utils.unregister_class(ThirdPartyAddon)

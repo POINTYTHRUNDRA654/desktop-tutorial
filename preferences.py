@@ -109,6 +109,12 @@ class FO4AddonPreferences(bpy.types.AddonPreferences):
         description="Folder containing Havok2FBX binaries (existing install)",
     )
 
+    mesh_panel_unified: bpy.props.BoolProperty(
+        name="Unified Mesh Panel",
+        description="Show all mesh helpers (basic, collision, advanced) in one box",
+        default=True,
+    )
+
     nvtt_path: bpy.props.StringProperty(
         name="NVTT Path",
         subtype="FILE_PATH",
@@ -217,6 +223,25 @@ class FO4AddonPreferences(bpy.types.AddonPreferences):
         description="If enabled, core Python dependencies will be installed on startup",
     )
 
+    # ---- Mesh optimization settings ----
+    optimize_remove_doubles_threshold: bpy.props.FloatProperty(
+        name="Remove Doubles Threshold",
+        default=0.0001,
+        min=0.0,
+        max=0.01,
+        description="Distance threshold for merging duplicate vertices during optimization",
+    )
+    optimize_preserve_uvs: bpy.props.BoolProperty(
+        name="Preserve UVs",
+        default=True,
+        description="Keep UV seams from being collapsed when removing doubles",
+    )
+    optimize_apply_transforms: bpy.props.BoolProperty(
+        name="Apply Transforms",
+        default=True,
+        description="Automatically apply object transforms before optimization",
+    )
+
     # ---- Mossy Link ----
     port: bpy.props.IntProperty(
         name="Mossy Link Port",
@@ -245,6 +270,12 @@ class FO4AddonPreferences(bpy.types.AddonPreferences):
         box = layout.box()
         box.label(text="Havok2FBX", icon="FILE_FOLDER")
         box.prop(self, "havok2fbx_path", text="Folder")
+
+        # new preference added
+        ui_box = layout.box()
+        ui_box.label(text="User Interface", icon="PREFERENCES")
+        ui_box.prop(self, "mesh_panel_unified", text="Unified Mesh Panel")
+        ui_box.label(text="Show all mesh helpers in one box (vs split basic/advanced)")
 
         path = bpy.path.abspath(self.havok2fbx_path)
         if os.path.isdir(path):
@@ -298,7 +329,14 @@ class FO4AddonPreferences(bpy.types.AddonPreferences):
         auto_box.prop(self, "auto_install_tools", text="Auto-install missing CLI tools at startup")
         auto_box.prop(self, "auto_install_python", text="Auto-install Python deps at startup")
         auto_box.prop(self, "auto_register_tools", text="Auto-register third-party add-ons")
+        auto_box.operator("fo4.check_tool_paths", text="Check Tool Paths", icon='INFO')
         auto_box.label(text="(disable to avoid policy warnings at startup)", icon='INFO')
+
+        opt_box = layout.box()
+        opt_box.label(text="Mesh Optimization", icon="MOD_DECIM")
+        opt_box.prop(self, "optimize_apply_transforms")
+        opt_box.prop(self, "optimize_remove_doubles_threshold")
+        opt_box.prop(self, "optimize_preserve_uvs")
 
         ml_box = layout.box()
         ml_box.label(text="Mossy Link", icon="LINKED")
