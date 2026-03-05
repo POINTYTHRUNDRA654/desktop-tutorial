@@ -332,6 +332,14 @@ class FO4AddonPreferences(bpy.types.AddonPreferences):
         auto_box.operator("fo4.check_tool_paths", text="Check Tool Paths", icon='INFO')
         auto_box.label(text="(disable to avoid policy warnings at startup)", icon='INFO')
 
+        update_box = layout.box()
+        update_box.label(text="Add-on Update", icon="FILE_REFRESH")
+        update_box.label(
+            text="After installing a new zip, click Reload to apply changes immediately:",
+            icon='INFO',
+        )
+        update_box.operator("fo4.reload_addon", text="Reload Add-on", icon='FILE_REFRESH')
+
         opt_box = layout.box()
         opt_box.label(text="Mesh Optimization", icon="MOD_DECIM")
         opt_box.prop(self, "optimize_apply_transforms")

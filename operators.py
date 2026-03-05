@@ -7029,6 +7029,33 @@ class FO4_OT_ClearOperationLog(Operator):
         return context.window_manager.invoke_confirm(self, event)
 
 
+class FO4_OT_ReloadAddon(Operator):
+    """Reload the add-on in-place without restarting Blender.
+
+    Use this after installing an updated zip (or after pulling new source files)
+    so your changes take effect immediately.  The operator disables and
+    re-enables the add-on, which re-imports all its modules from disk.
+    """
+    bl_idname = "fo4.reload_addon"
+    bl_label = "Reload Add-on"
+    bl_description = (
+        "Disable and re-enable the add-on so updated files take effect "
+        "without restarting Blender"
+    )
+    bl_options = {'REGISTER'}
+
+    def execute(self, context):
+        addon_name = __package__.split(".")[0] if __package__ else "fallout4_tutorial_helper"
+        try:
+            bpy.ops.preferences.addon_disable(module=addon_name)
+            bpy.ops.preferences.addon_enable(module=addon_name)
+            self.report({'INFO'}, f"Add-on '{addon_name}' reloaded successfully")
+        except Exception as exc:
+            self.report({'ERROR'}, f"Reload failed: {exc}")
+            return {'CANCELLED'}
+        return {'FINISHED'}
+
+
 classes = (
     FO4_OT_StartTutorial,
     FO4_OT_ShowHelp,
@@ -7214,6 +7241,8 @@ classes = (
     FO4_OT_GeneratePointEImage,
     # Operation log
     FO4_OT_ClearOperationLog,
+    # Add-on self-update / reload
+    FO4_OT_ReloadAddon,
 )
 
 def register():

@@ -8,7 +8,7 @@ printed to stdout so you can inspect them or redirect into a log file.
 Usage (from a normal Python environment or the command prompt):
 
     python tools/check_blenders.py \
-        "D:\Program Files\Blender Foundation\Blender 5.0\blender.exe"
+        "D:\\Program Files\\Blender Foundation\\Blender 5.0\\blender.exe"
 
 You can point the script at any Blender executables on your D: drive if
 C: is full; the tool will recurse directories and find "blender.exe" files
@@ -73,8 +73,7 @@ try:
     addon.unregister()
 except Exception as e:
     print('ERROR', e)
-    import traceback as tb
-    tb.print_exc()
+    traceback.print_exc()
     sys.exit(1)
 """
 
