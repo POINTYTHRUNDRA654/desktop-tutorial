@@ -171,7 +171,13 @@ class FO4_NotificationSystem:
             issues.append("No UV map found")
         
         # Check for vertex colors (optional but recommended)
-        if not mesh.vertex_colors:
+        # Blender 3.2+ uses color_attributes; vertex_colors removed in 5.0
+        has_color = (
+            bool(mesh.color_attributes)
+            if hasattr(mesh, 'color_attributes')
+            else bool(mesh.vertex_colors)
+        )
+        if not has_color:
             issues.append("No vertex colors (recommended for FO4)")
         
         # Check scale

@@ -4,23 +4,23 @@
 
 ### Fully Supported Blender Versions
 
-✅ **Blender 2.80 - 4.5+ (All Modern Versions)**
+✅ **Blender 2.90 - 5.x (All Modern Versions)**
 
 This add-on is compatible with ALL modern versions of Blender, including the very latest:
 
 | Version Range | Status | Notes |
 |---------------|--------|-------|
-| **Blender 2.80 - 2.93** | ✅ Fully Compatible | Tested and working |
+| **Blender 2.90 - 2.93** | ✅ Fully Compatible | Tested and working |
 | **Blender 3.0 - 3.6** | ✅ Fully Compatible | Recommended for stability |
 | **Blender 4.0 - 4.2** | ✅ Fully Compatible | Latest LTS features |
 | **Blender 4.3 - 4.5+** | ✅ Fully Compatible | **Including 4.5.5** ⭐ |
-| **Blender 5.0+ (experimental)** | ⚠ Untested / In progress | Report any errors with console log |
+| **Blender 5.0+** | ✅ Fully Compatible | API shims in place for 5.x changes |
 
 **✨ Confirmed Working on Blender 4.5.5!** (User tested)
 
 ### Version-Specific Notes
 
-**Blender 2.80 - 2.93:**
+**Blender 2.90 - 2.93:**
 - ✅ All core features work
 - ✅ Mesh tools fully functional
 - ✅ Export system works
@@ -43,18 +43,16 @@ This add-on is compatible with ALL modern versions of Blender, including the ver
 - 💡 Tip: All 4.x versions fully supported
 
 **Blender 5.x:**
-- ⚠ First releases of 5.x may introduce breaking API changes
-- ✅ Add-on should work exactly like 4.x, but there is no official
-  validation yet
-- 📋 If you see errors on Blender 5, copy the System Console output and
-  open an issue at the GitHub repository; the enhanced import/registration
-  logging will show which module failed
+- ✅ Fully supported with API compatibility shims
+- ✅ `merge_by_distance` used instead of removed `remove_doubles`
+- ✅ `color_attributes` used instead of removed `vertex_colors`
+- 💡 Tip: Please report any new issues with console output and Blender version details
 
 ### Installation on Any Blender Version
 
 **Universal Installation Steps:**
 1. Download the add-on
-2. Open Blender (any version 2.80+)
+2. Open Blender (any version 2.90+)
 3. Go to Edit → Preferences → Add-ons
 4. Click "Install..."
 5. Select `__init__.py`

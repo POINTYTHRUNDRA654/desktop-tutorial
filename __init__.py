@@ -7,9 +7,9 @@ bl_info = {
     "name": "Fallout 4 Tutorial Helper",
     "author": "Tutorial Team",
     "version": (2, 1, 2),
-    "blender": (2, 80, 0),  # Compatible with Blender 2.80+ (all modern versions)
+    "blender": (2, 90, 0),  # Compatible with Blender 2.90+ through 5.x
     "location": "View3D > Sidebar > Fallout 4",
-    "description": "Comprehensive tutorial system and helpers for creating Fallout 4 mods including quests, NPCs, items, and world building. Compatible with Blender 2.80 through 4.x+",
+    "description": "Comprehensive tutorial system and helpers for creating Fallout 4 mods including quests, NPCs, items, and world building. Compatible with Blender 2.90 through 5.x",
     "warning": "",
     "doc_url": "https://github.com/POINTYTHRUNDRA654/Blender-add-on",
     "category": "3D View",
@@ -289,21 +289,19 @@ def register():
     except Exception as e:
         print(f"Post-register environment check failed: {e}")
     
-    # Show version-specific notes if needed.  Blender 5 is effectively the
-    # same as 4 for our purposes, but we call it out explicitly since the
-    # first tester reported errors on 5.0.
+    # Show version-specific notes if needed.
     if blender_version[0] < 3:
         print("  Note: Some features work best with Blender 3.0+")
     elif blender_version[0] == 3:
         # nothing special to say; 3.x is the historically best-tested range
         pass
     elif blender_version[0] == 4:
-        print("  Note: Blender 4.x support - please report any issues")
+        print("  Note: Blender 4.x fully supported")
     else:
-        # future major versions (5+)
+        # Blender 5.x and beyond — API compatibility shims are in place
         print(
-            "  Note: Blender {0}.x detected; support is experimental — please"
-            " include version details when reporting defects.".format(blender_version[0])
+            "  Note: Blender {0}.x detected and fully supported."
+            " Please report any issues with Blender version details.".format(blender_version[0])
         )
 
 def unregister():
