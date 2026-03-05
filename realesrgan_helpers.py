@@ -136,14 +136,14 @@ class RealESRGANHelpers:
     @staticmethod
     def upscale_texture_python(input_path, output_path=None, scale=4, model='RealESRGAN_x4plus'):
         """
-        Upscale texture using Real-ESRGAN Python version
-        
+        Upscale texture using the Real-ESRGAN Python package.
+
         Args:
             input_path: Path to input texture
-            output_path: Path for output (optional)
+            output_path: Path for output (optional; derived from input if omitted)
             scale: Upscale factor (2 or 4)
-            model: Model name
-        
+            model: Model name (e.g. 'RealESRGAN_x4plus', 'RealESRGAN_x2plus')
+
         Returns: (bool success, str message)
         """
         try:
@@ -152,35 +152,78 @@ class RealESRGANHelpers:
             import numpy as np
             import cv2
         except ImportError:
-            return False, "Real-ESRGAN Python dependencies not installed (basicsr, realesrgan)"
-        
+            return False, "Real-ESRGAN Python dependencies not installed. Install with: pip install realesrgan basicsr"
+
         if not os.path.exists(input_path):
             return False, f"Input file not found: {input_path}"
-        
-        # Determine output path
+
         if output_path is None:
             base, ext = os.path.splitext(input_path)
             output_path = f"{base}_upscaled{ext}"
-        
+
         try:
-            # Load image
+            # Load input image (keep alpha channel if present)
             img = cv2.imread(input_path, cv2.IMREAD_UNCHANGED)
             if img is None:
                 return False, f"Failed to load image: {input_path}"
-            
-            # Initialize model
-            # Note: This is a simplified version - actual implementation needs model weights
-            # Users need to download models using download_models.py
-            
-            # For now, return a message about manual upscaling
-            return False, (
-                "Python-based upscaling requires manual execution:\n"
-                "1. Navigate to Real-ESRGAN directory\n"
-                "2. Run: python inference_realesrgan.py -n RealESRGAN_x4plus -i input.png -o output\n"
-                "3. Import upscaled texture back to Blender\n\n"
-                "Use Vulkan version for automatic upscaling from Blender."
+
+            # Select the correct RRDBNet architecture for the requested model
+            if model in ('RealESRGAN_x4plus', 'RealESRNet_x4plus'):
+                net = RRDBNet(
+                    num_in_ch=3, num_out_ch=3,
+                    num_feat=64, num_block=23, num_grow_ch=32, scale=4
+                )
+                netscale = 4
+            elif model == 'RealESRGAN_x2plus':
+                net = RRDBNet(
+                    num_in_ch=3, num_out_ch=3,
+                    num_feat=64, num_block=23, num_grow_ch=32, scale=2
+                )
+                netscale = 2
+            elif model in ('RealESRGAN_x4plus_anime_6B',):
+                net = RRDBNet(
+                    num_in_ch=3, num_out_ch=3,
+                    num_feat=64, num_block=6, num_grow_ch=32, scale=4
+                )
+                netscale = 4
+            else:
+                # Generic fallback: x4 architecture
+                net = RRDBNet(
+                    num_in_ch=3, num_out_ch=3,
+                    num_feat=64, num_block=23, num_grow_ch=32, scale=4
+                )
+                netscale = 4
+
+            # Locate model weights (Real-ESRGAN downloads them to weights/ on first use)
+            realesrgan_path = RealESRGANHelpers.get_realesrgan_path()[0]
+            model_path_candidates = []
+            if realesrgan_path:
+                model_path_candidates.extend([
+                    os.path.join(realesrgan_path, "weights", f"{model}.pth"),
+                    os.path.join(realesrgan_path, "experiments", "pretrained_models", f"{model}.pth"),
+                ])
+            model_weights_path = next(
+                (p for p in model_path_candidates if os.path.exists(p)),
+                None
             )
-        
+            # RealESRGANer will attempt to download the model if model_path is None
+            upsampler = RealESRGANer(
+                scale=netscale,
+                model_path=model_weights_path,
+                model=net,
+                tile=0,
+                tile_pad=10,
+                pre_pad=0,
+                half=False,
+            )
+
+            # Run upscaling
+            output, _ = upsampler.enhance(img, outscale=scale)
+
+            # Save result
+            cv2.imwrite(output_path, output)
+            return True, f"Upscaled to {output_path} (×{scale})"
+
         except Exception as e:
             return False, f"Failed to upscale texture: {str(e)}"
     

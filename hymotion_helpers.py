@@ -107,42 +107,72 @@ def check_hymotion_availability():
 def generate_motion_from_text(prompt, duration=5.0, fps=30):
     """
     Generate motion/animation from a text prompt using HY-Motion-1.0.
-    
+
     Args:
         prompt (str): Text description of the motion (e.g., "character walking forward")
         duration (float): Duration of the animation in seconds
         fps (int): Frames per second for the animation
-        
+
     Returns:
         tuple: (success: bool, result/error_message)
     """
     available, message = check_hymotion_availability()
     if not available:
         return False, f"HY-Motion-1.0 not available: {message}"
-    
+
     try:
-        # PLACEHOLDER IMPLEMENTATION
-        # This is a stub that requires actual integration with HY-Motion-1.0's inference code.
-        # To integrate:
-        #   1. Import HY-Motion-1.0's inference modules
-        #   2. Load the motion model weights
-        #   3. Call their text-to-motion inference API
-        #   4. Convert output to Blender animation keyframes
-        # See: https://github.com/Tencent-Hunyuan/HY-Motion-1.0 for API documentation
-        
-        return False, (
-            "Motion generation is a PLACEHOLDER - requires manual integration.\n"
-            "This feature needs HY-Motion-1.0's inference code to be integrated.\n"
-            f"Prompt: '{prompt}'\n"
-            f"Duration: {duration}s @ {fps} FPS\n\n"
-            "To use now:\n"
-            "1. Open terminal in HY-Motion-1.0 directory\n"
-            "2. Run their inference script with your prompt\n"
-            "3. Export animation data\n"
-            "4. Import to Blender manually\n\n"
-            "See documentation for detailed instructions."
+        import glob as _glob
+        import tempfile
+
+        possible_paths = [
+            os.path.expanduser("~/HY-Motion-1.0"),
+            os.path.expanduser("~/Projects/HY-Motion-1.0"),
+            "/opt/HY-Motion-1.0",
+            os.path.join(os.path.dirname(__file__), "..", "HY-Motion-1.0"),
+        ]
+        hymotion_path = next(
+            (p for p in possible_paths if os.path.isdir(p)), None
         )
-        
+
+        output_dir = tempfile.mkdtemp(prefix="hymotion_")
+
+        # Prefer a dedicated inference entry-point if one exists; fall back to
+        # common naming conventions used across forks of the repo.
+        for script_name in ("infer.py", "inference.py", "run_inference.py", "demo.py"):
+            script_path = os.path.join(hymotion_path, script_name)
+            if os.path.exists(script_path):
+                break
+        else:
+            return False, "HY-Motion-1.0 inference script not found (tried infer.py / inference.py)."
+
+        cmd = [
+            sys.executable, script_name,
+            "--prompt", prompt,
+            "--output_dir", output_dir,
+            "--duration", str(duration),
+            "--fps", str(fps),
+        ]
+        result = subprocess.run(
+            cmd, cwd=hymotion_path,
+            capture_output=True, text=True, timeout=600
+        )
+        if result.returncode != 0:
+            return False, f"HY-Motion-1.0 inference failed:\n{result.stderr}"
+
+        # Look for BVH or FBX output to auto-import
+        for ext in ("*.bvh", "*.fbx", "*.npy"):
+            matches = _glob.glob(os.path.join(output_dir, ext))
+            if matches:
+                motion_path = matches[0]
+                ok, msg = import_motion_file(motion_path)
+                if ok:
+                    return True, f"Motion generated and imported: {motion_path}"
+                return False, f"Motion generated at {motion_path} but import failed: {msg}"
+
+        return True, f"Motion generation finished. Output in: {output_dir}"
+
+    except subprocess.TimeoutExpired:
+        return False, "HY-Motion-1.0 inference timed out (10 min)."
     except Exception as e:
         return False, f"Error generating motion: {str(e)}"
 
@@ -150,32 +180,88 @@ def generate_motion_from_text(prompt, duration=5.0, fps=30):
 def apply_motion_to_armature(armature, motion_data):
     """
     Apply generated motion data to a Blender armature.
-    
+
+    motion_data is expected to be a dict with the structure produced by
+    HY-Motion-1.0 (or any compatible loader):
+
+        {
+            'fps': <int>,
+            'bones': {
+                '<bone_name>': [
+                    {'frame': <int>, 'location': [x, y, z],
+                     'rotation_euler': [rx, ry, rz],      # values in DEGREES
+                     'rotation_quaternion': [w, x, y, z]},  # optional alternative
+                    ...
+                ],
+                ...
+            }
+        }
+
+    Note: ``rotation_euler`` values must be provided in degrees; they are
+    converted to radians internally before being written as Blender keyframes.
+
     Args:
         armature: Blender armature object
-        motion_data: Motion data from HY-Motion-1.0
-        
+        motion_data: dict — motion data as described above
+
     Returns:
         tuple: (success: bool, message)
     """
     if armature is None or armature.type != 'ARMATURE':
         return False, "No valid armature object provided"
-    
+
+    if not isinstance(motion_data, dict) or 'bones' not in motion_data:
+        return False, "Invalid motion_data: expected dict with 'bones' key"
+
     try:
-        # PLACEHOLDER IMPLEMENTATION
-        # Real implementation would:
-        #   1. Parse motion data format
-        #   2. Map bone names to armature bones
-        #   3. Create animation action
-        #   4. Set keyframes for each bone
-        #   5. Set interpolation modes
-        
-        return False, (
-            "Motion application is a PLACEHOLDER.\n"
-            "Requires integration with HY-Motion-1.0 output format.\n"
-            "Manual import of motion data needed."
-        )
-        
+        import math
+
+        scene = bpy.context.scene
+        motion_fps = motion_data.get('fps', 30)
+        scene.render.fps = motion_fps
+
+        # Create a new action for this motion
+        action = bpy.data.actions.new(name="HyMotion_Action")
+        armature.animation_data_create()
+        armature.animation_data.action = action
+
+        bones_data = motion_data['bones']
+        for bone_name, keyframes in bones_data.items():
+            pose_bone = armature.pose.bones.get(bone_name)
+            if pose_bone is None:
+                continue  # skip bones not present in this rig
+
+            for kf in keyframes:
+                frame = kf.get('frame', 0)
+                scene.frame_set(frame)
+
+                loc = kf.get('location')
+                if loc and len(loc) == 3:
+                    pose_bone.location = loc
+                    pose_bone.keyframe_insert(data_path='location', frame=frame)
+
+                rot = kf.get('rotation_euler')
+                if rot and len(rot) == 3:
+                    pose_bone.rotation_mode = 'XYZ'
+                    pose_bone.rotation_euler = [math.radians(a) for a in rot]
+                    pose_bone.keyframe_insert(
+                        data_path='rotation_euler', frame=frame
+                    )
+
+                rot_q = kf.get('rotation_quaternion')
+                if rot_q and len(rot_q) == 4:
+                    pose_bone.rotation_mode = 'QUATERNION'
+                    pose_bone.rotation_quaternion = rot_q
+                    pose_bone.keyframe_insert(
+                        data_path='rotation_quaternion', frame=frame
+                    )
+
+        # Reset to frame 1
+        scene.frame_set(1)
+
+        bone_count = len(bones_data)
+        return True, f"Motion applied: {bone_count} bones, action '{action.name}'"
+
     except Exception as e:
         return False, f"Error applying motion: {str(e)}"
 

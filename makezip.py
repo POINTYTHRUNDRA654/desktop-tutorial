@@ -22,16 +22,58 @@ def read_version() -> str:
 
 
 def should_skip(rel: pathlib.Path) -> bool:
-    """Skip development, cache, and virtual env paths from the ZIP."""
-    skip_roots = {".git", ".github"}
-    cache_dirs = {"__pycache__", ".mypy_cache", ".pytest_cache", ".idea", ".vscode"}
-    if rel.parts and (rel.parts[0] in skip_roots or rel.parts[0].startswith(".venv")):
+    """Return True for paths that must NOT be included in the add-on ZIP.
+
+    Excluded categories
+    -------------------
+    * Version-control internals: any ``.git`` directory, anywhere in the tree.
+    * CI / GitHub workflow files: ``.github/``.
+    * Python caches and IDE artefacts: ``__pycache__``, ``*.pyc``, ``.vscode``,
+      ``.idea``, etc.
+    * Virtual environments: ``.venv*``.
+    * Previously-built add-on ZIPs (stale archives of this same package).
+    * Large binary tool directories that are downloaded at runtime and must
+      **not** be bundled: ``ffmpeg/``, ``whisper/``, ``act/``,
+      ``tools/ffmpeg/``, ``tools/whisper/``, ``tools/nvtt/``,
+      ``tools/texconv/``, ``tools/umodel_tools/``,
+      ``tools/Blender-UE4-Importer/``, ``tools/UnityFBX-To-Blender-Importer/``,
+      ``tools/intellicode/``.
+    """
+    # Always skip .git directories — even when nested inside bundled tools
+    if ".git" in rel.parts:
         return True
-    # Exclude all previously-built add-on zips to avoid bundling stale archives.
-    # Other .zip files (bundled assets, tools) are kept.
+
+    # Top-level directories that should never be bundled
+    skip_roots = {".github", "ffmpeg", "whisper"}
+    if rel.parts and rel.parts[0] in skip_roots:
+        return True
+
+    # Virtual environments
+    if rel.parts and rel.parts[0].startswith(".venv"):
+        return True
+
+    # Cache / IDE artefact directories (anywhere in path)
+    cache_dirs = {"__pycache__", ".mypy_cache", ".pytest_cache", ".idea", ".vscode"}
+    if any(part in cache_dirs for part in rel.parts):
+        return True
+    if any(part.endswith(".pyc") for part in rel.parts):
+        return True
+
+    # Previously-built add-on ZIPs for this package
     if rel.name.startswith(f"{ADDON_PACKAGE}-") and rel.name.endswith(".zip"):
         return True
-    return any(part in cache_dirs or part.endswith(".pyc") for part in rel.parts)
+
+    # Binary tool sub-directories inside tools/
+    binary_tool_dirs = {
+        "ffmpeg", "whisper", "nvtt", "texconv",
+        "umodel_tools", "Blender-UE4-Importer",
+        "UnityFBX-To-Blender-Importer", "intellicode",
+        "act",
+    }
+    if len(rel.parts) >= 2 and rel.parts[0] == "tools" and rel.parts[1] in binary_tool_dirs:
+        return True
+
+    return False
 
 
 def main() -> None:

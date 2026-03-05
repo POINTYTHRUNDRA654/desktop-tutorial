@@ -22,6 +22,17 @@ jobs:
         with:
           python-version: '3.11'
 
+      - name: Update sync state file
+        run: python sync_state.py
+
+      - name: Commit updated SYNC_STATE.md (if changed)
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add SYNC_STATE.md
+          git diff --cached --quiet || git commit -m "chore: update SYNC_STATE.md [skip ci]"
+          git push || true
+
       - name: Build add-on ZIP
         run: python makezip.py
 
