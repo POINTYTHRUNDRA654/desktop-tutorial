@@ -87,7 +87,7 @@ def check_git_lfs():
     Check if git-lfs is installed and available.
 
     On Windows the function also searches common D-drive installation paths
-    (e.g. ``D:\\Program Files\\Git\\cmd``) so that a non-default drive
+    (e.g. 'D:\\Program Files\\Git\\cmd') so that a non-default drive
     installation is detected correctly.
 
     Returns:

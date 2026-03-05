@@ -674,9 +674,12 @@ class FO4_PT_ToolsLinks(Panel):
         box.operator("fo4.install_whisper", text="Install Whisper CLI", icon='FILE_REFRESH')
         box.operator("fo4.install_niftools", text="Install Niftools Add-on", icon='FILE_REFRESH')
         # Python requirements
-        box.operator("fo4.install_python_deps", text="Install Python Requirements", icon='FILE_REFRESH').optional = False
+        op = box.operator("fo4.install_python_deps", text="Install Python Requirements", icon='FILE_REFRESH')
+        if op is not None:
+            op.optional = False
         op = box.operator("fo4.install_python_deps", text="Install Python Req (optional)", icon='FILE_REFRESH')
-        op.optional = True
+        if op is not None:
+            op.optional = True
         box.operator("fo4.install_all_tools", text="Install All Tools", icon='PACKAGE')
         box.operator("fo4.self_test", text="Run Environment Self-Test", icon='CHECKMARK')
 
@@ -858,7 +861,9 @@ class FO4_PT_AutomationQuickPanel(Panel):
         row.operator("fo4.set_collision_type", text="Change Type", icon='PRESET')
         row = box.row()
         row.enabled = obj and obj.type == 'MESH'
-        row.operator("fo4.set_collision_type", text="Change Type (Selected)", icon='PRESET').apply_to_all = True
+        op = row.operator("fo4.set_collision_type", text="Change Type (Selected)", icon='PRESET')
+        if op is not None:
+            op.apply_to_all = True
         row = box.row()
         row.enabled = obj and obj.type == 'MESH' and obj.get('fo4_collision_type','DEFAULT') not in ('NONE','GRASS','MUSHROOM')
         row.operator("fo4.generate_collision_mesh", text="Generate Collision", icon='MESH_DATA')

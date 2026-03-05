@@ -20,7 +20,7 @@ if %errorlevel% equ 0 (
     goto :run_lfs_install
 )
 
-REM Not on PATH — search common D:\Program Files locations (Git for Windows on D:)
+REM Not on PATH -- search common D:\Program Files locations (Git for Windows on D:)
 set "GIT_LFS_DIR="
 for %%P in (
     "D:\Program Files\Git\cmd\git-lfs.exe"
