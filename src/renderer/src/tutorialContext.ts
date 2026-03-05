@@ -421,7 +421,8 @@ export const tutorialContexts: Record<string, TutorialPageContext> = {
         title: 'Troubleshooting Live Voice',
         steps: [
           'Confirm OS microphone permissions and that no other app is exclusively using the mic',
-          'Try a different STT provider or fall back to browser STT',
+          'Deepgram/remote STT can occasionally fail – Mossy will now automatically fall back to browser/Whisper if errors recur',
+          'Your voice conversations are logged to a file (default `D:\\mossy_voice_history.txt`); you can review past chats any time',
           'Restart the Live Synapse session and check Tools Install / Verify panel suggestions',
         ],
       },
