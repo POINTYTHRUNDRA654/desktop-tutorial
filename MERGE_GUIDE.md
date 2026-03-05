@@ -10,6 +10,53 @@ pushing.
 
 ---
 
+## ⚡ GitHub Desktop shows "Push" and won't let you Pull — fix this first
+
+This is the most common blocker.  GitHub Desktop shows a **"Push X commits"**
+button (instead of Pull) when your local branch has commits that GitHub hasn't
+seen yet.  This usually happens because `sync_state.py` or another local script
+created a commit on your desktop that you haven't pushed yet.
+
+### Quickest fix — 4 clicks in GitHub Desktop
+
+1. Open **GitHub Desktop**.
+2. In the top menu bar choose **Repository → Open in Command Prompt** (or
+   PowerShell / Terminal).
+3. Run **one** of these commands to discard the local-only commits and reset
+   your branch to exactly what GitHub has:
+
+   **If you are on `main`:**
+   ```powershell
+   git fetch origin
+   git reset --hard origin/main
+   ```
+
+   **If you are on the `copilot/install-git-lfs` branch** (where the zip lives):
+   ```powershell
+   git fetch origin
+   git reset --hard origin/copilot/install-git-lfs
+   ```
+
+4. Go back to **GitHub Desktop** — it now shows **"Pull origin"**. Click it.
+   The latest `fallout4_tutorial_helper-v2.1.2.zip` will be downloaded.
+
+> **Why `git reset --hard`?**  `sync_state.py` generates a new `SYNC_STATE.md`
+> every time you run it and the guide tells you to commit it locally.  But the
+> CI also regenerates it after every push to `main`, so the two versions
+> diverge.  `reset --hard` discards only the local commits you haven't pushed,
+> keeping all your actual source-code files.
+
+### Get the zip right now — no git needed
+
+If you just want the zip immediately without fixing git:
+
+1. Go to: **https://github.com/POINTYTHRUNDRA654/Blender-add-on./tree/copilot/install-git-lfs**
+2. Click `fallout4_tutorial_helper-v2.1.2.zip`
+3. Click **Download raw file** (the download icon on the right).
+4. Install directly in Blender.
+
+---
+
 ## GitHub Desktop says "files too big" — fix this first
 
 This happens when **Git LFS is installed on a non-default drive** (e.g. `D:`)
