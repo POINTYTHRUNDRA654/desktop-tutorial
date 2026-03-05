@@ -3,8 +3,15 @@
 Usage from PowerShell:
     py build.py          # use the launcher, works even if "python" isn't on PATH
 
-The script rebuilds the zip exactly the same as makezip.py but also writes a
-line to build.log so you can see when the archive was created.
+The script rebuilds the zip in Blender 4.2+ Extensions format: all add-on
+files are placed directly at the root of the zip (no outer directory wrapper).
+Blender reads the ``id`` field from ``blender_manifest.toml`` at the zip root
+and uses it as the installed directory name.  Because the id is stable across
+releases, Blender detects a matching extension already installed and offers an
+in-place **Update** instead of requiring uninstall + reinstall.
+
+A line is also appended to build.log so you can see when the archive was last
+rebuilt.
 """
 import pathlib, re, zipfile, datetime
 
@@ -39,6 +46,9 @@ def main():
     if zip_path.exists():
         zip_path.unlink()
 
+    # Extensions format: files go directly to the zip root (no outer directory
+    # wrapper).  Blender 4.2+ reads blender_manifest.toml at the root and uses
+    # the `id` field as the installed directory name, enabling in-place updates.
     with zipfile.ZipFile(zip_path, "w", compression=zipfile.ZIP_DEFLATED, compresslevel=1) as zf:
         for path in root.rglob("*"):
             if not path.is_file():
@@ -46,12 +56,11 @@ def main():
             rel = path.relative_to(root)
             if should_skip(rel):
                 continue
-            arcname = pathlib.Path(ADDON_PACKAGE) / rel
-            zf.write(path, arcname)
+            zf.write(path, rel)  # arcname == rel: no outer directory prefix
 
     log = root / "build.log"
     with open(log, "a") as f:
-        f.write(f"{datetime.datetime.now().isoformat()} built {zip_name}\n")
+        f.write(f"{datetime.datetime.now().isoformat()} built {zip_name} (extensions format)\n")
 
     print("Rebuilt", zip_path)
 

@@ -8,7 +8,7 @@ printed to stdout so you can inspect them or redirect into a log file.
 Usage (from a normal Python environment or the command prompt):
 
     python tools/check_blenders.py \
-        "D:\Program Files\Blender Foundation\Blender 5.0\blender.exe"
+        "D:\\Program Files\\Blender Foundation\\Blender 5.0\\blender.exe"
 
 You can point the script at any Blender executables on your D: drive if
 C: is full; the tool will recurse directories and find "blender.exe" files
@@ -30,28 +30,33 @@ import sys
 from pathlib import Path
 
 
-BLENDER_TEST_EXPR = r"import bpy, traceback; \
-try:\
-    import fallout4_tutorial_helper as addon; \
-    addon.register(); \
-    # create a simple cube for tests\
-    bpy.ops.mesh.primitive_cube_add(); obj=bpy.context.active_object; \
-    bpy.ops.fo4.generate_wind_weights(); \
-    bpy.ops.fo4.apply_wind_animation(); \
-    # prepare armature and auto-weight paint\
-    arm = addon.animation_helpers.AnimationHelpers.setup_fo4_armature(); \
-    bpy.ops.object.select_all(action='DESELECT'); \
-    obj.select_set(True); arm.select_set(True); \
-    bpy.context.view_layer.objects.active = arm; \
-    bpy.ops.fo4.auto_weight_paint(); \
-    # batch operations on the cube (should run without error)\
-    bpy.ops.fo4.batch_generate_wind_weights(); \
-    bpy.ops.fo4.batch_apply_wind_animation(); \
-    bpy.ops.fo4.batch_auto_weight_paint(); \
-    bpy.ops.fo4.toggle_wind_preview(); bpy.ops.fo4.toggle_wind_preview(); \
+BLENDER_TEST_EXPR = r"""import bpy, traceback
+try:
+    import fallout4_tutorial_helper as addon
+    addon.register()
+    # create a simple cube for tests
+    bpy.ops.mesh.primitive_cube_add()
+    obj = bpy.context.active_object
+    bpy.ops.fo4.generate_wind_weights()
+    bpy.ops.fo4.apply_wind_animation()
+    # prepare armature and auto-weight paint
+    arm = addon.animation_helpers.AnimationHelpers.setup_fo4_armature()
+    bpy.ops.object.select_all(action='DESELECT')
+    obj.select_set(True)
+    arm.select_set(True)
+    bpy.context.view_layer.objects.active = arm
+    bpy.ops.fo4.auto_weight_paint()
+    # batch operations on the cube (should run without error)
+    bpy.ops.fo4.batch_generate_wind_weights()
+    bpy.ops.fo4.batch_apply_wind_animation()
+    bpy.ops.fo4.batch_auto_weight_paint()
+    bpy.ops.fo4.toggle_wind_preview()
+    bpy.ops.fo4.toggle_wind_preview()
     # UV preservation test: create a simple mesh with differing UVs
-    bpy.ops.mesh.primitive_plane_add(size=1); mesh = bpy.context.active_object
-    bpy.ops.object.mode_set(mode='EDIT'); bpy.ops.mesh.subdivide(number_cuts=1)
+    bpy.ops.mesh.primitive_plane_add(size=1)
+    mesh = bpy.context.active_object
+    bpy.ops.object.mode_set(mode='EDIT')
+    bpy.ops.mesh.subdivide(number_cuts=1)
     bpy.ops.object.mode_set(mode='OBJECT')
     uv = mesh.data.uv_layers.active.data
     for idx in range(len(uv)):
@@ -63,11 +68,14 @@ try:\
         print('UVs changed after optimize:', before, after)
         sys.exit(2)
     else:
-        print('UV preservation OK'); \
-    print('OK', bpy.app.version_string); \
-    addon.unregister(); \
-except Exception as e:\
-    print('ERROR', e); traceback.print_exc(); sys.exit(1)"
+        print('UV preservation OK')
+    print('OK', bpy.app.version_string)
+    addon.unregister()
+except Exception as e:
+    print('ERROR', e)
+    traceback.print_exc()
+    sys.exit(1)
+"""
 
 def find_blender_executables(paths: list[Path]) -> list[Path]:
     """Expand directories and verify that each path is a blender executable."""

@@ -4,10 +4,16 @@ import zipfile
 
 root = pathlib.Path(__file__).resolve().parent
 
-# The folder name used inside the zip must be a valid Python identifier so that
-# Blender can import the package.  The repository directory is named
-# "Blender-add-on." which contains hyphens and a trailing period — both illegal
-# in Python package names.  We therefore use a fixed, sanitised name here.
+# The add-on is packaged in Blender 4.2+ **Extensions** format.
+# In this format all files live at the ZIP root (no outer directory wrapper)
+# and ``blender_manifest.toml`` must be present at the root.  Blender reads
+# the ``id`` field from the manifest and uses it as the installed directory
+# name.  Because the id is stable across releases, Blender recognises a
+# matching extension that is already installed and offers an in-place
+# **Update** – the user no longer needs to uninstall the old version first.
+#
+# Reference:
+#   https://docs.blender.org/manual/en/latest/advanced/extensions/package_format.html
 ADDON_PACKAGE = "fallout4_tutorial_helper"
 
 
@@ -82,7 +88,13 @@ def main() -> None:
     # Place the zip in the repo root so it is easy to download from GitHub
     zip_path = root / zip_name
 
-    # Use a low compression level to keep packaging fast for large bundled tools like ffmpeg
+    # Extensions format: write every file at its path relative to the repo
+    # root, with NO outer ``fallout4_tutorial_helper/`` directory prefix.
+    # Blender 4.2+ reads ``blender_manifest.toml`` from the zip root, extracts
+    # the ``id`` and installs everything into a directory of that name inside
+    # the extensions folder.  Because the id is stable, reinstalling a newer
+    # zip updates the existing installation rather than requiring uninstall
+    # first.
     with zipfile.ZipFile(zip_path, "w", compression=zipfile.ZIP_DEFLATED, compresslevel=1) as zf:
         for path in root.rglob("*"):
             if not path.is_file():
@@ -90,8 +102,7 @@ def main() -> None:
             rel = path.relative_to(root)
             if should_skip(rel):
                 continue
-            arcname = pathlib.Path(ADDON_PACKAGE) / rel
-            zf.write(path, arcname)
+            zf.write(path, rel)  # arcname == rel: no outer directory prefix
 
     print("Created", zip_path)
 

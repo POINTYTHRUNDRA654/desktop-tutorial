@@ -5,6 +5,9 @@ Animation helper functions for Fallout 4 mod creation
 import bpy
 from mathutils import Vector
 
+# preview handler stored at module scope
+_wind_preview_handler = None
+
 class AnimationHelpers:
     """Helper functions for animation setup and validation"""
     
@@ -376,8 +379,7 @@ class AnimationHelpers:
         scene = bpy.context.scene
         scene.frame_start = 0
         scene.frame_end = int(period)
-        return True, "Wind animation armature created"# preview handler stored at module scope
-_wind_preview_handler = None
+        return True, "Wind animation armature created"
 
     @staticmethod
     def start_wind_preview(speed: float = 0.05, axis: str = 'X'):

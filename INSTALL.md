@@ -9,8 +9,10 @@
 
 1. Download `fallout4_tutorial_helper-v2.1.2.zip` from the repository root (or from the
    GitHub Releases page).
-2. In Blender: **Edit → Preferences → Add-ons → Install…**, pick the downloaded zip,
-   then enable **"Fallout 4 Tutorial Helper"**.
+2. In Blender 4.2+: **Edit → Preferences → Extensions → Install from Disk…**, pick the
+   downloaded zip, then enable **"Fallout 4 Tutorial Helper"**.
+   - *Blender 3.x / legacy:* **Edit → Preferences → Add-ons → Install…**, pick the zip,
+     then enable **"Fallout 4 Tutorial Helper"**.
 
 ## Option B — Build the zip yourself
 
@@ -19,10 +21,25 @@
    ```
    python makezip.py
    ```
-   This creates `fallout4_tutorial_helper-v<version>.zip` in the repository root with the
-   add-on files placed inside a `fallout4_tutorial_helper/` folder — a valid Python
-   package name that Blender can import.
+   This creates `fallout4_tutorial_helper-v<version>.zip` in the repository root.
+   The zip uses the **Blender 4.2+ Extensions format**: `blender_manifest.toml` is at
+   the zip root (no outer directory wrapper), so Blender uses the `id` field to identify
+   and install the extension.
 3. Install the generated zip as described in Option A, step 2.
+
+## Updating (no uninstall/reinstall needed)
+
+The zip uses the Blender 4.2+ **Extensions** format.  When you install a newer version of
+the zip while an older one is already installed, Blender detects the matching `id`
+(`fallout4_tutorial_helper`) and updates in-place — **no uninstall step required**.
+
+### Workflow for pulling a new build and testing
+
+1. Pull the latest code and run `python makezip.py` (or `python build.py`).
+2. In Blender: **Edit → Preferences → Extensions → Install from Disk…** → select the new zip.
+   Blender will show **"Update"** and apply the new files.
+3. *(Optional)* Click **Reload Add-on** in **Preferences → Add-ons → Fallout 4 Tutorial
+   Helper** to re-import all modules immediately without restarting Blender.
 
 ## Post-install steps
 
@@ -40,3 +57,4 @@ Notes
 - Havok2FBX status is shown in the Fallout 4 sidebar Export/Havok2FBX panels; configure the folder to remove the not-found warning.
 - Optional: Hunyuan3D-2 is cloned at `C:\Users\billy\Hunyuan3D-2` and on the Python path. HY-Motion has been disabled (path file removed) to avoid dependency churn; if you need it, install in a separate venv and add its path manually.
 - If you see optional dependency warnings, they are informational unless you need those features.
+
