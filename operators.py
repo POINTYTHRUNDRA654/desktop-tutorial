@@ -2052,20 +2052,66 @@ class FO4_OT_SelfTest(Operator):
     bl_label = "Environment Self-Test"
 
     def execute(self, context):
-        from . import knowledge_helpers, ue_importer_helpers, umodel_tools_helpers, unity_fbx_importer_helpers, asset_studio_helpers, asset_ripper_helpers
+        import importlib.util
+        from . import knowledge_helpers, ue_importer_helpers, umodel_tools_helpers, unity_fbx_importer_helpers, asset_studio_helpers, asset_ripper_helpers, tool_installers
+
         lines = []
+
+        # ── Blender / Python versions ─────────────────────────────────────
+        import sys as _sys
+        blender_ver = ".".join(str(v) for v in bpy.app.version)
+        py_ver = f"{_sys.version_info.major}.{_sys.version_info.minor}.{_sys.version_info.micro}"
+        lines.append(f"Blender: {blender_ver}  |  Python: {py_ver}")
+
+        # ── Core Python packages ──────────────────────────────────────────
+        core_pkgs = {
+            "PIL":      "Pillow (image processing)",
+            "numpy":    "NumPy (math / 3D data)",
+            "requests": "Requests (HTTP / downloads)",
+            "trimesh":  "trimesh (3D mesh processing)",
+            "PyPDF2":   "PyPDF2 (PDF parsing)",
+        }
+        missing = []
+        for mod, label in core_pkgs.items():
+            found = importlib.util.find_spec(mod) is not None
+            status = "OK" if found else "MISSING"
+            lines.append(f"  [{status}] {label}")
+            if not found:
+                missing.append(mod)
+
+        if missing:
+            lines.append(f"  → Missing packages: {', '.join(missing)}")
+            lines.append("  → Click 'Install Core Dependencies' in the Setup & Status panel.")
+
+        # ── pip availability ──────────────────────────────────────────────
+        pip_ok = importlib.util.find_spec("pip") is not None
+        lines.append(f"  [{'OK' if pip_ok else 'MISSING'}] pip (package installer)")
+        if not pip_ok:
+            lines.append("  → pip not found; will be bootstrapped via ensurepip on install.")
+
+        # ── Version-specific notes ────────────────────────────────────────
+        py = (_sys.version_info.major, _sys.version_info.minor)
+        if py < (3, 8):
+            lines.append("  NOTE: Python 3.7 detected (Blender 2.90-2.92).")
+            lines.append("        Pillow<10 and numpy<2 will be installed automatically.")
+        if py >= (3, 11):
+            lines.append("  NOTE: Python 3.11+ detected.")
+            lines.append("        --break-system-packages is used automatically when installing.")
+
+        # ── External tool status ──────────────────────────────────────────
         lines.append("Tool status: " + str(knowledge_helpers.tool_status()))
         lines.append("UE importer: " + str(ue_importer_helpers.status()))
         lines.append("UModel Tools: " + str(umodel_tools_helpers.status()))
         lines.append("Unity FBX importer: " + str(unity_fbx_importer_helpers.status()))
         lines.append("AssetStudio: " + str(asset_studio_helpers.status()))
         lines.append("AssetRipper: " + str(asset_ripper_helpers.status()))
+
         summary = "\n".join(lines)
         print("=== ENVIRONMENT SELF-TEST ===")
         print(summary)
         print("=== END SELF-TEST ===")
-        self.report({'INFO'}, "Self-test completed; see console for details")
-        notification_system.FO4_NotificationSystem.notify("Environment self-test complete", 'INFO')
+        self.report({'INFO'}, "Self-test completed; see System Console for details")
+        notification_system.FO4_NotificationSystem.notify("Environment self-test complete — see System Console", 'INFO')
         return {'FINISHED'}
 
 # Real-ESRGAN Operators
@@ -6526,6 +6572,21 @@ class FO4_OT_GeneratePointEImage(Operator):
 
 # Register all operators
 
+class FO4_OT_ClearOperationLog(Operator):
+    """Clear the persistent operation log"""
+    bl_idname = "fo4.clear_operation_log"
+    bl_label = "Clear Operation Log"
+    bl_options = {'REGISTER'}
+
+    def execute(self, context):
+        notification_system.OperationLog.clear()
+        self.report({'INFO'}, "Operation log cleared")
+        return {'FINISHED'}
+
+    def invoke(self, context, event):
+        return context.window_manager.invoke_confirm(self, event)
+
+
 classes = (
     FO4_OT_StartTutorial,
     FO4_OT_ShowHelp,
@@ -6700,6 +6761,8 @@ classes = (
     FO4_OT_ShowPointEInfo,
     FO4_OT_GeneratePointEText,
     FO4_OT_GeneratePointEImage,
+    # Operation log
+    FO4_OT_ClearOperationLog,
 )
 
 def register():

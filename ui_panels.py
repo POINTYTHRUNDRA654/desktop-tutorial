@@ -67,6 +67,13 @@ class FO4_PT_MeshPanel(Panel):
         adv_box.operator("fo4.generate_lod", text="Generate LOD Chain", icon='OUTLINER_OB_MESH')
         adv_box.operator("fo4.optimize_uvs", text="Optimize UVs", icon='UV')
 
+        # Collision mesh
+        col_box = layout.box()
+        col_box.label(text="Collision Mesh", icon='MESH_ICOSPHERE')
+        col_row = col_box.row()
+        col_row.enabled = context.active_object is not None and context.active_object.type == 'MESH'
+        col_row.operator("fo4.generate_collision_mesh", text="Generate Collision Mesh", icon='MESH_DATA')
+
 class FO4_PT_TexturePanel(Panel):
     """Texture installation helpers panel"""
     bl_label = "Texture Helpers"
@@ -1342,28 +1349,40 @@ class FO4_PT_SetupPanel(Panel):
     bl_parent_id = "FO4_PT_main_panel"
 
     def draw(self, context):
+        import sys as _sys
+        import importlib.util
         layout = self.layout
+
+        # ── Blender / Python version ──────────────────────────────────────
+        ver_box = layout.box()
+        ver_box.label(text="Environment", icon='INFO')
+        blender_ver = ".".join(str(v) for v in bpy.app.version)
+        py_ver = f"{_sys.version_info.major}.{_sys.version_info.minor}.{_sys.version_info.micro}"
+        ver_box.label(text=f"Blender {blender_ver}  |  Python {py_ver}")
+
+        py = (_sys.version_info.major, _sys.version_info.minor)
+        if py < (3, 8):
+            ver_box.label(text="⚠ Python 3.7: using Pillow<10, numpy<2", icon='ERROR')
+        elif py >= (3, 11):
+            ver_box.label(text="✓ Python 3.11+ — all packages supported", icon='CHECKMARK')
 
         # ── Core Python dependencies ──────────────────────────────────────
         box = layout.box()
         box.label(text="Core Python Dependencies", icon='SCRIPT')
         core_deps = [
-            ("PIL", "Pillow (image processing)"),
-            ("numpy", "NumPy (math / 3D data)"),
+            ("PIL",      "Pillow (image processing)"),
+            ("numpy",    "NumPy (math / 3D data)"),
             ("requests", "Requests (HTTP / downloads)"),
+            ("trimesh",  "trimesh (3D mesh processing)"),
+            ("PyPDF2",   "PyPDF2 (PDF parsing)"),
         ]
         all_ok = True
         for mod, label in core_deps:
-            ok = False
-            try:
-                __import__(mod)
-                ok = True
-            except ImportError:
-                pass
-            icon = 'CHECKMARK' if ok else 'ERROR'
-            prefix = "✓" if ok else "✗"
+            found = importlib.util.find_spec(mod) is not None
+            icon = 'CHECKMARK' if found else 'ERROR'
+            prefix = "✓" if found else "✗"
             box.label(text=f"{prefix}  {label}", icon=icon)
-            if not ok:
+            if not found:
                 all_ok = False
 
         if not all_ok:
@@ -1381,6 +1400,43 @@ class FO4_PT_SetupPanel(Panel):
         row = layout.row(align=True)
         row.operator("fo4.self_test", text="Environment Check", icon='CHECKMARK')
         row.operator("fo4.install_python_deps", text="Re-install Deps", icon='FILE_REFRESH')
+
+
+
+class FO4_PT_OperationLogPanel(Panel):
+    """Panel that shows every operation recorded by the add-on"""
+    bl_label = "Operation Log"
+    bl_idname = "FO4_PT_operation_log_panel"
+    bl_space_type = 'VIEW_3D'
+    bl_region_type = 'UI'
+    bl_category = 'Fallout 4'
+    bl_parent_id = "FO4_PT_main_panel"
+    bl_options = {'DEFAULT_CLOSED'}
+
+    def draw(self, context):
+        import textwrap
+        layout = self.layout
+        from . import notification_system
+
+        entries = notification_system.OperationLog.get_entries(limit=50)
+
+        if not entries:
+            layout.label(text="No operations recorded yet.", icon='INFO')
+        else:
+            # Show newest first
+            for entry in reversed(entries):
+                box = layout.box()
+                ts = entry.get('timestamp', '')
+                msg = entry.get('message', '')
+                etype = entry.get('type', 'INFO')
+                icon = 'ERROR' if etype == 'ERROR' else ('CANCEL' if etype == 'WARNING' else 'CHECKMARK')
+                box.label(text=f"[{ts}]", icon=icon)
+                # Wrap long messages at word boundaries (~60 chars per line)
+                for line in textwrap.wrap(msg, width=60) or [msg]:
+                    box.label(text=line)
+
+        layout.separator()
+        layout.operator("fo4.clear_operation_log", text="Clear Log", icon='TRASH')
 
 
 classes = (
@@ -1412,6 +1468,8 @@ classes = (
     FO4_PT_AutomationMacrosPanel,
     FO4_PT_AddonIntegrationPanel,
     FO4_PT_DesktopTutorialPanel,
+    # Operation log — records every process for reference
+    FO4_PT_OperationLogPanel,
 )
 
 def register():

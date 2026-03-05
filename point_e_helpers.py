@@ -268,11 +268,19 @@ For more info: https://github.com/openai/point-e
             obj.scale = (0.1, 0.1, 0.1)
             
             # Add vertex colors if available
+            # Blender 3.2+ uses color_attributes; vertex_colors removed in 5.0
             if colors is not None:
-                color_layer = mesh.vertex_colors.new()
-                for i, color in enumerate(colors):
-                    # Point-E colors are typically in [0, 1] range
-                    color_layer.data[i].color = [color[0], color[1], color[2], 1.0]
+                if hasattr(mesh, 'color_attributes'):
+                    color_attr = mesh.color_attributes.new(
+                        name='Col', type='BYTE_COLOR', domain='POINT'
+                    )
+                    for i, color in enumerate(colors):
+                        color_attr.data[i].color = [color[0], color[1], color[2], 1.0]
+                else:
+                    color_layer = mesh.vertex_colors.new()
+                    for i, color in enumerate(colors):
+                        # Point-E colors are typically in [0, 1] range
+                        color_layer.data[i].color = [color[0], color[1], color[2], 1.0]
             
             # Select the new object
             bpy.context.view_layer.objects.active = obj

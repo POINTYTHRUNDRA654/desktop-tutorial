@@ -13,11 +13,10 @@ tagline = "Tutorial system and helpers for Fallout 4 mod creation"
 maintainer = "Tutorial Team"
 type = "add-on"
 
-# The add‑on in principle supports any Blender 2.80+ release.  The manifest
-# historically set 4.2.0 when we began publishing on the official add-on
-# repository; keep the advertised minimum back to 2.80 so users running older
-# builds (2.9/3.x) can install from the zip file.
-blender_version_min = "2.80.0"
+# The add‑on supports Blender 2.90+ through 5.x.  The minimum is set to
+# 2.90.0 because that is when merge_by_distance (formerly remove_doubles)
+# was introduced, which the add‑on relies on for mesh optimisation.
+blender_version_min = "2.90.0"
 
 license = ["SPDX:MIT"]
 

@@ -4,6 +4,9 @@ Provides error notifications and guidance to users
 """
 
 import bpy
+import json
+import os
+import datetime
 from bpy.props import CollectionProperty, StringProperty
 
 class FO4_NotificationItem(bpy.types.PropertyGroup):
@@ -11,12 +14,86 @@ class FO4_NotificationItem(bpy.types.PropertyGroup):
     message: StringProperty(name="Notification Message")
     notification_type: StringProperty(name="Type")  # 'INFO', 'WARNING', 'ERROR'
 
+
+class OperationLog:
+    """Persistent operation log — writes every operation to a JSON file on disk.
+
+    The log file lives in Blender's user config directory so it survives
+    add-on reloads and Blender restarts.  Each entry records:
+      • timestamp  – ISO-8601 string
+      • type       – 'INFO', 'WARNING', or 'ERROR'
+      • message    – human-readable description of the operation
+    """
+
+    MAX_ENTRIES = 200  # cap so the file never grows unbounded
+
+    @staticmethod
+    def get_log_path():
+        """Return the absolute path to the JSON log file."""
+        config_path = bpy.utils.user_resource('CONFIG')
+        log_dir = os.path.join(config_path, 'fo4_addon')
+        os.makedirs(log_dir, exist_ok=True)
+        return os.path.join(log_dir, 'operation_log.json')
+
+    @staticmethod
+    def _load_raw():
+        """Load raw list of entries from disk.  Returns [] on any failure."""
+        path = OperationLog.get_log_path()
+        if not os.path.exists(path):
+            return []
+        try:
+            with open(path, 'r', encoding='utf-8') as fh:
+                data = json.load(fh)
+            if isinstance(data, list):
+                return data
+        except Exception:
+            pass
+        return []
+
+    @staticmethod
+    def _save_raw(entries):
+        """Write list of entries to disk.  Silently ignores write errors."""
+        path = OperationLog.get_log_path()
+        try:
+            with open(path, 'w', encoding='utf-8') as fh:
+                json.dump(entries, fh, indent=2, ensure_ascii=False)
+        except Exception:
+            pass
+
+    @staticmethod
+    def log_operation(message, op_type='INFO'):
+        """Append one entry to the persistent log."""
+        entries = OperationLog._load_raw()
+        entries.append({
+            'timestamp': datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+            'type': op_type,
+            'message': message,
+        })
+        # Keep only the most recent MAX_ENTRIES
+        if len(entries) > OperationLog.MAX_ENTRIES:
+            entries = entries[-OperationLog.MAX_ENTRIES:]
+        OperationLog._save_raw(entries)
+
+    @staticmethod
+    def get_entries(limit=50):
+        """Return the *limit* most recent log entries (newest last)."""
+        entries = OperationLog._load_raw()
+        return entries[-limit:]
+
+    @staticmethod
+    def clear():
+        """Delete all log entries."""
+        OperationLog._save_raw([])
+
 class FO4_NotificationSystem:
     """Central notification system"""
     
     @staticmethod
     def notify(message, notification_type='INFO'):
         """Add a notification to the system"""
+        # Always persist to the operation log so no work is ever lost
+        OperationLog.log_operation(message, notification_type)
+
         try:
             scene = bpy.context.scene
         except AttributeError:
@@ -94,7 +171,13 @@ class FO4_NotificationSystem:
             issues.append("No UV map found")
         
         # Check for vertex colors (optional but recommended)
-        if not mesh.vertex_colors:
+        # Blender 3.2+ uses color_attributes; vertex_colors removed in 5.0
+        has_color = (
+            bool(mesh.color_attributes)
+            if hasattr(mesh, 'color_attributes')
+            else bool(mesh.vertex_colors)
+        )
+        if not has_color:
             issues.append("No vertex colors (recommended for FO4)")
         
         # Check scale

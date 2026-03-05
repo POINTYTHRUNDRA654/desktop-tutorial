@@ -45,7 +45,11 @@ class MeshHelpers:
         # Remove doubles
         bpy.ops.object.mode_set(mode='EDIT')
         bpy.ops.mesh.select_all(action='SELECT')
-        bpy.ops.mesh.remove_doubles(threshold=0.0001)
+        # Remove doubles (operator renamed in Blender 2.91; old name removed in 5.0)
+        if hasattr(bpy.ops.mesh, 'merge_by_distance'):
+            bpy.ops.mesh.merge_by_distance(threshold=0.0001)
+        else:
+            bpy.ops.mesh.remove_doubles(threshold=0.0001)
         
         # Recalculate normals
         bpy.ops.mesh.normals_make_consistent(inside=False)

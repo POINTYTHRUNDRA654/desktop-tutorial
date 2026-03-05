@@ -155,8 +155,11 @@ class AdvancedMeshHelpers:
         bpy.ops.object.mode_set(mode='EDIT')
         bpy.ops.mesh.select_all(action='SELECT')
         
-        # Remove doubles
-        result = bpy.ops.mesh.remove_doubles(threshold=0.0001)
+        # Remove doubles (operator renamed in Blender 2.91; old name removed in 5.0)
+        if hasattr(bpy.ops.mesh, 'merge_by_distance'):
+            result = bpy.ops.mesh.merge_by_distance(threshold=0.0001)
+        else:
+            result = bpy.ops.mesh.remove_doubles(threshold=0.0001)
         if hasattr(result, 'FINISHED'):
             repairs['doubles_removed'] = 1
         
