@@ -13,8 +13,8 @@
 | Key | Value |
 |-----|-------|
 | Branch | `main` |
-| HEAD commit | `b92e228` |
-| Generated at | 2026-03-05 21:34 UTC |
+| HEAD commit | `b2f8518` |
+| Generated at | 2026-03-05 21:54 UTC |
 | Total commits tracked | 1 |
 | Total files tracked | 135 |
 
@@ -24,7 +24,7 @@
 
 | SHA | Date (UTC) | Author | Side | Summary |
 |-----|-----------|--------|------|---------|
-| `b92e2281a5` | 2026-03-05 21:25 UTC | POINTYTHRUNDRA654 | 🖥️ Desktop | Remove temporary inspect_zip script |
+| `b2f85181e9` | 2026-03-05 21:54 UTC | Pointytundra654 | 🖥️ Desktop | Merge pull request #29 from POINTYTHRUNDRA654/copilot/fix-de |
 
 ---
 
@@ -36,13 +36,13 @@ possible change and document it in the Desktop Notes section below.
 
 | File | Last changed | Commit |
 |------|-------------|--------|
-| `.github/workflows/release.yml` | 2026-03-05 21:25 UTC | b92e2281a5 |
-| `CHANGELOG.md` | 2026-03-05 21:25 UTC | b92e2281a5 |
-| `DEVELOPMENT_NOTES.md` | 2026-03-05 21:25 UTC | b92e2281a5 |
-| `MERGE_GUIDE.md` | 2026-03-05 21:25 UTC | b92e2281a5 |
-| `SYNC_STATE.md` | 2026-03-05 21:25 UTC | b92e2281a5 |
-| `makezip.py` | 2026-03-05 21:25 UTC | b92e2281a5 |
-| `sync_state.py` | 2026-03-05 21:25 UTC | b92e2281a5 |
+| `.github/workflows/release.yml` | 2026-03-05 21:54 UTC | b2f85181e9 |
+| `CHANGELOG.md` | 2026-03-05 21:54 UTC | b2f85181e9 |
+| `DEVELOPMENT_NOTES.md` | 2026-03-05 21:54 UTC | b2f85181e9 |
+| `MERGE_GUIDE.md` | 2026-03-05 21:54 UTC | b2f85181e9 |
+| `SYNC_STATE.md` | 2026-03-05 21:54 UTC | b2f85181e9 |
+| `makezip.py` | 2026-03-05 21:54 UTC | b2f85181e9 |
+| `sync_state.py` | 2026-03-05 21:54 UTC | b2f85181e9 |
 
 ---
 
@@ -113,4 +113,4 @@ git push
 
 ---
 
-*Last regenerated: 2026-03-05 21:34 UTC by `sync_state.py` on `main` @ `b92e228`*
+*Last regenerated: 2026-03-05 21:54 UTC by `sync_state.py` on `main` @ `b2f8518`*
