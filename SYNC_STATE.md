@@ -13,10 +13,10 @@
 | Key | Value |
 |-----|-------|
 | Branch | `main` |
-| HEAD commit | `2d785dc` |
-| Generated at | 2026-03-05 19:35 UTC |
-| Total commits tracked | 1 |
-| Total files tracked | 133 |
+| HEAD commit | `e8a63cb` |
+| Generated at | 2026-03-05 21:15 UTC |
+| Total commits tracked | 185 |
+| Total files tracked | 140 |
 
 ---
 
@@ -24,7 +24,16 @@
 
 | SHA | Date (UTC) | Author | Side | Summary |
 |-----|-----------|--------|------|---------|
+| `e8a63cb99f` | 2026-03-05 21:12 UTC | POINTYTHRUNDRA654 | 🖥️ Desktop | Resolve merge conflicts between local changes and origin/mai |
+| `6ac9d37f68` | 2026-03-05 19:54 UTC | POINTYTHRUNDRA654 | 🖥️ Desktop | patch |
+| `80cd644d89` | 2026-03-05 19:35 UTC | github-actions[bot] | 🤖 GitHub | chore: update SYNC_STATE.md [skip ci] |
 | `2d785dca12` | 2026-03-05 19:35 UTC | Pointytundra654 | 🖥️ Desktop | Merge pull request #28 from POINTYTHRUNDRA654/copilot/fix-de |
+| `85eac97c23` | 2026-03-05 19:33 UTC | copilot-swe-agent[bot] | 🤖 GitHub | Add sync_state.py + SYNC_STATE.md: shared memory for GitHubâ |
+| `cd77735b13` | 2026-03-05 19:27 UTC | copilot-swe-agent[bot] | 🤖 GitHub | Fix large-file bloat: lean zip (505KB vs 26MB), gitignore bi |
+| `43f96e6d89` | 2026-03-05 19:16 UTC | copilot-swe-agent[bot] | 🤖 GitHub | Fix desktop open bug + implement all stubs: ZoeDepth, Hunyua |
+| `aa32fe5388` | 2026-03-05 18:59 UTC | copilot-swe-agent[bot] | 🤖 GitHub | Initial plan |
+| `5d9172317f` | 2026-03-05 18:57 UTC | Pointytundra654 | 🖥️ Desktop | Merge pull request #27 from POINTYTHRUNDRA654/copilot/fix-bl |
+| `a2ab211e1d` | 2026-03-05 18:49 UTC | copilot-swe-agent[bot] | 🤖 GitHub | Blender 2.90-5.x: version-aware dependency installation and  |
 
 ---
 
@@ -36,13 +45,104 @@ possible change and document it in the Desktop Notes section below.
 
 | File | Last changed | Commit |
 |------|-------------|--------|
-| `.github/workflows/release.yml` | 2026-03-05 19:35 UTC | 2d785dca12 |
-| `CHANGELOG.md` | 2026-03-05 19:35 UTC | 2d785dca12 |
-| `DEVELOPMENT_NOTES.md` | 2026-03-05 19:35 UTC | 2d785dca12 |
-| `MERGE_GUIDE.md` | 2026-03-05 19:35 UTC | 2d785dca12 |
-| `SYNC_STATE.md` | 2026-03-05 19:35 UTC | 2d785dca12 |
-| `makezip.py` | 2026-03-05 19:35 UTC | 2d785dca12 |
-| `sync_state.py` | 2026-03-05 19:35 UTC | 2d785dca12 |
+| `.github/workflows/release.yml` | 2026-03-05 19:33 UTC | 85eac97c23 |
+| `.gitignore` | 2026-03-05 19:27 UTC | cd77735b13 |
+| `BRANCH_MERGE_STATUS.md` | 2026-02-19 01:19 UTC | 02cafbabfa |
+| `CHANGELOG.md` | 2026-03-05 19:54 UTC | 6ac9d37f68 |
+| `COMFYUI_INTEGRATION.md` | 2026-02-18 00:10 UTC | e64cdf4b1c |
+| `COMPATIBILITY.md` | 2026-03-05 18:44 UTC | f5608126ff |
+| `COMPLETE_INTEGRATION_STATUS.md` | 2026-02-15 05:39 UTC | 84bfda37ed |
+| `COMPLETE_INTEGRATION_SUMMARY.md` | 2026-02-13 00:12 UTC | 9fd58eee61 |
+| `CONTRIBUTING.md` | 2026-02-12 23:27 UTC | ec4cc95c38 |
+| `CREDITS.md` | 2026-02-18 00:32 UTC | e5f1352a3c |
+| `DEEPINFRA_NOTE.md` | 2026-02-15 05:41 UTC | c8e6b14225 |
+| `DESKTOP_TUTORIAL_INTEGRATION.md` | 2026-02-17 23:26 UTC | 8501194b2a |
+| `DEVELOPMENT.md` | 2026-02-12 23:19 UTC | 46b2ba3085 |
+| `DEVELOPMENT_NOTES.md` | 2026-03-05 19:54 UTC | 6ac9d37f68 |
+| `EMBEDDED_PYTHON_GUIDE.md` | 2026-02-18 00:10 UTC | e64cdf4b1c |
+| `ESSENTIAL_TOOLS_GUIDE.md` | 2026-02-18 00:10 UTC | e64cdf4b1c |
+| `FAQ.md` | 2026-02-15 03:57 UTC | 9708bdf625 |
+| `FINAL_STATUS_REPORT.md` | 2026-02-15 05:26 UTC | a40ce4c3f9 |
+| `FINAL_SUMMARY.md` | 2026-02-15 04:48 UTC | 7419d07dc1 |
+| `FINAL_SUMMARY_OLD.md` | 2026-02-17 23:36 UTC | ac04634ac2 |
+| `FLUX_INTEGRATION.md` | 2026-02-17 23:51 UTC | 9b5c8b7070 |
+| `HOTSHOT_XL_INTEGRATION.md` | 2026-02-18 00:03 UTC | a855441760 |
+| `HUNYUAN3D_GUIDE.md` | 2026-02-13 00:06 UTC | e4b58d164d |
+| `HUNYUAN3D_SUMMARY.md` | 2026-02-13 00:08 UTC | 23a0c0dec5 |
+| `IMPLEMENTATION_COMPLETE.md` | 2026-02-12 23:32 UTC | a58fd5d009 |
+| `IMPLEMENTATION_SUMMARY.md` | 2026-02-12 23:48 UTC | 17125ef8fc |
+| `INSTALL.md` | 2026-02-20 23:19 UTC | 3d4aa916e0 |
+| `INSTALLATION.md` | 2026-02-17 23:48 UTC | 01a0690d90 |
+| `INTEGRATION_COMPLETE.md` | 2026-02-15 05:15 UTC | 3aa4712a2d |
+| `INTEGRATION_COMPLETE_SUMMARY.md` | 2026-02-15 04:38 UTC | 574acc428d |
+| `LICENSE` | 2026-02-12 23:24 UTC | 3c2a192115 |
+| `MASTER_INDEX.md` | 2026-02-18 00:28 UTC | 6984ec517e |
+| `MERGE_COMPLETION_SUMMARY.md` | 2026-02-19 01:20 UTC | 94f1b83615 |
+| `MERGE_GUIDE.md` | 2026-03-05 19:33 UTC | 85eac97c23 |
+| `ML_RESOURCES_REFERENCE.md` | 2026-02-16 04:07 UTC | a0839c8319 |
+| `NVIDIA_RESOURCES.md` | 2026-02-15 03:59 UTC | 4df8c2d3a0 |
+| `PRODUCTIVITY_FEATURES.md` | 2026-02-17 23:16 UTC | 41025e928e |
+| `PROJECT_SUMMARY.md` | 2026-02-12 23:29 UTC | 7dc0c43bce |
+| `QUICKREF_IMAGE_TO_MESH.md` | 2026-02-12 23:51 UTC | 431be0da4a |
+| `QUICK_STATUS.md` | 2026-02-15 05:23 UTC | 3a5ccccd9d |
+| `RECOMMENDED_RESOURCES.md` | 2026-02-17 23:16 UTC | 41025e928e |
+| `SAFE_TO_DELETE_BRANCHES.md` | 2026-02-19 01:22 UTC | eff3995dc4 |
+| `SD_WEBUI_INTEGRATION.md` | 2026-02-17 23:51 UTC | 9b5c8b7070 |
+| `SHAP_E_INTEGRATION.md` | 2026-02-17 23:29 UTC | b965e63f98 |
+| `STATUS_REPORT.md` | 2026-02-15 05:23 UTC | 3a5ccccd9d |
+| `STRATEGIC_RECOMMENDATIONS.md` | 2026-02-15 04:48 UTC | 1f42bb89f7 |
+| `SYNC_STATE.md` | 2026-03-05 19:35 UTC | 80cd644d89 |
+| `T2I_ADAPTER_INTEGRATION.md` | 2026-02-18 00:03 UTC | a855441760 |
+| `TESTING.md` | 2026-02-21 00:44 UTC | 99aed67d13 |
+| `TUTORIALS.md` | 2026-02-13 00:06 UTC | e4b58d164d |
+| `ULTIMATE_COMPLETE_GUIDE.md` | 2026-02-17 23:18 UTC | 69c74a5a8a |
+| `ULTIMATE_STATUS.md` | 2026-02-15 05:40 UTC | 9273ce1168 |
+| `VEGETATION_GUIDE.md` | 2026-02-17 22:59 UTC | e27a57371c |
+| `VERIFICATION_REPORT.md` | 2026-02-17 23:31 UTC | b0acc94bdf |
+| `advanced_mesh_helpers.py` | 2026-03-05 18:44 UTC | f5608126ff |
+| `advisor_helpers.py` | 2026-02-20 22:58 UTC | ee74737fd1 |
+| `asset_ripper_helpers.py` | 2026-02-21 02:18 UTC | 3c1e307378 |
+| `asset_studio_helpers.py` | 2026-02-21 02:18 UTC | 3c1e307378 |
+| `automation_system.py` | 2026-02-17 23:16 UTC | 41025e928e |
+| `blender_manifest.toml` | 2026-03-05 18:44 UTC | f5608126ff |
+| `desktop_tutorial_client.py` | 2026-02-17 23:26 UTC | 8501194b2a |
+| `example_image_to_mesh.py` | 2026-02-12 23:45 UTC | 005b2f216f |
+| `example_script.py` | 2026-02-12 23:30 UTC | 9044db732b |
+| `example_tutorial_server.py` | 2026-02-12 23:22 UTC | 0945a53597 |
+| `ffmpeg` | 2026-03-05 19:27 UTC | cd77735b13 |
+| `get3d_helpers.py` | 2026-03-05 19:16 UTC | 43f96e6d89 |
+| `gradio_helpers.py` | 2026-02-13 00:11 UTC | ea94ba88b4 |
+| `hunyuan3d_helpers.py` | 2026-03-05 19:16 UTC | 43f96e6d89 |
+| `hymotion_helpers.py` | 2026-03-05 19:16 UTC | 43f96e6d89 |
+| `image_to_mesh_helpers.py` | 2026-02-12 23:46 UTC | 20294405c7 |
+| `imageto3d_helpers.py` | 2026-02-16 04:07 UTC | a0839c8319 |
+| `instantngp_helpers.py` | 2026-02-15 04:15 UTC | cd70099120 |
+| `item_helpers.py` | 2026-02-17 23:05 UTC | 237d040d98 |
+| `knowledge_helpers.py` | 2026-02-20 22:58 UTC | ee74737fd1 |
+| `makezip.py` | 2026-03-05 19:27 UTC | cd77735b13 |
+| `motion_generation_helpers.py` | 2026-03-05 19:16 UTC | 43f96e6d89 |
+| `notification_system.py` | 2026-03-05 18:44 UTC | f5608126ff |
+| `npc_helpers.py` | 2026-02-17 23:05 UTC | 237d040d98 |
+| `nvtt_helpers.py` | 2026-02-21 02:18 UTC | 3c1e307378 |
+| `point_e_helpers.py` | 2026-03-05 18:44 UTC | f5608126ff |
+| `preset_library.py` | 2026-02-17 23:16 UTC | 41025e928e |
+| `quest_helpers.py` | 2026-02-17 23:05 UTC | 237d040d98 |
+| `realesrgan_helpers.py` | 2026-03-05 19:16 UTC | 43f96e6d89 |
+| `requirements-optional.txt` | 2026-02-20 23:57 UTC | 325c241d4b |
+| `requirements.txt` | 2026-03-05 18:49 UTC | a2ab211e1d |
+| `rignet_helpers.py` | 2026-03-05 19:16 UTC | 43f96e6d89 |
+| `setup.sh` | 2026-02-17 23:48 UTC | 01a0690d90 |
+| `setup_comfyui.bat` | 2026-02-17 23:48 UTC | 01a0690d90 |
+| `shap_e_helpers.py` | 2026-02-17 23:29 UTC | b965e63f98 |
+| `stylegan2_helpers.py` | 2026-03-05 19:16 UTC | 43f96e6d89 |
+| `sync_state.py` | 2026-03-05 19:33 UTC | 85eac97c23 |
+| `test_server.py` | 2026-02-12 23:22 UTC | 0945a53597 |
+| `texture_helpers.py` | 2026-02-12 23:30 UTC | 9044db732b |
+| `tools/intellicode` | 2026-03-05 19:27 UTC | cd77735b13 |
+| `umodel_tools_helpers.py` | 2026-02-21 02:11 UTC | 355131dcc4 |
+| `whisper` | 2026-03-05 19:27 UTC | cd77735b13 |
+| `world_building_helpers.py` | 2026-02-17 23:05 UTC | 237d040d98 |
+| `zoedepth_helpers.py` | 2026-03-05 19:16 UTC | 43f96e6d89 |
 
 ---
 
@@ -97,18 +197,20 @@ git push
 
 ### Last desktop sync
 - Date: 2026-03-05
-- Desktop git SHA: *(run `git rev-parse --short HEAD` and paste here)*
+- Desktop git SHA: e8a63cb
 
 ### Files I changed on the desktop
 | File | Why I changed it | OK to push? |
 |------|-----------------|-------------|
-| operators.py | *(reason)* | Yes / No |
+| `mesh_helpers.py` | Resolved merge conflict and merged UV-safe optimization with remote changes | Yes |
+| `fallout4_tutorial_helper-v2.1.2.zip` | Chose remote version to resolve conflict | Yes |
 
 ### Notes / reminders
-*(anything you want to remember about the desktop state)*
+- After this merge, need to rebuild the zip archive with `python makezip.py` on D: drive
+- C drive is full; ensure all operations remain on D:
 
 <!-- DESKTOP_NOTES_END -->
 
 ---
 
-*Last regenerated: 2026-03-05 19:35 UTC by `sync_state.py` on `main` @ `2d785dc`*
+*Last regenerated: 2026-03-05 21:15 UTC by `sync_state.py` on `main` @ `e8a63cb`*
