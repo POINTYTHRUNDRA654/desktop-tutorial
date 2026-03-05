@@ -167,7 +167,10 @@ def register():
     # Initialize the tutorial system
     tutorial_system.initialize_tutorials()
     
-    # Check for core Python dependencies — install automatically if missing
+    # Check for core Python dependencies — install automatically if missing.
+    # install_python_requirements() selects the right version constraints for
+    # the running Python (e.g. Pillow<10 on Python 3.7, --break-system-packages
+    # on Python 3.11+) so we always delegate to it instead of calling pip directly.
     import importlib.util as _ilu
     _core_packages = {
         "PIL": "Pillow",
@@ -178,9 +181,11 @@ def register():
     }
     missing = {mod: pip for mod, pip in _core_packages.items() if _ilu.find_spec(mod) is None}
     if missing:
+        import sys as _sys
+        py_ver = f"{_sys.version_info.major}.{_sys.version_info.minor}"
         missing_desc = ", ".join(f"{pip} (import {mod})" for mod, pip in missing.items())
         print(f"⚠ Missing Python packages: {missing_desc}")
-        print("  Attempting automatic installation from requirements.txt …")
+        print(f"  Python {py_ver} — attempting version-aware automatic installation …")
         if tool_installers:
             try:
                 ok, msg = tool_installers.install_python_requirements(include_optional=False)
@@ -193,7 +198,7 @@ def register():
             print(f"✓ {msg}")
         else:
             print(f"  Auto-install failed: {msg}")
-            print("  Use the 'Install Core Dependencies' button in the Fallout 4 sidebar panel.")
+            print("  Use the 'Install Core Dependencies' button in the Setup & Status panel.")
     else:
         print("✓ All core Python dependencies present")
 
