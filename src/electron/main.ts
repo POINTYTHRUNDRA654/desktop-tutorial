@@ -742,8 +742,53 @@ function setupIpcHandlers() {
       const mt = String(mimeType || '').toLowerCase();
       const ext = mt.includes('webm') ? '.webm' : mt.includes('wav') ? '.wav' : mt.includes('ogg') ? '.ogg' : '.mp3';
 
-      // If a backend proxy is configured, try it first. This enables "works on download" flows
-      // (server holds provider keys; client holds none). If it fails, fall back to local keys.
+      const sttLang = (() => {
+        const raw = String(s?.sttLanguage || s?.uiLanguage || '').trim().toLowerCase();
+        if (!raw || raw === 'auto') return '';
+        return raw.split('-')[0] || raw;
+      })();
+
+      // ── 1. Local Whisper server (FREE, private) ──────────────────────────────
+      // Try a locally-running Whisper-compatible HTTP server first. This avoids
+      // any cloud cost and keeps audio 100% on-device.
+      // Supports faster-whisper-server (OpenAI-compatible /v1/audio/transcriptions)
+      // and simple single-endpoint servers at /transcribe or /transcriptions.
+      const whisperLocalUrl = String(s?.whisperLocalUrl ?? process.env.WHISPER_LOCAL_URL ?? '').trim().replace(/\/+$/, '');
+      if (whisperLocalUrl) {
+        try {
+          console.log('[Transcription] Trying local Whisper server:', whisperLocalUrl);
+
+          const buildWhisperForm = () => {
+            const form = new FormData();
+            form.append('file', buf, {
+              filename: `audio${ext}`,
+              contentType: mt || 'application/octet-stream',
+            });
+            form.append('model', 'whisper-1');
+            if (sttLang) form.append('language', sttLang);
+            return form;
+          };
+
+          // Try OpenAI-compatible endpoint first, then simpler /transcribe path
+          const endpoints = [`${whisperLocalUrl}/v1/audio/transcriptions`, `${whisperLocalUrl}/transcribe`];
+          for (const endpoint of endpoints) {
+            console.log('[Transcription] Trying local Whisper endpoint:', endpoint);
+            const resp = await postFormData(endpoint, buildWhisperForm(), {}, 30000);
+            if (resp.ok) {
+              const text = String(resp.json?.text || '').trim();
+              console.log('[Transcription] ✓ Local Whisper success:', text.substring(0, 80));
+              return { success: true, text };
+            }
+          }
+          console.warn('[Transcription] Local Whisper server responded but returned no text; falling back');
+        } catch (e: any) {
+          console.warn('[Transcription] Local Whisper server unavailable; falling back:', e?.message || e);
+        }
+      }
+
+      // ── 2. Backend proxy ─────────────────────────────────────────────────────
+      // If a backend proxy is configured, try it next. This enables "works on
+      // download" flows (server holds provider keys; client holds none).
       const backendBaseUrl = String(s?.backendBaseUrl || process.env.MOSSY_BACKEND_URL || '').trim();
       const backendToken = getSecretValue(s, 'backendToken', 'MOSSY_BACKEND_TOKEN');
       const backend = backendBaseUrl
@@ -752,11 +797,6 @@ function setupIpcHandlers() {
       if (backend) {
         try {
           console.log('[Transcription] Backend base URL:', backend.baseUrl);
-          const sttLang = (() => {
-            const raw = String(s?.sttLanguage || s?.uiLanguage || '').trim().toLowerCase();
-            if (!raw || raw === 'auto') return '';
-            return raw.split('-')[0] || raw;
-          })();
 
           const extraHeaders: Record<string, string> = {};
           if (backend.token) extraHeaders.Authorization = `Bearer ${backend.token}`;

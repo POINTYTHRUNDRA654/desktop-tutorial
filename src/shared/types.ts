@@ -482,6 +482,13 @@ export interface Settings {
   ttsPitch: number;
   sttEnabled: boolean;
   sttLanguage: string;
+  /**
+   * URL of a local Whisper-compatible HTTP server (e.g. faster-whisper-server).
+   * When set, transcription is sent here first (free, private) before falling back
+   * to the cloud backend or OpenAI Whisper API.
+   * Typical value: "http://localhost:8000"
+   */
+  whisperLocalUrl?: string;
 
   // UI Settings
   theme: 'light' | 'dark' | 'system';
@@ -725,6 +732,7 @@ export const DEFAULT_SETTINGS: Settings = {
   ttsPitch: 1.0,
   sttEnabled: true,
   sttLanguage: 'en-US',
+  whisperLocalUrl: '',
   theme: 'system',
   uiLanguage: 'auto',
   alwaysOnTop: false,
