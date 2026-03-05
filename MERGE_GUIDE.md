@@ -10,6 +10,32 @@ pushing.
 
 ---
 
+## GitHub Desktop says "files too big" — fix this first
+
+This happens when **Git LFS is installed on a non-default drive** (e.g. `D:`)
+so GitHub Desktop cannot find the `git-lfs.exe` executable.
+
+### One-time fix (run once, then restart GitHub Desktop)
+
+1. Open **Command Prompt** or **PowerShell** in the repository folder.
+2. Run the setup script — it will find git-lfs on `D:`, permanently add it to
+   your user PATH, and initialise the LFS hooks:
+   ```bat
+   setup.bat
+   ```
+3. **Close and reopen GitHub Desktop** (it reads PATH at startup).
+4. Click **Pull origin** in GitHub Desktop — it will now download LFS objects
+   correctly and the "files too big" warning will be gone.
+
+> **Why this is needed**: GitHub Desktop bundles its own Git but relies on the
+> Windows user PATH to find `git-lfs.exe`.  If Git LFS was installed to
+> `D:\Program Files\Git\cmd\` or `D:\Programs\Git LFS\` instead of the default
+> `C:\Program Files\Git\cmd\`, GitHub Desktop cannot see it until that directory
+> is on PATH.  `setup.bat` calls `setx PATH` to add it permanently (no admin
+> rights required).
+
+---
+
 ## Why the "file too large" error happened
 
 The add-on zip (`fallout4_tutorial_helper-v2.1.2.zip`) previously bundled the
@@ -19,7 +45,8 @@ potentially large `ffmpeg/` and `whisper/` directories.  That grew the zip to
 per-file limit when you tried to push.
 
 **This has been fixed**: `makezip.py` now only packages Python source files and
-documentation.  The new zip is **~505 KB**.
+documentation.  The new zip is **~505 KB**.  The zip is now also tracked by
+**Git LFS** (see `.gitattributes`) so even a larger zip will never block a push.
 
 ---
 

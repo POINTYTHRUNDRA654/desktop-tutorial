@@ -14,6 +14,7 @@ Installation:
 
 import bpy
 import os
+import platform
 import sys
 import subprocess
 from pathlib import Path
@@ -37,17 +38,14 @@ def _find_git_lfs_env():
 
     On Windows, git-lfs may be installed to a non-standard drive (e.g. D:).
     If ``git lfs version`` fails via the current PATH, this function tries a
-    set of common D-drive locations and, when one is found, returns a copy of
-    ``os.environ`` with that directory prepended to PATH.  If nothing extra is
-    needed (or we are not on Windows), the current environment is returned
-    unchanged.
+    set of common D-drive locations and, when one is found *and verified to
+    work*, returns a copy of ``os.environ`` with that directory prepended to
+    PATH.  If nothing extra is needed (or we are not on Windows), the current
+    environment is returned unchanged.
 
     Returns:
         dict: Environment mapping to pass to subprocess.
     """
-    import os
-    import platform
-
     env = os.environ.copy()
 
     if platform.system() != "Windows":
@@ -63,9 +61,23 @@ def _find_git_lfs_env():
 
     for candidate in candidate_dirs:
         exe = os.path.join(candidate, "git-lfs.exe")
-        if os.path.isfile(exe):
-            env["PATH"] = candidate + os.pathsep + env.get("PATH", "")
-            break
+        if not os.path.isfile(exe):
+            continue
+        # Verify the executable actually works before using it
+        test_env = os.environ.copy()
+        test_env["PATH"] = candidate + os.pathsep + test_env.get("PATH", "")
+        try:
+            result = subprocess.run(
+                ["git", "lfs", "version"],
+                capture_output=True,
+                text=True,
+                timeout=5,
+                env=test_env,
+            )
+            if result.returncode == 0:
+                return test_env
+        except Exception:
+            pass  # this candidate is broken; try the next one
 
     return env
 

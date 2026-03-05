@@ -20,8 +20,8 @@ if %errorlevel% equ 0 (
     goto :run_lfs_install
 )
 
-REM Not on PATH - search common D:\Program Files locations (Git for Windows on D:)
-set GIT_LFS_FOUND=0
+REM Not on PATH — search common D:\Program Files locations (Git for Windows on D:)
+set "GIT_LFS_DIR="
 for %%P in (
     "D:\Program Files\Git\cmd\git-lfs.exe"
     "D:\Program Files\Git LFS\git-lfs.exe"
@@ -29,20 +29,40 @@ for %%P in (
     "D:\Programs\Git LFS\git-lfs.exe"
 ) do (
     if exist %%P (
-        echo [OK] Git LFS found at %%P
-        for %%D in (%%~dpP.) do set "PATH=%%~fD;%PATH%"
-        set GIT_LFS_FOUND=1
-        goto :run_lfs_install
+        set "GIT_LFS_DIR=%%~dpP"
+        goto :lfs_found_on_d
     )
 )
 
-if %GIT_LFS_FOUND% equ 0 (
-    echo [WARNING] Git LFS not found.
-    echo.
-    echo Please install Git LFS from: https://git-lfs.github.com/
-    echo After installation, re-run this script or run: git lfs install
-    echo.
-    goto :after_lfs
+REM git-lfs not found anywhere
+echo [WARNING] Git LFS not found.
+echo.
+echo Please install Git LFS from: https://git-lfs.github.com/
+echo After installation, re-run this script or run: git lfs install
+echo.
+goto :after_lfs
+
+:lfs_found_on_d
+echo [OK] Git LFS found at %GIT_LFS_DIR%
+
+REM Add the D-drive directory to this session's PATH
+set "PATH=%GIT_LFS_DIR%;%PATH%"
+
+REM Also write it into the user's permanent PATH so GitHub Desktop finds it.
+REM (setx writes to HKCU; no admin rights required.  GitHub Desktop must be
+REM  restarted after this for the new PATH to take effect.)
+for /f "tokens=2*" %%A in (
+    'reg query "HKCU\Environment" /v PATH 2^>nul'
+) do set "CURRENT_USER_PATH=%%B"
+
+REM Only append if the directory is not already in the user PATH
+echo %CURRENT_USER_PATH% | find /i "%GIT_LFS_DIR%" >nul 2>&1
+if %errorlevel% neq 0 (
+    setx PATH "%GIT_LFS_DIR%;%CURRENT_USER_PATH%" >nul
+    echo [OK] Git LFS directory added to your permanent user PATH.
+    echo      Please RESTART GitHub Desktop so it picks up the new PATH.
+) else (
+    echo [OK] Git LFS directory already in permanent user PATH.
 )
 
 :run_lfs_install
