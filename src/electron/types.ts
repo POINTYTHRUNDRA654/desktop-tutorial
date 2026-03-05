@@ -23,6 +23,10 @@ export interface InstalledProgram {
 export const IPC_CHANNELS = {
   // Program detection and launching
   DETECT_PROGRAMS: 'detect-programs',
+
+  // Voice history persistence (added to match shared-types)
+  SAVE_VOICE_HISTORY: 'save-voice-history',
+  GET_VOICE_HISTORY_PATH: 'get-voice-history-path',
   OPEN_PROGRAM: 'open-program',
   OPEN_EXTERNAL: 'open-external',
   REVEAL_IN_FOLDER: 'reveal-in-folder',
@@ -366,6 +370,7 @@ export interface ElectronAPI {
   >;
 
   transcribeAudio?: (arrayBuffer: ArrayBuffer, mimeType?: string) => Promise<{ success: boolean; text?: string; error?: string }>;
+  saveVoiceHistory?: (line: string) => Promise<{ success: boolean; error?: string }>;
   checkBlenderAddon: () => Promise<{ connected: boolean; error?: string }>;
   getSystemInfo: () => Promise<{
     os: string; 
