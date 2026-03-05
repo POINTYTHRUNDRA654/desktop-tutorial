@@ -12,11 +12,11 @@
 
 | Key | Value |
 |-----|-------|
-| Branch | `copilot/fix-desktop-open-issue` |
-| HEAD commit | `cd77735` |
-| Generated at | 2026-03-05 19:32 UTC |
-| Total commits tracked | 2 |
-| Total files tracked | 134 |
+| Branch | `main` |
+| HEAD commit | `2d785dc` |
+| Generated at | 2026-03-05 19:35 UTC |
+| Total commits tracked | 1 |
+| Total files tracked | 133 |
 
 ---
 
@@ -24,8 +24,7 @@
 
 | SHA | Date (UTC) | Author | Side | Summary |
 |-----|-----------|--------|------|---------|
-| `cd77735b13` | 2026-03-05 19:27 UTC | copilot-swe-agent[bot] | 🤖 GitHub | Fix large-file bloat: lean zip (505KB vs 26MB), gitignore bi |
-| `43f96e6d89` | 2026-03-05 19:16 UTC | copilot-swe-agent[bot] | 🤖 GitHub | Fix desktop open bug + implement all stubs: ZoeDepth, Hunyua |
+| `2d785dca12` | 2026-03-05 19:35 UTC | Pointytundra654 | 🖥️ Desktop | Merge pull request #28 from POINTYTHRUNDRA654/copilot/fix-de |
 
 ---
 
@@ -37,140 +36,13 @@ possible change and document it in the Desktop Notes section below.
 
 | File | Last changed | Commit |
 |------|-------------|--------|
-| `.github/workflows/release.yml` | 2026-03-05 19:16 UTC | 43f96e6d89 |
-| `.gitignore` | 2026-03-05 19:27 UTC | cd77735b13 |
-| `API_REFERENCE.md` | 2026-03-05 19:16 UTC | 43f96e6d89 |
-| `BRANCH_MERGE_STATUS.md` | 2026-03-05 19:16 UTC | 43f96e6d89 |
-| `CHANGELOG.md` | 2026-03-05 19:16 UTC | 43f96e6d89 |
-| `COMFYUI_INTEGRATION.md` | 2026-03-05 19:16 UTC | 43f96e6d89 |
-| `COMPATIBILITY.md` | 2026-03-05 19:16 UTC | 43f96e6d89 |
-| `COMPLETE_INTEGRATION_STATUS.md` | 2026-03-05 19:16 UTC | 43f96e6d89 |
-| `COMPLETE_INTEGRATION_SUMMARY.md` | 2026-03-05 19:16 UTC | 43f96e6d89 |
-| `COMPLETE_MOD_GUIDE.md` | 2026-03-05 19:16 UTC | 43f96e6d89 |
-| `CONTRIBUTING.md` | 2026-03-05 19:16 UTC | 43f96e6d89 |
-| `CREDITS.md` | 2026-03-05 19:16 UTC | 43f96e6d89 |
-| `DEEPINFRA_NOTE.md` | 2026-03-05 19:16 UTC | 43f96e6d89 |
-| `DESKTOP_TUTORIAL_INTEGRATION.md` | 2026-03-05 19:16 UTC | 43f96e6d89 |
-| `DEVELOPMENT.md` | 2026-03-05 19:16 UTC | 43f96e6d89 |
-| `DEVELOPMENT_NOTES.md` | 2026-03-05 19:16 UTC | 43f96e6d89 |
-| `EMBEDDED_PYTHON_GUIDE.md` | 2026-03-05 19:16 UTC | 43f96e6d89 |
-| `ESSENTIAL_TOOLS_GUIDE.md` | 2026-03-05 19:16 UTC | 43f96e6d89 |
-| `FAQ.md` | 2026-03-05 19:16 UTC | 43f96e6d89 |
-| `FINAL_STATUS_REPORT.md` | 2026-03-05 19:16 UTC | 43f96e6d89 |
-| `FINAL_SUMMARY_OLD.md` | 2026-03-05 19:16 UTC | 43f96e6d89 |
-| `FLUX_INTEGRATION.md` | 2026-03-05 19:16 UTC | 43f96e6d89 |
-| `HELP_SYSTEM.md` | 2026-03-05 19:16 UTC | 43f96e6d89 |
-| `HOTSHOT_XL_INTEGRATION.md` | 2026-03-05 19:16 UTC | 43f96e6d89 |
-| `HUNYUAN3D_GUIDE.md` | 2026-03-05 19:16 UTC | 43f96e6d89 |
-| `HUNYUAN3D_SUMMARY.md` | 2026-03-05 19:16 UTC | 43f96e6d89 |
-| `IMPLEMENTATION_COMPLETE.md` | 2026-03-05 19:16 UTC | 43f96e6d89 |
-| `IMPLEMENTATION_SUMMARY.md` | 2026-03-05 19:16 UTC | 43f96e6d89 |
-| `INSTALL.md` | 2026-03-05 19:16 UTC | 43f96e6d89 |
-| `INSTALLATION.md` | 2026-03-05 19:16 UTC | 43f96e6d89 |
-| `INTEGRATION_COMPLETE.md` | 2026-03-05 19:16 UTC | 43f96e6d89 |
-| `INTEGRATION_COMPLETE_SUMMARY.md` | 2026-03-05 19:16 UTC | 43f96e6d89 |
-| `LICENSE` | 2026-03-05 19:16 UTC | 43f96e6d89 |
-| `MASTER_INDEX.md` | 2026-03-05 19:16 UTC | 43f96e6d89 |
-| `MERGE_COMPLETION_SUMMARY.md` | 2026-03-05 19:16 UTC | 43f96e6d89 |
-| `MERGE_GUIDE.md` | 2026-03-05 19:27 UTC | cd77735b13 |
-| `ML_RESOURCES_REFERENCE.md` | 2026-03-05 19:16 UTC | 43f96e6d89 |
-| `NEW_FEATURES.md` | 2026-03-05 19:16 UTC | 43f96e6d89 |
-| `NIFTOOLS_SETUP.md` | 2026-03-05 19:16 UTC | 43f96e6d89 |
-| `NVIDIA_RESOURCES.md` | 2026-03-05 19:16 UTC | 43f96e6d89 |
-| `PRODUCTIVITY_FEATURES.md` | 2026-03-05 19:16 UTC | 43f96e6d89 |
-| `PROJECT_SUMMARY.md` | 2026-03-05 19:16 UTC | 43f96e6d89 |
-| `QUICKREF_IMAGE_TO_MESH.md` | 2026-03-05 19:16 UTC | 43f96e6d89 |
-| `QUICKSTART.md` | 2026-03-05 19:16 UTC | 43f96e6d89 |
-| `QUICK_REFERENCE.txt` | 2026-03-05 19:16 UTC | 43f96e6d89 |
-| `QUICK_STATUS.md` | 2026-03-05 19:16 UTC | 43f96e6d89 |
-| `README.md` | 2026-03-05 19:16 UTC | 43f96e6d89 |
-| `RECOMMENDED_RESOURCES.md` | 2026-03-05 19:16 UTC | 43f96e6d89 |
-| `RIGGING_AND_MOTION_INTEGRATION.md` | 2026-03-05 19:16 UTC | 43f96e6d89 |
-| `SAFE_TO_DELETE_BRANCHES.md` | 2026-03-05 19:16 UTC | 43f96e6d89 |
-| `SD_WEBUI_INTEGRATION.md` | 2026-03-05 19:16 UTC | 43f96e6d89 |
-| `SETUP_GUIDE.md` | 2026-03-05 19:16 UTC | 43f96e6d89 |
-| `SHAP_E_INTEGRATION.md` | 2026-03-05 19:16 UTC | 43f96e6d89 |
-| `STATUS_REPORT.md` | 2026-03-05 19:16 UTC | 43f96e6d89 |
-| `STRATEGIC_RECOMMENDATIONS.md` | 2026-03-05 19:16 UTC | 43f96e6d89 |
-| `T2I_ADAPTER_INTEGRATION.md` | 2026-03-05 19:16 UTC | 43f96e6d89 |
-| `TESTING.md` | 2026-03-05 19:16 UTC | 43f96e6d89 |
-| `TOOLS_SETUP.md` | 2026-03-05 19:16 UTC | 43f96e6d89 |
-| `TUTORIALS.md` | 2026-03-05 19:16 UTC | 43f96e6d89 |
-| `ULTIMATE_COMPLETE_GUIDE.md` | 2026-03-05 19:16 UTC | 43f96e6d89 |
-| `ULTIMATE_STATUS.md` | 2026-03-05 19:16 UTC | 43f96e6d89 |
-| `VEGETATION_GUIDE.md` | 2026-03-05 19:16 UTC | 43f96e6d89 |
-| `VERIFICATION_REPORT.md` | 2026-03-05 19:16 UTC | 43f96e6d89 |
-| `__init__.py` | 2026-03-05 19:16 UTC | 43f96e6d89 |
-| `addon_integration.py` | 2026-03-05 19:16 UTC | 43f96e6d89 |
-| `advanced_mesh_helpers.py` | 2026-03-05 19:16 UTC | 43f96e6d89 |
-| `advisor_helpers.py` | 2026-03-05 19:16 UTC | 43f96e6d89 |
-| `animation_helpers.py` | 2026-03-05 19:16 UTC | 43f96e6d89 |
-| `asset_ripper_helpers.py` | 2026-03-05 19:16 UTC | 43f96e6d89 |
-| `asset_studio_helpers.py` | 2026-03-05 19:16 UTC | 43f96e6d89 |
-| `automation_system.py` | 2026-03-05 19:16 UTC | 43f96e6d89 |
-| `blender_manifest.toml` | 2026-03-05 19:16 UTC | 43f96e6d89 |
-| `desktop_tutorial_client.py` | 2026-03-05 19:16 UTC | 43f96e6d89 |
-| `example_image_to_mesh.py` | 2026-03-05 19:16 UTC | 43f96e6d89 |
-| `example_script.py` | 2026-03-05 19:16 UTC | 43f96e6d89 |
-| `example_tutorial_server.py` | 2026-03-05 19:16 UTC | 43f96e6d89 |
-| `export_helpers.py` | 2026-03-05 19:16 UTC | 43f96e6d89 |
-| `fallout4_tutorial_helper-v2.1.2.zip` | 2026-03-05 19:27 UTC | cd77735b13 |
-| `ffmpeg` | 2026-03-05 19:27 UTC | cd77735b13 |
-| `get3d_helpers.py` | 2026-03-05 19:16 UTC | 43f96e6d89 |
-| `gradio_helpers.py` | 2026-03-05 19:16 UTC | 43f96e6d89 |
-| `hunyuan3d_helpers.py` | 2026-03-05 19:16 UTC | 43f96e6d89 |
-| `hymotion_helpers.py` | 2026-03-05 19:16 UTC | 43f96e6d89 |
-| `image_to_mesh_helpers.py` | 2026-03-05 19:16 UTC | 43f96e6d89 |
-| `imageto3d_helpers.py` | 2026-03-05 19:16 UTC | 43f96e6d89 |
-| `instantngp_helpers.py` | 2026-03-05 19:16 UTC | 43f96e6d89 |
-| `item_helpers.py` | 2026-03-05 19:16 UTC | 43f96e6d89 |
-| `knowledge_base/README.md` | 2026-03-05 19:16 UTC | 43f96e6d89 |
-| `knowledge_base/collision_materials.md` | 2026-03-05 19:16 UTC | 43f96e6d89 |
-| `knowledge_base/fo4_export.md` | 2026-03-05 19:16 UTC | 43f96e6d89 |
-| `knowledge_base/textures_dds.md` | 2026-03-05 19:16 UTC | 43f96e6d89 |
-| `knowledge_base/unity_import.md` | 2026-03-05 19:16 UTC | 43f96e6d89 |
-| `knowledge_base/unreal_import.md` | 2026-03-05 19:16 UTC | 43f96e6d89 |
-| `knowledge_helpers.py` | 2026-03-05 19:16 UTC | 43f96e6d89 |
-| `makezip.py` | 2026-03-05 19:27 UTC | cd77735b13 |
-| `mesh_helpers.py` | 2026-03-05 19:16 UTC | 43f96e6d89 |
-| `mossy_link.py` | 2026-03-05 19:16 UTC | 43f96e6d89 |
-| `motion_generation_helpers.py` | 2026-03-05 19:16 UTC | 43f96e6d89 |
-| `notification_system.py` | 2026-03-05 19:16 UTC | 43f96e6d89 |
-| `npc_helpers.py` | 2026-03-05 19:16 UTC | 43f96e6d89 |
-| `nvtt_helpers.py` | 2026-03-05 19:16 UTC | 43f96e6d89 |
-| `operators.py` | 2026-03-05 19:16 UTC | 43f96e6d89 |
-| `point_e_helpers.py` | 2026-03-05 19:16 UTC | 43f96e6d89 |
-| `preferences.py` | 2026-03-05 19:16 UTC | 43f96e6d89 |
-| `preset_library.py` | 2026-03-05 19:16 UTC | 43f96e6d89 |
-| `quest_helpers.py` | 2026-03-05 19:16 UTC | 43f96e6d89 |
-| `realesrgan_helpers.py` | 2026-03-05 19:16 UTC | 43f96e6d89 |
-| `requirements-optional.txt` | 2026-03-05 19:16 UTC | 43f96e6d89 |
-| `requirements.txt` | 2026-03-05 19:16 UTC | 43f96e6d89 |
-| `rignet_helpers.py` | 2026-03-05 19:16 UTC | 43f96e6d89 |
-| `setup.bat` | 2026-03-05 19:16 UTC | 43f96e6d89 |
-| `setup.sh` | 2026-03-05 19:16 UTC | 43f96e6d89 |
-| `setup_comfyui.bat` | 2026-03-05 19:16 UTC | 43f96e6d89 |
-| `shap_e_helpers.py` | 2026-03-05 19:16 UTC | 43f96e6d89 |
-| `stylegan2_helpers.py` | 2026-03-05 19:16 UTC | 43f96e6d89 |
-| `test_server.py` | 2026-03-05 19:16 UTC | 43f96e6d89 |
-| `texture_helpers.py` | 2026-03-05 19:16 UTC | 43f96e6d89 |
-| `tool_installers.py` | 2026-03-05 19:16 UTC | 43f96e6d89 |
-| `tools/check_blenders.py` | 2026-03-05 19:16 UTC | 43f96e6d89 |
-| `tools/havok2fbx/README.md` | 2026-03-05 19:16 UTC | 43f96e6d89 |
-| `tools/install_all_tools.py` | 2026-03-05 19:16 UTC | 43f96e6d89 |
-| `tools/install_niftools.ps1` | 2026-03-05 19:16 UTC | 43f96e6d89 |
-| `tools/install_texconv.ps1` | 2026-03-05 19:16 UTC | 43f96e6d89 |
-| `tools/intellicode` | 2026-03-05 19:27 UTC | cd77735b13 |
-| `tools/pdf_to_md.py` | 2026-03-05 19:16 UTC | 43f96e6d89 |
-| `tools/video_to_txt.ps1` | 2026-03-05 19:16 UTC | 43f96e6d89 |
-| `tutorial_system.py` | 2026-03-05 19:16 UTC | 43f96e6d89 |
-| `ue_importer_helpers.py` | 2026-03-05 19:16 UTC | 43f96e6d89 |
-| `ui_panels.py` | 2026-03-05 19:16 UTC | 43f96e6d89 |
-| `umodel_tools_helpers.py` | 2026-03-05 19:16 UTC | 43f96e6d89 |
-| `unity_fbx_importer_helpers.py` | 2026-03-05 19:16 UTC | 43f96e6d89 |
-| `whisper` | 2026-03-05 19:27 UTC | cd77735b13 |
-| `world_building_helpers.py` | 2026-03-05 19:16 UTC | 43f96e6d89 |
-| `zoedepth_helpers.py` | 2026-03-05 19:16 UTC | 43f96e6d89 |
+| `.github/workflows/release.yml` | 2026-03-05 19:35 UTC | 2d785dca12 |
+| `CHANGELOG.md` | 2026-03-05 19:35 UTC | 2d785dca12 |
+| `DEVELOPMENT_NOTES.md` | 2026-03-05 19:35 UTC | 2d785dca12 |
+| `MERGE_GUIDE.md` | 2026-03-05 19:35 UTC | 2d785dca12 |
+| `SYNC_STATE.md` | 2026-03-05 19:35 UTC | 2d785dca12 |
+| `makezip.py` | 2026-03-05 19:35 UTC | 2d785dca12 |
+| `sync_state.py` | 2026-03-05 19:35 UTC | 2d785dca12 |
 
 ---
 
@@ -239,4 +111,4 @@ git push
 
 ---
 
-*Last regenerated: 2026-03-05 19:32 UTC by `sync_state.py` on `copilot/fix-desktop-open-issue` @ `cd77735`*
+*Last regenerated: 2026-03-05 19:35 UTC by `sync_state.py` on `main` @ `2d785dc`*
