@@ -4,6 +4,10 @@ This guide explains exactly how to pull the latest GitHub version of the add-on
 onto your desktop and resolve the "file too large" problem that prevents you from
 pushing.
 
+> 💡 **New: [`SYNC_STATE.md`](SYNC_STATE.md)** — run `python sync_state.py` after
+> every `git pull` to see a table of every file GitHub last changed, who changed it,
+> and the merge rules to follow.  Your personal desktop notes live there too.
+
 ---
 
 ## Why the "file too large" error happened
