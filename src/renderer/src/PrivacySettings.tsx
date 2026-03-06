@@ -32,6 +32,7 @@ function PrivacySettings({ embedded = false }: PrivacySettingsProps) {
   const [backendBaseUrlInput, setBackendBaseUrlInput] = useState<string>('');
   const [backendTokenInput, setBackendTokenInput] = useState<string>('');
   const [showBackendToken, setShowBackendToken] = useState(false);
+  const [whisperLocalUrlInput, setWhisperLocalUrlInput] = useState<string>('');
 
   const [secrets, setSecrets] = useState<{ backendToken: boolean } | null>(null);
   const [keySaveStatus, setKeySaveStatus] = useState<Record<string, 'idle' | 'saving' | 'saved' | 'error'>>({});
@@ -62,6 +63,7 @@ function PrivacySettings({ embedded = false }: PrivacySettingsProps) {
         };
         setSettings(mergedSettings);
         setBackendBaseUrlInput(String(mergedSettings?.backendBaseUrl || '').trim());
+        setWhisperLocalUrlInput(String(mergedSettings?.whisperLocalUrl || '').trim());
       } catch (e) {
         console.error('Failed to load settings:', e);
       }
@@ -124,6 +126,22 @@ function PrivacySettings({ embedded = false }: PrivacySettingsProps) {
       setTimeout(() => setKeySaveStatus((prev) => ({ ...prev, backend: 'idle' })), 2500);
     } catch {
       setKeySaveStatus((prev) => ({ ...prev, backend: 'error' }));
+    }
+  };
+
+  const saveWhisperConfig = async (url: string) => {
+    const api = getElectronApi();
+    if (!api?.setSettings) {
+      setKeySaveStatus((prev) => ({ ...prev, whisper: 'error' }));
+      return;
+    }
+    setKeySaveStatus((prev) => ({ ...prev, whisper: 'saving' }));
+    try {
+      await api.setSettings({ whisperLocalUrl: String(url || '').trim() });
+      setKeySaveStatus((prev) => ({ ...prev, whisper: 'saved' }));
+      setTimeout(() => setKeySaveStatus((prev) => ({ ...prev, whisper: 'idle' })), 2500);
+    } catch {
+      setKeySaveStatus((prev) => ({ ...prev, whisper: 'error' }));
     }
   };
 
@@ -581,6 +599,56 @@ function PrivacySettings({ embedded = false }: PrivacySettingsProps) {
                       Configure your backend service below to enable chat, transcription, and other AI features.
                     </p>
                   </div>
+                </div>
+              </div>
+
+              {/* Local Whisper STT Configuration */}
+              <div className="space-y-4">
+                <h4 className="text-lg font-semibold text-slate-100">🎤 Local Whisper (Free Speech-to-Text)</h4>
+                <div className="bg-emerald-900/20 border border-emerald-500/30 rounded-lg p-4 text-sm text-emerald-200">
+                  <strong>Recommended:</strong> Run a local{' '}
+                  <code className="bg-slate-800 px-1 rounded text-emerald-300">faster-whisper</code> server on your machine for
+                  free, private, offline speech recognition. When this URL is set it will be tried <em>before</em> any cloud
+                  service.{' '}
+                  <span className="text-slate-400">
+                    (pip install faster-whisper-server &amp;&amp; uvicorn faster_whisper_server.app:app --port 8000)
+                  </span>
+                </div>
+
+                <div className="space-y-2">
+                  <label className="block text-sm font-medium text-slate-100">Local Whisper Server URL</label>
+                  <div className="flex gap-2">
+                    <input
+                      type="url"
+                      value={whisperLocalUrlInput}
+                      onChange={(e) => setWhisperLocalUrlInput(e.target.value)}
+                      placeholder="http://localhost:8000"
+                      className="flex-1 px-3 py-2 bg-slate-700 border border-slate-600 rounded-md text-slate-100 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+                    />
+                    <button
+                      onClick={() => saveWhisperConfig(whisperLocalUrlInput)}
+                      disabled={keySaveStatus.whisper === 'saving'}
+                      className="px-4 py-2 bg-emerald-700 text-white rounded-md hover:bg-emerald-600 focus:outline-none focus:ring-2 focus:ring-emerald-500 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      {keySaveStatus.whisper === 'saving' ? 'Saving...' : 'Save'}
+                    </button>
+                    {whisperLocalUrlInput && (
+                      <button
+                        onClick={() => { setWhisperLocalUrlInput(''); saveWhisperConfig(''); }}
+                        className="px-4 py-2 bg-slate-600 text-white rounded-md hover:bg-slate-500 focus:outline-none focus:ring-2 focus:ring-slate-400"
+                      >
+                        Clear
+                      </button>
+                    )}
+                  </div>
+                  {keySaveStatus.whisper && keySaveStatus.whisper !== 'idle' && (
+                    <p className={`text-sm ${keySaveStatus.whisper === 'saved' ? 'text-emerald-400' : 'text-red-400'}`}>
+                      {keySaveStatus.whisper === 'saved' ? '✓ Local Whisper URL saved' : keySaveStatus.whisper === 'saving' ? 'Saving...' : 'Failed to save'}
+                    </p>
+                  )}
+                  <p className="text-xs text-slate-500">
+                    Leave blank to skip local Whisper and use the cloud backend or OpenAI Whisper API instead.
+                  </p>
                 </div>
               </div>
 

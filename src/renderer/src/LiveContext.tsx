@@ -23,6 +23,8 @@ export interface LiveContextType {
   setSelectedInputId: (id: string) => void;
   connect: () => Promise<void>;
   disconnect: (manual?: boolean) => void;
+  /** Stop Mossy speaking mid-response without ending the voice session. */
+  stopSpeaking: () => void;
   customAvatar: string | null;
   updateAvatar: (file: File) => Promise<void>;
   setAvatarFromUrl: (url: string) => Promise<void>;
@@ -492,33 +494,44 @@ export const LiveProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
     const settings = await api.getSettings();
     const backendBaseUrl = String(settings?.backendBaseUrl || '').trim().replace(/\/$/, '');
+    const whisperLocalUrl = String(settings?.whisperLocalUrl || '').trim();
     const backendTokenConfigured = Boolean(settings?.backendTokenConfigured);
 
-    if (!backendBaseUrl) {
-      throw new Error('Voice backend is not configured. Please set a backend URL.');
-    }
+    // Accept the session if at least one STT provider is available:
+    //  a) local Whisper server (whisperLocalUrl set)
+    //  b) cloud backend proxy (backendBaseUrl set)
+    //  c) OpenAI API key (checked below)
+    const hasAnyProvider = Boolean(whisperLocalUrl || backendBaseUrl);
 
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 6000);
-    try {
-      const resp = await fetch(`${backendBaseUrl}/health`, { signal: controller.signal });
-      if (!resp.ok) {
-        throw new Error(`Voice backend health check failed (${resp.status}).`);
+    if (backendBaseUrl) {
+      // If a backend is configured, verify it is reachable.
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 6000);
+      try {
+        const resp = await fetch(`${backendBaseUrl}/health`, { signal: controller.signal });
+        if (!resp.ok) {
+          throw new Error(`Voice backend health check failed (${resp.status}).`);
+        }
+      } catch (e: any) {
+        const msg = e?.name === 'AbortError' ? 'Voice backend health check timed out.' : (e?.message || String(e));
+        // Only hard-fail if no other provider is available
+        if (!whisperLocalUrl) {
+          throw new Error(msg);
+        }
+        console.warn('[LiveContext] Backend unreachable, will use local Whisper:', msg);
+      } finally {
+        clearTimeout(timeout);
       }
-    } catch (e: any) {
-      const msg = e?.name === 'AbortError' ? 'Voice backend health check timed out.' : (e?.message || String(e));
-      throw new Error(msg);
-    } finally {
-      clearTimeout(timeout);
     }
 
     if (typeof api?.getSecretStatus === 'function') {
       const status = await api.getSecretStatus();
       const hasOpenAI = Boolean(status?.ok && status.openai);
-      const hasBackend = backendTokenConfigured;
-      if (!hasBackend && !hasOpenAI) {
-        throw new Error('No voice provider configured. Add an OpenAI key in Settings.');
+      if (!hasAnyProvider && !hasOpenAI) {
+        throw new Error('No voice provider configured. Set a Local Whisper URL or add an OpenAI key in Settings.');
       }
+    } else if (!hasAnyProvider) {
+      throw new Error('No voice provider configured. Set a Local Whisper URL or backend URL in Settings → Privacy/API.');
     }
   };
 
@@ -601,6 +614,23 @@ export const LiveProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     console.log('[LiveContext] disconnect completed cleanup');
   };
 
+  /**
+   * Stop Mossy speaking immediately without ending the voice session.
+   * Useful as a "stop talking" button so the user can interrupt long responses.
+   */
+  const stopSpeaking = () => {
+    console.log('[LiveContext] stopSpeaking() called');
+    if (voiceServiceRef.current) {
+      voiceServiceRef.current.stopSpeaking();
+    } else if ('speechSynthesis' in window) {
+      window.speechSynthesis.cancel();
+    }
+    if (mode === 'speaking') {
+      setMode('listening');
+      setStatus('Listening...');
+    }
+  };
+
   const toggleMute = () => setIsMuted((m) => !m);
   const updateAvatar = async (file: File) => {};
   const setAvatarFromUrl = async (url: string) => {};
@@ -622,6 +652,7 @@ export const LiveProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         setSelectedInputId,
         connect,
         disconnect,
+        stopSpeaking,
         customAvatar,
         updateAvatar,
         setAvatarFromUrl,

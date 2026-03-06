@@ -73,6 +73,12 @@ export class VoiceService {
   private isBrowserSttActive = false;
   private isBrowserSttStarting = false;
   private isUsingBrowserStt = false;
+  /**
+   * True while TTS is actively playing. Used to pause microphone recording
+   * during speech playback and prevent the audio feedback loop where Mossy
+   * hears and transcribes her own voice.
+   */
+  private isSpeaking = false;
   private onTranscription?: (text: string, sessionId?: number) => void;
   private onError?: (error: string) => void;
   private onModeChange?: (mode: 'idle' | 'listening' | 'processing' | 'speaking') => void;
@@ -118,6 +124,7 @@ export class VoiceService {
     console.log('[VoiceService] stopListening() called, current state:', { isListening: this.isListening, shouldStop: this.shouldStop, isRecording: this.isRecording });
     this.isListening = false;
     this.shouldStop = true;
+    this.isSpeaking = false;
     this.isUsingBrowserStt = false;
     this.isBrowserSttActive = false;
     this.isBrowserSttStarting = false;
@@ -309,7 +316,7 @@ export class VoiceService {
       };
 
       this.mediaRecorder.onstop = async () => {
-        console.log(`[VoiceService] MediaRecorder onstop fired for session ${this.currentSessionId}, isRecording: ${this.isRecording}, shouldStop: ${this.shouldStop}`);
+        console.log(`[VoiceService] MediaRecorder onstop fired for session ${this.currentSessionId}, isRecording: ${this.isRecording}, shouldStop: ${this.shouldStop}, isSpeaking: ${this.isSpeaking}`);
         this.isRecording = false;
         
         // Clean up current stream tracks
@@ -323,6 +330,14 @@ export class VoiceService {
         // Check if we should stop processing (disconnect was called)
         if (this.shouldStop) {
           console.log('[VoiceService] Skipping transcription - service stopped');
+          return;
+        }
+
+        // If TTS is active, this recording was stopped to prevent audio feedback.
+        // Discard the audio chunks and restart listening after TTS completes.
+        if (this.isSpeaking) {
+          console.log('[VoiceService] Skipping transcription - TTS is speaking (audio feedback prevention)');
+          this.audioChunks = [];
           return;
         }
         
@@ -364,8 +379,9 @@ export class VoiceService {
           }
         }
 
-        // Auto-restart for continuous listening (increased delay for stability)
-        if (this.isListening && !this.shouldStop && !this.isUsingBrowserStt) {
+        // Auto-restart for continuous listening (increased delay for stability).
+        // Do NOT restart while TTS is playing — speak() will restart after it completes.
+        if (this.isListening && !this.shouldStop && !this.isUsingBrowserStt && !this.isSpeaking) {
           setTimeout(() => this.startRecording(), 1000);
         }
       };
@@ -439,21 +455,69 @@ export class VoiceService {
       console.log('[VoiceService] Ignoring speak request, service stopped');
       return;
     }
-    
-    if (this.config.ttsProvider === 'browser') {
-      console.log('[VoiceService] Using browser TTS provider');
-      return this.speakBrowser(text);
-    } else if (this.config.ttsProvider === 'elevenlabs') {
-      console.log('[VoiceService] Using ElevenLabs TTS provider');
-      return this.speakElevenLabs(text);
-    } else if (this.config.ttsProvider === 'cloud') {
-      console.log('[VoiceService] Using cloud TTS provider (main process)');
-      if (!('electron' in window) || !window.electron?.api?.ttsSpeak || !window.electron?.api?.onTtsSpeak) {
-        console.warn('[VoiceService] Cloud TTS not available, falling back to browser TTS');
-        return this.speakBrowser(text);
-      }
-      return this.speakCloud(text);
+
+    // ── Pause microphone while TTS is speaking (prevent audio feedback loop) ──
+    // Stop any active recording so Mossy's own voice is not transcribed and fed
+    // back to the AI, causing an infinite "keep talking" loop.
+    this.isSpeaking = true;
+    if (this.isRecording && this.mediaRecorder) {
+      console.log('[VoiceService] Pausing microphone for TTS playback');
+      this.audioChunks = []; // Discard any audio captured before speak was called
+      try { this.mediaRecorder.stop(); } catch (e) { console.warn('[VoiceService] Could not stop MediaRecorder for TTS:', e); }
     }
+
+    try {
+      if (this.config.ttsProvider === 'browser') {
+        console.log('[VoiceService] Using browser TTS provider');
+        return await this.speakBrowser(text);
+      } else if (this.config.ttsProvider === 'elevenlabs') {
+        console.log('[VoiceService] Using ElevenLabs TTS provider');
+        return await this.speakElevenLabs(text);
+      } else if (this.config.ttsProvider === 'cloud') {
+        console.log('[VoiceService] Using cloud TTS provider (main process)');
+        if (!('electron' in window) || !window.electron?.api?.ttsSpeak || !window.electron?.api?.onTtsSpeak) {
+          console.warn('[VoiceService] Cloud TTS not available, falling back to browser TTS');
+          return await this.speakBrowser(text);
+        }
+        return await this.speakCloud(text);
+      }
+    } finally {
+      // ── Resume microphone after TTS ──────────────────────────────────────────
+      this.isSpeaking = false;
+      this.audioChunks = []; // Discard any audio chunks that may have accumulated
+      // Restart recording if we were in a listening session, giving a short delay
+      // so any acoustic echo from the speaker has time to decay.
+      if (this.isListening && !this.shouldStop && !this.isUsingBrowserStt) {
+        console.log('[VoiceService] TTS complete — resuming microphone');
+        setTimeout(() => {
+          if (this.isListening && !this.shouldStop && !this.isUsingBrowserStt && !this.isRecording) {
+            this.startRecording();
+          }
+        }, 400);
+      }
+    }
+  }
+
+  /**
+   * Stop any currently-playing TTS immediately without ending the listening
+   * session. Useful for a "Stop speaking" button so the user can interrupt
+   * Mossy mid-response.
+   */
+  stopSpeaking(): void {
+    console.log('[VoiceService] stopSpeaking() called');
+    if (window.speechSynthesis) {
+      window.speechSynthesis.cancel();
+    }
+    if (this.currentAudioElement) {
+      this.currentAudioElement.pause();
+      this.currentAudioElement.src = '';
+      this.currentAudioElement = null;
+    }
+    // Clear isSpeaking immediately so that the microphone restart logic in the
+    // speak() finally block (and auto-restart in onstop) works correctly when
+    // the canceled utterance resolves.
+    this.isSpeaking = false;
+    this.onModeChange?.('listening');
   }
 
   private async speakBrowser(text: string): Promise<void> {
@@ -644,6 +708,9 @@ export class VoiceService {
       throw new Error('Cloud TTS not available - electron API not found');
     }
 
+    // Extract the API reference so TypeScript knows it is defined for the rest of the method.
+    const cloudApi = (window as any).electron.api;
+
     try {
       this.onModeChange?.('speaking');
       
@@ -653,7 +720,7 @@ export class VoiceService {
           reject(new Error('TTS timeout'));
         }, 10000); // 10 second timeout
 
-        const unsubscribe = window.electron.api.onTtsSpeak((url: string | null) => {
+        const unsubscribe = cloudApi.onTtsSpeak((url: string | null) => {
           clearTimeout(timeout);
           unsubscribe();
           if (url === null) {
@@ -664,7 +731,7 @@ export class VoiceService {
         });
 
         // Send the TTS request
-        window.electron.api.ttsSpeak(text).catch((error: any) => {
+        cloudApi.ttsSpeak(text).catch((error: any) => {
           clearTimeout(timeout);
           unsubscribe();
           reject(error);
