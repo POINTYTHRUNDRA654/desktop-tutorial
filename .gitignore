@@ -109,3 +109,8 @@ archive/
 public/mossy-blender-addons.zip
 
 tmp-release/win-unpacked/resources/app.asar
+
+# Runtime generated data files
+behavior-history.json
+longitudinal-data.json
+user-profile.json

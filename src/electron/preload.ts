@@ -1569,8 +1569,8 @@ const electronAPI = {
    * AI Chat: Groq-powered chat completion (lower latency, real-time)
    * Main process manages API key; renderer never sees it
    */
-  aiChatGroq: (prompt: string, systemPrompt?: string, model?: string): Promise<{ success: boolean; content?: string; error?: string }> => {
-    return ipcRenderer.invoke('ai-chat-groq', { prompt, systemPrompt, model });
+  aiChatGroq: (prompt: string, systemPrompt?: string, model?: string, conversationHistory?: Array<{role: string; content: string}>): Promise<{ success: boolean; content?: string; error?: string }> => {
+    return ipcRenderer.invoke('ai-chat-groq', { prompt, systemPrompt, model, conversationHistory });
   },
 
   /**
