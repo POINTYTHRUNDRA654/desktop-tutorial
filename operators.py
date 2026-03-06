@@ -5,7 +5,7 @@ Operators for the Fallout 4 Tutorial Add-on
 import bpy
 from bpy.types import Operator
 from bpy.props import StringProperty, EnumProperty, IntProperty, FloatProperty, BoolProperty
-from . import tutorial_system, mesh_helpers, texture_helpers, animation_helpers, export_helpers, notification_system, image_to_mesh_helpers, hunyuan3d_helpers, gradio_helpers, hymotion_helpers, nvtt_helpers, realesrgan_helpers, get3d_helpers, stylegan2_helpers, instantngp_helpers, imageto3d_helpers, advanced_mesh_helpers, rignet_helpers, motion_generation_helpers, quest_helpers, npc_helpers, world_building_helpers, item_helpers, preset_library, automation_system, desktop_tutorial_client, shap_e_helpers, point_e_helpers, advisor_helpers, ue_importer_helpers, umodel_tools_helpers, unity_fbx_importer_helpers, asset_studio_helpers, asset_ripper_helpers
+from . import preferences, tutorial_system, mesh_helpers, texture_helpers, animation_helpers, export_helpers, notification_system, image_to_mesh_helpers, hunyuan3d_helpers, gradio_helpers, hymotion_helpers, nvtt_helpers, realesrgan_helpers, get3d_helpers, stylegan2_helpers, instantngp_helpers, imageto3d_helpers, advanced_mesh_helpers, rignet_helpers, motion_generation_helpers, quest_helpers, npc_helpers, world_building_helpers, item_helpers, preset_library, automation_system, desktop_tutorial_client, shap_e_helpers, point_e_helpers, advisor_helpers, ue_importer_helpers, umodel_tools_helpers, unity_fbx_importer_helpers, asset_studio_helpers, asset_ripper_helpers
 from . import knowledge_helpers
 
 # Tutorial Operators
