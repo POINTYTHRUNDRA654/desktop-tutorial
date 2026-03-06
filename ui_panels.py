@@ -110,13 +110,6 @@ class FO4_PT_MeshPanel(Panel):
             adv_box.operator("fo4.generate_lod", text="Generate LOD Chain", icon='OUTLINER_OB_MESH')
             adv_box.operator("fo4.optimize_uvs", text="Optimize UVs", icon='UV')
 
-        # Collision mesh
-        col_box = layout.box()
-        col_box.label(text="Collision Mesh", icon='MESH_ICOSPHERE')
-        col_row = col_box.row()
-        col_row.enabled = context.active_object is not None and context.active_object.type == 'MESH'
-        col_row.operator("fo4.generate_collision_mesh", text="Generate Collision Mesh", icon='MESH_DATA')
-
 class FO4_PT_TexturePanel(Panel):
     """Texture installation helpers panel"""
     bl_label = "Texture Helpers"
@@ -1084,7 +1077,7 @@ class FO4_PT_VegetationPanel(Panel):
         box.label(text="Baking", icon='RENDER_STILL')
         row = box.row()
         row.enabled = obj and obj.type == 'MESH'
-        row.operator("fo4.bake_vegetation_ao", text="Setup AO Bake", icon='SHADING_RENDERED')
+        row.operator("fo4.bake_vegetation_ao", text="Bake Ambient Occlusion", icon='SHADING_RENDERED')
         
         # Tips
         tips_box = layout.box()
