@@ -14,6 +14,7 @@ Installation:
 
 import bpy
 import os
+import platform
 import sys
 import subprocess
 from pathlib import Path
@@ -31,19 +32,75 @@ except Exception:
     HYMOTION_ERROR = "PyTorch not available (import failed or DLL initialization error)"
 
 
+def _find_git_lfs_env():
+    """
+    Return an environment dict suitable for running git-lfs commands.
+
+    On Windows, git-lfs may be installed to a non-standard drive (e.g. D:).
+    If ``git lfs version`` fails via the current PATH, this function tries a
+    set of common D-drive locations and, when one is found *and verified to
+    work*, returns a copy of ``os.environ`` with that directory prepended to
+    PATH.  If nothing extra is needed (or we are not on Windows), the current
+    environment is returned unchanged.
+
+    Returns:
+        dict: Environment mapping to pass to subprocess.
+    """
+    env = os.environ.copy()
+
+    if platform.system() != "Windows":
+        return env
+
+    # Common D-drive locations when Git for Windows is installed there
+    candidate_dirs = [
+        r"D:\Program Files\Git\cmd",
+        r"D:\Program Files\Git LFS",
+        r"D:\Programs\Git\cmd",
+        r"D:\Programs\Git LFS",
+    ]
+
+    for candidate in candidate_dirs:
+        exe = os.path.join(candidate, "git-lfs.exe")
+        if not os.path.isfile(exe):
+            continue
+        # Verify the executable actually works before using it
+        test_env = os.environ.copy()
+        test_env["PATH"] = candidate + os.pathsep + test_env.get("PATH", "")
+        try:
+            result = subprocess.run(
+                ["git", "lfs", "version"],
+                capture_output=True,
+                text=True,
+                timeout=5,
+                env=test_env,
+            )
+            if result.returncode == 0:
+                return test_env
+        except Exception:
+            pass  # this candidate is broken; try the next one
+
+    return env
+
+
 def check_git_lfs():
     """
     Check if git-lfs is installed and available.
-    
+
+    On Windows the function also searches common D-drive installation paths
+    (e.g. 'D:\\Program Files\\Git\\cmd') so that a non-default drive
+    installation is detected correctly.
+
     Returns:
         tuple: (available: bool, message: str)
     """
+    env = _find_git_lfs_env()
     try:
         result = subprocess.run(
             ['git', 'lfs', 'version'],
             capture_output=True,
             text=True,
-            timeout=5
+            timeout=5,
+            env=env,
         )
         if result.returncode == 0:
             version = result.stdout.strip()

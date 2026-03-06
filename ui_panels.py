@@ -4,7 +4,7 @@ UI Panels for the Fallout 4 Tutorial Add-on
 
 import bpy
 from bpy.types import Panel
-from . import hunyuan3d_helpers, gradio_helpers, hymotion_helpers, nvtt_helpers, rignet_helpers, preferences, ue_importer_helpers, umodel_tools_helpers, unity_fbx_importer_helpers, asset_studio_helpers, asset_ripper_helpers, knowledge_helpers, export_helpers
+from . import hunyuan3d_helpers, gradio_helpers, hymotion_helpers, nvtt_helpers, rignet_helpers, preferences, ue_importer_helpers, umodel_tools_helpers, unity_fbx_importer_helpers, asset_studio_helpers, asset_ripper_helpers, knowledge_helpers, export_helpers, realesrgan_helpers, instantngp_helpers, imageto3d_helpers, motion_generation_helpers
 
 class FO4_PT_MainPanel(Panel):
     """Main tutorial panel in the 3D View sidebar"""
@@ -136,6 +136,22 @@ class FO4_PT_TexturePanel(Panel):
         box.operator("fo4.install_texture", text="Install Texture", icon='FILE_IMAGE')
         box.operator("fo4.validate_textures", text="Validate Textures", icon='CHECKMARK')
 
+        # AI Upscaling (Real-ESRGAN)
+        esrgan_available = realesrgan_helpers.RealESRGANHelpers.is_realesrgan_available()
+        ai_box = layout.box()
+        ai_box.label(text="AI Upscaling (Real-ESRGAN)", icon='RENDER_RESULT')
+        if esrgan_available:
+            ai_box.label(text="Status: Available ✓", icon='CHECKMARK')
+        else:
+            ai_box.label(text="Status: Not Installed ✗", icon='ERROR')
+        ai_box.operator("fo4.check_realesrgan_installation", text="Check Installation", icon='SYSTEM')
+        row = ai_box.row()
+        row.enabled = esrgan_available
+        row.operator("fo4.upscale_texture", text="Upscale Texture", icon='FULLSCREEN_ENTER')
+        row = ai_box.row()
+        row.enabled = esrgan_available
+        row.operator("fo4.upscale_object_textures", text="Upscale Object Textures", icon='OBJECT_DATA')
+
 class FO4_PT_ImageToMeshPanel(Panel):
     """Image to Mesh helpers panel"""
     bl_label = "Image to Mesh"
@@ -174,12 +190,81 @@ class FO4_PT_ImageToMeshPanel(Panel):
         row.operator("fo4.estimate_depth", text="Estimate Depth & Create Mesh", icon='MESH_GRID')
         
         depth_box.operator("fo4.show_zoedepth_info", text="Installation Info", icon='INFO')
-        
+
+        # TripoSR section
+        layout.separator()
+        triposr_available = imageto3d_helpers.ImageTo3DHelpers.is_triposr_available()
+        triposr_box = layout.box()
+        triposr_box.label(text="TripoSR (Image to 3D)", icon='MESH_ICOSPHERE')
+        if triposr_available:
+            triposr_box.label(text="Status: Available ✓", icon='CHECKMARK')
+        else:
+            triposr_box.label(text="Status: Not Installed ✗", icon='ERROR')
+
+        # Generation buttons (enabled when available)
+        row = triposr_box.row()
+        row.enabled = triposr_available
+        row.operator("fo4.generate_triposr_light", text="Quick Generate (Light)", icon='MESH_CUBE')
+        row = triposr_box.row()
+        row.enabled = triposr_available
+        row.operator("fo4.generate_triposr_texture", text="Generate with Textures", icon='TEXTURE')
+        row = triposr_box.row()
+        row.enabled = triposr_available
+        row.operator("fo4.bake_triposr_textures", text="Bake TripoSR Textures", icon='RENDER_STILL')
+        row = triposr_box.row()
+        row.enabled = triposr_available
+        row.operator("fo4.use_pythonic_triposr", text="Use Pythonic TripoSR", icon='SCRIPT')
+        row = triposr_box.row()
+        row.enabled = triposr_available
+        row.operator("fo4.generate_from_stereo", text="Generate from Stereo Images", icon='IMAGE_STEREO_3D')
+
+        # TripoSR variant checks
+        checks_box = triposr_box.box()
+        checks_box.label(text="Check Variants:", icon='SYSTEM')
+        row = checks_box.row(align=True)
+        row.operator("fo4.check_triposr_light", text="Light", icon='CHECKMARK')
+        row.operator("fo4.check_triposr_bake", text="Bake", icon='CHECKMARK')
+        row = checks_box.row(align=True)
+        row.operator("fo4.check_triposr_texture_gen", text="Texture Gen", icon='CHECKMARK')
+        row.operator("fo4.check_pythonic_triposr", text="Pythonic", icon='CHECKMARK')
+        row = checks_box.row(align=True)
+        row.operator("fo4.check_starxsky_triposr", text="StarxSky", icon='CHECKMARK')
+        row.operator("fo4.check_stereo_triposr", text="Stereo", icon='CHECKMARK')
+
+        # TripoSR info/workflow buttons
+        triposr_box.operator("fo4.show_triposr_workflow", text="Workflow Guide", icon='INFO')
+        triposr_box.operator("fo4.show_triposr_baking_workflow", text="Baking Workflow", icon='INFO')
+        triposr_box.operator("fo4.show_triposr_comparison", text="Compare Variants", icon='LINENUMBERS_ON')
+        triposr_box.operator("fo4.show_all_triposr_variants", text="All 14 Variants", icon='LINENUMBERS_ON')
+
+        # Instant-NGP section
+        layout.separator()
+        ngp_available = instantngp_helpers.InstantNGPHelpers.is_instantngp_available()
+        ngp_box = layout.box()
+        ngp_box.label(text="Instant-NGP / NeRF", icon='CAMERA_DATA')
+        if ngp_available:
+            ngp_box.label(text="Status: Available ✓", icon='CHECKMARK')
+        else:
+            ngp_box.label(text="Status: Not Installed ✗", icon='ERROR')
+        ngp_box.operator("fo4.check_instantngp_installation", text="Check Installation", icon='SYSTEM')
+        row = ngp_box.row()
+        row.enabled = ngp_available
+        row.operator("fo4.reconstruct_from_images", text="Reconstruct from Images", icon='MESH_GRID')
+        row = ngp_box.row()
+        row.enabled = ngp_available
+        row.operator("fo4.import_instantngp_mesh", text="Import Instant-NGP Mesh", icon='IMPORT')
+        row = ngp_box.row()
+        row.enabled = ngp_available
+        row.operator("fo4.optimize_nerf_mesh", text="Optimize NeRF Mesh for FO4", icon='MOD_DECIM')
+        ngp_box.operator("fo4.show_instantngp_info", text="About Instant-NGP", icon='INFO')
+
         # Info box
         info_box = layout.box()
         info_box.label(text="Quick Guide:", icon='INFO')
         info_box.label(text="• Height Map: Grayscale images")
         info_box.label(text="• ZoeDepth: RGB images (AI depth)")
+        info_box.label(text="• TripoSR: Image → full 3D mesh")
+        info_box.label(text="• Instant-NGP: Photos → NeRF mesh")
         info_box.label(text="• Formats: PNG, JPG, BMP, TIFF, TGA")
         info_box.label(text="• Requires: PIL/Pillow & NumPy")
         info_box.label(text="• See README for install instructions")
@@ -330,6 +415,22 @@ class FO4_PT_AIGenerationPanel(Panel):
         
         point_e_box.operator("fo4.check_point_e_installation", text="Check Installation", icon='SYSTEM')
 
+        # Diffusers section
+        layout.separator()
+        diff_box = layout.box()
+        diff_box.label(text="Diffusers / LayerDiffuse", icon='TEXTURE_DATA')
+        diff_box.operator("fo4.check_diffusers", text="Check Diffusers", icon='SYSTEM')
+        diff_box.operator("fo4.check_layerdiffuse", text="Check LayerDiffuse", icon='SYSTEM')
+        diff_box.operator("fo4.show_diffusers_workflow", text="Diffusers Workflow Guide", icon='INFO')
+
+        # Ecosystem info
+        layout.separator()
+        eco_box = layout.box()
+        eco_box.label(text="Resources & Recommendations", icon='BOOKMARKS')
+        eco_box.operator("fo4.show_complete_ecosystem", text="Complete Ecosystem (17 tools)", icon='WORLD')
+        eco_box.operator("fo4.show_ml_resources", text="ML Resources Guide", icon='DOCUMENTS')
+        eco_box.operator("fo4.show_strategic_recommendations", text="Strategic Recommendations", icon='LIGHT')
+
 
 class FO4_PT_AnimationPanel(Panel):
     """Animation helpers panel"""
@@ -358,6 +459,14 @@ class FO4_PT_AnimationPanel(Panel):
         row.operator("fo4.batch_apply_wind_animation", text="Batch Wind Anim")
         box.operator("fo4.batch_auto_weight_paint", text="Batch Auto‑Weight")
         box.operator("fo4.toggle_wind_preview", text="Toggle Wind Preview", icon='PLAY')
+
+        # Motion Generation section
+        layout.separator()
+        motion_box = layout.box()
+        motion_box.label(text="Motion Generation", icon='ANIM_DATA')
+        motion_box.operator("fo4.check_all_motion_systems", text="Check All Motion Systems", icon='SYSTEM')
+        motion_box.operator("fo4.generate_motion_auto", text="Generate Motion (Auto)", icon='PLAY')
+        motion_box.operator("fo4.show_motion_generation_info", text="Installation Info", icon='INFO')
 
 class FO4_PT_RigNetPanel(Panel):
     """RigNet auto-rigging panel"""
@@ -674,9 +783,12 @@ class FO4_PT_ToolsLinks(Panel):
         box.operator("fo4.install_whisper", text="Install Whisper CLI", icon='FILE_REFRESH')
         box.operator("fo4.install_niftools", text="Install Niftools Add-on", icon='FILE_REFRESH')
         # Python requirements
-        box.operator("fo4.install_python_deps", text="Install Python Requirements", icon='FILE_REFRESH').optional = False
+        op = box.operator("fo4.install_python_deps", text="Install Python Requirements", icon='FILE_REFRESH')
+        if op is not None:
+            op.optional = False
         op = box.operator("fo4.install_python_deps", text="Install Python Req (optional)", icon='FILE_REFRESH')
-        op.optional = True
+        if op is not None:
+            op.optional = True
         box.operator("fo4.install_all_tools", text="Install All Tools", icon='PACKAGE')
         box.operator("fo4.self_test", text="Run Environment Self-Test", icon='CHECKMARK')
 
@@ -858,7 +970,9 @@ class FO4_PT_AutomationQuickPanel(Panel):
         row.operator("fo4.set_collision_type", text="Change Type", icon='PRESET')
         row = box.row()
         row.enabled = obj and obj.type == 'MESH'
-        row.operator("fo4.set_collision_type", text="Change Type (Selected)", icon='PRESET').apply_to_all = True
+        op = row.operator("fo4.set_collision_type", text="Change Type (Selected)", icon='PRESET')
+        if op is not None:
+            op.apply_to_all = True
         row = box.row()
         row.enabled = obj and obj.type == 'MESH' and obj.get('fo4_collision_type','DEFAULT') not in ('NONE','GRASS','MUSHROOM')
         row.operator("fo4.generate_collision_mesh", text="Generate Collision", icon='MESH_DATA')
@@ -1369,6 +1483,9 @@ class FO4_PT_DesktopTutorialPanel(Panel):
             
             # Connect button
             status_box.operator("fo4.connect_desktop_app", text="Connect", icon='LINKED')
+
+        # Check connection (always visible)
+        status_box.operator("fo4.check_desktop_connection", text="Check Connection", icon='QUESTION')
         
         # Tutorial sync controls (only when connected)
         if scene.fo4_desktop_connected:
@@ -1391,6 +1508,7 @@ class FO4_PT_DesktopTutorialPanel(Panel):
             
             # Progress button
             sync_box.operator("fo4.get_desktop_progress", text="Get Progress", icon='INFO')
+            sync_box.operator("fo4.send_event_to_desktop", text="Send Event", icon='EXPORT')
         
         # Info
         info_box = layout.box()
@@ -1467,6 +1585,7 @@ class FO4_PT_SetupPanel(Panel):
         row = layout.row(align=True)
         row.operator("fo4.self_test", text="Environment Check", icon='CHECKMARK')
         row.operator("fo4.install_python_deps", text="Re-install Deps", icon='FILE_REFRESH')
+        layout.operator("fo4.reload_addon", text="Reload Add-on", icon='FILE_REFRESH')
 
 
 

@@ -10,6 +10,79 @@ pushing.
 
 ---
 
+## ⚡ GitHub Desktop shows "Push" and won't let you Pull — fix this first
+
+This is the most common blocker.  GitHub Desktop shows a **"Push X commits"**
+button (instead of Pull) when your local branch has commits that GitHub hasn't
+seen yet.  This usually happens because `sync_state.py` or another local script
+created a commit on your desktop that you haven't pushed yet.
+
+### Quickest fix — 4 clicks in GitHub Desktop
+
+1. Open **GitHub Desktop**.
+2. In the top menu bar choose **Repository → Open in Command Prompt** (or
+   PowerShell / Terminal).
+3. Run **one** of these commands to discard the local-only commits and reset
+   your branch to exactly what GitHub has:
+
+   **If you are on `main`:**
+   ```powershell
+   git fetch origin
+   git reset --hard origin/main
+   ```
+
+   **If you are on the `copilot/install-git-lfs` branch** (where the zip lives):
+   ```powershell
+   git fetch origin
+   git reset --hard origin/copilot/install-git-lfs
+   ```
+
+4. Go back to **GitHub Desktop** — it now shows **"Pull origin"**. Click it.
+   The latest `fallout4_tutorial_helper-v2.1.2.zip` will be downloaded.
+
+> **Why `git reset --hard`?**  `sync_state.py` generates a new `SYNC_STATE.md`
+> every time you run it and the guide tells you to commit it locally.  But the
+> CI also regenerates it after every push to `main`, so the two versions
+> diverge.  `reset --hard` discards only the local commits you haven't pushed,
+> keeping all your actual source-code files.
+
+### Get the zip right now — no git needed
+
+If you just want the zip immediately without fixing git:
+
+1. Go to: **https://github.com/POINTYTHRUNDRA654/Blender-add-on./tree/copilot/install-git-lfs**
+2. Click `fallout4_tutorial_helper-v2.1.2.zip`
+3. Click **Download raw file** (the download icon on the right).
+4. Install directly in Blender.
+
+---
+
+## GitHub Desktop says "files too big" — fix this first
+
+This happens when **Git LFS is installed on a non-default drive** (e.g. `D:`)
+so GitHub Desktop cannot find the `git-lfs.exe` executable.
+
+### One-time fix (run once, then restart GitHub Desktop)
+
+1. Open **Command Prompt** or **PowerShell** in the repository folder.
+2. Run the setup script — it will find git-lfs on `D:`, permanently add it to
+   your user PATH, and initialise the LFS hooks:
+   ```bat
+   setup.bat
+   ```
+3. **Close and reopen GitHub Desktop** (it reads PATH at startup).
+4. Click **Pull origin** in GitHub Desktop — it will now download LFS objects
+   correctly and the "files too big" warning will be gone.
+
+> **Why this is needed**: GitHub Desktop bundles its own Git but relies on the
+> Windows user PATH to find `git-lfs.exe`.  If Git LFS was installed to
+> `D:\Program Files\Git\cmd\` or `D:\Programs\Git LFS\` instead of the default
+> `C:\Program Files\Git\cmd\`, GitHub Desktop cannot see it until that directory
+> is on PATH.  `setup.bat` calls `setx PATH` to add it permanently (no admin
+> rights required).
+
+---
+
 ## Why the "file too large" error happened
 
 The add-on zip (`fallout4_tutorial_helper-v2.1.2.zip`) previously bundled the
@@ -19,7 +92,8 @@ potentially large `ffmpeg/` and `whisper/` directories.  That grew the zip to
 per-file limit when you tried to push.
 
 **This has been fixed**: `makezip.py` now only packages Python source files and
-documentation.  The new zip is **~505 KB**.
+documentation.  The new zip is **~505 KB**.  The zip is now also tracked by
+**Git LFS** (see `.gitattributes`) so even a larger zip will never block a push.
 
 ---
 

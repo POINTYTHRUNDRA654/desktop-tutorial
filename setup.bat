@@ -8,6 +8,78 @@ echo Fallout 4 Blender Add-on - Setup Script
 echo ================================================
 echo.
 
+REM ------------------------------------------------
+REM Check and initialise Git LFS
+REM ------------------------------------------------
+echo Checking for Git LFS...
+
+REM Try git lfs via PATH first
+git lfs version >nul 2>&1
+if %errorlevel% equ 0 (
+    echo [OK] Git LFS found on PATH
+    goto :run_lfs_install
+)
+
+REM Not on PATH -- search common D:\Program Files locations (Git for Windows on D:)
+set "GIT_LFS_DIR="
+for %%P in (
+    "D:\Program Files\Git\cmd\git-lfs.exe"
+    "D:\Program Files\Git LFS\git-lfs.exe"
+    "D:\Programs\Git\cmd\git-lfs.exe"
+    "D:\Programs\Git LFS\git-lfs.exe"
+) do (
+    if exist %%P (
+        set "GIT_LFS_DIR=%%~dpP"
+        goto :lfs_found_on_d
+    )
+)
+
+REM git-lfs not found anywhere
+echo [WARNING] Git LFS not found.
+echo.
+echo Please install Git LFS from: https://git-lfs.github.com/
+echo After installation, re-run this script or run: git lfs install
+echo.
+goto :after_lfs
+
+:lfs_found_on_d
+echo [OK] Git LFS found at %GIT_LFS_DIR%
+
+REM Add the D-drive directory to this session's PATH
+set "PATH=%GIT_LFS_DIR%;%PATH%"
+
+REM Also write it into the user's permanent PATH so GitHub Desktop finds it.
+REM (setx writes to HKCU; no admin rights required.  GitHub Desktop must be
+REM  restarted after this for the new PATH to take effect.)
+set "CURRENT_USER_PATH="
+for /f "tokens=2*" %%A in (
+    'reg query "HKCU\Environment" /v PATH 2^>nul'
+) do set "CURRENT_USER_PATH=%%B"
+REM If the registry key didn't exist, fall back to the current process PATH
+if not defined CURRENT_USER_PATH set "CURRENT_USER_PATH=%PATH%"
+
+REM Only append if the directory is not already in the user PATH
+echo %CURRENT_USER_PATH% | find /i "%GIT_LFS_DIR%" >nul 2>&1
+if %errorlevel% neq 0 (
+    setx PATH "%GIT_LFS_DIR%;%CURRENT_USER_PATH%" >nul
+    echo [OK] Git LFS directory added to your permanent user PATH.
+    echo      Please RESTART GitHub Desktop so it picks up the new PATH.
+) else (
+    echo [OK] Git LFS directory already in permanent user PATH.
+)
+
+:run_lfs_install
+echo Initialising Git LFS hooks...
+git lfs install
+if %errorlevel% equ 0 (
+    echo [OK] Git LFS initialised
+) else (
+    echo [WARNING] git lfs install returned an error - check your Git LFS installation
+)
+
+:after_lfs
+echo.
+
 REM Check if Python is installed
 python --version >nul 2>&1
 if %errorlevel% neq 0 (
