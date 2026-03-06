@@ -48,10 +48,26 @@ import { DataSource, MiningResult } from '../shared/types';
 app.setName('mossy-desktop');
 app.setPath('userData', path.join(app.getPath('appData'), 'mossy-desktop'));
 
-// Load environment variables - use encrypted version for packaged builds
+// Load environment variables - use encrypted version for packaged builds.
+// process.cwd() is unreliable in packaged Electron apps (can be the system dir on Windows).
+// We search multiple candidate paths so the file is always found regardless of how the app
+// was launched. Electron patches `fs` to read from inside asar archives, so app.getAppPath()
+// is the correct primary location for files bundled in the "files" array.
+const findEnvFile = (candidates: string[]): string =>
+  candidates.find(p => fs.existsSync(p)) ?? candidates[0];
+
 const envPath = app.isPackaged
-  ? path.join(process.cwd(), '.env.encrypted')
-  : path.join(process.cwd(), '.env.local');
+  ? findEnvFile([
+      path.join(app.getAppPath(), '.env.encrypted'),           // inside asar (primary)
+      path.join(process.resourcesPath, '.env.encrypted'),       // resources folder
+      path.join(path.dirname(process.execPath), '.env.encrypted'), // next to executable
+      path.join(process.cwd(), '.env.encrypted'),               // last resort
+    ])
+  : findEnvFile([
+      path.join(process.cwd(), '.env.local'),
+      path.join(app.getAppPath(), '.env.local'),
+    ]);
+
 console.log('[Main] Loading .env from:', envPath);
 console.log('[Main] File exists:', fs.existsSync(envPath));
 console.log('[Main] Current working directory:', process.cwd());
@@ -1334,7 +1350,7 @@ function setupIpcHandlers() {
       process.env.MOSSY_BACKEND_URL || (app.isPackaged ? 'https://mossy.onrender.com' : '')
     ).trim();
 
-    return {
+    const defaults: Record<string, unknown> = {
       // UI + Voice language
       uiLanguage: 'auto',
       sttLanguage: 'en-US',
@@ -1420,6 +1436,24 @@ function setupIpcHandlers() {
       groqApiKey: '',
       groqApiKeyEnc: '',
     };
+
+    // Seed API keys from .env.encrypted into settings.json on first launch so that
+    // the app works out of the box without any user configuration.
+    const seeded =
+      seedSecretFromEnv(defaults, 'backendToken', 'MOSSY_BACKEND_TOKEN') ||
+      seedSecretFromEnv(defaults, 'openaiApiKey', 'OPENAI_API_KEY') ||
+      seedSecretFromEnv(defaults, 'groqApiKey', 'GROQ_API_KEY') ||
+      seedSecretFromEnv(defaults, 'elevenLabsApiKey', 'ELEVENLABS_API_KEY');
+    if (seeded) {
+      try {
+        fs.writeFileSync(settingsPath, JSON.stringify(defaults, null, 2), 'utf-8');
+        console.log('[Settings] First-run: seeded API keys from environment into settings.json');
+      } catch (e) {
+        console.warn('[Settings] First-run: could not persist seeded settings:', e);
+      }
+    }
+
+    return defaults;
   };
 
   const redactSettingsForRenderer = (settings: any): any => {
@@ -1470,15 +1504,30 @@ function setupIpcHandlers() {
       console.log('[Settings] set-settings called');
     }
     const current = loadSettings();
-    const updated = { ...current, ...newSettings };
 
-    // Never persist plaintext secrets. If renderer provides them, encrypt into *Enc fields.
-    const next: any = { ...updated };
+    // Strip *Enc fields from renderer input before merging. The renderer must never
+    // be able to directly inject pre-computed encrypted values — all secret fields
+    // must go through encryptSecretForStorage() in this process.
+    const sanitizedInput: any = { ...(newSettings || {}) };
     const fields: SecretField[] = ['elevenLabsApiKey', 'openaiApiKey', 'groqApiKey', 'backendToken'];
     for (const field of fields) {
-      if (!hasOwn(newSettings || {}, field)) continue;
+      delete sanitizedInput[secretEncKey(field)];
+    }
+
+    const updated = { ...current, ...sanitizedInput };
+
+    // Never persist plaintext secrets. If renderer provides them, encrypt into *Enc fields.
+    // If the renderer sends an empty string (redacted value), preserve the existing encrypted key.
+    const next: any = { ...updated };
+    for (const field of fields) {
+      if (!hasOwn(sanitizedInput, field)) continue;
       const encKey = secretEncKey(field);
-      const plain = String((newSettings || {})[field] || '');
+      const plain = String(sanitizedInput[field] || '').trim();
+      if (!plain) {
+        // Renderer sent empty (key was redacted) — keep existing encrypted value, clear any stray plaintext.
+        next[field] = '';
+        continue;
+      }
       next[encKey] = encryptSecretForStorage(plain);
       next[field] = '';
     }
@@ -3831,47 +3880,56 @@ function setupIpcHandlers() {
   registerHandler('ai-chat-openai', async (_event, payload: { prompt: string; systemPrompt?: string; model?: string }) => {
     try {
       const systemPrompt = payload.systemPrompt || 'You are a helpful assistant for Fallout 4 modding.';
-      const model = payload.model || 'gpt-3.5-turbo';
+      const model = payload.model || 'gpt-4o-mini';
+      const messages = [
+        { role: 'system' as const, content: systemPrompt },
+        { role: 'user' as const, content: String(payload.prompt || '') },
+      ];
 
+      // Try backend proxy first (Render or self-hosted)
+      let content = '';
       const backend = getBackendConfig();
-      if (!backend) {
-        return { success: false, error: 'Backend service not configured. Please set MOSSY_BACKEND_URL and MOSSY_BACKEND_TOKEN environment variables.' };
-      }
+      if (backend) {
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 20000);
+        try {
+          const res = await fetch(backendJoin(backend, '/v1/chat'), {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              ...(backend.token ? { Authorization: `Bearer ${backend.token}` } : {}),
+            },
+            body: JSON.stringify({ provider: 'openai', model, messages }),
+            signal: controller.signal,
+          });
 
-      const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 20000);
-      try {
-        const res = await fetch(backendJoin(backend, '/v1/chat'), {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            ...(backend.token ? { Authorization: `Bearer ${backend.token}` } : {}),
-          },
-          body: JSON.stringify({
-            provider: 'openai',
-            model,
-            messages: [
-              { role: 'system', content: systemPrompt },
-              { role: 'user', content: String(payload.prompt || '') },
-            ],
-          }),
-          signal: controller.signal,
-        });
-
-        const json: any = await res.json().catch(() => ({}));
-        if (res.ok && json?.ok) {
-          return { success: true, content: String(json?.text || '') };
+          const json: any = await res.json().catch(() => ({}));
+          if (res.ok && json?.ok) {
+            content = String(json?.text || '');
+          } else {
+            console.warn('[AI Chat OpenAI] Backend proxy failed:', json?.message || json?.error || res.status);
+          }
+        } catch (e: any) {
+          console.warn('[AI Chat OpenAI] Backend proxy error, falling back to direct OpenAI:', e?.message || e);
+        } finally {
+          clearTimeout(timeout);
         }
-
-        const msg = String(json?.message || json?.error || `Backend chat failed (${res.status})`);
-        console.error('[AI Chat OpenAI] Backend proxy failed:', msg);
-        return { success: false, error: msg };
-      } catch (e: any) {
-        console.error('[AI Chat OpenAI] Backend proxy error:', e?.message || e);
-        return { success: false, error: e?.message || 'Backend service unavailable' };
-      } finally {
-        clearTimeout(timeout);
       }
+
+      // Fall back to direct OpenAI SDK when backend is unavailable or failed
+      if (!content) {
+        const s = loadSettings();
+        const apiKey = getSecretValue(s, 'openaiApiKey', 'OPENAI_API_KEY');
+        if (!apiKey) {
+          return { success: false, error: 'No OpenAI API key configured. Add your key in Desktop Settings.' };
+        }
+        const { default: OpenAI } = await import('openai');
+        const client = new OpenAI({ apiKey });
+        const response = await client.chat.completions.create({ model, messages });
+        content = response.choices[0]?.message?.content || '';
+      }
+
+      return { success: true, content };
     } catch (error: any) {
       console.error('[AI Chat OpenAI] Error:', error);
       return { success: false, error: error.message || 'AI chat failed' };
@@ -3879,52 +3937,99 @@ function setupIpcHandlers() {
   });
 
   /**
+   * Shared helper: call Groq with automatic model fallback on 429 rate-limit.
+   * Primary model (70b) gives the best answers; on rate-limit we retry once with
+   * the 8b-instant model which has ~28× higher free-tier quota.
+   */
+  const GROQ_PRIMARY_MODEL = 'llama-3.3-70b-versatile';
+  const GROQ_FALLBACK_MODEL = 'llama-3.1-8b-instant';
+
+  const callGroqWithFallback = async (
+    client: { chat: { completions: { create: (params: { model: string; messages: unknown }) => Promise<{ choices: Array<{ message: { content: string | null } }> }> } } },
+    preferredModel: string,
+    messages: Array<{ role: 'system' | 'user' | 'assistant'; content: string }>,
+  ): Promise<string> => {
+    const { RateLimitError } = await import('groq-sdk');
+    try {
+      const response = await client.chat.completions.create({ model: preferredModel, messages });
+      return response.choices[0]?.message?.content || '';
+    } catch (e) {
+      if (e instanceof RateLimitError && preferredModel !== GROQ_FALLBACK_MODEL) {
+        console.warn(`[Groq] Rate-limited on ${preferredModel}, retrying with ${GROQ_FALLBACK_MODEL}`);
+        const response = await client.chat.completions.create({ model: GROQ_FALLBACK_MODEL, messages });
+        return response.choices[0]?.message?.content || '';
+      }
+      throw e;
+    }
+  };
+
+  /**
    * AI Chat Handler - Groq (for voice and real-time)
    */
-  registerHandler('ai-chat-groq', async (_event, payload: { prompt: string; systemPrompt?: string; model?: string }) => {
+  registerHandler('ai-chat-groq', async (_event, payload: { prompt: string; systemPrompt?: string; model?: string; conversationHistory?: Array<{role: string; content: string}> }) => {
     try {
       const systemPrompt = payload.systemPrompt || 'You are a helpful assistant for Fallout 4 modding.';
       const model = payload.model || 'llama-3.3-70b-versatile';
 
+      // Build messages array with conversation history for multi-turn context
+      const rawHistory = Array.isArray(payload.conversationHistory) ? payload.conversationHistory : [];
+      const history = rawHistory
+        .filter((entry): entry is { role: 'user' | 'assistant'; content: string } =>
+          entry != null &&
+          (entry.role === 'user' || entry.role === 'assistant') &&
+          typeof entry.content === 'string' &&
+          entry.content.trim() !== ''
+        )
+        .slice(-20);  // matches the 20-message cap applied in the renderer before sending
+      const messages: Array<{ role: 'system' | 'user' | 'assistant'; content: string }> = [
+        { role: 'system', content: systemPrompt },
+        ...history,
+        { role: 'user', content: String(payload.prompt || '') },
+      ];
+
+      // Try backend proxy first (Render or self-hosted)
+      let content = '';
       const backend = getBackendConfig();
-      if (!backend) {
-        return { success: false, error: 'Backend service not configured. Please set MOSSY_BACKEND_URL and MOSSY_BACKEND_TOKEN environment variables.' };
-      }
+      if (backend) {
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 20000);
+        try {
+          const res = await fetch(backendJoin(backend, '/v1/chat'), {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              ...(backend.token ? { Authorization: `Bearer ${backend.token}` } : {}),
+            },
+            body: JSON.stringify({ provider: 'groq', model, messages }),
+            signal: controller.signal,
+          });
 
-      const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 20000);
-      try {
-        const res = await fetch(backendJoin(backend, '/v1/chat'), {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            ...(backend.token ? { Authorization: `Bearer ${backend.token}` } : {}),
-          },
-          body: JSON.stringify({
-            provider: 'groq',
-            model,
-            messages: [
-              { role: 'system', content: systemPrompt },
-              { role: 'user', content: String(payload.prompt || '') },
-            ],
-          }),
-          signal: controller.signal,
-        });
-
-        const json: any = await res.json().catch(() => ({}));
-        if (res.ok && json?.ok) {
-          return { success: true, content: String(json?.text || '') };
+          const json: any = await res.json().catch(() => ({}));
+          if (res.ok && json?.ok) {
+            content = String(json?.text || '');
+          } else {
+            console.warn('[AI Chat Groq] Backend proxy failed:', json?.message || json?.error || res.status);
+          }
+        } catch (e: any) {
+          console.warn('[AI Chat Groq] Backend proxy error, falling back to direct Groq:', e?.message || e);
+        } finally {
+          clearTimeout(timeout);
         }
-
-        const msg = String(json?.message || json?.error || `Backend chat failed (${res.status})`);
-        console.error('[AI Chat Groq] Backend proxy failed:', msg);
-        return { success: false, error: msg };
-      } catch (e: any) {
-        console.error('[AI Chat Groq] Backend proxy error:', e?.message || e);
-        return { success: false, error: e?.message || 'Backend service unavailable' };
-      } finally {
-        clearTimeout(timeout);
       }
+
+      // Fall back to direct Groq SDK when backend is unavailable or failed
+      if (!content) {
+        const s = loadSettings();
+        const apiKey = getSecretValue(s, 'groqApiKey', 'GROQ_API_KEY');
+        if (!apiKey) {
+          return { success: false, error: 'No Groq API key configured. Add your key in Desktop Settings.' };
+        }
+        const { default: Groq } = await import('groq-sdk');
+        const client = new Groq({ apiKey });
+        content = await callGroqWithFallback(client, model, messages);
+      }
+
+      return { success: true, content };
     } catch (error: any) {
       console.error('[AI Chat Groq] Error:', error);
       return { success: false, error: error.message || 'Groq chat failed' };
@@ -4110,13 +4215,7 @@ function setupIpcHandlers() {
         // Dynamic import for Groq ES module
         const { default: Groq } = await import('groq-sdk');
         const client = new Groq({ apiKey });
-
-        const response = await client.chat.completions.create({
-          model,
-          messages,
-        });
-
-        content = response.choices[0]?.message?.content || '';
+        content = await callGroqWithFallback(client, model, messages);
       }
 
       console.log('[Main] AI response generated, sending to renderer:', content.substring(0, 100) + (content.length > 100 ? '...' : ''));

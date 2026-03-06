@@ -1700,6 +1700,12 @@ export const ChatInterface: React.FC = () => {
                 { role: 'user', content: textToSend }
         ];
 
+        // Prior context to pass to the AI (all previous messages, capped to avoid context overflow)
+        const priorHistory = messages
+          .filter(m => m.content && m.content.trim() && m.content !== '..Processing..')
+          .slice(-20)
+          .map(m => ({ role: m.role, content: m.content }));
+
     setMessages(prev => [...prev, userMessage]);
     setInputText('');
     setIsLoading(true);
@@ -1734,7 +1740,7 @@ export const ChatInterface: React.FC = () => {
 
       // Use local engine only (Google Cloud removed)
       const startTime = Date.now();
-      const localResult = await LocalAIEngine.generateResponse(textToSend, dynamicInstruction);
+      const localResult = await LocalAIEngine.generateResponse(textToSend, dynamicInstruction, priorHistory);
       const duration = Date.now() - startTime;
       const aiResponseText = localResult.content || "Mossy is in Passive Mode; no cloud model configured.";
             const citations = Array.isArray(localResult.context?.citations) ? localResult.context.citations : [];
