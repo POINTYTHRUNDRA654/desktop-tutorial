@@ -157,6 +157,40 @@ Files changed:
 
 ---
 
+### 11. `check-comms` — live end-to-end communication health check  ✅
+**Problem:** `verify-build.mjs` only checks that keys exist and are encrypted in the file.
+It does NOT call the Groq API. The only way to know if Groq is actually responding was to
+open the app and talk to it — which is slow and manual.
+
+**Fix:** New script makes real live API calls and prints clear pass/fail per step.
+
+```
+npm run check-comms
+```
+
+Steps it tests:
+1. `.env.encrypted` present → Groq key decrypts correctly
+2. Primary model (`llama-3.3-70b-versatile`) → real Groq API call → responds
+3. Fallback model (`llama-3.1-8b-instant`) → real Groq API call → responds
+4. Render backend (`/v1/chat`) → real HTTP call → responds (warn-only if unreachable, not critical)
+
+Rate-limit on primary is shown as a warning (not failure) — the fallback is still tested.  
+Backend errors are shown as warnings — the desktop will fall back to direct SDK.  
+Exit code 0 = critical checks passed (ready to package). Exit code 1 = action needed.
+
+Files changed:
+- `scripts/check-comms.mjs` — new script
+- `package.json` — `"check-comms": "node scripts/check-comms.mjs"`
+
+**Run order for a new key:**
+```
+npm run setup-keys      # enter new key
+npm run check-comms     # verify it actually works
+npm run build && npm run package:win
+```
+
+---
+
 ### 7. Packaged build `.env.encrypted` path resolution  ✅
 **Problem:** `process.cwd()` is unreliable on Windows in packaged Electron apps.  
 **Fix:** Searches four candidate paths — `app.getAppPath()` (inside asar, primary),
@@ -230,6 +264,7 @@ npm run setup-keys   # enter your Groq key → encrypted → verified → ready 
 ## Packaging checklist (before running `npm run package:win`)
 
 - [ ] `.env.encrypted` has valid, current keys (run `npm run setup-keys` to update)
+- [ ] `npm run check-comms` → all critical checks pass (confirms Groq API is live)
 - [ ] Render backend has `GROQ_API_KEY` set in its environment variables dashboard
 - [ ] Render backend has `MOSSY_API_TOKEN` matching `MOSSY_BACKEND_TOKEN` in `.env.encrypted`
 - [ ] `npm run test:unit` → all 193 tests pass
