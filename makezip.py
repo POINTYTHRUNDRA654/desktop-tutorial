@@ -4,16 +4,19 @@ import zipfile
 
 root = pathlib.Path(__file__).resolve().parent
 
-# The add-on is packaged in Blender 4.2+ **Extensions** format.
-# In this format all files live at the ZIP root (no outer directory wrapper)
-# and ``blender_manifest.toml`` must be present at the root.  Blender reads
-# the ``id`` field from the manifest and uses it as the installed directory
-# name.  Because the id is stable across releases, Blender recognises a
-# matching extension that is already installed and offers an in-place
-# **Update** – the user no longer needs to uninstall the old version first.
+# The add-on is packaged in the legacy Blender add-on format so it installs
+# correctly on ALL supported Blender versions: 2.90 through 5.x.
+#
+# Format: all files are stored under ``fallout4_tutorial_helper/`` inside the
+# zip.  When the user installs via Edit → Preferences → Add-ons → Install from
+# Disk (or "Install Legacy Add-on" on Blender 4.2+), Blender extracts the
+# ``fallout4_tutorial_helper/`` directory and places it in the add-ons folder.
+# The ``bl_info`` dict in ``__init__.py`` is read for metadata on Blender
+# 2.90-4.1; ``blender_manifest.toml`` (also inside the folder) is used by
+# Blender 4.2+ for additional metadata.
 #
 # Reference:
-#   https://docs.blender.org/manual/en/latest/advanced/extensions/package_format.html
+#   https://docs.blender.org/manual/en/latest/advanced/scripting/addon_tutorial.html
 ADDON_PACKAGE = "fallout4_tutorial_helper"
 
 
@@ -28,24 +31,8 @@ def read_version() -> str:
 
 
 def should_skip(rel: pathlib.Path) -> bool:
-    """Return True for paths that must NOT be included in the add-on ZIP.
-
-    Excluded categories
-    -------------------
-    * Version-control internals: any ``.git`` directory, anywhere in the tree.
-    * CI / GitHub workflow files: ``.github/``.
-    * Python caches and IDE artefacts: ``__pycache__``, ``*.pyc``, ``.vscode``,
-      ``.idea``, etc.
-    * Virtual environments: ``.venv*``.
-    * Previously-built add-on ZIPs (stale archives of this same package).
-    * Large binary tool directories that are downloaded at runtime and must
-      **not** be bundled: ``ffmpeg/``, ``whisper/``, ``act/``,
-      ``tools/ffmpeg/``, ``tools/whisper/``, ``tools/nvtt/``,
-      ``tools/texconv/``, ``tools/umodel_tools/``,
-      ``tools/Blender-UE4-Importer/``, ``tools/UnityFBX-To-Blender-Importer/``,
-      ``tools/intellicode/``.
-    """
-    # Always skip .git directories — even when nested inside bundled tools
+    """Return True for paths that must NOT be included in the add-on ZIP."""
+    # Always skip .git directories
     if ".git" in rel.parts:
         return True
 
@@ -85,16 +72,11 @@ def should_skip(rel: pathlib.Path) -> bool:
 def main() -> None:
     version = read_version()
     zip_name = f"{ADDON_PACKAGE}-v{version}.zip"
-    # Place the zip in the repo root so it is easy to download from GitHub
     zip_path = root / zip_name
 
-    # Extensions format: write every file at its path relative to the repo
-    # root, with NO outer ``fallout4_tutorial_helper/`` directory prefix.
-    # Blender 4.2+ reads ``blender_manifest.toml`` from the zip root, extracts
-    # the ``id`` and installs everything into a directory of that name inside
-    # the extensions folder.  Because the id is stable, reinstalling a newer
-    # zip updates the existing installation rather than requiring uninstall
-    # first.
+    # Legacy format: store every file under the fallout4_tutorial_helper/
+    # directory prefix inside the zip so Blender can install it on all
+    # versions from 2.90 through 5.x.
     with zipfile.ZipFile(zip_path, "w", compression=zipfile.ZIP_DEFLATED, compresslevel=1) as zf:
         for path in root.rglob("*"):
             if not path.is_file():
@@ -102,9 +84,11 @@ def main() -> None:
             rel = path.relative_to(root)
             if should_skip(rel):
                 continue
-            zf.write(path, rel)  # arcname == rel: no outer directory prefix
+            arcname = pathlib.Path(ADDON_PACKAGE) / rel
+            zf.write(path, arcname)
 
     print("Created", zip_path)
+    print("  Install: Edit → Preferences → Add-ons → Install from Disk")
 
 
 if __name__ == "__main__":

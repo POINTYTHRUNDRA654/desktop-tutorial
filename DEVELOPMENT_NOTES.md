@@ -52,7 +52,49 @@ so future changes don't accidentally reintroduce bugs or regressions.
   survives new scenes; the helper UI still offers a manual toggle for
   debugging.
 
-## Notes for Future Work
+## Session 2 — Four Structurally Broken Operators Fixed (Mar 2026)
+
+Four operator classes had their bodies accidentally merged together.  This
+caused silent misbehaviour: wrong operators ran when buttons were clicked, and
+clicking some buttons crashed Blender.
+
+### `FO4_OT_BatchAutoWeightPaint` + `FO4_OT_ToggleWindPreview`
+- `FO4_OT_BatchAutoWeightPaint` existed but had no `bl_idname` or `execute()`.
+  Its code was placed inside `FO4_OT_ToggleWindPreview`, overriding that
+  class's `bl_idname` to `"fo4.batch_auto_weight_paint"` and its `execute()`
+  with batch weight-paint logic.  Clicking "Toggle Wind Preview" ran batch
+  weight paint instead.
+- `FO4_OT_ToggleWindPreview` was also missing from the `classes` tuple, so
+  the button crashed Blender when clicked.
+- **Fix:** Restored proper bodies in both classes.  Added
+  `FO4_OT_ToggleWindPreview` to the `classes` tuple.
+
+### `FO4_OT_InstallPythonDeps` + `FO4_OT_CheckToolPaths`
+- `FO4_OT_InstallPythonDeps` had `bl_idname` and `bl_label` but no `execute()`.
+  Its execute code (threading-based pip install) was placed inside
+  `FO4_OT_CheckToolPaths` as a second `execute()`, overriding that class's
+  tool-path reporting logic.
+- `FO4_OT_CheckToolPaths` was also missing from the `classes` tuple.
+- **Fix:** Moved execute back to `FO4_OT_InstallPythonDeps`.  Removed duplicate
+  execute from `FO4_OT_CheckToolPaths`.  Added `FO4_OT_CheckToolPaths` to the
+  `classes` tuple.
+
+Result: All 173 operators are properly defined and all 173 are registered.
+
+## Session 2 — AO Bake Placeholder Replaced (same session)
+
+- `FO4_OT_BakeVegetationAO` only set up a material node and told the user to
+  bake manually.  Replaced with a full implementation that calls
+  `bpy.ops.object.bake(type='AO')` via Cycles, saves the result, and restores
+  the render engine.  An `invoke()` dialog lets users choose resolution and
+  sample count before baking.
+- Removed a duplicate "Collision Mesh" box at the bottom of the Mesh Helpers
+  panel that duplicated controls already present in the unified/non-unified
+  section above it.
+
+See `ADDON_STATUS.md` for the complete 35-application status table and a
+checklist for future sessions.
+
 
 - When adding new external integrations, consult this document first to
   avoid reintroducing top-level imports.  New heavy helpers should follow

@@ -409,6 +409,23 @@ class FO4_OT_BatchApplyWindAnimation(Operator):
 
 class FO4_OT_BatchAutoWeightPaint(Operator):
     """Auto weight paint all selected meshes to the first armature found"""
+    bl_idname = "fo4.batch_auto_weight_paint"
+    bl_label = "Batch: Auto Weight Paint"
+
+    def execute(self, context):
+        meshes = [obj for obj in context.selected_objects if obj.type == 'MESH']
+        arm = next((o for o in context.selected_objects if o.type == 'ARMATURE'), None)
+        if not arm and meshes:
+            # try parent of first mesh
+            if meshes[0].parent and meshes[0].parent.type == 'ARMATURE':
+                arm = meshes[0].parent
+        if not meshes or not arm:
+            self.report({'ERROR'}, "Need at least one mesh and an armature")
+            return {'CANCELLED'}
+        for m in meshes:
+            animation_helpers.AnimationHelpers.auto_weight_paint(m, arm)
+        self.report({'INFO'}, f"Processed {len(meshes)} meshes")
+        return {'FINISHED'}
 
 
 class FO4_OT_ToggleWindPreview(Operator):
@@ -434,33 +451,6 @@ class FO4_OT_ToggleWindPreview(Operator):
             else:
                 self.report({'WARNING'}, msg)
         return {'FINISHED'}
-    bl_idname = "fo4.batch_auto_weight_paint"
-    bl_label = "Batch: Auto Weight Paint"
-
-    def execute(self, context):
-        meshes = [obj for obj in context.selected_objects if obj.type == 'MESH']
-        arm = next((o for o in context.selected_objects if o.type == 'ARMATURE'), None)
-        if not arm and meshes:
-            # try parent of first mesh
-            if meshes[0].parent and meshes[0].parent.type == 'ARMATURE':
-                arm = meshes[0].parent
-        if not meshes or not arm:
-            self.report({'ERROR'}, "Need at least one mesh and an armature")
-            return {'CANCELLED'}
-        for m in meshes:
-            animation_helpers.AnimationHelpers.auto_weight_paint(m, arm)
-        self.report({'INFO'}, f"Processed {len(meshes)} meshes")
-        return {'FINISHED'}
-
-        ok, msg = animation_helpers.AnimationHelpers.auto_weight_paint(mesh, arm)
-        if ok:
-            self.report({'INFO'}, msg)
-            notification_system.FO4_NotificationSystem.notify(msg, 'INFO')
-            return {'FINISHED'}
-        else:
-            self.report({'ERROR'}, msg)
-            notification_system.FO4_NotificationSystem.notify(msg, 'ERROR')
-            return {'CANCELLED'}
 
 
 class FO4_OT_ApplyWindAnimation(Operator):
@@ -2378,6 +2368,24 @@ class FO4_OT_InstallPythonDeps(Operator):
         default=False,
     )
 
+    def execute(self, context):
+        import threading
+        from . import tool_installers
+        optional = self.optional
+
+        def _run():
+            ok, msg = tool_installers.install_python_requirements(optional)
+            level = 'INFO' if ok else 'ERROR'
+            print("PYTHON DEPS", msg)
+
+            def _notify():
+                notification_system.FO4_NotificationSystem.notify(msg, level)
+            bpy.app.timers.register(_notify, first_interval=0.0)
+
+        threading.Thread(target=_run, daemon=True).start()
+        self.report({'INFO'}, "Python dependency installation started in the background. Check the console for progress.")
+        return {'FINISHED'}
+
 
 class FO4_OT_CheckToolPaths(Operator):
     """Report the status of configured tool paths and FO4 utilities."""
@@ -2416,24 +2424,6 @@ class FO4_OT_CheckToolPaths(Operator):
         for l in lines:
             self.report({'INFO'}, l)
             print(l)
-        return {'FINISHED'}
-
-    def execute(self, context):
-        import threading
-        from . import tool_installers
-        optional = self.optional
-
-        def _run():
-            ok, msg = tool_installers.install_python_requirements(optional)
-            level = 'INFO' if ok else 'ERROR'
-            print("PYTHON DEPS", msg)
-
-            def _notify():
-                notification_system.FO4_NotificationSystem.notify(msg, level)
-            bpy.app.timers.register(_notify, first_interval=0.0)
-
-        threading.Thread(target=_run, daemon=True).start()
-        self.report({'INFO'}, "Python dependency installation started in the background. Check the console for progress.")
         return {'FINISHED'}
 
 
@@ -5518,11 +5508,11 @@ class FO4_OT_CreateVegetationLODChain(Operator):
 
 
 class FO4_OT_BakeVegetationAO(Operator):
-    """Bake ambient occlusion for vegetation"""
+    """Bake ambient occlusion for the selected mesh using Cycles"""
     bl_idname = "fo4.bake_vegetation_ao"
     bl_label = "Bake Ambient Occlusion"
     bl_options = {'REGISTER', 'UNDO'}
-    
+
     samples: IntProperty(
         name="Samples",
         description="Number of AO samples",
@@ -5530,49 +5520,122 @@ class FO4_OT_BakeVegetationAO(Operator):
         min=1,
         max=256
     )
-    
+
+    resolution: EnumProperty(
+        name="Resolution",
+        description="Bake image resolution",
+        items=[
+            ('512', "512", "512x512"),
+            ('1024', "1K (1024)", "1024x1024"),
+            ('2048', "2K (2048)", "2048x2048"),
+            ('4096', "4K (4096)", "4096x4096"),
+        ],
+        default='1024'
+    )
+
+    save_image: BoolProperty(
+        name="Save Image",
+        description="Save the baked AO image to disk alongside the .blend file",
+        default=True
+    )
+
     def execute(self, context):
         obj = context.active_object
-        
+
         if not obj or obj.type != 'MESH':
             self.report({'ERROR'}, "No mesh object selected")
             return {'CANCELLED'}
-        
+
+        if not obj.data.uv_layers:
+            self.report({'ERROR'}, "Mesh has no UV map – unwrap the mesh first")
+            return {'CANCELLED'}
+
+        original_engine = context.scene.render.engine
         try:
-            # Create image for baking
-            if "AO_Bake" not in bpy.data.images:
-                bpy.data.images.new("AO_Bake", width=1024, height=1024)
-            
-            image = bpy.data.images["AO_Bake"]
-            
-            # Setup material for baking
+            res = int(self.resolution)
+            image_name = f"{obj.name}_AO"
+
+            # Replace existing bake image so results are always fresh
+            if image_name in bpy.data.images:
+                bpy.data.images.remove(bpy.data.images[image_name])
+            image = bpy.data.images.new(image_name, width=res, height=res, alpha=False)
+            image.colorspace_settings.name = 'Non-Color'
+
+            # Ensure the object has a material with nodes
             if not obj.data.materials:
-                mat = bpy.data.materials.new(name="AO_Material")
+                mat = bpy.data.materials.new(name=f"{obj.name}_AO_Material")
                 obj.data.materials.append(mat)
-            
+
             mat = obj.data.materials[0]
             mat.use_nodes = True
             nodes = mat.node_tree.nodes
-            
-            # Add image texture node for baking
-            if "AO_Bake_Node" not in nodes:
+
+            # Add / reuse the image texture node used as the bake target
+            bake_node_name = "AO_Bake_Target"
+            if bake_node_name in nodes:
+                tex_node = nodes[bake_node_name]
+            else:
                 tex_node = nodes.new('ShaderNodeTexImage')
-                tex_node.name = "AO_Bake_Node"
-                tex_node.image = image
-                nodes.active = tex_node
-            
-            self.report({'INFO'}, "AO bake setup complete. Use Blender's Bake panel to bake.")
-            self.report({'INFO'}, "Set Bake Type to 'Ambient Occlusion' and click Bake.")
-            
+                tex_node.name = bake_node_name
+            tex_node.image = image
+            # Make it the active node so Blender knows where to bake
+            nodes.active = tex_node
+
+            # Switch to Cycles – AO baking is not supported in EEVEE
+            context.scene.render.engine = 'CYCLES'
+
+            # Configure bake settings
+            context.scene.render.bake.use_pass_direct = False
+            context.scene.render.bake.use_pass_indirect = False
+            context.scene.render.bake.use_pass_color = False
+            context.scene.cycles.samples = self.samples
+
+            # Select only this object and make it active
+            bpy.ops.object.select_all(action='DESELECT')
+            obj.select_set(True)
+            context.view_layer.objects.active = obj
+
+            # Bake
+            bpy.ops.object.bake(type='AO')
+
+            # Restore render engine
+            context.scene.render.engine = original_engine
+
+            # Optionally save the image
+            if self.save_image:
+                import os
+                blend_path = bpy.data.filepath
+                if blend_path:
+                    save_dir = os.path.dirname(blend_path)
+                    save_path = os.path.join(save_dir, f"{image_name}.png")
+                    image.filepath_raw = save_path
+                    image.file_format = 'PNG'
+                    image.save()
+                    self.report({'INFO'}, f"AO baked and saved: {save_path}")
+                else:
+                    image.pack()
+                    self.report({'INFO'}, "AO baked and packed into .blend (save the file to keep it)")
+            else:
+                image.pack()
+                self.report({'INFO'}, f"AO baked to image '{image_name}'")
+
             notification_system.FO4_NotificationSystem.notify(
-                "AO bake ready - use Render > Bake", 'INFO'
+                f"Ambient occlusion baked: {image_name}", 'INFO'
             )
-            
+
             return {'FINISHED'}
-            
+
         except Exception as e:
-            self.report({'ERROR'}, f"Failed to setup AO bake: {str(e)}")
+            # Try to restore the render engine even on failure
+            try:
+                context.scene.render.engine = original_engine
+            except Exception:
+                pass
+            self.report({'ERROR'}, f"AO bake failed: {str(e)}")
             return {'CANCELLED'}
+
+    def invoke(self, context, event):
+        return context.window_manager.invoke_props_dialog(self)
 
 
 # Quest Creation Operators
@@ -7074,6 +7137,7 @@ classes = (
     FO4_OT_BatchGenerateWindWeights,
     FO4_OT_BatchApplyWindAnimation,
     FO4_OT_BatchAutoWeightPaint,
+    FO4_OT_ToggleWindPreview,
     FO4_OT_CheckRigNetInstallation,
     FO4_OT_ShowRigNetInfo,
     FO4_OT_PrepareForRigNet,
@@ -7121,6 +7185,7 @@ classes = (
     FO4_OT_InstallHavok2FBX,
     FO4_OT_InstallNiftools,
     FO4_OT_InstallPythonDeps,
+    FO4_OT_CheckToolPaths,
     FO4_OT_RunAllInstallers,
     FO4_OT_SelfTest,
     FO4_OT_UpscaleTexture,
