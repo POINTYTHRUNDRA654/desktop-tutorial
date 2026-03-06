@@ -940,6 +940,8 @@ export const IPC_CHANNELS = {
 
   // STT/Transcription
   TRANSCRIBE_AUDIO: 'transcribe-audio',
+  SAVE_VOICE_HISTORY: 'save-voice-history',
+  GET_VOICE_HISTORY_PATH: 'get-voice-history-path',
 
   // Duplicate Finder
   DEDUPE_PICK_FOLDERS: 'dedupe-pick-folders',

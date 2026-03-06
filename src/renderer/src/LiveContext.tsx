@@ -38,6 +38,9 @@ export interface LiveContextType {
   isLiveMuted: boolean;
   toggleLiveMute: () => void;
   disconnectLive: (manual?: boolean) => void;
+  // test-only helper
+  __test_handleTranscription?: (text: string, sessionId?: number) => Promise<void>;
+  __test_setLastSpeakEnd?: (ts: number) => void;
 }
 
 const LiveContext = createContext<LiveContextType | undefined>(undefined);
@@ -67,6 +70,7 @@ export const LiveProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   const voiceServiceRef = useRef<VoiceService | null>(null);
   const conversationHistoryRef = useRef<Array<{role: 'user' | 'assistant', content: string}>>([]);
+  const lastSpeakEndRef = useRef<number>(0);
 
   const loadLiveHistory = () => {
     try {
@@ -94,6 +98,17 @@ export const LiveProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     const next = [...conversationHistoryRef.current, entry].slice(-LIVE_HISTORY_MAX);
     conversationHistoryRef.current = next;
     persistLiveHistory(next);
+
+    // also persist to disk via main process so sessions survive app restarts
+    try {
+      const api = (window as any).electron?.api || (window as any).electronAPI;
+      if (api?.saveVoiceHistory) {
+        const line = `${entry.role.toUpperCase()}: ${entry.content}\n`;
+        api.saveVoiceHistory(line).catch((e: any) => console.warn('[LiveContext] failed to save history to disk', e));
+      }
+    } catch (e) {
+      console.warn('[LiveContext] unable to call saveVoiceHistory', e);
+    }
   };
 
   const getCurrentProjectStepSummary = () => {
@@ -168,12 +183,20 @@ export const LiveProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     console.log('[LiveContext] Enumerating audio devices...');
     
     // First try to request microphone permission if needed
-    navigator.mediaDevices.getUserMedia({ audio: true })
+    setStatus('Requesting microphone permission...');
+    const micRequest = navigator.mediaDevices.getUserMedia({ audio: true });
+    const micTimeout = setTimeout(() => {
+      setStatus('Waiting for microphone permission (please allow)');
+    }, 10000);
+    micRequest
       .then(() => {
+        clearTimeout(micTimeout);
         console.log('[LiveContext] Microphone permission granted');
       })
       .catch((permError) => {
+        clearTimeout(micTimeout);
         console.warn('[LiveContext] Microphone permission denied or failed:', permError);
+        setStatus('Microphone permission denied');
       })
       .finally(() => {
         // Always try to enumerate devices after permission attempt
@@ -272,6 +295,13 @@ export const LiveProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       return;
     }
 
+    // ignore any transcription that arrives too soon after Mossy finished speaking
+    const now = Date.now();
+    if (lastSpeakEndRef.current && now - lastSpeakEndRef.current < 600) {
+      console.log('[LiveContext] Ignoring transcription - within grace period after speaking');
+      return;
+    }
+
     // If this is a fresh connection, reset the flag after processing the first transcription
     if (isFreshlyConnectedRef.current) {
       console.log('[LiveContext] Processing first transcription after fresh connect, resetting flag');
@@ -293,6 +323,8 @@ export const LiveProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     console.log('[LiveContext] Processing transcription:', text);
     setTranscription(text);
     setMode('processing');
+    // successful transcription—clear any previous STT error tally
+    setSttErrors(0);
 
     try {
       // Add to conversation history
@@ -307,7 +339,7 @@ export const LiveProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         return;
       }
 
-      // Add AI response to history
+        // Add AI response to history
       pushLiveHistory({ role: 'assistant', content: response });
       updateVoiceWorkingMemory();
       console.log('[LiveContext] AI response received, about to speak:', response.substring(0, 100) + (response.length > 100 ? '...' : ''));
@@ -317,6 +349,7 @@ export const LiveProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         console.log('[LiveContext] Calling voiceService.speak()');
         await voiceServiceRef.current.speak(response);
         console.log('[LiveContext] voiceService.speak() completed');
+        lastSpeakEndRef.current = Date.now(); // mark when speaking finished
       } else {
         console.error('[LiveContext] voiceServiceRef.current is null, cannot speak');
       }
@@ -329,15 +362,70 @@ export const LiveProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       }
     } catch (error) {
       console.error('Conversation error:', error);
-      setStatus(`Error: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      const msg = error instanceof Error ? error.message : 'Unknown error';
+      setStatus(`Error: ${msg}`);
       setMode('idle');
+      // notify user more visibly
+      try {
+        const api = (window as any).electron?.api || (window as any).electronAPI;
+        if (api?.showNotification) {
+          api.showNotification(`Voice session error: ${msg}`);
+        }
+      } catch (e) {
+        // best effort notification; ignore if it fails
+        console.warn('[LiveContext] notification attempt failed', e);
+      }
+      // if the backend appears hung, restart the voice link
+      if (/timeout|AI/i.test(msg)) {
+        console.warn('[LiveContext] restarting voice link after error');
+        disconnect();
+        setTimeout(() => {
+          connect().catch(() => {});
+        }, 1000);
+      }
     }
   };
+
+  // count consecutive backend failures so we can fall back automatically
+  const [sttErrors, setSttErrors] = useState(0);
 
   const handleVoiceError = (error: string) => {
     setStatus(`Voice Error: ${error}`);
     setMode('idle');
+
+    // detect backend/transcription related errors
+    if (/backend|Deepgram|transcribe|network/i.test(error)) {
+      setSttErrors((e) => e + 1);
+    }
+
+    // if we've seen two failures in a row, switch to browser STT for stability
+    if (sttErrors >= 1) {
+      console.warn('[LiveContext] falling back to browser STT due to repeated errors');
+      if (voiceServiceRef.current) {
+        // stop current listening session and restart with new provider
+        setStatus('Switching to browser STT...');
+        voiceServiceRef.current.stopListening();
+        voiceServiceRef.current.config.sttProvider = 'browser';
+        voiceServiceRef.current.startListening(
+          (t, sid) => handleTranscription(t, sid),
+          handleVoiceError,
+          handleModeChange
+        );
+      }
+      setSttErrors(0);
+      try {
+        const api = (window as any).electron?.api || (window as any).electronAPI;
+        if (api?.showNotification) {
+          api.showNotification('Mossy switched to browser STT due to backend issues');
+        }
+      } catch (e) {
+        // best-effort notification; ignore any failure
+        console.warn('[LiveContext] showNotification failed', e);
+      }
+    }
   };
+
+  const processingStartRef = useRef<number>(0);
 
   const handleModeChange = (newMode: string) => {
     setMode(newMode as 'idle' | 'listening' | 'processing' | 'speaking');
@@ -347,6 +435,7 @@ export const LiveProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         break;
       case 'processing':
         setStatus('Processing...');
+        processingStartRef.current = Date.now();
         break;
       case 'speaking':
         setStatus('Speaking...');
@@ -355,6 +444,47 @@ export const LiveProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         setStatus('Ready');
     }
   };
+
+  // watchdog: if we remain in processing state for too long, restart the link
+  useEffect(() => {
+    let timer: NodeJS.Timeout | null = null;
+    if (mode === 'processing' && isActive) {
+      timer = setTimeout(() => {
+        if (Date.now() - processingStartRef.current > 25000) {
+          setStatus('Processing taking too long, restarting link...');
+          try {
+            const api = (window as any).electron?.api || (window as any).electronAPI;
+            if (api?.showNotification) {
+              api.showNotification('Voice AI seemed stuck; reconnecting');
+            }
+          } catch (e) {
+            // ignore notification failure
+            console.warn('[LiveContext] showNotification failed during switch', e);
+          }
+          disconnect();
+          setTimeout(() => connect().catch(() => {}), 1000);
+        }
+      }, 26000);
+    }
+    return () => {
+      if (timer) clearTimeout(timer);
+    };
+  }, [mode, isActive]);
+
+  // if we enter listening mode and no transcription arrives after a while
+  useEffect(() => {
+    let timer: NodeJS.Timeout | null = null;
+    if (mode === 'listening' && isActive) {
+      timer = setTimeout(() => {
+        if (!transcription) {
+          setStatus('No speech detected yet – please speak or check your mic');
+        }
+      }, 15000);
+    }
+    return () => {
+      if (timer) clearTimeout(timer);
+    };
+  }, [mode, isActive, transcription]);
 
   const checkVoicePipeline = async (): Promise<void> => {
     const api = (window as any).electron?.api || (window as any).electronAPI;
@@ -442,10 +572,17 @@ export const LiveProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       setMode('listening');
       setStatus('Listening');
       console.log('[LiveContext] connect() completed successfully');
-    } catch (error) {
+    } catch (error: any) {
       console.log('[LiveContext] connect() failed:', error);
       setIsActive(false);
       isFreshlyConnectedRef.current = false;
+      // schedule retry unless user manually disconnected
+      if (!isDisconnecting) {
+        setStatus('Connection failed, retrying...');
+        setTimeout(() => {
+          connect().catch(() => {});
+        }, 5000);
+      }
       throw error;
     }
   };
@@ -529,6 +666,7 @@ export const LiveProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         isLiveMuted: isMuted,
         toggleLiveMute: toggleMute,
         disconnectLive: disconnect,
+        ...(process.env.NODE_ENV === 'test' ? { __test_handleTranscription: handleTranscription, __test_setLastSpeakEnd: (ts: number) => { lastSpeakEndRef.current = ts; } } : {}),
       }}
     >
       {children}

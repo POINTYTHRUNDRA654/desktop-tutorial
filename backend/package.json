@@ -1,0 +1,12 @@
+{
+  "name": "mossy-realtime-token-server",
+  "type": "module",
+  "private": true,
+  "dependencies": {
+    "express": "^4.19.2",
+    "node-fetch": "^3.0.0"
+  },
+  "scripts": {
+    "start": "node token-server.js"
+  }
+}
