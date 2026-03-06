@@ -156,11 +156,13 @@ class AdvancedMeshHelpers:
         bpy.ops.mesh.select_all(action='SELECT')
         
         # Remove doubles (operator renamed in Blender 2.91; old name removed in 5.0)
-        if hasattr(bpy.ops.mesh, 'merge_by_distance'):
+        # Use try/except because bpy.ops proxies make hasattr() unreliable —
+        # it returns True for any attribute, even unregistered operators.
+        try:
             result = bpy.ops.mesh.merge_by_distance(threshold=0.0001)
-        else:
+        except AttributeError:
             result = bpy.ops.mesh.remove_doubles(threshold=0.0001)
-        if hasattr(result, 'FINISHED'):
+        if 'FINISHED' in result:
             repairs['doubles_removed'] = 1
         
         # Select non-manifold geometry
