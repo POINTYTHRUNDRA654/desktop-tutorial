@@ -193,6 +193,12 @@ class MeshHelpers:
         ``NONE``, ``GRASS`` or ``MUSHROOM`` are skipped.  If ``simplify_ratio`` is
         ``None`` the helper chooses a reasonable default based on the collision
         type.
+
+        The generated collision object is:
+        - Named ``UCX_{obj.name}`` (Fallout 4 / FBX collision naming convention)
+        - Parented to *obj* so they travel together on export
+        - Stripped of all materials and vertex groups (collision must be invisible)
+        - Configured as a static Rigid Body so the NIF exporter emits Havok nodes
         """
         if obj.type != 'MESH':
             return None
@@ -214,6 +220,21 @@ class MeshHelpers:
         if simplify_ratio is None:
             simplify_ratio = MeshHelpers._TYPE_DEFAULT_RATIOS.get(collision_type, 0.25)
 
+        # remove any previously generated collision mesh for this object so we
+        # don't accumulate duplicates on repeated calls.
+        # Check both parented children (new style) and scene siblings (old style).
+        ucx_name = f"UCX_{obj.name}"
+        legacy_name = f"{obj.name}_COLLISION"
+        for o in list(obj.children):
+            if o.get("fo4_collision") or o.name in (ucx_name, legacy_name):
+                bpy.data.objects.remove(o, do_unlink=True)
+        for scene in getattr(obj, 'users_scene', []):
+            for o in list(scene.objects):
+                if o is obj:
+                    continue
+                if o.get("fo4_collision") or o.name in (ucx_name, legacy_name):
+                    bpy.data.objects.remove(o, do_unlink=True)
+
         # make sure we're operating on a clean selection
         bpy.ops.object.select_all(action='DESELECT')
         obj.select_set(True)
@@ -221,23 +242,61 @@ class MeshHelpers:
         bpy.ops.object.duplicate()
 
         collision_obj = bpy.context.active_object
-        # mark it so that exporters can skip it and tools can find it
+
+        # Fallout 4 collision naming convention: UCX_ prefix (recognised by the
+        # NIF exporter and standard FBX-to-NIF pipelines)
+        collision_obj.name = ucx_name
+
+        # mark so exporters can identify and skip it as a visual mesh
         collision_obj["fo4_collision"] = True
         collision_obj["fo4_collision_type"] = collision_type
         obj["fo4_collision_type"] = collision_type
-        # copy presets
+
+        # copy sound / weight presets
         if sound is not None:
             collision_obj["fo4_collision_sound"] = sound
             obj["fo4_collision_sound"] = sound
         if weight is not None:
             collision_obj["fo4_collision_weight"] = weight
             obj["fo4_collision_weight"] = weight
-        collision_obj.name = f"{obj.name}_COLLISION"
+
+        # collision meshes must have NO materials or textures – they are purely
+        # for physics and should be invisible in-game
+        collision_obj.data.materials.clear()
+
+        # vertex groups are not meaningful on a collision mesh and can confuse
+        # some exporters; strip them
+        collision_obj.vertex_groups.clear()
 
         # simplify using a decimate modifier (more predictable than dissolve)
         modifier = collision_obj.modifiers.new(name="Decimate", type='DECIMATE')
         modifier.ratio = simplify_ratio
         bpy.ops.object.modifier_apply(modifier="Decimate")
+
+        # parent collision mesh to the source object so they are exported as a
+        # unit.  Clear parent inverse so the collision sits at the same world
+        # position as the original.
+        collision_obj.parent = obj
+        collision_obj.matrix_parent_inverse = obj.matrix_world.inverted()
+
+        # Configure as a static Rigid Body so the Niftools NIF exporter can
+        # emit the correct bhkCollisionObject / bhkRigidBody nodes for FO4.
+        # The operation may not be available in every context; wrap in try/except.
+        try:
+            bpy.ops.object.select_all(action='DESELECT')
+            collision_obj.select_set(True)
+            bpy.context.view_layer.objects.active = collision_obj
+            bpy.ops.rigidbody.object_add()
+            collision_obj.rigid_body.type = 'PASSIVE'
+            # FINAL uses the evaluated (post-modifier) mesh, which is what we
+            # want since the Decimate modifier has already been applied; this
+            # ensures the NIF exporter sees the simplified collision shape.
+            collision_obj.rigid_body.mesh_source = 'FINAL'
+            collision_obj.rigid_body.collision_shape = 'CONVEX_HULL'
+        except Exception:
+            # Physics operators unavailable in this context; skip silently.
+            # The UCX_ naming and parent relationship still enable export.
+            pass
 
         # restore original object as active/selected
         bpy.context.view_layer.objects.active = obj
