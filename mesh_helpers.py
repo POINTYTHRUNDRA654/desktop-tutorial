@@ -5,6 +5,7 @@ Mesh helper functions for Fallout 4 mod creation
 import bpy
 import bmesh
 from mathutils import Vector
+from . import preferences
 
 class MeshHelpers:
     """Helper functions for mesh creation and optimization"""
