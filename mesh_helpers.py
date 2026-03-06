@@ -232,8 +232,10 @@ class MeshHelpers:
 
         The generated collision object is:
         - Named ``UCX_{obj.name}`` (Fallout 4 / FBX collision naming convention)
+        - Built as a convex hull so it is always a closed, manifold surface
         - Parented to *obj* so they travel together on export
         - Stripped of all materials and vertex groups (collision must be invisible)
+        - Triangulated ready for FO4 NIF BSTriShape geometry
         - Configured as a static Rigid Body so the NIF exporter emits Havok nodes
         """
         if obj.type != 'MESH':
@@ -304,10 +306,55 @@ class MeshHelpers:
         # some exporters; strip them
         collision_obj.vertex_groups.clear()
 
-        # simplify using a decimate modifier (more predictable than dissolve)
-        modifier = collision_obj.modifiers.new(name="Decimate", type='DECIMATE')
-        modifier.ratio = simplify_ratio
-        bpy.ops.object.modifier_apply(modifier="Decimate")
+        # Make the collision object active so operators below work on it.
+        bpy.ops.object.select_all(action='DESELECT')
+        collision_obj.select_set(True)
+        bpy.context.view_layer.objects.active = collision_obj
+
+        # Apply scale and rotation so the convex hull reflects the true world-
+        # space shape of the source mesh.  Location is left as-is so the
+        # collision object stays co-located with the source.
+        bpy.ops.object.transform_apply(location=False, rotation=True, scale=True)
+
+        # Optional pre-pass: reduce vertex count with Decimate so very high-poly
+        # sources produce a simpler convex hull.  Skip when simplify_ratio is 1.0
+        # (no simplification requested) to avoid an unnecessary modifier apply.
+        if simplify_ratio < 1.0:
+            modifier = collision_obj.modifiers.new(name="Decimate", type='DECIMATE')
+            modifier.ratio = simplify_ratio
+            bpy.ops.object.modifier_apply(modifier="Decimate")
+
+        # Build a clean convex hull with bmesh.  A convex hull is always a
+        # closed, watertight, manifold surface – exactly what Havok physics
+        # (bhkConvexVerticesShape / bhkMoppBvTreeShape) requires for FO4.
+        # Unlike raw Decimate output, it can never have non-manifold edges.
+        bm = bmesh.new()
+        bm.from_mesh(collision_obj.data)
+
+        # Merge vertices that are nearly coincident to heal seams from the
+        # original mesh before building the hull.  0.001 BU ≈ 0.07 mm at FO4
+        # scale (1 BU = 1 game unit ≈ 7 cm) – tight enough to catch floating-
+        # point seams without merging intentionally distinct vertices.
+        bmesh.ops.remove_doubles(bm, verts=bm.verts, dist=0.001)
+        bm.verts.ensure_lookup_table()
+
+        # Build the convex hull; keep only the outer hull surface geometry.
+        result = bmesh.ops.convex_hull(bm, input=bm.verts)
+        # geom_interior  – geometry that ended up inside the hull
+        # geom_unused    – geometry that wasn't part of the hull at all
+        geom_to_delete = result.get('geom_interior', []) + result.get('geom_unused', [])
+        if geom_to_delete:
+            bmesh.ops.delete(bm, geom=geom_to_delete, context='VERTS')
+
+        # Triangulate – FO4 BSTriShape / NIF geometry requires triangles only.
+        bmesh.ops.triangulate(bm, faces=bm.faces[:])
+
+        # Recalculate face normals consistently outward.
+        bm.normal_update()
+
+        bm.to_mesh(collision_obj.data)
+        bm.free()
+        collision_obj.data.update()
 
         # parent collision mesh to the source object so they are exported as a
         # unit.  Clear parent inverse so the collision sits at the same world
@@ -324,9 +371,9 @@ class MeshHelpers:
             bpy.context.view_layer.objects.active = collision_obj
             bpy.ops.rigidbody.object_add()
             collision_obj.rigid_body.type = 'PASSIVE'
-            # FINAL uses the evaluated (post-modifier) mesh, which is what we
-            # want since the Decimate modifier has already been applied; this
-            # ensures the NIF exporter sees the simplified collision shape.
+            # FINAL uses the evaluated mesh.  All mesh processing (Decimate +
+            # convex hull) has already been baked into the object data, so FINAL
+            # and BASE are equivalent here, but FINAL is the safer default.
             collision_obj.rigid_body.mesh_source = 'FINAL'
             collision_obj.rigid_body.collision_shape = 'CONVEX_HULL'
         except Exception:
