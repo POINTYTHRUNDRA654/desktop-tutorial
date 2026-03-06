@@ -123,7 +123,37 @@ Files changed:
 
 ## In progress 🔄
 
-_Nothing currently pending. All items are in Done below._
+_Nothing currently pending. All items are in Done._
+
+---
+
+### 10. Groq cost optimisation — correct model + rate-limit fallback  ✅
+**Problem A:** Render backend defaulted to `llama-3.1-70b-versatile` (deprecated model name).  
+**Problem B:** Neither the backend nor the desktop direct-SDK path handled Groq `429 RateLimitError`.
+For a free service with shared keys and many users, rate limits on the 70b model will be hit regularly
+(free tier: 500 req/day). When that happened, both paths silently failed with no recovery.
+
+**Fix:**
+- `llama-3.3-70b-versatile` is now the primary model everywhere (current flagship, free tier)
+- On `RateLimitError` the code automatically retries **once** with `llama-3.1-8b-instant`
+  — free tier: **14 400 req/day and 20 000 tokens/min** — ~28× the quota of the 70b model
+- This fallback is in **both** places: the Render backend route AND the desktop direct-SDK path
+
+Files changed:
+- `src/backend/routes/chat.ts` — `GROQ_PRIMARY_MODEL`/`GROQ_FALLBACK_MODEL` constants,
+  `groqChatWithFallback()` helper, updated default model env var read
+- `src/electron/main.ts` — `callGroqWithFallback()` helper near line 3940,
+  used in `ai-chat-groq` direct SDK path and `sendMessage` direct SDK path
+- `.env.backend.example` — `GROQ_MODEL` updated to `llama-3.3-70b-versatile`
+
+**Do not touch:** The `GROQ_PRIMARY_MODEL` / `GROQ_FALLBACK_MODEL` constants or the fallback logic.
+
+---
+
+**What to do on Render after getting a new Groq key:**
+1. Render dashboard → your Mossy service → Environment → set `GROQ_API_KEY=<your new key>`
+2. Render will auto-restart the service
+3. Run `npm run setup-keys` locally → enter the same new key → re-package
 
 ---
 

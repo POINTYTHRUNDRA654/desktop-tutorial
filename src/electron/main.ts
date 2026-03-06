@@ -3937,6 +3937,33 @@ function setupIpcHandlers() {
   });
 
   /**
+   * Shared helper: call Groq with automatic model fallback on 429 rate-limit.
+   * Primary model (70b) gives the best answers; on rate-limit we retry once with
+   * the 8b-instant model which has ~28× higher free-tier quota.
+   */
+  const GROQ_PRIMARY_MODEL = 'llama-3.3-70b-versatile';
+  const GROQ_FALLBACK_MODEL = 'llama-3.1-8b-instant';
+
+  const callGroqWithFallback = async (
+    client: { chat: { completions: { create: (params: { model: string; messages: unknown }) => Promise<{ choices: Array<{ message: { content: string | null } }> }> } } },
+    preferredModel: string,
+    messages: Array<{ role: 'system' | 'user' | 'assistant'; content: string }>,
+  ): Promise<string> => {
+    const { RateLimitError } = await import('groq-sdk');
+    try {
+      const response = await client.chat.completions.create({ model: preferredModel, messages });
+      return response.choices[0]?.message?.content || '';
+    } catch (e) {
+      if (e instanceof RateLimitError && preferredModel !== GROQ_FALLBACK_MODEL) {
+        console.warn(`[Groq] Rate-limited on ${preferredModel}, retrying with ${GROQ_FALLBACK_MODEL}`);
+        const response = await client.chat.completions.create({ model: GROQ_FALLBACK_MODEL, messages });
+        return response.choices[0]?.message?.content || '';
+      }
+      throw e;
+    }
+  };
+
+  /**
    * AI Chat Handler - Groq (for voice and real-time)
    */
   registerHandler('ai-chat-groq', async (_event, payload: { prompt: string; systemPrompt?: string; model?: string; conversationHistory?: Array<{role: string; content: string}> }) => {
@@ -3999,8 +4026,7 @@ function setupIpcHandlers() {
         }
         const { default: Groq } = await import('groq-sdk');
         const client = new Groq({ apiKey });
-        const response = await client.chat.completions.create({ model, messages });
-        content = response.choices[0]?.message?.content || '';
+        content = await callGroqWithFallback(client, model, messages);
       }
 
       return { success: true, content };
@@ -4189,13 +4215,7 @@ function setupIpcHandlers() {
         // Dynamic import for Groq ES module
         const { default: Groq } = await import('groq-sdk');
         const client = new Groq({ apiKey });
-
-        const response = await client.chat.completions.create({
-          model,
-          messages,
-        });
-
-        content = response.choices[0]?.message?.content || '';
+        content = await callGroqWithFallback(client, model, messages);
       }
 
       console.log('[Main] AI response generated, sending to renderer:', content.substring(0, 100) + (content.length > 100 ? '...' : ''));
