@@ -127,6 +127,38 @@ _Nothing currently pending. All items are in Done._
 
 ---
 
+### 13. Always route through Render backend — Mossy can now talk ✅
+**Problem:** `getBackendConfig()` returned `null` whenever `MOSSY_BACKEND_URL` was not set in
+the environment (e.g. dev run without `.env.local`, or an existing `settings.json` that had an
+empty `backendBaseUrl`). With no backend config, all three IPC handlers (`ai-chat-openai`,
+`ai-chat-groq`, `sendMessage`) skipped the Render backend entirely and fell through to the local
+Groq SDK fallback. The SDK fallback also failed because no Groq API key is present without
+`.env.local`. Result: Mossy produced no response at all.
+
+**Architecture:** Mossy always routes through the Render backend (`https://mossy.onrender.com`).
+The backend holds all API keys server-side. The local SDK fallback is only a last-resort safety
+net; it is not the primary path.
+
+**Fix:** Added `'https://mossy.onrender.com'` as the hardcoded ultimate fallback in every place
+that constructs the backend URL:
+
+Files changed:
+- `src/electron/main.ts`
+  1. File-scope `getBackendConfig()`: `process.env.MOSSY_BACKEND_URL || 'https://mossy.onrender.com'`
+     (was `|| ''`, causing `null` return when env var absent).
+  2. `defaultBackendBaseUrl` in `loadSettings()` defaults block: removed `app.isPackaged` guard —
+     Render URL is now the fallback in every environment, not just packaged builds.
+  3. Function-scope `getBackendConfig()` inside `setupIpcHandlers()`: same Render URL fallback so
+     existing `settings.json` files with an empty `backendBaseUrl` still resolve correctly.
+  4. `get-settings` IPC handler: same fallback so the renderer always displays the correct URL.
+
+**Timeouts unchanged at 20 s** — appropriate for a paid Render subscription (no cold-start delays).
+
+**Do not touch:** The `'https://mossy.onrender.com'` hardcoded fallback in all four locations above.
+This is what keeps Mossy talking when no explicit backend URL is configured.
+
+---
+
 ### 12. Voice / TTS fixes — Mossy can now talk reliably  ✅
 **Problem A:** Mossy (the AI) didn't know she had voice/TTS capabilities. When users asked
 "can you talk?" or reported voice not working, the AI said it couldn't speak, which was

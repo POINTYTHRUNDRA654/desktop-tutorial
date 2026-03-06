@@ -167,7 +167,7 @@ const bridge = new BridgeServer();
 type BackendConfig = { baseUrl: string; token?: string };
 
 const getBackendConfig = (): BackendConfig | null => {
-  const rawUrl = String(process.env.MOSSY_BACKEND_URL || '').trim();
+  const rawUrl = String(process.env.MOSSY_BACKEND_URL || 'https://mossy.onrender.com').trim();
   if (!rawUrl) return null;
   const baseUrl = rawUrl.replace(/\/+$/, '');
   const tokenRaw = String(process.env.MOSSY_BACKEND_TOKEN || '').trim();
@@ -1347,7 +1347,7 @@ function setupIpcHandlers() {
     }
     // Return comprehensive default settings with all tool paths
     const defaultBackendBaseUrl = String(
-      process.env.MOSSY_BACKEND_URL || (app.isPackaged ? 'https://mossy.onrender.com' : '')
+      process.env.MOSSY_BACKEND_URL || 'https://mossy.onrender.com'
     ).trim();
 
     const defaults: Record<string, unknown> = {
@@ -1488,7 +1488,7 @@ function setupIpcHandlers() {
   registerHandler('get-settings', async () => {
     console.log('[Settings] get-settings called');
     const settings = loadSettings();
-    const backendBaseUrl = String(settings?.backendBaseUrl || process.env.MOSSY_BACKEND_URL || '').trim();
+    const backendBaseUrl = String(settings?.backendBaseUrl || process.env.MOSSY_BACKEND_URL || 'https://mossy.onrender.com').trim();
     const backendTokenConfigured = Boolean(getSecretValue(settings, 'backendToken', 'MOSSY_BACKEND_TOKEN'));
     return redactSettingsForRenderer({
       ...settings,
@@ -1541,7 +1541,7 @@ function setupIpcHandlers() {
   // can use per-user settings without exposing secrets to the renderer.
   const getBackendConfig = (): BackendConfig | null => {
     const s = loadSettings();
-    const rawUrl = String(s?.backendBaseUrl || process.env.MOSSY_BACKEND_URL || '').trim();
+    const rawUrl = String(s?.backendBaseUrl || process.env.MOSSY_BACKEND_URL || 'https://mossy.onrender.com').trim();
     if (!rawUrl) return null;
     const baseUrl = rawUrl.replace(/\/+$/, '');
     const tokenRaw = getSecretValue(s, 'backendToken', 'MOSSY_BACKEND_TOKEN');
