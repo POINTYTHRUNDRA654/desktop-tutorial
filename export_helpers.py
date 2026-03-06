@@ -5,6 +5,8 @@ Export helper functions for Fallout 4 mod creation
 import bpy
 import os
 import json
+import sys
+import traceback
 
 class ExportHelpers:
     """Helper functions for exporting to Fallout 4"""
@@ -57,8 +59,45 @@ class ExportHelpers:
         return True, "Niftools exporter available"
 
     @staticmethod
+    def _safe_enum(props, key, preferred, fallbacks=None):
+        """Return *preferred* if it is a valid choice for the enum property *key*
+        in *props*, otherwise try each item in *fallbacks* in order.
+
+        Falls back to *preferred* unchanged when the property does not expose
+        enum_items (so callers never pass an empty string to the operator).
+        Returns ``None`` only when fallbacks are exhausted and enum_items are
+        verifiably available.
+        """
+        try:
+            enum_items = props[key].enum_items
+            valid = {item.identifier for item in enum_items}
+            if preferred in valid:
+                return preferred
+            for val in (fallbacks or []):
+                if val in valid:
+                    return val
+            # preferred is not in this build's enum; skip the kwarg
+            return None
+        except Exception:
+            # Property doesn't expose enum_items – assume preferred is valid
+            return preferred
+
+    @staticmethod
     def _build_nif_export_kwargs(filepath):
-        """Assemble kwargs for the NIF exporter, adapting to available properties."""
+        """Assemble kwargs for the NIF exporter (Niftools v0.1.1) for Fallout 4.
+
+        Fallout 4 NIF format requirements enforced by these settings:
+          - NIF version 20.2.0.7 / user version 12 / user_version_2 131073
+            (automatically selected by game="FALLOUT_4")
+          - BSTriShape geometry nodes – selected by the FALLOUT_4 game profile;
+            do NOT use NiTriShape for FO4 or meshes will be invisible in-game.
+          - BSLightingShaderProperty for materials (game profile handles this).
+          - Tangent-space normal maps: use_tangent_space must be True so the
+            exporter emits the tangent/bitangent vectors FO4 shaders expect.
+          - Scale: 1 Blender unit = 1 NIF unit (scale_correction=1.0).
+          - Geometry must be triangulated; apply_modifiers=True applies the
+            temporary Triangulate modifier added by _prepare_mesh_for_nif.
+        """
         kwargs = {
             "filepath": filepath,
             "use_selection": True,
@@ -68,26 +107,144 @@ class ExportHelpers:
             props = bpy.ops.export_scene.nif.get_rna_type().properties
             prop_keys = props.keys()
 
-            # Prefer FO4 game profile when available
+            # ----------------------------------------------------------------
+            # Game profile – FALLOUT_4 sets NIF 20.2.0.7 with user version 12
+            # and user_version_2 131073, and forces BSTriShape geometry nodes
+            # which are required by Fallout 4's renderer.
+            # Niftools v0.1.1 valid identifier: 'FALLOUT_4'.
+            # ----------------------------------------------------------------
             if "game" in prop_keys:
-                kwargs["game"] = "FALLOUT_4"
+                game_val = ExportHelpers._safe_enum(props, "game", "FALLOUT_4")
+                if game_val:
+                    kwargs["game"] = game_val
 
-            # Keep smoothing consistent; fallback is exporter default
+            # Export as a NIF geometry file, not a KF animation file.
+            if "export_type" in prop_keys:
+                et_val = ExportHelpers._safe_enum(
+                    props, "export_type", "nif", fallbacks=["NIF", "nif_and_kf"]
+                )
+                if et_val:
+                    kwargs["export_type"] = et_val
+
+            # ----------------------------------------------------------------
+            # Tangent space – FO4 BSLightingShaderProperty normal maps require
+            # tangent vectors in the NIF.  Without this the mesh appears
+            # flat-lit in-game regardless of the normal map texture.
+            # Niftools v0.1.1 may expose this as 'use_tangent_space'.
+            # ----------------------------------------------------------------
+            for tkey in ("use_tangent_space", "tangent_space"):
+                if tkey in prop_keys:
+                    kwargs[tkey] = True
+                    break
+
+            # Keep smoothing consistent; only set when the property exists and
+            # the value is a recognised enum item.
             if "smoothing" in prop_keys:
-                kwargs["smoothing"] = "SMOOTH"
+                smooth_val = ExportHelpers._safe_enum(props, "smoothing", "SMOOTH")
+                if smooth_val:
+                    kwargs["smoothing"] = smooth_val
 
-            # Avoid unintended scale changes
+            # 1 Blender unit = 1 NIF unit for FO4 (do not rescale geometry).
             if "scale_correction" in prop_keys:
                 kwargs["scale_correction"] = 1.0
 
-            # Some builds expose apply modifiers flag
+            # Apply modifiers so the temporary Triangulate modifier added by
+            # _prepare_mesh_for_nif is baked into the exported geometry.
             if "apply_modifiers" in prop_keys:
                 kwargs["apply_modifiers"] = True
+
+            # Static (non-skinned) meshes do not carry skin data; flatten_skin
+            # would corrupt weights on rigged actors so leave it False.
+            if "flatten_skin" in prop_keys:
+                kwargs["flatten_skin"] = False
+
         except Exception:
-            # If anything goes wrong, fall back to minimal args
+            # If anything goes wrong introspecting the operator, fall back to
+            # the minimal set of kwargs so the export can still be attempted.
             pass
 
         return kwargs
+
+    @staticmethod
+    def _prepare_mesh_for_nif(obj):
+        """Prepare a mesh object so it meets Fallout 4 / Niftools v0.1.1 requirements.
+
+        Performs (in order):
+          1. Apply pending scale and rotation transforms – unapplied transforms
+             are the single most common cause of distorted geometry in-game.
+          2. Ensure at least one UV map exists – the Niftools exporter requires
+             UV coordinates on every exported mesh.
+          3. Add a temporary ``_FO4_Triangulate`` modifier when the mesh
+             contains quads or n-gons, because FO4 BSTriShape only stores
+             triangles and the exporter does NOT auto-triangulate.
+          4. Enable Auto Smooth for consistent tangent/normal export (skipped
+             silently on Blender 4.x where the attribute was removed).
+
+        Returns a list of modifier names that were added.  The caller must
+        remove them after export so the user's mesh is not permanently altered.
+        """
+        added_modifiers = []
+
+        if bpy.context.mode != 'OBJECT':
+            bpy.ops.object.mode_set(mode='OBJECT')
+
+        bpy.context.view_layer.objects.active = obj
+        obj.select_set(True)
+
+        # 1. Apply scale and rotation -----------------------------------------
+        #    Unapplied scale causes geometry to arrive at the wrong size in FO4;
+        #    unapplied rotation causes normals to point in the wrong direction.
+        try:
+            needs_scale = obj.scale[:] != (1.0, 1.0, 1.0)
+            needs_rot = obj.rotation_euler[:] != (0.0, 0.0, 0.0)
+        except Exception:
+            needs_scale = needs_rot = True
+
+        if needs_scale or needs_rot:
+            try:
+                bpy.ops.object.transform_apply(location=False, rotation=True, scale=True)
+            except Exception:
+                pass  # context may not support transform_apply; continue anyway
+
+        # 2. Ensure UV map -------------------------------------------------------
+        #    Niftools v0.1.1 raises an error if no UV map is present.
+        if not obj.data.uv_layers:
+            obj.data.uv_layers.new(name="UVMap")
+            try:
+                bpy.ops.object.mode_set(mode='EDIT')
+                bpy.ops.mesh.select_all(action='SELECT')
+                bpy.ops.uv.smart_project(angle_limit=66.0)
+                bpy.ops.object.mode_set(mode='OBJECT')
+            except Exception:
+                try:
+                    bpy.ops.object.mode_set(mode='OBJECT')
+                except Exception:
+                    pass
+
+        # 3. Triangulate ---------------------------------------------------------
+        #    Fallout 4 BSTriShape nodes only store triangles.  If the mesh has
+        #    quads or n-gons, add a Triangulate modifier (removed after export).
+        has_non_tris = any(len(p.vertices) > 3 for p in obj.data.polygons)
+        if has_non_tris:
+            mod = obj.modifiers.new(name="_FO4_Triangulate", type='TRIANGULATE')
+            mod.quad_method = 'BEAUTY'
+            mod.ngon_method = 'BEAUTY'
+            try:
+                mod.keep_custom_normals = True
+            except AttributeError:
+                pass  # older Blender builds lack this flag
+            added_modifiers.append(mod.name)
+
+        # 4. Auto Smooth ---------------------------------------------------------
+        #    Ensures the exported tangent vectors are coherent with the mesh
+        #    normals.  Removed in Blender 4.x (use_auto_smooth no longer exists).
+        try:
+            obj.data.use_auto_smooth = True
+            obj.data.auto_smooth_angle = 3.14159265358979  # 180° – smooth all
+        except AttributeError:
+            pass
+
+        return added_modifiers
     
     @staticmethod
     def _find_collision_mesh(obj):
@@ -123,13 +280,21 @@ class ExportHelpers:
                     return o
         return None
 
+    @staticmethod
     def export_mesh_to_nif(obj, filepath):
-        """Export mesh to NIF format using Niftools when available, else fall back to FBX.
+        """Export mesh to NIF format using Niftools v0.1.1 when available, else fall back to FBX.
 
-        The Niftools/FBX exporters are notoriously sensitive to stray vertex groups.  If a
-        mesh contains weights but isn't skinned to an armature the export can produce
-        collapsed or otherwise corrupted geometry.  We fail early in that case so the
-        user can clean up the mesh.
+        Pre-export preparation (applied automatically, reversed after export):
+          - Scale and rotation transforms are applied so geometry arrives at the
+            correct size and orientation in Fallout 4.
+          - A UV map is created (smart-unwrapped) if the mesh has none.
+          - A temporary Triangulate modifier is added when the mesh has quads /
+            n-gons because FO4 BSTriShape nodes require triangles only.
+
+        The Niftools/FBX exporters are notoriously sensitive to stray vertex
+        groups.  If a mesh contains weights but isn't skinned to an armature the
+        export can produce collapsed or otherwise corrupted geometry.  We fail
+        early in that case so the user can clean up the mesh.
         """
         
         if obj.type != 'MESH':
@@ -142,17 +307,24 @@ class ExportHelpers:
         # reject meshes with orphaned weights
         if obj.vertex_groups and not ExportHelpers._has_armature(obj):
             return False, "Mesh has vertex groups but no armature – remove weights or parent to an armature before exporting"
-        
-        # Validate first
-        success, issues = ExportHelpers.validate_before_export(obj)
-        if not success:
-            return False, f"Validation failed: {', '.join(issues)}"
 
         nif_available, nif_message = ExportHelpers.nif_exporter_available()
 
         # Try native NIF export first when available
         if nif_available:
+            added_mods = []
             try:
+                # Auto-prepare FIRST (applies transforms, creates UV map, triangulates).
+                # Validation runs afterwards so it sees the corrected state and does not
+                # block on issues that the prep step has already resolved.
+                added_mods = ExportHelpers._prepare_mesh_for_nif(obj)
+
+                # Validate after prep – only hard errors (poly limit, non-manifold,
+                # missing materials) will stop the export at this point.
+                success, issues = ExportHelpers.validate_before_export(obj)
+                if not success:
+                    return False, f"Validation failed: {', '.join(issues)}"
+
                 # gather objects to export (main mesh + optional collision)
                 selection = [obj]
                 # only include a collision object if the mesh is expected to have one
@@ -187,9 +359,26 @@ class ExportHelpers:
                 # If operator returns without FINISHED, fall back to FBX
                 fallback_msg = f"NIF export did not finish ({result}); falling back to FBX."
             except Exception as e:
-                # Fall back to FBX if NIF export fails
+                # Print full traceback to the Blender console so the user can
+                # see the root cause when they open the system console.
+                print(
+                    f"[FO4 Add-on] NIF export error for '{obj.name}':",
+                    file=sys.stderr,
+                )
+                traceback.print_exc(file=sys.stderr)
                 fallback_msg = f"NIF export failed ({e}); falling back to FBX."
+            finally:
+                # Always remove the temporary triangulate modifier so the
+                # user's mesh is not permanently altered.
+                for mod_name in added_mods:
+                    mod = obj.modifiers.get(mod_name)
+                    if mod:
+                        obj.modifiers.remove(mod)
         else:
+            # NIF exporter not available – validate before FBX fallback
+            success, issues = ExportHelpers.validate_before_export(obj)
+            if not success:
+                return False, f"Validation failed: {', '.join(issues)}"
             fallback_msg = f"{nif_message}; exporting FBX for external conversion."
 
         # Export to FBX as a compatibility fallback
@@ -224,7 +413,6 @@ class ExportHelpers:
             return False, f"Export failed: {str(e)}"
     
     @staticmethod
-    @staticmethod
     def _has_armature(obj):
         """Return True if *obj* is skinned to an armature (parent or modifier).
         """
@@ -235,6 +423,7 @@ class ExportHelpers:
                 return True
         return False
 
+    @staticmethod
     def export_mesh_with_collision(obj, filepath, simplify_ratio: float = 0.25):
         """Helper to generate a collision mesh and then export the pair to NIF.
 
@@ -265,6 +454,7 @@ class ExportHelpers:
         # now export both
         return ExportHelpers.export_mesh_to_nif(obj, filepath)
 
+    @staticmethod
     def export_complete_mod(scene, output_dir):
         """Export complete mod with all assets"""
         if not os.path.exists(output_dir):

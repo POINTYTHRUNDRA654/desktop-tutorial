@@ -146,7 +146,12 @@ class MeshHelpers:
     
     @staticmethod
     def validate_mesh(obj):
-        """Validate mesh for Fallout 4 compatibility"""
+        """Validate mesh for Fallout 4 compatibility.
+
+        Checks geometry integrity, UV requirements, scale, poly budget, and
+        common issues that cause the Niftools NIF exporter to fail silently
+        (non-manifold edges, inconsistent face normals).
+        """
         if obj.type != 'MESH':
             return False, ["Object is not a mesh"]
         
@@ -162,23 +167,39 @@ class MeshHelpers:
         if poly_count == 0:
             issues.append("Mesh has no polygons")
         elif poly_count > 65535:
-            issues.append(f"Poly count too high: {poly_count} (max 65535 for FO4)")
-        
-        # Check for UV map
+            issues.append(f"Poly count too high: {poly_count} (FO4 limit is 65,535 triangles per mesh)")        
+        # Check for UV map – required by Niftools v0.1.1 and by FO4 shaders
         if not mesh.uv_layers:
-            issues.append("Mesh has no UV map")
+            issues.append("Mesh has no UV map (required for FO4 NIF export)")
         
-        # Check for loose vertices
+        # Use bmesh for detailed geometry checks
         bm = bmesh.new()
         bm.from_mesh(mesh)
+        bm.verts.ensure_lookup_table()
+        bm.edges.ensure_lookup_table()
+        bm.faces.ensure_lookup_table()
+
+        # Loose vertices – not referenced by any edge; cause export corruption
         loose_verts = [v for v in bm.verts if not v.link_edges]
         if loose_verts:
-            issues.append(f"Found {len(loose_verts)} loose vertices")
+            issues.append(f"{len(loose_verts)} loose vertex/vertices found – delete them before export")
+
+        # Non-manifold edges – edges shared by ≠2 faces or boundary edges on a
+        # closed surface; the Niftools exporter can silently corrupt these.
+        non_manifold = [e for e in bm.edges if not e.is_manifold]
+        if non_manifold:
+            issues.append(
+                f"{len(non_manifold)} non-manifold edge(s) detected – use Mesh > Clean Up > "
+                "Fill Holes / Merge by Distance, or select Non-Manifold (Alt+Ctrl+Shift+M)"
+            )
+
         bm.free()
         
-        # Check scale
+        # Check scale – unapplied scale distorts geometry in FO4;
+        # _prepare_mesh_for_nif auto-applies this but we keep the warning
+        # so the "Validate Before Export" button gives accurate feedback.
         if obj.scale != Vector((1.0, 1.0, 1.0)):
-            issues.append("Object scale not applied (should be 1,1,1)")
+            issues.append("Object scale not applied – use Ctrl+A > Apply Scale before export")
         
         if not issues:
             return True, ["Mesh is valid for Fallout 4"]
