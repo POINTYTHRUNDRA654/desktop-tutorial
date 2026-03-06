@@ -8,19 +8,17 @@
 - **NVTT (NVIDIA Texture Tools)**: https://github.com/castano/nvidia-texture-tools (BCn compression). Build or download a release; point the add-on to the binary if you prefer NVTT over texconv.
 - **Unity asset extraction**: AssetRipper (GUI/CLI) https://github.com/AssetRipper/AssetRipper or AssetStudio https://github.com/Perfare/AssetStudio to unpack .unitypackage / project assets to FBX + textures. Respect asset licenses.
 - **Unreal asset extraction**: UModel (UE Viewer) https://www.gildor.org/en/projects/umodel or Unreal Editor command-line exporters to FBX/GLTF. Respect project licenses.
-- **UE5‑asset importer**: the add-on bundles a lightweight front‑end for the
-  community-maintained [Blender‑UE4‑Importer](https://github.com/Waffle1434/Blender-UE4-Importer).
-  The importer itself isn’t shipped due to size/license churn; when you click
-  “Check/Install UE Importer” in the Tools panel the wrapper will automatically
-  download the latest copy from GitHub or, if that isn’t possible, it will
-  prompt you to fetch it manually from the project page.
+- **UE5‑asset importer**: the add-on bundles the community-maintained
+  [Blender‑UE4‑Importer](https://github.com/Waffle1434/Blender-UE4-Importer) as a
+  **git submodule** at `tools/Blender-UE4-Importer`.  After cloning this repository,
+  initialise the submodule once with:
 
-  *Offline/manual install:* if you prefer to vendor the importer or are
-  working in an environment without network access simply clone or download
-  the repository yourself and place it under
-  `tools/Blender-UE4-Importer` inside the add‑on directory.  The next time the
-  add-on is enabled the helper will detect the code and register it without
-  touching GitHub.
+  ```
+  git submodule update --init --recursive
+  ```
+
+  The “Check/Install UE Importer” button in the Tools panel can also download the
+  latest copy automatically when network access is available.
 
 - **Local dependency cache:** the add-on can install Python packages such as
   `libigl` automatically when needed.  To support fully offline setups you can
