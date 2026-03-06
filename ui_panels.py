@@ -991,7 +991,7 @@ class FO4_PT_AutomationQuickPanel(Panel):
 
 
 class FO4_PT_Havok2FBXPanel(Panel):
-    """Expose Havok2FBX path from add-on preferences."""
+    """Havok2FBX configuration and animation export settings."""
     bl_label = "Havok2FBX"
     bl_idname = "FO4_PT_havok2fbx_panel"
     bl_space_type = 'VIEW_3D'
@@ -1002,25 +1002,78 @@ class FO4_PT_Havok2FBXPanel(Panel):
 
     def draw(self, context):
         layout = self.layout
+        scene = context.scene
         prefs = preferences.get_preferences()
         path = preferences.get_havok2fbx_path()
+        obj = context.active_object
 
-        box = layout.box()
-        box.label(text="Configure Havok2FBX", icon='FILE_FOLDER')
-
+        # ── Tool path ──────────────────────────────────────────────────────
+        path_box = layout.box()
+        path_box.label(text="Configure Havok2FBX", icon='FILE_FOLDER')
         if prefs:
-            box.prop(prefs, "havok2fbx_path", text="Folder")
-            row = box.row()
+            path_box.prop(prefs, "havok2fbx_path", text="Folder")
+            row = path_box.row()
             row.operator("fo4.install_havok2fbx", text="Get Havok2FBX", icon='URL')
             row.operator("fo4.check_tool_paths", text="Check Paths", icon='INFO')
         else:
-            box.label(text="Preferences not available (addon not registered)", icon='ERROR')
+            path_box.label(text="Preferences not available (addon not registered)", icon='ERROR')
 
-        status_box = layout.box()
+        status_row = path_box.row()
         if path:
-            status_box.label(text=f"Configured: {path}", icon='CHECKMARK')
+            status_row.label(text=f"Configured: {path}", icon='CHECKMARK')
         else:
-            status_box.label(text="Path not found. Set the folder above.", icon='ERROR')
+            status_row.label(text="Path not found — set folder above.", icon='ERROR')
+
+        # ── Animation type ─────────────────────────────────────────────────
+        type_box = layout.box()
+        type_box.label(text="Animation Type", icon='ARMATURE_DATA')
+        type_box.prop(scene, "fo4_havok_anim_type", text="")
+
+        # ── Output settings ────────────────────────────────────────────────
+        out_box = layout.box()
+        out_box.label(text="Output", icon='FILE_FOLDER')
+        out_box.prop(scene, "fo4_havok_output_dir", text="Directory")
+        out_box.prop(scene, "fo4_havok_anim_name", text="Name Override")
+
+        # ── Playback settings ──────────────────────────────────────────────
+        pb_box = layout.box()
+        pb_box.label(text="Playback", icon='TIME')
+        row = pb_box.row()
+        row.prop(scene, "fo4_havok_fps")
+        row = pb_box.row()
+        row.prop(scene, "fo4_havok_loop")
+        row.prop(scene, "fo4_havok_root_motion")
+        pb_box.prop(scene, "fo4_havok_force_frame_range")
+
+        # ── FBX export options ─────────────────────────────────────────────
+        fbx_box = layout.box()
+        fbx_box.label(text="FBX Export Options", icon='EXPORT')
+        fbx_box.prop(scene, "fo4_havok_bake_anim")
+        fbx_box.prop(scene, "fo4_havok_key_all_bones")
+        fbx_box.prop(scene, "fo4_havok_apply_transforms")
+        row = fbx_box.row()
+        row.prop(scene, "fo4_havok_scale")
+        fbx_box.prop(scene, "fo4_havok_simplify_value", slider=True)
+
+        # ── Export button ──────────────────────────────────────────────────
+        export_box = layout.box()
+        armature_ok = obj is not None and obj.type == 'ARMATURE'
+        has_anim = armature_ok and obj.animation_data and obj.animation_data.action
+        if not armature_ok:
+            export_box.label(text="Select an armature to export.", icon='INFO')
+        elif not has_anim:
+            export_box.label(text="No active action on armature.", icon='ERROR')
+        else:
+            action_name = obj.animation_data.action.name
+            export_box.label(text=f"Action: {action_name}", icon='ACTION')
+        col = export_box.column()
+        col.enabled = armature_ok
+        col.scale_y = 1.4
+        col.operator(
+            "fo4.export_animation_havok2fbx",
+            text="Export Animation" + (" → HKX" if path else " → FBX"),
+            icon='EXPORT',
+        )
 
 
 class FO4_PT_VegetationPanel(Panel):

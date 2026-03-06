@@ -2329,6 +2329,182 @@ class FO4_OT_InstallHavok2FBX(Operator):
         return {'FINISHED'}
 
 
+class FO4_OT_ExportAnimationHavok2FBX(Operator):
+    """Export the active armature animation to FBX and optionally convert to HKX via Havok2FBX."""
+    bl_idname = "fo4.export_animation_havok2fbx"
+    bl_label = "Export Animation (Havok2FBX)"
+    bl_options = {'REGISTER', 'UNDO'}
+
+    def execute(self, context):
+        import os
+        import subprocess
+        import tempfile
+
+        scene = context.scene
+        obj = context.active_object
+
+        if obj is None or obj.type != 'ARMATURE':
+            self.report({'ERROR'}, "Select an armature object before exporting.")
+            return {'CANCELLED'}
+
+        # Read export settings from scene properties
+        anim_type = scene.fo4_havok_anim_type
+        fps = scene.fo4_havok_fps
+        loop = scene.fo4_havok_loop
+        root_motion = scene.fo4_havok_root_motion
+        bake_anim = scene.fo4_havok_bake_anim
+        key_all_bones = scene.fo4_havok_key_all_bones
+        apply_transforms = scene.fo4_havok_apply_transforms
+        scale = scene.fo4_havok_scale
+        output_dir = bpy.path.abspath(scene.fo4_havok_output_dir).strip()
+        anim_name_override = scene.fo4_havok_anim_name.strip()
+        simplify_value = scene.fo4_havok_simplify_value
+        force_frame_range = scene.fo4_havok_force_frame_range
+
+        # Resolve animation name
+        anim_name = anim_name_override
+        if not anim_name:
+            if obj.animation_data and obj.animation_data.action:
+                anim_name = obj.animation_data.action.name
+            else:
+                anim_name = obj.name + "_anim"
+
+        # Resolve output directory
+        if not output_dir:
+            output_dir = tempfile.gettempdir()
+        os.makedirs(output_dir, exist_ok=True)
+
+        fbx_path = os.path.join(output_dir, anim_name + ".fbx")
+        hkx_path = os.path.join(output_dir, anim_name + ".hkx")
+
+        # Determine frame range
+        if force_frame_range and obj.animation_data and obj.animation_data.action:
+            action = obj.animation_data.action
+            frame_start = int(action.frame_range[0])
+            frame_end = int(action.frame_range[1])
+        else:
+            frame_start = scene.frame_start
+            frame_end = scene.frame_end
+
+        # Temporarily set the scene FPS so the FBX file embeds the correct rate
+        orig_fps = scene.render.fps
+        orig_fps_base = scene.render.fps_base
+        scene.render.fps = fps
+        scene.render.fps_base = 1.0
+
+        # Optionally apply transforms to a temporary copy so the source is not modified
+        export_obj = obj
+        temp_copy = None
+        if apply_transforms:
+            try:
+                bpy.ops.object.select_all(action='DESELECT')
+                obj.select_set(True)
+                context.view_layer.objects.active = obj
+                bpy.ops.object.duplicate(linked=False)
+                temp_copy = context.active_object
+                bpy.ops.object.transform_apply(location=False, rotation=True, scale=True)
+                export_obj = temp_copy
+            except Exception:
+                # If duplicating/applying fails, fall back to exporting the original
+                if temp_copy is not None:
+                    try:
+                        bpy.data.objects.remove(temp_copy, do_unlink=True)
+                    except Exception:
+                        pass
+                temp_copy = None
+                export_obj = obj
+
+        # Export FBX with animation settings
+        try:
+            bpy.ops.object.select_all(action='DESELECT')
+            export_obj.select_set(True)
+            context.view_layer.objects.active = export_obj
+
+            bpy.ops.export_scene.fbx(
+                filepath=fbx_path,
+                use_selection=True,
+                apply_scale_options='FBX_SCALE_ALL',
+                axis_forward='-Z',
+                axis_up='Y',
+                apply_unit_scale=True,
+                global_scale=scale,
+                object_types={'ARMATURE'},
+                use_mesh_modifiers=False,
+                add_leaf_bones=False,
+                primary_bone_axis='Y',
+                secondary_bone_axis='X',
+                use_armature_deform_only=not key_all_bones,
+                bake_anim=bake_anim,
+                bake_anim_use_all_bones=key_all_bones,
+                bake_anim_use_nla_strips=bake_anim,
+                bake_anim_use_all_actions=False,
+                bake_anim_force_startend_keying=True,
+                bake_anim_step=1.0,
+                bake_anim_simplify_factor=simplify_value,
+                path_mode='AUTO',
+            )
+        except Exception as exc:
+            self.report({'ERROR'}, f"FBX export failed: {exc}")
+            return {'CANCELLED'}
+        finally:
+            # Restore scene FPS and remove any temp copy regardless of success
+            scene.render.fps = orig_fps
+            scene.render.fps_base = orig_fps_base
+            if temp_copy is not None:
+                try:
+                    bpy.data.objects.remove(temp_copy, do_unlink=True)
+                except Exception:
+                    pass
+
+        self.report({'INFO'}, f"FBX exported: {fbx_path}")
+
+        # Attempt Havok2FBX conversion if configured
+        havok_dir = preferences.get_havok2fbx_path()
+        if havok_dir:
+            from . import tool_installers
+            if tool_installers.check_havok2fbx(havok_dir):
+                exe = os.path.join(havok_dir, "havok2fbx.exe")
+                cmd = [exe, fbx_path, hkx_path]
+                # Pass animation type flag if tool supports it
+                if anim_type != 'CHARACTER':
+                    cmd += ["--type", anim_type.lower()]
+                if loop:
+                    cmd += ["--loop"]
+                if root_motion:
+                    cmd += ["--rootmotion"]
+                cmd += ["--fps", str(fps)]
+                try:
+                    result = subprocess.run(
+                        cmd,
+                        capture_output=True,
+                        text=True,
+                        timeout=120,
+                    )
+                    if result.returncode == 0:
+                        self.report({'INFO'}, f"HKX created: {hkx_path}")
+                        notification_system.FO4_NotificationSystem.notify(
+                            f"Animation exported: {hkx_path}", 'INFO'
+                        )
+                    else:
+                        err = (result.stderr or result.stdout or "unknown error").strip()
+                        self.report({'WARNING'}, f"havok2fbx conversion failed: {err}. FBX saved at {fbx_path}")
+                        notification_system.FO4_NotificationSystem.notify(
+                            f"havok2fbx failed — FBX saved at {fbx_path}", 'WARNING'
+                        )
+                except FileNotFoundError:
+                    self.report({'WARNING'}, f"havok2fbx.exe not found at {exe}. FBX saved at {fbx_path}")
+                except subprocess.TimeoutExpired:
+                    self.report({'WARNING'}, f"havok2fbx timed out. FBX saved at {fbx_path}")
+                except Exception as exc:
+                    self.report({'WARNING'}, f"havok2fbx error: {exc}. FBX saved at {fbx_path}")
+            else:
+                self.report({'WARNING'}, f"Havok2FBX binaries missing from {havok_dir}. FBX saved at {fbx_path}")
+        else:
+            self.report({'INFO'}, f"Havok2FBX not configured — FBX saved at {fbx_path}. Set the folder in preferences to enable HKX conversion.")
+
+        return {'FINISHED'}
+
+
 class FO4_OT_InstallNiftools(Operator):
     """Run the PowerShell script to install Niftools Blender add-on."""
     bl_idname = "fo4.install_niftools"
@@ -7183,6 +7359,7 @@ classes = (
     FO4_OT_InstallTexconv,
     FO4_OT_InstallWhisper,
     FO4_OT_InstallHavok2FBX,
+    FO4_OT_ExportAnimationHavok2FBX,
     FO4_OT_InstallNiftools,
     FO4_OT_InstallPythonDeps,
     FO4_OT_CheckToolPaths,
@@ -7314,6 +7491,105 @@ def register():
     for cls in classes:
         bpy.utils.register_class(cls)
 
+    # Havok2FBX animation export settings stored per-scene
+    bpy.types.Scene.fo4_havok_anim_type = bpy.props.EnumProperty(
+        name="Animation Type",
+        description="Type of Fallout 4 animation being exported",
+        items=[
+            ('CHARACTER',    "Character",     "Humanoid NPC / player character skeleton"),
+            ('CREATURE',     "Creature",      "Non-humanoid creature skeleton"),
+            ('OBJECT',       "Object / Prop", "Animated static prop or furniture"),
+            ('WEAPON',       "Weapon",        "Third-person weapon animation"),
+            ('FIRSTPERSON',  "First-Person",  "First-person arms / weapon animation"),
+        ],
+        default='CHARACTER',
+    )
+    bpy.types.Scene.fo4_havok_fps = bpy.props.IntProperty(
+        name="FPS",
+        description="Animation frame rate (Fallout 4 standard is 30)",
+        default=30,
+        min=1,
+        max=120,
+    )
+    bpy.types.Scene.fo4_havok_loop = bpy.props.BoolProperty(
+        name="Loop Animation",
+        description="Mark animation as looping in the HKX output",
+        default=False,
+    )
+    bpy.types.Scene.fo4_havok_root_motion = bpy.props.BoolProperty(
+        name="Root Motion",
+        description="Include root-bone motion (translation/rotation) in the export",
+        default=False,
+    )
+    bpy.types.Scene.fo4_havok_bake_anim = bpy.props.BoolProperty(
+        name="Bake Animation",
+        description="Bake animation to keyframes on export (required for constraints and NLA strips to be captured)",
+        default=True,
+    )
+    bpy.types.Scene.fo4_havok_key_all_bones = bpy.props.BoolProperty(
+        name="Key All Bones",
+        description="Insert keyframes on every bone even if they do not move",
+        default=False,
+    )
+    bpy.types.Scene.fo4_havok_apply_transforms = bpy.props.BoolProperty(
+        name="Apply Transforms",
+        description="Apply object-level scale/rotation before export",
+        default=True,
+    )
+    bpy.types.Scene.fo4_havok_scale = bpy.props.FloatProperty(
+        name="Scale",
+        description="Global scale correction (1.0 = no change; use 0.01 if rig is in cm)",
+        default=1.0,
+        min=0.001,
+        max=100.0,
+        precision=3,
+    )
+    bpy.types.Scene.fo4_havok_output_dir = bpy.props.StringProperty(
+        name="Output Directory",
+        description="Folder where the exported FBX (and converted HKX) will be saved. Leave blank to use the system temp folder.",
+        subtype='DIR_PATH',
+        default="",
+    )
+    bpy.types.Scene.fo4_havok_anim_name = bpy.props.StringProperty(
+        name="Animation Name",
+        description="Override the file/animation name. Leave blank to use the active action name.",
+        default="",
+    )
+    bpy.types.Scene.fo4_havok_simplify_value = bpy.props.FloatProperty(
+        name="Curve Simplify",
+        description="Reduce keyframe count on export (0 = off, 1 = maximum simplification)",
+        default=0.0,
+        min=0.0,
+        max=1.0,
+        precision=2,
+    )
+    bpy.types.Scene.fo4_havok_force_frame_range = bpy.props.BoolProperty(
+        name="Use Action Frame Range",
+        description="Clamp export to the active action's frame range instead of the scene frame range",
+        default=True,
+    )
+
 def unregister():
     for cls in reversed(classes):
         bpy.utils.unregister_class(cls)
+
+    # Remove Havok2FBX scene properties
+    for prop in (
+        "fo4_havok_anim_type",
+        "fo4_havok_fps",
+        "fo4_havok_loop",
+        "fo4_havok_root_motion",
+        "fo4_havok_bake_anim",
+        "fo4_havok_key_all_bones",
+        "fo4_havok_apply_transforms",
+        "fo4_havok_scale",
+        "fo4_havok_output_dir",
+        "fo4_havok_anim_name",
+        "fo4_havok_simplify_value",
+        "fo4_havok_force_frame_range",
+    ):
+        if hasattr(bpy.types.Scene, prop):
+            try:
+                delattr(bpy.types.Scene, prop)
+            except Exception:
+                pass
