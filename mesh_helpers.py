@@ -124,7 +124,12 @@ class MeshHelpers:
         remove_kwargs = {'verts': bm.verts, 'dist': threshold}
         if preserve_uvs and uv_layer is not None:
             remove_kwargs['use_uvs'] = True
-        bmesh.ops.remove_doubles(bm, **remove_kwargs)
+        try:
+            bmesh.ops.remove_doubles(bm, **remove_kwargs)
+        except TypeError:
+            # use_uvs is not supported in this version of Blender; retry without it
+            remove_kwargs.pop('use_uvs', None)
+            bmesh.ops.remove_doubles(bm, **remove_kwargs)
 
         # Recalculate normals consistently
         bm.normal_update()
