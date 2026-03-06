@@ -48,10 +48,26 @@ import { DataSource, MiningResult } from '../shared/types';
 app.setName('mossy-desktop');
 app.setPath('userData', path.join(app.getPath('appData'), 'mossy-desktop'));
 
-// Load environment variables - use encrypted version for packaged builds
+// Load environment variables - use encrypted version for packaged builds.
+// process.cwd() is unreliable in packaged Electron apps (can be the system dir on Windows).
+// We search multiple candidate paths so the file is always found regardless of how the app
+// was launched. Electron patches `fs` to read from inside asar archives, so app.getAppPath()
+// is the correct primary location for files bundled in the "files" array.
+const findEnvFile = (candidates: string[]): string =>
+  candidates.find(p => fs.existsSync(p)) ?? candidates[0];
+
 const envPath = app.isPackaged
-  ? path.join(process.cwd(), '.env.encrypted')
-  : path.join(process.cwd(), '.env.local');
+  ? findEnvFile([
+      path.join(app.getAppPath(), '.env.encrypted'),           // inside asar (primary)
+      path.join(process.resourcesPath, '.env.encrypted'),       // resources folder
+      path.join(path.dirname(process.execPath), '.env.encrypted'), // next to executable
+      path.join(process.cwd(), '.env.encrypted'),               // last resort
+    ])
+  : findEnvFile([
+      path.join(process.cwd(), '.env.local'),
+      path.join(app.getAppPath(), '.env.local'),
+    ]);
+
 console.log('[Main] Loading .env from:', envPath);
 console.log('[Main] File exists:', fs.existsSync(envPath));
 console.log('[Main] Current working directory:', process.cwd());
@@ -1334,7 +1350,7 @@ function setupIpcHandlers() {
       process.env.MOSSY_BACKEND_URL || (app.isPackaged ? 'https://mossy.onrender.com' : '')
     ).trim();
 
-    return {
+    const defaults: Record<string, unknown> = {
       // UI + Voice language
       uiLanguage: 'auto',
       sttLanguage: 'en-US',
@@ -1420,6 +1436,24 @@ function setupIpcHandlers() {
       groqApiKey: '',
       groqApiKeyEnc: '',
     };
+
+    // Seed API keys from .env.encrypted into settings.json on first launch so that
+    // the app works out of the box without any user configuration.
+    const seeded =
+      seedSecretFromEnv(defaults, 'backendToken', 'MOSSY_BACKEND_TOKEN') ||
+      seedSecretFromEnv(defaults, 'openaiApiKey', 'OPENAI_API_KEY') ||
+      seedSecretFromEnv(defaults, 'groqApiKey', 'GROQ_API_KEY') ||
+      seedSecretFromEnv(defaults, 'elevenLabsApiKey', 'ELEVENLABS_API_KEY');
+    if (seeded) {
+      try {
+        fs.writeFileSync(settingsPath, JSON.stringify(defaults, null, 2), 'utf-8');
+        console.log('[Settings] First-run: seeded API keys from environment into settings.json');
+      } catch (e) {
+        console.warn('[Settings] First-run: could not persist seeded settings:', e);
+      }
+    }
+
+    return defaults;
   };
 
   const redactSettingsForRenderer = (settings: any): any => {
