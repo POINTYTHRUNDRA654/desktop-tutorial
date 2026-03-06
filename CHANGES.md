@@ -127,6 +127,41 @@ _Nothing currently pending. All items are in Done._
 
 ---
 
+### 12. Voice / TTS fixes — Mossy can now talk reliably  ✅
+**Problem A:** Mossy (the AI) didn't know she had voice/TTS capabilities. When users asked
+"can you talk?" or reported voice not working, the AI said it couldn't speak, which was
+confusing and incorrect.
+
+**Problem B:** Voice settings required a manual "Save" click before taking effect. The
+"Enabled" checkbox in Voice Settings only updated the UI; if the user forgot to click Save,
+the change was lost and TTS remained disabled.
+
+**Problem C:** The "Test" button in Voice Settings used the previously-saved settings from
+localStorage, not the current UI state. If the user had changed settings but not saved yet,
+the test would use the old (possibly disabled) settings.
+
+**Problem D:** `VoiceService.speakBrowser()` did not wait for voices to load before queuing
+the utterance, meaning the preferred voice selection was sometimes skipped. It also did not
+handle the `paused` state, which can cause Chrome/Electron speech synthesis to silently
+queue utterances that never start.
+
+**Fixes:**
+- `src/renderer/src/MossyBrain.ts` — Added a **VOICE & AUDIO CAPABILITIES** section to the
+  system prompt: Mossy now knows she has browser TTS, knows how to tell users to turn it on
+  (Voice toggle in chat toolbar), and guides them to Settings → Voice Settings for
+  troubleshooting.
+- `src/renderer/src/VoiceSettings.tsx` — Settings now **auto-save on every change** (no
+  manual Save click required). The `enabled` checkbox, voice selector, rate/pitch/volume
+  sliders all save immediately. The "Test" button saves the current UI state before testing
+  so the test always reflects what the user sees.
+- `src/renderer/src/voice-service.ts` — `speakBrowser()` now: (1) resumes if `paused`;
+  (2) waits for voices to be available before creating the utterance; (3) removes the
+  hardcoded fallback voice name `'Linda'` (was causing log noise on systems without that
+  voice).
+
+**Do not touch:** The auto-save `updateSettings()` helper in VoiceSettings.tsx or the
+`paused`/voice-load-wait logic in `speakBrowser()`.
+
 ### 10. Groq cost optimisation — correct model + rate-limit fallback  ✅
 **Problem A:** Render backend defaulted to `llama-3.1-70b-versatile` (deprecated model name).  
 **Problem B:** Neither the backend nor the desktop direct-SDK path handled Groq `429 RateLimitError`.
