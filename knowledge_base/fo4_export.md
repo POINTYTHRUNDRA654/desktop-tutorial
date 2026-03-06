@@ -53,6 +53,8 @@ differences.
 - **Poly count ≤ 65,535** – Fallout 4 engine limit per mesh.
 - **Materials** – FO4 expects BGSM/BGEM material files; textures must be DDS
   (BC1 for diffuse, BC3 for diffuse+alpha, BC5 for normal maps).
+- **Normal map colorspace must be 'Non-Color'** – using sRGB applies unwanted
+  gamma correction and produces incorrect tangent-space normals in the NIF.
 
 ## Collision meshes
 
@@ -61,6 +63,21 @@ differences.
 - No materials, no vertex groups.
 - Configure as Static Rigid Body (PASSIVE) + CONVEX_HULL shape so the Niftools
   exporter emits the correct `bhkCollisionObject` / `bhkRigidBody` NIF nodes.
+- **Required `bhkRigidBody` physics values for FO4:**
+  - `mass = 0.0` – fixed/keyframed static bodies must have zero mass.
+    A non-zero mass causes Niftools to emit wrong motion-system flags.
+  - `friction = 0.8` – matches vanilla FO4 static geometry.
+  - `restitution = 0.1` – minimal bounce; matches FO4 static geometry.
+- **Vertex limit: ≤ 256 vertices** – `bhkConvexVerticesShape` supports at most
+  256 vertices. The add-on automatically decimates and rebuilds the convex hull
+  if this limit is exceeded.
+- **Outward face normals** – `bhkConvexVerticesShape` stores supporting half-
+  planes derived from face normals. All face normals must point outward. The
+  add-on uses `bmesh.ops.recalc_face_normals` to guarantee this.
+- **Both visual mesh AND UCX_ collision must be in the same FBX** when using
+  the FBX fallback pipeline. NIF-conversion tools (CK, Cathedral Assets
+  Optimizer) pair objects by stripping the `UCX_` prefix. The add-on
+  automatically adds the collision object to the FBX selection.
 - Use the "Generate Collision" button in the add-on export panel.
 
 ## Mod directory structure

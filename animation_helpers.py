@@ -213,7 +213,8 @@ class AnimationHelpers:
                 if frame_end - frame_start > 3600:
                     issues.append(f"Animation too long: {frame_end - frame_start} frames")
         else:
-            issues.append("No animation data found (this is OK if no animation is needed)")
+            # No animation data is acceptable for static (non-animated) objects.
+            pass
         
         # Check bone naming conventions
         for bone in armature.bones:

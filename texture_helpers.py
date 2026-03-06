@@ -154,6 +154,18 @@ class TextureHelpers:
                     issues.append(f"{tex_name} width is not power of 2 (recommended: 512, 1024, 2048)")
                 if not (height & (height - 1) == 0 and height != 0):
                     issues.append(f"{tex_name} height is not power of 2 (recommended: 512, 1024, 2048)")
+
+                # Normal maps must use Non-Color colorspace.  Using sRGB causes
+                # Blender to apply gamma correction and produces wrong tangent-
+                # space vectors when the NIF exporter reads the image data.
+                if tex_name == 'Normal':
+                    cs = getattr(getattr(img, 'colorspace_settings', None), 'name', None)
+                    if cs and cs not in ('Non-Color', 'Raw'):
+                        issues.append(
+                            f"Normal map colorspace is '{cs}' – must be 'Non-Color' "
+                            "(Image Properties > Colorspace) to avoid washed-out "
+                            "normals in Fallout 4"
+                        )
         
         if not issues:
             return True, ["Textures are valid for Fallout 4"]
