@@ -1,0 +1,3 @@
+[submodule "tools/Blender-UE4-Importer"]
+	path = tools/Blender-UE4-Importer
+	url = https://github.com/Waffle1434/Blender-UE4-Importer
