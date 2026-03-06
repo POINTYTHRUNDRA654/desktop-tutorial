@@ -19,5 +19,5 @@
     }
   },
   "include": ["src/renderer/**/*", "src/shared/**/*"],
-  "exclude": ["node_modules", "dist", "dist-electron", "**/*.backup.ts", "**/*.backup.tsx"]
+  "exclude": ["node_modules", "dist", "dist-electron", "**/*.backup.ts", "**/*.backup.tsx", "src/renderer/src/installer-test-suite.ts"]
 }
