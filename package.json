@@ -34,6 +34,7 @@
     "prepackage": "npm run validate-version && node scripts/verify-build.mjs && node scripts/package-blender-addons.mjs",
     "package": "npm run build && electron-builder",
     "package:win": "npm run build && electron-builder --win",
+    "setup-keys": "node scripts/setup-keys.mjs",
     "fix-encryption": "node scripts/fix-env-encryption.mjs",
     "verify-build": "node scripts/verify-build.mjs",
     "validate-version": "node scripts/validate-version.mjs",
