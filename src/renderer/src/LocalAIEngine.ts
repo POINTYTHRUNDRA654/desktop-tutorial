@@ -229,7 +229,10 @@ export const LocalAIEngine = {
       try {
         const api = (window.electron?.api || window.electronAPI) as any;
 
-        // Embed prior conversation history in the prompt for context
+        // Embed prior conversation history in the prompt for context.
+        // Local providers (Ollama, LM Studio, Cosmos) are called via the mlLlmGenerate IPC
+        // which accepts a single prompt string, so history is serialised as dialogue text.
+        // The Groq/OpenAI cloud path below uses the structured messages array format instead.
         let historyText = '';
         if (conversationHistory && conversationHistory.length > 0) {
           historyText = '\n\nConversation so far:\n' + conversationHistory
