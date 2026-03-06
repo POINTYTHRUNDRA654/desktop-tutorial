@@ -756,7 +756,7 @@ class FO4_OT_ExportMesh(Operator):
             return {'CANCELLED'}
 
         # avoid exporting a generated collision mesh by mistake
-        if obj.get("fo4_collision") or obj.name.upper().endswith("_COLLISION"):
+        if obj.get("fo4_collision") or obj.name.upper().endswith("_COLLISION") or obj.name.upper().startswith("UCX_"):
             self.report({'ERROR'}, "Active object looks like a collision mesh; select the original mesh instead")
             return {'CANCELLED'}
 
@@ -5197,7 +5197,8 @@ class FO4_OT_GenerateCollisionMesh(Operator):
             return {'FINISHED'}
 
         try:
-            # use the helper; it duplicates and simplifies for us
+            # use the helper; it duplicates, simplifies, clears materials/vertex
+            # groups, parents to source, and configures the Rigid Body for us
             collision_obj = mesh_helpers.MeshHelpers.add_collision_mesh(
                 obj,
                 simplify_ratio=self.simplify_ratio,
@@ -5206,12 +5207,9 @@ class FO4_OT_GenerateCollisionMesh(Operator):
             if not collision_obj:
                 raise RuntimeError("helper failed to create collision mesh")
             
-            # ensure no materials remain (helper doesn't remove them)
-            collision_obj.data.materials.clear()
-            
             self.report({'INFO'}, f"Created collision mesh: {collision_obj.name}")
             notification_system.FO4_NotificationSystem.notify(
-                "Collision mesh generated", 'INFO'
+                f"Collision mesh generated: {collision_obj.name}", 'INFO'
             )
             return {'FINISHED'}
             
