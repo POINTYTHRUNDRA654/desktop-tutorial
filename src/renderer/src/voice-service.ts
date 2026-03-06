@@ -708,6 +708,9 @@ export class VoiceService {
       throw new Error('Cloud TTS not available - electron API not found');
     }
 
+    // Extract the API reference so TypeScript knows it is defined for the rest of the method.
+    const cloudApi = (window as any).electron.api;
+
     try {
       this.onModeChange?.('speaking');
       
@@ -717,7 +720,7 @@ export class VoiceService {
           reject(new Error('TTS timeout'));
         }, 10000); // 10 second timeout
 
-        const unsubscribe = window.electron.api.onTtsSpeak((url: string | null) => {
+        const unsubscribe = cloudApi.onTtsSpeak((url: string | null) => {
           clearTimeout(timeout);
           unsubscribe();
           if (url === null) {
@@ -728,7 +731,7 @@ export class VoiceService {
         });
 
         // Send the TTS request
-        window.electron.api.ttsSpeak(text).catch((error: any) => {
+        cloudApi.ttsSpeak(text).catch((error: any) => {
           clearTimeout(timeout);
           unsubscribe();
           reject(error);

@@ -1,28 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import { Eye, Folder, FileText, Settings, RefreshCw, AlertCircle, CheckCircle2, Copy } from 'lucide-react';
 
-// Declare Electron API for TypeScript
-declare global {
-    interface Window {
-        electron?: {
-            api?: {
-                getSystemInfo(): Promise<{
-                    os: string;
-                    cpu: string;
-                    gpu: string;
-                    ram: number;
-                    cores: number;
-                    arch: string;
-                    vram?: number;
-                    computerName?: string;
-                    username?: string;
-                }>;
-                detectPrograms(): Promise<Array<{name: string; path: string}>>;
-            };
-        };
-    }
-}
-
 interface DesktopFile {
     name: string;
     path: string;
