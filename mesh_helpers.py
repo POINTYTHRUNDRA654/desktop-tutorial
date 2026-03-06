@@ -145,12 +145,22 @@ class MeshHelpers:
 
     
     @staticmethod
-    def validate_mesh(obj):
+    def validate_mesh(obj, is_collision=False):
         """Validate mesh for Fallout 4 compatibility.
 
         Checks geometry integrity, UV requirements, scale, poly budget, and
         common issues that cause the Niftools NIF exporter to fail silently
         (non-manifold edges, inconsistent face normals).
+
+        Parameters
+        ----------
+        obj : bpy.types.Object
+            The mesh object to validate.
+        is_collision : bool, optional
+            Set to ``True`` for collision or occlusion meshes.  These are
+            invisible in-game so the UV-map requirement and non-manifold edge
+            check are skipped – collision shapes are allowed to be open shells
+            or convex hulls that are not fully closed surfaces.
         """
         if obj.type != 'MESH':
             return False, ["Object is not a mesh"]
@@ -167,9 +177,11 @@ class MeshHelpers:
         if poly_count == 0:
             issues.append("Mesh has no polygons")
         elif poly_count > 65535:
-            issues.append(f"Poly count too high: {poly_count} (FO4 limit is 65,535 triangles per mesh)")        
-        # Check for UV map – required by Niftools v0.1.1 and by FO4 shaders
-        if not mesh.uv_layers:
+            issues.append(f"Poly count too high: {poly_count} (FO4 limit is 65,535 triangles per mesh)")
+
+        # Check for UV map – required by Niftools v0.1.1 and by FO4 shaders.
+        # Collision/occlusion meshes are invisible and do not need UV maps.
+        if not is_collision and not mesh.uv_layers:
             issues.append("Mesh has no UV map (required for FO4 NIF export)")
         
         # Use bmesh for detailed geometry checks
@@ -186,12 +198,15 @@ class MeshHelpers:
 
         # Non-manifold edges – edges shared by ≠2 faces or boundary edges on a
         # closed surface; the Niftools exporter can silently corrupt these.
-        non_manifold = [e for e in bm.edges if not e.is_manifold]
-        if non_manifold:
-            issues.append(
-                f"{len(non_manifold)} non-manifold edge(s) detected – use Mesh > Clean Up > "
-                "Fill Holes / Merge by Distance, or select Non-Manifold (Alt+Ctrl+Shift+M)"
-            )
+        # Collision/occlusion meshes may legitimately be open shells (convex
+        # hulls, simple boxes) so this check is skipped for them.
+        if not is_collision:
+            non_manifold = [e for e in bm.edges if not e.is_manifold]
+            if non_manifold:
+                issues.append(
+                    f"{len(non_manifold)} non-manifold edge(s) detected – use Mesh > Clean Up > "
+                    "Fill Holes / Merge by Distance, or select Non-Manifold (Alt+Ctrl+Shift+M)"
+                )
 
         bm.free()
         

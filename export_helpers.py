@@ -12,6 +12,21 @@ class ExportHelpers:
     """Helper functions for exporting to Fallout 4"""
     
     @staticmethod
+    def _is_collision_mesh(obj):
+        """Return True if *obj* is a collision or occlusion mesh.
+
+        Collision/occlusion meshes are invisible in-game and do not need
+        textures or a closed (manifold) surface.  They are identified by:
+        - The ``fo4_collision`` custom property set by :func:`add_collision_mesh`
+        - The ``UCX_`` prefix (Fallout 4 / FBX naming convention)
+        - The ``_COLLISION`` suffix (legacy add-on naming convention)
+        """
+        if obj.get("fo4_collision"):
+            return True
+        name_upper = obj.name.upper()
+        return name_upper.startswith("UCX_") or name_upper.endswith("_COLLISION")
+
+    @staticmethod
     def validate_before_export(obj):
         """Validate object before export"""
         from . import mesh_helpers, texture_helpers, notification_system
@@ -19,13 +34,20 @@ class ExportHelpers:
         issues = []
         
         if obj.type == 'MESH':
-            # Validate mesh
-            success, mesh_issues = mesh_helpers.MeshHelpers.validate_mesh(obj)
+            is_collision = ExportHelpers._is_collision_mesh(obj)
+
+            # Validate mesh geometry; collision/occlusion meshes are exempt from
+            # the UV-map and non-manifold requirements because they are invisible.
+            success, mesh_issues = mesh_helpers.MeshHelpers.validate_mesh(
+                obj, is_collision=is_collision
+            )
             if not success:
                 issues.extend(mesh_issues)
             
-            # Validate textures
-            if obj.data.materials:
+            # Texture validation is only meaningful for visible (non-collision)
+            # meshes.  Collision and occlusion meshes are invisible in-game and
+            # intentionally have no texture setup.
+            if not is_collision and obj.data.materials:
                 success, texture_issues = texture_helpers.TextureHelpers.validate_textures(obj)
                 if not success:
                     issues.extend(texture_issues)
