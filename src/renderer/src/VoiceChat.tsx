@@ -273,6 +273,26 @@ const VoiceChat: React.FC = () => {
             >
               Help
             </Link>
+          <button
+            onClick={async () => {
+              try {
+                const api = (window as any).electron?.api || (window as any).electronAPI;
+                if (!api?.getVoiceHistoryPath) return;
+                const path = await api.getVoiceHistoryPath();
+                if (api.revealInFolder) {
+                  await api.revealInFolder(path);
+                } else {
+                  console.warn('revealInFolder API not available');
+                }
+              } catch (e) {
+                console.warn('Failed to open voice history:', e);
+              }
+            }}
+            className="px-3 py-1 text-[10px] font-black uppercase tracking-widest rounded bg-blue-500/10 border border-blue-500/30 text-blue-100 hover:bg-blue-500/20 transition-colors"
+            title="Reveal voice chat history file"
+          >
+            History
+          </button>
             {isActive && (
                <div className="flex items-center gap-2 px-3 py-1 bg-blue-500/20 border border-blue-500/30 rounded text-[10px] text-blue-400 font-mono animate-pulse">
                     <div className="w-1.5 h-1.5 rounded-full bg-blue-400" />

@@ -49,7 +49,8 @@
     "verify": "npm run smoke && npm run build",
     "backend:dev": "tsx watch src/backend/index.ts",
     "backend:build": "tsc -p tsconfig.backend.json",
-    "backend:start": "node dist-backend/index.js"
+    "backend:start": "node dist-backend/index.js",
+    "token-server": "ts-node backend/token-server.ts"
   },
   "dependencies": {
     "@emnapi/runtime": "1.8.1",

@@ -883,6 +883,22 @@ function setupIpcHandlers() {
     }
   });
 
+  // Persist voice conversation lines to disk (default path can be overridden via env var)
+  registerHandler(IPC_CHANNELS.SAVE_VOICE_HISTORY, async (_event, line: string) => {
+    try {
+      const histPath = process.env.MOSSY_VOICE_HISTORY_PATH || 'D:\\mossy_voice_history.txt';
+      await fs.promises.appendFile(histPath, line, { encoding: 'utf8' });
+      return { success: true };
+    } catch (e: any) {
+      console.error('[Main] failed to append voice history:', e);
+      return { success: false, error: e?.message || String(e) };
+    }
+  });
+
+  registerHandler(IPC_CHANNELS.GET_VOICE_HISTORY_PATH, async () => {
+    return process.env.MOSSY_VOICE_HISTORY_PATH || 'D:\\mossy_voice_history.txt';
+  });
+
   // Program detection handler
   registerHandler(IPC_CHANNELS.DETECT_PROGRAMS, async () => {
     try {

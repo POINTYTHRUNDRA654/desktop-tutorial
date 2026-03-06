@@ -51,6 +51,10 @@ const IPC_CHANNELS = {
   GET_SETTINGS: 'get-settings',
   SET_SETTINGS: 'set-settings',
   SETTINGS_UPDATED: 'settings-updated',
+
+  // voice history persistence
+  SAVE_VOICE_HISTORY: 'save-voice-history',
+  GET_VOICE_HISTORY_PATH: 'get-voice-history-path',
   ELEVENLABS_STATUS: 'elevenlabs-status',
   ELEVENLABS_LIST_VOICES: 'elevenlabs-list-voices',
   ELEVENLABS_SYNTHESIZE: 'elevenlabs-synthesize',
@@ -1608,6 +1612,18 @@ const electronAPI = {
    */
   transcribeAudio: (arrayBuffer: ArrayBuffer, mimeType?: string): Promise<{ success: boolean; text?: string; error?: string }> => {
     return ipcRenderer.invoke(IPC_CHANNELS.TRANSCRIBE_AUDIO, arrayBuffer, mimeType);
+  },
+
+  /**
+   * Append a line of transcript to persistent disk history file.
+   * Renderer passes a simple string; main process handles file IO.
+   */
+  saveVoiceHistory: (line: string): Promise<{ success: boolean; error?: string }> => {
+    return ipcRenderer.invoke(IPC_CHANNELS.SAVE_VOICE_HISTORY, line);
+  },
+
+  getVoiceHistoryPath: (): Promise<string> => {
+    return ipcRenderer.invoke(IPC_CHANNELS.GET_VOICE_HISTORY_PATH);
   },
 
   /**
