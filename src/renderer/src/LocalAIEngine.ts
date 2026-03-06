@@ -123,8 +123,10 @@ export const LocalAIEngine = {
 
   /**
    * Generates a response using the local Ollama service or Groq Cloud API.
+   * Pass `conversationHistory` (prior messages, not including the current query) to
+   * maintain multi-turn conversation context.
    */
-  async generateResponse(query: string, systemInstruction: string): Promise<AIResponse> {
+  async generateResponse(query: string, systemInstruction: string, conversationHistory?: Array<{role: 'user' | 'assistant'; content: string}>): Promise<AIResponse> {
     const localStatus = await this.getLocalProviderStatus();
     const localSettings = await this.getLocalAiSettings();
     
@@ -226,7 +228,16 @@ export const LocalAIEngine = {
     if (localStatus.ok) {
       try {
         const api = (window.electron?.api || window.electronAPI) as any;
-        const prompt = `${enhancedSystemInstruction}${injectedContext}\n\nUser Question: ${query}\n\nMossy's Response:`;
+
+        // Embed prior conversation history in the prompt for context
+        let historyText = '';
+        if (conversationHistory && conversationHistory.length > 0) {
+          historyText = '\n\nConversation so far:\n' + conversationHistory
+            .filter(m => m.content && m.content.trim())
+            .map(m => m.role === 'user' ? `User: ${m.content}` : `Mossy: ${m.content}`)
+            .join('\n') + '\n';
+        }
+        const prompt = `${enhancedSystemInstruction}${injectedContext}${historyText}\nUser: ${query}\n\nMossy's Response:`;
 
         const provider = localStatus.provider;
 
@@ -278,7 +289,7 @@ export const LocalAIEngine = {
       }
 
       const systemPrompt = systemInstruction + injectedContext;
-      const resp = await api.aiChatGroq(query, systemPrompt, 'llama-3.3-70b-versatile');
+      const resp = await api.aiChatGroq(query, systemPrompt, 'llama-3.3-70b-versatile', conversationHistory);
       if (resp?.success) {
         const responseContent = String(resp.content || '');
         

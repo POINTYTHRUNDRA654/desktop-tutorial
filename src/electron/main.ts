@@ -3881,10 +3881,21 @@ function setupIpcHandlers() {
   /**
    * AI Chat Handler - Groq (for voice and real-time)
    */
-  registerHandler('ai-chat-groq', async (_event, payload: { prompt: string; systemPrompt?: string; model?: string }) => {
+  registerHandler('ai-chat-groq', async (_event, payload: { prompt: string; systemPrompt?: string; model?: string; conversationHistory?: Array<{role: string; content: string}> }) => {
     try {
       const systemPrompt = payload.systemPrompt || 'You are a helpful assistant for Fallout 4 modding.';
       const model = payload.model || 'llama-3.3-70b-versatile';
+
+      // Build messages array with conversation history for multi-turn context
+      const rawHistory = Array.isArray(payload.conversationHistory) ? payload.conversationHistory : [];
+      const history = rawHistory
+        .filter((entry: any) => entry && (entry.role === 'user' || entry.role === 'assistant') && typeof entry.content === 'string' && entry.content.trim())
+        .slice(-30);
+      const messages = [
+        { role: 'system', content: systemPrompt },
+        ...history,
+        { role: 'user', content: String(payload.prompt || '') },
+      ];
 
       const backend = getBackendConfig();
       if (!backend) {
@@ -3903,10 +3914,7 @@ function setupIpcHandlers() {
           body: JSON.stringify({
             provider: 'groq',
             model,
-            messages: [
-              { role: 'system', content: systemPrompt },
-              { role: 'user', content: String(payload.prompt || '') },
-            ],
+            messages,
           }),
           signal: controller.signal,
         });
