@@ -541,6 +541,31 @@ export class VoiceService {
       await new Promise(resolve => setTimeout(resolve, SPEECH_SYNTHESIS_CLEAR_DELAY_MS));
     }
 
+    // Resume if paused — Chrome/Electron can leave speechSynthesis in a paused
+    // state, causing new speak() calls to silently queue but never start.
+    if (window.speechSynthesis.paused) {
+      console.log('[VoiceService] speechSynthesis is paused, resuming');
+      window.speechSynthesis.resume();
+    }
+
+    // Wait for voices to be available before creating the utterance so the
+    // preferred voice is correctly applied before queuing.
+    const currentVoices = window.speechSynthesis.getVoices();
+    if (currentVoices.length === 0) {
+      console.log('[VoiceService] Waiting for voiceschanged before speaking');
+      await new Promise<void>((resolve) => {
+        let done = false;
+        const finish = () => { if (!done) { done = true; resolve(); } };
+        try {
+          window.speechSynthesis.addEventListener('voiceschanged', function handler() {
+            window.speechSynthesis.removeEventListener('voiceschanged', handler);
+            finish();
+          });
+        } catch (e) { console.warn('[VoiceService] Could not add voiceschanged listener:', e); }
+        setTimeout(finish, 250);
+      });
+    }
+
     return new Promise((resolve, reject) => {
       if (this.shouldStop) {
         console.log('[VoiceService] speakBrowser: shouldStop is true, resolving early');
@@ -561,37 +586,17 @@ export class VoiceService {
       utterance.volume = browserSettings.volume;
       console.log('[VoiceService] Created SpeechSynthesisUtterance');
 
-      // Set voice based on environment variable or config
-      const preferredVoice = browserSettings.preferredVoiceName || import.meta.env.VITE_BROWSER_TTS_VOICE || 'Linda';
+      // Set voice — voices are now guaranteed to be loaded (or we timed out and will use default).
+      const preferredVoice = browserSettings.preferredVoiceName || import.meta.env.VITE_BROWSER_TTS_VOICE || '';
       console.log('[VoiceService] Preferred voice:', preferredVoice);
-      
-      // Function to set voice once voices are loaded
-      const setVoice = () => {
-        const voices = window.speechSynthesis.getVoices();
-        console.log('[VoiceService] Available voices:', voices.map(v => ({ name: v.name, lang: v.lang, localService: v.localService })));
-        const selectedVoice = pickBrowserTtsVoice(voices, preferredVoice);
-        if (selectedVoice) {
-          utterance.voice = selectedVoice;
-          console.log('[VoiceService] Selected voice:', selectedVoice.name);
-        } else {
-          console.warn(`[VoiceService] Preferred voice "${preferredVoice}" not found, using default`);
-        }
-      };
-
-      // Check if voices are already loaded
-      const currentVoices = window.speechSynthesis.getVoices();
-      console.log('[VoiceService] Current voices count:', currentVoices.length);
-      if (currentVoices.length > 0) {
-        setVoice();
+      const voices = window.speechSynthesis.getVoices();
+      console.log('[VoiceService] Available voices:', voices.map(v => ({ name: v.name, lang: v.lang, localService: v.localService })));
+      const selectedVoice = pickBrowserTtsVoice(voices, preferredVoice || undefined);
+      if (selectedVoice) {
+        utterance.voice = selectedVoice;
+        console.log('[VoiceService] Selected voice:', selectedVoice.name);
       } else {
-        console.log('[VoiceService] Waiting for voiceschanged event');
-        // Wait for voices to load
-        const voicesChangedHandler = () => {
-          console.log('[VoiceService] voiceschanged event fired');
-          setVoice();
-          window.speechSynthesis.removeEventListener('voiceschanged', voicesChangedHandler);
-        };
-        window.speechSynthesis.addEventListener('voiceschanged', voicesChangedHandler);
+        console.warn('[VoiceService] No matching voice found, using browser default');
       }
 
       utterance.onstart = () => {

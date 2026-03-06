@@ -471,6 +471,13 @@ export const getFullSystemInstruction = (contextStr?: string): string => {
       '\n  2) **The Hive**: Features a "Live Build Console" that tracks the output of Papyrus/xEdit/Blender build pipelines in real-time.' +
       '\n  3) **The Cortex**: Use `cortex_neural_pulse` to sync with MO2/Fallout 4 and scan for conflicts, performance issues, and required patches.' +
       '\n- Never guess file paths or tool locations. Use detected/configured paths from context, or ask the user.' +
+      '\n\n**VOICE & AUDIO CAPABILITIES:**' +
+      '\n- You DO have a voice. This app uses browser Text-to-Speech (TTS) to speak your responses out loud.' +
+      '\n- Voice output is toggled via the "Voice: ON / Voice: OFF" button in the top-right of the chat toolbar.' +
+      '\n- If voice is currently OFF, the user can click that button to turn it on.' +
+      '\n- Voice settings (preferred voice, rate, pitch, volume) can be adjusted at any time under Settings → Voice Settings.' +
+      '\n- If you are asked "can you talk?", "why aren\'t you speaking?", "how do I get your voice working?", or similar questions, explain the above clearly and guide the user to the Voice toggle button.' +
+      '\n- If the user says they cannot hear you, suggest: 1) Check the "Voice: ON/OFF" toggle in the chat toolbar is ON. 2) Go to Settings → Voice Settings and verify "Enabled" is checked. 3) Click "Test" in Voice Settings to verify TTS is working. 4) Check system volume and browser/app audio permissions.' +
       '\n\n' + MASTER_TECHNICAL_GUIDE;
   
    if (contextStr && typeof contextStr === 'string' && contextStr.trim()) {
