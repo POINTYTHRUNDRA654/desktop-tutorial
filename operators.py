@@ -409,6 +409,23 @@ class FO4_OT_BatchApplyWindAnimation(Operator):
 
 class FO4_OT_BatchAutoWeightPaint(Operator):
     """Auto weight paint all selected meshes to the first armature found"""
+    bl_idname = "fo4.batch_auto_weight_paint"
+    bl_label = "Batch: Auto Weight Paint"
+
+    def execute(self, context):
+        meshes = [obj for obj in context.selected_objects if obj.type == 'MESH']
+        arm = next((o for o in context.selected_objects if o.type == 'ARMATURE'), None)
+        if not arm and meshes:
+            # try parent of first mesh
+            if meshes[0].parent and meshes[0].parent.type == 'ARMATURE':
+                arm = meshes[0].parent
+        if not meshes or not arm:
+            self.report({'ERROR'}, "Need at least one mesh and an armature")
+            return {'CANCELLED'}
+        for m in meshes:
+            animation_helpers.AnimationHelpers.auto_weight_paint(m, arm)
+        self.report({'INFO'}, f"Processed {len(meshes)} meshes")
+        return {'FINISHED'}
 
 
 class FO4_OT_ToggleWindPreview(Operator):
@@ -434,33 +451,6 @@ class FO4_OT_ToggleWindPreview(Operator):
             else:
                 self.report({'WARNING'}, msg)
         return {'FINISHED'}
-    bl_idname = "fo4.batch_auto_weight_paint"
-    bl_label = "Batch: Auto Weight Paint"
-
-    def execute(self, context):
-        meshes = [obj for obj in context.selected_objects if obj.type == 'MESH']
-        arm = next((o for o in context.selected_objects if o.type == 'ARMATURE'), None)
-        if not arm and meshes:
-            # try parent of first mesh
-            if meshes[0].parent and meshes[0].parent.type == 'ARMATURE':
-                arm = meshes[0].parent
-        if not meshes or not arm:
-            self.report({'ERROR'}, "Need at least one mesh and an armature")
-            return {'CANCELLED'}
-        for m in meshes:
-            animation_helpers.AnimationHelpers.auto_weight_paint(m, arm)
-        self.report({'INFO'}, f"Processed {len(meshes)} meshes")
-        return {'FINISHED'}
-
-        ok, msg = animation_helpers.AnimationHelpers.auto_weight_paint(mesh, arm)
-        if ok:
-            self.report({'INFO'}, msg)
-            notification_system.FO4_NotificationSystem.notify(msg, 'INFO')
-            return {'FINISHED'}
-        else:
-            self.report({'ERROR'}, msg)
-            notification_system.FO4_NotificationSystem.notify(msg, 'ERROR')
-            return {'CANCELLED'}
 
 
 class FO4_OT_ApplyWindAnimation(Operator):
@@ -2378,6 +2368,24 @@ class FO4_OT_InstallPythonDeps(Operator):
         default=False,
     )
 
+    def execute(self, context):
+        import threading
+        from . import tool_installers
+        optional = self.optional
+
+        def _run():
+            ok, msg = tool_installers.install_python_requirements(optional)
+            level = 'INFO' if ok else 'ERROR'
+            print("PYTHON DEPS", msg)
+
+            def _notify():
+                notification_system.FO4_NotificationSystem.notify(msg, level)
+            bpy.app.timers.register(_notify, first_interval=0.0)
+
+        threading.Thread(target=_run, daemon=True).start()
+        self.report({'INFO'}, "Python dependency installation started in the background. Check the console for progress.")
+        return {'FINISHED'}
+
 
 class FO4_OT_CheckToolPaths(Operator):
     """Report the status of configured tool paths and FO4 utilities."""
@@ -2416,24 +2424,6 @@ class FO4_OT_CheckToolPaths(Operator):
         for l in lines:
             self.report({'INFO'}, l)
             print(l)
-        return {'FINISHED'}
-
-    def execute(self, context):
-        import threading
-        from . import tool_installers
-        optional = self.optional
-
-        def _run():
-            ok, msg = tool_installers.install_python_requirements(optional)
-            level = 'INFO' if ok else 'ERROR'
-            print("PYTHON DEPS", msg)
-
-            def _notify():
-                notification_system.FO4_NotificationSystem.notify(msg, level)
-            bpy.app.timers.register(_notify, first_interval=0.0)
-
-        threading.Thread(target=_run, daemon=True).start()
-        self.report({'INFO'}, "Python dependency installation started in the background. Check the console for progress.")
         return {'FINISHED'}
 
 
@@ -7147,6 +7137,7 @@ classes = (
     FO4_OT_BatchGenerateWindWeights,
     FO4_OT_BatchApplyWindAnimation,
     FO4_OT_BatchAutoWeightPaint,
+    FO4_OT_ToggleWindPreview,
     FO4_OT_CheckRigNetInstallation,
     FO4_OT_ShowRigNetInfo,
     FO4_OT_PrepareForRigNet,
@@ -7194,6 +7185,7 @@ classes = (
     FO4_OT_InstallHavok2FBX,
     FO4_OT_InstallNiftools,
     FO4_OT_InstallPythonDeps,
+    FO4_OT_CheckToolPaths,
     FO4_OT_RunAllInstallers,
     FO4_OT_SelfTest,
     FO4_OT_UpscaleTexture,
