@@ -132,8 +132,20 @@ const VoiceSettings: React.FC<VoiceSettingsProps> = ({ embedded = false }) => {
     saveBrowserTtsSettings(settings);
   };
 
+  // Auto-save immediately when any setting changes so the rest of the app
+  // always reflects what the user sees in the UI (no manual Save required).
+  const updateSettings = (updater: (s: BrowserTtsSettings) => BrowserTtsSettings) => {
+    setSettings(prev => {
+      const next = updater(prev);
+      saveBrowserTtsSettings(next);
+      return next;
+    });
+  };
+
   const onTest = async () => {
-    console.log('[VoiceSettings] onTest clicked, calling speakBrowserTts');
+    console.log('[VoiceSettings] onTest clicked');
+    // Save current UI state first so speakBrowserTts reads the latest settings.
+    saveBrowserTtsSettings(settings);
     await speakBrowserTts(testText, { cancelExisting: true });
   };
 
@@ -216,7 +228,7 @@ const VoiceSettings: React.FC<VoiceSettingsProps> = ({ embedded = false }) => {
             <Volume2 className="w-7 h-7 text-emerald-400" />
             <div>
               <h1 className="text-2xl font-bold text-white">Voice Settings</h1>
-              <p className="text-sm text-slate-400">Choose the browser TTS voice for Mossy responses.</p>
+              <p className="text-sm text-slate-400">Choose the browser TTS voice for Mossy responses. Changes save automatically.</p>
             </div>
           </div>
 
@@ -294,7 +306,7 @@ const VoiceSettings: React.FC<VoiceSettingsProps> = ({ embedded = false }) => {
               <input
                 type="checkbox"
                 checked={settings.enabled}
-                onChange={(e) => setSettings(s => ({ ...s, enabled: e.target.checked }))}
+                onChange={(e) => updateSettings(s => ({ ...s, enabled: e.target.checked }))}
                 className="w-4 h-4 rounded"
               />
               Enabled
@@ -314,7 +326,7 @@ const VoiceSettings: React.FC<VoiceSettingsProps> = ({ embedded = false }) => {
             <>
               <select
                 value={settings.preferredVoiceName ?? ''}
-                onChange={(e) => setSettings(s => ({ ...s, preferredVoiceName: e.target.value || undefined }))}
+                onChange={(e) => updateSettings(s => ({ ...s, preferredVoiceName: e.target.value || undefined }))}
                 className="w-full px-3 py-2 rounded bg-slate-900 border border-slate-700 text-slate-100"
               >
                 <option value="">(Auto)</option>
@@ -334,7 +346,7 @@ const VoiceSettings: React.FC<VoiceSettingsProps> = ({ embedded = false }) => {
                     max={2.0}
                     step={0.05}
                     value={settings.rate}
-                    onChange={(e) => setSettings(s => ({ ...s, rate: Number(e.target.value) }))}
+                    onChange={(e) => updateSettings(s => ({ ...s, rate: Number(e.target.value) }))}
                     className="w-full"
                   />
                   <div className="text-[10px] text-slate-500">{settings.rate.toFixed(2)}</div>
@@ -348,7 +360,7 @@ const VoiceSettings: React.FC<VoiceSettingsProps> = ({ embedded = false }) => {
                     max={2.0}
                     step={0.05}
                     value={settings.pitch}
-                    onChange={(e) => setSettings(s => ({ ...s, pitch: Number(e.target.value) }))}
+                    onChange={(e) => updateSettings(s => ({ ...s, pitch: Number(e.target.value) }))}
                     className="w-full"
                   />
                   <div className="text-[10px] text-slate-500">{settings.pitch.toFixed(2)}</div>
@@ -362,7 +374,7 @@ const VoiceSettings: React.FC<VoiceSettingsProps> = ({ embedded = false }) => {
                     max={1.0}
                     step={0.05}
                     value={settings.volume}
-                    onChange={(e) => setSettings(s => ({ ...s, volume: Number(e.target.value) }))}
+                    onChange={(e) => updateSettings(s => ({ ...s, volume: Number(e.target.value) }))}
                     className="w-full"
                   />
                   <div className="text-[10px] text-slate-500">{settings.volume.toFixed(2)}</div>
