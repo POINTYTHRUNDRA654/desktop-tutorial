@@ -12,16 +12,11 @@
 
 | Key | Value |
 |-----|-------|
-| Branch | `copilot/install-git-lfs` |
-| HEAD commit | `8a4e47c` |
-| Generated at | 2026-03-05 23:09 UTC |
-| Total commits tracked | 174 |
+| Branch | `copilot/rescan-and-rebuild-zip` |
+| HEAD commit | `a53a7a3` |
+| Generated at | 2026-03-06 01:50 UTC |
+| Total commits tracked | 178 |
 | Total files tracked | 141 |
-| Branch | `main` |
-| HEAD commit | `8e3372d` |
-| Generated at | 2026-03-05 23:05 UTC |
-| Total commits tracked | 1 |
-| Total files tracked | 136 |
 
 ---
 
@@ -29,17 +24,16 @@
 
 | SHA | Date (UTC) | Author | Side | Summary |
 |-----|-----------|--------|------|---------|
+| `a53a7a3f4d` | 2026-03-06 01:41 UTC | copilot-swe-agent[bot] | 🤖 GitHub | Initial plan |
+| `fb45fc2781` | 2026-03-06 01:38 UTC | Pointytundra654 | 🖥️ Desktop | Merge pull request #30 from POINTYTHRUNDRA654/copilot/instal |
+| `de6ef95689` | 2026-03-06 01:38 UTC | Pointytundra654 | 🖥️ Desktop | Merge branch 'main' into copilot/install-git-lfs |
+| `07f136d3dc` | 2026-03-05 23:10 UTC | copilot-swe-agent[bot] | 🤖 GitHub | verify desktop push, sync build.log, rebuild zip, update SYN |
 | `27068d46cc` | 2026-03-05 23:05 UTC | github-actions[bot] | 🤖 GitHub | chore: update SYNC_STATE.md [skip ci] |
 | `8e3372d56b` | 2026-03-05 22:10 UTC | POINTYTHRUNDRA654 | 🖥️ Desktop | patch |
 | `8a4e47cae6` | 2026-03-05 22:38 UTC | copilot-swe-agent[bot] | 🤖 GitHub | fix: stop CI pushing SYNC_STATE.md to main (root cause of pe |
 | `1cfeacd125` | 2026-03-05 22:31 UTC | copilot-swe-agent[bot] | 🤖 GitHub | feat: restore all 35 missing operator buttons and rebuild zi |
 | `d38cd0809a` | 2026-03-05 22:24 UTC | copilot-swe-agent[bot] | 🤖 GitHub | fix: guard operator property assignment against None return  |
 | `963718c264` | 2026-03-05 22:21 UTC | copilot-swe-agent[bot] | 🤖 GitHub | plan: fix AttributeError in ui_panels.py operator property c |
-| `0e6313fdfd` | 2026-03-05 22:19 UTC | copilot-swe-agent[bot] | 🤖 GitHub | plan: fix GitHub Desktop D-drive git-lfs PATH issue |
-| `8ffe041119` | 2026-03-05 22:15 UTC | copilot-swe-agent[bot] | 🤖 GitHub | feat: configure Git LFS tracking for binary and large files |
-| `12a59cc10f` | 2026-03-05 22:14 UTC | copilot-swe-agent[bot] | 🤖 GitHub | Initial plan |
-| `a8f116d692` | 2026-03-05 21:54 UTC | github-actions[bot] | 🤖 GitHub | chore: update SYNC_STATE.md [skip ci] |
-| `8e3372d56b` | 2026-03-05 22:10 UTC | POINTYTHRUNDRA654 | 🖥️ Desktop | patch |
 
 ---
 
@@ -97,7 +91,7 @@ possible change and document it in the Desktop Notes section below.
 | `SHAP_E_INTEGRATION.md` | 2026-02-17 23:29 UTC | df56233f8e |
 | `STATUS_REPORT.md` | 2026-02-15 05:23 UTC | 130e057030 |
 | `STRATEGIC_RECOMMENDATIONS.md` | 2026-02-15 04:48 UTC | 05d9f21a7f |
-| `SYNC_STATE.md` | 2026-03-05 23:05 UTC | 27068d46cc |
+| `SYNC_STATE.md` | 2026-03-05 23:10 UTC | 07f136d3dc |
 | `T2I_ADAPTER_INTEGRATION.md` | 2026-02-18 00:03 UTC | d0506c9def |
 | `TESTING.md` | 2026-02-21 00:44 UTC | 23e8a593ce |
 | `TUTORIALS.md` | 2026-02-13 00:06 UTC | 5e2098ba37 |
@@ -112,11 +106,13 @@ possible change and document it in the Desktop Notes section below.
 | `asset_studio_helpers.py` | 2026-02-21 02:18 UTC | 0dbc3ae1e7 |
 | `automation_system.py` | 2026-02-17 23:16 UTC | 42b9aa55f9 |
 | `blender_manifest.toml` | 2026-03-05 18:44 UTC | 543ce1c942 |
+| `build.log` | 2026-03-05 23:10 UTC | 07f136d3dc |
 | `build.py` | 2026-03-05 21:53 UTC | 52cc29151e |
 | `desktop_tutorial_client.py` | 2026-02-17 23:26 UTC | 22b987c436 |
 | `example_image_to_mesh.py` | 2026-02-12 23:45 UTC | bdfee2fe76 |
 | `example_script.py` | 2026-02-12 23:30 UTC | 8b0b7f3b5b |
 | `example_tutorial_server.py` | 2026-02-12 23:22 UTC | 27b3e9cf12 |
+| `fallout4_tutorial_helper-v2.1.2.zip` | 2026-03-05 23:10 UTC | 07f136d3dc |
 | `ffmpeg` | 2026-03-05 19:27 UTC | ac0192c1f6 |
 | `get3d_helpers.py` | 2026-03-05 19:16 UTC | 9df629793c |
 | `gradio_helpers.py` | 2026-02-13 00:11 UTC | b78ee32c01 |
@@ -156,13 +152,6 @@ possible change and document it in the Desktop Notes section below.
 | `whisper` | 2026-03-05 19:27 UTC | ac0192c1f6 |
 | `world_building_helpers.py` | 2026-02-17 23:05 UTC | e362d81621 |
 | `zoedepth_helpers.py` | 2026-03-05 19:16 UTC | 9df629793c |
-| `.github/workflows/release.yml` | 2026-03-05 22:10 UTC | 8e3372d56b |
-| `CHANGELOG.md` | 2026-03-05 22:10 UTC | 8e3372d56b |
-| `DEVELOPMENT_NOTES.md` | 2026-03-05 22:10 UTC | 8e3372d56b |
-| `MERGE_GUIDE.md` | 2026-03-05 22:10 UTC | 8e3372d56b |
-| `SYNC_STATE.md` | 2026-03-05 22:10 UTC | 8e3372d56b |
-| `makezip.py` | 2026-03-05 22:10 UTC | 8e3372d56b |
-| `sync_state.py` | 2026-03-05 22:10 UTC | 8e3372d56b |
 
 ---
 
@@ -241,5 +230,4 @@ Checked that the desktop push did **not** accidentally override any Copilot/CI-a
 
 ---
 
-*Last regenerated: 2026-03-05 23:09 UTC by `sync_state.py` on `copilot/install-git-lfs` @ `8a4e47c`*
-*Last regenerated: 2026-03-05 23:05 UTC by `sync_state.py` on `main` @ `8e3372d`*
+*Last regenerated: 2026-03-06 01:50 UTC by `sync_state.py` on `copilot/rescan-and-rebuild-zip` @ `a53a7a3`*
