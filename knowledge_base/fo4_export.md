@@ -50,7 +50,7 @@ differences.
   add-on creates a smart-unwrapped UV map automatically if one is absent.
 - **Auto Smooth enabled** – ensures tangent/bitangent vectors exported correctly.
 - **No orphaned vertex groups** – weights without an armature corrupt geometry.
-- **Poly count ≤ 65 535** – Fallout 4 engine limit per mesh.
+- **Poly count ≤ 65,535** – Fallout 4 engine limit per mesh.
 - **Materials** – FO4 expects BGSM/BGEM material files; textures must be DDS
   (BC1 for diffuse, BC3 for diffuse+alpha, BC5 for normal maps).
 

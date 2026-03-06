@@ -816,32 +816,103 @@ class FO4_PT_ToolsLinks(Panel):
             man_box.label(text="Enable the add-on to set paths.", icon='ERROR')
 
 class FO4_PT_ExportPanel(Panel):
-    """Export panel for Fallout 4"""
-    bl_label = "Export to FO4"
+    """Export panel for Fallout 4 – NIF/FBX output with full FO4 settings"""
+    bl_label = "Export to Fallout 4"
     bl_idname = "FO4_PT_export_panel"
     bl_space_type = 'VIEW_3D'
     bl_region_type = 'UI'
     bl_category = 'Fallout 4'
     bl_parent_id = "FO4_PT_main_panel"
     bl_options = {'DEFAULT_CLOSED'}
-    
+
     def draw(self, context):
         layout = self.layout
-        
-        status_box = layout.box()
-        available, message = export_helpers.ExportHelpers.nif_exporter_available()
-        icon = 'CHECKMARK' if available else 'ERROR'
-        nif_status = "Available" if available else "Not detected"
-        status_box.label(text=f"NIF Exporter: {nif_status}", icon=icon)
-        status_box.label(text=message, icon='INFO')
-        if not available:
-            status_box.label(text="Fallback: FBX export enabled", icon='EXPORT')
-        
-        box = layout.box()
-        box.label(text="Export Options", icon='EXPORT')
-        box.operator("fo4.export_mesh", text="Export Mesh (.nif)", icon='MESH_DATA')
-        box.operator("fo4.export_all", text="Export Complete Mod", icon='PACKAGE')
-        box.operator("fo4.validate_export", text="Validate Before Export", icon='CHECKMARK')
+        obj = context.active_object
+
+        # ── Niftools exporter status ─────────────────────────────────────────
+        nif_box = layout.box()
+        available, nif_msg = export_helpers.ExportHelpers.nif_exporter_available()
+        if available:
+            row = nif_box.row()
+            row.label(text="Niftools v0.1.1  ✓ Ready", icon='CHECKMARK')
+            sub = nif_box.column(align=True)
+            sub.scale_y = 0.75
+            sub.label(text="NIF 20.2.0.7 · user ver 12 · uv2 131073", icon='INFO')
+            sub.label(text="Geometry: BSTriShape  |  Shader: BSLightingShaderProperty", icon='INFO')
+            sub.label(text="Tangent space: ON  |  Scale correction: 1.0", icon='INFO')
+        else:
+            row = nif_box.row()
+            row.label(text="Niftools NOT installed", icon='ERROR')
+            sub = nif_box.column(align=True)
+            sub.scale_y = 0.75
+            sub.label(text=nif_msg)
+            sub.label(text="Fallback: FBX export (convert with NifSkope)", icon='EXPORT')
+            sub.label(text="Install: Blender 3.6 LTS + Niftools v0.1.1 ZIP", icon='URL')
+
+        # ── Active object status ─────────────────────────────────────────────
+        obj_box = layout.box()
+        if obj and obj.type == 'MESH':
+            col = obj_box.column(align=True)
+            col.scale_y = 0.8
+            mesh = obj.data
+            poly_count = len(mesh.polygons)
+            uv_ok = bool(mesh.uv_layers)
+            scale_ok = obj.scale[:] == (1.0, 1.0, 1.0)
+            coll_name = f"UCX_{obj.name}"
+            has_coll = any(
+                c.name == coll_name or c.get("fo4_collision")
+                for c in obj.children
+            )
+
+            # Mesh name + poly count with FO4 budget indicator
+            budget_icon = 'CHECKMARK' if poly_count <= 65535 else 'ERROR'
+            col.label(
+                text=f"Mesh: {obj.name}  ({poly_count:,} tris)",
+                icon=budget_icon,
+            )
+            col.label(
+                text=f"UV map: {'✓' if uv_ok else '✗ (will be auto-created)'}   "
+                     f"Scale applied: {'✓' if scale_ok else '✗ (will be auto-applied)'}",
+                icon='INFO',
+            )
+            col.label(
+                text=f"Collision mesh (UCX_): {'✓ ' + coll_name if has_coll else '✗ none – generate below'}",
+                icon='INFO',
+            )
+        elif obj and obj.type != 'MESH':
+            obj_box.label(text=f"Active object is not a mesh ({obj.type})", icon='ERROR')
+        else:
+            obj_box.label(text="No active object selected", icon='ERROR')
+
+        # ── Auto-prep notice ─────────────────────────────────────────────────
+        prep_box = layout.box()
+        prep_col = prep_box.column(align=True)
+        prep_col.scale_y = 0.75
+        prep_col.label(text="Auto-preparation before every NIF export:", icon='MODIFIER')
+        prep_col.label(text="  • Apply scale & rotation transforms")
+        prep_col.label(text="  • Create UV map if missing (smart-unwrap)")
+        prep_col.label(text="  • Add Triangulate modifier (removed after export)")
+        prep_col.label(text="  • Enable Auto Smooth for tangent vectors")
+
+        # ── Export actions ───────────────────────────────────────────────────
+        act_box = layout.box()
+        act_box.label(text="Export", icon='EXPORT')
+
+        row = act_box.row(align=True)
+        row.scale_y = 1.4
+        row.operator("fo4.export_mesh", text="Export Mesh  (.nif)", icon='MESH_DATA')
+
+        row2 = act_box.row(align=True)
+        row2.scale_y = 1.2
+        row2.operator(
+            "fo4.export_mesh_with_collision",
+            text="Export Mesh + Collision  (.nif)",
+            icon='OBJECT_DATA',
+        )
+
+        act_box.separator(factor=0.5)
+        act_box.operator("fo4.validate_export", text="Validate Mesh Before Export", icon='CHECKMARK')
+        act_box.operator("fo4.export_all", text="Export Complete Mod Folder", icon='PACKAGE')
 
 
 class FO4_PT_BatchProcessingPanel(Panel):

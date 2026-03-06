@@ -307,11 +307,6 @@ class ExportHelpers:
         # reject meshes with orphaned weights
         if obj.vertex_groups and not ExportHelpers._has_armature(obj):
             return False, "Mesh has vertex groups but no armature – remove weights or parent to an armature before exporting"
-        
-        # Validate first
-        success, issues = ExportHelpers.validate_before_export(obj)
-        if not success:
-            return False, f"Validation failed: {', '.join(issues)}"
 
         nif_available, nif_message = ExportHelpers.nif_exporter_available()
 
@@ -319,8 +314,16 @@ class ExportHelpers:
         if nif_available:
             added_mods = []
             try:
-                # Prepare mesh: apply transforms, ensure UV map, triangulate
+                # Auto-prepare FIRST (applies transforms, creates UV map, triangulates).
+                # Validation runs afterwards so it sees the corrected state and does not
+                # block on issues that the prep step has already resolved.
                 added_mods = ExportHelpers._prepare_mesh_for_nif(obj)
+
+                # Validate after prep – only hard errors (poly limit, non-manifold,
+                # missing materials) will stop the export at this point.
+                success, issues = ExportHelpers.validate_before_export(obj)
+                if not success:
+                    return False, f"Validation failed: {', '.join(issues)}"
 
                 # gather objects to export (main mesh + optional collision)
                 selection = [obj]
@@ -372,6 +375,10 @@ class ExportHelpers:
                     if mod:
                         obj.modifiers.remove(mod)
         else:
+            # NIF exporter not available – validate before FBX fallback
+            success, issues = ExportHelpers.validate_before_export(obj)
+            if not success:
+                return False, f"Validation failed: {', '.join(issues)}"
             fallback_msg = f"{nif_message}; exporting FBX for external conversion."
 
         # Export to FBX as a compatibility fallback

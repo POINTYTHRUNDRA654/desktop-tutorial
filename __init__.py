@@ -4,15 +4,21 @@ A comprehensive tutorial and helper system for creating Fallout 4 mods in Blende
 """
 
 bl_info = {
-    "name": "Fallout 4 Tutorial Helper",
+    "name": "Fallout 4 Mod Assistant",
     "author": "Tutorial Team",
-    "version": (2, 1, 2),
-    "blender": (2, 90, 0),  # Compatible with Blender 2.90+ through 5.x
+    "version": (2, 1, 3),
+    "blender": (2, 90, 0),  # Compatible with Blender 2.90+ through 5.x (NIF export requires 3.6 LTS + Niftools v0.1.1)
     "location": "View3D > Sidebar > Fallout 4",
-    "description": "Comprehensive tutorial system and helpers for creating Fallout 4 mods including quests, NPCs, items, and world building. Compatible with Blender 2.90 through 5.x",
-    "warning": "",
+    "description": (
+        "Professional Fallout 4 modding assistant. Exports to NIF 20.2.0.7 (BSTriShape) "
+        "via Niftools v0.1.1, auto-preps meshes (triangulate/UV/transforms), generates "
+        "UCX_ collision, validates against FO4 limits, and falls back to FBX if Niftools "
+        "is unavailable. Includes mesh optimisation, DDS texture conversion (NVTT/texconv), "
+        "wind animation, AI rigging (RigNet), quest/NPC/item helpers, and smart presets."
+    ),
+    "warning": "NIF export requires Niftools v0.1.1 on Blender 3.6 LTS (not compatible with Blender 4.x)",
     "doc_url": "https://github.com/POINTYTHRUNDRA654/Blender-add-on",
-    "category": "3D View",
+    "category": "Import-Export",
 }
 
 import bpy
