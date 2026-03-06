@@ -62,7 +62,10 @@ class TextureHelpers:
         links.new(diffuse_tex.outputs['Color'], bsdf.inputs['Base Color'])
         links.new(normal_tex.outputs['Color'], normal_map.inputs['Color'])
         links.new(normal_map.outputs['Normal'], bsdf.inputs['Normal'])
-        links.new(specular_tex.outputs['Color'], bsdf.inputs['Specular'])
+        # 'Specular' was renamed to 'Specular IOR Level' in Blender 4.0
+        specular_input = bsdf.inputs.get('Specular IOR Level') or bsdf.inputs.get('Specular')
+        if specular_input:
+            links.new(specular_tex.outputs['Color'], specular_input)
         
         # Assign material to object
         if obj.data.materials:
