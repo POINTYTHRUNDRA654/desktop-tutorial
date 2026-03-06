@@ -20,10 +20,23 @@ type MossyStep = {
 };
 
 const VoiceChat: React.FC = () => {
-  const fallbackLive = { isActive: false, isMuted: false, toggleMute: () => {}, disconnect: () => {}, mode: 'disconnected', connect: async () => {}, transcription: '', micLevel: 0, audioInputs: [], selectedInputId: '', setSelectedInputId: () => {} };
+  const fallbackLive = {
+    isActive: false,
+    isMuted: false,
+    toggleMute: () => {},
+    disconnect: () => {},
+    stopSpeaking: () => {},
+    mode: 'disconnected',
+    connect: async () => {},
+    transcription: '',
+    micLevel: 0,
+    audioInputs: [],
+    selectedInputId: '',
+    setSelectedInputId: () => {},
+  };
   // eslint-disable-next-line react-hooks/rules-of-hooks
   const liveContext = useLive() || fallbackLive;
-  const { isActive, isMuted, toggleMute, disconnect, mode, connect, transcription, micLevel, audioInputs, selectedInputId, setSelectedInputId } = liveContext;
+  const { isActive, isMuted, toggleMute, disconnect, stopSpeaking, mode, connect, transcription, micLevel, audioInputs, selectedInputId, setSelectedInputId } = liveContext;
   const [isConnecting, setIsConnecting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [expandedStep, setExpandedStep] = useState<string>('live-session');
@@ -170,6 +183,16 @@ const VoiceChat: React.FC = () => {
               {isMuted ? <MicOff size={14} /> : <Mic size={14} />}
               {isMuted ? 'Muted' : 'Voice Active'}
             </button>
+            {mode === 'speaking' && (
+              <button
+                onClick={stopSpeaking}
+                title="Stop Mossy speaking"
+                className="p-3 rounded-xl border transition-all flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest bg-amber-500/10 border-amber-500/50 text-amber-400 hover:bg-amber-500/20 animate-pulse"
+              >
+                <Radio size={14} />
+                Stop
+              </button>
+            )}
           </div>
         )}
       </div>

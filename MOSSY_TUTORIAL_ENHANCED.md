@@ -792,22 +792,28 @@ When you click Settings, you'll see:
 **What it is:** The service that converts your voice to text
 
 **Options:**
-1. **Deepgram** (Recommended)
-   - **Pros:** Very accurate, fast, works with accents
-   - **Cons:** Requires internet and API key
-   - **When to use:** Best option if you have internet
+1. **Local Whisper** (Recommended — FREE)
+   - **Pros:** 100% free, private, works offline, no API key needed
+   - **Cons:** Requires running a local server on your machine
+   - **When to use:** Best option for most users — set `Local Whisper Server URL` in Settings → Privacy/API
+   - **Setup:** `pip install faster-whisper-server` then run it on port 8000
 
-2. **Whisper (OpenAI)**
-   - **Pros:** Accurate, handles noise well
-   - **Cons:** Slower than Deepgram, requires API key
-   - **When to use:** Good backup if Deepgram has issues
+2. **Whisper (OpenAI Cloud)**
+   - **Pros:** Accurate, handles noise well, no local setup
+   - **Cons:** Requires OpenAI API key, costs money per minute
+   - **When to use:** If you don't want to run a local server
 
-3. **Browser (Built-in)**
+3. **Backend Proxy**
+   - **Pros:** Server holds the keys; client needs no API key
+   - **Cons:** Requires a configured backend service
+   - **When to use:** Shared/hosted deployments
+
+4. **Browser (Built-in)**
    - **Pros:** Free, no API key needed, works offline
    - **Cons:** Less accurate, limited language support
-   - **When to use:** Testing or if you don't have API keys
+   - **When to use:** Fallback / testing
 
-**Beginner Tip:** Start with Browser option to test, then upgrade to Deepgram when ready!
+**Beginner Tip:** Run a free local Whisper server for the cheapest, most private setup!
 
 ---
 
@@ -815,7 +821,12 @@ When you click Settings, you'll see:
 **What it is:** How Mossy's voice sounds when she speaks back
 
 **Options:**
-1. **OpenAI TTS**
+1. **Browser / Windows TTS** (Recommended — FREE)
+   - **Pros:** Free, works offline, uses Windows voices (Microsoft, Edge)
+   - **Cons:** Voice quality depends on installed Windows voices
+   - **When to use:** Default — installs additional Windows voices for better quality
+
+2. **OpenAI TTS**
    - **Pros:** Very natural sounding, good voices
    - **Cons:** Requires OpenAI API key and credits
    - **When to use:** Want the best quality voice

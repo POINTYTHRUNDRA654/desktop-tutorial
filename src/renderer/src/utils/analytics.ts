@@ -1,4 +1,4 @@
-import { AnalyticsEvent } from '../../shared/types';
+import { AnalyticsEvent } from '../../../shared/types';
 
 /**
  * Analytics tracking utility for Mossy
