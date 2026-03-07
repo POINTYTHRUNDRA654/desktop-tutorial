@@ -963,6 +963,48 @@ class FO4_OT_ExportAll(Operator):
         context.window_manager.fileselect_add(self)
         return {'RUNNING_MODAL'}
 
+class FO4_OT_ExportSceneAsNif(Operator):
+    """Export the entire scene – all meshes with their collision proxies – as a single NIF file.
+
+    This is the primary workflow for plant/vegetation scenes:
+    import a NIF, add collision to the objects that need it, then use this
+    operator to export everything back out as one game-ready NIF.
+    """
+    bl_idname = "fo4.export_scene_as_nif"
+    bl_label = "Export Scene as NIF"
+
+    filepath: StringProperty(subtype='FILE_PATH')
+    filter_glob: StringProperty(default="*.nif;*.fbx", options={'HIDDEN'})
+
+    @classmethod
+    def poll(cls, context):
+        return any(
+            obj.type == 'MESH' and not (
+                obj.get("fo4_collision")
+                or obj.name.upper().startswith("UCX_")
+                or obj.name.upper().endswith("_COLLISION")
+            )
+            for obj in context.scene.objects
+        )
+
+    def execute(self, context):
+        success, message = export_helpers.ExportHelpers.export_scene_as_single_nif(
+            context.scene, self.filepath
+        )
+        if success:
+            self.report({'INFO'}, message)
+            notification_system.FO4_NotificationSystem.notify(message, 'INFO')
+        else:
+            self.report({'ERROR'}, message)
+            notification_system.FO4_NotificationSystem.notify(message, 'ERROR')
+            return {'CANCELLED'}
+        return {'FINISHED'}
+
+    def invoke(self, context, event):
+        context.window_manager.fileselect_add(self)
+        return {'RUNNING_MODAL'}
+
+
 class FO4_OT_ValidateExport(Operator):
     """Validate before export"""
     bl_idname = "fo4.validate_export"
@@ -7419,6 +7461,7 @@ classes = (
     FO4_OT_SetCollisionType,
     FO4_OT_ExportMeshWithCollision,
     FO4_OT_ExportAll,
+    FO4_OT_ExportSceneAsNif,
     FO4_OT_ValidateExport,
     FO4_OT_ImageToMesh,
     FO4_OT_ApplyDisplacementMap,
