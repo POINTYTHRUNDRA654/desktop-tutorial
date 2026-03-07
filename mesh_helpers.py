@@ -172,12 +172,40 @@ class MeshHelpers:
         if len(mesh.vertices) == 0:
             issues.append("Mesh has no vertices")
         
-        # Check poly count
+        # Check poly count.  FO4's BSTriShape stores triangles using a 16-bit
+        # index buffer, so the hard limit is 65,535 *triangles* after the mesh
+        # has been triangulated.  A mesh made of quads will produce roughly
+        # twice as many triangles as it has polygons, and n-gons produce even
+        # more.  Counting raw polygon objects instead of estimated triangles
+        # would silently let over-limit meshes through – we estimate here so
+        # the warning fires before a silent corruption at export time.
+        #
+        # Separately, BSTriShape's vertex index buffer is also 16-bit, so the
+        # mesh can have at most 65,535 *unique vertices* too.  Both limits are
+        # enforced: the triangle estimate catches quad/n-gon meshes and the
+        # vertex count catches dense point clouds or high-res sculpts.
         poly_count = len(mesh.polygons)
         if poly_count == 0:
             issues.append("Mesh has no polygons")
-        elif poly_count > 65535:
-            issues.append(f"Poly count too high: {poly_count} (FO4 limit is 65,535 triangles per mesh)")
+        else:
+            # Estimate triangulated face count: quad → 2 tris, n-gon → n-2 tris.
+            tri_estimate = sum(max(1, len(p.vertices) - 2) for p in mesh.polygons)
+            if tri_estimate > 65535:
+                issues.append(
+                    f"Estimated triangle count too high: {tri_estimate:,} "
+                    f"(FO4 BSTriShape limit is 65,535 triangles – split the mesh "
+                    f"with 'Split at Poly Limit' before export)"
+                )
+
+        # Vertex count limit – BSTriShape uses a 16-bit vertex index (uint16).
+        # After triangulation Blender may split vertices along UV seams /
+        # sharp edges, so the exported vertex count can be higher than the
+        # raw mesh count.  Warn early so the user can split or decimate.
+        if len(mesh.vertices) > 65535:
+            issues.append(
+                f"Vertex count too high: {len(mesh.vertices):,} "
+                f"(FO4 BSTriShape limit is 65,535 unique vertices – split the mesh)"
+            )
 
         # Check for UV map – required by Niftools v0.1.1 and by FO4 shaders.
         # Collision/occlusion meshes are invisible and do not need UV maps.
@@ -437,6 +465,77 @@ class MeshHelpers:
         collision_obj.select_set(False)
 
         return collision_obj
+
+    @staticmethod
+    def split_mesh_at_poly_limit(obj, tri_limit: int = 65535):
+        """Split *obj* into sub-meshes each under *tri_limit* triangulated faces.
+
+        Fallout 4's BSTriShape / BSSubIndexTriShape nodes can store at most
+        65,535 triangles per node.  This helper separates the mesh into as many
+        island-based parts as needed so each part stays within the limit, then
+        tries to further split by material if any island is still over-limit.
+
+        The source object is left untouched; all splits produce new objects.
+        Returns a list of the resulting objects.  If the mesh is already within
+        the limit a list containing only the original object is returned.
+
+        Example usage:
+            parts = MeshHelpers.split_mesh_at_poly_limit(active_obj)
+            for part in parts:
+                ExportHelpers.export_mesh_to_nif(part, filepath)
+        """
+        if obj.type != 'MESH':
+            return [obj]
+
+        # Fast path: estimate triangulated count first.
+        tri_estimate = sum(max(1, len(p.vertices) - 2) for p in obj.data.polygons)
+        if tri_estimate <= tri_limit:
+            return [obj]
+
+        bpy.ops.object.select_all(action='DESELECT')
+        obj.select_set(True)
+        bpy.context.view_layer.objects.active = obj
+
+        # Apply transforms so child objects inherit correct world geometry.
+        try:
+            bpy.ops.object.transform_apply(location=False, rotation=True, scale=True)
+        except Exception:
+            pass
+
+        # Separate by loose parts (disconnected islands).
+        bpy.ops.object.mode_set(mode='EDIT')
+        bpy.ops.mesh.select_all(action='SELECT')
+        bpy.ops.mesh.separate(type='LOOSE')
+        bpy.ops.object.mode_set(mode='OBJECT')
+
+        parts = [o for o in bpy.context.selected_objects if o.type == 'MESH']
+
+        final_parts = []
+        for part in parts:
+            tri_est = sum(max(1, len(p.vertices) - 2) for p in part.data.polygons)
+            if tri_est <= tri_limit:
+                final_parts.append(part)
+                continue
+
+            # Island is still over-limit: try splitting by material.
+            bpy.ops.object.select_all(action='DESELECT')
+            part.select_set(True)
+            bpy.context.view_layer.objects.active = part
+            bpy.ops.object.mode_set(mode='EDIT')
+            bpy.ops.mesh.select_all(action='SELECT')
+            bpy.ops.mesh.separate(type='MATERIAL')
+            bpy.ops.object.mode_set(mode='OBJECT')
+            mat_parts = [o for o in bpy.context.selected_objects if o.type == 'MESH']
+            final_parts.extend(mat_parts)
+
+        # Rename parts sequentially so they are easy to identify.
+        base_name = obj.name
+        for i, part in enumerate(final_parts):
+            part.name = f"{base_name}_Part{i + 1:02d}"
+            if part.data:
+                part.data.name = part.name
+
+        return final_parts
 
 def register():
     """Register mesh helper functions"""

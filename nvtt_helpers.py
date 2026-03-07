@@ -91,6 +91,7 @@ class NVTTHelpers:
         mapping = {
             "bc1": "BC1_UNORM",
             "bc3": "BC3_UNORM",
+            "bc4": "BC4_UNORM",
             "bc5": "BC5_UNORM",
             "bc7": "BC7_UNORM",
             "dxt1": "BC1_UNORM",
@@ -98,6 +99,41 @@ class NVTTHelpers:
             "ati2": "BC5_UNORM",
         }
         return mapping.get(format_lower)
+
+    @staticmethod
+    def get_fo4_dds_format(texture_type: str) -> str:
+        """Return the recommended DDS compression format for a given FO4 texture type.
+
+        Fallout 4 uses specific DDS block-compression formats for each texture
+        channel.  This helper encodes the official recommendations so every
+        part of the add-on uses a single source of truth:
+
+        +-----------+---------+---------------------------------------------+
+        | Type      | Format  | Reason                                      |
+        +===========+=========+=============================================+
+        | DIFFUSE   | BC1     | RGB colour without alpha – smallest size    |
+        | DIFFUSE_A | BC3     | RGB colour *with* alpha (cutout/opacity)    |
+        | NORMAL    | BC5     | Two-channel (R+G) tangent-space normals     |
+        | SPECULAR  | BC1     | RGB smoothness/specular colour              |
+        | GLOW      | BC1     | Greyscale or RGB emissive/glow mask         |
+        | EMISSIVE  | BC1     | Alias for GLOW                              |
+        | ALPHA     | BC3     | Any texture that stores an alpha channel   |
+        | HIGH_QUAL | BC7     | High-quality variant (slower, larger)      |
+        +-----------+---------+---------------------------------------------+
+
+        Pass the result directly to :meth:`convert_to_dds`.
+        """
+        fmt_map = {
+            'DIFFUSE':   'bc1',
+            'DIFFUSE_A': 'bc3',  # diffuse with transparency/alpha
+            'NORMAL':    'bc5',  # ATI2 / two-channel tangent-space
+            'SPECULAR':  'bc1',
+            'GLOW':      'bc1',
+            'EMISSIVE':  'bc1',
+            'ALPHA':     'bc3',  # any texture with an alpha channel
+            'HIGH_QUAL': 'bc7',  # high-quality (slower to compress)
+        }
+        return fmt_map.get(texture_type.upper(), 'bc1')
     
     @staticmethod
     def convert_to_dds(input_path, output_path=None, compression_format='bc1', quality='production', preferred_tool=None):
@@ -124,6 +160,7 @@ class NVTTHelpers:
         valid_formats = {
             'bc1': 'DXT1',
             'bc3': 'DXT5',
+            'bc4': 'BC4',   # single-channel greyscale (masks, AO, gloss)
             'bc5': 'ATI2',
             'bc7': 'BC7',
             'dxt1': 'DXT1',
@@ -133,7 +170,7 @@ class NVTTHelpers:
 
         format_lower = compression_format.lower()
         if format_lower not in valid_formats:
-            return False, f"Invalid compression format: {compression_format}. Use bc1, bc3, bc5, or bc7"
+            return False, f"Invalid compression format: {compression_format}. Use bc1, bc3, bc4, bc5, or bc7"
 
         tool, tool_path, tool_message = NVTTHelpers._find_converter(preferred_tool)
         if not tool:
@@ -203,12 +240,16 @@ class NVTTHelpers:
         Returns: (int success_count, list results)
         """
         if compression_map is None:
-            # Default compression formats for different texture types
+            # Default compression formats for FO4 texture types.
+            # These match the recommendations in get_fo4_dds_format() and the
+            # official FO4 modding guidelines.
             compression_map = {
-                'DIFFUSE': 'bc1',    # DXT1 for diffuse
-                'NORMAL': 'bc5',     # ATI2 for normal maps
-                'SPECULAR': 'bc1',   # DXT1 for specular
-                'ALPHA': 'bc3',      # DXT5 for textures with alpha
+                'DIFFUSE':  'bc1',  # DXT1 – RGB diffuse without alpha
+                'NORMAL':   'bc5',  # ATI2 – two-channel tangent-space normals
+                'SPECULAR': 'bc1',  # DXT1 – RGB specular / smoothness
+                'GLOW':     'bc1',  # DXT1 – glow / emissive mask
+                'EMISSIVE': 'bc1',  # DXT1 – alias for glow
+                'ALPHA':    'bc3',  # DXT5 – any texture with an alpha channel
             }
         
         success_count = 0

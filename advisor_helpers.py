@@ -81,8 +81,11 @@ class AdvisorHelpers:
                 for issue in tex_issues:
                     report["issues"].append(f"{obj.name}: {issue}")
 
-        # Shading/auto smooth
-        if not obj.data.use_auto_smooth:
+        # Shading / auto-smooth
+        # `use_auto_smooth` was removed in Blender 4.1 (shading by angle is
+        # now the default).  Only check the attribute when it actually exists
+        # so we don't crash on modern Blender versions.
+        if hasattr(obj.data, 'use_auto_smooth') and not obj.data.use_auto_smooth:
             report["issues"].append(f"{obj.name}: Auto Smooth disabled → enable for tangents/normals.")
 
     @staticmethod
@@ -181,12 +184,29 @@ class AdvisorHelpers:
 
         if action == 'SHADE_SMOOTH_AUTOSMOOTH':
             for obj in objs:
-                obj.data.use_auto_smooth = True
                 bpy.ops.object.select_all(action='DESELECT')
                 obj.select_set(True)
                 context.view_layer.objects.active = obj
+                # Apply shade-smooth first (works on all Blender versions).
                 bpy.ops.object.shade_smooth()
-            return True, "Enabled Auto Smooth and Shade Smooth"
+                # Blender ≤4.0: enable use_auto_smooth and set angle to 180°
+                # so ALL faces are smooth-shaded and tangents export cleanly.
+                # Blender 4.1+: use_auto_smooth was removed; shade_smooth_by_angle
+                # is the equivalent.  We try both paths gracefully.
+                if hasattr(obj.data, 'use_auto_smooth'):
+                    try:
+                        obj.data.use_auto_smooth = True
+                        obj.data.auto_smooth_angle = 3.14159265358979  # 180 °
+                    except AttributeError:
+                        pass
+                else:
+                    # Blender 4.1+: shade_smooth_by_angle with 180° keeps all
+                    # faces smooth-shaded, matching the Blender ≤4.0 behaviour.
+                    try:
+                        bpy.ops.object.shade_smooth_by_angle(angle=3.14159265358979)
+                    except Exception:
+                        pass  # operator not available in all contexts; skip
+            return True, "Shade Smooth + Auto Smooth applied to selected meshes"
 
         if action == 'VALIDATE_EXPORT':
             success, issues = export_helpers.ExportHelpers.validate_before_export(objs[0])

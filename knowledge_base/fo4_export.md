@@ -96,3 +96,68 @@ FO4's physics/rendering coordinate system:
 - 1 NIF unit ≈ 1.43 cm in-game (roughly)
 - Typical human height: ~120 NIF units (≈ 1.71 m in Blender at scale 1.0)
 - Use scale_correction=1.0 and work in Blender at real-world metre scale.
+
+## Blender version compatibility matrix
+
+| Blender version | NIF export                         | Notes                                      |
+|-----------------|------------------------------------|--------------------------------------------|
+| 2.80 – 2.89     | ⚠ Partial (Niftools older builds)  | Upgrade to 3.6 LTS for best results        |
+| 3.0 – 3.5       | ✓ Direct NIF via Niftools v0.1.1   | Recommended range                          |
+| **3.6 LTS**     | ✓ Direct NIF via Niftools v0.1.1   | **Best choice for NIF export**             |
+| 4.0             | ⚡ FBX fallback only               | Niftools not compatible; use FBX + CAO     |
+| 4.1+            | ⚡ FBX fallback only               | `use_auto_smooth` removed; handled auto    |
+| 5.x+            | ⚡ FBX fallback only               | Experimental; report issues                |
+
+**Recommended workflow for Blender 4.x / 5.x:**
+1. Export FBX from this add-on (includes UCX_ collision automatically)
+2. Open the FBX in Cathedral Assets Optimizer (CAO)
+3. CAO converts it to a FO4-compatible NIF with correct collision
+
+## Vertex and triangle limits per mesh
+
+| Limit type            | Value  | Why                                               |
+|-----------------------|--------|---------------------------------------------------|
+| Triangles per BSTriShape | 65,535 | 16-bit triangle index buffer (uint16)          |
+| Vertices per BSTriShape  | 65,535 | 16-bit vertex index buffer (uint16)            |
+
+The add-on's **Validate Mesh** button checks BOTH limits.
+The **Split at Poly Limit** button splits over-limit meshes automatically by loose parts and material slots.
+
+> Note: `validate_mesh()` estimates the triangle count from raw polygon data
+> (quads produce 2 tris, n-gons produce n-2 tris) so the warning fires before
+> triangulation happens at export time.
+
+## LOD naming convention
+
+The **Generate LOD Chain** button creates:
+- `{name}_LOD1.nif` – 75 % of original (subtle reduction)
+- `{name}_LOD2.nif` – 50 % of original (medium reduction)
+- `{name}_LOD3.nif` – 25 % of original (far distance)
+- `{name}_LOD4.nif` – 10 % of original (very far / extreme)
+
+The source object is treated as LOD0 (full detail, used when the player is close).
+Export each LOD as a separate NIF and place them in the mod's `meshes/` directory.
+
+## Alpha / transparency meshes
+
+Meshes with alpha transparency need BSLightingShaderProperty flags set correctly:
+- `Has_Vertex_Alpha = true` if vertex colours store alpha
+- `Alpha_Blending = true` or `Alpha_Testing = true` depending on cutout vs blend
+- The alpha threshold for cutout transparency is typically `128` (0x80)
+
+The Niftools exporter reads the Blender material's Blend Mode settings.
+Use `Alpha Clip` in the material for cutout (alpha test) and `Alpha Blend` for
+smooth transparency.
+
+## Texture naming conventions (FO4)
+
+| Suffix  | Type       | DDS Format | Notes                             |
+|---------|------------|------------|-----------------------------------|
+| `_d`    | Diffuse    | BC1        | RGB colour (BC3 if alpha channel) |
+| `_n`    | Normal map | BC5 / ATI2 | Two-channel tangent-space normals |
+| `_s`    | Specular   | BC1        | RGB specular / smoothness         |
+| `_g`    | Glow       | BC1        | Emissive / glow mask              |
+| `_e`    | Environment| BC1        | Cube-map reflection mask          |
+
+Use `TextureHelpers.detect_fo4_texture_type(filepath)` to auto-detect type.
+Use `NVTTHelpers.get_fo4_dds_format(texture_type)` to get the correct BC format.
