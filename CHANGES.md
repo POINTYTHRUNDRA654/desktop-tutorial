@@ -184,6 +184,40 @@ preventing MediaRecorder conflicts between the auto-restart and TTS-resume timer
 
 ---
 
+### 9. Voice silence detection — prevent premature cutoff mid-sentence
+**Problem:** Mossy interrupted users mid-sentence by stopping recording too early during natural
+speech pauses. Users reported being "cut off before finishing their sentence." The voice service
+was stopping recording after only 1.5 seconds of silence, which is shorter than natural pauses
+for breathing or thinking.
+
+**Root cause:** `voice-service.ts:445` had a hardcoded 1500ms silence timeout, combined with a
+very sensitive silence threshold of 10. Natural speech patterns include:
+- Breathing pauses (typically 1-2 seconds)
+- Thinking pauses while formulating thoughts (1-3 seconds)
+- Background room noise or breathing sounds that should be ignored
+
+The 1.5s timeout was too aggressive, treating natural pauses as "end of speech."
+
+**Fix:** Adjusted both the silence duration and sensitivity:
+1. **Increased silence duration:** 1500ms → 2500ms (voice-service.ts:447)
+   - Gives users a full extra second to pause naturally
+   - More forgiving for multi-sentence speech or thinking pauses
+2. **Increased silence threshold:** 10 → 15 (voice-service.ts:441)
+   - Less sensitive to background noise and breathing sounds
+   - Prevents false silence detection from ambient room noise
+
+This makes conversations feel more natural and reduces frustrating interruptions during normal
+speech patterns.
+
+Files changed:
+- `src/renderer/src/voice-service.ts` — silence detection threshold and timeout values
+
+**Do not touch:** The 2500ms silence timeout and threshold of 15. These values were tuned to
+balance responsiveness (not making users wait too long after genuinely finishing) with patience
+(not cutting them off mid-thought).
+
+---
+
 ## In progress 🔄
 
 _Nothing currently pending. All items are in Done._
