@@ -4127,7 +4127,8 @@ function setupIpcHandlers() {
   registerHandler('sendMessage', async (_event, message: any) => {
     const isPayload = typeof message === 'object' && message !== null && typeof message.text === 'string';
     const messageText = isPayload ? String(message.text || '') : String(message || '');
-    console.log('[Main] sendMessage IPC handler called with:', messageText.substring(0, 100) + (messageText.length > 100 ? '...' : ''));
+    const correlationId = isPayload && typeof message.correlationId === 'string' ? message.correlationId : undefined;
+    console.log('[Main] sendMessage IPC handler called with:', messageText.substring(0, 100) + (messageText.length > 100 ? '...' : ''), 'correlationId:', correlationId);
     try {
       if (!messageText.trim()) {
         throw new Error('Empty voice message');
@@ -4218,17 +4219,17 @@ function setupIpcHandlers() {
         content = await callGroqWithFallback(client, model, messages);
       }
 
-      console.log('[Main] AI response generated, sending to renderer:', content.substring(0, 100) + (content.length > 100 ? '...' : ''));
-      // Send the response to the renderer
+      console.log('[Main] AI response generated, sending to renderer:', content.substring(0, 100) + (content.length > 100 ? '...' : ''), 'correlationId:', correlationId);
+      // Send the response to the renderer with correlation ID
       if (mainWindow && !mainWindow.isDestroyed()) {
-        mainWindow.webContents.send('message', { role: 'assistant', content });
+        mainWindow.webContents.send('message', { role: 'assistant', content, correlationId });
       }
       return content;
     } catch (error: any) {
       console.error('[Main] sendMessage error:', error);
       const errorMsg = 'Sorry, I encountered an error processing your request.';
       if (mainWindow && !mainWindow.isDestroyed()) {
-        mainWindow.webContents.send('message', { role: 'assistant', content: errorMsg });
+        mainWindow.webContents.send('message', { role: 'assistant', content: errorMsg, correlationId });
       }
       return errorMsg;
     }
