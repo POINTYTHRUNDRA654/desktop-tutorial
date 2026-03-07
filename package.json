@@ -195,10 +195,12 @@
     },
     "nsis": {
       "oneClick": false,
+      "perMachine": false,
       "allowToChangeInstallationDirectory": true,
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
-      "shortcutName": "Mossy"
+      "shortcutName": "Mossy",
+      "differentialPackage": true
     },
     "linux": {
       "target": "AppImage",

@@ -4,9 +4,9 @@
 
 ---
 
-## 🚨 Submodule Pull Error (GitHub Desktop)
+## 🚨 STILL CAN'T PULL? — Fix Submodule Error in 2 Steps
 
-**If you see an error like this when pulling:**
+If GitHub Desktop shows this error every time you try to pull:
 
 ```
 Fetching submodule NeMo-Agent-Toolkit
@@ -17,36 +17,38 @@ Errors during submodule fetch:
         NeMo-Agent-Toolkit
 ```
 
-**Why this happens:** The repository previously had orphaned git submodule entries
-(`NeMo-Agent-Toolkit`, `vscode-pull-request-github`) that were not part of this project.
-These have been removed from the repository, but your local git configuration may still
-reference them, causing GitHub Desktop to try to fetch them on every pull.
+**Your local clone has stale submodule entries.** The remote repository is already clean —
+you just need to clear out the old local references so GitHub Desktop stops trying to fetch them.
 
-### Fix (choose one)
+### ✅ Quickest fix — Fresh Clone (recommended for GitHub Desktop users)
 
-**Option A — Clean up submodule references (Recommended)**
+1. In GitHub Desktop: **File → Remove Repository…** *(this does NOT delete your files)*
+2. Delete the repository folder from your computer
+3. In GitHub Desktop: **File → Clone Repository…** → choose `POINTYTHRUNDRA654/desktop-tutorial`
+4. Done — the fresh clone has no stale submodule state
 
-Open a terminal / Git Bash in your repository folder and run:
+### ✅ Fix without re-cloning — Git Bash / Command Prompt
+
+Open **Git Bash** (or PowerShell) inside your repository folder and run:
 
 ```bash
 git submodule deinit --all -f
-git rm --cached NeMo-Agent-Toolkit 2>/dev/null || true
-git rm --cached vscode-pull-request-github 2>/dev/null || true
 git pull origin master
 ```
 
-**Option B — Switch to `master` and pull in GitHub Desktop**
+That's it. After these two commands, GitHub Desktop will pull normally again.
 
-1. Open GitHub Desktop
-2. Click **Current Branch** → switch to **`master`**
-3. Click **Repository → Pull** (or press `Ctrl+Shift+P`)
-4. If prompted about submodule errors, dismiss and pull again — master is now clean
+---
 
-**Option C — Fresh clone (safest)**
+## Submodule Pull Error — Background
 
-1. Back up any local changes
-2. Delete the repository folder
-3. In GitHub Desktop: **File → Clone Repository → `POINTYTHRUNDRA654/desktop-tutorial`**
+**Why this happens:** The repository previously contained orphaned git submodule entries
+(`NeMo-Agent-Toolkit`, `vscode-pull-request-github`) that are not part of this project.
+Those entries have been removed from the remote repository, but local clones that existed
+before the fix still have the references registered in their local git state. GitHub Desktop
+automatically tries to fetch all registered submodules when pulling, which fails because
+those external repositories have private or inaccessible nested submodules. The two-command
+fix above clears that local state so GitHub Desktop no longer tries to fetch them.
 
 ---
 
