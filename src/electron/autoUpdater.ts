@@ -39,14 +39,22 @@ export class AutoUpdaterService {
   };
   private isDevMode: boolean = false;
   private autoUpdater: AppUpdater | null = null;
+  // Resolves once initializeUpdater() finishes (success or failure)
+  private initReady: Promise<void>;
+  private resolveInit: () => void = () => {};
 
   constructor() {
+    this.initReady = new Promise<void>((resolve) => {
+      this.resolveInit = resolve;
+    });
+
     // Disable auto-updater in dev mode to prevent crashes
     // Check NODE_ENV first, then check app.isPackaged only if app is defined
     this.isDevMode = process.env.NODE_ENV === 'development' || (app ? !app.isPackaged : true);
 
     if (this.isDevMode) {
       console.log('[AutoUpdater] Running in dev mode - auto-updater disabled');
+      this.resolveInit();
       return;
     }
 
@@ -54,8 +62,6 @@ export class AutoUpdaterService {
   }
 
   private async initializeUpdater() {
-    if (this.isDevMode) return;
-
     try {
       // Dynamically import autoUpdater to avoid dev mode crashes
       const { autoUpdater } = await import('electron-updater');
@@ -68,6 +74,8 @@ export class AutoUpdaterService {
       this.configureUpdater();
     } catch (err) {
       console.error('[AutoUpdater] Failed to initialize:', err);
+    } finally {
+      this.resolveInit();
     }
   }
 
@@ -213,10 +221,16 @@ export class AutoUpdaterService {
       return;
     }
 
+    // Wait for the dynamic import to finish before proceeding
+    await this.initReady;
+
     if (!this.autoUpdater) {
-      console.log('[AutoUpdater] Not initialized yet');
+      console.log('[AutoUpdater] Not initialized - skipping update check');
       return;
     }
+
+    // Clear any previous error so the UI reflects a fresh attempt
+    this.status.error = null;
 
     try {
       console.log('[AutoUpdater] Manual check for updates triggered');
@@ -242,6 +256,9 @@ export class AutoUpdaterService {
       return;
     }
 
+    // Clear any previous error so the UI reflects a fresh download attempt
+    this.status.error = null;
+
     try {
       console.log('[AutoUpdater] Starting download...');
       this.status.downloading = true;
@@ -257,7 +274,9 @@ export class AutoUpdaterService {
   }
 
   /**
-   * Install the downloaded update and restart
+   * Install the downloaded update and restart.
+   * Uses silent mode (isSilent = true) so the NSIS installer runs in the
+   * background without showing the install wizard — no uninstall/reinstall UX.
    */
   quitAndInstall(): void {
     if (this.isDevMode) {
@@ -270,8 +289,10 @@ export class AutoUpdaterService {
       return;
     }
 
-    console.log('[AutoUpdater] Quitting and installing update...');
-    this.autoUpdater.quitAndInstall(false, true);
+    console.log('[AutoUpdater] Quitting and installing update (silent)...');
+    // isSilent=true  → NSIS runs with /S flag, no wizard shown
+    // isForceRunAfter=true → app restarts automatically after install
+    this.autoUpdater.quitAndInstall(true, true);
   }
 
   /**
