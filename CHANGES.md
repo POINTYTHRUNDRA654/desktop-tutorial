@@ -237,6 +237,80 @@ _Nothing currently pending. All items are in Done._
 
 ---
 
+### 15. Automated conversation + TTS tests ✅
+
+**Request:** Run a test to verify that Mossy returns speech and keeps talking across 1-5+
+conversations without stopping.
+
+**Implementation:** New test file `src/renderer/src/__tests__/MossyConversation.test.tsx`
+with 12 focused unit tests that cover every path in the `handleSend → AI response → speakMossy`
+pipeline without requiring a running Electron app or live API keys.
+
+**Tests included:**
+
+| # | Description |
+|---|---|
+| 1 | `speakMossy` called with exact AI response text when voice is ON |
+| 2 | `speakMossy` NOT called when voice is OFF |
+| 3 | `speakMossy` NOT called when Live Voice is active (audio-feedback guard) |
+| 4 | `isLoading` resets to `false` after every successful response |
+| 5 | `recordAction` failure does NOT prevent response or TTS (bug fix from item 14) |
+| 6 | `isLoading` resets even when `generateResponse` throws (finally always runs) |
+| 7 | **5 back-to-back exchanges all produce a response + TTS call** (core loop test) |
+| 8 | 5 exchanges with `recordAction` always failing — all still speak + unlock |
+| 9 | Turns 1-4 fail (network error) → turn 5 recovers and speaks normally |
+| 10 | `speakMossy` module resolves without throwing for a single call |
+| 11 | `speakMossy` module resolves for a full sentence |
+| 12 | `speakMossy` called with the correct text for each of 5 unique messages |
+
+**Result: 205 tests pass (193 original + 12 new), 0 CodeQL alerts.**
+
+Files changed:
+- `src/renderer/src/__tests__/MossyConversation.test.tsx` — new test file (12 tests)
+
+**Do not touch:** The test structure, mock setup, or `simulateSend` helper. These tests guard
+the fixes made in items 12, 14 and must keep passing.
+
+
+
+### 14. Mossy won't answer — three root causes fixed ✅
+
+**Problem A (critical — chat silently locked up):** `await LocalAIEngine.recordAction(...)` was
+called *after* `setIsLoading(true)` but *before* the `try/catch/finally` block in `handleSend`.
+If it threw (e.g. `QuotaExceededError` from a full localStorage, or `SyntaxError` from corrupted
+`mossy_ml_history` JSON), the `finally { setIsLoading(false) }` block was never reached.
+`isLoading` stayed `true` forever. Every subsequent send hit the early-return guard
+`if (... || isLoading || ...) return` and was silently swallowed — Mossy appeared completely
+unresponsive until page reload.
+
+**Problem B (voice chat — recording never stopped):** The browser STT silence-detection threshold
+in `voice-service.ts` was raised from **8 → 15**. The previous value of 8 was still below the
+typical ambient room-noise floor of 8–12, so silence was never detected, the MediaRecorder never
+stopped, no audio blob was ever produced, and no transcript was ever sent — Mossy never heard
+anything the user said.
+
+**Problem C (TTS — greeting never spoken):** `initMossy()` set a welcome text message but never
+called `speakMossy()`, so Mossy was completely silent on startup even when TTS was enabled.
+
+**Fixes:**
+
+- `src/renderer/src/ChatInterface.tsx`
+  - Wrapped `await LocalAIEngine.recordAction(...)` in its own `try/catch` (non-fatal: logs
+    a warning and continues so the main `try/finally` always runs and resets `isLoading`).
+  - Added `speakMossy(...)` calls at the end of both `initMossy()` paths (new-user and
+    returning-user). Text kept concise for TTS. `speakMossy` reads settings from localStorage
+    independently so it works before `isVoiceEnabled` React state is rehydrated.
+
+- `src/renderer/src/voice-service.ts`
+  - Silence threshold: `8 → 15`. Normal speech is 15–40 (above threshold → keeps recording).
+    Room noise and breathing are 0–14 (below threshold → timer fires after 2.5 s → recording
+    stops → transcript sent → Mossy answers).
+
+**Do not touch:** The `try/catch` around `recordAction` in `handleSend`, the threshold value of 15,
+or the `speakMossy` calls in `initMossy`. These are the three fixes for "Mossy won't answer".
+
+
+
 ### 13. Always route through Render backend — Mossy can now talk ✅
 **Problem:** `getBackendConfig()` returned `null` whenever `MOSSY_BACKEND_URL` was not set in
 the environment (e.g. dev run without `.env.local`, or an existing `settings.json` that had an
