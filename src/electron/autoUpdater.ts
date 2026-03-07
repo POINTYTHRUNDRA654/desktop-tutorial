@@ -1,21 +1,18 @@
 /**
  * Auto Updater Service
- * 
+ *
  * Handles automatic updates for Mossy using electron-updater
  * - Checks for updates on startup and periodically
  * - Requires user approval before downloading
  * - Downloads updates in background
  * - Installs on app restart
+ *
+ * Note: Disabled in dev mode to prevent crashes when electron app isn't fully initialized
  */
 
-import { autoUpdater, UpdateInfo } from 'electron-updater';
-import { BrowserWindow, dialog } from 'electron';
-// import log from 'electron-log';
-
-// Configure logging
-// autoUpdater.logger = log;
-// log.transports.file.level = 'info';
-autoUpdater.logger = console;
+import { BrowserWindow, dialog, app } from 'electron';
+// Dynamically import autoUpdater only in production to avoid dev mode crashes
+import type { AppUpdater, UpdateInfo } from 'electron-updater';
 
 export interface UpdateStatus {
   checking: boolean;
@@ -40,55 +37,87 @@ export class AutoUpdaterService {
     version: null,
     releaseNotes: null
   };
+  private isDevMode: boolean = false;
+  private autoUpdater: AppUpdater | null = null;
 
   constructor() {
-    this.setupListeners();
-    this.configureUpdater();
+    // Disable auto-updater in dev mode to prevent crashes
+    // Check NODE_ENV first, then check app.isPackaged only if app is defined
+    this.isDevMode = process.env.NODE_ENV === 'development' || (app ? !app.isPackaged : true);
+
+    if (this.isDevMode) {
+      console.log('[AutoUpdater] Running in dev mode - auto-updater disabled');
+      return;
+    }
+
+    this.initializeUpdater();
+  }
+
+  private async initializeUpdater() {
+    if (this.isDevMode) return;
+
+    try {
+      // Dynamically import autoUpdater to avoid dev mode crashes
+      const { autoUpdater } = await import('electron-updater');
+      this.autoUpdater = autoUpdater;
+
+      // Configure logging
+      this.autoUpdater.logger = console;
+
+      this.setupListeners();
+      this.configureUpdater();
+    } catch (err) {
+      console.error('[AutoUpdater] Failed to initialize:', err);
+    }
   }
 
   private configureUpdater() {
+    if (this.isDevMode || !this.autoUpdater) return;
+
     // Allow prerelease versions in development
-    autoUpdater.allowPrerelease = process.env.NODE_ENV === 'development';
-    
+    this.autoUpdater.allowPrerelease = process.env.NODE_ENV === 'development';
+
     // Auto-download is disabled - we want user approval first
-    autoUpdater.autoDownload = false;
-    
+    this.autoUpdater.autoDownload = false;
+
     // Auto-install on quit
-    autoUpdater.autoInstallOnAppQuit = true;
+    this.autoUpdater.autoInstallOnAppQuit = true;
 
     console.log('[AutoUpdater] Configured:', {
-      allowPrerelease: autoUpdater.allowPrerelease,
-      autoDownload: autoUpdater.autoDownload,
-      channel: autoUpdater.channel
+      allowPrerelease: this.autoUpdater.allowPrerelease,
+      autoDownload: this.autoUpdater.autoDownload,
+      channel: this.autoUpdater.channel
     });
   }
 
   private setupListeners() {
-    autoUpdater.on('checking-for-update', () => {
+    if (this.isDevMode || !this.autoUpdater) return;
+
+    this.autoUpdater.on('checking-for-update', () => {
       console.log('[AutoUpdater] Checking for update...');
       this.status.checking = true;
       this.sendStatusToRenderer();
     });
 
-    autoUpdater.on('update-available', (info: UpdateInfo) => {
+    this.autoUpdater.on('update-available', (info: UpdateInfo) => {
       console.log('[AutoUpdater] Update available:', info.version);
       this.status.checking = false;
       this.status.available = true;
       this.status.version = info.version;
       this.status.releaseNotes = info.releaseNotes as string || null;
       this.sendStatusToRenderer();
-      
+
       // Show notification to user
       this.notifyUpdateAvailable(info);
     });
 
-    autoUpdater.on('update-not-available', (info: UpdateInfo) => {
+    this.autoUpdater.on('update-not-available', (info: UpdateInfo) => {
       console.log('[AutoUpdater] Update not available. Current version:', info.version);
       this.status.checking = false;
       this.sendStatusToRenderer();
     });
 
-    autoUpdater.on('error', (err) => {
+    this.autoUpdater.on('error', (err) => {
       console.error('[AutoUpdater] Error:', err);
       this.status.checking = false;
       this.status.downloading = false;
@@ -96,18 +125,18 @@ export class AutoUpdaterService {
       this.sendStatusToRenderer();
     });
 
-    autoUpdater.on('download-progress', (progressObj) => {
+    this.autoUpdater.on('download-progress', (progressObj) => {
       this.status.progress = progressObj.percent;
       console.log(`[AutoUpdater] Download progress: ${progressObj.percent}%`);
       this.sendStatusToRenderer();
     });
 
-    autoUpdater.on('update-downloaded', (info: UpdateInfo) => {
+    this.autoUpdater.on('update-downloaded', (info: UpdateInfo) => {
       console.log('[AutoUpdater] Update downloaded:', info.version);
       this.status.downloading = false;
       this.status.downloaded = true;
       this.sendStatusToRenderer();
-      
+
       // Notify user that update is ready to install
       this.notifyUpdateDownloaded(info);
     });
@@ -120,10 +149,10 @@ export class AutoUpdaterService {
   }
 
   private notifyUpdateAvailable(info: UpdateInfo) {
-    if (!this.mainWindow || this.mainWindow.isDestroyed()) return;
+    if (!this.mainWindow || this.mainWindow.isDestroyed() || !this.autoUpdater) return;
 
     const message = `A new version ${info.version} is available!\n\n` +
-      `Current version: ${autoUpdater.currentVersion}\n` +
+      `Current version: ${this.autoUpdater.currentVersion}\n` +
       `Would you like to download it now?`;
 
     dialog.showMessageBox(this.mainWindow, {
@@ -161,7 +190,7 @@ export class AutoUpdaterService {
     }).then(result => {
       if (result.response === 0) {
         // Quit and install
-        autoUpdater.quitAndInstall(false, true);
+        this.quitAndInstall();
       }
     }).catch(err => {
       console.error('[AutoUpdater] Error showing dialog:', err);
@@ -179,9 +208,19 @@ export class AutoUpdaterService {
    * Check for updates manually
    */
   async checkForUpdates(): Promise<void> {
+    if (this.isDevMode) {
+      console.log('[AutoUpdater] Check skipped - running in dev mode');
+      return;
+    }
+
+    if (!this.autoUpdater) {
+      console.log('[AutoUpdater] Not initialized yet');
+      return;
+    }
+
     try {
       console.log('[AutoUpdater] Manual check for updates triggered');
-      await autoUpdater.checkForUpdates();
+      await this.autoUpdater.checkForUpdates();
     } catch (err) {
       console.error('[AutoUpdater] Error checking for updates:', err);
       this.status.error = err instanceof Error ? err.message : String(err);
@@ -193,12 +232,22 @@ export class AutoUpdaterService {
    * Download the available update
    */
   async downloadUpdate(): Promise<void> {
+    if (this.isDevMode) {
+      console.log('[AutoUpdater] Download skipped - running in dev mode');
+      return;
+    }
+
+    if (!this.autoUpdater) {
+      console.log('[AutoUpdater] Not initialized yet');
+      return;
+    }
+
     try {
       console.log('[AutoUpdater] Starting download...');
       this.status.downloading = true;
       this.status.progress = 0;
       this.sendStatusToRenderer();
-      await autoUpdater.downloadUpdate();
+      await this.autoUpdater.downloadUpdate();
     } catch (err) {
       console.error('[AutoUpdater] Error downloading update:', err);
       this.status.downloading = false;
@@ -211,8 +260,18 @@ export class AutoUpdaterService {
    * Install the downloaded update and restart
    */
   quitAndInstall(): void {
+    if (this.isDevMode) {
+      console.log('[AutoUpdater] Quit and install skipped - running in dev mode');
+      return;
+    }
+
+    if (!this.autoUpdater) {
+      console.log('[AutoUpdater] Not initialized yet');
+      return;
+    }
+
     console.log('[AutoUpdater] Quitting and installing update...');
-    autoUpdater.quitAndInstall(false, true);
+    this.autoUpdater.quitAndInstall(false, true);
   }
 
   /**
@@ -226,7 +285,10 @@ export class AutoUpdaterService {
    * Get current app version
    */
   getCurrentVersion(): string {
-    return autoUpdater.currentVersion.version;
+    if (this.isDevMode || !this.autoUpdater) {
+      return app.getVersion();
+    }
+    return this.autoUpdater.currentVersion.version;
   }
 }
 
