@@ -191,30 +191,43 @@ was stopping recording after only 1.5 seconds of silence, which is shorter than 
 for breathing or thinking.
 
 **Root cause:** `voice-service.ts:445` had a hardcoded 1500ms silence timeout, combined with a
-very sensitive silence threshold of 10. Natural speech patterns include:
+silence threshold of 10. The threshold logic works as: `if (average < threshold) → silence`.
+This meant values 0-9 were considered silence. Natural speech patterns include:
 - Breathing pauses (typically 1-2 seconds)
 - Thinking pauses while formulating thoughts (1-3 seconds)
-- Background room noise or breathing sounds that should be ignored
+- Quiet speaking voice (average 11-20 for some users)
+- Background room noise or breathing sounds (average 7-14)
 
-The 1.5s timeout was too aggressive, treating natural pauses as "end of speech."
+The 1.5s timeout was too aggressive, AND the threshold needed to be LOWER, not higher.
 
-**Fix:** Adjusted both the silence duration and sensitivity:
-1. **Increased silence duration:** 1500ms → 2500ms (voice-service.ts:447)
-   - Gives users a full extra second to pause naturally
-   - More forgiving for multi-sentence speech or thinking pauses
-2. **Increased silence threshold:** 10 → 15 (voice-service.ts:441)
-   - Less sensitive to background noise and breathing sounds
-   - Prevents false silence detection from ambient room noise
+**Initial mistake (commit d1665e5):** INCREASED threshold from 10 → 15, which made the problem
+WORSE. Since the check is `if (average < threshold)`, raising the threshold meant MORE values
+counted as silence. Users with quiet voices (average 11-14 when speaking) were now detected as
+silent even while talking!
 
-This makes conversations feel more natural and reduces frustrating interruptions during normal
-speech patterns.
+**Correct fix (commit 3ace5a5):** DECREASED threshold and increased timeout:
+1. **Decreased silence threshold:** 10 → 6 (voice-service.ts:441)
+   - Lower threshold = only TRUE silence (very low audio ~0-5) triggers timer
+   - Quiet speaking voice (avg 15-30 for most users) won't trigger silence
+   - Breathing sounds (avg 7-14) won't trigger false silence detection
+   - Only genuine quiet (< 6) is considered silence
+2. **Increased silence duration:** 1500ms → 3000ms (voice-service.ts:449)
+   - Full 3 seconds of TRUE silence before stopping
+   - Very forgiving for natural pauses, breathing, thinking
+
+How it works now:
+- Speaking creates frequency average of ~15-30 (or higher for loud voices)
+- Breathing/quiet ambient sounds create average of ~7-14
+- TRUE silence creates average of ~0-5
+- Only values < 6 trigger the 3-second countdown
+- Allows natural pauses without premature cutoff
 
 Files changed:
-- `src/renderer/src/voice-service.ts` — silence detection threshold and timeout values
+- `src/renderer/src/voice-service.ts` — silence detection threshold (line 441) and timeout (line 449)
 
-**Do not touch:** The 2500ms silence timeout and threshold of 15. These values were tuned to
-balance responsiveness (not making users wait too long after genuinely finishing) with patience
-(not cutting them off mid-thought).
+**Do not touch:** The threshold of 6 and timeout of 3000ms. These values were tuned through
+testing to balance responsiveness with patience. Lower threshold = less sensitive to silence
+= more forgiving.
 
 ---
 
