@@ -747,10 +747,23 @@ class FO4_OT_ExportMesh(Operator):
     bl_label = "Export Mesh"
     
     filepath: StringProperty(subtype='FILE_PATH')
-    
-    def execute(self, context):
+    source_object: StringProperty(options={'HIDDEN'})
+
+    @classmethod
+    def poll(cls, context):
         obj = context.active_object
-        
+        return obj is not None and obj.type == 'MESH'
+
+    def execute(self, context):
+        # Use the object captured at invoke time when possible
+        if self.source_object:
+            obj = context.scene.objects.get(self.source_object)
+            if obj is None:
+                self.report({'ERROR'}, f"Source object '{self.source_object}' no longer exists in the scene")
+                return {'CANCELLED'}
+        else:
+            obj = context.active_object
+
         if not obj or obj.type != 'MESH':
             self.report({'ERROR'}, "No mesh object selected")
             return {'CANCELLED'}
@@ -775,6 +788,16 @@ class FO4_OT_ExportMesh(Operator):
         return {'FINISHED'}
     
     def invoke(self, context, event):
+        obj = context.active_object
+        if not obj or obj.type != 'MESH':
+            self.report({'ERROR'}, "No mesh object selected")
+            return {'CANCELLED'}
+        # avoid exporting a generated collision mesh by mistake
+        if obj.get("fo4_collision") or obj.name.upper().endswith("_COLLISION") or obj.name.upper().startswith("UCX_"):
+            self.report({'ERROR'}, "Active object looks like a collision mesh; select the original mesh instead")
+            return {'CANCELLED'}
+        # Store the name now so execute() can find it after the file dialog
+        self.source_object = obj.name
         context.window_manager.fileselect_add(self)
         return {'RUNNING_MODAL'}
 
@@ -833,6 +856,7 @@ class FO4_OT_ExportMeshWithCollision(Operator):
     bl_label = "Export Mesh + Collision"
     
     filepath: StringProperty(subtype='FILE_PATH')
+    source_object: StringProperty(options={'HIDDEN'})
     simplify_ratio: FloatProperty(
         name="Simplification",
         description="How much to simplify the generated collision mesh",
@@ -846,9 +870,21 @@ class FO4_OT_ExportMeshWithCollision(Operator):
         items=mesh_helpers.MeshHelpers.COLLISION_TYPES,
         default='DEFAULT'
     )
-    
-    def execute(self, context):
+
+    @classmethod
+    def poll(cls, context):
         obj = context.active_object
+        return obj is not None and obj.type == 'MESH'
+
+    def execute(self, context):
+        # Use the object captured at invoke time when possible
+        if self.source_object:
+            obj = context.scene.objects.get(self.source_object)
+            if obj is None:
+                self.report({'ERROR'}, f"Source object '{self.source_object}' no longer exists in the scene")
+                return {'CANCELLED'}
+        else:
+            obj = context.active_object
         if not obj or obj.type != 'MESH':
             self.report({'ERROR'}, "No mesh object selected")
             return {'CANCELLED'}
@@ -884,12 +920,16 @@ class FO4_OT_ExportMeshWithCollision(Operator):
     
     def invoke(self, context, event):
         obj = context.active_object
-        if obj and obj.type == 'MESH':
-            inferred = mesh_helpers.MeshHelpers.infer_collision_type(obj)
-            self.collision_type = mesh_helpers.MeshHelpers.resolve_collision_type(
-                getattr(obj, 'fo4_collision_type', inferred), inferred)
-            if self.simplify_ratio == 0.25:
-                self.simplify_ratio = mesh_helpers.MeshHelpers._TYPE_DEFAULT_RATIOS.get(self.collision_type, 0.25)
+        if not obj or obj.type != 'MESH':
+            self.report({'ERROR'}, "No mesh object selected")
+            return {'CANCELLED'}
+        # Store the name now so execute() can find it after the file dialog
+        self.source_object = obj.name
+        inferred = mesh_helpers.MeshHelpers.infer_collision_type(obj)
+        self.collision_type = mesh_helpers.MeshHelpers.resolve_collision_type(
+            getattr(obj, 'fo4_collision_type', inferred), inferred)
+        if self.simplify_ratio == 0.25:
+            self.simplify_ratio = mesh_helpers.MeshHelpers._TYPE_DEFAULT_RATIOS.get(self.collision_type, 0.25)
         context.window_manager.fileselect_add(self)
         return {'RUNNING_MODAL'}
 
