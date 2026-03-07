@@ -248,20 +248,42 @@ class FO4AddonPreferences(bpy.types.AddonPreferences):
         default=9999,
         min=1024,
         max=65535,
-        description="TCP port the Mossy Link server listens on",
+        description="TCP port the Mossy Link server (inside Blender) listens on for commands from Mossy",
     )
 
     token: bpy.props.StringProperty(
         name="Mossy Link Token",
         default="",
         subtype='PASSWORD',
-        description="Optional shared secret; leave blank to disable auth",
+        description="Optional shared secret for the Mossy Link TCP server; leave blank to disable auth",
     )
 
     autostart: bpy.props.BoolProperty(
         name="Auto-start Mossy Link",
         default=True,
         description="Start the Mossy Link server automatically when the add-on loads",
+    )
+
+    mossy_http_port: bpy.props.IntProperty(
+        name="Mossy HTTP Port",
+        default=8080,
+        min=1024,
+        max=65535,
+        description=(
+            "Port where Mossy's HTTP server listens. "
+            "Blender connects here to send AI advisor questions to Mossy. "
+            "Must match the port configured in your Mossy desktop app."
+        ),
+    )
+
+    use_mossy_as_ai: bpy.props.BoolProperty(
+        name="Use Mossy as AI Advisor",
+        default=False,
+        description=(
+            "Route advisor AI queries through Mossy instead of a remote LLM endpoint. "
+            "Requires Mossy to be running on the desktop. "
+            "No API key needed — everything stays on your machine."
+        ),
     )
 
     def draw(self, context):
@@ -348,9 +370,26 @@ class FO4AddonPreferences(bpy.types.AddonPreferences):
 
         ml_box = layout.box()
         ml_box.label(text="Mossy Link", icon="LINKED")
-        ml_box.prop(self, "port")
-        ml_box.prop(self, "token")
-        ml_box.prop(self, "autostart")
+
+        # TCP server (Blender ← Mossy commands)
+        tcp_sub = ml_box.box()
+        tcp_sub.label(text="TCP Server  (Mossy → Blender control)", icon="NETWORK_DRIVE")
+        tcp_sub.prop(self, "port", text="Listen Port")
+        tcp_sub.prop(self, "token", text="Auth Token")
+        tcp_sub.prop(self, "autostart", text="Auto-start on load")
+
+        # HTTP client (Blender → Mossy AI)
+        http_sub = ml_box.box()
+        http_sub.label(text="AI Queries  (Blender → Mossy)", icon="URL")
+        http_sub.prop(self, "mossy_http_port", text="Mossy HTTP Port")
+        http_sub.prop(self, "use_mossy_as_ai", text="Use Mossy as AI Advisor")
+        if self.use_mossy_as_ai:
+            http_sub.label(text="✓ Advisor will ask Mossy instead of remote LLM", icon="CHECKMARK")
+            http_sub.label(text="  Enable LLM Advisor above as fallback", icon="INFO")
+        else:
+            http_sub.label(text="Enable to route advisor AI through Mossy", icon="INFO")
+
+        ml_box.operator("wm.mossy_check_http", text="Check Mossy HTTP", icon="QUESTION")
 
 
 def register():

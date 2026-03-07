@@ -664,19 +664,49 @@ class FO4_PT_AdvisorPanel(Panel):
         layout = self.layout
         prefs = context.preferences.addons.get(__package__.split('.')[0]).preferences if context.preferences else None
         llm_enabled = prefs.llm_enabled if prefs else False
+        use_mossy = getattr(prefs, 'use_mossy_as_ai', False) if prefs else False
 
+        # ── Mossy AI status ──────────────────────────────────────────────
+        mossy_box = layout.box()
+        mossy_box.label(text="Mossy AI Tutor", icon='LINKED')
+
+        wm = context.window_manager
+        mossy_tcp_active = getattr(wm, 'mossy_link_active', False)
+
+        if mossy_tcp_active:
+            mossy_box.label(text="✓ Mossy Link server running", icon='CHECKMARK')
+        else:
+            mossy_box.label(text="Mossy Link server stopped", icon='RADIOBUT_OFF')
+            mossy_box.operator("wm.mossy_link_toggle",
+                               text="Start Mossy Link Server", icon='PLAY')
+
+        if use_mossy:
+            mossy_box.label(text="✓ Using Mossy as AI Advisor", icon='CHECKMARK')
+            row = mossy_box.row(align=True)
+            # use_llm=True triggers AI analysis; analyze_scene() routes to
+            # Mossy first (local), then falls back to remote LLM if needed.
+            op = row.operator("fo4.advisor_analyze", text="Ask Mossy for Advice", icon='LIGHT_HEMI')
+            op.use_llm = True
+            mossy_box.operator("wm.mossy_check_http", text="Check Mossy HTTP", icon='QUESTION')
+        else:
+            mossy_box.label(text="Mossy AI not active", icon='INFO')
+            mossy_box.label(text="Enable 'Use Mossy as AI Advisor' in")
+            mossy_box.label(text="Preferences → Mossy Link section")
+
+        # ── Local analysis ───────────────────────────────────────────────
         box = layout.box()
-        box.label(text="Analyze", icon='INFO')
+        box.label(text="Scene Analysis", icon='INFO')
         row = box.row(align=True)
         op = row.operator("fo4.advisor_analyze", text="Analyze (Local)", icon='SHADERFX')
         op.use_llm = False
         row = box.row(align=True)
-        row.enabled = llm_enabled
-        op = row.operator("fo4.advisor_analyze", text="Analyze (LLM)", icon='LIGHT_HEMI')
+        row.enabled = llm_enabled and not use_mossy
+        op = row.operator("fo4.advisor_analyze", text="Analyze (Remote LLM)", icon='LIGHT_HEMI')
         op.use_llm = True
-        if not llm_enabled:
-            box.label(text="LLM disabled (set in Preferences)", icon='ERROR')
+        if not llm_enabled and not use_mossy:
+            box.label(text="No AI configured – use Mossy or set LLM in Preferences", icon='ERROR')
 
+        # ── Quick Fixes ──────────────────────────────────────────────────
         fixes = layout.box()
         fixes.label(text="Quick Fixes", icon='MODIFIER')
         row = fixes.row()
@@ -689,11 +719,12 @@ class FO4_PT_AdvisorPanel(Panel):
         op = row.operator("fo4.advisor_quick_fix", text="Validate Export", icon='CHECKMARK')
         op.action = 'VALIDATE_EXPORT'
 
+        # ── Info / KB ────────────────────────────────────────────────────
         info = layout.box()
         info.label(text="Advisor focuses on:", icon='HELP')
         info.label(text="• Export readiness (scale, transforms, normals)")
         info.label(text="• Texture prep (DDS BC1/3/5/7)")
-        info.label(text="• Unity/UE imports: scale/material hints")
+        info.label(text="• Mesh limits (65,535 tris/verts)")
 
         kb_status = knowledge_helpers.describe_kb()
         info.label(text=kb_status, icon='BOOKMARKS')

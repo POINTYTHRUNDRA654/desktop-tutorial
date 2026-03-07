@@ -50,9 +50,14 @@ class AdvisorHelpers:
                 report["issues"].append(f"Export validation: {issue}")
 
         if use_llm:
-            llm_resp = AdvisorHelpers.query_llm(report)
-            if llm_resp:
-                report["llm"] = llm_resp
+            # Try Mossy first (local, no API key needed).
+            # Fall back to the configured remote LLM endpoint if Mossy is not
+            # available or not configured as the AI advisor.
+            ai_resp = AdvisorHelpers.query_mossy(report)
+            if not ai_resp:
+                ai_resp = AdvisorHelpers.query_llm(report)
+            if ai_resp:
+                report["llm"] = ai_resp
 
         # Derive suggestions from findings
         AdvisorHelpers._derive_suggestions(report)
@@ -107,6 +112,52 @@ class AdvisorHelpers:
                 report["suggestions"].append("Fix non-manifold geometry before export.")
             if "Export validation" in issue:
                 report["suggestions"].append("Run Validate Before Export and fix blockers.")
+
+    @staticmethod
+    def query_mossy(meta_report):
+        """Send the advisor report to Mossy's HTTP AI endpoint and return its response.
+
+        This is the Mossy-specific AI path.  Unlike :meth:`query_llm`, which
+        requires an OpenAI-compatible remote endpoint and API key, this calls
+        Mossy's local HTTP server directly — no API key needed, no data leaves
+        your machine.
+
+        Mossy must be running on the desktop and ``use_mossy_as_ai`` must be
+        enabled in the add-on preferences.  The function returns ``None``
+        silently when either condition is not met, so the caller can fall back
+        to the standard LLM path without branching logic.
+        """
+        prefs = preferences.get_preferences()
+        if not prefs or not getattr(prefs, 'use_mossy_as_ai', False):
+            return None
+
+        # Build the context we send to Mossy (summary strings only — no mesh
+        # or texture binaries ever leave Blender).
+        kb_snippets = []
+        if getattr(prefs, "knowledge_base_enabled", False):
+            kb_snippets = knowledge_helpers.load_snippets(max_files=4, max_chars=800)
+
+        context_data = {
+            "issues":          meta_report.get("issues",      [])[:20],
+            "suggestions":     meta_report.get("suggestions", [])[:10],
+            "objects_checked": meta_report.get("objects_checked", 0),
+            "kb":              kb_snippets[:4],
+        }
+        query = (
+            "I'm working on Fallout 4 mod assets in Blender. "
+            "Please review these export-readiness issues and give me clear, "
+            "prioritised fixes as a beginner-friendly step-by-step list."
+        )
+
+        try:
+            from . import mossy_link as _ml
+            response = _ml.ask_mossy(query, context_data=context_data, timeout=10)
+            # ask_mossy() returns None on any connection/parse failure, so
+            # returning it directly lets analyze_scene() fall through to the
+            # remote LLM endpoint without any further checks.
+            return response  # str with content, or None
+        except Exception:
+            return None
 
     @staticmethod
     def query_llm(meta_report):
