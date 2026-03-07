@@ -85,16 +85,19 @@ class MeshHelpers:
 
         Blender can return integer indices instead of string identifiers when
         reading custom properties via ``obj.get()``.  This helper converts an
-        integer index to the corresponding identifier and passes string values
-        through unchanged.  If the value cannot be mapped, *fallback* is
-        returned.
+        integer index to the corresponding identifier and validates string
+        values against the known identifiers.  If the value cannot be mapped,
+        *fallback* is returned.
         """
+        valid_ids = {t[0] for t in MeshHelpers.COLLISION_TYPES}
         if isinstance(value, int):
             types = MeshHelpers.COLLISION_TYPES
             if 0 <= value < len(types):
                 return types[value][0]
             return fallback
-        return value
+        if isinstance(value, str) and value in valid_ids:
+            return value
+        return fallback
 
     @staticmethod
     def create_base_mesh(mesh_type='CUBE'):
