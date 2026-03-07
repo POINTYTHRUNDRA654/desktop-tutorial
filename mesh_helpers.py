@@ -80,6 +80,23 @@ class MeshHelpers:
         return 'DEFAULT'
 
     @staticmethod
+    def resolve_collision_type(value, fallback='DEFAULT'):
+        """Return a valid COLLISION_TYPES string identifier for *value*.
+
+        Blender can return integer indices instead of string identifiers when
+        reading custom properties via ``obj.get()``.  This helper converts an
+        integer index to the corresponding identifier and passes string values
+        through unchanged.  If the value cannot be mapped, *fallback* is
+        returned.
+        """
+        if isinstance(value, int):
+            types = MeshHelpers.COLLISION_TYPES
+            if 0 <= value < len(types):
+                return types[value][0]
+            return fallback
+        return value
+
+    @staticmethod
     def create_base_mesh(mesh_type='CUBE'):
         """Create a base mesh optimized for Fallout 4"""
         bpy.ops.mesh.primitive_cube_add(size=2, location=(0, 0, 0))
