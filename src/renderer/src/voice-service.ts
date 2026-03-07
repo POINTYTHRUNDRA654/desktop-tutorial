@@ -436,15 +436,16 @@ export class VoiceService {
         analyser.getByteFrequencyData(dataArray);
         const average = dataArray.reduce((a, b) => a + b) / dataArray.length;
 
-        // Increased silence threshold from 10 to 15 to be less sensitive to background noise
-        // This prevents premature cutoff from room noise or breathing
-        if (average < 15) { // Silence threshold
+        // CORRECTED: Lower threshold = less sensitive to silence (more forgiving)
+        // Threshold of 6 means only TRUE silence (very low audio) triggers the timer
+        // This prevents detecting quiet speech or breathing as silence
+        if (average < 6) { // Silence threshold - LOW value means less sensitive
           if (!silenceTimer) {
             silenceTimer = setTimeout(() => {
               if (this.mediaRecorder && this.isRecording && !this.shouldStop) {
                 this.mediaRecorder.stop();
               }
-            }, 2500); // Stop after 2.5 seconds of silence (increased from 1.5s)
+            }, 3000); // Stop after 3 seconds of TRUE silence
           }
         } else {
           if (silenceTimer) {
