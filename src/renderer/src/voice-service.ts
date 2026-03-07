@@ -432,17 +432,19 @@ export class VoiceService {
           audioContext.close();
           return;
         }
-        
+
         analyser.getByteFrequencyData(dataArray);
         const average = dataArray.reduce((a, b) => a + b) / dataArray.length;
-        
-        if (average < 10) { // Silence threshold
+
+        // Increased silence threshold from 10 to 15 to be less sensitive to background noise
+        // This prevents premature cutoff from room noise or breathing
+        if (average < 15) { // Silence threshold
           if (!silenceTimer) {
             silenceTimer = setTimeout(() => {
               if (this.mediaRecorder && this.isRecording && !this.shouldStop) {
                 this.mediaRecorder.stop();
               }
-            }, 1500); // Stop after 1.5 seconds of silence
+            }, 2500); // Stop after 2.5 seconds of silence (increased from 1.5s)
           }
         } else {
           if (silenceTimer) {
@@ -450,7 +452,7 @@ export class VoiceService {
             silenceTimer = undefined;
           }
         }
-        
+
         requestAnimationFrame(checkSilence);
       };
       
