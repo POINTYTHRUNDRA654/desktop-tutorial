@@ -810,7 +810,7 @@ class FO4_OT_SetCollisionType(Operator):
         if self.apply_to_all:
             objs = [o for o in context.selected_objects if o.type == 'MESH']
         for o in objs:
-            o["fo4_collision_type"] = self.collision_type
+            o.fo4_collision_type = self.collision_type
             if sound is not None:
                 o["fo4_collision_sound"] = sound
             if weight is not None:
@@ -822,9 +822,7 @@ class FO4_OT_SetCollisionType(Operator):
         obj = context.active_object
         if obj and obj.type == 'MESH':
             inferred = mesh_helpers.MeshHelpers.infer_collision_type(obj)
-            stored = mesh_helpers.MeshHelpers.resolve_collision_type(
-                obj.get("fo4_collision_type", inferred), inferred)
-            self.collision_type = stored
+            self.collision_type = getattr(obj, 'fo4_collision_type', inferred)
         return context.window_manager.invoke_props_dialog(self)
 
 
@@ -855,7 +853,7 @@ class FO4_OT_ExportMeshWithCollision(Operator):
             return {'CANCELLED'}
 
         # record choice on the source object
-        obj["fo4_collision_type"] = self.collision_type
+        obj.fo4_collision_type = self.collision_type
 
         # create/update collision mesh
         try:
@@ -887,8 +885,7 @@ class FO4_OT_ExportMeshWithCollision(Operator):
         obj = context.active_object
         if obj and obj.type == 'MESH':
             inferred = mesh_helpers.MeshHelpers.infer_collision_type(obj)
-            self.collision_type = mesh_helpers.MeshHelpers.resolve_collision_type(
-                obj.get("fo4_collision_type", inferred), inferred)
+            self.collision_type = getattr(obj, 'fo4_collision_type', inferred)
             if self.simplify_ratio == 0.25:
                 self.simplify_ratio = mesh_helpers.MeshHelpers._TYPE_DEFAULT_RATIOS.get(self.collision_type, 0.25)
         context.window_manager.fileselect_add(self)
@@ -5245,7 +5242,7 @@ class FO4_OT_GenerateCollisionMesh(Operator):
             return {'CANCELLED'}
         
         # remember the selected collision type on the source object
-        obj["fo4_collision_type"] = self.collision_type
+        obj.fo4_collision_type = self.collision_type
 
         # skip generation for types that don't require it
         if self.collision_type in ('NONE', 'GRASS', 'MUSHROOM'):
@@ -5277,8 +5274,7 @@ class FO4_OT_GenerateCollisionMesh(Operator):
         obj = context.active_object
         if obj and obj.type == 'MESH':
             inferred = mesh_helpers.MeshHelpers.infer_collision_type(obj)
-            self.collision_type = mesh_helpers.MeshHelpers.resolve_collision_type(
-                obj.get("fo4_collision_type", inferred), inferred)
+            self.collision_type = getattr(obj, 'fo4_collision_type', inferred)
             if self.simplify_ratio == 0.25:
                 self.simplify_ratio = mesh_helpers.MeshHelpers._TYPE_DEFAULT_RATIOS.get(self.collision_type, 0.25)
         return context.window_manager.invoke_props_dialog(self)
