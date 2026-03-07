@@ -4686,6 +4686,59 @@ class FO4_OT_SmartDecimate(Operator):
         layout.prop(self, "preserve_uvs")
 
 
+class FO4_OT_SplitMeshPolyLimit(Operator):
+    """Split the active mesh into sub-meshes each under the FO4 65,535-triangle limit"""
+    bl_idname = "fo4.split_mesh_poly_limit"
+    bl_label = "Split at Poly Limit"
+    bl_options = {'REGISTER', 'UNDO'}
+
+    tri_limit: IntProperty(
+        name="Triangle Limit",
+        description="Maximum triangles per output mesh (FO4 BSTriShape limit is 65,535)",
+        default=65535,
+        min=1000,
+        max=65535,
+    )
+
+    def execute(self, context):
+        obj = context.active_object
+        if not obj or obj.type != 'MESH':
+            self.report({'ERROR'}, "No mesh object selected")
+            return {'CANCELLED'}
+
+        # Fast path: check if split is actually needed
+        tri_estimate = sum(max(1, len(p.vertices) - 2) for p in obj.data.polygons)
+        if tri_estimate <= self.tri_limit:
+            self.report({'INFO'}, f"Mesh is already within limit ({tri_estimate:,} tris ≤ {self.tri_limit:,}) – no split needed")
+            return {'FINISHED'}
+
+        try:
+            parts = mesh_helpers.MeshHelpers.split_mesh_at_poly_limit(obj, self.tri_limit)
+        except Exception as e:
+            self.report({'ERROR'}, f"Split failed: {e}")
+            return {'CANCELLED'}
+
+        msg = f"Split into {len(parts)} part(s): {', '.join(p.name for p in parts)}"
+        self.report({'INFO'}, msg)
+        notification_system.FO4_NotificationSystem.notify(
+            f"Mesh split into {len(parts)} FO4-compatible parts", 'INFO'
+        )
+
+        print("\n" + "="*70)
+        print("MESH SPLIT RESULTS")
+        print("="*70)
+        print(f"Source object:  {obj.name}  ({tri_estimate:,} estimated tris)")
+        print(f"Parts produced: {len(parts)}")
+        for part in parts:
+            est = sum(max(1, len(p.vertices) - 2) for p in part.data.polygons)
+            print(f"  {part.name}: ~{est:,} tris")
+        print("="*70 + "\n")
+        return {'FINISHED'}
+
+    def invoke(self, context, event):
+        return context.window_manager.invoke_props_dialog(self)
+
+
 class FO4_OT_GenerateLOD(Operator):
     """Generate Level of Detail mesh chain"""
     bl_idname = "fo4.generate_lod"
@@ -7406,6 +7459,7 @@ classes = (
     FO4_OT_AnalyzeMeshQuality,
     FO4_OT_AutoRepairMesh,
     FO4_OT_SmartDecimate,
+    FO4_OT_SplitMeshPolyLimit,
     FO4_OT_GenerateLOD,
     FO4_OT_OptimizeUVs,
     # New batch processing operators

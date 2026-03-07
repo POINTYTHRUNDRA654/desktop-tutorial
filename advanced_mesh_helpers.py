@@ -377,9 +377,20 @@ class AdvancedMeshHelpers:
     
     @staticmethod
     def generate_lod_chain(obj, lod_levels=None):
-        """
-        Generate Level of Detail mesh chain
-        Default LOD ratios: [0.75, 0.5, 0.25, 0.1]
+        """Generate a Fallout 4–compatible Level of Detail (LOD) mesh chain.
+
+        Fallout 4 uses separate NIF files for each LOD level.  The *source*
+        object is treated as ``LOD0`` (the full-detail model seen up close).
+        This function generates progressively simplified copies named
+        ``_LOD1`` through ``_LOD4`` so they follow the FO4 LOD naming
+        convention without confusing the source with a generated level.
+
+        Default simplification ratios (relative to the original poly count):
+          - LOD1: 75 % – subtle reduction, noticeable only up close
+          - LOD2: 50 % – medium reduction for mid-range distances
+          - LOD3: 25 % – aggressive reduction for far distances
+          - LOD4: 10 % – extreme reduction for the farthest draw distance
+
         Returns: (bool success, str message, list lod_objects)
         """
         if obj.type != 'MESH':
@@ -399,14 +410,19 @@ class AdvancedMeshHelpers:
             bpy.ops.object.duplicate()
             
             lod_obj = bpy.context.active_object
-            lod_obj.name = f"{obj.name}_LOD{i}"
+            # LOD levels are numbered starting at 1; the source object is LOD0.
+            lod_obj.name = f"{obj.name}_LOD{i + 1}"
             
             # Apply decimation
             success, msg, stats = AdvancedMeshHelpers.smart_decimate(lod_obj, ratio=ratio)
             
             lod_objects.append((lod_obj, stats['new_poly_count']))
         
-        message = f"Generated {len(lod_objects)} LOD levels from {original_poly_count} polygons"
+        message = (
+            f"Generated {len(lod_objects)} LOD levels from {original_poly_count:,} polygons. "
+            f"Source object = LOD0 (full detail). "
+            f"Export each LOD as a separate NIF: {{name}}_LOD1.nif … {{name}}_LOD{len(lod_objects)}.nif"
+        )
         
         return True, message, lod_objects
     

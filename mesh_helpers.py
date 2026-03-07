@@ -172,12 +172,40 @@ class MeshHelpers:
         if len(mesh.vertices) == 0:
             issues.append("Mesh has no vertices")
         
-        # Check poly count
+        # Check poly count.  FO4's BSTriShape stores triangles using a 16-bit
+        # index buffer, so the hard limit is 65,535 *triangles* after the mesh
+        # has been triangulated.  A mesh made of quads will produce roughly
+        # twice as many triangles as it has polygons, and n-gons produce even
+        # more.  Counting raw polygon objects instead of estimated triangles
+        # would silently let over-limit meshes through – we estimate here so
+        # the warning fires before a silent corruption at export time.
+        #
+        # Separately, BSTriShape's vertex index buffer is also 16-bit, so the
+        # mesh can have at most 65,535 *unique vertices* too.  Both limits are
+        # enforced: the triangle estimate catches quad/n-gon meshes and the
+        # vertex count catches dense point clouds or high-res sculpts.
         poly_count = len(mesh.polygons)
         if poly_count == 0:
             issues.append("Mesh has no polygons")
-        elif poly_count > 65535:
-            issues.append(f"Poly count too high: {poly_count} (FO4 limit is 65,535 triangles per mesh)")
+        else:
+            # Estimate triangulated face count: quad → 2 tris, n-gon → n-2 tris.
+            tri_estimate = sum(max(1, len(p.vertices) - 2) for p in mesh.polygons)
+            if tri_estimate > 65535:
+                issues.append(
+                    f"Estimated triangle count too high: {tri_estimate:,} "
+                    f"(FO4 BSTriShape limit is 65,535 triangles – split the mesh "
+                    f"with 'Split at Poly Limit' before export)"
+                )
+
+        # Vertex count limit – BSTriShape uses a 16-bit vertex index (uint16).
+        # After triangulation Blender may split vertices along UV seams /
+        # sharp edges, so the exported vertex count can be higher than the
+        # raw mesh count.  Warn early so the user can split or decimate.
+        if len(mesh.vertices) > 65535:
+            issues.append(
+                f"Vertex count too high: {len(mesh.vertices):,} "
+                f"(FO4 BSTriShape limit is 65,535 unique vertices – split the mesh)"
+            )
 
         # Check for UV map – required by Niftools v0.1.1 and by FO4 shaders.
         # Collision/occlusion meshes are invisible and do not need UV maps.
@@ -213,7 +241,8 @@ class MeshHelpers:
         # Check scale – unapplied scale distorts geometry in FO4;
         # _prepare_mesh_for_nif auto-applies this but we keep the warning
         # so the "Validate Before Export" button gives accurate feedback.
-        if obj.scale != Vector((1.0, 1.0, 1.0)):
+        # Use a small tolerance to avoid false positives from floating-point noise.
+        if any(abs(s - 1.0) > 1e-5 for s in obj.scale):
             issues.append("Object scale not applied – use Ctrl+A > Apply Scale before export")
         
         if not issues:
@@ -342,19 +371,59 @@ class MeshHelpers:
         result = bmesh.ops.convex_hull(bm, input=bm.verts)
         # geom_interior  – geometry that ended up inside the hull
         # geom_unused    – geometry that wasn't part of the hull at all
+        # bmesh.ops.delete with context='VERTS' only processes BMVert objects
+        # and silently ignores BMEdge/BMFace entries, so filter explicitly to
+        # avoid leaving orphaned interior faces that would corrupt the shape.
         geom_to_delete = result.get('geom_interior', []) + result.get('geom_unused', [])
-        if geom_to_delete:
-            bmesh.ops.delete(bm, geom=geom_to_delete, context='VERTS')
+        verts_to_del = [g for g in geom_to_delete if isinstance(g, bmesh.types.BMVert)]
+        if verts_to_del:
+            bmesh.ops.delete(bm, geom=verts_to_del, context='VERTS')
 
         # Triangulate – FO4 BSTriShape / NIF geometry requires triangles only.
         bmesh.ops.triangulate(bm, faces=bm.faces[:])
 
-        # Recalculate face normals consistently outward.
+        # Recalculate face normals consistently outward.  recalc_face_normals
+        # re-orients winding for a closed surface so all normals face out –
+        # bhkConvexVerticesShape in FO4 NIFs requires outward-facing normals to
+        # correctly compute the supporting half-spaces.  normal_update() then
+        # refreshes the cached per-vertex normals.
+        bmesh.ops.recalc_face_normals(bm, faces=bm.faces[:])
         bm.normal_update()
 
         bm.to_mesh(collision_obj.data)
         bm.free()
         collision_obj.data.update()
+
+        # ----------------------------------------------------------------
+        # Fallout 4's bhkConvexVerticesShape supports at most 256 vertices.
+        # If the hull exceeds that limit, decimate and rebuild so the shape
+        # stays within the engine limit and doesn't silently corrupt the NIF.
+        # ----------------------------------------------------------------
+        _FO4_CONVEX_VERT_LIMIT = 256
+        if len(collision_obj.data.vertices) > _FO4_CONVEX_VERT_LIMIT:
+            ratio = max(0.01, min(0.99, _FO4_CONVEX_VERT_LIMIT / len(collision_obj.data.vertices)))
+            trim_mod = collision_obj.modifiers.new(name="Decimate_Limit", type='DECIMATE')
+            trim_mod.ratio = ratio
+            bpy.ops.object.select_all(action='DESELECT')
+            collision_obj.select_set(True)
+            bpy.context.view_layer.objects.active = collision_obj
+            bpy.ops.object.modifier_apply(modifier="Decimate_Limit")
+            # Rebuild convex hull after decimation to restore a manifold surface.
+            bm2 = bmesh.new()
+            bm2.from_mesh(collision_obj.data)
+            bmesh.ops.remove_doubles(bm2, verts=bm2.verts, dist=0.001)
+            bm2.verts.ensure_lookup_table()
+            hull2 = bmesh.ops.convex_hull(bm2, input=bm2.verts)
+            del2 = hull2.get('geom_interior', []) + hull2.get('geom_unused', [])
+            v2 = [g for g in del2 if isinstance(g, bmesh.types.BMVert)]
+            if v2:
+                bmesh.ops.delete(bm2, geom=v2, context='VERTS')
+            bmesh.ops.triangulate(bm2, faces=bm2.faces[:])
+            bmesh.ops.recalc_face_normals(bm2, faces=bm2.faces[:])
+            bm2.normal_update()
+            bm2.to_mesh(collision_obj.data)
+            bm2.free()
+            collision_obj.data.update()
 
         # parent collision mesh to the source object so they are exported as a
         # unit.  Clear parent inverse so the collision sits at the same world
@@ -376,6 +445,15 @@ class MeshHelpers:
             # and BASE are equivalent here, but FINAL is the safer default.
             collision_obj.rigid_body.mesh_source = 'FINAL'
             collision_obj.rigid_body.collision_shape = 'CONVEX_HULL'
+            # FO4 static collision requirements for bhkRigidBody:
+            #   mass = 0       – fixed/keyframed body; non-zero mass in a PASSIVE
+            #                    body confuses Niftools and causes wrong motion-
+            #                    system flags in the emitted bhkRigidBody node.
+            #   friction = 0.8 – hard-surface default used in vanilla FO4 NIFs.
+            #   restitution = 0.1 – minimal bounce; matches FO4 static geometry.
+            collision_obj.rigid_body.mass = 0.0
+            collision_obj.rigid_body.friction = 0.8
+            collision_obj.rigid_body.restitution = 0.1
         except Exception:
             # Physics operators unavailable in this context; skip silently.
             # The UCX_ naming and parent relationship still enable export.
@@ -387,6 +465,77 @@ class MeshHelpers:
         collision_obj.select_set(False)
 
         return collision_obj
+
+    @staticmethod
+    def split_mesh_at_poly_limit(obj, tri_limit: int = 65535):
+        """Split *obj* into sub-meshes each under *tri_limit* triangulated faces.
+
+        Fallout 4's BSTriShape / BSSubIndexTriShape nodes can store at most
+        65,535 triangles per node.  This helper separates the mesh into as many
+        island-based parts as needed so each part stays within the limit, then
+        tries to further split by material if any island is still over-limit.
+
+        The source object is left untouched; all splits produce new objects.
+        Returns a list of the resulting objects.  If the mesh is already within
+        the limit a list containing only the original object is returned.
+
+        Example usage:
+            parts = MeshHelpers.split_mesh_at_poly_limit(active_obj)
+            for part in parts:
+                ExportHelpers.export_mesh_to_nif(part, filepath)
+        """
+        if obj.type != 'MESH':
+            return [obj]
+
+        # Fast path: estimate triangulated count first.
+        tri_estimate = sum(max(1, len(p.vertices) - 2) for p in obj.data.polygons)
+        if tri_estimate <= tri_limit:
+            return [obj]
+
+        bpy.ops.object.select_all(action='DESELECT')
+        obj.select_set(True)
+        bpy.context.view_layer.objects.active = obj
+
+        # Apply transforms so child objects inherit correct world geometry.
+        try:
+            bpy.ops.object.transform_apply(location=False, rotation=True, scale=True)
+        except Exception:
+            pass
+
+        # Separate by loose parts (disconnected islands).
+        bpy.ops.object.mode_set(mode='EDIT')
+        bpy.ops.mesh.select_all(action='SELECT')
+        bpy.ops.mesh.separate(type='LOOSE')
+        bpy.ops.object.mode_set(mode='OBJECT')
+
+        parts = [o for o in bpy.context.selected_objects if o.type == 'MESH']
+
+        final_parts = []
+        for part in parts:
+            tri_est = sum(max(1, len(p.vertices) - 2) for p in part.data.polygons)
+            if tri_est <= tri_limit:
+                final_parts.append(part)
+                continue
+
+            # Island is still over-limit: try splitting by material.
+            bpy.ops.object.select_all(action='DESELECT')
+            part.select_set(True)
+            bpy.context.view_layer.objects.active = part
+            bpy.ops.object.mode_set(mode='EDIT')
+            bpy.ops.mesh.select_all(action='SELECT')
+            bpy.ops.mesh.separate(type='MATERIAL')
+            bpy.ops.object.mode_set(mode='OBJECT')
+            mat_parts = [o for o in bpy.context.selected_objects if o.type == 'MESH']
+            final_parts.extend(mat_parts)
+
+        # Rename parts sequentially so they are easy to identify.
+        base_name = obj.name
+        for i, part in enumerate(final_parts):
+            part.name = f"{base_name}_Part{i + 1:02d}"
+            if part.data:
+                part.data.name = part.name
+
+        return final_parts
 
 def register():
     """Register mesh helper functions"""

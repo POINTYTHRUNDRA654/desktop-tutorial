@@ -412,11 +412,23 @@ class ExportHelpers:
             obj.select_set(True)
             bpy.context.view_layer.objects.active = obj
 
+            # Include the UCX_ collision mesh in the FBX.  This is critical:
+            # FO4 NIF-conversion tools (CK, Cathedral Assets Optimizer, etc.)
+            # pair a UCX_{name} object with its visual mesh by name to generate
+            # bhkConvexVerticesShape collision in the NIF.  Without it the
+            # exported NIF has no collision at all.
+            ctype_for_fbx = obj.get("fo4_collision_type", "DEFAULT")
+            if ctype_for_fbx not in ('NONE', 'GRASS', 'MUSHROOM'):
+                coll_fb = ExportHelpers._find_collision_mesh(obj)
+                if coll_fb:
+                    coll_fb.select_set(True)
+
             bpy.ops.export_scene.fbx(
                 filepath=fbx_path,
                 use_selection=True,
                 apply_scale_options='FBX_SCALE_ALL',
-                mesh_smooth_type='FACE'
+                mesh_smooth_type='FACE',
+                use_mesh_modifiers=True,
             )
 
             ctype = obj.get("fo4_collision_type", "DEFAULT")

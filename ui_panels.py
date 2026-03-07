@@ -17,8 +17,32 @@ class FO4_PT_MainPanel(Panel):
     def draw(self, context):
         layout = self.layout
         scene = context.scene
-        
-        # Tutorial section
+
+        # ── Version compatibility banner ─────────────────────────────────────
+        # Show users exactly what their Blender version supports so there are
+        # no surprises when they try to export.
+        bv = bpy.app.version
+        compat_box = layout.box()
+        compat_box.label(text=f"Blender {bv[0]}.{bv[1]}.{bv[2]}", icon='BLENDER')
+
+        if bv < (2, 90, 0):
+            compat_box.label(text="⚠ Blender 2.90+ required.", icon='ERROR')
+            compat_box.label(text="Please upgrade to Blender 3.6 LTS or newer.")
+        elif bv < (3, 0, 0):
+            compat_box.label(text="✓ NIF export: supported (Niftools v0.1.1)", icon='CHECKMARK')
+            compat_box.label(text="⚠ Recommend upgrading to Blender 3.6 LTS.")
+        elif bv < (4, 0, 0):
+            compat_box.label(text="✓ NIF export: fully supported (Blender 3.x)", icon='CHECKMARK')
+            compat_box.label(text="  Install Niftools v0.1.1 add-on to export .nif directly.")
+        elif bv < (4, 1, 0):
+            compat_box.label(text="✓ NIF export: FBX fallback (Niftools needs Blender 3.6)", icon='INFO')
+            compat_box.label(text="  Export .fbx and convert with Cathedral Assets Optimizer.")
+        else:
+            # 4.1+ — use_auto_smooth removed; FBX-only NIF path
+            compat_box.label(text="✓ NIF export: FBX fallback (Niftools needs Blender 3.6)", icon='INFO')
+            compat_box.label(text="  Shade-by-angle is automatic in Blender 4.1+.")
+
+        # ── Tutorial section ─────────────────────────────────────────────────
         box = layout.box()
         box.label(text="Tutorial System", icon='HELP')
         box.operator("fo4.start_tutorial", text="Start Tutorial", icon='PLAY')
@@ -27,10 +51,11 @@ class FO4_PT_MainPanel(Panel):
         # New-user setup hints
         hint = layout.box()
         hint.label(text="Setup / First-time Use", icon='INFO')
-        hint.label(text="1. Open the 'External Tools' tab below.")
-        hint.label(text="2. Click 'Check/Install' buttons to fetch required tools.")
-        hint.label(text="3. Use 'Install Python Requirements' if prompted.")
-        hint.label(text="4. Restart Blender after installing add‑ons/tools.")
+        hint.label(text="1. Open the 'Setup & Status' tab below.")
+        hint.label(text="2. Install missing Python packages if prompted.")
+        hint.label(text="3. Install Niftools v0.1.1 (Blender 3.6 LTS only).")
+        hint.label(text="   OR use FBX export + Cathedral Assets Optimizer.")
+        hint.label(text="4. Restart Blender after installing add-ons/tools.")
         
         # Notifications
         if hasattr(scene, 'fo4_notifications') and scene.fo4_notifications:
@@ -80,6 +105,7 @@ class FO4_PT_MeshPanel(Panel):
             box.operator("fo4.analyze_mesh_quality", text="Analyze Quality", icon='INFO')
             box.operator("fo4.auto_repair_mesh", text="Auto-Repair", icon='TOOL_SETTINGS')
             box.operator("fo4.smart_decimate", text="Smart Decimate", icon='MOD_DECIM')
+            box.operator("fo4.split_mesh_poly_limit", text="Split at Poly Limit", icon='MOD_BOOLEAN')
             box.operator("fo4.generate_lod", text="Generate LOD Chain", icon='OUTLINER_OB_MESH')
             box.operator("fo4.optimize_uvs", text="Optimize UVs", icon='UV')
         else:
@@ -107,6 +133,7 @@ class FO4_PT_MeshPanel(Panel):
             adv_box.operator("fo4.analyze_mesh_quality", text="Analyze Quality", icon='INFO')
             adv_box.operator("fo4.auto_repair_mesh", text="Auto-Repair", icon='TOOL_SETTINGS')
             adv_box.operator("fo4.smart_decimate", text="Smart Decimate", icon='MOD_DECIM')
+            adv_box.operator("fo4.split_mesh_poly_limit", text="Split at Poly Limit", icon='MOD_BOOLEAN')
             adv_box.operator("fo4.generate_lod", text="Generate LOD Chain", icon='OUTLINER_OB_MESH')
             adv_box.operator("fo4.optimize_uvs", text="Optimize UVs", icon='UV')
 
@@ -637,19 +664,49 @@ class FO4_PT_AdvisorPanel(Panel):
         layout = self.layout
         prefs = context.preferences.addons.get(__package__.split('.')[0]).preferences if context.preferences else None
         llm_enabled = prefs.llm_enabled if prefs else False
+        use_mossy = getattr(prefs, 'use_mossy_as_ai', False) if prefs else False
 
+        # ── Mossy AI status ──────────────────────────────────────────────
+        mossy_box = layout.box()
+        mossy_box.label(text="Mossy AI Tutor", icon='LINKED')
+
+        wm = context.window_manager
+        mossy_tcp_active = getattr(wm, 'mossy_link_active', False)
+
+        if mossy_tcp_active:
+            mossy_box.label(text="✓ Mossy Link server running", icon='CHECKMARK')
+        else:
+            mossy_box.label(text="Mossy Link server stopped", icon='RADIOBUT_OFF')
+            mossy_box.operator("wm.mossy_link_toggle",
+                               text="Start Mossy Link Server", icon='PLAY')
+
+        if use_mossy:
+            mossy_box.label(text="✓ Using Mossy as AI Advisor", icon='CHECKMARK')
+            row = mossy_box.row(align=True)
+            # use_llm=True triggers AI analysis; analyze_scene() routes to
+            # Mossy first (local), then falls back to remote LLM if needed.
+            op = row.operator("fo4.advisor_analyze", text="Ask Mossy for Advice", icon='LIGHT_HEMI')
+            op.use_llm = True
+            mossy_box.operator("wm.mossy_check_http", text="Check Mossy HTTP", icon='QUESTION')
+        else:
+            mossy_box.label(text="Mossy AI not active", icon='INFO')
+            mossy_box.label(text="Enable 'Use Mossy as AI Advisor' in")
+            mossy_box.label(text="Preferences → Mossy Link section")
+
+        # ── Local analysis ───────────────────────────────────────────────
         box = layout.box()
-        box.label(text="Analyze", icon='INFO')
+        box.label(text="Scene Analysis", icon='INFO')
         row = box.row(align=True)
         op = row.operator("fo4.advisor_analyze", text="Analyze (Local)", icon='SHADERFX')
         op.use_llm = False
         row = box.row(align=True)
-        row.enabled = llm_enabled
-        op = row.operator("fo4.advisor_analyze", text="Analyze (LLM)", icon='LIGHT_HEMI')
+        row.enabled = llm_enabled and not use_mossy
+        op = row.operator("fo4.advisor_analyze", text="Analyze (Remote LLM)", icon='LIGHT_HEMI')
         op.use_llm = True
-        if not llm_enabled:
-            box.label(text="LLM disabled (set in Preferences)", icon='ERROR')
+        if not llm_enabled and not use_mossy:
+            box.label(text="No AI configured – use Mossy or set LLM in Preferences", icon='ERROR')
 
+        # ── Quick Fixes ──────────────────────────────────────────────────
         fixes = layout.box()
         fixes.label(text="Quick Fixes", icon='MODIFIER')
         row = fixes.row()
@@ -662,11 +719,12 @@ class FO4_PT_AdvisorPanel(Panel):
         op = row.operator("fo4.advisor_quick_fix", text="Validate Export", icon='CHECKMARK')
         op.action = 'VALIDATE_EXPORT'
 
+        # ── Info / KB ────────────────────────────────────────────────────
         info = layout.box()
         info.label(text="Advisor focuses on:", icon='HELP')
         info.label(text="• Export readiness (scale, transforms, normals)")
         info.label(text="• Texture prep (DDS BC1/3/5/7)")
-        info.label(text="• Unity/UE imports: scale/material hints")
+        info.label(text="• Mesh limits (65,535 tris/verts)")
 
         kb_status = knowledge_helpers.describe_kb()
         info.label(text=kb_status, icon='BOOKMARKS')

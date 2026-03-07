@@ -319,18 +319,38 @@ def register():
         print(f"Post-register environment check failed: {e}")
     
     # Show version-specific notes if needed.
-    if blender_version[0] < 3:
-        print("  Note: Some features work best with Blender 3.0+")
-    elif blender_version[0] == 3:
-        # nothing special to say; 3.x is the historically best-tested range
-        pass
-    elif blender_version[0] == 4:
-        print("  Note: Blender 4.x fully supported")
-    else:
-        # Blender 5.x and beyond — API compatibility shims are in place
+    if blender_version < (2, 90, 0):
         print(
-            "  Note: Blender {0}.x detected and fully supported."
-            " Please report any issues with Blender version details.".format(blender_version[0])
+            "  ⚠ Blender older than 2.90 detected.  The add-on requires at least "
+            "Blender 2.90.  Please upgrade to Blender 3.6 LTS for best results."
+        )
+    elif blender_version < (3, 0, 0):
+        print(
+            "  Note: Blender 2.9x detected.  Most features work, but Blender 3.6 LTS "
+            "is recommended for NIF export (Niftools v0.1.1 targets 2.8–3.6)."
+        )
+    elif blender_version < (4, 0, 0):
+        # 3.x is the prime target range for direct NIF export.
+        print(
+            "  ✓ Blender 3.x – prime NIF export range.  Install Niftools v0.1.1 to "
+            "export .nif files directly.  Blender 3.6 LTS is strongly recommended."
+        )
+    elif blender_version < (4, 1, 0):
+        print(
+            "  Note: Blender 4.0 detected.\n"
+            "  • NIF export: Niftools v0.1.1 targets Blender ≤3.6 – use the FBX "
+            "fallback and convert with Cathedral Assets Optimizer.\n"
+            "  • All other features (mesh, collision, textures, animation) work normally."
+        )
+    else:
+        # 4.1+ removed use_auto_smooth; handled in advisor_helpers and export_helpers.
+        print(
+            f"  Note: Blender {blender_version[0]}.{blender_version[1]} detected.\n"
+            "  • NIF export: use the FBX fallback + Cathedral Assets Optimizer "
+            "(Niftools v0.1.1 requires Blender ≤3.6).\n"
+            "  • Shade-smooth-by-angle replaces the old Auto Smooth checkbox "
+            "– the add-on handles this automatically.\n"
+            "  • All other features work normally.  Please report any issues."
         )
 
 def unregister():
