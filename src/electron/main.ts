@@ -4177,8 +4177,9 @@ function setupIpcHandlers() {
       let content = '';
       if (backend) {
         const controller = new AbortController();
-        const timeout = setTimeout(() => controller.abort(), 20000);
+        const timeout = setTimeout(() => controller.abort(), 30000); // Increased to 30s
         try {
+          console.log('[sendMessage] Calling backend with correlation ID:', correlationId);
           const res = await fetch(backendJoin(backend, '/v1/chat'), {
             method: 'POST',
             headers: {
@@ -4196,8 +4197,9 @@ function setupIpcHandlers() {
           const json: any = await res.json().catch(() => ({}));
           if (res.ok && json?.ok) {
             content = String(json?.text || '');
+            console.log('[sendMessage] Backend returned successfully for correlation ID:', correlationId);
           } else {
-            console.warn('[sendMessage] Backend proxy failed; falling back to local provider');
+            console.warn('[sendMessage] Backend proxy failed (status:', res.status, '); falling back to local provider');
           }
         } catch (e: any) {
           console.warn('[sendMessage] Backend proxy error; falling back to local provider:', e?.message || e);

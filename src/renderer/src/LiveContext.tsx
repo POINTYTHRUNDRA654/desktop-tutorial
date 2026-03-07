@@ -243,18 +243,47 @@ export const LiveProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
       let resolved = false;
       let cleanup: (() => void) | null = null;
+      let timeoutId: NodeJS.Timeout | null = null;
+
+      // Cleanup function to ensure we always remove listeners
+      const doCleanup = () => {
+        if (cleanup) {
+          try {
+            cleanup();
+            cleanup = null;
+          } catch (e) {
+            console.error('[LiveContext] Error during cleanup:', e);
+          }
+        }
+        if (timeoutId) {
+          clearTimeout(timeoutId);
+          timeoutId = null;
+        }
+      };
 
       // Listen for the response with matching correlation ID
       cleanup = api.onMessage((responseMessage: any) => {
-        console.log('[LiveContext] Received response from main:', responseMessage);
+        console.log('[LiveContext] Received response from main, correlation ID:', responseMessage.correlationId, 'expected:', correlationId);
+
+        // Defensive: handle missing correlationId in response
+        if (!responseMessage.correlationId) {
+          console.warn('[LiveContext] Response missing correlation ID, accepting anyway');
+          if (!resolved && responseMessage.role === 'assistant') {
+            resolved = true;
+            doCleanup();
+            resolve(responseMessage.content);
+          }
+          return;
+        }
+
         // Only handle responses that match our correlation ID
         if (!resolved && responseMessage.role === 'assistant' && responseMessage.correlationId === correlationId) {
           console.log('[LiveContext] Response matched correlation ID, resolving');
           resolved = true;
-          if (cleanup) cleanup();
+          doCleanup();
           resolve(responseMessage.content);
         } else if (responseMessage.correlationId !== correlationId) {
-          console.log('[LiveContext] Ignoring response with mismatched correlation ID:', responseMessage.correlationId);
+          console.log('[LiveContext] Ignoring response with mismatched correlation ID');
         }
       });
 
@@ -264,7 +293,7 @@ export const LiveProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       console.log('[LiveContext] Enhanced message:', enhancedMessage.substring(0, 200) + (enhancedMessage.length > 200 ? '...' : ''));
 
       // Send the enhanced message with persisted context and correlation ID
-      console.log('[LiveContext] Sending message to main process...');
+      console.log('[LiveContext] Sending message to main process with correlation ID:', correlationId);
       const payload = {
         ...buildVoicePayload(enhancedMessage),
         correlationId,
@@ -273,20 +302,20 @@ export const LiveProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         console.error('[LiveContext] Error sending message to main:', error);
         if (!resolved) {
           resolved = true;
-          if (cleanup) cleanup();
+          doCleanup();
           reject(error);
         }
       });
 
-      // Timeout after 30 seconds
-      setTimeout(() => {
+      // Timeout after 35 seconds (longer than backend timeout)
+      timeoutId = setTimeout(() => {
         if (!resolved) {
-          console.error('[LiveContext] Response timeout after 30 seconds for correlation ID:', correlationId);
+          console.error('[LiveContext] Response timeout after 35 seconds for correlation ID:', correlationId);
           resolved = true;
-          if (cleanup) cleanup();
+          doCleanup();
           reject(new Error('Response timeout'));
         }
-      }, 30000);
+      }, 35000);
     });
   };
 
