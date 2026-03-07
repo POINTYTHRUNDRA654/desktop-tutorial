@@ -92,6 +92,12 @@ external/cosmos-dependencies/
 external/cosmos-curate/
 external/cosmos-xenna/
 external/phoenix_live_view/
+external/lc-deepagents-quickstarts/
+external/nat-ui/
+
+# Previously orphaned git submodule directories — must never be re-tracked
+NeMo-Agent-Toolkit/
+vscode-pull-request-github/
 
 # Python
 __pycache__/

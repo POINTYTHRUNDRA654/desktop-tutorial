@@ -2,6 +2,54 @@
 
 **For developers/contributors who have the repository cloned in GitHub Desktop**
 
+---
+
+## 🚨 Submodule Pull Error (GitHub Desktop)
+
+**If you see an error like this when pulling:**
+
+```
+Fetching submodule NeMo-Agent-Toolkit
+Could not access submodule 'external/lc-deepagents-quickstarts'
+Could not access submodule 'external/nat-ui'
+Fetching submodule vscode-pull-request-github
+Errors during submodule fetch:
+        NeMo-Agent-Toolkit
+```
+
+**Why this happens:** The repository previously had orphaned git submodule entries
+(`NeMo-Agent-Toolkit`, `vscode-pull-request-github`) that were not part of this project.
+These have been removed from the repository, but your local git configuration may still
+reference them, causing GitHub Desktop to try to fetch them on every pull.
+
+### Fix (choose one)
+
+**Option A — Clean up submodule references (Recommended)**
+
+Open a terminal / Git Bash in your repository folder and run:
+
+```bash
+git submodule deinit --all -f
+git rm --cached NeMo-Agent-Toolkit 2>/dev/null || true
+git rm --cached vscode-pull-request-github 2>/dev/null || true
+git pull origin master
+```
+
+**Option B — Switch to `master` and pull in GitHub Desktop**
+
+1. Open GitHub Desktop
+2. Click **Current Branch** → switch to **`master`**
+3. Click **Repository → Pull** (or press `Ctrl+Shift+P`)
+4. If prompted about submodule errors, dismiss and pull again — master is now clean
+
+**Option C — Fresh clone (safest)**
+
+1. Back up any local changes
+2. Delete the repository folder
+3. In GitHub Desktop: **File → Clone Repository → `POINTYTHRUNDRA654/desktop-tutorial`**
+
+---
+
 ## 🎯 Your Situation
 
 You have the Mossy repository cloned on your computer (via GitHub Desktop or git), and:
