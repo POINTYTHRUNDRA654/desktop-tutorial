@@ -29,6 +29,15 @@ tmp-release/
 # Local release artifacts
 release.zip
 
+# Electron distributable binaries (should never be committed)
+*.dll
+*.pak
+*.bin
+*.dat
+*.exe
+locales/
+vk_swiftshader_icd.json
+
 # Generated knowledge bundle (created during build)
 public/knowledge/
 
