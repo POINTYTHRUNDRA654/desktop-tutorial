@@ -152,6 +152,38 @@ listener race conditions in multi-message scenarios.
 
 ---
 
+### 8. Voice chat MediaRecorder race condition — continuous conversation fix
+**Problem:** Mossy stopped responding after 1-2 voice exchanges. After the first successful
+exchange, the microphone would not restart properly for subsequent transcriptions. The user's
+provided log showed the MediaRecorder starting during TTS playback (which should never happen),
+and then failing to restart after TTS ended.
+
+**Root cause:** Race condition in `voice-service.ts:385`. When a transcription completed, the code
+scheduled an auto-restart setTimeout with a 1000ms delay. The condition check happened when
+SCHEDULING the timeout, not when the callback FIRED. Timeline:
+1. Recording completes → schedules auto-restart for T+1000ms (checks: `!isSpeaking` ✓)
+2. T+594ms: AI processes → TTS starts (`isSpeaking = true`)
+3. T+1000ms: setTimeout fires → **doesn't re-check `isSpeaking`** → starts MediaRecorder during TTS
+4. TTS ends → tries to restart recording, but `isRecording` is already `true` → skips restart
+5. Second transcription never happens → conversation stalls
+
+**Fix:** Re-check all conditions INSIDE the setTimeout callback, not just when scheduling:
+- `voice-service.ts:382-398`: Auto-restart after transcription now re-validates all flags
+- `voice-service.ts:505-521`: TTS completion handler also re-validates (defense in depth)
+- Both callbacks now check: `isListening && !shouldStop && !isUsingBrowserStt && !isSpeaking && !isRecording`
+- Added defensive logging to show when/why restarts are skipped
+
+This ensures the two restart timers (1000ms auto-restart and 400ms TTS-resume) can coexist
+without creating duplicate MediaRecorders or missing restarts.
+
+Files changed:
+- `src/renderer/src/voice-service.ts` — auto-restart and TTS-resume timeout callbacks with condition re-validation
+
+**Do not touch:** The condition re-checking inside both setTimeout callbacks. This is critical for
+preventing MediaRecorder conflicts between the auto-restart and TTS-resume timers.
+
+---
+
 ## In progress 🔄
 
 _Nothing currently pending. All items are in Done._
