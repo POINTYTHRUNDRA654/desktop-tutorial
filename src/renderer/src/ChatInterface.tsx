@@ -878,6 +878,8 @@ export const ChatInterface: React.FC = () => {
               localStorage.setItem('mossy_tool_connection_ack', 'true');
           }
           setOnboardingState('ready');
+          // Speak the returning-user greeting if TTS is enabled.
+          speakMossy("Welcome back, Vault Dweller! What are we working on today?", { cancelExisting: true });
           return;
       }
 
@@ -888,6 +890,8 @@ export const ChatInterface: React.FC = () => {
           timestamp: Date.now()
       }]);
       setOnboardingState('init');
+      // Speak the new-user greeting if TTS is enabled.
+      speakMossy("Hello! I'm Mossy, your Fallout 4 modding assistant. Ready to begin the scan?", { cancelExisting: true });
   };
 
   const resetMemory = () => {
@@ -1718,12 +1722,17 @@ export const ChatInterface: React.FC = () => {
       onboardingState: onboardingState
     });
 
-    // Record the chat action for the Modding Journey system
-    await LocalAIEngine.recordAction('chat_message', { 
-        length: textToSend.length,
-        hasImages: !!selectedFile,
-        timestamp: new Date().toISOString()
-    });
+    // Record the chat action for the Modding Journey system (non-critical — must not
+    // throw outside the try/finally or isLoading will be left stuck at true permanently).
+    try {
+        await LocalAIEngine.recordAction('chat_message', {
+            length: textToSend.length,
+            hasImages: !!selectedFile,
+            timestamp: new Date().toISOString()
+        });
+    } catch (recordErr) {
+        console.warn('[ChatInterface] recordAction failed (non-critical):', recordErr);
+    }
 
     if (onboardingState === 'project_setup') {
         createProjectFile({ name: textToSend, description: "Auto-created from chat", categories: [] });
