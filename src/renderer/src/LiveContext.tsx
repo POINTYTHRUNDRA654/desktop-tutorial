@@ -237,16 +237,24 @@ export const LiveProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         return;
       }
 
+      // Generate unique correlation ID for this request
+      const correlationId = `msg_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+      console.log('[LiveContext] Generated correlation ID:', correlationId);
+
       let resolved = false;
       let cleanup: (() => void) | null = null;
 
-      // Listen for the response
+      // Listen for the response with matching correlation ID
       cleanup = api.onMessage((responseMessage: any) => {
         console.log('[LiveContext] Received response from main:', responseMessage);
-        if (!resolved && responseMessage.role === 'assistant') {
+        // Only handle responses that match our correlation ID
+        if (!resolved && responseMessage.role === 'assistant' && responseMessage.correlationId === correlationId) {
+          console.log('[LiveContext] Response matched correlation ID, resolving');
           resolved = true;
           if (cleanup) cleanup();
           resolve(responseMessage.content);
+        } else if (responseMessage.correlationId !== correlationId) {
+          console.log('[LiveContext] Ignoring response with mismatched correlation ID:', responseMessage.correlationId);
         }
       });
 
@@ -255,9 +263,12 @@ export const LiveProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       const enhancedMessage = `[SYSTEM: LIVE SYNAPSE VOICE SESSION ACTIVE - FOLLOW PACING RULES]\n${baseEnhancedMessage}`;
       console.log('[LiveContext] Enhanced message:', enhancedMessage.substring(0, 200) + (enhancedMessage.length > 200 ? '...' : ''));
 
-      // Send the enhanced message with persisted context
+      // Send the enhanced message with persisted context and correlation ID
       console.log('[LiveContext] Sending message to main process...');
-      const payload = buildVoicePayload(enhancedMessage);
+      const payload = {
+        ...buildVoicePayload(enhancedMessage),
+        correlationId,
+      };
       api.sendMessage(payload).catch((error: any) => {
         console.error('[LiveContext] Error sending message to main:', error);
         if (!resolved) {
@@ -270,7 +281,7 @@ export const LiveProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       // Timeout after 30 seconds
       setTimeout(() => {
         if (!resolved) {
-          console.error('[LiveContext] Response timeout after 30 seconds');
+          console.error('[LiveContext] Response timeout after 30 seconds for correlation ID:', correlationId);
           resolved = true;
           if (cleanup) cleanup();
           reject(new Error('Response timeout'));
