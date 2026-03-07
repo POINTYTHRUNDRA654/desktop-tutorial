@@ -121,6 +121,37 @@ Files changed:
 
 ---
 
+### 7. Voice chat race condition — correlation IDs fix multi-message handling
+**Problem:** Mossy stopped responding after 1-2 voice exchanges. When multiple voice messages
+were sent in quick succession (or even sequentially), the IPC message listeners had no way to
+correlate responses with their originating requests. Each call to `sendMessageToMain()` created
+a new listener on the 'message' channel that would resolve when it received ANY message with
+`role: 'assistant'`. This caused race conditions where:
+- The first listener to see any assistant response would resolve, even if it wasn't meant for it
+- Subsequent messages would have their listeners resolve with the wrong response or timeout
+- Old listeners from previous messages could intercept responses meant for newer messages
+
+**Root cause:** No request/response correlation mechanism in the IPC communication pattern.
+All listeners watched the same channel and competed to handle any assistant response that arrived.
+
+**Fix:** Added unique correlation IDs to each request-response cycle:
+- `LiveContext.tsx`: Generate a unique `correlationId` for each `sendMessage` call
+- Each listener now only resolves when it receives a response with its matching `correlationId`
+- Responses with mismatched IDs are logged and ignored
+- `main.ts`: Extract `correlationId` from the request payload and echo it in the response
+
+This ensures each voice message gets its own dedicated response handler with no cross-talk
+between concurrent or sequential messages.
+
+Files changed:
+- `src/renderer/src/LiveContext.tsx` — `sendMessageToMain()` generates correlation ID, filters responses by ID
+- `src/electron/main.ts` — `sendMessage` IPC handler extracts and echoes correlation ID
+
+**Do not touch:** The correlation ID generation and matching logic. It is critical for preventing
+listener race conditions in multi-message scenarios.
+
+---
+
 ## In progress 🔄
 
 _Nothing currently pending. All items are in Done._
