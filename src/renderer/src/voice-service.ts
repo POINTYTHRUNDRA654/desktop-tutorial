@@ -382,7 +382,22 @@ export class VoiceService {
         // Auto-restart for continuous listening (increased delay for stability).
         // Do NOT restart while TTS is playing — speak() will restart after it completes.
         if (this.isListening && !this.shouldStop && !this.isUsingBrowserStt && !this.isSpeaking) {
-          setTimeout(() => this.startRecording(), 1000);
+          setTimeout(() => {
+            // Re-check all conditions when timeout fires, not just when scheduling
+            // This prevents race conditions with TTS starting between scheduling and firing
+            if (this.isListening && !this.shouldStop && !this.isUsingBrowserStt && !this.isSpeaking && !this.isRecording) {
+              console.log('[VoiceService] Auto-restart: restarting recording after successful transcription');
+              this.startRecording();
+            } else {
+              console.log('[VoiceService] Auto-restart: skipping restart', {
+                isListening: this.isListening,
+                shouldStop: this.shouldStop,
+                isUsingBrowserStt: this.isUsingBrowserStt,
+                isSpeaking: this.isSpeaking,
+                isRecording: this.isRecording
+              });
+            }
+          }, 1000);
         }
       };
 
@@ -491,7 +506,15 @@ export class VoiceService {
         console.log('[VoiceService] TTS complete — resuming microphone');
         setTimeout(() => {
           if (this.isListening && !this.shouldStop && !this.isUsingBrowserStt && !this.isRecording) {
+            console.log('[VoiceService] TTS resume: restarting recording after TTS completion');
             this.startRecording();
+          } else {
+            console.log('[VoiceService] TTS resume: skipping restart', {
+              isListening: this.isListening,
+              shouldStop: this.shouldStop,
+              isUsingBrowserStt: this.isUsingBrowserStt,
+              isRecording: this.isRecording
+            });
           }
         }, 400);
       }
