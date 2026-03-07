@@ -319,7 +319,7 @@ class MeshHelpers:
             for o in list(scene.objects):
                 if o is obj:
                     continue
-                if o.get("fo4_collision") or o.name in (ucx_name, legacy_name):
+                if o.name in (ucx_name, legacy_name):
                     bpy.data.objects.remove(o, do_unlink=True)
 
         # make sure we're operating on a clean selection

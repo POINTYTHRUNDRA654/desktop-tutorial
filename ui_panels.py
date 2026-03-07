@@ -970,6 +970,15 @@ class FO4_PT_ExportPanel(Panel):
 
         act_box.separator(factor=0.5)
         act_box.operator("fo4.validate_export", text="Validate Mesh Before Export", icon='CHECKMARK')
+
+        row3 = act_box.row(align=True)
+        row3.scale_y = 1.4
+        row3.operator(
+            "fo4.export_scene_as_nif",
+            text="Export Entire Scene as NIF",
+            icon='SCENE_DATA',
+        )
+
         act_box.operator("fo4.export_all", text="Export Complete Mod Folder", icon='PACKAGE')
 
 

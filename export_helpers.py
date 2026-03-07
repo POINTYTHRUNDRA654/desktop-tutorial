@@ -276,9 +276,8 @@ class ExportHelpers:
         1. Direct children of *obj* that carry the ``fo4_collision`` flag AND
            whose name matches ``UCX_{obj.name}`` (most specific / fastest).
         2. Any direct child with the ``fo4_collision`` flag (less specific).
-        3. ``fo4_collision`` flag on any scene sibling.
-        4. Standard ``UCX_{name}`` prefix (Fallout 4 / FBX convention).
-        5. Legacy ``{name}_COLLISION`` suffix for backward compatibility.
+        3. Scene siblings whose name matches ``UCX_{name}`` (Fallout 4 / FBX
+           convention) or the legacy ``{name}_COLLISION`` suffix.
         """
         ucx_name = f"UCX_{obj.name}".upper()
         legacy_name = f"{obj.name}_COLLISION".upper()
@@ -295,8 +294,6 @@ class ExportHelpers:
             for o in scene.objects:
                 if o is obj:
                     continue
-                if o.get("fo4_collision"):
-                    return o
                 oname = o.name.upper()
                 if oname == ucx_name or oname == legacy_name:
                     return o
@@ -488,6 +485,116 @@ class ExportHelpers:
 
         # now export both
         return ExportHelpers.export_mesh_to_nif(obj, filepath)
+
+    @staticmethod
+    def export_scene_as_single_nif(scene, filepath):
+        """Export all visible scene meshes and their collision meshes as one NIF file.
+
+        This implements the intended workflow: import a NIF, add collision to the
+        meshes that need it, then export the entire scene back out as a single NIF
+        that is ready to go straight into the game.
+
+        Each visible mesh object (that is not itself a collision proxy) is included
+        in the export.  For each mesh, any associated collision mesh (identified by
+        the UCX_ prefix, the fo4_collision flag on a parented child, or the
+        legacy _COLLISION suffix) is also selected so that it travels along in the
+        same NIF node hierarchy.
+
+        The Niftools v0.1.1 exporter (or an FBX fallback) is used with the same
+        settings as :func:`export_mesh_to_nif`.
+
+        Parameters
+        ----------
+        scene : bpy.types.Scene
+            The Blender scene to export.
+        filepath : str
+            Destination ``.nif`` file path (or ``.fbx`` for the FBX fallback).
+
+        Returns
+        -------
+        tuple[bool, str]
+            ``(True, message)`` on success, ``(False, error_message)`` on failure.
+        """
+        # Collect all exportable (non-collision) mesh objects in the scene.
+        meshes = [
+            obj for obj in scene.objects
+            if obj.type == 'MESH' and not ExportHelpers._is_collision_mesh(obj)
+        ]
+
+        if not meshes:
+            return False, "No exportable meshes found in the scene"
+
+        nif_available, nif_message = ExportHelpers.nif_exporter_available()
+
+        # Track temporary modifiers added during preparation so we can remove
+        # them when we're done, regardless of whether export succeeds or fails.
+        added_mods_per_obj = {}
+        try:
+            bpy.ops.object.select_all(action='DESELECT')
+
+            for obj in meshes:
+                # Prepare each mesh (apply transforms, UV, triangulate).
+                added_mods = ExportHelpers._prepare_mesh_for_nif(obj)
+                added_mods_per_obj[obj.name] = added_mods
+                obj.select_set(True)
+
+                # Include the associated collision mesh so it is embedded in the
+                # same NIF file rather than being left behind.
+                ctype = getattr(obj, 'fo4_collision_type', 'DEFAULT')
+                if ctype not in ('NONE', 'GRASS', 'MUSHROOM'):
+                    coll = ExportHelpers._find_collision_mesh(obj)
+                    if coll:
+                        coll.select_set(True)
+
+            # Set the first mesh as the active object so the exporter has a
+            # valid context even when no object was explicitly activated.
+            bpy.context.view_layer.objects.active = meshes[0]
+
+            if nif_available:
+                kwargs = ExportHelpers._build_nif_export_kwargs(filepath)
+                try:
+                    result = bpy.ops.export_scene.nif(**kwargs)
+                    if isinstance(result, set) and 'FINISHED' in result:
+                        mesh_count = len(meshes)
+                        return True, f"Exported {mesh_count} mesh(es) as single NIF: {filepath}"
+                    fallback_msg = f"NIF export did not finish ({result}); falling back to FBX."
+                except Exception as e:
+                    print(
+                        f"[FO4 Add-on] Scene NIF export error: {e}",
+                        file=sys.stderr,
+                    )
+                    traceback.print_exc(file=sys.stderr)
+                    fallback_msg = f"NIF export failed ({e}); falling back to FBX."
+            else:
+                fallback_msg = f"{nif_message}; exporting FBX."
+
+            # FBX fallback – keeps the UCX_ collision meshes in the selection so
+            # they are embedded in the FBX and paired with visual meshes by the
+            # NIF-conversion step.
+            base_path = os.path.splitext(filepath)[0]
+            fbx_path = base_path + ".fbx"
+            bpy.ops.export_scene.fbx(
+                filepath=fbx_path,
+                use_selection=True,
+                apply_scale_options='FBX_SCALE_ALL',
+                mesh_smooth_type='FACE',
+                use_mesh_modifiers=True,
+            )
+            mesh_count = len(meshes)
+            return True, f"{fallback_msg} Exported {mesh_count} mesh(es) as FBX: {fbx_path}"
+
+        except Exception as e:
+            return False, f"Scene export failed: {str(e)}"
+        finally:
+            # Always restore the mesh objects to their original state by removing
+            # any temporary modifiers that were added during preparation.
+            for obj_name, mods in added_mods_per_obj.items():
+                obj = scene.objects.get(obj_name)
+                if obj:
+                    for mod_name in mods:
+                        mod = obj.modifiers.get(mod_name)
+                        if mod:
+                            obj.modifiers.remove(mod)
 
     @staticmethod
     def export_complete_mod(scene, output_dir):
