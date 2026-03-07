@@ -291,7 +291,7 @@ class MeshHelpers:
             return None
 
         # record presets on source object
-        obj["fo4_collision_type"] = collision_type
+        obj.fo4_collision_type = collision_type
         sound = MeshHelpers._SOUND_PRESETS.get(collision_type)
         weight = MeshHelpers._WEIGHT_PRESETS.get(collision_type)
         if sound is not None:
@@ -336,8 +336,8 @@ class MeshHelpers:
 
         # mark so exporters can identify and skip it as a visual mesh
         collision_obj["fo4_collision"] = True
-        collision_obj["fo4_collision_type"] = collision_type
-        obj["fo4_collision_type"] = collision_type
+        collision_obj.fo4_collision_type = collision_type
+        obj.fo4_collision_type = collision_type
 
         # copy sound / weight presets
         if sound is not None:

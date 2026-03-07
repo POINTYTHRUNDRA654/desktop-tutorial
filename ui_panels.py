@@ -95,7 +95,7 @@ class FO4_PT_MeshPanel(Panel):
             row = box.row()
             row.operator("fo4.set_collision_type", text="Change Type", icon='PRESET')
             row = box.row()
-            row.enabled = context.active_object and context.active_object.type == 'MESH' and context.active_object.get('fo4_collision_type','DEFAULT') not in ('NONE','GRASS','MUSHROOM')
+            row.enabled = context.active_object and context.active_object.type == 'MESH' and getattr(context.active_object, 'fo4_collision_type', 'DEFAULT') not in ('NONE','GRASS','MUSHROOM')
             row.operator("fo4.generate_collision_mesh", text="Generate Collision", icon='MESH_DATA')
             row = box.row()
             row.operator("fo4.export_mesh_with_collision", text="Generate+Export NIF", icon='EXPORT')
@@ -123,7 +123,7 @@ class FO4_PT_MeshPanel(Panel):
             row = col_box.row()
             row.operator("fo4.set_collision_type", text="Change Type", icon='PRESET')
             row = col_box.row()
-            row.enabled = context.active_object and context.active_object.type == 'MESH' and context.active_object.get('fo4_collision_type','DEFAULT') not in ('NONE','GRASS','MUSHROOM')
+            row.enabled = context.active_object and context.active_object.type == 'MESH' and getattr(context.active_object, 'fo4_collision_type', 'DEFAULT') not in ('NONE','GRASS','MUSHROOM')
             row.operator("fo4.generate_collision_mesh", text="Generate Collision", icon='MESH_DATA')
             row = col_box.row()
             row.operator("fo4.export_mesh_with_collision", text="Generate+Export NIF", icon='EXPORT')
@@ -1096,7 +1096,7 @@ class FO4_PT_AutomationQuickPanel(Panel):
         if op is not None:
             op.apply_to_all = True
         row = box.row()
-        row.enabled = obj and obj.type == 'MESH' and obj.get('fo4_collision_type','DEFAULT') not in ('NONE','GRASS','MUSHROOM')
+        row.enabled = obj and obj.type == 'MESH' and getattr(obj, 'fo4_collision_type', 'DEFAULT') not in ('NONE','GRASS','MUSHROOM')
         row.operator("fo4.generate_collision_mesh", text="Generate Collision", icon='MESH_DATA')
         row = box.row()
         row.enabled = obj and obj.type == 'MESH'

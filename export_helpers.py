@@ -351,7 +351,7 @@ class ExportHelpers:
                 # gather objects to export (main mesh + optional collision)
                 selection = [obj]
                 # only include a collision object if the mesh is expected to have one
-                ctype = _mh.MeshHelpers.resolve_collision_type(obj.get("fo4_collision_type", "DEFAULT"))
+                ctype = getattr(obj, 'fo4_collision_type', 'DEFAULT')
                 if ctype not in ('NONE', 'GRASS', 'MUSHROOM'):
                     coll = ExportHelpers._find_collision_mesh(obj)
                     if coll:
@@ -366,7 +366,7 @@ class ExportHelpers:
                 result = bpy.ops.export_scene.nif(**kwargs)
 
                 if isinstance(result, set) and 'FINISHED' in result:
-                    ctype = _mh.MeshHelpers.resolve_collision_type(obj.get("fo4_collision_type", "DEFAULT"))
+                    ctype = getattr(obj, 'fo4_collision_type', 'DEFAULT')
                     sound = obj.get("fo4_collision_sound")
                     weight = obj.get("fo4_collision_weight")
                     extras = []
@@ -418,7 +418,7 @@ class ExportHelpers:
             # pair a UCX_{name} object with its visual mesh by name to generate
             # bhkConvexVerticesShape collision in the NIF.  Without it the
             # exported NIF has no collision at all.
-            ctype_for_fbx = _mh.MeshHelpers.resolve_collision_type(obj.get("fo4_collision_type", "DEFAULT"))
+            ctype_for_fbx = getattr(obj, 'fo4_collision_type', 'DEFAULT')
             if ctype_for_fbx not in ('NONE', 'GRASS', 'MUSHROOM'):
                 coll_fb = ExportHelpers._find_collision_mesh(obj)
                 if coll_fb:
@@ -432,7 +432,7 @@ class ExportHelpers:
                 use_mesh_modifiers=True,
             )
 
-            ctype = _mh.MeshHelpers.resolve_collision_type(obj.get("fo4_collision_type", "DEFAULT"))
+            ctype = getattr(obj, 'fo4_collision_type', 'DEFAULT')
             sound = obj.get("fo4_collision_sound")
             weight = obj.get("fo4_collision_weight")
             extras = []
