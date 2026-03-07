@@ -237,6 +237,44 @@ _Nothing currently pending. All items are in Done._
 
 ---
 
+### 14. Mossy won't answer — three root causes fixed ✅
+
+**Problem A (critical — chat silently locked up):** `await LocalAIEngine.recordAction(...)` was
+called *after* `setIsLoading(true)` but *before* the `try/catch/finally` block in `handleSend`.
+If it threw (e.g. `QuotaExceededError` from a full localStorage, or `SyntaxError` from corrupted
+`mossy_ml_history` JSON), the `finally { setIsLoading(false) }` block was never reached.
+`isLoading` stayed `true` forever. Every subsequent send hit the early-return guard
+`if (... || isLoading || ...) return` and was silently swallowed — Mossy appeared completely
+unresponsive until page reload.
+
+**Problem B (voice chat — recording never stopped):** The browser STT silence-detection threshold
+in `voice-service.ts` was raised from **8 → 15**. The previous value of 8 was still below the
+typical ambient room-noise floor of 8–12, so silence was never detected, the MediaRecorder never
+stopped, no audio blob was ever produced, and no transcript was ever sent — Mossy never heard
+anything the user said.
+
+**Problem C (TTS — greeting never spoken):** `initMossy()` set a welcome text message but never
+called `speakMossy()`, so Mossy was completely silent on startup even when TTS was enabled.
+
+**Fixes:**
+
+- `src/renderer/src/ChatInterface.tsx`
+  - Wrapped `await LocalAIEngine.recordAction(...)` in its own `try/catch` (non-fatal: logs
+    a warning and continues so the main `try/finally` always runs and resets `isLoading`).
+  - Added `speakMossy(...)` calls at the end of both `initMossy()` paths (new-user and
+    returning-user). Text kept concise for TTS. `speakMossy` reads settings from localStorage
+    independently so it works before `isVoiceEnabled` React state is rehydrated.
+
+- `src/renderer/src/voice-service.ts`
+  - Silence threshold: `8 → 15`. Normal speech is 15–40 (above threshold → keeps recording).
+    Room noise and breathing are 0–14 (below threshold → timer fires after 2.5 s → recording
+    stops → transcript sent → Mossy answers).
+
+**Do not touch:** The `try/catch` around `recordAction` in `handleSend`, the threshold value of 15,
+or the `speakMossy` calls in `initMossy`. These are the three fixes for "Mossy won't answer".
+
+
+
 ### 13. Always route through Render backend — Mossy can now talk ✅
 **Problem:** `getBackendConfig()` returned `null` whenever `MOSSY_BACKEND_URL` was not set in
 the environment (e.g. dev run without `.env.local`, or an existing `settings.json` that had an
