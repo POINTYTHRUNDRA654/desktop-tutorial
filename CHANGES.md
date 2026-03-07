@@ -237,6 +237,42 @@ _Nothing currently pending. All items are in Done._
 
 ---
 
+### 15. Automated conversation + TTS tests ✅
+
+**Request:** Run a test to verify that Mossy returns speech and keeps talking across 1-5+
+conversations without stopping.
+
+**Implementation:** New test file `src/renderer/src/__tests__/MossyConversation.test.tsx`
+with 12 focused unit tests that cover every path in the `handleSend → AI response → speakMossy`
+pipeline without requiring a running Electron app or live API keys.
+
+**Tests included:**
+
+| # | Description |
+|---|---|
+| 1 | `speakMossy` called with exact AI response text when voice is ON |
+| 2 | `speakMossy` NOT called when voice is OFF |
+| 3 | `speakMossy` NOT called when Live Voice is active (audio-feedback guard) |
+| 4 | `isLoading` resets to `false` after every successful response |
+| 5 | `recordAction` failure does NOT prevent response or TTS (bug fix from item 14) |
+| 6 | `isLoading` resets even when `generateResponse` throws (finally always runs) |
+| 7 | **5 back-to-back exchanges all produce a response + TTS call** (core loop test) |
+| 8 | 5 exchanges with `recordAction` always failing — all still speak + unlock |
+| 9 | Turns 1-4 fail (network error) → turn 5 recovers and speaks normally |
+| 10 | `speakMossy` module resolves without throwing for a single call |
+| 11 | `speakMossy` module resolves for a full sentence |
+| 12 | `speakMossy` called with the correct text for each of 5 unique messages |
+
+**Result: 205 tests pass (193 original + 12 new), 0 CodeQL alerts.**
+
+Files changed:
+- `src/renderer/src/__tests__/MossyConversation.test.tsx` — new test file (12 tests)
+
+**Do not touch:** The test structure, mock setup, or `simulateSend` helper. These tests guard
+the fixes made in items 12, 14 and must keep passing.
+
+
+
 ### 14. Mossy won't answer — three root causes fixed ✅
 
 **Problem A (critical — chat silently locked up):** `await LocalAIEngine.recordAction(...)` was
