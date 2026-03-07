@@ -822,7 +822,8 @@ class FO4_OT_SetCollisionType(Operator):
         obj = context.active_object
         if obj and obj.type == 'MESH':
             inferred = mesh_helpers.MeshHelpers.infer_collision_type(obj)
-            self.collision_type = getattr(obj, 'fo4_collision_type', inferred)
+            self.collision_type = mesh_helpers.MeshHelpers.resolve_collision_type(
+                getattr(obj, 'fo4_collision_type', inferred), inferred)
         return context.window_manager.invoke_props_dialog(self)
 
 
@@ -885,7 +886,8 @@ class FO4_OT_ExportMeshWithCollision(Operator):
         obj = context.active_object
         if obj and obj.type == 'MESH':
             inferred = mesh_helpers.MeshHelpers.infer_collision_type(obj)
-            self.collision_type = getattr(obj, 'fo4_collision_type', inferred)
+            self.collision_type = mesh_helpers.MeshHelpers.resolve_collision_type(
+                getattr(obj, 'fo4_collision_type', inferred), inferred)
             if self.simplify_ratio == 0.25:
                 self.simplify_ratio = mesh_helpers.MeshHelpers._TYPE_DEFAULT_RATIOS.get(self.collision_type, 0.25)
         context.window_manager.fileselect_add(self)
@@ -5274,7 +5276,8 @@ class FO4_OT_GenerateCollisionMesh(Operator):
         obj = context.active_object
         if obj and obj.type == 'MESH':
             inferred = mesh_helpers.MeshHelpers.infer_collision_type(obj)
-            self.collision_type = getattr(obj, 'fo4_collision_type', inferred)
+            self.collision_type = mesh_helpers.MeshHelpers.resolve_collision_type(
+                getattr(obj, 'fo4_collision_type', inferred), inferred)
             if self.simplify_ratio == 0.25:
                 self.simplify_ratio = mesh_helpers.MeshHelpers._TYPE_DEFAULT_RATIOS.get(self.collision_type, 0.25)
         return context.window_manager.invoke_props_dialog(self)
