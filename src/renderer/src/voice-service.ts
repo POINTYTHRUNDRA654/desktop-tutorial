@@ -441,12 +441,13 @@ export class VoiceService {
           console.log('[VoiceService] Audio level:', average.toFixed(2));
         }
 
-        // Threshold of 8: balanced between detecting silence and allowing quiet speech
-        // Speaking voice: typically 15-40
-        // Breathing/quiet: typically 8-15
-        // Room silence: typically 5-10
-        // True silence: 0-5
-        if (average < 8) { // Silence threshold
+        // Threshold of 15: catches all room silence and breathing while preserving speech.
+        // Speaking voice: typically 15-40  → above threshold → recording continues ✓
+        // Breathing/quiet: typically 8-15  → at or below threshold → timer starts ✓
+        // Room silence: typically 5-10     → well below threshold → timer starts ✓
+        // True silence: 0-5               → well below threshold → timer starts ✓
+        // (Previous value 8 was too low — rooms with noise at 8-12 never triggered.)
+        if (average < 15) { // Silence threshold
           if (!silenceTimer) {
             console.log('[VoiceService] Silence detected (avg:', average.toFixed(2), '), starting 2.5s timer');
             silenceTimer = setTimeout(() => {
