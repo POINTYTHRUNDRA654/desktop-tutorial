@@ -71,6 +71,7 @@ export const LiveProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const voiceServiceRef = useRef<VoiceService | null>(null);
   const conversationHistoryRef = useRef<Array<{role: 'user' | 'assistant', content: string}>>([]);
   const lastSpeakEndRef = useRef<number>(0);
+  const activeRequestsRef = useRef<Set<string>>(new Set());
 
   const loadLiveHistory = () => {
     try {
@@ -228,7 +229,10 @@ export const LiveProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   }, []);
 
   const sendMessageToMain = async (message: string): Promise<string> => {
+    const startTime = Date.now();
     console.log('[LiveContext] sendMessageToMain() called with message:', message.substring(0, 100) + (message.length > 100 ? '...' : ''));
+    console.log('[LiveContext] Active requests before this call:', activeRequestsRef.current.size);
+
     return new Promise((resolve, reject) => {
       const api = (window as any).electron?.api || (window as any).electronAPI;
       if (!api?.sendMessage || !api?.onMessage) {
@@ -241,6 +245,10 @@ export const LiveProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       const correlationId = `msg_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
       console.log('[LiveContext] Generated correlation ID:', correlationId);
 
+      // Track this request
+      activeRequestsRef.current.add(correlationId);
+      console.log('[LiveContext] Active requests after adding:', activeRequestsRef.current.size);
+
       let resolved = false;
       let cleanup: (() => void) | null = null;
       let timeoutId: NodeJS.Timeout | null = null;
@@ -251,6 +259,7 @@ export const LiveProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           try {
             cleanup();
             cleanup = null;
+            console.log('[LiveContext] Listener cleaned up for correlation ID:', correlationId);
           } catch (e) {
             console.error('[LiveContext] Error during cleanup:', e);
           }
@@ -259,18 +268,24 @@ export const LiveProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           clearTimeout(timeoutId);
           timeoutId = null;
         }
+        // Remove from active requests
+        activeRequestsRef.current.delete(correlationId);
+        console.log('[LiveContext] Active requests after cleanup:', activeRequestsRef.current.size);
       };
 
       // Listen for the response with matching correlation ID
       cleanup = api.onMessage((responseMessage: any) => {
-        console.log('[LiveContext] Received response from main, correlation ID:', responseMessage.correlationId, 'expected:', correlationId);
+        const receiveTime = Date.now();
+        const elapsed = receiveTime - startTime;
+        console.log('[LiveContext] Received response after', elapsed, 'ms, correlation ID:', responseMessage.correlationId, 'expected:', correlationId);
 
         // Defensive: handle missing correlationId in response
         if (!responseMessage.correlationId) {
-          console.warn('[LiveContext] Response missing correlation ID, accepting anyway');
+          console.warn('[LiveContext] Response missing correlation ID after', elapsed, 'ms, accepting anyway');
           if (!resolved && responseMessage.role === 'assistant') {
             resolved = true;
             doCleanup();
+            console.log('[LiveContext] Resolved with missing correlationId after', elapsed, 'ms');
             resolve(responseMessage.content);
           }
           return;
@@ -278,12 +293,12 @@ export const LiveProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
         // Only handle responses that match our correlation ID
         if (!resolved && responseMessage.role === 'assistant' && responseMessage.correlationId === correlationId) {
-          console.log('[LiveContext] Response matched correlation ID, resolving');
+          console.log('[LiveContext] Response matched correlation ID, resolving after', elapsed, 'ms');
           resolved = true;
           doCleanup();
           resolve(responseMessage.content);
         } else if (responseMessage.correlationId !== correlationId) {
-          console.log('[LiveContext] Ignoring response with mismatched correlation ID');
+          console.log('[LiveContext] Ignoring response with mismatched correlation ID (expected:', correlationId, 'got:', responseMessage.correlationId, ')');
         }
       });
 
@@ -293,13 +308,15 @@ export const LiveProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       console.log('[LiveContext] Enhanced message:', enhancedMessage.substring(0, 200) + (enhancedMessage.length > 200 ? '...' : ''));
 
       // Send the enhanced message with persisted context and correlation ID
-      console.log('[LiveContext] Sending message to main process with correlation ID:', correlationId);
+      console.log('[LiveContext] Sending message to main process with correlation ID:', correlationId, 'at', new Date(startTime).toISOString());
       const payload = {
         ...buildVoicePayload(enhancedMessage),
         correlationId,
       };
       api.sendMessage(payload).catch((error: any) => {
-        console.error('[LiveContext] Error sending message to main:', error);
+        const errorTime = Date.now();
+        const elapsed = errorTime - startTime;
+        console.error('[LiveContext] Error sending message to main after', elapsed, 'ms:', error);
         if (!resolved) {
           resolved = true;
           doCleanup();
@@ -310,7 +327,9 @@ export const LiveProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       // Timeout after 35 seconds (longer than backend timeout)
       timeoutId = setTimeout(() => {
         if (!resolved) {
-          console.error('[LiveContext] Response timeout after 35 seconds for correlation ID:', correlationId);
+          const timeoutElapsed = Date.now() - startTime;
+          console.error('[LiveContext] Response timeout after', timeoutElapsed, 'ms for correlation ID:', correlationId);
+          console.error('[LiveContext] Active requests at timeout:', activeRequestsRef.current.size, Array.from(activeRequestsRef.current));
           resolved = true;
           doCleanup();
           reject(new Error('Response timeout'));
