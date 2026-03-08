@@ -3701,18 +3701,61 @@ export const tutorialContexts: Record<string, TutorialPageContext> = {
 
   'precombine-generator': {
     pageId: 'precombine-generator',
-    pageName: 'Precombine Generator',
+    pageName: 'PRP Patch Tools',
     visualGuidePage: 55,
     route: '/tools/precombine-generator',
-    purpose: 'Generate precombine and previs data for Fallout 4 cell optimization.',
-    features: ['Precombine generation', 'Previs build', 'CK integration'],
-    controls: [
-      { name: 'Generate', type: 'button', description: 'Generate precombine data', whenToUse: 'After modifying world cells' },
+    purpose: 'Two-in-one PRP toolset: (1) scan your full MO2 load order and generate a one-click PRP-compatible combined patch for everything; (2) rebuild precombines for a single mod you just built and generate a standalone PRP companion patch for it.',
+    features: [
+      'Full load order patch – reads MO2 plugins.txt, generates real FO4Edit Pascal script that copies winning overrides and clears XCRI/XCMO for PRP',
+      'Single mod workflow – cell scan script, step-by-step Creation Kit precombine rebuild guide, PRP companion patch script',
+      'Auto-launch FO4Edit with script if xEdit path is configured',
+      'Save scripts to disk for manual use',
     ],
-    commonMistakes: ['Not generating previs after precombines'],
-    guides: [{ title: 'Generate precombines', steps: ['Open Precombine Generator', 'Select target cells', 'Run generation'] }],
-    tutorialSections: ['Precombine & Previs'],
-    suggestedQuestions: ['How long does precombine generation take?'],
+    controls: [
+      { name: 'Pick MO2 Profile Folder', type: 'button', description: 'Browse to your active MO2 profile to read plugins.txt', whenToUse: 'Full Load Order tab – start here' },
+      { name: 'Generate & Launch FO4Edit', type: 'button', description: 'Write the combined patch script and launch FO4Edit automatically', whenToUse: 'After reviewing your plugin list' },
+      { name: 'Browse for Mod File', type: 'button', description: 'Select the ESP/ESM for the single mod you want to process', whenToUse: 'Single Mod tab – start here' },
+      { name: 'Run Cell Scan in FO4Edit', type: 'button', description: 'Generate and launch the cell-listing prep script', whenToUse: 'Stage 1 of the single-mod workflow' },
+      { name: 'Generate & Save PRP Patch Script', type: 'button', description: 'Generate the standalone PRP companion patch script', whenToUse: 'Stage 3 – after rebuilding precombines in CK' },
+    ],
+    commonMistakes: [
+      'Not loading the full load order in FO4Edit before running the combined patch script',
+      'Forgetting to rebuild previs after precombines in Creation Kit',
+      'Placing the patch ESP in the wrong load order position – it must be at the very bottom, after PRP',
+      'Running the single-mod PRP patch script before finishing the CK precombine rebuild',
+    ],
+    guides: [{
+      title: 'Full Load Order: One-Click PRP Patch',
+      steps: [
+        'Set FO4Edit path in Settings → Tools → xEdit Path',
+        'Open Full Load Order Patch tab',
+        'Click Pick MO2 Profile Folder and select your active profile',
+        'Review the active plugin list',
+        'Click Generate & Launch FO4Edit',
+        'Wait for FO4Edit background loading, then let the script run',
+        'Save Mossy Combined Patch.esp, enable it at the bottom of MO2 load order',
+        'Load PRP before the combined patch',
+      ],
+    }, {
+      title: 'Single Mod: Rebuild Precombines + PRP Patch',
+      steps: [
+        'Open Single Mod Precombine + PRP tab',
+        'Browse for your mod ESP/ESM file and pick your worldspace',
+        'Run the Cell Scan script in FO4Edit to list all CELLs your mod touches',
+        'Open Creation Kit, load your mod as active file',
+        'Go to World → Precombine / Previs → Generate Precombined Data for your worldspace',
+        'Wait for CK to finish and save the ESP',
+        'Back in Mossy, click Generate & Launch FO4Edit to create YourMod_PRPPatch.esp',
+        'Enable YourMod_PRPPatch.esp in MO2 after your mod, with PRP loading before both',
+      ],
+    }],
+    tutorialSections: ['Precombine & Previs', 'PRP Compatibility', 'Load Order Patching'],
+    suggestedQuestions: [
+      'What is PRP and why do I need a compatibility patch?',
+      'How long does precombine generation take in Creation Kit?',
+      'What is the correct load order for PRP and my combined patch?',
+      'What are XCRI and XCMO and why are they cleared?',
+    ],
   },
 
 };
