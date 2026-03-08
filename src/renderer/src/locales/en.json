@@ -17,22 +17,18 @@
     "prpPatchBuilder": "PRP Patch Builder",
     "leveledListInjection": "Leveled List Injection",
     "lorekeeper": "The Lorekeeper",
-
     "templateGenerator": "Template Generator",
     "scriptAnalyzer": "Script Analyzer",
     "assembler": "The Assembler",
     "workshop": "The Workshop",
     "blueprint": "The Blueprint",
-
     "riggingChecklist": "Rigging Checklist",
     "exportSettingsHelper": "Export Settings Helper",
     "animationValidator": "Animation Validator",
     "precombineChecker": "Precombine Checker",
-
     "auditor": "The Auditor",
     "scribe": "The Scribe",
     "systemMonitor": "System Monitor",
-
     "orchestrator": "The Orchestrator",
     "workflowRunner": "Workflow Runner",
     "holodeck": "The Holodeck",
@@ -40,10 +36,8 @@
     "memoryVault": "Memory Vault",
     "neuralLink": "Neural Link",
     "localCapabilities": "Local Capabilities",
-
     "imageStudio": "Image Studio",
     "audioStudio": "Audio Studio",
-
     "liveSynapse": "Live Synapse",
     "desktopBridge": "Desktop Bridge",
     "duplicateFinder": "Duplicate Finder",
@@ -53,7 +47,8 @@
     "voiceSettings": "Voice Settings",
     "languageSettings": "Language Settings",
     "diagnosticTools": "Diagnostic Tools",
-    "supportMossy": "Support Mossy"
+    "supportMossy": "Support Mossy",
+    "prpPatchTools": "PRP Patch Tools"
   },
   "settings": {
     "language": {
