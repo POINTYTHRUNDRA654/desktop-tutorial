@@ -196,7 +196,7 @@ export class BridgeServer {
                                     return new Promise<string>((resolve, reject) => {
                                         const socket = new net.Socket();
                                         let finished = false;
-                                        const cleanup = () => { try { socket.destroy(); } catch {} };
+                                        const cleanup = () => { try { socket.destroy(); } catch { /* ignore */ } };
                                         socket.setTimeout(timeoutMs);
                                         socket.on('connect', () => {
                                             socket.write(JSON.stringify(payload));

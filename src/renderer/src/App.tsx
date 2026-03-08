@@ -226,7 +226,7 @@ const App: React.FC = () => {
     if (hasBooted) {
       try {
         (window as any).__MOSSY_TEST_READY__ = true;
-      } catch {}
+      } catch { /* ignore */ }
     }
   }, [hasBooted]);
   const [showFirstRun, setShowFirstRun] = useState(() => {
