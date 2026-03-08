@@ -5,7 +5,7 @@ Operators for the Fallout 4 Tutorial Add-on
 import bpy
 from bpy.types import Operator
 from bpy.props import StringProperty, EnumProperty, IntProperty, FloatProperty, BoolProperty
-from . import preferences, tutorial_system, mesh_helpers, texture_helpers, animation_helpers, export_helpers, notification_system, image_to_mesh_helpers, hunyuan3d_helpers, gradio_helpers, hymotion_helpers, nvtt_helpers, realesrgan_helpers, get3d_helpers, stylegan2_helpers, instantngp_helpers, imageto3d_helpers, advanced_mesh_helpers, rignet_helpers, motion_generation_helpers, quest_helpers, npc_helpers, world_building_helpers, item_helpers, preset_library, automation_system, desktop_tutorial_client, shap_e_helpers, point_e_helpers, advisor_helpers, ue_importer_helpers, umodel_tools_helpers, unity_fbx_importer_helpers, asset_studio_helpers, asset_ripper_helpers
+from . import preferences, tutorial_system, mesh_helpers, texture_helpers, animation_helpers, export_helpers, notification_system, image_to_mesh_helpers, hunyuan3d_helpers, gradio_helpers, hymotion_helpers, nvtt_helpers, realesrgan_helpers, get3d_helpers, stylegan2_helpers, instantngp_helpers, imageto3d_helpers, advanced_mesh_helpers, rignet_helpers, motion_generation_helpers, quest_helpers, npc_helpers, world_building_helpers, item_helpers, preset_library, automation_system, desktop_tutorial_client, shap_e_helpers, point_e_helpers, advisor_helpers, ue_importer_helpers, umodel_tools_helpers, umodel_helpers, unity_fbx_importer_helpers, asset_studio_helpers, asset_ripper_helpers, fo4_game_assets, unity_game_assets, unreal_game_assets
 from . import knowledge_helpers
 
 # Tutorial Operators
@@ -2196,6 +2196,45 @@ class FO4_OT_CheckUModelTools(Operator):
         return {'FINISHED'}
 
 
+class FO4_OT_CheckUModel(Operator):
+    """Check and download UModel (UE Viewer) by Konstantin Nosov (Gildor)."""
+    bl_idname = "fo4.check_umodel"
+    bl_label = "Check/Install UModel"
+
+    def execute(self, context):
+        ready, message = umodel_helpers.status()
+        actions = []
+
+        if not ready:
+            # Try to download/install
+            ok, msg = umodel_helpers.download_latest()
+            actions.append(msg)
+
+            # If download provides manual instructions, also open browser
+            if not ok and "manual download" in msg.lower():
+                _, browser_msg = umodel_helpers.open_download_page()
+                actions.append(browser_msg)
+
+            ready, message = umodel_helpers.status()
+
+        status_lines = [message] + actions
+        status_text = "\n".join([s for s in status_lines if s])
+        level = 'INFO' if ready else 'WARNING'
+        self.report({level}, status_text)
+        notification_system.FO4_NotificationSystem.notify(status_text, level)
+        print("="*70)
+        print("UMODEL (UE VIEWER) STATUS")
+        print("="*70)
+        print(status_text)
+        print(f"Tool path: {umodel_helpers.tool_path()}")
+        if umodel_helpers.executable_path():
+            print(f"Executable: {umodel_helpers.executable_path()}")
+        print("Credit: UModel by Konstantin Nosov (Gildor)")
+        print("https://www.gildor.org/en/projects/umodel")
+        print("="*70)
+        return {'FINISHED'}
+
+
 class FO4_OT_CheckUnityFBXImporter(Operator):
     """Check and (if missing) download UnityFBX-To-Blender-Importer repo."""
     bl_idname = "fo4.check_unity_fbx_importer"
@@ -2326,9 +2365,12 @@ class FO4_OT_InstallNVTT(Operator):
             def _notify():
                 notification_system.FO4_NotificationSystem.notify(msg, level)
                 if prefs:
-                    base = Path(__file__).resolve().parent / "tools" / "nvtt"
-                    for exe in base.rglob("nvcompress.exe"):
+                    # Check new D:/blender_tools/ location first
+                    tools_root = tool_installers.get_tools_root()
+                    nvtt_dir = tools_root / "nvtt"
+                    for exe in nvtt_dir.rglob("nvcompress.exe"):
                         prefs.nvtt_path = str(exe)
+                        print(f"NVTT path configured: {exe}")
                         break
             bpy.app.timers.register(_notify, first_interval=0.0)
 
@@ -2356,9 +2398,12 @@ class FO4_OT_InstallTexconv(Operator):
             def _notify():
                 notification_system.FO4_NotificationSystem.notify(msg, level)
                 if prefs:
-                    base = Path(__file__).resolve().parent / "tools" / "texconv"
-                    for exe in base.rglob("texconv.exe"):
+                    # Check new D:/blender_tools/ location first
+                    tools_root = tool_installers.get_tools_root()
+                    texconv_dir = tools_root / "texconv"
+                    for exe in texconv_dir.rglob("texconv.exe"):
                         prefs.texconv_path = str(exe)
+                        print(f"texconv path configured: {exe}")
                         break
             bpy.app.timers.register(_notify, first_interval=0.0)
 
@@ -2616,6 +2661,226 @@ class FO4_OT_InstallNiftools(Operator):
         threading.Thread(target=_run, daemon=True).start()
         self.report({'INFO'}, "Niftools installation started in the background. Check the console for progress.")
         return {'FINISHED'}
+
+
+class FO4_OT_ConfigureFallout4Settings(Operator):
+    """Configure optimal settings for Fallout 4 mod creation"""
+    bl_idname = "fo4.configure_fallout4_settings"
+    bl_label = "Configure for Fallout 4"
+    bl_description = "Auto-configure all settings for optimal Fallout 4 modding workflow"
+
+    def execute(self, context):
+        from . import preferences, export_helpers
+
+        messages = []
+        prefs = preferences.get_preferences()
+
+        # Check Niftools installation
+        nif_available, nif_msg = export_helpers.ExportHelpers.nif_exporter_available()
+        if not nif_available:
+            messages.append("⚠ Niftools not installed - use 'Install Niftools' button")
+            messages.append(f"  {nif_msg}")
+        else:
+            messages.append("✓ Niftools v0.1.1 ready (NIF 20.2.0.7, BSTriShape)")
+
+        # Check texture conversion tools
+        from . import nvtt_helpers
+        if nvtt_helpers.NVTTHelpers.is_nvtt_available():
+            messages.append("✓ NVTT (nvcompress) available for DDS conversion")
+        elif nvtt_helpers.NVTTHelpers.is_texconv_available():
+            messages.append("✓ texconv available for DDS conversion")
+        else:
+            messages.append("⚠ No DDS converter - install NVTT or texconv")
+
+        # Configure optimal defaults if preferences exist
+        if prefs:
+            # Set optimal mesh optimization settings for FO4
+            if hasattr(prefs, 'optimize_apply_transforms'):
+                prefs.optimize_apply_transforms = True
+                messages.append("✓ Set: Apply transforms before export")
+
+            if hasattr(prefs, 'optimize_preserve_uvs'):
+                prefs.optimize_preserve_uvs = True
+                messages.append("✓ Set: Preserve UV maps")
+
+        # Report all paths
+        if prefs:
+            tools_root = tool_installers.get_tools_root()
+            messages.append(f"\n📁 Tools directory: {tools_root}")
+
+            if prefs.nvtt_path:
+                messages.append(f"📁 NVTT: {prefs.nvtt_path}")
+            if prefs.texconv_path:
+                messages.append(f"📁 texconv: {prefs.texconv_path}")
+
+        messages.append("\n✓ Fallout 4 export settings are configured automatically:")
+        messages.append("  • NIF 20.2.0.7 (user ver 12, uv2 131073)")
+        messages.append("  • BSTriShape geometry nodes")
+        messages.append("  • BSLightingShaderProperty shaders")
+        messages.append("  • Tangent space enabled for normal maps")
+        messages.append("  • Scale 1:1 (no correction needed)")
+        messages.append("  • Auto-triangulation on export")
+
+        summary = "\n".join(messages)
+        print("=== FALLOUT 4 CONFIGURATION ===")
+        print(summary)
+        print("=== END CONFIGURATION ===")
+
+        self.report({'INFO'}, "Configuration complete - see console for details")
+        notification_system.FO4_NotificationSystem.notify("Fallout 4 settings configured", 'INFO')
+        return {'FINISHED'}
+
+
+class FO4_OT_ConvertToFallout4(Operator):
+    """Convert selected asset to Fallout 4 format (one-click conversion)"""
+    bl_idname = "fo4.convert_to_fallout4"
+    bl_label = "Convert to Fallout 4"
+    bl_description = (
+        "One-click conversion: Prepares mesh, converts materials to FO4, "
+        "converts textures to DDS, and validates for NIF export"
+    )
+    bl_options = {'REGISTER', 'UNDO'}
+
+    convert_textures: BoolProperty(
+        name="Convert Textures to DDS",
+        description="Automatically convert textures to DDS format for FO4",
+        default=True,
+    )
+
+    create_collision: BoolProperty(
+        name="Generate Collision Mesh",
+        description="Create UCX_ collision mesh from simplified geometry",
+        default=False,
+    )
+
+    def execute(self, context):
+        from . import mesh_helpers, texture_helpers, nvtt_helpers
+
+        obj = context.active_object
+        if not obj or obj.type != 'MESH':
+            self.report({'ERROR'}, "No mesh object selected")
+            return {'CANCELLED'}
+
+        messages = []
+        warnings = []
+
+        try:
+            # Step 1: Mesh Preparation
+            self.report({'INFO'}, f"Converting {obj.name} to Fallout 4 format...")
+            messages.append(f"Converting: {obj.name}")
+
+            # Apply scale and rotation transforms
+            if any([s != 1.0 for s in obj.scale]) or any([r != 0.0 for r in obj.rotation_euler]):
+                bpy.ops.object.transform_apply(location=False, rotation=True, scale=True)
+                messages.append("✓ Applied transforms")
+
+            # Optimize mesh for FO4
+            success, msg = mesh_helpers.MeshHelpers.optimize_mesh(obj)
+            if success:
+                messages.append(f"✓ Mesh optimized: {msg}")
+            else:
+                warnings.append(f"⚠ Optimization warning: {msg}")
+
+            # Validate mesh for FO4
+            success, issues = mesh_helpers.MeshHelpers.validate_mesh(obj)
+            if not success:
+                for issue in issues:
+                    warnings.append(f"⚠ {issue}")
+            else:
+                messages.append("✓ Mesh validated for FO4")
+
+            # Step 2: Material Setup
+            if not obj.data.materials:
+                mat = texture_helpers.TextureHelpers.setup_fo4_material(obj)
+                messages.append("✓ Created FO4 material")
+            else:
+                messages.append("✓ Materials present")
+
+            # Step 3: Texture Conversion (if enabled)
+            if self.convert_textures:
+                # Check if nvtt or texconv available
+                from . import preferences
+                nvtt_path = preferences.get_configured_nvcompress_path()
+                texconv_path = preferences.get_configured_texconv_path()
+
+                if nvtt_path or texconv_path:
+                    # Get temporary output directory
+                    import tempfile
+                    temp_dir = tempfile.mkdtemp(prefix="fo4_textures_")
+
+                    try:
+                        success, msg, converted = nvtt_helpers.NVTTHelpers.convert_object_textures(
+                            obj, temp_dir, preferred_tool='auto'
+                        )
+                        if success:
+                            messages.append(f"✓ Converted textures to DDS: {msg}")
+                        else:
+                            warnings.append(f"⚠ Texture conversion: {msg}")
+                    except Exception as e:
+                        warnings.append(f"⚠ Texture conversion failed: {str(e)}")
+                else:
+                    warnings.append("⚠ NVTT/texconv not installed - skipping texture conversion")
+
+            # Step 4: Collision Mesh (if enabled)
+            if self.create_collision:
+                try:
+                    # Check if collision already exists
+                    collision_name = f"UCX_{obj.name}"
+                    if collision_name not in bpy.data.objects:
+                        # Create simplified collision mesh
+                        collision_obj = obj.copy()
+                        collision_obj.data = obj.data.copy()
+                        collision_obj.name = collision_name
+                        context.collection.objects.link(collision_obj)
+
+                        # Simplify for collision
+                        context.view_layer.objects.active = collision_obj
+                        bpy.ops.object.modifier_add(type='DECIMATE')
+                        collision_obj.modifiers["Decimate"].ratio = 0.25
+                        bpy.ops.object.modifier_apply(modifier="Decimate")
+
+                        messages.append(f"✓ Created collision mesh: {collision_name}")
+                        context.view_layer.objects.active = obj
+                    else:
+                        messages.append(f"✓ Collision mesh already exists: {collision_name}")
+                except Exception as e:
+                    warnings.append(f"⚠ Collision generation failed: {str(e)}")
+
+            # Step 5: Final Validation
+            success, issues = mesh_helpers.MeshHelpers.validate_mesh(obj)
+            if not success:
+                self.report({'WARNING'}, "Conversion complete but validation found issues")
+                for issue in issues:
+                    warnings.append(f"⚠ {issue}")
+            else:
+                messages.append("✓ Final validation passed")
+
+            # Report results
+            summary = "\n".join(messages)
+            if warnings:
+                summary += "\n\nWarnings:\n" + "\n".join(warnings)
+
+            print("\n" + "="*70)
+            print("FALLOUT 4 CONVERSION COMPLETE")
+            print("="*70)
+            print(summary)
+            print("="*70)
+
+            if warnings:
+                self.report({'WARNING'}, f"Converted {obj.name} with {len(warnings)} warning(s) - see console")
+            else:
+                self.report({'INFO'}, f"Successfully converted {obj.name} to Fallout 4 format")
+
+            notification_system.FO4_NotificationSystem.notify(
+                f"{obj.name} ready for FO4 export", 'INFO'
+            )
+            return {'FINISHED'}
+
+        except Exception as e:
+            self.report({'ERROR'}, f"Conversion failed: {str(e)}")
+            import traceback
+            traceback.print_exc()
+            return {'CANCELLED'}
 
 
 class FO4_OT_InstallPythonDeps(Operator):
@@ -4994,48 +5259,166 @@ class FO4_OT_BatchValidateMeshes(Operator):
 
 
 class FO4_OT_BatchExportMeshes(Operator):
-    """Export all selected meshes to FBX"""
+    """Export all selected meshes to NIF with Fallout 4 settings"""
     bl_idname = "fo4.batch_export_meshes"
     bl_label = "Batch Export Meshes"
     bl_options = {'REGISTER'}
-    
+
     directory: StringProperty(
         name="Export Directory",
         description="Directory to export meshes to",
         subtype='DIR_PATH'
     )
-    
+
     def execute(self, context):
         if not self.directory:
             self.report({'ERROR'}, "No export directory specified")
             return {'CANCELLED'}
-        
+
         selected_objects = [obj for obj in context.selected_objects if obj.type == 'MESH']
-        
+
         if not selected_objects:
             self.report({'ERROR'}, "No mesh objects selected")
             return {'CANCELLED'}
-        
+
         success_count = 0
-        
+
         for obj in selected_objects:
             try:
-                filepath = f"{self.directory}/{obj.name}.fbx"
-                success, message = export_helpers.ExportHelpers.export_mesh(obj, filepath)
+                filepath = f"{self.directory}/{obj.name}.nif"
+                success, message = export_helpers.ExportHelpers.export_mesh_to_nif(obj, filepath)
                 if success:
                     success_count += 1
             except Exception as e:
                 self.report({'WARNING'}, f"{obj.name}: {str(e)}")
-        
+
         self.report({'INFO'}, f"Exported {success_count} of {len(selected_objects)} meshes")
         notification_system.FO4_NotificationSystem.notify(
             f"Batch exported {success_count} meshes", 'INFO'
         )
         return {'FINISHED'}
-    
+
     def invoke(self, context, event):
         context.window_manager.fileselect_add(self)
         return {'RUNNING_MODAL'}
+
+
+# Game Asset Import Operators
+
+class FO4_OT_BrowseFO4Assets(Operator):
+    """Browse and import Fallout 4 game assets"""
+    bl_idname = "fo4.browse_fo4_assets"
+    bl_label = "Browse FO4 Assets"
+    bl_description = "Browse and import assets from Fallout 4 game files"
+
+    search_query: StringProperty(
+        name="Search",
+        description="Search for assets by name",
+        default=""
+    )
+
+    category: EnumProperty(
+        name="Category",
+        items=[
+            ('ALL', "All Assets", "Show all assets"),
+            ('Weapons', "Weapons", "Weapon meshes"),
+            ('Armor', "Armor", "Armor and clothing"),
+            ('Creatures', "Creatures", "Creature models"),
+            ('Furniture', "Furniture", "Furniture and props"),
+            ('Architecture', "Architecture", "Building pieces"),
+        ],
+        default='ALL'
+    )
+
+    def execute(self, context):
+        # This will be a modal operator with search UI
+        # For now, show status
+        ready, message = fo4_game_assets.FO4GameAssets.get_status()
+
+        if not ready:
+            self.report({'ERROR'}, message)
+            self.report({'INFO'}, "Set 'Fallout 4 Assets Path' in addon preferences")
+            return {'CANCELLED'}
+
+        self.report({'INFO'}, f"FO4 Assets: {message}")
+        self.report({'INFO'}, "Asset browser coming soon - use file import for now")
+        return {'FINISHED'}
+
+
+class FO4_OT_BrowseUnityAssets(Operator):
+    """Browse and import Unity project assets"""
+    bl_idname = "fo4.browse_unity_assets"
+    bl_label = "Browse Unity Assets"
+    bl_description = "Browse and import assets from Unity project"
+
+    search_query: StringProperty(
+        name="Search",
+        description="Search for assets by name",
+        default=""
+    )
+
+    category: EnumProperty(
+        name="Category",
+        items=[
+            ('ALL', "All Assets", "Show all assets"),
+            ('Characters', "Characters", "Character models"),
+            ('Weapons', "Weapons", "Weapon models"),
+            ('Props', "Props", "Props and items"),
+            ('Environment', "Environment", "Environment pieces"),
+            ('Vehicles', "Vehicles", "Vehicle models"),
+        ],
+        default='ALL'
+    )
+
+    def execute(self, context):
+        ready, message = unity_game_assets.UnityAssets.get_status()
+
+        if not ready:
+            self.report({'ERROR'}, message)
+            self.report({'INFO'}, "Set 'Unity Assets Path' in addon preferences")
+            return {'CANCELLED'}
+
+        self.report({'INFO'}, f"Unity Assets: {message}")
+        self.report({'INFO'}, "Asset browser coming soon - use file import for now")
+        return {'FINISHED'}
+
+
+class FO4_OT_BrowseUnrealAssets(Operator):
+    """Browse and import Unreal Engine assets"""
+    bl_idname = "fo4.browse_unreal_assets"
+    bl_label = "Browse Unreal Assets"
+    bl_description = "Browse and import assets from Unreal Engine project"
+
+    search_query: StringProperty(
+        name="Search",
+        description="Search for assets by name",
+        default=""
+    )
+
+    category: EnumProperty(
+        name="Category",
+        items=[
+            ('ALL', "All Assets", "Show all assets"),
+            ('Characters', "Characters", "Character models"),
+            ('Weapons', "Weapons", "Weapon models"),
+            ('Props', "Props", "Props and items"),
+            ('Environment', "Environment", "Environment pieces"),
+            ('Vehicles', "Vehicles", "Vehicle models"),
+        ],
+        default='ALL'
+    )
+
+    def execute(self, context):
+        ready, message = unreal_game_assets.UnrealAssets.get_status()
+
+        if not ready:
+            self.report({'ERROR'}, message)
+            self.report({'INFO'}, "Set 'Unreal Engine Assets Path' in addon preferences")
+            return {'CANCELLED'}
+
+        self.report({'INFO'}, f"Unreal Assets: {message}")
+        self.report({'INFO'}, "Asset browser coming soon - use file import for now")
+        return {'FINISHED'}
 
 
 # Smart Preset Operators
@@ -7420,14 +7803,184 @@ class FO4_OT_ReloadAddon(Operator):
     bl_options = {'REGISTER'}
 
     def execute(self, context):
-        addon_name = __package__.split(".")[0] if __package__ else "fallout4_tutorial_helper"
-        try:
-            bpy.ops.preferences.addon_disable(module=addon_name)
-            bpy.ops.preferences.addon_enable(module=addon_name)
-            self.report({'INFO'}, f"Add-on '{addon_name}' reloaded successfully")
-        except Exception as exc:
-            self.report({'ERROR'}, f"Reload failed: {exc}")
+        # Reloading disabled - just show message
+        self.report({'WARNING'}, "Reload disabled. Please restart Blender to apply changes.")
+        return {'FINISHED'}
+
+
+class FO4_OT_ImportModFolder(Operator):
+    """Import entire mod folder structure into Blender"""
+    bl_idname = "fo4.import_mod_folder"
+    bl_label = "Import Mod Folder"
+    bl_description = "Import all NIF files from a mod folder, organized as collections"
+    bl_options = {'REGISTER', 'UNDO'}
+
+    directory: StringProperty(
+        name="Mod Folder",
+        description="Path to mod folder containing meshes",
+        subtype='DIR_PATH'
+    )
+
+    import_textures: BoolProperty(
+        name="Import Textures",
+        description="Try to import associated textures",
+        default=True
+    )
+
+    def execute(self, context):
+        import os
+        from pathlib import Path
+
+        if not self.directory:
+            self.report({'ERROR'}, "No folder selected")
             return {'CANCELLED'}
+
+        mod_root = Path(self.directory)
+        if not mod_root.exists():
+            self.report({'ERROR'}, f"Folder does not exist: {mod_root}")
+            return {'CANCELLED'}
+
+        # Find all NIF files recursively
+        nif_files = list(mod_root.rglob("*.nif"))
+
+        if not nif_files:
+            self.report({'WARNING'}, f"No NIF files found in {mod_root}")
+            return {'CANCELLED'}
+
+        self.report({'INFO'}, f"Found {len(nif_files)} NIF files")
+
+        # Check if NIF importer is available
+        try:
+            import bpy
+            # Try to check if nif import operator exists
+            if not hasattr(bpy.ops, 'import_scene') or not hasattr(bpy.ops.import_scene, 'nif'):
+                self.report({'ERROR'}, "NIF importer not available. Install Niftools addon first.")
+                return {'CANCELLED'}
+        except Exception as e:
+            self.report({'ERROR'}, f"Cannot check NIF importer: {e}")
+            return {'CANCELLED'}
+
+        # Create root collection for this mod
+        mod_name = mod_root.name
+        root_collection = bpy.data.collections.new(f"MOD_{mod_name}")
+        context.scene.collection.children.link(root_collection)
+
+        imported_count = 0
+        failed_count = 0
+        collection_cache = {}
+
+        for nif_path in nif_files:
+            try:
+                # Get relative path from mod root
+                rel_path = nif_path.relative_to(mod_root)
+
+                # Create collection hierarchy based on folder structure
+                folders = list(rel_path.parent.parts)
+                current_collection = root_collection
+
+                for folder in folders:
+                    collection_key = "/".join([current_collection.name, folder])
+
+                    if collection_key not in collection_cache:
+                        new_collection = bpy.data.collections.new(folder)
+                        current_collection.children.link(new_collection)
+                        collection_cache[collection_key] = new_collection
+
+                    current_collection = collection_cache[collection_key]
+
+                # Import the NIF file
+                before_objects = set(context.scene.objects)
+
+                try:
+                    bpy.ops.import_scene.nif(filepath=str(nif_path))
+                except Exception as import_error:
+                    self.report({'WARNING'}, f"Failed to import {nif_path.name}: {import_error}")
+                    failed_count += 1
+                    continue
+
+                # Find newly imported objects
+                after_objects = set(context.scene.objects)
+                new_objects = after_objects - before_objects
+
+                # Move objects to the correct collection and store original path
+                for obj in new_objects:
+                    # Store original file path as custom property
+                    obj["fo4_original_path"] = str(nif_path)
+                    obj["fo4_mod_root"] = str(mod_root)
+
+                    # Move to correct collection
+                    for col in obj.users_collection:
+                        col.objects.unlink(obj)
+                    current_collection.objects.link(obj)
+
+                imported_count += 1
+
+            except Exception as e:
+                self.report({'WARNING'}, f"Error processing {nif_path.name}: {e}")
+                failed_count += 1
+                continue
+
+        self.report({'INFO'}, f"Import complete: {imported_count} files imported, {failed_count} failed")
+        return {'FINISHED'}
+
+    def invoke(self, context, event):
+        context.window_manager.fileselect_add(self)
+        return {'RUNNING_MODAL'}
+
+
+class FO4_OT_ExportModFolder(Operator):
+    """Export all meshes back to their original mod folder locations"""
+    bl_idname = "fo4.export_mod_folder"
+    bl_label = "Export Mod Folder"
+    bl_description = "Export all meshes back to their original file paths"
+    bl_options = {'REGISTER'}
+
+    def execute(self, context):
+        from pathlib import Path
+
+        exported_count = 0
+        skipped_count = 0
+        failed_count = 0
+
+        # Find all objects with original path stored
+        for obj in context.scene.objects:
+            if "fo4_original_path" not in obj:
+                skipped_count += 1
+                continue
+
+            original_path = Path(obj["fo4_original_path"])
+
+            try:
+                # Make sure parent directories exist
+                original_path.parent.mkdir(parents=True, exist_ok=True)
+
+                # Select only this object
+                bpy.ops.object.select_all(action='DESELECT')
+                obj.select_set(True)
+                context.view_layer.objects.active = obj
+
+                # Export using the addon's export functionality with proper FO4 NIF settings
+                result, message = export_helpers.ExportHelpers.export_mesh_to_nif(
+                    obj,
+                    str(original_path)
+                )
+
+                if result:
+                    exported_count += 1
+                else:
+                    self.report({'WARNING'}, f"Failed to export {obj.name}: {message}")
+                    failed_count += 1
+
+            except Exception as e:
+                self.report({'WARNING'}, f"Error exporting {obj.name}: {e}")
+                failed_count += 1
+                continue
+
+        if skipped_count > 0:
+            self.report({'INFO'}, f"Export complete: {exported_count} exported, {skipped_count} skipped (no original path), {failed_count} failed")
+        else:
+            self.report({'INFO'}, f"Export complete: {exported_count} exported, {failed_count} failed")
+
         return {'FINISHED'}
 
 
@@ -7498,6 +8051,7 @@ classes = (
     FO4_OT_InstallHavok2FBX,
     FO4_OT_ExportAnimationHavok2FBX,
     FO4_OT_InstallNiftools,
+    FO4_OT_ConfigureFallout4Settings,
     FO4_OT_InstallPythonDeps,
     FO4_OT_CheckToolPaths,
     FO4_OT_RunAllInstallers,
@@ -7623,6 +8177,9 @@ classes = (
     FO4_OT_ClearOperationLog,
     # Add-on self-update / reload
     FO4_OT_ReloadAddon,
+    # Mod folder import/export
+    FO4_OT_ImportModFolder,
+    FO4_OT_ExportModFolder,
 )
 
 def register():

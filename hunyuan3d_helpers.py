@@ -25,6 +25,12 @@ try:
     # Try to import the necessary dependencies
     import torch
     TORCH_AVAILABLE = True
+except FileNotFoundError as e:
+    TORCH_AVAILABLE = False
+    if "WinError 206" in str(e) or "filename or extension is too long" in str(e):
+        HUNYUAN3D_ERROR = "Windows path length error: PyTorch cannot load due to Windows MAX_PATH limitation. Enable long paths in Windows or reinstall PyTorch in a shorter path."
+    else:
+        HUNYUAN3D_ERROR = f"PyTorch file error: {str(e)}"
 except Exception:
     TORCH_AVAILABLE = False
     HUNYUAN3D_ERROR = "PyTorch not available (import failed or DLL initialization error)"

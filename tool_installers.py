@@ -38,7 +38,30 @@ import urllib.request
 import zipfile
 from pathlib import Path
 
-TOOLS_ROOT = Path(__file__).resolve().parent / "tools"
+# Download to D: drive by default to keep separate from addon
+DEFAULT_TOOLS_ROOT = Path("D:/blender_tools")
+
+# Fallback to addon folder if D: drive not available
+ADDON_ROOT = Path(__file__).resolve().parent
+FALLBACK_TOOLS_ROOT = ADDON_ROOT / "tools"
+
+
+def get_tools_root():
+    """Get the tools directory, creating parent if needed."""
+    # Try D: drive first
+    try:
+        if DEFAULT_TOOLS_ROOT.drive and Path(DEFAULT_TOOLS_ROOT.drive).exists():
+            DEFAULT_TOOLS_ROOT.mkdir(parents=True, exist_ok=True)
+            return DEFAULT_TOOLS_ROOT
+    except Exception:
+        pass
+
+    # Fallback to addon folder
+    FALLBACK_TOOLS_ROOT.mkdir(parents=True, exist_ok=True)
+    return FALLBACK_TOOLS_ROOT
+
+
+TOOLS_ROOT = get_tools_root()
 
 
 # ---------------------------------------------------------------------------

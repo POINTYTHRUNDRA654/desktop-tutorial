@@ -97,6 +97,39 @@ def get_configured_texconv_path() -> str | None:
     return _resolve_executable(prefs.texconv_path, ("texconv.exe", "texconv"))
 
 
+def get_fo4_assets_path() -> str | None:
+    """Return custom FO4 assets path from preferences if set and exists."""
+    prefs = get_preferences()
+    if not prefs:
+        return None
+    path = bpy.path.abspath(prefs.fo4_assets_path).strip()
+    if path and os.path.isdir(path):
+        return path
+    return None
+
+
+def get_unity_assets_path() -> str | None:
+    """Return Unity assets path from preferences if set and exists."""
+    prefs = get_preferences()
+    if not prefs:
+        return None
+    path = bpy.path.abspath(prefs.unity_assets_path).strip()
+    if path and os.path.isdir(path):
+        return path
+    return None
+
+
+def get_unreal_assets_path() -> str | None:
+    """Return Unreal Engine assets path from preferences if set and exists."""
+    prefs = get_preferences()
+    if not prefs:
+        return None
+    path = bpy.path.abspath(prefs.unreal_assets_path).strip()
+    if path and os.path.isdir(path):
+        return path
+    return None
+
+
 class FO4AddonPreferences(bpy.types.AddonPreferences):
     """Stores user-configurable add-on preferences."""
 
@@ -134,6 +167,39 @@ class FO4AddonPreferences(bpy.types.AddonPreferences):
         subtype="FILE_PATH",
         default=_DEFAULT_TEXCONV_PATH,
         description="Path to texconv.exe or its folder (DirectXTex)",
+    )
+
+    fo4_assets_path: bpy.props.StringProperty(
+        name="Fallout 4 Assets Path",
+        subtype="DIR_PATH",
+        default="",
+        description=(
+            "Custom path to Fallout 4 assets (meshes, textures, etc.). "
+            "Leave blank for auto-detection from game installation. "
+            "Example: H:/Fallout 4 working folder"
+        ),
+    )
+
+    unity_assets_path: bpy.props.StringProperty(
+        name="Unity Assets Path",
+        subtype="DIR_PATH",
+        default="",
+        description=(
+            "Path to Unity project assets or extracted assets folder. "
+            "Should contain folders like Models, Textures, Materials, etc. "
+            "Example: H:/Unity Projects/MyProject/Assets"
+        ),
+    )
+
+    unreal_assets_path: bpy.props.StringProperty(
+        name="Unreal Engine Assets Path",
+        subtype="DIR_PATH",
+        default="",
+        description=(
+            "Path to Unreal Engine project content or extracted assets. "
+            "Should contain folders like Meshes, Textures, Materials, etc. "
+            "Example: H:/UnrealProjects/MyProject/Content"
+        ),
     )
 
     llm_enabled: bpy.props.BoolProperty(
@@ -221,6 +287,18 @@ class FO4AddonPreferences(bpy.types.AddonPreferences):
         name="Auto Install Python",
         default=True,
         description="If enabled, core Python dependencies will be installed on startup",
+    )
+
+    auto_install_pytorch: bpy.props.BoolProperty(
+        name="Auto Install PyTorch",
+        default=True,
+        description="If enabled, PyTorch will be auto-installed to D:/t when Windows path errors are detected",
+    )
+
+    torch_install_attempted: bpy.props.BoolProperty(
+        name="PyTorch Install Attempted",
+        default=False,
+        description="Internal flag to track if PyTorch auto-install was already attempted",
     )
 
     # ---- Mesh optimization settings ----
@@ -350,17 +428,37 @@ class FO4AddonPreferences(bpy.types.AddonPreferences):
         auto_box.label(text="Automatic Tool Installation", icon="FILE_REFRESH")
         auto_box.prop(self, "auto_install_tools", text="Auto-install missing CLI tools at startup")
         auto_box.prop(self, "auto_install_python", text="Auto-install Python deps at startup")
+        auto_box.prop(self, "auto_install_pytorch", text="Auto-install PyTorch to D: drive on path errors")
         auto_box.prop(self, "auto_register_tools", text="Auto-register third-party add-ons")
         auto_box.operator("fo4.check_tool_paths", text="Check Tool Paths", icon='INFO')
         auto_box.label(text="(disable to avoid policy warnings at startup)", icon='INFO')
 
+        # PyTorch Installation Helper
+        torch_box = layout.box()
+        torch_box.label(text="PyTorch Installation (AI Features)", icon="PLUGIN")
+        try:
+            from . import torch_path_manager
+            success, msg, _ = torch_path_manager.TorchPathManager.try_import_torch()
+            if success:
+                torch_box.label(text=f"✓ PyTorch loaded: {msg}", icon="CHECKMARK")
+            else:
+                if msg == "windows_path_error":
+                    torch_box.label(text="⚠ Windows path length error detected", icon="ERROR")
+                    torch_box.label(text="PyTorch cannot load from default location", icon="INFO")
+                    torch_box.operator("torch.install_custom_path", text="Install to D:/t", icon="IMPORT")
+                else:
+                    torch_box.label(text=f"⚠ {msg}", icon="INFO")
+        except Exception as e:
+            torch_box.label(text=f"Unable to check PyTorch: {str(e)}", icon="ERROR")
+
         update_box = layout.box()
         update_box.label(text="Add-on Update", icon="FILE_REFRESH")
         update_box.label(
-            text="After installing a new zip, click Reload to apply changes immediately:",
+            text="After installing a new zip, restart Blender to apply changes.",
             icon='INFO',
         )
-        update_box.operator("fo4.reload_addon", text="Reload Add-on", icon='FILE_REFRESH')
+        # Reload button removed - causes crashes in Blender 4.5+
+        # update_box.operator("fo4.reload_addon", text="Reload Add-on", icon='FILE_REFRESH')
 
         opt_box = layout.box()
         opt_box.label(text="Mesh Optimization", icon="MOD_DECIM")

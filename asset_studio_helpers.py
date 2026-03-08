@@ -2,6 +2,8 @@
 
 AssetStudio is a Unity asset extraction tool. We track its presence on disk
 and provide a download helper so users can keep it alongside this workspace.
+
+Auto-downloads to D:/blender_tools/ to keep it separate from the addon.
 """
 
 from __future__ import annotations
@@ -13,34 +15,54 @@ import zipfile
 from pathlib import Path
 
 
+# Download to D: drive by default to keep separate from addon
+DEFAULT_TOOL_DIR = Path("D:/blender_tools/AssetStudio")
+
+# Fallback to addon folder if D: drive not available
 ADDON_ROOT = Path(__file__).resolve().parent
-TOOL_DIR = ADDON_ROOT / "tools" / "AssetStudio"
-README_FILE = TOOL_DIR / "README.md"
+FALLBACK_TOOL_DIR = ADDON_ROOT / "tools" / "AssetStudio"
+
+
+def get_tool_dir():
+    """Get the tool directory, creating parent if needed."""
+    # Try D: drive first
+    try:
+        if DEFAULT_TOOL_DIR.drive and Path(DEFAULT_TOOL_DIR.drive).exists():
+            DEFAULT_TOOL_DIR.parent.mkdir(parents=True, exist_ok=True)
+            return DEFAULT_TOOL_DIR
+    except Exception:
+        pass
+
+    # Fallback to addon folder
+    FALLBACK_TOOL_DIR.parent.mkdir(parents=True, exist_ok=True)
+    return FALLBACK_TOOL_DIR
 
 
 def status() -> tuple[bool, str]:
     """Return (ready, message) tuple for UI display."""
+    tool_dir = get_tool_dir()
+    readme_file = tool_dir / "README.md"
 
-    if TOOL_DIR.exists() and README_FILE.exists():
-        return True, "AssetStudio repo ready"
-    if TOOL_DIR.exists():
-        return False, "AssetStudio repo found but appears incomplete"
-    return False, "AssetStudio repo missing"
+    if tool_dir.exists() and readme_file.exists():
+        return True, f"AssetStudio ready at {tool_dir}"
+    if tool_dir.exists():
+        return False, f"AssetStudio at {tool_dir} appears incomplete"
+    return False, f"AssetStudio not installed (will download to {tool_dir})"
 
 
 def repo_path() -> str:
     """Return expected local repository path for UI display."""
-
-    return str(TOOL_DIR)
+    return str(get_tool_dir())
 
 
 def download_latest() -> tuple[bool, str]:
-    """Download the upstream repo zip to tools/AssetStudio."""
+    """Download the upstream repo zip to D:/blender_tools/ or fallback location."""
+    tool_dir = get_tool_dir()
 
-    if TOOL_DIR.exists():
-        return True, "AssetStudio directory already exists; skipping download"
+    if tool_dir.exists():
+        return True, f"AssetStudio directory already exists at {tool_dir}"
 
-    TOOL_DIR.parent.mkdir(parents=True, exist_ok=True)
+    tool_dir.parent.mkdir(parents=True, exist_ok=True)
     candidates = [
         "https://github.com/Perfare/AssetStudio/archive/refs/heads/main.zip",
         "https://github.com/Perfare/AssetStudio/archive/refs/heads/master.zip",
@@ -51,6 +73,7 @@ def download_latest() -> tuple[bool, str]:
         try:
             with tempfile.TemporaryDirectory() as tmpdir:
                 zip_path = Path(tmpdir) / "asset_studio.zip"
+                print(f"Downloading AssetStudio from {url}...")
                 urllib.request.urlretrieve(url, zip_path)
 
                 with zipfile.ZipFile(zip_path) as zf:
@@ -61,9 +84,9 @@ def download_latest() -> tuple[bool, str]:
                     raise RuntimeError("Downloaded zip contained no directories")
 
                 src = extracted_dirs[0]
-                shutil.move(str(src), str(TOOL_DIR))
+                shutil.move(str(src), str(tool_dir))
 
-            return True, f"Downloaded AssetStudio from {url}"
+            return True, f"Downloaded AssetStudio to {tool_dir}"
         except Exception as exc:  # noqa: BLE001
             last_error = str(exc)
             continue

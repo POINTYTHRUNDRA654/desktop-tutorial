@@ -4,7 +4,7 @@ UI Panels for the Fallout 4 Tutorial Add-on
 
 import bpy
 from bpy.types import Panel
-from . import hunyuan3d_helpers, gradio_helpers, hymotion_helpers, nvtt_helpers, rignet_helpers, preferences, ue_importer_helpers, umodel_tools_helpers, unity_fbx_importer_helpers, asset_studio_helpers, asset_ripper_helpers, knowledge_helpers, export_helpers, realesrgan_helpers, instantngp_helpers, imageto3d_helpers, motion_generation_helpers
+from . import hunyuan3d_helpers, gradio_helpers, hymotion_helpers, nvtt_helpers, rignet_helpers, preferences, ue_importer_helpers, umodel_tools_helpers, umodel_helpers, unity_fbx_importer_helpers, asset_studio_helpers, asset_ripper_helpers, knowledge_helpers, export_helpers, realesrgan_helpers, instantngp_helpers, imageto3d_helpers, motion_generation_helpers
 
 class FO4_PT_MainPanel(Panel):
     """Main tutorial panel in the 3D View sidebar"""
@@ -236,7 +236,7 @@ class FO4_PT_ImageToMeshPanel(Panel):
         row.operator("fo4.use_pythonic_triposr", text="Use Pythonic TripoSR", icon='SCRIPT')
         row = triposr_box.row()
         row.enabled = triposr_available
-        row.operator("fo4.generate_from_stereo", text="Generate from Stereo Images", icon='IMAGE_STEREO_3D')
+        row.operator("fo4.generate_from_stereo", text="Generate from Stereo Images", icon='CAMERA_STEREO')
 
         # TripoSR variant checks
         checks_box = triposr_box.box()
@@ -378,13 +378,13 @@ class FO4_PT_AIGenerationPanel(Panel):
         layout.separator()
         shap_e_box = layout.box()
         shap_e_box.label(text="Shap-E (Text/Image to 3D)", icon='MESH_ICOSPHERE')
-        
+
         from . import shap_e_helpers
-        shap_e_installed, _ = shap_e_helpers.ShapEHelpers.is_shap_e_installed()
-        
+        shap_e_installed, shap_e_msg = shap_e_helpers.ShapEHelpers.is_shap_e_installed()
+
         if shap_e_installed:
             shap_e_box.label(text="Status: Installed ✓", icon='CHECKMARK')
-            
+
             # Text-to-3D
             text_box = shap_e_box.box()
             text_box.label(text="Text to 3D:", icon='FILE_TEXT')
@@ -392,7 +392,7 @@ class FO4_PT_AIGenerationPanel(Panel):
             text_box.prop(scene, "fo4_shap_e_guidance_scale")
             text_box.prop(scene, "fo4_shap_e_inference_steps")
             text_box.operator("fo4.generate_shap_e_text", text="Generate from Text", icon='MESH_CUBE')
-            
+
             # Image-to-3D
             image_box = shap_e_box.box()
             image_box.label(text="Image to 3D:", icon='IMAGE_DATA')
@@ -400,21 +400,27 @@ class FO4_PT_AIGenerationPanel(Panel):
             image_box.operator("fo4.generate_shap_e_image", text="Generate from Image", icon='TEXTURE')
         else:
             shap_e_box.label(text="Status: Not Installed ✗", icon='ERROR')
-            shap_e_box.operator("fo4.show_shap_e_info", text="Installation Instructions", icon='INFO')
-        
+
+            # Check if it's a Windows path error
+            if "Windows path length error" in shap_e_msg:
+                shap_e_box.label(text="⚠ Windows path too long", icon='ERROR')
+                shap_e_box.operator("torch.install_custom_path", text="Install PyTorch to D:/t", icon='IMPORT')
+            else:
+                shap_e_box.operator("fo4.show_shap_e_info", text="Installation Instructions", icon='INFO')
+
         shap_e_box.operator("fo4.check_shap_e_installation", text="Check Installation", icon='SYSTEM')
-        
+
         # Point-E section
         layout.separator()
         point_e_box = layout.box()
         point_e_box.label(text="Point-E (Text/Image to Point Cloud)", icon='OUTLINER_OB_POINTCLOUD')
-        
+
         from . import point_e_helpers
-        point_e_installed, _ = point_e_helpers.PointEHelpers.is_point_e_installed()
-        
+        point_e_installed, point_e_msg = point_e_helpers.PointEHelpers.is_point_e_installed()
+
         if point_e_installed:
             point_e_box.label(text="Status: Installed ✓", icon='CHECKMARK')
-            
+
             # Text-to-3D
             text_box = point_e_box.box()
             text_box.label(text="Text to Point Cloud:", icon='FILE_TEXT')
@@ -423,7 +429,7 @@ class FO4_PT_AIGenerationPanel(Panel):
             text_box.prop(scene, "fo4_point_e_grid_size")
             text_box.prop(scene, "fo4_point_e_reconstruction_method")
             text_box.operator("fo4.generate_point_e_text", text="Generate from Text", icon='MESH_CUBE')
-            
+
             # Image-to-3D
             image_box = point_e_box.box()
             image_box.label(text="Image to Point Cloud:", icon='IMAGE_DATA')
@@ -431,8 +437,14 @@ class FO4_PT_AIGenerationPanel(Panel):
             image_box.operator("fo4.generate_point_e_image", text="Generate from Image", icon='TEXTURE')
         else:
             point_e_box.label(text="Status: Not Installed ✗", icon='ERROR')
-            point_e_box.operator("fo4.show_point_e_info", text="Installation Instructions", icon='INFO')
-        
+
+            # Check if it's a Windows path error
+            if "Windows path length error" in point_e_msg:
+                point_e_box.label(text="⚠ Windows path too long", icon='ERROR')
+                point_e_box.operator("torch.install_custom_path", text="Install PyTorch to D:/t", icon='IMPORT')
+            else:
+                point_e_box.operator("fo4.show_point_e_info", text="Installation Instructions", icon='INFO')
+
         point_e_box.operator("fo4.check_point_e_installation", text="Check Installation", icon='SYSTEM')
 
         # Diffusers section
@@ -662,7 +674,13 @@ class FO4_PT_AdvisorPanel(Panel):
 
     def draw(self, context):
         layout = self.layout
-        prefs = context.preferences.addons.get(__package__.split('.')[0]).preferences if context.preferences else None
+        addon_name = __package__.split('.')[0]
+        addon = context.preferences.addons.get(addon_name) if context.preferences else None
+        prefs = addon.preferences if addon and hasattr(addon, 'preferences') else None
+        if not prefs:
+            layout.label(text=f"⚠ Preferences unavailable for addon '{addon_name}'", icon='ERROR')
+            # Optionally, return early or continue with defaults
+            # return
         llm_enabled = prefs.llm_enabled if prefs else False
         use_mossy = getattr(prefs, 'use_mossy_as_ai', False) if prefs else False
 
@@ -783,30 +801,103 @@ class FO4_PT_ToolsLinks(Panel):
         op = box.operator("wm.url_open", text="UnityFBX-To-Blender-Importer")
         op.url = "https://github.com/Varneon/UnityFBX-To-Blender-Importer"
 
+        # Unity FBX Importer with prominent install button
+        unity_box = box.box()
+        unity_box.label(text="Unity FBX Importer (Editor Extension)", icon='IMPORT')
+
         ub_ready, ub_message = unity_fbx_importer_helpers.status()
         ub_icon = 'CHECKMARK' if ub_ready else 'ERROR'
-        box.label(text=ub_message, icon=ub_icon)
-        box.label(text=f"Repo: {unity_fbx_importer_helpers.repo_path()}", icon='FILE_FOLDER')
-        box.label(text=f"Pkg: {unity_fbx_importer_helpers.package_path()}", icon='PACKAGE')
-        box.operator("fo4.check_unity_fbx_importer", text="Check/Install Unity FBX Importer", icon='FILE_REFRESH')
+
+        info_col = unity_box.column(align=True)
+        info_col.scale_y = 0.75
+        info_col.label(text=ub_message, icon=ub_icon)
+        info_col.label(text=f"Location: {unity_fbx_importer_helpers.repo_path()}", icon='FILE_FOLDER')
+
+        if not ub_ready:
+            install_row = unity_box.row()
+            install_row.scale_y = 1.4
+            install_row.operator("fo4.check_unity_fbx_importer", text="Auto-Download to D:/blender_tools/", icon='IMPORT')
+        else:
+            unity_box.operator("fo4.check_unity_fbx_importer", text="Verify Installation", icon='CHECKMARK')
+
+        help_col = unity_box.column(align=True)
+        help_col.scale_y = 0.7
+        help_col.label(text="Use in Unity: Assets > Import Package > Custom Package", icon='INFO')
+
+        # Asset Studio with prominent install button
+        as_box = box.box()
+        as_box.label(text="AssetStudio (Unity Asset Extractor)", icon='IMPORT')
 
         as_ready, as_message = asset_studio_helpers.status()
         as_icon = 'CHECKMARK' if as_ready else 'ERROR'
-        box.label(text=as_message, icon=as_icon)
-        box.label(text=f"Repo: {asset_studio_helpers.repo_path()}", icon='FILE_FOLDER')
-        box.operator("fo4.check_asset_studio", text="Check/Install AssetStudio", icon='FILE_REFRESH')
+
+        as_info_col = as_box.column(align=True)
+        as_info_col.scale_y = 0.75
+        as_info_col.label(text=as_message, icon=as_icon)
+        as_info_col.label(text=f"Location: {asset_studio_helpers.repo_path()}", icon='FILE_FOLDER')
+
+        if not as_ready:
+            as_install_row = as_box.row()
+            as_install_row.scale_y = 1.4
+            as_install_row.operator("fo4.check_asset_studio", text="Auto-Download to D:/blender_tools/", icon='IMPORT')
+        else:
+            as_box.operator("fo4.check_asset_studio", text="Verify Installation", icon='CHECKMARK')
+
+        as_help_col = as_box.column(align=True)
+        as_help_col.scale_y = 0.7
+        as_help_col.label(text="Extract Unity assets to usable formats", icon='INFO')
+
+        # Asset Ripper with prominent install button
+        ar_box = box.box()
+        ar_box.label(text="AssetRipper (Unity Asset Extractor)", icon='IMPORT')
 
         ar_ready, ar_message = asset_ripper_helpers.status()
         ar_icon = 'CHECKMARK' if ar_ready else 'ERROR'
-        box.label(text=ar_message, icon=ar_icon)
-        box.label(text=f"Repo: {asset_ripper_helpers.repo_path()}", icon='FILE_FOLDER')
-        box.operator("fo4.check_asset_ripper", text="Check/Install AssetRipper", icon='FILE_REFRESH')
+
+        ar_info_col = ar_box.column(align=True)
+        ar_info_col.scale_y = 0.75
+        ar_info_col.label(text=ar_message, icon=ar_icon)
+        ar_info_col.label(text=f"Location: {asset_ripper_helpers.repo_path()}", icon='FILE_FOLDER')
+
+        if not ar_ready:
+            ar_install_row = ar_box.row()
+            ar_install_row.scale_y = 1.4
+            ar_install_row.operator("fo4.check_asset_ripper", text="Auto-Download to D:/blender_tools/", icon='IMPORT')
+        else:
+            ar_box.operator("fo4.check_asset_ripper", text="Verify Installation", icon='CHECKMARK')
+
+        ar_help_col = ar_box.column(align=True)
+        ar_help_col.scale_y = 0.7
+        ar_help_col.label(text="Advanced Unity asset extraction and conversion", icon='INFO')
 
         box = layout.box()
-        box.label(text="Unreal extraction", icon='URL')
-        op = box.operator("wm.url_open", text="UModel (UE Viewer)")
-        op.url = "https://www.gildor.org/en/projects/umodel"
-        op = box.operator("wm.url_open", text="Unreal CLI exporters")
+        box.label(text="Unreal Extraction Tools", icon='EXPORT')
+
+        # UModel (UE Viewer) - Standalone tool
+        box.label(text="UModel (UE Viewer)", icon='IMPORT')
+        umodel_ready, umodel_message = umodel_helpers.status()
+        umodel_icon = 'CHECKMARK' if umodel_ready else 'ERROR'
+        box.label(text=umodel_message, icon=umodel_icon)
+        box.label(text=f"Path: {umodel_helpers.tool_path()}", icon='FILE_FOLDER')
+
+        # Installation button
+        install_row = box.row()
+        install_row.scale_y = 1.2
+        install_row.operator("fo4.check_umodel", text="Auto-Download to D:/blender_tools/", icon='IMPORT')
+
+        # Help text
+        help_col = box.column(align=True)
+        help_col.scale_y = 0.7
+        help_col.label(text="UModel by Konstantin Nosov (Gildor)", icon='INFO')
+        help_col.label(text="Tool for viewing/extracting Unreal Engine assets", icon='DOT')
+
+        # Verify installation button
+        box.operator("fo4.check_umodel", text="Verify Installation", icon='CHECKMARK')
+
+        # Documentation link for Unreal CLI exporters
+        doc_box = box.box()
+        doc_box.label(text="Documentation", icon='URL')
+        op = doc_box.operator("wm.url_open", text="Unreal CLI Exporters (Epic Docs)")
         op.url = "https://docs.unrealengine.com/5.0/en-US/command-line-arguments-in-unreal-engine/"
 
         box = layout.box()
@@ -843,6 +934,18 @@ class FO4_PT_ToolsLinks(Panel):
         box.operator("fo4.install_all_tools", text="Install All Tools", icon='PACKAGE')
         box.operator("fo4.self_test", text="Run Environment Self-Test", icon='CHECKMARK')
 
+        # Fallout 4 configuration button
+        config_box = layout.box()
+        config_box.label(text="Fallout 4 Configuration", icon='SETTINGS')
+        config_row = config_box.row()
+        config_row.scale_y = 1.5
+        config_row.operator("fo4.configure_fallout4_settings", text="Configure for Fallout 4", icon='CHECKMARK')
+
+        config_help = config_box.column(align=True)
+        config_help.scale_y = 0.7
+        config_help.label(text="Verify and configure optimal settings for FO4 modding", icon='INFO')
+        config_help.label(text="Checks: Niftools, DDS tools, export settings", icon='INFO')
+
         # Manual path override — use existing installations when auto-install fails
         prefs = preferences.get_preferences()
         man_box = layout.box()
@@ -872,6 +975,107 @@ class FO4_PT_ToolsLinks(Panel):
             )
         else:
             man_box.label(text="Enable the add-on to set paths.", icon='ERROR')
+
+
+class FO4_PT_GameAssetsPanel(Panel):
+    """Import and convert game assets from Unity, Unreal, and Fallout 4"""
+    bl_label = "Game Asset Import"
+    bl_idname = "FO4_PT_game_assets_panel"
+    bl_space_type = 'VIEW_3D'
+    bl_region_type = 'UI'
+    bl_category = 'Fallout 4'
+    bl_parent_id = "FO4_PT_main_panel"
+    bl_options = {'DEFAULT_CLOSED'}
+
+    def draw(self, context):
+        layout = self.layout
+        obj = context.active_object
+
+        # Convert to Fallout 4 Button (prominent)
+        if obj and obj.type == 'MESH':
+            convert_box = layout.box()
+            convert_box.label(text="Quick Convert", icon='MODIFIER')
+
+            convert_row = convert_box.row()
+            convert_row.scale_y = 1.5
+            convert_row.operator(
+                "fo4.convert_to_fallout4",
+                text="Convert to Fallout 4",
+                icon='ARROW_LEFTRIGHT'
+            )
+
+            help_col = convert_box.column(align=True)
+            help_col.scale_y = 0.7
+            help_col.label(text="One-click: Mesh prep + Materials + Textures", icon='INFO')
+            help_col.label(text="Works on any imported Unity/Unreal/FO4 asset", icon='DOT')
+        else:
+            layout.label(text="Select a mesh to convert", icon='INFO')
+
+        layout.separator()
+
+        # Fallout 4 Assets
+        fo4_box = layout.box()
+        fo4_box.label(text="Fallout 4 Assets", icon='GAME')
+
+        from . import fo4_game_assets
+        ready, message = fo4_game_assets.FO4GameAssets.get_status()
+        status_icon = 'CHECKMARK' if ready else 'ERROR'
+
+        info_col = fo4_box.column(align=True)
+        info_col.scale_y = 0.8
+        info_col.label(text=message, icon=status_icon)
+
+        if ready:
+            fo4_box.operator("fo4.browse_fo4_assets", text="Browse FO4 Assets", icon='VIEWZOOM')
+        else:
+            fo4_box.label(text="Set path in preferences", icon='PREFERENCES')
+
+        # Unity Assets
+        unity_box = layout.box()
+        unity_box.label(text="Unity Assets", icon='SNAP_FACE_CENTER')
+
+        from . import unity_game_assets
+        ready, message = unity_game_assets.UnityAssets.get_status()
+        status_icon = 'CHECKMARK' if ready else 'ERROR'
+
+        info_col = unity_box.column(align=True)
+        info_col.scale_y = 0.8
+        info_col.label(text=message, icon=status_icon)
+
+        if ready:
+            unity_box.operator("fo4.browse_unity_assets", text="Browse Unity Assets", icon='VIEWZOOM')
+        else:
+            unity_box.label(text="Set path in preferences", icon='PREFERENCES')
+
+        # Unreal Engine Assets
+        unreal_box = layout.box()
+        unreal_box.label(text="Unreal Engine Assets", icon='MESH_CUBE')
+
+        from . import unreal_game_assets
+        ready, message = unreal_game_assets.UnrealAssets.get_status()
+        status_icon = 'CHECKMARK' if ready else 'ERROR'
+
+        info_col = unreal_box.column(align=True)
+        info_col.scale_y = 0.8
+        info_col.label(text=message, icon=status_icon)
+
+        if ready:
+            unreal_box.operator("fo4.browse_unreal_assets", text="Browse Unreal Assets", icon='VIEWZOOM')
+        else:
+            unreal_box.label(text="Set path in preferences", icon='PREFERENCES')
+
+        layout.separator()
+
+        # Quick instructions
+        help_box = layout.box()
+        help_box.label(text="How to Use", icon='QUESTION')
+        help_col = help_box.column(align=True)
+        help_col.scale_y = 0.7
+        help_col.label(text="1. Set asset paths in addon preferences", icon='DOT')
+        help_col.label(text="2. Import asset (FBX/OBJ from browser)", icon='DOT')
+        help_col.label(text="3. Click 'Convert to Fallout 4'", icon='DOT')
+        help_col.label(text="4. Export as NIF", icon='DOT')
+
 
 class FO4_PT_ExportPanel(Panel):
     """Export panel for Fallout 4 – NIF/FBX output with full FO4 settings"""
@@ -980,6 +1184,23 @@ class FO4_PT_ExportPanel(Panel):
         )
 
         act_box.operator("fo4.export_all", text="Export Complete Mod Folder", icon='PACKAGE')
+
+        # ── Mod Folder Import/Export ─────────────────────────────────────────
+        mod_box = layout.box()
+        mod_box.label(text="Mod Folder Workflow", icon='FILE_FOLDER')
+
+        col = mod_box.column(align=True)
+        col.scale_y = 0.75
+        col.label(text="Import entire mod folder with structure")
+        col.label(text="Export all meshes back to original locations")
+
+        mod_row1 = mod_box.row(align=True)
+        mod_row1.scale_y = 1.3
+        mod_row1.operator("fo4.import_mod_folder", text="Import Mod Folder", icon='IMPORT')
+
+        mod_row2 = mod_box.row(align=True)
+        mod_row2.scale_y = 1.3
+        mod_row2.operator("fo4.export_mod_folder", text="Export Mod Folder", icon='EXPORT')
 
 
 class FO4_PT_BatchProcessingPanel(Panel):
@@ -1769,7 +1990,9 @@ class FO4_PT_SetupPanel(Panel):
         row = layout.row(align=True)
         row.operator("fo4.self_test", text="Environment Check", icon='CHECKMARK')
         row.operator("fo4.install_python_deps", text="Re-install Deps", icon='FILE_REFRESH')
-        layout.operator("fo4.reload_addon", text="Reload Add-on", icon='FILE_REFRESH')
+        # Reload button removed - causes crashes in Blender 4.5+
+        # Users should restart Blender to reload the addon
+        # layout.operator("fo4.reload_addon", text="Reload Add-on", icon='FILE_REFRESH')
 
 
 

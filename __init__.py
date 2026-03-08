@@ -81,11 +81,25 @@ point_e_helpers = _try_import("point_e_helpers")
 advisor_helpers = _try_import("advisor_helpers")
 knowledge_helpers = _try_import("knowledge_helpers")
 mossy_link = _try_import("mossy_link")
+torch_path_manager = _try_import("torch_path_manager")
 
 # tool_installers is not registered automatically but may be used during
 # registration-time dependency checks.  Import it here so the name exists.
 # we don't add it to `modules` because it has no register()/unregister().
 tool_installers = _try_import("tool_installers")
+
+# External tool integration helpers (not auto-registered)
+ue_importer_helpers = _try_import("ue_importer_helpers")
+umodel_tools_helpers = _try_import("umodel_tools_helpers")
+umodel_helpers = _try_import("umodel_helpers")
+unity_fbx_importer_helpers = _try_import("unity_fbx_importer_helpers")
+asset_studio_helpers = _try_import("asset_studio_helpers")
+asset_ripper_helpers = _try_import("asset_ripper_helpers")
+
+# Game asset browser helpers (not auto-registered)
+fo4_game_assets = _try_import("fo4_game_assets")
+unity_game_assets = _try_import("unity_game_assets")
+unreal_game_assets = _try_import("unreal_game_assets")
 
 # core modules that are safe to import and register unconditionally.
 # a few of the optional/external helpers are only added lazily; any module
@@ -113,6 +127,7 @@ modules = list(filter(_filter, [
     automation_system,
     addon_integration,
     desktop_tutorial_client,
+    torch_path_manager,
     shap_e_helpers,
     point_e_helpers,
     advisor_helpers,
@@ -147,10 +162,20 @@ modules = list(filter(_filter, [
 
 def register():
     """Register all add-on classes and handlers"""
+    # Auto-detect and load PyTorch from custom paths on startup
+    try:
+        if torch_path_manager:
+            existing_torch = torch_path_manager.TorchPathManager.find_existing_torch_install()
+            if existing_torch:
+                torch_path_manager.TorchPathManager.add_torch_to_path(existing_torch)
+                print(f"✓ PyTorch found and loaded from: {existing_torch}")
+    except Exception as e:
+        print(f"PyTorch auto-detection skipped: {e}")
+
     # Check Blender version and show compatibility info
     blender_version = bpy.app.version
     version_string = f"{blender_version[0]}.{blender_version[1]}.{blender_version[2]}"
-    
+
     print(f"Fallout 4 Tutorial Helper - Initializing for Blender {version_string}")
     # show recent development notes to help recall recent changes
     try:
@@ -183,140 +208,69 @@ def register():
             traceback.print_exc()
 
     # Start advisor auto-monitor (opt-out in preferences)
-    try:
-        advisor_helpers.start_auto_monitor()
-    except Exception as e:
-        print(f"Advisor auto-monitor failed to start: {e}")
+    # DISABLED: Causes severe performance issues during startup
+    # Users can manually enable monitoring if needed
+    # try:
+    #     advisor_helpers.start_auto_monitor()
+    # except Exception as e:
+    #     print(f"Advisor auto-monitor failed to start: {e}")
     
     # Initialize the tutorial system
     tutorial_system.initialize_tutorials()
     
     # Check for core Python dependencies — install automatically if missing.
-    # install_python_requirements() selects the right version constraints for
-    # the running Python (e.g. Pillow<10 on Python 3.7, --break-system-packages
-    # on Python 3.11+) so we always delegate to it instead of calling pip directly.
-    import importlib.util as _ilu
-    _core_packages = {
-        "PIL": "Pillow",
-        "numpy": "numpy",
-        "requests": "requests",
-        "trimesh": "trimesh",
-        "PyPDF2": "PyPDF2",
-    }
-    missing = {mod: pip for mod, pip in _core_packages.items() if _ilu.find_spec(mod) is None}
-    if missing:
-        import sys as _sys
-        py_ver = f"{_sys.version_info.major}.{_sys.version_info.minor}"
-        missing_desc = ", ".join(f"{pip} (import {mod})" for mod, pip in missing.items())
-        print(f"⚠ Missing Python packages: {missing_desc}")
-        print(f"  Python {py_ver} — attempting version-aware automatic installation …")
-        if tool_installers:
-            try:
-                ok, msg = tool_installers.install_python_requirements(include_optional=False)
-            except Exception as e:
-                ok, msg = False, f"installation routine threw: {e}"
-        else:
-            ok, msg = False, "tool_installers module unavailable"
-
-        if ok:
-            print(f"✓ {msg}")
-        else:
-            print(f"  Auto-install failed: {msg}")
-            print("  Use the 'Install Core Dependencies' button in the Setup & Status panel.")
-    else:
-        print("✓ All core Python dependencies present")
+    # DISABLED: Auto-installation causes severe performance issues during startup
+    # Users should use the "Install Core Dependencies" button in the Setup panel instead
+    # import importlib.util as _ilu
+    # _core_packages = {
+    #     "PIL": "Pillow",
+    #     "numpy": "numpy",
+    #     "requests": "requests",
+    #     "trimesh": "trimesh",
+    #     "PyPDF2": "PyPDF2",
+    # }
+    # missing = {mod: pip for mod, pip in _core_packages.items() if _ilu.find_spec(mod) is None}
+    # if missing:
+    #     import sys as _sys
+    #     py_ver = f"{_sys.version_info.major}.{_sys.version_info.minor}"
+    #     missing_desc = ", ".join(f"{pip} (import {mod})" for mod, pip in missing.items())
+    #     print(f"⚠ Missing Python packages: {missing_desc}")
+    #     print(f"  Python {py_ver} — attempting version-aware automatic installation …")
+    #     if tool_installers:
+    #         try:
+    #             ok, msg = tool_installers.install_python_requirements(include_optional=False)
+    #         except Exception as e:
+    #             ok, msg = False, f"installation routine threw: {e}"
+    #     else:
+    #         ok, msg = False, "tool_installers module unavailable"
+    #
+    #     if ok:
+    #         print(f"✓ {msg}")
+    #     else:
+    #         print(f"  Auto-install failed: {msg}")
+    #         print("  Use the 'Install Core Dependencies' button in the Setup & Status panel.")
+    # else:
+    #     print("✓ All core Python dependencies present")
 
     print(f"✓ Fallout 4 Tutorial Helper registered successfully (Blender {version_string})")
 
     # schedule a quick environment check once Blender is ready
-    try:
-        # 'bpy' is already imported at module level; avoid re-import here or
-        # Python will treat it as a local variable and raise UnboundLocalError
-        def _post_register():
-            try:
-                # query the status of builtin tools; these are always safe and
-                # do not trigger policy warnings.  We leave external integrations alone
-                # until the user explicitly requests them.
-                bpy.ops.fo4.check_kb_tools()
-
-                # for convenience we can also log the status values of the external
-                # helpers without triggering their registration logic.
-                from . import (
-                    ue_importer_helpers,
-                    umodel_tools_helpers,
-                    unity_fbx_importer_helpers,
-                    asset_studio_helpers,
-                    asset_ripper_helpers,
-                )
-                print("UE importer status:", ue_importer_helpers.status())
-                print("UModel tools status:", umodel_tools_helpers.status())
-                print("Unity FBX importer status:", unity_fbx_importer_helpers.status())
-                print("Asset Studio status:", asset_studio_helpers.status())
-                print("Asset Ripper status:", asset_ripper_helpers.status())
-
-                # conditional auto-register based on preference
-                from . import preferences
-                prefs = preferences.get_preferences()
-                if prefs and getattr(prefs, "auto_register_tools", False):
-                    from . import (
-                        ue_importer_helpers,
-                        umodel_tools_helpers,
-                        unity_fbx_importer_helpers,
-                        asset_studio_helpers,
-                        asset_ripper_helpers,
-                    )
-                    if not ue_importer_helpers.status()[0]:
-                        ue_importer_helpers.download_latest()
-                        ue_importer_helpers.register()
-                    if not umodel_tools_helpers.status()[0]:
-                        umodel_tools_helpers.download_latest()
-                        umodel_tools_helpers.register()
-                    if not unity_fbx_importer_helpers.status()[0]:
-                        unity_fbx_importer_helpers.download_latest()
-                    if not asset_studio_helpers.status()[0]:
-                        asset_studio_helpers.download_latest()
-                    if not asset_ripper_helpers.status()[0]:
-                        asset_ripper_helpers.download_latest()
-
-                # optionally auto-install CLI tools
-                if prefs and getattr(prefs, 'auto_install_tools', False):
-                    bpy.ops.fo4.install_all_tools()
-
-                # optionally auto-install python reqs
-                if prefs and getattr(prefs, 'auto_install_python', False):
-                    bpy.ops.fo4.install_python_deps()
-
-                # auto-install Niftools if exporter missing
-                try:
-                    nif_ok, _ = export_helpers.ExportHelpers.nif_exporter_available()
-                    if not nif_ok and prefs and getattr(prefs, 'auto_install_tools', False):
-                        bpy.ops.fo4.install_niftools()
-                except Exception:
-                    pass
-
-                # if ffmpeg not configured, try to auto-assign from PATH or tools
-                if prefs and not prefs.ffmpeg_path:
-                    from .knowledge_helpers import tool_status
-                    status = tool_status()
-                    if status.get('ffmpeg'):
-                        from shutil import which
-                        exe = which('ffmpeg')
-                        if not exe:
-                            from pathlib import Path
-                            base = Path(__file__).resolve().parent / 'tools' / 'ffmpeg'
-                            for p in base.rglob('ffmpeg.exe'):
-                                exe = str(p)
-                                break
-                        if exe:
-                            prefs.ffmpeg_path = exe
-            except Exception:
-                # ignore any issues in post-register diagnostics
-                pass
-            return None  # only run once
-        # use a timer to avoid re‑entrancy during registration
-        bpy.app.timers.register(_post_register, first_interval=0.1)
-    except Exception as e:
-        print(f"Post-register environment check failed: {e}")
+    # DISABLED: This causes severe performance issues during startup
+    # The post-register callback does too much heavy work (checking tools,
+    # downloading helpers, auto-installing packages, etc.) which causes
+    # Blender to freeze and generate excessive autosaves
+    # Users should manually install dependencies via the Setup panel instead
+    # try:
+    #     def _post_register():
+    #         try:
+    #             bpy.ops.fo4.check_kb_tools()
+    #             # ... (all the other heavy operations)
+    #         except Exception:
+    #             pass
+    #         return None
+    #     bpy.app.timers.register(_post_register, first_interval=0.1)
+    # except Exception as e:
+    #     print(f"Post-register environment check failed: {e}")
     
     # Show version-specific notes if needed.
     if blender_version < (2, 90, 0):

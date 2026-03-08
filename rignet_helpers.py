@@ -73,6 +73,18 @@ class RigNetHelpers:
             else:
                 return False, "RigNet repository not found in common locations"
                 
+        except FileNotFoundError as e:
+
+                
+            if "WinError 206" in str(e) or "filename or extension is too long" in str(e):
+
+                
+                return False, "Windows path length error. Enable long paths in Windows or reinstall PyTorch in a shorter path."
+
+                
+            return False, f"File error: {str(e)}"
+
+                
         except ImportError as e:
             return False, f"PyTorch not installed: {str(e)}"
         except Exception as e:

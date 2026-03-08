@@ -318,10 +318,12 @@ class ExportHelpers:
         
         if obj.type != 'MESH':
             return False, "Object is not a mesh"
+        # ...existing code...
         
         # Do not export collision meshes created by the addon
         if obj.get("fo4_collision") or obj.name.upper().endswith("_COLLISION") or obj.name.upper().startswith("UCX_"):
             return False, "Collision meshes are not intended for export; select the source mesh instead"
+        # ...existing code...
 
         # reject meshes with orphaned weights
         if obj.vertex_groups and not ExportHelpers._has_armature(obj):
@@ -374,6 +376,17 @@ class ExportHelpers:
                     if weight:
                         extras.append(f"weight={weight}")
                     note = " (" + ", ".join(extras) + ")" if extras else ""
+                    # Send event to desktop tutorial server
+                    try:
+                        from . import desktop_tutorial_client
+                        event_data = {
+                            'mesh_name': obj.name,
+                            'filepath': filepath,
+                            'extras': extras
+                        }
+                        desktop_tutorial_client.DesktopTutorialClient.send_event('mesh_exported', event_data)
+                    except Exception as e:
+                        print(f"[DesktopTutorialClient] Failed to send mesh export event: {e}")
                     return True, f"Exported NIF: {filepath}{note}"
 
                 # If operator returns without FINISHED, fall back to FBX
@@ -644,6 +657,16 @@ class ExportHelpers:
         with open(manifest_path, 'w') as f:
             json.dump(results, f, indent=2)
         
+        # Send event to desktop tutorial server after mod export
+        try:
+            from . import desktop_tutorial_client
+            event_data = {
+                'output_dir': output_dir,
+                'results': results
+            }
+            desktop_tutorial_client.DesktopTutorialClient.send_event('mod_exported', event_data)
+        except Exception as e:
+            print(f"[DesktopTutorialClient] Failed to send mod export event: {e}")
         return True, results
     
     @staticmethod

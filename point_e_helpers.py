@@ -14,9 +14,46 @@ class PointEHelpers:
     def is_point_e_installed():
         """Check if Point-E is installed"""
         try:
-            import torch
+            # Try to use TorchPathManager if available
+            try:
+                from . import torch_path_manager
+                success, msg, torch_module = torch_path_manager.TorchPathManager.try_import_torch()
+                if not success:
+                    if msg == "windows_path_error":
+                        return False, (
+                            "Windows path length error detected. PyTorch cannot load due to Windows MAX_PATH limitation.\n\n"
+                            "Quick Fix - Click the button below to auto-install PyTorch to D:/t\n"
+                            "Or manually:\n"
+                            "1. Enable long paths in Windows (Recommended):\n"
+                            "   - Run 'gpedit.msc' > Computer Config > Admin Templates > System > Filesystem\n"
+                            "   - Enable 'Win32 long paths', restart\n\n"
+                            "2. Install PyTorch in a shorter path:\n"
+                            "   - Create venv in C:\\t\n"
+                            "   - Install PyTorch there"
+                        )
+                    else:
+                        raise ImportError(msg)
+            except ImportError:
+                # TorchPathManager not available, use regular import
+                import torch
+
             import point_e
             return True, "Point-E is installed"
+        except FileNotFoundError as e:
+            if "WinError 206" in str(e) or "filename or extension is too long" in str(e):
+                return False, (
+                    "Windows path length error detected. PyTorch cannot load due to Windows MAX_PATH limitation.\n\n"
+                    "Quick Fix - Use the 'Install PyTorch to Short Path' button in preferences\n"
+                    "Or manually:\n"
+                    "1. Enable long paths in Windows (Recommended):\n"
+                    "   - Run 'gpedit.msc' > Computer Config > Admin Templates > System > Filesystem\n"
+                    "   - Enable 'Win32 long paths', restart\n\n"
+                    "2. Install PyTorch in a shorter path:\n"
+                    "   - Create venv in C:\\t\n"
+                    "   - Install PyTorch there\n\n"
+                    f"Original error: {str(e)}"
+                )
+            return False, f"File error loading Point-E: {str(e)}"
         except ImportError as e:
             return False, f"Point-E not installed: {str(e)}"
     
@@ -46,17 +83,29 @@ For more info: https://github.com/openai/point-e
     def generate_from_text(prompt, num_samples=1, grid_size=128):
         """
         Generate 3D point cloud from text prompt using Point-E
-        
+
         Args:
             prompt: Text description of object to generate
             num_samples: Number of point clouds to generate
             grid_size: Resolution of point cloud (32, 64, 128, 256)
-        
+
         Returns:
             Tuple of (success, point_cloud_data or error_message)
         """
         try:
-            import torch
+            # Try to use TorchPathManager if available
+            try:
+                from . import torch_path_manager
+                success, msg, torch = torch_path_manager.TorchPathManager.try_import_torch()
+                if not success:
+                    if msg == "windows_path_error":
+                        return False, "Windows path length error. Use the 'Install PyTorch to Short Path' button to install to D:/t"
+                    else:
+                        return False, msg
+            except ImportError:
+                # TorchPathManager not available, use regular import
+                import torch
+
             from PIL import Image
             from point_e.diffusion.configs import DIFFUSION_CONFIGS, diffusion_from_config
             from point_e.diffusion.sampler import PointCloudSampler
@@ -121,26 +170,42 @@ For more info: https://github.com/openai/point-e
                 'prompt': prompt,
                 'num_points': len(coords)
             }
-            
+
+        except FileNotFoundError as e:
+            if "WinError 206" in str(e) or "filename or extension is too long" in str(e):
+                return False, "Windows path length error. Enable long paths in Windows or reinstall PyTorch in a shorter path (see Point-E installation check for details)."
+            return False, f"File error: {str(e)}"
         except ImportError as e:
             return False, f"Point-E not installed: {str(e)}"
         except Exception as e:
             return False, f"Generation failed: {str(e)}"
-    
+
     @staticmethod
     def generate_from_image(image_path, num_samples=1):
         """
         Generate 3D point cloud from image using Point-E
-        
+
         Args:
             image_path: Path to input image
             num_samples: Number of point clouds to generate
-        
+
         Returns:
             Tuple of (success, point_cloud_data or error_message)
         """
         try:
-            import torch
+            # Try to use TorchPathManager if available
+            try:
+                from . import torch_path_manager
+                success, msg, torch = torch_path_manager.TorchPathManager.try_import_torch()
+                if not success:
+                    if msg == "windows_path_error":
+                        return False, "Windows path length error. Use the 'Install PyTorch to Short Path' button to install to D:/t"
+                    else:
+                        return False, msg
+            except ImportError:
+                # TorchPathManager not available, use regular import
+                import torch
+
             from PIL import Image
             from point_e.diffusion.configs import DIFFUSION_CONFIGS, diffusion_from_config
             from point_e.diffusion.sampler import PointCloudSampler
@@ -207,12 +272,16 @@ For more info: https://github.com/openai/point-e
                 'image_path': image_path,
                 'num_points': len(coords)
             }
-            
+
+        except FileNotFoundError as e:
+            if "WinError 206" in str(e) or "filename or extension is too long" in str(e):
+                return False, "Windows path length error. Enable long paths in Windows or reinstall PyTorch in a shorter path (see Point-E installation check for details)."
+            return False, f"File error: {str(e)}"
         except ImportError as e:
             return False, f"Point-E not installed: {str(e)}"
         except Exception as e:
             return False, f"Generation failed: {str(e)}"
-    
+
     @staticmethod
     def point_cloud_to_mesh(point_cloud_data, method='ball_pivoting', name="PointE_Generated"):
         """
