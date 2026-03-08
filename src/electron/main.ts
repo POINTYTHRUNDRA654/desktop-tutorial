@@ -2669,12 +2669,12 @@ function setupIpcHandlers() {
       // app.getAppPath() points to the root of the app (asar in production)
       candidates.push(path.join(app.getAppPath(), 'public', 'mossy-blender-addons.zip'));
       candidates.push(path.join(app.getAppPath(), 'mossy-blender-addons.zip'));
-    } catch {}
+    } catch { /* ignore */ }
     try {
       // process.resourcesPath points to the resources folder (outside asar)
       candidates.push(path.join(process.resourcesPath, 'public', 'mossy-blender-addons.zip'));
       candidates.push(path.join(process.resourcesPath, 'mossy-blender-addons.zip'));
-    } catch {}
+    } catch { /* ignore */ }
     for (const p of candidates) {
       try {
         if (fs.existsSync(p)) {
