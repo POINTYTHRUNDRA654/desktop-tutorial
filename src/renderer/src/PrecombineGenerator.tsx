@@ -262,7 +262,7 @@ const FullLoadOrderWizard: React.FC = () => {
                 <div className="text-lg font-black text-emerald-300">FO4Edit Launched!</div>
               </div>
               <ol className="text-sm text-slate-300 space-y-2 list-decimal list-inside">
-                <li>Wait for FO4Edit&apos;s <strong className="text-white">background loading</strong> to finish.</li>
+                <li>Wait for FO4Edit's <strong className="text-white">background loading</strong> to finish.</li>
                 <li>Script runs automatically. When you see <code className="text-emerald-300">&quot;Combined patch generation complete!&quot;</code> &mdash; save and exit.</li>
                 <li>In MO2, enable <code className="text-white">Mossy Combined Patch.esp</code> at the <strong className="text-white">very bottom</strong>.</li>
                 <li>If you use PRP, load <strong className="text-white">PRP before</strong> this patch.</li>
@@ -557,7 +557,7 @@ const SingleModPrecombineWizard: React.FC = () => {
               </div>
               <div className="flex gap-3">
                 <span className="text-amber-400 font-bold flex-shrink-0 w-14">Stage 2</span>
-                <span><strong className="text-slate-200">Creation Kit</strong> &mdash; use CK&apos;s World &rarr; Precombine / Previs to rebuild and bake precombines directly into your mod.</span>
+                <span><strong className="text-slate-200">Creation Kit</strong> &mdash; use CK's World &rarr; Precombine / Previs to rebuild and bake precombines directly into your mod.</span>
               </div>
               <div className="flex gap-3">
                 <span className="text-emerald-400 font-bold flex-shrink-0 w-14">Stage 3</span>
@@ -616,7 +616,7 @@ const SingleModPrecombineWizard: React.FC = () => {
               <li>Open <strong className="text-white">Creation Kit</strong> and load <code className="text-amber-200">{modFileName}</code> as the active file.</li>
               <li>Go to <strong className="text-white">World &rarr; Precombine / Previs &rarr; Generate Precombined Data</strong>.</li>
               <li>Select worldspace: <strong className="text-white">{effectiveWorldspace}</strong>. Click OK.</li>
-              <li>Wait for CK to finish (5&ndash;60 min depending on cell count). <strong className="text-white">Save the ESP before closing CK.</strong></li>
+              <li>Wait for CK to finish and <strong className="text-white">save the ESP before closing</strong>. Time varies: ~5 min for a few cells, ~15&ndash;30 min for a mid-sized mod, up to 60+ min for large worldspace mods.</li>
               <li>Optional but recommended: also run <strong className="text-white">Generate Previs Data</strong> for the same worldspace.</li>
             </ol>
             {ckPath && (
