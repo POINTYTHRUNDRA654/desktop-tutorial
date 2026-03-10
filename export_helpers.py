@@ -122,12 +122,18 @@ class ExportHelpers:
         """
         kwargs = {
             "filepath": filepath,
-            "use_selection": True,
         }
 
         try:
             props = bpy.ops.export_scene.nif.get_rna_type().properties
             prop_keys = props.keys()
+
+            # Only pass use_selection when the NIF exporter supports it.
+            # Niftools v0.1.1 does not expose this property; passing it
+            # unconditionally triggers "keyword 'use_selection' unrecognized"
+            # which causes the export to fail and fall back to FBX.
+            if "use_selection" in prop_keys:
+                kwargs["use_selection"] = True
 
             # ----------------------------------------------------------------
             # Game profile – FALLOUT_4 sets NIF 20.2.0.7 with user version 12
