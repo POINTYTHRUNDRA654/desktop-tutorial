@@ -219,23 +219,39 @@ class FO4_OT_InstallTexture(Operator):
     
     def execute(self, context):
         obj = context.active_object
-        
+
         if not obj or obj.type != 'MESH':
             self.report({'ERROR'}, "No mesh object selected")
             return {'CANCELLED'}
-        
+
         success, message = texture_helpers.TextureHelpers.install_texture(
             obj, self.filepath, self.texture_type
         )
-        
+
         if success:
             self.report({'INFO'}, message)
             notification_system.FO4_NotificationSystem.notify(message, 'INFO')
+
+            # Warn if the installed file is not DDS – FO4 requires DDS in-game.
+            import os
+            if os.path.splitext(self.filepath)[1].lower() != '.dds':
+                dds_hint = {
+                    'DIFFUSE':  'BC1 (DXT1) or BC3 if alpha needed',
+                    'NORMAL':   'BC5 (ATI2) – two-channel tangent-space',
+                    'SPECULAR': 'BC1 (DXT1)',
+                    'GLOW':     'BC1 (DXT1)',
+                    'EMISSIVE': 'BC1 (DXT1)',
+                }.get(self.texture_type, 'BC1 (DXT1)')
+                self.report(
+                    {'WARNING'},
+                    f"Non-DDS texture installed. For Fallout 4 NIF export convert to DDS "
+                    f"({dds_hint}) using 'Convert to DDS' in the Texture Helpers panel."
+                )
         else:
             self.report({'ERROR'}, message)
             notification_system.FO4_NotificationSystem.notify(message, 'ERROR')
             return {'CANCELLED'}
-        
+
         return {'FINISHED'}
     
     def invoke(self, context, event):
@@ -3245,6 +3261,118 @@ class FO4_OT_CheckRealESRGANInstallation(Operator):
         
         return {'FINISHED'}
 
+
+class FO4_OT_UpscaleKREALegacy(Operator):
+    """Upscale a texture using KREA AI Legacy-style processing.
+    Uses Real-ESRGAN when available, otherwise falls back to high-quality
+    Lanczos upscaling with sharpening (requires Pillow)."""
+    bl_idname = "fo4.upscale_krea_legacy"
+    bl_label = "Upscale (KREA AI Legacy Style)"
+    bl_options = {'REGISTER', 'UNDO'}
+
+    filepath: StringProperty(
+        name="Texture File",
+        description="Path to the texture file to upscale",
+        subtype='FILE_PATH'
+    )
+
+    output_path: StringProperty(
+        name="Output Path",
+        description="Path for the upscaled texture (leave blank to auto-generate)",
+        subtype='FILE_PATH',
+        default=""
+    )
+
+    scale: EnumProperty(
+        name="Upscale Factor",
+        description="How much to upscale the texture",
+        items=[
+            ('2', "2x", "Double the resolution"),
+            ('4', "4x", "Quadruple the resolution"),
+        ],
+        default='4'
+    )
+
+    def execute(self, context):
+        if not self.filepath:
+            self.report({'ERROR'}, "No texture file selected")
+            return {'CANCELLED'}
+
+        output = self.output_path if self.output_path else None
+        scale_int = int(self.scale)
+
+        success, message = realesrgan_helpers.RealESRGANHelpers.upscale_krea_legacy_style(
+            self.filepath,
+            output,
+            scale_int
+        )
+
+        if success:
+            self.report({'INFO'}, message)
+            notification_system.FO4_NotificationSystem.notify(message, 'INFO')
+            # Remind the user to convert the upscaled image to DDS before NIF export.
+            self.report(
+                {'WARNING'},
+                "Upscale complete. Convert the output to DDS (BC1/BC3/BC5) using "
+                "'Convert to DDS' in the Texture Helpers panel before exporting your NIF."
+            )
+        else:
+            self.report({'WARNING'}, message)
+            notification_system.FO4_NotificationSystem.notify(message, 'WARNING')
+            return {'CANCELLED'}
+
+        return {'FINISHED'}
+
+    def invoke(self, context, event):
+        context.window_manager.fileselect_add(self)
+        return {'RUNNING_MODAL'}
+
+
+class FO4_OT_InstallUpscalerDeps(Operator):
+    """One-click installer for the Real-ESRGAN AI upscaler.
+
+    Downloads the NCNN Vulkan binary (~50 MB, GPU-accelerated via Vulkan,
+    works on NVIDIA/AMD/Intel with no Python dependencies) and falls back
+    to installing the Python package stack (PyTorch CPU + basicsr +
+    realesrgan, ~400 MB) if the binary download fails.
+
+    Runs entirely in the background — Blender stays responsive.
+    A notification pops up when the installation is complete."""
+    bl_idname = "fo4.install_upscaler_deps"
+    bl_label = "Install AI Upscaler"
+    bl_options = {'REGISTER'}
+
+    def execute(self, context):
+        import threading
+        from . import tool_installers
+
+        def _run():
+            print("\n" + "=" * 60)
+            print("AI UPSCALER INSTALLATION")
+            print("=" * 60)
+            print("Step 1: Trying Real-ESRGAN NCNN Vulkan binary …")
+            ok, msg = tool_installers.install_realesrgan()
+            level = 'INFO' if ok else 'ERROR'
+            status = "✅ Installation complete!" if ok else "❌ Installation failed"
+            print(f"{status}\n{msg}")
+            print("=" * 60 + "\n")
+
+            def _notify():
+                notification_system.FO4_NotificationSystem.notify(
+                    f"AI Upscaler: {msg[:120]}", level
+                )
+            bpy.app.timers.register(_notify, first_interval=0.1)
+
+        threading.Thread(target=_run, daemon=True).start()
+        self.report(
+            {'INFO'},
+            "Installing AI upscaler in the background. "
+            "Check the Blender console for progress. "
+            "You will be notified when complete."
+        )
+        return {'FINISHED'}
+
+
 # NVIDIA GET3D Operators
 
 class FO4_OT_ImportGET3DMesh(Operator):
@@ -5182,9 +5310,274 @@ class FO4_OT_OptimizeUVs(Operator):
             return {'CANCELLED'}
         
         return {'FINISHED'}
-    
+
     def invoke(self, context, event):
         return context.window_manager.invoke_props_dialog(self)
+
+
+# UV + Texture Workflow Operators
+
+class FO4_OT_SetupUVWithTexture(Operator):
+    """One-click UV unwrap + texture binding for Fallout 4 NIF export.
+
+    Creates (or keeps) a UV map, unwraps the mesh, sets up a full FO4
+    PBR material node tree, and binds the selected texture — all in one
+    step. The viewport is automatically switched to Material Preview so
+    you can see the result immediately. Use 'Edit UV Map' to fine-tune
+    UV islands if the texture does not sit correctly."""
+    bl_idname = "fo4.setup_uv_with_texture"
+    bl_label = "Setup UV + Texture"
+    bl_options = {'REGISTER', 'UNDO'}
+
+    filepath: StringProperty(
+        name="Texture File",
+        description="Path to the texture file to bind (PNG, TGA, DDS …)",
+        subtype='FILE_PATH',
+    )
+
+    filter_glob: StringProperty(
+        default="*.png;*.jpg;*.jpeg;*.tga;*.tiff;*.bmp;*.dds",
+        options={'HIDDEN'},
+    )
+
+    texture_type: EnumProperty(
+        name="Texture Type",
+        description="Which FO4 material slot to bind the texture to",
+        items=[
+            ('DIFFUSE',  "Diffuse",      "Base colour / albedo texture"),
+            ('NORMAL',   "Normal Map",   "Tangent-space normal map (_n)"),
+            ('SPECULAR', "Specular Map", "Specular / smoothness map (_s)"),
+            ('GLOW',     "Glow/Emissive","Emissive / glow mask (_g)"),
+        ],
+        default='DIFFUSE',
+    )
+
+    unwrap_method: EnumProperty(
+        name="Unwrap Method",
+        description="UV unwrapping algorithm to use",
+        items=[
+            ('SMART',    "Smart UV Project",  "Automatic seam detection – best for most meshes"),
+            ('ANGLE',    "Angle-Based",        "Classic conformal unwrap – good for organic shapes"),
+            ('CUBE',     "Cube Projection",    "Box projection – fast, good for hard-surface/architecture"),
+            ('EXISTING', "Keep Existing UVs",  "Skip unwrap – only bind the texture to the current UV map"),
+        ],
+        default='SMART',
+    )
+
+    island_margin: FloatProperty(
+        name="Island Margin",
+        description=(
+            "Gap between UV islands (0–10 %). 2 % is recommended for "
+            "1024 × 1024 DDS textures to prevent mip-map bleed"
+        ),
+        default=0.02,
+        min=0.0,
+        max=0.1,
+        subtype='FACTOR',
+    )
+
+    def draw(self, context):
+        layout = self.layout
+        layout.prop(self, "texture_type")
+        layout.prop(self, "unwrap_method")
+        layout.prop(self, "island_margin")
+
+    def execute(self, context):
+        obj = context.active_object
+        if not obj or obj.type != 'MESH':
+            self.report({'ERROR'}, "No mesh object selected")
+            return {'CANCELLED'}
+
+        success, message = mesh_helpers.MeshHelpers.setup_uv_with_texture(
+            obj,
+            self.filepath,
+            self.texture_type,
+            self.unwrap_method,
+            self.island_margin,
+        )
+
+        if success:
+            self.report({'INFO'}, message)
+            notification_system.FO4_NotificationSystem.notify(message, 'INFO')
+            import os
+            if self.filepath and os.path.splitext(self.filepath)[1].lower() != '.dds':
+                self.report(
+                    {'WARNING'},
+                    "Non-DDS texture installed. Convert to DDS before exporting the NIF "
+                    "(use 'Convert to DDS' in the Texture Helpers panel)."
+                )
+        else:
+            self.report({'ERROR'}, message)
+            notification_system.FO4_NotificationSystem.notify(message, 'ERROR')
+            return {'CANCELLED'}
+
+        return {'FINISHED'}
+
+    def invoke(self, context, event):
+        context.window_manager.fileselect_add(self)
+        return {'RUNNING_MODAL'}
+
+
+class FO4_OT_ReUnwrapUV(Operator):
+    """Re-unwrap the active mesh's UV map without changing its material or textures.
+
+    Use this when the initial unwrap did not look right. Texture bindings
+    are preserved — only the UV coordinates are recalculated."""
+    bl_idname = "fo4.re_unwrap_uv"
+    bl_label = "Re-Unwrap UV"
+    bl_options = {'REGISTER', 'UNDO'}
+
+    method: EnumProperty(
+        name="Unwrap Method",
+        description="UV unwrapping algorithm",
+        items=[
+            ('SMART', "Smart UV Project",  "Automatic seam detection"),
+            ('ANGLE', "Angle-Based",        "Classic conformal unwrap"),
+            ('CUBE',  "Cube Projection",    "Box projection"),
+        ],
+        default='SMART',
+    )
+
+    island_margin: FloatProperty(
+        name="Island Margin",
+        description="Gap between UV islands",
+        default=0.02,
+        min=0.0,
+        max=0.1,
+        subtype='FACTOR',
+    )
+
+    def draw(self, context):
+        layout = self.layout
+        layout.prop(self, "method")
+        layout.prop(self, "island_margin")
+
+    def execute(self, context):
+        obj = context.active_object
+        if not obj or obj.type != 'MESH':
+            self.report({'ERROR'}, "No mesh object selected")
+            return {'CANCELLED'}
+
+        success, message = advanced_mesh_helpers.AdvancedMeshHelpers.optimize_uvs(
+            obj, self.method, self.island_margin
+        )
+
+        if success:
+            self.report({'INFO'}, f"UV re-unwrapped: {message}")
+            notification_system.FO4_NotificationSystem.notify(message, 'INFO')
+        else:
+            self.report({'ERROR'}, message)
+            return {'CANCELLED'}
+
+        return {'FINISHED'}
+
+    def invoke(self, context, event):
+        return context.window_manager.invoke_props_dialog(self)
+
+
+class FO4_OT_OpenUVEditing(Operator):
+    """Enter UV Editing mode for the active mesh.
+
+    Switches to Edit Mode with all faces selected so you can immediately
+    see and adjust UV islands in the UV Editor (visible in Blender's built-in
+    UV Editing workspace). Use G/R/S to move, rotate, and scale islands;
+    press Tab or Ctrl+Tab to exit when done."""
+    bl_idname = "fo4.open_uv_editing"
+    bl_label = "Edit UV Map"
+    bl_options = {'REGISTER', 'UNDO'}
+
+    def execute(self, context):
+        obj = context.active_object
+        if not obj or obj.type != 'MESH':
+            self.report({'ERROR'}, "No mesh object selected")
+            return {'CANCELLED'}
+
+        if not obj.data.uv_layers:
+            self.report({'ERROR'}, "Object has no UV map — run 'Setup UV + Texture' first")
+            return {'CANCELLED'}
+
+        # Switch to Edit Mode with all geometry selected so UV islands appear
+        bpy.context.view_layer.objects.active = obj
+        bpy.ops.object.mode_set(mode='EDIT')
+        bpy.ops.mesh.select_all(action='SELECT')
+
+        # Try to switch to the built-in UV Editing workspace
+        uv_ws = bpy.data.workspaces.get("UV Editing")
+        if uv_ws:
+            context.window.workspace = uv_ws
+
+        self.report(
+            {'INFO'},
+            "UV Editing mode active. Use G/R/S to adjust islands. "
+            "Tab to return to Object Mode when done."
+        )
+        return {'FINISHED'}
+
+
+class FO4_OT_AskMossyForUVAdvice(Operator):
+    """Ask Mossy's AI brain for UV map and texture setup advice.
+
+    Analyses the active mesh's UV map, material node tree, and texture
+    slots, then sends a structured report to Mossy's local AI server for
+    prioritised, step-by-step recommendations.
+
+    Mossy must be running on the desktop with its HTTP server enabled
+    (port 8080 by default). If Mossy is not reachable, the built-in
+    rules-based analysis is shown instead so you always get useful feedback."""
+    bl_idname = "fo4.ask_mossy_uv_advice"
+    bl_label = "Ask Mossy for UV/Texture Advice"
+    bl_options = {'REGISTER'}
+
+    # Stores the advice text for display in the dialog
+    _advice: str = ""
+
+    def execute(self, context):
+        obj = context.active_object
+        if not obj or obj.type != 'MESH':
+            self.report({'ERROR'}, "Select a mesh object first")
+            return {'CANCELLED'}
+
+        from . import advisor_helpers
+        advice = advisor_helpers.AdvisorHelpers.ask_mossy_uv_texture(obj)
+
+        if advice:
+            self.report({'INFO'}, "Mossy responded — see Blender console for full advice")
+            print("\n" + "=" * 60)
+            print(f"MOSSY UV/TEXTURE ADVICE — {obj.name}")
+            print("=" * 60)
+            print(advice)
+            print("=" * 60 + "\n")
+            notification_system.FO4_NotificationSystem.notify(
+                "Mossy: " + advice[:100] + ("…" if len(advice) > 100 else ""),
+                'INFO'
+            )
+        else:
+            # Mossy unavailable — fall back to built-in rules analysis
+            analysis = advisor_helpers.AdvisorHelpers.analyze_uv_texture(obj)
+            issues = analysis.get("issues", [])
+            suggestions = analysis.get("suggestions", [])
+            lines = []
+            if issues:
+                lines.append("Issues found:")
+                for i, iss in enumerate(issues, 1):
+                    lines.append(f"  {i}. {iss}")
+            if suggestions:
+                lines.append("Suggestions:")
+                for i, sug in enumerate(suggestions, 1):
+                    lines.append(f"  {i}. {sug}")
+            if not lines:
+                lines.append("UV map and textures look good for FO4 export!")
+
+            full = "\n".join(lines)
+            print("\n" + "=" * 60)
+            print(f"UV/TEXTURE ANALYSIS — {obj.name}")
+            print("=" * 60)
+            print(full)
+            print("(Mossy not available — showing built-in analysis)")
+            print("=" * 60 + "\n")
+            self.report({'INFO'}, lines[0] if lines else "Analysis complete — see console")
+
+        return {'FINISHED'}
 
 
 # Batch Processing Operators
@@ -8058,6 +8451,7 @@ classes = (
     FO4_OT_SelfTest,
     FO4_OT_UpscaleTexture,
     FO4_OT_UpscaleObjectTextures,
+    FO4_OT_UpscaleKREALegacy,
     FO4_OT_CheckRealESRGANInstallation,
     FO4_OT_ImportGET3DMesh,
     FO4_OT_OptimizeGET3DMesh,
@@ -8180,6 +8574,14 @@ classes = (
     # Mod folder import/export
     FO4_OT_ImportModFolder,
     FO4_OT_ExportModFolder,
+    # UV + Texture workflow
+    FO4_OT_SetupUVWithTexture,
+    FO4_OT_ReUnwrapUV,
+    FO4_OT_OpenUVEditing,
+    # AI upscaler one-click installer
+    FO4_OT_InstallUpscalerDeps,
+    # Mossy AI UV/texture advisor
+    FO4_OT_AskMossyForUVAdvice,
 )
 
 def register():

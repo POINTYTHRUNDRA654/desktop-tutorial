@@ -557,6 +557,146 @@ class MeshHelpers:
 
         return final_parts
 
+    # ------------------------------------------------------------------
+    # UV + Texture workflow
+    # ------------------------------------------------------------------
+
+    @staticmethod
+    def setup_uv_with_texture(obj, texture_path, texture_type='DIFFUSE',
+                               unwrap_method='SMART', island_margin=0.02):
+        """Complete UV + texture binding pipeline for Fallout 4 NIF export.
+
+        Performs all steps in one call so the mesh is immediately preview-ready
+        and export-ready without any manual node wiring:
+
+          1. Ensures a UV map named ``"UVMap"`` exists (creates one if absent).
+          2. Unwraps the mesh with *unwrap_method* (skipped when ``'EXISTING'``
+             is passed and a UV map already has data).
+          3. Packs UV islands with *island_margin* spacing (required so adjacent
+             UV islands do not bleed into each other in DDS mip-maps).
+          4. Sets up the FO4 PBR material node tree if no suitable material is
+             present (calls :meth:`texture_helpers.TextureHelpers.setup_fo4_material`).
+          5. Loads *texture_path* and binds it to the correct material slot
+             (calls :meth:`texture_helpers.TextureHelpers.install_texture`).
+          6. Switches the active viewport shading to Material Preview so the
+             texture is immediately visible.
+
+        Parameters
+        ----------
+        obj : bpy.types.Object
+            Target mesh object.
+        texture_path : str
+            Absolute path to the texture file (PNG, TGA, DDS, …).
+        texture_type : str
+            ``'DIFFUSE'``, ``'NORMAL'``, ``'SPECULAR'``, or ``'GLOW'``.
+        unwrap_method : str
+            ``'SMART'`` (Smart UV Project), ``'ANGLE'`` (Angle-Based),
+            ``'CUBE'`` (Cube Projection), or ``'EXISTING'`` (keep current UVs).
+        island_margin : float
+            Spacing between UV islands (0.0 - 0.1). Default 0.02 (2 %) gives
+            enough room to prevent mip-map bleed on 1024 x 1024 DDS textures.
+
+        Returns
+        -------
+        (bool success, str message)
+        """
+        import os
+        from . import texture_helpers
+
+        if obj.type != 'MESH':
+            return False, "Object is not a mesh"
+
+        if texture_path and not os.path.exists(texture_path):
+            return False, f"Texture file not found: {texture_path}"
+
+        # ------------------------------------------------------------------
+        # 1 & 2. UV map + unwrap
+        # ------------------------------------------------------------------
+        mesh = obj.data
+        uv_already_exists = bool(mesh.uv_layers)
+
+        if not uv_already_exists:
+            mesh.uv_layers.new(name="UVMap")
+
+        # Make the object active and enter Edit Mode to unwrap.
+        # Use try/finally to guarantee we restore the previous active object
+        # and return to Object Mode even if an exception occurs mid-unwrap.
+        prev_active = bpy.context.view_layer.objects.active
+        bpy.context.view_layer.objects.active = obj
+        try:
+            bpy.ops.object.mode_set(mode='EDIT')
+            bpy.ops.mesh.select_all(action='SELECT')
+
+            skip_unwrap = (unwrap_method == 'EXISTING' and uv_already_exists)
+            if not skip_unwrap:
+                if unwrap_method == 'SMART':
+                    bpy.ops.uv.smart_project(
+                        angle_limit=66.0, island_margin=island_margin
+                    )
+                elif unwrap_method == 'ANGLE':
+                    bpy.ops.uv.unwrap(method='ANGLE_BASED', margin=island_margin)
+                elif unwrap_method == 'CUBE':
+                    bpy.ops.uv.cube_project(cube_size=1.0)
+                else:
+                    # Default to Smart UV Project for any unknown method
+                    bpy.ops.uv.smart_project(
+                        angle_limit=66.0, island_margin=island_margin
+                    )
+
+            # Pack islands so UVs fill the 0-1 tile without overlap
+            bpy.ops.uv.pack_islands(margin=island_margin)
+        finally:
+            try:
+                bpy.ops.object.mode_set(mode='OBJECT')
+            except Exception:
+                pass
+            bpy.context.view_layer.objects.active = prev_active
+
+        # ------------------------------------------------------------------
+        # 4. Ensure the object has a FO4-compatible material
+        # ------------------------------------------------------------------
+        has_fo4_mat = (
+            obj.data.materials
+            and obj.data.materials[0] is not None
+            and obj.data.materials[0].use_nodes
+            and obj.data.materials[0].node_tree.nodes.get("Diffuse")
+        )
+        if not has_fo4_mat:
+            texture_helpers.TextureHelpers.setup_fo4_material(obj)
+
+        # ------------------------------------------------------------------
+        # 5. Bind the texture into the correct material slot
+        # ------------------------------------------------------------------
+        if texture_path:
+            ok, msg = texture_helpers.TextureHelpers.install_texture(
+                obj, texture_path, texture_type
+            )
+            if not ok:
+                return False, f"UV unwrap succeeded but texture binding failed: {msg}"
+
+        # ------------------------------------------------------------------
+        # 6. Switch active viewport shading to Material Preview so the user
+        #    can immediately see the texture on the mesh.
+        # ------------------------------------------------------------------
+        for area in bpy.context.screen.areas:
+            if area.type == 'VIEW_3D':
+                for space in area.spaces:
+                    if space.type == 'VIEW_3D':
+                        space.shading.type = 'MATERIAL'
+                break
+
+        uv_note = "(kept existing UVs)" if skip_unwrap else f"(unwrapped: {unwrap_method})"
+        tex_note = (
+            f", {texture_type} texture bound: {os.path.basename(texture_path)}"
+            if texture_path else ""
+        )
+        return True, (
+            f"UV map ready {uv_note}{tex_note}. "
+            "Viewport switched to Material Preview. "
+            "Use 'Edit UV Map' to adjust islands if needed, "
+            "then export with 'Export Mesh (.nif)'."
+        )
+
 def register():
     """Register mesh helper functions"""
     pass

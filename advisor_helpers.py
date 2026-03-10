@@ -315,6 +315,219 @@ class AdvisorHelpers:
         # Timers self-remove when returning None; mark as not registered
         AdvisorHelpers._timer_registered = False
 
+    # ------------------------------------------------------------------
+    # UV + Texture Analysis  (used by FO4_OT_AskMossyForUVAdvice)
+    # ------------------------------------------------------------------
+
+    @staticmethod
+    def analyze_uv_texture(obj) -> dict:
+        """Analyse the UV map and texture setup of *obj* for FO4 compatibility.
+
+        Returns a structured dict suitable for display or for sending to Mossy
+        as context data.  Never raises — errors are captured into the ``issues``
+        list so the caller always gets a usable result.
+
+        Fields returned
+        ---------------
+        object_name : str
+        mesh_stats  : dict  – vertex/polygon/triangle counts
+        uv_status   : dict  – has_uv_map, uv_layer_count, uv_layer_names
+        material_status : dict  – has_material, uses_nodes, per-slot texture info
+        issues      : list[str]  – actionable problems found
+        suggestions : list[str]  – how to fix them
+        """
+        import os
+        result = {
+            "object_name": obj.name if obj else "unknown",
+            "mesh_stats": {},
+            "uv_status": {},
+            "material_status": {},
+            "issues": [],
+            "suggestions": [],
+        }
+
+        if not obj or obj.type != 'MESH':
+            result["issues"].append("Not a mesh object.")
+            return result
+
+        mesh = obj.data
+
+        # --- Mesh stats -------------------------------------------------------
+        tri_estimate = sum(max(1, len(p.vertices) - 2) for p in mesh.polygons)
+        result["mesh_stats"] = {
+            "vertices": len(mesh.vertices),
+            "polygons": len(mesh.polygons),
+            "estimated_triangles": tri_estimate,
+        }
+        if tri_estimate > 65535:
+            result["issues"].append(
+                f"Triangle count ({tri_estimate:,}) exceeds FO4 BSTriShape limit of 65,535."
+            )
+            result["suggestions"].append(
+                "Use 'Split at Poly Limit' or 'Smart Decimate' to reduce polygon count."
+            )
+
+        # --- UV status --------------------------------------------------------
+        uv_layers = mesh.uv_layers
+        result["uv_status"] = {
+            "has_uv_map": bool(uv_layers),
+            "uv_layer_count": len(uv_layers),
+            "uv_layer_names": [l.name for l in uv_layers],
+        }
+        if not uv_layers:
+            result["issues"].append(
+                "No UV map found. Niftools requires UV coordinates on every exported mesh."
+            )
+            result["suggestions"].append(
+                "Click 'Setup UV + Texture' to auto-unwrap and bind a texture in one step."
+            )
+
+        # --- Scale check ------------------------------------------------------
+        if any(abs(s - 1.0) > 1e-5 for s in obj.scale):
+            result["issues"].append(
+                f"Object scale is not applied ({obj.scale[0]:.3f}, "
+                f"{obj.scale[1]:.3f}, {obj.scale[2]:.3f}). "
+                "Unapplied scale distorts geometry in FO4."
+            )
+            result["suggestions"].append("Press Ctrl+A → Apply Scale before export.")
+
+        # --- Material + texture status ----------------------------------------
+        if not obj.data.materials or obj.data.materials[0] is None:
+            result["material_status"]["has_material"] = False
+            result["issues"].append(
+                "No material assigned. FO4 meshes need a BGSM-compatible material with textures."
+            )
+            result["suggestions"].append(
+                "Click 'Setup FO4 Materials' to create the full PBR node tree, "
+                "then use 'Install Diffuse/Normal/Specular' to bind textures."
+            )
+            return result
+
+        mat = obj.data.materials[0]
+        result["material_status"]["has_material"] = True
+        result["material_status"]["name"] = mat.name
+        result["material_status"]["uses_nodes"] = mat.use_nodes
+
+        if not mat.use_nodes:
+            result["issues"].append(
+                f"Material '{mat.name}' does not use nodes. "
+                "Niftools requires a node-based material for texture export."
+            )
+            result["suggestions"].append(
+                "Click 'Setup FO4 Materials' to rebuild the material node tree."
+            )
+            return result
+
+        nodes = mat.node_tree.nodes
+
+        # Per-slot texture analysis
+        _SLOTS = {
+            "Diffuse":  ("DIFFUSE",  "BC1 (DXT1) or BC3 if alpha needed",  True),
+            "Normal":   ("NORMAL",   "BC5 (ATI2) two-channel tangent-space", True),
+            "Specular": ("SPECULAR", "BC1 (DXT1)",                          False),
+            "Glow":     ("GLOW",     "BC1 (DXT1)",                          False),
+        }
+        texture_status = {}
+        for slot_name, (tex_type, dds_fmt, required) in _SLOTS.items():
+            node = nodes.get(slot_name)
+            if node is None:
+                texture_status[slot_name] = {"node_present": False}
+                if required:
+                    result["issues"].append(
+                        f"'{slot_name}' texture node missing from material '{mat.name}'. "
+                        "Click 'Setup FO4 Materials' to rebuild the node tree."
+                    )
+                continue
+
+            img = node.image
+            slot_info = {
+                "node_present": True,
+                "image_loaded": bool(img),
+                "image_name": img.name if img else None,
+            }
+
+            if img:
+                fp = bpy.path.abspath(img.filepath) if img.filepath else ""
+                ext = os.path.splitext(fp)[1].lower() if fp else ""
+                slot_info["is_dds"] = (ext == ".dds")
+                slot_info["filepath"] = fp
+                slot_info["colorspace"] = getattr(
+                    getattr(img, "colorspace_settings", None), "name", None
+                )
+
+                # DDS format check
+                if fp and ext != ".dds":
+                    result["issues"].append(
+                        f"{slot_name} texture '{os.path.basename(fp)}' is not DDS. "
+                        f"FO4 requires DDS format in-game. Convert to {dds_fmt}."
+                    )
+                    result["suggestions"].append(
+                        f"Use 'Convert to DDS' ({dds_fmt}) on the {slot_name} texture."
+                    )
+
+                # Colorspace check
+                cs = slot_info["colorspace"]
+                if cs:
+                    if slot_name == "Diffuse" and cs not in ("sRGB", "Linear Rec.709"):
+                        result["issues"].append(
+                            f"Diffuse colorspace is '{cs}' — should be 'sRGB' "
+                            "for correct colour in FO4."
+                        )
+                    elif slot_name != "Diffuse" and cs not in ("Non-Color", "Raw"):
+                        result["issues"].append(
+                            f"{slot_name} colorspace is '{cs}' — must be 'Non-Color' "
+                            "to prevent gamma corruption of the texture data."
+                        )
+            else:
+                if required:
+                    result["issues"].append(
+                        f"{slot_name} texture node exists but no image is loaded. "
+                        f"Use 'Install {slot_name}' to bind a texture."
+                    )
+                    result["suggestions"].append(
+                        f"Click 'Install {slot_name.capitalize()}' in the Texture Helpers panel."
+                    )
+
+            texture_status[slot_name] = slot_info
+
+        result["material_status"]["textures"] = texture_status
+
+        # Summary suggestion when everything looks good
+        if not result["issues"]:
+            result["suggestions"].append(
+                "Everything looks good! Click 'Export Mesh (.nif)' to export."
+            )
+
+        return result
+
+    @staticmethod
+    def ask_mossy_uv_texture(obj, extra_question: str = "") -> "str | None":
+        """Query Mossy's AI for UV + texture setup advice for *obj*.
+
+        Builds a structured context report from :meth:`analyze_uv_texture`
+        and POSTs it to Mossy's HTTP ``/ask`` endpoint.
+
+        Returns Mossy's response string, or ``None`` if Mossy is not
+        reachable (caller should fall back to the built-in analysis).
+        """
+        try:
+            from . import mossy_link as _ml
+        except Exception:
+            return None
+
+        analysis = AdvisorHelpers.analyze_uv_texture(obj)
+
+        query = (
+            "I am setting up a Fallout 4 mod mesh in Blender and need help with "
+            "UV mapping and textures for NIF export. "
+            "Review the analysis below and give me clear, numbered, "
+            "beginner-friendly steps to fix any issues and get this ready for export."
+        )
+        if extra_question:
+            query += f" Specifically: {extra_question}"
+
+        return _ml.ask_mossy(query, context_data=analysis, timeout=15)
+
 
 def register():
     pass

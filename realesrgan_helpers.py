@@ -7,75 +7,113 @@ import bpy
 import os
 import subprocess
 import shutil
+import sys
 from pathlib import Path
 
 class RealESRGANHelpers:
     """Helper functions for Real-ESRGAN integration"""
-    
+
+    @staticmethod
+    def _local_ncnn_exe() -> str | None:
+        """Return the path to the locally-installed NCNN Vulkan binary (if any).
+
+        The add-on installs the binary into the tools directory via
+        :func:`tool_installers.install_realesrgan_ncnn`.  This helper looks
+        there first so the binary does **not** need to be on PATH.
+        """
+        try:
+            from . import tool_installers
+            exe = tool_installers.get_realesrgan_ncnn_exe()
+            if exe and exe.is_file():
+                return str(exe)
+        except Exception:
+            pass
+        return None
+
+    @staticmethod
+    def _local_weights_dir() -> str | None:
+        """Return the local model-weights directory (if it has any .pth files)."""
+        try:
+            from . import tool_installers
+            d = tool_installers.get_realesrgan_weights_dir()
+            if any(d.glob("*.pth")):
+                return str(d)
+        except Exception:
+            pass
+        return None
+
     @staticmethod
     def is_realesrgan_available():
-        """Check if Real-ESRGAN is available"""
-        # Check if realesrgan-ncnn-vulkan (the executable) is in PATH
+        """Return True if any Real-ESRGAN method is ready to run."""
+        # 1. Locally installed NCNN Vulkan binary (preferred)
+        if RealESRGANHelpers._local_ncnn_exe():
+            return True
+        # 2. NCNN Vulkan binary found on PATH
         if shutil.which('realesrgan-ncnn-vulkan'):
             return True
-        
-        # Check if inference_realesrgan.py is accessible
-        # This would require Python with Real-ESRGAN installed
+        # 3. Python package (basicsr / realesrgan)
         try:
             import importlib.util
-            spec = importlib.util.find_spec('basicsr')
-            return spec is not None
-        except:
-            return False
-    
+            if importlib.util.find_spec('basicsr') is not None:
+                return True
+        except Exception:
+            pass
+        return False
+
+    @staticmethod
+    def get_install_status() -> tuple[bool, str]:
+        """Return (available, human-readable status string) for UI display."""
+        local_exe = RealESRGANHelpers._local_ncnn_exe()
+        if local_exe:
+            return True, f"NCNN Vulkan ready: {os.path.basename(local_exe)}"
+        if shutil.which('realesrgan-ncnn-vulkan'):
+            return True, "NCNN Vulkan ready (PATH)"
+        try:
+            import importlib.util
+            if importlib.util.find_spec('basicsr') is not None:
+                return True, "Python (basicsr) ready"
+        except Exception:
+            pass
+        return False, "Not installed — click 'Install AI Upscaler'"
+
     @staticmethod
     def get_realesrgan_path():
-        """Get the path to Real-ESRGAN executable or script"""
-        # Check for compiled version first (faster)
+        """Return (path_or_sentinel, method) for the best available method.
+
+        Checks (in order):
+          1. Locally installed NCNN Vulkan binary in tools dir.
+          2. NCNN Vulkan binary on PATH.
+          3. Python package (basicsr).
+        """
+        local_exe = RealESRGANHelpers._local_ncnn_exe()
+        if local_exe:
+            return local_exe, 'vulkan'
         vulkan_path = shutil.which('realesrgan-ncnn-vulkan')
         if vulkan_path:
             return vulkan_path, 'vulkan'
-        
-        # Check for Python version
         try:
             import importlib.util
-            spec = importlib.util.find_spec('basicsr')
-            if spec:
-                # Assume inference_realesrgan.py is available
+            if importlib.util.find_spec('basicsr') is not None:
                 return 'python', 'python'
-        except:
+        except Exception:
             pass
-        
         return None, None
     
     @staticmethod
     def check_realesrgan_installation():
-        """
-        Check Real-ESRGAN installation and return status message
+        """Check Real-ESRGAN installation and return a detailed status message.
+
         Returns: (bool success, str message)
         """
-        path, method = RealESRGANHelpers.get_realesrgan_path()
-        
-        if path:
-            if method == 'vulkan':
-                return True, f"Real-ESRGAN (Vulkan) found at: {path}"
-            else:
-                return True, "Real-ESRGAN (Python) is available"
-        else:
-            install_msg = (
-                "Real-ESRGAN not found. To install:\n\n"
-                "Method 1 - Python version (Recommended):\n"
-                "1. Clone: gh repo clone xinntao/Real-ESRGAN\n"
-                "2. cd Real-ESRGAN\n"
-                "3. pip install basicsr facexlib gfpgan\n"
-                "4. pip install -r requirements.txt\n"
-                "5. Download models: python download_models.py\n\n"
-                "Method 2 - Vulkan version (Faster, no Python deps):\n"
-                "1. Download from: github.com/xinntao/Real-ESRGAN/releases\n"
-                "2. Extract and add to PATH\n\n"
-                "See NVIDIA_RESOURCES.md for details"
-            )
-            return False, install_msg
+        available, status = RealESRGANHelpers.get_install_status()
+        if available:
+            return True, f"Real-ESRGAN is ready — {status}"
+        return False, (
+            "Real-ESRGAN is not installed yet.\n\n"
+            "Click 'Install AI Upscaler' in the Texture Helpers panel for a "
+            "fully automatic one-click installation. No external subscriptions "
+            "or manual steps required."
+        )
     
     @staticmethod
     def upscale_texture_vulkan(input_path, output_path=None, scale=4, model='realesr-animevideov3'):
@@ -361,6 +399,103 @@ class RealESRGANHelpers:
         else:
             return False, "Failed to upscale any textures", []
     
+    @staticmethod
+    def _nearest_power_of_two(n):
+        """Return the nearest power of two >= *n* (minimum 1).
+
+        When *n* is exactly a power of two it is returned unchanged.
+        When *n* falls between two powers of two, the closer one is chosen;
+        ties round up.
+        """
+        if n < 1:
+            return 1
+        p = 1
+        while p < n:
+            p <<= 1
+        # p is the first power-of-two >= n.
+        # If p == n it is already exact; if p > n choose the nearest.
+        if p == n or (p - n) <= (n - p // 2):
+            return p
+        return p // 2
+
+    @staticmethod
+    def upscale_krea_legacy_style(input_path, output_path=None, scale=4):
+        """
+        Upscale a texture using a KREA AI Legacy-style approach.
+
+        Uses Real-ESRGAN (RealESRGAN_x4plus model) when available for the best
+        quality result.  Falls back to high-quality Lanczos upscaling combined
+        with an unsharp-mask sharpening pass to approximate the crisp, detailed
+        output characteristic of the KREA AI Legacy upscaler.
+
+        Args:
+            input_path: Path to the input texture file
+            output_path: Destination path (optional; derived from input if omitted)
+            scale: Integer upscale factor (2 or 4)
+
+        Returns: (bool success, str message)
+        """
+        if not os.path.exists(input_path):
+            return False, f"Input file not found: {input_path}"
+
+        if output_path is None:
+            base, ext = os.path.splitext(input_path)
+            output_path = f"{base}_krea_legacy{ext}"
+
+        # Prefer Real-ESRGAN when available — highest quality
+        if RealESRGANHelpers.is_realesrgan_available():
+            path, method = RealESRGANHelpers.get_realesrgan_path()
+            if method == 'python':
+                success, message = RealESRGANHelpers.upscale_texture_python(
+                    input_path, output_path, scale, model='RealESRGAN_x4plus'
+                )
+                if success:
+                    return True, f"Texture upscaled {scale}x (KREA AI Legacy style via Real-ESRGAN): {output_path}"
+                # Fall through to PIL fallback on failure
+            elif method == 'vulkan':
+                success, message = RealESRGANHelpers.upscale_texture_vulkan(
+                    input_path, output_path, scale, model='realesrgan-x4plus'
+                )
+                if success:
+                    return True, f"Texture upscaled {scale}x (KREA AI Legacy style via Real-ESRGAN Vulkan): {output_path}"
+                # Fall through to PIL fallback on failure
+
+        # Fallback: Lanczos + unsharp mask (always available with Pillow)
+        try:
+            from PIL import Image, ImageFilter, ImageEnhance
+        except ImportError:
+            return False, (
+                "Neither Real-ESRGAN nor Pillow is available. "
+                "Install Pillow with: pip install Pillow"
+            )
+
+        try:
+            img = Image.open(input_path)
+            orig_width, orig_height = img.size
+
+            # Round to the nearest power of 2 (Fallout 4 requirement).
+            new_width  = RealESRGANHelpers._nearest_power_of_two(orig_width  * scale)
+            new_height = RealESRGANHelpers._nearest_power_of_two(orig_height * scale)
+
+            # High-quality Lanczos resample
+            upscaled = img.resize((new_width, new_height), Image.LANCZOS)
+
+            # Unsharp mask to recover fine detail (KREA Legacy characteristic sharpness)
+            upscaled = upscaled.filter(
+                ImageFilter.UnsharpMask(radius=1.5, percent=130, threshold=3)
+            )
+
+            # Subtle contrast boost for richer appearance
+            upscaled = ImageEnhance.Contrast(upscaled).enhance(1.05)
+
+            upscaled.save(output_path)
+            return True, (
+                f"Texture upscaled to {new_width}×{new_height} (KREA AI Legacy style): {output_path}. "
+                "Convert to DDS (BC1/BC3/BC5) before importing into Fallout 4."
+            )
+        except Exception as e:
+            return False, f"Failed to upscale texture: {str(e)}"
+
     @staticmethod
     def get_recommended_scale(image_width, image_height):
         """
