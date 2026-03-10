@@ -420,21 +420,39 @@ class AdvisorHelpers:
 
         nodes = mat.node_tree.nodes
 
-        # Per-slot texture analysis
+        # Per-slot texture analysis.
+        # node_name  = the Blender node name used to look up the node
+        #              (must match what setup_fo4_material creates).
+        # display    = human-readable slot label used in messages.
+        # tex_type   = internal enum for texture install helpers.
+        # dds_fmt    = DDS compression hint shown to the user.
+        # required   = whether an absent / empty node is an error.
+        # is_colour  = True for sRGB slots; False for Non-Color/data slots.
+        #
+        # The diffuse node was renamed from "Diffuse" to "Base" so that its
+        # label matches TEX_SLOTS.BASE = "Base" in niftools consts.py.
+        # The niftools exporter uses a CONTAINS check on the node label, so
+        # the label must contain the exact TEX_SLOTS string.  "Diffuse" is not
+        # in that set and causes "Do not know how to export texture node …".
         _SLOTS = {
-            "Diffuse":  ("DIFFUSE",  "BC1 (DXT1) or BC3 if alpha needed",  True),
-            "Normal":   ("NORMAL",   "BC5 (ATI2) two-channel tangent-space", True),
-            "Specular": ("SPECULAR", "BC1 (DXT1)",                          False),
-            "Glow":     ("GLOW",     "BC1 (DXT1)",                          False),
+            "Base":     ("DIFFUSE",  "Diffuse / albedo",
+                         "BC1 (DXT1) or BC3 if alpha needed",  True,  True),
+            "Normal":   ("NORMAL",   "Normal map",
+                         "BC5 (ATI2) two-channel tangent-space", True,  False),
+            "Specular": ("SPECULAR", "Specular",
+                         "BC1 (DXT1)",                          False, False),
+            "Glow":     ("GLOW",     "Glow / emissive",
+                         "BC1 (DXT1)",                          False, False),
         }
         texture_status = {}
-        for slot_name, (tex_type, dds_fmt, required) in _SLOTS.items():
-            node = nodes.get(slot_name)
+        for node_name, (tex_type, display, dds_fmt, required, is_colour) in _SLOTS.items():
+            node = nodes.get(node_name)
             if node is None:
-                texture_status[slot_name] = {"node_present": False}
+                texture_status[node_name] = {"node_present": False}
                 if required:
                     result["issues"].append(
-                        f"'{slot_name}' texture node missing from material '{mat.name}'. "
+                        f"'{display}' texture node (named '{node_name}') is missing "
+                        f"from material '{mat.name}'. "
                         "Click 'Setup FO4 Materials' to rebuild the node tree."
                     )
                 continue
@@ -458,37 +476,37 @@ class AdvisorHelpers:
                 # DDS format check
                 if fp and ext != ".dds":
                     result["issues"].append(
-                        f"{slot_name} texture '{os.path.basename(fp)}' is not DDS. "
+                        f"{display} texture '{os.path.basename(fp)}' is not DDS. "
                         f"FO4 requires DDS format in-game. Convert to {dds_fmt}."
                     )
                     result["suggestions"].append(
-                        f"Use 'Convert to DDS' ({dds_fmt}) on the {slot_name} texture."
+                        f"Use 'Convert to DDS' ({dds_fmt}) on the {display} texture."
                     )
 
                 # Colorspace check
                 cs = slot_info["colorspace"]
                 if cs:
-                    if slot_name == "Diffuse" and cs not in ("sRGB", "Linear Rec.709"):
+                    if is_colour and cs not in ("sRGB", "Linear Rec.709"):
                         result["issues"].append(
-                            f"Diffuse colorspace is '{cs}' — should be 'sRGB' "
+                            f"{display} colorspace is '{cs}' — should be 'sRGB' "
                             "for correct colour in FO4."
                         )
-                    elif slot_name != "Diffuse" and cs not in ("Non-Color", "Raw"):
+                    elif not is_colour and cs not in ("Non-Color", "Raw"):
                         result["issues"].append(
-                            f"{slot_name} colorspace is '{cs}' — must be 'Non-Color' "
+                            f"{display} colorspace is '{cs}' — must be 'Non-Color' "
                             "to prevent gamma corruption of the texture data."
                         )
             else:
                 if required:
                     result["issues"].append(
-                        f"{slot_name} texture node exists but no image is loaded. "
-                        f"Use 'Install {slot_name}' to bind a texture."
+                        f"{display} texture node exists but no image is loaded. "
+                        f"Use 'Install {display}' to bind a texture."
                     )
                     result["suggestions"].append(
-                        f"Click 'Install {slot_name.capitalize()}' in the Texture Helpers panel."
+                        f"Click 'Install {display.capitalize()}' in the Texture Helpers panel."
                     )
 
-            texture_status[slot_name] = slot_info
+            texture_status[node_name] = slot_info
 
         result["material_status"]["textures"] = texture_status
 
