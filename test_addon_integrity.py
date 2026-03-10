@@ -459,6 +459,12 @@ def test_fo4_export_settings():
             ("Scale correction", "scale_correction" in content),
             ("Triangulate modifier", "Triangulate" in content),
             ("BSTriShape mention", "BSTriShape" in content),
+            # Automation: scene settings applied automatically before every export
+            ("Auto scene settings method", "_apply_niftools_scene_settings" in content),
+            ("Scene game property set automatically", "niftools_scene" in content and "ns.game" in content),
+            ("NIF version auto-set", "nif_version" in content and "20.2.0.7" in content),
+            ("User version auto-set", "user_version" in content),
+            ("Game enum fallbacks", '"Fallout 4"' in content or "'Fallout 4'" in content),
         ]
 
         failed = []
