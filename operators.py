@@ -121,6 +121,15 @@ class FO4_OT_OptimizeMesh(Operator):
         layout.prop(self, "threshold")
         layout.prop(self, "preserve_uvs")
 
+    def invoke(self, context, event):
+        # load current preferences as defaults so the dialog reflects saved settings
+        prefs = preferences.get_preferences()
+        if prefs:
+            self.apply_transforms = prefs.optimize_apply_transforms
+            self.threshold = prefs.optimize_remove_doubles_threshold
+            self.preserve_uvs = prefs.optimize_preserve_uvs
+        return context.window_manager.invoke_props_dialog(self)
+
     def execute(self, context):
         obj = context.active_object
         
