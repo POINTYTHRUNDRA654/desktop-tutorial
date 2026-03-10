@@ -558,7 +558,8 @@ class ExportHelpers:
                 print(f"[FO4 Add-on] _postprocess_nif_set_collision: could not "
                       f"write '{filepath}': {exc}")
 
-
+    @staticmethod
+    def validate_before_export(obj):
         """Validate object before export"""
         from . import mesh_helpers, texture_helpers, notification_system
         
