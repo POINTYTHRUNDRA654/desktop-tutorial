@@ -609,6 +609,286 @@ def test_fo4_export_settings():
         return False
 
 
+def test_texture_node_labels():
+    """Verify texture node labels and sanitization are correct for Niftools export"""
+    print("\n" + "="*70)
+    print("TEST 7: Verifying texture node labels for Niftools NIF export")
+    print("="*70)
+
+    addon_dir = Path(__file__).parent
+    failed = []
+
+    # ----------------------------------------------------------------
+    # 1. setup_fo4_material must use canonical labels (no suffixes)
+    # ----------------------------------------------------------------
+    texture_helpers_path = addon_dir / "texture_helpers.py"
+    with open(texture_helpers_path, 'r', encoding='utf-8') as f:
+        th_content = f.read()
+
+    canonical_label_checks = [
+        ('Canonical "Diffuse" label present',   'label = "Diffuse"' in th_content),
+        ('Canonical "Normal" label present',    'label = "Normal"' in th_content),
+        ('Canonical "Specular" label present',  'label = "Specular"' in th_content),
+        ('Canonical "Glow" label present',      'label = "Glow"' in th_content),
+        # The old verbose labels must NOT appear in setup_fo4_material
+        ('Old "Diffuse (_d)" label removed',    '"Diffuse (_d)"' not in th_content),
+        ('Old "Normal Map (_n)" label removed', '"Normal Map (_n)"' not in th_content),
+        ('Old "Specular (_s)" label removed',   '"Specular (_s)"' not in th_content),
+        ('Old "Glow/Emissive (_g)" removed',    '"Glow/Emissive (_g)"' not in th_content),
+    ]
+    for check_name, result in canonical_label_checks:
+        if result:
+            print(f"✅ texture_helpers: {check_name}")
+        else:
+            print(f"❌ texture_helpers: {check_name}")
+            failed.append(f"texture_helpers: {check_name}")
+
+    # ----------------------------------------------------------------
+    # 2. ExportHelpers must have the sanitization method
+    # ----------------------------------------------------------------
+    export_helpers_path = addon_dir / "export_helpers.py"
+    with open(export_helpers_path, 'r', encoding='utf-8') as f:
+        eh_content = f.read()
+
+    export_checks = [
+        ("_sanitize_material_node_labels method present",
+         "_sanitize_material_node_labels" in eh_content),
+        # Verify the call appears *inside* _prepare_mesh_for_nif by slicing the
+        # content from the function definition to the next @staticmethod boundary.
+        ("Sanitize called from _prepare_mesh_for_nif",
+         "_sanitize_material_node_labels(obj)" in
+         eh_content[
+             eh_content.find("def _prepare_mesh_for_nif"):
+             eh_content.find("@staticmethod",
+                              eh_content.find("def _prepare_mesh_for_nif") + 1)
+         ]),
+        ("Legacy label Diffuse (_d) handled in sanitize",
+         '"Diffuse (_d)"' in eh_content),
+        ("Legacy label Normal Map (_n) handled in sanitize",
+         '"Normal Map (_n)"' in eh_content),
+        ("Legacy label Specular (_s) handled in sanitize",
+         '"Specular (_s)"' in eh_content),
+        ("Legacy label Glow/Emissive (_g) handled in sanitize",
+         '"Glow/Emissive (_g)"' in eh_content),
+    ]
+    for check_name, result in export_checks:
+        if result:
+            print(f"✅ export_helpers: {check_name}")
+        else:
+            print(f"❌ export_helpers: {check_name}")
+            failed.append(f"export_helpers: {check_name}")
+
+    # ----------------------------------------------------------------
+    # 3. NIFTOOLS_SETUP.md must document the label requirement
+    # ----------------------------------------------------------------
+    niftools_doc_path = addon_dir / "NIFTOOLS_SETUP.md"
+    with open(niftools_doc_path, 'r', encoding='utf-8') as f:
+        doc_content = f.read()
+
+    doc_checks = [
+        ("NIFTOOLS_SETUP documents label error",
+         "Do not know how to export texture node" in doc_content),
+        ("NIFTOOLS_SETUP documents canonical label table",
+         "BSShaderTextureSet slot" in doc_content),
+    ]
+    for check_name, result in doc_checks:
+        if result:
+            print(f"✅ NIFTOOLS_SETUP.md: {check_name}")
+        else:
+            print(f"❌ NIFTOOLS_SETUP.md: {check_name}")
+            failed.append(f"NIFTOOLS_SETUP.md: {check_name}")
+
+    if failed:
+        print(f"\n❌ FAILED: {len(failed)} texture-label check(s) missing")
+        return False
+
+    print(f"\n✅ PASSED: All texture node label checks passed")
+    return True
+
+
+def test_uv_unwrap_quality():
+    """Verify UV unwrapping improvements and hybrid workflow are implemented"""
+    print("\n" + "="*70)
+    print("TEST 8: Verifying UV unwrap quality + hybrid workflow")
+    print("="*70)
+
+    addon_dir = Path(__file__).parent
+    failed = []
+
+    # ----------------------------------------------------------------
+    # advanced_mesh_helpers — optimize_uvs + new helpers
+    # ----------------------------------------------------------------
+    adv_path = addon_dir / "advanced_mesh_helpers.py"
+    with open(adv_path, 'r', encoding='utf-8') as f:
+        adv_content = f.read()
+
+    adv_checks = [
+        # MIN_STRETCH is now the default method
+        ("optimize_uvs default is 'MIN_STRETCH'",
+         "method='MIN_STRETCH'" in adv_content),
+        # MIN_STRETCH pipeline: CONFORMAL + minimize_stretch(100)
+        ("optimize_uvs MIN_STRETCH uses CONFORMAL layout",
+         "method='CONFORMAL'" in adv_content),
+        ("optimize_uvs MIN_STRETCH runs minimize_stretch with 100 iterations",
+         "minimize_stretch(fill_holes=True, iterations=100)" in adv_content),
+        # ANGLE still works (critical bug fix from previous session)
+        ("optimize_uvs handles 'ANGLE' method",
+         "'ANGLE'" in adv_content and "ANGLE_BASED" in adv_content),
+        # Backward-compat alias
+        ("optimize_uvs handles legacy 'UNWRAP' alias",
+         "'UNWRAP'" in adv_content),
+        # Safe mode restoration
+        ("optimize_uvs has try/finally for mode restoration",
+         "try:" in adv_content and "finally:" in adv_content
+         and "mode_set(mode='OBJECT')" in adv_content),
+        # Restores previously active object
+        ("optimize_uvs restores prev_active",
+         "prev_active" in adv_content),
+        # Better packing
+        ("optimize_uvs uses rotate=True in pack_islands",
+         "pack_islands(rotate=True" in adv_content),
+        # cube_project margin
+        ("optimize_uvs passes cube_size to cube_project",
+         "cube_project(cube_size=1.0)" in adv_content),
+        # New hybrid helpers
+        ("scan_uv_complexity method present",
+         "def scan_uv_complexity" in adv_content),
+        ("scan_uv_complexity detects high-valence vertices (plant/foliage)",
+         "high_valence_verts" in adv_content),
+        ("scan_uv_complexity returns complexity_score key",
+         "'complexity_score'" in adv_content),
+        ("scan_uv_complexity returns recommendations key",
+         "'recommendations'" in adv_content),
+        ("auto_mark_seams method present",
+         "def auto_mark_seams" in adv_content),
+        ("auto_mark_seams marks boundary edges as seams",
+         "is_boundary" in adv_content and "edge.seam = True" in adv_content),
+        ("auto_mark_seams respects existing seams by default",
+         "clear_existing" in adv_content),
+        ("auto_mark_seams uses dihedral angle threshold",
+         "calc_face_angle" in adv_content and "threshold_rad" in adv_content),
+    ]
+    for check_name, result in adv_checks:
+        if result:
+            print(f"✅ advanced_mesh_helpers: {check_name}")
+        else:
+            print(f"❌ advanced_mesh_helpers: {check_name}")
+            failed.append(f"advanced_mesh_helpers: {check_name}")
+
+    # ----------------------------------------------------------------
+    # mesh_helpers.setup_uv_with_texture
+    # ----------------------------------------------------------------
+    mesh_path = addon_dir / "mesh_helpers.py"
+    with open(mesh_path, 'r', encoding='utf-8') as f:
+        mesh_content = f.read()
+
+    mesh_checks = [
+        # MIN_STRETCH is the new default
+        ("setup_uv_with_texture default is 'MIN_STRETCH'",
+         "unwrap_method='MIN_STRETCH'" in mesh_content),
+        # MIN_STRETCH pipeline uses CONFORMAL + minimize_stretch
+        ("setup_uv_with_texture MIN_STRETCH uses CONFORMAL",
+         "method='CONFORMAL'" in mesh_content),
+        ("setup_uv_with_texture MIN_STRETCH uses minimize_stretch",
+         "minimize_stretch" in mesh_content),
+        # ANGLE method primes with Smart UV then refines
+        ("setup_uv_with_texture ANGLE method primes with smart_project",
+         "unwrap_method == 'ANGLE'" in mesh_content
+         and "smart_project" in mesh_content),
+        # Better packing
+        ("setup_uv_with_texture uses rotate=True in pack_islands",
+         "pack_islands(rotate=True" in mesh_content),
+    ]
+    for check_name, result in mesh_checks:
+        if result:
+            print(f"✅ mesh_helpers: {check_name}")
+        else:
+            print(f"❌ mesh_helpers: {check_name}")
+            failed.append(f"mesh_helpers: {check_name}")
+
+    # ----------------------------------------------------------------
+    # operators.py — enum items, defaults, and new operators
+    # ----------------------------------------------------------------
+    import re as _re
+
+    ops_path = addon_dir / "operators.py"
+    with open(ops_path, 'r', encoding='utf-8') as f:
+        ops_content = f.read()
+
+    _unwrap_enum_pattern = _re.compile(r"\(\s*'UNWRAP'\s*,")
+    _min_stretch_default  = _re.compile(r"default\s*=\s*'MIN_STRETCH'")
+
+    ops_checks = [
+        # MIN_STRETCH is the default in all UV operators
+        ("UV operators default to 'MIN_STRETCH'",
+         len(_min_stretch_default.findall(ops_content)) >= 3),
+        # MIN_STRETCH enum item present
+        ("Operators expose 'MIN_STRETCH' enum item",
+         "('MIN_STRETCH'," in ops_content),
+        # Old broken 'UNWRAP' item is gone
+        ("Operators no longer expose 'UNWRAP' enum item",
+         not _unwrap_enum_pattern.search(ops_content)),
+        # ANGLE still present
+        ("Operators have 'ANGLE' enum item",
+         "'ANGLE'" in ops_content),
+        # New hybrid operators registered
+        ("FO4_OT_ScanUVComplexity class defined",
+         "class FO4_OT_ScanUVComplexity" in ops_content),
+        ("FO4_OT_SmartSeamMark class defined",
+         "class FO4_OT_SmartSeamMark" in ops_content),
+        ("FO4_OT_HybridUnwrap class defined",
+         "class FO4_OT_HybridUnwrap" in ops_content),
+        ("FO4_OT_ScanUVComplexity registered in classes tuple",
+         "FO4_OT_ScanUVComplexity," in ops_content),
+        ("FO4_OT_SmartSeamMark registered in classes tuple",
+         "FO4_OT_SmartSeamMark," in ops_content),
+        ("FO4_OT_HybridUnwrap registered in classes tuple",
+         "FO4_OT_HybridUnwrap," in ops_content),
+        # HybridUnwrap uses CONFORMAL + minimize_stretch (not smart_project)
+        ("HybridUnwrap uses CONFORMAL unwrap",
+         "fo4.hybrid_unwrap" in ops_content and "method='CONFORMAL'" in ops_content),
+        # SmartSeamMark enters edge-select edit mode after marking
+        ("SmartSeamMark enters Edge Select edit mode",
+         "mesh_select_mode" in ops_content
+         and "(False, True, False)" in ops_content),
+    ]
+    for check_name, result in ops_checks:
+        if result:
+            print(f"✅ operators: {check_name}")
+        else:
+            print(f"❌ operators: {check_name}")
+            failed.append(f"operators: {check_name}")
+
+    # ----------------------------------------------------------------
+    # ui_panels.py — hybrid workflow buttons present
+    # ----------------------------------------------------------------
+    ui_path = addon_dir / "ui_panels.py"
+    with open(ui_path, 'r', encoding='utf-8') as f:
+        ui_content = f.read()
+
+    ui_checks = [
+        ("UI panel has Scan UV Complexity button",
+         "fo4.scan_uv_complexity" in ui_content),
+        ("UI panel has Scan & Mark Seams button",
+         "fo4.smart_seam_mark" in ui_content),
+        ("UI panel has Hybrid Unwrap button",
+         "fo4.hybrid_unwrap" in ui_content),
+    ]
+    for check_name, result in ui_checks:
+        if result:
+            print(f"✅ ui_panels: {check_name}")
+        else:
+            print(f"❌ ui_panels: {check_name}")
+            failed.append(f"ui_panels: {check_name}")
+
+    if failed:
+        print(f"\n❌ FAILED: {len(failed)} UV quality check(s) missing")
+        return False
+
+    print(f"\n✅ PASSED: All UV unwrap quality + hybrid workflow checks passed")
+    return True
+
+
 def test_d_drive_paths():
     """Verify D: drive path configuration"""
     print("\n" + "="*70)
@@ -668,6 +948,8 @@ def run_all_tests():
         ("Export Functions", test_export_functions),
         ("Tool Helpers", test_tool_helpers),
         ("FO4 Export Settings", test_fo4_export_settings),
+        ("Texture Node Labels", test_texture_node_labels),
+        ("UV Unwrap Quality", test_uv_unwrap_quality),
         ("D: Drive Paths", test_d_drive_paths),
     ]
 

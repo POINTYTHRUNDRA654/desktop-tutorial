@@ -963,18 +963,70 @@ class ExportHelpers:
             pass
 
     @staticmethod
+    def _sanitize_material_node_labels(obj):
+        """Rename texture node labels so Niftools v0.1.1 can map them to texture slots.
+
+        Niftools uses each image-texture node's **label** (not its name) to
+        determine which ``BSShaderTextureSet`` slot to write the texture into.
+        When a node's label contains parenthetical suffix hints like
+        ``"Diffuse (_d)"`` or ``"Normal Map (_n)"`` the exporter raises:
+
+            "Do not know how to export texture node … with label … Delete it
+            or change its label."
+
+        This method strips those unrecognised labels back to the bare slot names
+        that the exporter expects:
+
+        ============  ==================  ===========
+        Canonical     Legacy labels       NIF slot
+        ============  ==================  ===========
+        ``Diffuse``   Diffuse (_d)        slot 0
+        ``Normal``    Normal Map (_n)     slot 1
+        ``Specular``  Specular (_s)       slot 3
+        ``Glow``      Glow/Emissive (_g)  slot 2
+        ============  ==================  ===========
+
+        Safe to call on any material tree — nodes whose labels are already
+        canonical (or whose names are not in the known set) are left alone.
+        """
+        _LABEL_FIXES = {
+            # (node name): (canonical label, legacy labels that need renaming)
+            # The first set member for each slot is the label that was actually
+            # emitted by the previous version of setup_fo4_material.  The
+            # upper-case variants guard against accidental manual edits.
+            "Diffuse":  ("Diffuse",  {"Diffuse (_d)", "Diffuse (_D)"}),
+            "Normal":   ("Normal",   {"Normal Map (_n)", "Normal Map (_N)"}),
+            "Specular": ("Specular", {"Specular (_s)", "Specular (_S)"}),
+            "Glow":     ("Glow",     {"Glow/Emissive (_g)", "Glow/Emissive (_G)"}),
+        }
+        if not obj.data.materials:
+            return
+        for mat in obj.data.materials:
+            if not mat or not mat.use_nodes:
+                continue
+            for node_name, (canonical, legacy_set) in _LABEL_FIXES.items():
+                node = mat.node_tree.nodes.get(node_name)
+                if node is None:
+                    continue
+                if node.label in legacy_set:
+                    node.label = canonical
+
+    @staticmethod
     def _prepare_mesh_for_nif(obj):
         """Prepare a mesh object so it meets Fallout 4 / Niftools v0.1.1 requirements.
 
         Performs (in order):
-          1. Apply pending scale and rotation transforms – unapplied transforms
+          1. Sanitise material node labels so Niftools can map every image node
+             to the correct BSShaderTextureSet slot (fixes the "Do not know how
+             to export texture node … with label …" error).
+          2. Apply pending scale and rotation transforms – unapplied transforms
              are the single most common cause of distorted geometry in-game.
-          2. Ensure at least one UV map exists – the Niftools exporter requires
+          3. Ensure at least one UV map exists – the Niftools exporter requires
              UV coordinates on every exported mesh.
-          3. Add a temporary ``_FO4_Triangulate`` modifier when the mesh
+          4. Add a temporary ``_FO4_Triangulate`` modifier when the mesh
              contains quads or n-gons, because FO4 BSTriShape only stores
              triangles and the exporter does NOT auto-triangulate.
-          4. Enable Auto Smooth for consistent tangent/normal export (skipped
+          5. Enable Auto Smooth for consistent tangent/normal export (skipped
              silently on Blender 4.x where the attribute was removed).
 
         Returns a list of modifier names that were added.  The caller must
@@ -988,7 +1040,17 @@ class ExportHelpers:
         bpy.context.view_layer.objects.active = obj
         obj.select_set(True)
 
-        # 1. Apply scale and rotation -----------------------------------------
+        # 1. Sanitise material node labels ---------------------------------------
+        #    Niftools uses each image-texture node's label to choose the target
+        #    BSShaderTextureSet slot.  Labels like "Diffuse (_d)" or
+        #    "Normal Map (_n)" are not in its recognised set and cause:
+        #        "Do not know how to export texture node … with label …"
+        #    Renaming them to the bare canonical labels ("Diffuse", "Normal", …)
+        #    before export silently fixes both freshly created and older materials
+        #    that were set up with the previous verbose label scheme.
+        ExportHelpers._sanitize_material_node_labels(obj)
+
+        # 2. Apply scale and rotation -----------------------------------------
         #    Unapplied scale causes geometry to arrive at the wrong size in FO4;
         #    unapplied rotation causes normals to point in the wrong direction.
         try:
@@ -1003,7 +1065,7 @@ class ExportHelpers:
             except Exception:
                 pass  # context may not support transform_apply; continue anyway
 
-        # 2. Ensure UV map -------------------------------------------------------
+        # 3. Ensure UV map -------------------------------------------------------
         #    Niftools v0.1.1 raises an error if no UV map is present.
         if not obj.data.uv_layers:
             obj.data.uv_layers.new(name="UVMap")
@@ -1018,7 +1080,7 @@ class ExportHelpers:
                 except Exception:
                     pass
 
-        # 3. Triangulate ---------------------------------------------------------
+        # 4. Triangulate ---------------------------------------------------------
         #    Fallout 4 BSTriShape nodes only store triangles.  If the mesh has
         #    quads or n-gons, add a Triangulate modifier (removed after export).
         has_non_tris = any(len(p.vertices) > 3 for p in obj.data.polygons)
@@ -1032,7 +1094,7 @@ class ExportHelpers:
                 pass  # older Blender builds lack this flag
             added_modifiers.append(mod.name)
 
-        # 4. Auto Smooth ---------------------------------------------------------
+        # 5. Auto Smooth ---------------------------------------------------------
         #    Ensures the exported tangent vectors are coherent with the mesh
         #    normals.  Removed in Blender 4.x (use_auto_smooth no longer exists).
         try:

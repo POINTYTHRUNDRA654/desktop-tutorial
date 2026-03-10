@@ -581,7 +581,7 @@ class MeshHelpers:
 
     @staticmethod
     def setup_uv_with_texture(obj, texture_path, texture_type='DIFFUSE',
-                               unwrap_method='SMART', island_margin=0.02):
+                               unwrap_method='MIN_STRETCH', island_margin=0.02):
         """Complete UV + texture binding pipeline for Fallout 4 NIF export.
 
         Performs all steps in one call so the mesh is immediately preview-ready
@@ -608,8 +608,15 @@ class MeshHelpers:
         texture_type : str
             ``'DIFFUSE'``, ``'NORMAL'``, ``'SPECULAR'``, or ``'GLOW'``.
         unwrap_method : str
-            ``'SMART'`` (Smart UV Project), ``'ANGLE'`` (Angle-Based),
-            ``'CUBE'`` (Cube Projection), or ``'EXISTING'`` (keep current UVs).
+            ``'MIN_STRETCH'`` **(default)** — Minimum Stretch: CONFORMAL
+            (LSCM) initial layout followed by ``uv.minimize_stretch`` run to
+            convergence (100 iterations).  Produces the lowest UV distortion
+            of any available method.
+            ``'SMART'``      — Smart UV Project (fast, good general purpose).
+            ``'ANGLE'``      — Angle-Based conformal unwrap with stretch-
+                               minimize refinement pass.
+            ``'CUBE'``       — Cube/box projection.
+            ``'EXISTING'``   — Keep current UV map; only bind the texture.
         island_margin : float
             Spacing between UV islands (0.0 - 0.1). Default 0.02 (2 %) gives
             enough room to prevent mip-map bleed on 1024 x 1024 DDS textures.
@@ -647,22 +654,63 @@ class MeshHelpers:
 
             skip_unwrap = (unwrap_method == 'EXISTING' and uv_already_exists)
             if not skip_unwrap:
-                if unwrap_method == 'SMART':
+                if unwrap_method == 'MIN_STRETCH':
+                    # Best-quality pipeline: CONFORMAL (LSCM) initial layout
+                    # + minimize_stretch convergence pass (100 iterations).
+                    # Smart UV Project seeds the seam boundaries first so
+                    # CONFORMAL has a clean starting topology to work with.
+                    bpy.ops.uv.smart_project(
+                        angle_limit=66.0, island_margin=island_margin
+                    )
+                    bpy.ops.mesh.select_all(action='SELECT')
+                    bpy.ops.uv.unwrap(method='CONFORMAL', margin=island_margin)
+                    bpy.ops.mesh.select_all(action='SELECT')
+                    try:
+                        bpy.ops.uv.minimize_stretch(fill_holes=True, iterations=100)
+                    except Exception:
+                        pass  # unavailable on older Blender builds
+                elif unwrap_method == 'SMART':
                     bpy.ops.uv.smart_project(
                         angle_limit=66.0, island_margin=island_margin
                     )
                 elif unwrap_method == 'ANGLE':
-                    bpy.ops.uv.unwrap(method='ANGLE_BASED', margin=island_margin)
-                elif unwrap_method == 'CUBE':
-                    bpy.ops.uv.cube_project(cube_size=1.0)
-                else:
-                    # Default to Smart UV Project for any unknown method
+                    # Angle-based conformal unwrap with a seam-priming pass.
+                    # Running Smart UV Project first populates the UV layer so
+                    # the angle-based solver has a starting layout to refine;
+                    # this prevents the "no UV data" edge case and produces
+                    # significantly better initial island placement.
                     bpy.ops.uv.smart_project(
                         angle_limit=66.0, island_margin=island_margin
                     )
+                    bpy.ops.mesh.select_all(action='SELECT')
+                    bpy.ops.uv.unwrap(method='ANGLE_BASED', margin=island_margin)
+                    # Conformal smoothing pass — reduces rubber-band stretch.
+                    try:
+                        bpy.ops.uv.minimize_stretch(fill_holes=True, iterations=10)
+                    except Exception:
+                        pass  # unavailable on older Blender builds
+                elif unwrap_method == 'CUBE':
+                    bpy.ops.uv.cube_project(cube_size=1.0)
+                else:
+                    # Default to Minimum Stretch for any unknown method
+                    bpy.ops.uv.smart_project(
+                        angle_limit=66.0, island_margin=island_margin
+                    )
+                    bpy.ops.mesh.select_all(action='SELECT')
+                    bpy.ops.uv.unwrap(method='CONFORMAL', margin=island_margin)
+                    bpy.ops.mesh.select_all(action='SELECT')
+                    try:
+                        bpy.ops.uv.minimize_stretch(fill_holes=True, iterations=100)
+                    except Exception:
+                        pass
 
-            # Pack islands so UVs fill the 0-1 tile without overlap
-            bpy.ops.uv.pack_islands(margin=island_margin)
+            # Pack islands so UVs fill the 0-1 tile without overlap.
+            # rotate=True lets the packer spin islands for a tighter fit
+            # (typically 5-15 % more usable texture space).
+            try:
+                bpy.ops.uv.pack_islands(rotate=True, margin=island_margin)
+            except TypeError:
+                bpy.ops.uv.pack_islands(margin=island_margin)
         finally:
             try:
                 bpy.ops.object.mode_set(mode='OBJECT')

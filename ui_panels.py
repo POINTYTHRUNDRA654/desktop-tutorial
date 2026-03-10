@@ -144,6 +144,33 @@ class FO4_PT_MeshPanel(Panel):
                 icon='TEXTURE',
             )
 
+            # Step 1b — Hybrid workflow for complex / organic meshes
+            uv_box.separator()
+            uv_box.label(
+                text="Complex Mesh? (plants, foliage, armor) →",
+                icon='QUESTION',
+            )
+            row = uv_box.row()
+            row.enabled = has_mesh
+            row.operator(
+                "fo4.scan_uv_complexity",
+                text="Scan UV Complexity",
+                icon='VIEWZOOM',
+            )
+            row = uv_box.row(align=True)
+            row.enabled = has_mesh
+            row.operator(
+                "fo4.smart_seam_mark",
+                text="Scan & Mark Seams",
+                icon='MOD_EDGESPLIT',
+            )
+            row.operator(
+                "fo4.hybrid_unwrap",
+                text="Hybrid Unwrap",
+                icon='UV_SYNC_SELECT',
+            )
+            uv_box.separator()
+
             # Step 2 — re-unwrap if needed
             uv_box.label(text="Step 2 — Adjust UV Map if needed:", icon='FORWARD')
             row = uv_box.row(align=True)
@@ -205,6 +232,15 @@ class FO4_PT_MeshPanel(Panel):
             row = uv_box.row()
             row.enabled = has_mesh
             row.operator("fo4.setup_uv_with_texture", text="Setup UV + Texture", icon='TEXTURE')
+            # Hybrid workflow for complex / organic meshes
+            uv_box.label(text="Complex Mesh? (plants, foliage, armor) →", icon='QUESTION')
+            row = uv_box.row()
+            row.enabled = has_mesh
+            row.operator("fo4.scan_uv_complexity", text="Scan Complexity", icon='VIEWZOOM')
+            row = uv_box.row(align=True)
+            row.enabled = has_mesh
+            row.operator("fo4.smart_seam_mark", text="Mark Seams", icon='MOD_EDGESPLIT')
+            row.operator("fo4.hybrid_unwrap",   text="Hybrid Unwrap", icon='UV_SYNC_SELECT')
             row = uv_box.row(align=True)
             row.enabled = has_mesh
             row.operator("fo4.re_unwrap_uv",  text="Re-Unwrap",     icon='UV_SYNC_SELECT')
