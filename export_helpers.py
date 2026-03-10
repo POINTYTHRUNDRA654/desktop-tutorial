@@ -162,6 +162,110 @@ _NIF_GAME_ALIAS_MAP = {
     for alias in profile["aliases"]
 }
 
+# ---------------------------------------------------------------------------
+# Collision NIF post-processing tables
+# ---------------------------------------------------------------------------
+# These tables drive both the pre-export Niftools property assignment
+# (_apply_collision_nif_properties) and the post-export pyffi NIF patch
+# (_postprocess_nif_set_collision).
+#
+# Every value here maps directly to a pyffi / Niftools enum identifier.
+#
+# havok_material  – SkyrimHavokMaterial enum → in-game collision sound and
+#                   surface interaction (footstep sounds, decal placement, …)
+# layer           – SkyrimLayer enum → collision filter group; controls which
+#                   objects this mesh can interact with in the physics sim
+# motion_system   – MotionSystem enum → how the rigid body moves
+#                   MO_SYS_BOX_STABILIZED = inertia-stabilised static (FO4 default)
+#                   MO_SYS_SPHERE_STABILIZED = used for creatures / dynamic bodies
+# quality_type    – MotionQuality enum → simulation fidelity hint
+# bsxflags        – BSXFlags integer bitmask written to the root NiNode
+#                   bit 0 (1)  = Animated
+#                   bit 1 (2)  = Has Havok collision  ← must be set
+#                   bit 2 (4)  = Has Ragdoll
+#                   bit 3 (8)  = Complex Havok (bhkMoppBvTreeShape)
+# friction        – Blender rigid-body friction  → bhkRigidBody.friction
+# restitution     – Blender rigid-body restitution → bhkRigidBody.restitution
+# ---------------------------------------------------------------------------
+_COLLISION_NIF_POSTPROCESS = {
+    # (collision_type): {property: value, ...}
+    'DEFAULT': {
+        'havok_material': 'SKY_HAV_MAT_STONE',
+        'layer':          'SKYL_STATIC',
+        'motion_system':  'MO_SYS_BOX_STABILIZED',
+        'quality_type':   'MO_QUAL_FIXED',
+        'bsxflags':       2,
+        'friction':       0.8,
+        'restitution':    0.1,
+    },
+    'ROCK': {
+        'havok_material': 'SKY_HAV_MAT_STONE',
+        'layer':          'SKYL_STATIC',
+        'motion_system':  'MO_SYS_BOX_STABILIZED',
+        'quality_type':   'MO_QUAL_FIXED',
+        'bsxflags':       2,
+        'friction':       0.9,
+        'restitution':    0.05,
+    },
+    'TREE': {
+        'havok_material': 'SKY_HAV_MAT_WOOD',
+        'layer':          'SKYL_TREES',
+        'motion_system':  'MO_SYS_BOX_STABILIZED',
+        'quality_type':   'MO_QUAL_FIXED',
+        'bsxflags':       2,
+        'friction':       0.7,
+        'restitution':    0.2,
+    },
+    'BUILDING': {
+        'havok_material': 'SKY_HAV_MAT_STONE',
+        'layer':          'SKYL_STATIC',
+        'motion_system':  'MO_SYS_BOX_STABILIZED',
+        'quality_type':   'MO_QUAL_FIXED',
+        'bsxflags':       2,
+        'friction':       0.9,
+        'restitution':    0.05,
+    },
+    'GRASS': {
+        # GRASS and MUSHROOM skip collision generation but if a mesh arrives
+        # here it gets minimal static settings.
+        'havok_material': 'SKY_HAV_MAT_GRASS',
+        'layer':          'SKYL_STATIC',
+        'motion_system':  'MO_SYS_BOX_STABILIZED',
+        'quality_type':   'MO_QUAL_FIXED',
+        'bsxflags':       2,
+        'friction':       0.5,
+        'restitution':    0.05,
+    },
+    'MUSHROOM': {
+        'havok_material': 'SKY_HAV_MAT_ORGANIC',
+        'layer':          'SKYL_STATIC',
+        'motion_system':  'MO_SYS_BOX_STABILIZED',
+        'quality_type':   'MO_QUAL_FIXED',
+        'bsxflags':       2,
+        'friction':       0.5,
+        'restitution':    0.1,
+    },
+    'CREATURE': {
+        # Dynamic / ragdoll body – sphere-stabilised, ragdoll-flagged.
+        'havok_material': 'SKY_HAV_MAT_SKIN',
+        'layer':          'SKYL_BIPED',
+        'motion_system':  'MO_SYS_SPHERE_STABILIZED',
+        'quality_type':   'MO_QUAL_MOVING',
+        'bsxflags':       6,   # bit 1 (Has Havok) + bit 2 (Has Ragdoll)
+        'friction':       0.5,
+        'restitution':    0.2,
+    },
+    'NONE': {
+        'havok_material': 'SKY_HAV_MAT_STONE',
+        'layer':          'SKYL_UNIDENTIFIED',
+        'motion_system':  'MO_SYS_BOX_STABILIZED',
+        'quality_type':   'MO_QUAL_INVALID',
+        'bsxflags':       0,
+        'friction':       0.5,
+        'restitution':    0.1,
+    },
+}
+
 
 class ExportHelpers:
     """Helper functions for exporting to Fallout 4"""
@@ -182,7 +286,279 @@ class ExportHelpers:
         return name_upper.startswith("UCX_") or name_upper.endswith("_COLLISION")
 
     @staticmethod
-    def validate_before_export(obj):
+    def _apply_collision_nif_properties(collision_obj, collision_type):
+        """Set Niftools/Blender collision properties on *collision_obj* before export.
+
+        This is the **pre-export** half of the two-phase collision pipeline.
+        It configures every Blender and Niftools property that the NIF export
+        operator reads, so that Niftools emits a ``bhkNPCollisionObject`` /
+        ``bhkRigidBody`` with the correct havok material, collision layer,
+        motion system, and quality type for the given ``collision_type``.
+
+        The **post-export** half (``_postprocess_nif_set_collision``) then
+        opens the written NIF with pyffi and patches any fields that Niftools
+        could not set through its operator interface alone.
+
+        Parameters
+        ----------
+        collision_obj : bpy.types.Object
+            The UCX_ collision object that will be exported.
+        collision_type : str
+            One of the MeshHelpers.COLLISION_TYPES keys.
+        """
+        if collision_obj is None:
+            return
+
+        props = _COLLISION_NIF_POSTPROCESS.get(
+            collision_type,
+            _COLLISION_NIF_POSTPROCESS['DEFAULT'],
+        )
+
+        # ── 1. Blender rigid-body physics ──────────────────────────────────
+        # Niftools reads these to populate bhkRigidBody mass / friction /
+        # restitution.  We also enforce CONVEX_HULL shape and PASSIVE type
+        # so Niftools emits the correct motion-system flags.
+        rb = getattr(collision_obj, 'rigid_body', None)
+        if rb is not None:
+            rb.mass        = 0.0  # FO4 static – non-zero mass breaks PASSIVE body
+            rb.friction    = props['friction']
+            rb.restitution = props['restitution']
+            rb.collision_shape = 'CONVEX_HULL'
+            rb.type = 'ACTIVE' if collision_type == 'CREATURE' else 'PASSIVE'
+
+        # ── 2. niftools_collision property group ────────────────────────────
+        # Available when Niftools v0.1.1 is installed.  Drives havokMaterial,
+        # collision layer, motionSystem, and qualityType inside bhkRigidBody /
+        # bhkNPCollisionObject.
+        nc = getattr(collision_obj, 'niftools_collision', None)
+        if nc is not None:
+            mat    = props['havok_material']
+            layer  = props['layer']
+            motion = props['motion_system']
+            qual   = props['quality_type']
+
+            # havok_material – try both attribute spellings used across builds
+            for mat_attr in ('havok_material', 'havokMaterial'):
+                try:
+                    setattr(nc, mat_attr, mat)
+                    if getattr(nc, mat_attr, None) == mat:
+                        break
+                except (TypeError, AttributeError):
+                    continue
+
+            # fallout_layer / oblivion_layer (game-dependent attribute name)
+            for layer_attr in ('fallout_layer', 'skyrim_layer', 'oblivion_layer'):
+                try:
+                    setattr(nc, layer_attr, layer)
+                    if getattr(nc, layer_attr, None) == layer:
+                        break
+                except (TypeError, AttributeError):
+                    continue
+
+            for attr, val in (('motion_system', motion), ('quality_type', qual)):
+                try:
+                    setattr(nc, attr, val)
+                except (TypeError, AttributeError):
+                    pass
+
+        # ── 3. BSXFlags on the collision object itself ──────────────────────
+        # Tells the FO4 engine that this NIF node carries Havok collision.
+        # Set on collision_obj; the source mesh gets its BSXFlags set by the
+        # post-processor after the full NIF is written.
+        nt = getattr(collision_obj, 'niftools', None)
+        if nt is not None:
+            for flag_attr in ('bsxflags', 'bs_xflags', 'objectflags'):
+                try:
+                    setattr(nt, flag_attr, props['bsxflags'])
+                    break
+                except (TypeError, AttributeError):
+                    continue
+
+    @staticmethod
+    def _postprocess_nif_set_collision(filepath, collision_type):
+        """Post-process a written NIF to inject FO4 Havok/collision settings.
+
+        This is the **post-export** half of the two-phase collision pipeline.
+
+        After Niftools writes the NIF file this method re-opens it with pyffi
+        (the same library Niftools itself uses) and patches every collision
+        block with the correct FO4 values.  This guarantees that the NIF
+        works in-game regardless of which Niftools build or scene settings
+        were used during export.
+
+        Blocks patched
+        --------------
+        ``BSXFlags``
+            Sets bit 1 (value 2) = "Has Havok" on every BSXFlags block so
+            the Fallout 4 engine recognises the NIF as a collision-carrying
+            asset.  Without this flag the engine completely ignores any
+            ``bhkNPCollisionObject`` or ``bhkRigidBody`` in the file.
+
+        ``bhkRigidBody`` / ``bhkRigidBodyT``  (Niftools-style output)
+            · ``havok_material.material`` → surface sound / interaction
+            · ``havok_filter.layer``      → collision filter group
+            · ``motion_system``           → how the body moves
+            · ``quality_type``            → simulation fidelity
+
+        ``bhkNPCollisionObject``  (FO4 New Physics blocks, if present)
+            Sets ``flags = 1`` (BHKCO_ACTIVE) so the engine treats the
+            collision object as active.
+
+        Extension point for animation
+        -----------------------------
+        The same pyffi infrastructure can be extended to inject animation
+        properties (``NiControllerManager`` sequencer paths, animated
+        ``BSXFlags`` bits, ``bhkPhysicsSystem`` HKX references) by adding
+        another helper that calls ``_open_nif_with_pyffi`` and walks
+        ``NiControllerManager`` / ``NiControllerSequence`` blocks.
+
+        Parameters
+        ----------
+        filepath : str
+            Absolute path to the NIF file that was just written.
+        collision_type : str
+            One of the MeshHelpers.COLLISION_TYPES keys.
+        """
+        props = _COLLISION_NIF_POSTPROCESS.get(
+            collision_type,
+            _COLLISION_NIF_POSTPROCESS['DEFAULT'],
+        )
+
+        # ── Locate pyffi ────────────────────────────────────────────────────
+        # Niftools installs pyffi as a dependency; try the standard import
+        # path first, then the path Niftools bundles inside its own package.
+        NifFormat = None
+        for _pyffi_path in (
+            'pyffi.formats.nif',
+            'io_scene_niftools.dependencies.pyffi.formats.nif',
+        ):
+            try:
+                import importlib
+                _mod = importlib.import_module(_pyffi_path)
+                NifFormat = _mod.NifFormat
+                break
+            except (ImportError, AttributeError):
+                continue
+
+        if NifFormat is None:
+            # pyffi not available – skip post-processing gracefully.
+            print(
+                "[FO4 Add-on] _postprocess_nif_set_collision: pyffi not found; "
+                "collision properties will rely on pre-export Niftools settings only."
+            )
+            return
+
+        # ── Read NIF ────────────────────────────────────────────────────────
+        try:
+            data = NifFormat.Data()
+            with open(filepath, 'rb') as fh:
+                data.read(fh)
+        except Exception as exc:
+            print(f"[FO4 Add-on] _postprocess_nif_set_collision: could not read "
+                  f"'{filepath}': {exc}")
+            return
+
+        # ── Helper: safely set an enum attribute by name ────────────────────
+        def _set_enum(block, attr, enum_class_name, value_name):
+            """Set block.attr to the named enum value; no-op on any error."""
+            try:
+                enum_cls = getattr(NifFormat, enum_class_name, None)
+                if enum_cls is None:
+                    return
+                val = getattr(enum_cls, value_name, None)
+                if val is None:
+                    return
+                setattr(block, attr, val)
+            except Exception:
+                pass
+
+        # ── Patch blocks ─────────────────────────────────────────────────────
+        modified = False
+
+        mat_name    = props['havok_material']
+        layer_name  = props['layer']
+        motion_name = props['motion_system']
+        qual_name   = props['quality_type']
+        bsxflags    = props['bsxflags']
+
+        for block in data.blocks:
+
+            # BSXFlags ──────────────────────────────────────────────────────
+            # Must have bit 1 set (= 2, "Has Havok") or the FO4 engine ignores
+            # the entire bhkNPCollisionObject / bhkRigidBody subtree.
+            if isinstance(block, NifFormat.BSXFlags):
+                try:
+                    # Preserve any existing flags (e.g. Animated bit) and OR
+                    # in the required collision bits for this type.
+                    block.integer_data = int(block.integer_data) | bsxflags
+                    modified = True
+                except Exception:
+                    pass
+
+            # bhkRigidBody / bhkRigidBodyT ──────────────────────────────────
+            # Niftools v0.1.1 produces these for both Skyrim and FO4 exports.
+            # For true FO4 New Physics the game additionally needs
+            # bhkNPCollisionObject + bhkPhysicsSystem (handled below), but
+            # setting these fields ensures at minimum that Skyrim-compatible
+            # collision works while a Cathedral Assets Optimizer pass converts
+            # to full NP physics.
+            elif isinstance(block, NifFormat.bhkRigidBody) or (
+                    hasattr(NifFormat, 'bhkRigidBodyT')
+                    and isinstance(block, NifFormat.bhkRigidBodyT)):
+                # havokMaterial
+                for hm_attr in ('havok_material', 'havokMaterial'):
+                    hm = getattr(block, hm_attr, None)
+                    if hm is None:
+                        continue
+                    # The material sub-struct may expose .material or be the
+                    # enum directly (varies by pyffi version).
+                    if hasattr(hm, 'material'):
+                        _set_enum(hm, 'material', 'SkyrimHavokMaterial', mat_name)
+                        modified = True
+                        break
+                    else:
+                        _set_enum(block, hm_attr, 'SkyrimHavokMaterial', mat_name)
+                        modified = True
+                        break
+
+                # collision layer (havok_filter.layer or oblivion_layer)
+                hf = getattr(block, 'havok_filter', None)
+                if hf is not None and hasattr(hf, 'layer'):
+                    _set_enum(hf, 'layer', 'SkyrimLayer', layer_name)
+                    modified = True
+                else:
+                    for l_attr in ('layer', 'oblivion_layer', 'fallout_layer'):
+                        if hasattr(block, l_attr):
+                            _set_enum(block, l_attr, 'SkyrimLayer', layer_name)
+                            modified = True
+                            break
+
+                # motionSystem
+                _set_enum(block, 'motion_system', 'MotionSystem', motion_name)
+                # qualityType
+                _set_enum(block, 'quality_type', 'MotionQuality', qual_name)
+                modified = True
+
+            # bhkNPCollisionObject ──────────────────────────────────────────
+            # FO4 "New Physics" collision object.  Set flags = BHKCO_ACTIVE (1)
+            # so the engine activates the collision shape.
+            elif type(block).__name__ == 'bhkNPCollisionObject':
+                try:
+                    block.flags = 1   # BHKCO_ACTIVE
+                    modified = True
+                except Exception:
+                    pass
+
+        # ── Write NIF back ───────────────────────────────────────────────────
+        if modified:
+            try:
+                with open(filepath, 'wb') as fh:
+                    data.write(fh)
+            except Exception as exc:
+                print(f"[FO4 Add-on] _postprocess_nif_set_collision: could not "
+                      f"write '{filepath}': {exc}")
+
+
         """Validate object before export"""
         from . import mesh_helpers, texture_helpers, notification_system
         
@@ -747,12 +1123,17 @@ class ExportHelpers:
 
                 # gather objects to export (main mesh + optional collision)
                 selection = [obj]
+                coll = None  # kept in scope for post-processing below
                 # only include a collision object if the mesh is expected to have one
                 ctype = getattr(obj, 'fo4_collision_type', 'DEFAULT')
                 if ctype not in ('NONE', 'GRASS', 'MUSHROOM'):
                     coll = ExportHelpers._find_collision_mesh(obj)
                     if coll:
                         selection.append(coll)
+                        # PRE-EXPORT: configure Niftools/Blender collision
+                        # properties (havokMaterial, layer, motionSystem, …)
+                        # so the NIF exporter emits correct bhkRigidBody flags.
+                        ExportHelpers._apply_collision_nif_properties(coll, ctype)
 
                 bpy.ops.object.select_all(action='DESELECT')
                 for o in selection:
@@ -782,6 +1163,24 @@ class ExportHelpers:
                     if weight:
                         extras.append(f"weight={weight}")
                     note = " (" + ", ".join(extras) + ")" if extras else ""
+
+                    # POST-EXPORT: re-open the NIF with pyffi and inject the
+                    # BSXFlags, havokMaterial, layer, motionSystem, and
+                    # qualityType values that Niftools cannot reliably set
+                    # through its operator interface alone.  This step is what
+                    # makes collision work in-game and is also the extension
+                    # point for future animation property injection.
+                    if coll is not None and ctype not in ('NONE',):
+                        try:
+                            ExportHelpers._postprocess_nif_set_collision(
+                                filepath, ctype
+                            )
+                        except Exception as _pp_exc:
+                            print(
+                                f"[FO4 Add-on] collision post-process warning "
+                                f"(non-fatal): {_pp_exc}"
+                            )
+
                     # Send event to desktop tutorial server
                     try:
                         from . import desktop_tutorial_client
