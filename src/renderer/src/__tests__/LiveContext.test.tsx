@@ -1,3 +1,18 @@
+/**
+ * LiveContext.test.tsx
+ *
+ * Tests for LiveContext — in particular the four bugs fixed in the
+ * "voice session cannot reconnect" PR:
+ *
+ *  1. Transcription grace-period after speak end (original test, preserved)
+ *  2. Mute gate: handleTranscription is suppressed when isMuted=true.
+ *     The bug was that handleTranscription is a stale closure captured at
+ *     connect() time, so the React isMuted state was invisible to it.
+ *     The fix uses isMutedRef (a mutable ref kept in sync via useEffect).
+ *  3. Unmuting re-enables transcription.
+ *  4. Session-ID filter: transcriptions from an old session are ignored.
+ */
+
 import React from 'react';
 import { render, act } from '@testing-library/react';
 import { vi, describe, it, expect, beforeAll } from 'vitest';
@@ -31,14 +46,23 @@ function Consumer(props: { onCreate: (ctx: any) => void }) {
   return null;
 }
 
+/** Mount a LiveProvider and return a live reference to the context. */
+function mountProvider() {
+  let context: any;
+  render(
+    <LiveProvider>
+      <Consumer onCreate={(c) => { context = c; }} />
+    </LiveProvider>
+  );
+  return { getCtx: () => context };
+}
+
+// ─── Suite 1: speak-end grace period (original test) ─────────────────────────
+
 describe('LiveContext transcription suppression', () => {
   it('ignores transcription within grace period after speak end', async () => {
-    let context: any;
-    render(
-      <LiveProvider>
-        <Consumer onCreate={(c) => { context = c; }} />
-      </LiveProvider>
-    );
+    const { getCtx } = mountProvider();
+    const context = getCtx();
 
     // verify test helpers are present
     expect(context.__test_handleTranscription).toBeDefined();
@@ -51,7 +75,7 @@ describe('LiveContext transcription suppression', () => {
     await act(async () => {
       await context.__test_handleTranscription('hello');
     });
-    expect(context.transcription).toBe('');
+    expect(getCtx().transcription).toBe('');
 
     // simulate time passing beyond grace period
     context.__test_setLastSpeakEnd(Date.now() - 1000);
@@ -59,6 +83,104 @@ describe('LiveContext transcription suppression', () => {
     await act(async () => {
       await context.__test_handleTranscription('world');
     });
-    expect(context.transcription).toBe('world');
+    expect(getCtx().transcription).toBe('world');
+  });
+});
+
+// ─── Suite 2: mute gate (the stale-closure isMutedRef fix) ───────────────────
+
+describe('LiveContext mute gate', () => {
+  it('toggleMute() suppresses handleTranscription via isMutedRef', async () => {
+    const { getCtx } = mountProvider();
+
+    // Mute the session
+    await act(async () => {
+      getCtx().toggleMute();
+    });
+    expect(getCtx().isMuted).toBe(true);
+
+    // Transcription should be silently dropped
+    await act(async () => {
+      await getCtx().__test_handleTranscription('should be ignored');
+    });
+    expect(getCtx().transcription).toBe('');
+  });
+
+  it('unmuting re-enables handleTranscription', async () => {
+    const { getCtx } = mountProvider();
+
+    // Mute then immediately unmute
+    await act(async () => {
+      getCtx().toggleMute(); // now muted
+    });
+    await act(async () => {
+      getCtx().toggleMute(); // now unmuted
+    });
+    expect(getCtx().isMuted).toBe(false);
+
+    // Transcription should now be processed (sendMessageToMain will fail — that
+    // is expected; we just verify transcription state is set before the async AI call)
+    await act(async () => {
+      await getCtx().__test_handleTranscription('accepted');
+    });
+    // The transcription is set synchronously before the AI round-trip
+    expect(getCtx().transcription).toBe('accepted');
+  });
+
+  it('muting does not affect the speak-end grace period', async () => {
+    const { getCtx } = mountProvider();
+
+    // Mute
+    await act(async () => { getCtx().toggleMute(); });
+
+    // Even with mute, grace-period filter should also apply (both are independent guards)
+    getCtx().__test_setLastSpeakEnd(Date.now() - 100); // within grace period
+
+    await act(async () => {
+      await getCtx().__test_handleTranscription('muted-and-within-grace');
+    });
+    expect(getCtx().transcription).toBe('');
+  });
+
+  it('transcription is ignored while muted even after grace period expires', async () => {
+    const { getCtx } = mountProvider();
+
+    // Move past grace period
+    getCtx().__test_setLastSpeakEnd(Date.now() - 1000);
+
+    // Mute
+    await act(async () => { getCtx().toggleMute(); });
+
+    await act(async () => {
+      await getCtx().__test_handleTranscription('muted-past-grace');
+    });
+    expect(getCtx().transcription).toBe('');
+  });
+});
+
+// ─── Suite 3: session-ID filter (existing protection, verified) ──────────────
+
+describe('LiveContext session-ID filter', () => {
+  it('ignores transcriptions from a stale session ID', async () => {
+    const { getCtx } = mountProvider();
+
+    // Call handleTranscription with a session ID that does not match
+    // currentSessionRef.current (which starts at 0)
+    await act(async () => {
+      await getCtx().__test_handleTranscription('stale', 99);
+    });
+    expect(getCtx().transcription).toBe('');
+  });
+
+  it('accepts transcription when session ID is undefined (legacy path)', async () => {
+    const { getCtx } = mountProvider();
+    getCtx().__test_setLastSpeakEnd(Date.now() - 1000); // past grace period
+
+    // undefined sessionId bypasses session filter — used by older callers
+    await act(async () => {
+      await getCtx().__test_handleTranscription('no-session-id', undefined);
+    });
+    // transcription should be set (AI call may fail, that's OK)
+    expect(getCtx().transcription).toBe('no-session-id');
   });
 });

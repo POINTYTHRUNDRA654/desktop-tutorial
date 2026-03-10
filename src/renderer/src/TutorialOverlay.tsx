@@ -46,15 +46,8 @@ const TutorialOverlay: React.FC = () => {
 
     // Event listener for manual restart (always available)
         const handleTrigger = () => {
-            // Instead of showing the old tutorial, redirect to the comprehensive InteractiveTutorial
+            // Redirect to the comprehensive InteractiveTutorial instead of the old overlay
             window.dispatchEvent(new CustomEvent('start-interactive-tutorial'));
-            return; // Don't show the old tutorial
-            
-            // Old code below - keeping for reference but not used
-            // setCurrentStepIndex(0);
-            // setInstallProgress(0);
-            // setBootLogs([]);
-            // setIsOpen(true);
         };
         
         // Event listener for video tutorial
