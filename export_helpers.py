@@ -964,52 +964,114 @@ class ExportHelpers:
 
     @staticmethod
     def _sanitize_material_node_labels(obj):
-        """Rename texture node labels so Niftools v0.1.1 can map them to texture slots.
+        """Normalise image texture node labels to the TEX_SLOTS set that niftools recognises.
 
-        Niftools uses each image-texture node's **label** (not its name) to
-        determine which ``BSShaderTextureSet`` slot to write the texture into.
-        When a node's label contains parenthetical suffix hints like
-        ``"Diffuse (_d)"`` or ``"Normal Map (_n)"`` the exporter raises:
+        The niftools texture exporter
+        (``io_scene_niftools/modules/nif_export/property/texture/__init__.py``)
+        iterates over every ``ShaderNodeTexImage`` node in the material and
+        checks whether any of its known ``TEX_SLOTS`` constant values is a
+        **substring** of the node's label (case-sensitive).  If none match, the
+        exporter raises the fatal error::
 
-            "Do not know how to export texture node … with label … Delete it
-            or change its label."
+            "Do not know how to export texture node … with label … Delete it or
+            change its label."
 
-        This method strips those unrecognised labels back to the bare slot names
-        that the exporter expects:
+        The official ``TEX_SLOTS`` constants defined in niftools'
+        ``io_scene_niftools/utils/consts.py`` are::
 
-        ============  ==================  ===========
-        Canonical     Legacy labels       NIF slot
-        ============  ==================  ===========
-        ``Diffuse``   Diffuse (_d)        slot 0
-        ``Normal``    Normal Map (_n)     slot 1
-        ``Specular``  Specular (_s)       slot 3
-        ``Glow``      Glow/Emissive (_g)  slot 2
-        ============  ==================  ===========
+            TEX_SLOTS.BASE     = "Base"
+            TEX_SLOTS.NORMAL   = "Normal"
+            TEX_SLOTS.SPECULAR = "Specular"
+            TEX_SLOTS.GLOW     = "Glow"
+            TEX_SLOTS.GLOSS    = "Gloss"
+            TEX_SLOTS.DARK     = "Dark"
+            TEX_SLOTS.DETAIL   = "Detail"
+            TEX_SLOTS.BUMP_MAP = "Bump Map"
 
-        Safe to call on any material tree — nodes whose labels are already
-        canonical (or whose names are not in the known set) are left alone.
+        This method scans **all** ``ShaderNodeTexImage`` nodes in every material
+        on *obj* and remaps any label that is not already recognised to the
+        correct canonical TEX_SLOTS string.  The remapping table covers every
+        label variant produced by previous versions of this add-on as well as
+        common manual names a user might enter:
+
+        ============  =============================================  ========
+        Canonical     Recognised source-label patterns               NIF slot
+        ============  =============================================  ========
+        ``Base``      Diffuse, Base Color, Base Colour, Albedo,      slot 0
+                      Diffuse (_d), Base (_d)
+        ``Normal``    Normal Map, Normal (_n), Bump Map, Bump         slot 1
+        ``Specular``  Specular Map, Specular (_s), Gloss Map          slot 3
+        ``Glow``      Glow/Emissive, Emissive, Emission, Glow (_g)   slot 2
+        ============  =============================================  ========
+
+        Nodes whose labels already contain one of the canonical TEX_SLOTS
+        strings are left unchanged.  Nodes with an empty label are also left
+        alone — niftools falls back to the image file-name in that case, which
+        works when the ``.dds`` files follow Fallout 4 naming conventions.
         """
-        _LABEL_FIXES = {
-            # (node name): (canonical label, legacy labels that need renaming)
-            # The first set member for each slot is the label that was actually
-            # emitted by the previous version of setup_fo4_material.  The
-            # upper-case variants guard against accidental manual edits.
-            "Diffuse":  ("Diffuse",  {"Diffuse (_d)", "Diffuse (_D)"}),
-            "Normal":   ("Normal",   {"Normal Map (_n)", "Normal Map (_N)"}),
-            "Specular": ("Specular", {"Specular (_s)", "Specular (_S)"}),
-            "Glow":     ("Glow",     {"Glow/Emissive (_g)", "Glow/Emissive (_G)"}),
-        }
+        # All canonical TEX_SLOTS strings from niftools consts.py.
+        # A node label is accepted by niftools if ANY of these is a substring.
+        _NIFTOOLS_CANONICAL = frozenset({
+            "Base", "Normal", "Specular", "Glow", "Gloss",
+            "Dark", "Detail", "Bump Map", "Decal 0", "Decal 1", "Decal 2",
+        })
+
+        # Remapping table: (canonical, frozenset of lower-case substrings that
+        # indicate this slot).  The first match wins, so more-specific patterns
+        # are listed before general ones.
+        _REMAP = [
+            # slot 0 — base/diffuse colour
+            ("Base", frozenset({
+                "diffuse (_d)", "diffuse (_D)", "base (_d)",
+                "base color", "base colour", "albedo",
+                "diffuse",
+            })),
+            # slot 1 — tangent-space normal map
+            ("Normal", frozenset({
+                "normal map (_n)", "normal map (_N)",
+                "normal map", "normal (_n)", "bump map",
+            })),
+            # slot 3 — specular / smoothness
+            ("Specular", frozenset({
+                "specular (_s)", "specular (_S)",
+                "specular map", "gloss map",
+            })),
+            # slot 2 — glow / emissive mask
+            ("Glow", frozenset({
+                "glow/emissive (_g)", "glow/emissive (_G)",
+                "glow/emissive", "emissive", "emission",
+            })),
+        ]
+
         if not obj.data.materials:
             return
         for mat in obj.data.materials:
             if not mat or not mat.use_nodes:
                 continue
-            for node_name, (canonical, legacy_set) in _LABEL_FIXES.items():
-                node = mat.node_tree.nodes.get(node_name)
-                if node is None:
+            for node in mat.node_tree.nodes:
+                if node.type != 'TEX_IMAGE':
                     continue
-                if node.label in legacy_set:
-                    node.label = canonical
+                label = node.label
+                if not label:
+                    # Empty label: niftools falls back to the image name.
+                    # Leave it alone — the image name will be used as-is.
+                    continue
+
+                # If the label already contains a recognised TEX_SLOTS string,
+                # niftools will accept it — no changes needed.
+                if any(canonical in label for canonical in _NIFTOOLS_CANONICAL):
+                    continue
+
+                # Attempt to remap the label to its canonical form.
+                label_lower = label.lower()
+                for canonical, patterns in _REMAP:
+                    if any(p in label_lower for p in patterns):
+                        node.label = canonical
+                        break
+                # If nothing matched, leave the label as-is.  The export will
+                # either succeed (if niftools can handle it) or fail with its
+                # original error message; we do not silently corrupt unknown
+                # custom labels.
 
     @staticmethod
     def _prepare_mesh_for_nif(obj):

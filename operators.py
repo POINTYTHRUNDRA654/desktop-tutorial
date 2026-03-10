@@ -5875,6 +5875,152 @@ class FO4_OT_HybridUnwrap(Operator):
         return context.window_manager.invoke_props_dialog(self)
 
 
+# ── Face-Selective UV Unwrap Operators ──────────────────────────────────────
+# These two operators implement the face-picking workflow the user requested:
+#   1. FO4_OT_PickFacesForUnwrap   — enter Face Select in Edit Mode so the
+#      user can click individual faces to choose what gets unwrapped.
+#   2. FO4_OT_UnwrapSelectedFaces  — apply Minimum Stretch UV unwrap to only
+#      the currently selected faces, leaving the rest of the UV map intact.
+# ─────────────────────────────────────────────────────────────────────────────
+
+class FO4_OT_PickFacesForUnwrap(Operator):
+    """Enter Face Select mode so you can click faces to choose which ones to UV-unwrap.
+
+    After clicking this button the 3-D viewport switches to Edit Mode with Face
+    Select active and all faces deselected.  Click (or box/lasso select) the
+    faces you want to unwrap, then click **'Unwrap Selected Faces'** to apply
+    Minimum Stretch UV unwrapping to only those faces.
+
+    Tip: hold Shift while clicking to add faces to the selection.  Press A to
+    select all, Alt+A to deselect all.  When you are done, click 'Unwrap
+    Selected Faces' — you do NOT need to exit Edit Mode first."""
+    bl_idname = "fo4.pick_faces_for_unwrap"
+    bl_label = "Pick Faces to Unwrap"
+    bl_options = {'REGISTER', 'UNDO'}
+
+    def execute(self, context):
+        obj = context.active_object
+        if not obj or obj.type != 'MESH':
+            self.report({'ERROR'}, "Select a mesh object first")
+            return {'CANCELLED'}
+
+        # Enter Edit Mode and switch to Face Select with nothing selected so
+        # the user can click exactly the faces they want to unwrap.
+        bpy.ops.object.mode_set(mode='EDIT')
+        bpy.ops.mesh.select_all(action='DESELECT')
+        bpy.context.tool_settings.mesh_select_mode = (False, False, True)
+
+        # Switch to UV Editing workspace if available so the UV and 3-D
+        # viewports are both visible, which helps when selecting faces.
+        uv_ws = bpy.data.workspaces.get("UV Editing")
+        if uv_ws:
+            try:
+                context.window.workspace = uv_ws
+            except Exception:
+                pass
+
+        self.report(
+            {'INFO'},
+            "Face Select active — click faces to select them, then click "
+            "'Unwrap Selected Faces'."
+        )
+        return {'FINISHED'}
+
+
+class FO4_OT_UnwrapSelectedFaces(Operator):
+    """Apply Minimum Stretch UV unwrap to the currently selected faces only.
+
+    Run this after selecting faces with **'Pick Faces to Unwrap'**.  Only the
+    selected faces are unwrapped; the rest of the UV map is left unchanged.
+
+    The unwrap uses the CONFORMAL (LSCM) method followed by a
+    ``uv.minimize_stretch`` relaxation pass for the lowest possible UV
+    distortion.  A UV layer is created automatically if none exists yet."""
+    bl_idname = "fo4.unwrap_selected_faces"
+    bl_label = "Unwrap Selected Faces"
+    bl_options = {'REGISTER', 'UNDO'}
+
+    island_margin: bpy.props.FloatProperty(
+        name="Island Margin",
+        description="Gap between UV islands (2 % is recommended for 1024 DDS textures)",
+        default=0.02,
+        min=0.0,
+        max=0.1,
+        subtype='FACTOR',
+    )
+
+    stretch_iterations: bpy.props.IntProperty(
+        name="Stretch Iterations",
+        description=(
+            "Number of minimize_stretch iterations.  100 is enough for most "
+            "meshes; increase to 200 for high-poly foliage."
+        ),
+        default=100,
+        min=10,
+        max=500,
+    )
+
+    def draw(self, context):
+        layout = self.layout
+        layout.prop(self, "island_margin")
+        layout.prop(self, "stretch_iterations")
+        layout.separator()
+        layout.label(
+            text="Only selected faces will be unwrapped.",
+            icon='INFO',
+        )
+
+    def execute(self, context):
+        obj = context.active_object
+        if not obj or obj.type != 'MESH':
+            self.report({'ERROR'}, "Select a mesh object first")
+            return {'CANCELLED'}
+
+        # Must be in Edit Mode — enter it if the user clicked from Object Mode
+        if context.mode != 'EDIT_MESH':
+            if obj.type == 'MESH':
+                bpy.ops.object.mode_set(mode='EDIT')
+            else:
+                self.report(
+                    {'ERROR'},
+                    "Enter Face Select Edit Mode first (use 'Pick Faces to Unwrap')"
+                )
+                return {'CANCELLED'}
+
+        # Ensure Face Select so the unwrap operates on the visible selection
+        bpy.context.tool_settings.mesh_select_mode = (False, False, True)
+
+        # Create a UV layer if needed — the unwrap operator requires one
+        if not obj.data.uv_layers:
+            bpy.ops.object.mode_set(mode='OBJECT')
+            obj.data.uv_layers.new(name="UVMap")
+            bpy.ops.object.mode_set(mode='EDIT')
+            bpy.context.tool_settings.mesh_select_mode = (False, False, True)
+
+        # CONFORMAL (LSCM) gives the best analytical starting point
+        bpy.ops.uv.unwrap(method='CONFORMAL', margin=self.island_margin)
+
+        # Iterative relaxation — minimises stretch in every island
+        try:
+            bpy.ops.uv.minimize_stretch(
+                fill_holes=True, iterations=self.stretch_iterations
+            )
+        except Exception:
+            pass  # unavailable on older Blender builds
+
+        msg = (
+            f"Unwrapped selected faces with Minimum Stretch "
+            f"({self.stretch_iterations} iterations). "
+            "Use 'Edit UV Map' to inspect the result."
+        )
+        self.report({'INFO'}, msg)
+        notification_system.FO4_NotificationSystem.notify(msg, 'INFO')
+        return {'FINISHED'}
+
+    def invoke(self, context, event):
+        return context.window_manager.invoke_props_dialog(self)
+
+
 # Batch Processing Operators
 
 class FO4_OT_BatchOptimizeMeshes(Operator):
@@ -8877,6 +9023,9 @@ classes = (
     FO4_OT_ScanUVComplexity,
     FO4_OT_SmartSeamMark,
     FO4_OT_HybridUnwrap,
+    # Face-selective UV unwrap
+    FO4_OT_PickFacesForUnwrap,
+    FO4_OT_UnwrapSelectedFaces,
     # AI upscaler one-click installer
     FO4_OT_InstallUpscalerDeps,
     # Mossy AI UV/texture advisor

@@ -619,22 +619,38 @@ def test_texture_node_labels():
     failed = []
 
     # ----------------------------------------------------------------
-    # 1. setup_fo4_material must use canonical labels (no suffixes)
+    # 1. setup_fo4_material must use niftools TEX_SLOTS canonical labels.
+    #
+    # The niftools exporter (io_scene_niftools/utils/consts.py) defines:
+    #   TEX_SLOTS.BASE     = "Base"   ← diffuse / albedo  (NOT "Diffuse"!)
+    #   TEX_SLOTS.NORMAL   = "Normal"
+    #   TEX_SLOTS.SPECULAR = "Specular"
+    #   TEX_SLOTS.GLOW     = "Glow"
+    #
+    # The exporter uses a CONTAINS check:  `if slot_name in node.label`
+    # so "Diffuse" NEVER matches "Base" and always raises the error.
     # ----------------------------------------------------------------
     texture_helpers_path = addon_dir / "texture_helpers.py"
     with open(texture_helpers_path, 'r', encoding='utf-8') as f:
         th_content = f.read()
 
     canonical_label_checks = [
-        ('Canonical "Diffuse" label present',   'label = "Diffuse"' in th_content),
+        # Slot 0 MUST use "Base" (TEX_SLOTS.BASE), NOT "Diffuse"
+        ('Canonical "Base" label present (TEX_SLOTS.BASE)',
+         'label = "Base"' in th_content),
+        ('Old "Diffuse" label removed from setup_fo4_material',
+         'label = "Diffuse"' not in th_content),
         ('Canonical "Normal" label present',    'label = "Normal"' in th_content),
         ('Canonical "Specular" label present',  'label = "Specular"' in th_content),
         ('Canonical "Glow" label present',      'label = "Glow"' in th_content),
-        # The old verbose labels must NOT appear in setup_fo4_material
+        # The old verbose parenthetical labels must NOT appear
         ('Old "Diffuse (_d)" label removed',    '"Diffuse (_d)"' not in th_content),
         ('Old "Normal Map (_n)" label removed', '"Normal Map (_n)"' not in th_content),
         ('Old "Specular (_s)" label removed',   '"Specular (_s)"' not in th_content),
         ('Old "Glow/Emissive (_g)" removed',    '"Glow/Emissive (_g)"' not in th_content),
+        # install_texture node_name_map must use "Base" for DIFFUSE
+        ('install_texture DIFFUSE maps to "Base" node',
+         "'DIFFUSE':  'Base'" in th_content or "'DIFFUSE': 'Base'" in th_content),
     ]
     for check_name, result in canonical_label_checks:
         if result:
@@ -644,7 +660,7 @@ def test_texture_node_labels():
             failed.append(f"texture_helpers: {check_name}")
 
     # ----------------------------------------------------------------
-    # 2. ExportHelpers must have the sanitization method
+    # 2. ExportHelpers sanitization must handle the correct TEX_SLOTS
     # ----------------------------------------------------------------
     export_helpers_path = addon_dir / "export_helpers.py"
     with open(export_helpers_path, 'r', encoding='utf-8') as f:
@@ -662,14 +678,25 @@ def test_texture_node_labels():
              eh_content.find("@staticmethod",
                               eh_content.find("def _prepare_mesh_for_nif") + 1)
          ]),
+        # Must remap "Diffuse" → "Base" (the key fix for the reported error)
+        ('Sanitize remaps "Diffuse" to "Base" (TEX_SLOTS.BASE)',
+         '"diffuse"' in eh_content and '"Base"' in eh_content),
+        # Must still handle legacy parenthetical forms
         ("Legacy label Diffuse (_d) handled in sanitize",
-         '"Diffuse (_d)"' in eh_content),
+         '"diffuse (_d)"' in eh_content or '"Diffuse (_d)"' in eh_content),
         ("Legacy label Normal Map (_n) handled in sanitize",
-         '"Normal Map (_n)"' in eh_content),
+         '"normal map (_n)"' in eh_content or '"Normal Map (_n)"' in eh_content),
         ("Legacy label Specular (_s) handled in sanitize",
-         '"Specular (_s)"' in eh_content),
+         '"specular (_s)"' in eh_content or '"Specular (_s)"' in eh_content),
         ("Legacy label Glow/Emissive (_g) handled in sanitize",
-         '"Glow/Emissive (_g)"' in eh_content),
+         '"glow/emissive (_g)"' in eh_content or '"Glow/Emissive (_g)"' in eh_content),
+        # Sanitize must scan ALL TEX_IMAGE nodes (not just named ones)
+        ("Sanitize scans all TEX_IMAGE nodes",
+         "node.type != 'TEX_IMAGE'" in eh_content or
+         'node.type == \'TEX_IMAGE\'' in eh_content),
+        # Must use _NIFTOOLS_CANONICAL or equivalent frozenset of real slot names
+        ("Sanitize knows niftools canonical slot strings",
+         '"Base"' in eh_content and '"Normal"' in eh_content and '"Specular"' in eh_content),
     ]
     for check_name, result in export_checks:
         if result:
@@ -679,7 +706,7 @@ def test_texture_node_labels():
             failed.append(f"export_helpers: {check_name}")
 
     # ----------------------------------------------------------------
-    # 3. NIFTOOLS_SETUP.md must document the label requirement
+    # 3. NIFTOOLS_SETUP.md must document the correct TEX_SLOTS labels
     # ----------------------------------------------------------------
     niftools_doc_path = addon_dir / "NIFTOOLS_SETUP.md"
     with open(niftools_doc_path, 'r', encoding='utf-8') as f:
@@ -690,6 +717,10 @@ def test_texture_node_labels():
          "Do not know how to export texture node" in doc_content),
         ("NIFTOOLS_SETUP documents canonical label table",
          "BSShaderTextureSet slot" in doc_content),
+        ("NIFTOOLS_SETUP uses 'Base' (TEX_SLOTS.BASE) for slot 0",
+         "| `Base`" in doc_content),
+        ("NIFTOOLS_SETUP explains CONTAINS check",
+         "contains" in doc_content.lower() or "substring" in doc_content.lower()),
     ]
     for check_name, result in doc_checks:
         if result:
@@ -851,6 +882,27 @@ def test_uv_unwrap_quality():
         ("SmartSeamMark enters Edge Select edit mode",
          "mesh_select_mode" in ops_content
          and "(False, True, False)" in ops_content),
+        # Face-selective unwrap operators
+        ("FO4_OT_PickFacesForUnwrap class defined",
+         "class FO4_OT_PickFacesForUnwrap" in ops_content),
+        ("FO4_OT_UnwrapSelectedFaces class defined",
+         "class FO4_OT_UnwrapSelectedFaces" in ops_content),
+        ("FO4_OT_PickFacesForUnwrap registered in classes tuple",
+         "FO4_OT_PickFacesForUnwrap," in ops_content),
+        ("FO4_OT_UnwrapSelectedFaces registered in classes tuple",
+         "FO4_OT_UnwrapSelectedFaces," in ops_content),
+        # PickFacesForUnwrap enters Face Select (not edge or vertex)
+        ("PickFacesForUnwrap enters Face Select mode",
+         "(False, False, True)" in ops_content),
+        # UnwrapSelectedFaces uses CONFORMAL + minimize_stretch
+        ("UnwrapSelectedFaces uses CONFORMAL unwrap",
+         "fo4.unwrap_selected_faces" in ops_content and
+         "method='CONFORMAL'" in
+         ops_content[
+             ops_content.find("class FO4_OT_UnwrapSelectedFaces"):
+             ops_content.find("class FO4_OT_Batch",
+                              ops_content.find("class FO4_OT_UnwrapSelectedFaces") + 1)
+         ]),
     ]
     for check_name, result in ops_checks:
         if result:
@@ -860,7 +912,7 @@ def test_uv_unwrap_quality():
             failed.append(f"operators: {check_name}")
 
     # ----------------------------------------------------------------
-    # ui_panels.py — hybrid workflow buttons present
+    # ui_panels.py — hybrid workflow + face-picking buttons present
     # ----------------------------------------------------------------
     ui_path = addon_dir / "ui_panels.py"
     with open(ui_path, 'r', encoding='utf-8') as f:
@@ -873,6 +925,10 @@ def test_uv_unwrap_quality():
          "fo4.smart_seam_mark" in ui_content),
         ("UI panel has Hybrid Unwrap button",
          "fo4.hybrid_unwrap" in ui_content),
+        ("UI panel has Pick Faces to Unwrap button",
+         "fo4.pick_faces_for_unwrap" in ui_content),
+        ("UI panel has Unwrap Selected Faces button",
+         "fo4.unwrap_selected_faces" in ui_content),
     ]
     for check_name, result in ui_checks:
         if result:

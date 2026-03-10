@@ -171,15 +171,31 @@ class FO4_PT_MeshPanel(Panel):
             )
             uv_box.separator()
 
-            # Step 2 — re-unwrap if needed
-            uv_box.label(text="Step 2 — Adjust UV Map if needed:", icon='FORWARD')
+            # Step 2 — face-picking for selective unwrap
+            uv_box.label(text="Step 2 — Select faces to unwrap:", icon='FORWARD')
+            row = uv_box.row(align=True)
+            row.enabled = has_mesh
+            row.operator(
+                "fo4.pick_faces_for_unwrap",
+                text="Pick Faces to Unwrap",
+                icon='FACE_MAPS',
+            )
+            row.operator(
+                "fo4.unwrap_selected_faces",
+                text="Unwrap Selected",
+                icon='UV_SYNC_SELECT',
+            )
+            uv_box.separator()
+
+            # Step 3 — re-unwrap if needed
+            uv_box.label(text="Step 3 — Adjust UV Map if needed:", icon='FORWARD')
             row = uv_box.row(align=True)
             row.enabled = has_mesh
             row.operator("fo4.re_unwrap_uv", text="Re-Unwrap UV", icon='UV_SYNC_SELECT')
             row.operator("fo4.optimize_uvs",  text="Pack Islands", icon='UV_FACESEL')
 
-            # Step 3 — interactive UV editing
-            uv_box.label(text="Step 3 — Fine-tune in UV Editor:", icon='FORWARD')
+            # Step 4 — interactive UV editing
+            uv_box.label(text="Step 4 — Fine-tune in UV Editor:", icon='FORWARD')
             row = uv_box.row()
             row.enabled = has_mesh
             row.operator("fo4.open_uv_editing", text="Edit UV Map", icon='UV_ISLANDSEL')
@@ -192,9 +208,9 @@ class FO4_PT_MeshPanel(Panel):
                 icon='LIGHT_HEMI',
             )
 
-            # Step 4 — export
+            # Step 5 — export
             uv_box.separator()
-            uv_box.label(text="Step 4 — Export as Fallout 4 NIF:", icon='FORWARD')
+            uv_box.label(text="Step 5 — Export as Fallout 4 NIF:", icon='FORWARD')
             row = uv_box.row()
             row.enabled = has_mesh
             row.operator("fo4.export_mesh", text="Export Mesh (.nif)", icon='EXPORT')
@@ -241,6 +257,11 @@ class FO4_PT_MeshPanel(Panel):
             row.enabled = has_mesh
             row.operator("fo4.smart_seam_mark", text="Mark Seams", icon='MOD_EDGESPLIT')
             row.operator("fo4.hybrid_unwrap",   text="Hybrid Unwrap", icon='UV_SYNC_SELECT')
+            # Face-selective unwrap
+            row = uv_box.row(align=True)
+            row.enabled = has_mesh
+            row.operator("fo4.pick_faces_for_unwrap", text="Pick Faces", icon='FACE_MAPS')
+            row.operator("fo4.unwrap_selected_faces", text="Unwrap Selected", icon='UV_SYNC_SELECT')
             row = uv_box.row(align=True)
             row.enabled = has_mesh
             row.operator("fo4.re_unwrap_uv",  text="Re-Unwrap",     icon='UV_SYNC_SELECT')
