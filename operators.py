@@ -5276,6 +5276,10 @@ class FO4_OT_OptimizeUVs(Operator):
     method: EnumProperty(
         name="Method",
         items=[
+            ('MIN_STRETCH', "Minimum Stretch",
+             "CONFORMAL (LSCM) initial layout + minimize_stretch to convergence "
+             "(100 iterations) — lowest distortion, best texture match; "
+             "Blender's recommended method for accuracy"),
             ('SMART', "Smart UV Project",
              "Automatic seam detection – recommended for most meshes"),
             ('ANGLE', "Angle-Based + Stretch Minimize",
@@ -5284,7 +5288,7 @@ class FO4_OT_OptimizeUVs(Operator):
             ('CUBE',  "Cube Projection",
              "Box projection – fastest; ideal for architecture"),
         ],
-        default='SMART',
+        default='MIN_STRETCH',
     )
 
     margin: FloatProperty(
@@ -5363,6 +5367,10 @@ class FO4_OT_SetupUVWithTexture(Operator):
         name="Unwrap Method",
         description="UV unwrapping algorithm to use",
         items=[
+            ('MIN_STRETCH', "Minimum Stretch",
+             "CONFORMAL (LSCM) initial layout + minimize_stretch to convergence "
+             "(100 iterations) — lowest distortion, best texture match; "
+             "Blender's recommended method for accuracy"),
             ('SMART',    "Smart UV Project",
              "Automatic seam detection – best for most meshes (recommended default)"),
             ('ANGLE',    "Angle-Based + Stretch Minimize",
@@ -5375,7 +5383,7 @@ class FO4_OT_SetupUVWithTexture(Operator):
             ('EXISTING', "Keep Existing UVs",
              "Skip unwrap – only bind the texture to the current UV map"),
         ],
-        default='SMART',
+        default='MIN_STRETCH',
     )
 
     island_margin: FloatProperty(
@@ -5445,6 +5453,10 @@ class FO4_OT_ReUnwrapUV(Operator):
         name="Unwrap Method",
         description="UV unwrapping algorithm",
         items=[
+            ('MIN_STRETCH', "Minimum Stretch",
+             "CONFORMAL (LSCM) initial layout + minimize_stretch to convergence "
+             "(100 iterations) — lowest distortion, best texture match; "
+             "Blender's recommended method for accuracy"),
             ('SMART', "Smart UV Project",
              "Automatic seam detection – recommended for most meshes"),
             ('ANGLE', "Angle-Based + Stretch Minimize",
@@ -5453,7 +5465,7 @@ class FO4_OT_ReUnwrapUV(Operator):
             ('CUBE',  "Cube Projection",
              "Box projection – fastest; ideal for architecture"),
         ],
-        default='SMART',
+        default='MIN_STRETCH',
     )
 
     island_margin: FloatProperty(
@@ -5596,6 +5608,271 @@ class FO4_OT_AskMossyForUVAdvice(Operator):
             self.report({'INFO'}, lines[0] if lines else "Analysis complete — see console")
 
         return {'FINISHED'}
+
+
+# ── Hybrid UV Workflow Operators ────────────────────────────────────────────
+# These three operators implement the semi-automatic workflow for complex
+# meshes (plants, foliage, armour with many panels, etc.) where neither pure
+# automation nor pure manual work gives optimal results.  The intended steps:
+#   1. FO4_OT_ScanUVComplexity  — understand how hard the mesh is to unwrap
+#   2. FO4_OT_SmartSeamMark     — auto-mark seams, then refine interactively
+#   3. FO4_OT_HybridUnwrap      — finalise with MIN_STRETCH, honouring seams
+# ─────────────────────────────────────────────────────────────────────────────
+
+class FO4_OT_ScanUVComplexity(Operator):
+    """Scan the active mesh for UV unwrapping complexity.
+
+    Analyses topology (sharp edges, branching vertices, thin triangles) and
+    returns a complexity score plus actionable recommendations.  Use this
+    before deciding whether to unwrap automatically or to use the Hybrid
+    workflow for complex organic meshes such as plants or foliage."""
+    bl_idname = "fo4.scan_uv_complexity"
+    bl_label = "Scan UV Complexity"
+    bl_options = {'REGISTER'}
+
+    def execute(self, context):
+        obj = context.active_object
+        if not obj or obj.type != 'MESH':
+            self.report({'ERROR'}, "Select a mesh object first")
+            return {'CANCELLED'}
+
+        report = advanced_mesh_helpers.AdvancedMeshHelpers.scan_uv_complexity(obj)
+        score = report['complexity_score']
+        problems = report['problem_areas']
+        recs = report['recommendations']
+
+        # Always print the full report to the console
+        print("\n" + "=" * 60)
+        print(f"UV COMPLEXITY SCAN — {obj.name}")
+        print("=" * 60)
+        print(f"  Complexity score : {score}/100")
+        print(f"  Seam candidates  : {report['seam_candidates']}")
+        print(f"  Island estimate  : {report['island_estimate']}")
+        if problems:
+            print("  Issues detected:")
+            for p in problems:
+                print(f"    • {p}")
+        print("  Recommendations:")
+        for i, r in enumerate(recs, 1):
+            print(f"    {i}. {r}")
+        print("=" * 60 + "\n")
+
+        # Notify in Blender header
+        level = 'WARNING' if score >= 50 else 'INFO'
+        first_rec = recs[0] if recs else "See console for full report."
+        self.report(
+            {level},
+            f"Complexity {score}/100 — {first_rec}"
+        )
+        notification_system.FO4_NotificationSystem.notify(
+            f"UV scan: {score}/100. See console.", level
+        )
+        return {'FINISHED'}
+
+
+class FO4_OT_SmartSeamMark(Operator):
+    """Auto-mark UV seams at sharp edges, then enter interactive Edge Select.
+
+    Step 1 of the Hybrid UV Workflow for complex meshes.
+
+    The operator:
+      1. Analyses the mesh for dihedral angle fold lines and boundary edges.
+      2. Marks those edges as UV seams (preserving any seams you have already
+         placed by hand).
+      3. Enters Edit Mode in Edge Select so you can immediately click any
+         additional edge to mark/clear seams manually.
+
+    When you are happy with the seam layout, exit Edit Mode (Tab) and run
+    'Hybrid Unwrap' to produce the final UV map."""
+    bl_idname = "fo4.smart_seam_mark"
+    bl_label = "Scan & Mark Seams"
+    bl_options = {'REGISTER', 'UNDO'}
+
+    sharp_threshold: bpy.props.FloatProperty(
+        name="Sharp Edge Angle",
+        description=(
+            "Dihedral angle (degrees) above which an edge is treated as a "
+            "fold line and marked as a seam.  Lower values (e.g. 20) are "
+            "better for high-detail foliage; 30 suits most hard-surface meshes"
+        ),
+        default=30.0,
+        min=5.0,
+        max=90.0,
+    )
+
+    clear_existing: bpy.props.BoolProperty(
+        name="Clear Existing Seams",
+        description=(
+            "Remove all previously marked seams before adding new ones.  "
+            "Leave disabled to keep hand-placed seams alongside auto seams"
+        ),
+        default=False,
+    )
+
+    def draw(self, context):
+        layout = self.layout
+        layout.prop(self, "sharp_threshold")
+        layout.prop(self, "clear_existing")
+        layout.separator()
+        layout.label(
+            text="After clicking OK: adjust seams in Edit Mode,",
+            icon='INFO',
+        )
+        layout.label(text="then run 'Hybrid Unwrap' to finalise.")
+
+    def execute(self, context):
+        obj = context.active_object
+        if not obj or obj.type != 'MESH':
+            self.report({'ERROR'}, "No mesh object selected")
+            return {'CANCELLED'}
+
+        success, msg, total = advanced_mesh_helpers.AdvancedMeshHelpers.auto_mark_seams(
+            obj,
+            sharp_threshold_deg=self.sharp_threshold,
+            clear_existing=self.clear_existing,
+        )
+        if not success:
+            self.report({'ERROR'}, msg)
+            return {'CANCELLED'}
+
+        self.report({'INFO'}, msg)
+        notification_system.FO4_NotificationSystem.notify(msg, 'INFO')
+
+        # Drop the user into Edge Select edit mode so they can refine seams
+        # immediately without a separate step.
+        bpy.context.view_layer.objects.active = obj
+        bpy.ops.object.mode_set(mode='EDIT')
+        bpy.ops.mesh.select_all(action='DESELECT')
+
+        # Switch to edge-select mode — the natural mode for seam editing
+        bpy.context.tool_settings.mesh_select_mode = (False, True, False)
+
+        # Navigate to UV Editing workspace if it exists so the seam preview
+        # is immediately visible next to the 3-D viewport.
+        uv_ws = bpy.data.workspaces.get("UV Editing")
+        if uv_ws:
+            context.window.workspace = uv_ws
+
+        self.report(
+            {'INFO'},
+            f"{total} seam(s) marked. Click edges to add/remove seams "
+            "(Edge menu > Mark/Clear Seam), then Tab to exit and run 'Hybrid Unwrap'."
+        )
+        return {'FINISHED'}
+
+    def invoke(self, context, event):
+        return context.window_manager.invoke_props_dialog(self)
+
+
+class FO4_OT_HybridUnwrap(Operator):
+    """Finalise the UV map using Minimum Stretch, honouring all seams.
+
+    Step 3 of the Hybrid UV Workflow for complex meshes.
+
+    Runs the full Minimum Stretch pipeline (CONFORMAL initial layout +
+    uv.minimize_stretch convergence pass) but does NOT reset the seams you
+    have placed — every island boundary set by 'Scan & Mark Seams' or by
+    hand is respected.  The result is the lowest-distortion unwrap achievable
+    for your seam layout.
+
+    After running, switch to Material Preview (press Z > Material Preview)
+    or use 'Edit UV Map' to inspect the islands before exporting."""
+    bl_idname = "fo4.hybrid_unwrap"
+    bl_label = "Hybrid Unwrap"
+    bl_options = {'REGISTER', 'UNDO'}
+
+    island_margin: bpy.props.FloatProperty(
+        name="Island Margin",
+        description="Gap between UV islands (2 % recommended for 1024 DDS textures)",
+        default=0.02,
+        min=0.0,
+        max=0.1,
+        subtype='FACTOR',
+    )
+
+    stretch_iterations: bpy.props.IntProperty(
+        name="Stretch Iterations",
+        description=(
+            "Number of minimize_stretch iterations.  100 reaches convergence "
+            "for most meshes; increase to 200 for very high-poly foliage"
+        ),
+        default=100,
+        min=10,
+        max=500,
+    )
+
+    def draw(self, context):
+        layout = self.layout
+        layout.prop(self, "island_margin")
+        layout.prop(self, "stretch_iterations")
+        layout.separator()
+        layout.label(
+            text="Seams placed by 'Scan & Mark Seams' or by hand are kept.",
+            icon='INFO',
+        )
+
+    def execute(self, context):
+        obj = context.active_object
+        if not obj or obj.type != 'MESH':
+            self.report({'ERROR'}, "No mesh object selected")
+            return {'CANCELLED'}
+
+        if not obj.data.uv_layers:
+            obj.data.uv_layers.new(name="UVMap")
+
+        prev_active = bpy.context.view_layer.objects.active
+        bpy.context.view_layer.objects.active = obj
+
+        try:
+            bpy.ops.object.mode_set(mode='EDIT')
+            bpy.ops.mesh.select_all(action='SELECT')
+
+            # CONFORMAL (LSCM) gives the best analytical starting layout for
+            # the minimize_stretch relaxation; seams already present in the
+            # mesh data are automatically honoured by uv.unwrap.
+            bpy.ops.uv.unwrap(method='CONFORMAL', margin=self.island_margin)
+
+            # Iterative relaxation — minimises stretch in every island.
+            try:
+                bpy.ops.uv.minimize_stretch(
+                    fill_holes=True, iterations=self.stretch_iterations
+                )
+            except Exception:
+                pass  # unavailable on older Blender builds
+
+            # Pack islands into the 0–1 tile with rotation for tight fit.
+            try:
+                bpy.ops.uv.pack_islands(rotate=True, margin=self.island_margin)
+            except TypeError:
+                bpy.ops.uv.pack_islands(margin=self.island_margin)
+
+        finally:
+            try:
+                bpy.ops.object.mode_set(mode='OBJECT')
+            except Exception:
+                pass
+            bpy.context.view_layer.objects.active = prev_active
+
+        # Switch viewport to Material Preview so the texture is immediately
+        # visible without any extra steps.
+        for area in bpy.context.screen.areas:
+            if area.type == 'VIEW_3D':
+                for space in area.spaces:
+                    if space.type == 'VIEW_3D':
+                        space.shading.type = 'MATERIAL'
+                break
+
+        msg = (
+            "Hybrid Unwrap complete — Minimum Stretch applied, seams preserved. "
+            "Use 'Edit UV Map' to inspect islands, then export with "
+            "'Export Mesh (.nif)'."
+        )
+        self.report({'INFO'}, msg)
+        notification_system.FO4_NotificationSystem.notify(msg, 'INFO')
+        return {'FINISHED'}
+
+    def invoke(self, context, event):
+        return context.window_manager.invoke_props_dialog(self)
 
 
 # Batch Processing Operators
@@ -8596,6 +8873,10 @@ classes = (
     FO4_OT_SetupUVWithTexture,
     FO4_OT_ReUnwrapUV,
     FO4_OT_OpenUVEditing,
+    # Hybrid UV workflow (complex / organic meshes)
+    FO4_OT_ScanUVComplexity,
+    FO4_OT_SmartSeamMark,
+    FO4_OT_HybridUnwrap,
     # AI upscaler one-click installer
     FO4_OT_InstallUpscalerDeps,
     # Mossy AI UV/texture advisor

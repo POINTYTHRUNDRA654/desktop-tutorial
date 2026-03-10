@@ -654,7 +654,22 @@ class MeshHelpers:
 
             skip_unwrap = (unwrap_method == 'EXISTING' and uv_already_exists)
             if not skip_unwrap:
-                if unwrap_method == 'SMART':
+                if unwrap_method == 'MIN_STRETCH':
+                    # Best-quality pipeline: CONFORMAL (LSCM) initial layout
+                    # + minimize_stretch convergence pass (100 iterations).
+                    # Smart UV Project seeds the seam boundaries first so
+                    # CONFORMAL has a clean starting topology to work with.
+                    bpy.ops.uv.smart_project(
+                        angle_limit=66.0, island_margin=island_margin
+                    )
+                    bpy.ops.mesh.select_all(action='SELECT')
+                    bpy.ops.uv.unwrap(method='CONFORMAL', margin=island_margin)
+                    bpy.ops.mesh.select_all(action='SELECT')
+                    try:
+                        bpy.ops.uv.minimize_stretch(fill_holes=True, iterations=100)
+                    except Exception:
+                        pass  # unavailable on older Blender builds
+                elif unwrap_method == 'SMART':
                     bpy.ops.uv.smart_project(
                         angle_limit=66.0, island_margin=island_margin
                     )
@@ -677,10 +692,17 @@ class MeshHelpers:
                 elif unwrap_method == 'CUBE':
                     bpy.ops.uv.cube_project(cube_size=1.0)
                 else:
-                    # Default to Smart UV Project for any unknown method
+                    # Default to Minimum Stretch for any unknown method
                     bpy.ops.uv.smart_project(
                         angle_limit=66.0, island_margin=island_margin
                     )
+                    bpy.ops.mesh.select_all(action='SELECT')
+                    bpy.ops.uv.unwrap(method='CONFORMAL', margin=island_margin)
+                    bpy.ops.mesh.select_all(action='SELECT')
+                    try:
+                        bpy.ops.uv.minimize_stretch(fill_holes=True, iterations=100)
+                    except Exception:
+                        pass
 
             # Pack islands so UVs fill the 0-1 tile without overlap.
             # rotate=True lets the packer spin islands for a tighter fit

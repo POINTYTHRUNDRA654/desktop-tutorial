@@ -707,30 +707,37 @@ def test_texture_node_labels():
 
 
 def test_uv_unwrap_quality():
-    """Verify UV unwrapping improvements are correctly implemented"""
+    """Verify UV unwrapping improvements and hybrid workflow are implemented"""
     print("\n" + "="*70)
-    print("TEST 8: Verifying UV unwrap quality improvements")
+    print("TEST 8: Verifying UV unwrap quality + hybrid workflow")
     print("="*70)
 
     addon_dir = Path(__file__).parent
     failed = []
 
     # ----------------------------------------------------------------
-    # advanced_mesh_helpers.optimize_uvs improvements
+    # advanced_mesh_helpers — optimize_uvs + new helpers
     # ----------------------------------------------------------------
     adv_path = addon_dir / "advanced_mesh_helpers.py"
     with open(adv_path, 'r', encoding='utf-8') as f:
         adv_content = f.read()
 
     adv_checks = [
-        # Critical bug fix: 'ANGLE' method must be handled (was silently
-        # falling through to Cube Projection before this fix).
+        # MIN_STRETCH is now the default method
+        ("optimize_uvs default is 'MIN_STRETCH'",
+         "method='MIN_STRETCH'" in adv_content),
+        # MIN_STRETCH pipeline: CONFORMAL + minimize_stretch(100)
+        ("optimize_uvs MIN_STRETCH uses CONFORMAL layout",
+         "method='CONFORMAL'" in adv_content),
+        ("optimize_uvs MIN_STRETCH runs minimize_stretch with 100 iterations",
+         "minimize_stretch(fill_holes=True, iterations=100)" in adv_content),
+        # ANGLE still works (critical bug fix from previous session)
         ("optimize_uvs handles 'ANGLE' method",
          "'ANGLE'" in adv_content and "ANGLE_BASED" in adv_content),
         # Backward-compat alias
         ("optimize_uvs handles legacy 'UNWRAP' alias",
          "'UNWRAP'" in adv_content),
-        # Safe mode restoration — no more stuck-in-Edit-Mode
+        # Safe mode restoration
         ("optimize_uvs has try/finally for mode restoration",
          "try:" in adv_content and "finally:" in adv_content
          and "mode_set(mode='OBJECT')" in adv_content),
@@ -740,12 +747,26 @@ def test_uv_unwrap_quality():
         # Better packing
         ("optimize_uvs uses rotate=True in pack_islands",
          "pack_islands(rotate=True" in adv_content),
-        # Stretch-minimise pass for quality
-        ("optimize_uvs calls minimize_stretch for ANGLE method",
-         "minimize_stretch" in adv_content),
-        # cube_project gets margin equivalent
+        # cube_project margin
         ("optimize_uvs passes cube_size to cube_project",
          "cube_project(cube_size=1.0)" in adv_content),
+        # New hybrid helpers
+        ("scan_uv_complexity method present",
+         "def scan_uv_complexity" in adv_content),
+        ("scan_uv_complexity detects high-valence vertices (plant/foliage)",
+         "high_valence_verts" in adv_content),
+        ("scan_uv_complexity returns complexity_score key",
+         "'complexity_score'" in adv_content),
+        ("scan_uv_complexity returns recommendations key",
+         "'recommendations'" in adv_content),
+        ("auto_mark_seams method present",
+         "def auto_mark_seams" in adv_content),
+        ("auto_mark_seams marks boundary edges as seams",
+         "is_boundary" in adv_content and "edge.seam = True" in adv_content),
+        ("auto_mark_seams respects existing seams by default",
+         "clear_existing" in adv_content),
+        ("auto_mark_seams uses dihedral angle threshold",
+         "calc_face_angle" in adv_content and "threshold_rad" in adv_content),
     ]
     for check_name, result in adv_checks:
         if result:
@@ -755,20 +776,25 @@ def test_uv_unwrap_quality():
             failed.append(f"advanced_mesh_helpers: {check_name}")
 
     # ----------------------------------------------------------------
-    # mesh_helpers.setup_uv_with_texture improvements
+    # mesh_helpers.setup_uv_with_texture
     # ----------------------------------------------------------------
     mesh_path = addon_dir / "mesh_helpers.py"
     with open(mesh_path, 'r', encoding='utf-8') as f:
         mesh_content = f.read()
 
     mesh_checks = [
-        # ANGLE method now primes with Smart UV then refines
+        # MIN_STRETCH is the new default
+        ("setup_uv_with_texture default is 'MIN_STRETCH'",
+         "unwrap_method='MIN_STRETCH'" in mesh_content),
+        # MIN_STRETCH pipeline uses CONFORMAL + minimize_stretch
+        ("setup_uv_with_texture MIN_STRETCH uses CONFORMAL",
+         "method='CONFORMAL'" in mesh_content),
+        ("setup_uv_with_texture MIN_STRETCH uses minimize_stretch",
+         "minimize_stretch" in mesh_content),
+        # ANGLE method primes with Smart UV then refines
         ("setup_uv_with_texture ANGLE method primes with smart_project",
          "unwrap_method == 'ANGLE'" in mesh_content
          and "smart_project" in mesh_content),
-        # Stretch minimise pass for ANGLE
-        ("setup_uv_with_texture ANGLE uses minimize_stretch",
-         "minimize_stretch" in mesh_content),
         # Better packing
         ("setup_uv_with_texture uses rotate=True in pack_islands",
          "pack_islands(rotate=True" in mesh_content),
@@ -781,8 +807,7 @@ def test_uv_unwrap_quality():
             failed.append(f"mesh_helpers: {check_name}")
 
     # ----------------------------------------------------------------
-    # operators.py — old 'UNWRAP' enum item must be gone from UI enums,
-    # 'ANGLE' must be present in all three UV operator enums
+    # operators.py — enum items, defaults, and new operators
     # ----------------------------------------------------------------
     import re as _re
 
@@ -790,18 +815,42 @@ def test_uv_unwrap_quality():
     with open(ops_path, 'r', encoding='utf-8') as f:
         ops_content = f.read()
 
-    # Match only enum tuple identifiers like ('UNWRAP', …) to avoid false
-    # positives from comments or variable names such as 'ANGLE_BASED'.
     _unwrap_enum_pattern = _re.compile(r"\(\s*'UNWRAP'\s*,")
+    _min_stretch_default  = _re.compile(r"default\s*=\s*'MIN_STRETCH'")
 
     ops_checks = [
-        # FO4_OT_OptimizeUVs must no longer expose the broken 'UNWRAP' item
-        ("FO4_OT_OptimizeUVs no longer exposes 'UNWRAP' enum item",
+        # MIN_STRETCH is the default in all UV operators
+        ("UV operators default to 'MIN_STRETCH'",
+         len(_min_stretch_default.findall(ops_content)) >= 3),
+        # MIN_STRETCH enum item present
+        ("Operators expose 'MIN_STRETCH' enum item",
+         "('MIN_STRETCH'," in ops_content),
+        # Old broken 'UNWRAP' item is gone
+        ("Operators no longer expose 'UNWRAP' enum item",
          not _unwrap_enum_pattern.search(ops_content)),
-        ("FO4_OT_OptimizeUVs has 'ANGLE' enum item",
+        # ANGLE still present
+        ("Operators have 'ANGLE' enum item",
          "'ANGLE'" in ops_content),
-        ("FO4_OT_ReUnwrapUV has 'ANGLE' enum item",
-         "'ANGLE'" in ops_content and "fo4.re_unwrap_uv" in ops_content),
+        # New hybrid operators registered
+        ("FO4_OT_ScanUVComplexity class defined",
+         "class FO4_OT_ScanUVComplexity" in ops_content),
+        ("FO4_OT_SmartSeamMark class defined",
+         "class FO4_OT_SmartSeamMark" in ops_content),
+        ("FO4_OT_HybridUnwrap class defined",
+         "class FO4_OT_HybridUnwrap" in ops_content),
+        ("FO4_OT_ScanUVComplexity registered in classes tuple",
+         "FO4_OT_ScanUVComplexity," in ops_content),
+        ("FO4_OT_SmartSeamMark registered in classes tuple",
+         "FO4_OT_SmartSeamMark," in ops_content),
+        ("FO4_OT_HybridUnwrap registered in classes tuple",
+         "FO4_OT_HybridUnwrap," in ops_content),
+        # HybridUnwrap uses CONFORMAL + minimize_stretch (not smart_project)
+        ("HybridUnwrap uses CONFORMAL unwrap",
+         "fo4.hybrid_unwrap" in ops_content and "method='CONFORMAL'" in ops_content),
+        # SmartSeamMark enters edge-select edit mode after marking
+        ("SmartSeamMark enters Edge Select edit mode",
+         "mesh_select_mode" in ops_content
+         and "(False, True, False)" in ops_content),
     ]
     for check_name, result in ops_checks:
         if result:
@@ -810,11 +859,33 @@ def test_uv_unwrap_quality():
             print(f"❌ operators: {check_name}")
             failed.append(f"operators: {check_name}")
 
+    # ----------------------------------------------------------------
+    # ui_panels.py — hybrid workflow buttons present
+    # ----------------------------------------------------------------
+    ui_path = addon_dir / "ui_panels.py"
+    with open(ui_path, 'r', encoding='utf-8') as f:
+        ui_content = f.read()
+
+    ui_checks = [
+        ("UI panel has Scan UV Complexity button",
+         "fo4.scan_uv_complexity" in ui_content),
+        ("UI panel has Scan & Mark Seams button",
+         "fo4.smart_seam_mark" in ui_content),
+        ("UI panel has Hybrid Unwrap button",
+         "fo4.hybrid_unwrap" in ui_content),
+    ]
+    for check_name, result in ui_checks:
+        if result:
+            print(f"✅ ui_panels: {check_name}")
+        else:
+            print(f"❌ ui_panels: {check_name}")
+            failed.append(f"ui_panels: {check_name}")
+
     if failed:
         print(f"\n❌ FAILED: {len(failed)} UV quality check(s) missing")
         return False
 
-    print(f"\n✅ PASSED: All UV unwrap quality checks passed")
+    print(f"\n✅ PASSED: All UV unwrap quality + hybrid workflow checks passed")
     return True
 
 

@@ -539,9 +539,243 @@ class AdvancedMeshHelpers:
 
         return True, message
 
+    # ==================== Hybrid UV Workflow ====================
+
+    @staticmethod
+    def scan_uv_complexity(obj):
+        """Scan a mesh for UV unwrapping complexity hotspots.
+
+        Analyses topology and geometry to identify areas that will produce
+        poor UV islands when unwrapped without guidance.  Results drive the
+        Hybrid UV workflow: the report tells the user exactly which areas
+        need seams and how many islands to expect.
+
+        Returns
+        -------
+        dict with keys:
+
+        ``'complexity_score'``
+            Integer 0–100.  Higher = more complex and harder to unwrap
+            automatically without distortion.
+        ``'problem_areas'``
+            ``list[str]`` — human-readable descriptions of detected issues.
+        ``'seam_candidates'``
+            ``int`` — number of edges that are candidates for seam placement.
+        ``'island_estimate'``
+            ``int`` — rough estimate of the optimal number of UV islands.
+        ``'recommendations'``
+            ``list[str]`` — ordered, actionable instructions for the user.
+        """
+        import math
+
+        if obj.type != 'MESH':
+            return {
+                'complexity_score': 0,
+                'problem_areas': ["Not a mesh object"],
+                'seam_candidates': 0,
+                'island_estimate': 1,
+                'recommendations': [],
+            }
+
+        mesh = obj.data
+        bm = bmesh.new()
+        bm.from_mesh(mesh)
+        bm.faces.ensure_lookup_table()
+        bm.edges.ensure_lookup_table()
+        bm.verts.ensure_lookup_table()
+
+        problem_areas = []
+        score = 0
+
+        total_edges = len(bm.edges)
+        total_faces = len(bm.faces)
+
+        # ── 1. Sharp / high-angle edges (natural seam candidates) ───────────
+        sharp_threshold = math.radians(30.0)
+        sharp_edges = [
+            e for e in bm.edges
+            if not e.is_boundary
+            and e.calc_face_angle(fallback=0.0) > sharp_threshold
+        ]
+        sharp_ratio = len(sharp_edges) / max(total_edges, 1)
+        seam_candidates = len(sharp_edges)
+
+        if sharp_ratio > 0.3:
+            score += 30
+            problem_areas.append(
+                f"{len(sharp_edges)} sharp-angle edges ({sharp_ratio:.0%}) — "
+                "seams needed at fold lines"
+            )
+        elif sharp_ratio > 0.1:
+            score += 15
+            problem_areas.append(
+                f"{len(sharp_edges)} moderate-angle edges ({sharp_ratio:.0%})"
+            )
+
+        # ── 2. High-valence vertices (branching topology — plants, coral…) ──
+        high_valence_verts = [v for v in bm.verts if len(v.link_edges) > 6]
+        hv_ratio = len(high_valence_verts) / max(len(bm.verts), 1)
+        if hv_ratio > 0.05:
+            score += 25
+            problem_areas.append(
+                f"{len(high_valence_verts)} high-valence vertices "
+                f"({hv_ratio:.0%}) — branching topology (plants/foliage)"
+            )
+
+        # ── 3. Very thin / high-aspect-ratio triangles ──────────────────────
+        thin_faces = []
+        for face in bm.faces:
+            if len(face.verts) == 3:
+                lengths = sorted(e.calc_length() for e in face.edges)
+                if lengths[0] > 1e-6 and lengths[2] / lengths[0] > 10.0:
+                    thin_faces.append(face)
+        thin_ratio = len(thin_faces) / max(total_faces, 1)
+        if thin_ratio > 0.1:
+            score += 20
+            problem_areas.append(
+                f"{len(thin_faces)} thin triangles ({thin_ratio:.0%}) — "
+                "these cause UV stretch"
+            )
+
+        # ── 4. Open / boundary edges ────────────────────────────────────────
+        boundary_edges = [e for e in bm.edges if e.is_boundary]
+        seam_candidates += len(boundary_edges)
+        if boundary_edges:
+            score += 10
+            problem_areas.append(
+                f"{len(boundary_edges)} boundary edges — open mesh areas"
+            )
+
+        # ── 5. Existing seam count ───────────────────────────────────────────
+        existing_seams = [e for e in bm.edges if e.seam]
+
+        # Island estimate: rough proportion of sharp edges that partition faces
+        # Island estimate: proportional to ratio of sharp vs total edges,
+        # bounded to avoid nonsense on very small meshes (< 10 edges).
+        if total_edges >= 10:
+            island_estimate = max(1, len(sharp_edges) // (total_edges // 10) + 1)
+        else:
+            island_estimate = max(1, len(sharp_edges) + 1)
+
+        bm.free()
+
+        score = min(100, score)
+
+        # ── Actionable recommendations ───────────────────────────────────────
+        recommendations = []
+        if score < 20:
+            recommendations.append(
+                "Low complexity — 'Setup UV + Texture (All-in-One)' with "
+                "Minimum Stretch will give excellent results automatically."
+            )
+        elif score < 50:
+            recommendations.append(
+                "Moderate complexity — run 'Scan & Mark Seams' to auto-mark "
+                "fold lines, adjust them if needed in Edit Mode, then click "
+                "'Hybrid Unwrap'."
+            )
+        else:
+            recommendations.append(
+                "High complexity (organic / branching mesh) — use the Hybrid "
+                "Workflow:  (1) 'Scan & Mark Seams'  (2) review and add seams "
+                "at branch points by clicking edges in Edit Mode  "
+                "(3) 'Hybrid Unwrap'."
+            )
+
+        if existing_seams:
+            recommendations.append(
+                f"{len(existing_seams)} seam(s) already marked — "
+                "'Hybrid Unwrap' will respect them."
+            )
+        else:
+            recommendations.append(
+                "No seams marked yet — 'Scan & Mark Seams' will suggest them "
+                "automatically based on fold angles."
+            )
+
+        return {
+            'complexity_score': score,
+            'problem_areas': problem_areas,
+            'seam_candidates': seam_candidates,
+            'island_estimate': island_estimate,
+            'recommendations': recommendations,
+        }
+
+    @staticmethod
+    def auto_mark_seams(obj, sharp_threshold_deg=30.0, clear_existing=False):
+        """Mark UV seams at natural fold lines in the mesh.
+
+        Identifies seam candidates by examining:
+
+        * **Dihedral angle** — edges whose face-to-face angle exceeds
+          *sharp_threshold_deg* are crease / fold lines and should be cut.
+        * **Boundary edges** — open-mesh edges (only one adjacent face) are
+          always seams because they are already geometric boundaries.
+
+        If *clear_existing* is ``False`` (default) any seams the user has
+        already marked by hand are kept; new seams are **added on top**.
+        Set *clear_existing* to ``True`` to start fresh.
+
+        Parameters
+        ----------
+        obj : bpy.types.Object
+        sharp_threshold_deg : float
+            Dihedral angle (degrees) above which an edge becomes a seam.
+            30 ° works well for most hard-surface and organic meshes.
+            Lower values (e.g. 20 °) produce more islands and are better
+            for high-detail foliage.
+        clear_existing : bool
+            Whether to erase all existing seams before marking new ones.
+
+        Returns
+        -------
+        (bool success, str message, int total_seam_count)
+        """
+        import math
+
+        if obj.type != 'MESH':
+            return False, "Object is not a mesh", 0
+
+        threshold_rad = math.radians(sharp_threshold_deg)
+        mesh = obj.data
+
+        bm = bmesh.new()
+        bm.from_mesh(mesh)
+        bm.edges.ensure_lookup_table()
+
+        if clear_existing:
+            for e in bm.edges:
+                e.seam = False
+
+        new_seams = 0
+        for edge in bm.edges:
+            if edge.seam:
+                continue  # already marked — preserve user intent
+            if edge.is_boundary:
+                edge.seam = True
+                new_seams += 1
+            elif edge.calc_face_angle(fallback=0.0) > threshold_rad:
+                edge.seam = True
+                new_seams += 1
+
+        total_seams = sum(1 for e in bm.edges if e.seam)
+        bm.to_mesh(mesh)
+        bm.free()
+        mesh.update()
+
+        msg = (
+            f"Marked {new_seams} new seam(s) at edges ≥ {sharp_threshold_deg:.0f}°. "
+            f"{total_seams} total seam edge(s). "
+            "Review and refine seams in Edit Mode "
+            "(Edge menu > Mark/Clear Seam), then run 'Hybrid Unwrap'."
+        )
+        return True, msg, total_seams
+
+
 def register():
     """Register advanced mesh helper functions"""
     pass
+
 
 def unregister():
     """Unregister advanced mesh helper functions"""
