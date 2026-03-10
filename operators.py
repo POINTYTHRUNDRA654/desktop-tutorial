@@ -5265,9 +5265,208 @@ class FO4_OT_OptimizeUVs(Operator):
             return {'CANCELLED'}
         
         return {'FINISHED'}
-    
+
     def invoke(self, context, event):
         return context.window_manager.invoke_props_dialog(self)
+
+
+# UV + Texture Workflow Operators
+
+class FO4_OT_SetupUVWithTexture(Operator):
+    """One-click UV unwrap + texture binding for Fallout 4 NIF export.
+
+    Creates (or keeps) a UV map, unwraps the mesh, sets up a full FO4
+    PBR material node tree, and binds the selected texture — all in one
+    step. The viewport is automatically switched to Material Preview so
+    you can see the result immediately. Use 'Edit UV Map' to fine-tune
+    UV islands if the texture does not sit correctly."""
+    bl_idname = "fo4.setup_uv_with_texture"
+    bl_label = "Setup UV + Texture"
+    bl_options = {'REGISTER', 'UNDO'}
+
+    filepath: StringProperty(
+        name="Texture File",
+        description="Path to the texture file to bind (PNG, TGA, DDS …)",
+        subtype='FILE_PATH',
+    )
+
+    filter_glob: StringProperty(
+        default="*.png;*.jpg;*.jpeg;*.tga;*.tiff;*.bmp;*.dds",
+        options={'HIDDEN'},
+    )
+
+    texture_type: EnumProperty(
+        name="Texture Type",
+        description="Which FO4 material slot to bind the texture to",
+        items=[
+            ('DIFFUSE',  "Diffuse",      "Base colour / albedo texture"),
+            ('NORMAL',   "Normal Map",   "Tangent-space normal map (_n)"),
+            ('SPECULAR', "Specular Map", "Specular / smoothness map (_s)"),
+            ('GLOW',     "Glow/Emissive","Emissive / glow mask (_g)"),
+        ],
+        default='DIFFUSE',
+    )
+
+    unwrap_method: EnumProperty(
+        name="Unwrap Method",
+        description="UV unwrapping algorithm to use",
+        items=[
+            ('SMART',    "Smart UV Project",  "Automatic seam detection – best for most meshes"),
+            ('ANGLE',    "Angle-Based",        "Classic conformal unwrap – good for organic shapes"),
+            ('CUBE',     "Cube Projection",    "Box projection – fast, good for hard-surface/architecture"),
+            ('EXISTING', "Keep Existing UVs",  "Skip unwrap – only bind the texture to the current UV map"),
+        ],
+        default='SMART',
+    )
+
+    island_margin: FloatProperty(
+        name="Island Margin",
+        description=(
+            "Gap between UV islands (0–10 %). 2 % is recommended for "
+            "1024 × 1024 DDS textures to prevent mip-map bleed"
+        ),
+        default=0.02,
+        min=0.0,
+        max=0.1,
+        subtype='FACTOR',
+    )
+
+    def draw(self, context):
+        layout = self.layout
+        layout.prop(self, "texture_type")
+        layout.prop(self, "unwrap_method")
+        layout.prop(self, "island_margin")
+
+    def execute(self, context):
+        obj = context.active_object
+        if not obj or obj.type != 'MESH':
+            self.report({'ERROR'}, "No mesh object selected")
+            return {'CANCELLED'}
+
+        success, message = mesh_helpers.MeshHelpers.setup_uv_with_texture(
+            obj,
+            self.filepath,
+            self.texture_type,
+            self.unwrap_method,
+            self.island_margin,
+        )
+
+        if success:
+            self.report({'INFO'}, message)
+            notification_system.FO4_NotificationSystem.notify(message, 'INFO')
+            import os
+            if self.filepath and os.path.splitext(self.filepath)[1].lower() != '.dds':
+                self.report(
+                    {'WARNING'},
+                    "Non-DDS texture installed. Convert to DDS before exporting the NIF "
+                    "(use 'Convert to DDS' in the Texture Helpers panel)."
+                )
+        else:
+            self.report({'ERROR'}, message)
+            notification_system.FO4_NotificationSystem.notify(message, 'ERROR')
+            return {'CANCELLED'}
+
+        return {'FINISHED'}
+
+    def invoke(self, context, event):
+        context.window_manager.fileselect_add(self)
+        return {'RUNNING_MODAL'}
+
+
+class FO4_OT_ReUnwrapUV(Operator):
+    """Re-unwrap the active mesh's UV map without changing its material or textures.
+
+    Use this when the initial unwrap did not look right. Texture bindings
+    are preserved — only the UV coordinates are recalculated."""
+    bl_idname = "fo4.re_unwrap_uv"
+    bl_label = "Re-Unwrap UV"
+    bl_options = {'REGISTER', 'UNDO'}
+
+    method: EnumProperty(
+        name="Unwrap Method",
+        description="UV unwrapping algorithm",
+        items=[
+            ('SMART', "Smart UV Project",  "Automatic seam detection"),
+            ('ANGLE', "Angle-Based",        "Classic conformal unwrap"),
+            ('CUBE',  "Cube Projection",    "Box projection"),
+        ],
+        default='SMART',
+    )
+
+    island_margin: FloatProperty(
+        name="Island Margin",
+        description="Gap between UV islands",
+        default=0.02,
+        min=0.0,
+        max=0.1,
+        subtype='FACTOR',
+    )
+
+    def draw(self, context):
+        layout = self.layout
+        layout.prop(self, "method")
+        layout.prop(self, "island_margin")
+
+    def execute(self, context):
+        obj = context.active_object
+        if not obj or obj.type != 'MESH':
+            self.report({'ERROR'}, "No mesh object selected")
+            return {'CANCELLED'}
+
+        success, message = advanced_mesh_helpers.AdvancedMeshHelpers.optimize_uvs(
+            obj, self.method, self.island_margin
+        )
+
+        if success:
+            self.report({'INFO'}, f"UV re-unwrapped: {message}")
+            notification_system.FO4_NotificationSystem.notify(message, 'INFO')
+        else:
+            self.report({'ERROR'}, message)
+            return {'CANCELLED'}
+
+        return {'FINISHED'}
+
+    def invoke(self, context, event):
+        return context.window_manager.invoke_props_dialog(self)
+
+
+class FO4_OT_OpenUVEditing(Operator):
+    """Enter UV Editing mode for the active mesh.
+
+    Switches to Edit Mode with all faces selected so you can immediately
+    see and adjust UV islands in the UV Editor (visible in Blender's built-in
+    UV Editing workspace). Use G/R/S to move, rotate, and scale islands;
+    press Tab or Ctrl+Tab to exit when done."""
+    bl_idname = "fo4.open_uv_editing"
+    bl_label = "Edit UV Map"
+    bl_options = {'REGISTER', 'UNDO'}
+
+    def execute(self, context):
+        obj = context.active_object
+        if not obj or obj.type != 'MESH':
+            self.report({'ERROR'}, "No mesh object selected")
+            return {'CANCELLED'}
+
+        if not obj.data.uv_layers:
+            self.report({'ERROR'}, "Object has no UV map — run 'Setup UV + Texture' first")
+            return {'CANCELLED'}
+
+        # Switch to Edit Mode with all geometry selected so UV islands appear
+        bpy.context.view_layer.objects.active = obj
+        bpy.ops.object.mode_set(mode='EDIT')
+        bpy.ops.mesh.select_all(action='SELECT')
+
+        # Try to switch to the built-in UV Editing workspace
+        uv_ws = bpy.data.workspaces.get("UV Editing")
+        if uv_ws:
+            context.window.workspace = uv_ws
+
+        self.report(
+            {'INFO'},
+            "UV Editing mode active. Use G/R/S to adjust islands. "
+            "Tab to return to Object Mode when done."
+        )
+        return {'FINISHED'}
 
 
 # Batch Processing Operators
