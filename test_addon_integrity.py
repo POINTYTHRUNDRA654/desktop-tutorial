@@ -609,6 +609,103 @@ def test_fo4_export_settings():
         return False
 
 
+def test_texture_node_labels():
+    """Verify texture node labels and sanitization are correct for Niftools export"""
+    print("\n" + "="*70)
+    print("TEST 7: Verifying texture node labels for Niftools NIF export")
+    print("="*70)
+
+    addon_dir = Path(__file__).parent
+    failed = []
+
+    # ----------------------------------------------------------------
+    # 1. setup_fo4_material must use canonical labels (no suffixes)
+    # ----------------------------------------------------------------
+    texture_helpers_path = addon_dir / "texture_helpers.py"
+    with open(texture_helpers_path, 'r', encoding='utf-8') as f:
+        th_content = f.read()
+
+    canonical_label_checks = [
+        ('Canonical "Diffuse" label present',   'label = "Diffuse"' in th_content),
+        ('Canonical "Normal" label present',    'label = "Normal"' in th_content),
+        ('Canonical "Specular" label present',  'label = "Specular"' in th_content),
+        ('Canonical "Glow" label present',      'label = "Glow"' in th_content),
+        # The old verbose labels must NOT appear in setup_fo4_material
+        ('Old "Diffuse (_d)" label removed',    '"Diffuse (_d)"' not in th_content),
+        ('Old "Normal Map (_n)" label removed', '"Normal Map (_n)"' not in th_content),
+        ('Old "Specular (_s)" label removed',   '"Specular (_s)"' not in th_content),
+        ('Old "Glow/Emissive (_g)" removed',    '"Glow/Emissive (_g)"' not in th_content),
+    ]
+    for check_name, result in canonical_label_checks:
+        if result:
+            print(f"✅ texture_helpers: {check_name}")
+        else:
+            print(f"❌ texture_helpers: {check_name}")
+            failed.append(f"texture_helpers: {check_name}")
+
+    # ----------------------------------------------------------------
+    # 2. ExportHelpers must have the sanitization method
+    # ----------------------------------------------------------------
+    export_helpers_path = addon_dir / "export_helpers.py"
+    with open(export_helpers_path, 'r', encoding='utf-8') as f:
+        eh_content = f.read()
+
+    export_checks = [
+        ("_sanitize_material_node_labels method present",
+         "_sanitize_material_node_labels" in eh_content),
+        # Verify the call appears *inside* _prepare_mesh_for_nif by slicing the
+        # content from the function definition to the next @staticmethod boundary.
+        ("Sanitize called from _prepare_mesh_for_nif",
+         "_sanitize_material_node_labels(obj)" in
+         eh_content[
+             eh_content.find("def _prepare_mesh_for_nif"):
+             eh_content.find("@staticmethod",
+                              eh_content.find("def _prepare_mesh_for_nif") + 1)
+         ]),
+        ("Legacy label Diffuse (_d) handled in sanitize",
+         '"Diffuse (_d)"' in eh_content),
+        ("Legacy label Normal Map (_n) handled in sanitize",
+         '"Normal Map (_n)"' in eh_content),
+        ("Legacy label Specular (_s) handled in sanitize",
+         '"Specular (_s)"' in eh_content),
+        ("Legacy label Glow/Emissive (_g) handled in sanitize",
+         '"Glow/Emissive (_g)"' in eh_content),
+    ]
+    for check_name, result in export_checks:
+        if result:
+            print(f"✅ export_helpers: {check_name}")
+        else:
+            print(f"❌ export_helpers: {check_name}")
+            failed.append(f"export_helpers: {check_name}")
+
+    # ----------------------------------------------------------------
+    # 3. NIFTOOLS_SETUP.md must document the label requirement
+    # ----------------------------------------------------------------
+    niftools_doc_path = addon_dir / "NIFTOOLS_SETUP.md"
+    with open(niftools_doc_path, 'r', encoding='utf-8') as f:
+        doc_content = f.read()
+
+    doc_checks = [
+        ("NIFTOOLS_SETUP documents label error",
+         "Do not know how to export texture node" in doc_content),
+        ("NIFTOOLS_SETUP documents canonical label table",
+         "BSShaderTextureSet slot" in doc_content),
+    ]
+    for check_name, result in doc_checks:
+        if result:
+            print(f"✅ NIFTOOLS_SETUP.md: {check_name}")
+        else:
+            print(f"❌ NIFTOOLS_SETUP.md: {check_name}")
+            failed.append(f"NIFTOOLS_SETUP.md: {check_name}")
+
+    if failed:
+        print(f"\n❌ FAILED: {len(failed)} texture-label check(s) missing")
+        return False
+
+    print(f"\n✅ PASSED: All texture node label checks passed")
+    return True
+
+
 def test_d_drive_paths():
     """Verify D: drive path configuration"""
     print("\n" + "="*70)
@@ -668,6 +765,7 @@ def run_all_tests():
         ("Export Functions", test_export_functions),
         ("Tool Helpers", test_tool_helpers),
         ("FO4 Export Settings", test_fo4_export_settings),
+        ("Texture Node Labels", test_texture_node_labels),
         ("D: Drive Paths", test_d_drive_paths),
     ]
 

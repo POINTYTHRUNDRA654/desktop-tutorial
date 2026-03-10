@@ -106,6 +106,22 @@ set (UNKNOWN) the add-on defaults to `FALLOUT_4` (OG).
    - Niftools not installed or not enabled in Preferences.
    - `AttributeError: 'Object' has no attribute 'face_maps'` — this is
      auto-patched on Blender 4.x; if it still appears, re-install the add-on.
+   - `"Do not know how to export texture node … with label …"` — the texture
+     node's **label** (not its name) must be one of the canonical slot names
+     that the Niftools exporter recognises:
+
+     | Niftools label | Texture type            | FO4 suffix | BSShaderTextureSet slot |
+     |----------------|-------------------------|------------|------------------------|
+     | `Diffuse`      | Diffuse / albedo colour | `_d`       | 0                      |
+     | `Normal`       | Tangent-space normal    | `_n`       | 1                      |
+     | `Specular`     | Specular / smoothness   | `_s`       | 3                      |
+     | `Glow`         | Glow / emissive mask    | `_g`       | 2                      |
+
+     The add-on automatically corrects legacy labels (e.g. `"Diffuse (_d)"`,
+     `"Normal Map (_n)"`) to the canonical form before every NIF export so you
+     will not need to fix this manually on existing materials.  If you set a
+     custom label on a texture node, make sure it exactly matches one of the
+     four canonical names in the table above.
 3. If NIF export is unavailable or fails, the add-on automatically exports an
    FBX file in the same location. Convert it to NIF using Cathedral Assets
    Optimizer or NifSkope.
