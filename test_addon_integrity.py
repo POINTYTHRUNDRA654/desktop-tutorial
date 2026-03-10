@@ -706,6 +706,118 @@ def test_texture_node_labels():
     return True
 
 
+def test_uv_unwrap_quality():
+    """Verify UV unwrapping improvements are correctly implemented"""
+    print("\n" + "="*70)
+    print("TEST 8: Verifying UV unwrap quality improvements")
+    print("="*70)
+
+    addon_dir = Path(__file__).parent
+    failed = []
+
+    # ----------------------------------------------------------------
+    # advanced_mesh_helpers.optimize_uvs improvements
+    # ----------------------------------------------------------------
+    adv_path = addon_dir / "advanced_mesh_helpers.py"
+    with open(adv_path, 'r', encoding='utf-8') as f:
+        adv_content = f.read()
+
+    adv_checks = [
+        # Critical bug fix: 'ANGLE' method must be handled (was silently
+        # falling through to Cube Projection before this fix).
+        ("optimize_uvs handles 'ANGLE' method",
+         "'ANGLE'" in adv_content and "ANGLE_BASED" in adv_content),
+        # Backward-compat alias
+        ("optimize_uvs handles legacy 'UNWRAP' alias",
+         "'UNWRAP'" in adv_content),
+        # Safe mode restoration — no more stuck-in-Edit-Mode
+        ("optimize_uvs has try/finally for mode restoration",
+         "try:" in adv_content and "finally:" in adv_content
+         and "mode_set(mode='OBJECT')" in adv_content),
+        # Restores previously active object
+        ("optimize_uvs restores prev_active",
+         "prev_active" in adv_content),
+        # Better packing
+        ("optimize_uvs uses rotate=True in pack_islands",
+         "pack_islands(rotate=True" in adv_content),
+        # Stretch-minimise pass for quality
+        ("optimize_uvs calls minimize_stretch for ANGLE method",
+         "minimize_stretch" in adv_content),
+        # cube_project gets margin equivalent
+        ("optimize_uvs passes cube_size to cube_project",
+         "cube_project(cube_size=1.0)" in adv_content),
+    ]
+    for check_name, result in adv_checks:
+        if result:
+            print(f"✅ advanced_mesh_helpers: {check_name}")
+        else:
+            print(f"❌ advanced_mesh_helpers: {check_name}")
+            failed.append(f"advanced_mesh_helpers: {check_name}")
+
+    # ----------------------------------------------------------------
+    # mesh_helpers.setup_uv_with_texture improvements
+    # ----------------------------------------------------------------
+    mesh_path = addon_dir / "mesh_helpers.py"
+    with open(mesh_path, 'r', encoding='utf-8') as f:
+        mesh_content = f.read()
+
+    mesh_checks = [
+        # ANGLE method now primes with Smart UV then refines
+        ("setup_uv_with_texture ANGLE method primes with smart_project",
+         "unwrap_method == 'ANGLE'" in mesh_content
+         and "smart_project" in mesh_content),
+        # Stretch minimise pass for ANGLE
+        ("setup_uv_with_texture ANGLE uses minimize_stretch",
+         "minimize_stretch" in mesh_content),
+        # Better packing
+        ("setup_uv_with_texture uses rotate=True in pack_islands",
+         "pack_islands(rotate=True" in mesh_content),
+    ]
+    for check_name, result in mesh_checks:
+        if result:
+            print(f"✅ mesh_helpers: {check_name}")
+        else:
+            print(f"❌ mesh_helpers: {check_name}")
+            failed.append(f"mesh_helpers: {check_name}")
+
+    # ----------------------------------------------------------------
+    # operators.py — old 'UNWRAP' enum item must be gone from UI enums,
+    # 'ANGLE' must be present in all three UV operator enums
+    # ----------------------------------------------------------------
+    import re as _re
+
+    ops_path = addon_dir / "operators.py"
+    with open(ops_path, 'r', encoding='utf-8') as f:
+        ops_content = f.read()
+
+    # Match only enum tuple identifiers like ('UNWRAP', …) to avoid false
+    # positives from comments or variable names such as 'ANGLE_BASED'.
+    _unwrap_enum_pattern = _re.compile(r"\(\s*'UNWRAP'\s*,")
+
+    ops_checks = [
+        # FO4_OT_OptimizeUVs must no longer expose the broken 'UNWRAP' item
+        ("FO4_OT_OptimizeUVs no longer exposes 'UNWRAP' enum item",
+         not _unwrap_enum_pattern.search(ops_content)),
+        ("FO4_OT_OptimizeUVs has 'ANGLE' enum item",
+         "'ANGLE'" in ops_content),
+        ("FO4_OT_ReUnwrapUV has 'ANGLE' enum item",
+         "'ANGLE'" in ops_content and "fo4.re_unwrap_uv" in ops_content),
+    ]
+    for check_name, result in ops_checks:
+        if result:
+            print(f"✅ operators: {check_name}")
+        else:
+            print(f"❌ operators: {check_name}")
+            failed.append(f"operators: {check_name}")
+
+    if failed:
+        print(f"\n❌ FAILED: {len(failed)} UV quality check(s) missing")
+        return False
+
+    print(f"\n✅ PASSED: All UV unwrap quality checks passed")
+    return True
+
+
 def test_d_drive_paths():
     """Verify D: drive path configuration"""
     print("\n" + "="*70)
@@ -766,6 +878,7 @@ def run_all_tests():
         ("Tool Helpers", test_tool_helpers),
         ("FO4 Export Settings", test_fo4_export_settings),
         ("Texture Node Labels", test_texture_node_labels),
+        ("UV Unwrap Quality", test_uv_unwrap_quality),
         ("D: Drive Paths", test_d_drive_paths),
     ]
 

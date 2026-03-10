@@ -5265,27 +5265,34 @@ class FO4_OT_GenerateLOD(Operator):
 
 
 class FO4_OT_OptimizeUVs(Operator):
-    """Optimize UV layout"""
+    """Re-unwrap and pack UV islands using the selected algorithm.
+
+    Use this as a standalone 'Pack Islands' button when UV islands only need
+    repacking, or choose a different algorithm to fully re-unwrap the mesh."""
     bl_idname = "fo4.optimize_uvs"
     bl_label = "Optimize UVs"
     bl_options = {'REGISTER', 'UNDO'}
-    
+
     method: EnumProperty(
         name="Method",
         items=[
-            ('SMART', "Smart UV Project", "Smart UV projection with automatic seams"),
-            ('UNWRAP', "Angle-Based Unwrap", "Unwrap with angle-based method"),
-            ('CUBE', "Cube Projection", "Simple cube projection"),
+            ('SMART', "Smart UV Project",
+             "Automatic seam detection – recommended for most meshes"),
+            ('ANGLE', "Angle-Based + Stretch Minimize",
+             "Conformal unwrap with stretch-minimize pass – "
+             "best for organic shapes where low distortion matters"),
+            ('CUBE',  "Cube Projection",
+             "Box projection – fastest; ideal for architecture"),
         ],
-        default='SMART'
+        default='SMART',
     )
-    
+
     margin: FloatProperty(
         name="Margin",
         description="Space between UV islands",
         default=0.01,
         min=0.0,
-        max=0.1
+        max=0.1,
     )
     
     def execute(self, context):
@@ -5356,10 +5363,17 @@ class FO4_OT_SetupUVWithTexture(Operator):
         name="Unwrap Method",
         description="UV unwrapping algorithm to use",
         items=[
-            ('SMART',    "Smart UV Project",  "Automatic seam detection – best for most meshes"),
-            ('ANGLE',    "Angle-Based",        "Classic conformal unwrap – good for organic shapes"),
-            ('CUBE',     "Cube Projection",    "Box projection – fast, good for hard-surface/architecture"),
-            ('EXISTING', "Keep Existing UVs",  "Skip unwrap – only bind the texture to the current UV map"),
+            ('SMART',    "Smart UV Project",
+             "Automatic seam detection – best for most meshes (recommended default)"),
+            ('ANGLE',    "Angle-Based + Stretch Minimize",
+             "Conformal unwrap: primes with Smart UV then refines with angle-based "
+             "solver and a stretch-minimize pass – best for organic shapes and "
+             "meshes where texture distortion matters"),
+            ('CUBE',     "Cube Projection",
+             "Box projection – fastest option; best for architecture and "
+             "hard-surface objects with mostly flat faces"),
+            ('EXISTING', "Keep Existing UVs",
+             "Skip unwrap – only bind the texture to the current UV map"),
         ],
         default='SMART',
     )
@@ -5431,9 +5445,13 @@ class FO4_OT_ReUnwrapUV(Operator):
         name="Unwrap Method",
         description="UV unwrapping algorithm",
         items=[
-            ('SMART', "Smart UV Project",  "Automatic seam detection"),
-            ('ANGLE', "Angle-Based",        "Classic conformal unwrap"),
-            ('CUBE',  "Cube Projection",    "Box projection"),
+            ('SMART', "Smart UV Project",
+             "Automatic seam detection – recommended for most meshes"),
+            ('ANGLE', "Angle-Based + Stretch Minimize",
+             "Conformal unwrap with stretch-minimize pass – "
+             "best for organic shapes where low distortion matters"),
+            ('CUBE',  "Cube Projection",
+             "Box projection – fastest; ideal for architecture"),
         ],
         default='SMART',
     )

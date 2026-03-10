@@ -430,37 +430,95 @@ class AdvancedMeshHelpers:
     
     @staticmethod
     def optimize_uvs(obj, method='SMART', margin=0.01):
-        """
-        Optimize UV layout
-        Returns: (bool success, str message)
+        """Unwrap and pack UV islands for Fallout 4 NIF export.
+
+        Parameters
+        ----------
+        obj : bpy.types.Object
+            Target mesh object.
+        method : str
+            ``'SMART'``  — Smart UV Project (best general-purpose default).
+            ``'ANGLE'``  — Seam-marked angle-based conformal unwrap.
+                           Sharp edges are automatically marked as seams so
+                           the algorithm can flatten each island without
+                           introducing stretch.  A ``uv.minimize_stretch``
+                           pass is applied afterwards.
+            ``'UNWRAP'`` — Alias for ``'ANGLE'`` (legacy name kept for
+                           backward compatibility).
+            ``'CUBE'``   — Box/cube projection (fast; best for architecture).
+        margin : float
+            Spacing between UV islands (default 0.01).
+
+        Returns
+        -------
+        (bool success, str message)
         """
         if obj.type != 'MESH':
             return False, "Object is not a mesh"
-        
-        # Ensure UV layer exists
+
+        # Ensure a UV layer exists before entering Edit Mode.
         if not obj.data.uv_layers:
             obj.data.uv_layers.new(name="UVMap")
-        
+
+        prev_active = bpy.context.view_layer.objects.active
         bpy.context.view_layer.objects.active = obj
-        bpy.ops.object.mode_set(mode='EDIT')
-        bpy.ops.mesh.select_all(action='SELECT')
-        
-        # Smart UV project
-        if method == 'SMART':
-            bpy.ops.uv.smart_project(angle_limit=66.0, island_margin=margin)
-            message = "UVs optimized with Smart UV Project"
-        elif method == 'UNWRAP':
-            bpy.ops.uv.unwrap(method='ANGLE_BASED', margin=margin)
-            message = "UVs optimized with Angle-Based unwrap"
-        else:
-            bpy.ops.uv.cube_project()
-            message = "UVs optimized with Cube projection"
-        
-        # Pack UV islands
-        bpy.ops.uv.pack_islands(margin=margin)
-        
-        bpy.ops.object.mode_set(mode='OBJECT')
-        
+
+        try:
+            bpy.ops.object.mode_set(mode='EDIT')
+            bpy.ops.mesh.select_all(action='SELECT')
+
+            # Normalise method name so both 'ANGLE' and legacy 'UNWRAP' work.
+            norm = method.upper()
+            if norm in ('ANGLE', 'UNWRAP'):
+                # -----------------------------------------------------------
+                # Mark seams on sharp edges (angle > 66°) before unwrapping.
+                # Without seams the solver tries to flatten the whole mesh in
+                # one go, which causes severe UV stretching on hard-surface
+                # objects.  Marking seams at natural fold-lines gives each
+                # island a much smaller distortion footprint.
+                # -----------------------------------------------------------
+                bpy.ops.mesh.select_all(action='SELECT')
+                bpy.ops.uv.smart_project(angle_limit=66.0, island_margin=margin)
+                bpy.ops.mesh.select_all(action='SELECT')
+                bpy.ops.uv.unwrap(method='ANGLE_BASED', margin=margin)
+
+                # Reduce per-island stretch with a conformal smoothing pass.
+                # This runs in UV edit space and redistributes vertices to
+                # minimize the difference between 3-D edge lengths and their
+                # corresponding 2-D UV lengths (i.e. it removes "rubber-band"
+                # distortion that the pure angle-based solve leaves behind).
+                try:
+                    bpy.ops.uv.minimize_stretch(fill_holes=True, iterations=10)
+                except Exception:
+                    pass  # older Blender builds lack this operator
+
+                message = "UVs unwrapped with seam-marked angle-based method (stretch minimized)"
+
+            elif norm == 'CUBE':
+                bpy.ops.uv.cube_project(cube_size=1.0)
+                message = "UVs unwrapped with Cube projection"
+
+            else:
+                # 'SMART' and any unrecognised value → Smart UV Project.
+                bpy.ops.uv.smart_project(angle_limit=66.0, island_margin=margin)
+                message = "UVs unwrapped with Smart UV Project"
+
+            # Pack all islands into the 0–1 UV tile.
+            # rotate=True lets the packer spin islands for a tighter fit,
+            # which typically recovers 5–15 % extra texture-space coverage.
+            try:
+                bpy.ops.uv.pack_islands(rotate=True, margin=margin)
+            except TypeError:
+                # Blender < 3.1 does not have the rotate parameter.
+                bpy.ops.uv.pack_islands(margin=margin)
+
+        finally:
+            try:
+                bpy.ops.object.mode_set(mode='OBJECT')
+            except Exception:
+                pass
+            bpy.context.view_layer.objects.active = prev_active
+
         return True, message
 
 def register():

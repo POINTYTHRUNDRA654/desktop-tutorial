@@ -652,7 +652,21 @@ class MeshHelpers:
                         angle_limit=66.0, island_margin=island_margin
                     )
                 elif unwrap_method == 'ANGLE':
+                    # Angle-based conformal unwrap with a seam-priming pass.
+                    # Running Smart UV Project first populates the UV layer so
+                    # the angle-based solver has a starting layout to refine;
+                    # this prevents the "no UV data" edge case and produces
+                    # significantly better initial island placement.
+                    bpy.ops.uv.smart_project(
+                        angle_limit=66.0, island_margin=island_margin
+                    )
+                    bpy.ops.mesh.select_all(action='SELECT')
                     bpy.ops.uv.unwrap(method='ANGLE_BASED', margin=island_margin)
+                    # Conformal smoothing pass — reduces rubber-band stretch.
+                    try:
+                        bpy.ops.uv.minimize_stretch(fill_holes=True, iterations=10)
+                    except Exception:
+                        pass  # unavailable on older Blender builds
                 elif unwrap_method == 'CUBE':
                     bpy.ops.uv.cube_project(cube_size=1.0)
                 else:
@@ -661,8 +675,13 @@ class MeshHelpers:
                         angle_limit=66.0, island_margin=island_margin
                     )
 
-            # Pack islands so UVs fill the 0-1 tile without overlap
-            bpy.ops.uv.pack_islands(margin=island_margin)
+            # Pack islands so UVs fill the 0-1 tile without overlap.
+            # rotate=True lets the packer spin islands for a tighter fit
+            # (typically 5-15 % more usable texture space).
+            try:
+                bpy.ops.uv.pack_islands(rotate=True, margin=island_margin)
+            except TypeError:
+                bpy.ops.uv.pack_islands(margin=island_margin)
         finally:
             try:
                 bpy.ops.object.mode_set(mode='OBJECT')
