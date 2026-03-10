@@ -89,6 +89,12 @@ class FO4_PT_MeshPanel(Panel):
             box.label(text="Mesh Helpers", icon='MESH_CUBE')
             box.operator("fo4.create_base_mesh", text="Create Base Mesh", icon='MESH_DATA')
             box.operator("fo4.optimize_mesh", text="Optimize for FO4", icon='MOD_DECIM')
+            if prefs:
+                opt_sub = box.box()
+                opt_sub.label(text="Optimize Settings:", icon='PREFERENCES')
+                opt_sub.prop(prefs, "optimize_apply_transforms")
+                opt_sub.prop(prefs, "optimize_remove_doubles_threshold")
+                opt_sub.prop(prefs, "optimize_preserve_uvs")
             box.operator("fo4.validate_mesh", text="Validate Mesh", icon='CHECKMARK')
             box.separator()
 
@@ -221,6 +227,12 @@ class FO4_PT_MeshPanel(Panel):
             box.label(text="Mesh Creation", icon='MESH_CUBE')
             box.operator("fo4.create_base_mesh", text="Create Base Mesh", icon='MESH_DATA')
             box.operator("fo4.optimize_mesh", text="Optimize for FO4", icon='MOD_DECIM')
+            if prefs:
+                opt_sub = box.box()
+                opt_sub.label(text="Optimize Settings:", icon='PREFERENCES')
+                opt_sub.prop(prefs, "optimize_apply_transforms")
+                opt_sub.prop(prefs, "optimize_remove_doubles_threshold")
+                opt_sub.prop(prefs, "optimize_preserve_uvs")
             box.operator("fo4.validate_mesh", text="Validate Mesh", icon='CHECKMARK')
 
             col_box = layout.box()

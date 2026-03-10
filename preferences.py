@@ -145,7 +145,7 @@ class FO4AddonPreferences(bpy.types.AddonPreferences):
     mesh_panel_unified: bpy.props.BoolProperty(
         name="Unified Mesh Panel",
         description="Show all mesh helpers (basic, collision, advanced) in one box",
-        default=True,
+        default=False,
     )
 
     nvtt_path: bpy.props.StringProperty(
