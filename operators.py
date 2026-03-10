@@ -3328,6 +3328,51 @@ class FO4_OT_UpscaleKREALegacy(Operator):
         return {'RUNNING_MODAL'}
 
 
+class FO4_OT_InstallUpscalerDeps(Operator):
+    """One-click installer for the Real-ESRGAN AI upscaler.
+
+    Downloads the NCNN Vulkan binary (~50 MB, GPU-accelerated via Vulkan,
+    works on NVIDIA/AMD/Intel with no Python dependencies) and falls back
+    to installing the Python package stack (PyTorch CPU + basicsr +
+    realesrgan, ~400 MB) if the binary download fails.
+
+    Runs entirely in the background — Blender stays responsive.
+    A notification pops up when the installation is complete."""
+    bl_idname = "fo4.install_upscaler_deps"
+    bl_label = "Install AI Upscaler"
+    bl_options = {'REGISTER'}
+
+    def execute(self, context):
+        import threading
+        from . import tool_installers
+
+        def _run():
+            print("\n" + "=" * 60)
+            print("AI UPSCALER INSTALLATION")
+            print("=" * 60)
+            print("Step 1: Trying Real-ESRGAN NCNN Vulkan binary …")
+            ok, msg = tool_installers.install_realesrgan()
+            level = 'INFO' if ok else 'ERROR'
+            status = "✅ Installation complete!" if ok else "❌ Installation failed"
+            print(f"{status}\n{msg}")
+            print("=" * 60 + "\n")
+
+            def _notify():
+                notification_system.FO4_NotificationSystem.notify(
+                    f"AI Upscaler: {msg[:120]}", level
+                )
+            bpy.app.timers.register(_notify, first_interval=0.1)
+
+        threading.Thread(target=_run, daemon=True).start()
+        self.report(
+            {'INFO'},
+            "Installing AI upscaler in the background. "
+            "Check the Blender console for progress. "
+            "You will be notified when complete."
+        )
+        return {'FINISHED'}
+
+
 # NVIDIA GET3D Operators
 
 class FO4_OT_ImportGET3DMesh(Operator):
@@ -5466,6 +5511,72 @@ class FO4_OT_OpenUVEditing(Operator):
             "UV Editing mode active. Use G/R/S to adjust islands. "
             "Tab to return to Object Mode when done."
         )
+        return {'FINISHED'}
+
+
+class FO4_OT_AskMossyForUVAdvice(Operator):
+    """Ask Mossy's AI brain for UV map and texture setup advice.
+
+    Analyses the active mesh's UV map, material node tree, and texture
+    slots, then sends a structured report to Mossy's local AI server for
+    prioritised, step-by-step recommendations.
+
+    Mossy must be running on the desktop with its HTTP server enabled
+    (port 8080 by default). If Mossy is not reachable, the built-in
+    rules-based analysis is shown instead so you always get useful feedback."""
+    bl_idname = "fo4.ask_mossy_uv_advice"
+    bl_label = "Ask Mossy for UV/Texture Advice"
+    bl_options = {'REGISTER'}
+
+    # Stores the advice text for display in the dialog
+    _advice: str = ""
+
+    def execute(self, context):
+        obj = context.active_object
+        if not obj or obj.type != 'MESH':
+            self.report({'ERROR'}, "Select a mesh object first")
+            return {'CANCELLED'}
+
+        from . import advisor_helpers
+        advice = advisor_helpers.AdvisorHelpers.ask_mossy_uv_texture(obj)
+
+        if advice:
+            self.report({'INFO'}, "Mossy responded — see Blender console for full advice")
+            print("\n" + "=" * 60)
+            print(f"MOSSY UV/TEXTURE ADVICE — {obj.name}")
+            print("=" * 60)
+            print(advice)
+            print("=" * 60 + "\n")
+            notification_system.FO4_NotificationSystem.notify(
+                "Mossy: " + advice[:100] + ("…" if len(advice) > 100 else ""),
+                'INFO'
+            )
+        else:
+            # Mossy unavailable — fall back to built-in rules analysis
+            analysis = advisor_helpers.AdvisorHelpers.analyze_uv_texture(obj)
+            issues = analysis.get("issues", [])
+            suggestions = analysis.get("suggestions", [])
+            lines = []
+            if issues:
+                lines.append("Issues found:")
+                for i, iss in enumerate(issues, 1):
+                    lines.append(f"  {i}. {iss}")
+            if suggestions:
+                lines.append("Suggestions:")
+                for i, sug in enumerate(suggestions, 1):
+                    lines.append(f"  {i}. {sug}")
+            if not lines:
+                lines.append("UV map and textures look good for FO4 export!")
+
+            full = "\n".join(lines)
+            print("\n" + "=" * 60)
+            print(f"UV/TEXTURE ANALYSIS — {obj.name}")
+            print("=" * 60)
+            print(full)
+            print("(Mossy not available — showing built-in analysis)")
+            print("=" * 60 + "\n")
+            self.report({'INFO'}, lines[0] if lines else "Analysis complete — see console")
+
         return {'FINISHED'}
 
 
@@ -8463,6 +8574,14 @@ classes = (
     # Mod folder import/export
     FO4_OT_ImportModFolder,
     FO4_OT_ExportModFolder,
+    # UV + Texture workflow
+    FO4_OT_SetupUVWithTexture,
+    FO4_OT_ReUnwrapUV,
+    FO4_OT_OpenUVEditing,
+    # AI upscaler one-click installer
+    FO4_OT_InstallUpscalerDeps,
+    # Mossy AI UV/texture advisor
+    FO4_OT_AskMossyForUVAdvice,
 )
 
 def register():

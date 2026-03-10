@@ -135,15 +135,17 @@ def _pip_install_with_index(packages: list[str], index_url: str) -> tuple[bool, 
     if not ok:
         return False, msg
 
-    cmd = [sys.executable, "-m", "pip", "install", "--quiet", "--upgrade",
-           "--index-url", index_url]
+    cmd = [
+        sys.executable, "-m", "pip", "install",
+        "--quiet", "--upgrade",
+        "--index-url", index_url,
+    ]
     if _python_version() >= (3, 11):
         cmd.append("--break-system-packages")
     cmd.extend(packages)
 
     try:
-        # Generous timeout: the PyTorch CPU wheel is ~250 MB
-        subprocess.check_call(cmd, timeout=900)
+        subprocess.check_call(cmd, timeout=900)  # 15-min budget: PyTorch CPU wheel is ~250 MB
         return True, f"Installed (from {index_url}): {', '.join(packages)}"
     except subprocess.TimeoutExpired:
         return False, "pip install timed out (15 min). Check your internet connection."

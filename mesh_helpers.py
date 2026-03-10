@@ -593,8 +593,8 @@ class MeshHelpers:
             ``'SMART'`` (Smart UV Project), ``'ANGLE'`` (Angle-Based),
             ``'CUBE'`` (Cube Projection), or ``'EXISTING'`` (keep current UVs).
         island_margin : float
-            Spacing between UV islands (0.0 – 0.1).  Default 0.02 (2 %) gives
-            enough room to prevent mip-map bleed on 1024 × 1024 DDS textures.
+            Spacing between UV islands (0.0 - 0.1). Default 0.02 (2 %) gives
+            enough room to prevent mip-map bleed on 1024 x 1024 DDS textures.
 
         Returns
         -------
@@ -618,33 +618,39 @@ class MeshHelpers:
         if not uv_already_exists:
             mesh.uv_layers.new(name="UVMap")
 
-        # Make the object active and enter Edit Mode to unwrap
+        # Make the object active and enter Edit Mode to unwrap.
+        # Use try/finally to guarantee we restore the previous active object
+        # and return to Object Mode even if an exception occurs mid-unwrap.
         prev_active = bpy.context.view_layer.objects.active
         bpy.context.view_layer.objects.active = obj
-        bpy.ops.object.mode_set(mode='EDIT')
-        bpy.ops.mesh.select_all(action='SELECT')
+        try:
+            bpy.ops.object.mode_set(mode='EDIT')
+            bpy.ops.mesh.select_all(action='SELECT')
 
-        skip_unwrap = (unwrap_method == 'EXISTING' and uv_already_exists)
-        if not skip_unwrap:
-            if unwrap_method == 'SMART':
-                bpy.ops.uv.smart_project(
-                    angle_limit=66.0, island_margin=island_margin
-                )
-            elif unwrap_method == 'ANGLE':
-                bpy.ops.uv.unwrap(method='ANGLE_BASED', margin=island_margin)
-            elif unwrap_method == 'CUBE':
-                bpy.ops.uv.cube_project(cube_size=1.0)
-            else:
-                # Default to Smart UV Project for any unknown method
-                bpy.ops.uv.smart_project(
-                    angle_limit=66.0, island_margin=island_margin
-                )
+            skip_unwrap = (unwrap_method == 'EXISTING' and uv_already_exists)
+            if not skip_unwrap:
+                if unwrap_method == 'SMART':
+                    bpy.ops.uv.smart_project(
+                        angle_limit=66.0, island_margin=island_margin
+                    )
+                elif unwrap_method == 'ANGLE':
+                    bpy.ops.uv.unwrap(method='ANGLE_BASED', margin=island_margin)
+                elif unwrap_method == 'CUBE':
+                    bpy.ops.uv.cube_project(cube_size=1.0)
+                else:
+                    # Default to Smart UV Project for any unknown method
+                    bpy.ops.uv.smart_project(
+                        angle_limit=66.0, island_margin=island_margin
+                    )
 
-        # 3. Pack islands so UVs fill the 0-1 tile without overlap
-        bpy.ops.uv.pack_islands(margin=island_margin)
-
-        bpy.ops.object.mode_set(mode='OBJECT')
-        bpy.context.view_layer.objects.active = prev_active
+            # Pack islands so UVs fill the 0-1 tile without overlap
+            bpy.ops.uv.pack_islands(margin=island_margin)
+        finally:
+            try:
+                bpy.ops.object.mode_set(mode='OBJECT')
+            except Exception:
+                pass
+            bpy.context.view_layer.objects.active = prev_active
 
         # ------------------------------------------------------------------
         # 4. Ensure the object has a FO4-compatible material

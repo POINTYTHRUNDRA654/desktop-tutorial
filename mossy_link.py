@@ -27,6 +27,10 @@ Mossy → Blender (inbound TCP on port 9999):
   {"type": "get_object", "name": "<obj>"}      → object transforms/visibility
   {"type": "run_operator", "operator": "ns.id",
            "kwargs": {...}}                    → call bpy.ops.<ns>.<id>(**kwargs)
+  {"type": "setup_uv_texture",
+   "texture_path": "…", "texture_type": "DIFFUSE",
+   "unwrap_method": "SMART", "island_margin": 0.02}
+                                               → UV-unwrap + bind texture on active mesh
 
 All inbound commands accept an optional "token" field when a secret is set.
 
@@ -147,6 +151,8 @@ class MossyLinkServer:
             return self._handle_get_object(cmd)
         elif action == "run_operator":
             return self._handle_run_operator(cmd)
+        elif action == "setup_uv_texture":
+            return self._handle_setup_uv_texture(cmd)
         else:
             return {"success": False, "error": f"unknown command: {action!r}"}
 
@@ -236,6 +242,51 @@ class MossyLinkServer:
         try:
             result = getattr(getattr(bpy.ops, module), func)(**kwargs)
             return {"success": True, "result": str(result)}
+        except Exception as e:
+            return {"success": False, "error": str(e)}
+
+    def _handle_setup_uv_texture(self, cmd):
+        """Allow Mossy to trigger UV unwrap + texture binding on the active object.
+
+        Expected command fields
+        -----------------------
+        texture_path  : str  – absolute path to the texture file (may be empty
+                               to skip texture binding and only unwrap)
+        texture_type  : str  – 'DIFFUSE', 'NORMAL', 'SPECULAR', or 'GLOW'
+                               (default: 'DIFFUSE')
+        unwrap_method : str  – 'SMART', 'ANGLE', 'CUBE', or 'EXISTING'
+                               (default: 'SMART')
+        island_margin : float – UV island spacing 0.0–0.1 (default: 0.02)
+
+        Response fields
+        ---------------
+        success : bool
+        message : str  – human-readable result from setup_uv_with_texture()
+        analysis : dict – UV/texture analysis report from analyze_uv_texture()
+        """
+        try:
+            ctx = bpy.context
+            if ctx is None:
+                return {"success": False, "error": "Blender context unavailable"}
+
+            obj = ctx.active_object
+            if not obj or obj.type != 'MESH':
+                return {"success": False, "error": "No active mesh object in Blender"}
+
+            from . import mesh_helpers, advisor_helpers
+
+            texture_path  = cmd.get("texture_path", "")
+            texture_type  = cmd.get("texture_type", "DIFFUSE").upper()
+            unwrap_method = cmd.get("unwrap_method", "SMART").upper()
+            island_margin = float(cmd.get("island_margin", 0.02))
+
+            ok, msg = mesh_helpers.MeshHelpers.setup_uv_with_texture(
+                obj, texture_path, texture_type, unwrap_method, island_margin
+            )
+
+            analysis = advisor_helpers.AdvisorHelpers.analyze_uv_texture(obj)
+
+            return {"success": ok, "message": msg, "analysis": analysis}
         except Exception as e:
             return {"success": False, "error": str(e)}
 

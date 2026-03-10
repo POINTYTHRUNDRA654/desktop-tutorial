@@ -76,58 +76,122 @@ class FO4_PT_MeshPanel(Panel):
     
     def draw(self, context):
         layout = self.layout
-        
+
         prefs = preferences.get_preferences()
         unified = prefs.mesh_panel_unified if prefs else True
+
+        obj = context.active_object
+        has_mesh = obj and obj.type == 'MESH'
+
         if unified:
-            # unified mesh helper section
+            # ── Mesh Helpers ────────────────────────────────────────────
             box = layout.box()
             box.label(text="Mesh Helpers", icon='MESH_CUBE')
-            # basic operations
             box.operator("fo4.create_base_mesh", text="Create Base Mesh", icon='MESH_DATA')
             box.operator("fo4.optimize_mesh", text="Optimize for FO4", icon='MOD_DECIM')
             box.operator("fo4.validate_mesh", text="Validate Mesh", icon='CHECKMARK')
             box.separator()
-            # collision controls
+
+            # ── Collision ───────────────────────────────────────────────
             box.label(text="Collision", icon='MESH_ICOSPHERE')
-            if context.active_object and context.active_object.type == 'MESH':
-                box.prop(context.active_object, "fo4_collision_type", text="Type")
+            if has_mesh:
+                box.prop(obj, "fo4_collision_type", text="Type")
             row = box.row()
             row.operator("fo4.set_collision_type", text="Change Type", icon='PRESET')
             row = box.row()
-            row.enabled = context.active_object and context.active_object.type == 'MESH' and getattr(context.active_object, 'fo4_collision_type', 'DEFAULT') not in ('NONE','GRASS','MUSHROOM')
+            row.enabled = has_mesh and getattr(obj, 'fo4_collision_type', 'DEFAULT') not in ('NONE', 'GRASS', 'MUSHROOM')
             row.operator("fo4.generate_collision_mesh", text="Generate Collision", icon='MESH_DATA')
             row = box.row()
-            row.operator("fo4.export_mesh_with_collision", text="Generate+Export NIF", icon='EXPORT')
+            row.operator("fo4.export_mesh_with_collision", text="Generate + Export NIF", icon='EXPORT')
             box.separator()
-            # advanced operations
+
+            # ── Advanced Mesh Tools ─────────────────────────────────────
             box.label(text="Advanced Mesh Tools", icon='MODIFIER')
             box.operator("fo4.analyze_mesh_quality", text="Analyze Quality", icon='INFO')
             box.operator("fo4.auto_repair_mesh", text="Auto-Repair", icon='TOOL_SETTINGS')
             box.operator("fo4.smart_decimate", text="Smart Decimate", icon='MOD_DECIM')
             box.operator("fo4.split_mesh_poly_limit", text="Split at Poly Limit", icon='MOD_BOOLEAN')
             box.operator("fo4.generate_lod", text="Generate LOD Chain", icon='OUTLINER_OB_MESH')
-            box.operator("fo4.optimize_uvs", text="Optimize UVs", icon='UV')
+
+            # ── UV & Texture Workflow ────────────────────────────────────
+            uv_box = layout.box()
+            uv_box.label(text="UV & Texture Workflow", icon='UV')
+
+            # Step 1 — status
+            if has_mesh:
+                mesh = obj.data
+                uv_ok = bool(mesh.uv_layers)
+                mat_ok = bool(mesh.materials and mesh.materials[0])
+                uv_icon = 'CHECKMARK' if uv_ok else 'ERROR'
+                mat_icon = 'CHECKMARK' if mat_ok else 'ERROR'
+                uv_box.label(
+                    text=("UV Map: " + mesh.uv_layers[0].name) if uv_ok else "UV Map: None",
+                    icon=uv_icon,
+                )
+                uv_box.label(
+                    text=("Material: " + mesh.materials[0].name) if mat_ok else "Material: None",
+                    icon=mat_icon,
+                )
+                uv_box.separator()
+
+            # Step 1 — one-click setup (UV + texture + material in one go)
+            uv_box.label(text="Step 1 — Setup UV + Bind Texture:", icon='FORWARD')
+            row = uv_box.row()
+            row.enabled = has_mesh
+            row.operator(
+                "fo4.setup_uv_with_texture",
+                text="Setup UV + Texture (All-in-One)",
+                icon='TEXTURE',
+            )
+
+            # Step 2 — re-unwrap if needed
+            uv_box.label(text="Step 2 — Adjust UV Map if needed:", icon='FORWARD')
+            row = uv_box.row(align=True)
+            row.enabled = has_mesh
+            row.operator("fo4.re_unwrap_uv", text="Re-Unwrap UV", icon='UV_SYNC_SELECT')
+            row.operator("fo4.optimize_uvs",  text="Pack Islands", icon='UV_FACESEL')
+
+            # Step 3 — interactive UV editing
+            uv_box.label(text="Step 3 — Fine-tune in UV Editor:", icon='FORWARD')
+            row = uv_box.row()
+            row.enabled = has_mesh
+            row.operator("fo4.open_uv_editing", text="Edit UV Map", icon='UV_ISLANDSEL')
+
+            # Ask Mossy
+            uv_box.separator()
+            uv_box.operator(
+                "fo4.ask_mossy_uv_advice",
+                text="Ask Mossy for Advice",
+                icon='LIGHT_HEMI',
+            )
+
+            # Step 4 — export
+            uv_box.separator()
+            uv_box.label(text="Step 4 — Export as Fallout 4 NIF:", icon='FORWARD')
+            row = uv_box.row()
+            row.enabled = has_mesh
+            row.operator("fo4.export_mesh", text="Export Mesh (.nif)", icon='EXPORT')
+
         else:
-            # original layout: separate boxes
+            # ── original layout: separate boxes ─────────────────────────
             box = layout.box()
             box.label(text="Mesh Creation", icon='MESH_CUBE')
             box.operator("fo4.create_base_mesh", text="Create Base Mesh", icon='MESH_DATA')
             box.operator("fo4.optimize_mesh", text="Optimize for FO4", icon='MOD_DECIM')
             box.operator("fo4.validate_mesh", text="Validate Mesh", icon='CHECKMARK')
-            
+
             col_box = layout.box()
             col_box.label(text="Collision", icon='MESH_ICOSPHERE')
-            if context.active_object and context.active_object.type == 'MESH':
-                col_box.prop(context.active_object, "fo4_collision_type", text="Type")
+            if has_mesh:
+                col_box.prop(obj, "fo4_collision_type", text="Type")
             row = col_box.row()
             row.operator("fo4.set_collision_type", text="Change Type", icon='PRESET')
             row = col_box.row()
-            row.enabled = context.active_object and context.active_object.type == 'MESH' and getattr(context.active_object, 'fo4_collision_type', 'DEFAULT') not in ('NONE','GRASS','MUSHROOM')
+            row.enabled = has_mesh and getattr(obj, 'fo4_collision_type', 'DEFAULT') not in ('NONE', 'GRASS', 'MUSHROOM')
             row.operator("fo4.generate_collision_mesh", text="Generate Collision", icon='MESH_DATA')
             row = col_box.row()
-            row.operator("fo4.export_mesh_with_collision", text="Generate+Export NIF", icon='EXPORT')
-            
+            row.operator("fo4.export_mesh_with_collision", text="Generate + Export NIF", icon='EXPORT')
+
             adv_box = layout.box()
             adv_box.label(text="Advanced Mesh Tools", icon='MODIFIER')
             adv_box.operator("fo4.analyze_mesh_quality", text="Analyze Quality", icon='INFO')
@@ -135,7 +199,24 @@ class FO4_PT_MeshPanel(Panel):
             adv_box.operator("fo4.smart_decimate", text="Smart Decimate", icon='MOD_DECIM')
             adv_box.operator("fo4.split_mesh_poly_limit", text="Split at Poly Limit", icon='MOD_BOOLEAN')
             adv_box.operator("fo4.generate_lod", text="Generate LOD Chain", icon='OUTLINER_OB_MESH')
-            adv_box.operator("fo4.optimize_uvs", text="Optimize UVs", icon='UV')
+
+            uv_box = layout.box()
+            uv_box.label(text="UV & Texture Workflow", icon='UV')
+            row = uv_box.row()
+            row.enabled = has_mesh
+            row.operator("fo4.setup_uv_with_texture", text="Setup UV + Texture", icon='TEXTURE')
+            row = uv_box.row(align=True)
+            row.enabled = has_mesh
+            row.operator("fo4.re_unwrap_uv",  text="Re-Unwrap",     icon='UV_SYNC_SELECT')
+            row.operator("fo4.optimize_uvs",  text="Pack Islands",  icon='UV_FACESEL')
+            row = uv_box.row()
+            row.enabled = has_mesh
+            row.operator("fo4.open_uv_editing", text="Edit UV Map", icon='UV_ISLANDSEL')
+            uv_box.operator("fo4.ask_mossy_uv_advice", text="Ask Mossy", icon='LIGHT_HEMI')
+            uv_box.separator()
+            row = uv_box.row()
+            row.enabled = has_mesh
+            row.operator("fo4.export_mesh", text="Export Mesh (.nif)", icon='EXPORT')
 
 class FO4_PT_TexturePanel(Panel):
     """Texture installation helpers panel"""
@@ -172,14 +253,14 @@ class FO4_PT_TexturePanel(Panel):
         dds_box.operator("fo4.convert_object_textures_to_dds", text="Convert Object Textures to DDS", icon='OBJECT_DATA')
 
         # AI Upscaling (Real-ESRGAN)
-        esrgan_available = realesrgan_helpers.RealESRGANHelpers.is_realesrgan_available()
+        esrgan_available, esrgan_status = realesrgan_helpers.RealESRGANHelpers.get_install_status()
         ai_box = layout.box()
         ai_box.label(text="AI Upscaling (Real-ESRGAN)", icon='RENDER_RESULT')
         if esrgan_available:
-            ai_box.label(text="Status: Available ✓", icon='CHECKMARK')
+            ai_box.label(text=f"Status: {esrgan_status}", icon='CHECKMARK')
         else:
-            ai_box.label(text="Status: Not Installed ✗", icon='ERROR')
-        ai_box.operator("fo4.check_realesrgan_installation", text="Check Installation", icon='SYSTEM')
+            ai_box.label(text="Status: Not Installed", icon='ERROR')
+        ai_box.operator("fo4.check_realesrgan_installation", text="Check Status", icon='SYSTEM')
         row = ai_box.row()
         row.enabled = esrgan_available
         row.operator("fo4.upscale_texture", text="Upscale Texture", icon='FULLSCREEN_ENTER')
@@ -187,9 +268,18 @@ class FO4_PT_TexturePanel(Panel):
         row.enabled = esrgan_available
         row.operator("fo4.upscale_object_textures", text="Upscale Object Textures", icon='OBJECT_DATA')
 
-        # KREA AI Legacy-style upscaling (always available via PIL fallback)
+        # KREA AI Legacy upscaling — own self-contained upscaler, no subscription
         krea_box = layout.box()
         krea_box.label(text="KREA AI Legacy Upscale", icon='SHADERFX')
+        if esrgan_available:
+            krea_box.label(text=f"Engine: {esrgan_status}", icon='CHECKMARK')
+        else:
+            krea_box.label(text="Engine: PIL fallback (install for best quality)", icon='INFO')
+            krea_box.operator(
+                "fo4.install_upscaler_deps",
+                text="Install AI Upscaler (One-Click)",
+                icon='IMPORT',
+            )
         krea_box.operator("fo4.upscale_krea_legacy", text="Upscale Texture", icon='FULLSCREEN_ENTER')
 
 class FO4_PT_ImageToMeshPanel(Panel):
