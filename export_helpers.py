@@ -8,6 +8,125 @@ import json
 import sys
 import traceback
 
+# ---------------------------------------------------------------------------
+# NIF game profiles
+# ---------------------------------------------------------------------------
+# Per-game NIF version numbers and export settings for every game supported
+# by Niftools v0.1.1.  These drive both the scene-level ``niftools_scene``
+# property group and the export-operator kwargs so that any game produces a
+# well-formed NIF without manual configuration.
+#
+# Field reference
+# ---------------
+# aliases               – alternative enum spellings tried when setting ns.game
+# nif_version           – NIF file format version string
+# user_version          – studio / engine version (stored in NIF header)
+# user_version_2        – BS header version (stored in NIF header)
+# use_tangent_space     – emit tangent/bitangent vectors (required for
+#                         BSLightingShaderProperty normal maps)
+# scale_correction      – Blender units → NIF units multiplier
+# skin_partition        – whether to build NiSkinPartition / BSSkinInstance
+# max_bones_per_partition – maximum bones in a single skin partition
+# max_bones_per_vertex  – maximum bone influences per vertex
+# ---------------------------------------------------------------------------
+_NIF_GAME_PROFILES = {
+    "MORROWIND": {
+        # TES3: The Elder Scrolls III – Morrowind
+        "aliases":                  ["MORROWIND", "Morrowind", "morrowind"],
+        "nif_version":              "4.0.0.2",
+        "user_version":             0,
+        "user_version_2":           0,
+        "use_tangent_space":        False,
+        "scale_correction":         1.0,
+        "skin_partition":           False,
+        "max_bones_per_partition":  4,
+        "max_bones_per_vertex":     4,
+    },
+    "OBLIVION": {
+        # TES4: The Elder Scrolls IV – Oblivion
+        # nif.xml: V20_0_0_5_OBL  user=11  bsver=11
+        "aliases":                  ["OBLIVION", "Oblivion", "oblivion"],
+        "nif_version":              "20.0.0.5",
+        "user_version":             11,
+        "user_version_2":           11,
+        "use_tangent_space":        True,
+        "scale_correction":         1.0,
+        "skin_partition":           True,
+        "max_bones_per_partition":  18,
+        "max_bones_per_vertex":     4,
+    },
+    "FALLOUT_3": {
+        # FO3: Fallout 3
+        "aliases":                  ["FALLOUT_3", "Fallout 3", "fallout_3"],
+        "nif_version":              "20.2.0.7",
+        "user_version":             11,
+        "user_version_2":           34,
+        "use_tangent_space":        True,
+        "scale_correction":         1.0,
+        "skin_partition":           True,
+        "max_bones_per_partition":  18,
+        "max_bones_per_vertex":     4,
+    },
+    "FALLOUT_NV": {
+        # FONV: Fallout: New Vegas
+        "aliases":                  ["FALLOUT_NV", "Fallout: New Vegas", "fallout_nv"],
+        "nif_version":              "20.2.0.7",
+        "user_version":             11,
+        "user_version_2":           34,
+        "use_tangent_space":        True,
+        "scale_correction":         1.0,
+        "skin_partition":           True,
+        "max_bones_per_partition":  18,
+        "max_bones_per_vertex":     4,
+    },
+    "SKYRIM": {
+        # TES5: The Elder Scrolls V – Skyrim (original / Legendary Edition)
+        "aliases":                  ["SKYRIM", "Skyrim", "skyrim"],
+        "nif_version":              "20.2.0.7",
+        "user_version":             12,
+        "user_version_2":           83,
+        "use_tangent_space":        True,
+        "scale_correction":         0.1,
+        "skin_partition":           True,
+        "max_bones_per_partition":  24,
+        "max_bones_per_vertex":     4,
+    },
+    "SKYRIM_SE": {
+        # TES5SE: The Elder Scrolls V – Skyrim Special Edition
+        "aliases":                  ["SKYRIM_SE", "Skyrim SE", "SKYRIM SE", "skyrim_se"],
+        "nif_version":              "20.2.0.7",
+        "user_version":             12,
+        "user_version_2":           100,
+        "use_tangent_space":        True,
+        "scale_correction":         0.1,
+        "skin_partition":           True,
+        "max_bones_per_partition":  80,
+        "max_bones_per_vertex":     8,
+    },
+    "FALLOUT_4": {
+        # FO4: Fallout 4 – default game for this add-on.
+        # FO4 uses BSTriShape / BSSubIndexTriShape; old-style NiSkinPartition
+        # is not used, so skin_partition is False.
+        "aliases":                  ["FALLOUT_4", "Fallout 4", "FALLOUT4", "fallout_4"],
+        "nif_version":              "20.2.0.7",
+        "user_version":             12,
+        "user_version_2":           131073,
+        "use_tangent_space":        True,
+        "scale_correction":         1.0,
+        "skin_partition":           False,
+        "max_bones_per_partition":  4,
+        "max_bones_per_vertex":     4,
+    },
+}
+
+# Reverse lookup: any alias string → canonical profile key.
+_NIF_GAME_ALIAS_MAP = {
+    alias: key
+    for key, profile in _NIF_GAME_PROFILES.items()
+    for alias in profile["aliases"]
+}
+
+
 class ExportHelpers:
     """Helper functions for exporting to Fallout 4"""
     
@@ -105,16 +224,28 @@ class ExportHelpers:
             return preferred
 
     @staticmethod
-    def _apply_niftools_scene_settings():
-        """Automatically configure all Niftools scene properties for Fallout 4.
+    def _apply_niftools_scene_settings(game=None):
+        """Configure Niftools scene properties for the target game.
 
         The Niftools exporter reads NIF version, game, and other settings from
         the scene-level ``niftools_scene`` property group.  If these are not
         configured the exporter raises "You have not selected a game."
 
-        This method sets every relevant property so the user never has to visit
-        the scene tab manually — full automation.  It is called automatically
-        before every NIF export attempt.
+        This method applies the full settings from ``_NIF_GAME_PROFILES`` so
+        the user never has to visit the scene tab manually.  Every supported
+        game (Morrowind, Oblivion, Fallout 3/NV, Skyrim, Skyrim SE, Fallout 4)
+        is handled correctly with the right NIF version numbers, tangent-space
+        flag, scale correction, and skin-partition settings.
+
+        It is called automatically before every NIF export attempt.
+
+        Parameters
+        ----------
+        game : str, optional
+            Canonical game key from ``_NIF_GAME_PROFILES`` (e.g.
+            ``"FALLOUT_4"``, ``"SKYRIM"``).  When *None* (default) the method
+            reads ``niftools_scene.game``; if that is ``"UNKNOWN"`` it
+            defaults to ``"FALLOUT_4"``.
         """
         try:
             scene = bpy.context.scene
@@ -123,12 +254,20 @@ class ExportHelpers:
                 return  # Niftools not installed; nothing to configure
 
             # ------------------------------------------------------------------
-            # Game / NIF version profile
-            # Setting game to FALLOUT_4 makes Niftools automatically select
-            # NIF 20.2.0.7 / user version 12 / user_version_2 131073 and
-            # forces BSTriShape geometry nodes required by the FO4 renderer.
+            # Resolve which game profile to apply.
+            # Priority: explicit argument > current scene setting > FALLOUT_4
             # ------------------------------------------------------------------
-            for game_id in ("FALLOUT_4", "Fallout 4", "FALLOUT4", "fallout_4"):
+            if game is None:
+                current = getattr(ns, "game", "UNKNOWN")
+                game = _NIF_GAME_ALIAS_MAP.get(current) or "FALLOUT_4"
+
+            profile = _NIF_GAME_PROFILES.get(game, _NIF_GAME_PROFILES["FALLOUT_4"])
+
+            # ------------------------------------------------------------------
+            # Game enum – try each alias in the profile so we work across
+            # different Niftools builds that use different identifier spellings.
+            # ------------------------------------------------------------------
+            for game_id in profile["aliases"]:
                 try:
                     ns.game = game_id
                     break
@@ -138,9 +277,9 @@ class ExportHelpers:
             # Explicit NIF version numbers (belt-and-suspenders; the game
             # profile above should set these automatically in most builds).
             for attr, value in (
-                ("nif_version", "20.2.0.7"),
-                ("user_version", 12),
-                ("user_version_2", 131073),
+                ("nif_version",    profile["nif_version"]),
+                ("user_version",   profile["user_version"]),
+                ("user_version_2", profile["user_version_2"]),
             ):
                 try:
                     setattr(ns, attr, value)
@@ -148,12 +287,12 @@ class ExportHelpers:
                     pass
 
             # ------------------------------------------------------------------
-            # Shader / geometry settings required for Fallout 4
+            # Tangent space – required for BS-engine games (Oblivion and newer)
+            # so that BSLightingShaderProperty normal-map lighting is correct.
             # ------------------------------------------------------------------
-            # Tangent space vectors are required by BSLightingShaderProperty.
             for tattr in ("use_tangent_space", "tangent_space"):
                 try:
-                    setattr(ns, tattr, True)
+                    setattr(ns, tattr, profile["use_tangent_space"])
                     break
                 except (TypeError, AttributeError):
                     continue
@@ -165,6 +304,13 @@ class ExportHelpers:
                     break
                 except (TypeError, AttributeError):
                     continue
+
+            # Scale correction: converts between Blender and NIF coordinate
+            # units.  Most games use 1.0; Skyrim uses 0.1.
+            try:
+                ns.scale_correction = profile["scale_correction"]
+            except (TypeError, AttributeError):
+                pass
 
         except Exception:
             # Never block the export attempt if scene configuration fails.
