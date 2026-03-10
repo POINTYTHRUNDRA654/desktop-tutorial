@@ -105,6 +105,72 @@ class ExportHelpers:
             return preferred
 
     @staticmethod
+    def _apply_niftools_scene_settings():
+        """Automatically configure all Niftools scene properties for Fallout 4.
+
+        The Niftools exporter reads NIF version, game, and other settings from
+        the scene-level ``niftools_scene`` property group.  If these are not
+        configured the exporter raises "You have not selected a game."
+
+        This method sets every relevant property so the user never has to visit
+        the scene tab manually — full automation.  It is called automatically
+        before every NIF export attempt.
+        """
+        try:
+            scene = bpy.context.scene
+            ns = getattr(scene, "niftools_scene", None)
+            if ns is None:
+                return  # Niftools not installed; nothing to configure
+
+            # ------------------------------------------------------------------
+            # Game / NIF version profile
+            # Setting game to FALLOUT_4 makes Niftools automatically select
+            # NIF 20.2.0.7 / user version 12 / user_version_2 131073 and
+            # forces BSTriShape geometry nodes required by the FO4 renderer.
+            # ------------------------------------------------------------------
+            for game_id in ("FALLOUT_4", "Fallout 4", "FALLOUT4", "fallout_4"):
+                try:
+                    ns.game = game_id
+                    break
+                except (TypeError, AttributeError):
+                    continue
+
+            # Explicit NIF version numbers (belt-and-suspenders; the game
+            # profile above should set these automatically in most builds).
+            for attr, value in (
+                ("nif_version", "20.2.0.7"),
+                ("user_version", 12),
+                ("user_version_2", 131073),
+            ):
+                try:
+                    setattr(ns, attr, value)
+                except (TypeError, AttributeError):
+                    pass
+
+            # ------------------------------------------------------------------
+            # Shader / geometry settings required for Fallout 4
+            # ------------------------------------------------------------------
+            # Tangent space vectors are required by BSLightingShaderProperty.
+            for tattr in ("use_tangent_space", "tangent_space"):
+                try:
+                    setattr(ns, tattr, True)
+                    break
+                except (TypeError, AttributeError):
+                    continue
+
+            # Export type: geometry NIF, not a KF animation track.
+            for et_val in ("nif", "NIF"):
+                try:
+                    ns.export_type = et_val
+                    break
+                except (TypeError, AttributeError):
+                    continue
+
+        except Exception:
+            # Never block the export attempt if scene configuration fails.
+            pass
+
+    @staticmethod
     def _build_nif_export_kwargs(filepath):
         """Assemble kwargs for the NIF exporter (Niftools v0.1.1) for Fallout 4.
 
@@ -139,10 +205,14 @@ class ExportHelpers:
             # Game profile – FALLOUT_4 sets NIF 20.2.0.7 with user version 12
             # and user_version_2 131073, and forces BSTriShape geometry nodes
             # which are required by Fallout 4's renderer.
-            # Niftools v0.1.1 valid identifier: 'FALLOUT_4'.
+            # Multiple identifier spellings are tried as fallbacks because
+            # different Niftools builds use different enum identifiers.
             # ----------------------------------------------------------------
             if "game" in prop_keys:
-                game_val = ExportHelpers._safe_enum(props, "game", "FALLOUT_4")
+                game_val = ExportHelpers._safe_enum(
+                    props, "game", "FALLOUT_4",
+                    fallbacks=["Fallout 4", "FALLOUT4", "fallout_4"],
+                )
                 if game_val:
                     kwargs["game"] = game_val
 
@@ -367,6 +437,10 @@ class ExportHelpers:
                     o.select_set(True)
                 bpy.context.view_layer.objects.active = obj
 
+                # Automatically apply all required Niftools scene settings so
+                # the user never has to visit the scene tab manually.
+                ExportHelpers._apply_niftools_scene_settings()
+
                 kwargs = ExportHelpers._build_nif_export_kwargs(filepath)
                 result = bpy.ops.export_scene.nif(**kwargs)
 
@@ -570,6 +644,9 @@ class ExportHelpers:
             bpy.context.view_layer.objects.active = meshes[0]
 
             if nif_available:
+                # Automatically apply all required Niftools scene settings so
+                # the user never has to visit the scene tab manually.
+                ExportHelpers._apply_niftools_scene_settings()
                 kwargs = ExportHelpers._build_nif_export_kwargs(filepath)
                 try:
                     result = bpy.ops.export_scene.nif(**kwargs)
