@@ -385,6 +385,29 @@ def register():
         default='DEFAULT'
     )
 
+    # per-scene target Fallout 4 game version (drives NIF version numbers)
+    bpy.types.Scene.fo4_game_version = bpy.props.EnumProperty(
+        name="Game Version",
+        description=(
+            "Target Fallout 4 edition.  All three editions share the same NIF "
+            "version (20.2.0.7 / user 12 / bsver 130) and BSTriShape geometry, "
+            "so this setting helps document intent and may influence future "
+            "per-edition tweaks"
+        ),
+        items=[
+            ('FALLOUT_4',
+             "OG  (Original 2015)",
+             "Fallout 4 – original 2015 release"),
+            ('FALLOUT_4_NG',
+             "NG  (Next Gen – Apr 2024)",
+             "Fallout 4 Next Gen update (April 2024)"),
+            ('FALLOUT_4_AE',
+             "AE  (Anniversary Edition 2025)",
+             "Fallout 4 Anniversary Edition (November 2025)"),
+        ],
+        default='FALLOUT_4',
+    )
+
 def unregister():
     """Unregister third-party integration classes"""
     if hasattr(bpy.types.Scene, 'fo4_third_party_addons'):
@@ -393,5 +416,7 @@ def unregister():
         del bpy.types.Scene.fo4_show_addon_tutorials
     if hasattr(bpy.types.Object, 'fo4_collision_type'):
         del bpy.types.Object.fo4_collision_type
+    if hasattr(bpy.types.Scene, 'fo4_game_version'):
+        del bpy.types.Scene.fo4_game_version
     
     bpy.utils.unregister_class(ThirdPartyAddon)

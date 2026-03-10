@@ -291,22 +291,37 @@ class ExportHelpers:
 
             # ------------------------------------------------------------------
             # Resolve which game profile to apply.
-            # Priority: explicit argument > current scene setting > FALLOUT_4
+            # Priority: explicit argument > addon fo4_game_version scene prop >
+            #           current niftools_scene.game setting > FALLOUT_4
             # ------------------------------------------------------------------
             if game is None:
-                current = getattr(ns, "game", "UNKNOWN")
-                game = _NIF_GAME_ALIAS_MAP.get(current) or "FALLOUT_4"
+                # Prefer the addon's own fo4_game_version scene property, which
+                # the user sets via the Export panel.  This is the most direct
+                # expression of intent and avoids relying on niftools_scene.game
+                # being configured beforehand.
+                addon_ver = getattr(scene, "fo4_game_version", None)
+                if addon_ver and addon_ver in _NIF_GAME_PROFILES:
+                    game = addon_ver
+                else:
+                    current = getattr(ns, "game", "UNKNOWN")
+                    game = _NIF_GAME_ALIAS_MAP.get(current) or "FALLOUT_4"
 
             profile = _NIF_GAME_PROFILES.get(game, _NIF_GAME_PROFILES["FALLOUT_4"])
 
             # ------------------------------------------------------------------
             # Game enum – try each alias in the profile so we work across
             # different Niftools builds that use different identifier spellings.
+            # Blender EnumProperty silently ignores invalid values without
+            # raising an exception, so we read back the value to confirm that
+            # the assignment was actually accepted before moving on.
             # ------------------------------------------------------------------
             for game_id in profile["aliases"]:
                 try:
                     ns.game = game_id
-                    break
+                    # Confirm the assignment stuck (EnumProperty silently drops
+                    # unrecognised values; if it didn't stick, try the next alias).
+                    if getattr(ns, "game", None) == game_id:
+                        break
                 except (TypeError, AttributeError):
                     continue
 

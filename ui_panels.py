@@ -1201,6 +1201,18 @@ class FO4_PT_ExportPanel(Panel):
         layout = self.layout
         obj = context.active_object
 
+        # ── Fallout 4 game version ────────────────────────────────────────────
+        ver_box = layout.box()
+        ver_row = ver_box.row(align=True)
+        ver_row.label(text="Game Version:", icon='GAME')
+        ver_row.prop(context.scene, "fo4_game_version", text="")
+        ver_hint = ver_box.column(align=True)
+        ver_hint.scale_y = 0.75
+        ver_hint.label(
+            text="OG / NG / AE all use NIF 20.2.0.7 · bsver 130 · BSTriShape",
+            icon='INFO',
+        )
+
         # ── Niftools exporter status ─────────────────────────────────────────
         nif_box = layout.box()
         available, nif_msg = export_helpers.ExportHelpers.nif_exporter_available()
