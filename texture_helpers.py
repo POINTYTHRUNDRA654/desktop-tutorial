@@ -253,8 +253,9 @@ class TextureHelpers:
                 continue
 
             if not tex_node.image:
-                if required:
-                    issues.append(f"{tex_name} texture is not loaded")
+                # No image assigned to this slot – skip further checks.
+                # An empty slot is not a blocking error: the user may load
+                # textures later or the mesh may be exported untextured.
                 continue
 
             img = tex_node.image

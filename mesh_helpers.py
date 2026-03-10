@@ -55,6 +55,21 @@ class MeshHelpers:
         'NONE': None
     }
 
+    # Per-type Blender rigid-body physics values that Niftools reads to
+    # populate bhkRigidBody.friction and bhkRigidBody.restitution.
+    # mass is always 0.0 for FO4 static (PASSIVE) bodies; a non-zero mass on
+    # a PASSIVE body confuses Niftools and produces wrong motionSystem flags.
+    _TYPE_PHYSICS_PRESETS = {
+        'DEFAULT':  {'friction': 0.8, 'restitution': 0.1},
+        'ROCK':     {'friction': 0.9, 'restitution': 0.05},
+        'TREE':     {'friction': 0.7, 'restitution': 0.2},
+        'BUILDING': {'friction': 0.9, 'restitution': 0.05},
+        'GRASS':    {'friction': 0.5, 'restitution': 0.05},
+        'MUSHROOM': {'friction': 0.5, 'restitution': 0.1},
+        'CREATURE': {'friction': 0.5, 'restitution': 0.2},
+        'NONE':     {'friction': 0.5, 'restitution': 0.1},
+    }
+
     @staticmethod
     def infer_collision_type(obj):
         """Guess an appropriate collision type based on the object name.
@@ -465,15 +480,18 @@ class MeshHelpers:
             # and BASE are equivalent here, but FINAL is the safer default.
             collision_obj.rigid_body.mesh_source = 'FINAL'
             collision_obj.rigid_body.collision_shape = 'CONVEX_HULL'
-            # FO4 static collision requirements for bhkRigidBody:
-            #   mass = 0       – fixed/keyframed body; non-zero mass in a PASSIVE
-            #                    body confuses Niftools and causes wrong motion-
-            #                    system flags in the emitted bhkRigidBody node.
-            #   friction = 0.8 – hard-surface default used in vanilla FO4 NIFs.
-            #   restitution = 0.1 – minimal bounce; matches FO4 static geometry.
-            collision_obj.rigid_body.mass = 0.0
-            collision_obj.rigid_body.friction = 0.8
-            collision_obj.rigid_body.restitution = 0.1
+            # FO4 static collision: mass must be 0 so Niftools emits the
+            # correct PASSIVE / FIXED motion-system flags.  Friction and
+            # restitution are set per collision type so the in-game surface
+            # feel matches the material (stone = high friction, low bounce;
+            # wood = medium friction, some bounce; etc.).
+            phys = MeshHelpers._TYPE_PHYSICS_PRESETS.get(
+                collision_type,
+                MeshHelpers._TYPE_PHYSICS_PRESETS['DEFAULT'],
+            )
+            collision_obj.rigid_body.mass        = 0.0
+            collision_obj.rigid_body.friction    = phys['friction']
+            collision_obj.rigid_body.restitution = phys['restitution']
         except Exception:
             # Physics operators unavailable in this context; skip silently.
             # The UCX_ naming and parent relationship still enable export.

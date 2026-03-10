@@ -56,6 +56,31 @@ def should_skip(rel: pathlib.Path) -> bool:
     if rel.name.startswith(f"{ADDON_PACKAGE}-") and rel.name.endswith(".zip"):
         return True
 
+    # Root-level developer tooling / documentation (not needed inside Blender)
+    if len(rel.parts) == 1:
+        name = rel.name
+        if name in {
+            "build.py", "build_zip.py", "build_zip.ps1", "makezip.py",
+            "build.log",
+        }:
+            return True
+        if name.startswith("test_") and name.endswith(".py"):
+            return True
+        if name.startswith("example_") and name.endswith(".py"):
+            return True
+        if name in {
+            "setup.bat", "setup.sh", "setup_comfyui.bat",
+            "enable_long_paths.reg",
+        }:
+            return True
+        # Root-level docs excluded; knowledge_base/*.md kept (runtime data)
+        if name.endswith(".md"):
+            return True
+        if name.endswith(".txt") and name not in {
+            "requirements.txt", "requirements-optional.txt",
+        }:
+            return True
+
     # Binary tool sub-directories inside tools/
     binary_tool_dirs = {
         "ffmpeg", "whisper", "nvtt", "texconv",
