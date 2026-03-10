@@ -72,6 +72,14 @@ export const LiveProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const conversationHistoryRef = useRef<Array<{role: 'user' | 'assistant', content: string}>>([]);
   const lastSpeakEndRef = useRef<number>(0);
   const activeRequestsRef = useRef<Set<string>>(new Set());
+  // Ref-backed flag so connect()'s async catch block always sees the current
+  // disconnecting state (avoids stale closure where catch sees isDisconnecting=true
+  // even after setIsDisconnecting(false) was called at the top of connect()).
+  const isDisconnectingRef = useRef(false);
+  // Ref-backed muted flag so handleTranscription (which is captured as a callback
+  // and therefore closes over a stale isMuted state) sees the live value.
+  const isMutedRef = useRef(false);
+  useEffect(() => { isMutedRef.current = isMuted; }, [isMuted]);
 
   const loadLiveHistory = () => {
     try {
@@ -367,6 +375,14 @@ export const LiveProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       isFreshlyConnectedRef.current = false;
     }
 
+    // Honour the mute button — discard input while the user has silenced the mic.
+    // isMutedRef stays in sync with the isMuted state even though this callback
+    // is a stale closure registered at connect() time.
+    if (isMutedRef.current) {
+      console.log('[LiveContext] Ignoring transcription - muted');
+      return;
+    }
+
     // Check if we're disconnecting (user manually ended the session)
     if (isDisconnecting) {
       console.log('[LiveContext] Ignoring transcription - voice session is disconnecting');
@@ -606,6 +622,7 @@ export const LiveProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
     try {
       console.log('[LiveContext] Resetting flags before starting');
+      isDisconnectingRef.current = false;
       setTranscriptionDisabled(false);
       setIsDisconnecting(false);
       setStatus('Checking voice pipeline...');
@@ -635,8 +652,9 @@ export const LiveProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       console.log('[LiveContext] connect() failed:', error);
       setIsActive(false);
       isFreshlyConnectedRef.current = false;
-      // schedule retry unless user manually disconnected
-      if (!isDisconnecting) {
+      // Schedule retry only when the failure was NOT caused by a manual disconnect.
+      // Use the ref (not the stale closure state) for an accurate current value.
+      if (!isDisconnectingRef.current) {
         setStatus('Connection failed, retrying...');
         setTimeout(() => {
           connect().catch(() => {});
@@ -653,6 +671,7 @@ export const LiveProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     const lastSessionId = currentSessionRef.current;
     currentSessionRef.current = 0; 
     
+    isDisconnectingRef.current = true;
     setIsDisconnecting(true);
     setTranscriptionDisabled(true);
     setIsActive(false);

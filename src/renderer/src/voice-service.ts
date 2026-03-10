@@ -85,6 +85,15 @@ export class VoiceService {
   private sttResultUnsubscribe?: () => void;
   private currentSessionId = 0;
   private currentAudioElement: HTMLAudioElement | null = null;
+  /**
+   * Monotonically-increasing ID that is incremented at the start of every
+   * `startRecording()` call AND whenever `stopListening()` is called.
+   * Each `checkSilence` loop, `onstop`, and `onerror` closure captures its
+   * own copy (`myRecordingId`) and exits immediately if `this.recordingId`
+   * no longer matches — preventing stale closures from a previous recording
+   * session from interfering with a new one after reconnect.
+   */
+  private recordingId = 0;
 
   constructor(config: VoiceServiceConfig) {
     // Hard-lock to browser TTS for stability across updates.
@@ -128,6 +137,10 @@ export class VoiceService {
     this.isUsingBrowserStt = false;
     this.isBrowserSttActive = false;
     this.isBrowserSttStarting = false;
+    // Increment recordingId so any still-running checkSilence loops, onstop
+    // handlers, or onerror handlers from the current session detect that they
+    // are stale and exit without touching the new session's state.
+    this.recordingId++;
     
     // Stop all speech
     this.stopAllSpeech();
@@ -279,6 +292,11 @@ export class VoiceService {
       return;
     }
 
+    // Unique ID for this recording session. Captured in all closures below so
+    // that stale handlers from a previous session can detect they are obsolete
+    // and exit without touching the current session's state.
+    const myRecordingId = ++this.recordingId;
+
     try {
       console.log('[VoiceService] Getting user media...');
       // Get microphone access
@@ -290,9 +308,9 @@ export class VoiceService {
         }
       });
 
-      // CRITICAL: Check if service was stopped while waiting for getUserMedia
-      if (this.shouldStop) {
-        console.log('[VoiceService] Service stopped during getUserMedia, cleaning up stream');
+      // CRITICAL: Check if service was stopped (or superseded) while waiting for getUserMedia
+      if (this.shouldStop || this.recordingId !== myRecordingId) {
+        console.log('[VoiceService] Service stopped/superseded during getUserMedia, cleaning up stream');
         stream.getTracks().forEach(track => track.stop());
         return;
       }
@@ -307,7 +325,7 @@ export class VoiceService {
       this.audioChunks = []; // Clear any leftover chunks
       this.isRecording = true;
 
-      console.log(`[VoiceService] Created MediaRecorder for session ${this.currentSessionId}, setting up event handlers...`);
+      console.log(`[VoiceService] Created MediaRecorder for session ${this.currentSessionId} (recordingId=${myRecordingId}), setting up event handlers...`);
 
       this.mediaRecorder.ondataavailable = (event) => {
         if (event.data.size > 0) {
@@ -316,6 +334,15 @@ export class VoiceService {
       };
 
       this.mediaRecorder.onstop = async () => {
+        // Guard: if recordingId has advanced past this session's ID, this
+        // onstop belongs to a superseded session. Clean up the captured stream
+        // and exit without touching shared state that the new session owns.
+        if (this.recordingId !== myRecordingId) {
+          console.log(`[VoiceService] onstop: ignoring stale handler (recordingId=${myRecordingId}, current=${this.recordingId})`);
+          stream.getTracks().forEach(track => { try { track.stop(); } catch (_e) { console.warn('[VoiceService] Failed to stop stale track:', _e); } });
+          return;
+        }
+
         console.log(`[VoiceService] MediaRecorder onstop fired for session ${this.currentSessionId}, isRecording: ${this.isRecording}, shouldStop: ${this.shouldStop}, isSpeaking: ${this.isSpeaking}`);
         this.isRecording = false;
         
@@ -403,6 +430,8 @@ export class VoiceService {
 
       this.mediaRecorder.onerror = (event) => {
         console.error('MediaRecorder error:', event);
+        // Guard: ignore stale handler from a superseded session
+        if (this.recordingId !== myRecordingId) return;
         if (!this.shouldStop) {
           this.onError?.('Audio recording failed. Please check your microphone and try again.');
         }
@@ -427,9 +456,15 @@ export class VoiceService {
       const dataArray = new Uint8Array(analyser.frequencyBinCount);
       
       const checkSilence = () => {
-        if (!this.isRecording || this.shouldStop) {
+        // Guard: exit if this session has been superseded (reconnect happened) or
+        // recording has stopped. Without this guard, a stale checkSilence loop
+        // from a previous session would continue running against the current
+        // session's shared state (isRecording, mediaRecorder), potentially
+        // stopping a new session's MediaRecorder every 2.5 s and making the
+        // voice pipeline appear permanently broken after reconnect.
+        if (!this.isRecording || this.shouldStop || this.recordingId !== myRecordingId) {
           if (silenceTimer) clearTimeout(silenceTimer);
-          audioContext.close();
+          try { audioContext.close(); } catch (_e) { console.warn('[VoiceService] Failed to close stale audioContext:', _e); }
           return;
         }
 
@@ -451,7 +486,8 @@ export class VoiceService {
           if (!silenceTimer) {
             console.log('[VoiceService] Silence detected (avg:', average.toFixed(2), '), starting 2.5s timer');
             silenceTimer = setTimeout(() => {
-              if (this.mediaRecorder && this.isRecording && !this.shouldStop) {
+              // Only stop the recorder that belongs to this specific session
+              if (this.recordingId === myRecordingId && this.mediaRecorder && this.isRecording && !this.shouldStop) {
                 console.log('[VoiceService] Silence timer expired, stopping recording');
                 this.mediaRecorder.stop();
               }
@@ -539,6 +575,11 @@ export class VoiceService {
    * Stop any currently-playing TTS immediately without ending the listening
    * session. Useful for a "Stop speaking" button so the user can interrupt
    * Mossy mid-response.
+   *
+   * Also directly restarts microphone recording in case `speak()` is
+   * stuck waiting for an utterance event that never fires (a known
+   * Electron/Chromium speechSynthesis bug where cancel() does not always
+   * trigger onerror on the utterance).
    */
   stopSpeaking(): void {
     console.log('[VoiceService] stopSpeaking() called');
@@ -555,6 +596,19 @@ export class VoiceService {
     // the canceled utterance resolves.
     this.isSpeaking = false;
     this.onModeChange?.('listening');
+
+    // Proactively restart recording if we're in an active listening session and
+    // not already recording. This handles the case where speak() is stuck
+    // (e.g., Electron speechSynthesis.cancel() does not fire utterance.onerror),
+    // which would otherwise leave the microphone permanently paused.
+    if (this.isListening && !this.shouldStop && !this.isUsingBrowserStt && !this.isRecording) {
+      setTimeout(() => {
+        if (this.isListening && !this.shouldStop && !this.isUsingBrowserStt && !this.isRecording) {
+          console.log('[VoiceService] stopSpeaking: restarting recording after TTS stop');
+          this.startRecording();
+        }
+      }, 400);
+    }
   }
 
   private async speakBrowser(text: string): Promise<void> {
