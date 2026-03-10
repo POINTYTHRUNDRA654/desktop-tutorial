@@ -506,6 +506,19 @@ def test_fo4_export_settings():
             # -----------------------------------------------------------
             ("Compat patch called in export_mesh_to_nif",
              content.count("_apply_niftools_blender4_compat_patches") >= 3),
+            # -----------------------------------------------------------
+            # Two-phase Havok collision pipeline
+            # -----------------------------------------------------------
+            ("Collision NIF postprocess table",  "_COLLISION_NIF_POSTPROCESS" in content),
+            ("Pre-export collision properties",  "_apply_collision_nif_properties" in content),
+            ("Post-export NIF patcher",          "_postprocess_nif_set_collision" in content),
+            ("BSXFlags injection",               "BSXFlags" in content and "integer_data" in content),
+            ("havok_material injection",         "havok_material" in content and "SkyrimHavokMaterial" in content),
+            ("Collision layer injection",        "SkyrimLayer" in content and "layer" in content),
+            ("bhkNPCollisionObject patch",       "bhkNPCollisionObject" in content),
+            ("pyffi NIF read/write",             "NifFormat" in content and "data.read" in content),
+            ("Collision called from export",     "_apply_collision_nif_properties" in content
+                                                  and "_postprocess_nif_set_collision" in content),
         ]
 
         failed = []
@@ -530,6 +543,54 @@ def test_fo4_export_settings():
         ]
 
         for check_name, result in dds_checks:
+            if result:
+                print(f"✅ {check_name}: Found")
+            else:
+                print(f"❌ {check_name}: Missing")
+                failed.append(check_name)
+
+        # ----------------------------------------------------------------
+        # Per-type collision physics presets (mesh_helpers.py)
+        # ----------------------------------------------------------------
+        mesh_helpers_path = addon_dir / "mesh_helpers.py"
+        with open(mesh_helpers_path, 'r', encoding='utf-8') as f:
+            mesh_content = f.read()
+
+        mesh_checks = [
+            ("Per-type physics presets dict",    "_TYPE_PHYSICS_PRESETS" in mesh_content),
+            ("Per-type friction values",         "'friction'" in mesh_content),
+            ("Per-type restitution values",      "'restitution'" in mesh_content),
+            ("Physics used in add_collision_mesh",
+             "_TYPE_PHYSICS_PRESETS" in mesh_content
+             and "phys['friction']" in mesh_content
+             and "phys['restitution']" in mesh_content),
+        ]
+
+        for check_name, result in mesh_checks:
+            if result:
+                print(f"✅ {check_name}: Found")
+            else:
+                print(f"❌ {check_name}: Missing")
+                failed.append(check_name)
+
+        # ----------------------------------------------------------------
+        # FO4 game version scene property (addon_integration.py)
+        # ----------------------------------------------------------------
+        addon_int_path = addon_dir / "addon_integration.py"
+        with open(addon_int_path, 'r', encoding='utf-8') as f:
+            addon_int_content = f.read()
+
+        version_checks = [
+            ("fo4_game_version property registered", "fo4_game_version" in addon_int_content),
+            ("OG edition enum item",                 "FALLOUT_4" in addon_int_content),
+            ("NG edition enum item",                 "FALLOUT_4_NG" in addon_int_content),
+            ("AE edition enum item",                 "FALLOUT_4_AE" in addon_int_content),
+            ("fo4_game_version unregistered cleanly",
+             "fo4_game_version" in addon_int_content
+             and "del bpy.types.Scene.fo4_game_version" in addon_int_content),
+        ]
+
+        for check_name, result in version_checks:
             if result:
                 print(f"✅ {check_name}: Found")
             else:
