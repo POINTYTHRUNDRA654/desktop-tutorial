@@ -362,6 +362,25 @@ class RealESRGANHelpers:
             return False, "Failed to upscale any textures", []
     
     @staticmethod
+    def _nearest_power_of_two(n):
+        """Return the nearest power of two >= *n* (minimum 1).
+
+        When *n* is exactly a power of two it is returned unchanged.
+        When *n* falls between two powers of two, the closer one is chosen;
+        ties round up.
+        """
+        if n < 1:
+            return 1
+        p = 1
+        while p < n:
+            p <<= 1
+        # p is the first power-of-two >= n.
+        # If p == n it is already exact; if p > n choose the nearest.
+        if p == n or (p - n) <= (n - p // 2):
+            return p
+        return p // 2
+
+    @staticmethod
     def upscale_krea_legacy_style(input_path, output_path=None, scale=4):
         """
         Upscale a texture using a KREA AI Legacy-style approach.
@@ -415,8 +434,10 @@ class RealESRGANHelpers:
         try:
             img = Image.open(input_path)
             orig_width, orig_height = img.size
-            new_width = orig_width * scale
-            new_height = orig_height * scale
+
+            # Round to the nearest power of 2 (Fallout 4 requirement).
+            new_width  = RealESRGANHelpers._nearest_power_of_two(orig_width  * scale)
+            new_height = RealESRGANHelpers._nearest_power_of_two(orig_height * scale)
 
             # High-quality Lanczos resample
             upscaled = img.resize((new_width, new_height), Image.LANCZOS)
@@ -430,7 +451,10 @@ class RealESRGANHelpers:
             upscaled = ImageEnhance.Contrast(upscaled).enhance(1.05)
 
             upscaled.save(output_path)
-            return True, f"Texture upscaled {scale}x (KREA AI Legacy style): {output_path}"
+            return True, (
+                f"Texture upscaled to {new_width}×{new_height} (KREA AI Legacy style): {output_path}. "
+                "Convert to DDS (BC1/BC3/BC5) before importing into Fallout 4."
+            )
         except Exception as e:
             return False, f"Failed to upscale texture: {str(e)}"
 

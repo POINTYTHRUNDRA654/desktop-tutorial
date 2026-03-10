@@ -175,13 +175,45 @@ class TextureHelpers:
         try:
             img = bpy.data.images.load(texture_path)
             tex_node.image = img
-            
-            # Non-colour textures must use 'Non-Color' colorspace so Blender
-            # does not apply gamma correction before the NIF exporter reads them.
+
+            # ----------------------------------------------------------------
+            # FO4 colorspace requirements:
+            #   Diffuse  → sRGB  (Blender default – gamma-correct colour data)
+            #   Normal   → Non-Color (raw tangent-space vectors, no gamma)
+            #   Specular → Non-Color (linear greyscale / RGB mask)
+            #   Glow     → Non-Color (linear emissive mask)
+            # ----------------------------------------------------------------
             if texture_type in ('NORMAL', 'SPECULAR', 'GLOW', 'EMISSIVE'):
                 img.colorspace_settings.name = 'Non-Color'
-            
-            return True, f"Texture installed successfully: {texture_type}"
+            else:
+                # Diffuse – ensure sRGB so the NIF exporter gets correct colour
+                img.colorspace_settings.name = 'sRGB'
+
+            # ----------------------------------------------------------------
+            # DDS check – Fallout 4 requires DDS textures in-game.
+            # Accepted formats per slot:
+            #   DIFFUSE  → BC1 (DXT1) or BC3 (DXT5) if alpha is needed
+            #   NORMAL   → BC5 (ATI2 / two-channel tangent-space)
+            #   SPECULAR → BC1 (DXT1)
+            #   GLOW     → BC1 (DXT1)
+            # ----------------------------------------------------------------
+            _FO4_FORMAT_HINT = {
+                'DIFFUSE':  'BC1 (DXT1) – or BC3 if alpha is needed',
+                'NORMAL':   'BC5 (ATI2) – two-channel tangent-space',
+                'SPECULAR': 'BC1 (DXT1)',
+                'GLOW':     'BC1 (DXT1)',
+                'EMISSIVE': 'BC1 (DXT1)',
+            }
+            is_dds = os.path.splitext(texture_path)[1].lower() == '.dds'
+            if is_dds:
+                return True, f"{texture_type} texture installed: {os.path.basename(texture_path)}"
+            else:
+                fmt_hint = _FO4_FORMAT_HINT.get(texture_type, 'BC1 (DXT1)')
+                return True, (
+                    f"{texture_type} texture installed: {os.path.basename(texture_path)}. "
+                    f"IMPORTANT: Fallout 4 requires DDS in-game. "
+                    f"Convert to DDS using '{fmt_hint}' before exporting your NIF."
+                )
         except Exception as e:
             return False, f"Failed to load texture: {str(e)}"
     
@@ -189,55 +221,93 @@ class TextureHelpers:
     def validate_textures(obj):
         """Validate textures for Fallout 4 compatibility"""
         issues = []
-        
+
         if not obj.data.materials:
             issues.append("Object has no materials")
             return False, issues
-        
+
         mat = obj.data.materials[0]
-        
+
         if not mat.use_nodes:
             issues.append("Material does not use nodes")
             return False, issues
-        
-        # Check for required texture nodes
-        required_textures = ['Diffuse', 'Normal']
+
+        # ----------------------------------------------------------------
+        # Per-slot requirements
+        # ----------------------------------------------------------------
+        # slot name → (required, expected_colorspace, fo4_dds_format)
+        _SLOT_SPEC = {
+            'Diffuse':  (True,  'sRGB',      'BC1 (DXT1) or BC3 (DXT5) if alpha'),
+            'Normal':   (True,  'Non-Color', 'BC5 (ATI2) – two-channel tangent-space'),
+            'Specular': (False, 'Non-Color', 'BC1 (DXT1)'),
+            'Glow':     (False, 'Non-Color', 'BC1 (DXT1)'),
+        }
+
         nodes = mat.node_tree.nodes
-        
-        for tex_name in required_textures:
+
+        for tex_name, (required, expected_cs, dds_fmt) in _SLOT_SPEC.items():
             tex_node = nodes.get(tex_name)
             if not tex_node:
-                issues.append(f"Missing {tex_name} texture node")
-            elif not tex_node.image:
-                issues.append(f"{tex_name} texture is not loaded")
-            else:
-                # Check image properties
-                img = tex_node.image
-                if img.size[0] == 0 or img.size[1] == 0:
-                    issues.append(f"{tex_name} texture has invalid size")
-                
-                # Check if dimensions are power of 2 (recommended for FO4)
-                width, height = img.size[0], img.size[1]
-                if not (width & (width - 1) == 0 and width != 0):
-                    issues.append(f"{tex_name} width is not power of 2 (recommended: 512, 1024, 2048)")
-                if not (height & (height - 1) == 0 and height != 0):
-                    issues.append(f"{tex_name} height is not power of 2 (recommended: 512, 1024, 2048)")
+                if required:
+                    issues.append(f"Missing {tex_name} texture node")
+                continue
 
-                # Normal maps must use Non-Color colorspace.  Using sRGB causes
-                # Blender to apply gamma correction and produces wrong tangent-
-                # space vectors when the NIF exporter reads the image data.
-                if tex_name == 'Normal':
-                    cs = getattr(getattr(img, 'colorspace_settings', None), 'name', None)
-                    if cs and cs not in ('Non-Color', 'Raw'):
-                        issues.append(
-                            f"Normal map colorspace is '{cs}' – must be 'Non-Color' "
-                            "(Image Properties > Colorspace) to avoid washed-out "
-                            "normals in Fallout 4"
-                        )
-        
+            if not tex_node.image:
+                if required:
+                    issues.append(f"{tex_name} texture is not loaded")
+                continue
+
+            img = tex_node.image
+
+            # Dimension check
+            if img.size[0] == 0 or img.size[1] == 0:
+                issues.append(f"{tex_name} texture has invalid size (0×0)")
+                continue
+
+            width, height = img.size[0], img.size[1]
+            if not ((width & (width - 1)) == 0):
+                issues.append(
+                    f"{tex_name} width ({width}px) is not a power of 2 "
+                    "(FO4 requires 512, 1024, 2048, or 4096)"
+                )
+            if not ((height & (height - 1)) == 0):
+                issues.append(
+                    f"{tex_name} height ({height}px) is not a power of 2 "
+                    "(FO4 requires 512, 1024, 2048, or 4096)"
+                )
+
+            # Colorspace check
+            cs = getattr(getattr(img, 'colorspace_settings', None), 'name', None)
+            if cs:
+                # Non-Color and Raw are both acceptable for data textures
+                ok_for_data = cs in ('Non-Color', 'Raw')
+                if expected_cs == 'Non-Color' and not ok_for_data:
+                    issues.append(
+                        f"{tex_name} colorspace is '{cs}' – must be 'Non-Color' "
+                        "to avoid incorrect values when the NIF exporter reads the texture"
+                    )
+                elif expected_cs == 'sRGB' and cs not in ('sRGB', 'Linear Rec.709', 'Filmic Log'):
+                    # 'sRGB' is the standard Blender name for gamma-correct colour data.
+                    # 'Linear Rec.709' / 'Filmic Log' appear in some ACES/filmic configs
+                    # and are also acceptable for diffuse colour textures.
+                    issues.append(
+                        f"{tex_name} colorspace is '{cs}' – expected 'sRGB' "
+                        "for correct colour in Fallout 4"
+                    )
+
+            # DDS format check – FO4 REQUIRES DDS textures in-game
+            filepath = bpy.path.abspath(img.filepath) if img.filepath else ''
+            ext = os.path.splitext(filepath)[1].lower() if filepath else ''
+            if filepath and ext != '.dds':
+                issues.append(
+                    f"{tex_name} is not a DDS file ({os.path.basename(filepath)}). "
+                    f"Fallout 4 requires DDS format in-game. "
+                    f"Convert using {dds_fmt} before exporting your NIF."
+                )
+
         if not issues:
-            return True, ["Textures are valid for Fallout 4"]
-        
+            return True, ["All textures are valid for Fallout 4 NIF export"]
+
         return False, issues
 
 def register():

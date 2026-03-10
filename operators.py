@@ -219,23 +219,39 @@ class FO4_OT_InstallTexture(Operator):
     
     def execute(self, context):
         obj = context.active_object
-        
+
         if not obj or obj.type != 'MESH':
             self.report({'ERROR'}, "No mesh object selected")
             return {'CANCELLED'}
-        
+
         success, message = texture_helpers.TextureHelpers.install_texture(
             obj, self.filepath, self.texture_type
         )
-        
+
         if success:
             self.report({'INFO'}, message)
             notification_system.FO4_NotificationSystem.notify(message, 'INFO')
+
+            # Warn if the installed file is not DDS – FO4 requires DDS in-game.
+            import os
+            if os.path.splitext(self.filepath)[1].lower() != '.dds':
+                dds_hint = {
+                    'DIFFUSE':  'BC1 (DXT1) or BC3 if alpha needed',
+                    'NORMAL':   'BC5 (ATI2) – two-channel tangent-space',
+                    'SPECULAR': 'BC1 (DXT1)',
+                    'GLOW':     'BC1 (DXT1)',
+                    'EMISSIVE': 'BC1 (DXT1)',
+                }.get(self.texture_type, 'BC1 (DXT1)')
+                self.report(
+                    {'WARNING'},
+                    f"Non-DDS texture installed. For Fallout 4 NIF export convert to DDS "
+                    f"({dds_hint}) using 'Convert to DDS' in the Texture Helpers panel."
+                )
         else:
             self.report({'ERROR'}, message)
             notification_system.FO4_NotificationSystem.notify(message, 'ERROR')
             return {'CANCELLED'}
-        
+
         return {'FINISHED'}
     
     def invoke(self, context, event):
@@ -3294,6 +3310,12 @@ class FO4_OT_UpscaleKREALegacy(Operator):
         if success:
             self.report({'INFO'}, message)
             notification_system.FO4_NotificationSystem.notify(message, 'INFO')
+            # Remind the user to convert the upscaled image to DDS before NIF export.
+            self.report(
+                {'WARNING'},
+                "Upscale complete. Convert the output to DDS (BC1/BC3/BC5) using "
+                "'Convert to DDS' in the Texture Helpers panel before exporting your NIF."
+            )
         else:
             self.report({'WARNING'}, message)
             notification_system.FO4_NotificationSystem.notify(message, 'WARNING')

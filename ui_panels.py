@@ -165,6 +165,12 @@ class FO4_PT_TexturePanel(Panel):
 
         box.operator("fo4.validate_textures", text="Validate Textures", icon='CHECKMARK')
 
+        # DDS conversion – required for Fallout 4 NIF export
+        dds_box = layout.box()
+        dds_box.label(text="DDS Conversion (FO4 NIF Export)", icon='DISK_DRIVE')
+        dds_box.operator("fo4.convert_texture_to_dds", text="Convert Texture to DDS", icon='FILE_REFRESH')
+        dds_box.operator("fo4.convert_object_textures_to_dds", text="Convert Object Textures to DDS", icon='OBJECT_DATA')
+
         # AI Upscaling (Real-ESRGAN)
         esrgan_available = realesrgan_helpers.RealESRGANHelpers.is_realesrgan_available()
         ai_box = layout.box()
@@ -184,7 +190,7 @@ class FO4_PT_TexturePanel(Panel):
         # KREA AI Legacy-style upscaling (always available via PIL fallback)
         krea_box = layout.box()
         krea_box.label(text="KREA AI Legacy Upscale", icon='SHADERFX')
-        krea_box.operator("fo4.upscale_krea_legacy", text="Upscale (KREA Legacy Style)", icon='FULLSCREEN_ENTER')
+        krea_box.operator("fo4.upscale_krea_legacy", text="Upscale Texture", icon='FULLSCREEN_ENTER')
 
 class FO4_PT_ImageToMeshPanel(Panel):
     """Image to Mesh helpers panel"""
