@@ -362,6 +362,79 @@ class RealESRGANHelpers:
             return False, "Failed to upscale any textures", []
     
     @staticmethod
+    def upscale_krea_legacy_style(input_path, output_path=None, scale=4):
+        """
+        Upscale a texture using a KREA AI Legacy-style approach.
+
+        Uses Real-ESRGAN (RealESRGAN_x4plus model) when available for the best
+        quality result.  Falls back to high-quality Lanczos upscaling combined
+        with an unsharp-mask sharpening pass to approximate the crisp, detailed
+        output characteristic of the KREA AI Legacy upscaler.
+
+        Args:
+            input_path: Path to the input texture file
+            output_path: Destination path (optional; derived from input if omitted)
+            scale: Integer upscale factor (2 or 4)
+
+        Returns: (bool success, str message)
+        """
+        if not os.path.exists(input_path):
+            return False, f"Input file not found: {input_path}"
+
+        if output_path is None:
+            base, ext = os.path.splitext(input_path)
+            output_path = f"{base}_krea_legacy{ext}"
+
+        # Prefer Real-ESRGAN when available — highest quality
+        if RealESRGANHelpers.is_realesrgan_available():
+            path, method = RealESRGANHelpers.get_realesrgan_path()
+            if method == 'python':
+                success, message = RealESRGANHelpers.upscale_texture_python(
+                    input_path, output_path, scale, model='RealESRGAN_x4plus'
+                )
+                if success:
+                    return True, f"Texture upscaled {scale}x (KREA AI Legacy style via Real-ESRGAN): {output_path}"
+                # Fall through to PIL fallback on failure
+            elif method == 'vulkan':
+                success, message = RealESRGANHelpers.upscale_texture_vulkan(
+                    input_path, output_path, scale, model='realesrgan-x4plus'
+                )
+                if success:
+                    return True, f"Texture upscaled {scale}x (KREA AI Legacy style via Real-ESRGAN Vulkan): {output_path}"
+                # Fall through to PIL fallback on failure
+
+        # Fallback: Lanczos + unsharp mask (always available with Pillow)
+        try:
+            from PIL import Image, ImageFilter, ImageEnhance
+        except ImportError:
+            return False, (
+                "Neither Real-ESRGAN nor Pillow is available. "
+                "Install Pillow with: pip install Pillow"
+            )
+
+        try:
+            img = Image.open(input_path)
+            orig_width, orig_height = img.size
+            new_width = orig_width * scale
+            new_height = orig_height * scale
+
+            # High-quality Lanczos resample
+            upscaled = img.resize((new_width, new_height), Image.LANCZOS)
+
+            # Unsharp mask to recover fine detail (KREA Legacy characteristic sharpness)
+            upscaled = upscaled.filter(
+                ImageFilter.UnsharpMask(radius=1.5, percent=130, threshold=3)
+            )
+
+            # Subtle contrast boost for richer appearance
+            upscaled = ImageEnhance.Contrast(upscaled).enhance(1.05)
+
+            upscaled.save(output_path)
+            return True, f"Texture upscaled {scale}x (KREA AI Legacy style): {output_path}"
+        except Exception as e:
+            return False, f"Failed to upscale texture: {str(e)}"
+
+    @staticmethod
     def get_recommended_scale(image_width, image_height):
         """
         Get recommended upscale factor based on current resolution

@@ -153,7 +153,16 @@ class FO4_PT_TexturePanel(Panel):
         box = layout.box()
         box.label(text="Texture Setup", icon='TEXTURE')
         box.operator("fo4.setup_textures", text="Setup FO4 Materials", icon='MATERIAL')
-        box.operator("fo4.install_texture", text="Install Texture", icon='FILE_IMAGE')
+
+        install_box = box.box()
+        install_box.label(text="Install Texture", icon='FILE_IMAGE')
+        op = install_box.operator("fo4.install_texture", text="Install Diffuse", icon='FILE_IMAGE')
+        op.texture_type = 'DIFFUSE'
+        op = install_box.operator("fo4.install_texture", text="Install Normal Map", icon='NORMALS_FACE')
+        op.texture_type = 'NORMAL'
+        op = install_box.operator("fo4.install_texture", text="Install Specular Map", icon='SHADING_RENDERED')
+        op.texture_type = 'SPECULAR'
+
         box.operator("fo4.validate_textures", text="Validate Textures", icon='CHECKMARK')
 
         # AI Upscaling (Real-ESRGAN)
@@ -171,6 +180,11 @@ class FO4_PT_TexturePanel(Panel):
         row = ai_box.row()
         row.enabled = esrgan_available
         row.operator("fo4.upscale_object_textures", text="Upscale Object Textures", icon='OBJECT_DATA')
+
+        # KREA AI Legacy-style upscaling (always available via PIL fallback)
+        krea_box = layout.box()
+        krea_box.label(text="KREA AI Legacy Upscale", icon='SHADERFX')
+        krea_box.operator("fo4.upscale_krea_legacy", text="Upscale (KREA Legacy Style)", icon='FULLSCREEN_ENTER')
 
 class FO4_PT_ImageToMeshPanel(Panel):
     """Image to Mesh helpers panel"""

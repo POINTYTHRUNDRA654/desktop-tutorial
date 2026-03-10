@@ -3245,6 +3245,67 @@ class FO4_OT_CheckRealESRGANInstallation(Operator):
         
         return {'FINISHED'}
 
+
+class FO4_OT_UpscaleKREALegacy(Operator):
+    """Upscale a texture using KREA AI Legacy-style processing.
+    Uses Real-ESRGAN when available, otherwise falls back to high-quality
+    Lanczos upscaling with sharpening (requires Pillow)."""
+    bl_idname = "fo4.upscale_krea_legacy"
+    bl_label = "Upscale (KREA AI Legacy Style)"
+    bl_options = {'REGISTER', 'UNDO'}
+
+    filepath: StringProperty(
+        name="Texture File",
+        description="Path to the texture file to upscale",
+        subtype='FILE_PATH'
+    )
+
+    output_path: StringProperty(
+        name="Output Path",
+        description="Path for the upscaled texture (leave blank to auto-generate)",
+        subtype='FILE_PATH',
+        default=""
+    )
+
+    scale: EnumProperty(
+        name="Upscale Factor",
+        description="How much to upscale the texture",
+        items=[
+            ('2', "2x", "Double the resolution"),
+            ('4', "4x", "Quadruple the resolution"),
+        ],
+        default='4'
+    )
+
+    def execute(self, context):
+        if not self.filepath:
+            self.report({'ERROR'}, "No texture file selected")
+            return {'CANCELLED'}
+
+        output = self.output_path if self.output_path else None
+        scale_int = int(self.scale)
+
+        success, message = realesrgan_helpers.RealESRGANHelpers.upscale_krea_legacy_style(
+            self.filepath,
+            output,
+            scale_int
+        )
+
+        if success:
+            self.report({'INFO'}, message)
+            notification_system.FO4_NotificationSystem.notify(message, 'INFO')
+        else:
+            self.report({'WARNING'}, message)
+            notification_system.FO4_NotificationSystem.notify(message, 'WARNING')
+            return {'CANCELLED'}
+
+        return {'FINISHED'}
+
+    def invoke(self, context, event):
+        context.window_manager.fileselect_add(self)
+        return {'RUNNING_MODAL'}
+
+
 # NVIDIA GET3D Operators
 
 class FO4_OT_ImportGET3DMesh(Operator):
@@ -8058,6 +8119,7 @@ classes = (
     FO4_OT_SelfTest,
     FO4_OT_UpscaleTexture,
     FO4_OT_UpscaleObjectTextures,
+    FO4_OT_UpscaleKREALegacy,
     FO4_OT_CheckRealESRGANInstallation,
     FO4_OT_ImportGET3DMesh,
     FO4_OT_OptimizeGET3DMesh,
