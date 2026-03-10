@@ -73,30 +73,30 @@ const getImageForPage = (pageId: keyof typeof imageMap | string): string | undef
 
 // Helper exported for unit tests: builds the textual tutorial content for a page context
 export function buildTutorialText(context: TutorialPageContext, pageIndex: number, hasPreconfiguredApiKeys = false) {
-  let detailedText = `Welcome to ${context.pageName}. ${context.purpose}.`;
+  let detailedText = `This is ${context.pageName}. ${context.purpose}.`;
 
   if (context.features.length > 0) {
     const featureList = context.features.slice(0, 4).join(', ');
-    detailedText += ` Key features include: ${featureList}.`;
+    detailedText += ` You'll find: ${featureList}.`;
   }
 
   if (context.controls.length > 0) {
-    detailedText += ` Let me explain the main buttons and controls. `;
+    detailedText += ` Here are the main controls. `;
     context.controls.slice(0, 3).forEach((control) => {
-      detailedText += `The ${control.name} ${control.description}. Use this ${control.whenToUse}. `;
+      detailedText += `**${control.name}** — ${control.description}. ${control.whenToUse}. `;
     });
   }
 
   if (context.guides.length > 0 && context.guides[0].steps.length > 0) {
-    detailedText += `Here's how to use this page: `;
+    detailedText += `Quick walkthrough: `;
     const guide = context.guides[0];
     guide.steps.slice(0, 3).forEach((step, idx) => {
-      detailedText += `Step ${idx + 1}, ${step}. `;
+      detailedText += `${idx + 1}. ${step}. `;
     });
   }
 
   if (context.commonMistakes.length > 0) {
-    detailedText += `Important beginner tip: ${context.commonMistakes[0]}. `;
+    detailedText += `Heads up: ${context.commonMistakes[0]}. `;
   }
 
   if (hasPreconfiguredApiKeys) {
@@ -104,7 +104,7 @@ export function buildTutorialText(context: TutorialPageContext, pageIndex: numbe
     detailedText = detailedText.replace(/\s{2,}/g, ' ').replace(/^[.?!\s]+|[.?!\s]+$/g, '').trim();
   }
 
-  detailedText += `Take your time to explore this page. When you're ready, click Next Step to continue.`;
+  detailedText += ` Take a look around, then hit Next Step when you're ready.`;
   return detailedText;
 }
 
@@ -285,11 +285,11 @@ export const InteractiveTutorial: React.FC<InteractiveTutorialProps> = ({ onComp
   const steps: TutorialStep[] = [
     {
       id: 'welcome',
-      title: 'Welcome to Mossy! Your Complete Fallout 4 Modding Guide',
+      title: 'Welcome to Mossy! Your Fallout 4 Modding Companion',
       mossyText:
-        `Hello! I'm Mossy, your artificial intelligence assistant for Fallout 4 modding. I'm here to guide you through every feature of this application. This comprehensive tutorial covers ${totalPages} different pages, each dedicated to a specific tool or module. For each page, I will explain what the tool is designed for, describe every button and control, and show you exactly how to use it step by step. You'll see actual screenshots of each page, along with beginner tips to help you avoid common mistakes. The complete tutorial takes approximately 15 to 20 minutes. You can pause at any time by clicking the Exit Tutorial button, and your progress will be saved. You can also use the Previous Step button to review any page. Ready to begin? Let's start with The Nexus, your main dashboard. Click the Next Step button when you're ready to proceed.`,
+        `Hey! I'm Mossy, your Fallout 4 modding companion. This tour covers ${totalPages} pages — each one is a different tool or module in the app. I'll walk you through what each page does, point out the key controls, and give you some tips so you don't have to learn the hard way. You'll see actual screenshots alongside the explanations. The whole thing takes around 15–20 minutes, and you can pause or come back to it any time. Your progress is saved, so no pressure. Ready? Let's start with The Nexus — your home dashboard.`,
       route: '/',
-      action: 'Get familiar with The Nexus dashboard - this is your home base',
+      action: 'Get familiar with The Nexus dashboard — your home base',
       icon: <Home className="w-8 h-8" />,
     },
     // Dynamically generate steps from tutorial contexts
@@ -307,11 +307,11 @@ export const InteractiveTutorial: React.FC<InteractiveTutorialProps> = ({ onComp
     }),
     {
       id: 'complete',
-      title: "🎉 Tutorial Complete! You're Ready to Start Modding!",
+      title: "🎉 You're All Set!",
       mossyText:
-        "Congratulations! You have successfully completed the entire tutorial. You've now been introduced to all 40 pages of tools and features available in this application. You understand what each module does, how to use the buttons and controls, and have seen step-by-step guides for common tasks. You are now ready to begin your modding journey. Here are your next steps. First, I recommend starting with a simple texture modification to get comfortable with the workflow. Second, use the Chat module whenever you have questions - I'm here 24/7 to assist you. Third, visit the Learning Hub for in-depth guides on specific topics like scripting, animation, and quest design. Fourth, explore the Project Hub to organize your work and track your progress. Remember, every expert modder was once a beginner just like you. Don't be intimidated by the tools - take your time and experiment. If you encounter any problems or get stuck, simply click the chat icon in the navigation bar and ask me for help. I'm always here to guide you. Now go create something amazing! Happy modding!",
+        "That's the full tour — nice work making it through! You've seen every tool and module this app has to offer. From here, I'd suggest starting with something simple like a texture swap to get your hands dirty. When you have questions, just open the Chat — I'm always here. The Learning Hub is great for going deeper on specific topics like scripting or quest design. And the Project Hub helps you stay organized as things get more complex. Don't worry about remembering everything at once. Just dive in, experiment, and ask when you get stuck. That's how every good modder gets started. Happy modding!",
       route: '/',
-      action: 'Start exploring on your own - try the Chat or Learning Hub!',
+      action: 'Start exploring — try the Chat or Learning Hub first!',
       icon: <CheckCircle2 className="w-8 h-8" />,
     },
   ];
