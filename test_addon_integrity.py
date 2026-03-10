@@ -438,7 +438,7 @@ def test_tool_helpers():
 
 
 def test_fo4_export_settings():
-    """Verify Fallout 4 export settings are correct"""
+    """Verify Fallout 4 NIF export settings are correct"""
     print("\n" + "="*70)
     print("TEST 5: Verifying Fallout 4 NIF export configuration")
     print("="*70)
@@ -452,19 +452,60 @@ def test_fo4_export_settings():
         with open(export_helpers_path, 'r', encoding='utf-8') as f:
             content = f.read()
 
-        # Check for key FO4 settings
+        # ----------------------------------------------------------------
+        # Core FO4 export settings
+        # ----------------------------------------------------------------
         checks = [
-            ("FALLOUT_4 game profile", "FALLOUT_4" in content),
-            ("Tangent space setting", "tangent_space" in content or "use_tangent_space" in content),
-            ("Scale correction", "scale_correction" in content),
-            ("Triangulate modifier", "Triangulate" in content),
-            ("BSTriShape mention", "BSTriShape" in content),
+            ("FALLOUT_4 game profile",          "FALLOUT_4" in content),
+            ("Tangent space setting",            "tangent_space" in content or "use_tangent_space" in content),
+            ("Scale correction",                 "scale_correction" in content),
+            ("Triangulate modifier",             "Triangulate" in content),
+            ("BSTriShape mention",               "BSTriShape" in content),
             # Automation: scene settings applied automatically before every export
-            ("Auto scene settings method", "_apply_niftools_scene_settings" in content),
-            ("Scene game property set automatically", "niftools_scene" in content and "ns.game" in content),
-            ("NIF version auto-set", "nif_version" in content and "20.2.0.7" in content),
-            ("User version auto-set", "user_version" in content),
-            ("Game enum fallbacks", '"Fallout 4"' in content or "'Fallout 4'" in content),
+            ("Auto scene settings method",       "_apply_niftools_scene_settings" in content),
+            ("Scene game property set auto",     "niftools_scene" in content and "ns.game" in content),
+            ("NIF version auto-set",             "nif_version" in content and "20.2.0.7" in content),
+            ("User version auto-set",            "user_version" in content),
+            ("Game enum fallbacks",              '"Fallout 4"' in content or "'Fallout 4'" in content),
+            # -----------------------------------------------------------
+            # Blender 4.x face_maps compatibility patch (the fix for the
+            # reported AttributeError crash in niftools v0.1.1)
+            # -----------------------------------------------------------
+            ("Blender 4.x compat patch method", "_apply_niftools_blender4_compat_patches" in content),
+            ("face_maps AttributeError fix",     "face_maps" in content and "hasattr" in content),
+            ("get_polygon_parts patch",          "_patched_get_polygon_parts" in content),
+            ("export_skin_partition patch",      "_patched_export_skin_partition" in content),
+            # -----------------------------------------------------------
+            # Three Fallout 4 editions (OG / NG / AE)
+            # -----------------------------------------------------------
+            ("FO4 OG profile present",           "FALLOUT_4" in content),
+            ("FO4 NG profile present",           "FALLOUT_4_NG" in content),
+            ("FO4 AE profile present",           "FALLOUT_4_AE" in content),
+            # -----------------------------------------------------------
+            # Authoritative NIF version numbers (from niftools/nifxml)
+            # -----------------------------------------------------------
+            ("FO4 bsver 130 (authoritative)",    '"user_version_2":           130' in content),
+            ("FO3/NV bsver 34",                  '"user_version_2":           34' in content),
+            ("Skyrim bsver 83",                  '"user_version_2":           83' in content),
+            ("Skyrim SE bsver 100",              '"user_version_2":           100' in content),
+            # -----------------------------------------------------------
+            # Multi-game profiles beyond FO4
+            # -----------------------------------------------------------
+            ("NIF game profiles dict",           "_NIF_GAME_PROFILES" in content),
+            ("Game alias map",                   "_NIF_GAME_ALIAS_MAP" in content),
+            ("Skyrim profile present",           '"SKYRIM"' in content),
+            ("Oblivion profile present",         '"OBLIVION"' in content),
+            ("FO3 profile present",              '"FALLOUT_3"' in content),
+            # -----------------------------------------------------------
+            # Per-game skin partition settings
+            # -----------------------------------------------------------
+            ("Skin partition kwarg",             "skin_partition" in content),
+            ("Max bones per partition",          "max_bones_per_partition" in content),
+            # -----------------------------------------------------------
+            # Compat patch called at both NIF export sites
+            # -----------------------------------------------------------
+            ("Compat patch called in export_mesh_to_nif",
+             content.count("_apply_niftools_blender4_compat_patches") >= 3),
         ]
 
         failed = []
@@ -475,7 +516,9 @@ def test_fo4_export_settings():
                 print(f"❌ {check_name}: Missing")
                 failed.append(check_name)
 
-        # Check nvtt_helpers for correct DDS compression
+        # ----------------------------------------------------------------
+        # DDS texture compression (nvtt_helpers)
+        # ----------------------------------------------------------------
         nvtt_path = addon_dir / "nvtt_helpers.py"
         with open(nvtt_path, 'r', encoding='utf-8') as f:
             nvtt_content = f.read()
@@ -483,7 +526,7 @@ def test_fo4_export_settings():
         dds_checks = [
             ("BC1 (DXT1) for diffuse", "'bc1'" in nvtt_content or "'BC1'" in nvtt_content),
             ("BC5 (ATI2) for normals", "'bc5'" in nvtt_content or "'BC5'" in nvtt_content),
-            ("BC3 (DXT5) for alpha", "'bc3'" in nvtt_content or "'BC3'" in nvtt_content),
+            ("BC3 (DXT5) for alpha",   "'bc3'" in nvtt_content or "'BC3'" in nvtt_content),
         ]
 
         for check_name, result in dds_checks:

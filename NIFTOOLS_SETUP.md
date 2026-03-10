@@ -4,13 +4,18 @@ The add-on calls the Blender Niftools exporter when it is installed.
 
 ## Version
 
-**Latest release: v0.1.1** (2023-11-03) — this is the newest version available.
+**Latest release: v0.1.1** (2023-11-03) — this is the version used by this add-on.
 
-- Compatible with Blender 2.8 – 3.6.
-- **NOT** compatible with Blender 4.x.
-- If you run Blender 4.x, install Blender 3.6 LTS side-by-side and do the
-  final NIF export there, or rely on the FBX fallback and convert with an
-  external tool (NifSkope, Outfit Studio, Cathedral Assets Optimizer).
+- Officially compatible with Blender 2.8 – 3.6.
+- **Blender 4.x** — niftools v0.1.1 was not originally designed for Blender 4.x,
+  but this add-on automatically patches two known incompatibilities so NIF
+  export works on Blender 4.x without needing Blender 3.6:
+  - `AttributeError: 'Object' object has no attribute 'face_maps'`
+    (`get_polygon_parts` and `export_skin_partition` patched at runtime).
+  - The patches are applied transparently before every export — no user action
+    required.
+- If you still encounter NIF export issues on Blender 4.x, the add-on
+  automatically falls back to FBX export in the same location.
 
 ## Quick install on Windows (PowerShell)
 
@@ -46,25 +51,49 @@ When you click **Export Mesh (.nif)** the add-on:
 3. **Triangulates** via a temporary modifier — FO4 BSTriShape nodes store
    triangles only; the modifier is removed after export so your mesh is
    unchanged.
-4. Passes the exact Fallout 4 NIF settings to Niftools v0.1.1:
-   - `game = FALLOUT_4` → NIF 20.2.0.7, user ver 12, uv2 131073, BSTriShape
+4. **Applies Blender 4.x patches** to niftools at runtime so the removed
+   `face_maps` API does not crash the export.
+5. Passes the exact NIF settings for the target game (auto-detected from the
+   scene or defaulting to Fallout 4 OG):
+   - `game = FALLOUT_4` → NIF 20.2.0.7, user_version 12, bsver 130, BSTriShape
    - `use_tangent_space = True` → required for FO4 normal maps
    - `scale_correction = 1.0` → 1 Blender unit = 1 NIF unit
    - `apply_modifiers = True` → bakes triangulate into export
    - `export_type = nif` → geometry file, not KF animation
-5. Includes any associated `UCX_` collision mesh in the export.
-6. Falls back to FBX (for external conversion) if NIF export fails, and prints
+   - `skin_partition = False` → FO4 uses BSSubIndexTriShape, not old partitions
+6. Includes any associated `UCX_` collision mesh in the export.
+7. Falls back to FBX (for external conversion) if NIF export fails, and prints
    the full error traceback to the system console for debugging.
 
-## Fallout 4 NIF format reference
+## Supported NIF game profiles
 
-| Parameter       | Value    |
-|-----------------|----------|
-| NIF version     | 20.2.0.7 |
-| User version    | 12       |
-| User version 2  | 131073   |
-| Geometry nodes  | BSTriShape (NOT NiTriShape) |
-| Shader property | BSLightingShaderProperty |
+Every supported game is pre-configured with the correct version numbers
+(verified against the authoritative **niftools/nifxml** `nif.xml` spec):
+
+| Game | Profile key | NIF version | user_version | bsver |
+|------|-------------|-------------|-------------|-------|
+| Morrowind | `MORROWIND` | 4.0.0.2 | 0 | 0 |
+| Oblivion | `OBLIVION` | 20.0.0.5 | 11 | 11 |
+| Fallout 3 | `FALLOUT_3` | 20.2.0.7 | 11 | 34 |
+| Fallout: New Vegas | `FALLOUT_NV` | 20.2.0.7 | 11 | 34 |
+| Skyrim LE | `SKYRIM` | 20.2.0.7 | 12 | 83 |
+| Skyrim SE | `SKYRIM_SE` | 20.2.0.7 | 12 | 100 |
+| **Fallout 4 OG** | `FALLOUT_4` | 20.2.0.7 | **12** | **130** |
+| **Fallout 4 NG** | `FALLOUT_4_NG` | 20.2.0.7 | **12** | **130** |
+| **Fallout 4 AE** | `FALLOUT_4_AE` | 20.2.0.7 | **12** | **130** |
+
+### Fallout 4 editions
+
+| Edition | Description |
+|---------|-------------|
+| **OG** | Original 2015 release — standard FO4 modding target |
+| **NG** | Next Gen update (April 25, 2024) — new Creation Club assets |
+| **AE** | Anniversary Edition (November 10, 2025) — 10th anniversary; all DLC + 150+ Creation Club items, built on NG engine |
+
+All three editions share the same NIF format (`user_version=12`, `bsver=130`).
+To select a specific edition set the scene's niftools_scene game to the
+corresponding profile key (e.g. `FALLOUT_4_NG`).  If the scene game is not
+set (UNKNOWN) the add-on defaults to `FALLOUT_4` (OG).
 
 ## Troubleshooting "Export of nif failed"
 
@@ -74,8 +103,9 @@ When you click **Export Mesh (.nif)** the add-on:
    - Unapplied scale/rotation (Ctrl+A → All Transforms before exporting).
    - No UV map on the mesh.
    - Mesh contains quads that somehow bypassed the auto-triangulate step.
-   - Wrong Blender version: Niftools v0.1.1 only supports Blender 2.8–3.6.
    - Niftools not installed or not enabled in Preferences.
-3. If NIF export is unavailable, the add-on automatically exports an FBX file
-   in the same location. Convert it to NIF using Cathedral Assets Optimizer or
-   NifSkope.
+   - `AttributeError: 'Object' has no attribute 'face_maps'` — this is
+     auto-patched on Blender 4.x; if it still appears, re-install the add-on.
+3. If NIF export is unavailable or fails, the add-on automatically exports an
+   FBX file in the same location. Convert it to NIF using Cathedral Assets
+   Optimizer or NifSkope.

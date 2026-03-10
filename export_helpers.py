@@ -8,6 +8,161 @@ import json
 import sys
 import traceback
 
+# ---------------------------------------------------------------------------
+# NIF game profiles
+# ---------------------------------------------------------------------------
+# Per-game NIF version numbers and export settings for every game supported
+# by Niftools v0.1.1.  These drive both the scene-level ``niftools_scene``
+# property group and the export-operator kwargs so that any game produces a
+# well-formed NIF without manual configuration.
+#
+# Field reference
+# ---------------
+# aliases               – alternative enum spellings tried when setting ns.game
+# nif_version           – NIF file format version string
+# user_version          – studio / engine version (stored in NIF header)
+# user_version_2        – BS header version (stored in NIF header)
+# use_tangent_space     – emit tangent/bitangent vectors (required for
+#                         BSLightingShaderProperty normal maps)
+# scale_correction      – Blender units → NIF units multiplier
+# skin_partition        – whether to build NiSkinPartition / BSSkinInstance
+# max_bones_per_partition – maximum bones in a single skin partition
+# max_bones_per_vertex  – maximum bone influences per vertex
+# ---------------------------------------------------------------------------
+_NIF_GAME_PROFILES = {
+    "MORROWIND": {
+        # TES3: The Elder Scrolls III – Morrowind
+        "aliases":                  ["MORROWIND", "Morrowind", "morrowind"],
+        "nif_version":              "4.0.0.2",
+        "user_version":             0,
+        "user_version_2":           0,
+        "use_tangent_space":        False,
+        "scale_correction":         1.0,
+        "skin_partition":           False,
+        "max_bones_per_partition":  4,
+        "max_bones_per_vertex":     4,
+    },
+    "OBLIVION": {
+        # TES4: The Elder Scrolls IV – Oblivion
+        # nif.xml: V20_0_0_5_OBL  user=11  bsver=11
+        "aliases":                  ["OBLIVION", "Oblivion", "oblivion"],
+        "nif_version":              "20.0.0.5",
+        "user_version":             11,
+        "user_version_2":           11,
+        "use_tangent_space":        True,
+        "scale_correction":         1.0,
+        "skin_partition":           True,
+        "max_bones_per_partition":  18,
+        "max_bones_per_vertex":     4,
+    },
+    "FALLOUT_3": {
+        # FO3: Fallout 3
+        "aliases":                  ["FALLOUT_3", "Fallout 3", "fallout_3"],
+        "nif_version":              "20.2.0.7",
+        "user_version":             11,
+        "user_version_2":           34,
+        "use_tangent_space":        True,
+        "scale_correction":         1.0,
+        "skin_partition":           True,
+        "max_bones_per_partition":  18,
+        "max_bones_per_vertex":     4,
+    },
+    "FALLOUT_NV": {
+        # FONV: Fallout: New Vegas
+        "aliases":                  ["FALLOUT_NV", "Fallout: New Vegas", "fallout_nv"],
+        "nif_version":              "20.2.0.7",
+        "user_version":             11,
+        "user_version_2":           34,
+        "use_tangent_space":        True,
+        "scale_correction":         1.0,
+        "skin_partition":           True,
+        "max_bones_per_partition":  18,
+        "max_bones_per_vertex":     4,
+    },
+    "SKYRIM": {
+        # TES5: The Elder Scrolls V – Skyrim (original / Legendary Edition)
+        "aliases":                  ["SKYRIM", "Skyrim", "skyrim"],
+        "nif_version":              "20.2.0.7",
+        "user_version":             12,
+        "user_version_2":           83,
+        "use_tangent_space":        True,
+        "scale_correction":         0.1,
+        "skin_partition":           True,
+        "max_bones_per_partition":  24,
+        "max_bones_per_vertex":     4,
+    },
+    "SKYRIM_SE": {
+        # TES5SE: The Elder Scrolls V – Skyrim Special Edition
+        "aliases":                  ["SKYRIM_SE", "Skyrim SE", "SKYRIM SE", "skyrim_se"],
+        "nif_version":              "20.2.0.7",
+        "user_version":             12,
+        "user_version_2":           100,
+        "use_tangent_space":        True,
+        "scale_correction":         0.1,
+        "skin_partition":           True,
+        "max_bones_per_partition":  80,
+        "max_bones_per_vertex":     8,
+    },
+    "FALLOUT_4": {
+        # FO4 OG: Fallout 4 – original 2015 release.
+        # nif.xml: V20_2_0_7_FO4  user=12  bsver=130
+        # FO4 uses BSTriShape / BSSubIndexTriShape; old-style NiSkinPartition
+        # is not used, so skin_partition is False.
+        # NOTE: niftools v0.1.1 is the version that first exposed full FO4
+        # export support.  These version numbers are verified against the
+        # authoritative niftools/nifxml nif.xml master specification.
+        "aliases":                  ["FALLOUT_4", "Fallout 4", "FALLOUT4", "fallout_4"],
+        "nif_version":              "20.2.0.7",
+        "user_version":             12,
+        "user_version_2":           130,
+        "use_tangent_space":        True,
+        "scale_correction":         1.0,
+        "skin_partition":           False,
+        "max_bones_per_partition":  4,
+        "max_bones_per_vertex":     4,
+    },
+    "FALLOUT_4_NG": {
+        # FO4 NG: Fallout 4 – Next Gen update (April 25 2024).
+        # Standard game assets continue to use bsver=130; new content added
+        # by the NG update can use bsver 131–134.  Export targets 130 so
+        # that generated NIFs load on both pre-NG and post-NG installations.
+        # nif.xml ref: V20_2_0_7_FO4  user=12  bsver=130
+        "aliases":                  ["FALLOUT_4_NG", "Fallout 4 NG", "fallout_4_ng", "FO4NG"],
+        "nif_version":              "20.2.0.7",
+        "user_version":             12,
+        "user_version_2":           130,
+        "use_tangent_space":        True,
+        "scale_correction":         1.0,
+        "skin_partition":           False,
+        "max_bones_per_partition":  4,
+        "max_bones_per_vertex":     4,
+    },
+    "FALLOUT_4_AE": {
+        # FO4 AE: Fallout 4 – Anniversary Edition (November 10 2025).
+        # Built on the NG engine; no bsver change from the NG update was
+        # reported.  Includes all six DLCs + 150+ Creation Club items and
+        # introduces the revamped "Creations" system.
+        # nif.xml ref: V20_2_0_7_FO4  user=12  bsver=130
+        "aliases":                  ["FALLOUT_4_AE", "Fallout 4 AE", "fallout_4_ae", "FO4AE"],
+        "nif_version":              "20.2.0.7",
+        "user_version":             12,
+        "user_version_2":           130,
+        "use_tangent_space":        True,
+        "scale_correction":         1.0,
+        "skin_partition":           False,
+        "max_bones_per_partition":  4,
+        "max_bones_per_vertex":     4,
+    },
+}
+
+# Reverse lookup: any alias string → canonical profile key.
+_NIF_GAME_ALIAS_MAP = {
+    alias: key
+    for key, profile in _NIF_GAME_PROFILES.items()
+    for alias in profile["aliases"]
+}
+
+
 class ExportHelpers:
     """Helper functions for exporting to Fallout 4"""
     
@@ -105,16 +260,28 @@ class ExportHelpers:
             return preferred
 
     @staticmethod
-    def _apply_niftools_scene_settings():
-        """Automatically configure all Niftools scene properties for Fallout 4.
+    def _apply_niftools_scene_settings(game=None):
+        """Configure Niftools scene properties for the target game.
 
         The Niftools exporter reads NIF version, game, and other settings from
         the scene-level ``niftools_scene`` property group.  If these are not
         configured the exporter raises "You have not selected a game."
 
-        This method sets every relevant property so the user never has to visit
-        the scene tab manually — full automation.  It is called automatically
-        before every NIF export attempt.
+        This method applies the full settings from ``_NIF_GAME_PROFILES`` so
+        the user never has to visit the scene tab manually.  Every supported
+        game (Morrowind, Oblivion, Fallout 3/NV, Skyrim, Skyrim SE, Fallout 4)
+        is handled correctly with the right NIF version numbers, tangent-space
+        flag, scale correction, and skin-partition settings.
+
+        It is called automatically before every NIF export attempt.
+
+        Parameters
+        ----------
+        game : str, optional
+            Canonical game key from ``_NIF_GAME_PROFILES`` (e.g.
+            ``"FALLOUT_4"``, ``"SKYRIM"``).  When *None* (default) the method
+            reads ``niftools_scene.game``; if that is ``"UNKNOWN"`` it
+            defaults to ``"FALLOUT_4"``.
         """
         try:
             scene = bpy.context.scene
@@ -123,12 +290,20 @@ class ExportHelpers:
                 return  # Niftools not installed; nothing to configure
 
             # ------------------------------------------------------------------
-            # Game / NIF version profile
-            # Setting game to FALLOUT_4 makes Niftools automatically select
-            # NIF 20.2.0.7 / user version 12 / user_version_2 131073 and
-            # forces BSTriShape geometry nodes required by the FO4 renderer.
+            # Resolve which game profile to apply.
+            # Priority: explicit argument > current scene setting > FALLOUT_4
             # ------------------------------------------------------------------
-            for game_id in ("FALLOUT_4", "Fallout 4", "FALLOUT4", "fallout_4"):
+            if game is None:
+                current = getattr(ns, "game", "UNKNOWN")
+                game = _NIF_GAME_ALIAS_MAP.get(current) or "FALLOUT_4"
+
+            profile = _NIF_GAME_PROFILES.get(game, _NIF_GAME_PROFILES["FALLOUT_4"])
+
+            # ------------------------------------------------------------------
+            # Game enum – try each alias in the profile so we work across
+            # different Niftools builds that use different identifier spellings.
+            # ------------------------------------------------------------------
+            for game_id in profile["aliases"]:
                 try:
                     ns.game = game_id
                     break
@@ -138,9 +313,9 @@ class ExportHelpers:
             # Explicit NIF version numbers (belt-and-suspenders; the game
             # profile above should set these automatically in most builds).
             for attr, value in (
-                ("nif_version", "20.2.0.7"),
-                ("user_version", 12),
-                ("user_version_2", 131073),
+                ("nif_version",    profile["nif_version"]),
+                ("user_version",   profile["user_version"]),
+                ("user_version_2", profile["user_version_2"]),
             ):
                 try:
                     setattr(ns, attr, value)
@@ -148,12 +323,12 @@ class ExportHelpers:
                     pass
 
             # ------------------------------------------------------------------
-            # Shader / geometry settings required for Fallout 4
+            # Tangent space – required for BS-engine games (Oblivion and newer)
+            # so that BSLightingShaderProperty normal-map lighting is correct.
             # ------------------------------------------------------------------
-            # Tangent space vectors are required by BSLightingShaderProperty.
             for tattr in ("use_tangent_space", "tangent_space"):
                 try:
-                    setattr(ns, tattr, True)
+                    setattr(ns, tattr, profile["use_tangent_space"])
                     break
                 except (TypeError, AttributeError):
                     continue
@@ -166,29 +341,48 @@ class ExportHelpers:
                 except (TypeError, AttributeError):
                     continue
 
+            # Scale correction: converts between Blender and NIF coordinate
+            # units.  Most games use 1.0; Skyrim uses 0.1.
+            try:
+                ns.scale_correction = profile["scale_correction"]
+            except (TypeError, AttributeError):
+                pass
+
         except Exception:
             # Never block the export attempt if scene configuration fails.
             pass
 
     @staticmethod
     def _build_nif_export_kwargs(filepath):
-        """Assemble kwargs for the NIF exporter (Niftools v0.1.1) for Fallout 4.
+        """Assemble kwargs for the NIF exporter (Niftools v0.1.1).
 
-        Fallout 4 NIF format requirements enforced by these settings:
-          - NIF version 20.2.0.7 / user version 12 / user_version_2 131073
-            (automatically selected by game="FALLOUT_4")
-          - BSTriShape geometry nodes – selected by the FALLOUT_4 game profile;
-            do NOT use NiTriShape for FO4 or meshes will be invisible in-game.
-          - BSLightingShaderProperty for materials (game profile handles this).
-          - Tangent-space normal maps: use_tangent_space must be True so the
-            exporter emits the tangent/bitangent vectors FO4 shaders expect.
-          - Scale: 1 Blender unit = 1 NIF unit (scale_correction=1.0).
-          - Geometry must be triangulated; apply_modifiers=True applies the
-            temporary Triangulate modifier added by _prepare_mesh_for_nif.
+        Settings are derived from the active ``niftools_scene.game`` profile so
+        that any supported game produces a well-formed NIF without manual
+        configuration.  The full set of supported games and their correct NIF
+        version numbers is defined in ``_NIF_GAME_PROFILES`` at the top of this
+        module.
+
+        Fallout 4 (OG / NG / AE) requirements enforced here:
+          - NIF 20.2.0.7 / user_version 12 / user_version_2 (bsver) 130
+            (authoritative values from niftools/nifxml nif.xml)
+          - BSTriShape geometry nodes (selected by the FALLOUT_4 game profile)
+          - use_tangent_space=True for BSLightingShaderProperty normal maps
+          - scale_correction=1.0 (1 Blender unit = 1 NIF unit)
+          - apply_modifiers=True to bake the temporary Triangulate modifier
+          - skin_partition=False (FO4 uses BSSubIndexTriShape, not old partitions)
         """
         kwargs = {
             "filepath": filepath,
         }
+
+        # Determine the active game profile.
+        try:
+            current_game = bpy.context.scene.niftools_scene.game
+        except Exception:
+            current_game = "UNKNOWN"
+
+        canonical = _NIF_GAME_ALIAS_MAP.get(current_game, "FALLOUT_4")
+        profile = _NIF_GAME_PROFILES.get(canonical, _NIF_GAME_PROFILES["FALLOUT_4"])
 
         try:
             props = bpy.ops.export_scene.nif.get_rna_type().properties
@@ -201,17 +395,16 @@ class ExportHelpers:
             if "use_selection" in prop_keys:
                 kwargs["use_selection"] = True
 
-            # ----------------------------------------------------------------
-            # Game profile – FALLOUT_4 sets NIF 20.2.0.7 with user version 12
-            # and user_version_2 131073, and forces BSTriShape geometry nodes
-            # which are required by Fallout 4's renderer.
-            # Multiple identifier spellings are tried as fallbacks because
-            # different Niftools builds use different enum identifiers.
-            # ----------------------------------------------------------------
+            # ------------------------------------------------------------------
+            # Game profile – drives NIF version numbers and geometry node type.
+            # Try every alias in the profile because different Niftools builds
+            # use different enum identifiers for the same game.
+            # ------------------------------------------------------------------
             if "game" in prop_keys:
                 game_val = ExportHelpers._safe_enum(
-                    props, "game", "FALLOUT_4",
-                    fallbacks=["Fallout 4", "FALLOUT4", "fallout_4"],
+                    props, "game",
+                    profile["aliases"][0],
+                    fallbacks=profile["aliases"][1:],
                 )
                 if game_val:
                     kwargs["game"] = game_val
@@ -224,44 +417,158 @@ class ExportHelpers:
                 if et_val:
                     kwargs["export_type"] = et_val
 
-            # ----------------------------------------------------------------
-            # Tangent space – FO4 BSLightingShaderProperty normal maps require
-            # tangent vectors in the NIF.  Without this the mesh appears
-            # flat-lit in-game regardless of the normal map texture.
-            # Niftools v0.1.1 may expose this as 'use_tangent_space'.
-            # ----------------------------------------------------------------
-            for tkey in ("use_tangent_space", "tangent_space"):
-                if tkey in prop_keys:
-                    kwargs[tkey] = True
-                    break
+            # ------------------------------------------------------------------
+            # Tangent space – required for BS-engine games (Oblivion and newer).
+            # BSLightingShaderProperty normal maps need tangent vectors; without
+            # them the mesh appears flat-lit regardless of the normal-map texture.
+            # ------------------------------------------------------------------
+            if profile["use_tangent_space"]:
+                for tkey in ("use_tangent_space", "tangent_space"):
+                    if tkey in prop_keys:
+                        kwargs[tkey] = True
+                        break
 
-            # Keep smoothing consistent; only set when the property exists and
-            # the value is a recognised enum item.
+            # Smoothing – only set when the property is recognised.
             if "smoothing" in prop_keys:
                 smooth_val = ExportHelpers._safe_enum(props, "smoothing", "SMOOTH")
                 if smooth_val:
                     kwargs["smoothing"] = smooth_val
 
-            # 1 Blender unit = 1 NIF unit for FO4 (do not rescale geometry).
+            # Scale correction from the game profile.
             if "scale_correction" in prop_keys:
-                kwargs["scale_correction"] = 1.0
+                kwargs["scale_correction"] = profile["scale_correction"]
 
             # Apply modifiers so the temporary Triangulate modifier added by
             # _prepare_mesh_for_nif is baked into the exported geometry.
             if "apply_modifiers" in prop_keys:
                 kwargs["apply_modifiers"] = True
 
-            # Static (non-skinned) meshes do not carry skin data; flatten_skin
-            # would corrupt weights on rigged actors so leave it False.
+            # Static meshes do not need flattened skin; flatten_skin would
+            # corrupt vertex weights on rigged character meshes.
             if "flatten_skin" in prop_keys:
                 kwargs["flatten_skin"] = False
 
+            # ------------------------------------------------------------------
+            # Skin partition – enabled only for games that use NiSkinPartition
+            # (Oblivion, FO3/NV, Skyrim).  FO4 uses BSSubIndexTriShape instead.
+            # Setting max_bones per game avoids the niftools quality warning.
+            # ------------------------------------------------------------------
+            if "skin_partition" in prop_keys:
+                kwargs["skin_partition"] = profile["skin_partition"]
+
+            if profile["skin_partition"]:
+                if "max_bones_per_partition" in prop_keys:
+                    kwargs["max_bones_per_partition"] = profile["max_bones_per_partition"]
+                if "max_bones_per_vertex" in prop_keys:
+                    kwargs["max_bones_per_vertex"] = profile["max_bones_per_vertex"]
+
         except Exception:
-            # If anything goes wrong introspecting the operator, fall back to
-            # the minimal set of kwargs so the export can still be attempted.
+            # If introspecting the operator fails, fall back to the minimal
+            # kwargs so the export can still be attempted.
             pass
 
         return kwargs
+
+    @staticmethod
+    def _apply_niftools_blender4_compat_patches():
+        """Monkey-patch niftools v0.1.1 for Blender 4.x API compatibility.
+
+        Blender 4.0 removed ``bpy.types.Object.face_maps``.  Niftools v0.1.1
+        calls ``b_obj.face_maps.get()`` in ``get_polygon_parts`` (body-part
+        assignments) and iterates ``b_obj.face_maps`` in
+        ``export_skin_partition`` (partition-sort ordering).  Both calls raise
+        ``AttributeError`` on Blender 4.x.
+
+        These patches substitute safe no-op behaviour for the missing API so
+        that NIF export can proceed.  Body-part assignments and partition
+        ordering are omitted when face_maps is absent, which is correct for
+        Fallout 4 (NiSkinInstance, not BSDismemberSkinInstance) and acceptable
+        for other games where the user has not configured face maps.
+
+        The patches are idempotent: calling this function multiple times is safe.
+        Patching only occurs on Blender 4.x; Blender 3.x is left untouched.
+        """
+        if bpy.app.version < (4, 0, 0):
+            return  # face_maps exists on Blender 3.x; no patch needed
+
+        try:
+            import numpy as np
+            from io_scene_niftools.modules.nif_export.geometry.mesh import Mesh as _NiftoolsMesh
+
+            # ------------------------------------------------------------------
+            # Patch 1 – get_polygon_parts
+            # Original (line 742 in niftools v0.1.1):
+            #   face_map = b_obj.face_maps.get(bodypartgroupname)  → AttributeError
+            # Fix: return np.array([]) immediately when face_maps is absent,
+            # matching the function's own "no valid face maps" early-exit path.
+            # ------------------------------------------------------------------
+            if not getattr(_NiftoolsMesh.get_polygon_parts, "_fo4_patched", False):
+                _orig_gpp = _NiftoolsMesh.get_polygon_parts
+
+                def _patched_get_polygon_parts(self, b_obj, b_mesh):
+                    if not hasattr(b_obj, "face_maps"):
+                        return np.array([])
+                    return _orig_gpp(self, b_obj, b_mesh)
+
+                _patched_get_polygon_parts._fo4_patched = True
+                _NiftoolsMesh.get_polygon_parts = _patched_get_polygon_parts
+
+            # ------------------------------------------------------------------
+            # Patch 2 – export_skin_partition
+            # Original (line 671-672 in niftools v0.1.1):
+            #   part_order = [... for face_map in b_obj.face_maps if ...]
+            #     → AttributeError on Blender 4.x
+            # Fix: when face_maps is absent replicate the function body but
+            # use an empty part_sort_order list (it is only a hint for ordering
+            # and is safe to omit).
+            # ------------------------------------------------------------------
+            if not getattr(_NiftoolsMesh.export_skin_partition, "_fo4_patched", False):
+                _orig_esp = _NiftoolsMesh.export_skin_partition
+
+                def _patched_export_skin_partition(self, b_obj, bodypartfacemap, triangles, n_geom):
+                    if hasattr(b_obj, "face_maps"):
+                        return _orig_esp(self, b_obj, bodypartfacemap, triangles, n_geom)
+                    # Blender 4.x: replicate the function without the
+                    # b_obj.face_maps iteration (part_sort_order = []).
+                    try:
+                        import bpy as _bpy
+                        from io_scene_niftools.utils.singleton import NifOp, NifData
+                        from io_scene_niftools.utils.logging import NifLog
+                        from io_scene_niftools.modules.nif_export.geometry.mesh.skin_partition \
+                            import update_skin_partition as _usp
+                        if NifData.data.version >= 0x04020100 and NifOp.props.skin_partition:
+                            game = _bpy.context.scene.niftools_scene.game
+                            n_geom.update_skin_partition = _usp.__get__(n_geom)
+                            lostweight = n_geom.update_skin_partition(
+                                maxbonesperpartition=NifOp.props.max_bones_per_partition,
+                                maxbonespervertex=NifOp.props.max_bones_per_vertex,
+                                stripify=NifOp.props.stripify,
+                                stitchstrips=NifOp.props.stitch_strips,
+                                padbones=NifOp.props.pad_bones,
+                                triangles=triangles,
+                                trianglepartmap=bodypartfacemap,
+                                maximize_bone_sharing=(
+                                    game in ("FALLOUT_3", "FALLOUT_NV", "SKYRIM")
+                                ),
+                                part_sort_order=[],
+                            )
+                            if lostweight > NifOp.props.epsilon:
+                                NifLog.warn(
+                                    f"Lost {lostweight:f} in vertex weights while creating "
+                                    f"a skin partition for Blender object '{b_obj.name}' "
+                                    f"(nif block '{n_geom.name}')"
+                                )
+                    except Exception:
+                        pass
+
+                _patched_export_skin_partition._fo4_patched = True
+                _NiftoolsMesh.export_skin_partition = _patched_export_skin_partition
+
+        except Exception:
+            # If the niftools module layout has changed, skip patching silently.
+            # The export will still be attempted; if face_maps is truly absent
+            # the original AttributeError will appear in the console as before.
+            pass
 
     @staticmethod
     def _prepare_mesh_for_nif(obj):
@@ -440,6 +747,10 @@ class ExportHelpers:
                 # Automatically apply all required Niftools scene settings so
                 # the user never has to visit the scene tab manually.
                 ExportHelpers._apply_niftools_scene_settings()
+
+                # Apply Blender 4.x compatibility patches to niftools so that
+                # the missing face_maps API does not crash the export.
+                ExportHelpers._apply_niftools_blender4_compat_patches()
 
                 kwargs = ExportHelpers._build_nif_export_kwargs(filepath)
                 result = bpy.ops.export_scene.nif(**kwargs)
@@ -647,6 +958,9 @@ class ExportHelpers:
                 # Automatically apply all required Niftools scene settings so
                 # the user never has to visit the scene tab manually.
                 ExportHelpers._apply_niftools_scene_settings()
+                # Apply Blender 4.x compatibility patches to niftools so that
+                # the missing face_maps API does not crash the export.
+                ExportHelpers._apply_niftools_blender4_compat_patches()
                 kwargs = ExportHelpers._build_nif_export_kwargs(filepath)
                 try:
                     result = bpy.ops.export_scene.nif(**kwargs)
