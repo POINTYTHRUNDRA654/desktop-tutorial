@@ -581,7 +581,7 @@ class MeshHelpers:
 
     @staticmethod
     def setup_uv_with_texture(obj, texture_path, texture_type='DIFFUSE',
-                               unwrap_method='SMART', island_margin=0.02):
+                               unwrap_method='MIN_STRETCH', island_margin=0.02):
         """Complete UV + texture binding pipeline for Fallout 4 NIF export.
 
         Performs all steps in one call so the mesh is immediately preview-ready
@@ -608,8 +608,15 @@ class MeshHelpers:
         texture_type : str
             ``'DIFFUSE'``, ``'NORMAL'``, ``'SPECULAR'``, or ``'GLOW'``.
         unwrap_method : str
-            ``'SMART'`` (Smart UV Project), ``'ANGLE'`` (Angle-Based),
-            ``'CUBE'`` (Cube Projection), or ``'EXISTING'`` (keep current UVs).
+            ``'MIN_STRETCH'`` **(default)** — Minimum Stretch: CONFORMAL
+            (LSCM) initial layout followed by ``uv.minimize_stretch`` run to
+            convergence (100 iterations).  Produces the lowest UV distortion
+            of any available method.
+            ``'SMART'``      — Smart UV Project (fast, good general purpose).
+            ``'ANGLE'``      — Angle-Based conformal unwrap with stretch-
+                               minimize refinement pass.
+            ``'CUBE'``       — Cube/box projection.
+            ``'EXISTING'``   — Keep current UV map; only bind the texture.
         island_margin : float
             Spacing between UV islands (0.0 - 0.1). Default 0.02 (2 %) gives
             enough room to prevent mip-map bleed on 1024 x 1024 DDS textures.

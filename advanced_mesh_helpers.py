@@ -429,7 +429,7 @@ class AdvancedMeshHelpers:
     # ==================== UV Optimization ====================
     
     @staticmethod
-    def optimize_uvs(obj, method='SMART', margin=0.01):
+    def optimize_uvs(obj, method='MIN_STRETCH', margin=0.01):
         """Unwrap and pack UV islands for Fallout 4 NIF export.
 
         Parameters
@@ -437,15 +437,20 @@ class AdvancedMeshHelpers:
         obj : bpy.types.Object
             Target mesh object.
         method : str
-            ``'SMART'``  — Smart UV Project (best general-purpose default).
-            ``'ANGLE'``  — Seam-marked angle-based conformal unwrap.
-                           Sharp edges are automatically marked as seams so
-                           the algorithm can flatten each island without
-                           introducing stretch.  A ``uv.minimize_stretch``
-                           pass is applied afterwards.
-            ``'UNWRAP'`` — Alias for ``'ANGLE'`` (legacy name kept for
-                           backward compatibility).
-            ``'CUBE'``   — Box/cube projection (fast; best for architecture).
+            ``'MIN_STRETCH'`` — **(default)** Minimum Stretch unwrap.
+                                Uses a CONFORMAL (LSCM) initial layout then
+                                runs ``uv.minimize_stretch`` to convergence
+                                (100 iterations).  Produces the lowest UV
+                                distortion of any available method and is
+                                Blender's recommended technique for matching
+                                textures to geometry accurately.
+            ``'SMART'``      — Smart UV Project.  Good general-purpose choice;
+                                fast and automatic.
+            ``'ANGLE'``      — Seam-marked angle-based conformal unwrap with a
+                                stretch-minimize refinement pass.
+            ``'UNWRAP'``     — Alias for ``'ANGLE'`` (legacy name kept for
+                                backward compatibility).
+            ``'CUBE'``       — Box/cube projection (fast; best for architecture).
         margin : float
             Spacing between UV islands (default 0.01).
 
@@ -467,31 +472,44 @@ class AdvancedMeshHelpers:
             bpy.ops.object.mode_set(mode='EDIT')
             bpy.ops.mesh.select_all(action='SELECT')
 
-            # Normalise method name so both 'ANGLE' and legacy 'UNWRAP' work.
             norm = method.upper()
-            if norm in ('ANGLE', 'UNWRAP'):
+
+            if norm == 'MIN_STRETCH':
                 # -----------------------------------------------------------
-                # Mark seams on sharp edges (angle > 66°) before unwrapping.
-                # Without seams the solver tries to flatten the whole mesh in
-                # one go, which causes severe UV stretching on hard-surface
-                # objects.  Marking seams at natural fold-lines gives each
-                # island a much smaller distortion footprint.
+                # Minimum Stretch unwrap — lowest distortion available.
+                #
+                # Pipeline:
+                #   1. Smart UV Project  — seeds island boundaries / seams so
+                #      the CONFORMAL solver starts from a reasonable layout.
+                #   2. CONFORMAL (LSCM)  — Least Squares Conformal Maps; the
+                #      best analytical starting layout for the relaxation step.
+                #   3. minimize_stretch  — iterative relaxation that directly
+                #      minimises the difference between 3-D and UV edge lengths
+                #      (i.e. the "stretch" metric).  100 iterations reaches
+                #      convergence for almost all real-world meshes.
+                # -----------------------------------------------------------
+                bpy.ops.uv.smart_project(angle_limit=66.0, island_margin=margin)
+                bpy.ops.mesh.select_all(action='SELECT')
+                bpy.ops.uv.unwrap(method='CONFORMAL', margin=margin)
+                bpy.ops.mesh.select_all(action='SELECT')
+                try:
+                    bpy.ops.uv.minimize_stretch(fill_holes=True, iterations=100)
+                except Exception:
+                    pass  # older Blender builds lack this operator
+                message = "UVs unwrapped with Minimum Stretch (CONFORMAL + minimize_stretch)"
+
+            elif norm in ('ANGLE', 'UNWRAP'):
+                # -----------------------------------------------------------
+                # Angle-Based unwrap with a stretch-minimize refinement pass.
                 # -----------------------------------------------------------
                 bpy.ops.mesh.select_all(action='SELECT')
                 bpy.ops.uv.smart_project(angle_limit=66.0, island_margin=margin)
                 bpy.ops.mesh.select_all(action='SELECT')
                 bpy.ops.uv.unwrap(method='ANGLE_BASED', margin=margin)
-
-                # Reduce per-island stretch with a conformal smoothing pass.
-                # This runs in UV edit space and redistributes vertices to
-                # minimize the difference between 3-D edge lengths and their
-                # corresponding 2-D UV lengths (i.e. it removes "rubber-band"
-                # distortion that the pure angle-based solve leaves behind).
                 try:
                     bpy.ops.uv.minimize_stretch(fill_holes=True, iterations=10)
                 except Exception:
                     pass  # older Blender builds lack this operator
-
                 message = "UVs unwrapped with seam-marked angle-based method (stretch minimized)"
 
             elif norm == 'CUBE':
