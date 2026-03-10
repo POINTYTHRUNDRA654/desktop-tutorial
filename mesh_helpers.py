@@ -725,7 +725,7 @@ class MeshHelpers:
             obj.data.materials
             and obj.data.materials[0] is not None
             and obj.data.materials[0].use_nodes
-            and obj.data.materials[0].node_tree.nodes.get("Diffuse")
+            and obj.data.materials[0].node_tree.nodes.get("Base")
         )
         if not has_fo4_mat:
             texture_helpers.TextureHelpers.setup_fo4_material(obj)

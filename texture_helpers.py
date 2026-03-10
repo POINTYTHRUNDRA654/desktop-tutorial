@@ -70,17 +70,18 @@ class TextureHelpers:
         bsdf = nodes.new(type='ShaderNodeBsdfPrincipled')
         bsdf.location = (100, 0)
         
-        # Diffuse texture (_d)
-        # Label must be exactly "Diffuse" so the Niftools exporter can map it
-        # to BSShaderTextureSet slot 0.  Do NOT add parenthetical suffixes like
-        # "(_d)" — the exporter performs a label look-up and rejects unknown
-        # labels with "Do not know how to export texture node … with label …".
+        # Diffuse / base-colour texture (_d)
+        # Niftools (io_scene_niftools) identifies texture slots via a CONTAINS
+        # check on the node label against TEX_SLOTS constants defined in
+        # io_scene_niftools/utils/consts.py.  TEX_SLOTS.BASE = "Base" — so the
+        # label MUST contain "Base".  "Diffuse" is NOT in the recognised set and
+        # raises "Do not know how to export texture node … with label 'Diffuse'."
         diffuse_tex = nodes.new(type='ShaderNodeTexImage')
-        diffuse_tex.name = "Diffuse"
-        diffuse_tex.label = "Diffuse"
+        diffuse_tex.name = "Base"
+        diffuse_tex.label = "Base"
         diffuse_tex.location = (-400, 300)
 
-        # Normal map texture (_n) — label "Normal" → Niftools slot 1
+        # Normal map texture (_n) — label "Normal" → Niftools TEX_SLOTS.NORMAL
         normal_tex = nodes.new(type='ShaderNodeTexImage')
         normal_tex.name = "Normal"
         normal_tex.label = "Normal"
@@ -91,14 +92,14 @@ class TextureHelpers:
         normal_map = nodes.new(type='ShaderNodeNormalMap')
         normal_map.location = (-100, 0)
         
-        # Specular texture (_s) — label "Specular" → Niftools slot 3
+        # Specular texture (_s) — label "Specular" → Niftools TEX_SLOTS.SPECULAR
         specular_tex = nodes.new(type='ShaderNodeTexImage')
         specular_tex.name = "Specular"
         specular_tex.label = "Specular"
         specular_tex.location = (-400, -300)
         # Colorspace will be set when image is loaded in install_texture
 
-        # Glow / emissive texture (_g) — label "Glow" → Niftools slot 2
+        # Glow / emissive texture (_g) — label "Glow" → Niftools TEX_SLOTS.GLOW
         glow_tex = nodes.new(type='ShaderNodeTexImage')
         glow_tex.name = "Glow"
         glow_tex.label = "Glow"
@@ -154,9 +155,14 @@ class TextureHelpers:
         # Normalise to the internal node-name key (upper-case enum).
         texture_type = texture_type.upper()
         
-        # Find the appropriate texture node
+        # Find the appropriate texture node.
+        # Node names match the niftools TEX_SLOTS canonical labels:
+        #   DIFFUSE → "Base"  (TEX_SLOTS.BASE)
+        #   NORMAL  → "Normal"
+        #   SPECULAR→ "Specular"
+        #   GLOW    → "Glow"
         node_name_map = {
-            'DIFFUSE':  'Diffuse',
+            'DIFFUSE':  'Base',
             'NORMAL':   'Normal',
             'SPECULAR': 'Specular',
             'GLOW':     'Glow',
@@ -240,8 +246,9 @@ class TextureHelpers:
         # Per-slot requirements
         # ----------------------------------------------------------------
         # slot name → (required, expected_colorspace, fo4_dds_format)
+        # Node names match TEX_SLOTS constants from niftools consts.py.
         _SLOT_SPEC = {
-            'Diffuse':  (True,  'sRGB',      'BC1 (DXT1) or BC3 (DXT5) if alpha'),
+            'Base':     (True,  'sRGB',      'BC1 (DXT1) or BC3 (DXT5) if alpha'),
             'Normal':   (True,  'Non-Color', 'BC5 (ATI2) – two-channel tangent-space'),
             'Specular': (False, 'Non-Color', 'BC1 (DXT1)'),
             'Glow':     (False, 'Non-Color', 'BC1 (DXT1)'),

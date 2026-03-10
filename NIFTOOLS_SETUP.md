@@ -106,22 +106,28 @@ set (UNKNOWN) the add-on defaults to `FALLOUT_4` (OG).
    - Niftools not installed or not enabled in Preferences.
    - `AttributeError: 'Object' has no attribute 'face_maps'` — this is
      auto-patched on Blender 4.x; if it still appears, re-install the add-on.
-   - `"Do not know how to export texture node … with label …"` — the texture
-     node's **label** (not its name) must be one of the canonical slot names
-     that the Niftools exporter recognises:
+   - `"Do not know how to export texture node … with label …"` — this error
+     means the texture node's **label** does not contain any of the slot strings
+     that niftools recognises.  Niftools uses a **substring** (contains) check
+     against the ``TEX_SLOTS`` constants in
+     ``io_scene_niftools/utils/consts.py``.  The correct canonical labels are:
 
-     | Niftools label | Texture type            | FO4 suffix | BSShaderTextureSet slot |
-     |----------------|-------------------------|------------|------------------------|
-     | `Diffuse`      | Diffuse / albedo colour | `_d`       | 0                      |
-     | `Normal`       | Tangent-space normal    | `_n`       | 1                      |
-     | `Specular`     | Specular / smoothness   | `_s`       | 3                      |
-     | `Glow`         | Glow / emissive mask    | `_g`       | 2                      |
+     | Niftools TEX_SLOTS | Texture type            | FO4 suffix | BSShaderTextureSet slot |
+     |--------------------|-------------------------|------------|------------------------|
+     | `Base`             | Diffuse / albedo colour | `_d`       | 0                      |
+     | `Normal`           | Tangent-space normal    | `_n`       | 1                      |
+     | `Specular`         | Specular / smoothness   | `_s`       | 3                      |
+     | `Glow`             | Glow / emissive mask    | `_g`       | 2                      |
 
-     The add-on automatically corrects legacy labels (e.g. `"Diffuse (_d)"`,
-     `"Normal Map (_n)"`) to the canonical form before every NIF export so you
-     will not need to fix this manually on existing materials.  If you set a
-     custom label on a texture node, make sure it exactly matches one of the
-     four canonical names in the table above.
+     **Important:** the label must **contain** the slot string — e.g. `"Base"`
+     works, but `"Diffuse"` does **not** because `"Base"` is not a substring of
+     `"Diffuse"`.
+
+     The add-on automatically fixes legacy and incorrect labels (e.g. `"Diffuse"`,
+     `"Diffuse (_d)"`, `"Normal Map (_n)"`) to the canonical TEX_SLOTS form
+     before every NIF export.  New materials are created with label `"Base"` for
+     the diffuse slot.  If you manually labelled a texture node, ensure its
+     label **contains** one of the four canonical strings in the table above.
 3. If NIF export is unavailable or fails, the add-on automatically exports an
    FBX file in the same location. Convert it to NIF using Cathedral Assets
    Optimizer or NifSkope.
