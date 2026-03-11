@@ -141,7 +141,7 @@ export class VoiceService {
     // handlers, or onerror handlers from the current session detect that they
     // are stale and exit without touching the new session's state.
     this.recordingId++;
-    
+
     // Stop all speech
     this.stopAllSpeech();
 
@@ -155,7 +155,7 @@ export class VoiceService {
         console.warn('[VoiceService] Error stopping recorder:', e);
       }
     }
-    
+
     // Stop any media streams (even if recorder not created yet)
     if (this.activeStream) {
       console.log('[VoiceService] Closing active media stream tracks');
@@ -164,12 +164,12 @@ export class VoiceService {
       });
       this.activeStream = null;
     }
-    
+
     // Clear the reference after cleanup
     this.mediaRecorder = null;
     this.audioChunks = []; // Clear any pending audio chunks
     this.isRecording = false;
-    
+
     if (this.recognition) {
       this.recognition.stop();
       this.recognition = null;
@@ -190,7 +190,7 @@ export class VoiceService {
     if (window.speechSynthesis) {
       window.speechSynthesis.cancel();
     }
-    
+
     // Stop ElevenLabs/URL audio
     if (this.currentAudioElement) {
       this.currentAudioElement.pause();
@@ -300,7 +300,7 @@ export class VoiceService {
     try {
       console.log('[VoiceService] Getting user media...');
       // Get microphone access
-      const stream = await navigator.mediaDevices.getUserMedia({ 
+      const stream = await navigator.mediaDevices.getUserMedia({
         audio: {
           echoCancellation: true,
           noiseSuppression: true,
@@ -345,7 +345,7 @@ export class VoiceService {
 
         console.log(`[VoiceService] MediaRecorder onstop fired for session ${this.currentSessionId}, isRecording: ${this.isRecording}, shouldStop: ${this.shouldStop}, isSpeaking: ${this.isSpeaking}`);
         this.isRecording = false;
-        
+
         // Clean up current stream tracks
         if (this.activeStream === stream) {
           this.activeStream.getTracks().forEach(track => track.stop());
@@ -353,7 +353,7 @@ export class VoiceService {
         } else {
           stream.getTracks().forEach(track => track.stop());
         }
-        
+
         // Check if we should stop processing (disconnect was called)
         if (this.shouldStop) {
           console.log('[VoiceService] Skipping transcription - service stopped');
@@ -367,13 +367,13 @@ export class VoiceService {
           this.audioChunks = [];
           return;
         }
-        
+
         if (this.audioChunks.length > 0) {
           // Combine audio chunks
           const audioBlob = new Blob(this.audioChunks, { type: 'audio/webm' });
           console.log(`[VoiceService] Audio blob size: ${audioBlob.size} bytes, chunks: ${this.audioChunks.length}`);
           const arrayBuffer = await audioBlob.arrayBuffer();
-          
+
           try {
             // Send to backend for transcription
             const api = (window as any).electronAPI || (window as any).electron?.api;
@@ -385,7 +385,7 @@ export class VoiceService {
 
             const result = await api.transcribeAudio(arrayBuffer, 'audio/webm');
             console.log(`[VoiceService] Transcription result:`, result);
-            
+
             // Final check on shouldStop before triggering callback
             if (this.shouldStop) return;
 
@@ -444,17 +444,17 @@ export class VoiceService {
       this.mediaRecorder.start();
       console.log('[VoiceService] MediaRecorder started successfully');
       this.onModeChange?.('listening');
-      
+
       // Set up silence detection to stop recording
       let silenceTimer: NodeJS.Timeout | undefined;
       const audioContext = new AudioContext();
       const analyser = audioContext.createAnalyser();
       const microphone = audioContext.createMediaStreamSource(stream);
-      
+
       microphone.connect(analyser);
       analyser.fftSize = 256;
       const dataArray = new Uint8Array(analyser.frequencyBinCount);
-      
+
       const checkSilence = () => {
         // Guard: exit if this session has been superseded (reconnect happened) or
         // recording has stopped. Without this guard, a stale checkSilence loop
@@ -503,7 +503,7 @@ export class VoiceService {
 
         requestAnimationFrame(checkSilence);
       };
-      
+
       checkSilence();
 
     } catch (error) {
@@ -568,6 +568,73 @@ export class VoiceService {
           }
         }, 400);
       }
+    }
+  }
+
+  /**
+   * Forcefully restart microphone recording after being muted.
+   * When unmuting, we need to ensure recording is active, even if it appears
+   * to already be recording (which might be stuck or in a bad state).
+   *
+   * Only restarts if:
+   * - The service is in an active listening state
+   * - The service has not been stopped
+   * - Backend STT is being used (browser STT auto-restarts)
+   */
+  safeMicrophoneRestart(): void {
+    console.log('[VoiceService] safeMicrophoneRestart() called (on unmute)', {
+      isListening: this.isListening,
+      shouldStop: this.shouldStop,
+      isRecording: this.isRecording,
+      isUsingBrowserStt: this.isUsingBrowserStt,
+    });
+
+    if (this.isListening && !this.shouldStop && !this.isUsingBrowserStt) {
+      // If recording is stuck (appears to be recording but maybe nothing is actually happening),
+      // forcefully clean up and then restart.
+      if (this.isRecording) {
+        console.log('[VoiceService] Recording appears stuck, forcefully cleaning up...');
+
+        // Clean up stuck MediaRecorder
+        if (this.mediaRecorder) {
+          try {
+            console.log('[VoiceService] Stopping stuck MediaRecorder');
+            this.mediaRecorder.stop();
+          } catch (e) {
+            console.warn('[VoiceService] Error stopping stuck recorder:', e);
+          }
+          this.mediaRecorder = null;
+        }
+
+        // Clean up stuck stream
+        if (this.activeStream) {
+          console.log('[VoiceService] Closing stuck media stream');
+          this.activeStream.getTracks().forEach(track => {
+            try {
+              track.stop();
+            } catch (e) {
+              console.warn('[VoiceService] Error stopping stuck track:', e);
+            }
+          });
+          this.activeStream = null;
+        }
+
+        // Reset recording state so startRecording won't bail out early
+        this.isRecording = false;
+        console.log('[VoiceService] Cleanup complete, now attempting restart');
+      }
+
+      // Now call startRecording to begin fresh recording session
+      console.log('[VoiceService] Calling startRecording for unmute restart');
+      this.startRecording().catch(error => {
+        console.warn('[VoiceService] Failed to restart recording on unmute:', error);
+      });
+    } else {
+      console.log('[VoiceService] Skipping restart - service not in listening state or stopped', {
+        isListening: this.isListening,
+        shouldStop: this.shouldStop,
+        isUsingBrowserStt: this.isUsingBrowserStt,
+      });
     }
   }
 
@@ -731,7 +798,7 @@ export class VoiceService {
 
   private async speakElevenLabs(text: string): Promise<void> {
     if (this.shouldStop) return;
-    
+
     if (!this.config.elevenlabsKey) {
       throw new Error('ElevenLabs API key not configured');
     }
@@ -809,7 +876,7 @@ export class VoiceService {
 
     try {
       this.onModeChange?.('speaking');
-      
+
       // Listen for the audio URL response
       const audioUrl = await new Promise<string>((resolve, reject) => {
         const timeout = setTimeout(() => {

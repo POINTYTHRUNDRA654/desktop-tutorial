@@ -69,7 +69,7 @@ export const LiveProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const [projectData, setProjectData] = useState<any | null>(null);
 
   const voiceServiceRef = useRef<VoiceService | null>(null);
-  const conversationHistoryRef = useRef<Array<{role: 'user' | 'assistant', content: string}>>([]);
+  const conversationHistoryRef = useRef<Array<{ role: 'user' | 'assistant', content: string }>>([]);
   const lastSpeakEndRef = useRef<number>(0);
   const activeRequestsRef = useRef<Set<string>>(new Set());
   // Ref-backed flag so connect()'s async catch block always sees the current
@@ -190,7 +190,7 @@ export const LiveProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
     // Get audio inputs
     console.log('[LiveContext] Enumerating audio devices...');
-    
+
     // First try to request microphone permission if needed
     setStatus('Requesting microphone permission...');
     const micRequest = navigator.mediaDevices.getUserMedia({ audio: true });
@@ -348,13 +348,13 @@ export const LiveProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   const handleTranscription = async (text: string, sessionId?: number) => {
     console.log(`[LiveContext] Received transcription: "${text}" (session: ${sessionId}, current: ${currentSessionRef.current})`);
-    
+
     // Validate session ID to prevent old transcriptions from interfering
     if (sessionId !== undefined && sessionId !== currentSessionRef.current) {
       console.log(`[LiveContext] Ignoring old transcription from session ${sessionId} (current: ${currentSessionRef.current})`);
       return;
     }
-    
+
     // Check if transcription is disabled (after disconnect)
     // But allow transcriptions if we just reconnected (isFreshlyConnectedRef is true)
     if (transcriptionDisabled && !isActive && !isFreshlyConnectedRef.current) {
@@ -414,7 +414,7 @@ export const LiveProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         return;
       }
 
-        // Add AI response to history
+      // Add AI response to history
       pushLiveHistory({ role: 'assistant', content: response });
       updateVoiceWorkingMemory();
       console.log('[LiveContext] AI response received, about to speak:', response.substring(0, 100) + (response.length > 100 ? '...' : ''));
@@ -455,7 +455,7 @@ export const LiveProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         console.warn('[LiveContext] restarting voice link after error');
         disconnect();
         setTimeout(() => {
-          connect().catch(() => {});
+          connect().catch(() => { });
         }, 1000);
       }
     }
@@ -537,7 +537,7 @@ export const LiveProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             console.warn('[LiveContext] showNotification failed during switch', e);
           }
           disconnect();
-          setTimeout(() => connect().catch(() => {}), 1000);
+          setTimeout(() => connect().catch(() => { }), 1000);
         }
       }, 26000);
     }
@@ -628,22 +628,22 @@ export const LiveProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       setStatus('Checking voice pipeline...');
 
       await checkVoicePipeline();
-      
+
       // Update session ID to a new unique value
       currentSessionRef.current++;
       const currentSessionId = currentSessionRef.current;
       console.log(`[LiveContext] Starting NEW voice session: ${currentSessionId}`);
-      
+
       setIsActive(true);
       isFreshlyConnectedRef.current = true;
-      
+
       console.log('[LiveContext] Calling voiceService.startListening()');
       voiceServiceRef.current.startListening(
-        (text) => handleTranscription(text, currentSessionId), 
-        handleVoiceError, 
+        (text) => handleTranscription(text, currentSessionId),
+        handleVoiceError,
         handleModeChange
       );
-      
+
       console.log('[LiveContext] startListening() completed, setting mode to listening');
       setMode('listening');
       setStatus('Listening');
@@ -657,7 +657,7 @@ export const LiveProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       if (!isDisconnectingRef.current) {
         setStatus('Connection failed, retrying...');
         setTimeout(() => {
-          connect().catch(() => {});
+          connect().catch(() => { });
         }, 5000);
       }
       throw error;
@@ -666,11 +666,11 @@ export const LiveProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   const disconnect = (manual?: boolean) => {
     console.log('[LiveContext] disconnect() called, manual:', manual);
-    
+
     // Invalidate current session immediately
     const lastSessionId = currentSessionRef.current;
-    currentSessionRef.current = 0; 
-    
+    currentSessionRef.current = 0;
+
     isDisconnectingRef.current = true;
     setIsDisconnecting(true);
     setTranscriptionDisabled(true);
@@ -678,7 +678,7 @@ export const LiveProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     setMode('idle');
     setStatus('Disconnected');
     isFreshlyConnectedRef.current = false;
-    
+
     if (voiceServiceRef.current) {
       console.log('[LiveContext] Stopping voice service for session:', lastSessionId);
       voiceServiceRef.current.stopListening();
@@ -688,7 +688,7 @@ export const LiveProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     if ('speechSynthesis' in window) {
       window.speechSynthesis.cancel();
     }
-    
+
     console.log('[LiveContext] disconnect completed cleanup');
   };
 
@@ -709,9 +709,32 @@ export const LiveProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }
   };
 
-  const toggleMute = () => setIsMuted((m) => !m);
-  const updateAvatar = async (file: File) => {};
-  const setAvatarFromUrl = async (url: string) => {};
+  const toggleMute = () => {
+    const newMutedState = !isMuted;
+    console.log('[LiveContext] toggleMute called, transitioning to:', newMutedState ? 'MUTED' : 'UNMUTED');
+
+    setIsMuted(newMutedState);
+    isMutedRef.current = newMutedState;
+
+    // When unmuting, proactively restart recording to handle cases where the voice
+    // session got stuck due to silence detection or other edge cases while muted.
+    if (!newMutedState && isActive && voiceServiceRef.current) {
+      console.log('[LiveContext] Unmuting: proactively restarting recording');
+      setTimeout(() => {
+        // Use the ref which is immediately updated, not the state (which may not have updated yet due to React batching)
+        if (!isMutedRef.current && isActive && voiceServiceRef.current) {
+          console.log('[LiveContext] Calling safeMicrophoneRestart...');
+          try {
+            voiceServiceRef.current.safeMicrophoneRestart();
+          } catch (e) {
+            console.warn('[LiveContext] Failed to restart recording on unmute:', e);
+          }
+        }
+      }, 100);
+    }
+  };
+  const updateAvatar = async (file: File) => { };
+  const setAvatarFromUrl = async (url: string) => { };
   const clearAvatar = () => setCustomAvatar(null);
 
   return (
