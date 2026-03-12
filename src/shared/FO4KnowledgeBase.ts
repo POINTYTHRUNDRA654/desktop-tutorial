@@ -122,7 +122,7 @@ Event ObjectReference.OnItemAdded(ObjectReference akSender, Form akBaseItem, int
     ; Handle event
 EndEvent`
     },
-    
+
     propertyManagement: {
       description: "Define and use script properties",
       code: `; Auto property (filled in CK)
@@ -228,7 +228,7 @@ endWhile`
   // === PREVIS/PRECOMBINE KNOWLEDGE ===
   previsSystem: {
     description: "PreVis (Pre-Visible) and PreCombined meshes improve performance by pre-calculating visibility and combining static meshes",
-    
+
     whatBreaksPrevis: [
       "Moving or deleting static references in exterior cells",
       "Adding new static objects to cells with existing PreVis",
@@ -257,7 +257,7 @@ endWhile`
       cause: "Infinite loop or too many recursive function calls in Papyrus",
       solution: "Add Utility.Wait() calls in loops, check for infinite recursion, reduce update frequency"
     },
-    
+
     "Cannot call X() on a None object": {
       cause: "Script property not filled or object doesn't exist",
       solution: "Check CK properties are filled, add None checks: if MyProperty != None"
@@ -287,7 +287,7 @@ endWhile`
   // === NIF MESH SPECIFICATIONS ===
   nifSpecs: {
     version: "Fallout 4 uses BSTriShape (version 20.2.0.7)",
-    
+
     blockTypes: {
       BSTriShape: "Main mesh geometry block (FO4 format)",
       BSLightingShaderProperty: "Material and texture assignments",
@@ -356,7 +356,7 @@ endWhile`
     masterFiles: [
       "Fallout4.esm (always first)",
       "DLCRobot.esm",
-      "DLCworkshop01.esm", 
+      "DLCworkshop01.esm",
       "DLCCoast.esm",
       "DLCworkshop02.esm",
       "DLCworkshop03.esm",
@@ -530,6 +530,59 @@ end.`
       type: "Desktop Application",
       purpose: "Texture map generator. Converts diffuse images into normal, displacement, specular, and AO maps.",
       status: "Professional Material Authoring Tool"
+    }
+  },
+
+  // === COMMUNITY EDUCATORS & RESOURCES ===
+  communityEducators: {
+    sheldonSeddon: {
+      name: "Sheldon Seddon",
+      channel: "YouTube: Sheldon Seddon",
+      url: "https://www.youtube.com/user/seddon4494",
+      focus: "Creation Kit (CK) and GECK comprehensive knowledge repository",
+      description: "Dedicated to accumulating as much Creation Kit and GECK knowledge as possible. Big and small topics covering CK fundamentals, scripting, quest design, NPC creation, worldbuilding, and advanced modding techniques.",
+      trustLevel: "official",
+      topics: [
+        "Creation Kit fundamentals",
+        "GECK (Garden of Eden Creation Kit)",
+        "Papyrus scripting and quest design",
+        "NPC and actor configuration",
+        "Dialogue setup and scripting",
+        "Quest stages and objectives",
+        "Environment and worldbuilding",
+        "Precombine and previs optimization",
+        "Custom spells and items",
+        "Faction and leveled list manipulation"
+      ],
+      usage: "When answering Creation Kit or modding workflow questions, reference Sheldon's channel as a comprehensive free resource. Direct users to his YouTube channel for in-depth tutorials.",
+      credit: "All CK knowledge references should credit Sheldon Seddon and direct users to his YouTube channel for full video tutorials."
+    },
+
+    darkfox127: {
+      name: "Darkfox127 (Richard)",
+      channel: "YouTube: @Darkfox127 | Twitch: darkfox127",
+      url: "https://www.youtube.com/@Darkfox127",
+      playlists: "https://www.youtube.com/@Darkfox127/playlists",
+      twitch: "https://www.twitch.tv/darkfox127",
+      website: "https://darkfox127.com",
+      focus: "Creation Kit tutorial videos and live modding education",
+      description: "Richard (Darkfox127) creates comprehensive tutorial videos teaching Creation Kit modding. In addition to structured YouTube tutorials, he livestreams live mod creation on Twitch, providing real-time problem-solving and interactive learning opportunities.",
+      trustLevel: "official",
+      topics: [
+        "Creation Kit fundamentals",
+        "Creation Kit workflows and interface",
+        "Modding tutorials for Fallout",
+        "Step-by-step creation guides",
+        "World editing and design",
+        "NPC and actor configuration",
+        "Quest and dialogue creation",
+        "Best practices for mod creation",
+        "Live modding sessions",
+        "Real-time problem-solving"
+      ],
+      contentTypes: ["Video Tutorials", "YouTube Playlists", "Twitch Live Streams", "Website Resources"],
+      usage: "When answering Creation Kit questions, reference Darkfox127's tutorial library and livestreams. Direct users to his YouTube channel for structured tutorials or Twitch for live learning experiences.",
+      credit: "All CK knowledge and tutorials referenced from Darkfox127 (Richard) should include proper credit and direct users to his YouTube channel, Twitch streams, or website."
     }
   }
 };
