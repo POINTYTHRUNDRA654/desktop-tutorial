@@ -4,7 +4,34 @@ UI Panels for the Fallout 4 Tutorial Add-on
 
 import bpy
 from bpy.types import Panel
-from . import hunyuan3d_helpers, gradio_helpers, hymotion_helpers, nvtt_helpers, rignet_helpers, preferences, ue_importer_helpers, umodel_tools_helpers, umodel_helpers, unity_fbx_importer_helpers, asset_studio_helpers, asset_ripper_helpers, knowledge_helpers, export_helpers, realesrgan_helpers, instantngp_helpers, imageto3d_helpers, motion_generation_helpers
+import sys
+import importlib
+
+def _safe_import(name):
+    try:
+        return importlib.import_module(f".{name}", package=__package__)
+    except Exception as exc:
+        print(f"ui_panels: Skipped module {name} due to error: {exc}")
+        return None
+
+hunyuan3d_helpers = _safe_import("hunyuan3d_helpers")
+gradio_helpers = _safe_import("gradio_helpers")
+hymotion_helpers = _safe_import("hymotion_helpers")
+nvtt_helpers = _safe_import("nvtt_helpers")
+rignet_helpers = _safe_import("rignet_helpers")
+preferences = _safe_import("preferences")
+ue_importer_helpers = _safe_import("ue_importer_helpers")
+umodel_tools_helpers = _safe_import("umodel_tools_helpers")
+umodel_helpers = _safe_import("umodel_helpers")
+unity_fbx_importer_helpers = _safe_import("unity_fbx_importer_helpers")
+asset_studio_helpers = _safe_import("asset_studio_helpers")
+asset_ripper_helpers = _safe_import("asset_ripper_helpers")
+knowledge_helpers = _safe_import("knowledge_helpers")
+export_helpers = _safe_import("export_helpers")
+realesrgan_helpers = _safe_import("realesrgan_helpers")
+instantngp_helpers = _safe_import("instantngp_helpers")
+imageto3d_helpers = _safe_import("imageto3d_helpers")
+motion_generation_helpers = _safe_import("motion_generation_helpers")
 
 class FO4_PT_MainPanel(Panel):
     """Main tutorial panel in the 3D View sidebar"""
@@ -115,6 +142,7 @@ class FO4_PT_MeshPanel(Panel):
             box.label(text="Advanced Mesh Tools", icon='MODIFIER')
             box.operator("fo4.analyze_mesh_quality", text="Analyze Quality", icon='INFO')
             box.operator("fo4.auto_repair_mesh", text="Auto-Repair", icon='TOOL_SETTINGS')
+            box.operator("fo4.antigravity_auto_fix", text="AI Auto-Fix (Antigravity)", icon='OUTLINER_OB_LIGHT')
             box.operator("fo4.smart_decimate", text="Smart Decimate", icon='MOD_DECIM')
             box.operator("fo4.split_mesh_poly_limit", text="Split at Poly Limit", icon='MOD_BOOLEAN')
             box.operator("fo4.generate_lod", text="Generate LOD Chain", icon='OUTLINER_OB_MESH')
@@ -206,12 +234,17 @@ class FO4_PT_MeshPanel(Panel):
             row.enabled = has_mesh
             row.operator("fo4.open_uv_editing", text="Edit UV Map", icon='UV_ISLANDSEL')
 
-            # Ask Mossy
+            # Ask Mossy / Antigravity
             uv_box.separator()
             uv_box.operator(
                 "fo4.ask_mossy_uv_advice",
                 text="Ask Mossy for Advice",
                 icon='LIGHT_HEMI',
+            )
+            uv_box.operator(
+                "fo4.ask_antigravity_uv_advice",
+                text="Ask Antigravity for Advice",
+                icon='OUTLINER_OB_LIGHT',
             )
 
             # Step 5 — export
@@ -251,6 +284,7 @@ class FO4_PT_MeshPanel(Panel):
             adv_box.label(text="Advanced Mesh Tools", icon='MODIFIER')
             adv_box.operator("fo4.analyze_mesh_quality", text="Analyze Quality", icon='INFO')
             adv_box.operator("fo4.auto_repair_mesh", text="Auto-Repair", icon='TOOL_SETTINGS')
+            adv_box.operator("fo4.antigravity_auto_fix", text="AI Auto-Fix (Antigravity)", icon='OUTLINER_OB_LIGHT')
             adv_box.operator("fo4.smart_decimate", text="Smart Decimate", icon='MOD_DECIM')
             adv_box.operator("fo4.split_mesh_poly_limit", text="Split at Poly Limit", icon='MOD_BOOLEAN')
             adv_box.operator("fo4.generate_lod", text="Generate LOD Chain", icon='OUTLINER_OB_MESH')
@@ -282,6 +316,7 @@ class FO4_PT_MeshPanel(Panel):
             row.enabled = has_mesh
             row.operator("fo4.open_uv_editing", text="Edit UV Map", icon='UV_ISLANDSEL')
             uv_box.operator("fo4.ask_mossy_uv_advice", text="Ask Mossy", icon='LIGHT_HEMI')
+            uv_box.operator("fo4.ask_antigravity_uv_advice", text="Ask Antigravity", icon='OUTLINER_OB_LIGHT')
             uv_box.separator()
             row = uv_box.row()
             row.enabled = has_mesh
@@ -2187,6 +2222,159 @@ class FO4_PT_SetupPanel(Panel):
 
 
 
+class FO4_PT_SettingsPanel(Panel):
+    """Add-on operational settings moved from preferences"""
+    bl_label = "Settings"
+    bl_idname = "FO4_PT_settings_panel"
+    bl_space_type = 'VIEW_3D'
+    bl_region_type = 'UI'
+    bl_category = 'Fallout 4'
+    bl_parent_id = "FO4_PT_main_panel"
+    bl_options = {'DEFAULT_CLOSED'}
+
+    def draw(self, context):
+        layout = self.layout
+        prefs = preferences.get_preferences()
+        if not prefs:
+            layout.label(text="Preferences not found.", icon="ERROR")
+            return
+
+        ui_box = layout.box()
+        ui_box.label(text="User Interface", icon="PREFERENCES")
+        ui_box.prop(prefs, "mesh_panel_unified", text="Unified Mesh Panel")
+        ui_box.label(text="Show all mesh helpers in one box (vs split basic/advanced)")
+
+        box = layout.box()
+        box.label(text="Paths & Dependencies", icon="FILE_FOLDER")
+        box.prop(prefs, "fo4_assets_path", text="FO4 Assets")
+        box.prop(prefs, "unity_assets_path", text="Unity Assets")
+        box.prop(prefs, "unreal_assets_path", text="Unreal Assets")
+        
+        box.separator()
+        box.prop(prefs, "havok2fbx_path", text="Havok2FBX Folder")
+        import os
+        path = bpy.path.abspath(prefs.havok2fbx_path)
+        if os.path.isdir(path):
+            box.label(text=f"Configured: {path}", icon="CHECKMARK")
+        else:
+            box.label(text="Path not found. Set to your existing install.", icon="ERROR")
+
+        tex_box = layout.box()
+        tex_box.label(text="Texture Converters", icon="IMAGE_DATA")
+        tex_box.prop(prefs, "nvtt_path", text="nvcompress or folder")
+        tex_box.prop(prefs, "texconv_path", text="texconv or folder")
+
+        ff_box = layout.box()
+        ff_box.label(text="Video & Audio Tools", icon="SOUND")
+        ff_box.prop(prefs, "ffmpeg_path", text="ffmpeg or folder")
+
+        # Get configured paths
+        nvcompress = preferences.get_configured_nvcompress_path()
+        texconv = preferences.get_configured_texconv_path()
+
+        if nvcompress:
+            tex_box.label(text=f"nvcompress: {nvcompress}", icon="CHECKMARK")
+        else:
+            tex_box.label(text="nvcompress not set/found", icon="ERROR")
+
+        if texconv:
+            tex_box.label(text=f"texconv: {texconv}", icon="CHECKMARK")
+        else:
+            tex_box.label(text="texconv not set/found", icon="ERROR")
+
+        auto_box = layout.box()
+        auto_box.label(text="Automatic Tool Installation", icon="FILE_REFRESH")
+        auto_box.prop(prefs, "auto_install_tools", text="Auto-install missing CLI tools at startup")
+        auto_box.prop(prefs, "auto_install_python", text="Auto-install Python deps at startup")
+        auto_box.prop(prefs, "auto_install_pytorch", text="Auto-install PyTorch to D: drive on errors")
+        auto_box.prop(prefs, "auto_register_tools", text="Auto-register third-party add-ons")
+        auto_box.operator("fo4.check_tool_paths", text="Check Tool Paths", icon='INFO')
+        auto_box.label(text="(disable to avoid policy warnings at startup)", icon='INFO')
+
+        # PyTorch Installation Helper
+        torch_box = layout.box()
+        torch_box.label(text="PyTorch Installation (AI Features)", icon="PLUGIN")
+        try:
+            from . import torch_path_manager
+            success, msg, _ = torch_path_manager.TorchPathManager.try_import_torch()
+            if success:
+                torch_box.label(text=f"✓ PyTorch loaded: {msg}", icon="CHECKMARK")
+            else:
+                if msg == "windows_path_error":
+                    torch_box.label(text="⚠ Windows path length error detected", icon="ERROR")
+                    torch_box.label(text="PyTorch cannot load from default location", icon="INFO")
+                    torch_box.operator("torch.install_custom_path", text="Install to D:/t", icon="IMPORT")
+                else:
+                    torch_box.label(text=f"⚠ {msg}", icon="INFO")
+        except Exception as e:
+            torch_box.label(text=f"Unable to check PyTorch: {str(e)}", icon="ERROR")
+        ui_box.prop(prefs, "mesh_panel_unified", text="Unified Mesh Panel")
+        ui_box.label(text="Show all mesh helpers in one box (vs split basic/advanced)")
+
+        opt_box = layout.box()
+        opt_box.label(text="Mesh Optimization", icon="MOD_DECIM")
+        opt_box.prop(prefs, "optimize_apply_transforms")
+        opt_box.prop(prefs, "optimize_remove_doubles_threshold")
+        opt_box.prop(prefs, "optimize_preserve_uvs")
+
+        llm_box = layout.box()
+        llm_box.label(text="Advisor (LLM, optional)", icon="INFO")
+        llm_box.prop(prefs, "llm_enabled", text="Enable LLM Advisor (opt-in)")
+        llm_box.prop(prefs, "llm_endpoint", text="Endpoint")
+        llm_box.prop(prefs, "llm_model", text="Model")
+        llm_box.prop(prefs, "llm_api_key", text="API Key")
+        llm_box.prop(prefs, "llm_allow_actions", text="Allow Action Suggestions")
+        llm_box.prop(prefs, "llm_send_stats", text="Send summary only")
+
+        auto_box = layout.box()
+        auto_box.label(text="Advisor Auto-Monitor", icon="FILE_REFRESH")
+        auto_box.prop(prefs, "advisor_auto_monitor_enabled", text="Enable background checks")
+        auto_box.prop(prefs, "advisor_auto_monitor_interval", text="Interval (seconds)")
+
+        kb_box = layout.box()
+        kb_box.label(text="Advisor Knowledge Base", icon="BOOKMARKS")
+        kb_box.prop(prefs, "knowledge_base_enabled", text="Use bundled/user KB")
+        kb_box.prop(prefs, "knowledge_base_path", text="KB folder (txt/md)")
+
+        ml_box = layout.box()
+        ml_box.label(text="Mossy Link", icon="LINKED")
+
+        # TCP server (Blender ← Mossy commands)
+        tcp_sub = ml_box.box()
+        tcp_sub.label(text="TCP Server  (Mossy → Blender control)", icon="NETWORK_DRIVE")
+        tcp_sub.prop(prefs, "port", text="Listen Port")
+        tcp_sub.prop(prefs, "token", text="Auth Token")
+        tcp_sub.prop(prefs, "autostart", text="Auto-start on load")
+
+        # HTTP client (Blender → Mossy AI)
+        http_sub = ml_box.box()
+        http_sub.label(text="AI Queries  (Blender → Mossy)", icon="URL")
+        http_sub.prop(prefs, "mossy_http_port", text="Mossy HTTP Port")
+        http_sub.prop(prefs, "use_mossy_as_ai", text="Use Mossy as AI Advisor")
+        if prefs.use_mossy_as_ai:
+            http_sub.label(text="✓ Advisor will ask Mossy instead of remote LLM", icon="CHECKMARK")
+            http_sub.label(text="  Enable LLM Advisor above as fallback", icon="INFO")
+        else:
+            http_sub.label(text="Enable to route advisor AI through Mossy", icon="INFO")
+
+        ml_box.operator("wm.mossy_check_http", text="Check Mossy HTTP", icon="QUESTION")
+
+        ag_box = layout.box()
+        ag_box.label(text="Antigravity (Gemini)", icon="OUTLINER_OB_LIGHT")
+        ag_box.prop(prefs, "use_antigravity_as_ai", text="Use Antigravity as AI Advisor")
+        if prefs.use_antigravity_as_ai:
+            ag_box.prop(prefs, "antigravity_api_key", text="Antigravity API Key")
+            ag_box.label(text="✓ Advisor will use Antigravity (Gemini backend)", icon="CHECKMARK")
+        else:
+            ag_box.label(text="Enable to route advisor AI through Antigravity", icon="INFO")
+
+        update_box = layout.box()
+        update_box.label(text="Add-on Update", icon="FILE_REFRESH")
+        update_box.label(
+            text="After installing a new zip, restart Blender to apply changes.",
+            icon='INFO',
+        )
+
 class FO4_PT_OperationLogPanel(Panel):
     """Panel that shows every operation recorded by the add-on"""
     bl_label = "Operation Log"
@@ -2252,6 +2440,8 @@ classes = (
     FO4_PT_AutomationMacrosPanel,
     FO4_PT_AddonIntegrationPanel,
     FO4_PT_DesktopTutorialPanel,
+    # Settings / Config panel moved from preferences
+    FO4_PT_SettingsPanel,
     # Operation log — records every process for reference
     FO4_PT_OperationLogPanel,
 )

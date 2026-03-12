@@ -101,18 +101,18 @@ with zipfile.ZipFile(ZIP_PATH, "w", zipfile.ZIP_DEFLATED) as zipf:
     for fname in ADDON_FILES:
         if os.path.exists(fname):
             zipf.write(fname, arcname=f"{ADDON_NAME}/{fname}")
-            print(f"  ✓  {ADDON_NAME}/{fname}")
+            print(f"  [OK]  {ADDON_NAME}/{fname}")
             added += 1
         else:
             skipped.append(fname)
-            print(f"  ✗  {fname}  ← NOT FOUND, skipped")
+            print(f"  [SKIP]  {fname}  ← NOT FOUND, skipped")
 
     # knowledge_base/ markdown files
     if KB_DIR.is_dir():
         for md_file in sorted(KB_DIR.glob("*.md")):
             arcname = f"{ADDON_NAME}/knowledge_base/{md_file.name}"
             zipf.write(str(md_file), arcname=arcname)
-            print(f"  ✓  {arcname}")
+            print(f"  [OK]  {arcname}")
             added += 1
     else:
         print(f"  ℹ  {KB_DIR}/ not found — skipping knowledge base files")

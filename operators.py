@@ -5619,6 +5619,83 @@ class FO4_OT_AskMossyForUVAdvice(Operator):
         return {'FINISHED'}
 
 
+class FO4_OT_AskAntigravityUVAdvice(Operator):
+    """Ask Antigravity (Gemini) for UV map and texture setup advice.
+
+    Analyses the active mesh's UV map, material node tree, and texture
+    slots, then sends a structured report to Antigravity's AI for
+    prioritised, step-by-step recommendations.
+
+    Requires an API key configured in preferences."""
+    bl_idname = "fo4.ask_antigravity_uv_advice"
+    bl_label = "Ask Antigravity for UV/Texture Advice"
+    bl_options = {'REGISTER'}
+
+    def execute(self, context):
+        obj = context.active_object
+        if not obj or obj.type != 'MESH':
+            self.report({'ERROR'}, "Select a mesh object first")
+            return {'CANCELLED'}
+
+        from . import advisor_helpers
+        advice = advisor_helpers.AdvisorHelpers.ask_antigravity_uv_texture(obj)
+
+        if advice:
+            self.report({'INFO'}, "Antigravity responded — see Blender console for full advice")
+            print("\n" + "=" * 60)
+            print(f"ANTIGRAVITY UV/TEXTURE ADVICE — {obj.name}")
+            print("=" * 60)
+            print(advice)
+            print("=" * 60 + "\n")
+            from . import notification_system
+            notification_system.FO4_NotificationSystem.notify(
+                "Antigravity: " + advice[:100] + ("…" if len(advice) > 100 else ""),
+                'INFO'
+            )
+        else:
+            self.report({'WARNING'}, "Antigravity unavailable. Please check API key in Preferences.")
+
+        return {'FINISHED'}
+
+
+class FO4_OT_AntigravityAutoFix(Operator):
+    """Ask Antigravity (Gemini) to automatically fix mesh export issues.
+
+    Sends a validation report to Antigravity, which decides the correct Blender 
+    operations to run to automatically fix your mesh."""
+    bl_idname = "fo4.antigravity_auto_fix"
+    bl_label = "Auto-Fix Mesh (Antigravity AI)"
+    bl_options = {'REGISTER', 'UNDO'}
+
+    def execute(self, context):
+        obj = context.active_object
+        if not obj or obj.type != 'MESH':
+            self.report({'ERROR'}, "Select a mesh object first")
+            return {'CANCELLED'}
+
+        from . import advisor_helpers
+        res = advisor_helpers.AdvisorHelpers.antigravity_auto_fix_mesh(obj)
+
+        if not res.get("success"):
+            self.report({'WARNING'}, res.get("message", "Antigravity Auto-Fix failed."))
+            return {'CANCELLED'}
+        
+        actions = res.get("actions", [])
+        if not actions:
+            self.report({'INFO'}, "Mesh is completely valid. No fixes needed!")
+            return {'FINISHED'}
+
+        success_count = 0
+        from . import advisor_helpers
+        for act in actions:
+            ok, msg = advisor_helpers.AdvisorHelpers.apply_quick_fix(context, act)
+            if ok:
+                success_count += 1
+                
+        self.report({'INFO'}, f"Applied {success_count} auto-fixes via Antigravity.")
+        return {'FINISHED'}
+
+
 # ── Hybrid UV Workflow Operators ────────────────────────────────────────────
 # These three operators implement the semi-automatic workflow for complex
 # meshes (plants, foliage, armour with many panels, etc.) where neither pure
@@ -9039,6 +9116,8 @@ classes = (
     FO4_OT_InstallUpscalerDeps,
     # Mossy AI UV/texture advisor
     FO4_OT_AskMossyForUVAdvice,
+    FO4_OT_AskAntigravityUVAdvice,
+    FO4_OT_AntigravityAutoFix,
 )
 
 def register():

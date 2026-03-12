@@ -41,12 +41,16 @@ $files = @(
     'sync_state.py',
     'ue_importer_helpers.py',
     'umodel_tools_helpers.py',
+    'umodel_helpers.py',
     'unity_fbx_importer_helpers.py',
     'asset_studio_helpers.py',
-    'asset_ripper_helpers.py'
+    'asset_ripper_helpers.py',
+    'fo4_game_assets.py',
+    'unity_game_assets.py',
+    'unreal_game_assets.py'
 )
 
-$zipPath = 'fallout4_tutorial_helper-v2.1.3.zip'
+$zipPath = 'fallout4_tutorial_helper-v2.1.6.zip'
 $addonName = 'fallout4_tutorial_helper'
 
 # Remove old zip if exists

@@ -50,10 +50,10 @@ class AdvisorHelpers:
                 report["issues"].append(f"Export validation: {issue}")
 
         if use_llm:
-            # Try Mossy first (local, no API key needed).
-            # Fall back to the configured remote LLM endpoint if Mossy is not
-            # available or not configured as the AI advisor.
-            ai_resp = AdvisorHelpers.query_mossy(report)
+            # Try Antigravity first
+            ai_resp = AdvisorHelpers.query_antigravity(report)
+            if not ai_resp:
+                ai_resp = AdvisorHelpers.query_mossy(report)
             if not ai_resp:
                 ai_resp = AdvisorHelpers.query_llm(report)
             if ai_resp:
@@ -160,6 +160,46 @@ class AdvisorHelpers:
             return None
 
     @staticmethod
+    def query_antigravity(meta_report):
+        from . import preferences, knowledge_helpers
+        prefs = preferences.get_preferences()
+        if not prefs or not getattr(prefs, "use_antigravity_as_ai", False) or not prefs.antigravity_api_key:
+            return None
+
+        kb_snippets = []
+        if getattr(prefs, "knowledge_base_enabled", False):
+            kb_snippets = knowledge_helpers.load_snippets(max_files=4, max_chars=800)
+
+        payload = {
+            "contents": [{
+                "parts": [{"text": (
+                    "You are an expert Antigravity Fallout 4 Modding Assistant. "
+                    "Review these export-readiness issues and give clear, "
+                    "prioritized fixes as a beginner-friendly step-by-step list.\n\n"
+                    f"Report Data: {json.dumps(meta_report)}\n\n"
+                    f"Knowledge Base: {json.dumps(kb_snippets)}"
+                )}]
+            }]
+        }
+        
+        url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-pro:generateContent?key={prefs.antigravity_api_key}"
+        data = json.dumps(payload).encode("utf-8")
+        headers = {"Content-Type": "application/json"}
+        req = urllib.request.Request(url, data=data, headers=headers, method="POST")
+        try:
+            with contextlib.closing(urllib.request.urlopen(req, timeout=10)) as resp:
+                text = resp.read().decode("utf-8", errors="replace")
+                try:
+                    parsed = json.loads(text)
+                    if "candidates" in parsed and parsed["candidates"]:
+                        return parsed["candidates"][0]["content"]["parts"][0]["text"]
+                    return text
+                except json.JSONDecodeError:
+                    return text
+        except Exception as e:
+            return f"Antigravity call failed: {e}"
+
+    @staticmethod
     def query_llm(meta_report):
         """Optional LLM call using user-configured endpoint. Sends only summary strings."""
         cfg = preferences.get_llm_config()
@@ -259,6 +299,47 @@ class AdvisorHelpers:
                         pass  # operator not available in all contexts; skip
             return True, "Shade Smooth + Auto Smooth applied to selected meshes"
 
+        if action == 'REMOVE_DOUBLES':
+            try:
+                bpy.ops.object.mode_set(mode='EDIT')
+                bpy.ops.mesh.select_all(action='SELECT')
+                bpy.ops.mesh.remove_doubles(threshold=0.0001)
+                bpy.ops.object.mode_set(mode='OBJECT')
+                return True, "Removed duplicate vertices"
+            except Exception as e:
+                return False, str(e)
+
+        if action == 'DELETE_LOOSE':
+            try:
+                bpy.ops.object.mode_set(mode='EDIT')
+                bpy.ops.mesh.select_all(action='SELECT')
+                bpy.ops.mesh.delete_loose()
+                bpy.ops.object.mode_set(mode='OBJECT')
+                return True, "Deleted loose geometry"
+            except Exception as e:
+                return False, str(e)
+
+        if action == 'MAKE_MANIFOLD':
+            # Built-in fill holes
+            try:
+                bpy.ops.object.mode_set(mode='EDIT')
+                bpy.ops.mesh.select_all(action='SELECT')
+                bpy.ops.mesh.fill()
+                bpy.ops.object.mode_set(mode='OBJECT')
+                return True, "Filled non-manifold holes"
+            except Exception as e:
+                return False, str(e)
+
+        if action == 'TRIANGULATE':
+            try:
+                bpy.ops.object.mode_set(mode='EDIT')
+                bpy.ops.mesh.select_all(action='SELECT')
+                bpy.ops.mesh.quads_convert_to_tris(quad_method='BEAUTY', ngon_method='BEAUTY')
+                bpy.ops.object.mode_set(mode='OBJECT')
+                return True, "Triangulated mesh"
+            except Exception as e:
+                return False, str(e)
+
         if action == 'VALIDATE_EXPORT':
             success, issues = export_helpers.ExportHelpers.validate_before_export(objs[0])
             if success:
@@ -291,7 +372,9 @@ class AdvisorHelpers:
         if not selected:
             return interval
 
-        report = AdvisorHelpers.analyze_scene(context, use_llm=prefs.llm_enabled)
+        # NEVER use the LLM during background polling. It blocks the main thread
+        # and freezes the Blender UI for seconds every tick.
+        report = AdvisorHelpers.analyze_scene(context, use_llm=False)
         sig = AdvisorHelpers._signature_from_report(report)
         if sig != AdvisorHelpers._last_signature:
             AdvisorHelpers._last_signature = sig
@@ -545,6 +628,83 @@ class AdvisorHelpers:
             query += f" Specifically: {extra_question}"
 
         return _ml.ask_mossy(query, context_data=analysis, timeout=15)
+
+    @staticmethod
+    def ask_antigravity_uv_texture(obj, extra_question: str = "") -> "str | None":
+        from . import preferences
+        prefs = preferences.get_preferences()
+        if not prefs or not getattr(prefs, "use_antigravity_as_ai", False) or not prefs.antigravity_api_key:
+            return None
+
+        analysis = AdvisorHelpers.analyze_uv_texture(obj)
+        prompt = (
+            "I am setting up a Fallout 4 mod mesh in Blender and need help with "
+            "UV mapping and textures for NIF export. "
+            "Review the analysis below and give me clear, numbered, "
+            "beginner-friendly steps to fix any issues and get this ready for export.\n\n"
+        )
+        if extra_question:
+            prompt += f"Specifically: {extra_question}\n\n"
+        prompt += json.dumps(analysis, indent=2)
+
+        payload = {
+            "contents": [{"parts": [{"text": prompt}]}]
+        }
+        url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-pro:generateContent?key={prefs.antigravity_api_key}"
+        data = json.dumps(payload).encode("utf-8")
+        headers = {"Content-Type": "application/json"}
+        req = urllib.request.Request(url, data=data, headers=headers, method="POST")
+        try:
+            with contextlib.closing(urllib.request.urlopen(req, timeout=15)) as resp:
+                parsed = json.loads(resp.read().decode("utf-8"))
+                return parsed["candidates"][0]["content"]["parts"][0]["text"]
+        except Exception as e:
+            return None
+
+    @staticmethod
+    def antigravity_auto_fix_mesh(obj) -> dict:
+        """
+        Sends mesh validation report to Antigravity and expects a JSON response 
+        with Blender operator actions to execute to auto-fix the mesh.
+        """
+        from . import preferences, mesh_helpers
+        prefs = preferences.get_preferences()
+        if not prefs or not getattr(prefs, "use_antigravity_as_ai", False) or not prefs.antigravity_api_key:
+            return {"success": False, "message": "Antigravity not enabled or no API key."}
+
+        ok, issues = mesh_helpers.MeshHelpers.validate_mesh(obj)
+        if ok:
+            return {"success": True, "message": "Mesh is already valid."}
+            
+        prompt = (
+            "You are an expert AI fixing Blender meshes for Fallout 4 NIF export. "
+            "The following issues were found during validation:\n"
+            f"{json.dumps(issues, indent=2)}\n\n"
+            "Respond ONLY with a valid JSON array of action strings to fix these issues. "
+            "Allowed actions: ['REMOVE_DOUBLES', 'DELETE_LOOSE', 'MAKE_MANIFOLD', 'APPLY_TRANSFORMS', 'TRIANGULATE', 'SHADE_SMOOTH_AUTOSMOOTH']. "
+            "Example: [\"APPLY_TRANSFORMS\", \"DELETE_LOOSE\"]"
+        )
+        
+        payload = {"contents": [{"parts": [{"text": prompt}]}]}
+        url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-pro:generateContent?key={prefs.antigravity_api_key}"
+        data = json.dumps(payload).encode("utf-8")
+        headers = {"Content-Type": "application/json"}
+        req = urllib.request.Request(url, data=data, headers=headers, method="POST")
+        try:
+            with contextlib.closing(urllib.request.urlopen(req, timeout=15)) as resp:
+                parsed = json.loads(resp.read().decode("utf-8"))
+                text = parsed["candidates"][0]["content"]["parts"][0]["text"]
+                if text.startswith("```json"):
+                    text = text.split("```json")[1].split("```")[0].strip()
+                elif text.startswith("```"):
+                    text = text.split("```")[1].split("```")[0].strip()
+                    
+                actions = json.loads(text)
+                if not isinstance(actions, list):
+                    return {"success": False, "message": "Antigravity returned invalid format."}
+                return {"success": True, "actions": actions}
+        except Exception as e:
+            return {"success": False, "message": f"Antigravity auto-fix failed: {str(e)}"}
 
 
 def register():
