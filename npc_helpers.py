@@ -48,37 +48,68 @@ class NPCHelpers:
     
     @staticmethod
     def setup_npc_armature():
-        """Create basic armature for NPC"""
+        """Create a basic FO4-compatible armature for NPC meshes.
+
+        Bone names follow the FO4 vanilla convention ("NPC X [Abbrev]") so
+        that clothing and armour pieces created by the add-on will deform
+        correctly when the skeleton is used with vanilla equipment in-game.
+        """
         bpy.ops.object.armature_add(location=(0, 0, 0))
         armature = bpy.context.active_object
         armature.name = "NPC_Armature"
-        
+
         # Switch to edit mode to add bones
         bpy.ops.object.mode_set(mode='EDIT')
-        
-        # Add basic bones (simplified)
+
         edit_bones = armature.data.edit_bones
-        
+
         # Root bone
         root = edit_bones[0]
         root.name = "Root"
         root.head = (0, 0, 0)
         root.tail = (0, 0, 0.1)
-        
-        # Spine bones
-        spine = edit_bones.new("Spine")
-        spine.head = (0, 0, 0.1)
-        spine.tail = (0, 0, 0.9)
-        spine.parent = root
-        
-        # Head bone
-        head = edit_bones.new("Head")
-        head.head = (0, 0, 0.9)
-        head.tail = (0, 0, 1.7)
-        head.parent = spine
-        
+
+        # COM (centre of mass) — driven by locomotion animations
+        com = edit_bones.new("COM [COM]")
+        com.head = (0, 0, 0.9)
+        com.tail = (0, 0, 1.0)
+        com.parent = root
+
+        # Pelvis — root of the biped hierarchy
+        pelvis = edit_bones.new("NPC Pelvis [Pelvis]")
+        pelvis.head = (0, 0, 1.0)
+        pelvis.tail = (0, 0, 1.1)
+        pelvis.parent = com
+
+        # Spine chain
+        spine = edit_bones.new("NPC Spine [Spine]")
+        spine.head = (0, 0, 1.1)
+        spine.tail = (0, 0, 1.25)
+        spine.parent = pelvis
+
+        spine1 = edit_bones.new("NPC Spine1 [Spine1]")
+        spine1.head = (0, 0, 1.25)
+        spine1.tail = (0, 0, 1.4)
+        spine1.parent = spine
+
+        spine2 = edit_bones.new("NPC Spine2 [Spine2]")
+        spine2.head = (0, 0, 1.4)
+        spine2.tail = (0, 0, 1.55)
+        spine2.parent = spine1
+
+        # Neck and Head
+        neck = edit_bones.new("NPC Neck [Neck]")
+        neck.head = (0, 0, 1.55)
+        neck.tail = (0, 0, 1.65)
+        neck.parent = spine2
+
+        head = edit_bones.new("NPC Head [Head]")
+        head.head = (0, 0, 1.65)
+        head.tail = (0, 0, 1.8)
+        head.parent = neck
+
         bpy.ops.object.mode_set(mode='OBJECT')
-        
+
         return armature
     
     @staticmethod

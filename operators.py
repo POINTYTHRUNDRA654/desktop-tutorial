@@ -5,7 +5,7 @@ Operators for the Fallout 4 Tutorial Add-on
 import bpy
 from bpy.types import Operator
 from bpy.props import StringProperty, EnumProperty, IntProperty, FloatProperty, BoolProperty
-from . import preferences, tutorial_system, mesh_helpers, texture_helpers, animation_helpers, export_helpers, notification_system, image_to_mesh_helpers, hunyuan3d_helpers, gradio_helpers, hymotion_helpers, nvtt_helpers, realesrgan_helpers, get3d_helpers, stylegan2_helpers, instantngp_helpers, imageto3d_helpers, advanced_mesh_helpers, rignet_helpers, motion_generation_helpers, quest_helpers, npc_helpers, world_building_helpers, item_helpers, preset_library, automation_system, desktop_tutorial_client, shap_e_helpers, point_e_helpers, advisor_helpers, ue_importer_helpers, umodel_tools_helpers, umodel_helpers, unity_fbx_importer_helpers, asset_studio_helpers, asset_ripper_helpers, fo4_game_assets, unity_game_assets, unreal_game_assets
+from . import preferences, tutorial_system, mesh_helpers, texture_helpers, animation_helpers, export_helpers, notification_system, image_to_mesh_helpers, hunyuan3d_helpers, gradio_helpers, hymotion_helpers, nvtt_helpers, realesrgan_helpers, get3d_helpers, stylegan2_helpers, instantngp_helpers, imageto3d_helpers, advanced_mesh_helpers, rignet_helpers, motion_generation_helpers, quest_helpers, npc_helpers, world_building_helpers, item_helpers, preset_library, automation_system, desktop_tutorial_client, shap_e_helpers, point_e_helpers, advisor_helpers, ue_importer_helpers, umodel_tools_helpers, umodel_helpers, unity_fbx_importer_helpers, asset_studio_helpers, asset_ripper_helpers, fo4_game_assets, unity_game_assets, unreal_game_assets, post_processing_helpers, fo4_material_browser, fo4_scene_diagnostics, fo4_reference_helpers
 from . import knowledge_helpers
 
 # Tutorial Operators
@@ -2739,7 +2739,7 @@ class FO4_OT_ConfigureFallout4Settings(Operator):
                 messages.append(f"📁 texconv: {prefs.texconv_path}")
 
         messages.append("\n✓ Fallout 4 export settings are configured automatically:")
-        messages.append("  • NIF 20.2.0.7 (user ver 12, uv2 131073)")
+        messages.append("  • NIF 20.2.0.7 (user ver 12, uv2 130)")
         messages.append("  • BSTriShape geometry nodes")
         messages.append("  • BSLightingShaderProperty shaders")
         messages.append("  • Tangent space enabled for normal maps")
@@ -6812,8 +6812,13 @@ class FO4_OT_CreateVegetationPreset(Operator):
             # Apply scale
             bpy.ops.object.transform_apply(location=False, rotation=False, scale=True)
             
-            # Setup material
-            texture_helpers.TextureHelpers.setup_fo4_material(obj)
+            # Setup material – use vegetation material (alpha clip + two-sided) for
+            # foliage types whose leaves/blades are transparent cutout quads.
+            # ROCK uses a standard opaque material.
+            if self.vegetation_type in ('TREE', 'BUSH', 'GRASS', 'FERN', 'DEAD_TREE'):
+                texture_helpers.TextureHelpers.setup_vegetation_material(obj)
+            else:
+                texture_helpers.TextureHelpers.setup_fo4_material(obj)
             
             self.report({'INFO'}, f"Created {self.vegetation_type} vegetation preset")
             notification_system.FO4_NotificationSystem.notify(
@@ -6863,6 +6868,22 @@ class FO4_OT_CombineVegetationMeshes(Operator):
             bpy.ops.object.join()
             combined_obj = context.active_object
             combined_obj.name = "FO4_Vegetation_Combined"
+            
+            # After joining, any wind vertex groups from the component meshes are
+            # merged together.  Without an armature the Niftools exporter treats
+            # these as orphaned weights and can produce corrupted geometry.
+            # We specifically remove groups whose names indicate they were created
+            # by the add-on's wind animation pipeline ("Wind", "wind*") while
+            # leaving any other custom vertex groups intact.
+            if combined_obj.vertex_groups and not any(
+                mod.type == 'ARMATURE' for mod in combined_obj.modifiers
+            ):
+                groups_to_remove = [
+                    vg for vg in combined_obj.vertex_groups
+                    if vg.name.lower() == 'wind' or vg.name.lower().startswith('wind')
+                ]
+                for vg in groups_to_remove:
+                    combined_obj.vertex_groups.remove(vg)
             
             # Optimize the combined mesh
             success, message = mesh_helpers.MeshHelpers.optimize_mesh(combined_obj)
@@ -7253,7 +7274,223 @@ class FO4_OT_BakeVegetationAO(Operator):
         return context.window_manager.invoke_props_dialog(self)
 
 
-# Quest Creation Operators
+class FO4_OT_SetupVegetationMaterial(Operator):
+    """Setup a Fallout 4 vegetation material with alpha clip and two-sided rendering.
+
+    Use this on any custom plant, tree, grass, or foliage mesh.  The operator:
+    - Creates (or replaces) the material with FO4-compatible texture slots.
+    - Sets Blend Mode to **Alpha Clip** so transparent leaf edges are masked
+      correctly in-game (maps to BSLightingShaderProperty Alpha_Testing).
+    - Disables backface culling so single-face leaf/grass quads are visible from
+      both sides (maps to BSLightingShaderProperty Two_Sided flag).
+    - Sets alpha threshold to 0.5 (= 128/255, the FO4 default cutoff).
+
+    After running this operator install your textures with the **Install Texture**
+    button or via the Texture tab.  For the alpha test to work, your diffuse
+    texture must have an alpha channel (BC3 / DXT5 DDS format).
+    """
+    bl_idname = "fo4.setup_vegetation_material"
+    bl_label = "Setup Vegetation Material"
+    bl_options = {'REGISTER', 'UNDO'}
+
+    @classmethod
+    def poll(cls, context):
+        obj = context.active_object
+        return obj is not None and obj.type == 'MESH'
+
+    def execute(self, context):
+        obj = context.active_object
+        if not obj or obj.type != 'MESH':
+            self.report({'ERROR'}, "No mesh object selected")
+            return {'CANCELLED'}
+        mat = texture_helpers.TextureHelpers.setup_vegetation_material(obj)
+        if mat is None:
+            self.report({'ERROR'}, "Failed to create vegetation material")
+            return {'CANCELLED'}
+        msg = (
+            f"Vegetation material set up on '{obj.name}': "
+            "Alpha Clip enabled (threshold 0.5 = 128/255), backface culling disabled. "
+            "Now install a diffuse texture with an alpha channel (BC3 / DXT5 DDS)."
+        )
+        self.report({'INFO'}, msg)
+        notification_system.FO4_NotificationSystem.notify(
+            "Vegetation material (alpha clip + two-sided) applied", 'INFO'
+        )
+        return {'FINISHED'}
+
+
+class FO4_OT_ExportVegetationAsNif(Operator):
+    """Export the active mesh as a vegetation NIF (no collision, alpha-test ready).
+
+    This is the correct export path for plants, trees, grass, and custom foliage:
+    - Applies all pending transforms.
+    - Ensures a UV map exists (smart-unwrap if missing).
+    - Temporarily triangulates quads/n-gons for FO4 BSTriShape.
+    - Skips collision mesh generation (most FO4 vegetation has no collision).
+    - Validates that the material uses Alpha Clip / Alpha Blend so that the
+      Niftools exporter writes the correct BSLightingShaderProperty flags.
+    - If Niftools v0.1.1 is not installed, exports FBX for Cathedral Assets
+      Optimizer (CAO) conversion.
+
+    After export, open the NIF in NifSkope to verify:
+    - Root node is a BSFadeNode.
+    - Geometry nodes are BSTriShape (not NiTriShape).
+    - BSLightingShaderProperty has Alpha_Testing flag set.
+    """
+    bl_idname = "fo4.export_vegetation_as_nif"
+    bl_label = "Export Vegetation NIF"
+    bl_options = {'REGISTER'}
+
+    filepath: bpy.props.StringProperty(subtype='FILE_PATH')
+    filter_glob: bpy.props.StringProperty(default="*.nif;*.fbx", options={'HIDDEN'})
+
+    @classmethod
+    def poll(cls, context):
+        obj = context.active_object
+        return obj is not None and obj.type == 'MESH'
+
+    def execute(self, context):
+        obj = context.active_object
+        if not obj or obj.type != 'MESH':
+            self.report({'ERROR'}, "No mesh object selected")
+            return {'CANCELLED'}
+
+        # Warn if the material is not set up for alpha clip (but don't block).
+        has_alpha_mat = False
+        for mat in (obj.data.materials or []):
+            if mat and mat.blend_mode in ('CLIP', 'BLEND'):
+                has_alpha_mat = True
+                break
+        if not has_alpha_mat:
+            self.report({'WARNING'},
+                "Material blend mode is not Alpha Clip or Blend. "
+                "Run 'Setup Vegetation Material' first for correct transparency in-game.")
+
+        # Mark this mesh so the export pipeline skips collision generation.
+        # Vegetation in FO4 uses GRASS/MUSHROOM collision type (= no collision).
+        prev_ctype = getattr(obj, 'fo4_collision_type', None)
+        try:
+            obj.fo4_collision_type = 'GRASS'
+        except Exception:
+            pass
+
+        success, message = export_helpers.ExportHelpers.export_mesh_to_nif(obj, self.filepath)
+
+        # Restore original collision type
+        try:
+            if prev_ctype is not None:
+                obj.fo4_collision_type = prev_ctype
+        except Exception:
+            pass
+
+        if success:
+            self.report({'INFO'}, message)
+            notification_system.FO4_NotificationSystem.notify(message, 'INFO')
+            return {'FINISHED'}
+        else:
+            self.report({'ERROR'}, message)
+            notification_system.FO4_NotificationSystem.notify(message, 'ERROR')
+            return {'CANCELLED'}
+
+    def invoke(self, context, event):
+        context.window_manager.fileselect_add(self)
+        return {'RUNNING_MODAL'}
+
+
+class FO4_OT_ExportLODChainAsNif(Operator):
+    """Export the full LOD chain for the active object as separate NIF files.
+
+    The operator looks for objects named ``{base}_LOD0``, ``{base}_LOD1``,
+    ``{base}_LOD2``, ``{base}_LOD3`` in the current scene (where *base* is
+    the name of the active object without any ``_LOD0`` suffix).  If the
+    active object itself is the LOD0 source (un-suffixed name) it is treated
+    as LOD0 and the remaining LODs are exported alongside it.
+
+    Each LOD is exported to the chosen directory using the Niftools NIF
+    exporter (or FBX fallback) with the same settings as the main export
+    pipeline.  File names follow the FO4 LOD convention::
+
+        meshes/{name}.nif       ← LOD0 (full detail)
+        meshes/{name}_LOD1.nif  ← 75% reduction
+        meshes/{name}_LOD2.nif  ← 50% reduction
+        meshes/{name}_LOD3.nif  ← 25% reduction
+        meshes/{name}_LOD4.nif  ← 10% reduction  (if present)
+
+    Place the exported files in your mod's ``meshes/`` folder and reference
+    them from a Creation Kit Static / Grass record.
+    """
+    bl_idname = "fo4.export_lod_chain_as_nif"
+    bl_label = "Export LOD Chain as NIF"
+    bl_options = {'REGISTER'}
+
+    directory: bpy.props.StringProperty(subtype='DIR_PATH')
+
+    @classmethod
+    def poll(cls, context):
+        return context.active_object is not None and context.active_object.type == 'MESH'
+
+    def execute(self, context):
+        obj = context.active_object
+        if not obj or obj.type != 'MESH':
+            self.report({'ERROR'}, "No mesh object selected")
+            return {'CANCELLED'}
+
+        # Determine the base name (strip any existing _LOD* suffix so both the
+        # raw source mesh and a renamed LOD0 object work as the starting point).
+        import re
+        base_name = re.sub(r'_LOD\d+$', '', obj.name)
+
+        # Collect LOD objects: active object (LOD0 / source) + suffixed siblings.
+        scene_objects = {o.name: o for o in context.scene.objects if o.type == 'MESH'}
+
+        lod_map = {}  # LOD index → object
+        if obj.name == base_name or obj.name == f"{base_name}_LOD0":
+            lod_map[0] = obj
+
+        for i in range(1, 5):  # LOD1 – LOD4
+            candidate = scene_objects.get(f"{base_name}_LOD{i}")
+            if candidate:
+                lod_map[i] = candidate
+
+        if not lod_map:
+            self.report({'ERROR'}, f"No LOD objects found for '{base_name}'")
+            return {'CANCELLED'}
+
+        import os
+        exported = []
+        failed = []
+
+        for lod_idx, lod_obj in sorted(lod_map.items()):
+            if lod_idx == 0:
+                filename = f"{base_name}.nif"
+            else:
+                filename = f"{base_name}_LOD{lod_idx}.nif"
+            filepath = os.path.join(self.directory, filename)
+
+            success, message = export_helpers.ExportHelpers.export_mesh_to_nif(lod_obj, filepath)
+            if success:
+                exported.append(filename)
+            else:
+                failed.append(f"{filename}: {message}")
+
+        if exported:
+            msg = f"Exported {len(exported)} LOD(s): {', '.join(exported)}"
+            if failed:
+                msg += f" | {len(failed)} failed: {'; '.join(failed)}"
+            self.report({'INFO'}, msg)
+            notification_system.FO4_NotificationSystem.notify(msg, 'INFO')
+            return {'FINISHED'}
+        else:
+            err = "All LOD exports failed: " + "; ".join(failed)
+            self.report({'ERROR'}, err)
+            notification_system.FO4_NotificationSystem.notify(err, 'ERROR')
+            return {'CANCELLED'}
+
+    def invoke(self, context, event):
+        context.window_manager.fileselect_add(self)
+        return {'RUNNING_MODAL'}
+
+
 
 class FO4_OT_CreateQuestTemplate(Operator):
     """Create a quest template with stages and objectives"""
@@ -8904,6 +9141,790 @@ class FO4_OT_ExportModFolder(Operator):
         return {'FINISHED'}
 
 
+# ---------------------------------------------------------------------------
+# Post-Processing Operators
+# ---------------------------------------------------------------------------
+
+class FO4_OT_SetupPostProcessingCompositor(Operator):
+    """Set up Blender's compositor to preview Fallout 4-style post-processing.
+
+    Creates a chain of compositor nodes that simulates the bloom, colour
+    grading, tint, and vignette effects that Fallout 4 applies in-engine via
+    its ImageSpace (IMGS) record.  The setup is non-destructive – all nodes
+    are tagged with 'FO4_PP_' and can be removed at any time with the
+    'Clear Post-Processing' button.
+
+    After running this operator:
+    1. Switch the 3-D viewport to 'Rendered' mode to see the effect.
+    2. Adjust the sliders in the 'Post-Processing' panel.
+    3. When happy, use 'Export ImageSpace Data' to save a JSON file with the
+       Creation Kit record values ready to enter in CK.
+    """
+    bl_idname = "fo4.setup_post_processing"
+    bl_label = "Setup Post-Processing"
+    bl_options = {'REGISTER', 'UNDO'}
+
+    preset: bpy.props.EnumProperty(
+        name="Preset",
+        description="Starting post-processing preset",
+        items=post_processing_helpers.PRESET_ENUM_ITEMS,
+        default="VANILLA",
+    )
+
+    def execute(self, context):
+        scene = context.scene
+        # Write the chosen preset values into scene properties first so that
+        # sync_from_scene_props() (called inside setup_compositor) picks them up.
+        p = post_processing_helpers.PostProcessingHelpers.get_preset(self.preset)
+        try:
+            scene.fo4_pp_preset           = self.preset
+            scene.fo4_pp_bloom_strength   = p["bloom_strength"]
+            scene.fo4_pp_bloom_threshold  = p["bloom_threshold"]
+            scene.fo4_pp_bloom_radius     = p["bloom_radius"]
+            scene.fo4_pp_saturation       = p["saturation"]
+            scene.fo4_pp_contrast         = p["contrast"]
+            scene.fo4_pp_brightness       = p["brightness"]
+            scene.fo4_pp_tint_r           = p["tint_r"]
+            scene.fo4_pp_tint_g           = p["tint_g"]
+            scene.fo4_pp_tint_b           = p["tint_b"]
+            scene.fo4_pp_tint_strength    = p["tint_strength"]
+            scene.fo4_pp_vignette         = p["vignette"]
+            scene.fo4_pp_cinematic_bars   = p["cinematic_bars"]
+            scene.fo4_pp_dof_enabled      = p["dof_enabled"]
+            scene.fo4_pp_dof_fstop        = p["dof_fstop"]
+            scene.fo4_pp_eye_adapt_speed  = p["eye_adapt_speed"]
+            scene.fo4_pp_eye_adapt_strength = p["eye_adapt_strength"]
+            scene.fo4_pp_white            = p["white"]
+        except Exception:
+            pass  # properties may not yet be registered in certain edge-cases
+
+        ok, msg = post_processing_helpers.PostProcessingHelpers.setup_compositor(
+            scene, self.preset
+        )
+        if ok:
+            self.report({'INFO'}, msg)
+            notification_system.FO4_NotificationSystem.notify(msg, 'INFO')
+            return {'FINISHED'}
+        self.report({'ERROR'}, msg)
+        return {'CANCELLED'}
+
+    def invoke(self, context, event):
+        return context.window_manager.invoke_props_dialog(self)
+
+
+class FO4_OT_ApplyPostProcessingPreset(Operator):
+    """Apply a named Fallout 4 post-processing preset to the compositor."""
+    bl_idname = "fo4.apply_pp_preset"
+    bl_label = "Apply Preset"
+    bl_options = {'REGISTER', 'UNDO'}
+
+    preset: bpy.props.EnumProperty(
+        name="Preset",
+        description="Post-processing preset to apply",
+        items=post_processing_helpers.PRESET_ENUM_ITEMS,
+        default="VANILLA",
+    )
+
+    def execute(self, context):
+        scene = context.scene
+        p = post_processing_helpers.PostProcessingHelpers.get_preset(self.preset)
+        # Sync preset values to scene properties
+        try:
+            scene.fo4_pp_preset           = self.preset
+            scene.fo4_pp_bloom_strength   = p["bloom_strength"]
+            scene.fo4_pp_bloom_threshold  = p["bloom_threshold"]
+            scene.fo4_pp_bloom_radius     = p["bloom_radius"]
+            scene.fo4_pp_saturation       = p["saturation"]
+            scene.fo4_pp_contrast         = p["contrast"]
+            scene.fo4_pp_brightness       = p["brightness"]
+            scene.fo4_pp_tint_r           = p["tint_r"]
+            scene.fo4_pp_tint_g           = p["tint_g"]
+            scene.fo4_pp_tint_b           = p["tint_b"]
+            scene.fo4_pp_tint_strength    = p["tint_strength"]
+            scene.fo4_pp_vignette         = p["vignette"]
+            scene.fo4_pp_cinematic_bars   = p["cinematic_bars"]
+            scene.fo4_pp_dof_enabled      = p["dof_enabled"]
+            scene.fo4_pp_dof_fstop        = p["dof_fstop"]
+            scene.fo4_pp_eye_adapt_speed  = p["eye_adapt_speed"]
+            scene.fo4_pp_eye_adapt_strength = p["eye_adapt_strength"]
+            scene.fo4_pp_white            = p["white"]
+        except Exception:
+            pass
+
+        ok, msg = post_processing_helpers.PostProcessingHelpers.apply_preset_to_compositor(
+            scene, self.preset
+        )
+        if ok:
+            self.report({'INFO'}, msg)
+            notification_system.FO4_NotificationSystem.notify(msg, 'INFO')
+            return {'FINISHED'}
+        self.report({'ERROR'}, msg)
+        return {'CANCELLED'}
+
+    def invoke(self, context, event):
+        return context.window_manager.invoke_props_dialog(self)
+
+
+class FO4_OT_ClearPostProcessing(Operator):
+    """Remove all FO4 post-processing compositor nodes.
+
+    Only nodes created by the 'Setup Post-Processing' operator (tagged with
+    'FO4_PP_*') are removed.  Any user-created compositor nodes are untouched.
+    """
+    bl_idname = "fo4.clear_post_processing"
+    bl_label = "Clear Post-Processing"
+    bl_options = {'REGISTER', 'UNDO'}
+
+    def execute(self, context):
+        ok, msg = post_processing_helpers.PostProcessingHelpers.clear_compositor(
+            context.scene
+        )
+        if ok:
+            self.report({'INFO'}, msg)
+            notification_system.FO4_NotificationSystem.notify(msg, 'INFO')
+            return {'FINISHED'}
+        self.report({'ERROR'}, msg)
+        return {'CANCELLED'}
+
+
+class FO4_OT_ExportImageSpaceData(Operator):
+    """Export current post-processing settings as a Fallout 4 ImageSpace JSON.
+
+    The exported JSON contains the exact field names used by the Creation Kit
+    ImageSpace (IMGS) and ImageSpace Modifier (IMAD) record editors.  Enter
+    the values manually in CK, or use an xEdit Papyrus import script.
+
+    IMGS fields exported:
+      EyeAdaptSpeed, EyeAdaptStrength, BloomBlurRadius, BloomThreshold,
+      BloomScale, ReceiveBloomThreshold, White, SunlightScale, SkyScale,
+      Saturation, Contrast, TintColor (R/G/B/A), CinematicBars
+
+    IMAD (start-state) fields exported:
+      Duration, DepthOfField (Strength, Distance, Range),
+      Bloom (Strength), Tint (R/G/B/A), Saturation, Contrast
+    """
+    bl_idname = "fo4.export_imagespace_data"
+    bl_label = "Export ImageSpace Data"
+    bl_options = {'REGISTER'}
+
+    filepath: bpy.props.StringProperty(subtype='FILE_PATH')
+    filter_glob: bpy.props.StringProperty(default="*.json", options={'HIDDEN'})
+
+    def execute(self, context):
+        ok, msg = post_processing_helpers.PostProcessingHelpers.export_imagespace_data(
+            context.scene, self.filepath
+        )
+        if ok:
+            self.report({'INFO'}, msg)
+            notification_system.FO4_NotificationSystem.notify(msg, 'INFO')
+            return {'FINISHED'}
+        self.report({'ERROR'}, msg)
+        return {'CANCELLED'}
+
+    def invoke(self, context, event):
+        context.window_manager.fileselect_add(self)
+        return {'RUNNING_MODAL'}
+
+
+class FO4_OT_SyncPostProcessingProps(Operator):
+    """Manually sync scene property sliders to the compositor nodes.
+
+    This is called automatically when any fo4_pp_* property changes.  Run it
+    manually if the compositor preview seems out of sync with the sliders.
+    """
+    bl_idname = "fo4.sync_pp_props"
+    bl_label = "Sync to Compositor"
+
+    def execute(self, context):
+        ok, msg = post_processing_helpers.PostProcessingHelpers.sync_from_scene_props(
+            context.scene
+        )
+        if ok:
+            self.report({'INFO'}, msg)
+            return {'FINISHED'}
+        self.report({'WARNING'}, msg)
+        return {'CANCELLED'}
+
+
+# ---------------------------------------------------------------------------
+# Material Browser Operators
+# ---------------------------------------------------------------------------
+
+class FO4_OT_ApplyMaterialPreset(Operator):
+    """Apply a Fallout 4 material preset to the selected mesh object(s).
+
+    Each preset creates a correctly structured Blender material with Diffuse,
+    Normal, Specular, and Glow texture nodes (Niftools-compatible naming),
+    pre-configured PBR values (roughness, metallic, base colour) tuned to
+    match the vanilla FO4 look.  Connect your own textures to the image nodes
+    afterwards.
+
+    The preset ID is stored as the ``fo4_material_preset`` custom property on
+    the object so export scripts can generate the corresponding ``.bgsm`` stub.
+    """
+    bl_idname = "fo4.apply_material_preset"
+    bl_label  = "Apply Material Preset"
+    bl_options = {'REGISTER', 'UNDO'}
+
+    preset: bpy.props.EnumProperty(
+        name="Preset",
+        description="Material surface type to apply",
+        items=fo4_material_browser.PRESET_ENUM_ITEMS,
+        default="RUSTY_METAL",
+    )
+    apply_all_selected: BoolProperty(
+        name="Apply to All Selected",
+        description="Apply to every selected mesh, not just the active object",
+        default=True,
+    )
+
+    def execute(self, context):
+        if self.apply_all_selected:
+            ok, msg = fo4_material_browser.MaterialBrowser.apply_preset_to_selection(
+                context, self.preset
+            )
+        else:
+            obj = context.active_object
+            ok, msg = fo4_material_browser.MaterialBrowser.apply_preset(obj, self.preset)
+
+        if ok:
+            self.report({'INFO'}, msg)
+            notification_system.FO4_NotificationSystem.notify(msg, 'INFO')
+            return {'FINISHED'}
+        self.report({'ERROR'}, msg)
+        return {'CANCELLED'}
+
+    def invoke(self, context, event):
+        # Pre-populate preset from scene property
+        try:
+            self.preset = context.scene.fo4_mat_preset
+        except Exception:
+            pass
+        return context.window_manager.invoke_props_dialog(self)
+
+
+# ---------------------------------------------------------------------------
+# Scene Diagnostics Operators
+# ---------------------------------------------------------------------------
+
+class FO4_OT_RunSceneDiagnostics(Operator):
+    """Run a comprehensive FO4 export-readiness check on the entire scene.
+
+    Checks every mesh object for:
+    • Polygon count within the FO4 limit (65 535)
+    • UV map present
+    • Scale applied
+    • Unapplied geometry modifiers
+    • Mesh triangulation
+    • Loose vertices
+    • Material assignment and node setup (Diffuse/Normal/Specular nodes)
+    • Collision mesh presence (UCX_ prefix)
+    • Rigging: bone count, root bone, vertex group names
+    • Object naming (no spaces or non-ASCII)
+
+    Results are shown as a score (0-100) and grouped by severity.
+    Click 'Auto-Fix' to automatically resolve all fixable issues.
+    """
+    bl_idname = "fo4.run_scene_diagnostics"
+    bl_label  = "Run Scene Diagnostics"
+    bl_options = {'REGISTER'}
+
+    def execute(self, context):
+        scene = context.scene
+        report = fo4_scene_diagnostics.SceneDiagnostics.run_full_check(scene)
+
+        # Persist report for the UI panel
+        fo4_scene_diagnostics.store_report(report)
+
+        # Update scene shortcut properties
+        s = report.get("summary", {})
+        try:
+            scene.fo4_diag_last_score    = s.get("score",         0)
+            scene.fo4_diag_last_errors   = s.get("error_count",   0)
+            scene.fo4_diag_last_warnings = s.get("warning_count", 0)
+            scene.fo4_diag_export_ready  = s.get("export_ready",  False)
+        except Exception:
+            pass
+
+        errors   = s.get("error_count",   0)
+        warnings = s.get("warning_count", 0)
+        score    = s.get("score",         0)
+        ready    = s.get("export_ready",  False)
+
+        msg = (f"Score {score}/100 – "
+               f"{errors} error(s), {warnings} warning(s). "
+               f"{'✅ Export ready' if ready else '❌ Fix errors before export'}")
+        self.report({'INFO' if ready else 'WARNING'}, msg)
+        notification_system.FO4_NotificationSystem.notify(msg, 'INFO' if ready else 'WARNING')
+        return {'FINISHED'}
+
+
+class FO4_OT_AutoFixDiagnostics(Operator):
+    """Automatically fix all auto-fixable issues found by Run Scene Diagnostics.
+
+    Fixable issues include:
+    • Apply scale (Ctrl+A)
+    • Triangulate mesh (removes quads / N-gons)
+    • Remove loose vertices
+    • Smart UV unwrap (for objects with no UV map)
+    • Remove spaces from object names
+
+    Run 'Run Scene Diagnostics' first to populate the issue list.
+    """
+    bl_idname = "fo4.auto_fix_diagnostics"
+    bl_label  = "Auto-Fix Issues"
+    bl_options = {'REGISTER', 'UNDO'}
+
+    def execute(self, context):
+        report = fo4_scene_diagnostics.load_report()
+        if report is None:
+            self.report({'WARNING'},
+                "No diagnostic report found. Run 'Run Scene Diagnostics' first.")
+            return {'CANCELLED'}
+
+        fix_count, messages = fo4_scene_diagnostics.SceneDiagnostics.auto_fix(
+            context, report
+        )
+
+        # Re-run diagnostics so the panel updates
+        new_report = fo4_scene_diagnostics.SceneDiagnostics.run_full_check(context.scene)
+        fo4_scene_diagnostics.store_report(new_report)
+        s = new_report.get("summary", {})
+        try:
+            context.scene.fo4_diag_last_score    = s.get("score",         0)
+            context.scene.fo4_diag_last_errors   = s.get("error_count",   0)
+            context.scene.fo4_diag_last_warnings = s.get("warning_count", 0)
+            context.scene.fo4_diag_export_ready  = s.get("export_ready",  False)
+        except Exception:
+            pass
+
+        for m in messages:
+            print(m)
+
+        msg = f"Auto-fixed {fix_count} issue(s). New score: {s.get('score', 0)}/100"
+        self.report({'INFO'}, msg)
+        notification_system.FO4_NotificationSystem.notify(msg, 'INFO')
+        return {'FINISHED'}
+
+
+class FO4_OT_ExportDiagnosticsReport(Operator):
+    """Save the Scene Diagnostics report as a human-readable text file.
+
+    The report lists every check result (OK / WARNING / ERROR) for every
+    object in the scene with actionable fix suggestions.  Useful for
+    documenting issues before sharing a project or asking for help.
+    """
+    bl_idname  = "fo4.export_diagnostics_report"
+    bl_label   = "Export Diagnostics Report"
+    bl_options = {'REGISTER'}
+
+    filepath: StringProperty(subtype='FILE_PATH')
+    filter_glob: StringProperty(default="*.txt", options={'HIDDEN'})
+
+    def execute(self, context):
+        report = fo4_scene_diagnostics.load_report()
+        if report is None:
+            # Run diagnostics first
+            report = fo4_scene_diagnostics.SceneDiagnostics.run_full_check(context.scene)
+            fo4_scene_diagnostics.store_report(report)
+
+        ok, msg = fo4_scene_diagnostics.SceneDiagnostics.export_report(
+            report, self.filepath
+        )
+        if ok:
+            self.report({'INFO'}, msg)
+            notification_system.FO4_NotificationSystem.notify(msg, 'INFO')
+            return {'FINISHED'}
+        self.report({'ERROR'}, msg)
+        return {'CANCELLED'}
+
+    def invoke(self, context, event):
+        context.window_manager.fileselect_add(self)
+        return {'RUNNING_MODAL'}
+
+
+# ---------------------------------------------------------------------------
+# Reference Objects Operators
+# ---------------------------------------------------------------------------
+
+class FO4_OT_AddReferenceObject(Operator):
+    """Add a scale reference object to the scene.
+
+    Reference objects are non-selectable, non-renderable wire-frame meshes
+    that show the correct FO4 proportions of common characters and props.
+    They are tagged with ``fo4_reference = True`` so export operators skip
+    them automatically.
+
+    All reference objects are placed in the ``FO4_References`` collection.
+    """
+    bl_idname = "fo4.add_reference_object"
+    bl_label  = "Add Reference Object"
+    bl_options = {'REGISTER', 'UNDO'}
+
+    ref_type: bpy.props.EnumProperty(
+        name="Reference",
+        description="Scale reference to add",
+        items=fo4_reference_helpers.REFERENCE_ENUM_ITEMS,
+        default="HUMAN_MALE",
+    )
+
+    def execute(self, context):
+        ok, msg = fo4_reference_helpers.ReferenceHelpers.create_reference(self.ref_type)
+        if ok:
+            self.report({'INFO'}, msg)
+            notification_system.FO4_NotificationSystem.notify(msg, 'INFO')
+            return {'FINISHED'}
+        self.report({'ERROR'}, msg)
+        return {'CANCELLED'}
+
+    def invoke(self, context, event):
+        try:
+            self.ref_type = context.scene.fo4_ref_type
+        except Exception:
+            pass
+        return self.execute(context)
+
+
+class FO4_OT_ClearReferenceObjects(Operator):
+    """Remove all FO4_REF_* scale reference objects and the FO4_References collection."""
+    bl_idname = "fo4.clear_reference_objects"
+    bl_label  = "Clear All References"
+    bl_options = {'REGISTER', 'UNDO'}
+
+    def execute(self, context):
+        ok, msg = fo4_reference_helpers.ReferenceHelpers.clear_all_references()
+        if ok:
+            self.report({'INFO'}, msg)
+            notification_system.FO4_NotificationSystem.notify(msg, 'INFO')
+            return {'FINISHED'}
+        self.report({'ERROR'}, msg)
+        return {'CANCELLED'}
+
+
+# ── Papyrus Script Generator operators ────────────────────────────────────────
+
+class FO4_OT_GeneratePapyrusScript(Operator):
+    """Generate a ready-to-compile Papyrus .psc script from a template."""
+    bl_idname  = "fo4.generate_papyrus_script"
+    bl_label   = "Generate Script"
+    bl_options = {'REGISTER', 'UNDO'}
+
+    def execute(self, context):
+        try:
+            from . import papyrus_helpers
+        except ImportError:
+            self.report({'ERROR'}, "papyrus_helpers module not found")
+            return {'CANCELLED'}
+
+        scene  = context.scene
+        tpl_id = getattr(scene, "fo4_papyrus_template", "OBJECT")
+        name   = getattr(scene, "fo4_papyrus_script_name", "MyMod_MyScript").strip()
+
+        ok, text = papyrus_helpers.PapyrusHelpers.generate(tpl_id, name)
+        if not ok:
+            self.report({'ERROR'}, text)
+            return {'CANCELLED'}
+
+        # Show in a Blender Text block so the user can read / copy / save
+        text_block = bpy.data.texts.get(f"{name}.psc")
+        if text_block is None:
+            text_block = bpy.data.texts.new(f"{name}.psc")
+        text_block.clear()
+        text_block.write(text)
+
+        self.report({'INFO'}, f"Script generated: {name}.psc  (open in Text Editor)")
+        notification_system.FO4_NotificationSystem.notify(
+            f"Papyrus script '{name}.psc' created in Text Editor", 'INFO')
+        return {'FINISHED'}
+
+
+class FO4_OT_ExportPapyrusScript(Operator):
+    """Export the generated Papyrus script to the configured output folder."""
+    bl_idname  = "fo4.export_papyrus_script"
+    bl_label   = "Export .psc to Folder"
+    bl_options = {'REGISTER', 'UNDO'}
+
+    def execute(self, context):
+        try:
+            from . import papyrus_helpers
+        except ImportError:
+            self.report({'ERROR'}, "papyrus_helpers module not found")
+            return {'CANCELLED'}
+
+        scene      = context.scene
+        tpl_id     = getattr(scene, "fo4_papyrus_template", "OBJECT")
+        name       = getattr(scene, "fo4_papyrus_script_name", "").strip()
+        output_dir = getattr(scene, "fo4_papyrus_output_dir", "").strip()
+
+        if not output_dir:
+            self.report({'ERROR'}, "Set an output folder first")
+            return {'CANCELLED'}
+
+        ok, msg = papyrus_helpers.PapyrusHelpers.export(
+            tpl_id, name, bpy.path.abspath(output_dir))
+        if ok:
+            self.report({'INFO'}, msg)
+            notification_system.FO4_NotificationSystem.notify(msg, 'INFO')
+            return {'FINISHED'}
+        self.report({'ERROR'}, msg)
+        return {'CANCELLED'}
+
+
+class FO4_OT_ShowPapyrusCompileInstructions(Operator):
+    """Show compile instructions for the current Papyrus script in the info bar."""
+    bl_idname  = "fo4.papyrus_compile_instructions"
+    bl_label   = "Show Compile Instructions"
+    bl_options = {'REGISTER'}
+
+    def execute(self, context):
+        try:
+            from . import papyrus_helpers
+        except ImportError:
+            self.report({'ERROR'}, "papyrus_helpers module not found")
+            return {'CANCELLED'}
+
+        scene    = context.scene
+        name     = getattr(scene, "fo4_papyrus_script_name", "MyScript").strip()
+        mod_name = getattr(scene, "fo4_papyrus_mod_name", "MyMod").strip()
+        guide    = papyrus_helpers.PapyrusHelpers.get_compile_instructions(name, mod_name)
+
+        block = bpy.data.texts.get("PapyrusCompile_Instructions.txt")
+        if block is None:
+            block = bpy.data.texts.new("PapyrusCompile_Instructions.txt")
+        block.clear()
+        block.write(guide)
+        self.report({'INFO'}, "Compile instructions in Text Editor → PapyrusCompile_Instructions.txt")
+        return {'FINISHED'}
+
+
+# ── Havok Physics operators ────────────────────────────────────────────────────
+
+class FO4_OT_ApplyPhysicsPreset(Operator):
+    """Apply a Havok physics preset to the selected mesh object(s)."""
+    bl_idname  = "fo4.apply_physics_preset"
+    bl_label   = "Apply Physics Preset"
+    bl_options = {'REGISTER', 'UNDO'}
+
+    def execute(self, context):
+        try:
+            from . import fo4_physics_helpers
+        except ImportError:
+            self.report({'ERROR'}, "fo4_physics_helpers module not found")
+            return {'CANCELLED'}
+
+        preset_id = getattr(context.scene, "fo4_physics_preset", "STATIC_METAL")
+        ok, msg = fo4_physics_helpers.PhysicsHelpers.apply_to_selection(context, preset_id)
+        if ok:
+            self.report({'INFO'}, msg)
+            notification_system.FO4_NotificationSystem.notify(msg, 'INFO')
+            return {'FINISHED'}
+        self.report({'ERROR'}, msg)
+        return {'CANCELLED'}
+
+
+class FO4_OT_ValidatePhysics(Operator):
+    """Check the active object's Havok physics settings for common mistakes."""
+    bl_idname  = "fo4.validate_physics"
+    bl_label   = "Validate Physics Settings"
+    bl_options = {'REGISTER'}
+
+    def execute(self, context):
+        try:
+            from . import fo4_physics_helpers
+        except ImportError:
+            self.report({'ERROR'}, "fo4_physics_helpers module not found")
+            return {'CANCELLED'}
+
+        obj = context.active_object
+        warnings = fo4_physics_helpers.PhysicsHelpers.validate_physics(obj)
+        if not warnings:
+            msg = f"Physics OK on {obj.name if obj else 'selection'}"
+            self.report({'INFO'}, msg)
+            notification_system.FO4_NotificationSystem.notify(msg, 'INFO')
+        else:
+            for w in warnings:
+                self.report({'WARNING'}, w)
+                notification_system.FO4_NotificationSystem.notify(w, 'WARNING')
+        return {'FINISHED'}
+
+
+# ── Mod Packaging operators ────────────────────────────────────────────────────
+
+class FO4_OT_CreateModStructure(Operator):
+    """Create the standard FO4 mod directory structure (Data/ + FOMOD)."""
+    bl_idname  = "fo4.create_mod_structure"
+    bl_label   = "Create Mod Structure"
+    bl_options = {'REGISTER'}
+
+    def execute(self, context):
+        try:
+            from . import mod_packaging_helpers
+        except ImportError:
+            self.report({'ERROR'}, "mod_packaging_helpers module not found")
+            return {'CANCELLED'}
+
+        scene    = context.scene
+        mod_root = bpy.path.abspath(getattr(scene, "fo4_mod_root", "")).strip()
+        mod_name = getattr(scene, "fo4_mod_name", "MyFO4Mod").strip()
+
+        if not mod_root:
+            self.report({'ERROR'}, "Set Mod Root Folder first")
+            return {'CANCELLED'}
+
+        ok, msg = mod_packaging_helpers.ModPackager.create_structure(mod_root, mod_name)
+        if ok:
+            self.report({'INFO'}, msg.split("\n")[0])
+            notification_system.FO4_NotificationSystem.notify(
+                f"Mod structure created: {mod_root}", 'INFO')
+            return {'FINISHED'}
+        self.report({'ERROR'}, msg)
+        return {'CANCELLED'}
+
+
+class FO4_OT_GenerateFOMOD(Operator):
+    """Generate FOMOD installer files (info.xml + ModuleConfig.xml)."""
+    bl_idname  = "fo4.generate_fomod"
+    bl_label   = "Generate FOMOD Installer"
+    bl_options = {'REGISTER'}
+
+    def execute(self, context):
+        try:
+            from . import mod_packaging_helpers
+        except ImportError:
+            self.report({'ERROR'}, "mod_packaging_helpers module not found")
+            return {'CANCELLED'}
+
+        scene = context.scene
+        mod_root = bpy.path.abspath(getattr(scene, "fo4_mod_root", "")).strip()
+        if not mod_root:
+            self.report({'ERROR'}, "Set Mod Root Folder first")
+            return {'CANCELLED'}
+
+        info = {
+            "name":        getattr(scene, "fo4_mod_name", "My FO4 Mod"),
+            "author":      getattr(scene, "fo4_mod_author", ""),
+            "version":     getattr(scene, "fo4_mod_version", "1.0.0"),
+            "description": getattr(scene, "fo4_mod_description", ""),
+            "fo4_version": getattr(scene, "fo4_mod_fo4_version", "1.10.163"),
+            "website":     getattr(scene, "fo4_mod_website", ""),
+            "plugin_name": getattr(scene, "fo4_mod_plugin_name", ""),
+        }
+        ok, msg = mod_packaging_helpers.ModPackager.generate_fomod(mod_root, info)
+        if ok:
+            self.report({'INFO'}, msg.split("\n")[0])
+            notification_system.FO4_NotificationSystem.notify(
+                "FOMOD installer generated", 'INFO')
+            return {'FINISHED'}
+        self.report({'ERROR'}, msg)
+        return {'CANCELLED'}
+
+
+class FO4_OT_GenerateReadme(Operator):
+    """Generate a professional Nexus-ready README.md for the mod."""
+    bl_idname  = "fo4.generate_readme"
+    bl_label   = "Generate README.md"
+    bl_options = {'REGISTER'}
+
+    def execute(self, context):
+        try:
+            from . import mod_packaging_helpers
+        except ImportError:
+            self.report({'ERROR'}, "mod_packaging_helpers module not found")
+            return {'CANCELLED'}
+
+        scene = context.scene
+        mod_root = bpy.path.abspath(getattr(scene, "fo4_mod_root", "")).strip()
+        if not mod_root:
+            self.report({'ERROR'}, "Set Mod Root Folder first")
+            return {'CANCELLED'}
+
+        info = {
+            "name":        getattr(scene, "fo4_mod_name", "My FO4 Mod"),
+            "author":      getattr(scene, "fo4_mod_author", ""),
+            "version":     getattr(scene, "fo4_mod_version", "1.0.0"),
+            "description": getattr(scene, "fo4_mod_description", ""),
+            "fo4_version": getattr(scene, "fo4_mod_fo4_version", "1.10.163"),
+            "website":     getattr(scene, "fo4_mod_website", ""),
+            "plugin_name": getattr(scene, "fo4_mod_plugin_name", ""),
+        }
+        ok, msg = mod_packaging_helpers.ModPackager.generate_readme(mod_root, info)
+        if ok:
+            self.report({'INFO'}, msg)
+            notification_system.FO4_NotificationSystem.notify(msg, 'INFO')
+            return {'FINISHED'}
+        self.report({'ERROR'}, msg)
+        return {'CANCELLED'}
+
+
+class FO4_OT_ValidateModStructure(Operator):
+    """Check the mod folder for missing required files and empty asset folders."""
+    bl_idname  = "fo4.validate_mod_structure"
+    bl_label   = "Validate Mod Structure"
+    bl_options = {'REGISTER'}
+
+    def execute(self, context):
+        try:
+            from . import mod_packaging_helpers
+        except ImportError:
+            self.report({'ERROR'}, "mod_packaging_helpers module not found")
+            return {'CANCELLED'}
+
+        scene    = context.scene
+        mod_root = bpy.path.abspath(getattr(scene, "fo4_mod_root", "")).strip()
+        mod_name = getattr(scene, "fo4_mod_name", "MyFO4Mod").strip()
+
+        if not mod_root:
+            self.report({'ERROR'}, "Set Mod Root Folder first")
+            return {'CANCELLED'}
+
+        ok, issues = mod_packaging_helpers.ModPackager.validate_structure(
+            mod_root, mod_name)
+        if ok and not issues:
+            msg = "Mod structure is valid – ready to package"
+            self.report({'INFO'}, msg)
+            notification_system.FO4_NotificationSystem.notify(msg, 'INFO')
+        else:
+            for issue in issues:
+                level = 'WARNING' if issue.startswith("Warning:") else 'ERROR'
+                self.report({level}, issue)
+                notification_system.FO4_NotificationSystem.notify(issue, level)
+        return {'FINISHED'}
+
+
+class FO4_OT_ExportModManifest(Operator):
+    """Write a mod_manifest.json with metadata and file inventory."""
+    bl_idname  = "fo4.export_mod_manifest"
+    bl_label   = "Export Mod Manifest (JSON)"
+    bl_options = {'REGISTER'}
+
+    def execute(self, context):
+        try:
+            from . import mod_packaging_helpers
+        except ImportError:
+            self.report({'ERROR'}, "mod_packaging_helpers module not found")
+            return {'CANCELLED'}
+
+        scene    = context.scene
+        mod_root = bpy.path.abspath(getattr(scene, "fo4_mod_root", "")).strip()
+        if not mod_root:
+            self.report({'ERROR'}, "Set Mod Root Folder first")
+            return {'CANCELLED'}
+
+        info = {
+            "name":      getattr(scene, "fo4_mod_name", "My FO4 Mod"),
+            "author":    getattr(scene, "fo4_mod_author", ""),
+            "version":   getattr(scene, "fo4_mod_version", "1.0.0"),
+            "fo4_version": getattr(scene, "fo4_mod_fo4_version", "1.10.163"),
+        }
+        ok, msg = mod_packaging_helpers.ModPackager.export_manifest(mod_root, info)
+        if ok:
+            self.report({'INFO'}, msg)
+            notification_system.FO4_NotificationSystem.notify(msg, 'INFO')
+            return {'FINISHED'}
+        self.report({'ERROR'}, msg)
+        return {'CANCELLED'}
+
+
 classes = (
     FO4_OT_StartTutorial,
     FO4_OT_ShowHelp,
@@ -9043,6 +10064,9 @@ classes = (
     FO4_OT_OptimizeVegetationForFPS,
     FO4_OT_CreateVegetationLODChain,
     FO4_OT_BakeVegetationAO,
+    FO4_OT_SetupVegetationMaterial,
+    FO4_OT_ExportVegetationAsNif,
+    FO4_OT_ExportLODChainAsNif,
     # Quest and dialogue operators
     FO4_OT_CreateQuestTemplate,
     FO4_OT_ExportQuestData,
@@ -9118,6 +10142,34 @@ classes = (
     FO4_OT_AskMossyForUVAdvice,
     FO4_OT_AskAntigravityUVAdvice,
     FO4_OT_AntigravityAutoFix,
+    # Post-processing operators
+    FO4_OT_SetupPostProcessingCompositor,
+    FO4_OT_ApplyPostProcessingPreset,
+    FO4_OT_ClearPostProcessing,
+    FO4_OT_ExportImageSpaceData,
+    FO4_OT_SyncPostProcessingProps,
+    # Material browser operators
+    FO4_OT_ApplyMaterialPreset,
+    # Scene diagnostics operators
+    FO4_OT_RunSceneDiagnostics,
+    FO4_OT_AutoFixDiagnostics,
+    FO4_OT_ExportDiagnosticsReport,
+    # Scale reference operators
+    FO4_OT_AddReferenceObject,
+    FO4_OT_ClearReferenceObjects,
+    # Papyrus script template operators
+    FO4_OT_GeneratePapyrusScript,
+    FO4_OT_ExportPapyrusScript,
+    FO4_OT_ShowPapyrusCompileInstructions,
+    # Havok physics operators
+    FO4_OT_ApplyPhysicsPreset,
+    FO4_OT_ValidatePhysics,
+    # Mod packaging operators
+    FO4_OT_CreateModStructure,
+    FO4_OT_GenerateFOMOD,
+    FO4_OT_GenerateReadme,
+    FO4_OT_ValidateModStructure,
+    FO4_OT_ExportModManifest,
 )
 
 def register():

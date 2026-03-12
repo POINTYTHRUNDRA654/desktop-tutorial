@@ -171,27 +171,34 @@ _NIF_GAME_ALIAS_MAP = {
 #
 # Every value here maps directly to a pyffi / Niftools enum identifier.
 #
-# havok_material  – SkyrimHavokMaterial enum → in-game collision sound and
-#                   surface interaction (footstep sounds, decal placement, …)
-# layer           – SkyrimLayer enum → collision filter group; controls which
-#                   objects this mesh can interact with in the physics sim
-# motion_system   – MotionSystem enum → how the rigid body moves
-#                   MO_SYS_BOX_STABILIZED = inertia-stabilised static (FO4 default)
-#                   MO_SYS_SPHERE_STABILIZED = used for creatures / dynamic bodies
-# quality_type    – MotionQuality enum → simulation fidelity hint
-# bsxflags        – BSXFlags integer bitmask written to the root NiNode
-#                   bit 0 (1)  = Animated
-#                   bit 1 (2)  = Has Havok collision  ← must be set
-#                   bit 2 (4)  = Has Ragdoll
-#                   bit 3 (8)  = Complex Havok (bhkMoppBvTreeShape)
-# friction        – Blender rigid-body friction  → bhkRigidBody.friction
-# restitution     – Blender rigid-body restitution → bhkRigidBody.restitution
+# havok_material      – Fallout4HavokMaterial enum → in-game collision sound
+#                       and surface interaction (footstep sounds, decal
+#                       placement, …).  FO4 uses the Fallout4HavokMaterial
+#                       enum (FO4_HAV_MAT_* values); the Skyrim equivalents
+#                       (SKY_HAV_MAT_*) are kept as fallbacks for older pyffi
+#                       builds where Fallout4HavokMaterial is not defined.
+# layer               – Fallout4Layer enum → collision filter group; controls
+#                       which objects this mesh can interact with.  FO4 uses
+#                       FOL_* values; SKYL_* values are fallbacks.
+# motion_system       – MotionSystem enum → how the rigid body moves
+#                       MO_SYS_BOX_STABILIZED = inertia-stabilised static
+#                       MO_SYS_SPHERE_STABILIZED = creatures / dynamic bodies
+# quality_type        – MotionQuality enum → simulation fidelity hint
+# bsxflags            – BSXFlags integer bitmask written to the root NiNode
+#                       bit 0 (1)  = Animated
+#                       bit 1 (2)  = Has Havok collision  ← must be set
+#                       bit 2 (4)  = Has Ragdoll
+#                       bit 3 (8)  = Complex Havok (bhkMoppBvTreeShape)
+# friction            – Blender rigid-body friction  → bhkRigidBody.friction
+# restitution         – Blender rigid-body restitution → bhkRigidBody.restitution
 # ---------------------------------------------------------------------------
 _COLLISION_NIF_POSTPROCESS = {
     # (collision_type): {property: value, ...}
     'DEFAULT': {
-        'havok_material': 'SKY_HAV_MAT_STONE',
-        'layer':          'SKYL_STATIC',
+        'havok_material': 'FO4_HAV_MAT_STONE',
+        'havok_material_fallback': 'SKY_HAV_MAT_STONE',
+        'layer':          'FOL_STATIC',
+        'layer_fallback': 'SKYL_STATIC',
         'motion_system':  'MO_SYS_BOX_STABILIZED',
         'quality_type':   'MO_QUAL_FIXED',
         'bsxflags':       2,
@@ -199,8 +206,10 @@ _COLLISION_NIF_POSTPROCESS = {
         'restitution':    0.1,
     },
     'ROCK': {
-        'havok_material': 'SKY_HAV_MAT_STONE',
-        'layer':          'SKYL_STATIC',
+        'havok_material': 'FO4_HAV_MAT_STONE',
+        'havok_material_fallback': 'SKY_HAV_MAT_STONE',
+        'layer':          'FOL_STATIC',
+        'layer_fallback': 'SKYL_STATIC',
         'motion_system':  'MO_SYS_BOX_STABILIZED',
         'quality_type':   'MO_QUAL_FIXED',
         'bsxflags':       2,
@@ -208,8 +217,10 @@ _COLLISION_NIF_POSTPROCESS = {
         'restitution':    0.05,
     },
     'TREE': {
-        'havok_material': 'SKY_HAV_MAT_WOOD',
-        'layer':          'SKYL_TREES',
+        'havok_material': 'FO4_HAV_MAT_WOOD',
+        'havok_material_fallback': 'SKY_HAV_MAT_WOOD',
+        'layer':          'FOL_TREES',
+        'layer_fallback': 'SKYL_TREES',
         'motion_system':  'MO_SYS_BOX_STABILIZED',
         'quality_type':   'MO_QUAL_FIXED',
         'bsxflags':       2,
@@ -217,8 +228,10 @@ _COLLISION_NIF_POSTPROCESS = {
         'restitution':    0.2,
     },
     'BUILDING': {
-        'havok_material': 'SKY_HAV_MAT_STONE',
-        'layer':          'SKYL_STATIC',
+        'havok_material': 'FO4_HAV_MAT_STONE',
+        'havok_material_fallback': 'SKY_HAV_MAT_STONE',
+        'layer':          'FOL_STATIC',
+        'layer_fallback': 'SKYL_STATIC',
         'motion_system':  'MO_SYS_BOX_STABILIZED',
         'quality_type':   'MO_QUAL_FIXED',
         'bsxflags':       2,
@@ -228,8 +241,10 @@ _COLLISION_NIF_POSTPROCESS = {
     'GRASS': {
         # GRASS and MUSHROOM skip collision generation but if a mesh arrives
         # here it gets minimal static settings.
-        'havok_material': 'SKY_HAV_MAT_GRASS',
-        'layer':          'SKYL_STATIC',
+        'havok_material': 'FO4_HAV_MAT_GRASS',
+        'havok_material_fallback': 'SKY_HAV_MAT_GRASS',
+        'layer':          'FOL_STATIC',
+        'layer_fallback': 'SKYL_STATIC',
         'motion_system':  'MO_SYS_BOX_STABILIZED',
         'quality_type':   'MO_QUAL_FIXED',
         'bsxflags':       2,
@@ -237,8 +252,10 @@ _COLLISION_NIF_POSTPROCESS = {
         'restitution':    0.05,
     },
     'MUSHROOM': {
-        'havok_material': 'SKY_HAV_MAT_ORGANIC',
-        'layer':          'SKYL_STATIC',
+        'havok_material': 'FO4_HAV_MAT_ORGANIC',
+        'havok_material_fallback': 'SKY_HAV_MAT_ORGANIC',
+        'layer':          'FOL_STATIC',
+        'layer_fallback': 'SKYL_STATIC',
         'motion_system':  'MO_SYS_BOX_STABILIZED',
         'quality_type':   'MO_QUAL_FIXED',
         'bsxflags':       2,
@@ -247,8 +264,10 @@ _COLLISION_NIF_POSTPROCESS = {
     },
     'CREATURE': {
         # Dynamic / ragdoll body – sphere-stabilised, ragdoll-flagged.
-        'havok_material': 'SKY_HAV_MAT_SKIN',
-        'layer':          'SKYL_BIPED',
+        'havok_material': 'FO4_HAV_MAT_SKIN',
+        'havok_material_fallback': 'SKY_HAV_MAT_SKIN',
+        'layer':          'FOL_BIPED',
+        'layer_fallback': 'SKYL_BIPED',
         'motion_system':  'MO_SYS_SPHERE_STABILIZED',
         'quality_type':   'MO_QUAL_MOVING',
         'bsxflags':       6,   # bit 1 (Has Havok) + bit 2 (Has Ragdoll)
@@ -256,8 +275,10 @@ _COLLISION_NIF_POSTPROCESS = {
         'restitution':    0.2,
     },
     'NONE': {
-        'havok_material': 'SKY_HAV_MAT_STONE',
-        'layer':          'SKYL_UNIDENTIFIED',
+        'havok_material': 'FO4_HAV_MAT_STONE',
+        'havok_material_fallback': 'SKY_HAV_MAT_STONE',
+        'layer':          'FOL_UNIDENTIFIED',
+        'layer_fallback': 'SKYL_UNIDENTIFIED',
         'motion_system':  'MO_SYS_BOX_STABILIZED',
         'quality_type':   'MO_QUAL_INVALID',
         'bsxflags':       0,
@@ -332,29 +353,43 @@ class ExportHelpers:
         # bhkNPCollisionObject.
         nc = getattr(collision_obj, 'niftools_collision', None)
         if nc is not None:
-            mat    = props['havok_material']
-            layer  = props['layer']
+            # For havok_material use the FO4-specific value first; fall back to
+            # the Skyrim-compatible name for older Niftools / pyffi builds.
+            mat_primary  = props['havok_material']
+            mat_fallback = props.get('havok_material_fallback', mat_primary)
+            for mat_val in (mat_primary, mat_fallback):
+                for mat_attr in ('havok_material', 'havokMaterial'):
+                    try:
+                        setattr(nc, mat_attr, mat_val)
+                        if getattr(nc, mat_attr, None) == mat_val:
+                            break
+                    except (TypeError, AttributeError):
+                        continue
+                else:
+                    continue
+                break
+
+            # For the collision layer use the FO4-specific FOL_* value first
+            # ('fallout_layer' attribute), then try Skyrim-compatible SKYL_*
+            # values on 'skyrim_layer' / 'oblivion_layer' for older builds.
+            layer_primary  = props['layer']
+            layer_fallback = props.get('layer_fallback', layer_primary)
+            layer_set = False
+            for layer_attr, layer_val in (
+                ('fallout_layer', layer_primary),
+                ('skyrim_layer',  layer_fallback),
+                ('oblivion_layer', layer_fallback),
+            ):
+                try:
+                    setattr(nc, layer_attr, layer_val)
+                    if getattr(nc, layer_attr, None) == layer_val:
+                        layer_set = True
+                        break
+                except (TypeError, AttributeError):
+                    continue
+
             motion = props['motion_system']
             qual   = props['quality_type']
-
-            # havok_material – try both attribute spellings used across builds
-            for mat_attr in ('havok_material', 'havokMaterial'):
-                try:
-                    setattr(nc, mat_attr, mat)
-                    if getattr(nc, mat_attr, None) == mat:
-                        break
-                except (TypeError, AttributeError):
-                    continue
-
-            # fallout_layer / oblivion_layer (game-dependent attribute name)
-            for layer_attr in ('fallout_layer', 'skyrim_layer', 'oblivion_layer'):
-                try:
-                    setattr(nc, layer_attr, layer)
-                    if getattr(nc, layer_attr, None) == layer:
-                        break
-                except (TypeError, AttributeError):
-                    continue
-
             for attr, val in (('motion_system', motion), ('quality_type', qual)):
                 try:
                     setattr(nc, attr, val)
@@ -475,11 +510,30 @@ class ExportHelpers:
         # ── Patch blocks ─────────────────────────────────────────────────────
         modified = False
 
-        mat_name    = props['havok_material']
-        layer_name  = props['layer']
+        # Primary (FO4-specific) and fallback (Skyrim-compatible) names.
+        mat_name         = props['havok_material']
+        mat_name_fallback= props.get('havok_material_fallback', mat_name)
+        layer_name       = props['layer']
+        layer_name_fallback = props.get('layer_fallback', layer_name)
         motion_name = props['motion_system']
         qual_name   = props['quality_type']
         bsxflags    = props['bsxflags']
+
+        def _set_enum_fo4(block, attr, fo4_cls, fo4_val, sky_cls, sky_val):
+            """Try FO4 enum class first, then Skyrim enum class as fallback."""
+            for cls_name, val_name in ((fo4_cls, fo4_val), (sky_cls, sky_val)):
+                try:
+                    enum_cls = getattr(NifFormat, cls_name, None)
+                    if enum_cls is None:
+                        continue
+                    val = getattr(enum_cls, val_name, None)
+                    if val is None:
+                        continue
+                    setattr(block, attr, val)
+                    return True
+                except Exception:
+                    continue
+            return False
 
         for block in data.blocks:
 
@@ -505,7 +559,8 @@ class ExportHelpers:
             elif isinstance(block, NifFormat.bhkRigidBody) or (
                     hasattr(NifFormat, 'bhkRigidBodyT')
                     and isinstance(block, NifFormat.bhkRigidBodyT)):
-                # havokMaterial
+                # havokMaterial — try Fallout4HavokMaterial first, then
+                # SkyrimHavokMaterial for older pyffi builds.
                 for hm_attr in ('havok_material', 'havokMaterial'):
                     hm = getattr(block, hm_attr, None)
                     if hm is None:
@@ -513,23 +568,32 @@ class ExportHelpers:
                     # The material sub-struct may expose .material or be the
                     # enum directly (varies by pyffi version).
                     if hasattr(hm, 'material'):
-                        _set_enum(hm, 'material', 'SkyrimHavokMaterial', mat_name)
+                        _set_enum_fo4(hm, 'material',
+                                      'Fallout4HavokMaterial', mat_name,
+                                      'SkyrimHavokMaterial', mat_name_fallback)
                         modified = True
                         break
                     else:
-                        _set_enum(block, hm_attr, 'SkyrimHavokMaterial', mat_name)
+                        _set_enum_fo4(block, hm_attr,
+                                      'Fallout4HavokMaterial', mat_name,
+                                      'SkyrimHavokMaterial', mat_name_fallback)
                         modified = True
                         break
 
-                # collision layer (havok_filter.layer or oblivion_layer)
+                # collision layer — try Fallout4Layer (FOL_*) first, then
+                # SkyrimLayer (SKYL_*) for older pyffi builds.
                 hf = getattr(block, 'havok_filter', None)
                 if hf is not None and hasattr(hf, 'layer'):
-                    _set_enum(hf, 'layer', 'SkyrimLayer', layer_name)
+                    _set_enum_fo4(hf, 'layer',
+                                  'Fallout4Layer', layer_name,
+                                  'SkyrimLayer', layer_name_fallback)
                     modified = True
                 else:
-                    for l_attr in ('layer', 'oblivion_layer', 'fallout_layer'):
+                    for l_attr in ('layer', 'fallout_layer', 'oblivion_layer'):
                         if hasattr(block, l_attr):
-                            _set_enum(block, l_attr, 'SkyrimLayer', layer_name)
+                            _set_enum_fo4(block, l_attr,
+                                          'Fallout4Layer', layer_name,
+                                          'SkyrimLayer', layer_name_fallback)
                             modified = True
                             break
 

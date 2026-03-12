@@ -1,68 +1,299 @@
 """
-Addon preferences for Fallout 4 Tutorial Helper.
-Provides a single path field for the Havok2FBX toolkit so users can point to an
-existing install instead of duplicating binaries.
+Fallout 4 Mod Assistant – Settings storage
+==========================================
+All user-configurable settings are stored as ``bpy.types.Scene`` properties
+so they live in the **3D Viewport → N panel → Fallout 4 → Settings** and are
+visible/editable without ever touching Blender's Add-on Preferences.
+
+``FO4AddonPreferences`` is kept registered (Blender requires the class for any
+add-on that has one, so removing it mid-install would break existing .blend
+files) but it holds **no properties** and shows **no custom UI**.  All the
+user sees in Blender Preferences → Add-ons is the standard enable / disable
+checkbox – nothing else.
+
+Settings are automatically saved to a per-user JSON config file so they
+survive blend-file changes and Blender restarts.
 """
 
 from __future__ import annotations
 
+import json
 import os
 import bpy
 
+# ---------------------------------------------------------------------------
+# Config file location
+# ---------------------------------------------------------------------------
 
-_DEFAULT_HAVOK2FBX_PATH = r"D:\Blender Foundation\havok2fbx_release_0.1a"
-_DEFAULT_NVTT_PATH = ""
-_DEFAULT_TEXCONV_PATH = ""
-_DEFAULT_LLM_ENDPOINT = ""
-_DEFAULT_LLM_MODEL = "gpt-4o"
-_DEFAULT_ADVISOR_INTERVAL = 30
-_DEFAULT_KB_PATH = ""
+_CONFIG_FILE = "fo4_addon_config.json"
 
+
+def _config_path() -> str:
+    return os.path.join(bpy.utils.user_resource('CONFIG'), _CONFIG_FILE)
+
+
+# ---------------------------------------------------------------------------
+# JSON persistence helpers
+# ---------------------------------------------------------------------------
+
+def _load_json() -> dict:
+    """Load the config JSON, returning {} on any error."""
+    try:
+        p = _config_path()
+        if os.path.isfile(p):
+            with open(p, 'r', encoding='utf-8') as fh:
+                return json.load(fh)
+    except Exception:
+        pass
+    return {}
+
+
+def _save_json(data: dict) -> None:
+    try:
+        p = _config_path()
+        os.makedirs(os.path.dirname(p), exist_ok=True)
+        with open(p, 'w', encoding='utf-8') as fh:
+            json.dump(data, fh, indent=2)
+    except Exception:
+        pass
+
+
+# Property names that are persisted to JSON (survive blend-file changes)
+_PERSISTENT = (
+    "fo4_havok2fbx_path",
+    "fo4_nvtt_path",
+    "fo4_ffmpeg_path",
+    "fo4_texconv_path",
+    "fo4_assets_path",
+    "fo4_unity_assets_path",
+    "fo4_unreal_assets_path",
+    "fo4_llm_enabled",
+    "fo4_llm_endpoint",
+    "fo4_llm_model",
+    "fo4_llm_api_key",
+    "fo4_llm_allow_actions",
+    "fo4_llm_send_stats",
+    "fo4_advisor_monitor",
+    "fo4_advisor_interval",
+    "fo4_opt_doubles",
+    "fo4_opt_preserve_uvs",
+    "fo4_opt_apply_transforms",
+    "fo4_mesh_panel_unified",
+    "fo4_mossy_port",
+    "fo4_mossy_token",
+    "fo4_mossy_autostart",
+    "fo4_mossy_http_port",
+    "fo4_use_mossy_ai",
+    "fo4_use_antigravity",
+    "fo4_antigravity_key",
+    "fo4_auto_install_tools",
+    "fo4_auto_install_python",
+    "fo4_auto_register_tools",
+    "fo4_kb_enabled",
+    "fo4_kb_path",
+)
+
+
+def save_settings(scene=None) -> None:
+    """Snapshot scene fo4_* settings to the JSON config file."""
+    try:
+        scene = scene or bpy.context.scene
+    except Exception:
+        return
+    if scene is None:
+        return
+    data = {}
+    for key in _PERSISTENT:
+        val = getattr(scene, key, None)
+        if val is not None:
+            data[key] = val
+    _save_json(data)
+
+
+def restore_settings(scene=None) -> None:
+    """Apply saved JSON config to scene fo4_* properties."""
+    try:
+        scene = scene or bpy.context.scene
+    except Exception:
+        return
+    if scene is None:
+        return
+    data = _load_json()
+    for key, val in data.items():
+        if key in _PERSISTENT:
+            try:
+                setattr(scene, key, val)
+            except Exception:
+                pass
+
+
+# ---------------------------------------------------------------------------
+# FO4Settings – same attribute interface as the old FO4AddonPreferences
+# ---------------------------------------------------------------------------
+
+# Mapping: old preference attribute name → scene property name
+_ATTR_MAP: dict[str, str] = {
+    "havok2fbx_path":                  "fo4_havok2fbx_path",
+    "nvtt_path":                       "fo4_nvtt_path",
+    "ffmpeg_path":                     "fo4_ffmpeg_path",
+    "texconv_path":                    "fo4_texconv_path",
+    "fo4_assets_path":                 "fo4_assets_path",
+    "unity_assets_path":               "fo4_unity_assets_path",
+    "unreal_assets_path":              "fo4_unreal_assets_path",
+    "llm_enabled":                     "fo4_llm_enabled",
+    "llm_endpoint":                    "fo4_llm_endpoint",
+    "llm_model":                       "fo4_llm_model",
+    "llm_api_key":                     "fo4_llm_api_key",
+    "llm_allow_actions":               "fo4_llm_allow_actions",
+    "llm_send_stats":                  "fo4_llm_send_stats",
+    "advisor_auto_monitor_enabled":    "fo4_advisor_monitor",
+    "advisor_auto_monitor_interval":   "fo4_advisor_interval",
+    "optimize_remove_doubles_threshold": "fo4_opt_doubles",
+    "optimize_preserve_uvs":           "fo4_opt_preserve_uvs",
+    "optimize_apply_transforms":       "fo4_opt_apply_transforms",
+    "mesh_panel_unified":              "fo4_mesh_panel_unified",
+    "port":                            "fo4_mossy_port",
+    "token":                           "fo4_mossy_token",
+    "autostart":                       "fo4_mossy_autostart",
+    "mossy_http_port":                 "fo4_mossy_http_port",
+    "use_mossy_as_ai":                 "fo4_use_mossy_ai",
+    "use_antigravity_as_ai":           "fo4_use_antigravity",
+    "antigravity_api_key":             "fo4_antigravity_key",
+    "auto_install_tools":              "fo4_auto_install_tools",
+    "auto_install_python":             "fo4_auto_install_python",
+    "auto_install_pytorch":            "fo4_auto_install_python",  # alias
+    "auto_register_tools":             "fo4_auto_register_tools",
+    "torch_install_attempted":         "fo4_auto_install_python",  # alias
+    "knowledge_base_enabled":          "fo4_kb_enabled",
+    "knowledge_base_path":             "fo4_kb_path",
+}
+
+# Sensible defaults for every attribute (used when the scene prop is absent)
+_DEFAULTS: dict[str, object] = {
+    "havok2fbx_path":                  "",
+    "nvtt_path":                       "",
+    "ffmpeg_path":                     "",
+    "texconv_path":                    "",
+    "fo4_assets_path":                 "",
+    "unity_assets_path":               "",
+    "unreal_assets_path":              "",
+    "llm_enabled":                     False,
+    "llm_endpoint":                    "",
+    "llm_model":                       "gpt-4o",
+    "llm_api_key":                     "",
+    "llm_allow_actions":               False,
+    "llm_send_stats":                  True,
+    "advisor_auto_monitor_enabled":    True,
+    "advisor_auto_monitor_interval":   30,
+    "optimize_remove_doubles_threshold": 0.0001,
+    "optimize_preserve_uvs":           True,
+    "optimize_apply_transforms":       True,
+    "mesh_panel_unified":              False,
+    "port":                            9999,
+    "token":                           "",
+    "autostart":                       True,
+    "mossy_http_port":                 8080,
+    "use_mossy_as_ai":                 False,
+    "use_antigravity_as_ai":           False,
+    "antigravity_api_key":             "",
+    "auto_install_tools":              True,
+    "auto_install_python":             True,
+    "auto_install_pytorch":            True,
+    "auto_register_tools":             False,
+    "torch_install_attempted":         False,
+    "knowledge_base_enabled":          True,
+    "knowledge_base_path":             "",
+}
+
+
+class FO4Settings:
+    """Wraps bpy.types.Scene fo4_* properties.
+
+    Provides the same attribute interface as the old ``FO4AddonPreferences``
+    so every caller in operators.py / advisor_helpers.py / etc. works without
+    modification.  Getting an attribute reads the scene property; setting one
+    writes it back and auto-saves to JSON.
+    """
+
+    __slots__ = ("_scene",)
+
+    def __init__(self, scene):
+        object.__setattr__(self, "_scene", scene)
+
+    def __getattr__(self, name: str):
+        scene = object.__getattribute__(self, "_scene")
+        key = _ATTR_MAP.get(name)
+        if key and scene is not None:
+            val = getattr(scene, key, None)
+            if val is not None:
+                return val
+        return _DEFAULTS.get(name, "")
+
+    def __setattr__(self, name: str, value):
+        if name == "_scene":
+            object.__setattr__(self, name, value)
+            return
+        scene = object.__getattribute__(self, "_scene")
+        key = _ATTR_MAP.get(name)
+        if key and scene is not None:
+            try:
+                setattr(scene, key, value)
+                # Auto-save whenever a setting changes
+                save_settings(scene)
+            except Exception:
+                pass
+
+
+class _FallbackSettings:
+    """Fallback when context.scene is unavailable; reads from JSON config."""
+
+    def __init__(self):
+        self._data = _load_json()
+
+    def __getattr__(self, name: str):
+        key = _ATTR_MAP.get(name, f"fo4_{name}")
+        val = self._data.get(key)
+        return val if val is not None else _DEFAULTS.get(name, "")
+
+    def __setattr__(self, name: str, value):
+        if name == "_data":
+            object.__setattr__(self, name, value)
+        else:
+            key = _ATTR_MAP.get(name, f"fo4_{name}")
+            self._data[key] = value
+            _save_json(self._data)
+
+
+# ---------------------------------------------------------------------------
+# Public API (same signatures as before — no callers need to change)
+# ---------------------------------------------------------------------------
 
 def _addon_name() -> str:
-    """Return the add-on module name for preference lookup."""
     return __package__.split(".")[0]
 
 
 def get_preferences():
-    """Return the add-on preferences instance if registered, else None."""
-    addon = bpy.context.preferences.addons.get(_addon_name())
-    return addon.preferences if addon else None
+    """Return an FO4Settings wrapper around the current scene.
+
+    Never returns None; falls back to JSON-backed settings if the scene is
+    unavailable so callers don't need to guard against None.
+    """
+    try:
+        scene = bpy.context.scene
+        if scene is not None:
+            return FO4Settings(scene)
+    except Exception:
+        pass
+    return _FallbackSettings()
 
 
-def get_havok2fbx_path() -> str | None:
-    """Return the configured Havok2FBX directory if set and exists."""
-    prefs = get_preferences()
-    if not prefs:
-        return None
-    path = bpy.path.abspath(prefs.havok2fbx_path)
-    return path if path and os.path.isdir(path) else None
-
-
-def is_havok2fbx_configured() -> bool:
-    """True if the path is configured and points to an existing directory."""
-    return get_havok2fbx_path() is not None
-
-
-def get_llm_config() -> dict:
-    prefs = get_preferences()
-    if not prefs:
-        return {"enabled": False}
-    return {
-        "enabled": prefs.llm_enabled,
-        "endpoint": prefs.llm_endpoint.strip(),
-        "model": prefs.llm_model.strip(),
-        "api_key": prefs.llm_api_key.strip(),
-        "allow_actions": prefs.llm_allow_actions,
-        "send_stats": prefs.llm_send_stats,
-    }
-
-
-def _resolve_executable(path_value: str, exe_names: tuple[str, ...]) -> str | None:
-    """If path_value points to an exe or directory containing exe, return exe path."""
+def _resolve_executable(path_value: str, exe_names: tuple) -> str | None:
     if not path_value:
         return None
-    expanded = bpy.path.abspath(path_value)
+    try:
+        expanded = bpy.path.abspath(path_value)
+    except Exception:
+        expanded = path_value
     if os.path.isfile(expanded):
         return expanded if os.access(expanded, os.X_OK) else None
     if os.path.isdir(expanded):
@@ -73,327 +304,298 @@ def _resolve_executable(path_value: str, exe_names: tuple[str, ...]) -> str | No
     return None
 
 
-def get_configured_ffmpeg_path() -> str | None:
-    """Return ffmpeg path from preferences if set and executable."""
+def get_havok2fbx_path() -> str | None:
     prefs = get_preferences()
-    if not prefs:
-        return None
-    return _resolve_executable(prefs.ffmpeg_path, ("ffmpeg.exe", "ffmpeg"))
+    path = getattr(prefs, "havok2fbx_path", "")
+    try:
+        path = bpy.path.abspath(path)
+    except Exception:
+        pass
+    return path if path and os.path.isdir(path) else None
+
+
+def is_havok2fbx_configured() -> bool:
+    return get_havok2fbx_path() is not None
+
+
+def get_llm_config() -> dict:
+    prefs = get_preferences()
+    def _s(v):
+        return v.strip() if isinstance(v, str) else ""
+    return {
+        "enabled":      getattr(prefs, "llm_enabled", False),
+        "endpoint":     _s(getattr(prefs, "llm_endpoint", "")),
+        "model":        _s(getattr(prefs, "llm_model", "gpt-4o")),
+        "api_key":      _s(getattr(prefs, "llm_api_key", "")),
+        "allow_actions":getattr(prefs, "llm_allow_actions", False),
+        "send_stats":   getattr(prefs, "llm_send_stats", True),
+    }
+
+
+def get_configured_ffmpeg_path() -> str | None:
+    return _resolve_executable(
+        getattr(get_preferences(), "ffmpeg_path", ""),
+        ("ffmpeg.exe", "ffmpeg"),
+    )
 
 
 def get_configured_nvcompress_path() -> str | None:
-    """Return nvcompress path from preferences if set and executable."""
-    prefs = get_preferences()
-    if not prefs:
-        return None
-    return _resolve_executable(prefs.nvtt_path, ("nvcompress.exe", "nvcompress"))
+    return _resolve_executable(
+        getattr(get_preferences(), "nvtt_path", ""),
+        ("nvcompress.exe", "nvcompress"),
+    )
 
 
 def get_configured_texconv_path() -> str | None:
-    """Return texconv path from preferences if set and executable."""
-    prefs = get_preferences()
-    if not prefs:
-        return None
-    return _resolve_executable(prefs.texconv_path, ("texconv.exe", "texconv"))
+    return _resolve_executable(
+        getattr(get_preferences(), "texconv_path", ""),
+        ("texconv.exe", "texconv"),
+    )
 
 
 def get_fo4_assets_path() -> str | None:
-    """Return custom FO4 assets path from preferences if set and exists."""
-    prefs = get_preferences()
-    if not prefs:
-        return None
-    path = bpy.path.abspath(prefs.fo4_assets_path).strip()
-    if path and os.path.isdir(path):
-        return path
-    return None
+    path = getattr(get_preferences(), "fo4_assets_path", "")
+    try:
+        path = bpy.path.abspath(path).strip()
+    except Exception:
+        pass
+    return path if path and os.path.isdir(path) else None
 
 
 def get_unity_assets_path() -> str | None:
-    """Return Unity assets path from preferences if set and exists."""
-    prefs = get_preferences()
-    if not prefs:
-        return None
-    path = bpy.path.abspath(prefs.unity_assets_path).strip()
-    if path and os.path.isdir(path):
-        return path
-    return None
+    path = getattr(get_preferences(), "unity_assets_path", "")
+    try:
+        path = bpy.path.abspath(path).strip()
+    except Exception:
+        pass
+    return path if path and os.path.isdir(path) else None
 
 
 def get_unreal_assets_path() -> str | None:
-    """Return Unreal Engine assets path from preferences if set and exists."""
-    prefs = get_preferences()
-    if not prefs:
-        return None
-    path = bpy.path.abspath(prefs.unreal_assets_path).strip()
-    if path and os.path.isdir(path):
-        return path
-    return None
+    path = getattr(get_preferences(), "unreal_assets_path", "")
+    try:
+        path = bpy.path.abspath(path).strip()
+    except Exception:
+        pass
+    return path if path and os.path.isdir(path) else None
 
+
+# ---------------------------------------------------------------------------
+# FO4AddonPreferences – minimal empty shell
+# ---------------------------------------------------------------------------
 
 class FO4AddonPreferences(bpy.types.AddonPreferences):
-    """Stores user-configurable add-on preferences."""
+    """Minimal preferences class.
+
+    All settings are stored as Scene properties and configured from the
+    3D Viewport N panel (Fallout 4 → Settings).  The Blender add-on
+    preferences page shows only the standard enable / disable toggle.
+    """
 
     bl_idname = _addon_name()
 
-    havok2fbx_path: bpy.props.StringProperty(options={'HIDDEN'}, 
-        name="Havok2FBX Folder",
-        subtype="DIR_PATH",
-        default=_DEFAULT_HAVOK2FBX_PATH,
-        description="Folder containing Havok2FBX binaries (existing install)",
-    )
-
-    mesh_panel_unified: bpy.props.BoolProperty(options={'HIDDEN'}, 
-        name="Unified Mesh Panel",
-        description="Show all mesh helpers (basic, collision, advanced) in one box",
-        default=False,
-    )
-
-    nvtt_path: bpy.props.StringProperty(options={'HIDDEN'}, 
-        name="NVTT Path",
-        subtype="FILE_PATH",
-        default=_DEFAULT_NVTT_PATH,
-        description="Path to nvcompress.exe or its folder (NVIDIA Texture Tools)",
-    )
-
-    ffmpeg_path: bpy.props.StringProperty(options={'HIDDEN'}, 
-        name="ffmpeg Path",
-        subtype="FILE_PATH",
-        default="",
-        description="Path to ffmpeg.exe or its folder (optional, installer will place binaries under tools/ffmpeg)",
-    )
-
-    texconv_path: bpy.props.StringProperty(options={'HIDDEN'}, 
-        name="texconv Path",
-        subtype="FILE_PATH",
-        default=_DEFAULT_TEXCONV_PATH,
-        description="Path to texconv.exe or its folder (DirectXTex)",
-    )
-
-    fo4_assets_path: bpy.props.StringProperty(options={'HIDDEN'}, 
-        name="Fallout 4 Assets Path",
-        subtype="DIR_PATH",
-        default="",
-        description=(
-            "Custom path to Fallout 4 assets (meshes, textures, etc.). "
-            "Leave blank for auto-detection from game installation. "
-            "Example: H:/Fallout 4 working folder"
-        ),
-    )
-
-    unity_assets_path: bpy.props.StringProperty(options={'HIDDEN'}, 
-        name="Unity Assets Path",
-        subtype="DIR_PATH",
-        default="",
-        description=(
-            "Path to Unity project assets or extracted assets folder. "
-            "Should contain folders like Models, Textures, Materials, etc. "
-            "Example: H:/Unity Projects/MyProject/Assets"
-        ),
-    )
-
-    unreal_assets_path: bpy.props.StringProperty(options={'HIDDEN'}, 
-        name="Unreal Engine Assets Path",
-        subtype="DIR_PATH",
-        default="",
-        description=(
-            "Path to Unreal Engine project content or extracted assets. "
-            "Should contain folders like Meshes, Textures, Materials, etc. "
-            "Example: H:/UnrealProjects/MyProject/Content"
-        ),
-    )
-
-    llm_enabled: bpy.props.BoolProperty(options={'HIDDEN'}, 
-        name="Enable LLM Advisor",
-        default=False,
-        description="Opt-in: allow calls to configured LLM endpoint for advice (metadata only)",
-    )
-
-    llm_endpoint: bpy.props.StringProperty(options={'HIDDEN'}, 
-        name="LLM Endpoint",
-        default=_DEFAULT_LLM_ENDPOINT,
-        description="HTTP endpoint for chat completions",
-    )
-
-    llm_model: bpy.props.StringProperty(options={'HIDDEN'}, 
-        name="LLM Model",
-        default=_DEFAULT_LLM_MODEL,
-        description="Model name to request from the endpoint",
-    )
-
-    llm_api_key: bpy.props.StringProperty(options={'HIDDEN'}, 
-        name="LLM API Key",
-        default="",
-        subtype='PASSWORD',
-        description="Bearer token for the LLM endpoint",
-    )
-
-    llm_allow_actions: bpy.props.BoolProperty(options={'HIDDEN'}, 
-        name="Allow Action Suggestions",
-        default=False,
-        description="If enabled, advisor may suggest actions; execution still requires user click",
-    )
-
-    llm_send_stats: bpy.props.BoolProperty(options={'HIDDEN'}, 
-        name="Send Counts Only",
-        default=True,
-        description="Only send summary strings/counts; no mesh or texture binaries",
-    )
-
-    advisor_auto_monitor_enabled: bpy.props.BoolProperty(options={'HIDDEN'}, 
-        name="Advisor Auto-Monitor",
-        default=True,
-        description="Run advisor periodically in the background to surface issues",
-    )
-
-    advisor_auto_monitor_interval: bpy.props.IntProperty(options={'HIDDEN'}, 
-        name="Monitor Interval (s)",
-        default=_DEFAULT_ADVISOR_INTERVAL,
-        min=5,
-        max=600,
-        description="Seconds between advisor checks",
-    )
-
-    knowledge_base_enabled: bpy.props.BoolProperty(options={'HIDDEN'}, 
-        name="Use Knowledge Base",
-        default=True,
-        description="Include snippets from knowledge_base/ (txt/md) in advisor LLM context",
-    )
-
-    knowledge_base_path: bpy.props.StringProperty(options={'HIDDEN'}, 
-        name="Knowledge Base Path",
-        default=_DEFAULT_KB_PATH,
-        subtype='DIR_PATH',
-        description="Folder with txt/md docs to feed the advisor; defaults to bundled knowledge_base/",
-    )
-
-    auto_install_tools: bpy.props.BoolProperty(options={'HIDDEN'}, 
-        name="Auto Install Tools",
-        default=True,
-        description="If enabled, missing CLI tools will be downloaded automatically on startup",
-    )
-
-    auto_register_tools: bpy.props.BoolProperty(options={'HIDDEN'}, 
-        name="Auto Register External Tools",
-        default=False,
-        description=(
-            "If enabled, third-party integrations (UE importer, UModel, AssetStudio, "
-            "etc.) will be downloaded/loaded automatically on add-on startup. "
-            "This may trigger \"policy violation\" warnings from Blender; leave "
-            "disabled to load them manually."
-        ),
-    )
-
-    auto_install_python: bpy.props.BoolProperty(options={'HIDDEN'}, 
-        name="Auto Install Python",
-        default=True,
-        description="If enabled, core Python dependencies will be installed on startup",
-    )
-
-    auto_install_pytorch: bpy.props.BoolProperty(options={'HIDDEN'}, 
-        name="Auto Install PyTorch",
-        default=True,
-        description="If enabled, PyTorch will be auto-installed to D:/t when Windows path errors are detected",
-    )
-
-    torch_install_attempted: bpy.props.BoolProperty(options={'HIDDEN'}, 
-        name="PyTorch Install Attempted",
-        default=False,
-        description="Internal flag to track if PyTorch auto-install was already attempted",
-    )
-
-    # ---- Mesh optimization settings ----
-    optimize_remove_doubles_threshold: bpy.props.FloatProperty(options={'HIDDEN'}, 
-        name="Remove Doubles Threshold",
-        default=0.0001,
-        min=0.0,
-        max=0.01,
-        description="Distance threshold for merging duplicate vertices during optimization",
-    )
-    optimize_preserve_uvs: bpy.props.BoolProperty(options={'HIDDEN'}, 
-        name="Preserve UVs",
-        default=True,
-        description="Keep UV seams from being collapsed when removing doubles",
-    )
-    optimize_apply_transforms: bpy.props.BoolProperty(options={'HIDDEN'}, 
-        name="Apply Transforms",
-        default=True,
-        description="Automatically apply object transforms before optimization",
-    )
-
-    # ---- Mossy Link ----
-    port: bpy.props.IntProperty(options={'HIDDEN'}, 
-        name="Mossy Link Port",
-        default=9999,
-        min=1024,
-        max=65535,
-        description="TCP port the Mossy Link server (inside Blender) listens on for commands from Mossy",
-    )
-
-    token: bpy.props.StringProperty(options={'HIDDEN'}, 
-        name="Mossy Link Token",
-        default="",
-        subtype='PASSWORD',
-        description="Optional shared secret for the Mossy Link TCP server; leave blank to disable auth",
-    )
-
-    autostart: bpy.props.BoolProperty(options={'HIDDEN'}, 
-        name="Auto-start Mossy Link",
-        default=True,
-        description="Start the Mossy Link server automatically when the add-on loads",
-    )
-
-    mossy_http_port: bpy.props.IntProperty(options={'HIDDEN'}, 
-        name="Mossy HTTP Port",
-        default=8080,
-        min=1024,
-        max=65535,
-        description=(
-            "Port where Mossy's HTTP server listens. "
-            "Blender connects here to send AI advisor questions to Mossy. "
-            "Must match the port configured in your Mossy desktop app."
-        ),
-    )
-
-    use_mossy_as_ai: bpy.props.BoolProperty(options={'HIDDEN'}, 
-        name="Use Mossy as AI Advisor",
-        default=False,
-        description=(
-            "Route advisor AI queries through Mossy instead of a remote LLM endpoint. "
-            "Requires Mossy to be running on the desktop. "
-            "No API key needed — everything stays on your machine."
-        ),
-    )
-
-    use_antigravity_as_ai: bpy.props.BoolProperty(options={'HIDDEN'}, 
-        name="Use Antigravity as AI Advisor",
-        default=False,
-        description=(
-            "Route advisor AI queries through the Antigravity backend (Gemini). "
-            "Requires an API key. "
-        ),
-    )
-
-    antigravity_api_key: bpy.props.StringProperty(options={'HIDDEN'}, 
-        name="Antigravity API Key",
-        default="",
-        subtype='PASSWORD',
-        description="API Key for Antigravity (Gemini)",
-    )
-
     def draw(self, context):
-        layout = self.layout
+        # Empty on purpose – no custom UI here.
+        # All settings are in the 3D Viewport → N panel → Fallout 4 → Settings
+        pass
 
-        # All configurations have been moved to the 3D Viewport
-        layout.label(text="All settings have been moved to the 3D Viewport.", icon="INFO")
-        layout.label(text="Press 'N' in the 3D Viewport and look for the 'Fallout 4' tab,", icon="BLANK1")
-        layout.label(text="then open the 'Settings' panel at the bottom.", icon="BLANK1")
 
-        # (Moved Update info, Mesh Optimization, Mossy Link, and Antigravity to the 3D viewport N-panel)
+# ---------------------------------------------------------------------------
+# Scene property registration
+# ---------------------------------------------------------------------------
+
+def _on_change(self, context):
+    """Auto-save to JSON whenever any setting changes."""
+    try:
+        save_settings(self)
+    except Exception:
+        pass
+
+
+# (name, bpy.props.*) pairs – registered onto bpy.types.Scene
+_PROPS: list[tuple[str, object]] = [
+    # ── Tool paths ────────────────────────────────────────────────────────────
+    ("fo4_havok2fbx_path", bpy.props.StringProperty(
+        name="Havok2FBX Folder",
+        description="Folder containing Havok2FBX binaries",
+        subtype="DIR_PATH", default="", update=_on_change)),
+    ("fo4_nvtt_path", bpy.props.StringProperty(
+        name="NVTT Path",
+        description="Path to nvcompress.exe or its folder (NVIDIA Texture Tools)",
+        subtype="FILE_PATH", default="", update=_on_change)),
+    ("fo4_ffmpeg_path", bpy.props.StringProperty(
+        name="FFmpeg Path",
+        description="Path to ffmpeg.exe or its folder",
+        subtype="FILE_PATH", default="", update=_on_change)),
+    ("fo4_texconv_path", bpy.props.StringProperty(
+        name="texconv Path",
+        description="Path to texconv.exe or its folder (DirectXTex)",
+        subtype="FILE_PATH", default="", update=_on_change)),
+    ("fo4_assets_path", bpy.props.StringProperty(
+        name="Fallout 4 Assets",
+        description="Path to Fallout 4 extracted assets (meshes, textures …)",
+        subtype="DIR_PATH", default="", update=_on_change)),
+    ("fo4_unity_assets_path", bpy.props.StringProperty(
+        name="Unity Assets",
+        description="Path to Unity project assets folder",
+        subtype="DIR_PATH", default="", update=_on_change)),
+    ("fo4_unreal_assets_path", bpy.props.StringProperty(
+        name="Unreal Assets",
+        description="Path to Unreal Engine project content folder",
+        subtype="DIR_PATH", default="", update=_on_change)),
+
+    # ── LLM Advisor ───────────────────────────────────────────────────────────
+    ("fo4_llm_enabled", bpy.props.BoolProperty(
+        name="Enable LLM Advisor",
+        description="Opt-in: allow calls to the LLM endpoint for advice",
+        default=False, update=_on_change)),
+    ("fo4_llm_endpoint", bpy.props.StringProperty(
+        name="LLM Endpoint",
+        description="HTTP endpoint for chat completions",
+        default="", update=_on_change)),
+    ("fo4_llm_model", bpy.props.StringProperty(
+        name="LLM Model",
+        description="Model name to request from the LLM endpoint",
+        default="gpt-4o", update=_on_change)),
+    ("fo4_llm_api_key", bpy.props.StringProperty(
+        name="LLM API Key",
+        description="Bearer token for the LLM endpoint",
+        default="", subtype='PASSWORD', update=_on_change)),
+    ("fo4_llm_allow_actions", bpy.props.BoolProperty(
+        name="Allow Action Suggestions",
+        description="Advisor may suggest operators; user must click to run",
+        default=False, update=_on_change)),
+    ("fo4_llm_send_stats", bpy.props.BoolProperty(
+        name="Send Counts Only",
+        description="Only send summary counts; no mesh or texture data",
+        default=True, update=_on_change)),
+
+    # ── Advisor auto-monitor ──────────────────────────────────────────────────
+    ("fo4_advisor_monitor", bpy.props.BoolProperty(
+        name="Advisor Auto-Monitor",
+        description="Periodically check the scene for FO4 issues in the background",
+        default=True, update=_on_change)),
+    ("fo4_advisor_interval", bpy.props.IntProperty(
+        name="Monitor Interval (s)",
+        description="Seconds between automatic advisor checks",
+        default=30, min=5, max=600, update=_on_change)),
+
+    # ── Mesh optimisation ─────────────────────────────────────────────────────
+    ("fo4_opt_doubles", bpy.props.FloatProperty(
+        name="Remove Doubles Threshold",
+        description="Distance for merging duplicate vertices during optimisation",
+        default=0.0001, min=0.0, max=0.01, precision=6, update=_on_change)),
+    ("fo4_opt_preserve_uvs", bpy.props.BoolProperty(
+        name="Preserve UVs",
+        description="Keep UV seams when removing doubles",
+        default=True, update=_on_change)),
+    ("fo4_opt_apply_transforms", bpy.props.BoolProperty(
+        name="Apply Transforms",
+        description="Automatically apply object transforms before optimisation",
+        default=True, update=_on_change)),
+
+    # ── UI layout ─────────────────────────────────────────────────────────────
+    ("fo4_mesh_panel_unified", bpy.props.BoolProperty(
+        name="Unified Mesh Panel",
+        description="Show all mesh helpers in one box instead of basic / advanced split",
+        default=False, update=_on_change)),
+
+    # ── Mossy Link ────────────────────────────────────────────────────────────
+    ("fo4_mossy_port", bpy.props.IntProperty(
+        name="Mossy Link Port",
+        description="TCP port the Mossy Link server listens on (Mossy → Blender control)",
+        default=9999, min=1024, max=65535, update=_on_change)),
+    ("fo4_mossy_token", bpy.props.StringProperty(
+        name="Mossy Link Token",
+        description="Optional shared secret for Mossy Link auth; leave blank to disable",
+        default="", subtype='PASSWORD', update=_on_change)),
+    ("fo4_mossy_autostart", bpy.props.BoolProperty(
+        name="Auto-start Mossy Link",
+        description="Start the Mossy Link server automatically when the add-on loads",
+        default=True, update=_on_change)),
+    ("fo4_mossy_http_port", bpy.props.IntProperty(
+        name="Mossy HTTP Port",
+        description="Port where Mossy's HTTP server listens for AI advisor queries",
+        default=8080, min=1024, max=65535, update=_on_change)),
+    ("fo4_use_mossy_ai", bpy.props.BoolProperty(
+        name="Use Mossy as AI Advisor",
+        description="Route advisor AI queries through Mossy (no API key needed)",
+        default=False, update=_on_change)),
+
+    # ── Antigravity ───────────────────────────────────────────────────────────
+    ("fo4_use_antigravity", bpy.props.BoolProperty(
+        name="Use Antigravity (Gemini)",
+        description="Route advisor AI queries through the Antigravity Gemini backend",
+        default=False, update=_on_change)),
+    ("fo4_antigravity_key", bpy.props.StringProperty(
+        name="Antigravity API Key",
+        description="API key for the Antigravity / Gemini backend",
+        default="", subtype='PASSWORD', update=_on_change)),
+
+    # ── Auto-install ──────────────────────────────────────────────────────────
+    ("fo4_auto_install_tools", bpy.props.BoolProperty(
+        name="Auto-install CLI Tools",
+        description="Automatically download missing CLI tools (NVTT, texconv, ffmpeg…)",
+        default=True, update=_on_change)),
+    ("fo4_auto_install_python", bpy.props.BoolProperty(
+        name="Auto-install Python Deps",
+        description="Install missing Python packages (PIL, numpy, requests…) at startup",
+        default=True, update=_on_change)),
+    ("fo4_auto_register_tools", bpy.props.BoolProperty(
+        name="Auto-register Third-party Add-ons",
+        description=(
+            "Load UE importer, UModel, AssetStudio etc. automatically. "
+            "Disable to avoid Blender policy warnings."
+        ),
+        default=False, update=_on_change)),
+
+    # ── Knowledge base ────────────────────────────────────────────────────────
+    ("fo4_kb_enabled", bpy.props.BoolProperty(
+        name="Use Knowledge Base",
+        description="Include bundled knowledge_base/ docs in advisor LLM context",
+        default=True, update=_on_change)),
+    ("fo4_kb_path", bpy.props.StringProperty(
+        name="KB Folder",
+        description="Custom folder of .txt / .md files to feed the advisor",
+        default="", subtype='DIR_PATH', update=_on_change)),
+]
+
+_registered_props: list[str] = []
+
+
+@bpy.app.handlers.persistent
+def _load_post_handler(scene, *args):
+    """Restore persisted settings whenever a blend file is loaded."""
+    restore_settings()
 
 
 def register():
     bpy.utils.register_class(FO4AddonPreferences)
 
+    for name, prop in _PROPS:
+        try:
+            setattr(bpy.types.Scene, name, prop)
+            _registered_props.append(name)
+        except Exception as exc:
+            print(f"⚠ fo4 preferences: failed to register {name}: {exc}")
+
+    if _load_post_handler not in bpy.app.handlers.load_post:
+        bpy.app.handlers.load_post.append(_load_post_handler)
+
 
 def unregister():
-    bpy.utils.unregister_class(FO4AddonPreferences)
+    if _load_post_handler in bpy.app.handlers.load_post:
+        bpy.app.handlers.load_post.remove(_load_post_handler)
+
+    for name in list(_registered_props):
+        if hasattr(bpy.types.Scene, name):
+            try:
+                delattr(bpy.types.Scene, name)
+            except Exception:
+                pass
+    _registered_props.clear()
+
+    try:
+        bpy.utils.unregister_class(FO4AddonPreferences)
+    except Exception:
+        pass

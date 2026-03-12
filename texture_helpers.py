@@ -228,6 +228,67 @@ class TextureHelpers:
             return False, f"Failed to load texture: {str(e)}"
     
     @staticmethod
+    def setup_vegetation_material(obj):
+        """Setup a Fallout 4 vegetation / foliage material for *obj*.
+
+        This is a wrapper around :meth:`setup_fo4_material` that additionally
+        configures the material for vegetation-specific rendering requirements:
+
+        * **Alpha Clip** (``blend_mode = 'CLIP'``) – uses an alpha test so that
+          transparent pixels in the diffuse texture (e.g. leaf edges) are
+          discarded on the GPU rather than blended.  In Fallout 4 this maps to
+          the ``Alpha_Testing`` flag on the BSLightingShaderProperty with a
+          threshold of 128 (0x80).  Use ``Alpha Clip`` in Blender for cutout
+          foliage; ``Alpha Blend`` is reserved for translucent glass/water.
+
+        * **Two-sided rendering** (``use_backface_culling = False``) – grass
+          planes and leaf cards are single-face quads that must be visible from
+          both the front and back.  Disabling backface culling in Blender
+          matches the ``Two_Sided`` flag written into the NIF's
+          BSLightingShaderProperty by Niftools.
+
+        * **Alpha threshold 0.5** – Blender maps ``alpha_threshold = 0.5`` to
+          the 0–1 range; the Niftools exporter writes this as 128/255 (the FO4
+          default cutoff).
+
+        Returns the created / modified material, or ``None`` if the object is
+        not a mesh.
+        """
+        mat = TextureHelpers.setup_fo4_material(obj)
+        if mat is None:
+            return None
+
+        # Alpha Clip → BSLightingShaderProperty.Alpha_Testing in the NIF.
+        # Must be 'CLIP' (not 'HASHED' or 'BLEND') so Niftools emits the
+        # correct Alpha_Testing flag rather than an alpha blend setup.
+        try:
+            mat.blend_mode = 'CLIP'
+        except (AttributeError, TypeError):
+            pass
+
+        # Alpha threshold 0.5 → 128/255 which is the FO4 standard cutoff.
+        try:
+            mat.alpha_threshold = 0.5
+        except (AttributeError, TypeError):
+            pass
+
+        # Disable backface culling so grass/leaf quads render from both sides.
+        # This corresponds to the BSLightingShaderProperty Two_Sided flag.
+        try:
+            mat.use_backface_culling = False
+        except (AttributeError, TypeError):
+            pass
+
+        # Shadow mode must also be set to 'CLIP' for correct alpha shadows in
+        # Blender 3.x/4.x preview.
+        try:
+            mat.shadow_method = 'CLIP'
+        except (AttributeError, TypeError):
+            pass
+
+        return mat
+
+    @staticmethod
     def validate_textures(obj):
         """Validate textures for Fallout 4 compatibility"""
         issues = []

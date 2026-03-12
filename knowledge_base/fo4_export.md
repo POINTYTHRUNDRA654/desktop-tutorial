@@ -6,14 +6,14 @@
 |------------------|-------------------------------------------------------------|
 | NIF version      | 20.2.0.7                                                    |
 | User version     | 12                                                          |
-| User version 2   | 131073                                                      |
+| User version 2   | 130                                                         |
 | Geometry nodes   | **BSTriShape** (NOT NiTriShape – invisible in-game if wrong)|
 | Shader property  | BSLightingShaderProperty                                    |
 | Tangent space    | **Required** for normal maps to appear in-game             |
 | Scale            | 1 Blender unit = 1 NIF unit (scale_correction = 1.0)       |
 
 The game profile `FALLOUT_4` in Niftools v0.1.1 automatically selects version
-20.2.0.7 / user version 12 / user_version_2 131073 and forces BSTriShape output.
+20.2.0.7 / user version 12 / user_version_2 130 and forces BSTriShape output.
 
 ## Niftools Blender addon
 
@@ -161,3 +161,105 @@ smooth transparency.
 
 Use `TextureHelpers.detect_fo4_texture_type(filepath)` to auto-detect type.
 Use `NVTTHelpers.get_fo4_dds_format(texture_type)` to get the correct BC format.
+
+## Vegetation / foliage mesh requirements
+
+Vegetation (plants, trees, grass, ferns) has extra requirements beyond the
+standard mesh checklist because leaves and grass blades are usually transparent
+cutout quads.
+
+### Material blend mode
+
+| Mesh type         | Blender blend mode | FO4 NIF flag                    |
+|-------------------|--------------------|----------------------------------|
+| Solid trunk/rock  | Opaque             | (no alpha flags)                 |
+| Leaf / grass card | **Alpha Clip**     | Alpha_Testing + threshold 128    |
+| Translucent glass | Alpha Blend        | Alpha_Blending                   |
+
+- Use **Alpha Clip** (`blend_mode = 'CLIP'`, `alpha_threshold = 0.5`) for all
+  cutout foliage.  The Niftools exporter reads the Blender blend mode and
+  writes the matching BSLightingShaderProperty flags automatically.
+- The alpha threshold 0.5 maps to 128/255 (0x80) in the NIF, which is the
+  FO4 standard cutoff for vegetation.
+- Use the add-on's **Setup Vegetation Material** button to apply these
+  settings automatically to any selected mesh.
+
+### Two-sided rendering
+
+Grass blades and leaf quads are single-face planes.  Disable backface culling
+(`use_backface_culling = False`) in Blender so they are visible from both
+sides.  The Niftools exporter writes this as the `Two_Sided` flag on
+BSLightingShaderProperty.
+
+### Diffuse texture format for foliage
+
+Foliage that uses alpha clip **must** use BC3 (DXT5) for its diffuse texture —
+not BC1 (DXT1), which has only 1-bit alpha (on/off, lossy).  BC3 stores a
+full 8-bit alpha channel alongside the RGB data.
+
+| Slot    | Foliage DDS format   |
+|---------|----------------------|
+| Diffuse | **BC3 (DXT5)**       |
+| Normal  | BC5 (ATI2)           |
+| Specular| BC1 (DXT1)           |
+
+### Wind vertex group (procedural wind animation)
+
+Fallout 4 vegetation uses a single vertex group channel to drive procedural
+wind/sway.  The group must be named **"Wind"**.
+
+- Vertices at the base of the plant receive weight **0.0** (no movement).
+- Vertices at the tips receive weight **1.0** (full sway).
+- Use the add-on's **Generate Wind Weights** button to compute this gradient
+  automatically from the mesh's bounding box along the Z axis.
+- After generating weights, use **Apply Wind Animation** to create a minimal
+  armature with a "Wind" bone and a looping noise-driven rotation action.
+- After **Combine Selected** (merging many plant instances into one mesh) any
+  stale vertex groups are cleared automatically — re-apply wind animation once
+  to the combined mesh.
+
+### Collision for vegetation
+
+Most FO4 vegetation (grass, ferns, small plants) has **no collision** — the
+player and physics objects pass through them.  Use:
+
+- Collision type **GRASS** or **MUSHROOM** in the add-on to skip collision
+  mesh generation entirely.
+- Use **Export Vegetation NIF** (not the standard export) for foliage — it
+  automatically suppresses collision and sets the correct NIF node type.
+
+Large trees that require walkable collision should have a simplified `UCX_`
+convex hull mesh for the trunk only, with type **TREE**.
+
+### LOD chain for vegetation
+
+FO4 vegetation requires LOD NIFs for distance rendering.  Generate them with
+**Create LOD Chain**, then export each level with **Export LOD Chain as NIF**.
+Place the files in your mod's `meshes/` folder:
+
+```
+meshes/
+  MyPlant.nif          ← LOD0 (full detail; used close-up)
+  MyPlant_LOD1.nif     ← ~75 % reduction
+  MyPlant_LOD2.nif     ← ~50 % reduction
+  MyPlant_LOD3.nif     ← ~25 % reduction
+```
+
+Reference these in the Creation Kit Grass / Static record's LOD settings.
+
+### Custom mesh workflow (step-by-step)
+
+1. Model your plant/tree in Blender (any mesh topology is supported).
+2. Ensure every leaf/blade quad has a UV map — use **Hybrid Unwrap** for
+   complex organic shapes.
+3. Click **Setup Vegetation Material** → material is created with Alpha Clip
+   and Two-Sided settings.
+4. Install your DDS textures (BC3 diffuse with alpha, BC5 normal).
+5. Click **Generate Wind Weights** to add the "Wind" vertex group.
+6. Click **Apply Wind Animation** → select the "TREE" or "SHRUB" preset.
+7. Scatter copies as needed, then select all and click **Combine Selected**.
+8. Click **Optimize for FPS** → reduce to ≤ 5,000 polys for small plants.
+9. Click **Create LOD Chain** → generates LOD1–LOD3 meshes.
+10. Click **Export Vegetation NIF** → saves `{name}.nif` ready for CK import.
+11. Click **Export LOD Chain as NIF** → saves `{name}_LOD1.nif` etc.
+12. In the Creation Kit: File → New Record → Grass/Static → reference the NIFs.
