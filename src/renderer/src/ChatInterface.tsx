@@ -5,10 +5,10 @@ import { getFullSystemInstruction } from './MossyBrain';
 import { getCommunityLearningContextForModel } from './communityLearningProfile';
 import { getToolPermissionsContextForModel, mergeExistingCheckedState } from './toolPermissions';
 import { checkContentGuard } from './Fallout4Guard';
-import { Send, Paperclip, Loader2, Bot, Leaf, Search, FolderOpen, Save, Trash2, CheckCircle2, HelpCircle, PauseCircle, ChevronRight, FileText, Cpu, X, CheckSquare, Globe, Mic, Volume2, VolumeX, StopCircle, Wifi, Gamepad2, Terminal, Play, Box, Layout, ArrowUpRight, Wrench, Radio, Lock, Square, Map, Scroll, Flag, PenTool, Database, Activity, Clipboard, Brain } from 'lucide-react';
+import { Send, Paperclip, Loader2, Bot, BotOff, Leaf, Search, FolderOpen, Save, Trash2, CheckCircle2, HelpCircle, PauseCircle, ChevronRight, FileText, Cpu, X, CheckSquare, Globe, Mic, Volume2, VolumeX, StopCircle, Wifi, Gamepad2, Terminal, Box, Layout, ArrowUpRight, Wrench, Radio, Lock, Square, Map, Scroll, Flag, PenTool, Database, Activity, Clipboard, Brain } from 'lucide-react';
 import { Message } from '../../shared/types';
 import { useLive } from './LiveContext';
-import { speakMossy, pauseMossySpeech, resumeMossySpeech, isMossySpeechPaused, stopMossySpeech } from './mossyTts';
+import { speakMossy, stopMossySpeech } from './mossyTts';
 import { executeMossyTool, sanitizeBlenderScript } from './MossyTools';
 import { ModProjectStorage } from './services/ModProjectStorage';
 import { useActivityMonitor } from './hooks/useActivityMonitor';
@@ -940,15 +940,13 @@ export const ChatInterface: React.FC = () => {
         try {
             localStorage.setItem('mossy_conversation_paused', next ? 'true' : 'false');
             if (next) {
-                // Pause current speech if it's playing
-                pauseMossySpeech();
-                console.log('[ChatInterface] Conversation paused - speech paused');
+                // Turning Mossy OFF — stop all speech and audio immediately
+                stopMossySpeech();
+                stopAudio();
+                console.log('[ChatInterface] Mossy turned OFF - speech and audio stopped');
             } else {
-                // Resume paused speech if any
-                if (isMossySpeechPaused()) {
-                    resumeMossySpeech();
-                    console.log('[ChatInterface] Conversation resumed - speech resumed');
-                }
+                // Turning Mossy back ON — nothing to resume, user can now send messages again
+                console.log('[ChatInterface] Mossy turned ON - ready for new messages');
             }
             window.dispatchEvent(new Event('mossy-conversation-toggle'));
         } catch {
@@ -1792,12 +1790,12 @@ export const ChatInterface: React.FC = () => {
             const { selfImprovementEngine } = await import('./SelfImprovementEngine');
             selfImprovementEngine.recordInteraction(textToSend, aiResponseText, [], 'success');
 
-            console.log('[ChatInterface] Response received, isVoiceEnabled:', isVoiceEnabled);
-            if (isVoiceEnabled && aiResponseText) {
+            console.log('[ChatInterface] Response received, isVoiceEnabled:', isVoiceEnabled, 'isConversationPaused:', isConversationPaused);
+            if (isVoiceEnabled && aiResponseText && !isConversationPaused) {
                 console.log('[ChatInterface] Speaking response (length:', aiResponseText.length, ')');
                 await speakText(aiResponseText);
             } else {
-                console.log('[ChatInterface] Voice disabled or no response text:', { isVoiceEnabled, hasText: !!aiResponseText });
+                console.log('[ChatInterface] Not speaking:', { isVoiceEnabled, hasText: !!aiResponseText, isConversationPaused });
             }
 
             // Log activity AFTER speaking (non-blocking, deferred)
@@ -1869,7 +1867,7 @@ export const ChatInterface: React.FC = () => {
                     {isConversationPaused && (
                         <div className="hidden md:flex items-center gap-1.5 px-3 py-1 rounded-full border text-xs animate-fade-in bg-yellow-900/20 border-yellow-500/30 text-yellow-300">
                             <PauseCircle className="w-3 h-3" />
-                            Conversation Paused
+                            Mossy: OFF
                         </div>
                     )}
 
@@ -1927,14 +1925,14 @@ export const ChatInterface: React.FC = () => {
 
                     <button
                         onClick={toggleConversationPause}
-                        className={`hidden lg:flex items-center gap-2 px-3 py-1.5 rounded-lg border text-xs font-bold transition-all ${isConversationPaused
+                        className={`flex items-center gap-2 px-3 py-1.5 rounded-lg border text-xs font-bold transition-all ${isConversationPaused
                             ? 'bg-slate-800 border-slate-700 text-slate-300 hover:text-white'
                             : 'bg-emerald-900/20 border-emerald-500/40 text-emerald-300'
                             }`}
-                        title={isConversationPaused ? 'Resume Mossy\'s response' : 'Pause Mossy\'s response'}
+                        title={isConversationPaused ? 'Turn Mossy back on' : 'Turn Mossy off (she will stop responding)'}
                     >
-                        {isConversationPaused ? <Play className="w-4 h-4" /> : <PauseCircle className="w-4 h-4" />}
-                        {isConversationPaused ? 'Resume' : 'Pause'}
+                        {isConversationPaused ? <BotOff className="w-4 h-4" /> : <Bot className="w-4 h-4" />}
+                        <span className="hidden sm:inline">{isConversationPaused ? 'Mossy: OFF' : 'Mossy: ON'}</span>
                     </button>
 
                     {isLiveActive ? (
