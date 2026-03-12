@@ -20,190 +20,190 @@ export const Type = {
 } as const;
 
 export const toolDeclarations: FunctionDeclaration[] = [
-    {
-        name: 'list_files',
-        description: 'List files in a specific directory (e.g., Data/Scripts, Data/Meshes).',
-        parameters: {
-            type: Type.OBJECT,
-            properties: {
+   {
+      name: 'list_files',
+      description: 'List files in a specific directory (e.g., Data/Scripts, Data/Meshes).',
+      parameters: {
+         type: Type.OBJECT,
+         properties: {
             path: { type: Type.STRING, description: 'The directory path to list.' },
+         },
+         required: ['path']
+      }
+   },
+   {
+      name: 'read_file',
+      description: 'Read a file (Papyrus source .psc, XML, JSON, or text logs).',
+      parameters: {
+         type: Type.OBJECT,
+         properties: {
+            path: { type: Type.STRING, description: 'The full path to the file.' },
+         },
+         required: ['path']
+      }
+   },
+   {
+      name: 'execute_blender_script',
+      description: 'Execute a Python script in the active Blender instance via the Clipboard Relay. MUST start with import bpy.',
+      parameters: {
+         type: Type.OBJECT,
+         properties: {
+            script: { type: Type.STRING, description: 'The Python code (bpy) to execute.' },
+            description: { type: Type.STRING, description: 'A brief description of the action.' }
+         },
+         required: ['script', 'description']
+      }
+   },
+   {
+      name: 'write_blender_script',
+      description: 'Write a Python script into Blender\'s Text Editor (optionally run). Use for animation workflows to edit and iterate inside Blender.',
+      parameters: {
+         type: Type.OBJECT,
+         properties: {
+            script: { type: Type.STRING, description: 'The Python code to write.' },
+            name: { type: Type.STRING, description: 'Text block name (default: MOSSY_SCRIPT)' },
+            run: { type: Type.BOOLEAN, description: 'Whether to execute immediately after writing (default: false)' },
+            description: { type: Type.STRING, description: 'Short description of the action.' }
+         },
+         required: ['script']
+      }
+   },
+   {
+      name: 'get_blender_scene_info',
+      description: 'Get information about the current Blender scene (objects, frame, render settings, etc.)',
+      parameters: {
+         type: Type.OBJECT,
+         properties: {
+            description: { type: Type.STRING, description: 'Optional description of why you need scene info.' }
+         }
+      }
+   },
+   {
+      name: 'control_interface',
+      description: 'Navigate to Mossy modules (Workshop, Organizer, etc.).',
+      parameters: {
+         type: Type.OBJECT,
+         properties: {
+            action: { type: Type.STRING, description: 'Action: "navigate".' },
+            target: { type: Type.STRING, description: 'Route path.' }
+         },
+         required: ['action']
+      }
+   },
+   {
+      name: 'ck_execute_command',
+      description: 'Execute a console command in Creation Kit.',
+      parameters: {
+         type: Type.OBJECT,
+         properties: {
+            command: { type: Type.STRING, description: 'The CK console command to execute.' },
+            context: { type: Type.STRING, description: 'Context or selected object.' }
+         },
+         required: ['command']
+      }
+   },
+   {
+      name: 'hive_create_project',
+      description: 'Initialize a new modding project within The Hive. This creates a dedicated workspace entry for the user.',
+      parameters: {
+         type: Type.OBJECT,
+         properties: {
+            name: { type: Type.STRING, description: 'Short, catchy name for the mod.' },
+            description: { type: Type.STRING, description: 'Brief overview of what the mod does.' },
+            type: {
+               type: Type.STRING,
+               description: 'Category: quest, settlement, dungeon, npc, location, overhaul.'
             },
-            required: ['path']
-        }
-    },
-    {
-        name: 'read_file',
-        description: 'Read a file (Papyrus source .psc, XML, JSON, or text logs).',
-        parameters: {
-            type: Type.OBJECT,
-            properties: {
-                path: { type: Type.STRING, description: 'The full path to the file.' },
-            },
-            required: ['path']
-        }
-    },
-    {
-        name: 'execute_blender_script',
-        description: 'Execute a Python script in the active Blender instance via the Clipboard Relay. MUST start with import bpy.',
-        parameters: {
-            type: Type.OBJECT,
-            properties: {
-                script: { type: Type.STRING, description: 'The Python code (bpy) to execute.' },
-                description: { type: Type.STRING, description: 'A brief description of the action.' }
-            },
-            required: ['script', 'description']
-        }
-    },
-    {
-        name: 'write_blender_script',
-        description: 'Write a Python script into Blender\'s Text Editor (optionally run). Use for animation workflows to edit and iterate inside Blender.',
-        parameters: {
-            type: Type.OBJECT,
-            properties: {
-                script: { type: Type.STRING, description: 'The Python code to write.' },
-                name: { type: Type.STRING, description: 'Text block name (default: MOSSY_SCRIPT)' },
-                run: { type: Type.BOOLEAN, description: 'Whether to execute immediately after writing (default: false)' },
-                description: { type: Type.STRING, description: 'Short description of the action.' }
-            },
-            required: ['script']
-        }
-    },
-    {
-        name: 'get_blender_scene_info',
-        description: 'Get information about the current Blender scene (objects, frame, render settings, etc.)',
-        parameters: {
-            type: Type.OBJECT,
-            properties: {
-                description: { type: Type.STRING, description: 'Optional description of why you need scene info.' }
-            }
-        }
-    },
-    {
-        name: 'control_interface',
-        description: 'Navigate to Mossy modules (Workshop, Organizer, etc.).',
-        parameters: {
-            type: Type.OBJECT,
-            properties: {
-                action: { type: Type.STRING, description: 'Action: "navigate".' },
-                target: { type: Type.STRING, description: 'Route path.' }
-            },
-            required: ['action']
-        }
-    },
-    {
-        name: 'ck_execute_command',
-        description: 'Execute a console command in Creation Kit.',
-        parameters: {
-            type: Type.OBJECT,
-            properties: {
-                command: { type: Type.STRING, description: 'The CK console command to execute.' },
-                context: { type: Type.STRING, description: 'Context or selected object.' }
-            },
-            required: ['command']
-        }
-    },
-    {
-        name: 'hive_create_project',
-        description: 'Initialize a new modding project within The Hive. This creates a dedicated workspace entry for the user.',
-        parameters: {
-            type: Type.OBJECT,
-            properties: {
-                name: { type: Type.STRING, description: 'Short, catchy name for the mod.' },
-                description: { type: Type.STRING, description: 'Brief overview of what the mod does.' },
-                type: { 
-                    type: Type.STRING, 
-                    description: 'Category: quest, settlement, dungeon, npc, location, overhaul.'
-                },
-                version: { type: Type.STRING, description: 'Initial version (e.g., 0.1.0).' }
-            },
-            required: ['name', 'description', 'type']
-        }
-    },
-    {
-        name: 'launch_program',
-        description: 'Launch a detected program by name or path. Use this to open NVIDIA tools, AI tools, modding software, or any other detected application. Check [AUTOMATICALLY DETECTED TOOLS] for available programs.',
-        parameters: {
-            type: Type.OBJECT,
-            properties: {
-                programName: { type: Type.STRING, description: 'The name of the program to launch (e.g., "NVIDIA Canvas", "Luma AI", "GIMP", "xEdit"). Will search detected programs for a match.' },
-                reason: { type: Type.STRING, description: 'Brief explanation of why you\'re launching this tool (for user context).' }
-            },
-            required: ['programName', 'reason']
-        }
-    },
-    {
+            version: { type: Type.STRING, description: 'Initial version (e.g., 0.1.0).' }
+         },
+         required: ['name', 'description', 'type']
+      }
+   },
+   {
+      name: 'launch_program',
+      description: 'Launch a detected program by name or path. Use this to open NVIDIA tools, AI tools, modding software, or any other detected application. Check [AUTOMATICALLY DETECTED TOOLS] for available programs.',
+      parameters: {
+         type: Type.OBJECT,
+         properties: {
+            programName: { type: Type.STRING, description: 'The name of the program to launch (e.g., "NVIDIA Canvas", "Luma AI", "GIMP", "xEdit"). Will search detected programs for a match.' },
+            reason: { type: Type.STRING, description: 'Brief explanation of why you\'re launching this tool (for user context).' }
+         },
+         required: ['programName', 'reason']
+      }
+   },
+   {
       name: 'scan_hardware',
       description: 'Scan the user\'s local hardware, software versions, and modding environment. Only run this if the [SYSTEM SCAN STATUS] is NOT PERFORMED. Never prompt the user to scan for Fallout 4, Creation Kit, or any tool if it is already detected. Always use the latest scan results to inform responses.',
-        parameters: {
-            type: Type.OBJECT,
-            properties: {
-                deepScan: { type: Type.BOOLEAN, description: 'Whether to perform a deep registry scan for tool paths.' }
-            }
-        }
-    },
-    {
+      parameters: {
+         type: Type.OBJECT,
+         properties: {
+            deepScan: { type: Type.BOOLEAN, description: 'Whether to perform a deep registry scan for tool paths.' }
+         }
+      }
+   },
+   {
       name: 'get_scan_results',
       description: 'Retrieve the results from the most recent hardware scan. Use this when the user asks about detected software, apps, AI tools, modding tools, or what\'s installed on their system. Always use cached scan results to answer questions about installed software. Never prompt for tools that are already detected.',
-        parameters: {
-            type: Type.OBJECT,
-            properties: {}
-        }
-    },
-    {
-        name: 'analyze_detected_programs',
-        description: 'Analyze ALL installed programs on the user\'s system to intelligently suggest which ones can help with Fallout 4 modding. This uses AI to categorize tools (3D modeling, texture editing, scripting, utilities, etc.) and provide integration suggestions even for programs not on a hardcoded list.',
-        parameters: {
-            type: Type.OBJECT,
-            properties: {
-                category: { 
-                    type: Type.STRING, 
-                    description: 'Filter analysis by category: all, graphics, 3d_modeling, utilities, scripting, media, or leave empty for all programs.' 
-                },
-                findUsableFor: { 
-                    type: Type.STRING, 
-                    description: 'Find tools that could be used for a specific purpose, e.g., "texture creation", "mesh editing", "weight painting".' 
-                }
+      parameters: {
+         type: Type.OBJECT,
+         properties: {}
+      }
+   },
+   {
+      name: 'analyze_detected_programs',
+      description: 'Analyze ALL installed programs on the user\'s system to intelligently suggest which ones can help with Fallout 4 modding. This uses AI to categorize tools (3D modeling, texture editing, scripting, utilities, etc.) and provide integration suggestions even for programs not on a hardcoded list.',
+      parameters: {
+         type: Type.OBJECT,
+         properties: {
+            category: {
+               type: Type.STRING,
+               description: 'Filter analysis by category: all, graphics, 3d_modeling, utilities, scripting, media, or leave empty for all programs.'
+            },
+            findUsableFor: {
+               type: Type.STRING,
+               description: 'Find tools that could be used for a specific purpose, e.g., "texture creation", "mesh editing", "weight painting".'
             }
-        }
-    },
-    {
+         }
+      }
+   },
+   {
       name: 'scan_installed_tools',
       description: 'Deep scan all system drives for Fallout 4 modding software. Only run this if a specific tool (like xEdit) is missing from the [AUTOMATICALLY DETECTED TOOLS] list. Never prompt the user to scan for a tool if it is already detected.',
-        parameters: {
-            type: Type.OBJECT,
-            properties: {}
-        }
-    },
-    {
-        name: 'get_error_report',
-        description: 'Retrieve and display the most recent error report that was logged when a scan or operation failed. Use this when the user asks "what went wrong", "show me the error", or wants to see diagnostic information. This will display the error message with troubleshooting steps.',
-        parameters: {
-            type: Type.OBJECT,
-            properties: {}
-        }
-    },
-    {
-        name: 'export_error_logs',
-        description: 'Export all error logs as a downloadable file. Use this when the user explicitly asks to "download", "export", or "save" the error report. This creates a .txt file the user can open later.',
-        parameters: {
-            type: Type.OBJECT,
-            properties: {}
-        }
-    },
-    {
-        name: 'generate_papyrus_script',
-        description: 'Generate a Fallout 4 Papyrus script based on requirements.',
-        parameters: {
-            type: Type.OBJECT,
-            properties: {
-                scriptName: { type: Type.STRING, description: 'Name of the script (e.g. MyQuestScript)' },
-                extends: { type: Type.STRING, description: 'Parent script (e.g. Quest, ObjectReference, Actor)' },
-                functionality: { type: Type.STRING, description: 'Description of what the script needs to do.' },
-                code: { type: Type.STRING, description: 'The generated Papyrus code.' }
-            },
-            required: ['scriptName', 'code']
-        }
-    },
+      parameters: {
+         type: Type.OBJECT,
+         properties: {}
+      }
+   },
+   {
+      name: 'get_error_report',
+      description: 'Retrieve and display the most recent error report that was logged when a scan or operation failed. Use this when the user asks "what went wrong", "show me the error", or wants to see diagnostic information. This will display the error message with troubleshooting steps.',
+      parameters: {
+         type: Type.OBJECT,
+         properties: {}
+      }
+   },
+   {
+      name: 'export_error_logs',
+      description: 'Export all error logs as a downloadable file. Use this when the user explicitly asks to "download", "export", or "save" the error report. This creates a .txt file the user can open later.',
+      parameters: {
+         type: Type.OBJECT,
+         properties: {}
+      }
+   },
+   {
+      name: 'generate_papyrus_script',
+      description: 'Generate a Fallout 4 Papyrus script based on requirements.',
+      parameters: {
+         type: Type.OBJECT,
+         properties: {
+            scriptName: { type: Type.STRING, description: 'Name of the script (e.g. MyQuestScript)' },
+            extends: { type: Type.STRING, description: 'Parent script (e.g. Quest, ObjectReference, Actor)' },
+            functionality: { type: Type.STRING, description: 'Description of what the script needs to do.' },
+            code: { type: Type.STRING, description: 'The generated Papyrus code.' }
+         },
+         required: ['scriptName', 'code']
+      }
+   },
    {
       name: 'generate_xedit_script',
       description: 'Generate an xEdit/FO4Edit Pascal script (Edit Scripts) based on requirements.',
@@ -217,134 +217,134 @@ export const toolDeclarations: FunctionDeclaration[] = [
          required: ['scriptName', 'code']
       }
    },
-    {
-        name: 'browse_web',
-        description: 'Search the Nexus Mods wiki, Creation Kit wiki, or forums for Fallout 4 info.',
-        parameters: {
-            type: Type.OBJECT,
-            properties: {
-                url: { type: Type.STRING, description: 'The URL to visit.' },
+   {
+      name: 'browse_web',
+      description: 'Search the Nexus Mods wiki, Creation Kit wiki, or forums for Fallout 4 info.',
+      parameters: {
+         type: Type.OBJECT,
+         properties: {
+            url: { type: Type.STRING, description: 'The URL to visit.' },
+         },
+         required: ['url']
+      }
+   },
+   {
+      name: 'analyze_error_log',
+      description: 'Parse a Papyrus or Creation Kit crash/warning log to identify the root cause and provide a beginner-friendly explanation.',
+      parameters: {
+         type: Type.OBJECT,
+         properties: {
+            logContent: { type: Type.STRING, description: 'The raw text content from the .log or console.' },
+            logType: { type: Type.STRING, enum: ['papyrus', 'ck_warning', 'f4se', 'crash_log'], description: 'The type of log being analyzed.' }
+         },
+         required: ['logContent', 'logType']
+      }
+   },
+   {
+      name: 'mossy_update_working_memory',
+      description: 'Store or update critical short-term information about the current lesson, student progress, user goals, or project state. Use this to maintain memory across session turns.',
+      parameters: {
+         type: Type.OBJECT,
+         properties: {
+            memory: { type: Type.STRING, description: 'The information to remember (e.g., "Step 3: User is currently weight painting the right arm").' }
+         },
+         required: ['memory']
+      }
+   },
+   {
+      name: 'create_mod_project',
+      description: 'Create a new mod project in The Hive for tracking and organization. This initializes a dedicated workspace for a mod with separate tracking.',
+      parameters: {
+         type: Type.OBJECT,
+         properties: {
+            name: { type: Type.STRING, description: 'The name of the mod (e.g., "Plasma Rifle Overhaul", "My Custom Quest").' },
+            description: { type: Type.STRING, description: 'What the mod does and your vision for it.' },
+            type: {
+               type: Type.STRING,
+               enum: ['weapon', 'armor', 'quest', 'settlement', 'gameplay', 'texture', 'mesh', 'script', 'other'],
+               description: 'The type of mod: weapon, armor, quest, settlement, gameplay, texture, mesh, script, or other.'
             },
-            required: ['url']
-        }
-    },
-    {
-        name: 'analyze_error_log',
-        description: 'Parse a Papyrus or Creation Kit crash/warning log to identify the root cause and provide a beginner-friendly explanation.',
-        parameters: {
-            type: Type.OBJECT,
-            properties: {
-                logContent: { type: Type.STRING, description: 'The raw text content from the .log or console.' },
-                logType: { type: Type.STRING, enum: ['papyrus', 'ck_warning', 'f4se', 'crash_log'], description: 'The type of log being analyzed.' }
+            author: { type: Type.STRING, description: 'Your name or username.' }
+         },
+         required: ['name', 'type', 'author']
+      }
+   },
+   {
+      name: 'add_mod_step',
+      description: 'Add a new step to an existing mod project. Use this to track individual tasks within a mod.',
+      parameters: {
+         type: Type.OBJECT,
+         properties: {
+            projectId: { type: Type.STRING, description: 'The ID of the mod project (returned from create_mod_project or shown in the Mod Projects list).' },
+            title: { type: Type.STRING, description: 'Name of the step (e.g., "Model the barrel", "Write quest script", "Texture UV mapping").' },
+            description: { type: Type.STRING, description: 'Detailed description of what this step involves.' },
+            priority: {
+               type: Type.STRING,
+               enum: ['low', 'medium', 'high'],
+               description: 'Priority level for this step.'
             },
-            required: ['logContent', 'logType']
-        }
-    },
-    {
-        name: 'mossy_update_working_memory',
-        description: 'Store or update critical short-term information about the current lesson, student progress, user goals, or project state. Use this to maintain memory across session turns.',
-        parameters: {
-            type: Type.OBJECT,
-            properties: {
-                memory: { type: Type.STRING, description: 'The information to remember (e.g., "Step 3: User is currently weight painting the right arm").' }
+            estimatedHours: { type: Type.NUMBER, description: 'Estimated hours needed to complete this step.' }
+         },
+         required: ['projectId', 'title']
+      }
+   },
+   {
+      name: 'update_mod_step',
+      description: 'Update the status or details of a mod step. Use this to mark steps as completed, in-progress, or blocked.',
+      parameters: {
+         type: Type.OBJECT,
+         properties: {
+            projectId: { type: Type.STRING, description: 'The ID of the mod project.' },
+            stepId: { type: Type.STRING, description: 'The ID of the step to update.' },
+            status: {
+               type: Type.STRING,
+               enum: ['pending', 'in-progress', 'completed', 'blocked'],
+               description: 'The new status for this step.'
             },
-            required: ['memory']
-        }
-    },
-    {
-        name: 'create_mod_project',
-        description: 'Create a new mod project in The Hive for tracking and organization. This initializes a dedicated workspace for a mod with separate tracking.',
-        parameters: {
-            type: Type.OBJECT,
-            properties: {
-                name: { type: Type.STRING, description: 'The name of the mod (e.g., "Plasma Rifle Overhaul", "My Custom Quest").' },
-                description: { type: Type.STRING, description: 'What the mod does and your vision for it.' },
-                type: { 
-                    type: Type.STRING, 
-                    enum: ['weapon', 'armor', 'quest', 'settlement', 'gameplay', 'texture', 'mesh', 'script', 'other'],
-                    description: 'The type of mod: weapon, armor, quest, settlement, gameplay, texture, mesh, script, or other.' 
-                },
-                author: { type: Type.STRING, description: 'Your name or username.' }
-            },
-            required: ['name', 'type', 'author']
-        }
-    },
-    {
-        name: 'add_mod_step',
-        description: 'Add a new step to an existing mod project. Use this to track individual tasks within a mod.',
-        parameters: {
-            type: Type.OBJECT,
-            properties: {
-                projectId: { type: Type.STRING, description: 'The ID of the mod project (returned from create_mod_project or shown in the Mod Projects list).' },
-                title: { type: Type.STRING, description: 'Name of the step (e.g., "Model the barrel", "Write quest script", "Texture UV mapping").' },
-                description: { type: Type.STRING, description: 'Detailed description of what this step involves.' },
-                priority: { 
-                    type: Type.STRING, 
-                    enum: ['low', 'medium', 'high'],
-                    description: 'Priority level for this step.' 
-                },
-                estimatedHours: { type: Type.NUMBER, description: 'Estimated hours needed to complete this step.' }
-            },
-            required: ['projectId', 'title']
-        }
-    },
-    {
-        name: 'update_mod_step',
-        description: 'Update the status or details of a mod step. Use this to mark steps as completed, in-progress, or blocked.',
-        parameters: {
-            type: Type.OBJECT,
-            properties: {
-                projectId: { type: Type.STRING, description: 'The ID of the mod project.' },
-                stepId: { type: Type.STRING, description: 'The ID of the step to update.' },
-                status: { 
-                    type: Type.STRING, 
-                    enum: ['pending', 'in-progress', 'completed', 'blocked'],
-                    description: 'The new status for this step.' 
-                },
-                notes: { type: Type.STRING, description: 'Add notes or comments about the step progress.' },
-                actualHours: { type: Type.NUMBER, description: 'Hours actually spent on this step (updates when step is completed).' }
-            },
-            required: ['projectId', 'stepId']
-        }
-    },
-    {
-        name: 'get_mod_status',
-        description: 'Get the current status and progress of a mod project, including all steps and their statuses.',
-        parameters: {
-            type: Type.OBJECT,
-            properties: {
-                projectId: { type: Type.STRING, description: 'The ID of the mod project. If omitted, returns the current active mod.' }
-            }
-        }
-    },
-    {
-        name: 'list_mod_projects',
-        description: 'List all mod projects with their status, completion percentage, and step counts. Use this to see what mods you\'re working on.',
-        parameters: {
-            type: Type.OBJECT,
-            properties: {}
-        }
-    },
-    {
-        name: 'set_current_mod',
-        description: 'Set which mod project is currently active. This tells Mossy which mod you\'re focusing on so context-aware advice can be provided.',
-        parameters: {
-            type: Type.OBJECT,
-            properties: {
-                projectId: { type: Type.STRING, description: 'The ID of the mod project to make active.' }
-            },
-            required: ['projectId']
-        }
-    },
-    {
-        name: 'launch_tool',
-        description: 'Launch a professional modding tool or software application. ALWAYS use the exact toolId from the list below.',
-        parameters: {
-            type: Type.OBJECT,
-            properties: {
-                toolId: { 
-                    type: Type.STRING, 
-                    description: `The exact ID of the tool to launch. USE THESE EXACT IDs:
+            notes: { type: Type.STRING, description: 'Add notes or comments about the step progress.' },
+            actualHours: { type: Type.NUMBER, description: 'Hours actually spent on this step (updates when step is completed).' }
+         },
+         required: ['projectId', 'stepId']
+      }
+   },
+   {
+      name: 'get_mod_status',
+      description: 'Get the current status and progress of a mod project, including all steps and their statuses.',
+      parameters: {
+         type: Type.OBJECT,
+         properties: {
+            projectId: { type: Type.STRING, description: 'The ID of the mod project. If omitted, returns the current active mod.' }
+         }
+      }
+   },
+   {
+      name: 'list_mod_projects',
+      description: 'List all mod projects with their status, completion percentage, and step counts. Use this to see what mods you\'re working on.',
+      parameters: {
+         type: Type.OBJECT,
+         properties: {}
+      }
+   },
+   {
+      name: 'set_current_mod',
+      description: 'Set which mod project is currently active. This tells Mossy which mod you\'re focusing on so context-aware advice can be provided.',
+      parameters: {
+         type: Type.OBJECT,
+         properties: {
+            projectId: { type: Type.STRING, description: 'The ID of the mod project to make active.' }
+         },
+         required: ['projectId']
+      }
+   },
+   {
+      name: 'launch_tool',
+      description: 'Launch a professional modding tool or software application. ALWAYS use the exact toolId from the list below.',
+      parameters: {
+         type: Type.OBJECT,
+         properties: {
+            toolId: {
+               type: Type.STRING,
+               description: `The exact ID of the tool to launch. USE THESE EXACT IDs:
                     
 **Core Modding Tools:**
 - "xedit" or "fo4edit" → Launch FO4Edit/xEdit
@@ -381,93 +381,100 @@ export const toolDeclarations: FunctionDeclaration[] = [
 - "unwrap3" → Launch UnWrap3
 - "spin3d" → Launch Spin 3D
 
-CRITICAL: When user says "open xEdit", use toolId: "xedit". When user says "launch Blender", use toolId: "blender". Match the user's intent to the correct toolId from the list above.` 
-                },
-                path: {
-                    type: Type.STRING,
-                    description: 'Explicit path to the executable (optional override - only use if user provides a specific path).'
-                }
+CRITICAL: When user says "open xEdit", use toolId: "xedit". When user says "launch Blender", use toolId: "blender". Match the user's intent to the correct toolId from the list above.`
             },
-            required: ['toolId']
-        }
-    },
-    {
-        name: 'update_tool_path',
-        description: 'Update the saved execution path for a specific tool. Use this when the user tells you a tool is in a different location.',
-        parameters: {
-            type: Type.OBJECT,
-            properties: {
-                toolId: { type: Type.STRING, description: 'The ID of the tool (e.g., "xedit", "nifskope").' },
-                path: { type: Type.STRING, description: 'The new absolute path to the executable.' }
-            },
-            required: ['toolId', 'path']
-        }
-    },
-    {
-        name: 'search_fallout4_wiki',
-        description: 'Search the Fallout 4 Wiki (Fandom) for technical documentation, mechanics, or IDs.',
-        parameters: {
-            type: Type.OBJECT,
-            properties: {
-                query: { type: Type.STRING, description: 'The search term (e.g., "Papyrus ObjectReference", "Weapon Mods", "Combat Armor ID").' }
-            },
-            required: ['query']
-        }
-    },
-    {
-        name: 'install_script',
-        description: 'Install a Papyrus or xEdit script directly to the user\'s mod folders. Always ask for permission first.',
-        parameters: {
-            type: Type.OBJECT,
-            properties: {
-                type: { type: Type.STRING, enum: ['papyrus', 'xedit'], description: 'Type of script to install.' },
-                name: { type: Type.STRING, description: 'Filename without extension (e.g., "MyScript").' },
-                code: { type: Type.STRING, description: 'The full source code of the script.' }
-            },
-            required: ['type', 'name', 'code']
-        }
-    },
-    {
-        name: 'cortex_neural_pulse',
-        description: 'Trigger a Neural Pulse scan in The Cortex to analyze the user\'s MO2 load order and local assets for conflicts or optimizations.',
-        parameters: {
-            type: Type.OBJECT,
-            properties: {
-                reason: { type: Type.STRING, description: 'Why you are initiating the scan (e.g., "Checking for ArmorKeywords conflicts").' }
+            path: {
+               type: Type.STRING,
+               description: 'Explicit path to the executable (optional override - only use if user provides a specific path).'
             }
-        }
-    }
+         },
+         required: ['toolId']
+      }
+   },
+   {
+      name: 'update_tool_path',
+      description: 'Update the saved execution path for a specific tool. Use this when the user tells you a tool is in a different location.',
+      parameters: {
+         type: Type.OBJECT,
+         properties: {
+            toolId: { type: Type.STRING, description: 'The ID of the tool (e.g., "xedit", "nifskope").' },
+            path: { type: Type.STRING, description: 'The new absolute path to the executable.' }
+         },
+         required: ['toolId', 'path']
+      }
+   },
+   {
+      name: 'search_fallout4_wiki',
+      description: 'Search the Fallout 4 Wiki (Fandom) for technical documentation, mechanics, or IDs.',
+      parameters: {
+         type: Type.OBJECT,
+         properties: {
+            query: { type: Type.STRING, description: 'The search term (e.g., "Papyrus ObjectReference", "Weapon Mods", "Combat Armor ID").' }
+         },
+         required: ['query']
+      }
+   },
+   {
+      name: 'install_script',
+      description: 'Install a Papyrus or xEdit script directly to the user\'s mod folders. Always ask for permission first.',
+      parameters: {
+         type: Type.OBJECT,
+         properties: {
+            type: { type: Type.STRING, enum: ['papyrus', 'xedit'], description: 'Type of script to install.' },
+            name: { type: Type.STRING, description: 'Filename without extension (e.g., "MyScript").' },
+            code: { type: Type.STRING, description: 'The full source code of the script.' }
+         },
+         required: ['type', 'name', 'code']
+      }
+   },
+   {
+      name: 'cortex_neural_pulse',
+      description: 'Trigger a Neural Pulse scan in The Cortex to analyze the user\'s MO2 load order and local assets for conflicts or optimizations.',
+      parameters: {
+         type: Type.OBJECT,
+         properties: {
+            reason: { type: Type.STRING, description: 'Why you are initiating the scan (e.g., "Checking for ArmorKeywords conflicts").' }
+         }
+      }
+   }
 ];
 
 export const getFullSystemInstruction = (contextStr?: string): string => {
    let prompt =
-      'You are Mossy, a knowledgeable and warm Fallout 4 modding companion. You genuinely enjoy helping people build mods — whether someone is brand new or already deep into a complex project. Talk like a real person: be natural, engaged, and direct. Skip the formality.' +
-      '\n\nYour Fallout 4 expertise is deep and genuine — Blender-to-FO4 pipelines, Papyrus scripting, Creation Kit, xEdit, NifSkope, textures, quests, animations, settlements — you know it all and love talking about it. You also know the tools modders use every day (MO2, Vortex, GIMP, NifSkope, etc.).' +
+      'You are Mossy, a teaching assistant and mentor for Fallout 4 modding. Your role is to guide, educate, and empower modders at every skill level — from first-timers asking "where do I start?" to experienced modders tackling complex workflows. Think of yourself as a patient tutor who explains not just the "how" but the "why" behind each step.' +
+      '\n\n**Teaching Philosophy:**' +
+      '\n- **Meet them where they are.** New modders get step-by-step guidance, clear explanations, and encouragement. Experienced modders get technical depth and respect for their expertise without unnecessary hand-holding.' +
+      '\n- **Explain the why.** Don\'t just tell someone to do X; explain why X matters, what could go wrong if they skip it, and how it connects to the broader workflow.' +
+      '\n- **Build confidence.** Celebrate small wins. Normalize mistakes as learning opportunities. When someone is stuck, guide them to the solution rather than handing it to them.' +
+      '\n- **Make it conversational.** You\'re a person who happens to know modding really well, not a robot reading from a manual. Use natural language, ask clarifying questions, and genuinely listen to what the user is asking.' +
+      '\n\nYour Fallout 4 expertise is deep and genuine — Blender-to-FO4 pipelines, Papyrus scripting, Creation Kit, xEdit, NifSkope, textures, quests, animations, settlements — you know it all and love talking about it. You also know the tools modders use every day (MO2, Vortex, GIMP, NifSkope, etc.) and the common pitfalls they face.' +
       '\n\nYou have a Knowledge Vault (knowledge bank) containing user-uploaded documents, tutorials, guides, and process notes. Always use this Knowledge Vault as your primary source of truth for technical, workflow, or process questions. If the user has uploaded information, treat it as authoritative and reference it by title or summary.' +
-      '\n\nBefore giving instructions, check the [DETECTED TOOLS] list. If a required tool is missing, let the user know in a friendly way — what it is, why they need it, and how to get it. If you\'re unsure of the exact download source, say so honestly and ask which source they prefer.' +
+      '\n\nBefore giving instructions, check the [DETECTED TOOLS] list. If a required tool is missing, let the user know in a friendly, encouraging way — what it is, why they need it, and how to get it. If you\'re unsure of the exact download source, say so honestly and ask which source they prefer.' +
       '\n\nWhen you need information that isn\'t in your Knowledge Vault or local context, search the Internet. Prefer official sources and reputable modding communities. Mention when you\'re searching so the user knows.' +
       '\n\nIf something is unclear or information is missing to complete a workflow, just ask — don\'t guess.' +
-      '\n\nHow you communicate:' +
-      '\n- Be conversational and natural. You\'re a knowledgeable friend, not a help desk script.' +
-      '\n- Read the room. Beginners get clear explanations and gentle encouragement. Experienced modders get the technical detail they\'re after without extra hand-holding.' +
-      '\n- When walking someone through a multi-step workflow, break it into manageable pieces. Explain the why behind each step, not just the what.' +
-      '\n- **Guidance Mode Rule**: If context includes "GUIDANCE MODE: SLOW", focus on one step at a time and check that the user is ready before moving on.' +
+      '\n\n**Teaching Communication Style:**' +
+      '\n- **For beginners**: Use analogies and relatable examples. Break complex concepts into digestible pieces. Encourage questions and never make anyone feel bad for not knowing something.' +
+      '\n- **For intermediate modders**: Provide technical detail and efficiency tips. Explain trade-offs and advanced techniques. Trust them to make informed decisions.' +
+      '\n- **For experienced modders**: Respect their knowledge. Share optimization strategies, edge cases, and advanced patterns. Engage in technical discussion as a peer.' +
+      '\n- **Cross-skill teaching**: Ask "what\'s your experience level with X?" if unclear, so you can calibrate your explanations.' +
+      '\n- When walking someone through a multi-step workflow, break it into manageable pieces and explain the why behind each step. Use checkpoints: "Does that make sense? Ready for the next part?"' +
+      '\n- **Guidance Mode Rule**: If context includes "GUIDANCE MODE: SLOW", focus on one step at a time and actively check that the user is ready before moving on.' +
       '\n- **Step Tracking**: For multi-step mod workflows, create or update a Mod Project and track steps using create_mod_project/add_mod_step/update_mod_step. Record the current step in working memory.' +
       '\n- **Tool Connection Acknowledgment**: If the context includes "Tool Connection Notice: ACKNOWLEDGED", do not restate tool-connection/permission summaries unless the user asks.' +
       '\n- **Scan History Awareness**: If context includes scan history and permission counts, use it to answer questions. Do not request a new scan unless the user asks or the scan history is missing/unknown.' +
       '\n- **Live Tool Monitoring**: If context includes "LIVE TOOL MONITORING", use it to tailor guidance and warn about missteps or missing steps in the active tool. Do not claim you clicked anything; suggest what the user should do next.' +
-      '\n- **Live Synapse Brevity**: In voice sessions, keep responses short and conversational — aim for 2–3 sentences per turn so the user can keep working without being overwhelmed.' +
-      '\n- When the user asks what they need / where to download / how to install (xEdit/FO4Edit, Sim Settlements 2 plot building, PRP, patching mods, etc.), cover:' +
+      '\n- **Live Synapse Brevity**: In voice sessions, keep responses short and conversational — aim for 2–3 sentences per turn so the user can keep working without being overwhelmed. Still engage like a real person, not a script.' +
+      '\n- When the user asks what they need / where to download / how to install (xEdit/FO4Edit, Sim Settlements 2 plot building, PRP, patching mods, etc.), explain the journey:' +
       '\n  1) What you need (prereqs + versions + mod manager assumptions)' +
       '\n  2) Where to get it (ONLY provide URLs if they are in the Knowledge Vault excerpts or the user provided them; otherwise say you do not have the exact link locally and ask which source they want to use)' +
-      '\n  3) How to install (MO2, Vortex, and manual paths when relevant)' +
-      '\n  4) How to verify it worked (what to check in-game or in the tool)' +
-      '\n  5) Common failure modes + fixes (load order, requirements, missing masters, wrong game version)' +
+      '\n  3) How to install (MO2, Vortex, and manual paths when relevant — explain the differences)' +
+      '\n  4) How to verify it worked (what to check in-game or in the tool — teach them to troubleshoot)' +
+      '\n  5) Common failure modes + fixes (load order, requirements, missing masters, wrong game version — frame these as learning moments)' +
       '\n- Use the Knowledge Vault excerpts as authoritative when present; reference the titles you used.' +
       '\n- **Technical Verification (Wiki)**: You are connected to the Fallout 4 Wiki. Use the `search_fallout4_wiki` tool to verify FormIDs, global variables, and game mechanics when local knowledge is insufficient.' +
-      '\n- **Visual Diagnostics (The Auditor)**: You can now "see" texture metadata. If a user asks about DDS files, mention that the Auditor can read their resolution, format, and provide a live preview to verify corruption or pathing issues.' +
+      '\n- **Visual Diagnostics (The Auditor)**: You can now "see" texture metadata. If a user asks about DDS files, explain what the Auditor can read (resolution, format, corruption indicators) and offer to check their files.' +
       '\n- **Advanced App Integration (Phase 4)**: ' +
-      '\n  1) **The Scribe**: Now features a "Technical Inspector" sidebar with real-time function references and Wiki indexing.' +
+      '\n  1) **The Scribe**: Features a "Technical Inspector" sidebar with real-time function references and Wiki indexing.' +
       '\n  2) **The Hive**: Features a "Live Build Console" that tracks the output of Papyrus/xEdit/Blender build pipelines in real-time.' +
       '\n  3) **The Cortex**: Use `cortex_neural_pulse` to sync with MO2/Fallout 4 and scan for conflicts, performance issues, and required patches.' +
       '\n- Never guess file paths or tool locations. Use detected/configured paths from context, or ask the user.' +
@@ -478,12 +485,13 @@ export const getFullSystemInstruction = (contextStr?: string): string => {
       '\n- Voice settings (preferred voice, rate, pitch, volume) can be adjusted at any time under Settings → Voice Settings.' +
       '\n- If you are asked "can you talk?", "why aren\'t you speaking?", "how do I get your voice working?", or similar questions, explain the above clearly and guide the user to the Voice toggle button.' +
       '\n- If the user says they cannot hear you, suggest: 1) Check the "Voice: ON/OFF" toggle in the chat toolbar is ON. 2) Go to Settings → Voice Settings and verify "Enabled" is checked. 3) Click "Test" in Voice Settings to verify TTS is working. 4) Check system volume and browser/app audio permissions.' +
+      '\n- Users can pause your speech and resume at any time using the "Pause" / "Resume" button in the chat toolbar — no need to restart the app.' +
       '\n\n' + MASTER_TECHNICAL_GUIDE;
-  
+
    if (contextStr && typeof contextStr === 'string' && contextStr.trim()) {
       prompt += '\n\nContext:\n' + contextStr;
    }
-  
+
    return prompt;
 };
 

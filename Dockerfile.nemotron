@@ -1,0 +1,52 @@
+# Multi-stage build for NeMo Nemotron service
+FROM nvidia/cuda:12.1.1-runtime-ubuntu22.04 as base
+
+WORKDIR /app
+
+# Install system dependencies
+RUN apt-get update && apt-get install -y \
+    python3.11 \
+    python3-pip \
+    git \
+    && rm -rf /var/lib/apt/lists/*
+
+# Stage 2: Install NeMo and dependencies
+FROM base as builder
+
+WORKDIR /app
+
+# Clone and install NeMo
+RUN git clone --depth 1 https://github.com/NVIDIA/NeMo.git /tmp/NeMo && \
+    cd /tmp/NeMo && \
+    pip install --no-cache-dir -e ".[nlp]" && \
+    rm -rf /tmp/NeMo
+
+# Install Flask and other dependencies
+COPY requirements-docker.txt .
+RUN pip install --no-cache-dir -r requirements-docker.txt
+
+# Stage 3: Runtime
+FROM base as runtime
+
+WORKDIR /app
+
+# Copy installed packages from builder
+COPY --from=builder /usr/local/lib/python3.11/dist-packages /usr/local/lib/python3.11/dist-packages
+COPY --from=builder /usr/local/bin /usr/local/bin
+
+# Copy Flask app
+COPY nemotron_api.py .
+
+# Create model cache directory
+RUN mkdir -p /models && chmod 777 /models
+
+ENV TRANSFORMERS_CACHE=/models
+ENV HUGGINGFACE_HUB_CACHE=/models
+ENV PYTHONUNBUFFERED=1
+
+EXPOSE 5000
+
+HEALTHCHECK --interval=30s --timeout=10s --start-period=120s --retries=3 \
+    CMD curl -f http://localhost:5000/health || exit 1
+
+CMD ["python3", "nemotron_api.py"]
