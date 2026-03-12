@@ -32,6 +32,9 @@ realesrgan_helpers = _safe_import("realesrgan_helpers")
 instantngp_helpers = _safe_import("instantngp_helpers")
 imageto3d_helpers = _safe_import("imageto3d_helpers")
 motion_generation_helpers = _safe_import("motion_generation_helpers")
+fo4_material_browser  = _safe_import("fo4_material_browser")
+fo4_scene_diagnostics = _safe_import("fo4_scene_diagnostics")
+fo4_reference_helpers = _safe_import("fo4_reference_helpers")
 
 class FO4_PT_MainPanel(Panel):
     """Main tutorial panel in the 3D View sidebar"""
@@ -2148,6 +2151,233 @@ class FO4_PT_PostProcessingPanel(Panel):
         sub.label(text="4. Export JSON → enter values in CK IMGS record")
 
 
+class FO4_PT_MaterialBrowserPanel(Panel):
+    """FO4 material preset browser – apply pre-built surface materials"""
+    bl_label = "Material Browser (FO4)"
+    bl_idname = "FO4_PT_material_browser_panel"
+    bl_space_type = 'VIEW_3D'
+    bl_region_type = 'UI'
+    bl_category = 'Fallout 4'
+    bl_parent_id = "FO4_PT_main_panel"
+    bl_options = {'DEFAULT_CLOSED'}
+
+    def draw(self, context):
+        layout = self.layout
+        scene = context.scene
+
+        # ── Preset selector ──────────────────────────────────────────────────
+        sel_box = layout.box()
+        sel_box.label(text="Surface Material Preset", icon='MATERIAL')
+        sel_box.prop(scene, "fo4_mat_preset", text="")
+        sel_box.prop(scene, "fo4_mat_apply_all", text="Apply to All Selected")
+        op = sel_box.operator("fo4.apply_material_preset",
+                              text="Apply to Selection", icon='CHECKMARK')
+        op.preset      = getattr(scene, "fo4_mat_preset", "RUSTY_METAL")
+        op.apply_all_selected = getattr(scene, "fo4_mat_apply_all", True)
+
+        # ── Quick-apply buttons by category ─────────────────────────────────
+        if fo4_material_browser:
+            # Metals
+            m_box = layout.box()
+            m_box.label(text="Metals", icon='MATERIAL_DATA')
+            row = m_box.row(align=True)
+            for pid in ("RUSTY_METAL", "CLEAN_METAL", "GALVANIZED_METAL", "VAULT_METAL"):
+                label = fo4_material_browser.PRESETS[pid]["label"].split()[0]
+                r = row.operator("fo4.apply_material_preset", text=label)
+                r.preset = pid
+                r.apply_all_selected = getattr(scene, "fo4_mat_apply_all", True)
+
+            # Stone & Ground
+            s_box = layout.box()
+            s_box.label(text="Stone & Ground", icon='MESH_CUBE')
+            row = s_box.row(align=True)
+            for pid in ("CRACKED_CONCRETE", "SMOOTH_CONCRETE", "STONE", "ASPHALT"):
+                label = fo4_material_browser.PRESETS[pid]["label"].split()[0]
+                r = row.operator("fo4.apply_material_preset", text=label)
+                r.preset = pid
+                r.apply_all_selected = getattr(scene, "fo4_mat_apply_all", True)
+
+            # Organic & Fabric
+            o_box = layout.box()
+            o_box.label(text="Organic & Fabric", icon='MESH_UVSPHERE')
+            row = o_box.row(align=True)
+            for pid in ("WOOD_PLANK", "LEATHER", "FABRIC_CLOTH", "HUMAN_SKIN"):
+                label = fo4_material_browser.PRESETS[pid]["label"].split()[0]
+                r = row.operator("fo4.apply_material_preset", text=label)
+                r.preset = pid
+                r.apply_all_selected = getattr(scene, "fo4_mat_apply_all", True)
+
+            # Special / Emissive
+            e_box = layout.box()
+            e_box.label(text="Special / Emissive", icon='LIGHT_SUN')
+            row = e_box.row(align=True)
+            for pid in ("NEON_LIGHT", "TERMINAL_SCREEN", "POWER_ARMOR_PAINT", "GLASS_CLEAR"):
+                label = fo4_material_browser.PRESETS[pid]["label"].split()[0]
+                r = row.operator("fo4.apply_material_preset", text=label)
+                r.preset = pid
+                r.apply_all_selected = getattr(scene, "fo4_mat_apply_all", True)
+
+        # ── Info ─────────────────────────────────────────────────────────────
+        info_box = layout.box()
+        info_box.label(text="Workflow:", icon='INFO')
+        sub = info_box.column(align=True)
+        sub.scale_y = 0.75
+        sub.label(text="1. Select your mesh object(s)")
+        sub.label(text="2. Pick a surface type")
+        sub.label(text="3. Click 'Apply to Selection'")
+        sub.label(text="4. Connect your texture images to the")
+        sub.label(text="   Diffuse/Normal/Specular nodes")
+        sub.label(text="5. Convert textures to DDS in NVTT panel")
+
+
+class FO4_PT_SceneDiagnosticsPanel(Panel):
+    """Comprehensive FO4 scene health / export-readiness dashboard"""
+    bl_label = "Scene Diagnostics"
+    bl_idname = "FO4_PT_scene_diagnostics_panel"
+    bl_space_type = 'VIEW_3D'
+    bl_region_type = 'UI'
+    bl_category = 'Fallout 4'
+    bl_parent_id = "FO4_PT_main_panel"
+    bl_options = {'DEFAULT_CLOSED'}
+
+    def draw(self, context):
+        layout = self.layout
+        scene  = context.scene
+
+        # ── Score header ────────────────────────────────────────────────────
+        score   = getattr(scene, "fo4_diag_last_score",    -1)
+        errors  = getattr(scene, "fo4_diag_last_errors",    0)
+        warns   = getattr(scene, "fo4_diag_last_warnings",  0)
+        ready   = getattr(scene, "fo4_diag_export_ready",   False)
+
+        score_box = layout.box()
+        if score < 0:
+            score_box.label(text="No diagnostics run yet", icon='QUESTION')
+        else:
+            icon = 'CHECKMARK' if ready else ('ERROR' if errors > 0 else 'INFO')
+            score_box.label(
+                text=f"Score: {score}/100  |  {errors} error(s)  {warns} warning(s)",
+                icon=icon,
+            )
+            if ready:
+                score_box.label(text="✅ Scene is export-ready", icon='CHECKMARK')
+            elif errors > 0:
+                score_box.label(text="❌ Fix errors before exporting", icon='ERROR')
+
+        # ── Action buttons ───────────────────────────────────────────────────
+        btn_row = layout.row(align=True)
+        btn_row.operator("fo4.run_scene_diagnostics",
+                         text="Run Diagnostics", icon='VIEWZOOM')
+        btn_row.operator("fo4.auto_fix_diagnostics",
+                         text="Auto-Fix", icon='TOOL_SETTINGS')
+
+        # ── Per-object results (from stored report) ──────────────────────────
+        if fo4_scene_diagnostics:
+            report = fo4_scene_diagnostics.load_report()
+            if report and report.get("objects"):
+                results_box = layout.box()
+                results_box.label(text="Per-Object Results:", icon='OBJECT_DATA')
+                for obj_r in report["objects"]:
+                    obj_name = obj_r.get("name", "?")
+                    obj_err  = obj_r.get("error_count",   0)
+                    obj_warn = obj_r.get("warning_count", 0)
+                    obj_poly = obj_r.get("poly_count",    0)
+
+                    if obj_err > 0:
+                        icon = 'ERROR'
+                    elif obj_warn > 0:
+                        icon = 'INFO'
+                    else:
+                        icon = 'CHECKMARK'
+
+                    row = results_box.row(align=True)
+                    row.label(
+                        text=f"{obj_name} ({obj_poly:,} polys)",
+                        icon=icon,
+                    )
+                    if obj_err > 0 or obj_warn > 0:
+                        row.label(text=f"E:{obj_err} W:{obj_warn}")
+
+        # ── Export report ────────────────────────────────────────────────────
+        exp_box = layout.box()
+        exp_box.label(text="Export Report", icon='FILE_TEXT')
+        exp_box.prop(scene, "fo4_diag_report_path", text="")
+        exp_box.operator("fo4.export_diagnostics_report",
+                         text="Save Diagnostics Report", icon='EXPORT')
+
+        # ── Info ─────────────────────────────────────────────────────────────
+        info_box = layout.box()
+        info_box.label(text="Checks performed:", icon='INFO')
+        sub = info_box.column(align=True)
+        sub.scale_y = 0.75
+        sub.label(text="• Polygon count (≤ 65,535)")
+        sub.label(text="• UV map, scale applied")
+        sub.label(text="• Triangulation, loose verts")
+        sub.label(text="• Material / texture nodes")
+        sub.label(text="• Collision mesh (UCX_)")
+        sub.label(text="• Rigging: bones, root, VGs")
+        sub.label(text="• Naming (no spaces/non-ASCII)")
+
+
+class FO4_PT_ReferenceObjectsPanel(Panel):
+    """FO4 scale reference objects panel"""
+    bl_label = "Scale References"
+    bl_idname = "FO4_PT_reference_objects_panel"
+    bl_space_type = 'VIEW_3D'
+    bl_region_type = 'UI'
+    bl_category = 'Fallout 4'
+    bl_parent_id = "FO4_PT_main_panel"
+    bl_options = {'DEFAULT_CLOSED'}
+
+    def draw(self, context):
+        layout = self.layout
+        scene  = context.scene
+
+        # ── Add reference ────────────────────────────────────────────────────
+        add_box = layout.box()
+        add_box.label(text="Add Scale Reference", icon='EMPTY_AXIS')
+        add_box.prop(scene, "fo4_ref_type", text="")
+        op = add_box.operator("fo4.add_reference_object",
+                              text="Add to Scene", icon='ADD')
+        op.ref_type = getattr(scene, "fo4_ref_type", "HUMAN_MALE")
+
+        # ── Quick-add buttons ────────────────────────────────────────────────
+        quick_box = layout.box()
+        quick_box.label(text="Quick Add:", icon='OBJECT_DATA')
+
+        row = quick_box.row(align=True)
+        for rid in ("HUMAN_MALE", "HUMAN_FEMALE", "POWER_ARMOR"):
+            r = row.operator("fo4.add_reference_object",
+                             text=fo4_reference_helpers.REFERENCES[rid]["label"].split('(')[0].strip()
+                             if fo4_reference_helpers else rid)
+            r.ref_type = rid
+
+        row2 = quick_box.row(align=True)
+        for rid in ("PRE_WAR_CAR", "DOOR_FRAME", "CUBE_1M"):
+            r = row2.operator("fo4.add_reference_object",
+                              text=fo4_reference_helpers.REFERENCES[rid]["label"].split('(')[0].strip()
+                              if fo4_reference_helpers else rid)
+            r.ref_type = rid
+
+        # ── Clear ────────────────────────────────────────────────────────────
+        layout.operator("fo4.clear_reference_objects",
+                        text="Remove All References", icon='X')
+
+        # ── Info ─────────────────────────────────────────────────────────────
+        info_box = layout.box()
+        info_box.label(text="FO4 Scale Guide:", icon='INFO')
+        sub = info_box.column(align=True)
+        sub.scale_y = 0.75
+        sub.label(text="• Human male:   1.28 BU tall")
+        sub.label(text="• Power Armor:  1.72 BU tall")
+        sub.label(text="• Deathclaw:    2.20 BU tall")
+        sub.label(text="• Door frame:   1.80 BU tall")
+        sub.label(text="• 1 m cube:     0.70 BU")
+        sub.label(text="(1 BU ≈ 100 NIF units ≈ 1.4375 cm)")
+        sub.label(text="References are wire-only, non-renderable,")
+        sub.label(text="non-selectable and export-skipped.")
+
+
 class FO4_PT_AddonIntegrationPanel(Panel):
     """Third-party add-on integration panel"""
     bl_label = "Add-on Integrations"
@@ -2574,6 +2804,9 @@ classes = (
     FO4_PT_PresetLibraryPanel,
     FO4_PT_AutomationMacrosPanel,
     FO4_PT_PostProcessingPanel,
+    FO4_PT_MaterialBrowserPanel,
+    FO4_PT_SceneDiagnosticsPanel,
+    FO4_PT_ReferenceObjectsPanel,
     FO4_PT_AddonIntegrationPanel,
     FO4_PT_DesktopTutorialPanel,
     # Settings / Config panel moved from preferences

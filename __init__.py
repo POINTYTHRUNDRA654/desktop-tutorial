@@ -83,6 +83,9 @@ knowledge_helpers = _try_import("knowledge_helpers")
 mossy_link = _try_import("mossy_link")
 torch_path_manager = _try_import("torch_path_manager")
 post_processing_helpers = _try_import("post_processing_helpers")
+fo4_material_browser   = _try_import("fo4_material_browser")
+fo4_scene_diagnostics  = _try_import("fo4_scene_diagnostics")
+fo4_reference_helpers  = _try_import("fo4_reference_helpers")
 
 # tool_installers is not registered automatically but may be used during
 # registration-time dependency checks.  Import it here so the name exists.
@@ -146,6 +149,9 @@ modules = list(filter(_filter, [
     # tool_installers,
     mossy_link,
     post_processing_helpers,
+    fo4_material_browser,
+    fo4_scene_diagnostics,
+    fo4_reference_helpers,
     export_helpers,
     image_to_mesh_helpers,
     hunyuan3d_helpers,

@@ -5,7 +5,7 @@ Operators for the Fallout 4 Tutorial Add-on
 import bpy
 from bpy.types import Operator
 from bpy.props import StringProperty, EnumProperty, IntProperty, FloatProperty, BoolProperty
-from . import preferences, tutorial_system, mesh_helpers, texture_helpers, animation_helpers, export_helpers, notification_system, image_to_mesh_helpers, hunyuan3d_helpers, gradio_helpers, hymotion_helpers, nvtt_helpers, realesrgan_helpers, get3d_helpers, stylegan2_helpers, instantngp_helpers, imageto3d_helpers, advanced_mesh_helpers, rignet_helpers, motion_generation_helpers, quest_helpers, npc_helpers, world_building_helpers, item_helpers, preset_library, automation_system, desktop_tutorial_client, shap_e_helpers, point_e_helpers, advisor_helpers, ue_importer_helpers, umodel_tools_helpers, umodel_helpers, unity_fbx_importer_helpers, asset_studio_helpers, asset_ripper_helpers, fo4_game_assets, unity_game_assets, unreal_game_assets, post_processing_helpers
+from . import preferences, tutorial_system, mesh_helpers, texture_helpers, animation_helpers, export_helpers, notification_system, image_to_mesh_helpers, hunyuan3d_helpers, gradio_helpers, hymotion_helpers, nvtt_helpers, realesrgan_helpers, get3d_helpers, stylegan2_helpers, instantngp_helpers, imageto3d_helpers, advanced_mesh_helpers, rignet_helpers, motion_generation_helpers, quest_helpers, npc_helpers, world_building_helpers, item_helpers, preset_library, automation_system, desktop_tutorial_client, shap_e_helpers, point_e_helpers, advisor_helpers, ue_importer_helpers, umodel_tools_helpers, umodel_helpers, unity_fbx_importer_helpers, asset_studio_helpers, asset_ripper_helpers, fo4_game_assets, unity_game_assets, unreal_game_assets, post_processing_helpers, fo4_material_browser, fo4_scene_diagnostics, fo4_reference_helpers
 from . import knowledge_helpers
 
 # Tutorial Operators
@@ -9346,6 +9346,261 @@ class FO4_OT_SyncPostProcessingProps(Operator):
         return {'CANCELLED'}
 
 
+# ---------------------------------------------------------------------------
+# Material Browser Operators
+# ---------------------------------------------------------------------------
+
+class FO4_OT_ApplyMaterialPreset(Operator):
+    """Apply a Fallout 4 material preset to the selected mesh object(s).
+
+    Each preset creates a correctly structured Blender material with Diffuse,
+    Normal, Specular, and Glow texture nodes (Niftools-compatible naming),
+    pre-configured PBR values (roughness, metallic, base colour) tuned to
+    match the vanilla FO4 look.  Connect your own textures to the image nodes
+    afterwards.
+
+    The preset ID is stored as the ``fo4_material_preset`` custom property on
+    the object so export scripts can generate the corresponding ``.bgsm`` stub.
+    """
+    bl_idname = "fo4.apply_material_preset"
+    bl_label  = "Apply Material Preset"
+    bl_options = {'REGISTER', 'UNDO'}
+
+    preset: bpy.props.EnumProperty(
+        name="Preset",
+        description="Material surface type to apply",
+        items=fo4_material_browser.PRESET_ENUM_ITEMS,
+        default="RUSTY_METAL",
+    )
+    apply_all_selected: BoolProperty(
+        name="Apply to All Selected",
+        description="Apply to every selected mesh, not just the active object",
+        default=True,
+    )
+
+    def execute(self, context):
+        if self.apply_all_selected:
+            ok, msg = fo4_material_browser.MaterialBrowser.apply_preset_to_selection(
+                context, self.preset
+            )
+        else:
+            obj = context.active_object
+            ok, msg = fo4_material_browser.MaterialBrowser.apply_preset(obj, self.preset)
+
+        if ok:
+            self.report({'INFO'}, msg)
+            notification_system.FO4_NotificationSystem.notify(msg, 'INFO')
+            return {'FINISHED'}
+        self.report({'ERROR'}, msg)
+        return {'CANCELLED'}
+
+    def invoke(self, context, event):
+        # Pre-populate preset from scene property
+        try:
+            self.preset = context.scene.fo4_mat_preset
+        except Exception:
+            pass
+        return context.window_manager.invoke_props_dialog(self)
+
+
+# ---------------------------------------------------------------------------
+# Scene Diagnostics Operators
+# ---------------------------------------------------------------------------
+
+class FO4_OT_RunSceneDiagnostics(Operator):
+    """Run a comprehensive FO4 export-readiness check on the entire scene.
+
+    Checks every mesh object for:
+    • Polygon count within the FO4 limit (65 535)
+    • UV map present
+    • Scale applied
+    • Unapplied geometry modifiers
+    • Mesh triangulation
+    • Loose vertices
+    • Material assignment and node setup (Diffuse/Normal/Specular nodes)
+    • Collision mesh presence (UCX_ prefix)
+    • Rigging: bone count, root bone, vertex group names
+    • Object naming (no spaces or non-ASCII)
+
+    Results are shown as a score (0-100) and grouped by severity.
+    Click 'Auto-Fix' to automatically resolve all fixable issues.
+    """
+    bl_idname = "fo4.run_scene_diagnostics"
+    bl_label  = "Run Scene Diagnostics"
+    bl_options = {'REGISTER'}
+
+    def execute(self, context):
+        scene = context.scene
+        report = fo4_scene_diagnostics.SceneDiagnostics.run_full_check(scene)
+
+        # Persist report for the UI panel
+        fo4_scene_diagnostics.store_report(report)
+
+        # Update scene shortcut properties
+        s = report.get("summary", {})
+        try:
+            scene.fo4_diag_last_score    = s.get("score",         0)
+            scene.fo4_diag_last_errors   = s.get("error_count",   0)
+            scene.fo4_diag_last_warnings = s.get("warning_count", 0)
+            scene.fo4_diag_export_ready  = s.get("export_ready",  False)
+        except Exception:
+            pass
+
+        errors   = s.get("error_count",   0)
+        warnings = s.get("warning_count", 0)
+        score    = s.get("score",         0)
+        ready    = s.get("export_ready",  False)
+
+        msg = (f"Score {score}/100 – "
+               f"{errors} error(s), {warnings} warning(s). "
+               f"{'✅ Export ready' if ready else '❌ Fix errors before export'}")
+        self.report({'INFO' if ready else 'WARNING'}, msg)
+        notification_system.FO4_NotificationSystem.notify(msg, 'INFO' if ready else 'WARNING')
+        return {'FINISHED'}
+
+
+class FO4_OT_AutoFixDiagnostics(Operator):
+    """Automatically fix all auto-fixable issues found by Run Scene Diagnostics.
+
+    Fixable issues include:
+    • Apply scale (Ctrl+A)
+    • Triangulate mesh (removes quads / N-gons)
+    • Remove loose vertices
+    • Smart UV unwrap (for objects with no UV map)
+    • Remove spaces from object names
+
+    Run 'Run Scene Diagnostics' first to populate the issue list.
+    """
+    bl_idname = "fo4.auto_fix_diagnostics"
+    bl_label  = "Auto-Fix Issues"
+    bl_options = {'REGISTER', 'UNDO'}
+
+    def execute(self, context):
+        report = fo4_scene_diagnostics.load_report()
+        if report is None:
+            self.report({'WARNING'},
+                "No diagnostic report found. Run 'Run Scene Diagnostics' first.")
+            return {'CANCELLED'}
+
+        fix_count, messages = fo4_scene_diagnostics.SceneDiagnostics.auto_fix(
+            context, report
+        )
+
+        # Re-run diagnostics so the panel updates
+        new_report = fo4_scene_diagnostics.SceneDiagnostics.run_full_check(context.scene)
+        fo4_scene_diagnostics.store_report(new_report)
+        s = new_report.get("summary", {})
+        try:
+            context.scene.fo4_diag_last_score    = s.get("score",         0)
+            context.scene.fo4_diag_last_errors   = s.get("error_count",   0)
+            context.scene.fo4_diag_last_warnings = s.get("warning_count", 0)
+            context.scene.fo4_diag_export_ready  = s.get("export_ready",  False)
+        except Exception:
+            pass
+
+        for m in messages:
+            print(m)
+
+        msg = f"Auto-fixed {fix_count} issue(s). New score: {s.get('score', 0)}/100"
+        self.report({'INFO'}, msg)
+        notification_system.FO4_NotificationSystem.notify(msg, 'INFO')
+        return {'FINISHED'}
+
+
+class FO4_OT_ExportDiagnosticsReport(Operator):
+    """Save the Scene Diagnostics report as a human-readable text file.
+
+    The report lists every check result (OK / WARNING / ERROR) for every
+    object in the scene with actionable fix suggestions.  Useful for
+    documenting issues before sharing a project or asking for help.
+    """
+    bl_idname  = "fo4.export_diagnostics_report"
+    bl_label   = "Export Diagnostics Report"
+    bl_options = {'REGISTER'}
+
+    filepath: StringProperty(subtype='FILE_PATH')
+    filter_glob: StringProperty(default="*.txt", options={'HIDDEN'})
+
+    def execute(self, context):
+        report = fo4_scene_diagnostics.load_report()
+        if report is None:
+            # Run diagnostics first
+            report = fo4_scene_diagnostics.SceneDiagnostics.run_full_check(context.scene)
+            fo4_scene_diagnostics.store_report(report)
+
+        ok, msg = fo4_scene_diagnostics.SceneDiagnostics.export_report(
+            report, self.filepath
+        )
+        if ok:
+            self.report({'INFO'}, msg)
+            notification_system.FO4_NotificationSystem.notify(msg, 'INFO')
+            return {'FINISHED'}
+        self.report({'ERROR'}, msg)
+        return {'CANCELLED'}
+
+    def invoke(self, context, event):
+        context.window_manager.fileselect_add(self)
+        return {'RUNNING_MODAL'}
+
+
+# ---------------------------------------------------------------------------
+# Reference Objects Operators
+# ---------------------------------------------------------------------------
+
+class FO4_OT_AddReferenceObject(Operator):
+    """Add a scale reference object to the scene.
+
+    Reference objects are non-selectable, non-renderable wire-frame meshes
+    that show the correct FO4 proportions of common characters and props.
+    They are tagged with ``fo4_reference = True`` so export operators skip
+    them automatically.
+
+    All reference objects are placed in the ``FO4_References`` collection.
+    """
+    bl_idname = "fo4.add_reference_object"
+    bl_label  = "Add Reference Object"
+    bl_options = {'REGISTER', 'UNDO'}
+
+    ref_type: bpy.props.EnumProperty(
+        name="Reference",
+        description="Scale reference to add",
+        items=fo4_reference_helpers.REFERENCE_ENUM_ITEMS,
+        default="HUMAN_MALE",
+    )
+
+    def execute(self, context):
+        ok, msg = fo4_reference_helpers.ReferenceHelpers.create_reference(self.ref_type)
+        if ok:
+            self.report({'INFO'}, msg)
+            notification_system.FO4_NotificationSystem.notify(msg, 'INFO')
+            return {'FINISHED'}
+        self.report({'ERROR'}, msg)
+        return {'CANCELLED'}
+
+    def invoke(self, context, event):
+        try:
+            self.ref_type = context.scene.fo4_ref_type
+        except Exception:
+            pass
+        return self.execute(context)
+
+
+class FO4_OT_ClearReferenceObjects(Operator):
+    """Remove all FO4_REF_* scale reference objects and the FO4_References collection."""
+    bl_idname = "fo4.clear_reference_objects"
+    bl_label  = "Clear All References"
+    bl_options = {'REGISTER', 'UNDO'}
+
+    def execute(self, context):
+        ok, msg = fo4_reference_helpers.ReferenceHelpers.clear_all_references()
+        if ok:
+            self.report({'INFO'}, msg)
+            notification_system.FO4_NotificationSystem.notify(msg, 'INFO')
+            return {'FINISHED'}
+        self.report({'ERROR'}, msg)
+        return {'CANCELLED'}
+
+
 classes = (
     FO4_OT_StartTutorial,
     FO4_OT_ShowHelp,
@@ -9569,6 +9824,15 @@ classes = (
     FO4_OT_ClearPostProcessing,
     FO4_OT_ExportImageSpaceData,
     FO4_OT_SyncPostProcessingProps,
+    # Material browser operators
+    FO4_OT_ApplyMaterialPreset,
+    # Scene diagnostics operators
+    FO4_OT_RunSceneDiagnostics,
+    FO4_OT_AutoFixDiagnostics,
+    FO4_OT_ExportDiagnosticsReport,
+    # Scale reference operators
+    FO4_OT_AddReferenceObject,
+    FO4_OT_ClearReferenceObjects,
 )
 
 def register():
