@@ -1325,7 +1325,7 @@ class FO4_PT_ExportPanel(Panel):
             row.label(text="Niftools v0.1.1  ✓ Ready", icon='CHECKMARK')
             sub = nif_box.column(align=True)
             sub.scale_y = 0.75
-            sub.label(text="NIF 20.2.0.7 · user ver 12 · uv2 131073", icon='INFO')
+            sub.label(text="NIF 20.2.0.7 · user ver 12 · uv2 130", icon='INFO')
             sub.label(text="Geometry: BSTriShape  |  Shader: BSLightingShaderProperty", icon='INFO')
             sub.label(text="Tangent space: ON  |  Scale correction: 1.0", icon='INFO')
         else:

@@ -10,7 +10,7 @@ import os
 import bpy
 
 
-_DEFAULT_HAVOK2FBX_PATH = r"D:\Blender Foundation\havok2fbx_release_0.1a"
+_DEFAULT_HAVOK2FBX_PATH = ""
 _DEFAULT_NVTT_PATH = ""
 _DEFAULT_TEXCONV_PATH = ""
 _DEFAULT_LLM_ENDPOINT = ""

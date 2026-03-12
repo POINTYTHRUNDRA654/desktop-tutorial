@@ -2739,7 +2739,7 @@ class FO4_OT_ConfigureFallout4Settings(Operator):
                 messages.append(f"📁 texconv: {prefs.texconv_path}")
 
         messages.append("\n✓ Fallout 4 export settings are configured automatically:")
-        messages.append("  • NIF 20.2.0.7 (user ver 12, uv2 131073)")
+        messages.append("  • NIF 20.2.0.7 (user ver 12, uv2 130)")
         messages.append("  • BSTriShape geometry nodes")
         messages.append("  • BSLightingShaderProperty shaders")
         messages.append("  • Tangent space enabled for normal maps")

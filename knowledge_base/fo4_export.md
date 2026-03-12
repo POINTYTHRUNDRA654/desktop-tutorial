@@ -6,14 +6,14 @@
 |------------------|-------------------------------------------------------------|
 | NIF version      | 20.2.0.7                                                    |
 | User version     | 12                                                          |
-| User version 2   | 131073                                                      |
+| User version 2   | 130                                                         |
 | Geometry nodes   | **BSTriShape** (NOT NiTriShape – invisible in-game if wrong)|
 | Shader property  | BSLightingShaderProperty                                    |
 | Tangent space    | **Required** for normal maps to appear in-game             |
 | Scale            | 1 Blender unit = 1 NIF unit (scale_correction = 1.0)       |
 
 The game profile `FALLOUT_4` in Niftools v0.1.1 automatically selects version
-20.2.0.7 / user version 12 / user_version_2 131073 and forces BSTriShape output.
+20.2.0.7 / user version 12 / user_version_2 130 and forces BSTriShape output.
 
 ## Niftools Blender addon
 

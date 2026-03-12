@@ -513,8 +513,16 @@ def test_fo4_export_settings():
             ("Pre-export collision properties",  "_apply_collision_nif_properties" in content),
             ("Post-export NIF patcher",          "_postprocess_nif_set_collision" in content),
             ("BSXFlags injection",               "BSXFlags" in content and "integer_data" in content),
-            ("havok_material injection",         "havok_material" in content and "SkyrimHavokMaterial" in content),
-            ("Collision layer injection",        "SkyrimLayer" in content and "layer" in content),
+            # FO4-specific Havok material enum (Fallout4HavokMaterial) with
+            # SkyrimHavokMaterial kept as fallback for older pyffi builds.
+            ("FO4 havok_material enum (primary)",  "Fallout4HavokMaterial" in content),
+            ("havok_material fallback (Skyrim)",   "SkyrimHavokMaterial" in content),
+            # FO4-specific material value names (FO4_HAV_MAT_*)
+            ("FO4 havok material value names",    "FO4_HAV_MAT_STONE" in content),
+            # FO4-specific collision layer enum (Fallout4Layer / FOL_*)
+            ("FO4 collision layer enum (primary)", "Fallout4Layer" in content),
+            ("FO4 layer value names (FOL_*)",      "FOL_STATIC" in content),
+            ("Collision layer fallback (Skyrim)",  "SkyrimLayer" in content),
             ("bhkNPCollisionObject patch",       "bhkNPCollisionObject" in content),
             ("pyffi NIF read/write",             "NifFormat" in content and "data.read" in content),
             ("Collision called from export",     "_apply_collision_nif_properties" in content
@@ -523,6 +531,26 @@ def test_fo4_export_settings():
 
         failed = []
         for check_name, result in checks:
+            if result:
+                print(f"✅ {check_name}: Found")
+            else:
+                print(f"❌ {check_name}: Missing")
+                failed.append(check_name)
+
+        # ----------------------------------------------------------------
+        # Verify knowledge_base/fo4_export.md uses the correct bsver value
+        # ----------------------------------------------------------------
+        kb_path = addon_dir / "knowledge_base" / "fo4_export.md"
+        with open(kb_path, 'r', encoding='utf-8') as f:
+            kb_content = f.read()
+
+        kb_checks = [
+            # Correct user_version_2 value: 130 (not 131073)
+            ("KB: user_version_2 is 130",     "| 130" in kb_content and "User version 2" in kb_content),
+            ("KB: wrong value 131073 absent",  "131073" not in kb_content),
+        ]
+
+        for check_name, result in kb_checks:
             if result:
                 print(f"✅ {check_name}: Found")
             else:
