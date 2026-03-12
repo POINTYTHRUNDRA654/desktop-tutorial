@@ -256,12 +256,14 @@ def test_zip_contents():
     print("TEST 1: Checking zip file contents and structure")
     print("="*70)
 
-    zip_path = Path(__file__).parent / "fallout4_tutorial_helper-v2.1.3.zip"
-    addon_dir = "fallout4_tutorial_helper"
-
-    if not zip_path.exists():
-        print(f"❌ FAILED: Zip file not found at {zip_path}")
+    zip_candidates = sorted(Path(__file__).parent.glob("fallout4_tutorial_helper-v*.zip"))
+    if not zip_candidates:
+        print("❌ FAILED: No fallout4_tutorial_helper-v*.zip found in addon directory")
+        print("   Run: python build.py  to generate it")
         return False
+    zip_path = zip_candidates[-1]   # use the newest one
+    print(f"Testing zip: {zip_path.name}")
+    addon_dir = "fallout4_tutorial_helper"
 
     required_files = [
         "__init__.py",
@@ -278,6 +280,21 @@ def test_zip_contents():
         "texture_helpers.py",
         "tool_installers.py",
         "notification_system.py",
+        # Post-processing (ImageSpace / IMAD)
+        "post_processing_helpers.py",
+        # Material browser
+        "fo4_material_browser.py",
+        # Scene diagnostics
+        "fo4_scene_diagnostics.py",
+        # Scale reference objects
+        "fo4_reference_helpers.py",
+        # Knowledge base docs
+        "knowledge_base/fo4_post_processing.md",
+        "knowledge_base/fo4_export.md",
+        "knowledge_base/fo4_materials.md",
+        "knowledge_base/fo4_reference_scale.md",
+        "knowledge_base/collision_materials.md",
+        "knowledge_base/textures_dds.md",
     ]
 
     with zipfile.ZipFile(zip_path, 'r') as zf:
@@ -1364,6 +1381,143 @@ def test_post_processing():
     return True
 
 
+def test_preferences_migration():
+    """Verify all settings live in Scene properties, not AddonPreferences."""
+    print("\n" + "="*70)
+    print("TEST 11: Verifying preferences → Scene property migration")
+    print("="*70)
+
+    failed = []
+
+    prefs_src = Path("preferences.py").read_text()
+    ops_src   = Path("operators.py").read_text()
+    ui_src    = Path("ui_panels.py").read_text()
+    mossy_src = Path("mossy_link.py").read_text()
+
+    # ── FO4AddonPreferences must be a minimal empty shell ────────────────────
+    # Slice just the class body: from "class FO4AddonPreferences" up to
+    # "def _on_change" (the first module-level function after the class).
+    _pref_class_body = prefs_src.split("class FO4AddonPreferences")[1].split("def _on_change")[0]
+    structure_checks = [
+        ("FO4AddonPreferences class exists",
+            "class FO4AddonPreferences" in prefs_src),
+        ("FO4AddonPreferences class body has NO StringProperty fields",
+            "StringProperty" not in _pref_class_body),
+        ("FO4AddonPreferences class body has NO IntProperty fields",
+            "IntProperty" not in _pref_class_body),
+        ("FO4AddonPreferences class body has NO BoolProperty fields",
+            "BoolProperty" not in _pref_class_body),
+        ("FO4AddonPreferences draw() is empty (just pass or comment)",
+            "def draw(self, context):" in _pref_class_body and
+            ("pass" in _pref_class_body or "# No custom UI" in _pref_class_body
+             or "# Empty on purpose" in _pref_class_body)),
+    ]
+
+    # ── All settings registered as Scene properties ──────────────────────────
+    scene_prop_checks = [
+        ("fo4_havok2fbx_path on Scene",     '"fo4_havok2fbx_path"' in prefs_src),
+        ("fo4_nvtt_path on Scene",           '"fo4_nvtt_path"' in prefs_src),
+        ("fo4_ffmpeg_path on Scene",         '"fo4_ffmpeg_path"' in prefs_src),
+        ("fo4_texconv_path on Scene",        '"fo4_texconv_path"' in prefs_src),
+        ("fo4_assets_path on Scene",         '"fo4_assets_path"' in prefs_src),
+        ("fo4_llm_enabled on Scene",         '"fo4_llm_enabled"' in prefs_src),
+        ("fo4_llm_api_key on Scene",         '"fo4_llm_api_key"' in prefs_src),
+        ("fo4_mossy_port on Scene",          '"fo4_mossy_port"' in prefs_src),
+        ("fo4_mossy_token on Scene",         '"fo4_mossy_token"' in prefs_src),
+        ("fo4_mossy_autostart on Scene",     '"fo4_mossy_autostart"' in prefs_src),
+        ("fo4_use_mossy_ai on Scene",        '"fo4_use_mossy_ai"' in prefs_src),
+        ("fo4_use_antigravity on Scene",     '"fo4_use_antigravity"' in prefs_src),
+        ("fo4_antigravity_key on Scene",     '"fo4_antigravity_key"' in prefs_src),
+        ("fo4_advisor_monitor on Scene",     '"fo4_advisor_monitor"' in prefs_src),
+        ("fo4_advisor_interval on Scene",    '"fo4_advisor_interval"' in prefs_src),
+        ("fo4_opt_doubles on Scene",         '"fo4_opt_doubles"' in prefs_src),
+        ("fo4_opt_preserve_uvs on Scene",    '"fo4_opt_preserve_uvs"' in prefs_src),
+        ("fo4_opt_apply_transforms on Scene",'"fo4_opt_apply_transforms"' in prefs_src),
+        ("fo4_mesh_panel_unified on Scene",  '"fo4_mesh_panel_unified"' in prefs_src),
+        ("fo4_auto_install_tools on Scene",  '"fo4_auto_install_tools"' in prefs_src),
+        ("fo4_kb_enabled on Scene",          '"fo4_kb_enabled"' in prefs_src),
+        ("fo4_kb_path on Scene",             '"fo4_kb_path"' in prefs_src),
+    ]
+
+    # ── JSON persistence ──────────────────────────────────────────────────────
+    persistence_checks = [
+        ("save_settings function defined",   "def save_settings(" in prefs_src),
+        ("restore_settings function defined","def restore_settings(" in prefs_src),
+        ("load_post handler registered",     "_load_post_handler" in prefs_src),
+        ("persistent decorator on handler",  "@bpy.app.handlers.persistent" in prefs_src),
+        ("JSON config file name defined",    "_CONFIG_FILE" in prefs_src),
+        ("_PERSISTENT tuple defined",        "_PERSISTENT" in prefs_src),
+    ]
+
+    # ── FO4Settings wrapper ───────────────────────────────────────────────────
+    wrapper_checks = [
+        ("FO4Settings class defined",             "class FO4Settings" in prefs_src),
+        ("FO4Settings wraps scene",               "_scene" in prefs_src),
+        ("_ATTR_MAP defined for backward compat", "_ATTR_MAP" in prefs_src),
+        ("get_preferences() returns FO4Settings", "return FO4Settings(scene)" in prefs_src),
+        ("Fallback settings class defined",       "class _FallbackSettings" in prefs_src),
+        ("get_preferences never returns None",
+            "return FO4Settings(scene)" in prefs_src and
+            "_FallbackSettings" in prefs_src),
+    ]
+
+    # ── ui_panels.py uses scene.fo4_* directly ───────────────────────────────
+    ui_checks = [
+        ("SettingsPanel uses scene.fo4_mesh_panel_unified",
+            '"fo4_mesh_panel_unified"' in ui_src),
+        ("SettingsPanel uses scene.fo4_havok2fbx_path",
+            '"fo4_havok2fbx_path"' in ui_src),
+        ("SettingsPanel uses scene.fo4_nvtt_path",
+            '"fo4_nvtt_path"' in ui_src),
+        ("SettingsPanel uses scene.fo4_texconv_path",
+            '"fo4_texconv_path"' in ui_src),
+        ("SettingsPanel uses scene.fo4_llm_enabled",
+            '"fo4_llm_enabled"' in ui_src),
+        ("SettingsPanel uses scene.fo4_mossy_port",
+            '"fo4_mossy_port"' in ui_src),
+        ("SettingsPanel uses scene.fo4_use_antigravity",
+            '"fo4_use_antigravity"' in ui_src),
+        ("SettingsPanel no longer reads context.preferences.addons",
+            "context.preferences.addons.get" not in ui_src
+            or ui_src.count("context.preferences.addons.get") == 0),
+        ("AdvisorPanel uses scene.fo4_llm_enabled",
+            'scene.fo4_llm_enabled' in ui_src or '"fo4_llm_enabled"' in ui_src),
+        ("AdvisorPanel uses scene.fo4_use_mossy_ai",
+            'scene.fo4_use_mossy_ai' in ui_src or '"fo4_use_mossy_ai"' in ui_src),
+        ("No more 'Preferences → Mossy' help text",
+            "Preferences → Mossy Link section" not in ui_src),
+    ]
+
+    # ── mossy_link.py uses get_preferences() not addons ──────────────────────
+    mossy_checks = [
+        ("mossy_link imports preferences",
+            "from . import preferences" in mossy_src),
+        ("mossy_link calls preferences.get_preferences()",
+            "preferences.get_preferences()" in mossy_src),
+        ("mossy_link no longer reads ctx.preferences.addons",
+            "ctx.preferences.addons" not in mossy_src),
+    ]
+
+    all_checks = (
+        structure_checks + scene_prop_checks + persistence_checks
+        + wrapper_checks + ui_checks + mossy_checks
+    )
+
+    for check_name, result in all_checks:
+        if result:
+            print(f"✅ {check_name}: OK")
+        else:
+            print(f"❌ {check_name}: FAILED")
+            failed.append(check_name)
+
+    if failed:
+        print(f"\n❌ FAILED: {len(failed)} preferences-migration check(s) failed")
+        return False
+
+    print("\n✅ PASSED: All preferences → Scene migration checks passed")
+    return True
+
+
 def run_all_tests():
     """Run all test suites"""
     print("\n" + "="*70)
@@ -1387,6 +1541,7 @@ def run_all_tests():
         ("D: Drive Paths", test_d_drive_paths),
         ("Vegetation Workflow", test_vegetation_workflow),
         ("Post-Processing", test_post_processing),
+        ("Preferences Migration", test_preferences_migration),
     ]
 
     passed = 0

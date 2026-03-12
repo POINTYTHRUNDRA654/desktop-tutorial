@@ -6,7 +6,7 @@ A comprehensive tutorial and helper system for creating Fallout 4 mods in Blende
 bl_info = {
     "name": "Fallout 4 Mod Assistant",
     "author": "Tutorial Team",
-    "version": (2, 1, 6),
+    "version": (2, 2, 0),
     "blender": (2, 90, 0),  # Compatible with Blender 2.90+ through 5.x (NIF export requires 3.6 LTS + Niftools v0.1.1)
     "location": "View3D > Sidebar > Fallout 4",
     "description": (

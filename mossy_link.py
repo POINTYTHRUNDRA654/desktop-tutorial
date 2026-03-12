@@ -54,18 +54,15 @@ import urllib.error
 # ---------------------------------------------------------------------------
 
 def _get_prefs():
-    """Return the add-on preferences, or None if not yet registered.
+    """Return an FO4Settings wrapper (never None).
 
-    Guards against ``bpy.context`` being ``None`` (can happen during
-    registration or when called from a load-post handler before the context
-    is fully rebuilt).
+    Reads from the current scene's fo4_* properties (or falls back to the
+    JSON config file) so settings work without Blender's add-on preferences
+    panel.  Guards against bpy.context being None.
     """
     try:
-        ctx = bpy.context
-        if ctx is None:
-            return None
-        addon = ctx.preferences.addons.get(__package__.split(".")[0])
-        return addon.preferences if addon else None
+        from . import preferences
+        return preferences.get_preferences()
     except Exception:
         return None
 

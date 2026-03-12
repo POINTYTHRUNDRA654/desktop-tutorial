@@ -107,8 +107,7 @@ class FO4_PT_MeshPanel(Panel):
     def draw(self, context):
         layout = self.layout
 
-        prefs = preferences.get_preferences()
-        unified = prefs.mesh_panel_unified if prefs else True
+        unified = getattr(context.scene, "fo4_mesh_panel_unified", False)
 
         obj = context.active_object
         has_mesh = obj and obj.type == 'MESH'
@@ -891,15 +890,9 @@ class FO4_PT_AdvisorPanel(Panel):
 
     def draw(self, context):
         layout = self.layout
-        addon_name = __package__.split('.')[0]
-        addon = context.preferences.addons.get(addon_name) if context.preferences else None
-        prefs = addon.preferences if addon and hasattr(addon, 'preferences') else None
-        if not prefs:
-            layout.label(text=f"⚠ Preferences unavailable for addon '{addon_name}'", icon='ERROR')
-            # Optionally, return early or continue with defaults
-            # return
-        llm_enabled = prefs.llm_enabled if prefs else False
-        use_mossy = getattr(prefs, 'use_mossy_as_ai', False) if prefs else False
+        scene  = context.scene
+        llm_enabled = getattr(scene, "fo4_llm_enabled", False)
+        use_mossy   = getattr(scene, "fo4_use_mossy_ai", False)
 
         # ── Mossy AI status ──────────────────────────────────────────────
         mossy_box = layout.box()
@@ -926,7 +919,7 @@ class FO4_PT_AdvisorPanel(Panel):
         else:
             mossy_box.label(text="Mossy AI not active", icon='INFO')
             mossy_box.label(text="Enable 'Use Mossy as AI Advisor' in")
-            mossy_box.label(text="Preferences → Mossy Link section")
+            mossy_box.label(text="N panel → Fallout 4 → Settings → Mossy Link")
 
         # ── Local analysis ───────────────────────────────────────────────
         box = layout.box()
@@ -939,7 +932,7 @@ class FO4_PT_AdvisorPanel(Panel):
         op = row.operator("fo4.advisor_analyze", text="Analyze (Remote LLM)", icon='LIGHT_HEMI')
         op.use_llm = True
         if not llm_enabled and not use_mossy:
-            box.label(text="No AI configured – use Mossy or set LLM in Preferences", icon='ERROR')
+            box.label(text="No AI configured – enable Mossy or set LLM in N-panel Settings", icon='ERROR')
 
         # ── Quick Fixes ──────────────────────────────────────────────────
         fixes = layout.box()
@@ -1164,34 +1157,28 @@ class FO4_PT_ToolsLinks(Panel):
         config_help.label(text="Checks: Niftools, DDS tools, export settings", icon='INFO')
 
         # Manual path override — use existing installations when auto-install fails
-        prefs = preferences.get_preferences()
+        scene = context.scene
         man_box = layout.box()
         man_box.label(text="Manual Path Override", icon='FILE_FOLDER')
         man_box.label(text="Already have a tool? Point to it here.", icon='INFO')
-        if prefs:
-            man_box.prop(prefs, "ffmpeg_path", text="FFmpeg")
-            ffmpeg_ok = preferences.get_configured_ffmpeg_path()
-            ffmpeg_status = "OK \u2714" if ffmpeg_ok else "not found"
-            man_box.label(
-                text=f"FFmpeg: {ffmpeg_status}",
-                icon='CHECKMARK' if ffmpeg_ok else 'ERROR',
-            )
-            man_box.prop(prefs, "nvtt_path", text="nvcompress")
-            nvcompress_ok = preferences.get_configured_nvcompress_path()
-            nvcompress_status = "OK \u2714" if nvcompress_ok else "not found"
-            man_box.label(
-                text=f"nvcompress: {nvcompress_status}",
-                icon='CHECKMARK' if nvcompress_ok else 'ERROR',
-            )
-            man_box.prop(prefs, "texconv_path", text="texconv")
-            texconv_ok = preferences.get_configured_texconv_path()
-            texconv_status = "OK \u2714" if texconv_ok else "not found"
-            man_box.label(
-                text=f"texconv: {texconv_status}",
-                icon='CHECKMARK' if texconv_ok else 'ERROR',
-            )
-        else:
-            man_box.label(text="Enable the add-on to set paths.", icon='ERROR')
+        man_box.prop(scene, "fo4_ffmpeg_path", text="FFmpeg")
+        ffmpeg_ok = preferences.get_configured_ffmpeg_path()
+        man_box.label(
+            text=f"FFmpeg: {'OK ✔' if ffmpeg_ok else 'not found'}",
+            icon='CHECKMARK' if ffmpeg_ok else 'ERROR',
+        )
+        man_box.prop(scene, "fo4_nvtt_path", text="nvcompress")
+        nvcompress_ok = preferences.get_configured_nvcompress_path()
+        man_box.label(
+            text=f"nvcompress: {'OK ✔' if nvcompress_ok else 'not found'}",
+            icon='CHECKMARK' if nvcompress_ok else 'ERROR',
+        )
+        man_box.prop(scene, "fo4_texconv_path", text="texconv")
+        texconv_ok = preferences.get_configured_texconv_path()
+        man_box.label(
+            text=f"texconv: {'OK ✔' if texconv_ok else 'not found'}",
+            icon='CHECKMARK' if texconv_ok else 'ERROR',
+        )
 
 
 class FO4_PT_GameAssetsPanel(Panel):
@@ -2588,7 +2575,7 @@ class FO4_PT_SetupPanel(Panel):
 
 
 class FO4_PT_SettingsPanel(Panel):
-    """Add-on operational settings moved from preferences"""
+    """Add-on settings – all in the 3D Viewport (no Blender Preferences needed)"""
     bl_label = "Settings"
     bl_idname = "FO4_PT_settings_panel"
     bl_space_type = 'VIEW_3D'
@@ -2599,66 +2586,77 @@ class FO4_PT_SettingsPanel(Panel):
 
     def draw(self, context):
         layout = self.layout
-        prefs = preferences.get_preferences()
-        if not prefs:
-            layout.label(text="Preferences not found.", icon="ERROR")
-            return
+        scene  = context.scene
+        import os
 
+        # ── User Interface ────────────────────────────────────────────────────
         ui_box = layout.box()
         ui_box.label(text="User Interface", icon="PREFERENCES")
-        ui_box.prop(prefs, "mesh_panel_unified", text="Unified Mesh Panel")
-        ui_box.label(text="Show all mesh helpers in one box (vs split basic/advanced)")
+        ui_box.prop(scene, "fo4_mesh_panel_unified",
+                    text="Unified Mesh Panel")
+        ui_box.label(
+            text="Show all mesh helpers in one box (vs split basic/advanced)",
+            icon='BLANK1',
+        )
 
-        box = layout.box()
-        box.label(text="Paths & Dependencies", icon="FILE_FOLDER")
-        box.prop(prefs, "fo4_assets_path", text="FO4 Assets")
-        box.prop(prefs, "unity_assets_path", text="Unity Assets")
-        box.prop(prefs, "unreal_assets_path", text="Unreal Assets")
-        
-        box.separator()
-        box.prop(prefs, "havok2fbx_path", text="Havok2FBX Folder")
-        import os
-        path = bpy.path.abspath(prefs.havok2fbx_path)
-        if os.path.isdir(path):
-            box.label(text=f"Configured: {path}", icon="CHECKMARK")
+        # ── Asset Paths ───────────────────────────────────────────────────────
+        paths_box = layout.box()
+        paths_box.label(text="Asset Paths", icon="FILE_FOLDER")
+        paths_box.prop(scene, "fo4_assets_path",         text="Fallout 4 Assets")
+        paths_box.prop(scene, "fo4_unity_assets_path",   text="Unity Assets")
+        paths_box.prop(scene, "fo4_unreal_assets_path",  text="Unreal Assets")
+
+        # ── Tool Paths ────────────────────────────────────────────────────────
+        tools_box = layout.box()
+        tools_box.label(text="Tool Paths", icon="TOOL_SETTINGS")
+
+        tools_box.prop(scene, "fo4_havok2fbx_path", text="Havok2FBX Folder")
+        h_path = bpy.path.abspath(scene.fo4_havok2fbx_path) if scene.fo4_havok2fbx_path else ""
+        if h_path and os.path.isdir(h_path):
+            tools_box.label(text=f"✓ {h_path}", icon="CHECKMARK")
         else:
-            box.label(text="Path not found. Set to your existing install.", icon="ERROR")
+            tools_box.label(text="Path not found – set to your Havok2FBX folder",
+                            icon="ERROR")
 
-        tex_box = layout.box()
-        tex_box.label(text="Texture Converters", icon="IMAGE_DATA")
-        tex_box.prop(prefs, "nvtt_path", text="nvcompress or folder")
-        tex_box.prop(prefs, "texconv_path", text="texconv or folder")
+        tools_box.separator()
+        tools_box.label(text="Texture Converters:", icon="IMAGE_DATA")
+        tools_box.prop(scene, "fo4_nvtt_path",    text="nvcompress / NVTT folder")
+        tools_box.prop(scene, "fo4_texconv_path", text="texconv / DirectXTex folder")
 
-        ff_box = layout.box()
-        ff_box.label(text="Video & Audio Tools", icon="SOUND")
-        ff_box.prop(prefs, "ffmpeg_path", text="ffmpeg or folder")
-
-        # Get configured paths
         nvcompress = preferences.get_configured_nvcompress_path()
-        texconv = preferences.get_configured_texconv_path()
-
+        texconv    = preferences.get_configured_texconv_path()
         if nvcompress:
-            tex_box.label(text=f"nvcompress: {nvcompress}", icon="CHECKMARK")
+            tools_box.label(text=f"✓ nvcompress: {nvcompress}", icon="CHECKMARK")
         else:
-            tex_box.label(text="nvcompress not set/found", icon="ERROR")
-
+            tools_box.label(text="nvcompress not configured", icon="ERROR")
         if texconv:
-            tex_box.label(text=f"texconv: {texconv}", icon="CHECKMARK")
+            tools_box.label(text=f"✓ texconv: {texconv}", icon="CHECKMARK")
         else:
-            tex_box.label(text="texconv not set/found", icon="ERROR")
+            tools_box.label(text="texconv not configured", icon="ERROR")
 
+        tools_box.separator()
+        tools_box.label(text="Video & Audio:", icon="SOUND")
+        tools_box.prop(scene, "fo4_ffmpeg_path", text="ffmpeg / folder")
+
+        # ── Auto-installation ─────────────────────────────────────────────────
         auto_box = layout.box()
-        auto_box.label(text="Automatic Tool Installation", icon="FILE_REFRESH")
-        auto_box.prop(prefs, "auto_install_tools", text="Auto-install missing CLI tools at startup")
-        auto_box.prop(prefs, "auto_install_python", text="Auto-install Python deps at startup")
-        auto_box.prop(prefs, "auto_install_pytorch", text="Auto-install PyTorch to D: drive on errors")
-        auto_box.prop(prefs, "auto_register_tools", text="Auto-register third-party add-ons")
-        auto_box.operator("fo4.check_tool_paths", text="Check Tool Paths", icon='INFO')
-        auto_box.label(text="(disable to avoid policy warnings at startup)", icon='INFO')
+        auto_box.label(text="Automatic Installation", icon="FILE_REFRESH")
+        auto_box.prop(scene, "fo4_auto_install_tools",
+                      text="Auto-install missing CLI tools at startup")
+        auto_box.prop(scene, "fo4_auto_install_python",
+                      text="Auto-install Python packages at startup")
+        auto_box.prop(scene, "fo4_auto_register_tools",
+                      text="Auto-register third-party add-ons")
+        auto_box.operator("fo4.check_tool_paths",
+                          text="Check Tool Paths Now", icon='INFO')
+        auto_box.label(
+            text="Disable auto-register to avoid Blender policy warnings",
+            icon='INFO',
+        )
 
-        # PyTorch Installation Helper
+        # ── PyTorch ───────────────────────────────────────────────────────────
         torch_box = layout.box()
-        torch_box.label(text="PyTorch Installation (AI Features)", icon="PLUGIN")
+        torch_box.label(text="PyTorch / AI Features", icon="PLUGIN")
         try:
             from . import torch_path_manager
             success, msg, _ = torch_path_manager.TorchPathManager.try_import_torch()
@@ -2666,79 +2664,101 @@ class FO4_PT_SettingsPanel(Panel):
                 torch_box.label(text=f"✓ PyTorch loaded: {msg}", icon="CHECKMARK")
             else:
                 if msg == "windows_path_error":
-                    torch_box.label(text="⚠ Windows path length error detected", icon="ERROR")
-                    torch_box.label(text="PyTorch cannot load from default location", icon="INFO")
-                    torch_box.operator("torch.install_custom_path", text="Install to D:/t", icon="IMPORT")
+                    torch_box.label(
+                        text="⚠ Windows path-length error detected", icon="ERROR")
+                    torch_box.operator(
+                        "torch.install_custom_path",
+                        text="Install PyTorch to D:/t", icon="IMPORT")
                 else:
                     torch_box.label(text=f"⚠ {msg}", icon="INFO")
         except Exception as e:
-            torch_box.label(text=f"Unable to check PyTorch: {str(e)}", icon="ERROR")
-        ui_box.prop(prefs, "mesh_panel_unified", text="Unified Mesh Panel")
-        ui_box.label(text="Show all mesh helpers in one box (vs split basic/advanced)")
+            torch_box.label(text=f"PyTorch status unknown: {e}", icon="ERROR")
 
+        # ── Mesh Optimisation ─────────────────────────────────────────────────
         opt_box = layout.box()
-        opt_box.label(text="Mesh Optimization", icon="MOD_DECIM")
-        opt_box.prop(prefs, "optimize_apply_transforms")
-        opt_box.prop(prefs, "optimize_remove_doubles_threshold")
-        opt_box.prop(prefs, "optimize_preserve_uvs")
+        opt_box.label(text="Mesh Optimisation Defaults", icon="MOD_DECIM")
+        opt_box.prop(scene, "fo4_opt_apply_transforms",
+                     text="Apply transforms before optimise")
+        opt_box.prop(scene, "fo4_opt_doubles",
+                     text="Remove Doubles threshold")
+        opt_box.prop(scene, "fo4_opt_preserve_uvs",
+                     text="Preserve UVs when removing doubles")
 
+        # ── LLM Advisor ───────────────────────────────────────────────────────
         llm_box = layout.box()
-        llm_box.label(text="Advisor (LLM, optional)", icon="INFO")
-        llm_box.prop(prefs, "llm_enabled", text="Enable LLM Advisor (opt-in)")
-        llm_box.prop(prefs, "llm_endpoint", text="Endpoint")
-        llm_box.prop(prefs, "llm_model", text="Model")
-        llm_box.prop(prefs, "llm_api_key", text="API Key")
-        llm_box.prop(prefs, "llm_allow_actions", text="Allow Action Suggestions")
-        llm_box.prop(prefs, "llm_send_stats", text="Send summary only")
+        llm_box.label(text="AI Advisor – LLM (optional, opt-in)", icon="INFO")
+        llm_box.prop(scene, "fo4_llm_enabled",       text="Enable LLM Advisor")
+        col = llm_box.column(align=True)
+        col.enabled = scene.fo4_llm_enabled
+        col.prop(scene, "fo4_llm_endpoint",      text="Endpoint URL")
+        col.prop(scene, "fo4_llm_model",         text="Model")
+        col.prop(scene, "fo4_llm_api_key",       text="API Key")
+        col.prop(scene, "fo4_llm_allow_actions", text="Allow action suggestions")
+        col.prop(scene, "fo4_llm_send_stats",    text="Send summary counts only")
 
-        auto_box = layout.box()
-        auto_box.label(text="Advisor Auto-Monitor", icon="FILE_REFRESH")
-        auto_box.prop(prefs, "advisor_auto_monitor_enabled", text="Enable background checks")
-        auto_box.prop(prefs, "advisor_auto_monitor_interval", text="Interval (seconds)")
+        # ── Advisor auto-monitor ──────────────────────────────────────────────
+        mon_box = layout.box()
+        mon_box.label(text="Advisor Auto-Monitor", icon="FILE_REFRESH")
+        mon_box.prop(scene, "fo4_advisor_monitor",  text="Enable background checks")
+        row = mon_box.row()
+        row.enabled = scene.fo4_advisor_monitor
+        row.prop(scene, "fo4_advisor_interval", text="Interval (seconds)")
 
+        # ── Knowledge Base ────────────────────────────────────────────────────
         kb_box = layout.box()
         kb_box.label(text="Advisor Knowledge Base", icon="BOOKMARKS")
-        kb_box.prop(prefs, "knowledge_base_enabled", text="Use bundled/user KB")
-        kb_box.prop(prefs, "knowledge_base_path", text="KB folder (txt/md)")
+        kb_box.prop(scene, "fo4_kb_enabled", text="Use bundled / user KB")
+        kb_box.prop(scene, "fo4_kb_path",    text="Custom KB folder (txt/md)")
 
+        # ── Mossy Link ────────────────────────────────────────────────────────
         ml_box = layout.box()
         ml_box.label(text="Mossy Link", icon="LINKED")
 
-        # TCP server (Blender ← Mossy commands)
         tcp_sub = ml_box.box()
-        tcp_sub.label(text="TCP Server  (Mossy → Blender control)", icon="NETWORK_DRIVE")
-        tcp_sub.prop(prefs, "port", text="Listen Port")
-        tcp_sub.prop(prefs, "token", text="Auth Token")
-        tcp_sub.prop(prefs, "autostart", text="Auto-start on load")
+        tcp_sub.label(text="TCP Server  (Mossy → Blender control)",
+                      icon="NETWORK_DRIVE")
+        tcp_sub.prop(scene, "fo4_mossy_port",     text="Listen Port")
+        tcp_sub.prop(scene, "fo4_mossy_token",    text="Auth Token")
+        tcp_sub.prop(scene, "fo4_mossy_autostart",text="Auto-start on load")
 
-        # HTTP client (Blender → Mossy AI)
         http_sub = ml_box.box()
         http_sub.label(text="AI Queries  (Blender → Mossy)", icon="URL")
-        http_sub.prop(prefs, "mossy_http_port", text="Mossy HTTP Port")
-        http_sub.prop(prefs, "use_mossy_as_ai", text="Use Mossy as AI Advisor")
-        if prefs.use_mossy_as_ai:
-            http_sub.label(text="✓ Advisor will ask Mossy instead of remote LLM", icon="CHECKMARK")
-            http_sub.label(text="  Enable LLM Advisor above as fallback", icon="INFO")
+        http_sub.prop(scene, "fo4_mossy_http_port", text="Mossy HTTP Port")
+        http_sub.prop(scene, "fo4_use_mossy_ai",    text="Use Mossy as AI Advisor")
+        if scene.fo4_use_mossy_ai:
+            http_sub.label(
+                text="✓ Advisor will ask Mossy instead of remote LLM",
+                icon="CHECKMARK")
         else:
-            http_sub.label(text="Enable to route advisor AI through Mossy", icon="INFO")
+            http_sub.label(text="Enable to route AI through Mossy", icon="INFO")
 
-        ml_box.operator("wm.mossy_check_http", text="Check Mossy HTTP", icon="QUESTION")
+        ml_box.operator("wm.mossy_check_http",
+                        text="Check Mossy HTTP", icon="QUESTION")
 
+        # ── Antigravity ───────────────────────────────────────────────────────
         ag_box = layout.box()
-        ag_box.label(text="Antigravity (Gemini)", icon="OUTLINER_OB_LIGHT")
-        ag_box.prop(prefs, "use_antigravity_as_ai", text="Use Antigravity as AI Advisor")
-        if prefs.use_antigravity_as_ai:
-            ag_box.prop(prefs, "antigravity_api_key", text="Antigravity API Key")
-            ag_box.label(text="✓ Advisor will use Antigravity (Gemini backend)", icon="CHECKMARK")
+        ag_box.label(text="Antigravity / Gemini AI", icon="OUTLINER_OB_LIGHT")
+        ag_box.prop(scene, "fo4_use_antigravity",
+                    text="Use Antigravity as AI Advisor")
+        if scene.fo4_use_antigravity:
+            ag_box.prop(scene, "fo4_antigravity_key", text="API Key")
+            ag_box.label(
+                text="✓ Advisor will use Antigravity (Gemini backend)",
+                icon="CHECKMARK")
         else:
-            ag_box.label(text="Enable to route advisor AI through Antigravity", icon="INFO")
+            ag_box.label(
+                text="Enable to route AI through Antigravity", icon="INFO")
 
+        # ── Add-on Update ─────────────────────────────────────────────────────
         update_box = layout.box()
         update_box.label(text="Add-on Update", icon="FILE_REFRESH")
         update_box.label(
-            text="After installing a new zip, restart Blender to apply changes.",
+            text="Install a new zip via Edit → Preferences → Add-ons → Install",
             icon='INFO',
         )
+        update_box.label(
+            text="Then restart Blender to apply changes.", icon='BLANK1')
+
 
 class FO4_PT_OperationLogPanel(Panel):
     """Panel that shows every operation recorded by the add-on"""
