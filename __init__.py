@@ -89,6 +89,7 @@ fo4_reference_helpers  = _try_import("fo4_reference_helpers")
 papyrus_helpers        = _try_import("papyrus_helpers")
 fo4_physics_helpers    = _try_import("fo4_physics_helpers")
 mod_packaging_helpers  = _try_import("mod_packaging_helpers")
+addon_updater          = _try_import("addon_updater")
 
 # tool_installers is not registered automatically but may be used during
 # registration-time dependency checks.  Import it here so the name exists.
@@ -158,6 +159,7 @@ modules = list(filter(_filter, [
     papyrus_helpers,
     fo4_physics_helpers,
     mod_packaging_helpers,
+    addon_updater,
     export_helpers,
     image_to_mesh_helpers,
     hunyuan3d_helpers,
