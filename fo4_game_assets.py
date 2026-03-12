@@ -14,9 +14,15 @@ from __future__ import annotations
 import json
 import os
 import subprocess
-import winreg
 from pathlib import Path
 from typing import Optional
+
+try:
+    import winreg
+    _HAS_WINREG = True
+except ImportError:
+    winreg = None
+    _HAS_WINREG = False
 
 
 # Common Fallout 4 installation locations
@@ -71,20 +77,21 @@ class FO4GameAssets:
             print(f"Failed to check custom FO4 assets path: {e}")
 
         # Check Windows Registry for Steam installation
-        try:
-            key = winreg.OpenKey(
-                winreg.HKEY_LOCAL_MACHINE,
-                r"SOFTWARE\WOW6432Node\Bethesda Softworks\Fallout4"
-            )
-            install_path, _ = winreg.QueryValueEx(key, "installed path")
-            winreg.CloseKey(key)
+        if _HAS_WINREG:
+            try:
+                key = winreg.OpenKey(
+                    winreg.HKEY_LOCAL_MACHINE,
+                    r"SOFTWARE\WOW6432Node\Bethesda Softworks\Fallout4"
+                )
+                install_path, _ = winreg.QueryValueEx(key, "installed path")
+                winreg.CloseKey(key)
 
-            fo4_path = Path(install_path)
-            if fo4_path.exists() and (fo4_path / "Fallout4.exe").exists():
-                FO4GameAssets._game_dir = fo4_path
-                return fo4_path
-        except (WindowsError, FileNotFoundError):
-            pass
+                fo4_path = Path(install_path)
+                if fo4_path.exists() and (fo4_path / "Fallout4.exe").exists():
+                    FO4GameAssets._game_dir = fo4_path
+                    return fo4_path
+            except OSError:
+                pass
 
         # Check common installation paths
         for path in FO4_COMMON_PATHS:
