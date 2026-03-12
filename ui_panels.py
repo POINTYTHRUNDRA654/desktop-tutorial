@@ -104,7 +104,31 @@ class FO4_PT_MeshPanel(Panel):
     bl_category = 'Fallout 4'
     bl_parent_id = "FO4_PT_main_panel"
     bl_options = {'DEFAULT_CLOSED'}
-    
+
+    @staticmethod
+    def _draw_pipeline_box(layout, has_mesh):
+        """Draw the shared 'Full FO4 Pipeline' one-click section."""
+        pipe_box = layout.box()
+        pipe_box.label(text="Full FO4 Pipeline", icon='SHADERFX')
+        row = pipe_box.row()
+        row.enabled = has_mesh
+        row.scale_y = 1.5
+        row.operator(
+            "fo4.convert_to_fallout4",
+            text="Convert to Fallout 4 (Full Pipeline)",
+            icon='ARROW_LEFTRIGHT',
+        )
+        pipe_box.operator(
+            "fo4.quick_prepare_export",
+            text="Quick Prepare for Export",
+            icon='CHECKMARK',
+        )
+        pipe_box.operator(
+            "fo4.auto_fix_issues",
+            text="Auto-Fix Common Issues",
+            icon='TOOL_SETTINGS',
+        )
+
     def draw(self, context):
         layout = self.layout
 
@@ -114,6 +138,9 @@ class FO4_PT_MeshPanel(Panel):
         has_mesh = obj and obj.type == 'MESH'
 
         if unified:
+            # ── Full FO4 Pipeline (one-click) ────────────────────────────
+            self._draw_pipeline_box(layout, has_mesh)
+
             # ── Mesh Helpers ────────────────────────────────────────────
             box = layout.box()
             box.label(text="Mesh Helpers", icon='MESH_CUBE')
@@ -126,6 +153,7 @@ class FO4_PT_MeshPanel(Panel):
                 opt_sub.prop(prefs, "optimize_remove_doubles_threshold")
                 opt_sub.prop(prefs, "optimize_preserve_uvs")
             box.operator("fo4.validate_mesh", text="Validate Mesh", icon='CHECKMARK')
+            box.operator("fo4.validate_export", text="Validate Before Export", icon='CHECKMARK')
             box.separator()
 
             # ── Collision ───────────────────────────────────────────────
@@ -145,7 +173,7 @@ class FO4_PT_MeshPanel(Panel):
             box.label(text="Advanced Mesh Tools", icon='MODIFIER')
             box.operator("fo4.analyze_mesh_quality", text="Analyze Quality", icon='INFO')
             box.operator("fo4.auto_repair_mesh", text="Auto-Repair", icon='TOOL_SETTINGS')
-            box.operator("fo4.antigravity_auto_fix", text="AI Auto-Fix (Antigravity)", icon='OUTLINER_OB_LIGHT')
+            box.operator("fo4.mossy_auto_fix", text="AI Auto-Fix (Mossy)", icon='LIGHT_HEMI')
             box.operator("fo4.smart_decimate", text="Smart Decimate", icon='MOD_DECIM')
             box.operator("fo4.split_mesh_poly_limit", text="Split at Poly Limit", icon='MOD_BOOLEAN')
             box.operator("fo4.generate_lod", text="Generate LOD Chain", icon='OUTLINER_OB_MESH')
@@ -237,17 +265,12 @@ class FO4_PT_MeshPanel(Panel):
             row.enabled = has_mesh
             row.operator("fo4.open_uv_editing", text="Edit UV Map", icon='UV_ISLANDSEL')
 
-            # Ask Mossy / Antigravity
+            # Ask Mossy
             uv_box.separator()
             uv_box.operator(
                 "fo4.ask_mossy_uv_advice",
                 text="Ask Mossy for Advice",
                 icon='LIGHT_HEMI',
-            )
-            uv_box.operator(
-                "fo4.ask_antigravity_uv_advice",
-                text="Ask Antigravity for Advice",
-                icon='OUTLINER_OB_LIGHT',
             )
 
             # Step 5 — export
@@ -259,6 +282,10 @@ class FO4_PT_MeshPanel(Panel):
 
         else:
             # ── original layout: separate boxes ─────────────────────────
+
+            # ── Full FO4 Pipeline (one-click) ────────────────────────────
+            self._draw_pipeline_box(layout, has_mesh)
+
             box = layout.box()
             box.label(text="Mesh Creation", icon='MESH_CUBE')
             box.operator("fo4.create_base_mesh", text="Create Base Mesh", icon='MESH_DATA')
@@ -270,6 +297,7 @@ class FO4_PT_MeshPanel(Panel):
                 opt_sub.prop(prefs, "optimize_remove_doubles_threshold")
                 opt_sub.prop(prefs, "optimize_preserve_uvs")
             box.operator("fo4.validate_mesh", text="Validate Mesh", icon='CHECKMARK')
+            box.operator("fo4.validate_export", text="Validate Before Export", icon='CHECKMARK')
 
             col_box = layout.box()
             col_box.label(text="Collision", icon='MESH_ICOSPHERE')
@@ -287,7 +315,7 @@ class FO4_PT_MeshPanel(Panel):
             adv_box.label(text="Advanced Mesh Tools", icon='MODIFIER')
             adv_box.operator("fo4.analyze_mesh_quality", text="Analyze Quality", icon='INFO')
             adv_box.operator("fo4.auto_repair_mesh", text="Auto-Repair", icon='TOOL_SETTINGS')
-            adv_box.operator("fo4.antigravity_auto_fix", text="AI Auto-Fix (Antigravity)", icon='OUTLINER_OB_LIGHT')
+            adv_box.operator("fo4.mossy_auto_fix", text="AI Auto-Fix (Mossy)", icon='LIGHT_HEMI')
             adv_box.operator("fo4.smart_decimate", text="Smart Decimate", icon='MOD_DECIM')
             adv_box.operator("fo4.split_mesh_poly_limit", text="Split at Poly Limit", icon='MOD_BOOLEAN')
             adv_box.operator("fo4.generate_lod", text="Generate LOD Chain", icon='OUTLINER_OB_MESH')
@@ -319,7 +347,6 @@ class FO4_PT_MeshPanel(Panel):
             row.enabled = has_mesh
             row.operator("fo4.open_uv_editing", text="Edit UV Map", icon='UV_ISLANDSEL')
             uv_box.operator("fo4.ask_mossy_uv_advice", text="Ask Mossy", icon='LIGHT_HEMI')
-            uv_box.operator("fo4.ask_antigravity_uv_advice", text="Ask Antigravity", icon='OUTLINER_OB_LIGHT')
             uv_box.separator()
             row = uv_box.row()
             row.enabled = has_mesh
@@ -2943,20 +2970,6 @@ class FO4_PT_SettingsPanel(Panel):
 
         ml_box.operator("wm.mossy_check_http",
                         text="Check Mossy HTTP", icon="QUESTION")
-
-        # ── Antigravity ───────────────────────────────────────────────────────
-        ag_box = layout.box()
-        ag_box.label(text="Antigravity / Gemini AI", icon="OUTLINER_OB_LIGHT")
-        ag_box.prop(scene, "fo4_use_antigravity",
-                    text="Use Antigravity as AI Advisor")
-        if scene.fo4_use_antigravity:
-            ag_box.prop(scene, "fo4_antigravity_key", text="API Key")
-            ag_box.label(
-                text="✓ Advisor will use Antigravity (Gemini backend)",
-                icon="CHECKMARK")
-        else:
-            ag_box.label(
-                text="Enable to route AI through Antigravity", icon="INFO")
 
         # ── Add-on Update ─────────────────────────────────────────────────────
         if addon_updater:

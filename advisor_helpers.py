@@ -50,10 +50,8 @@ class AdvisorHelpers:
                 report["issues"].append(f"Export validation: {issue}")
 
         if use_llm:
-            # Try Antigravity first
-            ai_resp = AdvisorHelpers.query_antigravity(report)
-            if not ai_resp:
-                ai_resp = AdvisorHelpers.query_mossy(report)
+            # Try Mossy first (no API key needed), then fall back to remote LLM
+            ai_resp = AdvisorHelpers.query_mossy(report)
             if not ai_resp:
                 ai_resp = AdvisorHelpers.query_llm(report)
             if ai_resp:
@@ -158,46 +156,6 @@ class AdvisorHelpers:
             return response  # str with content, or None
         except Exception:
             return None
-
-    @staticmethod
-    def query_antigravity(meta_report):
-        from . import preferences, knowledge_helpers
-        prefs = preferences.get_preferences()
-        if not prefs or not getattr(prefs, "use_antigravity_as_ai", False) or not prefs.antigravity_api_key:
-            return None
-
-        kb_snippets = []
-        if getattr(prefs, "knowledge_base_enabled", False):
-            kb_snippets = knowledge_helpers.load_snippets(max_files=4, max_chars=800)
-
-        payload = {
-            "contents": [{
-                "parts": [{"text": (
-                    "You are an expert Antigravity Fallout 4 Modding Assistant. "
-                    "Review these export-readiness issues and give clear, "
-                    "prioritized fixes as a beginner-friendly step-by-step list.\n\n"
-                    f"Report Data: {json.dumps(meta_report)}\n\n"
-                    f"Knowledge Base: {json.dumps(kb_snippets)}"
-                )}]
-            }]
-        }
-        
-        url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-pro:generateContent?key={prefs.antigravity_api_key}"
-        data = json.dumps(payload).encode("utf-8")
-        headers = {"Content-Type": "application/json"}
-        req = urllib.request.Request(url, data=data, headers=headers, method="POST")
-        try:
-            with contextlib.closing(urllib.request.urlopen(req, timeout=10)) as resp:
-                text = resp.read().decode("utf-8", errors="replace")
-                try:
-                    parsed = json.loads(text)
-                    if "candidates" in parsed and parsed["candidates"]:
-                        return parsed["candidates"][0]["content"]["parts"][0]["text"]
-                    return text
-                except json.JSONDecodeError:
-                    return text
-        except Exception as e:
-            return f"Antigravity call failed: {e}"
 
     @staticmethod
     def query_llm(meta_report):
@@ -630,81 +588,57 @@ class AdvisorHelpers:
         return _ml.ask_mossy(query, context_data=analysis, timeout=15)
 
     @staticmethod
-    def ask_antigravity_uv_texture(obj, extra_question: str = "") -> "str | None":
-        from . import preferences
-        prefs = preferences.get_preferences()
-        if not prefs or not getattr(prefs, "use_antigravity_as_ai", False) or not prefs.antigravity_api_key:
-            return None
+    def mossy_auto_fix_mesh(obj) -> dict:
+        """Send a mesh validation report to Mossy and apply the suggested fixes.
 
-        analysis = AdvisorHelpers.analyze_uv_texture(obj)
-        prompt = (
-            "I am setting up a Fallout 4 mod mesh in Blender and need help with "
-            "UV mapping and textures for NIF export. "
-            "Review the analysis below and give me clear, numbered, "
-            "beginner-friendly steps to fix any issues and get this ready for export.\n\n"
-        )
-        if extra_question:
-            prompt += f"Specifically: {extra_question}\n\n"
-        prompt += json.dumps(analysis, indent=2)
+        Mossy analyses the issues and responds with a JSON array of action
+        strings (same set used by :meth:`apply_quick_fix`).  No API key is
+        required — Mossy runs locally on the user's desktop.
 
-        payload = {
-            "contents": [{"parts": [{"text": prompt}]}]
-        }
-        url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-pro:generateContent?key={prefs.antigravity_api_key}"
-        data = json.dumps(payload).encode("utf-8")
-        headers = {"Content-Type": "application/json"}
-        req = urllib.request.Request(url, data=data, headers=headers, method="POST")
+        Returns a dict with keys ``success`` (bool), ``message`` (str on
+        failure), and ``actions`` (list[str] on success).
+        """
+        from . import mesh_helpers
         try:
-            with contextlib.closing(urllib.request.urlopen(req, timeout=15)) as resp:
-                parsed = json.loads(resp.read().decode("utf-8"))
-                return parsed["candidates"][0]["content"]["parts"][0]["text"]
-        except Exception as e:
-            return None
-
-    @staticmethod
-    def antigravity_auto_fix_mesh(obj) -> dict:
-        """
-        Sends mesh validation report to Antigravity and expects a JSON response 
-        with Blender operator actions to execute to auto-fix the mesh.
-        """
-        from . import preferences, mesh_helpers
-        prefs = preferences.get_preferences()
-        if not prefs or not getattr(prefs, "use_antigravity_as_ai", False) or not prefs.antigravity_api_key:
-            return {"success": False, "message": "Antigravity not enabled or no API key."}
+            from . import mossy_link as _ml
+        except Exception:
+            return {"success": False, "message": "Mossy Link module not available."}
 
         ok, issues = mesh_helpers.MeshHelpers.validate_mesh(obj)
         if ok:
-            return {"success": True, "message": "Mesh is already valid."}
-            
-        prompt = (
+            return {"success": True, "message": "Mesh is already valid.", "actions": []}
+
+        query = (
             "You are an expert AI fixing Blender meshes for Fallout 4 NIF export. "
-            "The following issues were found during validation:\n"
-            f"{json.dumps(issues, indent=2)}\n\n"
+            "The following issues were found during validation of mesh '"
+            f"{obj.name}':\n{json.dumps(issues, indent=2)}\n\n"
             "Respond ONLY with a valid JSON array of action strings to fix these issues. "
-            "Allowed actions: ['REMOVE_DOUBLES', 'DELETE_LOOSE', 'MAKE_MANIFOLD', 'APPLY_TRANSFORMS', 'TRIANGULATE', 'SHADE_SMOOTH_AUTOSMOOTH']. "
-            "Example: [\"APPLY_TRANSFORMS\", \"DELETE_LOOSE\"]"
+            "Allowed actions: ['REMOVE_DOUBLES', 'DELETE_LOOSE', 'MAKE_MANIFOLD', "
+            "'APPLY_TRANSFORMS', 'TRIANGULATE', 'SHADE_SMOOTH_AUTOSMOOTH']. "
+            "Example response: [\"APPLY_TRANSFORMS\", \"DELETE_LOOSE\"]"
         )
-        
-        payload = {"contents": [{"parts": [{"text": prompt}]}]}
-        url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-pro:generateContent?key={prefs.antigravity_api_key}"
-        data = json.dumps(payload).encode("utf-8")
-        headers = {"Content-Type": "application/json"}
-        req = urllib.request.Request(url, data=data, headers=headers, method="POST")
+        context_data = {"issues": issues, "mesh": obj.name}
+
+        response = _ml.ask_mossy(query, context_data=context_data, timeout=15)
+        if not response:
+            return {"success": False, "message": "Mossy is not reachable. Make sure Mossy is running."}
+
+        # Strip markdown fences if present
+        text = response.strip()
+        if text.startswith("```json"):
+            text = text.split("```json")[1].split("```")[0].strip()
+        elif text.startswith("```"):
+            text = text.split("```")[1].split("```")[0].strip()
+
         try:
-            with contextlib.closing(urllib.request.urlopen(req, timeout=15)) as resp:
-                parsed = json.loads(resp.read().decode("utf-8"))
-                text = parsed["candidates"][0]["content"]["parts"][0]["text"]
-                if text.startswith("```json"):
-                    text = text.split("```json")[1].split("```")[0].strip()
-                elif text.startswith("```"):
-                    text = text.split("```")[1].split("```")[0].strip()
-                    
-                actions = json.loads(text)
-                if not isinstance(actions, list):
-                    return {"success": False, "message": "Antigravity returned invalid format."}
-                return {"success": True, "actions": actions}
-        except Exception as e:
-            return {"success": False, "message": f"Antigravity auto-fix failed: {str(e)}"}
+            actions = json.loads(text)
+        except json.JSONDecodeError:
+            return {"success": False, "message": f"Mossy returned unexpected format: {text[:200]}"}
+
+        if not isinstance(actions, list):
+            return {"success": False, "message": "Mossy returned invalid format (expected a list)."}
+
+        return {"success": True, "actions": actions}
 
 
 def register():

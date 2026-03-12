@@ -84,8 +84,6 @@ _PERSISTENT = (
     "fo4_mossy_autostart",
     "fo4_mossy_http_port",
     "fo4_use_mossy_ai",
-    "fo4_use_antigravity",
-    "fo4_antigravity_key",
     "fo4_auto_install_tools",
     "fo4_auto_install_python",
     "fo4_auto_register_tools",
@@ -157,8 +155,6 @@ _ATTR_MAP: dict[str, str] = {
     "autostart":                       "fo4_mossy_autostart",
     "mossy_http_port":                 "fo4_mossy_http_port",
     "use_mossy_as_ai":                 "fo4_use_mossy_ai",
-    "use_antigravity_as_ai":           "fo4_use_antigravity",
-    "antigravity_api_key":             "fo4_antigravity_key",
     "auto_install_tools":              "fo4_auto_install_tools",
     "auto_install_python":             "fo4_auto_install_python",
     "auto_install_pytorch":            "fo4_auto_install_python",  # alias
@@ -194,8 +190,6 @@ _DEFAULTS: dict[str, object] = {
     "autostart":                       True,
     "mossy_http_port":                 8080,
     "use_mossy_as_ai":                 False,
-    "use_antigravity_as_ai":           False,
-    "antigravity_api_key":             "",
     "auto_install_tools":              True,
     "auto_install_python":             True,
     "auto_install_pytorch":            True,
@@ -521,16 +515,6 @@ _PROPS: list[tuple[str, object]] = [
         name="Use Mossy as AI Advisor",
         description="Route advisor AI queries through Mossy (no API key needed)",
         default=False, update=_on_change)),
-
-    # ── Antigravity ───────────────────────────────────────────────────────────
-    ("fo4_use_antigravity", bpy.props.BoolProperty(
-        name="Use Antigravity (Gemini)",
-        description="Route advisor AI queries through the Antigravity Gemini backend",
-        default=False, update=_on_change)),
-    ("fo4_antigravity_key", bpy.props.StringProperty(
-        name="Antigravity API Key",
-        description="API key for the Antigravity / Gemini backend",
-        default="", subtype='PASSWORD', update=_on_change)),
 
     # ── Auto-install ──────────────────────────────────────────────────────────
     ("fo4_auto_install_tools", bpy.props.BoolProperty(

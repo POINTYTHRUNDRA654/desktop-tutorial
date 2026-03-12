@@ -4,6 +4,125 @@ This document records the key architectural decisions and recent fixes
 for the Fallout 4 Tutorial Helper add-on.  It serves as a memorization aid
 so future changes don't accidentally reintroduce bugs or regressions.
 
+> **For AI agents / Copilot:** Read this file first at the start of every
+> session.  It tells you what has been built, why decisions were made, and
+> what rules must not be broken.
+
+---
+
+## Project Purpose
+
+This is a **Blender add-on** for Fallout 4 modding.  Its job is to give
+modders a full, guided pipeline inside Blender that prepares their meshes,
+materials, and textures so they can:
+
+1. Export a working **NIF file** out of Blender.
+2. Open that NIF in **Creation Kit**.
+3. Drop the asset straight into the game with all necessary settings already
+   set (collision, LOD chain, UV maps, DDS textures, FO4 materials).
+
+The add-on lives entirely inside Blender's N-panel under the "Fallout 4"
+category.
+
+---
+
+## AI / LLM Rules — READ BEFORE TOUCHING AI CODE
+
+### ✅ Use Mossy AI (no API key, built-in)
+- **Mossy** is the AI tutor that ships with this project.  It runs as a local
+  HTTP server on the user's desktop (default port 8080).
+- Call it via `mossy_link.ask_mossy(query, context_data, timeout)`.
+- No API key is needed; Mossy is always available if the user has it running.
+- Mossy is the **first and preferred** AI path for all advisor and auto-fix
+  calls.  Fall back to the generic remote LLM only if Mossy is not reachable.
+
+### ❌ Antigravity / Gemini — REMOVED, DO NOT RE-ADD
+- Antigravity was a Gemini (Google) backend that required the user to paste
+  in an external API key.  This was unwanted — users should not have to load
+  API keys.
+- **Antigravity has been completely removed** (March 2026).  Do not reference
+  it, re-add it, or create any new code that calls the Gemini API.
+- Properties `fo4_use_antigravity` and `fo4_antigravity_key` no longer exist
+  on the scene.  Do not add them back.
+
+### ❌ No external chatbot / API-key LLMs as primary AI
+- The generic remote-LLM path (`query_llm` / `fo4_llm_*` scene props) exists
+  as an optional fallback for power users who configure their own endpoint.
+- It must never be the default or the first path tried.
+- Never add another API-key-gated AI service as a required feature.
+
+---
+
+## Antigravity Removal (March 2026)
+
+**What was done:**
+
+| File | Change |
+|------|--------|
+| `advisor_helpers.py` | Removed `query_antigravity()`, `ask_antigravity_uv_texture()`, `antigravity_auto_fix_mesh()`. Added `mossy_auto_fix_mesh()`. `analyze_scene()` now tries Mossy first, then remote LLM. |
+| `operators.py` | Removed `FO4_OT_AskAntigravityUVAdvice` and `FO4_OT_AntigravityAutoFix`. Added `FO4_OT_MossyAutoFix` (`fo4.mossy_auto_fix`). |
+| `ui_panels.py` | All "Ask Antigravity" / "AI Auto-Fix (Antigravity)" buttons replaced with Mossy equivalents. Antigravity settings box removed from the Settings panel. |
+| `preferences.py` | Removed `fo4_use_antigravity` and `fo4_antigravity_key` scene properties, their `_PERSISTENT` entries, `_ALIAS_MAP` entries, and `_DEFAULTS` entries. |
+| `test_addon_integrity.py` | Removed assertions that checked for the now-deleted Antigravity scene properties. |
+
+**Why:**  The user does not want to use a chatbot that requires loading an
+external API key.  Mossy is the AI that comes with the project and works
+locally without any key.
+
+---
+
+## Mesh Helper Automatic Buttons Restored (March 2026)
+
+**What was done:**
+
+The Mesh Helpers panel (`FO4_PT_MeshPanel`, both unified and non-unified
+layouts) now has a **"Full FO4 Pipeline"** section at the top containing the
+complete set of one-click automatic buttons:
+
+| Button | Operator | What it does |
+|--------|----------|-------------|
+| Convert to Fallout 4 (Full Pipeline) | `fo4.convert_to_fallout4` | One-click: applies transforms, optimises mesh, sets up FO4 material, converts textures to DDS, optionally generates collision, validates |
+| Quick Prepare for Export | `fo4.quick_prepare_export` | Faster preparation pass |
+| Auto-Fix Common Issues | `fo4.auto_fix_issues` | Applies scale, removes loose verts, recalculates normals, creates UV map if missing |
+
+The **Advanced Mesh Tools** section now has:
+- **AI Auto-Fix (Mossy)** (`fo4.mossy_auto_fix`) — sends mesh validation
+  issues to Mossy, gets back a JSON list of fix actions, applies them
+  automatically.  No API key required.
+- "Validate Before Export" button (`fo4.validate_export`) added alongside
+  "Validate Mesh".
+- All other advanced buttons remain: Analyze Quality, Auto-Repair, Smart
+  Decimate, Split at Poly Limit, Generate LOD Chain.
+
+The UV & Texture section now shows only the "Ask Mossy" UV advice button
+(the "Ask Antigravity" button has been removed).
+
+**Why:**  The mesh helper buttons exist to take any mesh and make it meet
+Fallout 4's standards automatically — so it can export as a NIF, open in
+Creation Kit, and go straight into the game.  Previously, the only "AI
+automatic" button used Antigravity (required API key, broken for most users).
+Now everything works out of the box via Mossy.
+
+---
+
+## mossy_auto_fix_mesh() — How It Works
+
+```
+AdvisorHelpers.mossy_auto_fix_mesh(obj)
+  1. Calls MeshHelpers.validate_mesh(obj) → list of issue strings
+  2. Builds a query string that includes the issue list inline
+  3. Calls mossy_link.ask_mossy(query, context_data, timeout=15)
+  4. Parses Mossy's JSON array response, e.g. ["APPLY_TRANSFORMS", "DELETE_LOOSE"]
+  5. Returns {"success": True, "actions": [...]}
+  6. Caller (FO4_OT_MossyAutoFix) iterates actions and calls apply_quick_fix()
+```
+
+Allowed actions (same set as `apply_quick_fix`):
+`REMOVE_DOUBLES`, `DELETE_LOOSE`, `MAKE_MANIFOLD`, `APPLY_TRANSFORMS`,
+`TRIANGULATE`, `SHADE_SMOOTH_AUTOSMOOTH`
+
+---
+
 ## Policy Violation Fix (Feb 2026)
 
 - Blender issued warnings about `policy violation with top level module`
