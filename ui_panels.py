@@ -28,6 +28,7 @@ asset_studio_helpers = _safe_import("asset_studio_helpers")
 asset_ripper_helpers = _safe_import("asset_ripper_helpers")
 knowledge_helpers = _safe_import("knowledge_helpers")
 export_helpers = _safe_import("export_helpers")
+addon_updater = _safe_import("addon_updater")
 realesrgan_helpers = _safe_import("realesrgan_helpers")
 instantngp_helpers = _safe_import("instantngp_helpers")
 imageto3d_helpers = _safe_import("imageto3d_helpers")
@@ -2957,14 +2958,17 @@ class FO4_PT_SettingsPanel(Panel):
                 text="Enable to route AI through Antigravity", icon="INFO")
 
         # ── Add-on Update ─────────────────────────────────────────────────────
-        update_box = layout.box()
-        update_box.label(text="Add-on Update", icon="FILE_REFRESH")
-        update_box.label(
-            text="Install a new zip via Edit → Preferences → Add-ons → Install",
-            icon='INFO',
-        )
-        update_box.label(
-            text="Then restart Blender to apply changes.", icon='BLANK1')
+        if addon_updater:
+            addon_updater.draw_update_ui(layout)
+        else:
+            update_box = layout.box()
+            update_box.label(text="Add-on Update", icon="FILE_REFRESH")
+            update_box.label(
+                text="Install a new zip via Edit → Preferences → Add-ons → Install",
+                icon='INFO',
+            )
+            update_box.label(
+                text="Then restart Blender to apply changes.", icon='BLANK1')
 
 
 class FO4_PT_OperationLogPanel(Panel):
