@@ -1776,7 +1776,7 @@ class FO4_PT_QuestPanel(Panel):
         # Papyrus script
         box = layout.box()
         box.label(text="Scripting", icon='SCRIPT')
-        box.operator("fo4.generate_papyrus_script", text="Generate Papyrus Script", icon='FILE_SCRIPT')
+        box.operator("fo4.quest_generate_papyrus_script", text="Generate Papyrus Script", icon='FILE_SCRIPT')
         
         # Info
         info_box = layout.box()
@@ -2574,6 +2574,7 @@ class FO4_PT_ModPackagingPanel(Panel):
                       icon='BLANK1')
 
 
+class FO4_PT_AddonIntegrationPanel(Panel):
     """Third-party add-on integration panel"""
     bl_label = "Add-on Integrations"
     bl_idname = "FO4_PT_addon_integration_panel"
@@ -3019,6 +3020,7 @@ classes = (
     FO4_PT_NVTTPanel,
     FO4_PT_AdvisorPanel,
     FO4_PT_ToolsLinks,
+    FO4_PT_GameAssetsPanel,
     FO4_PT_ExportPanel,
     # New panels for enhancements
     FO4_PT_BatchProcessingPanel,
