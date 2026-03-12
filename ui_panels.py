@@ -2365,7 +2365,214 @@ class FO4_PT_ReferenceObjectsPanel(Panel):
         sub.label(text="non-selectable and export-skipped.")
 
 
-class FO4_PT_AddonIntegrationPanel(Panel):
+# ── Papyrus Script Templates Panel ────────────────────────────────────────────
+
+class FO4_PT_PapyrusPanel(Panel):
+    """Generate Papyrus scripts for Fallout 4 mods"""
+    bl_label    = "Papyrus Scripts"
+    bl_idname   = "FO4_PT_papyrus_panel"
+    bl_space_type  = 'VIEW_3D'
+    bl_region_type = 'UI'
+    bl_category = 'Fallout 4'
+    bl_parent_id   = "FO4_PT_main_panel"
+    bl_options  = {'DEFAULT_CLOSED'}
+
+    def draw(self, context):
+        layout = self.layout
+        scene  = context.scene
+
+        # ── Script metadata ───────────────────────────────────────────────────
+        meta_box = layout.box()
+        meta_box.label(text="Script Settings", icon='SCRIPT')
+        meta_box.prop(scene, "fo4_papyrus_template",    text="Type")
+        meta_box.prop(scene, "fo4_papyrus_script_name", text="Script Name")
+        meta_box.prop(scene, "fo4_papyrus_mod_name",    text="Mod Prefix")
+
+        # ── Generate / preview ────────────────────────────────────────────────
+        gen_box = layout.box()
+        gen_box.label(text="Generate", icon='FILE_SCRIPT')
+        gen_box.operator("fo4.generate_papyrus_script",
+                         text="Preview in Text Editor", icon='SCRIPT')
+        gen_box.label(text="→ Opens in Blender Text Editor", icon='BLANK1')
+
+        # ── Export ────────────────────────────────────────────────────────────
+        exp_box = layout.box()
+        exp_box.label(text="Export to Disk", icon='EXPORT')
+        exp_box.prop(scene, "fo4_papyrus_output_dir", text="Output Folder")
+        exp_box.operator("fo4.export_papyrus_script",
+                         text="Export .psc File", icon='FILE_TICK')
+
+        # ── Compile guide ─────────────────────────────────────────────────────
+        info_box = layout.box()
+        info_box.label(text="Compilation", icon='INFO')
+        info_box.operator("fo4.papyrus_compile_instructions",
+                          text="Show Compile Instructions", icon='HELP')
+        sub = info_box.column(align=True)
+        sub.scale_y = 0.75
+        sub.label(text="1. Place .psc in Data/Scripts/Source/User/")
+        sub.label(text="2. Compile in Creation Kit (Gameplay → Papyrus)")
+        sub.label(text="   or with PapyrusCompiler.exe from command line")
+        sub.label(text="3. Attach compiled .pex to your form in the CK")
+        sub.label(text="   (form → Scripts tab → Add → script name)")
+
+
+# ── Havok Physics Panel ───────────────────────────────────────────────────────
+
+class FO4_PT_HavokPhysicsPanel(Panel):
+    """Havok rigid-body physics setup for FO4 NIF export"""
+    bl_label    = "Havok Physics"
+    bl_idname   = "FO4_PT_havok_physics_panel"
+    bl_space_type  = 'VIEW_3D'
+    bl_region_type = 'UI'
+    bl_category = 'Fallout 4'
+    bl_parent_id   = "FO4_PT_main_panel"
+    bl_options  = {'DEFAULT_CLOSED'}
+
+    def draw(self, context):
+        layout = self.layout
+        scene  = context.scene
+        obj    = context.active_object
+
+        # ── Preset selector ───────────────────────────────────────────────────
+        preset_box = layout.box()
+        preset_box.label(text="Physics Preset", icon='RIGID_BODY')
+        preset_box.prop(scene, "fo4_physics_preset", text="")
+        preset_box.operator("fo4.apply_physics_preset",
+                            text="Apply to Selected", icon='PHYSICS')
+
+        # ── Active object summary ─────────────────────────────────────────────
+        if obj and obj.type == 'MESH':
+            status_box = layout.box()
+            status_box.label(
+                text=f"Active: {obj.name}", icon='OBJECT_DATA')
+            rb = obj.rigid_body
+            if rb:
+                col = status_box.column(align=True)
+                col.scale_y = 0.85
+                layer  = obj.get("fo4_collision_layer", "–")
+                motion = obj.get("fo4_motion_type",     "–")
+                mass   = obj.get("fo4_havok_mass",      rb.mass)
+                fric   = obj.get("fo4_havok_friction",  rb.friction)
+                rest   = obj.get("fo4_havok_restitution", rb.restitution)
+                qual   = obj.get("fo4_havok_quality",   "–")
+                col.label(text=f"Layer:       {layer}")
+                col.label(text=f"Motion:      {motion}")
+                col.label(text=f"Quality:     {qual}")
+                col.label(text=f"Mass:        {mass:.2f} kg")
+                col.label(text=f"Friction:    {fric:.2f}")
+                col.label(text=f"Restitution: {rest:.2f}")
+            else:
+                status_box.label(text="No rigid body (no physics)", icon='ERROR')
+
+            # ── Validate ─────────────────────────────────────────────────────
+            status_box.operator("fo4.validate_physics",
+                                text="Validate Physics", icon='CHECKMARK')
+
+            # ── Live warnings ─────────────────────────────────────────────────
+            if getattr(scene, "fo4_physics_show_warnings", True):
+                try:
+                    from . import fo4_physics_helpers
+                    warns = fo4_physics_helpers.PhysicsHelpers.validate_physics(obj)
+                    if warns:
+                        warn_box = layout.box()
+                        warn_box.label(text="Warnings:", icon='ERROR')
+                        for w in warns:
+                            warn_box.label(text=w, icon='DOT')
+                except Exception:
+                    pass
+        else:
+            layout.label(text="Select a mesh object", icon='INFO')
+
+        # ── Reference table ───────────────────────────────────────────────────
+        ref_box = layout.box()
+        ref_box.label(text="Common FO4 Layer Guide:", icon='INFO')
+        ref_box.prop(scene, "fo4_physics_show_warnings",
+                     text="Show live warnings")
+        sub = ref_box.column(align=True)
+        sub.scale_y = 0.75
+        sub.label(text="L_STATIC (1)        – immoveable world geo")
+        sub.label(text="L_ANIMSTATIC (2)    – doors, animated statics")
+        sub.label(text="L_PROPS (7)         – moveable physics props")
+        sub.label(text="L_DEBRIS_SMALL (8)  – gibs / small debris")
+        sub.label(text="L_TREES (35)        – trees / foliage")
+        sub.label(text="FIXED: mass = 0  |  DYNAMIC: mass > 0")
+
+
+# ── Mod Packaging Panel ───────────────────────────────────────────────────────
+
+class FO4_PT_ModPackagingPanel(Panel):
+    """Create, document, and validate a complete FO4 mod package"""
+    bl_label    = "Mod Packaging"
+    bl_idname   = "FO4_PT_mod_packaging_panel"
+    bl_space_type  = 'VIEW_3D'
+    bl_region_type = 'UI'
+    bl_category = 'Fallout 4'
+    bl_parent_id   = "FO4_PT_main_panel"
+    bl_options  = {'DEFAULT_CLOSED'}
+
+    def draw(self, context):
+        layout = self.layout
+        scene  = context.scene
+
+        # ── Mod identity ──────────────────────────────────────────────────────
+        id_box = layout.box()
+        id_box.label(text="Mod Identity", icon='INFO')
+        id_box.prop(scene, "fo4_mod_name",        text="Name")
+        id_box.prop(scene, "fo4_mod_author",       text="Author")
+        id_box.prop(scene, "fo4_mod_version",      text="Version")
+        id_box.prop(scene, "fo4_mod_fo4_version",  text="Min FO4 Ver.")
+        id_box.prop(scene, "fo4_mod_plugin_name",  text="Plugin (.esp)")
+        id_box.prop(scene, "fo4_mod_description",  text="Description")
+        id_box.prop(scene, "fo4_mod_website",      text="Nexus URL")
+
+        # ── Root folder ───────────────────────────────────────────────────────
+        root_box = layout.box()
+        root_box.label(text="Mod Root Folder", icon='FILE_FOLDER')
+        root_box.prop(scene, "fo4_mod_root", text="")
+
+        # ── Structure ─────────────────────────────────────────────────────────
+        struct_box = layout.box()
+        struct_box.label(text="1 · Create Directory Structure", icon='FILEBROWSER')
+        struct_box.operator("fo4.create_mod_structure",
+                            text="Create Data/ + FOMOD Folders", icon='ADD')
+        struct_box.label(
+            text="Creates: Data/meshes/, textures/, scripts/, fomod/, …",
+            icon='BLANK1')
+
+        # ── FOMOD ─────────────────────────────────────────────────────────────
+        fomod_box = layout.box()
+        fomod_box.label(text="2 · FOMOD Installer", icon='PACKAGE')
+        fomod_box.operator("fo4.generate_fomod",
+                           text="Generate info.xml + ModuleConfig.xml", icon='FILE_TICK')
+        fomod_box.label(text="Compatible with Vortex, MO2, NMM", icon='BLANK1')
+
+        # ── README ────────────────────────────────────────────────────────────
+        readme_box = layout.box()
+        readme_box.label(text="3 · README", icon='TEXT')
+        readme_box.operator("fo4.generate_readme",
+                            text="Generate README.md", icon='FILE_TICK')
+        readme_box.label(text="Nexus-ready with all standard sections",
+                         icon='BLANK1')
+
+        # ── Validate + manifest ───────────────────────────────────────────────
+        val_box = layout.box()
+        val_box.label(text="4 · Validate & Manifest", icon='CHECKMARK')
+        val_box.operator("fo4.validate_mod_structure",
+                         text="Validate Mod Structure", icon='ZOOM_ALL')
+        val_box.operator("fo4.export_mod_manifest",
+                         text="Export mod_manifest.json", icon='EXPORT')
+
+        # ── BA2 packing guide ─────────────────────────────────────────────────
+        ba2_box = layout.box()
+        ba2_box.label(text="5 · Pack into BA2 Archive", icon='PACKAGE')
+        ba2_box.label(text="pack_ba2.bat / pack_ba2.sh are written to the",
+                      icon='BLANK1')
+        ba2_box.label(text="mod root by 'Create Structure'. Edit paths and",
+                      icon='BLANK1')
+        ba2_box.label(text="run to call Archive2.exe automatically.",
+                      icon='BLANK1')
+
+
     """Third-party add-on integration panel"""
     bl_label = "Add-on Integrations"
     bl_idname = "FO4_PT_addon_integration_panel"
@@ -2827,6 +3034,9 @@ classes = (
     FO4_PT_MaterialBrowserPanel,
     FO4_PT_SceneDiagnosticsPanel,
     FO4_PT_ReferenceObjectsPanel,
+    FO4_PT_PapyrusPanel,
+    FO4_PT_HavokPhysicsPanel,
+    FO4_PT_ModPackagingPanel,
     FO4_PT_AddonIntegrationPanel,
     FO4_PT_DesktopTutorialPanel,
     # Settings / Config panel moved from preferences

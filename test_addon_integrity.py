@@ -288,6 +288,12 @@ def test_zip_contents():
         "fo4_scene_diagnostics.py",
         # Scale reference objects
         "fo4_reference_helpers.py",
+        # Papyrus script template generator
+        "papyrus_helpers.py",
+        # Havok physics properties
+        "fo4_physics_helpers.py",
+        # Mod packaging helpers
+        "mod_packaging_helpers.py",
         # Knowledge base docs
         "knowledge_base/fo4_post_processing.md",
         "knowledge_base/fo4_export.md",
@@ -295,6 +301,9 @@ def test_zip_contents():
         "knowledge_base/fo4_reference_scale.md",
         "knowledge_base/collision_materials.md",
         "knowledge_base/textures_dds.md",
+        "knowledge_base/fo4_papyrus.md",
+        "knowledge_base/fo4_physics.md",
+        "knowledge_base/fo4_mod_packaging.md",
     ]
 
     with zipfile.ZipFile(zip_path, 'r') as zf:
@@ -1518,6 +1527,172 @@ def test_preferences_migration():
     return True
 
 
+def test_new_features():
+    """Verify Papyrus, Havok Physics, and Mod Packaging feature completeness."""
+    print("\n" + "="*70)
+    print("TEST 12: Verifying Papyrus / Havok Physics / Mod Packaging features")
+    print("="*70)
+
+    failed = []
+
+    papyrus_src  = Path("papyrus_helpers.py").read_text()
+    physics_src  = Path("fo4_physics_helpers.py").read_text()
+    packaging_src= Path("mod_packaging_helpers.py").read_text()
+    ops_src      = Path("operators.py").read_text()
+    ui_src       = Path("ui_panels.py").read_text()
+    init_src     = Path("__init__.py").read_text()
+
+    # ── Papyrus helpers ───────────────────────────────────────────────────────
+    papyrus_checks = [
+        ("PapyrusHelpers class defined",         "class PapyrusHelpers" in papyrus_src),
+        ("generate() method present",            "def generate(" in papyrus_src),
+        ("export() method present",              "def export(" in papyrus_src),
+        ("get_compile_instructions() present",   "def get_compile_instructions(" in papyrus_src),
+        ("14 template types defined",
+            all(t in papyrus_src for t in (
+                '"OBJECT"', '"WEAPON"', '"ARMOR"', '"ACTIVATOR"',
+                '"CONTAINER"', '"DOOR"', '"QUEST"', '"MAGIC_EFFECT"',
+                '"ALIAS_ACTOR"', '"ALIAS_REF"', '"TERMINAL"',
+                '"HOLOTAPE"', '"WORKSHOP"', '"NPC"'))),
+        ("TEMPLATE_ENUM_ITEMS defined",          "TEMPLATE_ENUM_ITEMS" in papyrus_src),
+        ("register() defined",                   "def register()" in papyrus_src),
+        ("unregister() defined",                 "def unregister()" in papyrus_src),
+        ("fo4_papyrus_template scene prop",      "fo4_papyrus_template" in papyrus_src),
+        ("fo4_papyrus_script_name scene prop",   "fo4_papyrus_script_name" in papyrus_src),
+        ("fo4_papyrus_output_dir scene prop",    "fo4_papyrus_output_dir" in papyrus_src),
+        ("Quest template has stage fragments",   "Fragment_Stage_" in papyrus_src),
+        ("NPC template has OnDeath event",       "OnDeath" in papyrus_src),
+        ("Workshop template has OnPowerOn",      "OnPowerOn" in papyrus_src),
+        ("Terminal template has entry fragments","Fragment_Terminal_Entry_" in papyrus_src),
+        # Operators
+        ("FO4_OT_GeneratePapyrusScript operator","FO4_OT_GeneratePapyrusScript" in ops_src),
+        ("FO4_OT_ExportPapyrusScript operator",  "FO4_OT_ExportPapyrusScript" in ops_src),
+        ("FO4_OT_ShowPapyrusCompileInstructions","FO4_OT_ShowPapyrusCompileInstructions" in ops_src),
+        ("All Papyrus ops registered",
+            all(o in ops_src for o in (
+                "FO4_OT_GeneratePapyrusScript,",
+                "FO4_OT_ExportPapyrusScript,",
+                "FO4_OT_ShowPapyrusCompileInstructions,"))),
+        # Panel
+        ("FO4_PT_PapyrusPanel defined",          "FO4_PT_PapyrusPanel" in ui_src),
+        ("Papyrus panel in classes tuple",        "FO4_PT_PapyrusPanel," in ui_src),
+        ("Papyrus panel shows template prop",     '"fo4_papyrus_template"' in ui_src),
+        ("Papyrus panel shows output_dir",        '"fo4_papyrus_output_dir"' in ui_src),
+        # Module registered in __init__
+        ("papyrus_helpers imported in __init__",  "papyrus_helpers" in init_src),
+    ]
+
+    # ── Havok physics helpers ─────────────────────────────────────────────────
+    physics_checks = [
+        ("PhysicsHelpers class defined",          "class PhysicsHelpers" in physics_src),
+        ("setup_rigid_body() method present",     "def setup_rigid_body(" in physics_src),
+        ("apply_to_selection() method present",   "def apply_to_selection(" in physics_src),
+        ("validate_physics() method present",     "def validate_physics(" in physics_src),
+        ("PRESETS dict defined",                  "PRESETS:" in physics_src or "PRESETS = " in physics_src or "PRESETS: dict" in physics_src),
+        ("12 presets defined",
+            all(p in physics_src for p in (
+                '"STATIC_METAL"', '"STATIC_STONE"', '"STATIC_WOOD"',
+                '"ANIMSTATIC_DOOR"', '"DYNAMIC_PROP_LIGHT"',
+                '"DYNAMIC_PROP_MEDIUM"', '"DYNAMIC_PROP_HEAVY"',
+                '"DYNAMIC_DEBRIS"', '"STATIC_GLASS"', '"DYNAMIC_GLASS"',
+                '"STATIC_TREE"', '"STATIC_VEHICLE"'))),
+        ("PRESET_ENUM_ITEMS defined",             "PRESET_ENUM_ITEMS" in physics_src),
+        ("Collision layer constants defined",     "LAYER_STATIC" in physics_src),
+        ("fo4_collision_layer written",           '"fo4_collision_layer"' in physics_src),
+        ("fo4_motion_type written",               '"fo4_motion_type"' in physics_src),
+        ("fo4_havok_mass written",                '"fo4_havok_mass"' in physics_src),
+        ("fo4_havok_friction written",            '"fo4_havok_friction"' in physics_src),
+        ("fo4_havok_quality written",             '"fo4_havok_quality"' in physics_src),
+        ("register() defined",                    "def register()" in physics_src),
+        ("fo4_physics_preset scene prop",         "fo4_physics_preset" in physics_src),
+        # Operators
+        ("FO4_OT_ApplyPhysicsPreset operator",    "FO4_OT_ApplyPhysicsPreset" in ops_src),
+        ("FO4_OT_ValidatePhysics operator",       "FO4_OT_ValidatePhysics" in ops_src),
+        ("Physics ops registered in classes",
+            all(o in ops_src for o in (
+                "FO4_OT_ApplyPhysicsPreset,", "FO4_OT_ValidatePhysics,"))),
+        # Panel
+        ("FO4_PT_HavokPhysicsPanel defined",      "FO4_PT_HavokPhysicsPanel" in ui_src),
+        ("Havok panel in classes tuple",          "FO4_PT_HavokPhysicsPanel," in ui_src),
+        ("Havok panel shows preset prop",         '"fo4_physics_preset"' in ui_src),
+        ("Havok panel shows live warnings",       "fo4_physics_show_warnings" in ui_src),
+        ("fo4_physics_helpers imported in __init__", "fo4_physics_helpers" in init_src),
+    ]
+
+    # ── Mod packaging helpers ─────────────────────────────────────────────────
+    packaging_checks = [
+        ("ModPackager class defined",             "class ModPackager" in packaging_src),
+        ("create_structure() method present",     "def create_structure(" in packaging_src),
+        ("generate_fomod() method present",       "def generate_fomod(" in packaging_src),
+        ("generate_readme() method present",      "def generate_readme(" in packaging_src),
+        ("validate_structure() method present",   "def validate_structure(" in packaging_src),
+        ("_write_ba2_scripts() present",          "def _write_ba2_scripts(" in packaging_src),
+        ("export_manifest() method present",      "def export_manifest(" in packaging_src),
+        ("info.xml generation in generate_fomod","info.xml" in packaging_src),
+        ("ModuleConfig.xml generation",           "ModuleConfig.xml" in packaging_src),
+        ("pack_ba2.bat written",                  "pack_ba2.bat" in packaging_src),
+        ("pack_ba2.sh written",                   "pack_ba2.sh" in packaging_src),
+        ("README.md generation",                  "README.md" in packaging_src),
+        ("mod_manifest.json export",              "mod_manifest.json" in packaging_src),
+        ("register() defined",                    "def register()" in packaging_src),
+        ("fo4_mod_name scene prop",               "fo4_mod_name" in packaging_src),
+        ("fo4_mod_root scene prop",               "fo4_mod_root" in packaging_src),
+        ("fo4_mod_author scene prop",             "fo4_mod_author" in packaging_src),
+        ("fo4_mod_version scene prop",            "fo4_mod_version" in packaging_src),
+        # Operators
+        ("FO4_OT_CreateModStructure operator",    "FO4_OT_CreateModStructure" in ops_src),
+        ("FO4_OT_GenerateFOMOD operator",         "FO4_OT_GenerateFOMOD" in ops_src),
+        ("FO4_OT_GenerateReadme operator",        "FO4_OT_GenerateReadme" in ops_src),
+        ("FO4_OT_ValidateModStructure operator",  "FO4_OT_ValidateModStructure" in ops_src),
+        ("FO4_OT_ExportModManifest operator",     "FO4_OT_ExportModManifest" in ops_src),
+        ("Packaging ops registered in classes",
+            all(o in ops_src for o in (
+                "FO4_OT_CreateModStructure,", "FO4_OT_GenerateFOMOD,",
+                "FO4_OT_GenerateReadme,", "FO4_OT_ValidateModStructure,",
+                "FO4_OT_ExportModManifest,"))),
+        # Panel
+        ("FO4_PT_ModPackagingPanel defined",      "FO4_PT_ModPackagingPanel" in ui_src),
+        ("Packaging panel in classes tuple",      "FO4_PT_ModPackagingPanel," in ui_src),
+        ("Panel shows mod name prop",             '"fo4_mod_name"' in ui_src),
+        ("Panel shows mod root prop",             '"fo4_mod_root"' in ui_src),
+        ("Panel shows FOMOD generate button",     '"fo4.generate_fomod"' in ui_src),
+        ("Panel shows README generate button",    '"fo4.generate_readme"' in ui_src),
+        ("Panel shows validate button",           '"fo4.validate_mod_structure"' in ui_src),
+        ("mod_packaging_helpers imported in __init__", "mod_packaging_helpers" in init_src),
+    ]
+
+    # ── Knowledge base docs ───────────────────────────────────────────────────
+    kb_checks = [
+        ("fo4_papyrus.md exists",       Path("knowledge_base/fo4_papyrus.md").exists()),
+        ("fo4_physics.md exists",       Path("knowledge_base/fo4_physics.md").exists()),
+        ("fo4_mod_packaging.md exists", Path("knowledge_base/fo4_mod_packaging.md").exists()),
+        ("Papyrus KB covers template types",
+            "ObjectReference" in Path("knowledge_base/fo4_papyrus.md").read_text()),
+        ("Physics KB covers layer IDs",
+            "L_STATIC" in Path("knowledge_base/fo4_physics.md").read_text()),
+        ("Packaging KB covers FOMOD",
+            "FOMOD" in Path("knowledge_base/fo4_mod_packaging.md").read_text()),
+        ("Packaging KB covers BA2",
+            "BA2" in Path("knowledge_base/fo4_mod_packaging.md").read_text()),
+    ]
+
+    all_checks = papyrus_checks + physics_checks + packaging_checks + kb_checks
+
+    for check_name, result in all_checks:
+        if result:
+            print(f"✅ {check_name}: OK")
+        else:
+            print(f"❌ {check_name}: FAILED")
+            failed.append(check_name)
+
+    if failed:
+        print(f"\n❌ FAILED: {len(failed)} new-features check(s) failed")
+        return False
+
+    print("\n✅ PASSED: All Papyrus / Havok Physics / Mod Packaging checks passed")
+    return True
+
+
 def run_all_tests():
     """Run all test suites"""
     print("\n" + "="*70)
@@ -1542,6 +1717,7 @@ def run_all_tests():
         ("Vegetation Workflow", test_vegetation_workflow),
         ("Post-Processing", test_post_processing),
         ("Preferences Migration", test_preferences_migration),
+        ("New Features (Papyrus/Physics/Packaging)", test_new_features),
     ]
 
     passed = 0

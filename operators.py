@@ -9601,6 +9601,330 @@ class FO4_OT_ClearReferenceObjects(Operator):
         return {'CANCELLED'}
 
 
+# ── Papyrus Script Generator operators ────────────────────────────────────────
+
+class FO4_OT_GeneratePapyrusScript(Operator):
+    """Generate a ready-to-compile Papyrus .psc script from a template."""
+    bl_idname  = "fo4.generate_papyrus_script"
+    bl_label   = "Generate Script"
+    bl_options = {'REGISTER', 'UNDO'}
+
+    def execute(self, context):
+        try:
+            from . import papyrus_helpers
+        except ImportError:
+            self.report({'ERROR'}, "papyrus_helpers module not found")
+            return {'CANCELLED'}
+
+        scene  = context.scene
+        tpl_id = getattr(scene, "fo4_papyrus_template", "OBJECT")
+        name   = getattr(scene, "fo4_papyrus_script_name", "MyMod_MyScript").strip()
+
+        ok, text = papyrus_helpers.PapyrusHelpers.generate(tpl_id, name)
+        if not ok:
+            self.report({'ERROR'}, text)
+            return {'CANCELLED'}
+
+        # Show in a Blender Text block so the user can read / copy / save
+        text_block = bpy.data.texts.get(f"{name}.psc")
+        if text_block is None:
+            text_block = bpy.data.texts.new(f"{name}.psc")
+        text_block.clear()
+        text_block.write(text)
+
+        self.report({'INFO'}, f"Script generated: {name}.psc  (open in Text Editor)")
+        notification_system.FO4_NotificationSystem.notify(
+            f"Papyrus script '{name}.psc' created in Text Editor", 'INFO')
+        return {'FINISHED'}
+
+
+class FO4_OT_ExportPapyrusScript(Operator):
+    """Export the generated Papyrus script to the configured output folder."""
+    bl_idname  = "fo4.export_papyrus_script"
+    bl_label   = "Export .psc to Folder"
+    bl_options = {'REGISTER', 'UNDO'}
+
+    def execute(self, context):
+        try:
+            from . import papyrus_helpers
+        except ImportError:
+            self.report({'ERROR'}, "papyrus_helpers module not found")
+            return {'CANCELLED'}
+
+        scene      = context.scene
+        tpl_id     = getattr(scene, "fo4_papyrus_template", "OBJECT")
+        name       = getattr(scene, "fo4_papyrus_script_name", "").strip()
+        output_dir = getattr(scene, "fo4_papyrus_output_dir", "").strip()
+
+        if not output_dir:
+            self.report({'ERROR'}, "Set an output folder first")
+            return {'CANCELLED'}
+
+        ok, msg = papyrus_helpers.PapyrusHelpers.export(
+            tpl_id, name, bpy.path.abspath(output_dir))
+        if ok:
+            self.report({'INFO'}, msg)
+            notification_system.FO4_NotificationSystem.notify(msg, 'INFO')
+            return {'FINISHED'}
+        self.report({'ERROR'}, msg)
+        return {'CANCELLED'}
+
+
+class FO4_OT_ShowPapyrusCompileInstructions(Operator):
+    """Show compile instructions for the current Papyrus script in the info bar."""
+    bl_idname  = "fo4.papyrus_compile_instructions"
+    bl_label   = "Show Compile Instructions"
+    bl_options = {'REGISTER'}
+
+    def execute(self, context):
+        try:
+            from . import papyrus_helpers
+        except ImportError:
+            self.report({'ERROR'}, "papyrus_helpers module not found")
+            return {'CANCELLED'}
+
+        scene    = context.scene
+        name     = getattr(scene, "fo4_papyrus_script_name", "MyScript").strip()
+        mod_name = getattr(scene, "fo4_papyrus_mod_name", "MyMod").strip()
+        guide    = papyrus_helpers.PapyrusHelpers.get_compile_instructions(name, mod_name)
+
+        block = bpy.data.texts.get("PapyrusCompile_Instructions.txt")
+        if block is None:
+            block = bpy.data.texts.new("PapyrusCompile_Instructions.txt")
+        block.clear()
+        block.write(guide)
+        self.report({'INFO'}, "Compile instructions in Text Editor → PapyrusCompile_Instructions.txt")
+        return {'FINISHED'}
+
+
+# ── Havok Physics operators ────────────────────────────────────────────────────
+
+class FO4_OT_ApplyPhysicsPreset(Operator):
+    """Apply a Havok physics preset to the selected mesh object(s)."""
+    bl_idname  = "fo4.apply_physics_preset"
+    bl_label   = "Apply Physics Preset"
+    bl_options = {'REGISTER', 'UNDO'}
+
+    def execute(self, context):
+        try:
+            from . import fo4_physics_helpers
+        except ImportError:
+            self.report({'ERROR'}, "fo4_physics_helpers module not found")
+            return {'CANCELLED'}
+
+        preset_id = getattr(context.scene, "fo4_physics_preset", "STATIC_METAL")
+        ok, msg = fo4_physics_helpers.PhysicsHelpers.apply_to_selection(context, preset_id)
+        if ok:
+            self.report({'INFO'}, msg)
+            notification_system.FO4_NotificationSystem.notify(msg, 'INFO')
+            return {'FINISHED'}
+        self.report({'ERROR'}, msg)
+        return {'CANCELLED'}
+
+
+class FO4_OT_ValidatePhysics(Operator):
+    """Check the active object's Havok physics settings for common mistakes."""
+    bl_idname  = "fo4.validate_physics"
+    bl_label   = "Validate Physics Settings"
+    bl_options = {'REGISTER'}
+
+    def execute(self, context):
+        try:
+            from . import fo4_physics_helpers
+        except ImportError:
+            self.report({'ERROR'}, "fo4_physics_helpers module not found")
+            return {'CANCELLED'}
+
+        obj = context.active_object
+        warnings = fo4_physics_helpers.PhysicsHelpers.validate_physics(obj)
+        if not warnings:
+            msg = f"Physics OK on {obj.name if obj else 'selection'}"
+            self.report({'INFO'}, msg)
+            notification_system.FO4_NotificationSystem.notify(msg, 'INFO')
+        else:
+            for w in warnings:
+                self.report({'WARNING'}, w)
+                notification_system.FO4_NotificationSystem.notify(w, 'WARNING')
+        return {'FINISHED'}
+
+
+# ── Mod Packaging operators ────────────────────────────────────────────────────
+
+class FO4_OT_CreateModStructure(Operator):
+    """Create the standard FO4 mod directory structure (Data/ + FOMOD)."""
+    bl_idname  = "fo4.create_mod_structure"
+    bl_label   = "Create Mod Structure"
+    bl_options = {'REGISTER'}
+
+    def execute(self, context):
+        try:
+            from . import mod_packaging_helpers
+        except ImportError:
+            self.report({'ERROR'}, "mod_packaging_helpers module not found")
+            return {'CANCELLED'}
+
+        scene    = context.scene
+        mod_root = bpy.path.abspath(getattr(scene, "fo4_mod_root", "")).strip()
+        mod_name = getattr(scene, "fo4_mod_name", "MyFO4Mod").strip()
+
+        if not mod_root:
+            self.report({'ERROR'}, "Set Mod Root Folder first")
+            return {'CANCELLED'}
+
+        ok, msg = mod_packaging_helpers.ModPackager.create_structure(mod_root, mod_name)
+        if ok:
+            self.report({'INFO'}, msg.split("\n")[0])
+            notification_system.FO4_NotificationSystem.notify(
+                f"Mod structure created: {mod_root}", 'INFO')
+            return {'FINISHED'}
+        self.report({'ERROR'}, msg)
+        return {'CANCELLED'}
+
+
+class FO4_OT_GenerateFOMOD(Operator):
+    """Generate FOMOD installer files (info.xml + ModuleConfig.xml)."""
+    bl_idname  = "fo4.generate_fomod"
+    bl_label   = "Generate FOMOD Installer"
+    bl_options = {'REGISTER'}
+
+    def execute(self, context):
+        try:
+            from . import mod_packaging_helpers
+        except ImportError:
+            self.report({'ERROR'}, "mod_packaging_helpers module not found")
+            return {'CANCELLED'}
+
+        scene = context.scene
+        mod_root = bpy.path.abspath(getattr(scene, "fo4_mod_root", "")).strip()
+        if not mod_root:
+            self.report({'ERROR'}, "Set Mod Root Folder first")
+            return {'CANCELLED'}
+
+        info = {
+            "name":        getattr(scene, "fo4_mod_name", "My FO4 Mod"),
+            "author":      getattr(scene, "fo4_mod_author", ""),
+            "version":     getattr(scene, "fo4_mod_version", "1.0.0"),
+            "description": getattr(scene, "fo4_mod_description", ""),
+            "fo4_version": getattr(scene, "fo4_mod_fo4_version", "1.10.163"),
+            "website":     getattr(scene, "fo4_mod_website", ""),
+            "plugin_name": getattr(scene, "fo4_mod_plugin_name", ""),
+        }
+        ok, msg = mod_packaging_helpers.ModPackager.generate_fomod(mod_root, info)
+        if ok:
+            self.report({'INFO'}, msg.split("\n")[0])
+            notification_system.FO4_NotificationSystem.notify(
+                "FOMOD installer generated", 'INFO')
+            return {'FINISHED'}
+        self.report({'ERROR'}, msg)
+        return {'CANCELLED'}
+
+
+class FO4_OT_GenerateReadme(Operator):
+    """Generate a professional Nexus-ready README.md for the mod."""
+    bl_idname  = "fo4.generate_readme"
+    bl_label   = "Generate README.md"
+    bl_options = {'REGISTER'}
+
+    def execute(self, context):
+        try:
+            from . import mod_packaging_helpers
+        except ImportError:
+            self.report({'ERROR'}, "mod_packaging_helpers module not found")
+            return {'CANCELLED'}
+
+        scene = context.scene
+        mod_root = bpy.path.abspath(getattr(scene, "fo4_mod_root", "")).strip()
+        if not mod_root:
+            self.report({'ERROR'}, "Set Mod Root Folder first")
+            return {'CANCELLED'}
+
+        info = {
+            "name":        getattr(scene, "fo4_mod_name", "My FO4 Mod"),
+            "author":      getattr(scene, "fo4_mod_author", ""),
+            "version":     getattr(scene, "fo4_mod_version", "1.0.0"),
+            "description": getattr(scene, "fo4_mod_description", ""),
+            "fo4_version": getattr(scene, "fo4_mod_fo4_version", "1.10.163"),
+            "website":     getattr(scene, "fo4_mod_website", ""),
+            "plugin_name": getattr(scene, "fo4_mod_plugin_name", ""),
+        }
+        ok, msg = mod_packaging_helpers.ModPackager.generate_readme(mod_root, info)
+        if ok:
+            self.report({'INFO'}, msg)
+            notification_system.FO4_NotificationSystem.notify(msg, 'INFO')
+            return {'FINISHED'}
+        self.report({'ERROR'}, msg)
+        return {'CANCELLED'}
+
+
+class FO4_OT_ValidateModStructure(Operator):
+    """Check the mod folder for missing required files and empty asset folders."""
+    bl_idname  = "fo4.validate_mod_structure"
+    bl_label   = "Validate Mod Structure"
+    bl_options = {'REGISTER'}
+
+    def execute(self, context):
+        try:
+            from . import mod_packaging_helpers
+        except ImportError:
+            self.report({'ERROR'}, "mod_packaging_helpers module not found")
+            return {'CANCELLED'}
+
+        scene    = context.scene
+        mod_root = bpy.path.abspath(getattr(scene, "fo4_mod_root", "")).strip()
+        mod_name = getattr(scene, "fo4_mod_name", "MyFO4Mod").strip()
+
+        if not mod_root:
+            self.report({'ERROR'}, "Set Mod Root Folder first")
+            return {'CANCELLED'}
+
+        ok, issues = mod_packaging_helpers.ModPackager.validate_structure(
+            mod_root, mod_name)
+        if ok and not issues:
+            msg = "Mod structure is valid – ready to package"
+            self.report({'INFO'}, msg)
+            notification_system.FO4_NotificationSystem.notify(msg, 'INFO')
+        else:
+            for issue in issues:
+                level = 'WARNING' if issue.startswith("Warning:") else 'ERROR'
+                self.report({level}, issue)
+                notification_system.FO4_NotificationSystem.notify(issue, level)
+        return {'FINISHED'}
+
+
+class FO4_OT_ExportModManifest(Operator):
+    """Write a mod_manifest.json with metadata and file inventory."""
+    bl_idname  = "fo4.export_mod_manifest"
+    bl_label   = "Export Mod Manifest (JSON)"
+    bl_options = {'REGISTER'}
+
+    def execute(self, context):
+        try:
+            from . import mod_packaging_helpers
+        except ImportError:
+            self.report({'ERROR'}, "mod_packaging_helpers module not found")
+            return {'CANCELLED'}
+
+        scene    = context.scene
+        mod_root = bpy.path.abspath(getattr(scene, "fo4_mod_root", "")).strip()
+        if not mod_root:
+            self.report({'ERROR'}, "Set Mod Root Folder first")
+            return {'CANCELLED'}
+
+        info = {
+            "name":      getattr(scene, "fo4_mod_name", "My FO4 Mod"),
+            "author":    getattr(scene, "fo4_mod_author", ""),
+            "version":   getattr(scene, "fo4_mod_version", "1.0.0"),
+            "fo4_version": getattr(scene, "fo4_mod_fo4_version", "1.10.163"),
+        }
+        ok, msg = mod_packaging_helpers.ModPackager.export_manifest(mod_root, info)
+        if ok:
+            self.report({'INFO'}, msg)
+            notification_system.FO4_NotificationSystem.notify(msg, 'INFO')
+            return {'FINISHED'}
+        self.report({'ERROR'}, msg)
+        return {'CANCELLED'}
+
+
 classes = (
     FO4_OT_StartTutorial,
     FO4_OT_ShowHelp,
@@ -9833,6 +10157,19 @@ classes = (
     # Scale reference operators
     FO4_OT_AddReferenceObject,
     FO4_OT_ClearReferenceObjects,
+    # Papyrus script template operators
+    FO4_OT_GeneratePapyrusScript,
+    FO4_OT_ExportPapyrusScript,
+    FO4_OT_ShowPapyrusCompileInstructions,
+    # Havok physics operators
+    FO4_OT_ApplyPhysicsPreset,
+    FO4_OT_ValidatePhysics,
+    # Mod packaging operators
+    FO4_OT_CreateModStructure,
+    FO4_OT_GenerateFOMOD,
+    FO4_OT_GenerateReadme,
+    FO4_OT_ValidateModStructure,
+    FO4_OT_ExportModManifest,
 )
 
 def register():

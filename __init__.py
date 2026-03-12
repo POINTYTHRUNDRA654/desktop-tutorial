@@ -6,7 +6,7 @@ A comprehensive tutorial and helper system for creating Fallout 4 mods in Blende
 bl_info = {
     "name": "Fallout 4 Mod Assistant",
     "author": "Tutorial Team",
-    "version": (2, 2, 0),
+    "version": (2, 3, 0),
     "blender": (2, 90, 0),  # Compatible with Blender 2.90+ through 5.x (NIF export requires 3.6 LTS + Niftools v0.1.1)
     "location": "View3D > Sidebar > Fallout 4",
     "description": (
@@ -86,6 +86,9 @@ post_processing_helpers = _try_import("post_processing_helpers")
 fo4_material_browser   = _try_import("fo4_material_browser")
 fo4_scene_diagnostics  = _try_import("fo4_scene_diagnostics")
 fo4_reference_helpers  = _try_import("fo4_reference_helpers")
+papyrus_helpers        = _try_import("papyrus_helpers")
+fo4_physics_helpers    = _try_import("fo4_physics_helpers")
+mod_packaging_helpers  = _try_import("mod_packaging_helpers")
 
 # tool_installers is not registered automatically but may be used during
 # registration-time dependency checks.  Import it here so the name exists.
@@ -152,6 +155,9 @@ modules = list(filter(_filter, [
     fo4_material_browser,
     fo4_scene_diagnostics,
     fo4_reference_helpers,
+    papyrus_helpers,
+    fo4_physics_helpers,
+    mod_packaging_helpers,
     export_helpers,
     image_to_mesh_helpers,
     hunyuan3d_helpers,
