@@ -25,9 +25,9 @@ import ffmpeg from 'fluent-ffmpeg';
 import ffmpegInstaller from '@ffmpeg-installer/ffmpeg';
 import http from 'http';
 import https from 'https';
-import { 
-  setDetectedPrograms, 
-  getLastProgramScan, 
+import {
+  setDetectedPrograms,
+  getLastProgramScan,
   getDetectedPrograms,
   getRoadmaps,
   saveRoadmap,
@@ -58,15 +58,15 @@ const findEnvFile = (candidates: string[]): string =>
 
 const envPath = app.isPackaged
   ? findEnvFile([
-      path.join(app.getAppPath(), '.env.encrypted'),           // inside asar (primary)
-      path.join(process.resourcesPath, '.env.encrypted'),       // resources folder
-      path.join(path.dirname(process.execPath), '.env.encrypted'), // next to executable
-      path.join(process.cwd(), '.env.encrypted'),               // last resort
-    ])
+    path.join(app.getAppPath(), '.env.encrypted'),           // inside asar (primary)
+    path.join(process.resourcesPath, '.env.encrypted'),       // resources folder
+    path.join(path.dirname(process.execPath), '.env.encrypted'), // next to executable
+    path.join(process.cwd(), '.env.encrypted'),               // last resort
+  ])
   : findEnvFile([
-      path.join(process.cwd(), '.env.local'),
-      path.join(app.getAppPath(), '.env.local'),
-    ]);
+    path.join(process.cwd(), '.env.local'),
+    path.join(app.getAppPath(), '.env.local'),
+  ]);
 
 console.log('[Main] Loading .env from:', envPath);
 console.log('[Main] File exists:', fs.existsSync(envPath));
@@ -84,11 +84,11 @@ if (app.isPackaged) {
   console.log('[Main] Packaged build detected - checking for encrypted env vars...');
   const crypto = require('crypto');
   const ENCRYPTION_KEY = 'mossy-2026-packaging-key-change-in-production';
-  
+
   const decryptEnvVar = (key: string) => {
     const value = process.env[key];
     if (!value || !value.startsWith('enc:')) return;
-    
+
     try {
       const encrypted = value.slice('enc:'.length);
       const parts = encrypted.split(':');
@@ -106,7 +106,7 @@ if (app.isPackaged) {
       console.error(`[Main] ✗ Failed to decrypt ${key}:`, e instanceof Error ? e.message : e);
     }
   };
-  
+
   // Decrypt all API keys
   decryptEnvVar('OPENAI_API_KEY');
   decryptEnvVar('GROQ_API_KEY');
@@ -150,8 +150,8 @@ if (typeof (global as any).DOMMatrix === 'undefined') {
     skewY() { return this; }
     inverse() { return this; }
     transformPoint() { return { x: 0, y: 0 }; }
-    toFloat32Array() { return new Float32Array([1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1]); }
-    toFloat64Array() { return new Float64Array([1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1]); }
+    toFloat32Array() { return new Float32Array([1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1]); }
+    toFloat64Array() { return new Float64Array([1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1]); }
     toString() { return 'DOMMatrix()'; }
   };
 }
@@ -380,8 +380,18 @@ function createWindow() {
   }
 
   // Show window when ready
-  mainWindow.once('ready-to-show', () => {
+  mainWindow.once('ready-to-show', async () => {
     mainWindow?.show();
+
+    // Initialize Nemotron auto-connection system
+    try {
+      const { initializeNemotronAutoConnection } = require('./services/nemotron-init');
+      if (mainWindow && initializeNemotronAutoConnection) {
+        await initializeNemotronAutoConnection(mainWindow);
+      }
+    } catch (error) {
+      console.error('[Main] Failed to initialize Nemotron auto-connection:', error);
+    }
   });
 
   mainWindow.on('closed', () => {
@@ -454,11 +464,11 @@ function setupIpcHandlers() {
   registerHandler('parse-pdf', async (_event, arrayBuffer: ArrayBuffer) => {
     try {
       const buffer = Buffer.from(arrayBuffer);
-      
+
       // Dynamic import for ESM module
       const pdfParseModule = await import('pdf-parse');
       const PDFParse = pdfParseModule.PDFParse;
-      
+
       const pdfParser = new PDFParse({ data: buffer });
       const result = await pdfParser.getText();
       return { success: true, text: result.text };
@@ -472,18 +482,18 @@ function setupIpcHandlers() {
   registerHandler('parse-psd', async (_event, arrayBuffer: ArrayBuffer) => {
     try {
       const buffer = Buffer.from(arrayBuffer);
-      
+
       // Dynamic import for ag-psd
       const { readPsd } = await import('ag-psd');
       const psd = readPsd(buffer, { skipLayerImageData: true, skipCompositeImageData: true });
-      
+
       // Extract useful information
       const info: string[] = [];
       info.push(`PSD Document`);
       info.push(`Dimensions: ${psd.width} x ${psd.height} pixels`);
       if (psd.bitsPerChannel) info.push(`Bit Depth: ${psd.bitsPerChannel}-bit`);
       if (psd.colorMode !== undefined) info.push(`Color Mode: ${psd.colorMode}`);
-      
+
       // Extract layer structure (names only, no image data)
       if (psd.children && psd.children.length > 0) {
         info.push(`\nLayers (${psd.children.length} total):`);
@@ -499,7 +509,7 @@ function setupIpcHandlers() {
         };
         extractLayers(psd.children);
       }
-      
+
       const text = info.join('\n');
       return { success: true, text, metadata: { width: psd.width, height: psd.height } };
     } catch (error: any) {
@@ -512,18 +522,18 @@ function setupIpcHandlers() {
   registerHandler('parse-abr', async (_event, arrayBuffer: ArrayBuffer) => {
     try {
       const buffer = Buffer.from(arrayBuffer);
-      
+
       // Dynamic import for ag-psd
       const { readAbr } = await import('ag-psd');
       const abr = readAbr(buffer);
-      
+
       // Extract brush information - abr.samples contains the brushes
       const info: string[] = [];
       info.push(`Adobe Brush File (.abr)`);
-      
+
       const brushes = abr.samples || [];
       info.push(`Total Brushes: ${brushes.length}`);
-      
+
       if (brushes.length > 0) {
         info.push(`\nBrush Presets:`);
         brushes.forEach((brush: any, index: number) => {
@@ -533,7 +543,7 @@ function setupIpcHandlers() {
           info.push(`${index + 1}. ${name}${size}`);
         });
       }
-      
+
       const text = info.join('\n');
       return { success: true, text, metadata: { brushCount: brushes.length } };
     } catch (error: any) {
@@ -572,7 +582,7 @@ function setupIpcHandlers() {
       const ext = path.extname(filename) || '.mp4';
       tempVideoPath = path.join(os.tmpdir(), `mossy-video-${Date.now()}${ext}`);
       tempAudioPath = path.join(os.tmpdir(), `mossy-audio-${Date.now()}.mp3`);
-      
+
       fs.writeFileSync(tempVideoPath, buffer);
       console.log('[Transcription] Video saved to temp:', tempVideoPath);
 
@@ -960,55 +970,55 @@ function setupIpcHandlers() {
         console.error(`[Main] OPEN_PROGRAM: Invalid programPath - ${programPath}`);
         throw new Error('Invalid program path');
       }
-      
+
       console.log(`[Main] OPEN_PROGRAM: Checking if ${programPath} exists...`);
-      
+
       // Use synchronous check for existence since we're already in a try/catch
       if (!fs.existsSync(programPath)) {
-          console.error(`[Main] OPEN_PROGRAM: Program NOT FOUND at: ${programPath}`);
-          return { success: false, error: `Executable not found at ${programPath}. Please verify the path.` };
+        console.error(`[Main] OPEN_PROGRAM: Program NOT FOUND at: ${programPath}`);
+        return { success: false, error: `Executable not found at ${programPath}. Please verify the path.` };
       }
 
       console.log(`[Main] OPEN_PROGRAM: File exists. Path is valid.`);
       console.log(`[Main] OPEN_PROGRAM: Attempting to open program: ${programPath}`);
-      
+
       // FOR EXECUTABLES: Use Windows 'start' command which is most reliable for GUI apps
       if (programPath.toLowerCase().endsWith('.exe')) {
-          try {
-              const programDir = path.dirname(programPath);
-              const programFile = path.basename(programPath);
+        try {
+          const programDir = path.dirname(programPath);
+          const programFile = path.basename(programPath);
 
-              console.log(`[Main] OPEN_PROGRAM: Launching ${programFile} from directory: ${programDir}`);
-              console.log(`[Main] OPEN_PROGRAM: Full path: ${programPath}`);
+          console.log(`[Main] OPEN_PROGRAM: Launching ${programFile} from directory: ${programDir}`);
+          console.log(`[Main] OPEN_PROGRAM: Full path: ${programPath}`);
 
-              // Method 1: Try Electron's shell.openPath first (most reliable)
-              const shellError = await shell.openPath(programPath);
-              
-              if (shellError) {
-                  console.warn(`[Main] OPEN_PROGRAM: shell.openPath returned error: ${shellError}`);
-                  console.log(`[Main] OPEN_PROGRAM: Trying fallback method with spawn...`);
+          // Method 1: Try Electron's shell.openPath first (most reliable)
+          const shellError = await shell.openPath(programPath);
 
-                  // Method 2: Fallback to Windows start (more reliable for GUI apps)
-                  const child = spawn('cmd.exe', ['/c', 'start', '""', programPath], {
-                    cwd: programDir,
-                    detached: true,
-                    stdio: 'ignore',
-                    windowsHide: true,
-                  });
-                  
-                  child.unref();
-                  console.log(`[Main] OPEN_PROGRAM: ✓ Fallback spawn completed`);
-                  return { success: true, method: 'cmd-start-fallback' };
-              } else {
-                  console.log(`[Main] OPEN_PROGRAM: ✓ SUCCESS - Program launched via shell.openPath`);
-                  return { success: true, method: 'shell-openPath' };
-              }
-          } catch (e: any) {
-              console.error(`[Main] OPEN_PROGRAM: ✗ CRITICAL FAILURE:`, e);
-              return { success: false, error: e.message || 'Bridge exception' };
+          if (shellError) {
+            console.warn(`[Main] OPEN_PROGRAM: shell.openPath returned error: ${shellError}`);
+            console.log(`[Main] OPEN_PROGRAM: Trying fallback method with spawn...`);
+
+            // Method 2: Fallback to Windows start (more reliable for GUI apps)
+            const child = spawn('cmd.exe', ['/c', 'start', '""', programPath], {
+              cwd: programDir,
+              detached: true,
+              stdio: 'ignore',
+              windowsHide: true,
+            });
+
+            child.unref();
+            console.log(`[Main] OPEN_PROGRAM: ✓ Fallback spawn completed`);
+            return { success: true, method: 'cmd-start-fallback' };
+          } else {
+            console.log(`[Main] OPEN_PROGRAM: ✓ SUCCESS - Program launched via shell.openPath`);
+            return { success: true, method: 'shell-openPath' };
           }
+        } catch (e: any) {
+          console.error(`[Main] OPEN_PROGRAM: ✗ CRITICAL FAILURE:`, e);
+          return { success: false, error: e.message || 'Bridge exception' };
+        }
       }
-      
+
       // Handle URLs via openExternal
       if (/^https?:\/\//i.test(programPath)) {
         try {
@@ -1023,10 +1033,10 @@ function setupIpcHandlers() {
 
       // Use shell.openPath for non-exe files or directories
       const error = await shell.openPath(programPath);
-      
+
       if (error) {
         console.warn(`[Main] shell.openPath failed: ${error}. Falling back to standard exec.`);
-        
+
         return new Promise((resolve) => {
           const quotedPath = `"${programPath}"`;
           exec(`start "" ${quotedPath}`, (err) => {
@@ -1040,7 +1050,7 @@ function setupIpcHandlers() {
           });
         });
       }
-      
+
       return { success: true, method: 'shell' };
     } catch (error: any) {
       console.error('Error opening program:', error);
@@ -1086,7 +1096,7 @@ function setupIpcHandlers() {
 
       // Open the file with the default application or launch executable
       const result = await shell.openPath(resolvedPath);
-      
+
       // If result is not empty, it means there was an error
       if (result) {
         throw new Error(result);
@@ -1302,7 +1312,7 @@ function setupIpcHandlers() {
     }
     return '';
   };
-  
+
   const loadSettings = (): any => {
     try {
       if (fs.existsSync(settingsPath)) {
@@ -1607,7 +1617,7 @@ function setupIpcHandlers() {
       // For the demo/tester release, we use a template-based "AI" approach 
       // if the prompt contains "rifle" or "weapon", or a generic one otherwise.
       // In production, this would call the LLM with a schema-output prompt.
-      
+
       const prompt = payload.prompt.toLowerCase();
       let steps: any[] = [];
       let title = "Modding Roadmap";
@@ -1657,10 +1667,10 @@ function setupIpcHandlers() {
     const roadmaps = getRoadmaps();
     const roadmap = roadmaps.find(r => r.id === payload.roadmapId);
     if (!roadmap) return { ok: false, error: 'Roadmap not found' };
-    
+
     const step = roadmap.steps.find(s => s.id === payload.stepId);
     if (!step) return { ok: false, error: 'Step not found' };
-    
+
     step.status = payload.status as any;
     saveRoadmap(roadmap);
     return { ok: true };
@@ -1685,9 +1695,9 @@ function setupIpcHandlers() {
       // Simple implementation using fs.watch
       activeWatcher = fs.watch(folderPath, { recursive: true }, (eventType, filename) => {
         if (!filename) return;
-        
+
         const fullPath = path.join(activeProjectFolder!, filename);
-        
+
         // Anti-flap / debounce
         const now = Date.now();
         if (lastAnalyzedFile === fullPath && now - lastAnalysisTime < 2000) return;
@@ -1696,17 +1706,17 @@ function setupIpcHandlers() {
         if (eventType === 'rename' || eventType === 'change') {
           if (fs.existsSync(fullPath)) {
             const ext = path.extname(filename).toLowerCase();
-            
+
             // Logic for automated auditing
             if (ext === '.nif' || ext === '.dds' || ext === '.esp') {
               console.log(`[Observer] Auto-detecting change: ${filename}`);
               lastAnalyzedFile = fullPath;
               lastAnalysisTime = now;
-              
-              notifyObserver('file-detected', { 
-                filename, 
-                fullPath, 
-                type: ext.substring(1) 
+
+              notifyObserver('file-detected', {
+                filename,
+                fullPath,
+                type: ext.substring(1)
               });
 
               // Automate audit if desired
@@ -1841,7 +1851,7 @@ function setupIpcHandlers() {
       const freeMem = os.freemem();
       const usedMem = totalMem - freeMem;
       const memUsage = Math.round((usedMem / totalMem) * 100);
-      
+
       // Get CPU usage (this is a rough average of the last interval)
       const cpus = os.cpus();
       let totalIdle = 0;
@@ -1852,7 +1862,7 @@ function setupIpcHandlers() {
         }
         totalIdle += cpu.times.idle;
       });
-      
+
       // We can't get an instantaneous delta without sampling twice, 
       // so we'll return a jittered value around a base if we only have one sample,
       // or we can store the last sample in a global variable.
@@ -1872,15 +1882,15 @@ function setupIpcHandlers() {
     const { exec } = require('child_process');
     const util = require('util');
     const execAsync = util.promisify(exec);
-    
+
     const safeExec = async (cmd: string, timeout = 5000) => {
-        try {
-            const { stdout } = await execAsync(cmd, { timeout, encoding: 'utf-8' });
-            return stdout;
-        } catch (e) {
-            console.error(`[Main] Command failed: ${cmd}`, e);
-            return '';
-        }
+      try {
+        const { stdout } = await execAsync(cmd, { timeout, encoding: 'utf-8' });
+        return stdout;
+      } catch (e) {
+        console.error(`[Main] Command failed: ${cmd}`, e);
+        return '';
+      }
     };
 
     try {
@@ -1888,26 +1898,26 @@ function setupIpcHandlers() {
       const totalMem = os.totalmem();
       const platform = os.platform();
       const release = os.release();
-      
+
       // Get Friendly OS Name
       let osFriendly = `${platform} ${release}`;
       if (platform === 'win32') {
         const osWmic = await safeExec('wmic os get Caption /value');
         const osMatch = osWmic.match(/Caption=(.+)/);
         if (osMatch) {
-            osFriendly = osMatch[1].trim();
+          osFriendly = osMatch[1].trim();
         } else {
-            // Fallback to build check if Caption fails
-            const major = parseInt(release.split('.')[0], 10);
-            const build = parseInt(release.split('.')[2] || '0', 10);
-            if (major === 10) {
-                osFriendly = build >= 22000 ? 'Windows 11' : 'Windows 10';
-            }
+          // Fallback to build check if Caption fails
+          const major = parseInt(release.split('.')[0], 10);
+          const build = parseInt(release.split('.')[2] || '0', 10);
+          if (major === 10) {
+            osFriendly = build >= 22000 ? 'Windows 11' : 'Windows 10';
+          }
         }
       }
 
       console.log('[Main] Basic system info gathered:', { osFriendly, platform, release, cpuCount: cpus.length, totalMem });
-      
+
       // Get Motherboard info
       let motherboard = 'Unknown Motherboard';
       if (platform === 'win32') {
@@ -1924,25 +1934,25 @@ function setupIpcHandlers() {
       let vramGB = 0;
       if (platform === 'win32') {
         console.log('[Main] Attempting GPU detection via WMIC...');
-        
+
         // Get GPU names
         const wmic = await safeExec('wmic path win32_VideoController get name');
         allDetectedGPUs = wmic.split('\n')
           .map((line: string) => line.trim())
           .filter((line: string) => line && !line.includes('Name'));
-        
+
         console.log('[Main] All detected GPUs:', allDetectedGPUs);
-        
+
         if (allDetectedGPUs.length > 0) {
           gpuInfo = allDetectedGPUs.join(' + ');
         }
-        
+
         // Get VRAM (AdapterRAM is in bytes)
         const vramWmic = await safeExec('wmic path win32_VideoController get AdapterRAM');
         const vramLines = vramWmic.split('\n')
           .map((line: string) => line.trim())
           .filter((line: string) => line && !line.includes('AdapterRAM') && line !== '0');
-        
+
         if (vramLines.length > 0) {
           const vramBytes = vramLines.reduce((acc: number, curr: string) => acc + parseInt(curr, 10), 0);
           vramGB = Math.round(vramBytes / (1024 ** 3)); // Convert to GB
@@ -1953,14 +1963,14 @@ function setupIpcHandlers() {
       } else {
         gpuInfo = 'Linux GPU';
       }
-      
+
       // Detect Blender installation
       let blenderVersion = '';
       if (platform === 'win32') {
         try {
           const fs = require('fs');
           const path = require('path');
-          
+
           // Common Blender installation paths
           const blenderPaths = [
             'C:\\Program Files\\Blender Foundation',
@@ -1968,7 +1978,7 @@ function setupIpcHandlers() {
             path.join(process.env.APPDATA || '', 'Blender Foundation'),
             path.join(process.env.LOCALAPPDATA || '', 'Programs', 'Blender Foundation')
           ];
-          
+
           for (const basePath of blenderPaths) {
             if (fs.existsSync(basePath)) {
               const dirs = fs.readdirSync(basePath);
@@ -1989,25 +1999,25 @@ function setupIpcHandlers() {
           console.log('[Main] Blender detection failed (not installed or inaccessible):', e);
         }
       }
-      
+
       // Get ALL storage space
-      const storageDrives: Array<{device: string, free: number, total: number}> = [];
+      const storageDrives: Array<{ device: string, free: number, total: number }> = [];
       if (platform === 'win32') {
         const storageWmic = await safeExec('wmic logicaldisk get DeviceID,FreeSpace,Size');
         const rows = storageWmic.split('\n').filter((l: string) => l.trim() && !l.includes('DeviceID'));
         for (const row of rows) {
-            const parts = row.trim().split(/\s+/);
-            if (parts.length >= 3) {
-                storageDrives.push({
-                    device: parts[0],
-                    free: Math.round(parseInt(parts[1], 10) / (1024 ** 3)),
-                    total: Math.round(parseInt(parts[2], 10) / (1024 ** 3))
-                });
-            }
+          const parts = row.trim().split(/\s+/);
+          if (parts.length >= 3) {
+            storageDrives.push({
+              device: parts[0],
+              free: Math.round(parseInt(parts[1], 10) / (1024 ** 3)),
+              total: Math.round(parseInt(parts[2], 10) / (1024 ** 3))
+            });
+          }
         }
         console.log('[Main] Detected drives:', storageDrives);
       }
-      
+
       // Get display resolution
       let displayResolution = '';
       try {
@@ -2038,7 +2048,7 @@ function setupIpcHandlers() {
         username: os.userInfo().username,
         computerName: os.hostname()
       };
-      
+
       console.log('[Main] Returning system info:', result);
       return result;
     } catch (error) {
@@ -2117,17 +2127,17 @@ function setupIpcHandlers() {
             shell: false,
             windowsHide: true,
           });
-          
+
           let stdout = '';
           let stderr = '';
-          
+
           child.on('error', (err) => {
             resolve({ exitCode: -1, stdout: '', stderr: `Failed to execute command: ${err.message}` });
           });
-          
+
           if (child.stdout) child.stdout.on('data', d => (stdout += d.toString()));
           if (child.stderr) child.stderr.on('data', d => (stderr += d.toString()));
-          
+
           child.on('close', (code) => {
             resolve({ exitCode: code ?? -1, stdout, stderr });
           });
@@ -2343,7 +2353,7 @@ function setupIpcHandlers() {
 
       const stats = fs.statSync(filePath);
       const buffer = fs.readFileSync(filePath);
-      
+
       // Check if it's a valid ESP/ESM file (TES4 header)
       const magic = buffer.toString('ascii', 0, 4);
       if (magic !== 'TES4') {
@@ -2353,10 +2363,10 @@ function setupIpcHandlers() {
       // Read basic header information
       const fileSize = stats.size;
       const recordCount = buffer.readUInt32LE(20); // Approximate record count from header
-      
+
       // Check for common issues
       const issues: any[] = [];
-      
+
       // Issue: File size check
       if (fileSize > 250 * 1024 * 1024) {
         issues.push({
@@ -2847,7 +2857,7 @@ function setupIpcHandlers() {
     try {
       const documentsPath = app.getPath('documents');
       const fallout4IniPath = path.join(documentsPath, 'My Games', 'Fallout4');
-      
+
       const iniFiles = [
         { name: 'Fallout4.ini', path: path.join(fallout4IniPath, 'Fallout4.ini') },
         { name: 'Fallout4Prefs.ini', path: path.join(fallout4IniPath, 'Fallout4Prefs.ini') },
@@ -2874,11 +2884,11 @@ function setupIpcHandlers() {
       // Reuse system info logic
       const cpus = os.cpus();
       const totalMemGB = Math.round(os.totalmem() / (1024 ** 3));
-      
+
       // Get GPU info (Windows only via WMIC)
       let gpuName = 'Unknown GPU';
       let vramMB = 0;
-      
+
       if (process.platform === 'win32') {
         try {
           const { exec } = require('child_process');
@@ -2888,7 +2898,7 @@ function setupIpcHandlers() {
               else resolve(stdout);
             });
           });
-          
+
           const lines = wmicGpu.split('\n').filter(l => l.trim() && !l.includes('Name'));
           if (lines.length > 0) {
             gpuName = lines[0].trim();
@@ -2901,7 +2911,7 @@ function setupIpcHandlers() {
               else resolve(stdout);
             });
           });
-          
+
           const vramLines = wmicVram.split('\n').filter(l => l.trim() && !l.includes('AdapterRAM'));
           if (vramLines.length > 0) {
             const vramBytes = parseInt(vramLines[0].trim(), 10);
@@ -2946,7 +2956,7 @@ function setupIpcHandlers() {
       if (!fs.existsSync(filePath)) {
         throw new Error(`File not found: ${filePath}`);
       }
-      
+
       const backupPath = `${filePath}.backup`;
       fs.copyFileSync(filePath, backupPath);
       console.log(`[INI Manager] Backup created: ${backupPath}`);
@@ -2964,7 +2974,7 @@ function setupIpcHandlers() {
       if (!fs.existsSync(backupPath)) {
         throw new Error(`Backup not found: ${backupPath}`);
       }
-      
+
       fs.copyFileSync(backupPath, filePath);
       console.log(`[INI Manager] Backup restored: ${filePath}`);
       return true;
@@ -2985,11 +2995,11 @@ function setupIpcHandlers() {
         properties: ['openDirectory'],
         title: 'Select Mod Folder to Scan'
       });
-      
+
       if (result.canceled || result.filePaths.length === 0) {
         return null;
       }
-      
+
       const selectedPath = result.filePaths[0];
       console.log(`[Asset Scanner] Selected folder: ${selectedPath}`);
       return selectedPath;
@@ -3030,7 +3040,7 @@ function setupIpcHandlers() {
   registerHandler(IPC_CHANNELS.ASSET_SCANNER_SCAN_DUPLICATES, async (event, scanPath: string) => {
     try {
       console.log(`[Asset Scanner] Starting scan: ${scanPath}`);
-      
+
       if (!fs.existsSync(scanPath)) {
         throw new Error(`Path does not exist: ${scanPath}`);
       }
@@ -3046,7 +3056,7 @@ function setupIpcHandlers() {
       // Recursive scan function
       const scanDirectory = (dirPath: string) => {
         scannedFolders++;
-        
+
         // Send progress update
         if (scannedFiles % 100 === 0) {
           event.sender.send('asset-scanner-progress', {
@@ -3059,10 +3069,10 @@ function setupIpcHandlers() {
 
         try {
           const entries = fs.readdirSync(dirPath, { withFileTypes: true });
-          
+
           for (const entry of entries) {
             const fullPath = path.join(dirPath, entry.name);
-            
+
             if (entry.isDirectory()) {
               // Skip certain directories
               if (entry.name === 'node_modules' || entry.name === '.git') continue;
@@ -3071,16 +3081,16 @@ function setupIpcHandlers() {
               const ext = path.extname(entry.name).toLowerCase();
               if (extensions.includes(ext)) {
                 scannedFiles++;
-                
+
                 try {
                   const stats = fs.statSync(fullPath);
                   const buffer = fs.readFileSync(fullPath);
                   const hash = crypto.createHash('md5').update(buffer).digest('hex');
-                  
+
                   // Extract mod name from path
                   const pathParts = fullPath.replace(scanPath, '').split(path.sep);
                   const modName = pathParts[1] || 'Unknown Mod';
-                  
+
                   const fileInfo = {
                     path: fullPath,
                     name: entry.name,
@@ -3089,7 +3099,7 @@ function setupIpcHandlers() {
                     modName,
                     lastModified: stats.mtime
                   };
-                  
+
                   if (!fileHashes.has(hash)) {
                     fileHashes.set(hash, []);
                   }
@@ -3119,12 +3129,12 @@ function setupIpcHandlers() {
         if (files.length > 1) {
           const fileType = path.extname(files[0].name).toLowerCase();
           const isTexture = ['.dds', '.png', '.tga'].includes(fileType);
-          
+
           // Calculate waste
           const totalSize = files.reduce((sum, f) => sum + f.size, 0);
           const wastedSpace = totalSize - files[0].size; // All but one
           totalWastedSpace += wastedSpace;
-          
+
           // Estimate VRAM waste (textures only)
           let vramWaste = 0;
           if (isTexture) {
@@ -3132,12 +3142,12 @@ function setupIpcHandlers() {
             vramWaste = wastedSpace * 2;
             totalVramWaste += vramWaste;
           }
-          
+
           // Determine which file to keep (largest = highest quality)
-          const recommended = files.reduce((best, current) => 
+          const recommended = files.reduce((best, current) =>
             current.size > best.size ? current : best
           );
-          
+
           duplicateGroups.push({
             hash,
             files,
@@ -3146,7 +3156,7 @@ function setupIpcHandlers() {
             fileType: isTexture ? 'texture' : fileType === '.nif' ? 'mesh' : 'other',
             recommended
           });
-          
+
           totalDuplicates += files.length - 1; // Don't count the one we keep
         }
       }
@@ -3164,11 +3174,11 @@ function setupIpcHandlers() {
       };
 
       console.log(`[Asset Scanner] Scan complete: ${totalDuplicates} duplicates, ${totalWastedSpace} bytes wasted`);
-      
+
       // Save last scan path
       const settingsPath = path.join(app.getPath('userData'), 'asset-scanner-settings.json');
       fs.writeFileSync(settingsPath, JSON.stringify({ lastScanPath: scanPath }), 'utf-8');
-      
+
       return result;
     } catch (err) {
       console.error('Asset Scanner scan error:', err);
@@ -3180,38 +3190,38 @@ function setupIpcHandlers() {
   registerHandler(IPC_CHANNELS.ASSET_SCANNER_CLEANUP_DUPLICATES, async (_event, filesToRemove: string[]) => {
     try {
       console.log(`[Asset Scanner] Cleaning up ${filesToRemove.length} duplicate files`);
-      
+
       const backupDir = path.join(app.getPath('userData'), 'asset-scanner-backups', Date.now().toString());
       fs.mkdirSync(backupDir, { recursive: true });
-      
+
       let removedCount = 0;
       const errors: string[] = [];
-      
+
       for (const filePath of filesToRemove) {
         try {
           if (!fs.existsSync(filePath)) {
             console.warn(`[Asset Scanner] File not found: ${filePath}`);
             continue;
           }
-          
+
           // Create backup
           const backupPath = path.join(backupDir, path.basename(filePath));
           fs.copyFileSync(filePath, backupPath);
-          
+
           // Remove original
           fs.unlinkSync(filePath);
           removedCount++;
-          
+
           console.log(`[Asset Scanner] Removed: ${filePath}`);
         } catch (fileErr: any) {
           console.error(`[Asset Scanner] Failed to remove: ${filePath}`, fileErr);
           errors.push(`${filePath}: ${fileErr.message}`);
         }
       }
-      
+
       console.log(`[Asset Scanner] Cleanup complete: ${removedCount} removed, ${errors.length} errors`);
       console.log(`[Asset Scanner] Backups saved to: ${backupDir}`);
-      
+
       return {
         success: errors.length === 0,
         removedCount,
@@ -3234,17 +3244,17 @@ function setupIpcHandlers() {
     try {
       const buffer = fs.readFileSync(filePath);
       if (buffer.length < 128) return { width: 0, height: 0, format: 'invalid' };
-      
+
       // DDS header: magic, headerSize, flags, height, width, ...
       const magic = buffer.readUInt32LE(0);
       if (magic !== 0x20534444) return { width: 0, height: 0, format: 'invalid' }; // 'DDS '
-      
+
       const height = buffer.readUInt32LE(12);
       const width = buffer.readUInt32LE(16);
       const pixelFormatOffset = 76;
       const pixelFormatSize = buffer.readUInt32LE(pixelFormatOffset);
       const fourcc = buffer.toString('ascii', pixelFormatOffset + 8, pixelFormatOffset + 12);
-      
+
       return {
         width,
         height,
@@ -3262,16 +3272,16 @@ function setupIpcHandlers() {
     try {
       const buffer = fs.readFileSync(filePath);
       if (buffer.length < 20) return null;
-      
+
       // NIF files start with "NetImmerse File Format"
       const header = buffer.toString('ascii', 0, 20);
       if (!header.includes('NetImmerse')) return null;
-      
+
       // Parse a simplified NIF structure (vertices, triangles, materials)
       // This is a very basic parser - real NIF parsing is complex
       let vertices = 0, triangles = 0;
       const materials: string[] = [];
-      
+
       // Look for vertex data markers in binary
       const vertexMarker = Buffer.from([0x04, 0x00, 0x00, 0x00]); // uint32 marker
       let pos = 0;
@@ -3282,10 +3292,10 @@ function setupIpcHandlers() {
         }
         pos += 4;
       }
-      
+
       // Estimate triangles (typically ~2x vertices for closed meshes)
       triangles = Math.floor(vertices * 1.5);
-      
+
       return {
         vertices: vertices || 1000,
         triangles: triangles || 1500,
@@ -3304,23 +3314,23 @@ function setupIpcHandlers() {
       const lines = content.split('\n');
       const imports: string[] = [];
       const references: string[] = [];
-      
+
       lines.forEach(line => {
         // Match: scriptname <name> extends <parent>
         const extendsMatch = line.match(/scriptname\s+\w+\s+extends\s+(\w+)/i);
         if (extendsMatch) references.push(extendsMatch[1]);
-        
+
         // Match: import <module>
         const importMatch = line.match(/import\s+(\w+)/i);
         if (importMatch) imports.push(importMatch[1]);
-        
+
         // Match: property references (ClassName Property)
         const propMatch = line.match(/(\w+)\s+Property\s+\w+\s+Auto/);
         if (propMatch && propMatch[1] !== 'int' && propMatch[1] !== 'float' && propMatch[1] !== 'bool' && propMatch[1] !== 'string') {
           references.push(propMatch[1]);
         }
       });
-      
+
       return {
         imports: [...new Set(imports)],
         references: [...new Set(references)]
@@ -3337,10 +3347,10 @@ function setupIpcHandlers() {
       // For real implementation, would use image-size library
       // For now, return basic PNG/JPG dimensions via buffer inspection
       const buffer = fs.readFileSync(filePath);
-      
+
       let width = 0, height = 0, format = 'unknown';
       const colorSpace = 'RGB';
-      
+
       // Simple PNG detection: PNG signature is 89 50 4E 47
       if (buffer[0] === 0x89 && buffer[1] === 0x50 && buffer[2] === 0x4E && buffer[3] === 0x47) {
         format = 'PNG';
@@ -3384,7 +3394,7 @@ function setupIpcHandlers() {
         height = buffer.readUInt32LE(12);
         width = buffer.readUInt32LE(16);
       }
-      
+
       return {
         width,
         height,
@@ -3402,26 +3412,26 @@ function setupIpcHandlers() {
     try {
       console.log('[Image Suite] Generating normal map...');
       const buffer = Buffer.from(imageBase64.split(',')[1] || imageBase64, 'base64');
-      
+
       // Use sharp for proper image processing
       const sharp = (await import('sharp')).default;
-      
+
       // Convert to grayscale first (height data)
       const heightData = await sharp(buffer)
         .greyscale()
         .raw()
         .toBuffer({ resolveWithObject: true });
-      
+
       const { data, info } = heightData;
       const { width, height } = info;
-      
+
       // Generate normal map using Sobel operator
       const normalBuffer = Buffer.alloc(width * height * 4);
-      
+
       for (let y = 1; y < height - 1; y++) {
         for (let x = 1; x < width - 1; x++) {
           const idx = y * width + x;
-          
+
           // Sample neighbors for Sobel filter
           const tl = data[(y - 1) * width + (x - 1)];
           const t = data[(y - 1) * width + x];
@@ -3431,23 +3441,23 @@ function setupIpcHandlers() {
           const bl = data[(y + 1) * width + (x - 1)];
           const b = data[(y + 1) * width + x];
           const br = data[(y + 1) * width + (x + 1)];
-          
+
           // Sobel kernels
           const dx = (tr + 2 * r + br) - (tl + 2 * l + bl);
           const dy = (bl + 2 * b + br) - (tl + 2 * t + tr);
-          
+
           // Calculate normal vector
           const strength = 6.0; // Normal map strength
           const nx = -dx / 255.0 * strength;
           const ny = -dy / 255.0 * strength;
           const nz = 1.0;
-          
+
           // Normalize
           const len = Math.sqrt(nx * nx + ny * ny + nz * nz);
           const normalizedX = (nx / len) * 0.5 + 0.5;
           const normalizedY = (ny / len) * 0.5 + 0.5;
           const normalizedZ = (nz / len) * 0.5 + 0.5;
-          
+
           // Store as RGB
           const outIdx = idx * 4;
           normalBuffer[outIdx] = Math.round(normalizedX * 255);     // R = X
@@ -3456,14 +3466,14 @@ function setupIpcHandlers() {
           normalBuffer[outIdx + 3] = 255;                           // A = 1
         }
       }
-      
+
       // Convert back to PNG
       const outputBuffer = await sharp(normalBuffer, {
         raw: { width, height, channels: 4 }
       })
         .png()
         .toBuffer();
-      
+
       const base64Output = `data:image/png;base64,${outputBuffer.toString('base64')}`;
       console.log('[Image Suite] ✓ Normal map generated successfully');
       return base64Output;
@@ -3492,7 +3502,7 @@ function setupIpcHandlers() {
       console.log('[Image Suite] Generating roughness map...');
       const buffer = Buffer.from(imageBase64.split(',')[1] || imageBase64, 'base64');
       const sharp = (await import('sharp')).default;
-      
+
       // Roughness = inverted luminance with contrast boost
       // Bright areas = smooth, dark areas = rough
       const output = await sharp(buffer)
@@ -3501,7 +3511,7 @@ function setupIpcHandlers() {
         .linear(1.5, -(128 * 0.5)) // Increase contrast
         .png()
         .toBuffer();
-      
+
       const base64Output = `data:image/png;base64,${output.toString('base64')}`;
       console.log('[Image Suite] ✓ Roughness map generated');
       return base64Output;
@@ -3517,13 +3527,13 @@ function setupIpcHandlers() {
       console.log('[Image Suite] Generating height map...');
       const buffer = Buffer.from(imageBase64.split(',')[1] || imageBase64, 'base64');
       const sharp = (await import('sharp')).default;
-      
+
       // Height map = simple grayscale (luminance)
       const output = await sharp(buffer)
         .greyscale()
         .png()
         .toBuffer();
-      
+
       const base64Output = `data:image/png;base64,${output.toString('base64')}`;
       console.log('[Image Suite] ✓ Height map generated');
       return base64Output;
@@ -3539,7 +3549,7 @@ function setupIpcHandlers() {
       console.log('[Image Suite] Generating metallic map...');
       const buffer = Buffer.from(imageBase64.split(',')[1] || imageBase64, 'base64');
       const sharp = (await import('sharp')).default;
-      
+
       // Metallic = high saturation areas become white (metallic)
       // Low saturation = black (non-metallic)
       const output = await sharp(buffer)
@@ -3547,7 +3557,7 @@ function setupIpcHandlers() {
         .linear(1.2, -30) // Boost contrast, threshold lower
         .png()
         .toBuffer();
-      
+
       const base64Output = `data:image/png;base64,${output.toString('base64')}`;
       console.log('[Image Suite] ✓ Metallic map generated');
       return base64Output;
@@ -3563,7 +3573,7 @@ function setupIpcHandlers() {
       console.log('[Image Suite] Generating AO map...');
       const buffer = Buffer.from(imageBase64.split(',')[1] || imageBase64, 'base64');
       const sharp = (await import('sharp')).default;
-      
+
       // AO map = darkened grayscale with blur (crevices darken)
       const output = await sharp(buffer)
         .greyscale()
@@ -3571,7 +3581,7 @@ function setupIpcHandlers() {
         .linear(0.7, 0) // Darken overall
         .png()
         .toBuffer();
-      
+
       const base64Output = `data:image/png;base64,${output.toString('base64')}`;
       console.log('[Image Suite] ✓ AO map generated');
       return base64Output;
@@ -3706,17 +3716,17 @@ function setupIpcHandlers() {
       const win = BrowserWindow.getFocusedWindow() || mainWindow;
       const result = win
         ? await dialog.showSaveDialog(win, {
-            title: 'Save File',
-            defaultPath,
-            buttonLabel: 'Save',
-            filters,
-          })
+          title: 'Save File',
+          defaultPath,
+          buttonLabel: 'Save',
+          filters,
+        })
         : await dialog.showSaveDialog({
-            title: 'Save File',
-            defaultPath,
-            buttonLabel: 'Save',
-            filters,
-          });
+          title: 'Save File',
+          defaultPath,
+          buttonLabel: 'Save',
+          filters,
+        });
 
       if (result.canceled || !result.filePath) return '';
 
@@ -3834,43 +3844,43 @@ function setupIpcHandlers() {
       _event,
       req: { provider: 'ollama' | 'openai_compat' | 'cosmos'; model: string; prompt: string; baseUrl?: string }
     ) => {
-    try {
-      if (!req || (req.provider !== 'ollama' && req.provider !== 'openai_compat' && req.provider !== 'cosmos')) return { ok: false, error: 'Unsupported provider' };
-      const model = String(req.model || '');
-      const prompt = String(req.prompt || '');
-      if (!model.trim()) return { ok: false, error: 'Missing model' };
-      if (!prompt.trim()) return { ok: false, error: 'Missing prompt' };
+      try {
+        if (!req || (req.provider !== 'ollama' && req.provider !== 'openai_compat' && req.provider !== 'cosmos')) return { ok: false, error: 'Unsupported provider' };
+        const model = String(req.model || '');
+        const prompt = String(req.prompt || '');
+        if (!model.trim()) return { ok: false, error: 'Missing model' };
+        if (!prompt.trim()) return { ok: false, error: 'Missing prompt' };
 
-      if (req.provider === 'ollama') {
-        const baseUrl = req.baseUrl || String(loadSettings()?.ollamaBaseUrl || 'http://127.0.0.1:11434');
-        return await ollamaGenerate({ model, prompt }, { baseUrl });
-      }
+        if (req.provider === 'ollama') {
+          const baseUrl = req.baseUrl || String(loadSettings()?.ollamaBaseUrl || 'http://127.0.0.1:11434');
+          return await ollamaGenerate({ model, prompt }, { baseUrl });
+        }
 
-      if (req.provider === 'cosmos') {
-        const baseUrl = req.baseUrl || String(loadSettings()?.cosmosBaseUrl || '');
-        if (!String(baseUrl || '').trim()) return { ok: false, error: 'Cosmos base URL not configured' };
+        if (req.provider === 'cosmos') {
+          const baseUrl = req.baseUrl || String(loadSettings()?.cosmosBaseUrl || '');
+          if (!String(baseUrl || '').trim()) return { ok: false, error: 'Cosmos base URL not configured' };
+          const resp = await openAICompatChat({
+            baseUrl,
+            model,
+            system: 'You are Mossy, a Cosmos Reason2 local model. Follow the user prompt carefully.',
+            user: prompt,
+          });
+          if (!(resp as any).ok) return { ok: false, error: (resp as any).error };
+          return { ok: true, text: (resp as any).text };
+        }
+
         const resp = await openAICompatChat({
-          baseUrl,
+          baseUrl: req.baseUrl || String(loadSettings()?.openaiCompatBaseUrl || 'http://127.0.0.1:1234/v1'),
           model,
-          system: 'You are Mossy, a Cosmos Reason2 local model. Follow the user prompt carefully.',
+          system: 'You are Mossy, a local model running in OpenAI-compatible mode. Follow the user prompt carefully.',
           user: prompt,
         });
         if (!(resp as any).ok) return { ok: false, error: (resp as any).error };
         return { ok: true, text: (resp as any).text };
+      } catch (err: any) {
+        return { ok: false, error: String(err?.message || err) };
       }
-
-      const resp = await openAICompatChat({
-        baseUrl: req.baseUrl || String(loadSettings()?.openaiCompatBaseUrl || 'http://127.0.0.1:1234/v1'),
-        model,
-        system: 'You are Mossy, a local model running in OpenAI-compatible mode. Follow the user prompt carefully.',
-        user: prompt,
-      });
-      if (!(resp as any).ok) return { ok: false, error: (resp as any).error };
-      return { ok: true, text: (resp as any).text };
-    } catch (err: any) {
-      return { ok: false, error: String(err?.message || err) };
     }
-  }
   );
 
   /**
@@ -3966,7 +3976,7 @@ function setupIpcHandlers() {
   /**
    * AI Chat Handler - Groq (for voice and real-time)
    */
-  registerHandler('ai-chat-groq', async (_event, payload: { prompt: string; systemPrompt?: string; model?: string; conversationHistory?: Array<{role: string; content: string}> }) => {
+  registerHandler('ai-chat-groq', async (_event, payload: { prompt: string; systemPrompt?: string; model?: string; conversationHistory?: Array<{ role: string; content: string }> }) => {
     try {
       const systemPrompt = payload.systemPrompt || 'You are a helpful assistant for Fallout 4 modding.';
       const model = payload.model || 'llama-3.3-70b-versatile';
@@ -5371,13 +5381,13 @@ function setupIpcHandlers() {
   registerHandler(IPC_CHANNELS.GAME_LOG_MONITOR_START, async (event, logPath: string) => {
     try {
       if (logWatcher) logWatcher.close();
-      
+
       if (!fs.existsSync(logPath)) {
         throw new Error('Log file does not exist');
       }
 
       let lastSize = fs.statSync(logPath).size;
-      
+
       logWatcher = fs.watch(logPath, (eventType) => {
         if (eventType === 'change') {
           try {
@@ -5388,20 +5398,20 @@ function setupIpcHandlers() {
                 start: lastSize,
                 encoding: 'utf-8'
               });
-              
+
               let buffer = '';
               stream.on('data', (chunk) => {
                 buffer += chunk;
                 const lines = buffer.split('\n');
                 buffer = lines.pop() || ''; // Keep incomplete line
-                
+
                 lines.forEach(line => {
                   if (line.trim()) {
                     const entry = {
                       timestamp: new Date().toISOString().split('T')[1].split('.')[0],
                       level: line.toLowerCase().includes('error') ? 'error' :
-                             line.toLowerCase().includes('warning') ? 'warning' :
-                             line.toLowerCase().includes('crash') ? 'crash' : 'info',
+                        line.toLowerCase().includes('warning') ? 'warning' :
+                          line.toLowerCase().includes('crash') ? 'crash' : 'info',
                       message: line,
                       category: line.match(/\[(.*?)\]/)?.[1] || undefined
                     };
@@ -5409,7 +5419,7 @@ function setupIpcHandlers() {
                   }
                 });
               });
-              
+
               lastSize = stats.size;
             }
           } catch (err) {
@@ -5417,7 +5427,7 @@ function setupIpcHandlers() {
           }
         }
       });
-      
+
       return true;
     } catch (error) {
       console.error('Game Log Monitor start error:', error);
@@ -5543,11 +5553,11 @@ function setupIpcHandlers() {
   // Execute script
   registerHandler(IPC_CHANNELS.XEDIT_SCRIPT_EXECUTE, async (event, xEditPath: string, plugin: string, scriptId: string) => {
     const startTime = Date.now();
-    
+
     return new Promise((resolve) => {
       try {
         const xedit = spawn(xEditPath, ['-quickautoclean', '-autoload', plugin]);
-        
+
         let output = '';
         let errors: string[] = [];
         let warnings: string[] = [];
@@ -5559,7 +5569,7 @@ function setupIpcHandlers() {
             progress: 50,
             text: 'Processing...'
           });
-          
+
           if (text.toLowerCase().includes('warning')) {
             warnings.push(text.trim());
           }
@@ -5621,7 +5631,7 @@ function setupIpcHandlers() {
   }) => {
     try {
       const projectDir = path.join(config.projectPath, config.projectName);
-      
+
       // Create directory structure
       fs.mkdirSync(projectDir, { recursive: true });
       fs.mkdirSync(path.join(projectDir, 'Textures'), { recursive: true });
@@ -5722,7 +5732,7 @@ function setupIpcHandlers() {
   registerHandler(IPC_CHANNELS.MOD_CONFLICT_ANALYZE, async (_event, pluginPath: string) => {
     try {
       console.log(`[Conflict Visualizer] Analyzing: ${pluginPath}`);
-      
+
       if (!fs.existsSync(pluginPath)) {
         return { success: false, error: 'Plugin file not found' };
       }
@@ -5747,7 +5757,7 @@ function setupIpcHandlers() {
   registerHandler(IPC_CHANNELS.MOD_CONFLICT_RESOLVE, async (_event, conflictData: any) => {
     try {
       console.log('[Conflict Visualizer] Resolve conflict requested:', conflictData);
-      
+
       // For now, just log the resolution request
       // Full implementation would modify load order or create compatibility patches
       return {
@@ -5859,7 +5869,7 @@ function setupIpcHandlers() {
 
       // Use ESP parser for ESP/ESM files
       if ((mod1.endsWith('.esp') || mod1.endsWith('.esm')) &&
-          (mod2.endsWith('.esp') || mod2.endsWith('.esm'))) {
+        (mod2.endsWith('.esp') || mod2.endsWith('.esm'))) {
         return espParser.compareESPs(mod1, mod2);
       }
 
@@ -6064,7 +6074,7 @@ function setupIpcHandlers() {
   registerHandler(IPC_CHANNELS.VOICE_COMMANDS_START, async () => {
     try {
       console.log('[Voice Commands] Start listening requested');
-      
+
       // Voice recognition is handled in the renderer via Web Speech API
       // Main process just acknowledges the request
       return {
@@ -6083,7 +6093,7 @@ function setupIpcHandlers() {
   registerHandler(IPC_CHANNELS.VOICE_COMMANDS_STOP, async () => {
     try {
       console.log('[Voice Commands] Stop listening requested');
-      
+
       return {
         success: true,
         message: 'Voice recognition should be stopped in renderer process'
@@ -6302,7 +6312,7 @@ app.whenReady().then(() => {
   // Initialize auto-updater service
   if (mainWindow) {
     autoUpdaterService.setMainWindow(mainWindow);
-    
+
     // Check for updates on startup (after a delay to not interfere with onboarding)
     setTimeout(() => {
       if (!isDev && mainWindow && !mainWindow.isDestroyed()) {
@@ -6341,17 +6351,17 @@ app.on('window-all-closed', () => {
 });
 
 app.on('will-quit', () => {
-    console.log('[MOSSY] Shutting down Neural Bridge...');
-    bridge.stop();
+  console.log('[MOSSY] Shutting down Neural Bridge...');
+  bridge.stop();
 });
 
 // Handle second instance (ensure single instance) - MOVED INSIDE app.whenReady()
 
 // Global Crash Protection
 process.on('uncaughtException', (error) => {
-    console.error('[CRITICAL] Uncaught Exception:', error);
+  console.error('[CRITICAL] Uncaught Exception:', error);
 });
 
 process.on('unhandledRejection', (reason) => {
-    console.error('[CRITICAL] Unhandled Rejection:', reason);
+  console.error('[CRITICAL] Unhandled Rejection:', reason);
 });

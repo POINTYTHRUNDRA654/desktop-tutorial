@@ -27,6 +27,79 @@ All changes in this PR live on this branch. The branch name reflects its origin 
 
 ## Done ✅  (DO NOT redo, revert, or override these)
 
+### 17. Mossy's personality update + Pause/Resume conversation button ✅
+
+**Requests:** 
+1. Update Mossy to sound like a teaching assistant rather than a robot
+2. Add pause/resume button for her communication so users can pause and restart without exiting the app
+
+**Implementation:**
+
+**Part 1: Personality Update**
+- Enhanced `getFullSystemInstruction()` in `src/renderer/src/MossyBrain.ts` to emphasize Mossy as a **teaching mentor**
+- New system prompt highlights:
+  - "Teaching Philosophy" section that explains calibration by skill level
+  - "Meeting them where they are" — beginners get step-by-step guidance, experts get technical depth
+  - Emphasis on explaining the "why" behind each step, not just the "what"
+  - Building confidence and normalizing mistakes as learning opportunities
+  - Conversational tone ("you're a person who happens to know modding really well")
+  - "Live Synapse Brevity" guidance for voice sessions reminds to still engage like a real person, not a script
+  - Users can pause/resume at any time (added to voice capabilities section)
+
+**Part 2: Pause/Resume Conversation Button**
+- Added pause/resume control functions to `src/renderer/src/mossyTts.ts`:
+  1. `pauseMossySpeech()` — pauses Mossy's voice output via `window.speechSynthesis.pause()`
+  2. `resumeMossySpeech()` — resumes paused speech via `window.speechSynthesis.resume()`
+  3. `isMossySpeechPaused()` — checks if speech is currently paused
+  4. `stopMossySpeech()` — stops speech completely (cannot resume)
+
+- Added new state to `src/renderer/src/ChatInterface.tsx`:
+  - `isConversationPaused` state (persists to localStorage as `mossy_conversation_paused`)
+  - `toggleConversationPause()` handler that:
+    * Toggles pause state
+    * Auto-pauses speech when pausing
+    * Auto-resumes speech (if paused) when resuming
+    * Dispatches event for other components
+
+- Updated `src/renderer/src/ChatInterface.tsx` to prevent sending messages while paused:
+  - `handleSend()` checks `isConversationPaused` and returns early if true
+  - Users cannot send new messages during pause (UI prevents interaction)
+
+- Added new toolbar button "Pause / Resume":
+  - Shows "Pause" when conversation is active
+  - Shows "Resume" when conversation is paused (with Play icon)
+  - Located next to the "Monitor: ON/OFF" button in the chat toolbar
+  - Visible on lg screens and up
+  - Styled to show pause/resume state clearly (blue when active, gray when paused)
+
+- Added visual indicator in chat header:
+  - Yellow badge shows "Conversation Paused" when paused
+  - Appears next to monitoring status and other indicators
+  - Only visible on md screens and up
+
+Files changed:
+- `src/renderer/src/MossyBrain.ts` — Enhanced system prompt with teaching assistant focus
+- `src/renderer/src/mossyTts.ts` — Added pause/resume/stop speech control functions
+- `src/renderer/src/ChatInterface.tsx`:
+  1. Added `isConversationPaused` state
+  2. Added `toggleConversationPause()` handler
+  3. Added pause/resume button to toolbar
+  4. Added visual indicator in header
+  5. Updated `handleSend()` to check pause state
+  6. Imported new pause/resume functions
+
+**User Experience:**
+- Click "Pause" button → Mossy's speech pauses immediately, no new responses accepted
+- Click "Resume" button → Mossy's paused speech resumes (or conversation resumes if no speech was playing)
+- Yellow "Conversation Paused" badge appears in header for visibility
+- Works perfectly with voice (TTS) disabled too
+- No need to restart app or reload page
+
+**Do not touch:** The pause/resume control functions, the state persistence, and the pause check in `handleSend()`.
+These are critical for the pause/resume feature to work seamlessly.
+
+---
+
 ### 1. Conversation context — Mossy remembers the whole chat
 **Problem:** After the first exchange, every subsequent message was sent to the AI as a
 brand-new single-turn conversation. No memory of what had been said.  
@@ -234,6 +307,88 @@ testing to balance responsiveness with patience. Lower threshold = less sensitiv
 ## In progress 🔄
 
 _Nothing currently pending. All items are in Done._
+
+---
+
+### 16. Nemotron development testing infrastructure ✅
+
+**Request:** Create dev-friendly testing infrastructure for Nemotron integration without requiring
+actual service binary.
+
+**Problem:** To test Nemotron auto-connector and communication flow, developers had to:
+1. Build the actual Nemotron Python service (PyTorch, Transformers)
+2. Wait for installer packaging
+3. Run packaged installer to get nemotron-service.exe
+
+This blocked rapid development iteration and testing of the optional installation system.
+
+**Solution:** Created three-tier testing infrastructure:
+1. **Mock HTTP Service** (`scripts/mock-nemotron-service.mjs`) — simulates Nemotron on localhost:5000
+2. **Environment Variable Override** (`NEMOTRON_DEV_MODE`) — enables dev mode detection
+3. **Combined Dev Launcher** (`scripts/dev-launcher.mjs`) — coordinates service + app startup
+
+**Implementation:**
+
+Files created:
+- `scripts/mock-nemotron-service.mjs` — 140-line HTTP server with endpoints:
+  - `GET /health` → health status + uptime + model version
+  - `POST /generate` → accepts prompt, returns mock-generated text
+  - `GET /config` → returns model configuration
+  - `GET /` → service information
+  - CORS headers enabled, request logging, graceful shutdown
+
+- `scripts/dev-launcher.mjs` — 85-line orchestration script:
+  - Spawns mock service on port 5000
+  - Waits 2 seconds for startup
+  - Spawns `npm run dev` with `NEMOTRON_DEV_MODE=true` environment variable
+  - Coordinates cleanup on exit
+
+- `package.json` — Added `"dev:nemotron": "node scripts/dev-launcher.mjs"` script
+
+Files modified:
+- `src/electron/services/nemotron-auto-connector.ts` — Enhanced `isNemotronInstalled()`:
+  1. Checks `process.env.NEMOTRON_DEV_MODE === 'true'` first (dev override)
+  2. Falls back to `NEMOTRON_DISABLED` check
+  3. Falls back to Windows Registry (packaged app)
+  4. Falls back to file existence (dev mode without override)
+  - Logs: "[NemotronAutoConnector] Dev mode enabled - treating Nemotron as installed" when enabled
+
+**Testing validation:** ✅ All end-to-end tests pass:
+1. Mock service starts and responds on port 5000
+2. App detects dev mode via environment variable
+3. Auto-connector treats mock service as valid installation
+4. App connects to mock service on startup
+5. DesktopBridge routes health checks and requests to service
+6. Mock service responds with proper JSON payloads
+7. Complete request/response flow works end-to-end
+
+**Workflow (two options):**
+
+Option A - Automated:
+```bash
+npm run dev:nemotron
+# This spawns both mock service and dev app together
+```
+
+Option B - Manual (two terminals):
+```bash
+# Terminal 1:
+node scripts/mock-nemotron-service.mjs
+
+# Terminal 2:
+$env:NEMOTRON_DEV_MODE = 'true'
+npm run dev
+```
+
+**Do not touch:** The three-tier architecture above. It enables safe development testing without
+requiring the actual Nemotron service binary. Environment variable detection must take precedence
+for dev mode to work.
+
+**Next steps:**
+- ✅ Dev testing complete (use dev-launcher or manual terminals)
+- ⏳ Build installer: `npm run package:win`
+- ⏳ Test with actual Nemotron component selected in installer
+- ⏳ Verify registry flag and post-install auto-connection
 
 ---
 
