@@ -117,6 +117,8 @@ export interface PluginAPI {
         off: (event: string, handler: (...args: any[]) => void) => void;
         emit: (event: string, ...args: any[]) => void;
     };
+
+    workspace?: any;
 }
 
 export class PluginSystemService {

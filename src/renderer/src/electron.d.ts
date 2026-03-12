@@ -20,6 +20,17 @@ declare global {
      * Prefer `window.electron.api`, but many renderer modules still use this.
      */
     electronAPI: ElectronAPIType;
+    api?: {
+      automation?: {
+        getSettings: () => Promise<any>;
+        getStatistics: () => Promise<any>;
+        start: () => Promise<void>;
+        stop: () => Promise<void>;
+        toggleRule: (id: string, enabled: boolean) => Promise<void>;
+        triggerRule: (id: string) => Promise<void>;
+        resetStatistics: () => Promise<void>;
+      };
+    };
   }
 }
 
