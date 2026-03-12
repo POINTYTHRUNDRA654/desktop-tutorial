@@ -48,8 +48,10 @@ jobs:
         run: |
           git config --local user.email "github-actions[bot]@users.noreply.github.com"
           git config --local user.name "github-actions[bot]"
-          # Use an exact filename (build.py always removes the old zip first so
-          # there is only ever one zip present at a time).
+          # Remove any stale old-version zips that are still tracked in git,
+          # so there is always exactly one zip in the repo.  --ignore-unmatch
+          # makes this a no-op when no old zips exist.
+          git rm --cached --ignore-unmatch 'fallout4_tutorial_helper-v*.zip'
           ZIP=$(ls fallout4_tutorial_helper-v*.zip | head -1)
           git add "$ZIP" build.log
           git diff --staged --quiet && echo "No zip changes to commit." && exit 0
