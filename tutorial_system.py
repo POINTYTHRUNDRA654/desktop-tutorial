@@ -279,7 +279,7 @@ def create_vegetation_tutorial():
     return Tutorial("Vegetation & Landscaping", "Create performance-optimized vegetation for Fallout 4", steps)
 
 def initialize_tutorials():
-    """Initialize all available tutorials"""
+    """Initialize all available tutorials (populate the TUTORIALS dict only)."""
     TUTORIALS['basic_mesh'] = create_basic_mesh_tutorial()
     TUTORIALS['textures'] = create_texture_tutorial()
     TUTORIALS['animation'] = create_animation_tutorial()
@@ -288,16 +288,6 @@ def initialize_tutorials():
     TUTORIALS['batch_workflow'] = create_batch_workflow_tutorial()
     TUTORIALS['troubleshooting'] = create_troubleshooting_tutorial()
     TUTORIALS['vegetation'] = create_vegetation_tutorial()
-    
-    # Store in scene
-    bpy.types.Scene.fo4_current_tutorial = StringProperty(
-        name="Current Tutorial",
-        default=""
-    )
-    bpy.types.Scene.fo4_tutorial_step = IntProperty(
-        name="Tutorial Step",
-        default=0
-    )
 
 def get_current_tutorial(context):
     """Get the currently active tutorial"""
@@ -310,7 +300,15 @@ def get_current_tutorial(context):
 
 def register():
     """Register tutorial properties"""
-    pass  # Properties initialized in initialize_tutorials()
+    bpy.types.Scene.fo4_current_tutorial = StringProperty(
+        name="Current Tutorial",
+        default=""
+    )
+    bpy.types.Scene.fo4_tutorial_step = IntProperty(
+        name="Tutorial Step",
+        default=0
+    )
+    initialize_tutorials()
 
 def unregister():
     """Unregister tutorial properties"""

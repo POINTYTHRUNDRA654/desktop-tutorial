@@ -10180,7 +10180,10 @@ classes = (
 
 def register():
     for cls in classes:
-        bpy.utils.register_class(cls)
+        try:
+            bpy.utils.register_class(cls)
+        except Exception as e:
+            print(f"⚠ Failed to register {cls.__name__}: {e}")
 
     # Havok2FBX animation export settings stored per-scene
     bpy.types.Scene.fo4_havok_anim_type = bpy.props.EnumProperty(
@@ -10262,7 +10265,10 @@ def register():
 
 def unregister():
     for cls in reversed(classes):
-        bpy.utils.unregister_class(cls)
+        try:
+            bpy.utils.unregister_class(cls)
+        except Exception as e:
+            print(f"⚠ Failed to unregister {cls.__name__}: {e}")
 
     # Remove Havok2FBX scene properties
     for prop in (
