@@ -136,6 +136,7 @@ class FO4_PT_MeshPanel(Panel):
 
         obj = context.active_object
         has_mesh = obj and obj.type == 'MESH'
+        prefs = preferences.get_preferences() if preferences else None
 
         if unified:
             # ── Full FO4 Pipeline (one-click) ────────────────────────────
@@ -169,6 +170,25 @@ class FO4_PT_MeshPanel(Panel):
             row.operator("fo4.export_mesh_with_collision", text="Generate + Export NIF", icon='EXPORT')
             box.separator()
 
+            # ── LOD Meshes ─────────────────────────────────────────────
+            box.label(text="LOD Meshes (Level of Detail)", icon='OUTLINER_OB_MESH')
+            sub = box.column(align=True)
+            sub.scale_y = 0.75
+            sub.label(text="FO4 uses LOD0 (close) → LOD4 (far) as separate NIFs", icon='INFO')
+            sub.label(text="Source object = LOD0 · Generates LOD1–LOD4 copies", icon='INFO')
+            box.separator()
+            row = box.row()
+            row.enabled = has_mesh
+            row.scale_y = 1.3
+            row.operator("fo4.generate_lod", text="Generate LOD Chain", icon='OUTLINER_OB_MESH')
+            row = box.row()
+            row.enabled = has_mesh
+            row.operator("fo4.generate_lod_and_collision", text="Generate LOD + Collision", icon='SHADERFX')
+            row = box.row()
+            row.enabled = has_mesh
+            row.operator("fo4.export_lod_chain_as_nif", text="Export LOD Chain as NIF", icon='EXPORT')
+            box.separator()
+
             # ── Advanced Mesh Tools ─────────────────────────────────────
             box.label(text="Advanced Mesh Tools", icon='MODIFIER')
             box.operator("fo4.analyze_mesh_quality", text="Analyze Quality", icon='INFO')
@@ -176,7 +196,6 @@ class FO4_PT_MeshPanel(Panel):
             box.operator("fo4.mossy_auto_fix", text="AI Auto-Fix (Mossy)", icon='LIGHT_HEMI')
             box.operator("fo4.smart_decimate", text="Smart Decimate", icon='MOD_DECIM')
             box.operator("fo4.split_mesh_poly_limit", text="Split at Poly Limit", icon='MOD_BOOLEAN')
-            box.operator("fo4.generate_lod", text="Generate LOD Chain", icon='OUTLINER_OB_MESH')
 
             # ── UV & Texture Workflow ────────────────────────────────────
             uv_box = layout.box()
@@ -311,6 +330,24 @@ class FO4_PT_MeshPanel(Panel):
             row = col_box.row()
             row.operator("fo4.export_mesh_with_collision", text="Generate + Export NIF", icon='EXPORT')
 
+            lod_box = layout.box()
+            lod_box.label(text="LOD Meshes (Level of Detail)", icon='OUTLINER_OB_MESH')
+            sub = lod_box.column(align=True)
+            sub.scale_y = 0.75
+            sub.label(text="FO4: LOD0 (close) → LOD4 (far), each a separate NIF", icon='INFO')
+            sub.label(text="Source object = LOD0. LOD1–LOD4 copies are created.", icon='INFO')
+            lod_box.separator()
+            row = lod_box.row()
+            row.enabled = has_mesh
+            row.scale_y = 1.3
+            row.operator("fo4.generate_lod", text="Generate LOD Chain", icon='OUTLINER_OB_MESH')
+            row = lod_box.row()
+            row.enabled = has_mesh
+            row.operator("fo4.generate_lod_and_collision", text="Generate LOD + Collision", icon='SHADERFX')
+            row = lod_box.row()
+            row.enabled = has_mesh
+            row.operator("fo4.export_lod_chain_as_nif", text="Export LOD Chain as NIF", icon='EXPORT')
+
             adv_box = layout.box()
             adv_box.label(text="Advanced Mesh Tools", icon='MODIFIER')
             adv_box.operator("fo4.analyze_mesh_quality", text="Analyze Quality", icon='INFO')
@@ -318,7 +355,6 @@ class FO4_PT_MeshPanel(Panel):
             adv_box.operator("fo4.mossy_auto_fix", text="AI Auto-Fix (Mossy)", icon='LIGHT_HEMI')
             adv_box.operator("fo4.smart_decimate", text="Smart Decimate", icon='MOD_DECIM')
             adv_box.operator("fo4.split_mesh_poly_limit", text="Split at Poly Limit", icon='MOD_BOOLEAN')
-            adv_box.operator("fo4.generate_lod", text="Generate LOD Chain", icon='OUTLINER_OB_MESH')
 
             uv_box = layout.box()
             uv_box.label(text="UV & Texture Workflow", icon='UV')
@@ -1481,6 +1517,24 @@ class FO4_PT_BatchProcessingPanel(Panel):
         row = box.row()
         row.enabled = len(selected_meshes) > 0
         row.operator("fo4.batch_export_meshes", text="Batch Export", icon='EXPORT')
+
+        # Batch LOD & Collision
+        lod_box = layout.box()
+        lod_box.label(text="Batch LOD & Collision", icon='OUTLINER_OB_MESH')
+        sub = lod_box.column(align=True)
+        sub.scale_y = 0.75
+        sub.label(text="Generates LOD1–LOD4 copies for every selected mesh.", icon='INFO')
+        sub.label(text="Collision uses each object's fo4_collision_type (inferred", icon='INFO')
+        sub.label(text="from name if not set). GRASS / MUSHROOM / NONE are skipped.", icon='INFO')
+        lod_box.separator()
+        row = lod_box.row()
+        row.enabled = len(selected_meshes) > 0
+        row.scale_y = 1.2
+        row.operator("fo4.batch_generate_lod", text="Batch Generate LOD", icon='OUTLINER_OB_MESH')
+        row = lod_box.row()
+        row.enabled = len(selected_meshes) > 0
+        row.scale_y = 1.2
+        row.operator("fo4.batch_generate_collision", text="Batch Generate Collision", icon='MESH_ICOSPHERE')
         
         # Tips
         tips_box = layout.box()
@@ -1724,13 +1778,41 @@ class FO4_PT_VegetationPanel(Panel):
         # LOD generation
         box = layout.box()
         box.label(text="LOD System", icon='OUTLINER_OB_MESH')
+        sub = box.column(align=True)
+        sub.scale_y = 0.75
+        sub.label(text="FO4: LOD0 (close) → LOD3 (far) per vegetation asset", icon='INFO')
+        sub.label(text="Source = LOD0. Creates LOD1–LOD3 copies.", icon='INFO')
+        box.separator()
         row = box.row()
         row.enabled = obj and obj.type == 'MESH'
+        row.scale_y = 1.3
         row.operator("fo4.create_vegetation_lod_chain", text="Create LOD Chain", icon='MESH_GRID')
         row2 = box.row()
         row2.enabled = obj and obj.type == 'MESH'
         row2.operator("fo4.export_lod_chain_as_nif", text="Export LOD Chain as NIF", icon='EXPORT')
-        
+
+        # Collision for vegetation
+        box = layout.box()
+        box.label(text="Collision (for trees / large bushes)", icon='MESH_ICOSPHERE')
+        sub = box.column(align=True)
+        sub.scale_y = 0.75
+        sub.label(text="VEGETATION type = simplified convex hull footprint", icon='INFO')
+        sub.label(text="GRASS / MUSHROOM = no collision (thin foliage)", icon='INFO')
+        box.separator()
+        has_mesh = obj and obj.type == 'MESH'
+        if has_mesh:
+            box.prop(obj, "fo4_collision_type", text="Type")
+        row = box.row()
+        row.operator("fo4.set_collision_type", text="Change Type", icon='PRESET')
+        row = box.row()
+        can_collide = has_mesh and getattr(obj, 'fo4_collision_type', 'DEFAULT') not in ('NONE', 'GRASS', 'MUSHROOM')
+        row.enabled = can_collide
+        row.operator("fo4.generate_collision_mesh", text="Generate Collision Mesh", icon='MESH_DATA')
+        row = box.row()
+        row.enabled = has_mesh
+        row.operator("fo4.generate_lod_and_collision",
+                     text="Generate LOD + Collision", icon='SHADERFX')
+
         # Wind animation
         box = layout.box()
         box.label(text="Wind Animation", icon='FORCE_WIND')
@@ -1773,12 +1855,14 @@ class FO4_PT_VegetationPanel(Panel):
         
         # Tips
         tips_box = layout.box()
-        tips_box.label(text="Workflow Tips:", icon='INFO')
-        tips_box.label(text="1. Create vegetation types")
-        tips_box.label(text="2. Scatter across area")
-        tips_box.label(text="3. Combine for FPS boost")
-        tips_box.label(text="4. Generate LODs")
-        tips_box.label(text="5. Export as single mesh")
+        tips_box.label(text="Workflow Tips (FO4 Vegetation):", icon='INFO')
+        tips_box.label(text="1. Create vegetation preset")
+        tips_box.label(text="2. Set collision type: VEGETATION or TREE → has collision")
+        tips_box.label(text="   GRASS / MUSHROOM → no collision (thin foliage)")
+        tips_box.label(text="3. Generate LOD + Collision (one click)")
+        tips_box.label(text="4. Setup vegetation material (Alpha Clip)")
+        tips_box.label(text="5. Export LOD Chain as NIF → meshes/ folder")
+        tips_box.label(text="6. Open in Creation Kit as Static/Grass record")
 
 
 class FO4_PT_QuestPanel(Panel):
