@@ -473,6 +473,42 @@ export interface ElectronAPI {
     ok: boolean;
     results: Array<{ path: string; ok: boolean; error?: string }>;
   }>;
+  invoke?: (channel: string, ...args: any[]) => Promise<any>;
+  on?: (channel: string, callback: (...args: any[]) => void) => (() => void);
+  openDialog?: (options: any) => Promise<string | null>;
+  listProcesses?: () => Promise<any[]>;
+  gameLogMonitor?: (action: string, options?: any) => Promise<any>;
+  formIdRemapper?: (action: string, payload?: any) => Promise<any>;
+  modComparisonTool?: (action: string, payload?: any) => Promise<any>;
+  modConflictVisualizer?: (action: string, payload?: any) => Promise<any>;
+  projectTemplates?: (action: string, payload?: any) => Promise<any>;
+  voiceCommands?: (action: string, payload?: any) => Promise<any>;
+  xEditScriptExecutor?: (action: string, payload?: any) => Promise<any>;
+  fomodCreate?: (payload: any) => Promise<any>;
+  fomodPreview?: (payload: any) => Promise<any>;
+  fomodValidate?: (payload: any) => Promise<any>;
+  fomodExport?: (payload: any) => Promise<any>;
+  fomodSaveProject?: (payload: any) => Promise<any>;
+  modPackagingValidateStructure?: (payload: any) => Promise<any>;
+  modPackagingGenerateReadme?: (payload: any) => Promise<any>;
+  modPackagingCreateArchive?: (payload: any) => Promise<any>;
+  modPackagingPrepareNexus?: (payload: any) => Promise<any>;
+  modPackagingIncrementVersion?: (payload: any) => Promise<any>;
+  exportAnalyticsReport?: (payload: any) => Promise<any>;
+  getAppVersion?: () => Promise<string>;
+  aiGenerateScript?: (payload: any) => Promise<any>;
+  aiPlanWorkflow?: (payload: any) => Promise<any>;
+  aiDiagnoseError?: (payload: any) => Promise<any>;
+  aiExplain?: (payload: any) => Promise<any>;
+  aiSuggestNames?: (payload: any) => Promise<any>;
+  aiExecuteWorkflow?: (payload: any) => Promise<any>;
+  versionControlHistory?: (payload?: any) => Promise<any>;
+  versionControlListBackups?: (payload?: any) => Promise<any>;
+  versionControlShowChanges?: (payload?: any) => Promise<any>;
+  versionControlCommit?: (payload?: any) => Promise<any>;
+  versionControlRestore?: (payload?: any) => Promise<any>;
+  versionControlCreateBackup?: (payload?: any) => Promise<any>;
+  versionControlDeleteBackup?: (payload?: any) => Promise<any>;
 }
 
 export interface VoiceChatPayload {
