@@ -5,7 +5,7 @@ Operators for the Fallout 4 Tutorial Add-on
 import bpy
 from bpy.types import Operator
 from bpy.props import StringProperty, EnumProperty, IntProperty, FloatProperty, BoolProperty
-from . import preferences, tutorial_system, mesh_helpers, texture_helpers, animation_helpers, export_helpers, notification_system, image_to_mesh_helpers, hunyuan3d_helpers, gradio_helpers, hymotion_helpers, nvtt_helpers, realesrgan_helpers, get3d_helpers, stylegan2_helpers, instantngp_helpers, imageto3d_helpers, advanced_mesh_helpers, rignet_helpers, motion_generation_helpers, quest_helpers, npc_helpers, world_building_helpers, item_helpers, preset_library, automation_system, desktop_tutorial_client, shap_e_helpers, point_e_helpers, advisor_helpers, ue_importer_helpers, umodel_tools_helpers, umodel_helpers, unity_fbx_importer_helpers, asset_studio_helpers, asset_ripper_helpers, fo4_game_assets, unity_game_assets, unreal_game_assets
+from . import preferences, tutorial_system, mesh_helpers, texture_helpers, animation_helpers, export_helpers, notification_system, image_to_mesh_helpers, hunyuan3d_helpers, gradio_helpers, hymotion_helpers, nvtt_helpers, realesrgan_helpers, get3d_helpers, stylegan2_helpers, instantngp_helpers, imageto3d_helpers, advanced_mesh_helpers, rignet_helpers, motion_generation_helpers, quest_helpers, npc_helpers, world_building_helpers, item_helpers, preset_library, automation_system, desktop_tutorial_client, shap_e_helpers, point_e_helpers, advisor_helpers, ue_importer_helpers, umodel_tools_helpers, umodel_helpers, unity_fbx_importer_helpers, asset_studio_helpers, asset_ripper_helpers, fo4_game_assets, unity_game_assets, unreal_game_assets, post_processing_helpers
 from . import knowledge_helpers
 
 # Tutorial Operators
@@ -9141,6 +9141,211 @@ class FO4_OT_ExportModFolder(Operator):
         return {'FINISHED'}
 
 
+# ---------------------------------------------------------------------------
+# Post-Processing Operators
+# ---------------------------------------------------------------------------
+
+class FO4_OT_SetupPostProcessingCompositor(Operator):
+    """Set up Blender's compositor to preview Fallout 4-style post-processing.
+
+    Creates a chain of compositor nodes that simulates the bloom, colour
+    grading, tint, and vignette effects that Fallout 4 applies in-engine via
+    its ImageSpace (IMGS) record.  The setup is non-destructive – all nodes
+    are tagged with 'FO4_PP_' and can be removed at any time with the
+    'Clear Post-Processing' button.
+
+    After running this operator:
+    1. Switch the 3-D viewport to 'Rendered' mode to see the effect.
+    2. Adjust the sliders in the 'Post-Processing' panel.
+    3. When happy, use 'Export ImageSpace Data' to save a JSON file with the
+       Creation Kit record values ready to enter in CK.
+    """
+    bl_idname = "fo4.setup_post_processing"
+    bl_label = "Setup Post-Processing"
+    bl_options = {'REGISTER', 'UNDO'}
+
+    preset: bpy.props.EnumProperty(
+        name="Preset",
+        description="Starting post-processing preset",
+        items=post_processing_helpers.PRESET_ENUM_ITEMS,
+        default="VANILLA",
+    )
+
+    def execute(self, context):
+        scene = context.scene
+        # Write the chosen preset values into scene properties first so that
+        # sync_from_scene_props() (called inside setup_compositor) picks them up.
+        p = post_processing_helpers.PostProcessingHelpers.get_preset(self.preset)
+        try:
+            scene.fo4_pp_preset           = self.preset
+            scene.fo4_pp_bloom_strength   = p["bloom_strength"]
+            scene.fo4_pp_bloom_threshold  = p["bloom_threshold"]
+            scene.fo4_pp_bloom_radius     = p["bloom_radius"]
+            scene.fo4_pp_saturation       = p["saturation"]
+            scene.fo4_pp_contrast         = p["contrast"]
+            scene.fo4_pp_brightness       = p["brightness"]
+            scene.fo4_pp_tint_r           = p["tint_r"]
+            scene.fo4_pp_tint_g           = p["tint_g"]
+            scene.fo4_pp_tint_b           = p["tint_b"]
+            scene.fo4_pp_tint_strength    = p["tint_strength"]
+            scene.fo4_pp_vignette         = p["vignette"]
+            scene.fo4_pp_cinematic_bars   = p["cinematic_bars"]
+            scene.fo4_pp_dof_enabled      = p["dof_enabled"]
+            scene.fo4_pp_dof_fstop        = p["dof_fstop"]
+            scene.fo4_pp_eye_adapt_speed  = p["eye_adapt_speed"]
+            scene.fo4_pp_eye_adapt_strength = p["eye_adapt_strength"]
+            scene.fo4_pp_white            = p["white"]
+        except Exception:
+            pass  # properties may not yet be registered in certain edge-cases
+
+        ok, msg = post_processing_helpers.PostProcessingHelpers.setup_compositor(
+            scene, self.preset
+        )
+        if ok:
+            self.report({'INFO'}, msg)
+            notification_system.FO4_NotificationSystem.notify(msg, 'INFO')
+            return {'FINISHED'}
+        self.report({'ERROR'}, msg)
+        return {'CANCELLED'}
+
+    def invoke(self, context, event):
+        return context.window_manager.invoke_props_dialog(self)
+
+
+class FO4_OT_ApplyPostProcessingPreset(Operator):
+    """Apply a named Fallout 4 post-processing preset to the compositor."""
+    bl_idname = "fo4.apply_pp_preset"
+    bl_label = "Apply Preset"
+    bl_options = {'REGISTER', 'UNDO'}
+
+    preset: bpy.props.EnumProperty(
+        name="Preset",
+        description="Post-processing preset to apply",
+        items=post_processing_helpers.PRESET_ENUM_ITEMS,
+        default="VANILLA",
+    )
+
+    def execute(self, context):
+        scene = context.scene
+        p = post_processing_helpers.PostProcessingHelpers.get_preset(self.preset)
+        # Sync preset values to scene properties
+        try:
+            scene.fo4_pp_preset           = self.preset
+            scene.fo4_pp_bloom_strength   = p["bloom_strength"]
+            scene.fo4_pp_bloom_threshold  = p["bloom_threshold"]
+            scene.fo4_pp_bloom_radius     = p["bloom_radius"]
+            scene.fo4_pp_saturation       = p["saturation"]
+            scene.fo4_pp_contrast         = p["contrast"]
+            scene.fo4_pp_brightness       = p["brightness"]
+            scene.fo4_pp_tint_r           = p["tint_r"]
+            scene.fo4_pp_tint_g           = p["tint_g"]
+            scene.fo4_pp_tint_b           = p["tint_b"]
+            scene.fo4_pp_tint_strength    = p["tint_strength"]
+            scene.fo4_pp_vignette         = p["vignette"]
+            scene.fo4_pp_cinematic_bars   = p["cinematic_bars"]
+            scene.fo4_pp_dof_enabled      = p["dof_enabled"]
+            scene.fo4_pp_dof_fstop        = p["dof_fstop"]
+            scene.fo4_pp_eye_adapt_speed  = p["eye_adapt_speed"]
+            scene.fo4_pp_eye_adapt_strength = p["eye_adapt_strength"]
+            scene.fo4_pp_white            = p["white"]
+        except Exception:
+            pass
+
+        ok, msg = post_processing_helpers.PostProcessingHelpers.apply_preset_to_compositor(
+            scene, self.preset
+        )
+        if ok:
+            self.report({'INFO'}, msg)
+            notification_system.FO4_NotificationSystem.notify(msg, 'INFO')
+            return {'FINISHED'}
+        self.report({'ERROR'}, msg)
+        return {'CANCELLED'}
+
+    def invoke(self, context, event):
+        return context.window_manager.invoke_props_dialog(self)
+
+
+class FO4_OT_ClearPostProcessing(Operator):
+    """Remove all FO4 post-processing compositor nodes.
+
+    Only nodes created by the 'Setup Post-Processing' operator (tagged with
+    'FO4_PP_*') are removed.  Any user-created compositor nodes are untouched.
+    """
+    bl_idname = "fo4.clear_post_processing"
+    bl_label = "Clear Post-Processing"
+    bl_options = {'REGISTER', 'UNDO'}
+
+    def execute(self, context):
+        ok, msg = post_processing_helpers.PostProcessingHelpers.clear_compositor(
+            context.scene
+        )
+        if ok:
+            self.report({'INFO'}, msg)
+            notification_system.FO4_NotificationSystem.notify(msg, 'INFO')
+            return {'FINISHED'}
+        self.report({'ERROR'}, msg)
+        return {'CANCELLED'}
+
+
+class FO4_OT_ExportImageSpaceData(Operator):
+    """Export current post-processing settings as a Fallout 4 ImageSpace JSON.
+
+    The exported JSON contains the exact field names used by the Creation Kit
+    ImageSpace (IMGS) and ImageSpace Modifier (IMAD) record editors.  Enter
+    the values manually in CK, or use an xEdit Papyrus import script.
+
+    IMGS fields exported:
+      EyeAdaptSpeed, EyeAdaptStrength, BloomBlurRadius, BloomThreshold,
+      BloomScale, ReceiveBloomThreshold, White, SunlightScale, SkyScale,
+      Saturation, Contrast, TintColor (R/G/B/A), CinematicBars
+
+    IMAD (start-state) fields exported:
+      Duration, DepthOfField (Strength, Distance, Range),
+      Bloom (Strength), Tint (R/G/B/A), Saturation, Contrast
+    """
+    bl_idname = "fo4.export_imagespace_data"
+    bl_label = "Export ImageSpace Data"
+    bl_options = {'REGISTER'}
+
+    filepath: bpy.props.StringProperty(subtype='FILE_PATH')
+    filter_glob: bpy.props.StringProperty(default="*.json", options={'HIDDEN'})
+
+    def execute(self, context):
+        ok, msg = post_processing_helpers.PostProcessingHelpers.export_imagespace_data(
+            context.scene, self.filepath
+        )
+        if ok:
+            self.report({'INFO'}, msg)
+            notification_system.FO4_NotificationSystem.notify(msg, 'INFO')
+            return {'FINISHED'}
+        self.report({'ERROR'}, msg)
+        return {'CANCELLED'}
+
+    def invoke(self, context, event):
+        context.window_manager.fileselect_add(self)
+        return {'RUNNING_MODAL'}
+
+
+class FO4_OT_SyncPostProcessingProps(Operator):
+    """Manually sync scene property sliders to the compositor nodes.
+
+    This is called automatically when any fo4_pp_* property changes.  Run it
+    manually if the compositor preview seems out of sync with the sliders.
+    """
+    bl_idname = "fo4.sync_pp_props"
+    bl_label = "Sync to Compositor"
+
+    def execute(self, context):
+        ok, msg = post_processing_helpers.PostProcessingHelpers.sync_from_scene_props(
+            context.scene
+        )
+        if ok:
+            self.report({'INFO'}, msg)
+            return {'FINISHED'}
+        self.report({'WARNING'}, msg)
+        return {'CANCELLED'}
+
+
 classes = (
     FO4_OT_StartTutorial,
     FO4_OT_ShowHelp,
@@ -9358,6 +9563,12 @@ classes = (
     FO4_OT_AskMossyForUVAdvice,
     FO4_OT_AskAntigravityUVAdvice,
     FO4_OT_AntigravityAutoFix,
+    # Post-processing operators
+    FO4_OT_SetupPostProcessingCompositor,
+    FO4_OT_ApplyPostProcessingPreset,
+    FO4_OT_ClearPostProcessing,
+    FO4_OT_ExportImageSpaceData,
+    FO4_OT_SyncPostProcessingProps,
 )
 
 def register():

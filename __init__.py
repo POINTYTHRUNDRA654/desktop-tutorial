@@ -82,6 +82,7 @@ advisor_helpers = _try_import("advisor_helpers")
 knowledge_helpers = _try_import("knowledge_helpers")
 mossy_link = _try_import("mossy_link")
 torch_path_manager = _try_import("torch_path_manager")
+post_processing_helpers = _try_import("post_processing_helpers")
 
 # tool_installers is not registered automatically but may be used during
 # registration-time dependency checks.  Import it here so the name exists.
@@ -144,6 +145,7 @@ modules = list(filter(_filter, [
     # asset_ripper_helpers,
     # tool_installers,
     mossy_link,
+    post_processing_helpers,
     export_helpers,
     image_to_mesh_helpers,
     hunyuan3d_helpers,

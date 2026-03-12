@@ -2049,6 +2049,105 @@ class FO4_PT_AutomationMacrosPanel(Panel):
         info_box.label(text="• Boost productivity 10x")
 
 
+class FO4_PT_PostProcessingPanel(Panel):
+    """Fallout 4 post-processing compositor preview and ImageSpace export"""
+    bl_label = "Post-Processing (FO4)"
+    bl_idname = "FO4_PT_post_processing_panel"
+    bl_space_type = 'VIEW_3D'
+    bl_region_type = 'UI'
+    bl_category = 'Fallout 4'
+    bl_parent_id = "FO4_PT_main_panel"
+    bl_options = {'DEFAULT_CLOSED'}
+
+    def draw(self, context):
+        layout = self.layout
+        scene = context.scene
+
+        # ── Setup & Presets ──────────────────────────────────────────────────
+        setup_box = layout.box()
+        setup_box.label(text="Compositor Setup", icon='NODE_COMPOSITING')
+        row = setup_box.row(align=True)
+        row.operator("fo4.setup_post_processing",
+                     text="Setup Compositor", icon='NODETREE')
+        row.operator("fo4.clear_post_processing",
+                     text="Clear", icon='X')
+
+        preset_box = layout.box()
+        preset_box.label(text="Quick Presets", icon='PRESET')
+        preset_box.prop(scene, "fo4_pp_preset", text="")
+        op = preset_box.operator("fo4.apply_pp_preset",
+                                 text="Apply Preset", icon='CHECKMARK')
+        op.preset = getattr(scene, "fo4_pp_preset", "VANILLA")
+
+        # ── Bloom ────────────────────────────────────────────────────────────
+        bloom_box = layout.box()
+        bloom_box.label(text="Bloom (CK: BloomScale / BloomBlurRadius)",
+                        icon='LIGHT_SUN')
+        col = bloom_box.column(align=True)
+        col.prop(scene, "fo4_pp_bloom_strength",  text="Strength")
+        col.prop(scene, "fo4_pp_bloom_threshold", text="Threshold")
+        col.prop(scene, "fo4_pp_bloom_radius",    text="Radius")
+
+        # ── Colour Grading ───────────────────────────────────────────────────
+        color_box = layout.box()
+        color_box.label(text="Colour Grading (CK: Saturation / Contrast)",
+                        icon='COLOR')
+        col = color_box.column(align=True)
+        col.prop(scene, "fo4_pp_saturation",  text="Saturation")
+        col.prop(scene, "fo4_pp_contrast",    text="Contrast")
+        col.prop(scene, "fo4_pp_brightness",  text="Brightness")
+
+        # ── Tint ─────────────────────────────────────────────────────────────
+        tint_box = layout.box()
+        tint_box.label(text="Screen Tint (CK: TintColor R/G/B/A)", icon='RESTRICT_COLOR_OFF')
+        row = tint_box.row(align=True)
+        row.prop(scene, "fo4_pp_tint_r", text="R")
+        row.prop(scene, "fo4_pp_tint_g", text="G")
+        row.prop(scene, "fo4_pp_tint_b", text="B")
+        tint_box.prop(scene, "fo4_pp_tint_strength", text="Strength")
+
+        # ── Vignette & Cinematic ─────────────────────────────────────────────
+        vfx_box = layout.box()
+        vfx_box.label(text="Vignette & Cinematic", icon='ZOOM_OUT')
+        vfx_box.prop(scene, "fo4_pp_vignette",        text="Vignette")
+        vfx_box.prop(scene, "fo4_pp_cinematic_bars",  text="Cinematic Bars")
+
+        # ── Depth of Field ───────────────────────────────────────────────────
+        dof_box = layout.box()
+        dof_box.label(text="Depth of Field", icon='CAMERA_DATA')
+        dof_box.prop(scene, "fo4_pp_dof_enabled", text="Enable DoF")
+        row = dof_box.row()
+        row.enabled = getattr(scene, "fo4_pp_dof_enabled", False)
+        row.prop(scene, "fo4_pp_dof_fstop", text="f-stop")
+
+        # ── CK-Only Fields ───────────────────────────────────────────────────
+        ck_box = layout.box()
+        ck_box.label(text="Creation Kit Only (no compositor preview)",
+                     icon='EXPORT')
+        col = ck_box.column(align=True)
+        col.prop(scene, "fo4_pp_eye_adapt_speed",    text="Eye Adapt Speed")
+        col.prop(scene, "fo4_pp_eye_adapt_strength", text="Eye Adapt Strength")
+        col.prop(scene, "fo4_pp_white",              text="White Level")
+
+        # ── Export ───────────────────────────────────────────────────────────
+        export_box = layout.box()
+        export_box.label(text="Export for Creation Kit", icon='EXPORT')
+        export_box.operator("fo4.export_imagespace_data",
+                            text="Export ImageSpace JSON", icon='FILE_TEXT')
+        export_box.operator("fo4.sync_pp_props",
+                            text="Sync to Compositor", icon='FILE_REFRESH')
+
+        # ── Info ─────────────────────────────────────────────────────────────
+        info_box = layout.box()
+        info_box.label(text="Workflow:", icon='INFO')
+        sub = info_box.column(align=True)
+        sub.scale_y = 0.75
+        sub.label(text="1. Click 'Setup Compositor'")
+        sub.label(text="2. Set viewport to Rendered mode")
+        sub.label(text="3. Adjust sliders for real-time preview")
+        sub.label(text="4. Export JSON → enter values in CK IMGS record")
+
+
 class FO4_PT_AddonIntegrationPanel(Panel):
     """Third-party add-on integration panel"""
     bl_label = "Add-on Integrations"
@@ -2474,6 +2573,7 @@ classes = (
     # New panels for productivity
     FO4_PT_PresetLibraryPanel,
     FO4_PT_AutomationMacrosPanel,
+    FO4_PT_PostProcessingPanel,
     FO4_PT_AddonIntegrationPanel,
     FO4_PT_DesktopTutorialPanel,
     # Settings / Config panel moved from preferences

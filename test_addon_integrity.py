@@ -1172,6 +1172,198 @@ def test_d_drive_paths():
     return True
 
 
+def test_post_processing():
+    """Verify Fallout 4 post-processing module, operators, UI panel, and KB doc"""
+    print("\n" + "="*70)
+    print("TEST 10: Verifying FO4 post-processing feature")
+    print("="*70)
+
+    addon_dir = Path(__file__).parent
+    failed = []
+
+    # ----------------------------------------------------------------
+    # post_processing_helpers.py – module existence and key symbols
+    # ----------------------------------------------------------------
+    pp_path = addon_dir / "post_processing_helpers.py"
+    if not pp_path.exists():
+        print("❌ post_processing_helpers.py: File missing")
+        failed.append("post_processing_helpers.py missing")
+    else:
+        with open(pp_path, 'r', encoding='utf-8') as f:
+            pp_content = f.read()
+
+        pp_checks = [
+            ("PostProcessingHelpers class",          "class PostProcessingHelpers" in pp_content),
+            ("setup_compositor method",              "def setup_compositor" in pp_content),
+            ("clear_compositor method",              "def clear_compositor" in pp_content),
+            ("apply_preset_to_compositor method",    "def apply_preset_to_compositor" in pp_content),
+            ("export_imagespace_data method",        "def export_imagespace_data" in pp_content),
+            ("sync_from_scene_props method",         "def sync_from_scene_props" in pp_content),
+            ("PRESETS dict defined",                 "PRESETS" in pp_content and "VANILLA" in pp_content),
+            ("PRESET_ENUM_ITEMS defined",            "PRESET_ENUM_ITEMS" in pp_content),
+            ("register() defined",                   "def register()" in pp_content),
+            ("unregister() defined",                 "def unregister()" in pp_content),
+            ("fo4_pp_preset scene property",         "fo4_pp_preset" in pp_content),
+            ("fo4_pp_bloom_strength property",       "fo4_pp_bloom_strength" in pp_content),
+            ("fo4_pp_saturation property",           "fo4_pp_saturation" in pp_content),
+            ("fo4_pp_tint_r property",               "fo4_pp_tint_r" in pp_content),
+            ("fo4_pp_vignette property",             "fo4_pp_vignette" in pp_content),
+            ("fo4_pp_cinematic_bars property",       "fo4_pp_cinematic_bars" in pp_content),
+            ("fo4_pp_dof_enabled property",          "fo4_pp_dof_enabled" in pp_content),
+            ("fo4_pp_eye_adapt_speed property",      "fo4_pp_eye_adapt_speed" in pp_content),
+            ("PIPBOY preset present",                "PIPBOY" in pp_content),
+            ("CINEMATIC preset present",             "CINEMATIC" in pp_content),
+            ("DRUG preset present",                  "DRUG" in pp_content),
+            ("CK field names in export",
+             "BloomScale" in pp_content and "EyeAdaptSpeed" in pp_content
+             and "TintColor" in pp_content and "CinematicBars" in pp_content),
+            ("IMAD block in export",                 "fo4_imagespace_modifier" in pp_content),
+            ("FO4_PP_ node tags used",               "FO4_PP_" in pp_content),
+        ]
+
+        for check_name, result in pp_checks:
+            if result:
+                print(f"✅ {check_name}: Found")
+            else:
+                print(f"❌ {check_name}: Missing")
+                failed.append(check_name)
+
+    # ----------------------------------------------------------------
+    # operators.py – new operators defined and registered
+    # ----------------------------------------------------------------
+    ops_path = addon_dir / "operators.py"
+    with open(ops_path, 'r', encoding='utf-8') as f:
+        ops_content = f.read()
+
+    op_checks = [
+        ("post_processing_helpers import in operators",
+         "post_processing_helpers" in ops_content),
+        ("SetupPostProcessingCompositor operator",
+         "class FO4_OT_SetupPostProcessingCompositor" in ops_content),
+        ("ApplyPostProcessingPreset operator",
+         "class FO4_OT_ApplyPostProcessingPreset" in ops_content),
+        ("ClearPostProcessing operator",
+         "class FO4_OT_ClearPostProcessing" in ops_content),
+        ("ExportImageSpaceData operator",
+         "class FO4_OT_ExportImageSpaceData" in ops_content),
+        ("SyncPostProcessingProps operator",
+         "class FO4_OT_SyncPostProcessingProps" in ops_content),
+        ("SetupPostProcessingCompositor registered",
+         "FO4_OT_SetupPostProcessingCompositor," in ops_content),
+        ("ExportImageSpaceData registered",
+         "FO4_OT_ExportImageSpaceData," in ops_content),
+        ("ClearPostProcessing registered",
+         "FO4_OT_ClearPostProcessing," in ops_content),
+    ]
+
+    for check_name, result in op_checks:
+        if result:
+            print(f"✅ {check_name}: Found")
+        else:
+            print(f"❌ {check_name}: Missing")
+            failed.append(check_name)
+
+    # ----------------------------------------------------------------
+    # ui_panels.py – new panel defined and registered
+    # ----------------------------------------------------------------
+    ui_path = addon_dir / "ui_panels.py"
+    with open(ui_path, 'r', encoding='utf-8') as f:
+        ui_content = f.read()
+
+    ui_checks = [
+        ("FO4_PT_PostProcessingPanel class defined",
+         "class FO4_PT_PostProcessingPanel" in ui_content),
+        ("FO4_PT_PostProcessingPanel registered in classes",
+         "FO4_PT_PostProcessingPanel," in ui_content),
+        ("Setup Compositor button",
+         '"fo4.setup_post_processing"' in ui_content),
+        ("Clear Post-Processing button",
+         '"fo4.clear_post_processing"' in ui_content),
+        ("Export ImageSpace button",
+         '"fo4.export_imagespace_data"' in ui_content),
+        ("Apply Preset button",
+         '"fo4.apply_pp_preset"' in ui_content),
+        ("fo4_pp_preset prop exposed in panel",
+         "fo4_pp_preset" in ui_content),
+        ("Bloom sliders exposed",
+         "fo4_pp_bloom_strength" in ui_content),
+        ("Colour grading sliders exposed",
+         "fo4_pp_saturation" in ui_content),
+        ("Tint sliders exposed",
+         "fo4_pp_tint_r" in ui_content),
+        ("Vignette slider exposed",
+         "fo4_pp_vignette" in ui_content),
+        ("CK-only fields section present",
+         "fo4_pp_eye_adapt_speed" in ui_content),
+    ]
+
+    for check_name, result in ui_checks:
+        if result:
+            print(f"✅ {check_name}: Found")
+        else:
+            print(f"❌ {check_name}: Missing")
+            failed.append(check_name)
+
+    # ----------------------------------------------------------------
+    # __init__.py – module imported and in modules list
+    # ----------------------------------------------------------------
+    init_path = addon_dir / "__init__.py"
+    with open(init_path, 'r', encoding='utf-8') as f:
+        init_content = f.read()
+
+    init_checks = [
+        ("post_processing_helpers imported in __init__",
+         'post_processing_helpers = _try_import("post_processing_helpers")' in init_content),
+        ("post_processing_helpers in modules list",
+         "post_processing_helpers," in init_content),
+    ]
+
+    for check_name, result in init_checks:
+        if result:
+            print(f"✅ {check_name}: Found")
+        else:
+            print(f"❌ {check_name}: Missing")
+            failed.append(check_name)
+
+    # ----------------------------------------------------------------
+    # knowledge_base/fo4_post_processing.md – documentation exists
+    # ----------------------------------------------------------------
+    kb_path = addon_dir / "knowledge_base" / "fo4_post_processing.md"
+    if not kb_path.exists():
+        print("❌ knowledge_base/fo4_post_processing.md: File missing")
+        failed.append("fo4_post_processing.md missing")
+    else:
+        with open(kb_path, 'r', encoding='utf-8') as f:
+            kb_content = f.read()
+
+        kb_checks = [
+            ("IMGS record documented",            "ImageSpace" in kb_content and "IMGS" in kb_content),
+            ("IMAD record documented",            "ImageSpace Modifier" in kb_content and "IMAD" in kb_content),
+            ("BloomScale field documented",       "BloomScale" in kb_content),
+            ("TintColor field documented",        "TintColor" in kb_content),
+            ("EyeAdaptSpeed field documented",    "EyeAdaptSpeed" in kb_content),
+            ("CinematicBars documented",          "CinematicBars" in kb_content),
+            ("Preset table present",              "PIPBOY" in kb_content and "CINEMATIC" in kb_content),
+            ("Compositor node reference present", "FO4_PP_Glare" in kb_content),
+            ("Workflow steps present",            "Setup Compositor" in kb_content),
+            ("CK entry instructions present",     "Creation Kit" in kb_content and "Image Spaces" in kb_content),
+        ]
+
+        for check_name, result in kb_checks:
+            if result:
+                print(f"✅ {check_name}: Found")
+            else:
+                print(f"❌ {check_name}: Missing")
+                failed.append(check_name)
+
+    if failed:
+        print(f"\n❌ FAILED: {len(failed)} post-processing check(s) missing")
+        return False
+
+    print("\n✅ PASSED: All FO4 post-processing checks passed")
+    return True
+
+
 def run_all_tests():
     """Run all test suites"""
     print("\n" + "="*70)
@@ -1194,6 +1386,7 @@ def run_all_tests():
         ("UV Unwrap Quality", test_uv_unwrap_quality),
         ("D: Drive Paths", test_d_drive_paths),
         ("Vegetation Workflow", test_vegetation_workflow),
+        ("Post-Processing", test_post_processing),
     ]
 
     passed = 0
