@@ -637,6 +637,164 @@ def test_fo4_export_settings():
         return False
 
 
+def test_vegetation_workflow():
+    """Verify complete vegetation / custom-mesh NIF export workflow"""
+    print("\n" + "="*70)
+    print("TEST 9: Verifying vegetation & custom-mesh NIF export workflow")
+    print("="*70)
+
+    addon_dir = Path(__file__).parent
+    failed = []
+
+    # ----------------------------------------------------------------
+    # texture_helpers.py – vegetation material setup
+    # ----------------------------------------------------------------
+    th_path = addon_dir / "texture_helpers.py"
+    with open(th_path, 'r', encoding='utf-8') as f:
+        th_content = f.read()
+
+    veg_mat_checks = [
+        # setup_vegetation_material must exist
+        ("setup_vegetation_material method present",
+         "def setup_vegetation_material" in th_content),
+        # must set blend_mode to CLIP for alpha test
+        ("Alpha Clip blend mode set",
+         "'CLIP'" in th_content and "blend_mode" in th_content),
+        # must disable backface culling for two-sided rendering
+        ("Backface culling disabled",
+         "use_backface_culling" in th_content and "False" in th_content),
+        # alpha threshold 0.5 → 128/255 FO4 standard
+        ("Alpha threshold 0.5 set",
+         "alpha_threshold" in th_content and "0.5" in th_content),
+        # shadow_method set to CLIP for alpha shadows
+        ("Shadow method CLIP set",
+         "shadow_method" in th_content and "'CLIP'" in th_content),
+        # calls setup_fo4_material internally (reuse existing node layout)
+        ("Calls setup_fo4_material internally",
+         "setup_fo4_material(obj)" in th_content),
+    ]
+
+    for check_name, result in veg_mat_checks:
+        if result:
+            print(f"✅ {check_name}: Found")
+        else:
+            print(f"❌ {check_name}: Missing")
+            failed.append(check_name)
+
+    # ----------------------------------------------------------------
+    # operators.py – new vegetation operators present + registered
+    # ----------------------------------------------------------------
+    ops_path = addon_dir / "operators.py"
+    with open(ops_path, 'r', encoding='utf-8') as f:
+        ops_content = f.read()
+
+    veg_op_checks = [
+        # New operators defined
+        ("SetupVegetationMaterial operator defined",
+         "class FO4_OT_SetupVegetationMaterial" in ops_content),
+        ("ExportVegetationAsNif operator defined",
+         "class FO4_OT_ExportVegetationAsNif" in ops_content),
+        ("ExportLODChainAsNif operator defined",
+         "class FO4_OT_ExportLODChainAsNif" in ops_content),
+        # Operators registered in classes tuple
+        ("SetupVegetationMaterial registered",
+         "FO4_OT_SetupVegetationMaterial," in ops_content),
+        ("ExportVegetationAsNif registered",
+         "FO4_OT_ExportVegetationAsNif," in ops_content),
+        ("ExportLODChainAsNif registered",
+         "FO4_OT_ExportLODChainAsNif," in ops_content),
+        # CreateVegetationPreset uses vegetation material for foliage types
+        ("Foliage preset uses setup_vegetation_material",
+         "setup_vegetation_material" in ops_content
+         and "TREE" in ops_content and "BUSH" in ops_content),
+        # CombineVegetationMeshes clears orphaned wind vertex groups
+        ("Combine clears orphaned wind vertex groups",
+         "groups_to_remove" in ops_content and "vertex_groups.remove" in ops_content),
+        # ExportVegetationAsNif suppresses collision (GRASS type)
+        ("Export vegetation suppresses collision",
+         "fo4_collision_type = 'GRASS'" in ops_content
+         or "fo4_collision_type='GRASS'" in ops_content),
+        # LOD chain export finds LOD objects by naming convention
+        ("LOD chain export uses _LOD naming convention",
+         "_LOD" in ops_content and "lod_map" in ops_content),
+    ]
+
+    for check_name, result in veg_op_checks:
+        if result:
+            print(f"✅ {check_name}: Found")
+        else:
+            print(f"❌ {check_name}: Missing")
+            failed.append(check_name)
+
+    # ----------------------------------------------------------------
+    # ui_panels.py – new buttons in vegetation panel
+    # ----------------------------------------------------------------
+    ui_path = addon_dir / "ui_panels.py"
+    with open(ui_path, 'r', encoding='utf-8') as f:
+        ui_content = f.read()
+
+    veg_ui_checks = [
+        ("UI: Setup Vegetation Material button",
+         '"fo4.setup_vegetation_material"' in ui_content),
+        ("UI: Export Vegetation NIF button",
+         '"fo4.export_vegetation_as_nif"' in ui_content),
+        ("UI: Export LOD Chain as NIF button",
+         '"fo4.export_lod_chain_as_nif"' in ui_content),
+        ("UI: Wind animation section in vegetation panel",
+         '"fo4.apply_wind_animation"' in ui_content
+         and '"fo4.generate_wind_weights"' in ui_content),
+        ("UI: Batch wind animation button",
+         '"fo4.batch_apply_wind_animation"' in ui_content),
+    ]
+
+    for check_name, result in veg_ui_checks:
+        if result:
+            print(f"✅ {check_name}: Found")
+        else:
+            print(f"❌ {check_name}: Missing")
+            failed.append(check_name)
+
+    # ----------------------------------------------------------------
+    # knowledge_base/fo4_export.md – vegetation section present
+    # ----------------------------------------------------------------
+    kb_path = addon_dir / "knowledge_base" / "fo4_export.md"
+    with open(kb_path, 'r', encoding='utf-8') as f:
+        kb_content = f.read()
+
+    veg_kb_checks = [
+        ("KB: vegetation section present",
+         "Vegetation" in kb_content and "foliage" in kb_content),
+        ("KB: Alpha Clip documented",
+         "Alpha Clip" in kb_content and "Alpha_Testing" in kb_content),
+        ("KB: Two-sided rendering documented",
+         "Two_Sided" in kb_content or "Two-Sided" in kb_content
+         or "two-sided" in kb_content),
+        ("KB: BC3 DXT5 for foliage diffuse documented",
+         "BC3" in kb_content and "DXT5" in kb_content),
+        ("KB: Wind vertex group 'Wind' documented",
+         '"Wind"' in kb_content or "'Wind'" in kb_content),
+        ("KB: LOD chain for vegetation documented",
+         "LOD" in kb_content and "meshes/" in kb_content),
+        ("KB: step-by-step custom mesh workflow present",
+         "Custom mesh workflow" in kb_content
+         or "step-by-step" in kb_content.lower()),
+    ]
+
+    for check_name, result in veg_kb_checks:
+        if result:
+            print(f"✅ {check_name}: Found")
+        else:
+            print(f"❌ {check_name}: Missing")
+            failed.append(check_name)
+
+    if failed:
+        print(f"\n❌ FAILED: {len(failed)} vegetation workflow check(s) missing")
+        return False
+
+    print("\n✅ PASSED: All vegetation & custom-mesh NIF export workflow checks passed")
+    return True
+
+
 def test_texture_node_labels():
     """Verify texture node labels and sanitization are correct for Niftools export"""
     print("\n" + "="*70)
@@ -1035,6 +1193,7 @@ def run_all_tests():
         ("Texture Node Labels", test_texture_node_labels),
         ("UV Unwrap Quality", test_uv_unwrap_quality),
         ("D: Drive Paths", test_d_drive_paths),
+        ("Vegetation Workflow", test_vegetation_workflow),
     ]
 
     passed = 0

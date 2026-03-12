@@ -6812,8 +6812,13 @@ class FO4_OT_CreateVegetationPreset(Operator):
             # Apply scale
             bpy.ops.object.transform_apply(location=False, rotation=False, scale=True)
             
-            # Setup material
-            texture_helpers.TextureHelpers.setup_fo4_material(obj)
+            # Setup material – use vegetation material (alpha clip + two-sided) for
+            # foliage types whose leaves/blades are transparent cutout quads.
+            # ROCK uses a standard opaque material.
+            if self.vegetation_type in ('TREE', 'BUSH', 'GRASS', 'FERN', 'DEAD_TREE'):
+                texture_helpers.TextureHelpers.setup_vegetation_material(obj)
+            else:
+                texture_helpers.TextureHelpers.setup_fo4_material(obj)
             
             self.report({'INFO'}, f"Created {self.vegetation_type} vegetation preset")
             notification_system.FO4_NotificationSystem.notify(
@@ -6863,6 +6868,22 @@ class FO4_OT_CombineVegetationMeshes(Operator):
             bpy.ops.object.join()
             combined_obj = context.active_object
             combined_obj.name = "FO4_Vegetation_Combined"
+            
+            # After joining, any wind vertex groups from the component meshes are
+            # merged together.  Without an armature the Niftools exporter treats
+            # these as orphaned weights and can produce corrupted geometry.
+            # We specifically remove groups whose names indicate they were created
+            # by the add-on's wind animation pipeline ("Wind", "wind*") while
+            # leaving any other custom vertex groups intact.
+            if combined_obj.vertex_groups and not any(
+                mod.type == 'ARMATURE' for mod in combined_obj.modifiers
+            ):
+                groups_to_remove = [
+                    vg for vg in combined_obj.vertex_groups
+                    if vg.name.lower() == 'wind' or vg.name.lower().startswith('wind')
+                ]
+                for vg in groups_to_remove:
+                    combined_obj.vertex_groups.remove(vg)
             
             # Optimize the combined mesh
             success, message = mesh_helpers.MeshHelpers.optimize_mesh(combined_obj)
@@ -7253,7 +7274,223 @@ class FO4_OT_BakeVegetationAO(Operator):
         return context.window_manager.invoke_props_dialog(self)
 
 
-# Quest Creation Operators
+class FO4_OT_SetupVegetationMaterial(Operator):
+    """Setup a Fallout 4 vegetation material with alpha clip and two-sided rendering.
+
+    Use this on any custom plant, tree, grass, or foliage mesh.  The operator:
+    - Creates (or replaces) the material with FO4-compatible texture slots.
+    - Sets Blend Mode to **Alpha Clip** so transparent leaf edges are masked
+      correctly in-game (maps to BSLightingShaderProperty Alpha_Testing).
+    - Disables backface culling so single-face leaf/grass quads are visible from
+      both sides (maps to BSLightingShaderProperty Two_Sided flag).
+    - Sets alpha threshold to 0.5 (= 128/255, the FO4 default cutoff).
+
+    After running this operator install your textures with the **Install Texture**
+    button or via the Texture tab.  For the alpha test to work, your diffuse
+    texture must have an alpha channel (BC3 / DXT5 DDS format).
+    """
+    bl_idname = "fo4.setup_vegetation_material"
+    bl_label = "Setup Vegetation Material"
+    bl_options = {'REGISTER', 'UNDO'}
+
+    @classmethod
+    def poll(cls, context):
+        obj = context.active_object
+        return obj is not None and obj.type == 'MESH'
+
+    def execute(self, context):
+        obj = context.active_object
+        if not obj or obj.type != 'MESH':
+            self.report({'ERROR'}, "No mesh object selected")
+            return {'CANCELLED'}
+        mat = texture_helpers.TextureHelpers.setup_vegetation_material(obj)
+        if mat is None:
+            self.report({'ERROR'}, "Failed to create vegetation material")
+            return {'CANCELLED'}
+        msg = (
+            f"Vegetation material set up on '{obj.name}': "
+            "Alpha Clip enabled (threshold 0.5 = 128/255), backface culling disabled. "
+            "Now install a diffuse texture with an alpha channel (BC3 / DXT5 DDS)."
+        )
+        self.report({'INFO'}, msg)
+        notification_system.FO4_NotificationSystem.notify(
+            "Vegetation material (alpha clip + two-sided) applied", 'INFO'
+        )
+        return {'FINISHED'}
+
+
+class FO4_OT_ExportVegetationAsNif(Operator):
+    """Export the active mesh as a vegetation NIF (no collision, alpha-test ready).
+
+    This is the correct export path for plants, trees, grass, and custom foliage:
+    - Applies all pending transforms.
+    - Ensures a UV map exists (smart-unwrap if missing).
+    - Temporarily triangulates quads/n-gons for FO4 BSTriShape.
+    - Skips collision mesh generation (most FO4 vegetation has no collision).
+    - Validates that the material uses Alpha Clip / Alpha Blend so that the
+      Niftools exporter writes the correct BSLightingShaderProperty flags.
+    - If Niftools v0.1.1 is not installed, exports FBX for Cathedral Assets
+      Optimizer (CAO) conversion.
+
+    After export, open the NIF in NifSkope to verify:
+    - Root node is a BSFadeNode.
+    - Geometry nodes are BSTriShape (not NiTriShape).
+    - BSLightingShaderProperty has Alpha_Testing flag set.
+    """
+    bl_idname = "fo4.export_vegetation_as_nif"
+    bl_label = "Export Vegetation NIF"
+    bl_options = {'REGISTER'}
+
+    filepath: bpy.props.StringProperty(subtype='FILE_PATH')
+    filter_glob: bpy.props.StringProperty(default="*.nif;*.fbx", options={'HIDDEN'})
+
+    @classmethod
+    def poll(cls, context):
+        obj = context.active_object
+        return obj is not None and obj.type == 'MESH'
+
+    def execute(self, context):
+        obj = context.active_object
+        if not obj or obj.type != 'MESH':
+            self.report({'ERROR'}, "No mesh object selected")
+            return {'CANCELLED'}
+
+        # Warn if the material is not set up for alpha clip (but don't block).
+        has_alpha_mat = False
+        for mat in (obj.data.materials or []):
+            if mat and mat.blend_mode in ('CLIP', 'BLEND'):
+                has_alpha_mat = True
+                break
+        if not has_alpha_mat:
+            self.report({'WARNING'},
+                "Material blend mode is not Alpha Clip or Blend. "
+                "Run 'Setup Vegetation Material' first for correct transparency in-game.")
+
+        # Mark this mesh so the export pipeline skips collision generation.
+        # Vegetation in FO4 uses GRASS/MUSHROOM collision type (= no collision).
+        prev_ctype = getattr(obj, 'fo4_collision_type', None)
+        try:
+            obj.fo4_collision_type = 'GRASS'
+        except Exception:
+            pass
+
+        success, message = export_helpers.ExportHelpers.export_mesh_to_nif(obj, self.filepath)
+
+        # Restore original collision type
+        try:
+            if prev_ctype is not None:
+                obj.fo4_collision_type = prev_ctype
+        except Exception:
+            pass
+
+        if success:
+            self.report({'INFO'}, message)
+            notification_system.FO4_NotificationSystem.notify(message, 'INFO')
+            return {'FINISHED'}
+        else:
+            self.report({'ERROR'}, message)
+            notification_system.FO4_NotificationSystem.notify(message, 'ERROR')
+            return {'CANCELLED'}
+
+    def invoke(self, context, event):
+        context.window_manager.fileselect_add(self)
+        return {'RUNNING_MODAL'}
+
+
+class FO4_OT_ExportLODChainAsNif(Operator):
+    """Export the full LOD chain for the active object as separate NIF files.
+
+    The operator looks for objects named ``{base}_LOD0``, ``{base}_LOD1``,
+    ``{base}_LOD2``, ``{base}_LOD3`` in the current scene (where *base* is
+    the name of the active object without any ``_LOD0`` suffix).  If the
+    active object itself is the LOD0 source (un-suffixed name) it is treated
+    as LOD0 and the remaining LODs are exported alongside it.
+
+    Each LOD is exported to the chosen directory using the Niftools NIF
+    exporter (or FBX fallback) with the same settings as the main export
+    pipeline.  File names follow the FO4 LOD convention::
+
+        meshes/{name}.nif       ← LOD0 (full detail)
+        meshes/{name}_LOD1.nif  ← 75% reduction
+        meshes/{name}_LOD2.nif  ← 50% reduction
+        meshes/{name}_LOD3.nif  ← 25% reduction
+        meshes/{name}_LOD4.nif  ← 10% reduction  (if present)
+
+    Place the exported files in your mod's ``meshes/`` folder and reference
+    them from a Creation Kit Static / Grass record.
+    """
+    bl_idname = "fo4.export_lod_chain_as_nif"
+    bl_label = "Export LOD Chain as NIF"
+    bl_options = {'REGISTER'}
+
+    directory: bpy.props.StringProperty(subtype='DIR_PATH')
+
+    @classmethod
+    def poll(cls, context):
+        return context.active_object is not None and context.active_object.type == 'MESH'
+
+    def execute(self, context):
+        obj = context.active_object
+        if not obj or obj.type != 'MESH':
+            self.report({'ERROR'}, "No mesh object selected")
+            return {'CANCELLED'}
+
+        # Determine the base name (strip any existing _LOD* suffix so both the
+        # raw source mesh and a renamed LOD0 object work as the starting point).
+        import re
+        base_name = re.sub(r'_LOD\d+$', '', obj.name)
+
+        # Collect LOD objects: active object (LOD0 / source) + suffixed siblings.
+        scene_objects = {o.name: o for o in context.scene.objects if o.type == 'MESH'}
+
+        lod_map = {}  # LOD index → object
+        if obj.name == base_name or obj.name == f"{base_name}_LOD0":
+            lod_map[0] = obj
+
+        for i in range(1, 5):  # LOD1 – LOD4
+            candidate = scene_objects.get(f"{base_name}_LOD{i}")
+            if candidate:
+                lod_map[i] = candidate
+
+        if not lod_map:
+            self.report({'ERROR'}, f"No LOD objects found for '{base_name}'")
+            return {'CANCELLED'}
+
+        import os
+        exported = []
+        failed = []
+
+        for lod_idx, lod_obj in sorted(lod_map.items()):
+            if lod_idx == 0:
+                filename = f"{base_name}.nif"
+            else:
+                filename = f"{base_name}_LOD{lod_idx}.nif"
+            filepath = os.path.join(self.directory, filename)
+
+            success, message = export_helpers.ExportHelpers.export_mesh_to_nif(lod_obj, filepath)
+            if success:
+                exported.append(filename)
+            else:
+                failed.append(f"{filename}: {message}")
+
+        if exported:
+            msg = f"Exported {len(exported)} LOD(s): {', '.join(exported)}"
+            if failed:
+                msg += f" | {len(failed)} failed: {'; '.join(failed)}"
+            self.report({'INFO'}, msg)
+            notification_system.FO4_NotificationSystem.notify(msg, 'INFO')
+            return {'FINISHED'}
+        else:
+            err = "All LOD exports failed: " + "; ".join(failed)
+            self.report({'ERROR'}, err)
+            notification_system.FO4_NotificationSystem.notify(err, 'ERROR')
+            return {'CANCELLED'}
+
+    def invoke(self, context, event):
+        context.window_manager.fileselect_add(self)
+        return {'RUNNING_MODAL'}
+
+
 
 class FO4_OT_CreateQuestTemplate(Operator):
     """Create a quest template with stages and objectives"""
@@ -9043,6 +9280,9 @@ classes = (
     FO4_OT_OptimizeVegetationForFPS,
     FO4_OT_CreateVegetationLODChain,
     FO4_OT_BakeVegetationAO,
+    FO4_OT_SetupVegetationMaterial,
+    FO4_OT_ExportVegetationAsNif,
+    FO4_OT_ExportLODChainAsNif,
     # Quest and dialogue operators
     FO4_OT_CreateQuestTemplate,
     FO4_OT_ExportQuestData,

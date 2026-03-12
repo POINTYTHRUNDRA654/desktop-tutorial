@@ -1709,6 +1709,42 @@ class FO4_PT_VegetationPanel(Panel):
         row = box.row()
         row.enabled = obj and obj.type == 'MESH'
         row.operator("fo4.create_vegetation_lod_chain", text="Create LOD Chain", icon='MESH_GRID')
+        row2 = box.row()
+        row2.enabled = obj and obj.type == 'MESH'
+        row2.operator("fo4.export_lod_chain_as_nif", text="Export LOD Chain as NIF", icon='EXPORT')
+        
+        # Wind animation
+        box = layout.box()
+        box.label(text="Wind Animation", icon='FORCE_WIND')
+        row = box.row()
+        row.enabled = obj and obj.type == 'MESH'
+        row.operator("fo4.generate_wind_weights", text="Generate Wind Weights", icon='MOD_VERTEX_WEIGHT')
+        row2 = box.row()
+        row2.enabled = obj and obj.type == 'MESH'
+        row2.operator("fo4.apply_wind_animation", text="Apply Wind Animation", icon='ANIM')
+        row3 = box.row()
+        row3.enabled = bool([o for o in context.selected_objects if o.type == 'MESH'])
+        row3.operator("fo4.batch_apply_wind_animation", text="Batch: Wind (Selected)", icon='PARTICLES')
+        
+        # Material setup
+        box = layout.box()
+        box.label(text="Vegetation Material", icon='MATERIAL')
+        row = box.row()
+        row.enabled = obj and obj.type == 'MESH'
+        row.operator("fo4.setup_vegetation_material",
+                     text="Setup Vegetation Material", icon='NODE_MATERIAL')
+        sub = box.column(align=True)
+        sub.scale_y = 0.75
+        sub.label(text="Alpha Clip + Two-Sided (for leaves/grass)", icon='INFO')
+        sub.label(text="Requires BC3 (DXT5) diffuse texture with alpha", icon='INFO')
+        
+        # Export
+        box = layout.box()
+        box.label(text="Export", icon='EXPORT')
+        row = box.row()
+        row.enabled = obj and obj.type == 'MESH'
+        row.operator("fo4.export_vegetation_as_nif",
+                     text="Export Vegetation NIF", icon='FILE_BLEND')
         
         # Baking
         box = layout.box()
