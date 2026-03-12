@@ -7554,35 +7554,35 @@ class FO4_OT_ExportQuestData(Operator):
         return {'RUNNING_MODAL'}
 
 
-class FO4_OT_GeneratePapyrusScript(Operator):
-    """Generate Papyrus script template for quest"""
-    bl_idname = "fo4.generate_papyrus_script"
-    bl_label = "Generate Papyrus Script"
+class FO4_OT_QuestGeneratePapyrusScript(Operator):
+    """Generate Papyrus script template for a quest (dialog prompts Quest ID and Name)"""
+    bl_idname = "fo4.quest_generate_papyrus_script"
+    bl_label = "Quest Papyrus Script"
     bl_options = {'REGISTER'}
-    
+
     quest_id: StringProperty(
         name="Quest ID",
         description="Quest Editor ID",
         default="MyQuest01"
     )
-    
+
     quest_name: StringProperty(
         name="Quest Name",
         description="Quest display name",
         default="My Quest"
     )
-    
+
     def execute(self, context):
         try:
             script = quest_helpers.QuestHelpers.generate_papyrus_script(self.quest_id, self.quest_name)
-            
+
             # Create text block in Blender
             text = bpy.data.texts.new(f"{self.quest_id}Script.psc")
             text.write(script)
-            
+
             self.report({'INFO'}, f"Generated Papyrus script: {self.quest_id}Script.psc")
             self.report({'INFO'}, "Check Text Editor for script")
-            
+
             notification_system.FO4_NotificationSystem.notify(
                 "Papyrus script generated", 'INFO'
             )
@@ -7590,7 +7590,7 @@ class FO4_OT_GeneratePapyrusScript(Operator):
         except Exception as e:
             self.report({'ERROR'}, f"Failed to generate script: {str(e)}")
             return {'CANCELLED'}
-    
+
     def invoke(self, context, event):
         return context.window_manager.invoke_props_dialog(self)
 
@@ -9982,6 +9982,7 @@ classes = (
     FO4_OT_CheckKBTools,
     FO4_OT_CheckUEImporter,
     FO4_OT_CheckUModelTools,
+    FO4_OT_CheckUModel,
     FO4_OT_CheckUnityFBXImporter,
     FO4_OT_CheckAssetStudio,
     FO4_OT_CheckAssetRipper,
@@ -10054,6 +10055,7 @@ classes = (
     FO4_OT_CreatePropPreset,
     # New automation operators
     FO4_OT_QuickPrepareForExport,
+    FO4_OT_ConvertToFallout4,
     FO4_OT_AutoFixCommonIssues,
     FO4_OT_GenerateCollisionMesh,
     FO4_OT_SmartMaterialSetup,
@@ -10070,7 +10072,7 @@ classes = (
     # Quest and dialogue operators
     FO4_OT_CreateQuestTemplate,
     FO4_OT_ExportQuestData,
-    FO4_OT_GeneratePapyrusScript,
+    FO4_OT_QuestGeneratePapyrusScript,
     # NPC and creature operators
     FO4_OT_CreateNPC,
     FO4_OT_CreateCreature,
@@ -10125,6 +10127,10 @@ classes = (
     # Mod folder import/export
     FO4_OT_ImportModFolder,
     FO4_OT_ExportModFolder,
+    # Game asset browsers
+    FO4_OT_BrowseFO4Assets,
+    FO4_OT_BrowseUnityAssets,
+    FO4_OT_BrowseUnrealAssets,
     # UV + Texture workflow
     FO4_OT_SetupUVWithTexture,
     FO4_OT_ReUnwrapUV,

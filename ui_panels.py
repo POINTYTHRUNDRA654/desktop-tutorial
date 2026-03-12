@@ -1776,7 +1776,7 @@ class FO4_PT_QuestPanel(Panel):
         # Papyrus script
         box = layout.box()
         box.label(text="Scripting", icon='SCRIPT')
-        box.operator("fo4.generate_papyrus_script", text="Generate Papyrus Script", icon='FILE_SCRIPT')
+        box.operator("fo4.quest_generate_papyrus_script", text="Generate Papyrus Script", icon='FILE_SCRIPT')
         
         # Info
         info_box = layout.box()
