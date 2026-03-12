@@ -604,6 +604,61 @@ This is a comprehensive index of Creation Kit documentation and scripting resour
 - **Collision Layer**: Collision setup
 - **Climate**: Weather climate definition
 - **EncounterZone**: Dynamic encounter level
+
+---
+
+## Community Video Tutorials & Learning Resources
+
+### Sheldon Seddon's Creation Kit Knowledge Channel
+**YouTube Channel:** [Sheldon Seddon](https://www.youtube.com/user/seddon4494)
+
+**Description:** A dedicated, comprehensive repository of Creation Kit and GECK tutorial videos covering big and small topics. Sheldon's channel is an invaluable free resource for both beginner and advanced modders learning Creation Kit workflows.
+
+**Coverage:**
+- Creation Kit fundamentals and interface
+- GECK (Garden of Eden Creation Kit) tutorials
+- Papyrus scripting and quest design
+- NPC and actor configuration
+- Dialogue system setup
+- Quest stages and objectives
+- Environmental worldbuilding
+- Precombine and previs optimization
+- Advanced techniques
+
+**How to Use:** When learning Creation Kit topics, visit Sheldon's channel for comprehensive video tutorials. His content is community-contributed and free to all modders.
+
+**Credit & Attribution:** All Creation Kit learning referenced from Sheldon Seddon's YouTube channel is shared with gratitude for his educational contributions to the Fallout modding community.
+
+---
+
+### Darkfox127's Creation Kit Tutorial Series
+**YouTube Channel:** [@Darkfox127](https://www.youtube.com/@Darkfox127)  
+**Playlists:** [Darkfox127 Playlists](https://www.youtube.com/@Darkfox127/playlists)  
+**Twitch Streams:** [darkfox127](https://www.twitch.tv/darkfox127)  
+**Website:** [Darkfox127.com](https://darkfox127.com)
+
+**Creator:** Richard (Darkfox127)
+
+**Description:** Richard creates comprehensive Creation Kit tutorial videos teaching people how to create mods for Fallout. In addition to structured YouTube tutorials organized in playlists, he also livestreams his own mod creation on Twitch, providing real-time learning opportunities, problem-solving, and community interaction.
+
+**Coverage:**
+- Creation Kit fundamentals and workflows
+- Modding tutorials for Fallout
+- Step-by-step guide creation
+- World editing and design
+- NPC and actor configuration
+- Quest and dialogue creation
+- Best practices for mod creation
+- Live modding demonstrations on Twitch
+
+**How to Use:** 
+- **For structured learning:** Browse his YouTube playlists for topic-specific tutorials
+- **For interactive learning:** Join his Twitch livestreams for real-time Q&A and live mod development
+- **For full information:** Visit his website at Darkfox127.com
+
+**Content Types:** Video tutorials, curated playlists, live stream archives, and website resources
+
+**Credit & Attribution:** All Creation Kit learning referenced from Darkfox127's tutorials and streams is shared with gratitude for his educational contributions to the Fallout modding community. Support Richard by subscribing to his YouTube, following on Twitch, and visiting his website.
 - **EncounterZone Script**: Encounter behavior
 
 ---

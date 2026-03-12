@@ -74,7 +74,7 @@ const expandAliasKeywords = (rawQuery: string): string[] => {
 
   // Third-party Blender add-on look-up (e.g. "how do I use RigifyPlus in Blender")
   if (/(\badd[\s-]?on\b|\bplugin\b|\bextension\b)/i.test(rawQuery) &&
-      /\bblender\b/i.test(rawQuery)) {
+    /\bblender\b/i.test(rawQuery)) {
     extras.push('blender-addon', 'blender', 'third-party');
   }
 
@@ -166,11 +166,11 @@ export const getRelevantKnowledgeVaultItems = (
 
   const ranked = keywords.length
     ? items
-        .map((it) => ({ it, s: scoreItem(it, keywords) }))
-        .sort((a, b) => b.s - a.s)
-        .filter((x) => x.s > 0)
-        .slice(0, Math.max(maxItems, 3))
-        .map((x) => x.it)
+      .map((it) => ({ it, s: scoreItem(it, keywords) }))
+      .sort((a, b) => b.s - a.s)
+      .filter((x) => x.s > 0)
+      .slice(0, Math.max(maxItems, 3))
+      .map((x) => x.it)
     : items.slice(-maxItems).reverse();
 
   return ranked.slice(0, maxItems).map((it) => ({
@@ -198,11 +198,11 @@ export const buildRelevantKnowledgeVaultContext = (query: string, opts?: {
   // If query has no useful keywords, just show recent titles
   const ranked = keywords.length
     ? items
-        .map((it) => ({ it, s: scoreItem(it, keywords) }))
-        .sort((a, b) => b.s - a.s)
-        .filter((x) => x.s > 0)
-        .slice(0, Math.max(maxItems, 3))
-        .map((x) => x.it)
+      .map((it) => ({ it, s: scoreItem(it, keywords) }))
+      .sort((a, b) => b.s - a.s)
+      .filter((x) => x.s > 0)
+      .slice(0, Math.max(maxItems, 3))
+      .map((x) => x.it)
     : items.slice(-maxItems).reverse();
 
   if (ranked.length === 0) {
@@ -319,4 +319,77 @@ export const buildBlenderAddonContext = (addonName?: string, opts?: {
     `Always credit the original author when citing steps.\n` +
     lines.join('\n') + '\n'
   );
+};
+
+/**
+ * Returns a formatted context block with Creation Kit resources and video tutorials.
+ * Includes references to multiple community educators: Sheldon Seddon and Darkfox127.
+ * Injected whenever user asks about Creation Kit, scripting, quest design, or modding.
+ */
+export const buildCreationKitResourcesContext = (opts?: {
+  maxItems?: number;
+  maxChars?: number;
+}): string => {
+  const maxItems = opts?.maxItems ?? 8;
+  const maxChars = opts?.maxChars ?? 5000;
+
+  // Start with primary video resources
+  let context = `
+**CREATION KIT & MODDING RESOURCES:**
+
+**📺 VIDEO TUTORIALS - COMMUNITY EDUCATORS:**
+
+**SHELDON SEDDON'S CREATION KIT CHANNEL:**
+- **Channel:** https://www.youtube.com/user/seddon4494
+- **Focus:** Comprehensive Creation Kit and GECK knowledge repository
+- **Content:** Quest scripting, NPC creation, dialogue design, worldbuilding, precombine/previs optimization, Papyrus scripting, and advanced CK techniques
+- **Format:** Free video tutorials covering both beginner and advanced topics
+
+**DARKFOX127 (RICHARD) - CREATION KIT TUTORIALS:**
+- **YouTube:** https://www.youtube.com/@Darkfox127
+- **Playlists:** https://www.youtube.com/@Darkfox127/playlists
+- **Twitch (Live Streams):** https://www.twitch.tv/darkfox127
+- **Website:** https://darkfox127.com
+- **Content:** CK fundamentals, modding tutorials, world editing, NPC/quest creation, best practices, live mod demonstrations
+- **Format:** Video tutorials, curated playlists, Twitch livestreams for interactive learning
+
+**KEY RESOURCES:**
+- Direct users to these channels for free, comprehensive Creation Kit education
+- Sheldon Seddon: Structured, accumulated CK knowledge
+- Darkfox127: Tutorial series + live interactive learning on Twitch
+- Both creators provide freely shared educational content for the modding community
+`;
+
+  // Add any CK-tagged vault items
+  const items = loadKnowledgeVault();
+  const ckItems = items.filter((it) => {
+    const tags = (it.tags || []).map((t) => String(t).toLowerCase());
+    return (
+      tags.some((t) => t.includes('creation kit') || t.includes('ck') || t.includes('papyrus') || t.includes('quest') || t.includes('sheldon') || t.includes('darkfox'))
+    );
+  });
+
+  if (ckItems.length > 0) {
+    context += `\n**LOCAL KNOWLEDGE VAULT (CK-RELATED):**\n`;
+    let used = context.length;
+    for (const it of ckItems.slice(0, maxItems)) {
+      const title = String(it.title || 'Untitled').trim();
+      const tags = Array.isArray(it.tags) && it.tags.length ? ` [${it.tags.join(', ')}]` : '';
+      const credit = it.creditName ? ` credit:${it.creditName}` : '';
+      const block = `- ${title}${tags}${credit}`;
+      if (used + block.length > maxChars) break;
+      context += block + '\n';
+      used += block.length;
+    }
+  }
+
+  context += `
+**REMEMBER:** When answering Creation Kit questions:
+- Direct users to Sheldon Seddon's YouTube channel for comprehensive, accumulated CK knowledge
+- Direct users to Darkfox127's YouTube tutorials for structured guides and Twitch for live, interactive learning
+- Both channels provide freely shared educational resources for the Fallout modding community
+- Always credit the original creators when recommending their content
+`;
+
+  return context;
 };
