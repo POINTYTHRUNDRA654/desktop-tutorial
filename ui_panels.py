@@ -148,34 +148,52 @@ class FO4_PT_MeshPanel(Panel):
         )
 
     @staticmethod
-    def _draw_asset_paths_box(layout, has_mesh):
+    def _draw_asset_paths_box(layout, has_mesh, scene):
         """Draw the shared Game Asset Paths section inside the Mesh panel."""
         from . import fo4_game_assets as _fga
 
         paths_box = layout.box()
         paths_box.label(text="Game Asset Paths", icon='FILEBROWSER')
 
-        # ── FO4 assets path ──────────────────────────────────────────────
+        # ── FO4 assets path status ────────────────────────────────────────
         ready, status_msg = _fga.FO4GameAssets.get_status()
         status_icon = 'CHECKMARK' if ready else 'ERROR'
         info_col = paths_box.column(align=True)
         info_col.scale_y = 0.8
         info_col.label(text=status_msg, icon=status_icon)
 
-        # Two side-by-side buttons: set path | import asset
-        btn_row = paths_box.row(align=True)
-        btn_row.operator(
-            "fo4.set_fo4_assets_path",
-            text="Set FO4 Path",
-            icon='FILE_FOLDER',
+        # ── Three separate path pickers ───────────────────────────────────
+        sub = paths_box.column(align=True)
+
+        row = sub.row(align=True)
+        row.prop(scene, "fo4_asset_lib_mesh_path", text="Meshes")
+        op = row.operator("fo4.set_asset_lib_path", text="", icon='FILE_FOLDER')
+        op.slot = 'meshes'
+
+        row = sub.row(align=True)
+        row.prop(scene, "fo4_asset_lib_tex_path", text="Textures")
+        op = row.operator("fo4.set_asset_lib_path", text="", icon='FILE_FOLDER')
+        op.slot = 'textures'
+
+        row = sub.row(align=True)
+        row.prop(scene, "fo4_asset_lib_mat_path", text="Materials")
+        op = row.operator("fo4.set_asset_lib_path", text="", icon='FILE_FOLDER')
+        op.slot = 'materials'
+
+        # ── Scan + Import buttons ─────────────────────────────────────────
+        action_row = paths_box.row(align=True)
+        action_row.operator(
+            "fo4.scan_asset_library",
+            text="Scan / Refresh",
+            icon='FILE_REFRESH',
         )
-        btn_row.operator(
+        action_row.operator(
             "fo4.import_fo4_asset_file",
             text="Import Asset",
             icon='IMPORT',
         )
 
-        # ── Third-party mesh conversion ──────────────────────────────────
+        # ── Third-party mesh conversion ───────────────────────────────────
         paths_box.separator()
         conv_row = paths_box.row()
         conv_row.enabled = has_mesh
@@ -196,7 +214,7 @@ class FO4_PT_MeshPanel(Panel):
         prefs = preferences.get_preferences() if preferences else None
 
         # ── Game Asset Paths – always shown at the top of the Mesh panel ──
-        self._draw_asset_paths_box(layout, has_mesh)
+        self._draw_asset_paths_box(layout, has_mesh, scene)
 
         if unified:
             # ── Full FO4 Pipeline (one-click) ────────────────────────────
@@ -1402,9 +1420,31 @@ class FO4_PT_GameAssetsPanel(Panel):
         info_col.scale_y = 0.8
         info_col.label(text=message, icon=status_icon)
 
-        btn_row = fo4_box.row(align=True)
-        btn_row.operator("fo4.set_fo4_assets_path", text="Set Path", icon='FILE_FOLDER')
-        btn_row.operator("fo4.import_fo4_asset_file", text="Import Asset", icon='IMPORT')
+        # Three separate path pickers (meshes / textures / materials)
+        paths_sub = fo4_box.column(align=True)
+
+        row = paths_sub.row(align=True)
+        row.prop(scene, "fo4_asset_lib_mesh_path", text="Meshes")
+        op = row.operator("fo4.set_asset_lib_path", text="", icon='FILE_FOLDER')
+        op.slot = 'meshes'
+
+        row = paths_sub.row(align=True)
+        row.prop(scene, "fo4_asset_lib_tex_path", text="Textures")
+        op = row.operator("fo4.set_asset_lib_path", text="", icon='FILE_FOLDER')
+        op.slot = 'textures'
+
+        row = paths_sub.row(align=True)
+        row.prop(scene, "fo4_asset_lib_mat_path", text="Materials")
+        op = row.operator("fo4.set_asset_lib_path", text="", icon='FILE_FOLDER')
+        op.slot = 'materials'
+
+        action_row = fo4_box.row(align=True)
+        action_row.operator(
+            "fo4.scan_asset_library",
+            text="Scan / Refresh",
+            icon='FILE_REFRESH',
+        )
+        action_row.operator("fo4.import_fo4_asset_file", text="Import Asset", icon='IMPORT')
         if ready:
             fo4_box.operator("fo4.browse_fo4_assets", text="Browse FO4 Assets", icon='VIEWZOOM')
 
@@ -1449,10 +1489,11 @@ class FO4_PT_GameAssetsPanel(Panel):
         help_box.label(text="How to Use", icon='QUESTION')
         help_col = help_box.column(align=True)
         help_col.scale_y = 0.7
-        help_col.label(text="1. Click 'Set Path' to choose your assets folder", icon='DOT')
-        help_col.label(text="2. Click 'Import Asset' to bring a mesh/texture in", icon='DOT')
-        help_col.label(text="3. Click 'Convert to Fallout 4'", icon='DOT')
-        help_col.label(text="4. Export as NIF", icon='DOT')
+        help_col.label(text="1. Set Meshes, Textures, and Materials paths using the folder buttons", icon='DOT')
+        help_col.label(text="2. Click 'Scan / Refresh' to link all your assets", icon='DOT')
+        help_col.label(text="3. Use 'Import Asset' to bring a specific file into Blender", icon='DOT')
+        help_col.label(text="   or browse the Asset Library panel to pick from the list", icon='DOT')
+        help_col.label(text="4. Click 'Convert to Fallout 4', then Export as NIF", icon='DOT')
 
 
 class FO4_PT_AssetLibraryPanel(Panel):
