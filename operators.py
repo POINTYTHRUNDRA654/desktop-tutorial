@@ -9388,40 +9388,40 @@ class FO4_OT_GenerateShapEText(Operator):
         guidance_scale = scene.fo4_shap_e_guidance_scale
         inference_steps = scene.fo4_shap_e_inference_steps
         
-        self.report({'INFO'}, f"Generating 3D mesh from: '{prompt}'...")
+        def _run():
+            success, result = shap_e_helpers.ShapEHelpers.generate_from_text(
+                prompt,
+                guidance_scale=guidance_scale,
+                num_inference_steps=inference_steps
+            )
+
+            def _finish():
+                if success:
+                    obj = shap_e_helpers.ShapEHelpers.create_mesh_from_data(
+                        result,
+                        name=f"ShapE_{prompt[:20]}"
+                    )
+                    if obj:
+                        notification_system.FO4_NotificationSystem.notify(
+                            f"Shap-E generation complete: {obj.name}", 'INFO'
+                        )
+                    else:
+                        notification_system.FO4_NotificationSystem.notify(
+                            "Failed to create mesh in Blender", 'WARNING'
+                        )
+                else:
+                    notification_system.FO4_NotificationSystem.notify(
+                        f"Shap-E failed: {result}", 'ERROR'
+                    )
+
+            bpy.app.timers.register(_finish, first_interval=0.0)
+
+        threading.Thread(target=_run, daemon=True).start()
+        self.report({'INFO'}, "Shap-E generation started in background — Blender stays responsive")
         notification_system.FO4_NotificationSystem.notify(
-            f"Generating with Shap-E: {prompt}", 'INFO'
+            f"Generating with Shap-E: {prompt}…", 'INFO'
         )
-        
-        # Generate mesh
-        success, result = shap_e_helpers.ShapEHelpers.generate_from_text(
-            prompt,
-            guidance_scale=guidance_scale,
-            num_inference_steps=inference_steps
-        )
-        
-        if success:
-            # Create Blender mesh
-            obj = shap_e_helpers.ShapEHelpers.create_mesh_from_data(
-                result,
-                name=f"ShapE_{prompt[:20]}"
-            )
-            
-            if obj:
-                self.report({'INFO'}, f"Generated mesh: {obj.name}")
-                notification_system.FO4_NotificationSystem.notify(
-                    f"Shap-E generation complete!", 'INFO'
-                )
-                return {'FINISHED'}
-            else:
-                self.report({'ERROR'}, "Failed to create mesh in Blender")
-                return {'CANCELLED'}
-        else:
-            self.report({'ERROR'}, f"Generation failed: {result}")
-            notification_system.FO4_NotificationSystem.notify(
-                f"Shap-E failed: {result}", 'ERROR'
-            )
-            return {'CANCELLED'}
+        return {'FINISHED'}
 
 
 class FO4_OT_GenerateShapEImage(Operator):
@@ -9455,40 +9455,40 @@ class FO4_OT_GenerateShapEImage(Operator):
         guidance_scale = scene.fo4_shap_e_guidance_scale
         inference_steps = scene.fo4_shap_e_inference_steps
         
-        self.report({'INFO'}, f"Generating 3D mesh from image...")
+        def _run():
+            success, result = shap_e_helpers.ShapEHelpers.generate_from_image(
+                image_path,
+                guidance_scale=guidance_scale,
+                num_inference_steps=inference_steps
+            )
+
+            def _finish():
+                if success:
+                    obj = shap_e_helpers.ShapEHelpers.create_mesh_from_data(
+                        result,
+                        name="ShapE_FromImage"
+                    )
+                    if obj:
+                        notification_system.FO4_NotificationSystem.notify(
+                            f"Shap-E image generation complete: {obj.name}", 'INFO'
+                        )
+                    else:
+                        notification_system.FO4_NotificationSystem.notify(
+                            "Failed to create mesh in Blender", 'WARNING'
+                        )
+                else:
+                    notification_system.FO4_NotificationSystem.notify(
+                        f"Shap-E failed: {result}", 'ERROR'
+                    )
+
+            bpy.app.timers.register(_finish, first_interval=0.0)
+
+        threading.Thread(target=_run, daemon=True).start()
+        self.report({'INFO'}, "Shap-E generation started in background — Blender stays responsive")
         notification_system.FO4_NotificationSystem.notify(
-            "Generating with Shap-E from image", 'INFO'
+            "Generating with Shap-E from image…", 'INFO'
         )
-        
-        # Generate mesh
-        success, result = shap_e_helpers.ShapEHelpers.generate_from_image(
-            image_path,
-            guidance_scale=guidance_scale,
-            num_inference_steps=inference_steps
-        )
-        
-        if success:
-            # Create Blender mesh
-            obj = shap_e_helpers.ShapEHelpers.create_mesh_from_data(
-                result,
-                name="ShapE_FromImage"
-            )
-            
-            if obj:
-                self.report({'INFO'}, f"Generated mesh: {obj.name}")
-                notification_system.FO4_NotificationSystem.notify(
-                    "Shap-E image generation complete!", 'INFO'
-                )
-                return {'FINISHED'}
-            else:
-                self.report({'ERROR'}, "Failed to create mesh in Blender")
-                return {'CANCELLED'}
-        else:
-            self.report({'ERROR'}, f"Generation failed: {result}")
-            notification_system.FO4_NotificationSystem.notify(
-                f"Shap-E failed: {result}", 'ERROR'
-            )
-            return {'CANCELLED'}
+        return {'FINISHED'}
 
 
 # Point-E AI Generation Operators
@@ -9560,43 +9560,43 @@ class FO4_OT_GeneratePointEText(Operator):
         
         num_samples = scene.fo4_point_e_num_samples
         grid_size = int(scene.fo4_point_e_grid_size)
-        
-        self.report({'INFO'}, f"Generating 3D point cloud from: '{prompt}'...")
+        method = scene.fo4_point_e_reconstruction_method
+
+        def _run():
+            success, result = point_e_helpers.PointEHelpers.generate_from_text(
+                prompt,
+                num_samples=num_samples,
+                grid_size=grid_size
+            )
+
+            def _finish():
+                if success:
+                    obj = point_e_helpers.PointEHelpers.point_cloud_to_mesh(
+                        result,
+                        method=method,
+                        name=f"PointE_{prompt[:20]}"
+                    )
+                    if obj:
+                        notification_system.FO4_NotificationSystem.notify(
+                            f"Point-E generation complete: {obj.name}", 'INFO'
+                        )
+                    else:
+                        notification_system.FO4_NotificationSystem.notify(
+                            "Failed to create mesh in Blender", 'WARNING'
+                        )
+                else:
+                    notification_system.FO4_NotificationSystem.notify(
+                        f"Point-E failed: {result}", 'ERROR'
+                    )
+
+            bpy.app.timers.register(_finish, first_interval=0.0)
+
+        threading.Thread(target=_run, daemon=True).start()
+        self.report({'INFO'}, "Point-E generation started in background — Blender stays responsive")
         notification_system.FO4_NotificationSystem.notify(
-            f"Generating with Point-E: {prompt}", 'INFO'
+            f"Generating with Point-E: {prompt}…", 'INFO'
         )
-        
-        # Generate point cloud
-        success, result = point_e_helpers.PointEHelpers.generate_from_text(
-            prompt,
-            num_samples=num_samples,
-            grid_size=grid_size
-        )
-        
-        if success:
-            # Convert to mesh
-            method = scene.fo4_point_e_reconstruction_method
-            obj = point_e_helpers.PointEHelpers.point_cloud_to_mesh(
-                result,
-                method=method,
-                name=f"PointE_{prompt[:20]}"
-            )
-            
-            if obj:
-                self.report({'INFO'}, f"Generated point cloud: {obj.name}")
-                notification_system.FO4_NotificationSystem.notify(
-                    f"Point-E generation complete!", 'INFO'
-                )
-                return {'FINISHED'}
-            else:
-                self.report({'ERROR'}, "Failed to create mesh in Blender")
-                return {'CANCELLED'}
-        else:
-            self.report({'ERROR'}, f"Generation failed: {result}")
-            notification_system.FO4_NotificationSystem.notify(
-                f"Point-E failed: {result}", 'ERROR'
-            )
-            return {'CANCELLED'}
+        return {'FINISHED'}
 
 
 class FO4_OT_GeneratePointEImage(Operator):
@@ -9628,42 +9628,42 @@ class FO4_OT_GeneratePointEImage(Operator):
             return {'CANCELLED'}
         
         num_samples = scene.fo4_point_e_num_samples
-        
-        self.report({'INFO'}, f"Generating 3D point cloud from image...")
+        method = scene.fo4_point_e_reconstruction_method
+
+        def _run():
+            success, result = point_e_helpers.PointEHelpers.generate_from_image(
+                image_path,
+                num_samples=num_samples
+            )
+
+            def _finish():
+                if success:
+                    obj = point_e_helpers.PointEHelpers.point_cloud_to_mesh(
+                        result,
+                        method=method,
+                        name="PointE_FromImage"
+                    )
+                    if obj:
+                        notification_system.FO4_NotificationSystem.notify(
+                            f"Point-E image generation complete: {obj.name}", 'INFO'
+                        )
+                    else:
+                        notification_system.FO4_NotificationSystem.notify(
+                            "Failed to create mesh in Blender", 'WARNING'
+                        )
+                else:
+                    notification_system.FO4_NotificationSystem.notify(
+                        f"Point-E failed: {result}", 'ERROR'
+                    )
+
+            bpy.app.timers.register(_finish, first_interval=0.0)
+
+        threading.Thread(target=_run, daemon=True).start()
+        self.report({'INFO'}, "Point-E generation started in background — Blender stays responsive")
         notification_system.FO4_NotificationSystem.notify(
-            "Generating with Point-E from image", 'INFO'
+            "Generating with Point-E from image…", 'INFO'
         )
-        
-        # Generate point cloud
-        success, result = point_e_helpers.PointEHelpers.generate_from_image(
-            image_path,
-            num_samples=num_samples
-        )
-        
-        if success:
-            # Convert to mesh
-            method = scene.fo4_point_e_reconstruction_method
-            obj = point_e_helpers.PointEHelpers.point_cloud_to_mesh(
-                result,
-                method=method,
-                name="PointE_FromImage"
-            )
-            
-            if obj:
-                self.report({'INFO'}, f"Generated point cloud: {obj.name}")
-                notification_system.FO4_NotificationSystem.notify(
-                    "Point-E image generation complete!", 'INFO'
-                )
-                return {'FINISHED'}
-            else:
-                self.report({'ERROR'}, "Failed to create mesh in Blender")
-                return {'CANCELLED'}
-        else:
-            self.report({'ERROR'}, f"Generation failed: {result}")
-            notification_system.FO4_NotificationSystem.notify(
-                f"Point-E failed: {result}", 'ERROR'
-            )
-            return {'CANCELLED'}
+        return {'FINISHED'}
 
 
 # Register all operators
