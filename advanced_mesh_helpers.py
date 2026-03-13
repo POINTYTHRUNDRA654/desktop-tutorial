@@ -754,7 +754,7 @@ class AdvancedMeshHelpers:
             if edge.is_boundary:
                 edge.seam = True
                 new_seams += 1
-            elif edge.calc_face_angle(fallback=0.0) > threshold_rad:
+            elif edge.calc_face_angle(0.0) > threshold_rad:
                 edge.seam = True
                 new_seams += 1
 
