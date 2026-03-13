@@ -3040,7 +3040,7 @@ class FO4_PT_AddonIntegrationPanel(Panel):
             # Status indicator
             if addon['is_enabled']:
                 status_icon = 'CHECKMARK'
-                status_text = "Enabled"
+                status_text = "Enabled ✓"
             elif addon['is_installed']:
                 status_icon = 'DOT'
                 status_text = "Installed (not enabled)"
@@ -3059,9 +3059,69 @@ class FO4_PT_AddonIntegrationPanel(Panel):
             use_box.label(text="FO4 Use:", icon='INFO')
             use_box.label(text=addon['fo4_use_cases'])
             
-            # Download link if not installed
-            if not addon['is_installed']:
-                addon_box.label(text=f"Get it: {addon.get('download_url', 'Search online')}")
+            # ── Action buttons ──────────────────────────────────────────────
+            addon_id    = addon['addon_id']
+            is_builtin  = addon.get('builtin', False)
+            dl_url      = addon.get('download_url', '')
+
+            if addon['is_enabled']:
+                # Already active — nothing to do
+                pass
+
+            elif addon['is_installed']:
+                # On disk but not yet active → offer a one-click enable
+                op = addon_box.operator(
+                    "fo4.enable_addon",
+                    text="Enable Now",
+                    icon='CHECKMARK',
+                )
+                op.addon_id = addon_id
+
+            else:
+                # Not installed
+                if is_builtin:
+                    # Bundled with every Blender copy — try enabling directly
+                    op = addon_box.operator(
+                        "fo4.enable_addon",
+                        text="Enable (Built-in)",
+                        icon='CHECKMARK',
+                    )
+                    op.addon_id = addon_id
+
+                elif addon_id == 'io_scene_niftools':
+                    # Dedicated installer already exists
+                    addon_box.operator(
+                        "fo4.install_niftools",
+                        text="Auto-Install Niftools",
+                        icon='IMPORT',
+                    )
+                    op = addon_box.operator(
+                        "wm.url_open",
+                        text="Open GitHub Releases",
+                        icon='URL',
+                    )
+                    op.url = dl_url
+
+                elif dl_url.startswith('http'):
+                    op = addon_box.operator(
+                        "wm.url_open",
+                        text="Open Download Page",
+                        icon='URL',
+                    )
+                    op.url = dl_url
+
+                else:
+                    # Fallback: search GitHub
+                    op = addon_box.operator(
+                        "wm.url_open",
+                        text=f"Search for '{addon['name']}' online",
+                        icon='URL',
+                    )
+                    op.url = (
+                        "https://github.com/search?q="
+                        + addon['name'].replace(' ', '+')
+                        + "+blender+addon"
+                    )
         
         # Integration tutorials
         integrations_box = layout.box()

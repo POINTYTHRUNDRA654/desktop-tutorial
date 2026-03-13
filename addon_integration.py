@@ -178,44 +178,51 @@ class AddonIntegrationSystem:
                 'name': 'Blender NIF Plugin',
                 'description': 'Import/export NIF files (Fallout 4 format)',
                 'fo4_use_cases': 'Direct export to NIF format, read vanilla FO4 assets',
-                'download_url': 'https://github.com/niftools/blender_niftools_addon'
+                'download_url': 'https://github.com/niftools/blender_niftools_addon/releases',
+                'builtin': False,
             },
             'object_print3d_utils': {
                 'name': '3D Print Toolbox',
                 'description': 'Check mesh for errors',
                 'fo4_use_cases': 'Validate meshes for errors before export',
-                'download_url': 'Built-in to Blender'
+                'download_url': 'Built-in to Blender',
+                'builtin': True,
             },
             'uv_texture_tools': {
                 'name': 'UV Texture Tools',
                 'description': 'Advanced UV mapping tools',
                 'fo4_use_cases': 'Better UV unwrapping for textures',
-                'download_url': 'Various on Blender Market/GitHub'
+                'download_url': 'https://github.com/search?q=uv+texture+tools+blender+addon',
+                'builtin': False,
             },
             'mesh_f2': {
                 'name': 'F2',
                 'description': 'Quick face creation',
                 'fo4_use_cases': 'Speed up modeling workflow',
-                'download_url': 'Built-in to Blender'
+                'download_url': 'Built-in to Blender',
+                'builtin': True,
             },
             'mesh_looptools': {
                 'name': 'Loop Tools',
                 'description': 'Mesh editing tools',
                 'fo4_use_cases': 'Clean topology for better optimization',
-                'download_url': 'Built-in to Blender'
+                'download_url': 'Built-in to Blender',
+                'builtin': True,
             },
             'rigify': {
                 'name': 'Rigify',
                 'description': 'Advanced rigging system',
                 'fo4_use_cases': 'Create complex character rigs for NPCs',
-                'download_url': 'Built-in to Blender'
+                'download_url': 'Built-in to Blender',
+                'builtin': True,
             },
             'boneweight_copy': {
                 'name': 'Bone Weight Copy',
                 'description': 'Transfer weights between meshes',
                 'fo4_use_cases': 'Transfer weights from vanilla FO4 assets to custom armor',
-                'download_url': 'Various on Blender Market'
-            }
+                'download_url': 'https://github.com/search?q=bone+weight+copy+blender+addon',
+                'builtin': False,
+            },
         }
         
         detected = []
@@ -231,7 +238,8 @@ class AddonIntegrationSystem:
                 'is_installed': is_installed,
                 'is_enabled': is_enabled,
                 'fo4_use_cases': info['fo4_use_cases'],
-                'download_url': info.get('download_url', '')
+                'download_url': info.get('download_url', ''),
+                'builtin': info.get('builtin', False),
             })
         
         return detected

@@ -2919,6 +2919,35 @@ class FO4_OT_InstallNiftools(Operator):
         return {'FINISHED'}
 
 
+class FO4_OT_EnableAddon(Operator):
+    """Enable a Blender add-on that is already installed (e.g. a built-in)."""
+    bl_idname = "fo4.enable_addon"
+    bl_label = "Enable Add-on"
+    bl_description = "Enable this add-on in Blender Preferences"
+    bl_options = {'REGISTER'}
+
+    addon_id: bpy.props.StringProperty(
+        name="Add-on Module",
+        description="The Python module name of the add-on to enable",
+        default="",
+        options={'SKIP_SAVE'},
+    )
+
+    def execute(self, context):
+        if not self.addon_id:
+            self.report({'ERROR'}, "No add-on ID specified")
+            return {'CANCELLED'}
+        try:
+            bpy.ops.preferences.addon_enable(module=self.addon_id)
+            self.report({'INFO'}, f"Enabled add-on: {self.addon_id}")
+            notification_system.FO4_NotificationSystem.notify(
+                f"Add-on '{self.addon_id}' enabled", 'INFO'
+            )
+        except Exception as exc:
+            self.report({'ERROR'}, f"Could not enable '{self.addon_id}': {exc}")
+        return {'FINISHED'}
+
+
 class FO4_OT_ConfigureFallout4Settings(Operator):
     """Configure optimal settings for Fallout 4 mod creation"""
     bl_idname = "fo4.configure_fallout4_settings"
@@ -11484,6 +11513,7 @@ classes = (
     FO4_OT_InstallHavok2FBX,
     FO4_OT_ExportAnimationHavok2FBX,
     FO4_OT_InstallNiftools,
+    FO4_OT_EnableAddon,
     FO4_OT_ConfigureFallout4Settings,
     FO4_OT_InstallPythonDeps,
     FO4_OT_CheckToolPaths,
