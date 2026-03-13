@@ -114,7 +114,7 @@ export class PatternRecognitionEngine implements IPatternRecognitionEngine {
         if (!modPerformance.has(mod)) {
           modPerformance.set(mod, []);
         }
-        modPerformance.get(mod)!.push(metric.fps);
+        modPerformance.get(mod)!.push(typeof metric.fps === 'number' ? metric.fps : 0);
       }
     }
 
@@ -155,7 +155,8 @@ export class PatternRecognitionEngine implements IPatternRecognitionEngine {
 
     for (const metric of data.performanceMetrics) {
       const key = metric.modCombination.sort().join(',');
-      const isSuccess = metric.fps > 50 && metric.stabilityScore > 80;
+      const isSuccess = (typeof metric.fps === 'number' ? metric.fps : 0) > 50 &&
+        (typeof metric.stabilityScore === 'number' ? metric.stabilityScore : 0) > 80;
 
       if (isSuccess) {
         successfulCombinations.set(key, (successfulCombinations.get(key) || 0) + 1);
@@ -250,7 +251,7 @@ export class PatternRecognitionEngine implements IPatternRecognitionEngine {
     if (data.performanceMetrics.length < 3) return anomalies;
 
     // Calculate baseline performance
-    const fpsValues = data.performanceMetrics.map(m => m.fps);
+    const fpsValues = data.performanceMetrics.map(m => typeof m.fps === 'number' ? m.fps : 0);
     const meanFps = fpsValues.reduce((a, b) => a + b, 0) / fpsValues.length;
     const stdDevFps = Math.sqrt(
       fpsValues.reduce((acc, fps) => acc + Math.pow(fps - meanFps, 2), 0) / fpsValues.length
@@ -258,7 +259,7 @@ export class PatternRecognitionEngine implements IPatternRecognitionEngine {
 
     // Find anomalous performance metrics
     for (const metric of data.performanceMetrics) {
-      const deviation = Math.abs(metric.fps - meanFps) / stdDevFps;
+      const deviation = Math.abs((typeof metric.fps === 'number' ? metric.fps : 0) - meanFps) / stdDevFps;
 
       if (deviation > 2) { // 2 standard deviations
         anomalies.push({
