@@ -4519,6 +4519,11 @@ export interface ElectronAPI {
   getAppVersion?: () => Promise<string>;
   versionControlCreateBackup?: (payload?: any) => Promise<any>;
   versionControlDeleteBackup?: (payload?: any) => Promise<any>;
+
+  // Web access — allows Mossy to fetch live information from the internet
+  // via the secure main-process HTTPS layer (renderer has no direct access).
+  webSearch: (query: string, type?: string) => Promise<any>;
+  browseWeb: (url: string) => Promise<any>;
 }
 
 export interface VoiceChatPayload {
