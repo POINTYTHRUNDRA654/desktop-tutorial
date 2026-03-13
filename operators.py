@@ -3632,6 +3632,12 @@ class FO4_OT_InstallUpscalerDeps(Operator):
             print(f"{status}\n{msg}")
             print("=" * 60 + "\n")
 
+            # Expire the availability cache so the panel refreshes immediately.
+            try:
+                realesrgan_helpers.RealESRGANHelpers.clear_cache()
+            except Exception:
+                pass
+
             def _notify():
                 notification_system.FO4_NotificationSystem.notify(
                     f"AI Upscaler: {msg[:120]}", level
@@ -3644,6 +3650,44 @@ class FO4_OT_InstallUpscalerDeps(Operator):
             "Installing AI upscaler in the background. "
             "Check the Blender console for progress. "
             "You will be notified when complete."
+        )
+        return {'FINISHED'}
+
+
+class FO4_OT_InstallInstantNGP(Operator):
+    """Clone the Instant-NGP repository into the add-on tools directory.
+
+    Requires git on PATH. After cloning, the user must build the project
+    with CMake + CUDA (see console output for exact commands). Once built
+    the add-on detects the executable automatically."""
+    bl_idname = "fo4.install_instantngp"
+    bl_label = "Auto-Install Instant-NGP"
+    bl_options = {'REGISTER'}
+
+    def execute(self, context):
+        import threading
+        from . import tool_installers
+
+        def _run():
+            print("\n" + "=" * 60)
+            print("INSTANT-NGP INSTALLATION")
+            print("=" * 60)
+            ok, msg = tool_installers.install_instantngp()
+            print(msg)
+            print("=" * 60 + "\n")
+            # Expire the availability cache so the UI picks up the new state.
+            try:
+                instantngp_helpers.InstantNGPHelpers.clear_cache()
+            except Exception:
+                pass
+            level = 'INFO' if ok else 'ERROR'
+            notification_system.FO4_NotificationSystem.notify(msg[:200], level)
+
+        threading.Thread(target=_run, daemon=True).start()
+        self.report(
+            {'INFO'},
+            "Cloning Instant-NGP in the background — check the Blender console "
+            "(Window > Toggle System Console) for progress."
         )
         return {'FINISHED'}
 
@@ -11678,6 +11722,7 @@ classes = (
     # AI upscaler one-click installer
     FO4_OT_InstallUpscalerDeps,
     # One-click installers for AI tools
+    FO4_OT_InstallInstantNGP,
     FO4_OT_InstallShapE,
     FO4_OT_InstallPointE,
     FO4_OT_InstallDiffusers,

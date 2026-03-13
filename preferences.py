@@ -67,6 +67,7 @@ _PERSISTENT = (
     "fo4_assets_path",
     "fo4_unity_assets_path",
     "fo4_unreal_assets_path",
+    "fo4_instantngp_path",
     "fo4_llm_enabled",
     "fo4_llm_endpoint",
     "fo4_llm_model",
@@ -138,6 +139,7 @@ _ATTR_MAP: dict[str, str] = {
     "fo4_assets_path":                 "fo4_assets_path",
     "unity_assets_path":               "fo4_unity_assets_path",
     "unreal_assets_path":              "fo4_unreal_assets_path",
+    "instantngp_path":                 "fo4_instantngp_path",
     "llm_enabled":                     "fo4_llm_enabled",
     "llm_endpoint":                    "fo4_llm_endpoint",
     "llm_model":                       "fo4_llm_model",
@@ -173,6 +175,7 @@ _DEFAULTS: dict[str, object] = {
     "fo4_assets_path":                 "",
     "unity_assets_path":               "",
     "unreal_assets_path":              "",
+    "instantngp_path":                 "",
     "llm_enabled":                     False,
     "llm_endpoint":                    "",
     "llm_model":                       "gpt-4o",
@@ -436,6 +439,13 @@ _PROPS: list[tuple[str, object]] = [
     ("fo4_unreal_assets_path", bpy.props.StringProperty(
         name="Unreal Assets",
         description="Path to Unreal Engine project content folder",
+        subtype="DIR_PATH", default="", update=_on_change)),
+    ("fo4_instantngp_path", bpy.props.StringProperty(
+        name="Instant-NGP Path",
+        description=(
+            "Path to the Instant-NGP install/source directory. "
+            "Leave blank to use the auto-installed location or common defaults."
+        ),
         subtype="DIR_PATH", default="", update=_on_change)),
 
     # ── LLM Advisor ───────────────────────────────────────────────────────────

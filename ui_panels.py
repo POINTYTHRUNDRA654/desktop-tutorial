@@ -510,7 +510,12 @@ class FO4_PT_TexturePanel(Panel):
         if esrgan_available:
             ai_box.label(text=f"Status: {esrgan_status}", icon='CHECKMARK')
         else:
-            ai_box.label(text="Status: Not Installed", icon='ERROR')
+            ai_box.label(text="Status: Not Installed — click below to auto-install", icon='ERROR')
+            ai_box.operator(
+                "fo4.install_upscaler_deps",
+                text="Auto-Install Real-ESRGAN (One-Click)",
+                icon='IMPORT',
+            )
         ai_box.operator("fo4.check_realesrgan_installation", text="Check Status", icon='SYSTEM')
         row = ai_box.row()
         row.enabled = esrgan_available
@@ -525,12 +530,7 @@ class FO4_PT_TexturePanel(Panel):
         if esrgan_available:
             krea_box.label(text=f"Engine: {esrgan_status}", icon='CHECKMARK')
         else:
-            krea_box.label(text="Engine: PIL fallback (install for best quality)", icon='INFO')
-            krea_box.operator(
-                "fo4.install_upscaler_deps",
-                text="Install AI Upscaler (One-Click)",
-                icon='IMPORT',
-            )
+            krea_box.label(text="Engine: PIL fallback (install Real-ESRGAN above for best quality)", icon='INFO')
         krea_box.operator("fo4.upscale_krea_legacy", text="Upscale Texture", icon='FULLSCREEN_ENTER')
 
 class FO4_PT_ImageToMeshPanel(Panel):
@@ -624,9 +624,17 @@ class FO4_PT_ImageToMeshPanel(Panel):
         ngp_box = layout.box()
         ngp_box.label(text="Instant-NGP / NeRF", icon='CAMERA_DATA')
         if ngp_available:
-            ngp_box.label(text="Status: Available ✓", icon='CHECKMARK')
+            ngp_box.label(text="Status: Found ✓", icon='CHECKMARK')
         else:
-            ngp_box.label(text="Status: Not Installed ✗", icon='ERROR')
+            ngp_box.label(text="Status: Not Found — click below to auto-clone", icon='ERROR')
+            ngp_box.operator(
+                "fo4.install_instantngp",
+                text="Auto-Install Instant-NGP (Clone via git)",
+                icon='IMPORT',
+            )
+        # Manual path override — lets users point to a pre-built install
+        if context.scene:
+            ngp_box.prop(context.scene, "fo4_instantngp_path", text="Path")
         ngp_box.operator("fo4.check_instantngp_installation", text="Check Installation", icon='SYSTEM')
         row = ngp_box.row()
         row.enabled = ngp_available

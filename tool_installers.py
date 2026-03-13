@@ -542,6 +542,108 @@ def install_realesrgan() -> tuple[bool, str]:
     return False, f"Both install methods failed.\nNCNN: {msg}\nPython: {msg2}"
 
 
+# ---------------------------------------------------------------------------
+# Instant-NGP – NeRF-based 3D reconstruction
+# ---------------------------------------------------------------------------
+
+def get_instantngp_dir() -> Path:
+    """Return the directory where Instant-NGP should be cloned/installed."""
+    d = TOOLS_ROOT / "instant-ngp"
+    return d
+
+
+def find_instantngp_exe(root: Path | None = None) -> Path | None:
+    """Return the Instant-NGP executable inside *root* (or the default dir).
+
+    Looks for ``build/instant-ngp`` (Linux/macOS) and
+    ``build/RelWithDebInfo/instant-ngp.exe`` (Windows) as produced by the
+    standard CMake build.
+    """
+    search_root = root or get_instantngp_dir()
+    candidates = [
+        search_root / "build" / "instant-ngp",
+        search_root / "build" / "instant-ngp.exe",
+        search_root / "build" / "RelWithDebInfo" / "instant-ngp.exe",
+        search_root / "build" / "Release" / "instant-ngp.exe",
+    ]
+    for c in candidates:
+        if c.is_file():
+            return c
+    return None
+
+
+def install_instantngp() -> tuple[bool, str]:
+    """Clone the Instant-NGP repository into the tools directory.
+
+    This function downloads the source code only — building requires a local
+    NVIDIA GPU + CUDA + CMake toolchain which cannot be automated here.
+
+    Install strategy:
+      1. Use ``git`` to clone NVlabs/instant-ngp (with submodules) into
+         ``tools/instant-ngp/``.
+      2. If git is not available, return instructions for a manual download.
+
+    After cloning, the add-on will detect the cloned directory and show
+    build instructions in the panel.  Once the user builds (``cmake . -B
+    build && cmake --build build --config RelWithDebInfo -j``) the
+    executable is found automatically.
+
+    Returns: (bool success, str message)
+    """
+    dest = get_instantngp_dir()
+
+    # Already cloned / present?
+    if (dest / ".git").exists() or find_instantngp_exe(dest):
+        return True, f"Instant-NGP already present at {dest}"
+
+    # Check for git
+    git_exe = shutil.which("git")
+    if not git_exe:
+        return False, (
+            "git not found on PATH — cannot clone Instant-NGP automatically.\n\n"
+            "Manual install:\n"
+            "  1. Install git from https://git-scm.com/\n"
+            "  2. Run: git clone --recursive "
+            "https://github.com/NVlabs/instant-ngp.git\n"
+            "  3. Build with CMake (CUDA required).\n"
+            "  4. Set the install path in the add-on settings."
+        )
+
+    dest.mkdir(parents=True, exist_ok=True)
+
+    try:
+        print(f"[Instant-NGP] Cloning NVlabs/instant-ngp to {dest} …")
+        subprocess.check_call(
+            [
+                git_exe, "clone", "--recursive",
+                "https://github.com/NVlabs/instant-ngp.git",
+                str(dest),
+            ],
+            timeout=600,
+        )
+    except subprocess.TimeoutExpired:
+        return False, "git clone timed out (10 min). Check your internet connection."
+    except subprocess.CalledProcessError as e:
+        return False, f"git clone failed (exit {e.returncode}): {e}"
+    except Exception as e:
+        return False, f"git clone error: {e}"
+
+    # Confirm source is present
+    if not (dest / "CMakeLists.txt").exists():
+        return False, "Clone finished but CMakeLists.txt not found — unexpected repo layout."
+
+    build_hint = (
+        "Instant-NGP source cloned successfully!\n\n"
+        "Next step — build (requires NVIDIA GPU + CUDA 11.3+):\n"
+        f"  cd \"{dest}\"\n"
+        "  cmake . -B build\n"
+        "  cmake --build build --config RelWithDebInfo -j\n\n"
+        "After the build completes the add-on will detect the executable "
+        "automatically.  See https://github.com/NVlabs/instant-ngp for details."
+    )
+    return True, build_hint
+
+
 def install_python_requirements(include_optional: bool = False) -> tuple[bool, str]:
     """Install Python dependencies required by the add-on.
 
