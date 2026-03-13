@@ -3515,6 +3515,289 @@ class FO4_OT_InstallUpscalerDeps(Operator):
         return {'FINISHED'}
 
 
+class FO4_OT_InstallShapE(Operator):
+    """Install Shap-E (text/image → 3D mesh). Downloads PyTorch CPU + shap-e via pip."""
+    bl_idname = "fo4.install_shap_e"
+    bl_label = "Auto-Install Shap-E"
+    bl_options = {'REGISTER'}
+
+    def execute(self, context):
+        import threading
+        from . import tool_installers
+
+        def _run():
+            print("\n" + "=" * 60)
+            print("INSTALLING SHAP-E")
+            print("=" * 60)
+            ok, msg = tool_installers.install_shap_e()
+            print(msg)
+            print("=" * 60 + "\n")
+            level = 'INFO' if ok else 'ERROR'
+            notification_system.FO4_NotificationSystem.notify(msg, level)
+
+        threading.Thread(target=_run, daemon=True).start()
+        self.report({'INFO'}, "Installing Shap-E in background — check console (Window > Toggle System Console)")
+        return {'FINISHED'}
+
+
+class FO4_OT_InstallPointE(Operator):
+    """Install Point-E (text/image → point cloud). Downloads PyTorch CPU + point-e via pip."""
+    bl_idname = "fo4.install_point_e"
+    bl_label = "Auto-Install Point-E"
+    bl_options = {'REGISTER'}
+
+    def execute(self, context):
+        import threading
+        from . import tool_installers
+
+        def _run():
+            print("\n" + "=" * 60)
+            print("INSTALLING POINT-E")
+            print("=" * 60)
+            ok, msg = tool_installers.install_point_e()
+            print(msg)
+            print("=" * 60 + "\n")
+            level = 'INFO' if ok else 'ERROR'
+            notification_system.FO4_NotificationSystem.notify(msg, level)
+
+        threading.Thread(target=_run, daemon=True).start()
+        self.report({'INFO'}, "Installing Point-E in background — check console")
+        return {'FINISHED'}
+
+
+class FO4_OT_InstallDiffusers(Operator):
+    """Install Diffusers stack (Stable Diffusion, SDXL). Downloads torch CPU + diffusers via pip."""
+    bl_idname = "fo4.install_diffusers"
+    bl_label = "Auto-Install Diffusers"
+    bl_options = {'REGISTER'}
+
+    def execute(self, context):
+        import threading
+        from . import tool_installers
+
+        def _run():
+            print("\n" + "=" * 60)
+            print("INSTALLING DIFFUSERS")
+            print("=" * 60)
+            ok, msg = tool_installers.install_diffusers()
+            print(msg)
+            print("=" * 60 + "\n")
+            level = 'INFO' if ok else 'ERROR'
+            notification_system.FO4_NotificationSystem.notify(msg, level)
+
+        threading.Thread(target=_run, daemon=True).start()
+        self.report({'INFO'}, "Installing Diffusers in background — check console")
+        return {'FINISHED'}
+
+
+class FO4_OT_InstallLibigl(Operator):
+    """Install libigl Python bindings (used by RigNet for mesh deformation)."""
+    bl_idname = "fo4.install_libigl"
+    bl_label = "Auto-Install libigl"
+    bl_options = {'REGISTER'}
+
+    def execute(self, context):
+        import threading
+        from . import tool_installers
+
+        def _run():
+            print("\n" + "=" * 60)
+            print("INSTALLING LIBIGL")
+            print("=" * 60)
+            ok, msg = tool_installers.install_libigl()
+            print(msg)
+            print("=" * 60 + "\n")
+            level = 'INFO' if ok else 'ERROR'
+            notification_system.FO4_NotificationSystem.notify(msg, level)
+
+        threading.Thread(target=_run, daemon=True).start()
+        self.report({'INFO'}, "Installing libigl in background — check console")
+        return {'FINISHED'}
+
+
+class FO4_OT_InstallZoeDepth(Operator):
+    """Install ZoeDepth (depth-estimation for image-to-mesh). Clones repo + pip deps."""
+    bl_idname = "fo4.install_zoedepth"
+    bl_label = "Auto-Install ZoeDepth"
+    bl_options = {'REGISTER'}
+
+    def execute(self, context):
+        import threading
+        from . import tool_installers
+
+        def _run():
+            print("\n" + "=" * 60)
+            print("INSTALLING ZOEDEPTH")
+            print("=" * 60)
+            ok, msg = tool_installers.install_zoedepth()
+            print(msg)
+            print("=" * 60 + "\n")
+            level = 'INFO' if ok else 'ERROR'
+            notification_system.FO4_NotificationSystem.notify(msg, level)
+
+        threading.Thread(target=_run, daemon=True).start()
+        self.report({'INFO'}, "Installing ZoeDepth in background — check console")
+        return {'FINISHED'}
+
+
+class FO4_OT_InstallHunyuan3D(Operator):
+    """Install Hunyuan3D-2 (image → 3D). Clones repo + pip deps."""
+    bl_idname = "fo4.install_hunyuan3d"
+    bl_label = "Auto-Install Hunyuan3D-2"
+    bl_options = {'REGISTER'}
+
+    def execute(self, context):
+        import threading
+        from . import tool_installers
+
+        def _run():
+            print("\n" + "=" * 60)
+            print("INSTALLING HUNYUAN3D-2")
+            print("=" * 60)
+            ok, msg = tool_installers.install_hunyuan3d()
+            print(msg)
+            print("=" * 60 + "\n")
+            level = 'INFO' if ok else 'ERROR'
+            notification_system.FO4_NotificationSystem.notify(msg, level)
+
+        threading.Thread(target=_run, daemon=True).start()
+        self.report({'INFO'}, "Installing Hunyuan3D-2 in background — check console")
+        return {'FINISHED'}
+
+
+class FO4_OT_InstallHyMotion(Operator):
+    """Install HY-Motion-1.0 (motion generation). Clones repo + pip deps."""
+    bl_idname = "fo4.install_hymotion"
+    bl_label = "Auto-Install HY-Motion"
+    bl_options = {'REGISTER'}
+
+    def execute(self, context):
+        import threading
+        from . import tool_installers
+
+        def _run():
+            print("\n" + "=" * 60)
+            print("INSTALLING HY-MOTION-1.0")
+            print("=" * 60)
+            ok, msg = tool_installers.install_hymotion()
+            print(msg)
+            print("=" * 60 + "\n")
+            level = 'INFO' if ok else 'ERROR'
+            notification_system.FO4_NotificationSystem.notify(msg, level)
+
+        threading.Thread(target=_run, daemon=True).start()
+        self.report({'INFO'}, "Installing HY-Motion in background — check console")
+        return {'FINISHED'}
+
+
+class FO4_OT_InstallMotionGeneration(Operator):
+    """Install MotionDiffuse (text → motion). Clones repo + pip deps."""
+    bl_idname = "fo4.install_motion_generation"
+    bl_label = "Auto-Install MotionDiffuse"
+    bl_options = {'REGISTER'}
+
+    def execute(self, context):
+        import threading
+        from . import tool_installers
+
+        def _run():
+            print("\n" + "=" * 60)
+            print("INSTALLING MOTIONDIFFUSE")
+            print("=" * 60)
+            ok, msg = tool_installers.install_motion_diffuse()
+            print(msg)
+            print("=" * 60 + "\n")
+            level = 'INFO' if ok else 'ERROR'
+            notification_system.FO4_NotificationSystem.notify(msg, level)
+
+        threading.Thread(target=_run, daemon=True).start()
+        self.report({'INFO'}, "Installing MotionDiffuse in background — check console")
+        return {'FINISHED'}
+
+
+class FO4_OT_InstallRigNet(Operator):
+    """Install RigNet (auto-rigging). Clones repo + pip deps."""
+    bl_idname = "fo4.install_rignet"
+    bl_label = "Auto-Install RigNet"
+    bl_options = {'REGISTER'}
+
+    def execute(self, context):
+        import threading
+        from . import tool_installers
+
+        def _run():
+            print("\n" + "=" * 60)
+            print("INSTALLING RIGNET")
+            print("=" * 60)
+            ok, msg = tool_installers.install_rignet()
+            print(msg)
+            print("=" * 60 + "\n")
+            level = 'INFO' if ok else 'ERROR'
+            notification_system.FO4_NotificationSystem.notify(msg, level)
+
+        threading.Thread(target=_run, daemon=True).start()
+        self.report({'INFO'}, "Installing RigNet in background — check console")
+        return {'FINISHED'}
+
+
+class FO4_OT_ShowQuickReference(Operator):
+    """Show FO4 modding quick reference cheat-sheet in Blender (no browser needed)."""
+    bl_idname = "fo4.show_quick_reference"
+    bl_label = "Quick Reference"
+    bl_options = {'REGISTER'}
+
+    def execute(self, context):
+        REF = [
+            "══════════════════════════════════════════════════",
+            "  FALLOUT 4 MODDING QUICK REFERENCE",
+            "══════════════════════════════════════════════════",
+            "NIF EXPORT SETTINGS",
+            "  Version : 20.2.0.7  |  User ver : 12  |  UV2 : 130",
+            "  Geometry: BSTriShape  |  Shader: BSLightingShaderProperty",
+            "  Tangents: ON  |  Scale correction: 1.0  |  Root: BSFadeNode",
+            "",
+            "TEXTURE FORMATS (DDS)",
+            "  Diffuse (no alpha) : BC1 / DXT1",
+            "  Diffuse (alpha)    : BC3 / DXT5",
+            "  Normal map         : BC5 / ATI2",
+            "  Specular / Gloss   : BC1 / DXT1",
+            "  Power of 2 sizes only: 256, 512, 1024, 2048, 4096",
+            "",
+            "SCALE",
+            "  1 Blender Unit = 1 NIF unit ≈ 1.4375 cm in-game",
+            "  Human (male NPC)   = 1.28 BU tall",
+            "  Human (female NPC) = 1.22 BU tall",
+            "  Power Armor (T-60) = 1.72 BU tall",
+            "  Door frame         = 1.10 × 1.80 BU (w × h)",
+            "",
+            "MESH REQUIREMENTS",
+            "  ✓ Apply ALL transforms (Ctrl+A > All Transforms)",
+            "  ✓ Triangulate faces (modifier or Ctrl+T in edit mode)",
+            "  ✓ UV-unwrap every mesh (UV > Unwrap)",
+            "  ✓ No loose vertices, no overlapping faces",
+            "  ✓ Normals must point outward (Overlay > Face Orientation)",
+            "  ✓ Vertex count per mesh: recommended <65 535",
+            "",
+            "EXPORT PATHS (relative to game Data folder)",
+            r"  Meshes  : Data\Meshes\<mod>\<asset>.nif",
+            r"  Textures: Data\Textures\<mod>\<asset>_d.dds (diffuse)",
+            r"            Data\Textures\<mod>\<asset>_n.dds (normal)",
+            r"            Data\Textures\<mod>\<asset>_s.dds (specular)",
+            "",
+            "CREATION KIT WORKFLOW",
+            "  1. Export NIF → Data\\Meshes\\",
+            "  2. Convert textures to DDS → Data\\Textures\\",
+            "  3. Open CK → File > Data → check your ESP",
+            "  4. Object Window > Static (or Armor/Weapon) > New",
+            "  5. Set Model path, save as ESP, test in-game",
+            "══════════════════════════════════════════════════",
+        ]
+        import sys
+        print("\n" + "\n".join(REF) + "\n", file=sys.stdout)
+        self.report({'INFO'}, "FO4 Quick Reference printed to System Console (Window > Toggle System Console)")
+        return {'FINISHED'}
+
+
 # NVIDIA GET3D Operators
 
 class FO4_OT_ImportGET3DMesh(Operator):
@@ -10937,6 +11220,17 @@ classes = (
     FO4_OT_UnwrapSelectedFaces,
     # AI upscaler one-click installer
     FO4_OT_InstallUpscalerDeps,
+    # One-click installers for AI tools
+    FO4_OT_InstallShapE,
+    FO4_OT_InstallPointE,
+    FO4_OT_InstallDiffusers,
+    FO4_OT_InstallLibigl,
+    FO4_OT_InstallZoeDepth,
+    FO4_OT_InstallHunyuan3D,
+    FO4_OT_InstallHyMotion,
+    FO4_OT_InstallMotionGeneration,
+    FO4_OT_InstallRigNet,
+    FO4_OT_ShowQuickReference,
     # Mossy AI UV/texture advisor and auto-fix
     FO4_OT_AskMossyForUVAdvice,
     FO4_OT_MossyAutoFix,

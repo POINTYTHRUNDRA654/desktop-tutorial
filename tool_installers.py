@@ -555,6 +555,189 @@ def install_niftools(blender_version: str = "3.6") -> tuple[bool, str]:
         return False, f"Failed to run Niftools installer: {e}"
 
 
+def install_shap_e() -> tuple[bool, str]:
+    """Install PyTorch (CPU) + shap-e package."""
+    ok, msg = _pip_install_with_index(
+        ["torch", "torchvision"],
+        index_url="https://download.pytorch.org/whl/cpu",
+    )
+    if not ok:
+        return False, f"PyTorch install failed: {msg}"
+    ok2, msg2 = _pip_install(["shap-e"])
+    if not ok2:
+        return False, f"shap-e install failed: {msg2}"
+    return True, "Shap-E installed (torch CPU + shap-e)"
+
+
+def install_point_e() -> tuple[bool, str]:
+    """Install PyTorch (CPU) + point-e package."""
+    ok, msg = _pip_install_with_index(
+        ["torch", "torchvision"],
+        index_url="https://download.pytorch.org/whl/cpu",
+    )
+    if not ok:
+        return False, f"PyTorch install failed: {msg}"
+    ok2, msg2 = _pip_install(["point-e"])
+    if not ok2:
+        return False, f"point-e install failed: {msg2}"
+    return True, "Point-E installed (torch CPU + point-e)"
+
+
+def install_diffusers() -> tuple[bool, str]:
+    """Install diffusers, transformers, accelerate, and torch CPU."""
+    ok, msg = _pip_install_with_index(
+        ["torch", "torchvision"],
+        index_url="https://download.pytorch.org/whl/cpu",
+    )
+    if not ok:
+        return False, f"PyTorch install failed: {msg}"
+    ok2, msg2 = _pip_install([
+        "diffusers>=0.21.0",
+        "transformers>=4.30.0",
+        "accelerate>=0.20.0",
+    ])
+    if not ok2:
+        return False, f"diffusers install failed: {msg2}"
+    return True, "Diffusers stack installed"
+
+
+def install_libigl() -> tuple[bool, str]:
+    """Install libigl Python bindings via pip."""
+    import importlib.util
+    if importlib.util.find_spec("igl") is not None:
+        return True, "libigl already installed"
+    ok, msg = _pip_install(["libigl"])
+    return ok, msg
+
+
+def install_zoedepth() -> tuple[bool, str]:
+    """Install ZoeDepth dependencies via pip."""
+    ok, msg = _pip_install_with_index(
+        ["torch", "torchvision"],
+        index_url="https://download.pytorch.org/whl/cpu",
+    )
+    if not ok:
+        return False, f"PyTorch install failed: {msg}"
+    ok2, msg2 = _pip_install(["timm>=0.6.0", "opencv-python>=4.7.0"])
+    if not ok2:
+        return False, f"ZoeDepth deps failed: {msg2}"
+    repo_dir = TOOLS_ROOT / "ZoeDepth"
+    if not repo_dir.exists():
+        try:
+            subprocess.check_call(
+                ["git", "clone", "--depth=1",
+                 "https://github.com/isl-org/ZoeDepth.git",
+                 str(repo_dir)],
+                timeout=300,
+            )
+        except Exception as e:
+            return False, f"ZoeDepth clone failed: {e}"
+    return True, f"ZoeDepth installed at {repo_dir}"
+
+
+def install_hunyuan3d() -> tuple[bool, str]:
+    """Install Hunyuan3D-2 dependencies via pip."""
+    ok, msg = _pip_install_with_index(
+        ["torch", "torchvision"],
+        index_url="https://download.pytorch.org/whl/cpu",
+    )
+    if not ok:
+        return False, f"PyTorch install failed: {msg}"
+    ok2, msg2 = _pip_install([
+        "transformers>=4.30.0", "diffusers>=0.21.0",
+        "accelerate>=0.20.0", "trimesh>=3.20.0",
+    ])
+    if not ok2:
+        return False, f"Hunyuan3D deps failed: {msg2}"
+    repo_dir = TOOLS_ROOT / "Hunyuan3D-2"
+    if not repo_dir.exists():
+        try:
+            subprocess.check_call(
+                ["git", "clone", "--depth=1",
+                 "https://github.com/Tencent-Hunyuan/Hunyuan3D-2.git",
+                 str(repo_dir)],
+                timeout=300,
+            )
+        except Exception as e:
+            return False, f"Hunyuan3D clone failed: {e}"
+    return True, f"Hunyuan3D-2 installed at {repo_dir}"
+
+
+def install_hymotion() -> tuple[bool, str]:
+    """Install HY-Motion-1.0 by cloning to tools dir."""
+    ok, msg = _pip_install_with_index(
+        ["torch", "torchvision"],
+        index_url="https://download.pytorch.org/whl/cpu",
+    )
+    if not ok:
+        return False, f"PyTorch install failed: {msg}"
+    repo_dir = TOOLS_ROOT / "HY-Motion-1.0"
+    if not repo_dir.exists():
+        try:
+            subprocess.check_call(
+                ["git", "clone", "--depth=1",
+                 "https://github.com/Tencent-Hunyuan/HY-Motion-1.0.git",
+                 str(repo_dir)],
+                timeout=300,
+            )
+        except Exception as e:
+            return False, f"HY-Motion clone failed: {e}"
+    req = repo_dir / "requirements.txt"
+    if req.exists():
+        _pip_install_requirements(req)
+    return True, f"HY-Motion-1.0 installed at {repo_dir}"
+
+
+def install_motion_diffuse() -> tuple[bool, str]:
+    """Install MotionDiffuse by cloning to tools dir."""
+    ok, msg = _pip_install_with_index(
+        ["torch", "torchvision"],
+        index_url="https://download.pytorch.org/whl/cpu",
+    )
+    if not ok:
+        return False, f"PyTorch install failed: {msg}"
+    repo_dir = TOOLS_ROOT / "MotionDiffuse"
+    if not repo_dir.exists():
+        try:
+            subprocess.check_call(
+                ["git", "clone", "--depth=1",
+                 "https://github.com/MotrixLab/MotionDiffuse.git",
+                 str(repo_dir)],
+                timeout=300,
+            )
+        except Exception as e:
+            return False, f"MotionDiffuse clone failed: {e}"
+    req = repo_dir / "requirements.txt"
+    if req.exists():
+        _pip_install_requirements(req)
+    return True, f"MotionDiffuse installed at {repo_dir}"
+
+
+def install_rignet() -> tuple[bool, str]:
+    """Install RigNet by cloning to tools dir + pip deps."""
+    ok, msg = _pip_install_with_index(
+        ["torch", "torchvision"],
+        index_url="https://download.pytorch.org/whl/cpu",
+    )
+    if not ok:
+        return False, f"PyTorch install failed: {msg}"
+    ok2, msg2 = _pip_install(["scipy>=1.10.0", "numpy>=1.24.0", "trimesh>=3.20.0"])
+    if not ok2:
+        return False, f"RigNet deps failed: {msg2}"
+    repo_dir = TOOLS_ROOT / "rignet"
+    if not repo_dir.exists():
+        try:
+            subprocess.check_call(
+                ["git", "clone", "--depth=1",
+                 "https://github.com/zhan-xu/RigNet.git",
+                 str(repo_dir)],
+                timeout=300,
+            )
+        except Exception as e:
+            return False, f"RigNet clone failed: {e}"
+    return True, f"RigNet installed at {repo_dir}"
+
+
 def register():
     pass
 

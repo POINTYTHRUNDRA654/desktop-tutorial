@@ -8,7 +8,18 @@ import os
 import subprocess
 import shutil
 import sys
+import time
 from pathlib import Path
+
+# ---------------------------------------------------------------------------
+# Availability check TTL cache
+# ---------------------------------------------------------------------------
+# Refreshed at most once every 5 seconds so the UI doesn't hammer the
+# filesystem or PATH lookup on every redraw, but picks up a successful
+# install within a few seconds.
+_avail_cache: dict = {"ts": 0.0, "result": None, "status": None}
+_CACHE_TTL = 5.0  # seconds
+
 
 class RealESRGANHelpers:
     """Helper functions for Real-ESRGAN integration"""
@@ -36,45 +47,88 @@ class RealESRGANHelpers:
         try:
             from . import tool_installers
             d = tool_installers.get_realesrgan_weights_dir()
-            if any(d.glob("*.pth")):
+            if d.exists() and any(d.glob("*.pth")):
                 return str(d)
         except Exception:
             pass
         return None
 
     @staticmethod
-    def is_realesrgan_available():
-        """Return True if any Real-ESRGAN method is ready to run."""
+    def _resolve_vulkan_exe() -> str | None:
+        """Return the best available NCNN Vulkan executable path or None.
+
+        Checks (in order):
+          1. Locally installed binary in ``tools/realesrgan/bin/``.
+          2. Binary found on the system PATH.
+        """
+        local = RealESRGANHelpers._local_ncnn_exe()
+        if local:
+            return local
+        return shutil.which('realesrgan-ncnn-vulkan')
+
+    @staticmethod
+    def is_realesrgan_available() -> bool:
+        """Return True if any Real-ESRGAN method is ready to run.
+
+        Result is cached for up to 5 seconds to avoid hammering the filesystem
+        on every UI redraw.  The cache is invalidated automatically so a
+        successful one-click install is reflected within a few seconds.
+        """
+        now = time.monotonic()
+        if now - _avail_cache["ts"] < _CACHE_TTL and _avail_cache["result"] is not None:
+            return _avail_cache["result"]
+
         # 1. Locally installed NCNN Vulkan binary (preferred)
         if RealESRGANHelpers._local_ncnn_exe():
+            _avail_cache.update(ts=now, result=True)
             return True
         # 2. NCNN Vulkan binary found on PATH
         if shutil.which('realesrgan-ncnn-vulkan'):
+            _avail_cache.update(ts=now, result=True)
             return True
         # 3. Python package (basicsr / realesrgan)
         try:
             import importlib.util
             if importlib.util.find_spec('basicsr') is not None:
+                _avail_cache.update(ts=now, result=True)
                 return True
         except Exception:
             pass
+
+        _avail_cache.update(ts=now, result=False)
         return False
 
     @staticmethod
     def get_install_status() -> tuple[bool, str]:
-        """Return (available, human-readable status string) for UI display."""
+        """Return (available, human-readable status string) for UI display.
+
+        Result is cached for up to 5 seconds (same TTL as
+        :meth:`is_realesrgan_available`).
+        """
+        now = time.monotonic()
+        if now - _avail_cache["ts"] < _CACHE_TTL and _avail_cache["status"] is not None:
+            return _avail_cache["result"], _avail_cache["status"]
+
         local_exe = RealESRGANHelpers._local_ncnn_exe()
         if local_exe:
-            return True, f"NCNN Vulkan ready: {os.path.basename(local_exe)}"
+            status = f"NCNN Vulkan ready: {os.path.basename(local_exe)}"
+            _avail_cache.update(ts=now, result=True, status=status)
+            return True, status
         if shutil.which('realesrgan-ncnn-vulkan'):
-            return True, "NCNN Vulkan ready (PATH)"
+            status = "NCNN Vulkan ready (PATH)"
+            _avail_cache.update(ts=now, result=True, status=status)
+            return True, status
         try:
             import importlib.util
             if importlib.util.find_spec('basicsr') is not None:
-                return True, "Python (basicsr) ready"
+                status = "Python (basicsr) ready"
+                _avail_cache.update(ts=now, result=True, status=status)
+                return True, status
         except Exception:
             pass
-        return False, "Not installed — click 'Install AI Upscaler'"
+        status = "Not installed — click 'Install AI Upscaler'"
+        _avail_cache.update(ts=now, result=False, status=status)
+        return False, status
 
     @staticmethod
     def get_realesrgan_path():
@@ -98,7 +152,7 @@ class RealESRGANHelpers:
         except Exception:
             pass
         return None, None
-    
+
     @staticmethod
     def check_realesrgan_installation():
         """Check Real-ESRGAN installation and return a detailed status message.
@@ -114,67 +168,76 @@ class RealESRGANHelpers:
             "fully automatic one-click installation. No external subscriptions "
             "or manual steps required."
         )
-    
+
     @staticmethod
-    def upscale_texture_vulkan(input_path, output_path=None, scale=4, model='realesr-animevideov3'):
-        """
-        Upscale texture using Real-ESRGAN Vulkan version
-        
+    def upscale_texture_vulkan(input_path, output_path=None, scale=4,
+                               model='realesr-animevideov3', exe_path=None):
+        """Upscale a texture using the Real-ESRGAN NCNN Vulkan binary.
+
         Args:
             input_path: Path to input texture
-            output_path: Path for output (optional)
+            output_path: Path for output (optional; derived from input if omitted)
             scale: Upscale factor (2 or 4)
-            model: Model to use
-        
+            model: Model name passed to the binary (``-n`` flag)
+            exe_path: Explicit path to the NCNN Vulkan executable.  When
+                *None* (default) the method resolves the binary automatically
+                from the local tools directory or system PATH.
+
         Returns: (bool success, str message)
         """
-        vulkan_path = shutil.which('realesrgan-ncnn-vulkan')
-        if not vulkan_path:
-            return False, "Real-ESRGAN Vulkan executable not found"
-        
+        # Resolve executable: explicit arg > local tools dir > PATH
+        if exe_path is None:
+            exe_path = RealESRGANHelpers._resolve_vulkan_exe()
+        if not exe_path:
+            return False, (
+                "Real-ESRGAN NCNN Vulkan executable not found. "
+                "Click 'Install AI Upscaler' to download it automatically."
+            )
+
         if not os.path.exists(input_path):
             return False, f"Input file not found: {input_path}"
-        
+
         # Determine output path
         if output_path is None:
             base, ext = os.path.splitext(input_path)
             output_path = f"{base}_upscaled{ext}"
-        
+
         try:
-            # Build command
             cmd = [
-                vulkan_path,
+                exe_path,
                 '-i', input_path,
                 '-o', output_path,
                 '-s', str(scale),
-                '-n', model
+                '-n', model,
             ]
-            
-            # Run upscaling
+
             result = subprocess.run(
                 cmd,
                 capture_output=True,
                 text=True,
-                timeout=300  # 5 minutes timeout
+                timeout=300,  # 5 minutes
             )
-            
+
             if result.returncode == 0 and os.path.exists(output_path):
-                file_size = os.path.getsize(output_path)
-                size_mb = file_size / (1024 * 1024)
-                return True, f"Texture upscaled {scale}x successfully: {output_path} ({size_mb:.1f} MB)"
+                size_mb = os.path.getsize(output_path) / (1024 * 1024)
+                return True, (
+                    f"Texture upscaled {scale}x successfully: "
+                    f"{output_path} ({size_mb:.1f} MB)"
+                )
             else:
-                error_msg = result.stderr if result.stderr else result.stdout
+                # Some tools write errors to stdout instead of stderr — capture both.
+                error_msg = (result.stderr.strip() or result.stdout.strip()
+                             or f"exit code {result.returncode}")
                 return False, f"Upscaling failed: {error_msg}"
-        
+
         except subprocess.TimeoutExpired:
             return False, "Texture upscaling timed out (5 minutes)"
         except Exception as e:
             return False, f"Failed to upscale texture: {str(e)}"
-    
+
     @staticmethod
     def upscale_texture_python(input_path, output_path=None, scale=4, model='RealESRGAN_x4plus'):
-        """
-        Upscale texture using the Real-ESRGAN Python package.
+        """Upscale texture using the Real-ESRGAN Python package.
 
         Args:
             input_path: Path to input texture
@@ -237,18 +300,26 @@ class RealESRGANHelpers:
                 )
                 netscale = 4
 
-            # Locate model weights (Real-ESRGAN downloads them to weights/ on first use)
-            realesrgan_path = RealESRGANHelpers.get_realesrgan_path()[0]
-            model_path_candidates = []
-            if realesrgan_path:
-                model_path_candidates.extend([
-                    os.path.join(realesrgan_path, "weights", f"{model}.pth"),
-                    os.path.join(realesrgan_path, "experiments", "pretrained_models", f"{model}.pth"),
-                ])
+            # Locate model weights.
+            # Priority: local tools weights dir → realesrgan_path weights/
+            # RealESRGANer will attempt to download if model_path is None.
+            model_path_candidates: list[str] = []
+            local_weights = RealESRGANHelpers._local_weights_dir()
+            if local_weights:
+                model_path_candidates.append(
+                    os.path.join(local_weights, f"{model}.pth")
+                )
+            try:
+                from . import tool_installers
+                rdir = str(tool_installers.get_realesrgan_weights_dir())
+                model_path_candidates.append(os.path.join(rdir, f"{model}.pth"))
+            except Exception:
+                pass
             model_weights_path = next(
                 (p for p in model_path_candidates if os.path.exists(p)),
-                None
+                None,
             )
+
             # RealESRGANer will attempt to download the model if model_path is None
             upsampler = RealESRGANer(
                 scale=netscale,
@@ -269,32 +340,39 @@ class RealESRGANHelpers:
 
         except Exception as e:
             return False, f"Failed to upscale texture: {str(e)}"
-    
+
     @staticmethod
     def upscale_texture(input_path, output_path=None, scale=4, method='auto'):
-        """
-        Upscale texture using best available method
-        
+        """Upscale texture using best available method.
+
         Args:
             input_path: Path to input texture
             output_path: Path for output (optional)
             scale: Upscale factor (2 or 4)
             method: 'auto', 'vulkan', or 'python'
-        
+
         Returns: (bool success, str message)
         """
         path, detected_method = RealESRGANHelpers.get_realesrgan_path()
-        
+
         if not path:
-            return False, "Real-ESRGAN not installed"
-        
+            return False, (
+                "Real-ESRGAN is not installed. "
+                "Click 'Install AI Upscaler' in the Texture Helpers panel to "
+                "download it automatically (no external accounts required)."
+            )
+
         # Determine which method to use
         if method == 'auto':
             method = detected_method
-        
+
         if method == 'vulkan':
+            # Pass the resolved executable path so upscale_texture_vulkan does
+            # not have to re-resolve it (avoids a second shutil.which call and
+            # ensures the locally-installed binary is always used).
+            exe = path if path != 'python' else None
             return RealESRGANHelpers.upscale_texture_vulkan(
-                input_path, output_path, scale
+                input_path, output_path, scale, exe_path=exe
             )
         elif method == 'python':
             return RealESRGANHelpers.upscale_texture_python(
@@ -302,78 +380,75 @@ class RealESRGANHelpers:
             )
         else:
             return False, f"Unknown upscaling method: {method}"
-    
+
     @staticmethod
     def batch_upscale_textures(texture_list, output_dir, scale=4):
-        """
-        Upscale multiple textures
-        
+        """Upscale multiple textures.
+
         Args:
             texture_list: List of input texture paths
             output_dir: Directory for output files
             scale: Upscale factor
-        
+
         Returns: (int success_count, list results)
         """
         os.makedirs(output_dir, exist_ok=True)
-        
+
         success_count = 0
         results = []
-        
+
         for input_path in texture_list:
             filename = os.path.basename(input_path)
             base_name, ext = os.path.splitext(filename)
             output_path = os.path.join(output_dir, f"{base_name}_upscaled{ext}")
-            
+
             success, message = RealESRGANHelpers.upscale_texture(
-                input_path,
-                output_path,
-                scale
+                input_path, output_path, scale
             )
-            
+
             results.append({
-                'input': input_path,
-                'output': output_path if success else None,
+                'input':   input_path,
+                'output':  output_path if success else None,
                 'success': success,
-                'message': message
+                'message': message,
             })
-            
+
             if success:
                 success_count += 1
-        
+
         return success_count, results
-    
+
     @staticmethod
     def upscale_object_textures(obj, output_dir, scale=4):
-        """
-        Upscale all textures used by an object
-        
+        """Upscale all textures used by a mesh object.
+
         Args:
             obj: Blender object
             output_dir: Directory to save upscaled textures
             scale: Upscale factor (2 or 4)
-        
+
         Returns: (bool success, str message, list upscaled_files)
         """
         if obj.type != 'MESH':
             return False, "Object is not a mesh", []
-        
+
         if not obj.data.materials:
             return False, "Object has no materials", []
-        
+
         if not RealESRGANHelpers.is_realesrgan_available():
-            return False, "Real-ESRGAN not installed", []
-        
+            return False, (
+                "Real-ESRGAN is not installed. "
+                "Click 'Install AI Upscaler' in the Texture Helpers panel."
+            ), []
+
         # Create output directory
         os.makedirs(output_dir, exist_ok=True)
-        
-        # Collect textures from material
+
+        # Collect textures from material nodes
         texture_list = []
-        
         for mat in obj.data.materials:
             if not mat or not mat.use_nodes:
                 continue
-            
             for node in mat.node_tree.nodes:
                 if node.type == 'TEX_IMAGE' and node.image:
                     img = node.image
@@ -381,29 +456,20 @@ class RealESRGANHelpers:
                         img_path = bpy.path.abspath(img.filepath)
                         if os.path.exists(img_path):
                             texture_list.append(img_path)
-        
+
         if not texture_list:
             return False, "No textures found in object materials", []
-        
-        # Upscale textures
+
         success_count, results = RealESRGANHelpers.batch_upscale_textures(
-            texture_list,
-            output_dir,
-            scale
+            texture_list, output_dir, scale
         )
-        
-        # Collect upscaled file paths
-        upscaled_files = []
-        for result in results:
-            if result['success'] and result['output']:
-                upscaled_files.append(result['output'])
-        
+
+        upscaled_files = [r['output'] for r in results if r['success'] and r['output']]
+
         if success_count > 0:
-            message = f"Upscaled {success_count}/{len(texture_list)} textures ({scale}x)"
-            return True, message, upscaled_files
-        else:
-            return False, "Failed to upscale any textures", []
-    
+            return True, f"Upscaled {success_count}/{len(texture_list)} textures ({scale}x)", upscaled_files
+        return False, "Failed to upscale any textures", []
+
     @staticmethod
     def _nearest_power_of_two(n):
         """Return the nearest power of two >= *n* (minimum 1).
@@ -418,15 +484,13 @@ class RealESRGANHelpers:
         while p < n:
             p <<= 1
         # p is the first power-of-two >= n.
-        # If p == n it is already exact; if p > n choose the nearest.
         if p == n or (p - n) <= (n - p // 2):
             return p
         return p // 2
 
     @staticmethod
     def upscale_krea_legacy_style(input_path, output_path=None, scale=4):
-        """
-        Upscale a texture using a KREA AI Legacy-style approach.
+        """Upscale a texture using a KREA AI Legacy-style approach.
 
         Uses Real-ESRGAN (RealESRGAN_x4plus model) when available for the best
         quality result.  Falls back to high-quality Lanczos upscaling combined
@@ -459,7 +523,9 @@ class RealESRGANHelpers:
                 # Fall through to PIL fallback on failure
             elif method == 'vulkan':
                 success, message = RealESRGANHelpers.upscale_texture_vulkan(
-                    input_path, output_path, scale, model='realesrgan-x4plus'
+                    input_path, output_path, scale,
+                    model='realesrgan-x4plus',
+                    exe_path=path,
                 )
                 if success:
                     return True, f"Texture upscaled {scale}x (KREA AI Legacy style via Real-ESRGAN Vulkan): {output_path}"
@@ -503,26 +569,20 @@ class RealESRGANHelpers:
 
     @staticmethod
     def get_recommended_scale(image_width, image_height):
-        """
-        Get recommended upscale factor based on current resolution
-        
+        """Get recommended upscale factor based on current resolution.
+
         Returns: int scale factor (2 or 4)
         """
-        # For very small textures, use 4x
         if image_width <= 512 or image_height <= 512:
             return 4
-        # For medium textures, use 2x
         elif image_width <= 1024 or image_height <= 1024:
             return 2
-        # For large textures, don't upscale
-        else:
-            return 1
-    
+        return 1
+
     @staticmethod
     def estimate_output_size(input_path, scale):
-        """
-        Estimate output file size after upscaling
-        
+        """Estimate output file size after upscaling.
+
         Returns: tuple (width, height, estimated_size_mb)
         """
         try:
@@ -535,10 +595,10 @@ class RealESRGANHelpers:
                 # Rough estimate: assume PNG compression
                 estimated_size = (new_w * new_h * 3) / (1024 * 1024) * 0.3
                 return new_w, new_h, estimated_size
-        except:
+        except Exception:
             pass
-        
         return None, None, None
+
 
 def register():
     """Register Real-ESRGAN helper functions"""
@@ -547,3 +607,4 @@ def register():
 def unregister():
     """Unregister Real-ESRGAN helper functions"""
     pass
+

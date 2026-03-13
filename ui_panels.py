@@ -550,7 +550,8 @@ class FO4_PT_ImageToMeshPanel(Panel):
         row.enabled = available
         row.operator("fo4.estimate_depth", text="Estimate Depth & Create Mesh", icon='MESH_GRID')
         
-        depth_box.operator("fo4.show_zoedepth_info", text="Installation Info", icon='INFO')
+        depth_box.operator("fo4.install_zoedepth", text="Auto-Install ZoeDepth", icon='IMPORT')
+        depth_box.operator("fo4.show_zoedepth_info", text="Manual Instructions", icon='INFO')
 
         # TripoSR section
         layout.separator()
@@ -654,7 +655,8 @@ class FO4_PT_AIGenerationPanel(Panel):
         else:
             status_box.label(text="Status: Not Installed ✗", icon='ERROR')
         
-        status_box.operator("fo4.show_hunyuan3d_info", text="Installation Info", icon='INFO')
+        status_box.operator("fo4.install_hunyuan3d", text="Auto-Install Hunyuan3D-2", icon='IMPORT')
+        status_box.operator("fo4.show_hunyuan3d_info", text="Manual Instructions", icon='INFO')
         
         # AI Generation operators (enabled only if available)
         box = layout.box()
@@ -713,8 +715,9 @@ class FO4_PT_AIGenerationPanel(Panel):
             motion_box.operator("fo4.import_motion_file", text="Import Motion File", icon='IMPORT')
         else:
             motion_box.label(text="Status: Not Installed ✗", icon='ERROR')
+            motion_box.operator("fo4.install_hymotion", text="Auto-Install HY-Motion", icon='IMPORT')
         
-        motion_box.operator("fo4.show_hymotion_info", text="Motion Info", icon='INFO')
+        motion_box.operator("fo4.show_hymotion_info", text="Manual Instructions", icon='INFO')
         
         # Shap-E section
         layout.separator()
@@ -742,12 +745,12 @@ class FO4_PT_AIGenerationPanel(Panel):
         else:
             shap_e_box.label(text="Status: Not Installed ✗", icon='ERROR')
 
-            # Check if it's a Windows path error
             if "Windows path length error" in shap_e_msg:
-                shap_e_box.label(text="⚠ Windows path too long", icon='ERROR')
-                shap_e_box.operator("torch.install_custom_path", text="Install PyTorch to D:/t", icon='IMPORT')
+                shap_e_box.label(text="⚠ Windows path too long — use short path", icon='ERROR')
+                shap_e_box.operator("torch.install_custom_path", text="Fix: Install PyTorch to D:/t", icon='IMPORT')
             else:
-                shap_e_box.operator("fo4.show_shap_e_info", text="Installation Instructions", icon='INFO')
+                shap_e_box.operator("fo4.install_shap_e", text="Auto-Install Shap-E", icon='IMPORT')
+                shap_e_box.operator("fo4.show_shap_e_info", text="Manual Instructions", icon='INFO')
 
         shap_e_box.operator("fo4.check_shap_e_installation", text="Check Installation", icon='SYSTEM')
 
@@ -781,12 +784,12 @@ class FO4_PT_AIGenerationPanel(Panel):
         else:
             point_e_box.label(text="Status: Not Installed ✗", icon='ERROR')
 
-            # Check if it's a Windows path error
             if "Windows path length error" in point_e_msg:
-                point_e_box.label(text="⚠ Windows path too long", icon='ERROR')
-                point_e_box.operator("torch.install_custom_path", text="Install PyTorch to D:/t", icon='IMPORT')
+                point_e_box.label(text="⚠ Windows path too long — use short path", icon='ERROR')
+                point_e_box.operator("torch.install_custom_path", text="Fix: Install PyTorch to D:/t", icon='IMPORT')
             else:
-                point_e_box.operator("fo4.show_point_e_info", text="Installation Instructions", icon='INFO')
+                point_e_box.operator("fo4.install_point_e", text="Auto-Install Point-E", icon='IMPORT')
+                point_e_box.operator("fo4.show_point_e_info", text="Manual Instructions", icon='INFO')
 
         point_e_box.operator("fo4.check_point_e_installation", text="Check Installation", icon='SYSTEM')
 
@@ -794,6 +797,7 @@ class FO4_PT_AIGenerationPanel(Panel):
         layout.separator()
         diff_box = layout.box()
         diff_box.label(text="Diffusers / LayerDiffuse", icon='TEXTURE_DATA')
+        diff_box.operator("fo4.install_diffusers", text="Auto-Install Diffusers", icon='IMPORT')
         diff_box.operator("fo4.check_diffusers", text="Check Diffusers", icon='SYSTEM')
         diff_box.operator("fo4.check_layerdiffuse", text="Check LayerDiffuse", icon='SYSTEM')
         diff_box.operator("fo4.show_diffusers_workflow", text="Diffusers Workflow Guide", icon='INFO')
@@ -840,8 +844,9 @@ class FO4_PT_AnimationPanel(Panel):
         motion_box = layout.box()
         motion_box.label(text="Motion Generation", icon='ANIM_DATA')
         motion_box.operator("fo4.check_all_motion_systems", text="Check All Motion Systems", icon='SYSTEM')
+        motion_box.operator("fo4.install_motion_generation", text="Auto-Install MotionDiffuse", icon='IMPORT')
         motion_box.operator("fo4.generate_motion_auto", text="Generate Motion (Auto)", icon='PLAY')
-        motion_box.operator("fo4.show_motion_generation_info", text="Installation Info", icon='INFO')
+        motion_box.operator("fo4.show_motion_generation_info", text="Manual Instructions", icon='INFO')
 
 class FO4_PT_RigNetPanel(Panel):
     """RigNet auto-rigging panel"""
@@ -875,6 +880,7 @@ class FO4_PT_RigNetPanel(Panel):
             status_box.label(text=f"  {rignet_dir}", icon='FILE_FOLDER')
         else:
             status_box.label(text="✗ RigNet Not Installed", icon='ERROR')
+            status_box.operator("fo4.install_rignet", text="Auto-Install RigNet", icon='IMPORT')
         
         status_box.operator("fo4.check_rignet", text="Check RigNet", icon='INFO')
         
@@ -891,6 +897,7 @@ class FO4_PT_RigNetPanel(Panel):
                 libigl_box.label(text=f"  {libigl_dir}", icon='FILE_FOLDER')
         else:
             libigl_box.label(text="✗ libigl Not Installed", icon='ERROR')
+            libigl_box.operator("fo4.install_libigl", text="Auto-Install libigl", icon='IMPORT')
         
         libigl_box.operator("fo4.check_libigl", text="Check libigl", icon='INFO')
         
@@ -932,7 +939,7 @@ class FO4_PT_RigNetPanel(Panel):
         
         if not is_available and not libigl_available:
             info_box.separator()
-            info_box.label(text="Quick Install:", icon='DOWNLOAD')
+            info_box.label(text="Quick Install:", icon='IMPORT')
             info_box.label(text="RigNet:")
             info_box.label(text="  gh repo clone govindjoshi12/")
             info_box.label(text="    rignet-gj")
@@ -1126,8 +1133,7 @@ class FO4_PT_ToolsLinks(Panel):
         box.label(text="Core", icon='URL')
         op = box.operator("wm.url_open", text="Blender Niftools Add-on")
         op.url = "https://github.com/niftools/blender_niftools_addon/releases"
-        op = box.operator("wm.url_open", text="Quick Reference")
-        op.url = "file://" + bpy.path.abspath('//QUICK_REFERENCE.txt')
+        box.operator("fo4.show_quick_reference", text="Quick Reference", icon='TEXT')
 
         op = box.operator("wm.url_open", text="DirectXTex texconv")
         op.url = "https://github.com/microsoft/DirectXTex/releases"
@@ -1384,7 +1390,7 @@ class FO4_PT_GameAssetsPanel(Panel):
 
         # Fallout 4 Assets
         fo4_box = layout.box()
-        fo4_box.label(text="Fallout 4 Assets", icon='GAME')
+        fo4_box.label(text="Fallout 4 Assets", icon='BLENDER')
 
         from . import fo4_game_assets
         ready, message = fo4_game_assets.FO4GameAssets.get_status()
@@ -1464,7 +1470,7 @@ class FO4_PT_ExportPanel(Panel):
         # ── Fallout 4 game version ────────────────────────────────────────────
         ver_box = layout.box()
         ver_row = ver_box.row(align=True)
-        ver_row.label(text="Game Version:", icon='GAME')
+        ver_row.label(text="Game Version:", icon='BLENDER')
         ver_row.prop(context.scene, "fo4_game_version", text="")
         ver_hint = ver_box.column(align=True)
         ver_hint.scale_y = 0.75
@@ -1472,6 +1478,57 @@ class FO4_PT_ExportPanel(Panel):
             text="OG / NG / AE all use NIF 20.2.0.7 · bsver 130 · BSTriShape",
             icon='INFO',
         )
+
+        # ── Per-object mesh type ──────────────────────────────────────────────
+        # The mesh type drives which NIF settings are applied: root node class
+        # (BSFadeNode vs NiNode), BSXFlags, shader flags, and skinning path.
+        # 'Auto-detect' classifies the mesh from armature/name/material
+        # automatically; override it here for unusual setups.
+        if obj and obj.type == 'MESH':
+            mtype_box = layout.box()
+            mtype_row = mtype_box.row(align=True)
+            mtype_row.label(text="Mesh Type:", icon='MESH_DATA')
+            mtype_row.prop(obj, "fo4_mesh_type", text="")
+
+            # Per-type hint row
+            try:
+                from . import export_helpers as _eh
+                mtype_val = getattr(obj, 'fo4_mesh_type', 'AUTO')
+                if mtype_val == 'AUTO':
+                    detected = _eh.ExportHelpers._classify_fo4_mesh_type(obj)
+                    mtype_hint = mtype_box.column(align=True)
+                    mtype_hint.scale_y = 0.75
+                    mtype_hint.label(
+                        text=f"Auto-detected as: {detected}"
+                             " (override above if wrong)",
+                        icon='INFO',
+                    )
+                    mtype_val = detected
+                _MESH_TYPE_NOTES = {
+                    'STATIC':
+                        "BSFadeNode root · BSTriShape · no skinning",
+                    'SKINNED':
+                        "NiNode root · BSSubIndexTriShape · BSSkin::Instance · Skinned SF1 flag",
+                    'ARMOR':
+                        "NiNode root · BSSubIndexTriShape · BSSkin::Instance · Skinned SF1 flag",
+                    'LOD':
+                        "BSFadeNode root · reduced poly count · same settings as Static",
+                    'VEGETATION':
+                        "BSFadeNode root · Two_Sided SF2 · Alpha Clip material required",
+                    'FURNITURE':
+                        "NiNode root · BSXFlags Animated (1) · enable CK furniture markers",
+                    'WEAPON':
+                        "NiNode root · no vertex skinning · attach via named bone",
+                    'ARCHITECTURE':
+                        "BSFadeNode root · BSXFlags Has-Havok (2) · collision required",
+                }
+                note = _MESH_TYPE_NOTES.get(mtype_val, "")
+                if note:
+                    mtype_hint = mtype_box.column(align=True)
+                    mtype_hint.scale_y = 0.75
+                    mtype_hint.label(text=note, icon='INFO')
+            except Exception:
+                pass
 
         # ── Niftools exporter status ─────────────────────────────────────────
         nif_box = layout.box()

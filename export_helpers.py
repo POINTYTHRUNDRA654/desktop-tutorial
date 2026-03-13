@@ -287,6 +287,191 @@ _COLLISION_NIF_POSTPROCESS = {
     },
 }
 
+# ---------------------------------------------------------------------------
+# FO4 mesh type export settings
+# ---------------------------------------------------------------------------
+# Per-mesh-type NIF export settings that must be applied IN ADDITION TO the
+# game-profile settings (NIF version, tangent space, scale, etc.) from
+# _NIF_GAME_PROFILES.  Every field here maps to a specific NIF block property
+# or Niftools operator kwarg.
+#
+# root_node_hint   – preferred NIF root node class.
+#                    BSFadeNode: standard static/LOD meshes (distance fade)
+#                    NiNode:     skinned, furniture, weapons (no distance fade)
+# bsxflags         – base BSXFlags value for the visual mesh root NiExtraData.
+#                    This is OR-ed with any collision-derived flags at run-time.
+#                      0 = no special features  (pure geometry, no collision)
+#                      1 = Animated             (plays NiControllerSequence)
+#                      2 = Has Havok            (collision present)
+#                      3 = Animated + Has Havok
+#                      6 = Has Havok + Has Ragdoll
+# flatten_skin     – NIF exporter kwarg: collapse bone weights to mesh-space.
+#                    Must be False for all FO4 types; True would break BSSkin.
+# export_skin      – hint to Niftools to enable the BSSkin::Instance code path.
+#                    Niftools auto-detects an armature parent, but setting this
+#                    flag avoids silent failures in edge cases.
+# two_sided        – faces visible from both sides (foliage / leaf quads).
+# alpha_clip       – alpha-test (cutout) transparency required (foliage).
+# shader_flags_1   – BSLightingShaderProperty ShaderFlags1 override (uint32).
+#   FO4 SF1 bit reference:
+#     0x00000001  Specular
+#     0x00000002  Skinned           ← required for armature-driven meshes
+#     0x00000010  Dynamic_Decal
+#     0x00000200  ZBuffer_Write
+#     0x00400000  Cast_Shadows
+#     0x00800000  Receive_Shadows   (note: bit 23 in some docs)
+#     0x80000000  Tangent_Space     ← always required for FO4 normal maps
+# shader_flags_2   – BSLightingShaderProperty ShaderFlags2 override (uint32).
+#   FO4 SF2 bit reference:
+#     0x00000001  ZBuffer_Test      ← always required
+#     0x00000010  Two_Sided         ← required for foliage / leaf quads
+#     0x00000020  Rim_Lighting
+# ---------------------------------------------------------------------------
+_NIF_FO4_MESH_TYPE_SETTINGS = {
+    'STATIC': {
+        # Props, world objects, decorations – the most common mesh category.
+        # BSFadeNode gradually fades the mesh out at view distance.
+        'root_node_hint': 'BSFadeNode',
+        'bsxflags':       0,      # +2 added at run-time when collision exists
+        'flatten_skin':   False,
+        'export_skin':    False,
+        'two_sided':      False,
+        'alpha_clip':     False,
+        'shader_flags_1': 0x80400201,  # TangentSpace | CastShadows | ZBufferWrite | Specular
+        'shader_flags_2': 0x00000001,  # ZBufferTest
+    },
+    'SKINNED': {
+        # Armor, clothing, actor body parts – parented to an armature.
+        # Niftools emits BSSubIndexTriShape + BSSkin::Instance when skinning
+        # is detected.  Root must be NiNode so the game binds the mesh to the
+        # skeleton by bone name rather than by world-space transform.
+        'root_node_hint': 'NiNode',
+        'bsxflags':       0,
+        'flatten_skin':   False,   # Preserve per-vertex bone weights
+        'export_skin':    True,
+        'two_sided':      False,
+        'alpha_clip':     False,
+        # The Skinned bit (0x02) in ShaderFlags1 is required; without it the
+        # engine treats the mesh as a static object and bone transforms are
+        # ignored, producing severe visual deformation in-game.
+        'shader_flags_1': 0x80400203,  # + Skinned(0x02)
+        'shader_flags_2': 0x00000001,
+    },
+    'ARMOR': {
+        # Wearable armor pieces – identical requirements to SKINNED.
+        # Kept as a separate type so the UI can show a more descriptive label.
+        'root_node_hint': 'NiNode',
+        'bsxflags':       0,
+        'flatten_skin':   False,
+        'export_skin':    True,
+        'two_sided':      False,
+        'alpha_clip':     False,
+        'shader_flags_1': 0x80400203,  # + Skinned(0x02)
+        'shader_flags_2': 0x00000001,
+    },
+    'LOD': {
+        # Distance LOD meshes ({name}_LOD1 … _LOD4).
+        # Same NIF structure as STATIC; LOD switching is driven by the CK
+        # record referencing NIFs at each detail level.  Reduced polygon count
+        # but otherwise identical export requirements.
+        'root_node_hint': 'BSFadeNode',
+        'bsxflags':       0,
+        'flatten_skin':   False,
+        'export_skin':    False,
+        'two_sided':      False,
+        'alpha_clip':     False,
+        'shader_flags_1': 0x80400201,
+        'shader_flags_2': 0x00000001,
+    },
+    'VEGETATION': {
+        # Plants, trees, grass, ferns – alpha-clip material, two-sided faces.
+        # BSLightingShaderProperty MUST have the Two_Sided (0x10 in SF2) flag
+        # and the material blend mode MUST be Alpha Clip so the engine applies
+        # the correct alpha-test cutout.  Without Two_Sided, leaf quads are
+        # invisible from the back.  Without Alpha_Testing, the leaves render
+        # as solid black silhouettes.
+        'root_node_hint': 'BSFadeNode',
+        'bsxflags':       0,      # No collision for most vegetation
+        'flatten_skin':   False,
+        'export_skin':    False,
+        'two_sided':      True,
+        'alpha_clip':     True,
+        'shader_flags_1': 0x80400201,
+        'shader_flags_2': 0x00000011,  # ZBufferTest(0x01) | Two_Sided(0x10)
+    },
+    'FURNITURE': {
+        # Chairs, workbenches, activators – NiNode root allows the CK to
+        # attach BSFurnitureMarkerNode children that define seat positions and
+        # activation animations.  BSXFlags bit 0 (Animated = 1) must be set
+        # so the engine checks the NIF for NiControllerManager data when the
+        # player activates the object.
+        'root_node_hint': 'NiNode',
+        'bsxflags':       1,      # Animated
+        'flatten_skin':   False,
+        'export_skin':    False,
+        'two_sided':      False,
+        'alpha_clip':     False,
+        'shader_flags_1': 0x80400201,
+        'shader_flags_2': 0x00000001,
+    },
+    'WEAPON': {
+        # Guns and melee weapons.  No vertex skinning – the weapon mesh is
+        # attached to the skeleton via a named node match ("Weapon" bone),
+        # not by per-vertex bone weights.  NiNode root required for correct
+        # weapon attach-point resolution by the engine.
+        'root_node_hint': 'NiNode',
+        'bsxflags':       0,
+        'flatten_skin':   False,
+        'export_skin':    False,
+        'two_sided':      False,
+        'alpha_clip':     False,
+        'shader_flags_1': 0x80400201,
+        'shader_flags_2': 0x00000001,
+    },
+    'ARCHITECTURE': {
+        # Walls, floors, ceilings, large structural meshes.
+        # Architecture always has Havok collision so BSXFlags starts at 2.
+        # If the mesh also participates in Room/Portal rendering, additional
+        # BSX bits may be needed but 2 is the minimum for in-game collision.
+        'root_node_hint': 'BSFadeNode',
+        'bsxflags':       2,      # Has Havok (collision always present)
+        'flatten_skin':   False,
+        'export_skin':    False,
+        'two_sided':      False,
+        'alpha_clip':     False,
+        'shader_flags_1': 0x80400201,
+        'shader_flags_2': 0x00000001,
+    },
+}
+
+# Human-readable labels used by the fo4_mesh_type EnumProperty in the UI.
+FO4_MESH_TYPE_ITEMS = [
+    ('STATIC',
+     "Static",
+     "World prop / decoration – BSFadeNode root, no skinning (most common)"),
+    ('SKINNED',
+     "Skinned",
+     "Armor / body part – NiNode root, BSSkin::Instance, vertex weights required"),
+    ('ARMOR',
+     "Armor",
+     "Wearable armor piece – identical to Skinned; labelled separately for clarity"),
+    ('LOD',
+     "LOD",
+     "Distance LOD mesh (name ends _LOD1…_LOD4) – BSFadeNode root, reduced poly count"),
+    ('VEGETATION',
+     "Vegetation",
+     "Plant / tree / grass – alpha-clip cutout, Two-Sided faces, no collision"),
+    ('FURNITURE',
+     "Furniture",
+     "Chair / workbench / activator – NiNode root, Animated BSXFlag (bit 0)"),
+    ('WEAPON',
+     "Weapon",
+     "Gun or melee – NiNode root, no vertex skinning, attach via named bone"),
+    ('ARCHITECTURE',
+     "Architecture",
+     "Wall / floor / large structure – BSFadeNode root, Havok collision required"),
+]
+
 
 class ExportHelpers:
     """Helper functions for exporting to Fallout 4"""
@@ -305,6 +490,242 @@ class ExportHelpers:
             return True
         name_upper = obj.name.upper()
         return name_upper.startswith("UCX_") or name_upper.endswith("_COLLISION")
+
+    @staticmethod
+    def _classify_fo4_mesh_type(obj):
+        """Return the FO4 mesh type string for *obj*.
+
+        The type controls which NIF export settings are applied (root node
+        class, BSXFlags, shader flags, skinning, etc.).  The lookup order is:
+
+        1. Explicit ``fo4_mesh_type`` Blender object property (user override).
+        2. Armature parent / modifier detected   → ``"SKINNED"``
+        3. Object name ends with ``_LOD\\d+``     → ``"LOD"``
+        4. Collision type is GRASS or MUSHROOM   → ``"VEGETATION"``
+        5. Any material uses Alpha Clip/Blend    → ``"VEGETATION"``
+        6. Name contains weapon keywords         → ``"WEAPON"``
+        7. Name contains armor keywords          → ``"ARMOR"``
+        8. Name contains furniture keywords      → ``"FURNITURE"``
+        9. Default                               → ``"STATIC"``
+
+        Returns
+        -------
+        str
+            One of the keys defined in ``_NIF_FO4_MESH_TYPE_SETTINGS``.
+        """
+        # 1. Explicit user override wins everything else.
+        explicit = getattr(obj, 'fo4_mesh_type', None)
+        if explicit and explicit in _NIF_FO4_MESH_TYPE_SETTINGS:
+            return explicit
+
+        # 2. Armature parenting / modifier → skinned mesh.
+        if ExportHelpers._has_armature(obj):
+            return 'SKINNED'
+
+        # 3. LOD naming convention.
+        import re as _re
+        if _re.search(r'_LOD\d+$', obj.name, _re.IGNORECASE):
+            return 'LOD'
+
+        # 4. Collision type hint for vegetation (no collision generated).
+        ctype = getattr(obj, 'fo4_collision_type', 'DEFAULT')
+        if ctype in ('GRASS', 'MUSHROOM'):
+            return 'VEGETATION'
+
+        # 5. Material blend mode → vegetation (alpha-clip/blend sheet).
+        mesh_data = getattr(obj, 'data', None)
+        for mat in (mesh_data.materials if mesh_data else []):
+            if mat and getattr(mat, 'blend_mode', 'OPAQUE') in ('CLIP', 'BLEND'):
+                return 'VEGETATION'
+
+        # 6–8. Name-based heuristics (not a substitute for the explicit prop).
+        name_upper = obj.name.upper()
+        _WEAPON_KEYS   = ('WEAPON', 'GUN', 'PISTOL', 'RIFLE', 'SHOTGUN',
+                          'REVOLVER', 'MELEE', 'SWORD', 'AXE', 'KNIFE',
+                          'PIPE', 'LASER', 'PLASMA')
+        _ARMOR_KEYS    = ('ARMOR', 'ARMOUR', 'HELMET', 'CHESTPIECE',
+                          'GAUNTLET', 'GREAVE', 'BOOT', 'PAULDRON',
+                          'CUIRASS', 'CLOTHING', 'OUTFIT', 'WEARABLE')
+        _FURNITURE_KEYS = ('FURNITURE', 'CHAIR', 'BENCH', 'TABLE',
+                           'WORKBENCH', 'ACTIVATOR', 'SEAT', 'THRONE',
+                           'DESK', 'TERMINAL', 'CONSOLE')
+        if any(k in name_upper for k in _WEAPON_KEYS):
+            return 'WEAPON'
+        if any(k in name_upper for k in _ARMOR_KEYS):
+            return 'ARMOR'
+        if any(k in name_upper for k in _FURNITURE_KEYS):
+            return 'FURNITURE'
+
+        # 9. Default – the vast majority of mod assets.
+        return 'STATIC'
+
+    @staticmethod
+    def _apply_mesh_type_object_settings(obj, mesh_type):
+        """Configure per-mesh-type Niftools object properties before export.
+
+        Sets ``niftools.bsxflags`` (and related attributes) on the visual
+        mesh object so that Niftools emits a correctly-valued BSXFlags
+        NiExtraData block inside the NIF.  The collision pipeline may OR in
+        additional bits afterwards via ``_apply_collision_nif_properties``.
+
+        Also hints the root-node class for games/Niftools builds that expose
+        the ``niftools_scene.root_node_class`` property.
+
+        Parameters
+        ----------
+        obj : bpy.types.Object
+            The visual mesh object about to be exported.
+        mesh_type : str
+            One of the keys in ``_NIF_FO4_MESH_TYPE_SETTINGS``.
+        """
+        settings = _NIF_FO4_MESH_TYPE_SETTINGS.get(
+            mesh_type, _NIF_FO4_MESH_TYPE_SETTINGS['STATIC']
+        )
+        base_bsxflags = settings['bsxflags']
+
+        # ── 1. Set BSXFlags on the visual mesh object ───────────────────────
+        # Niftools emits a BSXFlags NiExtraData block only when the object's
+        # niftools.bsxflags (or equivalent) is non-zero.  Setting it here
+        # ensures the block is present when the mesh type requires it (e.g.
+        # FURNITURE needs Animated=1; ARCHITECTURE needs Has Havok=2).
+        nt = getattr(obj, 'niftools', None)
+        if nt is not None:
+            for flag_attr in ('bsxflags', 'bs_xflags', 'objectflags'):
+                try:
+                    current = int(getattr(nt, flag_attr, 0) or 0)
+                    setattr(nt, flag_attr, current | base_bsxflags)
+                    break
+                except (TypeError, AttributeError):
+                    continue
+
+        # ── 2. Hint the root node class when the property exists ────────────
+        root_hint = settings.get('root_node_hint', 'BSFadeNode')
+        try:
+            scene = bpy.context.scene
+            ns = getattr(scene, 'niftools_scene', None)
+            if ns is not None:
+                for attr in ('root_node_class', 'rootNodeClass', 'root_node_type'):
+                    if hasattr(ns, attr):
+                        try:
+                            setattr(ns, attr, root_hint)
+                        except (TypeError, AttributeError):
+                            pass
+                        break
+        except Exception:
+            pass
+
+    @staticmethod
+    def _postprocess_nif_mesh_type(filepath, mesh_type):
+        """Post-process a written NIF to enforce per-mesh-type FO4 settings.
+
+        Opens the NIF file with pyffi and patches:
+
+        * **BSXFlags blocks** – OR in the base BSXFlags value required for
+          this mesh type (e.g. Animated=1 for FURNITURE).  The collision
+          post-processor (``_postprocess_nif_set_collision``) may have already
+          patched Has-Havok bits; this call adds the type-specific bits on top.
+
+        * **BSLightingShaderProperty** – For VEGETATION meshes, ensures
+          ShaderFlags2 has the Two_Sided bit (0x10) set so that foliage leaf
+          quads are visible from both sides in-game.
+
+        Parameters
+        ----------
+        filepath : str
+            Absolute path to the NIF file that was just written.
+        mesh_type : str
+            One of the keys in ``_NIF_FO4_MESH_TYPE_SETTINGS``.
+        """
+        settings = _NIF_FO4_MESH_TYPE_SETTINGS.get(
+            mesh_type, _NIF_FO4_MESH_TYPE_SETTINGS['STATIC']
+        )
+        base_bsxflags  = settings['bsxflags']
+        sf2_flags      = settings['shader_flags_2']
+        needs_two_sided = settings['two_sided']
+
+        # Nothing to patch for the common STATIC case with no special flags.
+        if base_bsxflags == 0 and not needs_two_sided:
+            return
+
+        # ── Locate pyffi ────────────────────────────────────────────────────
+        NifFormat = None
+        for _pyffi_path in (
+            'pyffi.formats.nif',
+            'io_scene_niftools.dependencies.pyffi.formats.nif',
+        ):
+            try:
+                import importlib as _il
+                _mod = _il.import_module(_pyffi_path)
+                NifFormat = _mod.NifFormat
+                break
+            except (ImportError, AttributeError):
+                continue
+
+        if NifFormat is None:
+            return  # pyffi unavailable – skip gracefully
+
+        # ── Read NIF ────────────────────────────────────────────────────────
+        try:
+            data = NifFormat.Data()
+            with open(filepath, 'rb') as fh:
+                data.read(fh)
+        except Exception as exc:
+            print(f"[FO4 Add-on] _postprocess_nif_mesh_type: could not read "
+                  f"'{filepath}': {exc}")
+            return
+
+        modified = False
+
+        for block in data.blocks:
+
+            # BSXFlags – OR in the mesh-type base flags ─────────────────────
+            # The collision post-processor may have already set bits 1-3; we
+            # OR in the mesh-type bits (e.g. bit 0 = Animated for FURNITURE)
+            # without clearing anything that was set previously.
+            if isinstance(block, NifFormat.BSXFlags) and base_bsxflags:
+                try:
+                    block.integer_data = int(block.integer_data) | base_bsxflags
+                    modified = True
+                except Exception:
+                    pass
+
+            # BSLightingShaderProperty – patch ShaderFlags2 for vegetation ──
+            # The Two_Sided bit (0x10 in SF2) must be set for foliage so that
+            # leaf quads are rendered from both faces.  Without it, about half
+            # the plant's leaves will be invisible depending on view angle.
+            elif (
+                needs_two_sided
+                and type(block).__name__ == 'BSLightingShaderProperty'
+            ):
+                for sf2_attr in ('shader_flags_2', 'shaderFlags2'):
+                    sf2_obj = getattr(block, sf2_attr, None)
+                    if sf2_obj is None:
+                        continue
+                    # ShaderFlags2 may be a struct with an integer_data field
+                    # or a plain integer, depending on pyffi version.
+                    if hasattr(sf2_obj, 'integer_data'):
+                        try:
+                            sf2_obj.integer_data = int(sf2_obj.integer_data) | sf2_flags
+                            modified = True
+                        except Exception:
+                            pass
+                    else:
+                        try:
+                            setattr(block, sf2_attr,
+                                    int(sf2_obj) | sf2_flags)
+                            modified = True
+                        except Exception:
+                            pass
+                    break
+
+        # ── Write NIF back ───────────────────────────────────────────────────
+        if modified:
+            try:
+                with open(filepath, 'wb') as fh:
+                    data.write(fh)
+            except Exception as exc:
+                print(f"[FO4 Add-on] _postprocess_nif_mesh_type: could not "
+                      f"write '{filepath}': {exc}")
 
     @staticmethod
     def _apply_collision_nif_properties(collision_obj, collision_type):
@@ -823,16 +1244,17 @@ class ExportHelpers:
             pass
 
     @staticmethod
-    def _build_nif_export_kwargs(filepath):
+    def _build_nif_export_kwargs(filepath, mesh_type='STATIC'):
         """Assemble kwargs for the NIF exporter (Niftools v0.1.1).
 
-        Settings are derived from the active ``niftools_scene.game`` profile so
-        that any supported game produces a well-formed NIF without manual
-        configuration.  The full set of supported games and their correct NIF
-        version numbers is defined in ``_NIF_GAME_PROFILES`` at the top of this
-        module.
+        Settings are derived from two sources:
+          1. The active ``niftools_scene.game`` profile → NIF version numbers,
+             tangent-space flag, scale correction, skin-partition flag.
+          2. The ``mesh_type`` parameter → per-mesh-type overrides such as
+             ``flatten_skin`` and ``export_skin`` that vary between static
+             world objects, skinned armor, LOD meshes, vegetation, etc.
 
-        Fallout 4 (OG / NG / AE) requirements enforced here:
+        Fallout 4 (OG / NG / AE) base requirements enforced here:
           - NIF 20.2.0.7 / user_version 12 / user_version_2 (bsver) 130
             (authoritative values from niftools/nifxml nif.xml)
           - BSTriShape geometry nodes (selected by the FALLOUT_4 game profile)
@@ -840,10 +1262,31 @@ class ExportHelpers:
           - scale_correction=1.0 (1 Blender unit = 1 NIF unit)
           - apply_modifiers=True to bake the temporary Triangulate modifier
           - skin_partition=False (FO4 uses BSSubIndexTriShape, not old partitions)
+
+        Per-mesh-type overrides (from ``_NIF_FO4_MESH_TYPE_SETTINGS``):
+          - SKINNED/ARMOR: flatten_skin=False (preserve bone weights), and
+            export_skin=True hint when the operator supports it.
+          - VEGETATION:    alpha export enabled if operator supports it.
+          - FURNITURE/WEAPON: flatten_skin=False (same as default, but
+            explicit to guard against future default changes).
+
+        Parameters
+        ----------
+        filepath : str
+            Absolute output path for the NIF file.
+        mesh_type : str
+            One of the ``_NIF_FO4_MESH_TYPE_SETTINGS`` keys.  Defaults to
+            ``'STATIC'`` so callers that do not classify the mesh type get
+            safe, correct static-mesh settings.
         """
         kwargs = {
             "filepath": filepath,
         }
+
+        # Resolve the mesh-type settings record.
+        type_settings = _NIF_FO4_MESH_TYPE_SETTINGS.get(
+            mesh_type, _NIF_FO4_MESH_TYPE_SETTINGS['STATIC']
+        )
 
         # Determine the active game profile.
         try:
@@ -913,10 +1356,30 @@ class ExportHelpers:
             if "apply_modifiers" in prop_keys:
                 kwargs["apply_modifiers"] = True
 
-            # Static meshes do not need flattened skin; flatten_skin would
-            # corrupt vertex weights on rigged character meshes.
+            # ------------------------------------------------------------------
+            # flatten_skin – per-mesh-type setting.
+            # Must be False for all FO4 mesh types:
+            #   SKINNED/ARMOR: False preserves per-vertex bone weights so that
+            #     Niftools can build BSSubIndexTriShape + BSSkin::Instance.
+            #     True would collapse the mesh to world-space, destroying rig.
+            #   STATIC/LOD/VEGETATION/FURNITURE/WEAPON/ARCHITECTURE: False
+            #     because there are no weights to flatten; using True here
+            #     would be a no-op but could mask issues in edge cases.
+            # ------------------------------------------------------------------
             if "flatten_skin" in prop_keys:
-                kwargs["flatten_skin"] = False
+                kwargs["flatten_skin"] = type_settings.get('flatten_skin', False)
+
+            # ------------------------------------------------------------------
+            # export_skin – explicit skin-export hint for SKINNED / ARMOR.
+            # Niftools auto-detects skinning via armature parent, but setting
+            # this kwarg explicitly avoids silent failures in edge cases where
+            # the armature detection heuristic does not trigger.
+            # ------------------------------------------------------------------
+            if type_settings.get('export_skin', False):
+                for sk_key in ("export_skin", "exportSkin"):
+                    if sk_key in prop_keys:
+                        kwargs[sk_key] = True
+                        break
 
             # ------------------------------------------------------------------
             # Skin partition – enabled only for games that use NiSkinPartition
@@ -1419,6 +1882,9 @@ class ExportHelpers:
           - A UV map is created (smart-unwrapped) if the mesh has none.
           - A temporary Triangulate modifier is added when the mesh has quads /
             n-gons because FO4 BSTriShape nodes require triangles only.
+          - Per-mesh-type NIF settings (BSXFlags, shader flags, root node class,
+            skin-export hint) are applied automatically based on the object's
+            ``fo4_mesh_type`` property or auto-detected from the object.
 
         The Niftools/FBX exporters are notoriously sensitive to stray vertex
         groups.  If a mesh contains weights but isn't skinned to an armature the
@@ -1438,6 +1904,11 @@ class ExportHelpers:
         # reject meshes with orphaned weights
         if obj.vertex_groups and not ExportHelpers._has_armature(obj):
             return False, "Mesh has vertex groups but no armature – remove weights or parent to an armature before exporting"
+
+        # ── Classify the mesh type ───────────────────────────────────────────
+        # Determines which NIF export settings to apply (root node class,
+        # BSXFlags, shader flags, flatten_skin, etc.).
+        mesh_type = ExportHelpers._classify_fo4_mesh_type(obj)
 
         nif_available, nif_message = ExportHelpers.nif_exporter_available()
         from . import mesh_helpers as _mh
@@ -1480,6 +1951,12 @@ class ExportHelpers:
                 # the user never has to visit the scene tab manually.
                 ExportHelpers._apply_niftools_scene_settings()
 
+                # PRE-EXPORT: apply per-mesh-type Niftools object settings
+                # (BSXFlags on the visual mesh, root node class hint).
+                # This must run AFTER _apply_niftools_scene_settings so the
+                # game profile is already set before we tweak object flags.
+                ExportHelpers._apply_mesh_type_object_settings(obj, mesh_type)
+
                 # Apply Blender 4.x compatibility patches to niftools so that
                 # the missing face_maps API does not crash the export.
                 ExportHelpers._apply_niftools_blender4_compat_patches()
@@ -1487,16 +1964,16 @@ class ExportHelpers:
                 # removal, normals_split_custom_set_from_vertices removal, etc.)
                 ExportHelpers._apply_niftools_blender5_compat_patches()
 
-                kwargs = ExportHelpers._build_nif_export_kwargs(filepath)
+                kwargs = ExportHelpers._build_nif_export_kwargs(filepath, mesh_type)
                 result = bpy.ops.export_scene.nif(**kwargs)
 
                 if isinstance(result, set) and 'FINISHED' in result:
                     ctype = getattr(obj, 'fo4_collision_type', 'DEFAULT')
                     sound = obj.get("fo4_collision_sound")
                     weight = obj.get("fo4_collision_weight")
-                    extras = []
+                    extras = [f"type={mesh_type}"]
                     if ctype:
-                        extras.append(f"type={ctype}")
+                        extras.append(f"collision={ctype}")
                     if sound:
                         extras.append(f"sound={sound}")
                     if weight:
@@ -1520,12 +1997,25 @@ class ExportHelpers:
                                 f"(non-fatal): {_pp_exc}"
                             )
 
+                    # POST-EXPORT: apply per-mesh-type patches (BSXFlags base
+                    # value for FURNITURE/ARCHITECTURE, Two_Sided + alpha flags
+                    # for VEGETATION).  This runs after the collision patcher so
+                    # it can safely OR additional bits into existing BSXFlags.
+                    try:
+                        ExportHelpers._postprocess_nif_mesh_type(filepath, mesh_type)
+                    except Exception as _mt_exc:
+                        print(
+                            f"[FO4 Add-on] mesh-type post-process warning "
+                            f"(non-fatal): {_mt_exc}"
+                        )
+
                     # Send event to desktop tutorial server
                     try:
                         from . import desktop_tutorial_client
                         event_data = {
                             'mesh_name': obj.name,
                             'filepath': filepath,
+                            'mesh_type': mesh_type,
                             'extras': extras
                         }
                         desktop_tutorial_client.DesktopTutorialClient.send_event('mesh_exported', event_data)
@@ -1560,12 +2050,15 @@ class ExportHelpers:
 
         # ── Native NIF writer (second attempt) ───────────────────────────────
         # The native writer is a pure-Python Fallout 4 NIF serialiser that
-        # bypasses the Niftools Blender operator entirely.  It handles the
-        # common static-mesh case (BSFadeNode → BSTriShape → shader + textures)
-        # and produces a .nif that both FO4 and NifSkope can read.
+        # bypasses the Niftools Blender operator entirely.  It handles static
+        # and vegetation mesh types directly.  Skinned/armor meshes are
+        # deferred to the FBX fallback because they require BSSkin::Instance
+        # which the native writer does not yet support.
         try:
             from . import native_nif_writer
-            native_ok, native_msg = native_nif_writer.export_fo4_nif(obj, filepath)
+            native_ok, native_msg = native_nif_writer.export_fo4_nif(
+                obj, filepath, mesh_type=mesh_type
+            )
             if native_ok:
                 print(f"[FO4 Add-on] {native_msg}")
                 return True, native_msg
