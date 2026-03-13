@@ -43,6 +43,13 @@ def _load_shap_e_text_models(device):
     if _torch.device(device).type == 'cuda':
         xm.half()
         model.half()
+    # torch.compile() (PyTorch ≥ 2.0) fuses ops into optimized CUDA kernels,
+    # giving ~20-40 % faster inference.  The one-time compilation cost is paid
+    # here at cache-fill time, so all subsequent generation calls are fast.
+    if hasattr(_torch, 'compile') and _torch.device(device).type == 'cuda':
+        print("Compiling Shap-E text models with torch.compile() (one-time, ~30 s)…")
+        xm = _torch.compile(xm, mode="reduce-overhead")
+        model = _torch.compile(model, mode="reduce-overhead")
     _shap_e_text_models = {'xm': xm, 'model': model, 'diffusion': diffusion, 'device': device_str}
     print("Shap-E text models loaded and cached.")
     return _shap_e_text_models
@@ -75,6 +82,13 @@ def _load_shap_e_image_models(device):
     if _torch.device(device).type == 'cuda':
         xm.half()
         model.half()
+    # torch.compile() (PyTorch ≥ 2.0) fuses ops into optimized CUDA kernels,
+    # giving ~20-40 % faster inference.  The one-time compilation cost is paid
+    # here at cache-fill time, so all subsequent generation calls are fast.
+    if hasattr(_torch, 'compile') and _torch.device(device).type == 'cuda':
+        print("Compiling Shap-E image models with torch.compile() (one-time, ~30 s)…")
+        xm = _torch.compile(xm, mode="reduce-overhead")
+        model = _torch.compile(model, mode="reduce-overhead")
     _shap_e_image_models = {'xm': xm, 'model': model, 'diffusion': diffusion, 'device': device_str}
     print("Shap-E image models loaded and cached.")
     return _shap_e_image_models
@@ -171,7 +185,7 @@ For more info: https://github.com/openai/shap-e
 """
     
     @staticmethod
-    def generate_from_text(prompt, guidance_scale=15.0, num_inference_steps=64):
+    def generate_from_text(prompt, guidance_scale=15.0, num_inference_steps=32):
         """
         Generate 3D mesh from text prompt using Shap-E
         
@@ -250,7 +264,7 @@ For more info: https://github.com/openai/shap-e
             return False, f"Generation failed: {str(e)}"
     
     @staticmethod
-    def generate_from_image(image_path, guidance_scale=3.0, num_inference_steps=64):
+    def generate_from_image(image_path, guidance_scale=3.0, num_inference_steps=32):
         """
         Generate 3D mesh from image using Shap-E
         
@@ -410,7 +424,7 @@ def register():
     bpy.types.Scene.fo4_shap_e_inference_steps = IntProperty(
         name="Inference Steps",
         description="Number of generation steps (higher = better quality, slower)",
-        default=64,
+        default=32,
         min=16,
         max=256
     )
