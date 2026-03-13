@@ -4,6 +4,7 @@ Consolidates various image-to-3D solutions for Fallout 4 modding
 """
 
 import bpy
+import importlib.util
 import os
 import subprocess
 import shutil
@@ -37,7 +38,13 @@ class ImageTo3DHelpers:
     def _is_triposr_available_uncached():
         """Perform the actual (uncached) TripoSR availability check."""
         try:
-            import torch
+            # Use find_spec to detect torch without actually importing it —
+            # a full `import torch` can block the UI for several seconds on
+            # first load.  TripoSR requires torch at runtime, but we only need
+            # to know whether it is *installed* here.
+            if importlib.util.find_spec('torch') is None:
+                return False
+
             # Check for TripoSR installation
             possible_paths = [
                 os.path.expanduser('~/TripoSR'),
@@ -52,11 +59,10 @@ class ImageTo3DHelpers:
             
             # Check if installed as package
             try:
-                import importlib.util
                 spec = importlib.util.find_spec('tsr')
                 if spec:
                     return True
-            except:
+            except Exception:
                 pass
             
             return False

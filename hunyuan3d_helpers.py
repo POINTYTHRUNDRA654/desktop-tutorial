@@ -12,6 +12,7 @@ Installation:
 """
 
 import bpy
+import importlib.util
 import os
 import sys
 import tempfile
@@ -22,19 +23,11 @@ from pathlib import Path
 HUNYUAN3D_AVAILABLE = False
 HUNYUAN3D_ERROR = None
 
-try:
-    # Try to import the necessary dependencies
-    import torch
-    TORCH_AVAILABLE = True
-except FileNotFoundError as e:
-    TORCH_AVAILABLE = False
-    if "WinError 206" in str(e) or "filename or extension is too long" in str(e):
-        HUNYUAN3D_ERROR = "Windows path length error: PyTorch cannot load due to Windows MAX_PATH limitation. Enable long paths in Windows or reinstall PyTorch in a shorter path."
-    else:
-        HUNYUAN3D_ERROR = f"PyTorch file error: {str(e)}"
-except Exception:
-    TORCH_AVAILABLE = False
-    HUNYUAN3D_ERROR = "PyTorch not available (import failed or DLL initialization error)"
+# Use find_spec to detect torch without loading it — a full `import torch`
+# blocks the UI for several seconds on first load and is unnecessary here.
+TORCH_AVAILABLE = importlib.util.find_spec('torch') is not None
+if not TORCH_AVAILABLE:
+    HUNYUAN3D_ERROR = "PyTorch not available (not installed)"
 
 # We don't actually import Hunyuan3D here to keep the add-on lightweight
 # It will be imported dynamically when needed
@@ -78,7 +71,12 @@ def check_hunyuan3d_availability():
 def _check_hunyuan3d_availability_uncached():
     """Perform the actual (uncached) Hunyuan3D-2 availability check."""
     if not TORCH_AVAILABLE:
-        return False, "PyTorch not installed. Install with: pip install torch torchvision"
+        return False, (
+            "PyTorch not installed. Install with: pip install torch torchvision\n"
+            "Windows users: if PyTorch is installed but fails to load, enable long paths "
+            "(regedit → HKLM\\SYSTEM\\CurrentControlSet\\Control\\FileSystem → "
+            "LongPathsEnabled=1) or reinstall PyTorch to a shorter path."
+        )
 
     hunyuan_path = next(
         (p for p in _HUNYUAN_PATHS if os.path.exists(p) and os.path.isdir(p)),
