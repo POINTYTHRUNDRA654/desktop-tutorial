@@ -131,8 +131,9 @@ class FO4_PT_MeshPanel(Panel):
 
     def draw(self, context):
         layout = self.layout
+        scene = context.scene
 
-        unified = getattr(context.scene, "fo4_mesh_panel_unified", False)
+        unified = getattr(scene, "fo4_mesh_panel_unified", False)
 
         obj = context.active_object
         has_mesh = obj and obj.type == 'MESH'
@@ -147,12 +148,12 @@ class FO4_PT_MeshPanel(Panel):
             box.label(text="Mesh Helpers", icon='MESH_CUBE')
             box.operator("fo4.create_base_mesh", text="Create Base Mesh", icon='MESH_DATA')
             box.operator("fo4.optimize_mesh", text="Optimize for FO4", icon='MOD_DECIM')
-            if prefs:
+            if scene:
                 opt_sub = box.box()
                 opt_sub.label(text="Optimize Settings:", icon='PREFERENCES')
-                opt_sub.prop(prefs, "optimize_apply_transforms")
-                opt_sub.prop(prefs, "optimize_remove_doubles_threshold")
-                opt_sub.prop(prefs, "optimize_preserve_uvs")
+                opt_sub.prop(scene, "fo4_opt_apply_transforms")
+                opt_sub.prop(scene, "fo4_opt_doubles")
+                opt_sub.prop(scene, "fo4_opt_preserve_uvs")
             box.operator("fo4.validate_mesh", text="Validate Mesh", icon='CHECKMARK')
             box.operator("fo4.validate_export", text="Validate Before Export", icon='CHECKMARK')
             box.separator()
@@ -309,12 +310,12 @@ class FO4_PT_MeshPanel(Panel):
             box.label(text="Mesh Creation", icon='MESH_CUBE')
             box.operator("fo4.create_base_mesh", text="Create Base Mesh", icon='MESH_DATA')
             box.operator("fo4.optimize_mesh", text="Optimize for FO4", icon='MOD_DECIM')
-            if prefs:
+            if scene:
                 opt_sub = box.box()
                 opt_sub.label(text="Optimize Settings:", icon='PREFERENCES')
-                opt_sub.prop(prefs, "optimize_apply_transforms")
-                opt_sub.prop(prefs, "optimize_remove_doubles_threshold")
-                opt_sub.prop(prefs, "optimize_preserve_uvs")
+                opt_sub.prop(scene, "fo4_opt_apply_transforms")
+                opt_sub.prop(scene, "fo4_opt_doubles")
+                opt_sub.prop(scene, "fo4_opt_preserve_uvs")
             box.operator("fo4.validate_mesh", text="Validate Mesh", icon='CHECKMARK')
             box.operator("fo4.validate_export", text="Validate Before Export", icon='CHECKMARK')
 
@@ -1695,8 +1696,8 @@ class FO4_PT_Havok2FBXPanel(Panel):
         # ── Tool path ──────────────────────────────────────────────────────
         path_box = layout.box()
         path_box.label(text="Configure Havok2FBX", icon='FILE_FOLDER')
-        if prefs:
-            path_box.prop(prefs, "havok2fbx_path", text="Folder")
+        if scene:
+            path_box.prop(scene, "fo4_havok2fbx_path", text="Folder")
             row = path_box.row()
             row.operator("fo4.install_havok2fbx", text="Get Havok2FBX", icon='URL')
             row.operator("fo4.check_tool_paths", text="Check Paths", icon='INFO')
