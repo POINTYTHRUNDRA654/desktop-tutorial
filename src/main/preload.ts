@@ -561,6 +561,11 @@ const electronAPI: ElectronAPI = {
     ipcRenderer.on('notification', subscription);
     return () => ipcRenderer.removeListener('notification', subscription);
   },
+
+  // Web access — allows Mossy to fetch live information from the internet
+  // via the secure main-process HTTPS layer (renderer has no direct access).
+  webSearch: (query: string, type?: string) => ipcRenderer.invoke('web-search', query, type),
+  browseWeb: (url: string) => ipcRenderer.invoke('browse-web', url),
 };
 
 /**
