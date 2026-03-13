@@ -192,7 +192,7 @@ class RealESRGANHelpers:
         except Exception:
             return False, (
                 "Real-ESRGAN Python dependencies not installed or failed to load. "
-                "Install with: pip install realesrgan basicsr  "
+                "Install with: pip install realesrgan basicsr. "
                 "If already installed, check for version compatibility issues "
                 "(e.g. torchvision/torch version mismatch)."
             )
