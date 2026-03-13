@@ -215,15 +215,10 @@ def generate_mesh_from_text(prompt, output_path=None, resolution=256):
         import subprocess
         import glob
 
-        # Locate the Hunyuan3D-2 installation directory
-        possible_paths = [
-            os.path.expanduser("~/Hunyuan3D-2"),
-            os.path.expanduser("~/Projects/Hunyuan3D-2"),
-            "/opt/Hunyuan3D-2",
-            os.path.join(os.path.dirname(__file__), "..", "Hunyuan3D-2"),
-        ]
+        # Locate the Hunyuan3D-2 installation directory using the module-level
+        # canonical path list (avoids duplicating it here).
         hunyuan_path = next(
-            (p for p in possible_paths if os.path.isdir(p)), None
+            (p for p in _HUNYUAN_PATHS if os.path.isdir(p)), None
         )
 
         # Choose / create an output directory
@@ -288,14 +283,10 @@ def generate_mesh_from_image(image_path, output_path=None, resolution=256):
         import subprocess
         import glob
 
-        possible_paths = [
-            os.path.expanduser("~/Hunyuan3D-2"),
-            os.path.expanduser("~/Projects/Hunyuan3D-2"),
-            "/opt/Hunyuan3D-2",
-            os.path.join(os.path.dirname(__file__), "..", "Hunyuan3D-2"),
-        ]
+        # Locate the Hunyuan3D-2 installation directory using the module-level
+        # canonical path list (avoids duplicating it here).
         hunyuan_path = next(
-            (p for p in possible_paths if os.path.isdir(p)), None
+            (p for p in _HUNYUAN_PATHS if os.path.isdir(p)), None
         )
 
         if output_path is None:
