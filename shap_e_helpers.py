@@ -11,9 +11,40 @@ from bpy.props import StringProperty, EnumProperty, IntProperty, FloatProperty, 
 # Module-level model cache — models are expensive to load (several seconds),
 # so we keep them alive between generation calls and only reload when the
 # active compute device changes.
+#
+# The transmitter (xm) is shared between text and image pipelines — loading
+# it twice wastes VRAM and initialization time when both modes are used in
+# the same session.
 # ---------------------------------------------------------------------------
-_shap_e_text_models = None   # dict: {xm, model, diffusion, device}
-_shap_e_image_models = None  # dict: {xm, model, diffusion, device}
+_shap_e_transmitter = None   # dict: {xm, device}  -- shared between text & image
+_shap_e_text_models = None   # dict: {model, diffusion, device}
+_shap_e_image_models = None  # dict: {model, diffusion, device}
+
+
+def _load_shap_e_transmitter(device, torch_module):
+    """Load (or return cached) the shared Shap-E transmitter (xm).
+
+    The transmitter is used by both text-to-3D and image-to-3D for decoding
+    latents into meshes, so it is cached once and reused across both pipelines.
+    """
+    global _shap_e_transmitter
+    device_str = str(torch_module.device(device))
+    if _shap_e_transmitter is not None and _shap_e_transmitter['device'] == device_str:
+        return _shap_e_transmitter
+
+    from shap_e.models.download import load_model
+
+    print("Loading Shap-E transmitter (shared, first use or device change)…")
+    xm = load_model('transmitter', device=device)
+    xm.eval()
+    if torch_module.device(device).type == 'cuda':
+        xm.half()
+    if hasattr(torch_module, 'compile') and torch_module.device(device).type == 'cuda':
+        print("Compiling Shap-E transmitter with torch.compile() (one-time, ~15 s)…")
+        xm = torch_module.compile(xm, mode="reduce-overhead")
+    _shap_e_transmitter = {'xm': xm, 'device': device_str}
+    print("Shap-E transmitter loaded and cached.")
+    return _shap_e_transmitter
 
 
 def _load_shap_e_text_models(device):
@@ -21,37 +52,38 @@ def _load_shap_e_text_models(device):
 
     Models are cached by device string.  If the user switches between CPU and
     GPU the cache is invalidated and models are reloaded on the new device.
+    The transmitter is shared with the image pipeline via _load_shap_e_transmitter.
     """
     global _shap_e_text_models
     import torch as _torch
     device_str = str(_torch.device(device))
     if _shap_e_text_models is not None and _shap_e_text_models['device'] == device_str:
+        # Ensure the shared transmitter is also warm for this device.
+        _load_shap_e_transmitter(device, _torch)
         return _shap_e_text_models
 
     from shap_e.diffusion.gaussian_diffusion import diffusion_from_config
     from shap_e.models.download import load_model, load_config
 
-    print("Loading Shap-E text models (first use or device change)…")
-    xm = load_model('transmitter', device=device)
+    print("Loading Shap-E text model (first use or device change)…")
+    # Load the shared transmitter first (cached after first call).
+    _load_shap_e_transmitter(device, _torch)
     model = load_model('text300M', device=device)
     diffusion = diffusion_from_config(load_config('diffusion'))
     # Eval mode disables Dropout / BatchNorm training-time overhead.
-    xm.eval()
     model.eval()
     # Pre-convert to half precision on CUDA to halve GPU memory bandwidth and
     # avoid per-step autocast conversion overhead.
     if _torch.device(device).type == 'cuda':
-        xm.half()
         model.half()
     # torch.compile() (PyTorch ≥ 2.0) fuses ops into optimized CUDA kernels,
     # giving ~20-40 % faster inference.  The one-time compilation cost is paid
     # here at cache-fill time, so all subsequent generation calls are fast.
     if hasattr(_torch, 'compile') and _torch.device(device).type == 'cuda':
-        print("Compiling Shap-E text models with torch.compile() (one-time, ~30 s)…")
-        xm = _torch.compile(xm, mode="reduce-overhead")
+        print("Compiling Shap-E text300M with torch.compile() (one-time, ~20 s)…")
         model = _torch.compile(model, mode="reduce-overhead")
-    _shap_e_text_models = {'xm': xm, 'model': model, 'diffusion': diffusion, 'device': device_str}
-    print("Shap-E text models loaded and cached.")
+    _shap_e_text_models = {'model': model, 'diffusion': diffusion, 'device': device_str}
+    print("Shap-E text model loaded and cached.")
     return _shap_e_text_models
 
 
@@ -60,37 +92,38 @@ def _load_shap_e_image_models(device):
 
     Models are cached by device string.  If the user switches between CPU and
     GPU the cache is invalidated and models are reloaded on the new device.
+    The transmitter is shared with the text pipeline via _load_shap_e_transmitter.
     """
     global _shap_e_image_models
     import torch as _torch
     device_str = str(_torch.device(device))
     if _shap_e_image_models is not None and _shap_e_image_models['device'] == device_str:
+        # Ensure the shared transmitter is also warm for this device.
+        _load_shap_e_transmitter(device, _torch)
         return _shap_e_image_models
 
     from shap_e.diffusion.gaussian_diffusion import diffusion_from_config
     from shap_e.models.download import load_model, load_config
 
-    print("Loading Shap-E image models (first use or device change)…")
-    xm = load_model('transmitter', device=device)
+    print("Loading Shap-E image model (first use or device change)…")
+    # Load the shared transmitter first (cached after first call).
+    _load_shap_e_transmitter(device, _torch)
     model = load_model('image300M', device=device)
     diffusion = diffusion_from_config(load_config('diffusion'))
     # Eval mode disables Dropout / BatchNorm training-time overhead.
-    xm.eval()
     model.eval()
     # Pre-convert to half precision on CUDA to halve GPU memory bandwidth and
     # avoid per-step autocast conversion overhead.
     if _torch.device(device).type == 'cuda':
-        xm.half()
         model.half()
     # torch.compile() (PyTorch ≥ 2.0) fuses ops into optimized CUDA kernels,
     # giving ~20-40 % faster inference.  The one-time compilation cost is paid
     # here at cache-fill time, so all subsequent generation calls are fast.
     if hasattr(_torch, 'compile') and _torch.device(device).type == 'cuda':
-        print("Compiling Shap-E image models with torch.compile() (one-time, ~30 s)…")
-        xm = _torch.compile(xm, mode="reduce-overhead")
+        print("Compiling Shap-E image300M with torch.compile() (one-time, ~20 s)…")
         model = _torch.compile(model, mode="reduce-overhead")
-    _shap_e_image_models = {'xm': xm, 'model': model, 'diffusion': diffusion, 'device': device_str}
-    print("Shap-E image models loaded and cached.")
+    _shap_e_image_models = {'model': model, 'diffusion': diffusion, 'device': device_str}
+    print("Shap-E image model loaded and cached.")
     return _shap_e_image_models
 
 
@@ -208,9 +241,11 @@ For more info: https://github.com/openai/shap-e
             device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
             print(f"Using device: {device}")
             
-            # Load models (cached after first call — avoids expensive reload each time)
+            # Load models (cached after first call — avoids expensive reload each time).
+            # xm (transmitter) is shared with the image pipeline to avoid holding it
+            # twice in VRAM when both text and image generation are used in one session.
             cached = _load_shap_e_text_models(device)
-            xm = cached['xm']
+            xm = _shap_e_transmitter['xm']
             model = cached['model']
             diffusion = cached['diffusion']
             
@@ -291,9 +326,11 @@ For more info: https://github.com/openai/shap-e
             # Load image
             image = Image.open(image_path)
             
-            # Load models (cached after first call — avoids expensive reload each time)
+            # Load models (cached after first call — avoids expensive reload each time).
+            # xm (transmitter) is shared with the text pipeline to avoid holding it
+            # twice in VRAM when both text and image generation are used in one session.
             cached = _load_shap_e_image_models(device)
-            xm = cached['xm']
+            xm = _shap_e_transmitter['xm']
             model = cached['model']
             diffusion = cached['diffusion']
             

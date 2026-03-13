@@ -9557,16 +9557,18 @@ class FO4_OT_GeneratePointEText(Operator):
         if not prompt:
             self.report({'ERROR'}, "Please enter a text prompt")
             return {'CANCELLED'}
-        
+
         num_samples = scene.fo4_point_e_num_samples
         grid_size = int(scene.fo4_point_e_grid_size)
         method = scene.fo4_point_e_reconstruction_method
+        num_steps = scene.fo4_point_e_inference_steps
 
         def _run():
             success, result = point_e_helpers.PointEHelpers.generate_from_text(
                 prompt,
                 num_samples=num_samples,
-                grid_size=grid_size
+                grid_size=grid_size,
+                num_steps=num_steps,
             )
 
             def _finish():
@@ -9629,11 +9631,15 @@ class FO4_OT_GeneratePointEImage(Operator):
         
         num_samples = scene.fo4_point_e_num_samples
         method = scene.fo4_point_e_reconstruction_method
+        grid_size = int(scene.fo4_point_e_grid_size)
+        num_steps = scene.fo4_point_e_inference_steps
 
         def _run():
             success, result = point_e_helpers.PointEHelpers.generate_from_image(
                 image_path,
-                num_samples=num_samples
+                num_samples=num_samples,
+                grid_size=grid_size,
+                num_steps=num_steps,
             )
 
             def _finish():
