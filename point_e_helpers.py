@@ -5,14 +5,33 @@ Generates 3D point clouds that can be converted to meshes
 """
 
 import bpy
+import time
 from bpy.props import StringProperty, EnumProperty, IntProperty, FloatProperty, BoolProperty
 
 class PointEHelpers:
     """Helper functions for Point-E integration"""
+
+    # Cache for is_point_e_installed() — avoids repeated torch/point_e import attempts
+    # on every Blender UI redraw.
+    _cache = None
+    _cache_time = 0.0
+    _CACHE_TTL = 5.0  # seconds
     
     @staticmethod
     def is_point_e_installed():
-        """Check if Point-E is installed"""
+        """Check if Point-E is installed (result cached for 5 s)."""
+        now = time.monotonic()
+        if (PointEHelpers._cache is not None and
+                (now - PointEHelpers._cache_time) < PointEHelpers._CACHE_TTL):
+            return PointEHelpers._cache
+        result = PointEHelpers._is_point_e_installed_uncached()
+        PointEHelpers._cache = result
+        PointEHelpers._cache_time = now
+        return result
+
+    @staticmethod
+    def _is_point_e_installed_uncached():
+        """Perform the actual (uncached) Point-E installation check."""
         try:
             # Try to use TorchPathManager if available
             try:

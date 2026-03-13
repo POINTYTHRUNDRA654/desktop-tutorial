@@ -32,6 +32,9 @@ addon_updater = _safe_import("addon_updater")
 realesrgan_helpers = _safe_import("realesrgan_helpers")
 instantngp_helpers = _safe_import("instantngp_helpers")
 imageto3d_helpers = _safe_import("imageto3d_helpers")
+zoedepth_helpers = _safe_import("zoedepth_helpers")
+shap_e_helpers = _safe_import("shap_e_helpers")
+point_e_helpers = _safe_import("point_e_helpers")
 motion_generation_helpers = _safe_import("motion_generation_helpers")
 fo4_material_browser  = _safe_import("fo4_material_browser")
 fo4_scene_diagnostics = _safe_import("fo4_scene_diagnostics")
@@ -519,8 +522,7 @@ class FO4_PT_ImageToMeshPanel(Panel):
         box.operator("fo4.apply_displacement_map", text="Apply Displacement Map", icon='TEXTURE')
         
         # ZoeDepth section
-        from . import zoedepth_helpers
-        available, _ = zoedepth_helpers.check_zoedepth_availability()
+        available, _ = zoedepth_helpers.check_zoedepth_availability() if zoedepth_helpers else (False, "")
         
         depth_box = layout.box()
         depth_box.label(text="Depth Estimation (ZoeDepth)", icon='CAMERA_DATA')
@@ -705,8 +707,7 @@ class FO4_PT_AIGenerationPanel(Panel):
         shap_e_box = layout.box()
         shap_e_box.label(text="Shap-E (Text/Image to 3D)", icon='MESH_ICOSPHERE')
 
-        from . import shap_e_helpers
-        shap_e_installed, shap_e_msg = shap_e_helpers.ShapEHelpers.is_shap_e_installed()
+        shap_e_installed, shap_e_msg = shap_e_helpers.ShapEHelpers.is_shap_e_installed() if shap_e_helpers else (False, "")
 
         if shap_e_installed:
             shap_e_box.label(text="Status: Installed ✓", icon='CHECKMARK')
@@ -741,8 +742,7 @@ class FO4_PT_AIGenerationPanel(Panel):
         point_e_box = layout.box()
         point_e_box.label(text="Point-E (Text/Image to Point Cloud)", icon='OUTLINER_OB_POINTCLOUD')
 
-        from . import point_e_helpers
-        point_e_installed, point_e_msg = point_e_helpers.PointEHelpers.is_point_e_installed()
+        point_e_installed, point_e_msg = point_e_helpers.PointEHelpers.is_point_e_installed() if point_e_helpers else (False, "")
 
         if point_e_installed:
             point_e_box.label(text="Status: Installed ✓", icon='CHECKMARK')

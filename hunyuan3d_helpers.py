@@ -15,6 +15,7 @@ import bpy
 import os
 import sys
 import tempfile
+import time
 from pathlib import Path
 
 # Check if Hunyuan3D-2 is available
@@ -39,7 +40,6 @@ except Exception:
 # It will be imported dynamically when needed
 
 
-
 # Single source of truth for Hunyuan3D-2 installation locations.
 _HUNYUAN_PATHS = [
     os.path.expanduser("~/Hunyuan3D-2"),
@@ -48,14 +48,35 @@ _HUNYUAN_PATHS = [
     os.path.join(os.path.dirname(__file__), "..", "Hunyuan3D-2"),
 ]
 
+# Cache for check_hunyuan3d_availability() — avoids filesystem hits on every UI redraw.
+_hunyuan_availability_cache = None
+_hunyuan_availability_cache_time = 0.0
+_CACHE_TTL = 5.0  # seconds
+
 
 def check_hunyuan3d_availability():
     """
     Check if Hunyuan3D-2 is installed and available.
+
+    Results are cached for _CACHE_TTL seconds so that repeated calls from
+    Blender's UI draw() loop do not hammer the filesystem on every redraw.
     
     Returns:
         tuple: (available: bool, message: str)
     """
+    global _hunyuan_availability_cache, _hunyuan_availability_cache_time
+    now = time.monotonic()
+    if (_hunyuan_availability_cache is not None and
+            (now - _hunyuan_availability_cache_time) < _CACHE_TTL):
+        return _hunyuan_availability_cache
+    result = _check_hunyuan3d_availability_uncached()
+    _hunyuan_availability_cache = result
+    _hunyuan_availability_cache_time = now
+    return result
+
+
+def _check_hunyuan3d_availability_uncached():
+    """Perform the actual (uncached) Hunyuan3D-2 availability check."""
     if not TORCH_AVAILABLE:
         return False, "PyTorch not installed. Install with: pip install torch torchvision"
 
