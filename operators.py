@@ -2787,6 +2787,23 @@ class FO4_OT_InstallNiftools(Operator):
     )
 
     def execute(self, context):
+        # Niftools v0.1.1 is not compatible with Blender 5.x or later.
+        # The extension system and API changes in Blender 5 make the add-on
+        # non-functional.  Attempting to install it would silently fail or
+        # produce confusing errors, so we abort with a clear message here.
+        if bpy.app.version >= (5, 0, 0):
+            msg = (
+                "Niftools v0.1.1 is NOT compatible with Blender 5.x. "
+                "To export NIF files, use Blender 3.6 LTS with Niftools v0.1.1, "
+                "or export to FBX and convert with Cathedral Assets Optimizer."
+            )
+            self.report({'ERROR'}, msg)
+            notification_system.FO4_NotificationSystem.notify(
+                "Niftools not supported on Blender 5.x — use Blender 3.6 LTS or FBX workflow",
+                'ERROR'
+            )
+            return {'CANCELLED'}
+
         import threading
         from . import tool_installers
         blender_version = self.blender_version

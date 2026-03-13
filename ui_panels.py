@@ -75,10 +75,15 @@ class FO4_PT_MainPanel(Panel):
         elif bv < (4, 1, 0):
             compat_box.label(text="✓ NIF export: FBX fallback (Niftools needs Blender 3.6)", icon='INFO')
             compat_box.label(text="  Export .fbx and convert with Cathedral Assets Optimizer.")
-        else:
-            # 4.1+ — use_auto_smooth removed; FBX-only NIF path
+        elif bv < (5, 0, 0):
+            # 4.1–4.x — use_auto_smooth removed; FBX-only NIF path
             compat_box.label(text="✓ NIF export: FBX fallback (Niftools needs Blender 3.6)", icon='INFO')
             compat_box.label(text="  Shade-by-angle is automatic in Blender 4.1+.")
+        else:
+            # 5.0+ — Niftools v0.1.1 is NOT compatible with Blender 5.x
+            compat_box.label(text="⚠ Niftools v0.1.1 NOT compatible with Blender 5.x", icon='ERROR')
+            compat_box.label(text="  NIF export: use Blender 3.6 LTS + Niftools v0.1.1,")
+            compat_box.label(text="  or export FBX → Cathedral Assets Optimizer → NIF.")
 
         # ── Tutorial section ─────────────────────────────────────────────────
         box = layout.box()
@@ -91,8 +96,13 @@ class FO4_PT_MainPanel(Panel):
         hint.label(text="Setup / First-time Use", icon='INFO')
         hint.label(text="1. Open the 'Setup & Status' tab below.")
         hint.label(text="2. Install missing Python packages if prompted.")
-        hint.label(text="3. Install Niftools v0.1.1 (Blender 3.6 LTS only).")
-        hint.label(text="   OR use FBX export + Cathedral Assets Optimizer.")
+        if bv >= (5, 0, 0):
+            hint.label(text="3. ⚠ Niftools NOT supported on Blender 5.x.", icon='ERROR')
+            hint.label(text="   Use FBX export + Cathedral Assets Optimizer.")
+            hint.label(text="   OR use Blender 3.6 LTS for NIF export.")
+        else:
+            hint.label(text="3. Install Niftools v0.1.1 (Blender 3.6 LTS only).")
+            hint.label(text="   OR use FBX export + Cathedral Assets Optimizer.")
         hint.label(text="4. Restart Blender after installing add-ons/tools.")
         
         # Notifications
@@ -1271,7 +1281,13 @@ class FO4_PT_ToolsLinks(Panel):
         box.operator("fo4.install_nvtt", text="Install NVTT (nvcompress)", icon='FILE_REFRESH')
         box.operator("fo4.install_texconv", text="Install texconv", icon='FILE_REFRESH')
         box.operator("fo4.install_whisper", text="Install Whisper CLI", icon='FILE_REFRESH')
-        box.operator("fo4.install_niftools", text="Install Niftools Add-on", icon='FILE_REFRESH')
+        if bpy.app.version >= (5, 0, 0):
+            nif_row = box.box()
+            nif_row.label(text="⚠ Niftools NOT compatible with Blender 5.x", icon='ERROR')
+            nif_row.label(text="Use Blender 3.6 LTS for NIF export, or:")
+            nif_row.label(text="FBX export → Cathedral Assets Optimizer → NIF")
+        else:
+            box.operator("fo4.install_niftools", text="Install Niftools Add-on", icon='FILE_REFRESH')
         # Python requirements
         op = box.operator("fo4.install_python_deps", text="Install Python Requirements", icon='FILE_REFRESH')
         if op is not None:

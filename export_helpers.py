@@ -667,9 +667,21 @@ class ExportHelpers:
             return False, f"bpy.ops.export_scene missing (Blender {version_str})"
 
         if not hasattr(export_scene, "nif"):
+            if blender_version >= (5, 0, 0):
+                return False, (
+                    "Niftools v0.1.1 is not compatible with Blender 5.x. "
+                    "Use Blender 3.6 LTS for NIF export, or export FBX and "
+                    "convert with Cathedral Assets Optimizer."
+                )
             if blender_version >= (4, 0, 0):
                 return False, "Niftools exporter not registered; official v0.1.1 targets Blender ≤3.6. Install a 4.x-compatible fork or use 3.6 for export."
             return False, "Niftools exporter not registered"
+
+        # Exporter IS registered — give a version-appropriate status message.
+        # (Reaching here on Blender 5.x would mean the user somehow force-installed
+        # Niftools v0.1.1 despite it not being officially supported.)
+        if blender_version >= (5, 0, 0):
+            return True, "Niftools exporter detected on Blender 5.x (not officially supported; expect instability)"
 
         if blender_version >= (4, 0, 0):
             return True, "Niftools exporter detected on Blender 4.x (ensure compatibility; experimental)"
