@@ -37,7 +37,7 @@ class GET3DHelpers:
                     return True
             
             return False
-        except ImportError:
+        except (ImportError, OSError):
             return False
     
     @staticmethod
@@ -68,7 +68,7 @@ class GET3DHelpers:
             import torch
             has_torch = True
             cuda_available = torch.cuda.is_available()
-        except ImportError:
+        except (ImportError, OSError):
             has_torch = False
             cuda_available = False
         
@@ -127,7 +127,7 @@ class GET3DHelpers:
 
         try:
             import torch  # noqa: F401 – presence check
-        except ImportError:
+        except (ImportError, OSError):
             return False, "PyTorch not installed", []
 
         # Create output directory

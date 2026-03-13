@@ -41,7 +41,7 @@ class ImageTo3DHelpers:
                 pass
             
             return False
-        except (ImportError, FileNotFoundError):
+        except (ImportError, OSError):
             return False
     
     @staticmethod
@@ -69,7 +69,7 @@ class ImageTo3DHelpers:
             import torch
             has_torch = True
             cuda_available = torch.cuda.is_available()
-        except (ImportError, FileNotFoundError):
+        except (ImportError, OSError):
             has_torch = False
             cuda_available = False
         
@@ -197,7 +197,7 @@ class ImageTo3DHelpers:
             import torch
             has_torch = True
             cuda_available = torch.cuda.is_available()
-        except (ImportError, FileNotFoundError):
+        except (ImportError, OSError):
             has_torch = False
             cuda_available = False
         
@@ -520,7 +520,7 @@ See README.md for Fallout 4 modding guide.
                     return True
             
             return False
-        except (ImportError, FileNotFoundError):
+        except (ImportError, OSError):
             return False
     
     @staticmethod
@@ -547,7 +547,7 @@ See README.md for Fallout 4 modding guide.
             import torch
             has_torch = True
             cuda_available = torch.cuda.is_available()
-        except (ImportError, FileNotFoundError):
+        except (ImportError, OSError):
             has_torch = False
             cuda_available = False
         
@@ -596,7 +596,7 @@ See README.md for Fallout 4 modding guide.
         try:
             import shap_e
             return True
-        except (ImportError, FileNotFoundError):
+        except (ImportError, OSError):
             return False
     
     @staticmethod
@@ -800,7 +800,7 @@ See NVIDIA_RESOURCES.md for detailed setup instructions.
             import torch
             has_torch = True
             cuda_available = torch.cuda.is_available()
-        except (ImportError, FileNotFoundError):
+        except (ImportError, OSError):
             has_torch = False
             cuda_available = False
         
@@ -861,7 +861,7 @@ See NVIDIA_RESOURCES.md for detailed setup instructions.
             import torch
             has_torch = True
             cuda_available = torch.cuda.is_available()
-        except (ImportError, FileNotFoundError):
+        except (ImportError, OSError):
             has_torch = False
             cuda_available = False
         
@@ -1311,7 +1311,7 @@ See NVIDIA_RESOURCES.md for more AI tools.
             import torch
             has_torch = True
             cuda_available = torch.cuda.is_available()
-        except (ImportError, FileNotFoundError):
+        except (ImportError, OSError):
             has_torch = False
             cuda_available = False
         
@@ -1793,7 +1793,7 @@ See NVIDIA_RESOURCES.md for all AI tools.
             import torch
             has_torch = True
             cuda_available = torch.cuda.is_available()
-        except (ImportError, FileNotFoundError):
+        except (ImportError, OSError):
             has_torch = False
             cuda_available = False
         
@@ -2419,7 +2419,7 @@ See NVIDIA_RESOURCES.md for all AI tools.
             import torch
             has_torch = True
             cuda_available = torch.cuda.is_available()
-        except (ImportError, FileNotFoundError):
+        except (ImportError, OSError):
             has_torch = False
             cuda_available = False
         
@@ -2476,7 +2476,7 @@ See NVIDIA_RESOURCES.md for all AI tools.
             import diffusers
             has_diffusers = True
             diffusers_version = diffusers.__version__
-        except (ImportError, FileNotFoundError):
+        except (ImportError, OSError):
             has_diffusers = False
             diffusers_version = None
         
@@ -2484,7 +2484,7 @@ See NVIDIA_RESOURCES.md for all AI tools.
             import torch
             has_torch = True
             cuda_available = torch.cuda.is_available()
-        except (ImportError, FileNotFoundError):
+        except (ImportError, OSError):
             has_torch = False
             cuda_available = False
         
@@ -3107,7 +3107,7 @@ See NVIDIA_RESOURCES.md for all AI tools.
             import torch
             has_torch = True
             cuda_available = torch.cuda.is_available()
-        except (ImportError, FileNotFoundError):
+        except (ImportError, OSError):
             has_torch = False
             cuda_available = False
         
@@ -3213,7 +3213,7 @@ See NVIDIA_RESOURCES.md for all AI tools.
             import torch
             has_torch = True
             cuda_available = torch.cuda.is_available()
-        except (ImportError, FileNotFoundError):
+        except (ImportError, OSError):
             has_torch = False
             cuda_available = False
         

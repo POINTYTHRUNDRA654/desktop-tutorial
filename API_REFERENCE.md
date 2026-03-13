@@ -652,7 +652,7 @@ Convert an image to a 3D mesh using height map technique.
 - `displacement_strength` (float): Z-axis displacement strength (default: 0.5)
 - `subdivisions` (int): Number of subdivisions, 0=auto (default: 0)
 
-**Supported Formats:** PNG, JPG, JPEG, BMP, TIFF, TIF, TGA
+**Supported Formats:** PNG, JPG, JPEG, BMP, TIFF, TIF, TGA, EXR
 
 **Example:**
 ```python

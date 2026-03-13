@@ -82,7 +82,7 @@ class InstantNGPHelpers:
                 else:
                     msg += "CUDA: Not available\n"
                     msg += "⚠️ Instant-NGP requires NVIDIA GPU with CUDA"
-            except ImportError:
+            except (ImportError, OSError):
                 msg += "PyTorch: Not installed (optional for checking CUDA)\n"
             
             return True, msg
