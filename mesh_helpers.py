@@ -17,7 +17,8 @@ class MeshHelpers:
         ('ROCK', 'Rock', 'Rough rock-style collision'),
         ('TREE', 'Tree', 'Hollow/branching tree collision'),
         ('BUILDING', 'Building', 'Large static structure collision'),
-        ('GRASS', 'Grass', 'No collision (thin vegetation)'),
+        ('VEGETATION', 'Vegetation', 'Custom collision for trees/bushes that need a collision footprint (simplified convex hull)'),
+        ('GRASS', 'Grass', 'No collision (thin ground-cover vegetation)'),
         ('MUSHROOM', 'Mushroom', 'No collision (small decorative)'),
         ('CREATURE', 'Creature', 'Use Havok tools (capsule/convex)')
     ]
@@ -27,6 +28,7 @@ class MeshHelpers:
         'ROCK': 0.5,
         'TREE': 0.2,
         'BUILDING': 0.15,  # less aggressive simplification for structures
+        'VEGETATION': 0.1, # very aggressive for organic shapes — produces a simple hull footprint
         'GRASS': 1.0,      # no simplification needed since we skip
         'MUSHROOM': 1.0,
         'CREATURE': 1.0,   # creatures typically use external physics shapes
@@ -39,6 +41,7 @@ class MeshHelpers:
         'ROCK': 'stone_hit',
         'TREE': 'wood_hit',
         'BUILDING': 'stone_hit',
+        'VEGETATION': 'wood_hit',
         'GRASS': 'grass_step',
         'MUSHROOM': 'grass_step',
         'CREATURE': 'flesh_hit',
@@ -49,6 +52,7 @@ class MeshHelpers:
         'ROCK': 'heavy',
         'TREE': 'medium',
         'BUILDING': 'heavy',
+        'VEGETATION': 'light',
         'GRASS': 'light',
         'MUSHROOM': 'light',
         'CREATURE': 'variable',
@@ -60,14 +64,17 @@ class MeshHelpers:
     # mass is always 0.0 for FO4 static (PASSIVE) bodies; a non-zero mass on
     # a PASSIVE body confuses Niftools and produces wrong motionSystem flags.
     _TYPE_PHYSICS_PRESETS = {
-        'DEFAULT':  {'friction': 0.8, 'restitution': 0.1},
-        'ROCK':     {'friction': 0.9, 'restitution': 0.05},
-        'TREE':     {'friction': 0.7, 'restitution': 0.2},
-        'BUILDING': {'friction': 0.9, 'restitution': 0.05},
-        'GRASS':    {'friction': 0.5, 'restitution': 0.05},
-        'MUSHROOM': {'friction': 0.5, 'restitution': 0.1},
-        'CREATURE': {'friction': 0.5, 'restitution': 0.2},
-        'NONE':     {'friction': 0.5, 'restitution': 0.1},
+        'DEFAULT':    {'friction': 0.8, 'restitution': 0.1},
+        'ROCK':       {'friction': 0.9, 'restitution': 0.05},
+        'TREE':       {'friction': 0.7, 'restitution': 0.2},
+        'BUILDING':   {'friction': 0.9, 'restitution': 0.05},
+        # VEGETATION: matches FO4 bush/shrub collision feel — low friction so
+        # the player slides past naturally, small bounce for organic give.
+        'VEGETATION': {'friction': 0.6, 'restitution': 0.15},
+        'GRASS':      {'friction': 0.5, 'restitution': 0.05},
+        'MUSHROOM':   {'friction': 0.5, 'restitution': 0.1},
+        'CREATURE':   {'friction': 0.5, 'restitution': 0.2},
+        'NONE':       {'friction': 0.5, 'restitution': 0.1},
     }
 
     @staticmethod
@@ -86,6 +93,8 @@ class MeshHelpers:
             return 'TREE'
         if any(w in name for w in ['house', 'building', 'wall', 'door']):
             return 'BUILDING'
+        if any(w in name for w in ['bush', 'shrub', 'foliage', 'plant', 'vegeta']):
+            return 'VEGETATION'
         if any(w in name for w in ['grass', 'blade', 'fern']):
             return 'GRASS'
         if 'mushroom' in name:

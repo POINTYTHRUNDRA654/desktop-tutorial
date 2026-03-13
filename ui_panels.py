@@ -136,6 +136,7 @@ class FO4_PT_MeshPanel(Panel):
 
         obj = context.active_object
         has_mesh = obj and obj.type == 'MESH'
+        prefs = preferences.get_preferences() if preferences else None
 
         if unified:
             # ── Full FO4 Pipeline (one-click) ────────────────────────────
@@ -169,6 +170,25 @@ class FO4_PT_MeshPanel(Panel):
             row.operator("fo4.export_mesh_with_collision", text="Generate + Export NIF", icon='EXPORT')
             box.separator()
 
+            # ── LOD Meshes ─────────────────────────────────────────────
+            box.label(text="LOD Meshes (Level of Detail)", icon='OUTLINER_OB_MESH')
+            sub = box.column(align=True)
+            sub.scale_y = 0.75
+            sub.label(text="FO4 uses LOD0 (close) → LOD4 (far) as separate NIFs", icon='INFO')
+            sub.label(text="Source object = LOD0 · Generates LOD1–LOD4 copies", icon='INFO')
+            box.separator()
+            row = box.row()
+            row.enabled = has_mesh
+            row.scale_y = 1.3
+            row.operator("fo4.generate_lod", text="Generate LOD Chain", icon='OUTLINER_OB_MESH')
+            row = box.row()
+            row.enabled = has_mesh
+            row.operator("fo4.generate_lod_and_collision", text="Generate LOD + Collision", icon='SHADERFX')
+            row = box.row()
+            row.enabled = has_mesh
+            row.operator("fo4.export_lod_chain_as_nif", text="Export LOD Chain as NIF", icon='EXPORT')
+            box.separator()
+
             # ── Advanced Mesh Tools ─────────────────────────────────────
             box.label(text="Advanced Mesh Tools", icon='MODIFIER')
             box.operator("fo4.analyze_mesh_quality", text="Analyze Quality", icon='INFO')
@@ -176,7 +196,6 @@ class FO4_PT_MeshPanel(Panel):
             box.operator("fo4.mossy_auto_fix", text="AI Auto-Fix (Mossy)", icon='LIGHT_HEMI')
             box.operator("fo4.smart_decimate", text="Smart Decimate", icon='MOD_DECIM')
             box.operator("fo4.split_mesh_poly_limit", text="Split at Poly Limit", icon='MOD_BOOLEAN')
-            box.operator("fo4.generate_lod", text="Generate LOD Chain", icon='OUTLINER_OB_MESH')
 
             # ── UV & Texture Workflow ────────────────────────────────────
             uv_box = layout.box()
@@ -311,6 +330,24 @@ class FO4_PT_MeshPanel(Panel):
             row = col_box.row()
             row.operator("fo4.export_mesh_with_collision", text="Generate + Export NIF", icon='EXPORT')
 
+            lod_box = layout.box()
+            lod_box.label(text="LOD Meshes (Level of Detail)", icon='OUTLINER_OB_MESH')
+            sub = lod_box.column(align=True)
+            sub.scale_y = 0.75
+            sub.label(text="FO4: LOD0 (close) → LOD4 (far), each a separate NIF", icon='INFO')
+            sub.label(text="Source object = LOD0. LOD1–LOD4 copies are created.", icon='INFO')
+            lod_box.separator()
+            row = lod_box.row()
+            row.enabled = has_mesh
+            row.scale_y = 1.3
+            row.operator("fo4.generate_lod", text="Generate LOD Chain", icon='OUTLINER_OB_MESH')
+            row = lod_box.row()
+            row.enabled = has_mesh
+            row.operator("fo4.generate_lod_and_collision", text="Generate LOD + Collision", icon='SHADERFX')
+            row = lod_box.row()
+            row.enabled = has_mesh
+            row.operator("fo4.export_lod_chain_as_nif", text="Export LOD Chain as NIF", icon='EXPORT')
+
             adv_box = layout.box()
             adv_box.label(text="Advanced Mesh Tools", icon='MODIFIER')
             adv_box.operator("fo4.analyze_mesh_quality", text="Analyze Quality", icon='INFO')
@@ -318,7 +355,6 @@ class FO4_PT_MeshPanel(Panel):
             adv_box.operator("fo4.mossy_auto_fix", text="AI Auto-Fix (Mossy)", icon='LIGHT_HEMI')
             adv_box.operator("fo4.smart_decimate", text="Smart Decimate", icon='MOD_DECIM')
             adv_box.operator("fo4.split_mesh_poly_limit", text="Split at Poly Limit", icon='MOD_BOOLEAN')
-            adv_box.operator("fo4.generate_lod", text="Generate LOD Chain", icon='OUTLINER_OB_MESH')
 
             uv_box = layout.box()
             uv_box.label(text="UV & Texture Workflow", icon='UV')
@@ -387,9 +423,12 @@ class FO4_PT_TexturePanel(Panel):
         dds_box.operator("fo4.convert_object_textures_to_dds", text="Convert Object Textures to DDS", icon='OBJECT_DATA')
 
         # AI Upscaling (Real-ESRGAN)
-        esrgan_available, esrgan_status = realesrgan_helpers.RealESRGANHelpers.get_install_status()
         ai_box = layout.box()
         ai_box.label(text="AI Upscaling (Real-ESRGAN)", icon='RENDER_RESULT')
+        if realesrgan_helpers:
+            esrgan_available, esrgan_status = realesrgan_helpers.RealESRGANHelpers.get_install_status()
+        else:
+            esrgan_available, esrgan_status = False, "Not available"
         if esrgan_available:
             ai_box.label(text=f"Status: {esrgan_status}", icon='CHECKMARK')
         else:
@@ -457,7 +496,7 @@ class FO4_PT_ImageToMeshPanel(Panel):
 
         # TripoSR section
         layout.separator()
-        triposr_available = imageto3d_helpers.ImageTo3DHelpers.is_triposr_available()
+        triposr_available = imageto3d_helpers.ImageTo3DHelpers.is_triposr_available() if imageto3d_helpers else False
         triposr_box = layout.box()
         triposr_box.label(text="TripoSR (Image to 3D)", icon='MESH_ICOSPHERE')
         if triposr_available:
@@ -503,7 +542,7 @@ class FO4_PT_ImageToMeshPanel(Panel):
 
         # Instant-NGP section
         layout.separator()
-        ngp_available = instantngp_helpers.InstantNGPHelpers.is_instantngp_available()
+        ngp_available = instantngp_helpers.InstantNGPHelpers.is_instantngp_available() if instantngp_helpers else False
         ngp_box = layout.box()
         ngp_box.label(text="Instant-NGP / NeRF", icon='CAMERA_DATA')
         if ngp_available:
@@ -545,9 +584,10 @@ class FO4_PT_AIGenerationPanel(Panel):
     
     def draw(self, context):
         layout = self.layout
-        
+        scene = context.scene
+
         # Check if Hunyuan3D is available
-        is_available = hunyuan3d_helpers.Hunyuan3DHelpers.is_available()
+        is_available = hunyuan3d_helpers.Hunyuan3DHelpers.is_available() if hunyuan3d_helpers else False
         
         # Status box
         status_box = layout.box()
@@ -580,8 +620,8 @@ class FO4_PT_AIGenerationPanel(Panel):
         info_box.label(text="• Completely optional feature")
         
         # Gradio Web UI section
-        gradio_available = gradio_helpers.GradioHelpers.is_available()
-        server_running = gradio_helpers.GradioHelpers.is_server_running()
+        gradio_available = gradio_helpers.GradioHelpers.is_available() if gradio_helpers else False
+        server_running = gradio_helpers.GradioHelpers.is_server_running() if gradio_helpers else False
         
         layout.separator()
         web_box = layout.box()
@@ -603,7 +643,7 @@ class FO4_PT_AIGenerationPanel(Panel):
             web_box.label(text="Open: http://localhost:7860")
         
         # HY-Motion-1.0 section
-        hymotion_available = hymotion_helpers.HyMotionHelpers.is_available()
+        hymotion_available = hymotion_helpers.HyMotionHelpers.is_available() if hymotion_helpers else False
         
         layout.separator()
         motion_box = layout.box()
@@ -758,10 +798,12 @@ class FO4_PT_RigNetPanel(Panel):
         layout = self.layout
         
         # Check if RigNet is available
-        is_available, message = rignet_helpers.RigNetHelpers.check_rignet_available()
-        
-        # Check if libigl is available
-        libigl_available, libigl_message = rignet_helpers.RigNetHelpers.check_libigl_available()
+        if rignet_helpers:
+            is_available, message = rignet_helpers.RigNetHelpers.check_rignet_available()
+            libigl_available, libigl_message = rignet_helpers.RigNetHelpers.check_libigl_available()
+        else:
+            is_available, message = False, "rignet_helpers module unavailable"
+            libigl_available, libigl_message = False, "rignet_helpers module unavailable"
         
         # Status box for RigNet
         status_box = layout.box()
@@ -854,10 +896,14 @@ class FO4_PT_NVTTPanel(Panel):
         layout = self.layout
         
         # Check converters
-        nvtt_available = nvtt_helpers.NVTTHelpers.is_nvtt_available()
-        texconv_available = nvtt_helpers.NVTTHelpers.is_texconv_available()
-        nvtt_path = nvtt_helpers.NVTTHelpers.get_nvtt_path()
-        texconv_path = nvtt_helpers.NVTTHelpers.get_texconv_path()
+        if nvtt_helpers:
+            nvtt_available = nvtt_helpers.NVTTHelpers.is_nvtt_available()
+            texconv_available = nvtt_helpers.NVTTHelpers.is_texconv_available()
+            nvtt_path = nvtt_helpers.NVTTHelpers.get_nvtt_path()
+            texconv_path = nvtt_helpers.NVTTHelpers.get_texconv_path()
+        else:
+            nvtt_available = texconv_available = False
+            nvtt_path = texconv_path = None
         
         # Status box
         status_box = layout.box()
@@ -982,7 +1028,7 @@ class FO4_PT_AdvisorPanel(Panel):
         info.label(text="• Texture prep (DDS BC1/3/5/7)")
         info.label(text="• Mesh limits (65,535 tris/verts)")
 
-        kb_status = knowledge_helpers.describe_kb()
+        kb_status = knowledge_helpers.describe_kb() if knowledge_helpers else "Knowledge base unavailable"
         info.label(text=kb_status, icon='BOOKMARKS')
 
         tools = layout.box()
@@ -1004,7 +1050,7 @@ class FO4_PT_ToolsLinks(Panel):
         layout = self.layout
 
         # quick tool availability summary
-        status = knowledge_helpers.tool_status()
+        status = knowledge_helpers.tool_status() if knowledge_helpers else {}
         sum_box = layout.box()
         sum_box.label(text="Tool Status", icon='INFO')
         for key, label in (
@@ -1043,20 +1089,22 @@ class FO4_PT_ToolsLinks(Panel):
         unity_box = box.box()
         unity_box.label(text="Unity FBX Importer (Editor Extension)", icon='IMPORT')
 
-        ub_ready, ub_message = unity_fbx_importer_helpers.status()
-        ub_icon = 'CHECKMARK' if ub_ready else 'ERROR'
-
-        info_col = unity_box.column(align=True)
-        info_col.scale_y = 0.75
-        info_col.label(text=ub_message, icon=ub_icon)
-        info_col.label(text=f"Location: {unity_fbx_importer_helpers.repo_path()}", icon='FILE_FOLDER')
-
-        if not ub_ready:
-            install_row = unity_box.row()
-            install_row.scale_y = 1.4
-            install_row.operator("fo4.check_unity_fbx_importer", text="Auto-Download to D:/blender_tools/", icon='IMPORT')
+        if unity_fbx_importer_helpers:
+            ub_ready, ub_message = unity_fbx_importer_helpers.status()
+            ub_icon = 'CHECKMARK' if ub_ready else 'ERROR'
+            info_col = unity_box.column(align=True)
+            info_col.scale_y = 0.75
+            info_col.label(text=ub_message, icon=ub_icon)
+            info_col.label(text=f"Location: {unity_fbx_importer_helpers.repo_path()}", icon='FILE_FOLDER')
+            if not ub_ready:
+                install_row = unity_box.row()
+                install_row.scale_y = 1.4
+                install_row.operator("fo4.check_unity_fbx_importer", text="Auto-Download to D:/blender_tools/", icon='IMPORT')
+            else:
+                unity_box.operator("fo4.check_unity_fbx_importer", text="Verify Installation", icon='CHECKMARK')
         else:
-            unity_box.operator("fo4.check_unity_fbx_importer", text="Verify Installation", icon='CHECKMARK')
+            unity_box.label(text="Status unavailable", icon='ERROR')
+            unity_box.operator("fo4.check_unity_fbx_importer", text="Check Unity FBX Importer", icon='FILE_REFRESH')
 
         help_col = unity_box.column(align=True)
         help_col.scale_y = 0.7
@@ -1066,20 +1114,22 @@ class FO4_PT_ToolsLinks(Panel):
         as_box = box.box()
         as_box.label(text="AssetStudio (Unity Asset Extractor)", icon='IMPORT')
 
-        as_ready, as_message = asset_studio_helpers.status()
-        as_icon = 'CHECKMARK' if as_ready else 'ERROR'
-
-        as_info_col = as_box.column(align=True)
-        as_info_col.scale_y = 0.75
-        as_info_col.label(text=as_message, icon=as_icon)
-        as_info_col.label(text=f"Location: {asset_studio_helpers.repo_path()}", icon='FILE_FOLDER')
-
-        if not as_ready:
-            as_install_row = as_box.row()
-            as_install_row.scale_y = 1.4
-            as_install_row.operator("fo4.check_asset_studio", text="Auto-Download to D:/blender_tools/", icon='IMPORT')
+        if asset_studio_helpers:
+            as_ready, as_message = asset_studio_helpers.status()
+            as_icon = 'CHECKMARK' if as_ready else 'ERROR'
+            as_info_col = as_box.column(align=True)
+            as_info_col.scale_y = 0.75
+            as_info_col.label(text=as_message, icon=as_icon)
+            as_info_col.label(text=f"Location: {asset_studio_helpers.repo_path()}", icon='FILE_FOLDER')
+            if not as_ready:
+                as_install_row = as_box.row()
+                as_install_row.scale_y = 1.4
+                as_install_row.operator("fo4.check_asset_studio", text="Auto-Download to D:/blender_tools/", icon='IMPORT')
+            else:
+                as_box.operator("fo4.check_asset_studio", text="Verify Installation", icon='CHECKMARK')
         else:
-            as_box.operator("fo4.check_asset_studio", text="Verify Installation", icon='CHECKMARK')
+            as_box.label(text="Status unavailable", icon='ERROR')
+            as_box.operator("fo4.check_asset_studio", text="Check AssetStudio", icon='FILE_REFRESH')
 
         as_help_col = as_box.column(align=True)
         as_help_col.scale_y = 0.7
@@ -1089,20 +1139,22 @@ class FO4_PT_ToolsLinks(Panel):
         ar_box = box.box()
         ar_box.label(text="AssetRipper (Unity Asset Extractor)", icon='IMPORT')
 
-        ar_ready, ar_message = asset_ripper_helpers.status()
-        ar_icon = 'CHECKMARK' if ar_ready else 'ERROR'
-
-        ar_info_col = ar_box.column(align=True)
-        ar_info_col.scale_y = 0.75
-        ar_info_col.label(text=ar_message, icon=ar_icon)
-        ar_info_col.label(text=f"Location: {asset_ripper_helpers.repo_path()}", icon='FILE_FOLDER')
-
-        if not ar_ready:
-            ar_install_row = ar_box.row()
-            ar_install_row.scale_y = 1.4
-            ar_install_row.operator("fo4.check_asset_ripper", text="Auto-Download to D:/blender_tools/", icon='IMPORT')
+        if asset_ripper_helpers:
+            ar_ready, ar_message = asset_ripper_helpers.status()
+            ar_icon = 'CHECKMARK' if ar_ready else 'ERROR'
+            ar_info_col = ar_box.column(align=True)
+            ar_info_col.scale_y = 0.75
+            ar_info_col.label(text=ar_message, icon=ar_icon)
+            ar_info_col.label(text=f"Location: {asset_ripper_helpers.repo_path()}", icon='FILE_FOLDER')
+            if not ar_ready:
+                ar_install_row = ar_box.row()
+                ar_install_row.scale_y = 1.4
+                ar_install_row.operator("fo4.check_asset_ripper", text="Auto-Download to D:/blender_tools/", icon='IMPORT')
+            else:
+                ar_box.operator("fo4.check_asset_ripper", text="Verify Installation", icon='CHECKMARK')
         else:
-            ar_box.operator("fo4.check_asset_ripper", text="Verify Installation", icon='CHECKMARK')
+            ar_box.label(text="Status unavailable", icon='ERROR')
+            ar_box.operator("fo4.check_asset_ripper", text="Check AssetRipper", icon='FILE_REFRESH')
 
         ar_help_col = ar_box.column(align=True)
         ar_help_col.scale_y = 0.7
@@ -1113,10 +1165,13 @@ class FO4_PT_ToolsLinks(Panel):
 
         # UModel (UE Viewer) - Standalone tool
         box.label(text="UModel (UE Viewer)", icon='IMPORT')
-        umodel_ready, umodel_message = umodel_helpers.status()
-        umodel_icon = 'CHECKMARK' if umodel_ready else 'ERROR'
-        box.label(text=umodel_message, icon=umodel_icon)
-        box.label(text=f"Path: {umodel_helpers.tool_path()}", icon='FILE_FOLDER')
+        if umodel_helpers:
+            umodel_ready, umodel_message = umodel_helpers.status()
+            umodel_icon = 'CHECKMARK' if umodel_ready else 'ERROR'
+            box.label(text=umodel_message, icon=umodel_icon)
+            box.label(text=f"Path: {umodel_helpers.tool_path()}", icon='FILE_FOLDER')
+        else:
+            box.label(text="Status unavailable", icon='ERROR')
 
         # Installation button
         install_row = box.row()
@@ -1140,18 +1195,24 @@ class FO4_PT_ToolsLinks(Panel):
 
         box = layout.box()
         box.label(text="UE Importer", icon='IMPORT')
-        ready, message = ue_importer_helpers.status()
-        status_icon = 'CHECKMARK' if ready else 'ERROR'
-        box.label(text=message, icon=status_icon)
-        box.label(text=f"Path: {ue_importer_helpers.importer_path()}", icon='FILE_FOLDER')
+        if ue_importer_helpers:
+            ready, message = ue_importer_helpers.status()
+            status_icon = 'CHECKMARK' if ready else 'ERROR'
+            box.label(text=message, icon=status_icon)
+            box.label(text=f"Path: {ue_importer_helpers.importer_path()}", icon='FILE_FOLDER')
+        else:
+            box.label(text="Status unavailable", icon='ERROR')
         box.operator("fo4.check_ue_importer", text="Check/Install UE Importer", icon='FILE_REFRESH')
 
         box = layout.box()
         box.label(text="UModel Tools", icon='IMPORT')
-        ut_ready, ut_message = umodel_tools_helpers.status()
-        ut_icon = 'CHECKMARK' if ut_ready else 'ERROR'
-        box.label(text=ut_message, icon=ut_icon)
-        box.label(text=f"Path: {umodel_tools_helpers.addon_path()}", icon='FILE_FOLDER')
+        if umodel_tools_helpers:
+            ut_ready, ut_message = umodel_tools_helpers.status()
+            ut_icon = 'CHECKMARK' if ut_ready else 'ERROR'
+            box.label(text=ut_message, icon=ut_icon)
+            box.label(text=f"Path: {umodel_tools_helpers.addon_path()}", icon='FILE_FOLDER')
+        else:
+            box.label(text="Status unavailable", icon='ERROR')
         box.operator("fo4.check_umodel_tools", text="Check/Install UModel Tools", icon='FILE_REFRESH')
 
         # Automated installers for external utilities
@@ -1337,7 +1398,10 @@ class FO4_PT_ExportPanel(Panel):
 
         # ── Niftools exporter status ─────────────────────────────────────────
         nif_box = layout.box()
-        available, nif_msg = export_helpers.ExportHelpers.nif_exporter_available()
+        if export_helpers:
+            available, nif_msg = export_helpers.ExportHelpers.nif_exporter_available()
+        else:
+            available, nif_msg = False, "export_helpers module unavailable — restart Blender"
         if available:
             row = nif_box.row()
             row.label(text="Niftools v0.1.1  ✓ Ready", icon='CHECKMARK')
@@ -1481,6 +1545,24 @@ class FO4_PT_BatchProcessingPanel(Panel):
         row = box.row()
         row.enabled = len(selected_meshes) > 0
         row.operator("fo4.batch_export_meshes", text="Batch Export", icon='EXPORT')
+
+        # Batch LOD & Collision
+        lod_box = layout.box()
+        lod_box.label(text="Batch LOD & Collision", icon='OUTLINER_OB_MESH')
+        sub = lod_box.column(align=True)
+        sub.scale_y = 0.75
+        sub.label(text="Generates LOD1–LOD4 copies for every selected mesh.", icon='INFO')
+        sub.label(text="Collision uses each object's fo4_collision_type (inferred", icon='INFO')
+        sub.label(text="from name if not set). GRASS / MUSHROOM / NONE are skipped.", icon='INFO')
+        lod_box.separator()
+        row = lod_box.row()
+        row.enabled = len(selected_meshes) > 0
+        row.scale_y = 1.2
+        row.operator("fo4.batch_generate_lod", text="Batch Generate LOD", icon='OUTLINER_OB_MESH')
+        row = lod_box.row()
+        row.enabled = len(selected_meshes) > 0
+        row.scale_y = 1.2
+        row.operator("fo4.batch_generate_collision", text="Batch Generate Collision", icon='MESH_ICOSPHERE')
         
         # Tips
         tips_box = layout.box()
@@ -1724,13 +1806,41 @@ class FO4_PT_VegetationPanel(Panel):
         # LOD generation
         box = layout.box()
         box.label(text="LOD System", icon='OUTLINER_OB_MESH')
+        sub = box.column(align=True)
+        sub.scale_y = 0.75
+        sub.label(text="FO4: LOD0 (close) → LOD3 (far) per vegetation asset", icon='INFO')
+        sub.label(text="Source = LOD0. Creates LOD1–LOD3 copies.", icon='INFO')
+        box.separator()
         row = box.row()
         row.enabled = obj and obj.type == 'MESH'
+        row.scale_y = 1.3
         row.operator("fo4.create_vegetation_lod_chain", text="Create LOD Chain", icon='MESH_GRID')
         row2 = box.row()
         row2.enabled = obj and obj.type == 'MESH'
         row2.operator("fo4.export_lod_chain_as_nif", text="Export LOD Chain as NIF", icon='EXPORT')
-        
+
+        # Collision for vegetation
+        box = layout.box()
+        box.label(text="Collision (for trees / large bushes)", icon='MESH_ICOSPHERE')
+        sub = box.column(align=True)
+        sub.scale_y = 0.75
+        sub.label(text="VEGETATION type = simplified convex hull footprint", icon='INFO')
+        sub.label(text="GRASS / MUSHROOM = no collision (thin foliage)", icon='INFO')
+        box.separator()
+        has_mesh = obj and obj.type == 'MESH'
+        if has_mesh:
+            box.prop(obj, "fo4_collision_type", text="Type")
+        row = box.row()
+        row.operator("fo4.set_collision_type", text="Change Type", icon='PRESET')
+        row = box.row()
+        can_collide = has_mesh and getattr(obj, 'fo4_collision_type', 'DEFAULT') not in ('NONE', 'GRASS', 'MUSHROOM')
+        row.enabled = can_collide
+        row.operator("fo4.generate_collision_mesh", text="Generate Collision Mesh", icon='MESH_DATA')
+        row = box.row()
+        row.enabled = has_mesh
+        row.operator("fo4.generate_lod_and_collision",
+                     text="Generate LOD + Collision", icon='SHADERFX')
+
         # Wind animation
         box = layout.box()
         box.label(text="Wind Animation", icon='FORCE_WIND')
@@ -1773,12 +1883,14 @@ class FO4_PT_VegetationPanel(Panel):
         
         # Tips
         tips_box = layout.box()
-        tips_box.label(text="Workflow Tips:", icon='INFO')
-        tips_box.label(text="1. Create vegetation types")
-        tips_box.label(text="2. Scatter across area")
-        tips_box.label(text="3. Combine for FPS boost")
-        tips_box.label(text="4. Generate LODs")
-        tips_box.label(text="5. Export as single mesh")
+        tips_box.label(text="Workflow Tips (FO4 Vegetation):", icon='INFO')
+        tips_box.label(text="1. Create vegetation preset")
+        tips_box.label(text="2. Set collision type: VEGETATION or TREE → has collision")
+        tips_box.label(text="   GRASS / MUSHROOM → no collision (thin foliage)")
+        tips_box.label(text="3. Generate LOD + Collision (one click)")
+        tips_box.label(text="4. Setup vegetation material (Alpha Clip)")
+        tips_box.label(text="5. Export LOD Chain as NIF → meshes/ folder")
+        tips_box.label(text="6. Open in Creation Kit as Static/Grass record")
 
 
 class FO4_PT_QuestPanel(Panel):

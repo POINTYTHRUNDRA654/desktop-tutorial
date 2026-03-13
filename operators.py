@@ -2695,7 +2695,7 @@ class FO4_OT_ConfigureFallout4Settings(Operator):
     bl_description = "Auto-configure all settings for optimal Fallout 4 modding workflow"
 
     def execute(self, context):
-        from . import preferences, export_helpers
+        from . import preferences, export_helpers, tool_installers
 
         messages = []
         prefs = preferences.get_preferences()
@@ -2849,25 +2849,24 @@ class FO4_OT_ConvertToFallout4(Operator):
             # Step 4: Collision Mesh (if enabled)
             if self.create_collision:
                 try:
-                    # Check if collision already exists
-                    collision_name = f"UCX_{obj.name}"
-                    if collision_name not in bpy.data.objects:
-                        # Create simplified collision mesh
-                        collision_obj = obj.copy()
-                        collision_obj.data = obj.data.copy()
-                        collision_obj.name = collision_name
-                        context.collection.objects.link(collision_obj)
-
-                        # Simplify for collision
-                        context.view_layer.objects.active = collision_obj
-                        bpy.ops.object.modifier_add(type='DECIMATE')
-                        collision_obj.modifiers["Decimate"].ratio = 0.25
-                        bpy.ops.object.modifier_apply(modifier="Decimate")
-
-                        messages.append(f"✓ Created collision mesh: {collision_name}")
-                        context.view_layer.objects.active = obj
+                    inferred = mesh_helpers.MeshHelpers.infer_collision_type(obj)
+                    ctype = mesh_helpers.MeshHelpers.resolve_collision_type(
+                        getattr(obj, 'fo4_collision_type', inferred), inferred)
+                    if ctype in ('NONE', 'GRASS', 'MUSHROOM'):
+                        warnings.append(
+                            f"⚠ Collision skipped: '{ctype}' type has no collision footprint. "
+                            "To add collision, use Mesh Helpers → Collision → Change Type and "
+                            "select DEFAULT, ROCK, TREE, BUILDING, or VEGETATION, then run "
+                            "Generate Collision Mesh."
+                        )
                     else:
-                        messages.append(f"✓ Collision mesh already exists: {collision_name}")
+                        collision_obj = mesh_helpers.MeshHelpers.add_collision_mesh(
+                            obj, collision_type=ctype
+                        )
+                        if collision_obj:
+                            messages.append(f"✓ Created collision mesh: {collision_obj.name}")
+                        else:
+                            warnings.append("⚠ Collision mesh helper returned nothing")
                 except Exception as e:
                     warnings.append(f"⚠ Collision generation failed: {str(e)}")
 
@@ -2943,6 +2942,7 @@ class FO4_OT_CheckToolPaths(Operator):
     bl_label = "Check Tool Paths"
 
     def execute(self, context):
+        import os
         from . import preferences, tool_installers
         import subprocess, sys
         prefs = preferences.get_preferences()
@@ -3477,6 +3477,7 @@ class FO4_OT_ShowGET3DInfo(Operator):
     bl_label = "About GET3D"
     
     def execute(self, context):
+        import os
         success, message = get3d_helpers.GET3DHelpers.check_get3d_installation()
         
         if success:
@@ -3689,6 +3690,7 @@ class FO4_OT_ShowStyleGAN2Info(Operator):
     bl_label = "About StyleGAN2"
     
     def execute(self, context):
+        import os
         success, message = stylegan2_helpers.StyleGAN2Helpers.check_stylegan2_installation()
         
         if success:
@@ -5269,6 +5271,200 @@ class FO4_OT_GenerateLOD(Operator):
         
         return {'FINISHED'}
     
+    def invoke(self, context, event):
+        return context.window_manager.invoke_props_dialog(self)
+
+
+class FO4_OT_GenerateLODAndCollision(Operator):
+    """Generate both a LOD chain and a collision mesh in one step.
+
+    Treats the active object as LOD0 (full detail), creates LOD1–LOD4
+    simplified copies, and also creates a ``UCX_`` collision mesh using
+    the same FO4-correct pipeline as *Generate Collision Mesh*.  This is
+    the recommended one-click workflow for static props and vegetation that
+    need both distance rendering and physics collision in-game.
+    """
+    bl_idname = "fo4.generate_lod_and_collision"
+    bl_label = "Generate LOD Chain + Collision"
+    bl_options = {'REGISTER', 'UNDO'}
+
+    collision_type: EnumProperty(
+        name="Collision Type",
+        description="Category of physics collision to create",
+        items=mesh_helpers.MeshHelpers.COLLISION_TYPES,
+        default='DEFAULT'
+    )
+
+    def execute(self, context):
+        obj = context.active_object
+        if not obj or obj.type != 'MESH':
+            self.report({'ERROR'}, "No mesh object selected")
+            return {'CANCELLED'}
+
+        results = []
+
+        # --- LOD chain ---
+        success, message, lod_objects = advanced_mesh_helpers.AdvancedMeshHelpers.generate_lod_chain(obj)
+        if success:
+            results.append(f"LOD: {len(lod_objects)} levels created")
+            print("\n" + "="*70)
+            print("LOD GENERATION")
+            print("="*70)
+            print(f"Source: {obj.name} (LOD0)")
+            for lod_obj, poly_count in lod_objects:
+                print(f"  {lod_obj.name}: {poly_count} polygons")
+            print("="*70 + "\n")
+        else:
+            results.append(f"LOD failed: {message}")
+
+        # --- Collision mesh ---
+        obj.fo4_collision_type = self.collision_type
+        if self.collision_type not in ('NONE', 'GRASS', 'MUSHROOM'):
+            try:
+                collision_obj = mesh_helpers.MeshHelpers.add_collision_mesh(
+                    obj, collision_type=self.collision_type
+                )
+                if collision_obj:
+                    results.append(f"Collision: {collision_obj.name} created")
+                else:
+                    results.append("Collision: skipped (type has no collision)")
+            except Exception as e:
+                results.append(f"Collision failed: {str(e)}")
+        else:
+            results.append(f"Collision: skipped for type '{self.collision_type}'")
+
+        summary = " | ".join(results)
+        self.report({'INFO'}, summary)
+        notification_system.FO4_NotificationSystem.notify(summary, 'INFO')
+        return {'FINISHED'}
+
+    def invoke(self, context, event):
+        obj = context.active_object
+        if obj and obj.type == 'MESH':
+            inferred = mesh_helpers.MeshHelpers.infer_collision_type(obj)
+            self.collision_type = mesh_helpers.MeshHelpers.resolve_collision_type(
+                getattr(obj, 'fo4_collision_type', inferred), inferred)
+        return context.window_manager.invoke_props_dialog(self)
+
+
+class FO4_OT_BatchGenerateLOD(Operator):
+    """Generate a LOD chain for every selected mesh object.
+
+    Each selected mesh is treated as LOD0.  Simplified LOD1–LOD4 copies are
+    created and named ``{object}_LOD1`` … ``{object}_LOD4``.  Use *Export LOD
+    Chain as NIF* afterwards to export the full chain to your mod's
+    ``meshes/`` folder.
+    """
+    bl_idname = "fo4.batch_generate_lod"
+    bl_label = "Batch Generate LOD"
+    bl_options = {'REGISTER', 'UNDO'}
+
+    def execute(self, context):
+        selected_meshes = [o for o in context.selected_objects if o.type == 'MESH']
+        if not selected_meshes:
+            self.report({'ERROR'}, "No mesh objects selected")
+            return {'CANCELLED'}
+
+        success_count = 0
+        fail_count = 0
+
+        for obj in selected_meshes:
+            context.view_layer.objects.active = obj
+            try:
+                ok, msg, lod_objects = advanced_mesh_helpers.AdvancedMeshHelpers.generate_lod_chain(obj)
+                if ok:
+                    success_count += 1
+                    print(f"[LOD] {obj.name}: {len(lod_objects)} levels")
+                    for lod_obj, poly_count in lod_objects:
+                        print(f"  {lod_obj.name}: {poly_count} polygons")
+                else:
+                    fail_count += 1
+                    self.report({'WARNING'}, f"{obj.name}: {msg}")
+            except Exception as e:
+                fail_count += 1
+                self.report({'WARNING'}, f"{obj.name}: {str(e)}")
+
+        msg = f"LOD generated for {success_count} mesh(es)"
+        if fail_count:
+            msg += f", {fail_count} failed"
+        self.report({'INFO'}, msg)
+        notification_system.FO4_NotificationSystem.notify(msg, 'INFO')
+        return {'FINISHED'}
+
+
+class FO4_OT_BatchGenerateCollision(Operator):
+    """Generate a collision mesh for every selected mesh object.
+
+    Each selected mesh gets a ``UCX_`` collision object built with the
+    Fallout 4–correct convex hull pipeline (same as *Generate Collision
+    Mesh*).  Objects whose collision type is set to *GRASS*, *MUSHROOM*, or
+    *NONE* are skipped automatically.
+    """
+    bl_idname = "fo4.batch_generate_collision"
+    bl_label = "Batch Generate Collision"
+    bl_options = {'REGISTER', 'UNDO'}
+
+    collision_type: EnumProperty(
+        name="Collision Type",
+        description="Collision type to apply to all selected meshes",
+        items=mesh_helpers.MeshHelpers.COLLISION_TYPES,
+        default='DEFAULT'
+    )
+
+    use_per_object_type: BoolProperty(
+        name="Use Per-Object Type",
+        description=(
+            "When enabled, each object's existing fo4_collision_type is used "
+            "(inferred from name if not set).  When disabled, the Collision "
+            "Type above is applied to every object"
+        ),
+        default=True,
+    )
+
+    def execute(self, context):
+        selected_meshes = [o for o in context.selected_objects if o.type == 'MESH']
+        if not selected_meshes:
+            self.report({'ERROR'}, "No mesh objects selected")
+            return {'CANCELLED'}
+
+        success_count = 0
+        skip_count = 0
+        fail_count = 0
+
+        for obj in selected_meshes:
+            context.view_layer.objects.active = obj
+            try:
+                if self.use_per_object_type:
+                    inferred = mesh_helpers.MeshHelpers.infer_collision_type(obj)
+                    ctype = mesh_helpers.MeshHelpers.resolve_collision_type(
+                        getattr(obj, 'fo4_collision_type', inferred), inferred)
+                else:
+                    ctype = self.collision_type
+
+                if ctype in ('NONE', 'GRASS', 'MUSHROOM'):
+                    skip_count += 1
+                    continue
+
+                collision_obj = mesh_helpers.MeshHelpers.add_collision_mesh(
+                    obj, collision_type=ctype
+                )
+                if collision_obj:
+                    success_count += 1
+                else:
+                    skip_count += 1
+            except Exception as e:
+                fail_count += 1
+                self.report({'WARNING'}, f"{obj.name}: {str(e)}")
+
+        msg = f"Collision created for {success_count} mesh(es)"
+        if skip_count:
+            msg += f", {skip_count} skipped (no-collision type)"
+        if fail_count:
+            msg += f", {fail_count} failed"
+        self.report({'INFO'}, msg)
+        notification_system.FO4_NotificationSystem.notify(msg, 'INFO')
+        return {'FINISHED'}
+
     def invoke(self, context, event):
         return context.window_manager.invoke_props_dialog(self)
 
@@ -10005,6 +10201,9 @@ classes = (
     FO4_OT_SmartDecimate,
     FO4_OT_SplitMeshPolyLimit,
     FO4_OT_GenerateLOD,
+    FO4_OT_GenerateLODAndCollision,
+    FO4_OT_BatchGenerateLOD,
+    FO4_OT_BatchGenerateCollision,
     FO4_OT_OptimizeUVs,
     # New batch processing operators
     FO4_OT_BatchOptimizeMeshes,
