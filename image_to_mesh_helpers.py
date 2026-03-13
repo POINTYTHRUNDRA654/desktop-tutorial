@@ -34,8 +34,11 @@ def load_image_as_heightmap(filepath):
             try:
                 img = bpy.data.images.load(filepath)
                 width, height = img.size
-                # pixels is a flat [R, G, B, A, ...] array stored bottom-to-top
-                pixels = np.array(img.pixels[:], dtype=np.float32).reshape(height, width, 4)
+                # Use len(img.pixels) so the buffer size is always exactly right,
+                # regardless of internal channel ordering or image mode.
+                pixels = np.empty(len(img.pixels), dtype=np.float32)
+                img.pixels.foreach_get(pixels)
+                pixels = pixels.reshape(height, width, 4)
                 bpy.data.images.remove(img)
                 # Convert to luminance (grayscale)
                 img_array = (0.2126 * pixels[:, :, 0] +
@@ -134,9 +137,25 @@ def create_mesh_from_heightmap(name, heightmap_data, width, height,
         bpy.context.view_layer.objects.active = obj
         obj.select_set(True)
 
-        # from_pydata is far faster than bmesh for static geometry
-        mesh.from_pydata(verts.tolist(), [], faces.tolist())
-        mesh.update()
+        # Build mesh via foreach_set — passes numpy buffers directly to C code,
+        # avoiding the expensive .tolist() conversion required by from_pydata.
+        n_verts = len(verts)
+        n_faces = len(faces)
+        n_loops = n_faces * 4
+
+        mesh.vertices.add(n_verts)
+        mesh.vertices.foreach_set("co", verts.ravel())
+
+        mesh.loops.add(n_loops)
+        mesh.loops.foreach_set("vertex_index", faces.ravel())
+
+        mesh.polygons.add(n_faces)
+        loop_starts = np.arange(n_faces, dtype=np.int32) * 4
+        loop_totals = np.full(n_faces, 4, dtype=np.int32)
+        mesh.polygons.foreach_set("loop_start", loop_starts)
+        mesh.polygons.foreach_set("loop_total", loop_totals)
+
+        mesh.update(calc_edges=True)
 
         # Create UV map and write all UVs in one batch (foreach_set avoids per-loop Python)
         mesh.uv_layers.new(name="UVMap")
@@ -156,9 +175,6 @@ def create_mesh_from_heightmap(name, heightmap_data, width, height,
         uvs[2::4] = np.stack([u1,  v1_uv], axis=1)
         uvs[3::4] = np.stack([u0,  v1_uv], axis=1)
         uv_layer.data.foreach_set("uv", uvs.ravel())
-
-        # Recalculate normals without switching modes (avoids slow bpy.ops round-trips)
-        mesh.calc_normals()
 
         return True, obj
         
@@ -182,9 +198,9 @@ def apply_displacement_to_mesh(obj, filepath, strength=0.5):
         if obj.type != 'MESH':
             return False, "Object is not a mesh"
         
-        # Load image
+        # Load image (check_existing avoids duplicate data-blocks on repeated calls)
         try:
-            img = bpy.data.images.load(filepath)
+            img = bpy.data.images.load(filepath, check_existing=True)
         except Exception as e:
             return False, f"Failed to load image: {str(e)}"
         

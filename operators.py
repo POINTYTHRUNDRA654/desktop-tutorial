@@ -6612,6 +6612,358 @@ class FO4_OT_BatchExportMeshes(Operator):
 
 # Game Asset Import Operators
 
+class FO4_OT_SetFO4AssetsPath(Operator):
+    """Open a folder picker to set the Fallout 4 assets path directly from the panel"""
+    bl_idname = "fo4.set_fo4_assets_path"
+    bl_label = "Set FO4 Assets Path"
+    bl_description = (
+        "Choose the folder containing your extracted Fallout 4 meshes, "
+        "materials, and textures (sets the path in addon preferences)"
+    )
+
+    directory: StringProperty(
+        name="Assets Directory",
+        description="Path to the Fallout 4 assets folder",
+        subtype='DIR_PATH',
+    )
+
+    def execute(self, context):
+        from . import preferences as _prefs
+        prefs = _prefs.get_preferences()
+        if prefs is None:
+            self.report({'ERROR'}, "Could not access addon preferences")
+            return {'CANCELLED'}
+
+        chosen = self.directory.rstrip("/\\")
+        if not chosen:
+            self.report({'ERROR'}, "No directory selected")
+            return {'CANCELLED'}
+
+        prefs.fo4_assets_path = chosen
+        # Invalidate cached game dir so next detection uses the new path
+        fo4_game_assets.FO4GameAssets._game_dir = None
+        fo4_game_assets.FO4GameAssets._asset_index = None
+
+        self.report({'INFO'}, f"FO4 assets path set to: {chosen}")
+        notification_system.FO4_NotificationSystem.notify(
+            f"FO4 assets path set: {chosen}", 'INFO'
+        )
+        return {'FINISHED'}
+
+    def invoke(self, context, event):
+        context.window_manager.fileselect_add(self)
+        return {'RUNNING_MODAL'}
+
+
+class FO4_OT_ImportFO4AssetFile(Operator):
+    """Import a mesh, texture, or material file from the game assets folder into Blender"""
+    bl_idname = "fo4.import_fo4_asset_file"
+    bl_label = "Import Game Asset"
+    bl_description = (
+        "Browse to a mesh (FBX/OBJ/NIF), texture (DDS/PNG/TGA), or material file "
+        "from your Fallout 4 (or other game) assets folder and import it into Blender"
+    )
+    bl_options = {'REGISTER', 'UNDO'}
+
+    filepath: StringProperty(
+        name="File Path",
+        description="Path to the asset file to import",
+        subtype='FILE_PATH',
+    )
+    filter_glob: StringProperty(
+        default="*.fbx;*.obj;*.nif;*.dds;*.png;*.tga;*.bmp;*.jpg;*.jpeg",
+        options={'HIDDEN'},
+    )
+
+    def execute(self, context):
+        import os
+
+        if not self.filepath:
+            self.report({'ERROR'}, "No file selected")
+            return {'CANCELLED'}
+
+        filepath = bpy.path.abspath(self.filepath)
+        if not os.path.isfile(filepath):
+            self.report({'ERROR'}, f"File not found: {filepath}")
+            return {'CANCELLED'}
+
+        ext = os.path.splitext(filepath)[1].lower()
+        filename = os.path.basename(filepath)
+
+        # ── Mesh import ──────────────────────────────────────────────────────
+        if ext == '.fbx':
+            try:
+                bpy.ops.import_scene.fbx(filepath=filepath)
+                self.report({'INFO'}, f"Imported FBX: {filename}")
+                notification_system.FO4_NotificationSystem.notify(
+                    f"Imported {filename}", 'INFO'
+                )
+                return {'FINISHED'}
+            except Exception as e:
+                self.report({'ERROR'}, f"FBX import failed: {e}")
+                return {'CANCELLED'}
+
+        if ext == '.obj':
+            try:
+                # Blender 3.3+ uses wm.obj_import; older uses import_scene.obj
+                if hasattr(bpy.ops.wm, 'obj_import'):
+                    bpy.ops.wm.obj_import(filepath=filepath)
+                else:
+                    bpy.ops.import_scene.obj(filepath=filepath)
+                self.report({'INFO'}, f"Imported OBJ: {filename}")
+                notification_system.FO4_NotificationSystem.notify(
+                    f"Imported {filename}", 'INFO'
+                )
+                return {'FINISHED'}
+            except Exception as e:
+                self.report({'ERROR'}, f"OBJ import failed: {e}")
+                return {'CANCELLED'}
+
+        if ext == '.nif':
+            # Requires Niftools addon
+            if hasattr(bpy.ops, 'import_scene') and hasattr(bpy.ops.import_scene, 'nif'):
+                try:
+                    bpy.ops.import_scene.nif(filepath=filepath)
+                    self.report({'INFO'}, f"Imported NIF: {filename}")
+                    notification_system.FO4_NotificationSystem.notify(
+                        f"Imported {filename}", 'INFO'
+                    )
+                    return {'FINISHED'}
+                except Exception as e:
+                    self.report({'ERROR'}, f"NIF import failed: {e}")
+                    return {'CANCELLED'}
+            else:
+                self.report({'ERROR'},
+                    "NIF import requires the Niftools add-on. "
+                    "Install it via Preferences → Add-ons."
+                )
+                return {'CANCELLED'}
+
+        # ── Texture / image import ────────────────────────────────────────────
+        if ext in {'.dds', '.png', '.tga', '.bmp', '.jpg', '.jpeg'}:
+            try:
+                img = bpy.data.images.load(filepath, check_existing=True)
+                # Attach to the active object's material if one exists
+                obj = context.active_object
+                if obj and obj.type == 'MESH' and obj.data.materials:
+                    mat = obj.data.materials[0]
+                    if mat and mat.use_nodes:
+                        nodes = mat.node_tree.nodes
+                        # Look for an existing Image Texture node to replace, or add one
+                        tex_node = next(
+                            (n for n in nodes if n.type == 'TEX_IMAGE'), None
+                        )
+                        if tex_node is None:
+                            tex_node = nodes.new('ShaderNodeTexImage')
+                            tex_node.location = (-300, 300)
+                        tex_node.image = img
+                        self.report({'INFO'},
+                            f"Loaded texture '{filename}' and applied to material '{mat.name}'"
+                        )
+                    else:
+                        self.report({'INFO'},
+                            f"Loaded texture '{filename}' into Image data-block"
+                        )
+                else:
+                    self.report({'INFO'},
+                        f"Loaded texture '{filename}' into Image data-block"
+                    )
+                notification_system.FO4_NotificationSystem.notify(
+                    f"Loaded {filename}", 'INFO'
+                )
+                return {'FINISHED'}
+            except Exception as e:
+                self.report({'ERROR'}, f"Texture load failed: {e}")
+                return {'CANCELLED'}
+
+        self.report({'ERROR'},
+            f"Unsupported file type '{ext}'. "
+            "Supported: FBX, OBJ, NIF, DDS, PNG, TGA, BMP, JPG"
+        )
+        return {'CANCELLED'}
+
+    def invoke(self, context, event):
+        context.window_manager.fileselect_add(self)
+        return {'RUNNING_MODAL'}
+
+
+class FO4_OT_PrepareThirdPartyMesh(Operator):
+    """Convert a mesh created by any other add-on so it can be exported to Fallout 4"""
+    bl_idname = "fo4.prepare_third_party_mesh"
+    bl_label = "Prepare Third-Party Mesh for FO4"
+    bl_description = (
+        "Converts a custom mesh made with another add-on to Fallout 4 export standards: "
+        "applies transforms, cleans UV maps, sets up materials, and validates the result"
+    )
+    bl_options = {'REGISTER', 'UNDO'}
+
+    apply_transforms: BoolProperty(
+        name="Apply Rotation & Scale",
+        description=(
+            "Apply rotation and scale (required for correct NIF export). "
+            "Location is intentionally left as-is — FO4 meshes are positioned via the NIF node transform"
+        ),
+        default=True,
+    )
+    clean_uv_maps: BoolProperty(
+        name="Clean Up UV Maps",
+        description=(
+            "Keep only the first UV map (renamed to 'UVMap'). "
+            "FO4 NIF files use a single UV channel"
+        ),
+        default=True,
+    )
+    remove_vertex_colors: BoolProperty(
+        name="Remove Vertex Colors",
+        description="Remove vertex color layers that are not used by FO4 shaders",
+        default=False,
+    )
+    setup_material: BoolProperty(
+        name="Set Up FO4 Material",
+        description="Create a basic Fallout 4 material if the mesh has none",
+        default=True,
+    )
+    clear_custom_normals: BoolProperty(
+        name="Clear Custom Normals",
+        description=(
+            "Remove custom split normals data that may conflict with NIF export. "
+            "Blender will recalculate smooth normals automatically"
+        ),
+        default=False,
+    )
+
+    def execute(self, context):
+        obj = context.active_object
+        if not obj or obj.type != 'MESH':
+            self.report({'ERROR'}, "Select a mesh object first")
+            return {'CANCELLED'}
+
+        import bmesh as _bmesh
+
+        steps = []
+        warnings = []
+
+        # ── Step 1: Apply transforms ─────────────────────────────────────────
+        if self.apply_transforms:
+            bpy.ops.object.transform_apply(
+                location=False, rotation=True, scale=True
+            )
+            steps.append("✓ Transforms applied")
+
+        mesh = obj.data
+
+        # ── Step 2: Clean UV maps ────────────────────────────────────────────
+        if self.clean_uv_maps:
+            uv_layers = mesh.uv_layers
+            if len(uv_layers) == 0:
+                # No UV map – unwrap automatically
+                bpy.ops.object.mode_set(mode='EDIT')
+                bpy.ops.mesh.select_all(action='SELECT')
+                bpy.ops.uv.smart_project(angle_limit=66.0, island_margin=0.02)
+                bpy.ops.object.mode_set(mode='OBJECT')
+                if mesh.uv_layers:
+                    mesh.uv_layers[0].name = "UVMap"
+                steps.append("✓ Auto-unwrapped (no UV map found) and named 'UVMap'")
+            else:
+                # Rename first UV map and remove extras
+                first_name = uv_layers[0].name
+                if first_name != "UVMap":
+                    uv_layers[0].name = "UVMap"
+                extras = [l.name for l in uv_layers if l.name != "UVMap"]
+                for name in extras:
+                    layer = uv_layers.get(name)
+                    if layer:
+                        uv_layers.remove(layer)
+                if extras:
+                    steps.append(
+                        f"✓ UV maps cleaned: kept 'UVMap', removed {len(extras)} extra layer(s)"
+                    )
+                else:
+                    steps.append("✓ UV map already clean ('UVMap')")
+
+        # ── Step 3: Remove vertex colors ─────────────────────────────────────
+        if self.remove_vertex_colors:
+            attr_names = [
+                a.name for a in mesh.attributes
+                if a.domain == 'CORNER' and a.data_type == 'FLOAT_COLOR'
+            ]
+            # Also handle legacy vertex_colors API
+            vc_names = [vc.name for vc in mesh.vertex_colors] if hasattr(mesh, 'vertex_colors') else []
+            removed = 0
+            for name in vc_names:
+                vc = mesh.vertex_colors.get(name)
+                if vc:
+                    mesh.vertex_colors.remove(vc)
+                    removed += 1
+            for name in attr_names:
+                if name not in vc_names:
+                    attr = mesh.attributes.get(name)
+                    if attr:
+                        mesh.attributes.remove(attr)
+                        removed += 1
+            if removed:
+                steps.append(f"✓ Removed {removed} vertex color layer(s)")
+
+        # ── Step 4: Clear custom split normals ───────────────────────────────
+        if self.clear_custom_normals:
+            if mesh.has_custom_normals:
+                bpy.ops.object.mode_set(mode='EDIT')
+                bpy.ops.mesh.customdata_custom_splitnormals_clear()
+                bpy.ops.object.mode_set(mode='OBJECT')
+                steps.append("✓ Cleared custom split normals")
+
+        # ── Step 5: Ensure material ──────────────────────────────────────────
+        if self.setup_material:
+            if not obj.data.materials:
+                mat = texture_helpers.TextureHelpers.setup_fo4_material(obj)
+                steps.append(f"✓ Created FO4 material: {mat.name}")
+            else:
+                steps.append("✓ Materials present (skipped)")
+
+        # ── Step 6: Mesh optimisation & validation ───────────────────────────
+        ok, msg = mesh_helpers.MeshHelpers.optimize_mesh(obj)
+        if ok:
+            steps.append(f"✓ Mesh optimised: {msg}")
+        else:
+            warnings.append(f"⚠ Optimise warning: {msg}")
+
+        ok, issues = mesh_helpers.MeshHelpers.validate_mesh(obj)
+        if ok:
+            steps.append("✓ Mesh validated for FO4 export")
+        else:
+            for issue in issues:
+                warnings.append(f"⚠ {issue}")
+
+        # ── Report ───────────────────────────────────────────────────────────
+        summary = "; ".join(steps)
+        if warnings:
+            summary += " | Warnings: " + "; ".join(warnings)
+            self.report({'WARNING'}, summary)
+        else:
+            self.report({'INFO'}, summary)
+
+        notification_system.FO4_NotificationSystem.notify(
+            f"Third-party mesh '{obj.name}' prepared for FO4", 'INFO'
+        )
+        return {'FINISHED'}
+
+    def invoke(self, context, event):
+        return context.window_manager.invoke_props_dialog(self, width=400)
+
+    def draw(self, context):
+        layout = self.layout
+        layout.label(text="Prepare Third-Party Mesh for Fallout 4 Export", icon='MODIFIER')
+        layout.separator()
+        col = layout.column(align=True)
+        col.prop(self, "apply_transforms")
+        col.prop(self, "clean_uv_maps")
+        col.prop(self, "remove_vertex_colors")
+        col.prop(self, "setup_material")
+        col.prop(self, "clear_custom_normals")
+        layout.separator()
+        layout.label(text="After this, use 'Convert to Fallout 4' for final prep.", icon='INFO')
+
+
 class FO4_OT_BrowseFO4Assets(Operator):
     """Browse and import Fallout 4 game assets"""
     bl_idname = "fo4.browse_fo4_assets"
@@ -10517,7 +10869,10 @@ classes = (
     # Mod folder import/export
     FO4_OT_ImportModFolder,
     FO4_OT_ExportModFolder,
-    # Game asset browsers
+    # Game asset browsers + direct path/import/conversion operators
+    FO4_OT_SetFO4AssetsPath,
+    FO4_OT_ImportFO4AssetFile,
+    FO4_OT_PrepareThirdPartyMesh,
     FO4_OT_BrowseFO4Assets,
     FO4_OT_BrowseUnityAssets,
     FO4_OT_BrowseUnrealAssets,

@@ -129,6 +129,44 @@ class FO4_PT_MeshPanel(Panel):
             icon='TOOL_SETTINGS',
         )
 
+    @staticmethod
+    def _draw_asset_paths_box(layout, has_mesh):
+        """Draw the shared Game Asset Paths section inside the Mesh panel."""
+        from . import fo4_game_assets as _fga
+
+        paths_box = layout.box()
+        paths_box.label(text="Game Asset Paths", icon='FILEBROWSER')
+
+        # ── FO4 assets path ──────────────────────────────────────────────
+        ready, status_msg = _fga.FO4GameAssets.get_status()
+        status_icon = 'CHECKMARK' if ready else 'ERROR'
+        info_col = paths_box.column(align=True)
+        info_col.scale_y = 0.8
+        info_col.label(text=status_msg, icon=status_icon)
+
+        # Two side-by-side buttons: set path | import asset
+        btn_row = paths_box.row(align=True)
+        btn_row.operator(
+            "fo4.set_fo4_assets_path",
+            text="Set FO4 Path",
+            icon='FILE_FOLDER',
+        )
+        btn_row.operator(
+            "fo4.import_fo4_asset_file",
+            text="Import Asset",
+            icon='IMPORT',
+        )
+
+        # ── Third-party mesh conversion ──────────────────────────────────
+        paths_box.separator()
+        conv_row = paths_box.row()
+        conv_row.enabled = has_mesh
+        conv_row.operator(
+            "fo4.prepare_third_party_mesh",
+            text="Prepare External Mesh for FO4",
+            icon='MODIFIER',
+        )
+
     def draw(self, context):
         layout = self.layout
         scene = context.scene
@@ -138,6 +176,9 @@ class FO4_PT_MeshPanel(Panel):
         obj = context.active_object
         has_mesh = obj and obj.type == 'MESH'
         prefs = preferences.get_preferences() if preferences else None
+
+        # ── Game Asset Paths – always shown at the top of the Mesh panel ──
+        self._draw_asset_paths_box(layout, has_mesh)
 
         if unified:
             # ── Full FO4 Pipeline (one-click) ────────────────────────────
@@ -1284,9 +1325,10 @@ class FO4_PT_GameAssetsPanel(Panel):
     def draw(self, context):
         layout = self.layout
         obj = context.active_object
+        has_mesh = obj and obj.type == 'MESH'
 
         # Convert to Fallout 4 Button (prominent)
-        if obj and obj.type == 'MESH':
+        if has_mesh:
             convert_box = layout.box()
             convert_box.label(text="Quick Convert", icon='MODIFIER')
 
@@ -1302,6 +1344,14 @@ class FO4_PT_GameAssetsPanel(Panel):
             help_col.scale_y = 0.7
             help_col.label(text="One-click: Mesh prep + Materials + Textures", icon='INFO')
             help_col.label(text="Works on any imported Unity/Unreal/FO4 asset", icon='DOT')
+
+            # Third-party mesh conversion
+            conv_row = convert_box.row()
+            conv_row.operator(
+                "fo4.prepare_third_party_mesh",
+                text="Prepare External Mesh for FO4",
+                icon='MODIFIER',
+            )
         else:
             layout.label(text="Select a mesh to convert", icon='INFO')
 
@@ -1319,10 +1369,11 @@ class FO4_PT_GameAssetsPanel(Panel):
         info_col.scale_y = 0.8
         info_col.label(text=message, icon=status_icon)
 
+        btn_row = fo4_box.row(align=True)
+        btn_row.operator("fo4.set_fo4_assets_path", text="Set Path", icon='FILE_FOLDER')
+        btn_row.operator("fo4.import_fo4_asset_file", text="Import Asset", icon='IMPORT')
         if ready:
             fo4_box.operator("fo4.browse_fo4_assets", text="Browse FO4 Assets", icon='VIEWZOOM')
-        else:
-            fo4_box.label(text="Set path in preferences", icon='PREFERENCES')
 
         # Unity Assets
         unity_box = layout.box()
@@ -1339,7 +1390,7 @@ class FO4_PT_GameAssetsPanel(Panel):
         if ready:
             unity_box.operator("fo4.browse_unity_assets", text="Browse Unity Assets", icon='VIEWZOOM')
         else:
-            unity_box.label(text="Set path in preferences", icon='PREFERENCES')
+            unity_box.label(text="Set Unity path in preferences", icon='PREFERENCES')
 
         # Unreal Engine Assets
         unreal_box = layout.box()
@@ -1356,7 +1407,7 @@ class FO4_PT_GameAssetsPanel(Panel):
         if ready:
             unreal_box.operator("fo4.browse_unreal_assets", text="Browse Unreal Assets", icon='VIEWZOOM')
         else:
-            unreal_box.label(text="Set path in preferences", icon='PREFERENCES')
+            unreal_box.label(text="Set Unreal path in preferences", icon='PREFERENCES')
 
         layout.separator()
 
@@ -1365,8 +1416,8 @@ class FO4_PT_GameAssetsPanel(Panel):
         help_box.label(text="How to Use", icon='QUESTION')
         help_col = help_box.column(align=True)
         help_col.scale_y = 0.7
-        help_col.label(text="1. Set asset paths in addon preferences", icon='DOT')
-        help_col.label(text="2. Import asset (FBX/OBJ from browser)", icon='DOT')
+        help_col.label(text="1. Click 'Set Path' to choose your assets folder", icon='DOT')
+        help_col.label(text="2. Click 'Import Asset' to bring a mesh/texture in", icon='DOT')
         help_col.label(text="3. Click 'Convert to Fallout 4'", icon='DOT')
         help_col.label(text="4. Export as NIF", icon='DOT')
 
