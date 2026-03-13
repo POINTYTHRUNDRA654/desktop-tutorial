@@ -27,6 +27,22 @@ All changes in this PR live on this branch. The branch name reflects its origin 
 
 ## Done ✅  (DO NOT redo, revert, or override these)
 
+### 18. Fix: Mossy never responds after first message (persisted pause bug) ✅
+
+**Problem:** `isConversationPaused` state was initialised by reading `localStorage.getItem('mossy_conversation_paused')` on every app launch. If that key was ever set to `'true'` (e.g. the user once clicked the Pause/OFF button), Mossy would silently refuse to respond on every subsequent launch — `handleSend` returns immediately when `isConversationPaused` is `true`.
+
+**Root cause:** The pause feature is intended as a temporary in-session toggle ("pause and restart without exiting"). Persisting it across app restarts was wrong — users should never start a fresh session with Mossy already paused.
+
+**Fix (single file: `src/renderer/src/ChatInterface.tsx`):**
+1. `isConversationPaused` now initialises to `false` unconditionally instead of reading from `localStorage`.
+2. `toggleConversationPause()` no longer writes to `localStorage` (the pause/resume works in-session only).
+3. Added a one-time mount `useEffect` that calls `localStorage.removeItem('mossy_conversation_paused')` to immediately clear any stale value for existing users.
+4. Added `localStorage.removeItem('mossy_conversation_paused')` to the `resetMemory()` cleanup list.
+
+**Do not touch:** The `isConversationPaused` state, the mount-time cleanup effect, or the `toggleConversationPause` handler. These are the correct, minimal fix.
+
+---
+
 ### 17. Mossy's personality update + Pause/Resume conversation button ✅
 
 **Requests:** 

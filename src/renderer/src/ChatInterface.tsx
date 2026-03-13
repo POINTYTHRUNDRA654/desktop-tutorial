@@ -355,9 +355,9 @@ export const ChatInterface: React.FC = () => {
     const [isMonitoringPaused, setIsMonitoringPaused] = useState(() => {
         return localStorage.getItem('mossy_monitoring_paused') === 'true';
     });
-    const [isConversationPaused, setIsConversationPaused] = useState(() => {
-        return localStorage.getItem('mossy_conversation_paused') === 'true';
-    });
+    // Conversation pause is intentionally NOT restored from localStorage — it always
+    // starts as "active" so Mossy is ready to respond on every app launch.
+    const [isConversationPaused, setIsConversationPaused] = useState(false);
     const [liveTools, setLiveTools] = useState<string[]>([]);
     const [liveChecklist, setLiveChecklist] = useState<string[]>([]);
 
@@ -596,6 +596,16 @@ export const ChatInterface: React.FC = () => {
             console.warn('[ChatInterface] Failed to update working memory:', e);
         }
     };
+
+    // Clear any stale "paused" flag left over from a previous session so users
+    // are never stuck with Mossy silently refusing to respond on launch.
+    useEffect(() => {
+        try {
+            localStorage.removeItem('mossy_conversation_paused');
+        } catch {
+            // ignore storage errors
+        }
+    }, []);
 
     // Accept a one-time prefill (Install Wizard → Chat handoff, etc.)
     useEffect(() => {
@@ -910,6 +920,7 @@ export const ChatInterface: React.FC = () => {
             localStorage.removeItem('mossy_scan_auditor');
             localStorage.removeItem('mossy_scan_cartographer');
             localStorage.removeItem('mossy_cortex_memory');
+            localStorage.removeItem('mossy_conversation_paused');
 
             setMessages([]);
             setProjectContext(null);
@@ -937,21 +948,16 @@ export const ChatInterface: React.FC = () => {
     const toggleConversationPause = () => {
         const next = !isConversationPaused;
         setIsConversationPaused(next);
-        try {
-            localStorage.setItem('mossy_conversation_paused', next ? 'true' : 'false');
-            if (next) {
-                // Turning Mossy OFF — stop all speech and audio immediately
-                stopMossySpeech();
-                stopAudio();
-                console.log('[ChatInterface] Mossy turned OFF - speech and audio stopped');
-            } else {
-                // Turning Mossy back ON — nothing to resume, user can now send messages again
-                console.log('[ChatInterface] Mossy turned ON - ready for new messages');
-            }
-            window.dispatchEvent(new Event('mossy-conversation-toggle'));
-        } catch {
-            // ignore storage errors
+        if (next) {
+            // Turning Mossy OFF — stop all speech and audio immediately
+            stopMossySpeech();
+            stopAudio();
+            console.log('[ChatInterface] Mossy turned OFF - speech and audio stopped');
+        } else {
+            // Turning Mossy back ON — ready for new messages
+            console.log('[ChatInterface] Mossy turned ON - ready for new messages');
         }
+        window.dispatchEvent(new Event('mossy-conversation-toggle'));
     };
 
     // --- VOICE LOGIC ---
