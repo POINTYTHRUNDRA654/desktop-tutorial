@@ -58,8 +58,6 @@ def _load_shap_e_text_models(device):
     import torch as _torch
     device_str = str(_torch.device(device))
     if _shap_e_text_models is not None and _shap_e_text_models['device'] == device_str:
-        # Ensure the shared transmitter is also warm for this device.
-        _load_shap_e_transmitter(device, _torch)
         return _shap_e_text_models
 
     from shap_e.diffusion.gaussian_diffusion import diffusion_from_config
@@ -98,8 +96,6 @@ def _load_shap_e_image_models(device):
     import torch as _torch
     device_str = str(_torch.device(device))
     if _shap_e_image_models is not None and _shap_e_image_models['device'] == device_str:
-        # Ensure the shared transmitter is also warm for this device.
-        _load_shap_e_transmitter(device, _torch)
         return _shap_e_image_models
 
     from shap_e.diffusion.gaussian_diffusion import diffusion_from_config

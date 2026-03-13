@@ -66,8 +66,6 @@ def _load_point_e_text_models(device):
     import torch as _torch
     device_str = str(_torch.device(device))
     if _point_e_text_models is not None and _point_e_text_models['device'] == device_str:
-        # Ensure shared upsampler is also warm for this device.
-        _load_point_e_upsampler(device, _torch)
         return _point_e_text_models
 
     from point_e.models.download import load_checkpoint
@@ -111,8 +109,6 @@ def _load_point_e_image_models(device):
     import torch as _torch
     device_str = str(_torch.device(device))
     if _point_e_image_models is not None and _point_e_image_models['device'] == device_str:
-        # Ensure shared upsampler is also warm for this device.
-        _load_point_e_upsampler(device, _torch)
         return _point_e_image_models
 
     from point_e.models.download import load_checkpoint
@@ -147,15 +143,17 @@ def _grid_size_to_num_points(grid_size):
     """Map the user-facing grid_size setting to Point-E num_points=[base, upsample].
 
     The upsampler output count scales with grid_size while the base model output
-    is kept at 1024 (its training distribution).  Lower grid sizes give a
-    proportionally faster upsampling stage — the dominant cost for Point-E.
+    is kept at 1024 (its training distribution).  Lower grid sizes produce fewer
+    upsampled points, directly reducing the upsampling stage cost.
 
-    grid_size  base_pts  upsample_pts  speedup vs. 128 (approx.)
-    --------   --------  ------------  --------------------------
-    32         1024      1024          ~4×
+    Speedup figures are relative to the old hardcoded default of [1024, 4096]:
+
+    grid_size  base_pts  upsample_pts  upsample speedup vs. old default
+    --------   --------  ------------  -------------------------------------
+    32         1024      1024          ~4× (1024 vs 4096 pts to diffuse)
     64         1024      2048          ~2×
-    128        1024      4096          1× (default)
-    256        1024      8192          ~0.5× (high quality)
+    128        1024      4096          1× (same as old hardcoded default)
+    256        1024      8192          ~0.5× (more detail, slower)
     """
     upsample_pts = max(1024, grid_size * 32)
     return [1024, upsample_pts]
