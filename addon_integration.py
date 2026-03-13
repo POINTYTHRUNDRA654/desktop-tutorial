@@ -108,14 +108,61 @@ class AddonIntegrationSystem:
     
     @staticmethod
     def check_addon_installed(addon_id):
-        """Check if a Blender add-on is installed"""
+        """Check if a Blender add-on is installed (without importing it).
+
+        Importing an add-on module to check presence is unsafe: it fully
+        executes the add-on's ``__init__.py``, which in Blender 5.0 can crash
+        (e.g. Rigify tries to register WindowManager properties in a readonly
+        phase → ``AttributeError: pyrna_struct_meta_idprop_setattro() cannot
+        set in readonly state``).
+
+        Safe alternatives (in priority order):
+          1. ``bpy.context.preferences.addons`` — already-enabled add-ons.
+          2. ``bpy.utils.script_paths`` — scan all add-on directories for the
+             module folder or ``.py`` file without importing.
+          3. ``importlib.util.find_spec`` — locates the module file on sys.path
+             without executing it.
+        """
+        # 1. Already enabled → definitely installed.
         try:
-            import importlib
-            # Try to import the module
-            importlib.import_module(addon_id)
-            return True
-        except ImportError:
-            return False
+            if addon_id in bpy.context.preferences.addons:
+                return True
+        except Exception:
+            pass
+
+        # 2. Filesystem scan across all Blender script / add-on directories.
+        #    bpy.utils.script_paths() returns the directories Blender searches
+        #    for add-ons; each may contain an ``addons`` or ``addons_contrib``
+        #    sub-folder.
+        try:
+            import os
+            script_dirs = bpy.utils.script_paths()
+            for script_dir in script_dirs:
+                for sub in ("addons", "addons_contrib", "extensions"):
+                    addon_root = os.path.join(script_dir, sub)
+                    if not os.path.isdir(addon_root):
+                        continue
+                    # Package add-on (folder with __init__.py)
+                    if os.path.isdir(os.path.join(addon_root, addon_id)):
+                        return True
+                    # Single-file add-on (.py)
+                    if os.path.isfile(os.path.join(addon_root, addon_id + ".py")):
+                        return True
+        except Exception:
+            pass
+
+        # 3. importlib.util.find_spec: locates the module on sys.path WITHOUT
+        #    executing it — safe even for add-ons that crash on import.
+        try:
+            import importlib.util
+            if importlib.util.find_spec(addon_id) is not None:
+                return True
+        except (ModuleNotFoundError, ValueError):
+            pass
+        except Exception:
+            pass
+
+        return False
     
     @staticmethod
     def check_addon_enabled(addon_id):
