@@ -669,22 +669,24 @@ class ExportHelpers:
         if not hasattr(export_scene, "nif"):
             if blender_version >= (5, 0, 0):
                 return False, (
-                    "Niftools v0.1.1 is not compatible with Blender 5.x. "
-                    "Use Blender 3.6 LTS for NIF export, or export FBX and "
-                    "convert with Cathedral Assets Optimizer."
+                    "Niftools not registered. Install via Setup & Status panel "
+                    "(legacy add-on — enable 'Allow Legacy Add-ons' in Preferences)."
                 )
             if blender_version >= (4, 0, 0):
-                return False, "Niftools exporter not registered; official v0.1.1 targets Blender ≤3.6. Install a 4.x-compatible fork or use 3.6 for export."
+                return False, (
+                    "Niftools exporter not registered. Install via Setup & Status panel "
+                    "(legacy add-on — enable 'Allow Legacy Add-ons' in Blender Preferences)."
+                )
             return False, "Niftools exporter not registered"
 
-        # Exporter IS registered — give a version-appropriate status message.
-        # (Reaching here on Blender 5.x would mean the user somehow force-installed
-        # Niftools v0.1.1 despite it not being officially supported.)
         if blender_version >= (5, 0, 0):
-            return True, "Niftools exporter detected on Blender 5.x (not officially supported; expect instability)"
+            return True, (
+                "Niftools exporter detected on Blender 5.x "
+                "(runtime-patched for Blender 5.x compatibility)"
+            )
 
         if blender_version >= (4, 0, 0):
-            return True, "Niftools exporter detected on Blender 4.x (ensure compatibility; experimental)"
+            return True, "Niftools exporter detected on Blender 4.x (runtime-patched for compatibility)"
 
         return True, "Niftools exporter available"
 
@@ -1039,6 +1041,139 @@ class ExportHelpers:
             pass
 
     @staticmethod
+    def _apply_niftools_blender5_compat_patches():
+        """Monkey-patch niftools v0.1.1 for Blender 5.x API compatibility.
+
+        Blender 5.0 removed ``bpy.types.Mesh.calc_normals_split()`` and
+        ``bpy.types.Mesh.free_normals_split()`` (both deprecated since 4.1).
+        Niftools v0.1.1 calls ``b_mesh.calc_normals_split()`` inside
+        ``Mesh.get_geom_data`` before reading per-loop normals via
+        ``b_mesh.loops.foreach_get('normal', ...)``.  In Blender 5.x, loop
+        normals are computed automatically — the explicit call is unnecessary
+        but its absence raises ``AttributeError`` and aborts every NIF export.
+
+        Blender 5.x also removed ``bpy.types.Mesh.normals_split_custom_set_from_vertices``
+        (deprecated since 4.1) and ``use_auto_smooth`` (deprecated since 4.1).
+        Niftools' import path (``Vertex.map_normals``) calls both when importing
+        custom normals.  We patch that method to use the Blender 4.1+/5.x-compatible
+        API (``normals_split_custom_set`` with per-loop normals).
+
+        Patches applied
+        ---------------
+        * **Patch 3** — ``Mesh.get_geom_data``: wrap the method so that
+          ``b_mesh.calc_normals_split()`` / ``free_normals_split()`` are no-ops
+          when absent, via a transparent proxy wrapper class.  The proxy
+          delegates every other attribute access directly to the real mesh so
+          that all existing ``foreach_get`` / ``polygons`` / ``loops`` / etc.
+          calls continue to work.
+        * **Patch 4** — ``Vertex.map_normals``: replace ``use_auto_smooth``
+          assignment (removed in 4.1) with a safe guard, and replace the removed
+          ``normals_split_custom_set_from_vertices`` with per-loop normals set
+          via the still-present ``normals_split_custom_set``.
+
+        The patches are idempotent: calling this function multiple times is safe.
+        Patching only occurs on Blender 5.x; earlier versions are left untouched
+        (the Blender 4.x patches already handle the 4.x-specific removals).
+        """
+        if bpy.app.version < (5, 0, 0):
+            return  # calc_normals_split still present on Blender 4.x; no patch needed
+
+        # ------------------------------------------------------------------
+        # Proxy wrapper class: provides no-op calc_normals_split /
+        # free_normals_split while delegating all other attribute access to
+        # the underlying bpy.types.Mesh object.  We use __slots__ so the
+        # wrapper itself has no __dict__ to avoid confusion.
+        # ------------------------------------------------------------------
+        class _Blender5MeshProxy:
+            """Transparent proxy for bpy.types.Mesh providing no-op normals helpers."""
+            __slots__ = ('_mesh',)
+
+            def __init__(self, mesh):
+                object.__setattr__(self, '_mesh', mesh)
+
+            # No-op replacements for the removed Blender 5.x normals methods.
+            def calc_normals_split(self):
+                pass  # no-op: Blender 5.x auto-computes split normals
+
+            def free_normals_split(self):
+                pass  # no-op: companion to calc_normals_split
+
+            def __getattr__(self, name):
+                return getattr(object.__getattribute__(self, '_mesh'), name)
+
+            def __setattr__(self, name, value):
+                setattr(object.__getattribute__(self, '_mesh'), name, value)
+
+        try:
+            from io_scene_niftools.modules.nif_export.geometry.mesh import Mesh as _NiftoolsMesh
+
+            # ------------------------------------------------------------------
+            # Patch 3 – Mesh.get_geom_data
+            # In Blender 5.x, b_mesh.calc_normals_split() and
+            # b_mesh.free_normals_split() were removed.  Niftools calls
+            # calc_normals_split() unconditionally inside get_geom_data.
+            # We wrap the method so that b_mesh is replaced with a proxy
+            # that provides no-op implementations of these methods while
+            # delegating everything else to the real mesh.
+            # ------------------------------------------------------------------
+            if not getattr(_NiftoolsMesh.get_geom_data, "_fo4_blender5_patched", False):
+                _orig_ggd = _NiftoolsMesh.get_geom_data
+                _Proxy = _Blender5MeshProxy  # capture in closure
+
+                def _patched_get_geom_data(self, b_mesh, color, normal, uv, tangent, b_mat_index):
+                    # Wrap the mesh only when the removed methods are absent.
+                    if not hasattr(b_mesh, 'calc_normals_split'):
+                        b_mesh = _Proxy(b_mesh)
+                    return _orig_ggd(self, b_mesh, color, normal, uv, tangent, b_mat_index)
+
+                _patched_get_geom_data._fo4_blender5_patched = True
+                _NiftoolsMesh.get_geom_data = _patched_get_geom_data
+
+        except Exception:
+            pass
+
+        try:
+            import numpy as _np
+            from io_scene_niftools.modules.nif_import.geometry.vertex import Vertex as _NiftoolsVertex
+
+            # ------------------------------------------------------------------
+            # Patch 4 – Vertex.map_normals
+            # Original code (niftools v0.1.1, vertex/__init__.py):
+            #   b_mesh.use_auto_smooth = True           → removed in Blender 4.1
+            #   b_mesh.normals_split_custom_set_from_vertices(no_array)
+            #                                           → removed in Blender 5.0
+            #
+            # In Blender 5.x we must expand per-vertex normals to per-loop
+            # normals and use normals_split_custom_set() instead.
+            # ------------------------------------------------------------------
+            if not getattr(_NiftoolsVertex.map_normals, "_fo4_blender5_patched", False):
+                from io_scene_niftools.utils.singleton import NifOp as _NifOp
+
+                def _patched_map_normals(b_mesh, normals):
+                    assert len(b_mesh.vertices) == len(normals)
+                    if not _NifOp.props.use_custom_normals:
+                        return
+                    no_array = _NiftoolsVertex.normalize(
+                        _np.array(normals) if not isinstance(normals, _np.ndarray) else normals
+                    )
+                    try:
+                        # Expand per-vertex normals → per-loop normals, then set.
+                        loop_normals = [
+                            tuple(no_array[loop.vertex_index]) for loop in b_mesh.loops
+                        ]
+                        b_mesh.normals_split_custom_set(loop_normals)
+                    except Exception:
+                        # Fall back gracefully — the mesh is at least importable
+                        # even if custom normals could not be applied.
+                        pass
+
+                _patched_map_normals._fo4_blender5_patched = True
+                _NiftoolsVertex.map_normals = staticmethod(_patched_map_normals)
+
+        except Exception:
+            pass
+
+    @staticmethod
     def _sanitize_material_node_labels(obj):
         """Normalise image texture node labels to the TEX_SLOTS set that niftools recognises.
 
@@ -1348,6 +1483,9 @@ class ExportHelpers:
                 # Apply Blender 4.x compatibility patches to niftools so that
                 # the missing face_maps API does not crash the export.
                 ExportHelpers._apply_niftools_blender4_compat_patches()
+                # Apply Blender 5.x compatibility patches (calc_normals_split
+                # removal, normals_split_custom_set_from_vertices removal, etc.)
+                ExportHelpers._apply_niftools_blender5_compat_patches()
 
                 kwargs = ExportHelpers._build_nif_export_kwargs(filepath)
                 result = bpy.ops.export_scene.nif(**kwargs)
@@ -1576,6 +1714,9 @@ class ExportHelpers:
                 # Apply Blender 4.x compatibility patches to niftools so that
                 # the missing face_maps API does not crash the export.
                 ExportHelpers._apply_niftools_blender4_compat_patches()
+                # Apply Blender 5.x compatibility patches (calc_normals_split
+                # removal, normals_split_custom_set_from_vertices removal, etc.)
+                ExportHelpers._apply_niftools_blender5_compat_patches()
                 kwargs = ExportHelpers._build_nif_export_kwargs(filepath)
                 try:
                     result = bpy.ops.export_scene.nif(**kwargs)

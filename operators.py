@@ -2787,25 +2787,24 @@ class FO4_OT_InstallNiftools(Operator):
     )
 
     def execute(self, context):
-        # Niftools v0.1.1 is not compatible with Blender 5.x or later.
-        # The extension system and API changes in Blender 5 make the add-on
-        # non-functional.  Attempting to install it would silently fail or
-        # produce confusing errors, so we abort with a clear message here.
-        if bpy.app.version >= (5, 0, 0):
-            msg = (
-                "Niftools v0.1.1 is NOT compatible with Blender 5.x. "
-                "To export NIF files, use Blender 3.6 LTS with Niftools v0.1.1, "
-                "or export to FBX and convert with Cathedral Assets Optimizer."
-            )
-            self.report({'ERROR'}, msg)
-            notification_system.FO4_NotificationSystem.notify(
-                "Niftools not supported on Blender 5.x — use Blender 3.6 LTS or FBX workflow",
-                'ERROR'
-            )
-            return {'CANCELLED'}
-
         import threading
         from . import tool_installers
+
+        # On Blender 4.2+ / 5.x, Niftools v0.1.1 is a legacy add-on and must
+        # be installed to the scripts/addons directory (not the extensions path).
+        # The PowerShell installer already targets scripts/addons.  After
+        # installation the user must enable "Allow Legacy Add-ons" in
+        # Edit → Preferences → Add-ons and then enable the add-on.
+        # Runtime API incompatibilities (calc_normals_split removal, etc.) are
+        # patched automatically before every NIF export by this add-on.
+        if bpy.app.version >= (4, 2, 0):
+            self.report(
+                {'INFO'},
+                "Niftools will be installed as a Legacy Add-on. "
+                "After install: Edit → Preferences → Add-ons → enable "
+                "'Allow Legacy Add-ons', then enable 'NetImmerse/Gamebryo (.nif)'.",
+            )
+
         blender_version = self.blender_version
 
         def _run():

@@ -16,7 +16,7 @@ bl_info = {
         "is unavailable. Includes mesh optimisation, DDS texture conversion (NVTT/texconv), "
         "wind animation, AI rigging (RigNet), quest/NPC/item helpers, and smart presets."
     ),
-    "warning": "NIF export requires Niftools v0.1.1 on Blender 3.6 LTS (not compatible with Blender 4.x)",
+    "warning": "NIF export: install Niftools v0.1.1 as a legacy add-on; enable 'Allow Legacy Add-ons' on Blender 4.2+/5.x",
     "doc_url": "https://github.com/POINTYTHRUNDRA654/Blender-add-on",
     "category": "Import-Export",
 }
