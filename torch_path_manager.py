@@ -78,6 +78,7 @@ class TorchPathManager:
                 "install",
                 "--target", str(target_path),
                 "--upgrade",
+                "--no-warn-script-location",
                 "torch",
                 "torchvision",
                 "--index-url", "https://download.pytorch.org/whl/cpu"  # CPU version for smaller download
