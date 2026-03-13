@@ -3069,7 +3069,7 @@ class FO4_PT_AddonIntegrationPanel(Panel):
                 pass
 
             elif addon['is_installed']:
-                # On disk but not yet active → offer a one-click enable
+                # On disk but not yet active → one-click enable is safe
                 op = addon_box.operator(
                     "fo4.enable_addon",
                     text="Enable Now",
@@ -3078,12 +3078,18 @@ class FO4_PT_AddonIntegrationPanel(Panel):
                 op.addon_id = addon_id
 
             else:
-                # Not installed
+                # Not installed / not found on disk
                 if is_builtin:
-                    # Bundled with every Blender copy — try enabling directly
+                    # These ship with every Blender but may be disabled or renamed
+                    # in some builds.  Guide the user to Preferences rather than
+                    # trying to call addon_enable on a module that isn't on disk.
+                    addon_box.label(
+                        text="Built-in — enable via Edit > Preferences > Add-ons",
+                        icon='INFO',
+                    )
                     op = addon_box.operator(
                         "fo4.enable_addon",
-                        text="Enable (Built-in)",
+                        text="Try Enable",
                         icon='CHECKMARK',
                     )
                     op.addon_id = addon_id
@@ -3111,7 +3117,6 @@ class FO4_PT_AddonIntegrationPanel(Panel):
                     op.url = dl_url
 
                 else:
-                    # Fallback: search GitHub
                     op = addon_box.operator(
                         "wm.url_open",
                         text=f"Search for '{addon['name']}' online",

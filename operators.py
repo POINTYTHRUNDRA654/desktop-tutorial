@@ -2924,7 +2924,7 @@ class FO4_OT_EnableAddon(Operator):
     bl_idname = "fo4.enable_addon"
     bl_label = "Enable Add-on"
     bl_description = "Enable this add-on in Blender Preferences"
-    bl_options = {'REGISTER'}
+    bl_options = {'REGISTER', 'INTERNAL'}
 
     addon_id: bpy.props.StringProperty(
         name="Add-on Module",
@@ -2938,11 +2938,17 @@ class FO4_OT_EnableAddon(Operator):
             self.report({'ERROR'}, "No add-on ID specified")
             return {'CANCELLED'}
         try:
-            bpy.ops.preferences.addon_enable(module=self.addon_id)
-            self.report({'INFO'}, f"Enabled add-on: {self.addon_id}")
-            notification_system.FO4_NotificationSystem.notify(
-                f"Add-on '{self.addon_id}' enabled", 'INFO'
-            )
+            result = bpy.ops.preferences.addon_enable(module=self.addon_id)
+            if 'FINISHED' in result:
+                self.report({'INFO'}, f"Enabled: {self.addon_id}")
+                # Invalidate the scan cache so the panel status updates immediately
+                from . import addon_integration
+                addon_integration.AddonIntegrationSystem._scan_cache = None
+                notification_system.FO4_NotificationSystem.notify(
+                    f"Add-on '{self.addon_id}' enabled ✓", 'INFO'
+                )
+            else:
+                self.report({'WARNING'}, f"Could not enable '{self.addon_id}' — it may not be installed")
         except Exception as exc:
             self.report({'ERROR'}, f"Could not enable '{self.addon_id}': {exc}")
         return {'FINISHED'}
