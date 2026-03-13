@@ -237,9 +237,16 @@ def _ensure_tools_dir(name: str) -> Path:
     return path
 
 
+_HTTP_TIMEOUT = 30  # seconds – applied to every urlopen call
+
+
 def _download(url: str, target: Path) -> None:
     target.parent.mkdir(parents=True, exist_ok=True)
-    with urllib.request.urlopen(url) as resp, open(target, "wb") as out:
+    req = urllib.request.Request(
+        url,
+        headers={"User-Agent": "Blender-FO4-Addon/1.0"},
+    )
+    with urllib.request.urlopen(req, timeout=_HTTP_TIMEOUT) as resp, open(target, "wb") as out:
         shutil.copyfileobj(resp, out)
 
 
@@ -249,10 +256,18 @@ def _extract_zip(zip_path: Path, dest: Path) -> None:
 
 
 def _get_github_release_asset(repo: str, keyword: str) -> str | None:
-    """Return browser_download_url for first asset whose name contains keyword."""
+    """Return browser_download_url for first release asset whose name contains *keyword*.
+
+    Uses a 30-second timeout and a User-Agent header so GitHub does not
+    rate-limit unauthenticated requests from the default Python urlopen agent.
+    """
     api = f"https://api.github.com/repos/{repo}/releases/latest"
+    req = urllib.request.Request(
+        api,
+        headers={"User-Agent": "Blender-FO4-Addon/1.0"},
+    )
     try:
-        with urllib.request.urlopen(api) as resp:
+        with urllib.request.urlopen(req, timeout=_HTTP_TIMEOUT) as resp:
             data = json.load(resp)
     except Exception:
         return None
@@ -369,6 +384,25 @@ def _realesrgan_ncnn_platform_keyword() -> str:
     return "ubuntu"
 
 
+# Pinned direct download URLs for Real-ESRGAN NCNN Vulkan v0.2.0.
+# Used as a fallback when the GitHub Releases API is rate-limited or
+# unreachable, so the one-click installer always has a chance to succeed.
+_REALESRGAN_NCNN_FALLBACK_URLS: dict[str, str] = {
+    "windows": (
+        "https://github.com/xinntao/Real-ESRGAN/releases/download/"
+        "v0.2.5.0/realesrgan-ncnn-vulkan-20220424-windows.zip"
+    ),
+    "ubuntu": (
+        "https://github.com/xinntao/Real-ESRGAN/releases/download/"
+        "v0.2.5.0/realesrgan-ncnn-vulkan-20220424-ubuntu.zip"
+    ),
+    "macos": (
+        "https://github.com/xinntao/Real-ESRGAN/releases/download/"
+        "v0.2.5.0/realesrgan-ncnn-vulkan-20220424-macos.zip"
+    ),
+}
+
+
 def install_realesrgan_ncnn() -> tuple[bool, str]:
     """Download the Real-ESRGAN NCNN Vulkan binary from GitHub automatically.
 
@@ -380,6 +414,10 @@ def install_realesrgan_ncnn() -> tuple[bool, str]:
 
     The binary is extracted to ``tools/realesrgan/bin/`` and the add-on
     will find it there without needing it to be on PATH.
+
+    The GitHub Releases API is tried first; if it is unavailable (rate-limited
+    or no network access to the API endpoint), pinned fallback URLs for the
+    last known release are used automatically.
     """
     bin_dir = get_realesrgan_bin_dir()
     bin_dir.mkdir(parents=True, exist_ok=True)
@@ -389,10 +427,15 @@ def install_realesrgan_ncnn() -> tuple[bool, str]:
         return True, f"Real-ESRGAN NCNN Vulkan already installed in {bin_dir}"
 
     keyword = _realesrgan_ncnn_platform_keyword()
+
+    # Try the GitHub Releases API first so we always get the newest build.
     url = _get_github_release_asset("xinntao/Real-ESRGAN", keyword)
     if not url:
+        # API unavailable (rate-limit, no DNS, …). Fall back to a pinned URL.
+        url = _REALESRGAN_NCNN_FALLBACK_URLS.get(keyword)
+    if not url:
         return False, (
-            "Could not resolve Real-ESRGAN NCNN Vulkan download URL from GitHub. "
+            "Could not resolve Real-ESRGAN NCNN Vulkan download URL. "
             "Check your internet connection or download manually from "
             "https://github.com/xinntao/Real-ESRGAN/releases"
         )
