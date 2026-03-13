@@ -1,5 +1,6 @@
 import * as React from 'react';
-export const Textarea: any = React.forwardRef((props: any, ref: any) => (
-  <textarea ref={ref} {...props} />
-));
-(Textarea as any).displayName = 'Textarea';
+const Textarea = React.forwardRef<HTMLTextAreaElement, React.TextareaHTMLAttributes<HTMLTextAreaElement>>(
+  (props, ref) => <textarea ref={ref} {...props} />
+);
+Textarea.displayName = 'Textarea';
+export { Textarea };

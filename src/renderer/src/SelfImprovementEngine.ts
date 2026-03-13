@@ -5,6 +5,7 @@
  */
 
 import { LocalAIEngine } from './LocalAIEngine';
+import type { UserFeedback } from '../../shared/types';
 
 export interface LearningPattern {
   id: string;

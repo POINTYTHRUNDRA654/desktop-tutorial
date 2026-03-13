@@ -577,7 +577,7 @@ export default function ModPackagingWizard() {
         fullWidth
         label="Mod Name"
         value={modInfo.name}
-        onChange={(e) => setModInfo({ ...modInfo, name: e.target.value })}
+        onChange={(e: any) => setModInfo({ ...modInfo, name: e.target.value })}
         required
         sx={{ mb: 2 }}
       />
@@ -586,7 +586,7 @@ export default function ModPackagingWizard() {
         <TextField
           label="Version"
           value={modInfo.version}
-          onChange={(e) => setModInfo({ ...modInfo, version: e.target.value })}
+          onChange={(e: any) => setModInfo({ ...modInfo, version: e.target.value })}
           required
           sx={{ flex: 1 }}
         />
@@ -599,7 +599,7 @@ export default function ModPackagingWizard() {
         fullWidth
         label="Author"
         value={modInfo.author}
-        onChange={(e) => setModInfo({ ...modInfo, author: e.target.value })}
+        onChange={(e: any) => setModInfo({ ...modInfo, author: e.target.value })}
         required
         sx={{ mb: 2 }}
       />
@@ -608,7 +608,7 @@ export default function ModPackagingWizard() {
         fullWidth
         label="Description"
         value={modInfo.description}
-        onChange={(e) => setModInfo({ ...modInfo, description: e.target.value })}
+        onChange={(e: any) => setModInfo({ ...modInfo, description: e.target.value })}
         multiline
         rows={4}
         required
@@ -619,7 +619,7 @@ export default function ModPackagingWizard() {
         <InputLabel>Category</InputLabel>
         <Select
           value={modInfo.category}
-          onChange={(e) => setModInfo({ ...modInfo, category: e.target.value })}
+          onChange={(e: any) => setModInfo({ ...modInfo, category: e.target.value })}
         >
           <MenuItem value="Armor">Armor</MenuItem>
           <MenuItem value="Weapons">Weapons</MenuItem>
@@ -636,7 +636,7 @@ export default function ModPackagingWizard() {
         fullWidth
         label="Requirements (comma-separated)"
         value={modInfo.requirements.join(', ')}
-        onChange={(e) =>
+        onChange={(e: any) =>
           setModInfo({ ...modInfo, requirements: e.target.value.split(',').map((s) => s.trim()) })
         }
         sx={{ mb: 2 }}
@@ -646,7 +646,7 @@ export default function ModPackagingWizard() {
         fullWidth
         label="Tags (comma-separated)"
         value={modInfo.tags.join(', ')}
-        onChange={(e) =>
+        onChange={(e: any) =>
           setModInfo({ ...modInfo, tags: e.target.value.split(',').map((s) => s.trim()) })
         }
         sx={{ mb: 2 }}
@@ -656,7 +656,7 @@ export default function ModPackagingWizard() {
         fullWidth
         label="Homepage URL (optional)"
         value={modInfo.homepage}
-        onChange={(e) => setModInfo({ ...modInfo, homepage: e.target.value })}
+        onChange={(e: any) => setModInfo({ ...modInfo, homepage: e.target.value })}
         sx={{ mb: 2 }}
       />
 
@@ -664,7 +664,7 @@ export default function ModPackagingWizard() {
         fullWidth
         label="Nexus Mod ID (optional)"
         value={modInfo.nexusId}
-        onChange={(e) => setModInfo({ ...modInfo, nexusId: e.target.value })}
+        onChange={(e: any) => setModInfo({ ...modInfo, nexusId: e.target.value })}
         placeholder="e.g., 12345"
       />
     </Box>
@@ -737,7 +737,7 @@ export default function ModPackagingWizard() {
         <InputLabel>Template</InputLabel>
         <Select
           value={readmeTemplate}
-          onChange={(e) => setReadmeTemplate(e.target.value)}
+          onChange={(e: any) => setReadmeTemplate(e.target.value)}
         >
           <MenuItem value="default">Default</MenuItem>
           <MenuItem value="nexus">Nexus Mods (BBCode)</MenuItem>
@@ -774,8 +774,8 @@ export default function ModPackagingWizard() {
           fullWidth
           label="New changelog entry"
           value={newChangelogEntry}
-          onChange={(e) => setNewChangelogEntry(e.target.value)}
-          onKeyPress={(e) => {
+          onChange={(e: any) => setNewChangelogEntry(e.target.value)}
+          onKeyPress={(e: any) => {
             if (e.key === 'Enter') {
               handleAddChangelogEntry();
             }
@@ -820,7 +820,7 @@ export default function ModPackagingWizard() {
         </Typography>
         <RadioGroup
           value={archiveFormat}
-          onChange={(e) => setArchiveFormat(e.target.value as any)}
+          onChange={(e: any) => setArchiveFormat(e.target.value as any)}
         >
           <FormControlLabel
             value="7z"
@@ -844,7 +844,7 @@ export default function ModPackagingWizard() {
         <InputLabel>Compression Level</InputLabel>
         <Select
           value={compressionLevel}
-          onChange={(e) => setCompressionLevel(e.target.value as any)}
+          onChange={(e: any) => setCompressionLevel(e.target.value as any)}
         >
           <MenuItem value={0}>0 - No compression (Fastest)</MenuItem>
           <MenuItem value={1}>1 - Fastest</MenuItem>
@@ -860,7 +860,7 @@ export default function ModPackagingWizard() {
           control={
             <Checkbox
               checked={createFomod}
-              onChange={(e) => setCreateFomod(e.target.checked)}
+              onChange={(e: any) => setCreateFomod(e.target.checked)}
             />
           }
           label="Generate FOMOD installer configuration"
@@ -1203,7 +1203,7 @@ export default function ModPackagingWizard() {
             fullWidth
             label="Draft Name"
             value={draftName}
-            onChange={(e) => setDraftName(e.target.value)}
+            onChange={(e: any) => setDraftName(e.target.value)}
             placeholder="e.g., My Weapon Mod v1.0"
             sx={{ mt: 2 }}
           />
@@ -1297,7 +1297,7 @@ export default function ModPackagingWizard() {
             type="password"
             label="Nexus Mods API Key"
             value={nexusApiKey}
-            onChange={(e) => setNexusApiKey(e.target.value)}
+            onChange={(e: any) => setNexusApiKey(e.target.value)}
             disabled={uploading}
             sx={{ mb: 2 }}
           />

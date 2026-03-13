@@ -46,8 +46,8 @@ import {
   Eye,
   EyeOff,
   CheckCircle,
-  Error,
-  Warning,
+  AlertCircle,
+  AlertTriangle,
   RefreshCw,
   Upload,
   Download,
@@ -465,7 +465,7 @@ export const VersionControl: React.FC<VersionControlProps> = ({ className }) => 
                 <InputLabel>Template</InputLabel>
                 <Select
                   value={commitTemplate}
-                  onChange={(e) => {
+                  onChange={(e: any) => {
                     setCommitTemplate(e.target.value);
                     setCommitMessage(commitTemplates[e.target.value as keyof typeof commitTemplates]);
                   }}
@@ -483,14 +483,14 @@ export const VersionControl: React.FC<VersionControlProps> = ({ className }) => 
                 rows={4}
                 label="Commit Message"
                 value={commitMessage}
-                onChange={(e) => setCommitMessage(e.target.value)}
+                onChange={(e: any) => setCommitMessage(e.target.value)}
                 sx={{ mb: 2 }}
               />
               <FormControlLabel
                 control={
                   <Switch
                     checked={amendLastCommit}
-                    onChange={(e) => setAmendLastCommit(e.target.checked)}
+                    onChange={(e: any) => setAmendLastCommit(e.target.checked)}
                   />
                 }
                 label="Amend last commit"
@@ -521,7 +521,7 @@ export const VersionControl: React.FC<VersionControlProps> = ({ className }) => 
                       size="small"
                       placeholder="Search commits..."
                       value={searchQuery}
-                      onChange={(e) => setSearchQuery(e.target.value)}
+                      onChange={(e: any) => setSearchQuery(e.target.value)}
                     />
                   </Box>
                   <List>
@@ -640,7 +640,7 @@ export const VersionControl: React.FC<VersionControlProps> = ({ className }) => 
                     <InputLabel>Source Branch</InputLabel>
                     <Select
                       value={mergeSource}
-                      onChange={(e) => setMergeSource(e.target.value)}
+                      onChange={(e: any) => setMergeSource(e.target.value)}
                     >
                       {branches.filter(b => b !== currentBranch).map((branch) => (
                         <MenuItem key={branch} value={branch}>
@@ -653,7 +653,7 @@ export const VersionControl: React.FC<VersionControlProps> = ({ className }) => 
                     <InputLabel>Target Branch</InputLabel>
                     <Select
                       value={mergeTarget}
-                      onChange={(e) => setMergeTarget(e.target.value)}
+                      onChange={(e: any) => setMergeTarget(e.target.value)}
                     >
                       {branches.map((branch) => (
                         <MenuItem key={branch} value={branch}>
@@ -685,7 +685,7 @@ export const VersionControl: React.FC<VersionControlProps> = ({ className }) => 
                 fullWidth
                 label="Branch Name"
                 value={newBranchName}
-                onChange={(e) => setNewBranchName(e.target.value)}
+                onChange={(e: any) => setNewBranchName(e.target.value)}
                 sx={{ mt: 1 }}
               />
             </DialogContent>
@@ -711,7 +711,7 @@ export const VersionControl: React.FC<VersionControlProps> = ({ className }) => 
                     control={
                       <Switch
                         checked={autoBackupEnabled}
-                        onChange={(e) => setAutoBackupEnabled(e.target.checked)}
+                        onChange={(e: any) => setAutoBackupEnabled(e.target.checked)}
                       />
                     }
                     label="Enable automatic backups"
@@ -721,7 +721,7 @@ export const VersionControl: React.FC<VersionControlProps> = ({ className }) => 
                       <InputLabel>Schedule</InputLabel>
                       <Select
                         value={backupSchedule}
-                        onChange={(e) => setBackupSchedule(e.target.value)}
+                        onChange={(e: any) => setBackupSchedule(e.target.value)}
                       >
                         <MenuItem value="hourly">Hourly</MenuItem>
                         <MenuItem value="daily">Daily</MenuItem>

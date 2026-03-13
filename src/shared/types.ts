@@ -148,9 +148,9 @@ export interface FOMODValidation { success?: boolean; valid?: boolean; errors: F
 export interface ModInfo { name: string; version: string; author: string; description?: string; category?: string; tags?: string[]; nexusId?: string; website?: string }
 export interface StructureValidation { valid: boolean; errors: string[]; warnings: string[]; fileCount: number; estimatedSize: number }
 export interface ArchiveSettings { format: '7z' | 'zip' | 'rar'; compressionLevel: number; includeReadme: boolean; includeScreenshots: boolean; outputPath?: string }
-export interface NexusPrep { modName: string; version: string; description: string; category: string; tags: string[]; screenshots: string[]; readme: string }
+export interface NexusPrep { modName: string; version: string; description: string; category: string; tags: string[]; screenshots: string[]; readme: string; checks?: Record<string, any>[]; recommendations?: string[] }
 
-export type FOMODFilePattern = { source: string; destination?: string; pattern?: string };
+export type FOMODFilePattern = { source: string; destination?: string; pattern?: string; priority?: number; isFolder?: boolean; alwaysInstall?: boolean; installIfUsable?: boolean };
 export interface FOMODPreviewResult { steps: FOMODStep[]; estimatedSize: number; fileList: string[] }
 
 /**
@@ -432,6 +432,7 @@ export interface Plugin {
   installTime?: number;
   updateTime?: number;
   homepage?: string;
+  license?: string;
 }
 
 export interface PluginListing {
@@ -650,6 +651,7 @@ export interface InstalledProgram {
 export interface SystemInfo {
   cpu: string;
   ram: string;
+  memory?: string | number;
   gpu: string[];
   os: string;
   aiCapabilities: string[];
@@ -1225,14 +1227,18 @@ export interface AuthResult { success: boolean; provider?: string; token?: strin
 
 // Performance Metrics
 export interface PerformanceMetric {
-  modCombination: string[]; // List of mod names
-  fps: number;
-  memoryUsage: number; // MB
-  loadTime: number; // seconds
-  stabilityScore: number; // 0-100
-  conflictCount: number;
+  modCombination?: string[]; // List of mod names
+  fps: number | { average: number; min: number; max: number; percentile95?: number; frameTimeMs?: number | number[] };
+  memoryUsage?: number; // MB
+  loadTime?: number; // seconds
+  stabilityScore?: number; // 0-100
+  conflictCount?: number;
   timestamp: number;
-  hardwareProfile: HardwareProfile;
+  hardwareProfile?: HardwareProfile;
+  memory?: { average?: number; peak?: number; gcPressure?: number; totalUsed?: number; textureMemory?: number; meshMemory?: number; scriptMemory?: number };
+  cpu?: number | { totalUsage?: number; mainThread?: number; renderThread?: number; scriptThread?: number };
+  gpu?: number | { usage?: number; memoryUsed?: number; drawCalls?: number; triangles?: number; shaders?: number };
+  scripts?: { averageTime?: number; slowestScript?: string; stackDumps?: number; suspendedStacks?: number; eventsPerSecond?: number; lagSpikes?: any[] };
 }
 
 
@@ -1384,12 +1390,16 @@ export interface PatternRecommendation {
 // Performance Bottleneck Mining Types
 
 export interface PerformanceBottleneck {
-  modName: string;
-  bottleneckType: 'cpu' | 'gpu' | 'memory' | 'io' | 'script';
+  type?: string;
+  severity?: string;
+  description?: string;
+  component?: string;
+  modName?: string;
+  bottleneckType?: 'cpu' | 'gpu' | 'memory' | 'io' | 'script';
   impact: number; // FPS impact
-  confidence: number;
-  evidence: BottleneckEvidence[];
-  mitigationStrategies: string[];
+  confidence?: number;
+  evidence?: BottleneckEvidence[];
+  mitigationStrategies?: string[];
 }
 
 export interface BottleneckEvidence {
@@ -4030,6 +4040,11 @@ export interface ElectronAPI {
     memoryUsage: number;
     gpuUsage?: number;
     gpuMemory?: number;
+    cpu?: number;
+    mem?: number;
+    memory?: number;
+    disk?: number;
+    network?: number;
   }>;
   // Process metrics helper (exposed by preload)
   getProcessMetrics?: (pid: number) => Promise<{ cpu: number; memory: number; handles?: number }>;
@@ -5052,7 +5067,7 @@ export interface GitRepo { path: string; initialized: boolean; currentBranch: st
 export interface CommitResult { success: boolean; hash?: string; message?: string; filesChanged?: number; timestamp?: number; error?: string }
 export interface BranchResult { success: boolean; branchName?: string; error?: string }
 export interface MergeResult { success: boolean; merged?: boolean; fastForward?: boolean; conflicts?: string[]; error?: string }
-export interface CommitHistory { hash: string; message: string; author: string; email: string; timestamp: number; branch?: string; filesChanged?: string[]; date?: string; files?: number; insertions?: number; deletions?: number }
+export interface CommitHistory { hash: string; message: string; author: string; email: string; timestamp: number; branch?: string; filesChanged?: string[]; date?: string | number; files?: string[] | number; insertions?: number; deletions?: number }
 export interface DiffLine { type: 'add' | 'delete' | 'context'; content: string; lineNumber: number }
 export interface DiffChunk { oldStart: number; oldLines: number; newStart: number; newLines: number; lines: DiffLine[] }
 export interface DiffResult { fileA: string; fileB: string; additions: number; deletions: number; chunks: DiffChunk[] }
@@ -5084,6 +5099,10 @@ export type ConflictSeverity = 'low' | 'minor' | 'major' | 'critical' | 'warning
 export type ConflictType = 'override' | 'delete' | 'navmesh' | 'script' | 'asset' | string;
 
 export interface Conflict {
+  id?: string;
+  type?: string;
+  plugins?: string[];
+  description?: string;
   formId?: string;
   recordType?: string;
   editorId?: string | number;
@@ -5103,7 +5122,7 @@ export interface ConflictAnalysis {
   conflictMatrix: ConflictMatrix;
   recommendations: string[];
   conflicts?: Conflict[];
-  summary?: string;
+  summary?: string | { total?: number; bySeverity?: Record<string, number>; byType?: Record<string, number> };
 }
 
 export interface RecordData { pluginName: string; formId?: string; recordType?: string; fields: Record<string, any>; editorId?: string }
@@ -5130,8 +5149,8 @@ export interface LoadOrderChange { plugin: string; from: number; to: number; typ
 export interface LoadOrderRecommendation { type?: string; message?: string; confidence?: number; plugin?: string; priority?: number | 'low' | 'medium' | 'high' | 'critical' | string; suggestedAction?: string; description?: string; impact?: { stabilityImprovement?: number; performanceImprovement?: number; conflictReduction?: number } }
 export interface LoadOrderAnalysis { totalPlugins: number; enabledPlugins: number; conflicts: PluginConflict[]; dependencyIssues: DependencyIssue[]; circularDependencies: string[][]; missingMasters: Array<string | { plugin: string; missingMaster: string }>; performanceScore: number; stabilityScore: number; recommendations: LoadOrderRecommendation[]; conflictMatrix: ConflictMatrix; dependencyGraph: DependencyGraph }
 export interface SortingRule { id: string; name: string; enabled?: boolean; priority?: number; description?: string; condition?: any; action?: any }
-export interface PriorityPlugin { fileName: string; plugin?: string; priority?: number | 'first' | 'last' | 'before' | 'after'; anchor?: string; reason?: string }
-export interface OptimizationRules { algorithm: 'loot'|'boss'|'stability'|'performance'|'custom'; priorityPlugins: PriorityPlugin[]; customRules: SortingRule[]; overrides?: Record<string, any>; enableESLFirst?: boolean; communityRules?: boolean; conflictResolution?: string }
+export interface PriorityPlugin { fileName?: string; plugin?: string; priority?: number | 'first' | 'last' | 'before' | 'after'; anchor?: string; reason?: string }
+export interface OptimizationRules { algorithm: 'loot'|'boss'|'stability'|'performance'|'custom'; priorityPlugins: PriorityPlugin[]; customRules: SortingRule[]; overrides?: Record<string, any>; enableESLFirst?: boolean; communityRules?: boolean; conflictResolution?: string; respectGroups?: boolean }
 export interface LoadOrderRecommendationResult { plugins: string[]; changes: LoadOrderChange[]; improvements: { conflictsResolved: number; dependenciesFixed: number; stabilityGain: number; performanceGain: number }; warnings: string[]; appliedRules?: string[]; score?: { before: number; after: number } }
 
 

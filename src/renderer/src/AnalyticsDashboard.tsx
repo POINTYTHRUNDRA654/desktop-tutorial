@@ -242,7 +242,7 @@ const OverviewTab: React.FC<OverviewTabProps> = ({ metrics }) => {
         </CardHeader>
         <CardContent>
           <div className="space-y-2">
-            {metrics.topFeatures.slice(0, 5).map((feature, index) => (
+            {metrics.topFeatures.slice(0, 5).map((feature: any, index: number) => (
               <div key={feature.feature} className="flex items-center justify-between">
                 <span className="text-sm">{feature.feature}</span>
                 <Badge variant="secondary">{feature.usage} uses</Badge>
@@ -346,7 +346,7 @@ const AssetAnalyticsTab: React.FC<AssetAnalyticsTabProps> = ({ assetUsage }) => 
         </CardHeader>
         <CardContent>
           <div className="space-y-2">
-            {assetUsage.mostReferenced.map((asset) => (
+            {assetUsage.mostReferenced.map((asset: any) => (
               <div key={asset.name} className="flex items-center justify-between">
                 <span className="text-sm truncate">{asset.name}</span>
                 <Badge>{asset.references} refs</Badge>
@@ -364,7 +364,7 @@ const AssetAnalyticsTab: React.FC<AssetAnalyticsTabProps> = ({ assetUsage }) => 
           </CardHeader>
           <CardContent>
             <div className="space-y-1 max-h-32 overflow-y-auto">
-              {assetUsage.unusedAssets.slice(0, 10).map((asset, index) => (
+              {assetUsage.unusedAssets.slice(0, 10).map((asset: any, index: number) => (
                 <div key={index} className="text-sm text-muted-foreground truncate">
                   {asset}
                 </div>

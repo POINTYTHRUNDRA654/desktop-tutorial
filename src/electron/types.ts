@@ -340,11 +340,11 @@ export interface ElectronAPI {
   minimizeWindow: () => void;
   closeWindow: () => void;
 
-  elevenLabsStatus?: () => Promise<
+  elevenLabsStatus: () => Promise<
     | { ok: true; configured: boolean; voiceId?: string; provider?: 'browser' | 'elevenlabs' }
     | { ok: false; error: string }
   >;
-  elevenLabsListVoices?: () => Promise<
+  elevenLabsListVoices: () => Promise<
     | {
         ok: true;
         voices: Array<{

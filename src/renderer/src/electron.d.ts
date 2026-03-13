@@ -12,8 +12,9 @@ declare module '*.json' {
 
 declare global {
   interface Window {
-    electron?: {
-      api?: ElectronAPIType;
+    electron: {
+      api: ElectronAPIType;
+      invoke?: (channel: string, ...args: any[]) => Promise<any>;
     };
     /**
      * Preload compatibility alias.
