@@ -2854,8 +2854,10 @@ class FO4_OT_ConvertToFallout4(Operator):
                         getattr(obj, 'fo4_collision_type', inferred), inferred)
                     if ctype in ('NONE', 'GRASS', 'MUSHROOM'):
                         warnings.append(
-                            f"⚠ Collision skipped: '{ctype}' has no collision footprint. "
-                            "Change type in Mesh Helpers → Collision if you need one."
+                            f"⚠ Collision skipped: '{ctype}' type has no collision footprint. "
+                            "To add collision, use Mesh Helpers → Collision → Change Type and "
+                            "select DEFAULT, ROCK, TREE, BUILDING, or VEGETATION, then run "
+                            "Generate Collision Mesh."
                         )
                     else:
                         collision_obj = mesh_helpers.MeshHelpers.add_collision_mesh(

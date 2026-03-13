@@ -423,9 +423,12 @@ class FO4_PT_TexturePanel(Panel):
         dds_box.operator("fo4.convert_object_textures_to_dds", text="Convert Object Textures to DDS", icon='OBJECT_DATA')
 
         # AI Upscaling (Real-ESRGAN)
-        esrgan_available, esrgan_status = realesrgan_helpers.RealESRGANHelpers.get_install_status()
         ai_box = layout.box()
         ai_box.label(text="AI Upscaling (Real-ESRGAN)", icon='RENDER_RESULT')
+        if realesrgan_helpers:
+            esrgan_available, esrgan_status = realesrgan_helpers.RealESRGANHelpers.get_install_status()
+        else:
+            esrgan_available, esrgan_status = False, "Not available"
         if esrgan_available:
             ai_box.label(text=f"Status: {esrgan_status}", icon='CHECKMARK')
         else:
@@ -493,7 +496,7 @@ class FO4_PT_ImageToMeshPanel(Panel):
 
         # TripoSR section
         layout.separator()
-        triposr_available = imageto3d_helpers.ImageTo3DHelpers.is_triposr_available()
+        triposr_available = imageto3d_helpers.ImageTo3DHelpers.is_triposr_available() if imageto3d_helpers else False
         triposr_box = layout.box()
         triposr_box.label(text="TripoSR (Image to 3D)", icon='MESH_ICOSPHERE')
         if triposr_available:
@@ -539,7 +542,7 @@ class FO4_PT_ImageToMeshPanel(Panel):
 
         # Instant-NGP section
         layout.separator()
-        ngp_available = instantngp_helpers.InstantNGPHelpers.is_instantngp_available()
+        ngp_available = instantngp_helpers.InstantNGPHelpers.is_instantngp_available() if instantngp_helpers else False
         ngp_box = layout.box()
         ngp_box.label(text="Instant-NGP / NeRF", icon='CAMERA_DATA')
         if ngp_available:
@@ -581,9 +584,10 @@ class FO4_PT_AIGenerationPanel(Panel):
     
     def draw(self, context):
         layout = self.layout
-        
+        scene = context.scene
+
         # Check if Hunyuan3D is available
-        is_available = hunyuan3d_helpers.Hunyuan3DHelpers.is_available()
+        is_available = hunyuan3d_helpers.Hunyuan3DHelpers.is_available() if hunyuan3d_helpers else False
         
         # Status box
         status_box = layout.box()
@@ -616,8 +620,8 @@ class FO4_PT_AIGenerationPanel(Panel):
         info_box.label(text="• Completely optional feature")
         
         # Gradio Web UI section
-        gradio_available = gradio_helpers.GradioHelpers.is_available()
-        server_running = gradio_helpers.GradioHelpers.is_server_running()
+        gradio_available = gradio_helpers.GradioHelpers.is_available() if gradio_helpers else False
+        server_running = gradio_helpers.GradioHelpers.is_server_running() if gradio_helpers else False
         
         layout.separator()
         web_box = layout.box()
@@ -639,7 +643,7 @@ class FO4_PT_AIGenerationPanel(Panel):
             web_box.label(text="Open: http://localhost:7860")
         
         # HY-Motion-1.0 section
-        hymotion_available = hymotion_helpers.HyMotionHelpers.is_available()
+        hymotion_available = hymotion_helpers.HyMotionHelpers.is_available() if hymotion_helpers else False
         
         layout.separator()
         motion_box = layout.box()
@@ -794,10 +798,12 @@ class FO4_PT_RigNetPanel(Panel):
         layout = self.layout
         
         # Check if RigNet is available
-        is_available, message = rignet_helpers.RigNetHelpers.check_rignet_available()
-        
-        # Check if libigl is available
-        libigl_available, libigl_message = rignet_helpers.RigNetHelpers.check_libigl_available()
+        if rignet_helpers:
+            is_available, message = rignet_helpers.RigNetHelpers.check_rignet_available()
+            libigl_available, libigl_message = rignet_helpers.RigNetHelpers.check_libigl_available()
+        else:
+            is_available, message = False, "rignet_helpers module unavailable"
+            libigl_available, libigl_message = False, "rignet_helpers module unavailable"
         
         # Status box for RigNet
         status_box = layout.box()
@@ -890,10 +896,14 @@ class FO4_PT_NVTTPanel(Panel):
         layout = self.layout
         
         # Check converters
-        nvtt_available = nvtt_helpers.NVTTHelpers.is_nvtt_available()
-        texconv_available = nvtt_helpers.NVTTHelpers.is_texconv_available()
-        nvtt_path = nvtt_helpers.NVTTHelpers.get_nvtt_path()
-        texconv_path = nvtt_helpers.NVTTHelpers.get_texconv_path()
+        if nvtt_helpers:
+            nvtt_available = nvtt_helpers.NVTTHelpers.is_nvtt_available()
+            texconv_available = nvtt_helpers.NVTTHelpers.is_texconv_available()
+            nvtt_path = nvtt_helpers.NVTTHelpers.get_nvtt_path()
+            texconv_path = nvtt_helpers.NVTTHelpers.get_texconv_path()
+        else:
+            nvtt_available = texconv_available = False
+            nvtt_path = texconv_path = None
         
         # Status box
         status_box = layout.box()
@@ -1018,7 +1028,7 @@ class FO4_PT_AdvisorPanel(Panel):
         info.label(text="• Texture prep (DDS BC1/3/5/7)")
         info.label(text="• Mesh limits (65,535 tris/verts)")
 
-        kb_status = knowledge_helpers.describe_kb()
+        kb_status = knowledge_helpers.describe_kb() if knowledge_helpers else "Knowledge base unavailable"
         info.label(text=kb_status, icon='BOOKMARKS')
 
         tools = layout.box()
@@ -1040,7 +1050,7 @@ class FO4_PT_ToolsLinks(Panel):
         layout = self.layout
 
         # quick tool availability summary
-        status = knowledge_helpers.tool_status()
+        status = knowledge_helpers.tool_status() if knowledge_helpers else {}
         sum_box = layout.box()
         sum_box.label(text="Tool Status", icon='INFO')
         for key, label in (
@@ -1079,20 +1089,22 @@ class FO4_PT_ToolsLinks(Panel):
         unity_box = box.box()
         unity_box.label(text="Unity FBX Importer (Editor Extension)", icon='IMPORT')
 
-        ub_ready, ub_message = unity_fbx_importer_helpers.status()
-        ub_icon = 'CHECKMARK' if ub_ready else 'ERROR'
-
-        info_col = unity_box.column(align=True)
-        info_col.scale_y = 0.75
-        info_col.label(text=ub_message, icon=ub_icon)
-        info_col.label(text=f"Location: {unity_fbx_importer_helpers.repo_path()}", icon='FILE_FOLDER')
-
-        if not ub_ready:
-            install_row = unity_box.row()
-            install_row.scale_y = 1.4
-            install_row.operator("fo4.check_unity_fbx_importer", text="Auto-Download to D:/blender_tools/", icon='IMPORT')
+        if unity_fbx_importer_helpers:
+            ub_ready, ub_message = unity_fbx_importer_helpers.status()
+            ub_icon = 'CHECKMARK' if ub_ready else 'ERROR'
+            info_col = unity_box.column(align=True)
+            info_col.scale_y = 0.75
+            info_col.label(text=ub_message, icon=ub_icon)
+            info_col.label(text=f"Location: {unity_fbx_importer_helpers.repo_path()}", icon='FILE_FOLDER')
+            if not ub_ready:
+                install_row = unity_box.row()
+                install_row.scale_y = 1.4
+                install_row.operator("fo4.check_unity_fbx_importer", text="Auto-Download to D:/blender_tools/", icon='IMPORT')
+            else:
+                unity_box.operator("fo4.check_unity_fbx_importer", text="Verify Installation", icon='CHECKMARK')
         else:
-            unity_box.operator("fo4.check_unity_fbx_importer", text="Verify Installation", icon='CHECKMARK')
+            unity_box.label(text="Status unavailable", icon='ERROR')
+            unity_box.operator("fo4.check_unity_fbx_importer", text="Check Unity FBX Importer", icon='FILE_REFRESH')
 
         help_col = unity_box.column(align=True)
         help_col.scale_y = 0.7
@@ -1102,20 +1114,22 @@ class FO4_PT_ToolsLinks(Panel):
         as_box = box.box()
         as_box.label(text="AssetStudio (Unity Asset Extractor)", icon='IMPORT')
 
-        as_ready, as_message = asset_studio_helpers.status()
-        as_icon = 'CHECKMARK' if as_ready else 'ERROR'
-
-        as_info_col = as_box.column(align=True)
-        as_info_col.scale_y = 0.75
-        as_info_col.label(text=as_message, icon=as_icon)
-        as_info_col.label(text=f"Location: {asset_studio_helpers.repo_path()}", icon='FILE_FOLDER')
-
-        if not as_ready:
-            as_install_row = as_box.row()
-            as_install_row.scale_y = 1.4
-            as_install_row.operator("fo4.check_asset_studio", text="Auto-Download to D:/blender_tools/", icon='IMPORT')
+        if asset_studio_helpers:
+            as_ready, as_message = asset_studio_helpers.status()
+            as_icon = 'CHECKMARK' if as_ready else 'ERROR'
+            as_info_col = as_box.column(align=True)
+            as_info_col.scale_y = 0.75
+            as_info_col.label(text=as_message, icon=as_icon)
+            as_info_col.label(text=f"Location: {asset_studio_helpers.repo_path()}", icon='FILE_FOLDER')
+            if not as_ready:
+                as_install_row = as_box.row()
+                as_install_row.scale_y = 1.4
+                as_install_row.operator("fo4.check_asset_studio", text="Auto-Download to D:/blender_tools/", icon='IMPORT')
+            else:
+                as_box.operator("fo4.check_asset_studio", text="Verify Installation", icon='CHECKMARK')
         else:
-            as_box.operator("fo4.check_asset_studio", text="Verify Installation", icon='CHECKMARK')
+            as_box.label(text="Status unavailable", icon='ERROR')
+            as_box.operator("fo4.check_asset_studio", text="Check AssetStudio", icon='FILE_REFRESH')
 
         as_help_col = as_box.column(align=True)
         as_help_col.scale_y = 0.7
@@ -1125,20 +1139,22 @@ class FO4_PT_ToolsLinks(Panel):
         ar_box = box.box()
         ar_box.label(text="AssetRipper (Unity Asset Extractor)", icon='IMPORT')
 
-        ar_ready, ar_message = asset_ripper_helpers.status()
-        ar_icon = 'CHECKMARK' if ar_ready else 'ERROR'
-
-        ar_info_col = ar_box.column(align=True)
-        ar_info_col.scale_y = 0.75
-        ar_info_col.label(text=ar_message, icon=ar_icon)
-        ar_info_col.label(text=f"Location: {asset_ripper_helpers.repo_path()}", icon='FILE_FOLDER')
-
-        if not ar_ready:
-            ar_install_row = ar_box.row()
-            ar_install_row.scale_y = 1.4
-            ar_install_row.operator("fo4.check_asset_ripper", text="Auto-Download to D:/blender_tools/", icon='IMPORT')
+        if asset_ripper_helpers:
+            ar_ready, ar_message = asset_ripper_helpers.status()
+            ar_icon = 'CHECKMARK' if ar_ready else 'ERROR'
+            ar_info_col = ar_box.column(align=True)
+            ar_info_col.scale_y = 0.75
+            ar_info_col.label(text=ar_message, icon=ar_icon)
+            ar_info_col.label(text=f"Location: {asset_ripper_helpers.repo_path()}", icon='FILE_FOLDER')
+            if not ar_ready:
+                ar_install_row = ar_box.row()
+                ar_install_row.scale_y = 1.4
+                ar_install_row.operator("fo4.check_asset_ripper", text="Auto-Download to D:/blender_tools/", icon='IMPORT')
+            else:
+                ar_box.operator("fo4.check_asset_ripper", text="Verify Installation", icon='CHECKMARK')
         else:
-            ar_box.operator("fo4.check_asset_ripper", text="Verify Installation", icon='CHECKMARK')
+            ar_box.label(text="Status unavailable", icon='ERROR')
+            ar_box.operator("fo4.check_asset_ripper", text="Check AssetRipper", icon='FILE_REFRESH')
 
         ar_help_col = ar_box.column(align=True)
         ar_help_col.scale_y = 0.7
@@ -1149,10 +1165,13 @@ class FO4_PT_ToolsLinks(Panel):
 
         # UModel (UE Viewer) - Standalone tool
         box.label(text="UModel (UE Viewer)", icon='IMPORT')
-        umodel_ready, umodel_message = umodel_helpers.status()
-        umodel_icon = 'CHECKMARK' if umodel_ready else 'ERROR'
-        box.label(text=umodel_message, icon=umodel_icon)
-        box.label(text=f"Path: {umodel_helpers.tool_path()}", icon='FILE_FOLDER')
+        if umodel_helpers:
+            umodel_ready, umodel_message = umodel_helpers.status()
+            umodel_icon = 'CHECKMARK' if umodel_ready else 'ERROR'
+            box.label(text=umodel_message, icon=umodel_icon)
+            box.label(text=f"Path: {umodel_helpers.tool_path()}", icon='FILE_FOLDER')
+        else:
+            box.label(text="Status unavailable", icon='ERROR')
 
         # Installation button
         install_row = box.row()
@@ -1176,18 +1195,24 @@ class FO4_PT_ToolsLinks(Panel):
 
         box = layout.box()
         box.label(text="UE Importer", icon='IMPORT')
-        ready, message = ue_importer_helpers.status()
-        status_icon = 'CHECKMARK' if ready else 'ERROR'
-        box.label(text=message, icon=status_icon)
-        box.label(text=f"Path: {ue_importer_helpers.importer_path()}", icon='FILE_FOLDER')
+        if ue_importer_helpers:
+            ready, message = ue_importer_helpers.status()
+            status_icon = 'CHECKMARK' if ready else 'ERROR'
+            box.label(text=message, icon=status_icon)
+            box.label(text=f"Path: {ue_importer_helpers.importer_path()}", icon='FILE_FOLDER')
+        else:
+            box.label(text="Status unavailable", icon='ERROR')
         box.operator("fo4.check_ue_importer", text="Check/Install UE Importer", icon='FILE_REFRESH')
 
         box = layout.box()
         box.label(text="UModel Tools", icon='IMPORT')
-        ut_ready, ut_message = umodel_tools_helpers.status()
-        ut_icon = 'CHECKMARK' if ut_ready else 'ERROR'
-        box.label(text=ut_message, icon=ut_icon)
-        box.label(text=f"Path: {umodel_tools_helpers.addon_path()}", icon='FILE_FOLDER')
+        if umodel_tools_helpers:
+            ut_ready, ut_message = umodel_tools_helpers.status()
+            ut_icon = 'CHECKMARK' if ut_ready else 'ERROR'
+            box.label(text=ut_message, icon=ut_icon)
+            box.label(text=f"Path: {umodel_tools_helpers.addon_path()}", icon='FILE_FOLDER')
+        else:
+            box.label(text="Status unavailable", icon='ERROR')
         box.operator("fo4.check_umodel_tools", text="Check/Install UModel Tools", icon='FILE_REFRESH')
 
         # Automated installers for external utilities
@@ -1373,7 +1398,10 @@ class FO4_PT_ExportPanel(Panel):
 
         # ── Niftools exporter status ─────────────────────────────────────────
         nif_box = layout.box()
-        available, nif_msg = export_helpers.ExportHelpers.nif_exporter_available()
+        if export_helpers:
+            available, nif_msg = export_helpers.ExportHelpers.nif_exporter_available()
+        else:
+            available, nif_msg = False, "export_helpers module unavailable — restart Blender"
         if available:
             row = nif_box.row()
             row.label(text="Niftools v0.1.1  ✓ Ready", icon='CHECKMARK')
