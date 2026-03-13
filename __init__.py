@@ -109,6 +109,9 @@ unity_fbx_importer_helpers = _try_import("unity_fbx_importer_helpers")
 asset_studio_helpers = _try_import("asset_studio_helpers")
 asset_ripper_helpers = _try_import("asset_ripper_helpers")
 
+# Asset library browser (registers PropertyGroups, UIList, and operators)
+asset_library = _try_import("asset_library")
+
 # Game asset browser helpers (not auto-registered)
 fo4_game_assets = _try_import("fo4_game_assets")
 unity_game_assets = _try_import("unity_game_assets")
@@ -177,6 +180,7 @@ modules = list(filter(_filter, [
     stylegan2_helpers,
     instantngp_helpers,
     imageto3d_helpers,
+    asset_library,
     operators,
     ui_panels,
 ]))

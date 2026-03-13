@@ -43,6 +43,7 @@ motion_generation_helpers = _safe_import("motion_generation_helpers")
 fo4_material_browser  = _safe_import("fo4_material_browser")
 fo4_scene_diagnostics = _safe_import("fo4_scene_diagnostics")
 fo4_reference_helpers = _safe_import("fo4_reference_helpers")
+asset_library         = _safe_import("asset_library")
 
 class FO4_PT_MainPanel(Panel):
     """Main tutorial panel in the 3D View sidebar"""
@@ -1452,6 +1453,126 @@ class FO4_PT_GameAssetsPanel(Panel):
         help_col.label(text="2. Click 'Import Asset' to bring a mesh/texture in", icon='DOT')
         help_col.label(text="3. Click 'Convert to Fallout 4'", icon='DOT')
         help_col.label(text="4. Export as NIF", icon='DOT')
+
+
+class FO4_PT_AssetLibraryPanel(Panel):
+    """Browse all meshes, textures, and materials from a folder or .blend library"""
+    bl_label = "Asset Library"
+    bl_idname = "FO4_PT_asset_library_panel"
+    bl_space_type = 'VIEW_3D'
+    bl_region_type = 'UI'
+    bl_category = 'Fallout 4'
+    bl_parent_id = "FO4_PT_main_panel"
+    bl_options = {'DEFAULT_CLOSED'}
+
+    def draw(self, context):
+        layout = self.layout
+        scene  = context.scene
+
+        # ── Path configuration ──────────────────────────────────────────────
+        paths_box = layout.box()
+        paths_box.label(text="Asset Paths", icon='FILE_FOLDER')
+
+        # Combined "all-in-one" path
+        row = paths_box.row(align=True)
+        row.prop(scene, "fo4_asset_lib_path", text="All Assets")
+        op = row.operator("fo4.set_asset_lib_path", text="", icon='FILE_FOLDER')
+        op.slot = 'all'
+
+        # Separator + individual paths (collapsible feel via sub-box)
+        sep_box = paths_box.box()
+        sep_col = sep_box.column(align=True)
+        sep_col.scale_y = 0.85
+        sep_col.label(text="Or set separate paths:", icon='INFO')
+
+        row = sep_col.row(align=True)
+        row.prop(scene, "fo4_asset_lib_mesh_path", text="Meshes")
+        op = row.operator("fo4.set_asset_lib_path", text="", icon='FILE_FOLDER')
+        op.slot = 'meshes'
+
+        row = sep_col.row(align=True)
+        row.prop(scene, "fo4_asset_lib_tex_path", text="Textures")
+        op = row.operator("fo4.set_asset_lib_path", text="", icon='FILE_FOLDER')
+        op.slot = 'textures'
+
+        row = sep_col.row(align=True)
+        row.prop(scene, "fo4_asset_lib_mat_path", text="Materials")
+        op = row.operator("fo4.set_asset_lib_path", text="", icon='FILE_FOLDER')
+        op.slot = 'materials'
+
+        # Scan / clear buttons
+        scan_row = paths_box.row(align=True)
+        scan_row.scale_y = 1.3
+        scan_row.operator("fo4.scan_asset_library", text="Scan / Refresh", icon='FILE_REFRESH')
+        scan_row.operator("fo4.clear_asset_library", text="", icon='X')
+
+        # ── Filter bar ──────────────────────────────────────────────────────
+        lib_items = getattr(scene, 'fo4_asset_lib_items', None)
+        total = len(lib_items) if lib_items else 0
+
+        filter_box = layout.box()
+        hdr = filter_box.row(align=True)
+        hdr.label(text=f"Assets ({total})", icon='VIEWZOOM')
+
+        filter_box.prop(scene, "fo4_asset_lib_search",   text="", icon='VIEWZOOM')
+        filter_box.prop(scene, "fo4_asset_lib_category", text="")
+
+        # ── Asset list ──────────────────────────────────────────────────────
+        if total:
+            filter_box.template_list(
+                "FO4_UL_AssetLibrary",
+                "",
+                scene, "fo4_asset_lib_items",
+                scene, "fo4_asset_lib_active",
+                rows=8,
+            )
+
+            # Show selected item detail
+            idx = getattr(scene, 'fo4_asset_lib_active', -1)
+            if 0 <= idx < total:
+                sel = lib_items[idx]
+                detail = filter_box.box()
+                detail.scale_y = 0.75
+                detail.label(text=sel.name, icon='CHECKMARK')
+                cat_icon = (
+                    asset_library.get_category_icon(sel.category)
+                    if asset_library else 'DOT'
+                )
+                detail.label(text=sel.category, icon=cat_icon)
+                detail.label(text=sel.filepath)
+
+            # Import controls
+            import_row = layout.row(align=True)
+            import_row.scale_y = 1.4
+            import_op = import_row.operator(
+                "fo4.import_library_asset",
+                text="Import Selected",
+                icon='IMPORT',
+            )
+            import_op.use_link = False
+            link_op = import_row.operator(
+                "fo4.import_library_asset",
+                text="Link",
+                icon='LINKED',
+            )
+            link_op.use_link = True
+
+        else:
+            info_col = filter_box.column(align=True)
+            info_col.scale_y = 0.75
+            info_col.label(text="No assets found yet.", icon='INFO')
+            info_col.label(text="Set a path above and click 'Scan / Refresh'.")
+
+        # ── How-to hint ─────────────────────────────────────────────────────
+        help_box = layout.box()
+        help_box.label(text="How to use", icon='QUESTION')
+        col = help_box.column(align=True)
+        col.scale_y = 0.72
+        col.label(text="1. Set 'All Assets' to your folder or .blend file,", icon='DOT')
+        col.label(text="   OR set separate Meshes / Textures / Materials folders.")
+        col.label(text="2. Click 'Scan / Refresh' to list everything inside.", icon='DOT')
+        col.label(text="3. Search or filter by category (Characters, Weapons …).", icon='DOT')
+        col.label(text="4. Click an item, then 'Import Selected'.", icon='DOT')
 
 
 class FO4_PT_ExportPanel(Panel):
@@ -3282,6 +3403,7 @@ classes = (
     FO4_PT_AdvisorPanel,
     FO4_PT_ToolsLinks,
     FO4_PT_GameAssetsPanel,
+    FO4_PT_AssetLibraryPanel,
     FO4_PT_ExportPanel,
     # New panels for enhancements
     FO4_PT_BatchProcessingPanel,
