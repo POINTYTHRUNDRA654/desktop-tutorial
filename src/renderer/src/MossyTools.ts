@@ -1462,14 +1462,54 @@ Check your Downloads folder or the location where files are saved.`;
     } else if (name === 'ck_set_render_mode') {
         result = `**CK Render Mode set to:** ${args.mode}`;
     } else if (name === 'search_fallout4_wiki') {
-        const query = encodeURIComponent(args.query);
-        const url = `https://fallout.fandom.com/wiki/Special:Search?query=${query}`;
-        if (api?.openExternal) {
-            await api.openExternal(url);
-            result = `**Wiki Search Dispatched:** Searching for "${args.query}" on the Fallout 4 Wiki.\n*External browser session initialized.*`;
-        } else {
-            window.open(url, '_blank');
-            result = `**Wiki Search Opened:** "${args.query}" (Browser redirected to Fallout 4 Wiki).`;
+        try {
+            const query: string = String(args.query || '').trim();
+            // Use the main-process web-search handler to actually fetch wiki content
+            if (api?.webSearch) {
+                const res: any = await api.webSearch(query, 'wiki');
+                if (res?.success && res?.text) {
+                    result = `**Fallout 4 Wiki Results for "${query}":**\n\n${res.text}` +
+                        (res.url ? `\n\n*Source: [${res.heading || 'Fallout 4 Wiki'}](${res.url})*` : '');
+                } else {
+                    // Fall back to opening browser if fetch failed
+                    const url = `https://fallout.fandom.com/wiki/Special:Search?query=${encodeURIComponent(query)}`;
+                    if (api?.openExternal) await api.openExternal(url);
+                    result = `**Wiki Search:** Could not fetch live content (${res?.error || 'unknown error'}). Opened browser to Fallout 4 Wiki search for "${query}".`;
+                }
+            } else {
+                const url = `https://fallout.fandom.com/wiki/Special:Search?query=${encodeURIComponent(query)}`;
+                if (api?.openExternal) {
+                    await api.openExternal(url);
+                    result = `**Wiki Search Dispatched:** Searching for "${query}" on the Fallout 4 Wiki.\n*External browser session initialized.*`;
+                } else {
+                    window.open(url, '_blank');
+                    result = `**Wiki Search Opened:** "${query}" (Browser redirected to Fallout 4 Wiki).`;
+                }
+            }
+        } catch (e: any) {
+            result = `**Wiki Search Error:** ${e?.message || 'Unknown error'}`;
+        }
+    } else if (name === 'browse_web') {
+        try {
+            const url: string = String(args.url || '').trim();
+            if (!url) {
+                result = `**Browse Error:** No URL provided.`;
+            } else if (!/^https:\/\//i.test(url)) {
+                result = `**Browse Error:** Only HTTPS URLs are supported for security reasons.`;
+            } else if (api?.browseWeb) {
+                const res: any = await api.browseWeb(url);
+                if (res?.success && res?.text) {
+                    result = `**Web Content from ${url}:**\n\n${res.text.slice(0, 4000)}`;
+                } else {
+                    result = `**Browse Error:** Could not fetch "${url}": ${res?.error || 'Unknown error'}. Try a different URL or check that the site is accessible.`;
+                }
+            } else {
+                // No IPC available — open in browser as fallback
+                if (api?.openExternal) await api.openExternal(url);
+                result = `**Browse:** Opened "${url}" in your default browser. (Live content fetch requires the desktop app.)`;
+            }
+        } catch (e: any) {
+            result = `**Browse Error:** ${e?.message || 'Unknown error'}`;
         }
     } else if (name === 'create_mod_project') {
         try {

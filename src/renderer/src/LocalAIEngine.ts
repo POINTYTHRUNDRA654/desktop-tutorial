@@ -222,6 +222,42 @@ export const LocalAIEngine = {
       if (manifest) injectedContext += manifest + "\n";
       if (relevant) injectedContext += relevant + "\n";
     }
+
+    // -----------------------------------------------------------------------
+    // WEB SEARCH — automatically fetch live information when the user's query
+    // needs up-to-date or specific Fallout 4 data that may not be in the vault.
+    // The main process does the real HTTPS fetch; we inject the results here so
+    // the AI receives them as grounded context rather than making things up.
+    // -----------------------------------------------------------------------
+    const webSearchTriggers = [
+      'search', 'look up', 'find online', 'search the web', 'search online',
+      'search internet', 'browse', 'google', "what's new", 'recent', 'current',
+      'latest', 'news', 'update', 'wiki', 'fandom', 'nexus', 'mod page',
+      'find information', 'find info',
+    ];
+    // NOTE: this regex is intentionally kept in sync with the fo4Terms pattern
+    // in src/electron/main.ts (web-search handler). Update both if you change it.
+    const fo4TermsRenderer = /fallout\s*4|fallout4|fo4|papyrus|bethesda|creation\s*kit|vault|wasteland|commonwealth|nexus|xedit|nifskope|bodyslide/i;
+    const lowerQuery = query.toLowerCase();
+    const needsWebSearch = webSearchTriggers.some((kw) => lowerQuery.includes(kw));
+    if (needsWebSearch) {
+      try {
+        const webApi = (window.electron?.api || window.electronAPI) as any;
+        if (typeof webApi?.webSearch === 'function') {
+          const searchType = fo4TermsRenderer.test(query) ? 'wiki' : undefined;
+          const searchResult = await webApi.webSearch(query, searchType);
+          if (searchResult?.success && searchResult?.text) {
+            injectedContext += '\n### LIVE WEB SEARCH RESULTS (use this to answer the user):\n';
+            injectedContext += searchResult.text + '\n';
+            if (searchResult.url) {
+              injectedContext += `Source: ${searchResult.source || 'Web'} — ${searchResult.url}\n`;
+            }
+          }
+        }
+      } catch (webErr) {
+        console.warn('[LocalAIEngine] Web search failed (non-critical):', webErr);
+      }
+    }
     // ---------------------------
 
     // Try local provider first if available
