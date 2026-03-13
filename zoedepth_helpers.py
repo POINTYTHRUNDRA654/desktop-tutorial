@@ -18,6 +18,7 @@ ZoeDepth provides:
 """
 
 import bpy
+import importlib.util
 import os
 import sys
 import tempfile
@@ -33,13 +34,11 @@ _availability_cache = None
 _availability_cache_time = 0.0
 _CACHE_TTL = 5.0  # seconds
 
-try:
-    # Try to import the necessary dependencies
-    import torch
-    TORCH_AVAILABLE = True
-except Exception:
-    TORCH_AVAILABLE = False
-    ZOEDEPTH_ERROR = "PyTorch not available (import failed or DLL initialization error)"
+# Use find_spec instead of `import torch` so we don't pay the multi-second
+# PyTorch load cost at add-on startup just to know whether it is installed.
+TORCH_AVAILABLE = importlib.util.find_spec('torch') is not None
+if not TORCH_AVAILABLE:
+    ZOEDEPTH_ERROR = "PyTorch not available (not installed)"
 
 # We don't actually import ZoeDepth here to keep the add-on lightweight
 # It will be imported dynamically when needed
@@ -69,7 +68,12 @@ def check_zoedepth_availability():
 def _check_zoedepth_availability_uncached():
     """Perform the actual (uncached) ZoeDepth availability check."""
     if not TORCH_AVAILABLE:
-        return False, "PyTorch not installed. Install with: pip install torch torchvision"
+        return False, (
+            "PyTorch not installed. Install with: pip install torch torchvision\n"
+            "Windows users: if PyTorch is installed but fails to load, enable long paths "
+            "(regedit → HKLM\\SYSTEM\\CurrentControlSet\\Control\\FileSystem → "
+            "LongPathsEnabled=1) or reinstall PyTorch to a shorter path."
+        )
     
     # Check if ZoeDepth repository is cloned
     # Common locations to check

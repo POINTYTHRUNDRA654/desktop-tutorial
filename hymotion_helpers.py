@@ -13,6 +13,7 @@ Installation:
 """
 
 import bpy
+import importlib.util
 import os
 import platform
 import sys
@@ -24,19 +25,11 @@ from pathlib import Path
 HYMOTION_AVAILABLE = False
 HYMOTION_ERROR = None
 
-try:
-    # Check if PyTorch is available (required for motion model)
-    import torch
-    TORCH_AVAILABLE = True
-except FileNotFoundError as e:
-    TORCH_AVAILABLE = False
-    if "WinError 206" in str(e) or "filename or extension is too long" in str(e):
-        HYMOTION_ERROR = "Windows path length error: PyTorch cannot load due to Windows MAX_PATH limitation. Enable long paths in Windows or reinstall PyTorch in a shorter path."
-    else:
-        HYMOTION_ERROR = f"PyTorch file error: {str(e)}"
-except Exception:
-    TORCH_AVAILABLE = False
-    HYMOTION_ERROR = "PyTorch not available (import failed or DLL initialization error)"
+# Use find_spec to detect torch without loading it — a full `import torch`
+# blocks the UI for several seconds on first load and is unnecessary here.
+TORCH_AVAILABLE = importlib.util.find_spec('torch') is not None
+if not TORCH_AVAILABLE:
+    HYMOTION_ERROR = "PyTorch not available (not installed)"
 
 
 def _find_git_lfs_env():
@@ -154,7 +147,12 @@ def check_hymotion_availability():
 def _check_hymotion_availability_uncached():
     """Perform the actual (uncached) HY-Motion availability check."""
     if not TORCH_AVAILABLE:
-        return False, "PyTorch not installed. Install with: pip install torch"
+        return False, (
+            "PyTorch not installed. Install with: pip install torch\n"
+            "Windows users: if PyTorch is installed but fails to load, enable long paths "
+            "(regedit → HKLM\\SYSTEM\\CurrentControlSet\\Control\\FileSystem → "
+            "LongPathsEnabled=1) or reinstall PyTorch to a shorter path."
+        )
     
     # Check if git-lfs is available
     lfs_available, lfs_message = check_git_lfs()
