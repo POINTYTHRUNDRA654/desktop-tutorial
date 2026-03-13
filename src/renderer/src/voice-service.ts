@@ -651,6 +651,12 @@ export class VoiceService {
   stopSpeaking(): void {
     console.log('[VoiceService] stopSpeaking() called');
     if (window.speechSynthesis) {
+      // Use pause() before cancel() to work around an Electron/Chromium bug where
+      // cancel() alone sometimes fails to fire utterance.onerror, leaving audio
+      // still playing despite the cancel call.
+      if (window.speechSynthesis.speaking || window.speechSynthesis.pending) {
+        window.speechSynthesis.pause();
+      }
       window.speechSynthesis.cancel();
     }
     if (this.currentAudioElement) {
