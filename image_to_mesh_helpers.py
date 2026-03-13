@@ -80,7 +80,7 @@ def load_image_as_heightmap(filepath):
 
 def create_mesh_from_heightmap(name, heightmap_data, width, height, 
                                 mesh_width=2.0, mesh_height=2.0, 
-                                displacement_strength=1.0,
+                                displacement_strength=0.1,
                                 subdivisions=None):
     """
     Create a mesh from height map data.
@@ -103,8 +103,9 @@ def create_mesh_from_heightmap(name, heightmap_data, width, height,
         
         # Determine subdivisions
         if subdivisions is None:
-            # Limit subdivisions for performance
-            max_subdivs = 256
+            # Limit subdivisions for performance — a lower cap avoids
+            # overly dense geometry that produces spiky-looking results.
+            max_subdivs = 128
             subdivs_x = min(width, max_subdivs)
             subdivs_y = min(height, max_subdivs)
         else:
@@ -262,17 +263,21 @@ class ImageToMeshHelpers:
     
     @staticmethod
     def get_recommended_subdivisions(width, height):
-        """Get recommended subdivision count based on image size"""
+        """Get recommended subdivision count based on image size.
+
+        Values are intentionally conservative to produce smooth terrain
+        without requiring manual decimation.
+        """
         max_dim = max(width, height)
-        
+
         if max_dim <= 128:
-            return 64
+            return 32
         elif max_dim <= 512:
-            return 128
+            return 64
         elif max_dim <= 1024:
-            return 256
+            return 96
         else:
-            return 256  # Cap at 256 for performance
+            return 128  # Cap for performance and mesh quality
 
 
 def register():

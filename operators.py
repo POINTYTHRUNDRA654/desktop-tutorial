@@ -6,7 +6,7 @@ import bpy
 import threading
 from bpy.types import Operator
 from bpy.props import StringProperty, EnumProperty, IntProperty, FloatProperty, BoolProperty
-from . import preferences, tutorial_system, mesh_helpers, texture_helpers, animation_helpers, export_helpers, notification_system, image_to_mesh_helpers, hunyuan3d_helpers, gradio_helpers, hymotion_helpers, nvtt_helpers, realesrgan_helpers, get3d_helpers, stylegan2_helpers, instantngp_helpers, imageto3d_helpers, advanced_mesh_helpers, rignet_helpers, motion_generation_helpers, quest_helpers, npc_helpers, world_building_helpers, item_helpers, preset_library, automation_system, desktop_tutorial_client, shap_e_helpers, point_e_helpers, advisor_helpers, ue_importer_helpers, umodel_tools_helpers, umodel_helpers, unity_fbx_importer_helpers, asset_studio_helpers, asset_ripper_helpers, fo4_game_assets, unity_game_assets, unreal_game_assets, post_processing_helpers, fo4_material_browser, fo4_scene_diagnostics, fo4_reference_helpers
+from . import preferences, tutorial_system, mesh_helpers, texture_helpers, animation_helpers, export_helpers, notification_system, image_to_mesh_helpers, hunyuan3d_helpers, gradio_helpers, hymotion_helpers, nvtt_helpers, realesrgan_helpers, get3d_helpers, stylegan2_helpers, instantngp_helpers, imageto3d_helpers, advanced_mesh_helpers, rignet_helpers, motion_generation_helpers, quest_helpers, npc_helpers, world_building_helpers, item_helpers, preset_library, automation_system, desktop_tutorial_client, shap_e_helpers, point_e_helpers, advisor_helpers, ue_importer_helpers, umodel_tools_helpers, umodel_helpers, unity_fbx_importer_helpers, asset_studio_helpers, asset_ripper_helpers, fo4_game_assets, unity_game_assets, unreal_game_assets, post_processing_helpers, fo4_material_browser, fo4_scene_diagnostics, fo4_reference_helpers, asset_library
 from . import knowledge_helpers
 
 # Tutorial Operators
@@ -1091,18 +1091,26 @@ class FO4_OT_ImageToMesh(Operator):
     
     displacement_strength: bpy.props.FloatProperty(
         name="Displacement Strength",
-        description="Strength of the height displacement",
-        default=0.5,
+        description=(
+            "How much the bright/dark values of the image raise or lower the "
+            "mesh surface.  Keep this low (0.05 – 0.2) for natural-looking "
+            "terrain — high values produce spiky geometry"
+        ),
+        default=0.1,
         min=0.0,
-        max=10.0
+        max=10.0,
+        soft_max=1.0,
     )
     
     subdivisions: bpy.props.IntProperty(
         name="Subdivisions",
-        description="Number of subdivisions (0 = auto based on image, max 256)",
+        description=(
+            "Grid resolution of the generated mesh (0 = auto). "
+            "Lower values give smoother results that need less clean-up"
+        ),
         default=0,
         min=0,
-        max=256
+        max=128,
     )
     
     def execute(self, context):
@@ -1169,10 +1177,14 @@ class FO4_OT_ApplyDisplacementMap(Operator):
 
     strength: bpy.props.FloatProperty(
         name="Strength",
-        description="Displacement strength",
-        default=0.5,
+        description=(
+            "Displacement strength — keep this low (0.05 – 0.2) to avoid "
+            "overly spiky surfaces"
+        ),
+        default=0.1,
         min=0.0,
-        max=10.0
+        max=10.0,
+        soft_max=1.0,
     )
     
     def execute(self, context):
