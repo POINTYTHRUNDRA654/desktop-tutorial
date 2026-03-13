@@ -184,10 +184,12 @@ For more info: https://github.com/openai/shap-e
             model = cached['model']
             diffusion = cached['diffusion']
             
-            # Generate latents
+            # Generate latents and decode — both inside no_grad + autocast for
+            # maximum GPU throughput (autocast enables FP16 mixed-precision on CUDA).
             print(f"Generating with guidance_scale={guidance_scale}, steps={num_inference_steps}")
             batch_size = 1
-            with torch.no_grad():
+            use_autocast = device.type == 'cuda'
+            with torch.no_grad(), torch.cuda.amp.autocast(enabled=use_autocast):
                 latents = sample_latents(
                     batch_size=batch_size,
                     model=model,
@@ -203,10 +205,10 @@ For more info: https://github.com/openai/shap-e
                     sigma_max=160,
                     s_churn=0,
                 )
-            
-            # Decode to mesh
-            print("Decoding latent to mesh...")
-            mesh = decode_latent_mesh(xm, latents[0]).tri_mesh()
+
+                # Decode to mesh inside no_grad to avoid unnecessary gradient tracking
+                print("Decoding latent to mesh...")
+                mesh = decode_latent_mesh(xm, latents[0]).tri_mesh()
             
             # Convert to format Blender can use
             vertices = mesh.verts
@@ -263,10 +265,12 @@ For more info: https://github.com/openai/shap-e
             model = cached['model']
             diffusion = cached['diffusion']
             
-            # Generate latents
+            # Generate latents and decode — both inside no_grad + autocast for
+            # maximum GPU throughput (autocast enables FP16 mixed-precision on CUDA).
             print(f"Generating with guidance_scale={guidance_scale}, steps={num_inference_steps}")
             batch_size = 1
-            with torch.no_grad():
+            use_autocast = device.type == 'cuda'
+            with torch.no_grad(), torch.cuda.amp.autocast(enabled=use_autocast):
                 latents = sample_latents(
                     batch_size=batch_size,
                     model=model,
@@ -282,10 +286,10 @@ For more info: https://github.com/openai/shap-e
                     sigma_max=160,
                     s_churn=0,
                 )
-            
-            # Decode to mesh
-            print("Decoding latent to mesh...")
-            mesh = decode_latent_mesh(xm, latents[0]).tri_mesh()
+
+                # Decode to mesh inside no_grad to avoid unnecessary gradient tracking
+                print("Decoding latent to mesh...")
+                mesh = decode_latent_mesh(xm, latents[0]).tri_mesh()
             
             # Convert to format Blender can use
             vertices = mesh.verts

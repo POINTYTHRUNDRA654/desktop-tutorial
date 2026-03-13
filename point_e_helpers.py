@@ -245,10 +245,11 @@ For more info: https://github.com/openai/point-e
             cached = _load_point_e_text_models(device)
             sampler = cached['sampler']
             
-            # Generate
+            # Generate — use autocast for FP16 mixed-precision on CUDA (~2x faster)
             print(f"Generating point cloud...")
             samples = None
-            with torch.no_grad():
+            use_autocast = device.type == 'cuda'
+            with torch.no_grad(), torch.cuda.amp.autocast(enabled=use_autocast):
                 for x in sampler.sample_batch_progressive(
                     batch_size=num_samples,
                     model_kwargs=dict(texts=[prompt] * num_samples),
@@ -321,10 +322,11 @@ For more info: https://github.com/openai/point-e
             cached = _load_point_e_image_models(device)
             sampler = cached['sampler']
             
-            # Generate
+            # Generate — use autocast for FP16 mixed-precision on CUDA (~2x faster)
             print(f"Generating point cloud...")
             samples = None
-            with torch.no_grad():
+            use_autocast = device.type == 'cuda'
+            with torch.no_grad(), torch.cuda.amp.autocast(enabled=use_autocast):
                 for x in sampler.sample_batch_progressive(
                     batch_size=num_samples,
                     model_kwargs=dict(images=[image] * num_samples),
