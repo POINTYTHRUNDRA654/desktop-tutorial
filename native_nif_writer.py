@@ -127,9 +127,14 @@ def _extract_mesh_data(obj):
             except Exception:
                 has_uv = False
 
+        # Use polygon data directly: after bmesh.ops.triangulate() every
+        # polygon has exactly 3 consecutive loops.  mesh.loop_triangles is a
+        # lazily-cached attribute that is NOT flushed by mesh.update(), so it
+        # can still reference loop indices from the pre-triangulation mesh and
+        # cause "index N is out of bounds for axis 0 with size N" crashes.
+        n_tris  = len(mesh.polygons)
         n_loops = len(mesh.loops)
         n_verts = len(mesh.vertices)
-        n_tris  = len(mesh.loop_triangles)
         if n_tris == 0:
             raise ValueError("Mesh has no triangles after triangulation")
 
@@ -175,9 +180,15 @@ def _extract_mesh_data(obj):
                                             return_index=True)
 
         # ── Triangles ─────────────────────────────────────────────────────
-        blend_tri_loops = np.zeros(n_tris * 3, dtype=np.int32)
-        mesh.loop_triangles.foreach_get('loops', blend_tri_loops)
-        blend_tri_loops = blend_tri_loops.reshape(n_tris, 3)
+        # After bmesh triangulation every polygon has exactly 3 loops at
+        # consecutive indices (loop_start, loop_start+1, loop_start+2).
+        # Reading from mesh.polygons is always current; loop_triangles may lag.
+        poly_loop_starts = np.zeros(n_tris, dtype=np.int32)
+        mesh.polygons.foreach_get('loop_start', poly_loop_starts)
+        blend_tri_loops = np.stack(
+            [poly_loop_starts, poly_loop_starts + 1, poly_loop_starts + 2],
+            axis=1,
+        )   # (T, 3) – Blender loop indices per triangle
         nif_tris = inv[blend_tri_loops].astype(np.int32)   # (T, 3)
 
         # ── Final per-NIF-vertex arrays ───────────────────────────────────

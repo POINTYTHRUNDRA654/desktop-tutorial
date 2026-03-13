@@ -57,9 +57,10 @@ def _get_action_fcurves(action):
     """Return the fcurves container for *action*, creating layers/strips as needed.
 
     * Blender < 4.4 (legacy action): returns ``action.fcurves`` directly.
-    * Blender ≥ 4.4 (layered action): ``action.fcurves`` does not exist;
-      returns ``action.layers[0].strips[0].fcurves`` after ensuring the
-      default layer and keyframe strip exist.
+    * Blender 4.4–4.x (layered action): ``action.fcurves`` does not exist;
+      returns ``strip.fcurves`` after ensuring the default layer/strip exist.
+    * Blender 5.0+ (layered action v2): ``strip.fcurves`` was also removed;
+      fcurves are now per-slot via ``strip.channels(slot.handle).fcurves``.
     """
     # Legacy path: action still exposes a flat fcurves collection.
     if hasattr(action, 'fcurves'):
@@ -77,7 +78,31 @@ def _get_action_fcurves(action):
     else:
         strip = layer.strips[0]
 
-    return strip.fcurves
+    # Blender 4.4–4.x: strip still exposes a flat .fcurves collection.
+    if hasattr(strip, 'fcurves'):
+        return strip.fcurves
+
+    # Blender 5.0+: fcurves are per-slot.  Ensure a slot exists first.
+    if not action.slots:
+        try:
+            slot = action.slots.new(id_type='OBJECT', name='Slot')
+        except TypeError:
+            slot = action.slots.new()
+    else:
+        slot = action.slots[0]
+
+    # strip.channels(slot.handle) creates the ChannelBag on demand and returns it.
+    if hasattr(strip, 'channels'):
+        return strip.channels(slot.handle).fcurves
+
+    # Last resort: a populated channelbags collection may exist already.
+    if hasattr(strip, 'channelbags') and strip.channelbags:
+        return strip.channelbags[0].fcurves
+
+    raise RuntimeError(
+        f"Cannot resolve action fcurves on Blender "
+        f"{bpy.app.version[0]}.{bpy.app.version[1]}"
+    )
 
 class AnimationHelpers:
     """Helper functions for animation setup and validation"""

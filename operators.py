@@ -7380,153 +7380,329 @@ class FO4_OT_BrowseUnrealAssets(Operator):
 
 
 # Smart Preset Operators
+# ---------------------------------------------------------------------------
+# Game-asset catalog and import helpers
+# ---------------------------------------------------------------------------
+# Maps a preset-type key → (folder_relative_to_FO4_Data, [candidate_filenames])
+# The first candidate file that exists as a loose NIF is imported.  If none
+# are found the operator falls back to procedural placeholder geometry.
+
+# Shown to the user whenever FO4 assets are not found as loose files.
+_FALLBACK_MSG = (
+    "FO4 game files not found as loose NIFs — using placeholder mesh. "
+    "Extract BA2 archives first to enable game-mesh import."
+)
+
+# Stem keywords used when picking the 'best' NIF in a folder.
+_NIF_PRIORITY_KEYWORDS: tuple[str, ...] = (
+    'receiver', 'body', 'torso', 'male', 'female', 'base',
+)
+
+_NIF_CATALOG: dict[str, tuple[str, list[str]]] = {
+    # ── Weapons ────────────────────────────────────────────────────────────
+    '10MM':           ('meshes/weapons/10mmpistol/',     ['10mmpistol_receiver.nif']),
+    '44':             ('meshes/weapons/44pistol/',        ['44pistol_receiver.nif']),
+    'DELIVERER':      ('meshes/weapons/deliverer/',       ['deliverer_receiver.nif']),
+    'PIPE':           ('meshes/weapons/pipe/',            ['pipe_pistol_receiver.nif', 'pipepistol_receiver.nif']),
+    'ASSAULT':        ('meshes/weapons/assaultrifle/',    ['assaultrifle_receiver.nif']),
+    'COMBAT_RIFLE':   ('meshes/weapons/combatrifle/',     ['combatrifle_receiver.nif']),
+    'SHOTGUN':        ('meshes/weapons/combatshotgun/',   ['combatshotgun_receiver.nif']),
+    'HUNTING':        ('meshes/weapons/huntingrifle/',    ['huntingrifle_receiver.nif']),
+    'LASER':          ('meshes/weapons/lasergun/',        ['lasergun_receiver.nif']),
+    'PLASMA':         ('meshes/weapons/plasmagun/',       ['plasmagun_receiver.nif']),
+    'SMG':            ('meshes/weapons/submachinegun/',   ['submachinegun_receiver.nif']),
+    'MINIGUN':        ('meshes/weapons/minigun/',         ['minigun_receiver.nif']),
+    'FATMAN':         ('meshes/weapons/fatman/',          ['fatman_receiver.nif']),
+    'FLAMER':         ('meshes/weapons/flamer/',          ['flamer_receiver.nif']),
+    'MISSILE':        ('meshes/weapons/misslelauncher/',  ['missilelauncher_receiver.nif']),
+    'GAUSS':          ('meshes/weapons/gaussrifle/',      ['gaussrifle_receiver.nif']),
+    'RAILWAY':        ('meshes/weapons/railwayrifle/',    ['railwayrifle_receiver.nif']),
+    # ── Armor ──────────────────────────────────────────────────────────────
+    'ARMOR_LEATHER':  ('meshes/armor/leather/',      ['f_leather_armor_body_aa.nif', 'leather_armor_body_aa.nif']),
+    'ARMOR_COMBAT':   ('meshes/armor/combat/',        ['f_combat_armor_body_aa.nif',  'combat_armor_body_aa.nif']),
+    'ARMOR_METAL':    ('meshes/armor/metal/',         ['f_metal_armor_body_aa.nif',   'metal_armor_body_aa.nif']),
+    'ARMOR_RAIDER':   ('meshes/armor/raider/',        ['f_raider_armor_body_aa.nif',  'raider_armor_body_aa.nif']),
+    'ARMOR_SYNTH':    ('meshes/armor/synth/',         ['f_synth_armor_body_aa.nif',   'synth_armor_body_aa.nif']),
+    'POWER_T60':      ('meshes/armor/powerarmor/',    ['powerarmort60_torso.nif',     't60_torso.nif']),
+    'POWER_T45':      ('meshes/armor/powerarmor/',    ['powerarmort45_torso.nif',     't45_torso.nif']),
+    'VAULT_SUIT':     ('meshes/armor/vault111/',      ['vault111_jumpsuit.nif',        'vaultsuit.nif']),
+    # Power-armor pieces
+    'PA_TORSO_T60':   ('meshes/armor/powerarmor/', ['powerarmort60_torso.nif']),
+    'PA_HELMET_T60':  ('meshes/armor/powerarmor/', ['powerarmort60_helmet.nif']),
+    'PA_LARM_T60':    ('meshes/armor/powerarmor/', ['powerarmort60_larm.nif']),
+    'PA_RARM_T60':    ('meshes/armor/powerarmor/', ['powerarmort60_rarm.nif']),
+    'PA_LLEG_T60':    ('meshes/armor/powerarmor/', ['powerarmort60_lleg.nif']),
+    'PA_RLEG_T60':    ('meshes/armor/powerarmor/', ['powerarmort60_rleg.nif']),
+    # ── Props / Set-dressing ───────────────────────────────────────────────
+    'PROP_CRATE':     ('meshes/setdressing/crates/',  ['woodcrate01.nif']),
+    'PROP_METALCRATE':('meshes/setdressing/crates/',  ['metalcrate01.nif', 'metalcrate_lg01.nif']),
+    'PROP_BARREL':    ('meshes/setdressing/',          ['barrel01.nif']),
+    'PROP_DESK':      ('meshes/furniture/',            ['desk01.nif', 'office_desk01.nif']),
+    'PROP_CHAIR':     ('meshes/furniture/',            ['chair01.nif']),
+    'PROP_SHELF':     ('meshes/furniture/',            ['shelf01.nif', 'metalshelf01.nif']),
+    'PROP_TABLE':     ('meshes/furniture/',            ['table01.nif']),
+    # ── Vegetation ────────────────────────────────────────────────────────
+    'VEG_PINE':       ('meshes/landscape/trees/', ['treepine01.nif']),
+    'VEG_DEAD_TREE':  ('meshes/landscape/trees/', ['treedead01.nif', 'treedeadbark01.nif']),
+    'VEG_SHRUB':      ('meshes/plants/',           ['shrub01.nif', 'shrubdead01.nif']),
+    'VEG_GRASS':      ('meshes/landscape/grass/',  ['grass01.nif']),
+    'VEG_FERN':       ('meshes/plants/',           ['fern01.nif', 'plantfern01.nif']),
+    'VEG_ROCK':       ('meshes/landscape/rocks/',  ['rock01.nif', 'boulder01.nif']),
+    'VEG_MUTFRUIT':   ('meshes/plants/',           ['mutfruitplant.nif', 'mutfruit.nif']),
+    # ── NPCs / Actors ─────────────────────────────────────────────────────
+    'NPC_HUMAN':      ('meshes/actors/character/', ['character_assets/basehumanmale.nif', 'basehumanmale.nif']),
+    'NPC_GHOUL':      ('meshes/actors/feral/',     ['feralghoulmale.nif', 'feral_ghoul_male.nif']),
+    'NPC_SUPERMUTANT':('meshes/actors/supermutant/', ['supermutant.nif', 'supermutantmale.nif']),
+    'NPC_PROTECTRON': ('meshes/actors/protectron/', ['protectron.nif']),
+    'NPC_SYNTH':      ('meshes/actors/synth/',      ['synthmale.nif', 'synth_male.nif']),
+    # ── Creatures ─────────────────────────────────────────────────────────
+    'CR_RADROACH':    ('meshes/actors/radroach/',   ['radroach.nif']),
+    'CR_MOLERAT':     ('meshes/actors/molerat/',    ['molerat.nif']),
+    'CR_DEATHCLAW':   ('meshes/actors/deathclaw/',  ['deathclaw.nif']),
+    'CR_MIRELURK':    ('meshes/actors/mirelurk/',   ['mirelurk.nif', 'mirelurkkingmale.nif']),
+    'CR_RADSCORPION': ('meshes/actors/radscorpion/', ['radscorpion.nif']),
+    'CR_BRAHMIN':     ('meshes/actors/brahmin/',    ['brahmin.nif']),
+    # ── Architecture / World-building ─────────────────────────────────────
+    'WB_VAULT_WALL':  ('meshes/architecture/vault/',          ['vlt_wall_concrete01.nif', 'vaultwall01.nif']),
+    'WB_VAULT_FLOOR': ('meshes/architecture/vault/',          ['vlt_floor01.nif',          'vaultfloor01.nif']),
+    'WB_COMM_WALL':   ('meshes/architecture/commonwealth/',   ['cw_wall01.nif',            'cwbrickwall01.nif']),
+    'WB_DOOR':        ('meshes/architecture/',                ['door01.nif',               'doorframe01.nif']),
+    'WB_BED':         ('meshes/furniture/',   ['bed01.nif',        'sleepingbag01.nif']),
+    'WB_WORKBENCH':   ('meshes/furniture/',   ['workbench01.nif']),
+    'WB_CHAIR':       ('meshes/furniture/',   ['chair01.nif']),
+    'WB_GENERATOR':   ('meshes/furniture/',   ['generator01.nif']),
+    # ── Consumables / misc items ───────────────────────────────────────────
+    'ITEM_STIMPAK':   ('meshes/clutter/junk/', ['stimpak.nif',          'stimpakbox.nif']),
+    'ITEM_NUKACOLA':  ('meshes/clutter/junk/', ['nukacola.nif',         'nuka_cola_bottle.nif']),
+    'ITEM_FOOD':      ('meshes/clutter/junk/', ['instantmashbox.nif',   'boxcrinkles.nif']),
+    'ITEM_CHEM':      ('meshes/clutter/junk/', ['mentats.nif',          'chem01.nif']),
+    'ITEM_HOLOTAPE':  ('meshes/clutter/junk/', ['holotape.nif']),
+    'ITEM_KEY':       ('meshes/clutter/junk/', ['key.nif',              'key01.nif']),
+    'ITEM_TOOL':      ('meshes/clutter/junk/', ['wrench01.nif',         'tool01.nif']),
+    'ITEM_COMPONENT': ('meshes/clutter/junk/', ['screws.nif',           'springwire.nif']),
+    'ITEM_JUNK':      ('meshes/clutter/junk/', ['trashbag01.nif',       'junk01.nif']),
+    'ITEM_BOTTLE':    ('meshes/clutter/junk/', ['nukacola.nif',         'glassbottle01.nif']),
+    'ITEM_CAN':       ('meshes/clutter/junk/', ['instamashbox01.nif',   'can01.nif']),
+    'ITEM_BOX':       ('meshes/setdressing/crates/', ['woodcrate01.nif', 'cardboardbox01.nif']),
+}
+
+
+def _resolve_game_nif(key: str) -> str | None:
+    """Return the absolute path of the first loose FO4 NIF that matches *key*.
+
+    Looks up *key* in ``_NIF_CATALOG`` → (folder, candidates), then searches
+    the FO4 Data directory.  If no candidate name matches, returns the first
+    ``.nif`` found in the folder (skipping ``_lod`` variants).  Returns
+    ``None`` when FO4 is not detected or the folder contains no NIFs.
+    """
+    from pathlib import Path as _P
+    entry = _NIF_CATALOG.get(key)
+    if not entry:
+        return None
+    folder_rel, candidates = entry
+    data_dir = fo4_game_assets.FO4GameAssets.get_data_dir()
+    if not data_dir:
+        return None
+    folder = _P(data_dir) / folder_rel
+    if not folder.exists():
+        return None
+    for name in candidates:
+        p = folder / name
+        if p.exists():
+            return str(p)
+    # Fall back: first NIF in folder that isn't a LOD variant
+    nifs = sorted(
+        p for p in folder.glob('*.nif')
+        if '_lod' not in p.stem.lower()
+    )
+    if nifs:
+        for nif in nifs:
+            if any(kw in nif.stem.lower() for kw in _NIF_PRIORITY_KEYWORDS):
+                return str(nif)
+        return str(nifs[0])
+    return None
+
+
+def _import_game_nif(filepath: str) -> tuple[bool, str]:
+    """Import a NIF file using the Niftools operator if available.
+
+    Returns ``(success, message)``.  On success, the newly-imported objects
+    are selected and the active object is set by Blender's import operator.
+    """
+    from pathlib import Path as _P
+    filename = _P(filepath).name
+    if hasattr(bpy.ops, 'import_scene') and hasattr(bpy.ops.import_scene, 'nif'):
+        try:
+            bpy.ops.import_scene.nif(filepath=filepath)
+            return True, f"Imported game mesh: {filename}"
+        except Exception as e:
+            return False, f"NIF import error: {e}"
+    return False, "Niftools add-on not installed — install it to import .nif files directly"
+
+
+# Smart Preset Operators
 
 class FO4_OT_CreateWeaponPreset(Operator):
-    """Create a weapon mesh with optimal FO4 settings"""
+    """Create a weapon starting from an actual FO4 game mesh (requires loose NIF files)"""
     bl_idname = "fo4.create_weapon_preset"
     bl_label = "Create Weapon Preset"
     bl_options = {'REGISTER', 'UNDO'}
-    
+
     weapon_type: EnumProperty(
-        name="Weapon Type",
+        name="Weapon",
+        description="Select the Fallout 4 weapon to use as a base mesh",
         items=[
-            ('PISTOL', "Pistol", "Small handheld weapon"),
-            ('RIFLE', "Rifle", "Two-handed rifle"),
-            ('MELEE', "Melee", "Melee weapon"),
-            ('HEAVY', "Heavy", "Heavy weapon"),
-        ]
+            ('10MM',        "10mm Pistol",      "Semi-auto pistol (meshes/weapons/10mmpistol)"),
+            ('44',          ".44 Revolver",     "Powerful revolver (meshes/weapons/44pistol)"),
+            ('DELIVERER',   "Deliverer",        "Railroad silenced pistol"),
+            ('PIPE',        "Pipe Pistol",      "Makeshift pipe gun"),
+            ('ASSAULT',     "Assault Rifle",    "Standard automatic rifle"),
+            ('COMBAT_RIFLE',"Combat Rifle",     "Full-auto combat rifle"),
+            ('SHOTGUN',     "Combat Shotgun",   "Pump/auto shotgun"),
+            ('HUNTING',     "Hunting Rifle",    "Bolt-action rifle"),
+            ('LASER',       "Laser Rifle",      "Energy rifle"),
+            ('PLASMA',      "Plasma Rifle",     "Plasma weapon"),
+            ('SMG',         "Submachine Gun",   "Compact automatic"),
+            ('MINIGUN',     "Minigun",          "Heavy rotary cannon"),
+            ('FATMAN',      "Fat Man",          "Tactical nuke launcher"),
+            ('FLAMER',      "Flamer",           "Flamethrower"),
+            ('MISSILE',     "Missile Launcher", "Rocket launcher"),
+            ('GAUSS',       "Gauss Rifle",      "Magnetic rail rifle"),
+            ('RAILWAY',     "Railway Rifle",    "Compressed-air spike rifle"),
+        ],
+        default='ASSAULT',
     )
-    
+
     def execute(self, context):
         try:
-            # Create base mesh
+            nif_path = _resolve_game_nif(self.weapon_type)
+            if nif_path:
+                ok, msg = _import_game_nif(nif_path)
+                if ok:
+                    if context.active_object:
+                        context.active_object.name = f"FO4_Weapon_{self.weapon_type}"
+                    self.report({'INFO'}, msg)
+                    notification_system.FO4_NotificationSystem.notify(msg, 'INFO')
+                    return {'FINISHED'}
+                self.report({'WARNING'}, f"{msg} — using placeholder mesh")
+            else:
+                self.report({'INFO'}, _FALLBACK_MSG)
+
+            # Fallback: placeholder mesh
             obj = mesh_helpers.MeshHelpers.create_base_mesh()
             obj.name = f"FO4_Weapon_{self.weapon_type}"
-            
-            # Apply weapon-specific settings
-            if self.weapon_type == 'PISTOL':
-                obj.scale = (0.3, 0.3, 0.3)
-            elif self.weapon_type == 'RIFLE':
-                obj.scale = (0.5, 0.5, 1.0)
-            elif self.weapon_type == 'MELEE':
-                obj.scale = (0.2, 0.2, 0.8)
-            else:  # HEAVY
-                obj.scale = (0.6, 0.6, 0.6)
-            
-            bpy.ops.object.transform_apply(location=False, rotation=False, scale=True)
-            
-            # Setup FO4 material
             texture_helpers.TextureHelpers.setup_fo4_material(obj)
-            
-            self.report({'INFO'}, f"Created {self.weapon_type} weapon preset")
+            self.report({'INFO'}, f"Created placeholder for {self.weapon_type} weapon")
             notification_system.FO4_NotificationSystem.notify(
-                f"Created {self.weapon_type} weapon preset", 'INFO'
-            )
+                f"Created {self.weapon_type} weapon preset", 'INFO')
             return {'FINISHED'}
         except Exception as e:
-            self.report({'ERROR'}, f"Failed to create preset: {str(e)}")
+            self.report({'ERROR'}, f"Failed to create preset: {e}")
             return {'CANCELLED'}
-    
+
     def invoke(self, context, event):
         return context.window_manager.invoke_props_dialog(self)
 
 
 class FO4_OT_CreateArmorPreset(Operator):
-    """Create an armor mesh with optimal FO4 settings"""
+    """Create armor starting from an actual FO4 game mesh (requires loose NIF files)"""
     bl_idname = "fo4.create_armor_preset"
     bl_label = "Create Armor Preset"
     bl_options = {'REGISTER', 'UNDO'}
-    
+
     armor_type: EnumProperty(
-        name="Armor Type",
+        name="Armor",
+        description="Select the Fallout 4 armor to use as a base mesh",
         items=[
-            ('HELMET', "Helmet", "Head armor"),
-            ('CHEST', "Chest", "Torso armor"),
-            ('ARMS', "Arms", "Arm armor"),
-            ('LEGS', "Legs", "Leg armor"),
-        ]
+            ('ARMOR_LEATHER', "Leather Armor",   "Light leather armor body"),
+            ('ARMOR_COMBAT',  "Combat Armor",    "Medium combat armor body"),
+            ('ARMOR_METAL',   "Metal Armor",     "Heavy metal armor body"),
+            ('ARMOR_RAIDER',  "Raider Armor",    "Makeshift raider armor"),
+            ('ARMOR_SYNTH',   "Synth Armor",     "Institute synth armor"),
+            ('POWER_T60',     "T-60 Power Armor Torso", "Advanced power armor torso"),
+            ('POWER_T45',     "T-45 Power Armor Torso", "Classic power armor torso"),
+            ('VAULT_SUIT',    "Vault 111 Suit",  "Vault-Tec jumpsuit"),
+        ],
+        default='ARMOR_COMBAT',
     )
-    
+
     def execute(self, context):
         try:
-            # Create base mesh
+            nif_path = _resolve_game_nif(self.armor_type)
+            if nif_path:
+                ok, msg = _import_game_nif(nif_path)
+                if ok:
+                    if context.active_object:
+                        context.active_object.name = f"FO4_Armor_{self.armor_type}"
+                    self.report({'INFO'}, msg)
+                    notification_system.FO4_NotificationSystem.notify(msg, 'INFO')
+                    return {'FINISHED'}
+                self.report({'WARNING'}, f"{msg} — using placeholder mesh")
+            else:
+                self.report({'INFO'}, _FALLBACK_MSG)
+
             obj = mesh_helpers.MeshHelpers.create_base_mesh()
             obj.name = f"FO4_Armor_{self.armor_type}"
-            
-            # Apply armor-specific settings
-            if self.armor_type == 'HELMET':
-                obj.scale = (0.4, 0.4, 0.5)
-            elif self.armor_type == 'CHEST':
-                obj.scale = (0.6, 0.3, 0.8)
-            elif self.armor_type == 'ARMS':
-                obj.scale = (0.3, 0.3, 0.6)
-            else:  # LEGS
-                obj.scale = (0.4, 0.3, 0.7)
-            
-            bpy.ops.object.transform_apply(location=False, rotation=False, scale=True)
-            
-            # Setup FO4 material
             texture_helpers.TextureHelpers.setup_fo4_material(obj)
-            
-            self.report({'INFO'}, f"Created {self.armor_type} armor preset")
+            self.report({'INFO'}, f"Created placeholder for {self.armor_type} armor")
             notification_system.FO4_NotificationSystem.notify(
-                f"Created {self.armor_type} armor preset", 'INFO'
-            )
+                f"Created {self.armor_type} armor preset", 'INFO')
             return {'FINISHED'}
         except Exception as e:
-            self.report({'ERROR'}, f"Failed to create preset: {str(e)}")
+            self.report({'ERROR'}, f"Failed to create preset: {e}")
             return {'CANCELLED'}
-    
+
     def invoke(self, context, event):
         return context.window_manager.invoke_props_dialog(self)
 
 
 class FO4_OT_CreatePropPreset(Operator):
-    """Create a prop mesh with optimal FO4 settings"""
+    """Create a prop starting from an actual FO4 game mesh (requires loose NIF files)"""
     bl_idname = "fo4.create_prop_preset"
     bl_label = "Create Prop Preset"
     bl_options = {'REGISTER', 'UNDO'}
-    
+
     prop_type: EnumProperty(
-        name="Prop Type",
+        name="Prop",
+        description="Select the Fallout 4 prop to use as a base mesh",
         items=[
-            ('SMALL', "Small", "Small prop (< 1m)"),
-            ('MEDIUM', "Medium", "Medium prop (1-3m)"),
-            ('LARGE', "Large", "Large prop (> 3m)"),
-            ('FURNITURE', "Furniture", "Furniture object"),
-        ]
+            ('PROP_CRATE',      "Wooden Crate",  "Wooden shipping crate (setdressing/crates)"),
+            ('PROP_METALCRATE', "Metal Crate",   "Metal storage crate"),
+            ('PROP_BARREL',     "Barrel",        "Storage barrel"),
+            ('PROP_DESK',       "Desk",          "Office/workshop desk (furniture)"),
+            ('PROP_CHAIR',      "Chair",         "Sitting chair"),
+            ('PROP_SHELF',      "Shelf",         "Storage shelf"),
+            ('PROP_TABLE',      "Table",         "Flat-surface table"),
+        ],
+        default='PROP_CRATE',
     )
-    
+
     def execute(self, context):
         try:
-            # Create base mesh
+            nif_path = _resolve_game_nif(self.prop_type)
+            if nif_path:
+                ok, msg = _import_game_nif(nif_path)
+                if ok:
+                    if context.active_object:
+                        context.active_object.name = f"FO4_Prop_{self.prop_type}"
+                    self.report({'INFO'}, msg)
+                    notification_system.FO4_NotificationSystem.notify(msg, 'INFO')
+                    return {'FINISHED'}
+                self.report({'WARNING'}, f"{msg} — using placeholder mesh")
+            else:
+                self.report({'INFO'}, _FALLBACK_MSG)
+
             obj = mesh_helpers.MeshHelpers.create_base_mesh()
             obj.name = f"FO4_Prop_{self.prop_type}"
-            
-            # Apply prop-specific settings
-            if self.prop_type == 'SMALL':
-                obj.scale = (0.3, 0.3, 0.3)
-            elif self.prop_type == 'MEDIUM':
-                obj.scale = (1.0, 1.0, 1.0)
-            elif self.prop_type == 'LARGE':
-                obj.scale = (3.0, 3.0, 3.0)
-            else:  # FURNITURE
-                obj.scale = (1.5, 1.5, 1.5)
-            
-            bpy.ops.object.transform_apply(location=False, rotation=False, scale=True)
-            
-            # Setup FO4 material
             texture_helpers.TextureHelpers.setup_fo4_material(obj)
-            
-            self.report({'INFO'}, f"Created {self.prop_type} prop preset")
+            self.report({'INFO'}, f"Created placeholder for {self.prop_type} prop")
             notification_system.FO4_NotificationSystem.notify(
-                f"Created {self.prop_type} prop preset", 'INFO'
-            )
+                f"Created {self.prop_type} prop preset", 'INFO')
             return {'FINISHED'}
         except Exception as e:
-            self.report({'ERROR'}, f"Failed to create preset: {str(e)}")
+            self.report({'ERROR'}, f"Failed to create preset: {e}")
             return {'CANCELLED'}
-    
+
     def invoke(self, context, event):
         return context.window_manager.invoke_props_dialog(self)
 
@@ -7776,98 +7952,100 @@ class FO4_OT_SmartMaterialSetup(Operator):
 # Landscaping and Vegetation Operators
 
 class FO4_OT_CreateVegetationPreset(Operator):
-    """Create vegetation preset for Fallout 4 landscaping"""
+    """Create vegetation starting from an actual FO4 game mesh (requires loose NIF files)"""
     bl_idname = "fo4.create_vegetation_preset"
     bl_label = "Create Vegetation"
     bl_options = {'REGISTER', 'UNDO'}
-    
+
     vegetation_type: EnumProperty(
-        name="Vegetation Type",
+        name="Vegetation",
+        description="Select the Fallout 4 vegetation/plant to use as a base",
         items=[
-            ('TREE', "Tree", "Create a tree base mesh"),
-            ('BUSH', "Bush", "Create a bush/shrub base mesh"),
-            ('GRASS', "Grass Clump", "Create a grass clump"),
-            ('FERN', "Fern", "Create a fern/plant"),
-            ('ROCK', "Rock", "Create a decorative rock"),
-            ('DEAD_TREE', "Dead Tree", "Create a dead/wasteland tree"),
-        ]
+            ('VEG_PINE',      "Pine Tree",    "Living pine tree (landscape/trees)"),
+            ('VEG_DEAD_TREE', "Dead Tree",    "Dead/wasteland tree"),
+            ('VEG_SHRUB',     "Shrub/Bush",   "Bush or shrub plant"),
+            ('VEG_GRASS',     "Grass Clump",  "Ground-cover grass"),
+            ('VEG_FERN',      "Fern/Plant",   "Fern or leafy plant"),
+            ('VEG_ROCK',      "Rock",         "Decorative landscape rock"),
+            ('VEG_MUTFRUIT',  "Mutfruit",     "Mutated fruit plant"),
+        ],
+        default='VEG_PINE',
     )
-    
+
     def execute(self, context):
         try:
-            import bmesh
-            
-            # Create base mesh based on type
-            if self.vegetation_type == 'TREE':
-                # Create a simple tree (cylinder trunk + cone canopy)
+            nif_path = _resolve_game_nif(self.vegetation_type)
+            if nif_path:
+                ok, msg = _import_game_nif(nif_path)
+                if ok:
+                    if context.active_object:
+                        context.active_object.name = f"FO4_Veg_{self.vegetation_type}"
+                    self.report({'INFO'}, msg)
+                    notification_system.FO4_NotificationSystem.notify(msg, 'INFO')
+                    return {'FINISHED'}
+                self.report({'WARNING'}, f"{msg} — using placeholder mesh")
+            else:
+                self.report({'INFO'}, _FALLBACK_MSG)
+
+            # Fallback: procedural placeholder (kept from original)
+            import bmesh as _bm
+            if self.vegetation_type in ('VEG_PINE',):
                 bpy.ops.mesh.primitive_cylinder_add(radius=0.3, depth=4, location=(0, 0, 2))
                 trunk = context.active_object
                 trunk.name = "FO4_Tree_Trunk"
-                
                 bpy.ops.mesh.primitive_ico_sphere_add(subdivisions=2, radius=2, location=(0, 0, 4.5))
                 canopy = context.active_object
                 canopy.name = "FO4_Tree_Canopy"
-                
-                # Join them
                 context.view_layer.objects.active = trunk
                 trunk.select_set(True)
                 canopy.select_set(True)
                 bpy.ops.object.join()
                 obj = context.active_object
                 obj.name = "FO4_Tree"
-                
-            elif self.vegetation_type == 'BUSH':
+            elif self.vegetation_type == 'VEG_DEAD_TREE':
+                bpy.ops.mesh.primitive_cylinder_add(radius=0.25, depth=3.5, location=(0, 0, 1.75))
+                obj = context.active_object
+                obj.name = "FO4_DeadTree"
+                obj.rotation_euler[1] = 0.2
+            elif self.vegetation_type == 'VEG_SHRUB':
                 bpy.ops.mesh.primitive_ico_sphere_add(subdivisions=2, radius=1, location=(0, 0, 0.5))
                 obj = context.active_object
                 obj.name = "FO4_Bush"
                 obj.scale = (1.2, 1.0, 0.8)
-                
-            elif self.vegetation_type == 'GRASS':
-                # Create grass planes
+            elif self.vegetation_type == 'VEG_GRASS':
                 bpy.ops.mesh.primitive_plane_add(size=0.5, location=(0, 0, 0.25))
                 obj = context.active_object
                 obj.name = "FO4_Grass"
-                obj.rotation_euler[0] = 0.3  # Slight tilt
-                
-            elif self.vegetation_type == 'FERN':
+                obj.rotation_euler[0] = 0.3
+            elif self.vegetation_type == 'VEG_FERN':
                 bpy.ops.mesh.primitive_cone_add(radius1=0.5, depth=1, location=(0, 0, 0.5))
                 obj = context.active_object
                 obj.name = "FO4_Fern"
                 obj.scale = (1.0, 1.0, 0.6)
-                
-            elif self.vegetation_type == 'ROCK':
+            elif self.vegetation_type == 'VEG_ROCK':
                 bpy.ops.mesh.primitive_ico_sphere_add(subdivisions=1, radius=0.8, location=(0, 0, 0.4))
                 obj = context.active_object
                 obj.name = "FO4_Rock"
                 obj.scale = (1.2, 0.9, 0.7)
-                
-            elif self.vegetation_type == 'DEAD_TREE':
-                bpy.ops.mesh.primitive_cylinder_add(radius=0.25, depth=3.5, location=(0, 0, 1.75))
+            else:
+                bpy.ops.mesh.primitive_ico_sphere_add(subdivisions=2, radius=0.5, location=(0, 0, 0.25))
                 obj = context.active_object
-                obj.name = "FO4_DeadTree"
-                obj.rotation_euler[1] = 0.2  # Slight lean
-            
-            # Apply scale
+                obj.name = f"FO4_Veg_{self.vegetation_type}"
+
             bpy.ops.object.transform_apply(location=False, rotation=False, scale=True)
-            
-            # Setup material – use vegetation material (alpha clip + two-sided) for
-            # foliage types whose leaves/blades are transparent cutout quads.
-            # ROCK uses a standard opaque material.
-            if self.vegetation_type in ('TREE', 'BUSH', 'GRASS', 'FERN', 'DEAD_TREE'):
+            if self.vegetation_type != 'VEG_ROCK':
                 texture_helpers.TextureHelpers.setup_vegetation_material(obj)
             else:
                 texture_helpers.TextureHelpers.setup_fo4_material(obj)
-            
-            self.report({'INFO'}, f"Created {self.vegetation_type} vegetation preset")
+
+            self.report({'INFO'}, f"Created placeholder {self.vegetation_type} vegetation")
             notification_system.FO4_NotificationSystem.notify(
-                f"Created {self.vegetation_type} preset", 'INFO'
-            )
+                f"Created {self.vegetation_type} preset", 'INFO')
             return {'FINISHED'}
-            
         except Exception as e:
-            self.report({'ERROR'}, f"Failed to create vegetation: {str(e)}")
+            self.report({'ERROR'}, f"Failed to create vegetation: {e}")
             return {'CANCELLED'}
-    
+
     def invoke(self, context, event):
         return context.window_manager.invoke_props_dialog(self)
 
@@ -8636,67 +8814,94 @@ class FO4_OT_QuestGeneratePapyrusScript(Operator):
 # NPC and Creature Operators
 
 class FO4_OT_CreateNPC(Operator):
-    """Create NPC base mesh"""
+    """Create NPC starting from an actual FO4 game mesh (requires loose NIF files)"""
     bl_idname = "fo4.create_npc"
     bl_label = "Create NPC"
     bl_options = {'REGISTER', 'UNDO'}
-    
+
     npc_type: EnumProperty(
         name="NPC Type",
         items=[
-            ('HUMAN', "Human", "Human NPC"),
-            ('GHOUL', "Ghoul", "Ghoul NPC"),
-            ('SUPERMUTANT', "Super Mutant", "Super Mutant"),
-            ('ROBOT', "Robot", "Robot/Protectron"),
-        ]
+            ('NPC_HUMAN',       "Human",       "Human NPC (actors/character)"),
+            ('NPC_GHOUL',       "Ghoul",        "Feral ghoul (actors/feral)"),
+            ('NPC_SUPERMUTANT', "Super Mutant", "Super Mutant (actors/supermutant)"),
+            ('NPC_PROTECTRON',  "Protectron",   "Protectron robot (actors/protectron)"),
+            ('NPC_SYNTH',       "Synth",        "Institute synth (actors/synth)"),
+        ],
+        default='NPC_HUMAN',
     )
-    
+
     def execute(self, context):
         try:
+            nif_path = _resolve_game_nif(self.npc_type)
+            if nif_path:
+                ok, msg = _import_game_nif(nif_path)
+                if ok:
+                    if context.active_object:
+                        context.active_object.name = f"FO4_NPC_{self.npc_type}"
+                    self.report({'INFO'}, msg)
+                    notification_system.FO4_NotificationSystem.notify(msg, 'INFO')
+                    return {'FINISHED'}
+                self.report({'WARNING'}, f"{msg} — using placeholder mesh")
+            else:
+                self.report({'INFO'}, _FALLBACK_MSG)
+
             obj = npc_helpers.NPCHelpers.create_npc_base_mesh(self.npc_type)
-            
-            self.report({'INFO'}, f"Created {self.npc_type} NPC base")
+            self.report({'INFO'}, f"Created placeholder {self.npc_type} NPC base")
             notification_system.FO4_NotificationSystem.notify(
-                f"NPC created: {self.npc_type}", 'INFO'
-            )
+                f"NPC created: {self.npc_type}", 'INFO')
             return {'FINISHED'}
         except Exception as e:
-            self.report({'ERROR'}, f"Failed to create NPC: {str(e)}")
+            self.report({'ERROR'}, f"Failed to create NPC: {e}")
             return {'CANCELLED'}
-    
+
     def invoke(self, context, event):
         return context.window_manager.invoke_props_dialog(self)
 
 
 class FO4_OT_CreateCreature(Operator):
-    """Create creature base mesh"""
+    """Create creature starting from an actual FO4 game mesh (requires loose NIF files)"""
     bl_idname = "fo4.create_creature"
     bl_label = "Create Creature"
     bl_options = {'REGISTER', 'UNDO'}
-    
+
     creature_type: EnumProperty(
-        name="Creature Type",
+        name="Creature",
         items=[
-            ('RADROACH', "Radroach", "Small insect creature"),
-            ('MOLERAT', "Mole Rat", "Medium mammal creature"),
-            ('DEATHCLAW', "Deathclaw", "Large bipedal creature"),
-            ('MIRELURK', "Mirelurk", "Crab-like creature"),
-        ]
+            ('CR_RADROACH',    "Radroach",    "Small radroach insect (actors/radroach)"),
+            ('CR_MOLERAT',     "Mole Rat",    "Burrowing mole rat (actors/molerat)"),
+            ('CR_DEATHCLAW',   "Deathclaw",   "Large apex predator (actors/deathclaw)"),
+            ('CR_MIRELURK',    "Mirelurk",    "Crab-like creature (actors/mirelurk)"),
+            ('CR_RADSCORPION', "Radscorpion", "Giant radscorpion (actors/radscorpion)"),
+            ('CR_BRAHMIN',     "Brahmin",     "Two-headed cow (actors/brahmin)"),
+        ],
+        default='CR_DEATHCLAW',
     )
-    
+
     def execute(self, context):
         try:
+            nif_path = _resolve_game_nif(self.creature_type)
+            if nif_path:
+                ok, msg = _import_game_nif(nif_path)
+                if ok:
+                    if context.active_object:
+                        context.active_object.name = f"FO4_Creature_{self.creature_type}"
+                    self.report({'INFO'}, msg)
+                    notification_system.FO4_NotificationSystem.notify(msg, 'INFO')
+                    return {'FINISHED'}
+                self.report({'WARNING'}, f"{msg} — using placeholder mesh")
+            else:
+                self.report({'INFO'}, _FALLBACK_MSG)
+
             obj = npc_helpers.CreatureHelpers.create_creature_base(self.creature_type)
-            
-            self.report({'INFO'}, f"Created {self.creature_type} creature base")
+            self.report({'INFO'}, f"Created placeholder {self.creature_type} creature base")
             notification_system.FO4_NotificationSystem.notify(
-                f"Creature created: {self.creature_type}", 'INFO'
-            )
+                f"Creature created: {self.creature_type}", 'INFO')
             return {'FINISHED'}
         except Exception as e:
-            self.report({'ERROR'}, f"Failed to create creature: {str(e)}")
+            self.report({'ERROR'}, f"Failed to create creature: {e}")
             return {'CANCELLED'}
-    
+
     def invoke(self, context, event):
         return context.window_manager.invoke_props_dialog(self)
 
@@ -8704,34 +8909,46 @@ class FO4_OT_CreateCreature(Operator):
 # World Building Operators
 
 class FO4_OT_CreateInteriorCell(Operator):
-    """Create interior cell template"""
+    """Create architecture piece from an actual FO4 game mesh (requires loose NIF files)"""
     bl_idname = "fo4.create_interior_cell"
     bl_label = "Create Interior Cell"
     bl_options = {'REGISTER', 'UNDO'}
-    
+
     cell_type: EnumProperty(
-        name="Cell Type",
+        name="Architecture",
         items=[
-            ('ROOM', "Room", "Standard room"),
-            ('CORRIDOR', "Corridor", "Hallway"),
-            ('VAULT', "Vault", "Vault room"),
-            ('CAVE', "Cave", "Cave interior"),
-        ]
+            ('WB_VAULT_WALL',  "Vault Wall",         "Concrete vault wall panel"),
+            ('WB_VAULT_FLOOR', "Vault Floor",         "Vault floor tile"),
+            ('WB_COMM_WALL',   "Commonwealth Wall",   "Commonwealth brick wall section"),
+            ('WB_DOOR',        "Door Frame",          "Standard door frame"),
+        ],
+        default='WB_VAULT_WALL',
     )
-    
+
     def execute(self, context):
         try:
+            nif_path = _resolve_game_nif(self.cell_type)
+            if nif_path:
+                ok, msg = _import_game_nif(nif_path)
+                if ok:
+                    if context.active_object:
+                        context.active_object.name = f"FO4_Arch_{self.cell_type}"
+                    self.report({'INFO'}, msg)
+                    notification_system.FO4_NotificationSystem.notify(msg, 'INFO')
+                    return {'FINISHED'}
+                self.report({'WARNING'}, f"{msg} — using placeholder mesh")
+            else:
+                self.report({'INFO'}, _FALLBACK_MSG)
+
             obj = world_building_helpers.WorldBuildingHelpers.create_interior_cell_template(self.cell_type)
-            
-            self.report({'INFO'}, f"Created {self.cell_type} interior cell")
+            self.report({'INFO'}, f"Created placeholder {self.cell_type} cell")
             notification_system.FO4_NotificationSystem.notify(
-                f"Interior cell created: {self.cell_type}", 'INFO'
-            )
+                f"Interior cell created: {self.cell_type}", 'INFO')
             return {'FINISHED'}
         except Exception as e:
-            self.report({'ERROR'}, f"Failed to create cell: {str(e)}")
+            self.report({'ERROR'}, f"Failed to create cell: {e}")
             return {'CANCELLED'}
-    
+
     def invoke(self, context, event):
         return context.window_manager.invoke_props_dialog(self)
 
@@ -8779,35 +8996,46 @@ class FO4_OT_CreateNavMesh(Operator):
 
 
 class FO4_OT_CreateWorkshopObject(Operator):
-    """Create workshop settlement object"""
+    """Create workshop object from an actual FO4 game mesh (requires loose NIF files)"""
     bl_idname = "fo4.create_workshop_object"
     bl_label = "Create Workshop Object"
     bl_options = {'REGISTER', 'UNDO'}
-    
+
     object_type: EnumProperty(
-        name="Object Type",
+        name="Object",
         items=[
-            ('FURNITURE', "Furniture", "Chair/seat"),
-            ('BED', "Bed", "Sleeping bed"),
-            ('WORKBENCH', "Workbench", "Crafting station"),
-            ('TURRET', "Turret", "Defense turret"),
-            ('GENERATOR', "Generator", "Power generator"),
-        ]
+            ('WB_BED',        "Bed",         "Sleeping bed / sleeping bag"),
+            ('WB_WORKBENCH',  "Workbench",   "Crafting workbench"),
+            ('WB_CHAIR',      "Chair",       "Sitting chair"),
+            ('WB_GENERATOR',  "Generator",   "Power generator"),
+        ],
+        default='WB_WORKBENCH',
     )
-    
+
     def execute(self, context):
         try:
+            nif_path = _resolve_game_nif(self.object_type)
+            if nif_path:
+                ok, msg = _import_game_nif(nif_path)
+                if ok:
+                    if context.active_object:
+                        context.active_object.name = f"FO4_Workshop_{self.object_type}"
+                    self.report({'INFO'}, msg)
+                    notification_system.FO4_NotificationSystem.notify(msg, 'INFO')
+                    return {'FINISHED'}
+                self.report({'WARNING'}, f"{msg} — using placeholder mesh")
+            else:
+                self.report({'INFO'}, _FALLBACK_MSG)
+
             obj = world_building_helpers.WorkshopHelpers.create_workshop_object(self.object_type)
-            
-            self.report({'INFO'}, f"Created workshop {self.object_type}")
+            self.report({'INFO'}, f"Created placeholder workshop {self.object_type}")
             notification_system.FO4_NotificationSystem.notify(
-                f"Workshop object created: {self.object_type}", 'INFO'
-            )
+                f"Workshop object created: {self.object_type}", 'INFO')
             return {'FINISHED'}
         except Exception as e:
-            self.report({'ERROR'}, f"Failed to create object: {str(e)}")
+            self.report({'ERROR'}, f"Failed to create object: {e}")
             return {'CANCELLED'}
-    
+
     def invoke(self, context, event):
         return context.window_manager.invoke_props_dialog(self)
 
@@ -8847,204 +9075,277 @@ class FO4_OT_CreateLightingPreset(Operator):
 # Item Creation Operators
 
 class FO4_OT_CreateWeaponItem(Operator):
-    """Create weapon item mesh"""
+    """Create weapon item from an actual FO4 game mesh (requires loose NIF files)"""
     bl_idname = "fo4.create_weapon_item"
     bl_label = "Create Weapon Item"
     bl_options = {'REGISTER', 'UNDO'}
-    
+
     weapon_category: EnumProperty(
-        name="Weapon Category",
+        name="Weapon",
         items=[
-            ('PISTOL', "Pistol", "Pistol weapon"),
-            ('RIFLE', "Rifle", "Rifle weapon"),
-            ('MELEE', "Melee", "Melee weapon"),
-            ('HEAVY', "Heavy", "Heavy weapon"),
-        ]
+            ('10MM',        "10mm Pistol",   "Semi-auto pistol"),
+            ('ASSAULT',     "Assault Rifle", "Automatic rifle"),
+            ('COMBAT_RIFLE',"Combat Rifle",  "Full-auto rifle"),
+            ('LASER',       "Laser Rifle",   "Energy weapon"),
+            ('MINIGUN',     "Minigun",       "Heavy cannon"),
+            ('FATMAN',      "Fat Man",       "Nuke launcher"),
+        ],
+        default='ASSAULT',
     )
-    
+
     def execute(self, context):
         try:
+            nif_path = _resolve_game_nif(self.weapon_category)
+            if nif_path:
+                ok, msg = _import_game_nif(nif_path)
+                if ok:
+                    if context.active_object:
+                        context.active_object.name = f"FO4_WeaponItem_{self.weapon_category}"
+                    self.report({'INFO'}, msg)
+                    notification_system.FO4_NotificationSystem.notify(msg, 'INFO')
+                    return {'FINISHED'}
+                self.report({'WARNING'}, f"{msg} — using placeholder mesh")
+            else:
+                self.report({'INFO'}, _FALLBACK_MSG)
+
             obj = item_helpers.ItemHelpers.create_weapon_base(self.weapon_category)
-            
-            self.report({'INFO'}, f"Created {self.weapon_category} weapon item")
+            self.report({'INFO'}, f"Created placeholder {self.weapon_category} weapon item")
             notification_system.FO4_NotificationSystem.notify(
-                f"Weapon item: {self.weapon_category}", 'INFO'
-            )
+                f"Weapon item: {self.weapon_category}", 'INFO')
             return {'FINISHED'}
         except Exception as e:
-            self.report({'ERROR'}, f"Failed to create weapon: {str(e)}")
+            self.report({'ERROR'}, f"Failed to create weapon: {e}")
             return {'CANCELLED'}
-    
+
     def invoke(self, context, event):
         return context.window_manager.invoke_props_dialog(self)
 
 
 class FO4_OT_CreateArmorItem(Operator):
-    """Create armor item mesh"""
+    """Create armor item from an actual FO4 game mesh (requires loose NIF files)"""
     bl_idname = "fo4.create_armor_item"
     bl_label = "Create Armor Item"
     bl_options = {'REGISTER', 'UNDO'}
-    
+
     armor_slot: EnumProperty(
-        name="Armor Slot",
+        name="Armor",
         items=[
-            ('HELMET', "Helmet", "Head armor"),
-            ('CHEST', "Chest", "Torso armor"),
-            ('ARMS', "Arms", "Arm armor"),
-            ('LEGS', "Legs", "Leg armor"),
-            ('OUTFIT', "Outfit", "Full body outfit"),
-        ]
+            ('ARMOR_LEATHER', "Leather Armor",  "Light leather armor body"),
+            ('ARMOR_COMBAT',  "Combat Armor",   "Medium combat armor body"),
+            ('ARMOR_METAL',   "Metal Armor",    "Heavy metal armor body"),
+            ('ARMOR_RAIDER',  "Raider Armor",   "Makeshift raider armor"),
+            ('VAULT_SUIT',    "Vault Suit",     "Vault-Tec jumpsuit"),
+        ],
+        default='ARMOR_COMBAT',
     )
-    
+
     def execute(self, context):
         try:
+            nif_path = _resolve_game_nif(self.armor_slot)
+            if nif_path:
+                ok, msg = _import_game_nif(nif_path)
+                if ok:
+                    if context.active_object:
+                        context.active_object.name = f"FO4_ArmorItem_{self.armor_slot}"
+                    self.report({'INFO'}, msg)
+                    notification_system.FO4_NotificationSystem.notify(msg, 'INFO')
+                    return {'FINISHED'}
+                self.report({'WARNING'}, f"{msg} — using placeholder mesh")
+            else:
+                self.report({'INFO'}, _FALLBACK_MSG)
+
             obj = item_helpers.ItemHelpers.create_armor_piece(self.armor_slot)
-            
-            self.report({'INFO'}, f"Created {self.armor_slot} armor item")
+            self.report({'INFO'}, f"Created placeholder {self.armor_slot} armor item")
             notification_system.FO4_NotificationSystem.notify(
-                f"Armor item: {self.armor_slot}", 'INFO'
-            )
+                f"Armor item: {self.armor_slot}", 'INFO')
             return {'FINISHED'}
         except Exception as e:
-            self.report({'ERROR'}, f"Failed to create armor: {str(e)}")
+            self.report({'ERROR'}, f"Failed to create armor: {e}")
             return {'CANCELLED'}
-    
+
     def invoke(self, context, event):
         return context.window_manager.invoke_props_dialog(self)
 
 
 class FO4_OT_CreatePowerArmorPiece(Operator):
-    """Create power armor piece"""
+    """Create power armor piece from an actual FO4 game mesh (requires loose NIF files)"""
     bl_idname = "fo4.create_power_armor_piece"
     bl_label = "Create Power Armor Piece"
     bl_options = {'REGISTER', 'UNDO'}
-    
+
     piece: EnumProperty(
         name="Piece",
         items=[
-            ('TORSO', "Torso", "Chest/torso piece"),
-            ('HELMET', "Helmet", "Helmet piece"),
-            ('ARM_LEFT', "Left Arm", "Left arm piece"),
-            ('ARM_RIGHT', "Right Arm", "Right arm piece"),
-            ('LEG_LEFT', "Left Leg", "Left leg piece"),
-            ('LEG_RIGHT', "Right Leg", "Right leg piece"),
-        ]
+            ('PA_TORSO_T60',  "T-60 Torso",      "T-60 chest/torso piece"),
+            ('PA_HELMET_T60', "T-60 Helmet",      "T-60 helmet"),
+            ('PA_LARM_T60',   "T-60 Left Arm",    "T-60 left arm"),
+            ('PA_RARM_T60',   "T-60 Right Arm",   "T-60 right arm"),
+            ('PA_LLEG_T60',   "T-60 Left Leg",    "T-60 left leg"),
+            ('PA_RLEG_T60',   "T-60 Right Leg",   "T-60 right leg"),
+        ],
+        default='PA_TORSO_T60',
     )
-    
+
     def execute(self, context):
         try:
+            nif_path = _resolve_game_nif(self.piece)
+            if nif_path:
+                ok, msg = _import_game_nif(nif_path)
+                if ok:
+                    if context.active_object:
+                        context.active_object.name = f"FO4_PA_{self.piece}"
+                    self.report({'INFO'}, msg)
+                    notification_system.FO4_NotificationSystem.notify(msg, 'INFO')
+                    return {'FINISHED'}
+                self.report({'WARNING'}, f"{msg} — using placeholder mesh")
+            else:
+                self.report({'INFO'}, _FALLBACK_MSG)
+
             obj = item_helpers.ItemHelpers.create_power_armor_piece(self.piece)
-            
-            self.report({'INFO'}, f"Created power armor {self.piece}")
+            self.report({'INFO'}, f"Created placeholder power armor {self.piece}")
             notification_system.FO4_NotificationSystem.notify(
-                f"Power armor piece: {self.piece}", 'INFO'
-            )
+                f"Power armor piece: {self.piece}", 'INFO')
             return {'FINISHED'}
         except Exception as e:
-            self.report({'ERROR'}, f"Failed to create power armor: {str(e)}")
+            self.report({'ERROR'}, f"Failed to create power armor: {e}")
             return {'CANCELLED'}
-    
+
     def invoke(self, context, event):
         return context.window_manager.invoke_props_dialog(self)
 
 
 class FO4_OT_CreateConsumable(Operator):
-    """Create consumable item"""
+    """Create consumable item from an actual FO4 game mesh (requires loose NIF files)"""
     bl_idname = "fo4.create_consumable"
     bl_label = "Create Consumable"
     bl_options = {'REGISTER', 'UNDO'}
-    
+
     item_type: EnumProperty(
-        name="Item Type",
+        name="Item",
         items=[
-            ('STIMPAK', "Stimpak", "Healing item"),
-            ('BOTTLE', "Bottle", "Drink bottle"),
-            ('FOOD', "Food", "Food item"),
-            ('CHEM', "Chem", "Chemical/drug"),
-        ]
+            ('ITEM_STIMPAK',  "Stimpak",   "Healing stimpak (clutter/junk)"),
+            ('ITEM_NUKACOLA', "Nuka-Cola", "Nuka-Cola bottle"),
+            ('ITEM_FOOD',     "Food",      "Packaged food item"),
+            ('ITEM_CHEM',     "Chem",      "Chemical/drug item"),
+        ],
+        default='ITEM_STIMPAK',
     )
-    
+
     def execute(self, context):
         try:
+            nif_path = _resolve_game_nif(self.item_type)
+            if nif_path:
+                ok, msg = _import_game_nif(nif_path)
+                if ok:
+                    if context.active_object:
+                        context.active_object.name = f"FO4_Consumable_{self.item_type}"
+                    self.report({'INFO'}, msg)
+                    notification_system.FO4_NotificationSystem.notify(msg, 'INFO')
+                    return {'FINISHED'}
+                self.report({'WARNING'}, f"{msg} — using placeholder mesh")
+            else:
+                self.report({'INFO'}, _FALLBACK_MSG)
+
             obj = item_helpers.ItemHelpers.create_consumable(self.item_type)
-            
-            self.report({'INFO'}, f"Created {self.item_type} consumable")
+            self.report({'INFO'}, f"Created placeholder {self.item_type} consumable")
             notification_system.FO4_NotificationSystem.notify(
-                f"Consumable: {self.item_type}", 'INFO'
-            )
+                f"Consumable: {self.item_type}", 'INFO')
             return {'FINISHED'}
         except Exception as e:
-            self.report({'ERROR'}, f"Failed to create consumable: {str(e)}")
+            self.report({'ERROR'}, f"Failed to create consumable: {e}")
             return {'CANCELLED'}
-    
+
     def invoke(self, context, event):
         return context.window_manager.invoke_props_dialog(self)
 
 
 class FO4_OT_CreateMiscItem(Operator):
-    """Create miscellaneous item"""
+    """Create miscellaneous item from an actual FO4 game mesh (requires loose NIF files)"""
     bl_idname = "fo4.create_misc_item"
     bl_label = "Create Misc Item"
     bl_options = {'REGISTER', 'UNDO'}
-    
+
     item_type: EnumProperty(
-        name="Item Type",
+        name="Item",
         items=[
-            ('TOOL', "Tool", "Tool item"),
-            ('COMPONENT', "Component", "Crafting component"),
-            ('JUNK', "Junk", "Junk item"),
-            ('KEY', "Key", "Key item"),
-            ('HOLOTAPE', "Holotape", "Holotape/data"),
-        ]
+            ('ITEM_TOOL',      "Tool",       "Wrench or hand tool"),
+            ('ITEM_COMPONENT', "Component",  "Crafting component (screws etc.)"),
+            ('ITEM_JUNK',      "Junk",       "Generic junk item"),
+            ('ITEM_KEY',       "Key",        "Key or access card"),
+            ('ITEM_HOLOTAPE',  "Holotape",   "Holotape data recording"),
+        ],
+        default='ITEM_TOOL',
     )
-    
+
     def execute(self, context):
         try:
+            nif_path = _resolve_game_nif(self.item_type)
+            if nif_path:
+                ok, msg = _import_game_nif(nif_path)
+                if ok:
+                    if context.active_object:
+                        context.active_object.name = f"FO4_MiscItem_{self.item_type}"
+                    self.report({'INFO'}, msg)
+                    notification_system.FO4_NotificationSystem.notify(msg, 'INFO')
+                    return {'FINISHED'}
+                self.report({'WARNING'}, f"{msg} — using placeholder mesh")
+            else:
+                self.report({'INFO'}, _FALLBACK_MSG)
+
             obj = item_helpers.ItemHelpers.create_misc_item(self.item_type)
-            
-            self.report({'INFO'}, f"Created {self.item_type} misc item")
+            self.report({'INFO'}, f"Created placeholder {self.item_type} misc item")
             notification_system.FO4_NotificationSystem.notify(
-                f"Misc item: {self.item_type}", 'INFO'
-            )
+                f"Misc item: {self.item_type}", 'INFO')
             return {'FINISHED'}
         except Exception as e:
-            self.report({'ERROR'}, f"Failed to create misc item: {str(e)}")
+            self.report({'ERROR'}, f"Failed to create misc item: {e}")
             return {'CANCELLED'}
-    
+
     def invoke(self, context, event):
         return context.window_manager.invoke_props_dialog(self)
 
 
 class FO4_OT_CreateClutterObject(Operator):
-    """Create clutter object for world decoration"""
+    """Create clutter object from an actual FO4 game mesh (requires loose NIF files)"""
     bl_idname = "fo4.create_clutter_object"
     bl_label = "Create Clutter Object"
     bl_options = {'REGISTER', 'UNDO'}
-    
+
     clutter_type: EnumProperty(
-        name="Clutter Type",
+        name="Clutter",
         items=[
-            ('BOTTLE', "Bottle", "Empty bottle"),
-            ('CAN', "Can", "Empty can"),
-            ('PAPER', "Paper", "Paper/document"),
-            ('BOX', "Box", "Box/crate"),
-            ('TIRE', "Tire", "Tire/wheel"),
-        ]
+            ('ITEM_BOTTLE', "Bottle",  "Drink bottle (clutter/junk)"),
+            ('ITEM_CAN',    "Can",     "Empty food can"),
+            ('ITEM_BOX',    "Box",     "Cardboard/wooden box"),
+            ('ITEM_JUNK',   "Junk",    "Generic junk item"),
+        ],
+        default='ITEM_BOTTLE',
     )
-    
+
     def execute(self, context):
         try:
+            nif_path = _resolve_game_nif(self.clutter_type)
+            if nif_path:
+                ok, msg = _import_game_nif(nif_path)
+                if ok:
+                    if context.active_object:
+                        context.active_object.name = f"FO4_Clutter_{self.clutter_type}"
+                    self.report({'INFO'}, msg)
+                    notification_system.FO4_NotificationSystem.notify(msg, 'INFO')
+                    return {'FINISHED'}
+                self.report({'WARNING'}, f"{msg} — using placeholder mesh")
+            else:
+                self.report({'INFO'}, _FALLBACK_MSG)
+
             obj = item_helpers.ClutterHelpers.create_clutter_object(self.clutter_type)
-            
-            self.report({'INFO'}, f"Created {self.clutter_type} clutter object")
+            self.report({'INFO'}, f"Created placeholder {self.clutter_type} clutter object")
             notification_system.FO4_NotificationSystem.notify(
-                f"Clutter: {self.clutter_type}", 'INFO'
-            )
+                f"Clutter: {self.clutter_type}", 'INFO')
             return {'FINISHED'}
         except Exception as e:
-            self.report({'ERROR'}, f"Failed to create clutter: {str(e)}")
+            self.report({'ERROR'}, f"Failed to create clutter: {e}")
             return {'CANCELLED'}
-    
+
     def invoke(self, context, event):
         return context.window_manager.invoke_props_dialog(self)
 
