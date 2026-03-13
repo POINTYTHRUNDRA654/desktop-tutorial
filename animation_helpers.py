@@ -8,6 +8,77 @@ from mathutils import Vector
 # preview handler stored at module scope
 _wind_preview_handler = None
 
+
+# ---------------------------------------------------------------------------
+# Blender Action API compatibility shim
+# ---------------------------------------------------------------------------
+# Blender 4.4 replaced the flat ``action.fcurves`` collection with a layered
+# Action system: ``action.layers[n].strips[n].fcurves``.  Blender 5.0 carries
+# this further — ``action.fcurves`` no longer exists at all on newly-created
+# actions.  The helper below returns the correct fcurves container regardless
+# of Blender version and also assigns the action slot when required so the
+# animation data resolves correctly in 4.4+.
+
+def _assign_action_to_id(anim_data, action):
+    """Assign *action* to *anim_data* and bind the correct slot (Blender ≥ 4.4).
+
+    In Blender < 4.4 simply setting ``anim_data.action = action`` is sufficient.
+    From Blender 4.4 onward each action has *slots* (formerly "bindings") that
+    map it to a specific ID type.  Without a valid slot assignment the
+    animation channels are invisible to the object even though the action is
+    technically assigned.
+    """
+    anim_data.action = action
+
+    # Slot / binding system – introduced in Blender 4.4.
+    if not hasattr(anim_data, 'action_slot'):
+        return  # Blender < 4.4: nothing more to do
+
+    if not action.slots:
+        # Create the first slot with a generic name; the engine will match it
+        # to the owner ID automatically.
+        try:
+            slot = action.slots.new(id_type='OBJECT', name='Slot')
+        except Exception:
+            try:
+                slot = action.slots.new()
+            except Exception:
+                return
+    else:
+        slot = action.slots[0]
+
+    try:
+        anim_data.action_slot = slot
+    except Exception:
+        pass
+
+
+def _get_action_fcurves(action):
+    """Return the fcurves container for *action*, creating layers/strips as needed.
+
+    * Blender < 4.4 (legacy action): returns ``action.fcurves`` directly.
+    * Blender ≥ 4.4 (layered action): ``action.fcurves`` does not exist;
+      returns ``action.layers[0].strips[0].fcurves`` after ensuring the
+      default layer and keyframe strip exist.
+    """
+    # Legacy path: action still exposes a flat fcurves collection.
+    if hasattr(action, 'fcurves'):
+        return action.fcurves
+
+    # Layered path (Blender 4.4+ / 5.0).
+    if not action.layers:
+        layer = action.layers.new(name="Layer")
+    else:
+        layer = action.layers[0]
+
+    if not layer.strips:
+        # 'KEYFRAME' is the standard strip type for traditional keyframe data.
+        strip = layer.strips.new(type='KEYFRAME')
+    else:
+        strip = layer.strips[0]
+
+    return strip.fcurves
+
 class AnimationHelpers:
     """Helper functions for animation setup and validation"""
     
@@ -468,10 +539,16 @@ class AnimationHelpers:
         if not arm_obj.animation_data:
             arm_obj.animation_data_create()
         action = bpy.data.actions.new(name=mesh_obj.name + "_WindAnim")
-        arm_obj.animation_data.action = action
+        # Use the compat helper so Blender 4.4+ slot assignment is handled
+        # and Blender 5.0's layered action system is used correctly.
+        _assign_action_to_id(arm_obj.animation_data, action)
         idx = {'X':0,'Y':1,'Z':2}.get(axis.upper(),0)
         data_path = f'pose.bones["Wind"].rotation_euler'
-        fcurve = action.fcurves.new(data_path=data_path, index=idx)
+        # _get_action_fcurves() returns the right container on all Blender
+        # versions: flat action.fcurves (< 4.4) or the layered-strip fcurves
+        # (≥ 4.4 / 5.0) where action.fcurves no longer exists.
+        fcurves = _get_action_fcurves(action)
+        fcurve = fcurves.new(data_path=data_path, index=idx)
         fcurve.keyframe_points.add(count=2)
         fcurve.keyframe_points[0].co = (0.0, 0.0)
         fcurve.keyframe_points[1].co = (period, 0.0)

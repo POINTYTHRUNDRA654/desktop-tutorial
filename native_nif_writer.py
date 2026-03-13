@@ -299,14 +299,39 @@ def _write_bsfadenode(name_str_idx: int, child_block_idx: int) -> bytes:
 # ── BSLightingShaderProperty ────────────────────────────────────────────────
 
 # Default shader flags for a standard FO4 static mesh:
-#   SF1  0x80400201  – Cast_Shadows | Receive_Shadows | ZBuffer_Write |
-#                       Tangent_Space | Specular | Diffuse
-#   SF2  0x00000021  – ZBuffer_Test | Double_Sided (backface OFF by default;
-#                       clear bit 5 if you want two-sided)
+#   SF1  0x80400201  – TangentSpace | CastShadows | ZBufferWrite | Specular
+#   SF2  0x00000001  – ZBufferTest
+# Note: the old comment mentioned 0x21 (bit 5 set) for "Double_Sided" but
+# backface culling should be OFF by default; the correct ZBufferTest-only
+# value for a standard opaque mesh is 0x00000001.
 _DEFAULT_SF1 = 0x80400201
-_DEFAULT_SF2 = 0x00000021
+_DEFAULT_SF2 = 0x00000001
 
-def _write_bslsp(name_str_idx: int, texset_block_idx: int) -> bytes:
+# Per-mesh-type shader flag overrides for the native writer.
+# Keys match the FO4_MESH_TYPE_ITEMS identifiers used in export_helpers.
+_MESH_TYPE_SF1 = {
+    'STATIC':       0x80400201,
+    'SKINNED':      0x80400203,  # + Skinned(0x02)
+    'ARMOR':        0x80400203,  # + Skinned(0x02)
+    'LOD':          0x80400201,
+    'VEGETATION':   0x80400201,
+    'FURNITURE':    0x80400201,
+    'WEAPON':       0x80400201,
+    'ARCHITECTURE': 0x80400201,
+}
+_MESH_TYPE_SF2 = {
+    'STATIC':       0x00000001,
+    'SKINNED':      0x00000001,
+    'ARMOR':        0x00000001,
+    'LOD':          0x00000001,
+    'VEGETATION':   0x00000011,  # ZBufferTest(0x01) | Two_Sided(0x10)
+    'FURNITURE':    0x00000001,
+    'WEAPON':       0x00000001,
+    'ARCHITECTURE': 0x00000001,
+}
+
+def _write_bslsp(name_str_idx: int, texset_block_idx: int,
+                 sf1: int = _DEFAULT_SF1, sf2: int = _DEFAULT_SF2) -> bytes:
     """Return the binary payload for a BSLightingShaderProperty.
 
     FO4 (UserVersion2=130) field layout:
@@ -327,15 +352,23 @@ def _write_bslsp(name_str_idx: int, texset_block_idx: int) -> bytes:
         exposure_offset (f32)
         final_exposure_min (f32)
         final_exposure_max (f32)
+
+    Parameters
+    ----------
+    sf1 : int
+        ShaderFlags1 override (default: _DEFAULT_SF1 for static meshes).
+    sf2 : int
+        ShaderFlags2 override (default: _DEFAULT_SF2 for static meshes).
+        Set bit 4 (0x10) for vegetation Two_Sided rendering.
     """
     buf = bytearray()
     # NiObjectNET
     buf += struct.pack('<i',  name_str_idx)
     buf += struct.pack('<I',  0)               # num_extra_data
     buf += struct.pack('<i', -1)               # controller (null)
-    # Shader flags
-    buf += struct.pack('<I', _DEFAULT_SF1)
-    buf += struct.pack('<I', _DEFAULT_SF2)
+    # Shader flags (per-mesh-type values)
+    buf += struct.pack('<I', sf1)
+    buf += struct.pack('<I', sf2)
     # UV transform
     buf += struct.pack('<2f', 0.0, 0.0)       # uv_offset
     buf += struct.pack('<2f', 1.0, 1.0)       # uv_scale
@@ -480,8 +513,24 @@ def _build_nif(
     uvs:           np.ndarray,
     triangles:     np.ndarray,
     texture_paths: list,
+    mesh_type:     str = 'STATIC',
 ) -> bytes:
-    """Assemble a complete NIF 20.2.0.7 byte string for a FO4 static mesh."""
+    """Assemble a complete NIF 20.2.0.7 byte string for a FO4 mesh.
+
+    Parameters
+    ----------
+    mesh_type : str
+        One of the keys in _MESH_TYPE_SF1 / _MESH_TYPE_SF2.  Controls which
+        BSLightingShaderProperty shader flags are written into the NIF, ensuring
+        the correct behaviour in-game for each mesh category:
+          - STATIC / LOD / ARCHITECTURE: default opaque flags
+          - SKINNED / ARMOR: Skinned bit set in SF1 (engine applies bone xforms)
+          - VEGETATION: Two_Sided bit set in SF2 (leaf quads visible both sides)
+          - FURNITURE / WEAPON: same as STATIC (special root-node handling
+            is done via Niftools or post-processing, not by the native writer)
+    """
+    sf1 = _MESH_TYPE_SF1.get(mesh_type, _DEFAULT_SF1)
+    sf2 = _MESH_TYPE_SF2.get(mesh_type, _DEFAULT_SF2)
 
     # ── Block indices (order matters for refs) ────────────────────────────
     # 0: BSFadeNode
@@ -507,7 +556,7 @@ def _build_nif(
         nif_tangents=nif_tangents, nif_bitangents=nif_bitangents,
         uvs=uvs, triangles=triangles,
     )
-    blk_shader   = _write_bslsp(idx_shader, texset_block_idx=3)
+    blk_shader   = _write_bslsp(idx_shader, texset_block_idx=3, sf1=sf1, sf2=sf2)
     blk_texset   = _write_bsshader_texset(texture_paths)
 
     blocks = [blk_fadenode, blk_trishape, blk_shader, blk_texset]
@@ -590,13 +639,20 @@ def _build_nif(
 # Public API
 # ---------------------------------------------------------------------------
 
-def export_fo4_nif(obj, filepath: str) -> tuple:
+def export_fo4_nif(obj, filepath: str, mesh_type: str = 'STATIC') -> tuple:
     """Export a Blender mesh object as a Fallout 4 NIF file.
+
+    The native writer handles STATIC, LOD, VEGETATION, FURNITURE, and WEAPON
+    mesh types directly.  SKINNED and ARMOR meshes require BSSkin::Instance /
+    BSSubIndexTriShape which the native writer does not yet produce; those types
+    return a failure tuple so the caller can fall back to Niftools or FBX.
 
     Parameters
     ----------
-    obj      : bpy.types.Object  – must be type 'MESH'
-    filepath : str               – output .nif path (parent dirs created)
+    obj       : bpy.types.Object  – must be type 'MESH'
+    filepath  : str               – output .nif path (parent dirs created)
+    mesh_type : str               – one of the FO4_MESH_TYPE_SETTINGS keys.
+                                    Default is 'STATIC'.
 
     Returns
     -------
@@ -605,6 +661,16 @@ def export_fo4_nif(obj, filepath: str) -> tuple:
     """
     if obj.type != 'MESH':
         return False, f"Object '{obj.name}' is not a mesh"
+
+    # SKINNED and ARMOR meshes need BSSubIndexTriShape + BSSkin::Instance.
+    # The native writer only produces BSTriShape (static geometry), so we
+    # decline these types early so the caller can try Niftools or FBX.
+    if mesh_type in ('SKINNED', 'ARMOR'):
+        return False, (
+            f"Native NIF writer does not support {mesh_type} meshes "
+            "(requires BSSkin::Instance / BSSubIndexTriShape). "
+            "Install Niftools v0.1.1 for skinned-mesh NIF export."
+        )
 
     # ── Extract mesh data ─────────────────────────────────────────────────
     try:
@@ -645,6 +711,7 @@ def export_fo4_nif(obj, filepath: str) -> tuple:
             uvs            = uvs,
             triangles      = triangles,
             texture_paths  = texture_paths,
+            mesh_type      = mesh_type,
         )
     except Exception as exc:
         traceback.print_exc()
@@ -663,6 +730,6 @@ def export_fo4_nif(obj, filepath: str) -> tuple:
     if diffuse:
         tex_note = f" (diffuse: {diffuse})"
     return True, (
-        f"Exported NIF via native writer: {filepath}"
+        f"Exported NIF via native writer [{mesh_type}]: {filepath}"
         f" ({n_verts} verts, {n_tris} tris){tex_note}"
     )

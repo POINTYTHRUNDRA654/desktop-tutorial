@@ -1473,6 +1473,57 @@ class FO4_PT_ExportPanel(Panel):
             icon='INFO',
         )
 
+        # ── Per-object mesh type ──────────────────────────────────────────────
+        # The mesh type drives which NIF settings are applied: root node class
+        # (BSFadeNode vs NiNode), BSXFlags, shader flags, and skinning path.
+        # 'Auto-detect' classifies the mesh from armature/name/material
+        # automatically; override it here for unusual setups.
+        if obj and obj.type == 'MESH':
+            mtype_box = layout.box()
+            mtype_row = mtype_box.row(align=True)
+            mtype_row.label(text="Mesh Type:", icon='MESH_DATA')
+            mtype_row.prop(obj, "fo4_mesh_type", text="")
+
+            # Per-type hint row
+            try:
+                from . import export_helpers as _eh
+                mtype_val = getattr(obj, 'fo4_mesh_type', 'AUTO')
+                if mtype_val == 'AUTO':
+                    detected = _eh.ExportHelpers._classify_fo4_mesh_type(obj)
+                    mtype_hint = mtype_box.column(align=True)
+                    mtype_hint.scale_y = 0.75
+                    mtype_hint.label(
+                        text=f"Auto-detected as: {detected}  "
+                             "(override above if wrong)",
+                        icon='INFO',
+                    )
+                    mtype_val = detected
+                _MESH_TYPE_NOTES = {
+                    'STATIC':
+                        "BSFadeNode root · BSTriShape · no skinning",
+                    'SKINNED':
+                        "NiNode root · BSSubIndexTriShape · BSSkin::Instance · Skinned SF1 flag",
+                    'ARMOR':
+                        "NiNode root · BSSubIndexTriShape · BSSkin::Instance · Skinned SF1 flag",
+                    'LOD':
+                        "BSFadeNode root · reduced poly count · same settings as Static",
+                    'VEGETATION':
+                        "BSFadeNode root · Two_Sided SF2 · Alpha Clip material required",
+                    'FURNITURE':
+                        "NiNode root · BSXFlags Animated (1) · enable CK furniture markers",
+                    'WEAPON':
+                        "NiNode root · no vertex skinning · attach via named bone",
+                    'ARCHITECTURE':
+                        "BSFadeNode root · BSXFlags Has-Havok (2) · collision required",
+                }
+                note = _MESH_TYPE_NOTES.get(mtype_val, "")
+                if note:
+                    mtype_hint = mtype_box.column(align=True)
+                    mtype_hint.scale_y = 0.75
+                    mtype_hint.label(text=note, icon='INFO')
+            except Exception:
+                pass
+
         # ── Niftools exporter status ─────────────────────────────────────────
         nif_box = layout.box()
         if export_helpers:

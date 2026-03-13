@@ -385,6 +385,26 @@ def register():
         default='DEFAULT'
     )
 
+    # per-object mesh type – controls NIF export settings (root node class,
+    # BSXFlags, shader flags, skinning path).  'AUTO' (empty string) means the
+    # export pipeline classifies the type automatically from armature, name, and
+    # material settings.
+    from . import export_helpers
+    bpy.types.Object.fo4_mesh_type = bpy.props.EnumProperty(
+        name="Mesh Type",
+        description=(
+            "Fallout 4 mesh category.  Controls which NIF export settings are "
+            "applied (root node class, BSXFlags, shader flags, skinning). "
+            "Leave on 'Auto-detect' to let the add-on classify the mesh "
+            "automatically from its armature, name, and material."
+        ),
+        items=[('AUTO', "Auto-detect",
+                "Classify automatically (armature → Skinned, _LODn → LOD, "
+                "Alpha Clip material → Vegetation, else Static)")] +
+              export_helpers.FO4_MESH_TYPE_ITEMS,
+        default='AUTO',
+    )
+
     # per-scene target Fallout 4 game version (drives NIF version numbers)
     bpy.types.Scene.fo4_game_version = bpy.props.EnumProperty(
         name="Game Version",
@@ -416,6 +436,8 @@ def unregister():
         del bpy.types.Scene.fo4_show_addon_tutorials
     if hasattr(bpy.types.Object, 'fo4_collision_type'):
         del bpy.types.Object.fo4_collision_type
+    if hasattr(bpy.types.Object, 'fo4_mesh_type'):
+        del bpy.types.Object.fo4_mesh_type
     if hasattr(bpy.types.Scene, 'fo4_game_version'):
         del bpy.types.Scene.fo4_game_version
     
