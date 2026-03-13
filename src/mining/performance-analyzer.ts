@@ -82,10 +82,10 @@ export class PerformanceAnalyzer implements IPerformanceAnalyzer {
         );
 
         if (comparableMetric && this.baselineMetrics) {
-          const fpsDelta = metric.fps - comparableMetric.fps;
-          const memoryDelta = metric.memoryUsage - comparableMetric.memoryUsage;
-          const loadTimeDelta = metric.loadTime - comparableMetric.loadTime;
-          const stabilityDelta = metric.stabilityScore - comparableMetric.stabilityScore;
+          const fpsDelta = (typeof metric.fps === 'number' ? metric.fps : 0) - (typeof comparableMetric.fps === 'number' ? comparableMetric.fps : 0);
+          const memoryDelta = (typeof metric.memoryUsage === 'number' ? metric.memoryUsage : 0) - (typeof comparableMetric.memoryUsage === 'number' ? comparableMetric.memoryUsage : 0);
+          const loadTimeDelta = (typeof metric.loadTime === 'number' ? metric.loadTime : 0) - (typeof comparableMetric.loadTime === 'number' ? comparableMetric.loadTime : 0);
+          const stabilityDelta = (typeof metric.stabilityScore === 'number' ? metric.stabilityScore : 0) - (typeof comparableMetric.stabilityScore === 'number' ? comparableMetric.stabilityScore : 0);
 
           impacts.push({
             fpsDelta,
@@ -171,7 +171,7 @@ export class PerformanceAnalyzer implements IPerformanceAnalyzer {
     const pairs: Array<[string, string, PerformanceImpact]> = [];
 
     for (const metric of metrics) {
-      if (metric.modCombination.length >= 2 && metric.fps < 30) { // Very low FPS
+      if (metric.modCombination.length >= 2 && (typeof metric.fps === 'number' ? metric.fps : 0) < 30) { // Very low FPS
         // Check if individual mods perform better
         for (let i = 0; i < metric.modCombination.length; i++) {
           for (let j = i + 1; j < metric.modCombination.length; j++) {
@@ -189,13 +189,16 @@ export class PerformanceAnalyzer implements IPerformanceAnalyzer {
             );
 
             if (mod1Only && mod2Only) {
-              const expectedFps = Math.min(mod1Only.fps, mod2Only.fps);
-              if (metric.fps < expectedFps * 0.7) { // Much worse than expected
+              const expectedFps = Math.min(
+                typeof mod1Only.fps === 'number' ? mod1Only.fps : 0,
+                typeof mod2Only.fps === 'number' ? mod2Only.fps : 0
+              );
+              if ((typeof metric.fps === 'number' ? metric.fps : 0) < expectedFps * 0.7) { // Much worse than expected
                 pairs.push([mod1, mod2, {
-                  fpsDelta: expectedFps - metric.fps,
-                  memoryDelta: (mod1Only.memoryUsage + mod2Only.memoryUsage) - metric.memoryUsage,
-                  loadTimeDelta: (mod1Only.loadTime + mod2Only.loadTime) - metric.loadTime,
-                  stabilityDelta: (mod1Only.stabilityScore + mod2Only.stabilityScore) / 2 - metric.stabilityScore
+                  fpsDelta: expectedFps - (typeof metric.fps === 'number' ? metric.fps : 0),
+                  memoryDelta: ((typeof mod1Only.memoryUsage === 'number' ? mod1Only.memoryUsage : 0) + (typeof mod2Only.memoryUsage === 'number' ? mod2Only.memoryUsage : 0)) - (typeof metric.memoryUsage === 'number' ? metric.memoryUsage : 0),
+                  loadTimeDelta: ((typeof mod1Only.loadTime === 'number' ? mod1Only.loadTime : 0) + (typeof mod2Only.loadTime === 'number' ? mod2Only.loadTime : 0)) - (typeof metric.loadTime === 'number' ? metric.loadTime : 0),
+                  stabilityDelta: (((typeof mod1Only.stabilityScore === 'number' ? mod1Only.stabilityScore : 0) + (typeof mod2Only.stabilityScore === 'number' ? mod2Only.stabilityScore : 0)) / 2) - (typeof metric.stabilityScore === 'number' ? metric.stabilityScore : 0)
                 }]);
               }
             }
@@ -240,10 +243,27 @@ export class PerformanceAnalyzer implements IPerformanceAnalyzer {
   private calculateCompatibilityScore(metric: PerformanceMetric): number {
     if (!this.baselineMetrics) return 100;
 
+    // Extract numeric values for fps, memoryUsage, stabilityScore
+    let baseFps = 0, metricFps = 0;
+    if (typeof this.baselineMetrics.fps === 'number') {
+      baseFps = this.baselineMetrics.fps;
+    } else if (typeof this.baselineMetrics.fps === 'object' && typeof this.baselineMetrics.fps.average === 'number') {
+      baseFps = this.baselineMetrics.fps.average;
+    }
+    if (typeof metric.fps === 'number') {
+      metricFps = metric.fps;
+    } else if (typeof metric.fps === 'object' && typeof metric.fps.average === 'number') {
+      metricFps = metric.fps.average;
+    }
+    const baseMemory = typeof this.baselineMetrics.memoryUsage === 'number' ? this.baselineMetrics.memoryUsage : 0;
+    const metricMemory = typeof metric.memoryUsage === 'number' ? metric.memoryUsage : 0;
+    const baseStability = typeof this.baselineMetrics.stabilityScore === 'number' ? this.baselineMetrics.stabilityScore : 0;
+    const metricStability = typeof metric.stabilityScore === 'number' ? metric.stabilityScore : 0;
+
     // Calculate performance degradation
-    const fpsDegradation = (this.baselineMetrics.fps - metric.fps) / this.baselineMetrics.fps;
-    const memoryDegradation = (metric.memoryUsage - this.baselineMetrics.memoryUsage) / this.baselineMetrics.memoryUsage;
-    const stabilityDegradation = (this.baselineMetrics.stabilityScore - metric.stabilityScore) / 100;
+    const fpsDegradation = baseFps !== 0 ? (baseFps - metricFps) / baseFps : 0;
+    const memoryDegradation = baseMemory !== 0 ? (metricMemory - baseMemory) / baseMemory : 0;
+    const stabilityDegradation = (baseStability - metricStability) / 100;
 
     // Weighted score (0-100, higher is better compatibility)
     const degradation = (fpsDegradation * 0.5) + (memoryDegradation * 0.3) + (stabilityDegradation * 0.2);

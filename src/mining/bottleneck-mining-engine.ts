@@ -81,7 +81,7 @@ export class BottleneckMiningEngine implements IBottleneckMiningEngine {
     const analysis = await this.analyze(tempData) as any;
 
     // Convert Phase2PerformanceBottleneck[] -> legacy PerformanceBottleneck[] for callers
-    const combined = [ ...(analysis.primaryBottlenecks || []), ...(analysis.secondaryBottlenecks || []) ];
+    const combined = [...(analysis.primaryBottlenecks || []), ...(analysis.secondaryBottlenecks || [])];
 
     return combined.map((b: any) => ({
       modName: (b.affectedMods && b.affectedMods[0]) || 'unknown',
@@ -106,9 +106,15 @@ export class BottleneckMiningEngine implements IBottleneckMiningEngine {
 
   private calculatePerformanceScore(metric: PerformanceMetric): number {
     // Weighted score combining FPS, stability, and memory efficiency
-    const fpsScore = Math.min(metric.fps / 60, 1) * 40; // 40% weight
-    const stabilityScore = metric.stabilityScore * 0.4; // 40% weight
-    const memoryScore = Math.max(0, (1 - metric.memoryUsage / 16384)) * 20; // 20% weight (16GB max)
+    let fpsValue = 0;
+    if (typeof metric.fps === 'number') {
+      fpsValue = metric.fps;
+    } else if (typeof metric.fps === 'object' && typeof metric.fps.average === 'number') {
+      fpsValue = metric.fps.average;
+    }
+    const fpsScore = Math.min(fpsValue / 60, 1) * 40; // 40% weight
+    const stabilityScore = typeof metric.stabilityScore === 'number' ? metric.stabilityScore * 0.4 : 0; // 40% weight
+    const memoryScore = typeof metric.memoryUsage === 'number' ? Math.max(0, (1 - metric.memoryUsage / 16384)) * 20 : 0; // 20% weight (16GB max)
 
     return fpsScore + stabilityScore + memoryScore;
   }
@@ -153,9 +159,9 @@ export class BottleneckMiningEngine implements IBottleneckMiningEngine {
         );
 
         if (comparableMetric) {
-          const fpsDelta = metric.fps - comparableMetric.fps;
-          const memoryDelta = metric.memoryUsage - comparableMetric.memoryUsage;
-          const loadTimeDelta = metric.loadTime - comparableMetric.loadTime;
+          const fpsDelta = (typeof metric.fps === 'number' ? metric.fps : 0) - (typeof comparableMetric.fps === 'number' ? comparableMetric.fps : 0);
+          const memoryDelta = (typeof metric.memoryUsage === 'number' ? metric.memoryUsage : 0) - (typeof comparableMetric.memoryUsage === 'number' ? comparableMetric.memoryUsage : 0);
+          const loadTimeDelta = (typeof metric.loadTime === 'number' ? metric.loadTime : 0) - (typeof comparableMetric.loadTime === 'number' ? comparableMetric.loadTime : 0);
 
           if (!impacts.has(mod)) {
             impacts.set(mod, { fpsDelta: 0, memoryDelta: 0, loadTimeDelta: 0 });
@@ -195,7 +201,7 @@ export class BottleneckMiningEngine implements IBottleneckMiningEngine {
     if (impact.fpsDelta < -20 && impact.memoryDelta < 1024) {
       // Significant FPS drop without major memory increase - likely GPU or script
       if (systemInfo.gpu.model.toLowerCase().includes('integrated') ||
-          systemInfo.gpu.model.toLowerCase().includes('intel')) {
+        systemInfo.gpu.model.toLowerCase().includes('intel')) {
         return 'gpu'; // Integrated graphics bottleneck
       }
       return 'script'; // Script performance issue
@@ -261,7 +267,7 @@ export class BottleneckMiningEngine implements IBottleneckMiningEngine {
     // Add system context
     const relevantMetrics = performanceData.metrics.filter(m => m.modCombination.includes(modName));
     if (relevantMetrics.length > 0) {
-      const avgFps = relevantMetrics.reduce((acc, m) => acc + m.fps, 0) / relevantMetrics.length;
+      const avgFps = relevantMetrics.reduce((acc, m) => acc + (typeof m.fps === 'number' ? m.fps : 0), 0) / relevantMetrics.length;
       evidence.push({
         metric: 'avg_fps_with_mod',
         value: avgFps,
@@ -349,14 +355,16 @@ export class BottleneckMiningEngine implements IBottleneckMiningEngine {
 
     // Look for high memory usage with low FPS
     for (const metric of performanceData.metrics) {
-      if (metric.memoryUsage > 6144 && metric.fps < 40) { // >6GB RAM, <40 FPS
-        const memoryFpsRatio = metric.memoryUsage / metric.fps;
+      const fpsValue = typeof metric.fps === 'number' ? metric.fps : (typeof metric.fps === 'object' && typeof metric.fps.average === 'number' ? metric.fps.average : 0);
+      const memoryValue = typeof metric.memoryUsage === 'number' ? metric.memoryUsage : 0;
+      if (memoryValue > 6144 && fpsValue < 40) { // >6GB RAM, <40 FPS
+        const memoryFpsRatio = fpsValue !== 0 ? memoryValue / fpsValue : 0;
 
         if (memoryFpsRatio > 200) { // High memory per FPS
           opportunities.push({
             type: 'texture',
-            description: `High VRAM usage (${metric.memoryUsage}MB) with low FPS (${metric.fps}). Consider texture optimization.`,
-            potentialGain: Math.min(metric.memoryUsage * 0.3, 20), // Estimate 30% memory reduction = ~20 FPS gain
+            description: `High VRAM usage (${memoryValue}MB) with low FPS (${fpsValue}). Consider texture optimization.`,
+            potentialGain: Math.min(memoryValue * 0.3, 20), // Estimate 30% memory reduction = ~20 FPS gain
             difficulty: 'medium',
             affectedMods: metric.modCombination
           });
@@ -394,11 +402,20 @@ export class BottleneckMiningEngine implements IBottleneckMiningEngine {
 
     if (loadOrderMetrics.length > 1) {
       // Find load orders with significantly different performance
-      const sortedByFps = [...loadOrderMetrics].sort((a, b) => b.fps - a.fps);
-      const bestFps = sortedByFps[0].fps;
-      const worstFps = sortedByFps[sortedByFps.length - 1].fps;
+      const sortedByFps = [...loadOrderMetrics].sort((a, b) => {
+        const aFps = typeof a.fps === 'number' ? a.fps : (typeof a.fps === 'object' && typeof a.fps.average === 'number' ? a.fps.average : 0);
+        const bFps = typeof b.fps === 'number' ? b.fps : (typeof b.fps === 'object' && typeof b.fps.average === 'number' ? b.fps.average : 0);
+        return bFps - aFps;
+      });
+      const bestFps = typeof sortedByFps[0].fps === 'number' ? sortedByFps[0].fps : (typeof sortedByFps[0].fps === 'object' && typeof sortedByFps[0].fps.average === 'number' ? sortedByFps[0].fps.average : 0);
+      const lastFps = sortedByFps[sortedByFps.length - 1].fps;
+      const worstFps = typeof lastFps === 'number'
+        ? lastFps
+        : (lastFps && typeof (lastFps as any).average === 'number'
+          ? (lastFps as any).average
+          : 0);
 
-      if (bestFps - worstFps > 10) { // >10 FPS difference
+      if (typeof bestFps === 'number' && typeof worstFps === 'number' && bestFps - worstFps > 10) { // >10 FPS difference
         opportunities.push({
           type: 'load_order',
           description: `Load order optimization could improve FPS by up to ${(bestFps - worstFps).toFixed(1)}`,

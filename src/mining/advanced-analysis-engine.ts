@@ -102,7 +102,7 @@ export class AdvancedAnalysisEngineImpl implements AdvancedAnalysisEngine {
           mods: data.mods,
           peakVRAM: 0, // Would be calculated
           peakRAM: 0, // Would be calculated
-          averageFPS: data.performanceMetrics.reduce((acc, m) => acc + m.fps, 0) / data.performanceMetrics.length
+          averageFPS: data.performanceMetrics.reduce((acc, m) => acc + (typeof m.fps === 'number' ? m.fps : 0), 0) / data.performanceMetrics.length
         }
       }),
       this.compatibilityMining.build([]) // Would use historical compatibility data
@@ -247,7 +247,7 @@ export class AdvancedAnalysisEngineImpl implements AdvancedAnalysisEngine {
         mods,
         peakVRAM: 0,
         peakRAM: 0,
-        averageFPS: performanceData.metrics.reduce((acc, m) => acc + m.fps, 0) / performanceData.metrics.length
+        averageFPS: performanceData.metrics.reduce((acc, m) => acc + (typeof m.fps === 'number' ? m.fps : 0), 0) / performanceData.metrics.length
       }
     });
 
@@ -295,7 +295,28 @@ export class AdvancedAnalysisEngineImpl implements AdvancedAnalysisEngine {
 
     // Calculate summary scores
     const compatibilityScore = this.calculateCompatibilityScore(analysis.compatibilityMatrix, data.mods);
-    const performanceScore = this.calculatePerformanceScore(data.performanceMetrics);
+    // If data.performanceMetrics is an array, map to the expected type
+    const performanceScore = Array.isArray(data.performanceMetrics)
+      ? this.calculatePerformanceScore(
+        data.performanceMetrics.map((m: any) => ({
+          fps: typeof m.fps === 'number' ? m.fps : (typeof m.fps === 'object' && typeof m.fps.average === 'number' ? m.fps.average : 0),
+          stabilityScore: typeof m.stabilityScore === 'number' ? m.stabilityScore : 0,
+          memoryUsage: typeof m.memoryUsage === 'number' ? m.memoryUsage : 0
+        }))
+      )
+      : this.calculatePerformanceScore([
+        {
+          fps: typeof (data.performanceMetrics as any)?.fps === 'number'
+            ? (data.performanceMetrics as any).fps
+            : (typeof (data.performanceMetrics as any)?.fps === 'object' && typeof (data.performanceMetrics as any).fps.average === 'number'
+              ? (data.performanceMetrics as any).fps.average
+              : 0),
+          stabilityScore: typeof (data.performanceMetrics as any)?.stabilityScore === 'number'
+            ? (data.performanceMetrics as any).stabilityScore
+            : 0
+          // memoryUsage is not part of the expected type, so omit it
+        }
+      ]);
     const riskLevel = this.calculateRiskLevel(analysis, data);
 
     // Collect issues

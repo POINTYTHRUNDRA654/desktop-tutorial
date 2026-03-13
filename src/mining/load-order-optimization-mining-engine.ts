@@ -264,7 +264,10 @@ export class LoadOrderOptimizationMiningEngineImpl implements LoadOrderOptimizat
 
     // Use actual performance data if available
     if (performanceData.length > 0) {
-      const avgFps = performanceData.reduce((sum, data) => sum + ((data.metrics && data.metrics[0] && data.metrics[0].fps) || 0), 0) / performanceData.length;
+      const avgFps = performanceData.reduce((sum, data) => {
+        const fps = data.metrics && data.metrics[0] && typeof data.metrics[0].fps === 'number' ? data.metrics[0].fps : 0;
+        return sum + fps;
+      }, 0) / performanceData.length;
       score = Math.min(100, avgFps);
     }
 

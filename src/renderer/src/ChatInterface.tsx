@@ -952,12 +952,22 @@ export const ChatInterface: React.FC = () => {
             // Turning Mossy OFF — stop all speech and audio immediately
             stopMossySpeech();
             stopAudio();
+            setIsLoading(false);
+            setIsStreaming(false);
+            setInputText('');
             console.log('[ChatInterface] Mossy turned OFF - speech and audio stopped');
         } else {
             // Turning Mossy back ON — ready for new messages
+            setIsLoading(false);
+            setIsStreaming(false);
+            setInputText('');
             console.log('[ChatInterface] Mossy turned ON - ready for new messages');
         }
         window.dispatchEvent(new Event('mossy-conversation-toggle'));
+        // Force UI update for all listeners
+        setTimeout(() => {
+            window.dispatchEvent(new Event('mossy-ui-sync'));
+        }, 50);
     };
 
     // --- VOICE LOGIC ---
