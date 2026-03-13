@@ -1387,6 +1387,7 @@ class FO4_PT_GameAssetsPanel(Panel):
 
     def draw(self, context):
         layout = self.layout
+        scene  = context.scene
         obj = context.active_object
         has_mesh = obj and obj.type == 'MESH'
 
@@ -1893,29 +1894,46 @@ class FO4_PT_PresetsPanel(Panel):
     
     def draw(self, context):
         layout = self.layout
-        
+        scene  = context.scene
+
+        # ── Asset-path status banner ─────────────────────────────────────────
+        from . import fo4_game_assets as _fga
+        assets_ready, assets_msg = _fga.FO4GameAssets.get_status()
+        status_box = layout.box()
+        if assets_ready:
+            status_box.label(text=f"FO4 assets: ready", icon='CHECKMARK')
+        else:
+            status_box.label(text="FO4 assets: path not set — presets will use placeholders", icon='ERROR')
+            sub = status_box.column(align=True)
+            sub.scale_y = 0.8
+            sub.label(text="Set the path to your extracted Data folder:", icon='INFO')
+            row = sub.row(align=True)
+            row.prop(scene, "fo4_asset_lib_mesh_path", text="Meshes")
+            row.operator("fo4.set_asset_folder_path", text="", icon='FILE_FOLDER').slot = 'meshes'
+            sub.label(text="Then click the preset button — it imports the real game mesh.", icon='DOT')
+
         # Weapon presets
         box = layout.box()
         box.label(text="Weapon Presets", icon='MOD_ARMATURE')
         box.operator("fo4.create_weapon_preset", text="Create Weapon", icon='MESH_CUBE')
-        
+
         # Armor presets
         box = layout.box()
         box.label(text="Armor Presets", icon='MESH_UVSPHERE')
         box.operator("fo4.create_armor_preset", text="Create Armor", icon='MESH_CUBE')
-        
+
         # Prop presets
         box = layout.box()
         box.label(text="Prop Presets", icon='OBJECT_DATA')
         box.operator("fo4.create_prop_preset", text="Create Prop", icon='MESH_CUBE')
-        
+
         # Info
         info_box = layout.box()
         info_box.label(text="About Presets:", icon='INFO')
-        info_box.label(text="• Pre-configured for FO4")
-        info_box.label(text="• Optimal scale & settings")
-        info_box.label(text="• Materials already setup")
-        info_box.label(text="• Ready to customize")
+        info_box.label(text="• Imports the real game mesh when path is set")
+        info_box.label(text="• Falls back to placeholder if path is not set")
+        info_box.label(text="• Pre-configured FO4 materials & settings")
+        info_box.label(text="• Ready to customize and re-export")
 
 
 class FO4_PT_AutomationQuickPanel(Panel):
@@ -2082,9 +2100,26 @@ class FO4_PT_VegetationPanel(Panel):
     
     def draw(self, context):
         layout = self.layout
+        scene  = context.scene
         obj = context.active_object
         selected_meshes = [o for o in context.selected_objects if o.type == 'MESH']
-        
+
+        # ── Asset-path status banner ─────────────────────────────────────────
+        from . import fo4_game_assets as _fga
+        assets_ready, _ = _fga.FO4GameAssets.get_status()
+        status_box = layout.box()
+        if assets_ready:
+            status_box.label(text="FO4 assets: ready — will import real game mesh", icon='CHECKMARK')
+        else:
+            status_box.label(text="FO4 assets: path not set — will create placeholder", icon='ERROR')
+            sub = status_box.column(align=True)
+            sub.scale_y = 0.8
+            sub.label(text="Point 'Meshes' at your extracted FO4 Data folder:", icon='INFO')
+            row = sub.row(align=True)
+            row.prop(scene, "fo4_asset_lib_mesh_path", text="Meshes")
+            row.operator("fo4.set_asset_folder_path", text="", icon='FILE_FOLDER').slot = 'meshes'
+            sub.label(text="e.g. D:/FO4/Data  or  D:/FO4/Data/meshes", icon='DOT')
+
         # Create vegetation
         box = layout.box()
         box.label(text="Create Vegetation", icon='OUTLINER_OB_FORCE_FIELD')

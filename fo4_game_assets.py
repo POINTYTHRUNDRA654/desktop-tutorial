@@ -43,40 +43,89 @@ class FO4GameAssets:
     _asset_index: Optional[dict] = None
 
     @staticmethod
+    def invalidate_cache() -> None:
+        """Clear the cached game-directory so the next call re-detects from scratch.
+
+        Call this whenever the user changes any of the asset path preferences
+        so Smart Presets and the asset library pick up the new location
+        immediately without needing a Blender restart.
+        """
+        FO4GameAssets._game_dir = None
+        FO4GameAssets._asset_index = None
+
+    @staticmethod
+    def _custom_path_from_prefs() -> Optional[Path]:
+        """Return the best custom assets path from preferences, or None.
+
+        Checks (in priority order):
+          1. ``fo4_assets_path``   – the combined "all assets" path
+          2. ``fo4_asset_lib_mesh_path`` – the per-type meshes path set in the
+             Game Asset Import panel.  When this points directly to a
+             ``meshes/`` sub-folder the parent is used so paths like
+             ``data_dir / "meshes/weapons/…"`` resolve correctly.
+        """
+        try:
+            import bpy
+            scene = bpy.context.scene
+
+            # 1. Combined path (fo4_assets_path)
+            from . import preferences as _prefs
+            combined = _prefs.get_fo4_assets_path()
+            if combined:
+                p = Path(combined)
+                if p.exists():
+                    return p
+
+            # 2. Mesh library path (fo4_asset_lib_mesh_path)
+            lib_mesh = getattr(scene, 'fo4_asset_lib_mesh_path', '').strip()
+            if lib_mesh:
+                p = Path(lib_mesh)
+                if p.exists():
+                    # If the user pointed at the "meshes/" folder itself,
+                    # step up one level so the whole Data dir is the root.
+                    if p.name.lower() == 'meshes':
+                        return p.parent
+                    return p
+
+            # 3. Combined asset-lib path (fo4_asset_lib_path)
+            lib_all = getattr(scene, 'fo4_asset_lib_path', '').strip()
+            if lib_all:
+                p = Path(lib_all)
+                if p.exists():
+                    return p
+        except Exception:
+            pass
+        return None
+
+    @staticmethod
     def detect_fo4_installation() -> Optional[Path]:
         """Detect Fallout 4 installation directory.
 
         Checks (in order):
-        1. Custom assets path from addon preferences
-        2. Cached detection result
-        3. Registry (Steam/GOG)
-        4. Common installation paths
+        1. Custom assets path from addon preferences / asset-library paths
+           (always checked first so a path change takes effect immediately).
+        2. Cached detection result from a previous auto-detection.
+        3. Registry (Steam/GOG).
+        4. Common installation paths.
         """
-        # Check if already cached
+        # 1. Always honour a user-supplied path — checked before the cache so
+        #    changing the preference in the panel takes effect on the next
+        #    operator call without requiring a Blender restart.
+        custom = FO4GameAssets._custom_path_from_prefs()
+        if custom:
+            if custom.name.lower() == "data":
+                FO4GameAssets._game_dir = custom.parent
+            elif (custom / "Data").exists():
+                FO4GameAssets._game_dir = custom
+            else:
+                FO4GameAssets._game_dir = custom
+            return FO4GameAssets._game_dir
+
+        # 2. Return the auto-detected cached result (registry / common paths).
         if FO4GameAssets._game_dir and FO4GameAssets._game_dir.exists():
             return FO4GameAssets._game_dir
 
-        # Check custom path from preferences first
-        try:
-            from . import preferences
-            custom_path = preferences.get_fo4_assets_path()
-            if custom_path:
-                custom_path_obj = Path(custom_path)
-                if custom_path_obj.exists():
-                    # Check if it's a Data directory or contains one
-                    if custom_path_obj.name.lower() == "data":
-                        FO4GameAssets._game_dir = custom_path_obj.parent
-                    elif (custom_path_obj / "Data").exists():
-                        FO4GameAssets._game_dir = custom_path_obj
-                    else:
-                        # Assume it's a custom asset folder (like "H:/Fallout 4 working folder")
-                        # Treat it as the "game dir" even if it's not the actual game installation
-                        FO4GameAssets._game_dir = custom_path_obj
-                    return FO4GameAssets._game_dir
-        except Exception as e:
-            print(f"Failed to check custom FO4 assets path: {e}")
-
-        # Check Windows Registry for Steam installation
+        # 3. Check Windows Registry for Steam installation
         if _HAS_WINREG:
             try:
                 key = winreg.OpenKey(
@@ -93,7 +142,7 @@ class FO4GameAssets:
             except OSError:
                 pass
 
-        # Check common installation paths
+        # 4. Check common installation paths
         for path in FO4_COMMON_PATHS:
             if path.exists() and (path / "Fallout4.exe").exists():
                 FO4GameAssets._game_dir = path
@@ -105,25 +154,35 @@ class FO4GameAssets:
     def get_data_dir() -> Optional[Path]:
         """Get Fallout 4 Data directory containing assets (BA2 archives or loose files).
 
-        For custom asset folders, returns the folder itself if it contains meshes/textures.
-        For game installations, returns the Data subdirectory.
+        For custom asset folders, returns the folder itself if it contains
+        meshes/textures.  For game installations, returns the Data subdirectory.
+        When the user set their path to a ``meshes/`` sub-folder the parent is
+        returned so relative NIF paths (``meshes/weapons/…``) resolve correctly.
         """
         game_dir = FO4GameAssets.detect_fo4_installation()
         if not game_dir:
             return None
 
-        # Check if game_dir itself is already a Data directory
+        # User pointed straight at the Data directory
         if game_dir.name.lower() == "data" and game_dir.exists():
             return game_dir
 
-        # Check if it has a Data subdirectory (standard game installation)
+        # Standard game installation — Data is a sub-directory
         data_dir = game_dir / "Data"
         if data_dir.exists():
             return data_dir
 
-        # Check if it's a custom asset folder with meshes/textures directly
-        # (like "H:/Fallout 4 working folder/meshes")
+        # Custom asset folder that already has meshes/textures at root
         if (game_dir / "meshes").exists() or (game_dir / "textures").exists():
+            return game_dir
+
+        # Fallback: return game_dir only when it actually exists and looks like
+        # it could contain FO4 content (has BA2 files or is non-empty).
+        # This avoids returning a stale path that points at an unrelated folder.
+        if game_dir.exists() and (
+            list(game_dir.glob("*.ba2"))
+            or any(game_dir.iterdir())
+        ):
             return game_dir
 
         return None

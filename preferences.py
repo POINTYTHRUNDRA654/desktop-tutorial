@@ -409,6 +409,20 @@ def _on_change(self, context):
         pass
 
 
+def _on_asset_path_change(self, context):
+    """Auto-save and invalidate the FO4GameAssets detection cache.
+
+    Called when fo4_assets_path changes so that Smart Presets and the asset
+    browser pick up the new location on the very next call.
+    """
+    _on_change(self, context)
+    try:
+        from . import fo4_game_assets
+        fo4_game_assets.FO4GameAssets.invalidate_cache()
+    except Exception:
+        pass
+
+
 # (name, bpy.props.*) pairs – registered onto bpy.types.Scene
 _PROPS: list[tuple[str, object]] = [
     # ── Tool paths ────────────────────────────────────────────────────────────
@@ -431,7 +445,7 @@ _PROPS: list[tuple[str, object]] = [
     ("fo4_assets_path", bpy.props.StringProperty(
         name="Fallout 4 Assets",
         description="Path to Fallout 4 extracted assets (meshes, textures …)",
-        subtype="DIR_PATH", default="", update=_on_change)),
+        subtype="DIR_PATH", default="", update=_on_asset_path_change)),
     ("fo4_unity_assets_path", bpy.props.StringProperty(
         name="Unity Assets",
         description="Path to Unity project assets folder",
