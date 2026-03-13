@@ -222,7 +222,7 @@ class FO4_OT_SetAssetLibPath(Operator):
         "After setting the path the library is scanned automatically."
     )
 
-    # Which slot to fill: 'all', 'meshes', 'textures', or 'materials'
+    # Only used for the 'all' slot (file or folder picker)
     slot: StringProperty(default='all', options={'SKIP_SAVE'})
 
     filepath:  StringProperty(subtype='FILE_PATH')
@@ -234,40 +234,60 @@ class FO4_OT_SetAssetLibPath(Operator):
     use_filter_folder: BoolProperty(default=True)
 
     def execute(self, context):
-        # For directory slots always use self.directory (the folder the user
-        # navigated into when they clicked Accept), regardless of whether they
-        # also clicked a file inside it.  This lets users point the slot at an
-        # entire folder — e.g. their whole "Meshes" tree — so that every asset
-        # inside (including sub-folders) is found by the recursive scan.
-        if self.slot in ('meshes', 'textures', 'materials'):
-            path = self.directory.rstrip("/\\")
-        else:
-            path = (self.filepath or self.directory).rstrip("/\\")
+        path = (self.filepath or self.directory).rstrip("/\\")
 
         if not path:
             self.report({'ERROR'}, "No path selected")
             return {'CANCELLED'}
 
-        scene = context.scene
-        slot  = self.slot
-        prop_map = {
-            'all':       'fo4_asset_lib_path',
-            'meshes':    'fo4_asset_lib_mesh_path',
-            'textures':  'fo4_asset_lib_tex_path',
-            'materials': 'fo4_asset_lib_mat_path',
-        }
-        prop = prop_map.get(slot, 'fo4_asset_lib_path')
-        setattr(scene, prop, path)
+        setattr(context.scene, 'fo4_asset_lib_path', path)
 
         # Auto-scan immediately
         bpy.ops.fo4.scan_asset_library()
         return {'FINISHED'}
 
     def invoke(self, context, event):
-        # For directory-type slots, show only folders in the file browser so
-        # the intent ("pick a whole folder") is visually unambiguous.
-        if self.slot in ('meshes', 'textures', 'materials'):
-            self.filter_glob = "*"
+        context.window_manager.fileselect_add(self)
+        return {'RUNNING_MODAL'}
+
+
+class FO4_OT_SetAssetFolderPath(Operator):
+    """Choose a folder for a specific asset type (meshes, textures, or materials)"""
+    bl_idname  = "fo4.set_asset_folder_path"
+    bl_label   = "Select Asset Folder"
+    bl_description = (
+        "Navigate to the folder that contains your assets and click "
+        "'Accept' — the entire folder (including sub-folders) will be scanned."
+    )
+
+    # Which slot to fill: 'meshes', 'textures', or 'materials'
+    slot: StringProperty(default='meshes', options={'SKIP_SAVE'})
+
+    # Defining only 'directory' (no 'filepath') tells Blender to open the
+    # file browser in folder-selection mode so the user picks a whole folder
+    # rather than an individual file.
+    directory: StringProperty(subtype='DIR_PATH')
+
+    def execute(self, context):
+        path = self.directory.rstrip("/\\")
+
+        if not path:
+            self.report({'ERROR'}, "No folder selected")
+            return {'CANCELLED'}
+
+        prop_map = {
+            'meshes':    'fo4_asset_lib_mesh_path',
+            'textures':  'fo4_asset_lib_tex_path',
+            'materials': 'fo4_asset_lib_mat_path',
+        }
+        prop = prop_map.get(self.slot, 'fo4_asset_lib_mesh_path')
+        setattr(context.scene, prop, path)
+
+        # Auto-scan immediately
+        bpy.ops.fo4.scan_asset_library()
+        return {'FINISHED'}
+
+    def invoke(self, context, event):
         context.window_manager.fileselect_add(self)
         return {'RUNNING_MODAL'}
 
@@ -491,6 +511,7 @@ _CLASSES = [
     FO4_AssetLibraryItem,
     FO4_UL_AssetLibrary,
     FO4_OT_SetAssetLibPath,
+    FO4_OT_SetAssetFolderPath,
     FO4_OT_ScanAssetLibrary,
     FO4_OT_ImportLibraryAsset,
     FO4_OT_ClearAssetLibrary,

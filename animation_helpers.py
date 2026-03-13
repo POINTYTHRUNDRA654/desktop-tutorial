@@ -321,10 +321,12 @@ class AnimationHelpers:
                 wheel_dir = Path(__file__).resolve().parent / "tools"
                 candidates = list(wheel_dir.glob("libigl*.whl"))
                 if candidates:
-                    subprocess.check_call([sys.executable, "-m", "pip", "install", str(candidates[0])])
+                    subprocess.check_call([sys.executable, "-m", "pip", "install",
+                                           "--no-warn-script-location", str(candidates[0])])
                     import igl
                 else:
-                    subprocess.check_call([sys.executable, "-m", "pip", "install", "libigl"])
+                    subprocess.check_call([sys.executable, "-m", "pip", "install",
+                                           "--no-warn-script-location", "libigl"])
                     import igl
             except Exception:
                 igl = None

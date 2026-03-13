@@ -167,17 +167,17 @@ class FO4_PT_MeshPanel(Panel):
 
         row = sub.row(align=True)
         row.prop(scene, "fo4_asset_lib_mesh_path", text="Meshes")
-        op = row.operator("fo4.set_asset_lib_path", text="", icon='FILE_FOLDER')
+        op = row.operator("fo4.set_asset_folder_path", text="", icon='FILE_FOLDER')
         op.slot = 'meshes'
 
         row = sub.row(align=True)
         row.prop(scene, "fo4_asset_lib_tex_path", text="Textures")
-        op = row.operator("fo4.set_asset_lib_path", text="", icon='FILE_FOLDER')
+        op = row.operator("fo4.set_asset_folder_path", text="", icon='FILE_FOLDER')
         op.slot = 'textures'
 
         row = sub.row(align=True)
         row.prop(scene, "fo4_asset_lib_mat_path", text="Materials")
-        op = row.operator("fo4.set_asset_lib_path", text="", icon='FILE_FOLDER')
+        op = row.operator("fo4.set_asset_folder_path", text="", icon='FILE_FOLDER')
         op.slot = 'materials'
 
         # ── Scan + Import buttons ─────────────────────────────────────────
@@ -1429,17 +1429,17 @@ class FO4_PT_GameAssetsPanel(Panel):
 
         row = paths_sub.row(align=True)
         row.prop(scene, "fo4_asset_lib_mesh_path", text="Meshes")
-        op = row.operator("fo4.set_asset_lib_path", text="", icon='FILE_FOLDER')
+        op = row.operator("fo4.set_asset_folder_path", text="", icon='FILE_FOLDER')
         op.slot = 'meshes'
 
         row = paths_sub.row(align=True)
         row.prop(scene, "fo4_asset_lib_tex_path", text="Textures")
-        op = row.operator("fo4.set_asset_lib_path", text="", icon='FILE_FOLDER')
+        op = row.operator("fo4.set_asset_folder_path", text="", icon='FILE_FOLDER')
         op.slot = 'textures'
 
         row = paths_sub.row(align=True)
         row.prop(scene, "fo4_asset_lib_mat_path", text="Materials")
-        op = row.operator("fo4.set_asset_lib_path", text="", icon='FILE_FOLDER')
+        op = row.operator("fo4.set_asset_folder_path", text="", icon='FILE_FOLDER')
         op.slot = 'materials'
 
         action_row = fo4_box.row(align=True)
@@ -1532,17 +1532,17 @@ class FO4_PT_AssetLibraryPanel(Panel):
 
         row = sep_col.row(align=True)
         row.prop(scene, "fo4_asset_lib_mesh_path", text="Meshes")
-        op = row.operator("fo4.set_asset_lib_path", text="", icon='FILE_FOLDER')
+        op = row.operator("fo4.set_asset_folder_path", text="", icon='FILE_FOLDER')
         op.slot = 'meshes'
 
         row = sep_col.row(align=True)
         row.prop(scene, "fo4_asset_lib_tex_path", text="Textures")
-        op = row.operator("fo4.set_asset_lib_path", text="", icon='FILE_FOLDER')
+        op = row.operator("fo4.set_asset_folder_path", text="", icon='FILE_FOLDER')
         op.slot = 'textures'
 
         row = sep_col.row(align=True)
         row.prop(scene, "fo4_asset_lib_mat_path", text="Materials")
-        op = row.operator("fo4.set_asset_lib_path", text="", icon='FILE_FOLDER')
+        op = row.operator("fo4.set_asset_folder_path", text="", icon='FILE_FOLDER')
         op.slot = 'materials'
 
         # Scan / clear buttons
