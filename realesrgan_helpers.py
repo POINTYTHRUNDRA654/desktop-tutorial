@@ -225,7 +225,9 @@ class RealESRGANHelpers:
                     f"{output_path} ({size_mb:.1f} MB)"
                 )
             else:
-                error_msg = result.stderr or result.stdout
+                # Some tools write errors to stdout instead of stderr — capture both.
+                error_msg = (result.stderr.strip() or result.stdout.strip()
+                             or f"exit code {result.returncode}")
                 return False, f"Upscaling failed: {error_msg}"
 
         except subprocess.TimeoutExpired:

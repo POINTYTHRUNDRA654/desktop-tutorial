@@ -591,7 +591,11 @@ def install_diffusers() -> tuple[bool, str]:
     )
     if not ok:
         return False, f"PyTorch install failed: {msg}"
-    ok2, msg2 = _pip_install(["diffusers>=0.21.0", "transformers>=4.30.0", "accelerate>=0.20.0"])
+    ok2, msg2 = _pip_install([
+        "diffusers>=0.21.0",
+        "transformers>=4.30.0",
+        "accelerate>=0.20.0",
+    ])
     if not ok2:
         return False, f"diffusers install failed: {msg2}"
     return True, "Diffusers stack installed"

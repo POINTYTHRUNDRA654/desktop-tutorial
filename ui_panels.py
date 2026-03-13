@@ -1499,8 +1499,8 @@ class FO4_PT_ExportPanel(Panel):
                     mtype_hint = mtype_box.column(align=True)
                     mtype_hint.scale_y = 0.75
                     mtype_hint.label(
-                        text=f"Auto-detected as: {detected}  "
-                             "(override above if wrong)",
+                        text=f"Auto-detected as: {detected}"
+                             " (override above if wrong)",
                         icon='INFO',
                     )
                     mtype_val = detected
