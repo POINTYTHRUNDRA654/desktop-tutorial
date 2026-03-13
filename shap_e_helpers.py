@@ -234,27 +234,25 @@ For more info: https://github.com/openai/shap-e
             import torch
             from shap_e.diffusion.sample import sample_latents
             from shap_e.util.notebooks import decode_latent_mesh
-            
-            print(f"Generating 3D mesh from text: '{prompt}'")
-            
+
+            t_total = time.monotonic()
+            print(f"[Shap-E] Generating 3D mesh from text: '{prompt}'")
+
             # Set device
             device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-            print(f"Using device: {device}")
-            
-            # Load models (cached after first call — avoids expensive reload each time).
-            # xm (transmitter) is shared with the image pipeline to avoid holding it
-            # twice in VRAM when both text and image generation are used in one session.
+            print(f"[Shap-E] Device: {device}")
+
+            # Load models (cached after first call).
+            t0 = time.monotonic()
             cached = _load_shap_e_text_models(device)
             xm = _shap_e_transmitter['xm']
             model = cached['model']
             diffusion = cached['diffusion']
-            
-            # Generate latents and decode — both inside inference_mode + autocast
-            # for maximum throughput.  inference_mode is a strict superset of
-            # no_grad: it also disables view tracking, giving a measurable
-            # speed boost over no_grad alone.  autocast enables FP16
-            # mixed-precision on CUDA; disabled on CPU where FP16 is slower.
-            print(f"Generating with guidance_scale={guidance_scale}, steps={num_inference_steps}")
+            print(f"[Shap-E] model load: {time.monotonic() - t0:.1f} s")
+
+            # Inference — inference_mode + autocast for maximum throughput.
+            print(f"[Shap-E] inference ({num_inference_steps} steps, guidance={guidance_scale})…")
+            t0 = time.monotonic()
             batch_size = 1
             use_fp16 = device.type == 'cuda'
             with torch.inference_mode(), torch.amp.autocast(device.type, enabled=use_fp16):
@@ -273,22 +271,26 @@ For more info: https://github.com/openai/shap-e
                     sigma_max=160,
                     s_churn=0,
                 )
+            print(f"[Shap-E] inference: {time.monotonic() - t0:.1f} s")
 
-                print("Decoding latent to mesh...")
+            t0 = time.monotonic()
+            with torch.inference_mode(), torch.amp.autocast(device.type, enabled=use_fp16):
                 mesh = decode_latent_mesh(xm, latents[0]).tri_mesh()
-            
-            # Convert to format Blender can use
+            print(f"[Shap-E] mesh decode: {time.monotonic() - t0:.1f} s")
+
             vertices = mesh.verts
             faces = mesh.faces
-            
-            print(f"Generated mesh: {len(vertices)} vertices, {len(faces)} faces")
-            
+            print(
+                f"[Shap-E] TOTAL: {time.monotonic() - t_total:.1f} s  "
+                f"({len(vertices)} verts, {len(faces)} faces)"
+            )
+
             return True, {
                 'vertices': vertices,
                 'faces': faces,
                 'prompt': prompt
             }
-            
+
         except FileNotFoundError as e:
             if "WinError 206" in str(e) or "filename or extension is too long" in str(e):
                 return False, "Windows path length error. Enable long paths in Windows or reinstall PyTorch in a shorter path (see Shap-E installation check for details)."
@@ -316,30 +318,30 @@ For more info: https://github.com/openai/shap-e
             from PIL import Image
             from shap_e.diffusion.sample import sample_latents
             from shap_e.util.notebooks import decode_latent_mesh
-            
-            print(f"Generating 3D mesh from image: '{image_path}'")
-            
+
+            t_total = time.monotonic()
+            print(f"[Shap-E] Generating 3D mesh from image: '{image_path}'")
+
             # Set device
             device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-            print(f"Using device: {device}")
-            
+            print(f"[Shap-E] Device: {device}")
+
             # Load image
+            t0 = time.monotonic()
             image = Image.open(image_path)
-            
-            # Load models (cached after first call — avoids expensive reload each time).
-            # xm (transmitter) is shared with the text pipeline to avoid holding it
-            # twice in VRAM when both text and image generation are used in one session.
+            print(f"[Shap-E] image load: {time.monotonic() - t0:.1f} s")
+
+            # Load models (cached after first call).
+            t0 = time.monotonic()
             cached = _load_shap_e_image_models(device)
             xm = _shap_e_transmitter['xm']
             model = cached['model']
             diffusion = cached['diffusion']
-            
-            # Generate latents and decode — both inside inference_mode + autocast
-            # for maximum throughput.  inference_mode is a strict superset of
-            # no_grad: it also disables view tracking, giving a measurable
-            # speed boost over no_grad alone.  autocast enables FP16
-            # mixed-precision on CUDA; disabled on CPU where FP16 is slower.
-            print(f"Generating with guidance_scale={guidance_scale}, steps={num_inference_steps}")
+            print(f"[Shap-E] model load: {time.monotonic() - t0:.1f} s")
+
+            # Inference — inference_mode + autocast for maximum throughput.
+            print(f"[Shap-E] inference ({num_inference_steps} steps, guidance={guidance_scale})…")
+            t0 = time.monotonic()
             batch_size = 1
             use_fp16 = device.type == 'cuda'
             with torch.inference_mode(), torch.amp.autocast(device.type, enabled=use_fp16):
@@ -358,22 +360,26 @@ For more info: https://github.com/openai/shap-e
                     sigma_max=160,
                     s_churn=0,
                 )
+            print(f"[Shap-E] inference: {time.monotonic() - t0:.1f} s")
 
-                print("Decoding latent to mesh...")
+            t0 = time.monotonic()
+            with torch.inference_mode(), torch.amp.autocast(device.type, enabled=use_fp16):
                 mesh = decode_latent_mesh(xm, latents[0]).tri_mesh()
-            
-            # Convert to format Blender can use
+            print(f"[Shap-E] mesh decode: {time.monotonic() - t0:.1f} s")
+
             vertices = mesh.verts
             faces = mesh.faces
-            
-            print(f"Generated mesh: {len(vertices)} vertices, {len(faces)} faces")
-            
+            print(
+                f"[Shap-E] TOTAL: {time.monotonic() - t_total:.1f} s  "
+                f"({len(vertices)} verts, {len(faces)} faces)"
+            )
+
             return True, {
                 'vertices': vertices,
                 'faces': faces,
                 'image_path': image_path
             }
-            
+
         except FileNotFoundError as e:
             if "WinError 206" in str(e) or "filename or extension is too long" in str(e):
                 return False, "Windows path length error. Enable long paths in Windows or reinstall PyTorch in a shorter path (see Shap-E installation check for details)."

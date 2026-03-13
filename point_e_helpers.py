@@ -250,6 +250,9 @@ def _get_point_e_image_sampler(device, device_str, grid_size, num_steps):
     )
     _point_e_image_sampler_cache[key] = sampler
     return sampler
+
+
+class PointEHelpers:
     """Helper functions for Point-E integration"""
 
     # Cache for is_point_e_installed() — avoids repeated torch/point_e import attempts
@@ -372,29 +375,31 @@ For more info: https://github.com/openai/point-e
                 # TorchPathManager not available, use regular import
                 import torch
 
-            print(f"Generating 3D point cloud from text: '{prompt}'")
+            t_total = time.monotonic()
+            print(f"[Point-E] Generating 3D point cloud from text: '{prompt}'")
 
             # Set device
             device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
             device_str = str(device)
-            print(f"Using device: {device}")
+            print(f"[Point-E] Device: {device}")
 
-            # Load model weights (cached after first call — avoids expensive reload
-            # each time).  The sampler and diffusion configs are also cached via
-            # _get_point_e_text_sampler so repeated calls with the same settings
-            # skip the diffusion-schedule rebuild entirely.
+            # Load model weights (cached after first call).
+            t0 = time.monotonic()
             _load_point_e_text_models(device)
+            print(f"[Point-E] model load: {time.monotonic() - t0:.1f} s")
 
             num_points = _grid_size_to_num_points(grid_size)
             print(
-                f"Generating point cloud (grid_size={grid_size}, "
-                f"num_points={num_points}, num_steps={num_steps})…"
+                f"[Point-E] inference (grid_size={grid_size}, "
+                f"num_points={num_points}, steps={num_steps})…"
             )
 
+            t0 = time.monotonic()
             sampler = _get_point_e_text_sampler(device, device_str, grid_size, num_steps)
+            print(f"[Point-E] sampler build: {time.monotonic() - t0:.1f} s")
 
-            # Generate — use inference_mode (superset of no_grad; also disables
-            # view tracking) and autocast for FP16 mixed-precision on CUDA.
+            # Generate — use inference_mode + autocast for FP16 mixed-precision on CUDA.
+            t0 = time.monotonic()
             samples = None
             use_autocast = device.type == 'cuda'
             with torch.inference_mode(), torch.amp.autocast(device.type, enabled=use_autocast):
@@ -403,6 +408,7 @@ For more info: https://github.com/openai/point-e
                     model_kwargs=dict(texts=[prompt] * num_samples),
                 ):
                     samples = x
+            print(f"[Point-E] inference: {time.monotonic() - t0:.1f} s")
 
             # Extract point cloud
             pc = samples[0]  # First sample
@@ -411,7 +417,10 @@ For more info: https://github.com/openai/point-e
             coords = pc.coords  # [N, 3] coordinates
             colors = pc.channels  # [N, 3] RGB colors if available
 
-            print(f"Generated point cloud: {len(coords)} points")
+            print(
+                f"[Point-E] TOTAL: {time.monotonic() - t_total:.1f} s  "
+                f"({len(coords)} points)"
+            )
 
             return True, {
                 'coords': coords.cpu().numpy(),
@@ -462,32 +471,36 @@ For more info: https://github.com/openai/point-e
 
             from PIL import Image
 
-            print(f"Generating 3D point cloud from image: '{image_path}'")
+            t_total = time.monotonic()
+            print(f"[Point-E] Generating 3D point cloud from image: '{image_path}'")
 
             # Set device
             device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
             device_str = str(device)
-            print(f"Using device: {device}")
+            print(f"[Point-E] Device: {device}")
 
             # Load image
+            t0 = time.monotonic()
             image = Image.open(image_path)
+            print(f"[Point-E] image load: {time.monotonic() - t0:.1f} s")
 
-            # Load model weights (cached after first call — avoids expensive reload
-            # each time).  The sampler and diffusion configs are also cached via
-            # _get_point_e_image_sampler so repeated calls with the same settings
-            # skip the diffusion-schedule rebuild entirely.
+            # Load model weights (cached after first call).
+            t0 = time.monotonic()
             _load_point_e_image_models(device)
+            print(f"[Point-E] model load: {time.monotonic() - t0:.1f} s")
 
             num_points = _grid_size_to_num_points(grid_size)
             print(
-                f"Generating point cloud (grid_size={grid_size}, "
-                f"num_points={num_points}, num_steps={num_steps})…"
+                f"[Point-E] inference (grid_size={grid_size}, "
+                f"num_points={num_points}, steps={num_steps})…"
             )
 
+            t0 = time.monotonic()
             sampler = _get_point_e_image_sampler(device, device_str, grid_size, num_steps)
+            print(f"[Point-E] sampler build: {time.monotonic() - t0:.1f} s")
 
-            # Generate — use inference_mode (superset of no_grad; also disables
-            # view tracking) and autocast for FP16 mixed-precision on CUDA.
+            # Generate — use inference_mode + autocast for FP16 mixed-precision on CUDA.
+            t0 = time.monotonic()
             samples = None
             use_autocast = device.type == 'cuda'
             with torch.inference_mode(), torch.amp.autocast(device.type, enabled=use_autocast):
@@ -496,6 +509,7 @@ For more info: https://github.com/openai/point-e
                     model_kwargs=dict(images=[image] * num_samples),
                 ):
                     samples = x
+            print(f"[Point-E] inference: {time.monotonic() - t0:.1f} s")
 
             # Extract point cloud
             pc = samples[0]
@@ -504,7 +518,10 @@ For more info: https://github.com/openai/point-e
             coords = pc.coords
             colors = pc.channels
 
-            print(f"Generated point cloud: {len(coords)} points")
+            print(
+                f"[Point-E] TOTAL: {time.monotonic() - t_total:.1f} s  "
+                f"({len(coords)} points)"
+            )
 
             return True, {
                 'coords': coords.cpu().numpy(),

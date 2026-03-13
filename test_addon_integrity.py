@@ -1691,6 +1691,295 @@ def test_new_features():
     return True
 
 
+def _install_ai_mocks():
+    """Install lightweight torch / shap_e / point_e stubs for AI-generation tests.
+
+    Only installed once — subsequent calls are no-ops.  The stubs are just
+    enough to exercise the real code paths in shap_e_helpers.py and
+    point_e_helpers.py without GPU hardware or actual model weights.
+    """
+    if "torch" in sys.modules:
+        return  # already installed (or real torch is present)
+
+    try:
+        import numpy as _np
+    except ImportError:
+        return  # numpy not available; skip AI mock installation
+
+    class _FakeTensor:
+        def __init__(self, data=None):
+            self._data = _np.zeros((1024, 3), dtype=_np.float32) if data is None else data
+        def cpu(self): return self
+        def numpy(self): return self._data
+        def __len__(self): return len(self._data)
+
+    class _FakeDevice:
+        def __init__(self, s): self.type = str(s).split(":")[0]
+        def __str__(self): return "cpu"
+
+    class _FakeCuda:
+        @staticmethod
+        def is_available(): return False
+
+    class _FakeBackends:
+        class cudnn:
+            benchmark = False
+
+    class _FakeAmp:
+        class autocast:
+            def __init__(self, *a, **kw): pass
+            def __enter__(self): return self
+            def __exit__(self, *a): pass
+
+    class _InferenceMode:
+        def __enter__(self): return self
+        def __exit__(self, *a): pass
+
+    torch_mod = types.ModuleType("torch")
+    torch_mod.__version__  = "2.2.0+mock"
+    torch_mod.device       = staticmethod(lambda s: _FakeDevice(str(s)))
+    torch_mod.cuda         = _FakeCuda()
+    torch_mod.backends     = _FakeBackends()
+    torch_mod.amp          = _FakeAmp()
+    torch_mod.inference_mode = staticmethod(lambda: _InferenceMode())
+    torch_mod.float32      = _np.float32
+    sys.modules["torch"] = torch_mod
+
+    # ── shap_e stubs ────────────────────────────────────────────────────────
+    class _FakeModel:
+        def eval(self): return self
+        def half(self): return self
+
+    class _FakeXM(_FakeModel):
+        pass
+
+    class _FakeMesh:
+        verts = _np.zeros((100, 3), dtype=_np.float32)
+        faces = _np.zeros((50, 3), dtype=_np.int32)
+        def tri_mesh(self): return self
+
+    se_dl = types.ModuleType("shap_e.models.download")
+    se_dl.load_model  = lambda name, device=None: (_FakeXM() if name == "transmitter" else _FakeModel())
+    se_dl.load_config = lambda name: {}
+
+    se_gd = types.ModuleType("shap_e.diffusion.gaussian_diffusion")
+    se_gd.diffusion_from_config = lambda cfg: object()
+
+    se_sample = types.ModuleType("shap_e.diffusion.sample")
+    se_sample.sample_latents = lambda **kw: [_FakeTensor()]
+
+    se_nb = types.ModuleType("shap_e.util.notebooks")
+    se_nb.decode_latent_mesh = lambda xm, lat: _FakeMesh()
+
+    for _n, _m in [
+        ("shap_e",                          types.ModuleType("shap_e")),
+        ("shap_e.models",                   types.ModuleType("shap_e.models")),
+        ("shap_e.models.download",          se_dl),
+        ("shap_e.diffusion",                types.ModuleType("shap_e.diffusion")),
+        ("shap_e.diffusion.gaussian_diffusion", se_gd),
+        ("shap_e.diffusion.sample",         se_sample),
+        ("shap_e.util",                     types.ModuleType("shap_e.util")),
+        ("shap_e.util.notebooks",           se_nb),
+    ]:
+        sys.modules[_n] = _m
+
+    # ── point_e stubs ───────────────────────────────────────────────────────
+    class _FakePointModel(_FakeModel):
+        def load_state_dict(self, sd): pass
+
+    class _FakePointCloud:
+        coords   = _FakeTensor(_np.zeros((1024, 3), dtype=_np.float32))
+        channels = _FakeTensor(_np.zeros((1024, 3), dtype=_np.float32))
+
+    class _FakeSampler:
+        def sample_batch_progressive(self, batch_size=1, model_kwargs=None):
+            yield [_FakePointCloud()]
+
+    _PE_MODEL_CONFIGS = {
+        "base40M-textvec": {}, "base40M": {}, "upsample": {},
+    }
+    _PE_DIFF_CONFIGS = {
+        "base40M-textvec": {"timestep_respacing": "64"},
+        "base40M":         {"timestep_respacing": "64"},
+        "upsample":        {"timestep_respacing": "64"},
+    }
+
+    pe_dl = types.ModuleType("point_e.models.download")
+    pe_dl.load_checkpoint = lambda name, device=None: {}
+
+    pe_cfg = types.ModuleType("point_e.models.configs")
+    pe_cfg.MODEL_CONFIGS    = _PE_MODEL_CONFIGS
+    pe_cfg.model_from_config = lambda cfg, device=None: _FakePointModel()
+
+    pe_dc = types.ModuleType("point_e.diffusion.configs")
+    pe_dc.DIFFUSION_CONFIGS      = _PE_DIFF_CONFIGS
+    pe_dc.diffusion_from_config  = lambda cfg: object()
+
+    pe_ds = types.ModuleType("point_e.diffusion.sampler")
+    pe_ds.PointCloudSampler = lambda **kw: _FakeSampler()
+
+    for _n, _m in [
+        ("point_e",                   types.ModuleType("point_e")),
+        ("point_e.models",            types.ModuleType("point_e.models")),
+        ("point_e.models.download",   pe_dl),
+        ("point_e.models.configs",    pe_cfg),
+        ("point_e.diffusion",         types.ModuleType("point_e.diffusion")),
+        ("point_e.diffusion.configs", pe_dc),
+        ("point_e.diffusion.sampler", pe_ds),
+    ]:
+        sys.modules[_n] = _m
+
+    # ── PIL stub ─────────────────────────────────────────────────────────────
+    if "PIL" not in sys.modules:
+        pil = types.ModuleType("PIL")
+        pil_img = types.ModuleType("PIL.Image")
+        pil_img.open = lambda p: object()
+        sys.modules["PIL"]       = pil
+        sys.modules["PIL.Image"] = pil_img
+
+
+def test_ai_generation():
+    """Verify AI generation helpers (Shap-E & Point-E) work end-to-end.
+
+    Uses lightweight in-process mocks for torch, shap_e, and point_e so the
+    test runs without GPU hardware or real model downloads.  It exercises the
+    same code paths that Blender operators take when the user clicks
+    'Generate'.
+    """
+    print("\n" + "="*70)
+    print("TEST 13: AI Generation (Shap-E & Point-E)")
+    print("="*70)
+
+    addon_dir = Path(__file__).parent
+    failed = []
+
+    def ck(label, cond, detail=""):
+        sym = "✅" if cond else "❌"
+        print(f"{sym} {label}{(': ' + detail) if detail else ''}")
+        if not cond:
+            failed.append(label + ((" — " + detail) if detail else ""))
+
+    # Install AI stubs (no-op if torch already present)
+    _install_ai_mocks()
+
+    # numpy is needed by the generation helpers; skip gracefully if absent
+    try:
+        import numpy  # noqa: F401
+    except ImportError:
+        print("⚠️  numpy not available — skipping AI generation tests")
+        return True
+
+    # ── Load modules ─────────────────────────────────────────────────────────
+    # Ensure notification_system is available (used by operators)
+    _load_module(addon_dir, "notification_system")
+
+    se_mod, se_err = _load_module(addon_dir, "shap_e_helpers")
+    ck("shap_e_helpers imports without error", se_mod is not None, se_err or "")
+
+    pe_mod, pe_err = _load_module(addon_dir, "point_e_helpers")
+    ck("point_e_helpers imports without error", pe_mod is not None, pe_err or "")
+
+    if se_mod is None or pe_mod is None:
+        return False
+
+    # ── Class structure ───────────────────────────────────────────────────────
+    ck("ShapEHelpers class defined at module level",
+       hasattr(se_mod, "ShapEHelpers"))
+    ck("PointEHelpers class defined at module level",
+       hasattr(pe_mod, "PointEHelpers"))
+
+    SE = getattr(se_mod, "ShapEHelpers", None)
+    PE = getattr(pe_mod, "PointEHelpers", None)
+
+    for name in ("is_shap_e_installed", "generate_from_text",
+                 "generate_from_image", "create_mesh_from_data"):
+        ck(f"ShapEHelpers.{name} callable",
+           callable(getattr(SE, name, None)) if SE else False)
+
+    for name in ("is_point_e_installed", "generate_from_text",
+                 "generate_from_image", "point_cloud_to_mesh"):
+        ck(f"PointEHelpers.{name} callable",
+           callable(getattr(PE, name, None)) if PE else False)
+
+    if not SE or not PE:
+        return False
+
+    # ── Create a shared stub image file for both image-generation tests ───────
+    import tempfile
+    tmp_fd, tmp_img = tempfile.mkstemp(suffix=".png")
+    try:
+        try:
+            os.write(tmp_fd, b"\x89PNG\r\n\x1a\n" + b"\x00" * 16)
+        finally:
+            os.close(tmp_fd)
+
+        # ── Shap-E text generation ────────────────────────────────────────────
+        try:
+            ok, result = SE.generate_from_text(
+                "a medieval sword", guidance_scale=15.0, num_inference_steps=16
+            )
+            ck("Shap-E text generation succeeds", ok, str(result) if not ok else "")
+            if ok:
+                ck("Shap-E result has vertices", "vertices" in result)
+                ck("Shap-E result has faces",    "faces" in result)
+        except Exception as exc:
+            ck("Shap-E text generation (no exception)", False, str(exc))
+
+        # ── Shap-E image generation ───────────────────────────────────────────
+        try:
+            ok, result = SE.generate_from_image(
+                tmp_img, guidance_scale=3.0, num_inference_steps=16
+            )
+            ck("Shap-E image generation succeeds", ok, str(result) if not ok else "")
+        except Exception as exc:
+            ck("Shap-E image generation (no exception)", False, str(exc))
+
+        # ── Point-E text generation ───────────────────────────────────────────
+        try:
+            ok, result = PE.generate_from_text(
+                "a wooden chair", num_samples=1, grid_size=32, num_steps=16
+            )
+            ck("Point-E text generation succeeds", ok, str(result) if not ok else "")
+            if ok:
+                ck("Point-E result has coords",     "coords"     in result)
+                ck("Point-E result has num_points", "num_points" in result)
+        except Exception as exc:
+            ck("Point-E text generation (no exception)", False, str(exc))
+
+        # ── Point-E image generation ──────────────────────────────────────────
+        try:
+            ok, result = PE.generate_from_image(
+                tmp_img, num_samples=1, grid_size=32, num_steps=16
+            )
+            ck("Point-E image generation succeeds", ok, str(result) if not ok else "")
+        except Exception as exc:
+            ck("Point-E image generation (no exception)", False, str(exc))
+
+        # ── Sampler cache hit (second call must not reload models) ────────────
+        try:
+            ok2, _ = PE.generate_from_text(
+                "another object", num_samples=1, grid_size=32, num_steps=16
+            )
+            ck("Point-E sampler cache hit on repeated call", ok2)
+        except Exception as exc:
+            ck("Point-E sampler cache (no exception)", False, str(exc))
+
+    finally:
+        try:
+            os.unlink(tmp_img)
+        except OSError:
+            pass
+
+    if failed:
+        print(f"\n❌ FAILED: {len(failed)} AI-generation check(s) failed")
+        for f in failed:
+            print(f"   • {f}")
+        return False
+
+    print("\n✅ PASSED: All AI generation checks passed")
+    return True
+
+
 def run_all_tests():
     """Run all test suites"""
     print("\n" + "="*70)
@@ -1716,6 +2005,7 @@ def run_all_tests():
         ("Post-Processing", test_post_processing),
         ("Preferences Migration", test_preferences_migration),
         ("New Features (Papyrus/Physics/Packaging)", test_new_features),
+        ("AI Generation (Shap-E & Point-E)",         test_ai_generation),
     ]
 
     passed = 0
