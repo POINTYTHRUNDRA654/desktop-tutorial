@@ -2695,7 +2695,7 @@ class FO4_OT_ConfigureFallout4Settings(Operator):
     bl_description = "Auto-configure all settings for optimal Fallout 4 modding workflow"
 
     def execute(self, context):
-        from . import preferences, export_helpers
+        from . import preferences, export_helpers, tool_installers
 
         messages = []
         prefs = preferences.get_preferences()
@@ -2942,6 +2942,7 @@ class FO4_OT_CheckToolPaths(Operator):
     bl_label = "Check Tool Paths"
 
     def execute(self, context):
+        import os
         from . import preferences, tool_installers
         import subprocess, sys
         prefs = preferences.get_preferences()
@@ -3476,6 +3477,7 @@ class FO4_OT_ShowGET3DInfo(Operator):
     bl_label = "About GET3D"
     
     def execute(self, context):
+        import os
         success, message = get3d_helpers.GET3DHelpers.check_get3d_installation()
         
         if success:
@@ -3688,6 +3690,7 @@ class FO4_OT_ShowStyleGAN2Info(Operator):
     bl_label = "About StyleGAN2"
     
     def execute(self, context):
+        import os
         success, message = stylegan2_helpers.StyleGAN2Helpers.check_stylegan2_installation()
         
         if success:
