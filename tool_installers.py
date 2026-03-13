@@ -644,7 +644,7 @@ def install_zoedepth() -> tuple[bool, str]:
 
 
 def install_hunyuan3d() -> tuple[bool, str]:
-    """Install Hunyuan3D-2 dependencies via pip and clone the repo."""
+    """Install Hunyuan3D-2 dependencies via pip, clone the repo, and install its requirements.txt."""
     ok, msg = _pip_install_with_index(
         ["torch", "torchvision"],
         index_url="https://download.pytorch.org/whl/cpu",

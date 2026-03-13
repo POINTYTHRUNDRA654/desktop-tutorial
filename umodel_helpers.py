@@ -102,6 +102,8 @@ def download_latest() -> tuple[bool, str]:
 
     # Direct download from the official host.  The win32 archive bundles
     # both the 32-bit (umodel.exe) and 64-bit (umodel_64.exe) executables.
+    # Correct URL verified via https://www.gildor.org/downloads — the zip
+    # lives at the root of the /downloads/ path, not in a /umodel/ subfolder.
     candidates = [
         "https://www.gildor.org/downloads/umodel_win32.zip",
     ]

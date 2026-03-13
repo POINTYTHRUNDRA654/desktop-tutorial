@@ -1287,7 +1287,9 @@ class FO4_PT_ToolsLinks(Panel):
             box.label(text=f"Path: {ue_importer_helpers.importer_path()}", icon='FILE_FOLDER')
         else:
             box.label(text="Status unavailable", icon='ERROR')
-        box.operator("fo4.check_ue_importer", text="Check/Install UE Importer", icon='FILE_REFRESH')
+        row = box.row(align=True)
+        row.operator("fo4.install_ue_importer", text="Auto-Install UE Importer", icon='IMPORT')
+        row.operator("fo4.check_ue_importer", text="", icon='FILE_REFRESH')
 
         box = layout.box()
         box.label(text="UModel Tools", icon='IMPORT')
@@ -1298,7 +1300,9 @@ class FO4_PT_ToolsLinks(Panel):
             box.label(text=f"Path: {umodel_tools_helpers.addon_path()}", icon='FILE_FOLDER')
         else:
             box.label(text="Status unavailable", icon='ERROR')
-        box.operator("fo4.check_umodel_tools", text="Check/Install UModel Tools", icon='FILE_REFRESH')
+        row = box.row(align=True)
+        row.operator("fo4.install_umodel_tools", text="Auto-Install UModel Tools", icon='IMPORT')
+        row.operator("fo4.check_umodel_tools", text="", icon='FILE_REFRESH')
 
         # Automated installers for external utilities
         box = layout.box()
