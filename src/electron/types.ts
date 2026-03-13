@@ -533,6 +533,8 @@ export interface ElectronAPI {
   versionControlRestore: (payload?: any) => Promise<any>;
   versionControlCreateBackup: (payload?: any) => Promise<any>;
   versionControlDeleteBackup: (payload?: any) => Promise<any>;
+  webSearch: (query: string, type?: string) => Promise<any>;
+  browseWeb: (url: string) => Promise<any>;
 }
 
 export interface VoiceChatPayload {
