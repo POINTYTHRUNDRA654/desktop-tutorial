@@ -3544,6 +3544,14 @@ class FO4_OT_InstallShapE(Operator):
             ok, msg = tool_installers.install_shap_e()
             print(msg)
             print("=" * 60 + "\n")
+            if ok:
+                # Invalidate the cached "not installed" result so the UI
+                # reflects the successful install on the next redraw.
+                try:
+                    from . import shap_e_helpers
+                    shap_e_helpers.ShapEHelpers.clear_cache()
+                except Exception:
+                    pass
             level = 'INFO' if ok else 'ERROR'
             notification_system.FO4_NotificationSystem.notify(msg, level)
 
@@ -3569,6 +3577,12 @@ class FO4_OT_InstallPointE(Operator):
             ok, msg = tool_installers.install_point_e()
             print(msg)
             print("=" * 60 + "\n")
+            if ok:
+                try:
+                    from . import point_e_helpers
+                    point_e_helpers.PointEHelpers.clear_cache()
+                except Exception:
+                    pass
             level = 'INFO' if ok else 'ERROR'
             notification_system.FO4_NotificationSystem.notify(msg, level)
 
@@ -3669,6 +3683,12 @@ class FO4_OT_InstallHunyuan3D(Operator):
             ok, msg = tool_installers.install_hunyuan3d()
             print(msg)
             print("=" * 60 + "\n")
+            if ok:
+                try:
+                    from . import hunyuan3d_helpers
+                    hunyuan3d_helpers.clear_availability_cache()
+                except Exception:
+                    pass
             level = 'INFO' if ok else 'ERROR'
             notification_system.FO4_NotificationSystem.notify(msg, level)
 

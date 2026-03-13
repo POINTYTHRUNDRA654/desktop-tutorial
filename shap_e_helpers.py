@@ -137,6 +137,12 @@ class ShapEHelpers:
     _CACHE_TTL = 5.0  # seconds
 
     @staticmethod
+    def clear_cache():
+        """Force the next availability check to re-scan (call after install completes)."""
+        ShapEHelpers._cache = None
+        ShapEHelpers._cache_time = 0.0
+
+    @staticmethod
     def is_shap_e_installed():
         """Check if Shap-E is installed (result cached for 5 s)."""
         now = time.monotonic()

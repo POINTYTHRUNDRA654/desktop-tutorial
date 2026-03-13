@@ -23,14 +23,10 @@ from pathlib import Path
 HUNYUAN3D_AVAILABLE = False
 HUNYUAN3D_ERROR = None
 
-# Use find_spec to detect torch without loading it — a full `import torch`
-# blocks the UI for several seconds on first load and is unnecessary here.
-TORCH_AVAILABLE = importlib.util.find_spec('torch') is not None
-if not TORCH_AVAILABLE:
-    HUNYUAN3D_ERROR = "PyTorch not available (not installed)"
-
-# We don't actually import Hunyuan3D here to keep the add-on lightweight
-# It will be imported dynamically when needed
+# NOTE: torch availability is checked dynamically inside
+# _check_hunyuan3d_availability_uncached() rather than as a frozen module-level
+# constant, so that installing torch via Auto-Install during the same Blender
+# session is detected correctly without a restart.
 
 
 # Single source of truth for Hunyuan3D-2 installation locations.
@@ -46,7 +42,9 @@ def _build_hunyuan_paths() -> list[str]:
         # addon/tools/Hunyuan3D-2 — the fallback tools root used by the installer
         os.path.join(os.path.dirname(__file__), "tools", "Hunyuan3D-2"),
         # D:/blender_tools/Hunyuan3D-2 — the preferred Windows tools root
-        os.path.join("D:\\", "blender_tools", "Hunyuan3D-2"),
+        # (only added on Windows to avoid polluting the list on other platforms)
+        *([os.path.join("D:\\", "blender_tools", "Hunyuan3D-2")]
+          if os.name == 'nt' else []),
     ]
     # Also pick up the live TOOLS_ROOT from tool_installers (handles custom roots)
     try:
@@ -64,6 +62,13 @@ _HUNYUAN_PATHS = _build_hunyuan_paths()
 _hunyuan_availability_cache = None
 _hunyuan_availability_cache_time = 0.0
 _CACHE_TTL = 5.0  # seconds
+
+
+def clear_availability_cache():
+    """Force the next availability check to re-scan (call after install completes)."""
+    global _hunyuan_availability_cache, _hunyuan_availability_cache_time
+    _hunyuan_availability_cache = None
+    _hunyuan_availability_cache_time = 0.0
 
 
 def check_hunyuan3d_availability():
@@ -89,7 +94,9 @@ def check_hunyuan3d_availability():
 
 def _check_hunyuan3d_availability_uncached():
     """Perform the actual (uncached) Hunyuan3D-2 availability check."""
-    if not TORCH_AVAILABLE:
+    # Re-check torch availability dynamically so that installing torch during
+    # the same Blender session (via Auto-Install) is picked up immediately.
+    if importlib.util.find_spec('torch') is None:
         return False, (
             "PyTorch not installed. Install with: pip install torch torchvision\n"
             "Windows users: if PyTorch is installed but fails to load, enable long paths "

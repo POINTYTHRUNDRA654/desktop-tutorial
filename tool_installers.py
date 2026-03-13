@@ -29,6 +29,7 @@ Key differences this module handles:
 
 from __future__ import annotations
 
+import importlib
 import json
 import os
 import shutil
@@ -112,6 +113,9 @@ def _pip_install(packages: list[str]) -> tuple[bool, str]:
 
     try:
         subprocess.check_call(cmd, timeout=300)
+        # Refresh Python's import-path caches so newly installed packages are
+        # importable in the current Blender session without a restart.
+        importlib.invalidate_caches()
         return True, f"Installed: {', '.join(packages)}"
     except subprocess.TimeoutExpired:
         return False, (
@@ -146,6 +150,9 @@ def _pip_install_with_index(packages: list[str], index_url: str) -> tuple[bool, 
 
     try:
         subprocess.check_call(cmd, timeout=900)  # 15-min budget: PyTorch CPU wheel is ~250 MB
+        # Refresh Python's import-path caches so newly installed packages are
+        # importable in the current Blender session without a restart.
+        importlib.invalidate_caches()
         return True, f"Installed (from {index_url}): {', '.join(packages)}"
     except subprocess.TimeoutExpired:
         return False, "pip install timed out (15 min). Check your internet connection."
@@ -170,6 +177,7 @@ def _pip_install_requirements(req_file: Path) -> tuple[bool, str]:
 
     try:
         subprocess.check_call(cmd, timeout=300)
+        importlib.invalidate_caches()
         return True, f"Installed from {req_file.name}"
     except subprocess.TimeoutExpired:
         return False, (
@@ -663,9 +671,9 @@ def install_hunyuan3d() -> tuple[bool, str]:
     # Install the repo's own requirements so infer.py works correctly
     req = repo_dir / "requirements.txt"
     if req.exists():
-        ok3, msg3 = _pip_install_requirements(req)
-        if not ok3:
-            return False, f"Hunyuan3D requirements.txt install failed: {msg3}"
+        requirements_ok, requirements_msg = _pip_install_requirements(req)
+        if not requirements_ok:
+            return False, f"Hunyuan3D requirements.txt install failed: {requirements_msg}"
     return True, f"Hunyuan3D-2 installed at {repo_dir}"
 
 

@@ -103,7 +103,7 @@ def download_latest() -> tuple[bool, str]:
     # Direct download from the official host.  The win32 archive bundles
     # both the 32-bit (umodel.exe) and 64-bit (umodel_64.exe) executables.
     candidates = [
-        "https://www.gildor.org/downloads/umodel/umodel_win32.zip",
+        "https://www.gildor.org/downloads/umodel_win32.zip",
     ]
 
     last_error = None
