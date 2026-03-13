@@ -189,8 +189,13 @@ class RealESRGANHelpers:
             from realesrgan import RealESRGANer
             import numpy as np
             import cv2
-        except ImportError:
-            return False, "Real-ESRGAN Python dependencies not installed. Install with: pip install realesrgan basicsr"
+        except Exception:
+            return False, (
+                "Real-ESRGAN Python dependencies not installed or failed to load. "
+                "Install with: pip install realesrgan basicsr. "
+                "If already installed, check for version compatibility issues "
+                "(e.g. torchvision/torch version mismatch)."
+            )
 
         if not os.path.exists(input_path):
             return False, f"Input file not found: {input_path}"

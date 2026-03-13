@@ -462,8 +462,36 @@ class WM_OT_MossyCheckHTTP(bpy.types.Operator):
     bl_idname = "wm.mossy_check_http"
     bl_label = "Check Mossy HTTP"
 
-    def execute(self, context):
-        if mossy_http_available():
+    _thread = None
+    _result = None
+    _timer = None
+    _deadline = None
+
+    def _check(self):
+        """Run in background thread: probe Mossy's HTTP status endpoint."""
+        self._result = mossy_http_available()
+
+    def invoke(self, context, event):
+        import time
+        self._result = None
+        self._deadline = time.monotonic() + 8  # 8s hard cap (> urllib timeout=2)
+        self._thread = threading.Thread(target=self._check, daemon=True)
+        self._thread.start()
+        self._timer = context.window_manager.event_timer_add(0.1, window=context.window)
+        context.window_manager.modal_handler_add(self)
+        return {'RUNNING_MODAL'}
+
+    def modal(self, context, event):
+        if event.type != 'TIMER':
+            return {'PASS_THROUGH'}
+        import time
+        if self._thread and self._thread.is_alive():
+            if time.monotonic() < self._deadline:
+                return {'PASS_THROUGH'}
+            # Hard timeout reached — treat as unreachable
+        context.window_manager.event_timer_remove(self._timer)
+        self._timer = None
+        if self._result:
             prefs = _get_prefs()
             port = getattr(prefs, 'mossy_http_port', 8080) if prefs else 8080
             self.report({'INFO'}, f"Mossy HTTP server reachable on port {port} ✓")

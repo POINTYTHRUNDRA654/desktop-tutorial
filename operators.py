@@ -3,6 +3,7 @@ Operators for the Fallout 4 Tutorial Add-on
 """
 
 import bpy
+import threading
 from bpy.types import Operator
 from bpy.props import StringProperty, EnumProperty, IntProperty, FloatProperty, BoolProperty
 from . import preferences, tutorial_system, mesh_helpers, texture_helpers, animation_helpers, export_helpers, notification_system, image_to_mesh_helpers, hunyuan3d_helpers, gradio_helpers, hymotion_helpers, nvtt_helpers, realesrgan_helpers, get3d_helpers, stylegan2_helpers, instantngp_helpers, imageto3d_helpers, advanced_mesh_helpers, rignet_helpers, motion_generation_helpers, quest_helpers, npc_helpers, world_building_helpers, item_helpers, preset_library, automation_system, desktop_tutorial_client, shap_e_helpers, point_e_helpers, advisor_helpers, ue_importer_helpers, umodel_tools_helpers, umodel_helpers, unity_fbx_importer_helpers, asset_studio_helpers, asset_ripper_helpers, fo4_game_assets, unity_game_assets, unreal_game_assets, post_processing_helpers, fo4_material_browser, fo4_scene_diagnostics, fo4_reference_helpers
@@ -2065,13 +2066,67 @@ class FO4_OT_AdvisorAnalyze(Operator):
         default=False,
     )
 
+    _thread = None
+    _result = None
+    _timer = None
+    _base_report = None
+    _deadline = None
+
+    def _run_ai(self):
+        """Run in background thread: call Mossy then fall back to remote LLM."""
+        try:
+            ai_resp = advisor_helpers.AdvisorHelpers.query_mossy(self._base_report)
+            if not ai_resp:
+                ai_resp = advisor_helpers.AdvisorHelpers.query_llm(self._base_report)
+            self._result = ai_resp
+        except Exception:
+            self._result = None
+
+    def invoke(self, context, event):
+        # Fast path: no AI → plain synchronous execute, no thread needed
+        if not self.use_llm:
+            return self.execute(context)
+
+        # Run the fast (non-network) scene analysis on the main thread first
+        self._base_report = advisor_helpers.AdvisorHelpers.analyze_scene(context, use_llm=False)
+
+        # Dispatch only the blocking network call to a background thread so
+        # Blender's UI stays responsive while waiting for Mossy/LLM to reply.
+        import time
+        self._result = None
+        self._deadline = time.monotonic() + 40  # 40s hard cap (> max urllib timeout)
+        self._thread = threading.Thread(target=self._run_ai, daemon=True)
+        self._thread.start()
+        self._timer = context.window_manager.event_timer_add(0.1, window=context.window)
+        context.window_manager.modal_handler_add(self)
+        self.report({'INFO'}, "Asking Mossy / LLM… (Blender stays responsive)")
+        return {'RUNNING_MODAL'}
+
+    def modal(self, context, event):
+        if event.type != 'TIMER':
+            return {'PASS_THROUGH'}
+        import time
+        if self._thread and self._thread.is_alive():
+            if time.monotonic() < self._deadline:
+                return {'PASS_THROUGH'}
+            # Hard timeout reached — stop waiting and report what we have
+        context.window_manager.event_timer_remove(self._timer)
+        self._timer = None
+        report = self._base_report
+        report["llm"] = self._result
+        self._display_report(report)
+        return {'FINISHED'}
+
     def execute(self, context):
         report = advisor_helpers.AdvisorHelpers.analyze_scene(context, use_llm=self.use_llm)
+        self._display_report(report)
+        return {'FINISHED'}
 
+    def _display_report(self, report):
         if not report["issues"]:
             self.report({'INFO'}, "No issues found")
             notification_system.FO4_NotificationSystem.notify("No issues found", 'INFO')
-            return {'FINISHED'}
+            return
 
         print("\n" + "="*70)
         print("ADVISOR REPORT")
@@ -2091,7 +2146,6 @@ class FO4_OT_AdvisorAnalyze(Operator):
         notification_system.FO4_NotificationSystem.notify(
             f"Advisor: {len(report['issues'])} issues, {len(report.get('suggestions', []))} suggestions.", 'WARNING'
         )
-        return {'FINISHED'}
 
 
 class FO4_OT_AdvisorQuickFix(Operator):
@@ -5763,22 +5817,67 @@ class FO4_OT_AskMossyForUVAdvice(Operator):
     bl_label = "Ask Mossy for UV/Texture Advice"
     bl_options = {'REGISTER'}
 
-    # Stores the advice text for display in the dialog
-    _advice: str = ""
+    _thread = None
+    _result = None
+    _timer = None
+    _analysis = None
+    _obj_name: str = ""
+    _deadline = None
 
-    def execute(self, context):
+    def _run_mossy(self):
+        """Run in background thread: POST analysis to Mossy's HTTP /ask endpoint."""
+        try:
+            from . import mossy_link as _ml
+            query = (
+                "I am setting up a Fallout 4 mod mesh in Blender and need help with "
+                "UV mapping and textures for NIF export. "
+                "Review the analysis below and give me clear, numbered, "
+                "beginner-friendly steps to fix any issues and get this ready for export."
+            )
+            self._result = _ml.ask_mossy(query, context_data=self._analysis, timeout=15)
+        except Exception:
+            self._result = None
+
+    def invoke(self, context, event):
         obj = context.active_object
         if not obj or obj.type != 'MESH':
             self.report({'ERROR'}, "Select a mesh object first")
             return {'CANCELLED'}
 
-        from . import advisor_helpers
-        advice = advisor_helpers.AdvisorHelpers.ask_mossy_uv_texture(obj)
+        # Run the fast (non-network) UV/texture analysis on the main thread
+        self._analysis = advisor_helpers.AdvisorHelpers.analyze_uv_texture(obj)
+        self._obj_name = obj.name
+        self._result = None
 
+        # Dispatch the slow Mossy HTTP call to a background thread
+        import time
+        self._deadline = time.monotonic() + 25  # 25s hard cap (> urllib timeout=15)
+        self._thread = threading.Thread(target=self._run_mossy, daemon=True)
+        self._thread.start()
+        self._timer = context.window_manager.event_timer_add(0.1, window=context.window)
+        context.window_manager.modal_handler_add(self)
+        self.report({'INFO'}, "Asking Mossy for UV/texture advice…")
+        return {'RUNNING_MODAL'}
+
+    def modal(self, context, event):
+        if event.type != 'TIMER':
+            return {'PASS_THROUGH'}
+        import time
+        if self._thread and self._thread.is_alive():
+            if time.monotonic() < self._deadline:
+                return {'PASS_THROUGH'}
+            # Hard timeout reached — stop waiting and use whatever result we have
+        context.window_manager.event_timer_remove(self._timer)
+        self._timer = None
+        self._display_result()
+        return {'FINISHED'}
+
+    def _display_result(self):
+        advice = self._result
         if advice:
             self.report({'INFO'}, "Mossy responded — see Blender console for full advice")
             print("\n" + "=" * 60)
-            print(f"MOSSY UV/TEXTURE ADVICE — {obj.name}")
+            print(f"MOSSY UV/TEXTURE ADVICE — {self._obj_name}")
             print("=" * 60)
             print(advice)
             print("=" * 60 + "\n")
@@ -5788,7 +5887,7 @@ class FO4_OT_AskMossyForUVAdvice(Operator):
             )
         else:
             # Mossy unavailable — fall back to built-in rules analysis
-            analysis = advisor_helpers.AdvisorHelpers.analyze_uv_texture(obj)
+            analysis = self._analysis or {}
             issues = analysis.get("issues", [])
             suggestions = analysis.get("suggestions", [])
             lines = []
@@ -5805,14 +5904,12 @@ class FO4_OT_AskMossyForUVAdvice(Operator):
 
             full = "\n".join(lines)
             print("\n" + "=" * 60)
-            print(f"UV/TEXTURE ANALYSIS — {obj.name}")
+            print(f"UV/TEXTURE ANALYSIS — {self._obj_name}")
             print("=" * 60)
             print(full)
             print("(Mossy not available — showing built-in analysis)")
             print("=" * 60 + "\n")
             self.report({'INFO'}, lines[0] if lines else "Analysis complete — see console")
-
-        return {'FINISHED'}
 
 
 class FO4_OT_MossyAutoFix(Operator):
@@ -5825,20 +5922,90 @@ class FO4_OT_MossyAutoFix(Operator):
     bl_label = "Auto-Fix Mesh (Mossy AI)"
     bl_options = {'REGISTER', 'UNDO'}
 
-    def execute(self, context):
+    _thread = None
+    _result = None
+    _timer = None
+    _issues = None
+    _deadline = None
+
+    def _run_mossy(self):
+        """Run in background thread: send issues to Mossy, get back action list."""
+        try:
+            from . import mossy_link as _ml
+            import json as _json
+            query = (
+                "You are an expert AI fixing Blender meshes for Fallout 4 NIF export. "
+                "The following issues were found during validation of the mesh:\n"
+                f"{_json.dumps(self._issues, indent=2)}\n\n"
+                "Respond ONLY with a valid JSON array of action strings to fix these issues. "
+                "Allowed actions: ['REMOVE_DOUBLES', 'DELETE_LOOSE', 'MAKE_MANIFOLD', "
+                "'APPLY_TRANSFORMS', 'TRIANGULATE', 'SHADE_SMOOTH_AUTOSMOOTH']. "
+                "Example response: [\"APPLY_TRANSFORMS\", \"DELETE_LOOSE\"]"
+            )
+            context_data = {"issues": self._issues}
+            self._result = _ml.ask_mossy(query, context_data=context_data, timeout=15)
+        except Exception:
+            self._result = None
+
+    def invoke(self, context, event):
         obj = context.active_object
         if not obj or obj.type != 'MESH':
             self.report({'ERROR'}, "Select a mesh object first")
             return {'CANCELLED'}
 
-        from . import advisor_helpers
-        res = advisor_helpers.AdvisorHelpers.mossy_auto_fix_mesh(obj)
+        # Run the fast (non-network) mesh validation on the main thread
+        ok, issues = mesh_helpers.MeshHelpers.validate_mesh(obj)
+        if ok:
+            self.report({'INFO'}, "Mesh is completely valid. No fixes needed!")
+            return {'FINISHED'}
 
-        if not res.get("success"):
-            self.report({'WARNING'}, res.get("message", "Mossy Auto-Fix failed."))
+        self._issues = issues
+        self._result = None
+
+        # Dispatch the slow Mossy HTTP call to a background thread
+        import time
+        self._deadline = time.monotonic() + 25  # 25s hard cap (> urllib timeout=15)
+        self._thread = threading.Thread(target=self._run_mossy, daemon=True)
+        self._thread.start()
+        self._timer = context.window_manager.event_timer_add(0.1, window=context.window)
+        context.window_manager.modal_handler_add(self)
+        self.report({'INFO'}, "Asking Mossy for auto-fix instructions…")
+        return {'RUNNING_MODAL'}
+
+    def modal(self, context, event):
+        if event.type != 'TIMER':
+            return {'PASS_THROUGH'}
+        import time
+        if self._thread and self._thread.is_alive():
+            if time.monotonic() < self._deadline:
+                return {'PASS_THROUGH'}
+            # Hard timeout reached — stop waiting and use whatever result we have
+        context.window_manager.event_timer_remove(self._timer)
+        self._timer = None
+
+        response = self._result
+        if not response:
+            self.report({'WARNING'}, "Mossy is not reachable. Make sure Mossy is running.")
             return {'CANCELLED'}
 
-        actions = res.get("actions", [])
+        # Strip markdown fences if present
+        text = response.strip()
+        if text.startswith("```json"):
+            text = text.split("```json")[1].split("```")[0].strip()
+        elif text.startswith("```"):
+            text = text.split("```")[1].split("```")[0].strip()
+
+        import json as _json
+        try:
+            actions = _json.loads(text)
+        except _json.JSONDecodeError:
+            self.report({'WARNING'}, f"Mossy returned unexpected format: {text[:200]}")
+            return {'CANCELLED'}
+
+        if not isinstance(actions, list):
+            self.report({'WARNING'}, "Mossy returned invalid format (expected a list).")
+            return {'CANCELLED'}
+
         if not actions:
             self.report({'INFO'}, "Mesh is completely valid. No fixes needed!")
             return {'FINISHED'}
