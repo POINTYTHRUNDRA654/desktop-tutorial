@@ -284,7 +284,7 @@ const AssetValidator: React.FC = () => {
         Comprehensive validation for NIF, DDS, ESP, Papyrus scripts, and sound files
       </Typography>
 
-      <Tabs value={activeTab} onChange={(_, value) => setActiveTab(value)} sx={{ mb: 3, borderBottom: 1, borderColor: 'divider' }}>
+      <Tabs value={activeTab} onChange={(_: any, value: any) => setActiveTab(value)} sx={{ mb: 3, borderBottom: 1, borderColor: 'divider' }}>
         <Tab label="Quick Scan" />
         <Tab label="Detailed Results" disabled={!report} />
         <Tab label="Batch Validator" />

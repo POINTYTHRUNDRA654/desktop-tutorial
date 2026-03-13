@@ -226,29 +226,39 @@ export const PerformanceProfiler: React.FC = () => {
   };
 
   // Prepare chart data
-  const fpsChartData = state.metrics.map((m, i) => ({
-    time: i,
-    avg: Math.round(m.fps.average * 10) / 10,
-    min: Math.round(m.fps.min * 10) / 10,
-    max: Math.round(m.fps.max * 10) / 10,
-  }));
+  const fpsChartData = state.metrics.map((m, i) => {
+    const fps = m.fps as { average: number; min: number; max: number };
+    return {
+      time: i,
+      avg: Math.round(fps.average * 10) / 10,
+      min: Math.round(fps.min * 10) / 10,
+      max: Math.round(fps.max * 10) / 10,
+    };
+  });
 
-  const memoryChartData = state.metrics.map((m, i) => ({
-    time: i,
-    texture: Math.round(m.memory.textureMemory),
-    mesh: Math.round(m.memory.meshMemory),
-    script: Math.round(m.memory.scriptMemory),
-  }));
+  const memoryChartData = state.metrics.map((m, i) => {
+    const mem = m.memory as { textureMemory: number; meshMemory: number; scriptMemory: number };
+    return {
+      time: i,
+      texture: Math.round(mem.textureMemory),
+      mesh: Math.round(mem.meshMemory),
+      script: Math.round(mem.scriptMemory),
+    };
+  });
 
-  const cpuGpuChartData = state.metrics.map((m, i) => ({
-    time: i,
-    cpu: Math.round(m.cpu.totalUsage * 10) / 10,
-    gpu: Math.round(m.gpu.usage * 10) / 10,
-  }));
+  const cpuGpuChartData = state.metrics.map((m, i) => {
+    const cpu = m.cpu as { totalUsage: number };
+    const gpu = m.gpu as { usage: number };
+    return {
+      time: i,
+      cpu: Math.round(cpu.totalUsage * 10) / 10,
+      gpu: Math.round(gpu.usage * 10) / 10,
+    };
+  });
 
   const scriptChartData = state.metrics
     .slice(-10)
-    .map((m) => m.scripts.lagSpikes)
+    .map((m) => (m.scripts as { lagSpikes: any[] })?.lagSpikes ?? [])
     .flat()
     .slice(0, 10)
     .map((spike, i) => ({

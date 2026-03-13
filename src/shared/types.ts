@@ -137,14 +137,21 @@ export interface ProjectWizardState {
 // --- FOMOD Installer types (shared with FOMOD builder) ---
 export interface FOMODFile { source: string; destination?: string; priority?: number; alwaysInstall?: boolean }
 export interface FOMODFlags { selected?: boolean; required?: boolean; recommended?: boolean }
-export interface FOMODOption { id: string; name: string; description?: string; files?: FOMODFile[]; flags?: FOMODFlags; conditions?: FOMODCondition[]; image?: string; }
-export interface FOMODGroup { id: string; name: string; type?: string; options: FOMODOption[] }
-export interface FOMODStep { id: string; name: string; description?: string; type?: string; sortOrder?: number; groups: FOMODGroup[]; conditions?: FOMODCondition[] }
+export interface FOMODOption { id: string; name: string; description?: string; files?: FOMODFile[]; flags?: FOMODFlags; conditions?: FOMODCondition[]; image?: string; type?: string; filePatterns?: FOMODFilePattern[] }
+export interface FOMODGroup { id: string; name: string; type?: string; options: FOMODOption[]; order?: number }
+export interface FOMODStep { id: string; name: string; description?: string; type?: string; sortOrder?: number; groups: FOMODGroup[]; conditions?: FOMODCondition[]; order?: number; groupBehavior?: string }
 export interface FOMODProject { id?: string; name: string; author?: string; version?: string; website?: string; description?: string; steps: FOMODStep[]; requiredFiles?: string[]; headerImage?: string; metadata?: Record<string, any> }
 export interface FOMODCondition { type?: string; operator?: 'equals' | 'notEquals' | 'in' | 'notIn' | 'greaterThan' | 'lessThan' | string; value?: any; variable?: string; expression?: string; expectedValue?: any; negate?: boolean; children?: FOMODCondition[] }
 export interface FOMODValidationError { severity: 'error' | 'warning' | 'info' | string; message: string; path?: string }
 export interface FOMODValidationWarning { severity?: 'error' | 'warning' | 'info' | string; message: string; suggestion?: string; path?: string }
 export interface FOMODValidation { success?: boolean; valid?: boolean; errors: FOMODValidationError[]; warnings: FOMODValidationWarning[]; fileCount?: number; estimatedSize?: number }
+export interface ModInfo { name: string; version: string; author: string; description?: string; category?: string; tags?: string[]; nexusId?: string; website?: string }
+export interface StructureValidation { valid: boolean; errors: string[]; warnings: string[]; fileCount: number; estimatedSize: number }
+export interface ArchiveSettings { format: '7z' | 'zip' | 'rar'; compressionLevel: number; includeReadme: boolean; includeScreenshots: boolean; outputPath?: string }
+export interface NexusPrep { modName: string; version: string; description: string; category: string; tags: string[]; screenshots: string[]; readme: string; checks?: Record<string, any>[]; recommendations?: string[] }
+
+export type FOMODFilePattern = { source: string; destination?: string; pattern?: string; priority?: number; isFolder?: boolean; alwaysInstall?: boolean; installIfUsable?: boolean };
+export interface FOMODPreviewResult { steps: FOMODStep[]; estimatedSize: number; fileList: string[] }
 
 /**
  * Analytics types
@@ -424,6 +431,8 @@ export interface Plugin {
   rating?: number;
   installTime?: number;
   updateTime?: number;
+  homepage?: string;
+  license?: string;
 }
 
 export interface PluginListing {
@@ -439,6 +448,7 @@ export interface PluginListing {
   permissions?: string[];
   rating?: number;
   repository?: string;
+  homepage?: string;
 }
 
 export interface InstallResult { success: boolean; error?: string; plugin?: Plugin; warnings?: string[]; installTime?: number }
@@ -641,6 +651,7 @@ export interface InstalledProgram {
 export interface SystemInfo {
   cpu: string;
   ram: string;
+  memory?: string | number;
   gpu: string[];
   os: string;
   aiCapabilities: string[];
@@ -1175,6 +1186,7 @@ export interface ModDetails extends ModListing {
   videos: string[];
   changelog: string;
   tags: string[];
+  homepage?: string;
 }
 
 export interface SearchFilters {
@@ -1215,14 +1227,18 @@ export interface AuthResult { success: boolean; provider?: string; token?: strin
 
 // Performance Metrics
 export interface PerformanceMetric {
-  modCombination: string[]; // List of mod names
-  fps: number;
-  memoryUsage: number; // MB
-  loadTime: number; // seconds
-  stabilityScore: number; // 0-100
-  conflictCount: number;
+  modCombination?: string[]; // List of mod names
+  fps: number | { average: number; min: number; max: number; percentile95?: number; frameTimeMs?: number | number[] };
+  memoryUsage?: number; // MB
+  loadTime?: number; // seconds
+  stabilityScore?: number; // 0-100
+  conflictCount?: number;
   timestamp: number;
-  hardwareProfile: HardwareProfile;
+  hardwareProfile?: HardwareProfile;
+  memory?: { average?: number; peak?: number; gcPressure?: number; totalUsed?: number; textureMemory?: number; meshMemory?: number; scriptMemory?: number };
+  cpu?: number | { totalUsage?: number; mainThread?: number; renderThread?: number; scriptThread?: number };
+  gpu?: number | { usage?: number; memoryUsed?: number; drawCalls?: number; triangles?: number; shaders?: number };
+  scripts?: { averageTime?: number; slowestScript?: string; stackDumps?: number; suspendedStacks?: number; eventsPerSecond?: number; lagSpikes?: any[] };
 }
 
 
@@ -1244,6 +1260,10 @@ export interface GameProcess {
   executablePath?: string;
   f4seDetected?: boolean;
   skseDetected?: boolean;
+  game?: string;
+  uptime?: number;
+  memoryUsage?: number;
+  cpuUsage?: number;
 }
 
 export interface CommandResult {
@@ -1263,6 +1283,12 @@ export interface SaveGameAnalysis {
   activeMods: string[];
   missingMods: string[];
   issues?: string[];
+  fileSize?: number;
+  playerLevel?: number;
+  scriptInstances?: number;
+  plugins?: string[];
+  missingPlugins?: string[];
+  recommendations?: string[];
 }
 
 export interface ModStatus {
@@ -1270,6 +1296,8 @@ export interface ModStatus {
   loadOrder: number;
   conflicts: string[];
   dependencies: string[];
+  pluginName?: string;
+  isActive?: boolean;
 }
 
 export interface PerformanceStream {
@@ -1278,6 +1306,7 @@ export interface PerformanceStream {
   cpuUsage: number;
   timestamp: number;
   frameTime?: number;
+  scriptLag?: number;
 }
 
 export interface InjectionResult {
@@ -1298,6 +1327,7 @@ export interface MacroCommand {
   name: string;
   commands: string[];
   description?: string;
+  category?: string;
 }
 
 export interface PerformanceImpact {
@@ -1360,12 +1390,16 @@ export interface PatternRecommendation {
 // Performance Bottleneck Mining Types
 
 export interface PerformanceBottleneck {
-  modName: string;
-  bottleneckType: 'cpu' | 'gpu' | 'memory' | 'io' | 'script';
+  type?: string;
+  severity?: string;
+  description?: string;
+  component?: string;
+  modName?: string;
+  bottleneckType?: 'cpu' | 'gpu' | 'memory' | 'io' | 'script';
   impact: number; // FPS impact
-  confidence: number;
-  evidence: BottleneckEvidence[];
-  mitigationStrategies: string[];
+  confidence?: number;
+  evidence?: BottleneckEvidence[];
+  mitigationStrategies?: string[];
 }
 
 export interface BottleneckEvidence {
@@ -1391,6 +1425,10 @@ export interface OptimizationOpportunity {
 
 // Backwards-compatible alias expected across the codebase
 export type Optimization = OptimizationOpportunity;
+export type Bottleneck = PerformanceBottleneck;
+export interface LagSpike { timestamp: number; duration: number; cause?: string; severity?: 'minor' | 'major' | 'critical' }
+export type PerformanceMetrics = PerformanceMetric;
+export type PerformanceProfilerEngine = PerformanceProfile;
 
 // Memory Usage Analysis Types
 export interface MemoryAnalysis {
@@ -4002,6 +4040,11 @@ export interface ElectronAPI {
     memoryUsage: number;
     gpuUsage?: number;
     gpuMemory?: number;
+    cpu?: number;
+    mem?: number;
+    memory?: number;
+    disk?: number;
+    network?: number;
   }>;
   // Process metrics helper (exposed by preload)
   getProcessMetrics?: (pid: number) => Promise<{ cpu: number; memory: number; handles?: number }>;
@@ -4464,6 +4507,18 @@ export interface ElectronAPI {
 
   // Notification listener for monitoring service
   onNotification: (callback: (notification: any) => void) => (() => void);
+  openDialog?: (options: any) => Promise<string | null>;
+  listProcesses?: () => Promise<any[]>;
+  gameLogMonitor?: (action: string, options?: any) => Promise<any>;
+  formIdRemapper?: (action: string, payload?: any) => Promise<any>;
+  modComparisonTool?: (action: string, payload?: any) => Promise<any>;
+  modConflictVisualizer?: (action: string, payload?: any) => Promise<any>;
+  projectTemplates?: (action: string, payload?: any) => Promise<any>;
+  voiceCommands?: (action: string, payload?: any) => Promise<any>;
+  xEditScriptExecutor?: (action: string, payload?: any) => Promise<any>;
+  getAppVersion?: () => Promise<string>;
+  versionControlCreateBackup?: (payload?: any) => Promise<any>;
+  versionControlDeleteBackup?: (payload?: any) => Promise<any>;
 }
 
 export interface VoiceChatPayload {
@@ -5012,7 +5067,7 @@ export interface GitRepo { path: string; initialized: boolean; currentBranch: st
 export interface CommitResult { success: boolean; hash?: string; message?: string; filesChanged?: number; timestamp?: number; error?: string }
 export interface BranchResult { success: boolean; branchName?: string; error?: string }
 export interface MergeResult { success: boolean; merged?: boolean; fastForward?: boolean; conflicts?: string[]; error?: string }
-export interface CommitHistory { hash: string; message: string; author: string; email: string; timestamp: number; branch?: string; filesChanged?: string[] }
+export interface CommitHistory { hash: string; message: string; author: string; email: string; timestamp: number; branch?: string; filesChanged?: string[]; date?: string | number; files?: string[] | number; insertions?: number; deletions?: number }
 export interface DiffLine { type: 'add' | 'delete' | 'context'; content: string; lineNumber: number }
 export interface DiffChunk { oldStart: number; oldLines: number; newStart: number; newLines: number; lines: DiffLine[] }
 export interface DiffResult { fileA: string; fileB: string; additions: number; deletions: number; chunks: DiffChunk[] }
@@ -5029,7 +5084,7 @@ export interface PluginLoadTime { plugin: string; loadTime: number; percentage: 
 export interface AssetLoadTime { assetType: string; loadTime: number; count: number; averagePerAsset: number }
 
 // --- Load order / plugin analysis types ---
-export interface PluginInfo { fileName: string; name?: string; enabled?: boolean; type?: 'esm' | 'esl' | 'esp' | string; masters?: string[]; overrides?: string[]; conflicts?: PluginConflict[]; version?: string; author?: string; size?: number; recordCount?: number; loadIndex?: number; filePath?: string; modifiedDate?: Date | number }
+export interface PluginInfo { fileName: string; name?: string; enabled?: boolean; type?: 'esm' | 'esl' | 'esp' | string; masters?: string[]; overrides?: string[]; conflicts?: PluginConflict[]; version?: string; author?: string; size?: number; recordCount?: number; loadIndex?: number; filePath?: string; modifiedDate?: Date | number; formIdPrefix?: string }
 export interface HeatmapCell { x: number; y: number; value: number; severity: 'none' | 'minor' | 'major' | 'critical'; plugins?: string[] }
 export interface ConflictMatrix { plugins: string[]; conflicts: number[][]; severityMap: ('none'|'minor'|'major'|'critical')[][]; heatmapData: HeatmapCell[] }
 export interface DependencyNode { id: string; plugin?: string; type?: string; level?: number; dependencies?: string[]; dependents?: string[] }
@@ -5044,6 +5099,10 @@ export type ConflictSeverity = 'low' | 'minor' | 'major' | 'critical' | 'warning
 export type ConflictType = 'override' | 'delete' | 'navmesh' | 'script' | 'asset' | string;
 
 export interface Conflict {
+  id?: string;
+  type?: string;
+  plugins?: string[];
+  description?: string;
   formId?: string;
   recordType?: string;
   editorId?: string | number;
@@ -5062,6 +5121,8 @@ export interface ConflictAnalysis {
   plugins: PluginConflictInfo[];
   conflictMatrix: ConflictMatrix;
   recommendations: string[];
+  conflicts?: Conflict[];
+  summary?: string | { total?: number; bySeverity?: Record<string, number>; byType?: Record<string, number> };
 }
 
 export interface RecordData { pluginName: string; formId?: string; recordType?: string; fields: Record<string, any>; editorId?: string }
@@ -5088,8 +5149,8 @@ export interface LoadOrderChange { plugin: string; from: number; to: number; typ
 export interface LoadOrderRecommendation { type?: string; message?: string; confidence?: number; plugin?: string; priority?: number | 'low' | 'medium' | 'high' | 'critical' | string; suggestedAction?: string; description?: string; impact?: { stabilityImprovement?: number; performanceImprovement?: number; conflictReduction?: number } }
 export interface LoadOrderAnalysis { totalPlugins: number; enabledPlugins: number; conflicts: PluginConflict[]; dependencyIssues: DependencyIssue[]; circularDependencies: string[][]; missingMasters: Array<string | { plugin: string; missingMaster: string }>; performanceScore: number; stabilityScore: number; recommendations: LoadOrderRecommendation[]; conflictMatrix: ConflictMatrix; dependencyGraph: DependencyGraph }
 export interface SortingRule { id: string; name: string; enabled?: boolean; priority?: number; description?: string; condition?: any; action?: any }
-export interface PriorityPlugin { fileName: string; plugin?: string; priority?: number | 'first' | 'last' | 'before' | 'after'; anchor?: string }
-export interface OptimizationRules { algorithm: 'loot'|'boss'|'stability'|'performance'|'custom'; priorityPlugins: PriorityPlugin[]; customRules: SortingRule[]; overrides?: Record<string, any>; enableESLFirst?: boolean; communityRules?: boolean }
+export interface PriorityPlugin { fileName?: string; plugin?: string; priority?: number | 'first' | 'last' | 'before' | 'after'; anchor?: string; reason?: string }
+export interface OptimizationRules { algorithm: 'loot'|'boss'|'stability'|'performance'|'custom'; priorityPlugins: PriorityPlugin[]; customRules: SortingRule[]; overrides?: Record<string, any>; enableESLFirst?: boolean; communityRules?: boolean; conflictResolution?: string; respectGroups?: boolean }
 export interface LoadOrderRecommendationResult { plugins: string[]; changes: LoadOrderChange[]; improvements: { conflictsResolved: number; dependenciesFixed: number; stabilityGain: number; performanceGain: number }; warnings: string[]; appliedRules?: string[]; score?: { before: number; after: number } }
 
 
@@ -5113,6 +5174,8 @@ export interface TestStep {
   action: 'spawn' | 'teleport' | 'execute-console' | 'wait' | 'interact' | 'screenshot';
   parameters: Record<string, any>;
   description: string;
+  expectedResult?: string;
+  riskAreas?: string[];
 }
 
 export interface Assertion {

@@ -145,7 +145,7 @@ const MossyMemoryVault: React.FC<MossyMemoryVaultProps> = ({ embedded = false })
             }
 
             try {
-                const repoUrl = 'https://api.github.com/repos/YOUR_USERNAME/mossy-knowledge/contents/community-knowledge';
+                const repoUrl = 'https://api.github.com/repos/POINTYTHRUNDRA654/mossy-knowledge/contents/community-knowledge';
                 const response = await fetch(repoUrl);
                 if (!response.ok) return;
                 
@@ -452,7 +452,7 @@ const MossyMemoryVault: React.FC<MossyMemoryVaultProps> = ({ embedded = false })
                 return; // Don't check yet
             }
             
-            const repoUrl = 'https://api.github.com/repos/YOUR_USERNAME/mossy-knowledge/contents/community-knowledge';
+            const repoUrl = 'https://api.github.com/repos/POINTYTHRUNDRA654/mossy-knowledge/contents/community-knowledge';
             const response = await fetch(repoUrl);
             
             if (!response.ok) return;
@@ -481,7 +481,7 @@ const MossyMemoryVault: React.FC<MossyMemoryVaultProps> = ({ embedded = false })
     const fetchCommunityKnowledge = async () => {
         setIsLoadingLibrary(true);
         try {
-            const repoUrl = 'https://api.github.com/repos/YOUR_USERNAME/mossy-knowledge/contents/community-knowledge';
+            const repoUrl = 'https://api.github.com/repos/POINTYTHRUNDRA654/mossy-knowledge/contents/community-knowledge';
             const response = await fetch(repoUrl);
             
             if (!response.ok) {
@@ -759,7 +759,7 @@ const MossyMemoryVault: React.FC<MossyMemoryVaultProps> = ({ embedded = false })
         
         try {
             // Try to fetch from GitHub repo (user configurable in settings)
-            const repoUrl = 'https://api.github.com/repos/YOUR_USERNAME/mossy-knowledge/contents/community-knowledge';
+            const repoUrl = 'https://api.github.com/repos/POINTYTHRUNDRA654/mossy-knowledge/contents/community-knowledge';
             const response = await fetch(repoUrl);
             
             if (response.ok) {
