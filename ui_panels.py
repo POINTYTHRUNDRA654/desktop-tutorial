@@ -11,6 +11,10 @@ def _safe_import(name):
     try:
         return importlib.import_module(f".{name}", package=__package__)
     except Exception as exc:
+        # Remove any partially-initialised entry from sys.modules so that a
+        # subsequent retry (e.g. on Blender 5 extension reload) gets a fresh
+        # import attempt rather than the stale, incomplete module object.
+        sys.modules.pop(f"{__package__}.{name}", None)
         print(f"ui_panels: Skipped module {name} due to error: {exc}")
         return None
 
@@ -707,7 +711,7 @@ class FO4_PT_AIGenerationPanel(Panel):
         shap_e_box = layout.box()
         shap_e_box.label(text="Shap-E (Text/Image to 3D)", icon='MESH_ICOSPHERE')
 
-        shap_e_installed, shap_e_msg = shap_e_helpers.ShapEHelpers.is_shap_e_installed() if shap_e_helpers else (False, "")
+        shap_e_installed, shap_e_msg = shap_e_helpers.ShapEHelpers.is_shap_e_installed() if (shap_e_helpers and hasattr(shap_e_helpers, 'ShapEHelpers')) else (False, "")
 
         if shap_e_installed:
             shap_e_box.label(text="Status: Installed ✓", icon='CHECKMARK')
@@ -742,7 +746,7 @@ class FO4_PT_AIGenerationPanel(Panel):
         point_e_box = layout.box()
         point_e_box.label(text="Point-E (Text/Image to Point Cloud)", icon='OUTLINER_OB_POINTCLOUD')
 
-        point_e_installed, point_e_msg = point_e_helpers.PointEHelpers.is_point_e_installed() if point_e_helpers else (False, "")
+        point_e_installed, point_e_msg = point_e_helpers.PointEHelpers.is_point_e_installed() if (point_e_helpers and hasattr(point_e_helpers, 'PointEHelpers')) else (False, "")
 
         if point_e_installed:
             point_e_box.label(text="Status: Installed ✓", icon='CHECKMARK')

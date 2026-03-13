@@ -23,6 +23,7 @@ bl_info = {
 
 import bpy
 import importlib
+import sys
 
 # helper for resilient imports – some modules may fail under untested Blender
 # releases (e.g. Blender 5.x during early testing).  We log failures but
@@ -42,6 +43,10 @@ def _try_import(name: str):
         print(f"⚠ Failed to import {name} ({full}): {exc}")
         import traceback
         traceback.print_exc()
+        # Remove any partially-initialised entry from sys.modules so that a
+        # subsequent retry (e.g. Blender 5 extension reload) performs a fresh
+        # import rather than returning the stale, incomplete module object.
+        sys.modules.pop(full, None)
         return None
 
 # import core submodules; missing components will be skipped but reported.
