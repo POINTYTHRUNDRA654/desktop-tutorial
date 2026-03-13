@@ -636,7 +636,7 @@ def install_zoedepth() -> tuple[bool, str]:
 
 
 def install_hunyuan3d() -> tuple[bool, str]:
-    """Install Hunyuan3D-2 dependencies via pip."""
+    """Install Hunyuan3D-2 dependencies via pip and clone the repo."""
     ok, msg = _pip_install_with_index(
         ["torch", "torchvision"],
         index_url="https://download.pytorch.org/whl/cpu",
@@ -660,6 +660,12 @@ def install_hunyuan3d() -> tuple[bool, str]:
             )
         except Exception as e:
             return False, f"Hunyuan3D clone failed: {e}"
+    # Install the repo's own requirements so infer.py works correctly
+    req = repo_dir / "requirements.txt"
+    if req.exists():
+        ok3, msg3 = _pip_install_requirements(req)
+        if not ok3:
+            return False, f"Hunyuan3D requirements.txt install failed: {msg3}"
     return True, f"Hunyuan3D-2 installed at {repo_dir}"
 
 

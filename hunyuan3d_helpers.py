@@ -34,12 +34,31 @@ if not TORCH_AVAILABLE:
 
 
 # Single source of truth for Hunyuan3D-2 installation locations.
-_HUNYUAN_PATHS = [
-    os.path.expanduser("~/Hunyuan3D-2"),
-    os.path.expanduser("~/Projects/Hunyuan3D-2"),
-    "/opt/Hunyuan3D-2",
-    os.path.join(os.path.dirname(__file__), "..", "Hunyuan3D-2"),
-]
+# This list must include every path that tool_installers.install_hunyuan3d()
+# may clone the repo to (TOOLS_ROOT / "Hunyuan3D-2"), as well as common
+# manual installation locations.
+def _build_hunyuan_paths() -> list[str]:
+    paths = [
+        os.path.expanduser("~/Hunyuan3D-2"),
+        os.path.expanduser("~/Projects/Hunyuan3D-2"),
+        "/opt/Hunyuan3D-2",
+        os.path.join(os.path.dirname(__file__), "..", "Hunyuan3D-2"),
+        # addon/tools/Hunyuan3D-2 — the fallback tools root used by the installer
+        os.path.join(os.path.dirname(__file__), "tools", "Hunyuan3D-2"),
+        # D:/blender_tools/Hunyuan3D-2 — the preferred Windows tools root
+        os.path.join("D:\\", "blender_tools", "Hunyuan3D-2"),
+    ]
+    # Also pick up the live TOOLS_ROOT from tool_installers (handles custom roots)
+    try:
+        from . import tool_installers as _ti
+        tools_path = str(_ti.TOOLS_ROOT / "Hunyuan3D-2")
+        if tools_path not in paths:
+            paths.append(tools_path)
+    except Exception:
+        pass
+    return paths
+
+_HUNYUAN_PATHS = _build_hunyuan_paths()
 
 # Cache for check_hunyuan3d_availability() — avoids filesystem hits on every UI redraw.
 _hunyuan_availability_cache = None
