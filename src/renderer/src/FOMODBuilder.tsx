@@ -719,7 +719,7 @@ export default function FOMODBuilder() {
             fullWidth
             label="Step Name"
             value={step.name}
-            onChange={(e) => handleUpdateStep(step.id, 'name', e.target.value)}
+            onChange={(e: any) => handleUpdateStep(step.id, 'name', e.target.value)}
             sx={{ mb: 2 }}
           />
 
@@ -727,7 +727,7 @@ export default function FOMODBuilder() {
             <InputLabel>Group Behavior</InputLabel>
             <Select
               value={step.groupBehavior}
-              onChange={(e) => handleUpdateStep(step.id, 'groupBehavior', e.target.value)}
+              onChange={(e: any) => handleUpdateStep(step.id, 'groupBehavior', e.target.value)}
             >
               <MenuItem value="SelectExactlyOne">Select Exactly One</MenuItem>
               <MenuItem value="SelectAtMostOne">Select At Most One</MenuItem>
@@ -766,7 +766,7 @@ export default function FOMODBuilder() {
                 fullWidth
                 label="Group Name"
                 value={group.name}
-                onChange={(e) => handleUpdateGroup(group.id, 'name', e.target.value)}
+                onChange={(e: any) => handleUpdateGroup(group.id, 'name', e.target.value)}
                 sx={{ mb: 2 }}
               />
 
@@ -774,7 +774,7 @@ export default function FOMODBuilder() {
                 <InputLabel>Selection Type</InputLabel>
                 <Select
                   value={group.type}
-                  onChange={(e) => handleUpdateGroup(group.id, 'type', e.target.value)}
+                  onChange={(e: any) => handleUpdateGroup(group.id, 'type', e.target.value)}
                 >
                   <MenuItem value="SelectExactlyOne">Select Exactly One</MenuItem>
                   <MenuItem value="SelectAtMostOne">Select At Most One</MenuItem>
@@ -804,7 +804,7 @@ export default function FOMODBuilder() {
                     borderColor: selectedOption === option.id ? 'primary.main' : 'divider',
                   }}
                   onClick={() => setSelectedOption(option.id)}
-                  onDragOver={(e) => e.preventDefault()}
+                  onDragOver={(e: any) => e.preventDefault()}
                   onDrop={() => {
                     if (draggingFile) {
                       handleFileDrop(option.id, draggingFile);
@@ -816,7 +816,7 @@ export default function FOMODBuilder() {
                       fullWidth
                       label="Option Name"
                       value={option.name}
-                      onChange={(e) => handleUpdateOption(option.id, 'name', e.target.value)}
+                      onChange={(e: any) => handleUpdateOption(option.id, 'name', e.target.value)}
                       sx={{ mb: 1 }}
                     />
 
@@ -826,7 +826,7 @@ export default function FOMODBuilder() {
                       rows={2}
                       label="Description"
                       value={option.description}
-                      onChange={(e) => handleUpdateOption(option.id, 'description', e.target.value)}
+                      onChange={(e: any) => handleUpdateOption(option.id, 'description', e.target.value)}
                       sx={{ mb: 1 }}
                     />
 
@@ -834,7 +834,7 @@ export default function FOMODBuilder() {
                       <InputLabel>Type</InputLabel>
                       <Select
                         value={option.type}
-                        onChange={(e) => handleUpdateOption(option.id, 'type', e.target.value)}
+                        onChange={(e: any) => handleUpdateOption(option.id, 'type', e.target.value)}
                       >
                         <MenuItem value="Required">Required</MenuItem>
                         <MenuItem value="Recommended">Recommended</MenuItem>

@@ -251,7 +251,7 @@ export const AIAssistant: React.FC = () => {
         content: `**Root Cause:** ${diagnosis.rootCause}\n\n**Severity:** ${diagnosis.severity}\n\n**Explanation:** ${
           diagnosis.explanation
         }\n\nTry these fixes:\n${diagnosis.possibleFixes
-          ?.map((fix, i) => `${i + 1}. ${fix.fix} (Difficulty: ${fix.difficulty})`)
+          ?.map((fix: any, i: number) => `${i + 1}. ${fix.fix} (Difficulty: ${fix.difficulty})`)
           .join('\n')}`,
         timestamp: Date.now(),
         metadata: { diagnosisId: diagnosis.errorType },
@@ -298,7 +298,7 @@ export const AIAssistant: React.FC = () => {
 
     if (result.success && result.suggestions) {
       const operations: AssetRenameOperation[] = result.suggestions.map(
-        (suggestion, idx) => ({
+        (suggestion: any, idx: number) => ({
           oldName: `asset_${idx}`,
           newName: suggestion.name,
           type: 'texture',
