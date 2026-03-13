@@ -35,6 +35,14 @@ def _load_shap_e_text_models(device):
     xm = load_model('transmitter', device=device)
     model = load_model('text300M', device=device)
     diffusion = diffusion_from_config(load_config('diffusion'))
+    # Eval mode disables Dropout / BatchNorm training-time overhead.
+    xm.eval()
+    model.eval()
+    # Pre-convert to half precision on CUDA to halve GPU memory bandwidth and
+    # avoid per-step autocast conversion overhead.
+    if _torch.device(device).type == 'cuda':
+        xm.half()
+        model.half()
     _shap_e_text_models = {'xm': xm, 'model': model, 'diffusion': diffusion, 'device': device_str}
     print("Shap-E text models loaded and cached.")
     return _shap_e_text_models
@@ -59,6 +67,14 @@ def _load_shap_e_image_models(device):
     xm = load_model('transmitter', device=device)
     model = load_model('image300M', device=device)
     diffusion = diffusion_from_config(load_config('diffusion'))
+    # Eval mode disables Dropout / BatchNorm training-time overhead.
+    xm.eval()
+    model.eval()
+    # Pre-convert to half precision on CUDA to halve GPU memory bandwidth and
+    # avoid per-step autocast conversion overhead.
+    if _torch.device(device).type == 'cuda':
+        xm.half()
+        model.half()
     _shap_e_image_models = {'xm': xm, 'model': model, 'diffusion': diffusion, 'device': device_str}
     print("Shap-E image models loaded and cached.")
     return _shap_e_image_models
@@ -184,12 +200,15 @@ For more info: https://github.com/openai/shap-e
             model = cached['model']
             diffusion = cached['diffusion']
             
-            # Generate latents and decode — both inside no_grad + autocast for
-            # maximum GPU throughput (autocast enables FP16 mixed-precision on CUDA).
+            # Generate latents and decode — both inside inference_mode + autocast
+            # for maximum throughput.  inference_mode is a strict superset of
+            # no_grad: it also disables view tracking, giving a measurable
+            # speed boost over no_grad alone.  autocast enables FP16
+            # mixed-precision on CUDA; disabled on CPU where FP16 is slower.
             print(f"Generating with guidance_scale={guidance_scale}, steps={num_inference_steps}")
             batch_size = 1
-            use_autocast = device.type == 'cuda'
-            with torch.no_grad(), torch.cuda.amp.autocast(enabled=use_autocast):
+            use_fp16 = device.type == 'cuda'
+            with torch.inference_mode(), torch.amp.autocast(device.type, enabled=use_fp16):
                 latents = sample_latents(
                     batch_size=batch_size,
                     model=model,
@@ -198,7 +217,7 @@ For more info: https://github.com/openai/shap-e
                     model_kwargs=dict(texts=[prompt] * batch_size),
                     progress=True,
                     clip_denoised=True,
-                    use_fp16=True,
+                    use_fp16=use_fp16,
                     use_karras=True,
                     karras_steps=num_inference_steps,
                     sigma_min=1e-3,
@@ -206,7 +225,6 @@ For more info: https://github.com/openai/shap-e
                     s_churn=0,
                 )
 
-                # Decode to mesh inside no_grad to avoid unnecessary gradient tracking
                 print("Decoding latent to mesh...")
                 mesh = decode_latent_mesh(xm, latents[0]).tri_mesh()
             
@@ -265,12 +283,15 @@ For more info: https://github.com/openai/shap-e
             model = cached['model']
             diffusion = cached['diffusion']
             
-            # Generate latents and decode — both inside no_grad + autocast for
-            # maximum GPU throughput (autocast enables FP16 mixed-precision on CUDA).
+            # Generate latents and decode — both inside inference_mode + autocast
+            # for maximum throughput.  inference_mode is a strict superset of
+            # no_grad: it also disables view tracking, giving a measurable
+            # speed boost over no_grad alone.  autocast enables FP16
+            # mixed-precision on CUDA; disabled on CPU where FP16 is slower.
             print(f"Generating with guidance_scale={guidance_scale}, steps={num_inference_steps}")
             batch_size = 1
-            use_autocast = device.type == 'cuda'
-            with torch.no_grad(), torch.cuda.amp.autocast(enabled=use_autocast):
+            use_fp16 = device.type == 'cuda'
+            with torch.inference_mode(), torch.amp.autocast(device.type, enabled=use_fp16):
                 latents = sample_latents(
                     batch_size=batch_size,
                     model=model,
@@ -279,7 +300,7 @@ For more info: https://github.com/openai/shap-e
                     model_kwargs=dict(images=[image] * batch_size),
                     progress=True,
                     clip_denoised=True,
-                    use_fp16=True,
+                    use_fp16=use_fp16,
                     use_karras=True,
                     karras_steps=num_inference_steps,
                     sigma_min=1e-3,
@@ -287,7 +308,6 @@ For more info: https://github.com/openai/shap-e
                     s_churn=0,
                 )
 
-                # Decode to mesh inside no_grad to avoid unnecessary gradient tracking
                 print("Decoding latent to mesh...")
                 mesh = decode_latent_mesh(xm, latents[0]).tri_mesh()
             

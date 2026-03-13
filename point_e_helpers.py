@@ -47,6 +47,12 @@ def _load_point_e_text_models(device):
     base_model.load_state_dict(load_checkpoint(base_name, device))
     upsampler_model.load_state_dict(load_checkpoint('upsample', device))
 
+    # Pre-convert to half precision on CUDA to halve GPU memory bandwidth and
+    # avoid per-step autocast conversion overhead.
+    if _torch.device(device).type == 'cuda':
+        base_model.half()
+        upsampler_model.half()
+
     sampler = PointCloudSampler(
         device=device,
         models=[base_model, upsampler_model],
@@ -97,6 +103,12 @@ def _load_point_e_image_models(device):
 
     base_model.load_state_dict(load_checkpoint(base_name, device))
     upsampler_model.load_state_dict(load_checkpoint('upsample', device))
+
+    # Pre-convert to half precision on CUDA to halve GPU memory bandwidth and
+    # avoid per-step autocast conversion overhead.
+    if _torch.device(device).type == 'cuda':
+        base_model.half()
+        upsampler_model.half()
 
     sampler = PointCloudSampler(
         device=device,
@@ -245,11 +257,12 @@ For more info: https://github.com/openai/point-e
             cached = _load_point_e_text_models(device)
             sampler = cached['sampler']
             
-            # Generate — use autocast for FP16 mixed-precision on CUDA (~2x faster)
+            # Generate — use inference_mode (superset of no_grad; also disables
+            # view tracking) and autocast for FP16 mixed-precision on CUDA.
             print(f"Generating point cloud...")
             samples = None
             use_autocast = device.type == 'cuda'
-            with torch.no_grad(), torch.cuda.amp.autocast(enabled=use_autocast):
+            with torch.inference_mode(), torch.amp.autocast(device.type, enabled=use_autocast):
                 for x in sampler.sample_batch_progressive(
                     batch_size=num_samples,
                     model_kwargs=dict(texts=[prompt] * num_samples),
@@ -322,11 +335,12 @@ For more info: https://github.com/openai/point-e
             cached = _load_point_e_image_models(device)
             sampler = cached['sampler']
             
-            # Generate — use autocast for FP16 mixed-precision on CUDA (~2x faster)
+            # Generate — use inference_mode (superset of no_grad; also disables
+            # view tracking) and autocast for FP16 mixed-precision on CUDA.
             print(f"Generating point cloud...")
             samples = None
             use_autocast = device.type == 'cuda'
-            with torch.no_grad(), torch.cuda.amp.autocast(enabled=use_autocast):
+            with torch.inference_mode(), torch.amp.autocast(device.type, enabled=use_autocast):
                 for x in sampler.sample_batch_progressive(
                     batch_size=num_samples,
                     model_kwargs=dict(images=[image] * num_samples),
