@@ -5,17 +5,17 @@
  */
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { Tabs, Tab } from '../components/ui/Tabs';
-import { Button } from '../components/ui/Button';
-import { Input } from '../components/ui/Input';
-import { Card, CardHeader, CardTitle, CardContent } from '../components/ui/Card';
-import { Badge } from '../components/ui/Badge';
-import { Alert, AlertDescription } from '../components/ui/Alert';
-import { Progress } from '../components/ui/Progress';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/Select';
-import { Textarea } from '../components/ui/Textarea';
-import { ScrollArea } from '../components/ui/ScrollArea';
-import { Separator } from '../components/ui/Separator';
+import { Tabs, Tab } from './components/ui/tabs';
+import { Button } from './components/ui/button';
+import { Input } from './components/ui/Input';
+import { Card, CardHeader, CardTitle, CardContent } from './components/ui/card';
+import { Badge } from './components/ui/badge';
+import { Alert, AlertDescription } from './components/ui/alert';
+import { Progress } from './components/ui/progress';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './components/ui/Select';
+import { Textarea } from './components/ui/Textarea';
+import { ScrollArea } from './components/ui/ScrollArea';
+import { Separator } from './components/ui/Separator';
 import { api } from '../lib/api';
 import type {
   GameProcess,
@@ -487,9 +487,9 @@ const ConsoleCommanderTab: React.FC<ConsoleCommanderTabProps> = ({
             </Select>
             <Input
               value={commandInput}
-              onChange={(e) => setCommandInput(e.target.value)}
+              onChange={(e: any) => setCommandInput(e.target.value)}
               placeholder="Enter console command..."
-              onKeyPress={(e) => e.key === 'Enter' && onExecuteCommand(commandInput)}
+              onKeyPress={(e: any) => e.key === 'Enter' && onExecuteCommand(commandInput)}
               className="flex-1"
             />
             <Button
@@ -556,12 +556,12 @@ const ConsoleCommanderTab: React.FC<ConsoleCommanderTabProps> = ({
           <CardContent className="space-y-4">
             <Input
               value={macroName}
-              onChange={(e) => setMacroName(e.target.value)}
+              onChange={(e: any) => setMacroName(e.target.value)}
               placeholder="Macro name"
             />
             <Textarea
               value={macroCommands}
-              onChange={(e) => setMacroCommands(e.target.value)}
+              onChange={(e: any) => setMacroCommands(e.target.value)}
               placeholder="Commands (one per line)"
               rows={6}
             />
@@ -600,7 +600,7 @@ const SaveGameAnalyzerTab: React.FC<SaveGameAnalyzerTabProps> = ({
           <div className="flex gap-2">
             <Input
               value={savePath}
-              onChange={(e) => setSavePath(e.target.value)}
+              onChange={(e: any) => setSavePath(e.target.value)}
               placeholder="Path to save file (.ess)"
               className="flex-1"
             />
@@ -851,7 +851,7 @@ const QuickTestToolsTab: React.FC<QuickTestToolsTabProps> = ({
           <div className="flex gap-2">
             <Input
               value={teleportCell}
-              onChange={(e) => setTeleportCell(e.target.value)}
+              onChange={(e: any) => setTeleportCell(e.target.value)}
               placeholder="Cell name or coordinates"
               className="flex-1"
             />
@@ -870,12 +870,12 @@ const QuickTestToolsTab: React.FC<QuickTestToolsTabProps> = ({
           <div className="grid grid-cols-3 gap-2">
             <Input
               value={itemId}
-              onChange={(e) => setItemId(e.target.value)}
+              onChange={(e: any) => setItemId(e.target.value)}
               placeholder="Item ID"
             />
             <Input
               value={itemCount}
-              onChange={(e) => setItemCount(e.target.value)}
+              onChange={(e: any) => setItemCount(e.target.value)}
               placeholder="Count"
               type="number"
             />
@@ -894,7 +894,7 @@ const QuickTestToolsTab: React.FC<QuickTestToolsTabProps> = ({
           <div className="flex gap-2">
             <Input
               value={npcId}
-              onChange={(e) => setNpcId(e.target.value)}
+              onChange={(e: any) => setNpcId(e.target.value)}
               placeholder="NPC ID"
               className="flex-1"
             />
@@ -913,7 +913,7 @@ const QuickTestToolsTab: React.FC<QuickTestToolsTabProps> = ({
           <div className="flex gap-2">
             <Input
               value={timeScale}
-              onChange={(e) => setTimeScale(e.target.value)}
+              onChange={(e: any) => setTimeScale(e.target.value)}
               placeholder="Time scale (1.0 = normal)"
               className="flex-1"
             />
@@ -932,7 +932,7 @@ const QuickTestToolsTab: React.FC<QuickTestToolsTabProps> = ({
           <div className="flex gap-2">
             <Input
               value={weatherId}
-              onChange={(e) => setWeatherId(e.target.value)}
+              onChange={(e: any) => setWeatherId(e.target.value)}
               placeholder="Weather ID"
               className="flex-1"
             />

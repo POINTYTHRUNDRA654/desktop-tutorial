@@ -5,7 +5,7 @@
  */
 
 import React, { useState, useEffect } from 'react';
-import useNemotronConnection from '../../hooks/useNemotronConnection';
+import useNemotronConnection from '../hooks/useNemotronConnection';
 import './NemotronLoadingOverlay.css';
 
 interface NemotronLoadingOverlayProps {

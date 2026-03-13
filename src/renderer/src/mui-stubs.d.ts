@@ -56,6 +56,9 @@ declare module '@mui/material' {
   export const SpeedDial: any;
   export const SpeedDialAction: any;
   export const SpeedDialIcon: any;
+  export const ListItemButton: any;
+  export const ListItemSecondaryAction: any;
+  export const StepContent: any;
   export const createTheme: any;
   export const ThemeProvider: any;
   export const CssBaseline: any;
@@ -73,8 +76,64 @@ declare module '@mui/material/styles' {
 }
 
 declare module '@mui/icons-material' {
-  const icons: any;
-  export default icons;
+  export const Add: any;
+  export const Archive: any;
+  export const ArrowDownward: any;
+  export const ArrowUpward: any;
+  export const Article: any;
+  export const Assessment: any;
+  export const Autorenew: any;
+  export const Build: any;
+  export const CallSplit: any;
+  export const CheckCircle: any;
+  export const Close: any;
+  export const CloudDownload: any;
+  export const CloudUpload: any;
+  export const Code: any;
+  export const CommitSharp: any;
+  export const CompareArrows: any;
+  export const ContentCopy: any;
+  export const Delete: any;
+  export const DiffAdd: any;
+  export const Download: any;
+  export const DragIndicator: any;
+  export const Edit: any;
+  export const Error: any;
+  export const ExpandMore: any;
+  export const FilterList: any;
+  export const Folder: any;
+  export const FolderOpen: any;
+  export const FolderOpenOutlined: any;
+  export const GitHub: any;
+  export const History: any;
+  export const Image: any;
+  export const Info: any;
+  export const InsertDriveFile: any;
+  export const Menu: any;
+  export const Merge: any;
+  export const MergeSharp: any;
+  export const PlayArrow: any;
+  export const Refresh: any;
+  export const Save: any;
+  export const ScienceSharp: any;
+  export const Search: any;
+  export const Security: any;
+  export const Settings: any;
+  export const Speed: any;
+  export const Star: any;
+  export const Stop: any;
+  export const Storage: any;
+  export const Subject: any;
+  export const Tag: any;
+  export const Timeline: any;
+  export const Tune: any;
+  export const Upload: any;
+  export const Visibility: any;
+  export const VisibilityOff: any;
+  export const Warning: any;
+  export const AccountTree: any;
+  const defaultExport: any;
+  export default defaultExport;
 }
 
 declare module '@mui/icons-material/ExpandMore' { const C: any; export default C; }

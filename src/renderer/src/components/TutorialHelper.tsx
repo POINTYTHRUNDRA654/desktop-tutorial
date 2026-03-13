@@ -8,7 +8,7 @@
 import React, { useState, useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { HelpCircle, BookOpen, Lightbulb, ChevronDown, ChevronUp, MessageCircle } from 'lucide-react';
-import { getTutorialContext, getSuggestedQuestions, getCommonMistakes, generateTutorialPrompt } from './tutorialContext';
+import { getTutorialContext, getSuggestedQuestions, getCommonMistakes, generateTutorialPrompt } from '../tutorialContext';
 
 interface TutorialHelperProps {
   /** Optional: Override auto-detected page */
