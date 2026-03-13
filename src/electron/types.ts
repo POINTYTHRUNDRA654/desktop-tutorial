@@ -356,7 +356,7 @@ export interface ElectronAPI {
       }
     | { ok: false; error: string }
   >;
-  elevenLabsSynthesizeSpeech?: (args: {
+  elevenLabsSynthesizeSpeech: (args: {
     text: string;
     voiceId?: string;
   }) => Promise<
@@ -364,13 +364,13 @@ export interface ElectronAPI {
     | { ok: false; error: string }
   >;
 
-  getSecretStatus?: () => Promise<
+  getSecretStatus: () => Promise<
     | { ok: true; openai: boolean; groq: boolean; elevenlabs: boolean }
     | { ok: false; error: string }
   >;
 
-  transcribeAudio?: (arrayBuffer: ArrayBuffer, mimeType?: string) => Promise<{ success: boolean; text?: string; error?: string }>;
-  saveVoiceHistory?: (line: string) => Promise<{ success: boolean; error?: string }>;
+  transcribeAudio: (arrayBuffer: ArrayBuffer, mimeType?: string) => Promise<{ success: boolean; text?: string; error?: string }>;
+  saveVoiceHistory: (line: string) => Promise<{ success: boolean; error?: string }>;
   checkBlenderAddon: () => Promise<{ connected: boolean; error?: string }>;
   getSystemInfo: () => Promise<{
     os: string; 
@@ -473,42 +473,66 @@ export interface ElectronAPI {
     ok: boolean;
     results: Array<{ path: string; ok: boolean; error?: string }>;
   }>;
-  invoke?: (channel: string, ...args: any[]) => Promise<any>;
-  on?: (channel: string, callback: (...args: any[]) => void) => (() => void);
-  openDialog?: (options: any) => Promise<string | null>;
-  listProcesses?: () => Promise<any[]>;
-  gameLogMonitor?: (action: string, options?: any) => Promise<any>;
-  formIdRemapper?: (action: string, payload?: any) => Promise<any>;
-  modComparisonTool?: (action: string, payload?: any) => Promise<any>;
-  modConflictVisualizer?: (action: string, payload?: any) => Promise<any>;
-  projectTemplates?: (action: string, payload?: any) => Promise<any>;
-  voiceCommands?: (action: string, payload?: any) => Promise<any>;
-  xEditScriptExecutor?: (action: string, payload?: any) => Promise<any>;
-  fomodCreate?: (payload: any) => Promise<any>;
-  fomodPreview?: (payload: any) => Promise<any>;
-  fomodValidate?: (payload: any) => Promise<any>;
-  fomodExport?: (payload: any) => Promise<any>;
-  fomodSaveProject?: (payload: any) => Promise<any>;
-  modPackagingValidateStructure?: (payload: any) => Promise<any>;
-  modPackagingGenerateReadme?: (payload: any) => Promise<any>;
-  modPackagingCreateArchive?: (payload: any) => Promise<any>;
-  modPackagingPrepareNexus?: (payload: any) => Promise<any>;
-  modPackagingIncrementVersion?: (payload: any) => Promise<any>;
-  exportAnalyticsReport?: (payload: any) => Promise<any>;
-  getAppVersion?: () => Promise<string>;
-  aiGenerateScript?: (payload: any) => Promise<any>;
-  aiPlanWorkflow?: (payload: any) => Promise<any>;
-  aiDiagnoseError?: (payload: any) => Promise<any>;
-  aiExplain?: (payload: any) => Promise<any>;
-  aiSuggestNames?: (payload: any) => Promise<any>;
-  aiExecuteWorkflow?: (payload: any) => Promise<any>;
-  versionControlHistory?: (payload?: any) => Promise<any>;
-  versionControlListBackups?: (payload?: any) => Promise<any>;
-  versionControlShowChanges?: (payload?: any) => Promise<any>;
-  versionControlCommit?: (payload?: any) => Promise<any>;
-  versionControlRestore?: (payload?: any) => Promise<any>;
-  versionControlCreateBackup?: (payload?: any) => Promise<any>;
-  versionControlDeleteBackup?: (payload?: any) => Promise<any>;
+  invoke: (channel: string, ...args: any[]) => Promise<any>;
+  on: (channel: string, callback: (...args: any[]) => void) => (() => void);
+  openDialog: (options: any) => Promise<string | null>;
+  listProcesses: () => Promise<any[]>;
+  getProcessMetrics: () => Promise<any[]>;
+  gameLogMonitor: {
+    getLastLogPath: () => Promise<string | null>;
+    browseLogFile: () => Promise<string | null>;
+    saveLastLogPath: (path: string) => Promise<void>;
+    startMonitoring: (path: string) => Promise<void>;
+    stopMonitoring: () => Promise<void>;
+    onLogUpdate: (callback: (entry: any) => void) => void;
+    exportLogs: (entries: any[]) => Promise<void>;
+  };
+  formIdRemapper: {
+    scanConflicts: (path: string) => Promise<{ count: number; conflicts: any[] }>;
+    remapFormIds: (path: string) => Promise<{ success: boolean }>;
+  };
+  modComparisonTool: (action: string, payload?: any) => Promise<any>;
+  modConflictVisualizer: (action: string, payload?: any) => Promise<any>;
+  projectTemplates: (action: string, payload?: any) => Promise<any>;
+  voiceCommands: {
+    startListening: () => Promise<void>;
+    stopListening: () => Promise<void>;
+    onTranscript: (callback: (text: string) => void) => void;
+  };
+  xEditScriptExecutor: {
+    getXEditPath: () => Promise<string | null>;
+    getPluginList: () => Promise<string[]>;
+    browseXEdit: () => Promise<string | null>;
+    saveXEditPath: (path: string) => Promise<void>;
+    browsePlugin: () => Promise<string | null>;
+    onProgress: (callback: (data: { progress: number; text: string }) => void) => void;
+    executeScript: (xEditPath: string, plugin: string, scriptId: string) => Promise<{ success: boolean; output: string; errors: string[]; warnings: string[]; duration: number }>;
+  };
+  fomodCreate: (payload: any) => Promise<any>;
+  fomodPreview: (payload: any) => Promise<any>;
+  fomodValidate: (payload: any) => Promise<any>;
+  fomodExport: (payload: any) => Promise<any>;
+  fomodSaveProject: (payload: any) => Promise<any>;
+  modPackagingValidateStructure: (payload: any) => Promise<any>;
+  modPackagingGenerateReadme: (payload: any) => Promise<any>;
+  modPackagingCreateArchive: (payload: any) => Promise<any>;
+  modPackagingPrepareNexus: (payload: any) => Promise<any>;
+  modPackagingIncrementVersion: (payload: any) => Promise<any>;
+  exportAnalyticsReport: (payload: any) => Promise<any>;
+  getAppVersion: () => Promise<string>;
+  aiGenerateScript: (payload: any) => Promise<any>;
+  aiPlanWorkflow: (payload: any) => Promise<any>;
+  aiDiagnoseError: (payload: any) => Promise<any>;
+  aiExplain: (payload: any) => Promise<any>;
+  aiSuggestNames: (payload: any) => Promise<any>;
+  aiExecuteWorkflow: (payload: any) => Promise<any>;
+  versionControlHistory: (payload?: any) => Promise<any>;
+  versionControlListBackups: (payload?: any) => Promise<any>;
+  versionControlShowChanges: (payload?: any) => Promise<any>;
+  versionControlCommit: (payload?: any) => Promise<any>;
+  versionControlRestore: (payload?: any) => Promise<any>;
+  versionControlCreateBackup: (payload?: any) => Promise<any>;
+  versionControlDeleteBackup: (payload?: any) => Promise<any>;
 }
 
 export interface VoiceChatPayload {
