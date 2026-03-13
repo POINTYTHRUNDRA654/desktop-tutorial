@@ -595,7 +595,7 @@ class AdvancedMeshHelpers:
         sharp_edges = [
             e for e in bm.edges
             if not e.is_boundary
-            and e.calc_face_angle(fallback=0.0) > sharp_threshold
+            and e.calc_face_angle(0.0) > sharp_threshold
         ]
         sharp_ratio = len(sharp_edges) / max(total_edges, 1)
         seam_candidates = len(sharp_edges)
