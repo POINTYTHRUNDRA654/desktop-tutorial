@@ -102,7 +102,8 @@ def _pip_install(packages: list[str]) -> tuple[bool, str]:
     if not ok:
         return False, msg
 
-    cmd = [sys.executable, "-m", "pip", "install", "--quiet", "--upgrade"]
+    cmd = [sys.executable, "-m", "pip", "install", "--quiet", "--upgrade",
+           "--no-warn-script-location"]
 
     # Python 3.11+ / PEP 668: installing into a system-managed interpreter
     # fails without this flag.  It is silently ignored on older Pythons.
@@ -142,6 +143,7 @@ def _pip_install_with_index(packages: list[str], index_url: str) -> tuple[bool, 
     cmd = [
         sys.executable, "-m", "pip", "install",
         "--quiet", "--upgrade",
+        "--no-warn-script-location",
         "--index-url", index_url,
     ]
     if _python_version() >= (3, 11):
@@ -171,7 +173,8 @@ def _pip_install_requirements(req_file: Path) -> tuple[bool, str]:
     if not ok:
         return False, msg
 
-    cmd = [sys.executable, "-m", "pip", "install", "--quiet", "--upgrade", "-r", str(req_file)]
+    cmd = [sys.executable, "-m", "pip", "install", "--quiet", "--upgrade",
+           "--no-warn-script-location", "-r", str(req_file)]
     if _python_version() >= (3, 11):
         cmd.append("--break-system-packages")
 
