@@ -24,6 +24,14 @@ _point_e_text_models = None   # dict: {base_model, device}
 _point_e_image_models = None  # dict: {base_model, device}
 _point_e_upsampler = None     # dict: {model, device}  -- shared between text & image
 
+# Sampler caches — keyed by (device_str, grid_size, num_steps) so that users
+# can freely change quality settings without the per-call overhead of
+# re-building diffusion schedules and PointCloudSampler objects.
+# Caches are cleared whenever the underlying model weights are reloaded (e.g.
+# on a CPU↔GPU device switch) to keep model references valid.
+_point_e_text_sampler_cache = {}   # key: (device_str, grid_size, num_steps)
+_point_e_image_sampler_cache = {}  # key: (device_str, grid_size, num_steps)
+
 
 def _load_point_e_upsampler(device, torch_module):
     """Load (or return cached) the shared Point-E upsampler model.
@@ -45,10 +53,16 @@ def _load_point_e_upsampler(device, torch_module):
     upsampler_model.load_state_dict(load_checkpoint('upsample', device))
     if torch_module.device(device).type == 'cuda':
         upsampler_model.half()
+        # cudnn auto-tuner selects the fastest convolution kernel for fixed
+        # inference input sizes — one benchmark pass, then faster every time.
+        torch_module.backends.cudnn.benchmark = True
     if hasattr(torch_module, 'compile') and torch_module.device(device).type == 'cuda':
         print("Compiling Point-E upsampler with torch.compile() (one-time, ~15 s)…")
         upsampler_model = torch_module.compile(upsampler_model, mode="reduce-overhead")
     _point_e_upsampler = {'model': upsampler_model, 'device': device_str}
+    # Upsampler is shared by both pipelines — both sampler caches are now stale.
+    _point_e_text_sampler_cache.clear()
+    _point_e_image_sampler_cache.clear()
     print("Point-E upsampler loaded and cached.")
     return _point_e_upsampler
 
@@ -92,6 +106,8 @@ def _load_point_e_text_models(device):
         base_model = _torch.compile(base_model, mode="reduce-overhead")
 
     _point_e_text_models = {'base_model': base_model, 'device': device_str}
+    # Sampler objects hold references to model weights — stale after a reload.
+    _point_e_text_sampler_cache.clear()
     print("Point-E text base model loaded and cached.")
     return _point_e_text_models
 
@@ -135,6 +151,8 @@ def _load_point_e_image_models(device):
         base_model = _torch.compile(base_model, mode="reduce-overhead")
 
     _point_e_image_models = {'base_model': base_model, 'device': device_str}
+    # Sampler objects hold references to model weights — stale after a reload.
+    _point_e_image_sampler_cache.clear()
     print("Point-E image base model loaded and cached.")
     return _point_e_image_models
 
@@ -159,8 +177,79 @@ def _grid_size_to_num_points(grid_size):
     return [1024, upsample_pts]
 
 
+def _get_point_e_text_sampler(device, device_str, grid_size, num_steps):
+    """Return a cached PointCloudSampler for text-to-3D generation.
 
-class PointEHelpers:
+    The sampler wraps the already-cached model weights together with diffusion
+    configs built for the requested (grid_size, num_steps) pair.  Repeated
+    calls with the same arguments skip the diffusion-schedule rebuild and
+    PointCloudSampler construction, saving a few hundred milliseconds per
+    call on CPU and reducing Python overhead on GPU.
+    """
+    global _point_e_text_sampler_cache
+    key = (device_str, grid_size, num_steps)
+    if key in _point_e_text_sampler_cache:
+        return _point_e_text_sampler_cache[key]
+
+    from point_e.diffusion.configs import DIFFUSION_CONFIGS, diffusion_from_config
+    from point_e.diffusion.sampler import PointCloudSampler
+
+    base_name = 'base40M-textvec'
+    base_cfg = dict(DIFFUSION_CONFIGS[base_name])
+    base_cfg['timestep_respacing'] = str(num_steps)
+    base_diffusion = diffusion_from_config(base_cfg)
+
+    up_cfg = dict(DIFFUSION_CONFIGS['upsample'])
+    up_cfg['timestep_respacing'] = str(num_steps)
+    upsampler_diffusion = diffusion_from_config(up_cfg)
+
+    num_points = _grid_size_to_num_points(grid_size)
+    sampler = PointCloudSampler(
+        device=device,
+        models=[_point_e_text_models['base_model'], _point_e_upsampler['model']],
+        diffusions=[base_diffusion, upsampler_diffusion],
+        num_points=num_points,
+        aux_channels=['R', 'G', 'B'],
+        guidance_scale=[3.0, 0.0],
+        model_kwargs_key_filter=('texts', ''),
+    )
+    _point_e_text_sampler_cache[key] = sampler
+    return sampler
+
+
+def _get_point_e_image_sampler(device, device_str, grid_size, num_steps):
+    """Return a cached PointCloudSampler for image-to-3D generation.
+
+    See _get_point_e_text_sampler for caching rationale.
+    """
+    global _point_e_image_sampler_cache
+    key = (device_str, grid_size, num_steps)
+    if key in _point_e_image_sampler_cache:
+        return _point_e_image_sampler_cache[key]
+
+    from point_e.diffusion.configs import DIFFUSION_CONFIGS, diffusion_from_config
+    from point_e.diffusion.sampler import PointCloudSampler
+
+    base_name = 'base40M'
+    base_cfg = dict(DIFFUSION_CONFIGS[base_name])
+    base_cfg['timestep_respacing'] = str(num_steps)
+    base_diffusion = diffusion_from_config(base_cfg)
+
+    up_cfg = dict(DIFFUSION_CONFIGS['upsample'])
+    up_cfg['timestep_respacing'] = str(num_steps)
+    upsampler_diffusion = diffusion_from_config(up_cfg)
+
+    num_points = _grid_size_to_num_points(grid_size)
+    sampler = PointCloudSampler(
+        device=device,
+        models=[_point_e_image_models['base_model'], _point_e_upsampler['model']],
+        diffusions=[base_diffusion, upsampler_diffusion],
+        num_points=num_points,
+        aux_channels=['R', 'G', 'B'],
+        guidance_scale=[3.0, 0.0],
+    )
+    _point_e_image_sampler_cache[key] = sampler
+    return sampler
     """Helper functions for Point-E integration"""
 
     # Cache for is_point_e_installed() — avoids repeated torch/point_e import attempts
@@ -287,45 +376,22 @@ For more info: https://github.com/openai/point-e
 
             # Set device
             device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+            device_str = str(device)
             print(f"Using device: {device}")
 
             # Load model weights (cached after first call — avoids expensive reload
-            # each time).  Sampler and diffusions are created fresh below so that
-            # changes to grid_size and num_steps take effect without a cache miss.
-            cached = _load_point_e_text_models(device)
-            base_model = cached['base_model']
-            upsampler_model = _point_e_upsampler['model']
+            # each time).  The sampler and diffusion configs are also cached via
+            # _get_point_e_text_sampler so repeated calls with the same settings
+            # skip the diffusion-schedule rebuild entirely.
+            _load_point_e_text_models(device)
 
-            from point_e.diffusion.configs import DIFFUSION_CONFIGS, diffusion_from_config
-            from point_e.diffusion.sampler import PointCloudSampler
-
-            base_name = 'base40M-textvec'
-            # Pass a copy so diffusion_from_config's pop() calls do not mutate
-            # the shared DIFFUSION_CONFIGS entries.
-            base_cfg = dict(DIFFUSION_CONFIGS[base_name])
-            base_cfg['timestep_respacing'] = str(num_steps)
-            base_diffusion = diffusion_from_config(base_cfg)
-
-            up_cfg = dict(DIFFUSION_CONFIGS['upsample'])
-            up_cfg['timestep_respacing'] = str(num_steps)
-            upsampler_diffusion = diffusion_from_config(up_cfg)
-
-            # num_points derived from grid_size so the UI setting is honoured.
             num_points = _grid_size_to_num_points(grid_size)
             print(
                 f"Generating point cloud (grid_size={grid_size}, "
                 f"num_points={num_points}, num_steps={num_steps})…"
             )
 
-            sampler = PointCloudSampler(
-                device=device,
-                models=[base_model, upsampler_model],
-                diffusions=[base_diffusion, upsampler_diffusion],
-                num_points=num_points,
-                aux_channels=['R', 'G', 'B'],
-                guidance_scale=[3.0, 0.0],
-                model_kwargs_key_filter=('texts', ''),
-            )
+            sampler = _get_point_e_text_sampler(device, device_str, grid_size, num_steps)
 
             # Generate — use inference_mode (superset of no_grad; also disables
             # view tracking) and autocast for FP16 mixed-precision on CUDA.
@@ -356,7 +422,7 @@ For more info: https://github.com/openai/point-e
 
         except FileNotFoundError as e:
             if "WinError 206" in str(e) or "filename or extension is too long" in str(e):
-                return False, "Windows path length error. Enable long paths in Windows or reinstall PyTorch in a shorter path (see Point-E installation check for details)."
+                return False, "Windows path length error. Enable long paths in Windows or reinstall PyTorch in a shorter path (see Point-E installation check for details.)"
             return False, f"File error: {str(e)}"
         except ImportError as e:
             return False, f"Point-E not installed: {str(e)}"
@@ -400,47 +466,25 @@ For more info: https://github.com/openai/point-e
 
             # Set device
             device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+            device_str = str(device)
             print(f"Using device: {device}")
 
             # Load image
             image = Image.open(image_path)
 
             # Load model weights (cached after first call — avoids expensive reload
-            # each time).  Sampler and diffusions are created fresh below so that
-            # changes to grid_size and num_steps take effect without a cache miss.
-            cached = _load_point_e_image_models(device)
-            base_model = cached['base_model']
-            upsampler_model = _point_e_upsampler['model']
+            # each time).  The sampler and diffusion configs are also cached via
+            # _get_point_e_image_sampler so repeated calls with the same settings
+            # skip the diffusion-schedule rebuild entirely.
+            _load_point_e_image_models(device)
 
-            from point_e.diffusion.configs import DIFFUSION_CONFIGS, diffusion_from_config
-            from point_e.diffusion.sampler import PointCloudSampler
-
-            base_name = 'base40M'
-            # Pass a copy so diffusion_from_config's pop() calls do not mutate
-            # the shared DIFFUSION_CONFIGS entries.
-            base_cfg = dict(DIFFUSION_CONFIGS[base_name])
-            base_cfg['timestep_respacing'] = str(num_steps)
-            base_diffusion = diffusion_from_config(base_cfg)
-
-            up_cfg = dict(DIFFUSION_CONFIGS['upsample'])
-            up_cfg['timestep_respacing'] = str(num_steps)
-            upsampler_diffusion = diffusion_from_config(up_cfg)
-
-            # num_points derived from grid_size so the UI setting is honoured.
             num_points = _grid_size_to_num_points(grid_size)
             print(
                 f"Generating point cloud (grid_size={grid_size}, "
                 f"num_points={num_points}, num_steps={num_steps})…"
             )
 
-            sampler = PointCloudSampler(
-                device=device,
-                models=[base_model, upsampler_model],
-                diffusions=[base_diffusion, upsampler_diffusion],
-                num_points=num_points,
-                aux_channels=['R', 'G', 'B'],
-                guidance_scale=[3.0, 0.0],
-            )
+            sampler = _get_point_e_image_sampler(device, device_str, grid_size, num_steps)
 
             # Generate — use inference_mode (superset of no_grad; also disables
             # view tracking) and autocast for FP16 mixed-precision on CUDA.
@@ -471,7 +515,7 @@ For more info: https://github.com/openai/point-e
 
         except FileNotFoundError as e:
             if "WinError 206" in str(e) or "filename or extension is too long" in str(e):
-                return False, "Windows path length error. Enable long paths in Windows or reinstall PyTorch in a shorter path (see Point-E installation check for details)."
+                return False, "Windows path length error. Enable long paths in Windows or reinstall PyTorch in a shorter path (see Point-E installation check for details.)"
             return False, f"File error: {str(e)}"
         except ImportError as e:
             return False, f"Point-E not installed: {str(e)}"
@@ -519,42 +563,48 @@ For more info: https://github.com/openai/point-e
     def _create_point_cloud_mesh(coords, colors, name):
         """Create a simple point cloud visualization in Blender"""
         try:
+            import numpy as np
+
             # Create mesh with vertices only (no faces)
             mesh = bpy.data.meshes.new(name)
             obj = bpy.data.objects.new(name, mesh)
-            
+
             # Link to scene
             bpy.context.collection.objects.link(obj)
-            
-            # Add vertices
-            mesh.from_pydata(coords.tolist(), [], [])
+
+            # Use foreach_set to transfer coordinates as a flat float32 buffer —
+            # much faster than building a Python list via .tolist() for large
+            # point clouds (thousands of points).
+            n_verts = len(coords)
+            mesh.vertices.add(n_verts)
+            flat_coords = np.asarray(coords, dtype='f').ravel()
+            mesh.vertices.foreach_set("co", flat_coords)
             mesh.update()
-            
+
             # Apply scale for FO4
             obj.scale = (0.1, 0.1, 0.1)
-            
+
             # Add vertex colors if available
             # Blender 3.2+ uses color_attributes; vertex_colors removed in 5.0
             if colors is not None:
+                rgba = np.ones((len(colors), 4), dtype='f')
+                rgba[:, :3] = np.asarray(colors, dtype='f')
                 if hasattr(mesh, 'color_attributes'):
                     color_attr = mesh.color_attributes.new(
                         name='Col', type='BYTE_COLOR', domain='POINT'
                     )
-                    for i, color in enumerate(colors):
-                        color_attr.data[i].color = [color[0], color[1], color[2], 1.0]
+                    color_attr.data.foreach_set("color", rgba.ravel())
                 else:
                     color_layer = mesh.vertex_colors.new()
-                    for i, color in enumerate(colors):
-                        # Point-E colors are typically in [0, 1] range
-                        color_layer.data[i].color = [color[0], color[1], color[2], 1.0]
-            
+                    color_layer.data.foreach_set("color", rgba.ravel())
+
             # Select the new object
             bpy.context.view_layer.objects.active = obj
             obj.select_set(True)
-            
-            print(f"Created point cloud: {name} with {len(coords)} points")
+
+            print(f"Created point cloud: {name} with {n_verts} points")
             return obj
-            
+
         except Exception as e:
             print(f"Failed to create point cloud mesh: {str(e)}")
             return None
@@ -616,7 +666,7 @@ def register():
             ('128', "128 (High)", "High resolution (recommended)"),
             ('256', "256 (Ultra)", "Very high resolution, slow"),
         ],
-        default='128'
+        default='64'
     )
     
     bpy.types.Scene.fo4_point_e_reconstruction_method = EnumProperty(
@@ -641,10 +691,10 @@ def register():
         name="Inference Steps",
         description=(
             "Number of diffusion timesteps per generation stage (fewer = faster). "
-            "Point-E's full schedule is 1024 steps; 64 gives ~16× speedup with "
+            "Point-E's full schedule is 1024 steps; 32 gives ~32× speedup with "
             "acceptable quality for game asset prototyping"
         ),
-        default=64,
+        default=32,
         min=16,
         max=1024,
     )

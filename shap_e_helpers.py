@@ -39,6 +39,10 @@ def _load_shap_e_transmitter(device, torch_module):
     xm.eval()
     if torch_module.device(device).type == 'cuda':
         xm.half()
+        # cudnn auto-tuner picks the fastest convolution algorithm for the
+        # fixed input sizes used during inference — one-time benchmark cost,
+        # then faster on every subsequent forward pass.
+        torch_module.backends.cudnn.benchmark = True
     if hasattr(torch_module, 'compile') and torch_module.device(device).type == 'cuda':
         print("Compiling Shap-E transmitter with torch.compile() (one-time, ~15 s)…")
         xm = torch_module.compile(xm, mode="reduce-overhead")
@@ -457,7 +461,7 @@ def register():
     bpy.types.Scene.fo4_shap_e_inference_steps = IntProperty(
         name="Inference Steps",
         description="Number of generation steps (higher = better quality, slower)",
-        default=32,
+        default=16,
         min=16,
         max=256
     )
