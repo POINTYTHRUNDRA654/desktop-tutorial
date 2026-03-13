@@ -27,6 +27,48 @@ All changes in this PR live on this branch. The branch name reflects its origin 
 
 ## Done ✅  (DO NOT redo, revert, or override these)
 
+### 20. Web search + Pause/Resume UX fix ✅
+
+**Problems addressed:**
+1. Mossy said she "cannot" search the Internet even though tools were defined in MossyBrain.ts.
+2. After clicking the stop/pause button, users could not start communicating with Mossy again
+   without restarting the app because the button label showed current state ("Mossy: OFF") rather
+   than the action to take ("Resume Mossy"), so users did not know to click it again.
+
+**Fix A — Web search (4 files):**
+- `src/electron/main.ts`: Added `web-search` and `browse-web` IPC handlers.
+  - `web-search` queries the **Fallout 4 Fandom MediaWiki API** for FO4-related terms, or the
+    **DuckDuckGo Instant Answer API** for everything else. No API key required for either.
+  - `browse-web` fetches any HTTPS URL via Node HTTPS, strips HTML, returns plain text (max 6,000 chars).
+  - Both follow redirects (max 2 hops), enforce HTTPS-only, cap body size, and time out at 12 s.
+- `src/main/preload.ts`: Exposed `webSearch(query, type?)` and `browseWeb(url)` via `contextBridge`.
+- `src/renderer/src/MossyTools.ts`:
+  - `search_fallout4_wiki` now calls `api.webSearch(query, 'wiki')` and returns the content as
+    a formatted message. Falls back to opening the browser only if the IPC call fails.
+  - `browse_web` is now implemented: calls `api.browseWeb(url)`, returns fetched text or an
+    HTTPS-only error. Falls back to `openExternal` if the IPC method is unavailable.
+- `src/renderer/src/LocalAIEngine.ts`: Added automatic web-search injection. When the user's query
+  contains web-search trigger keywords (search, browse, look up, latest, wiki, nexus, etc.),
+  Mossy proactively calls `webSearch` before the AI generates a response and injects the result
+  into the system context under `### LIVE WEB SEARCH RESULTS`.
+
+**Fix B — Pause/Resume UX (1 file: `src/renderer/src/ChatInterface.tsx`):**
+- Toolbar button text changed from showing current state (`"Mossy: ON"` / `"Mossy: OFF"`) to
+  showing the **action** (`"Pause Mossy"` / `"Resume Mossy"`). Icons and hover colours inverted
+  to match: active state uses the neutral gray style; paused state uses the green/emerald style
+  so "Resume Mossy" looks like a positive call-to-action.
+- Updated `title` attribute: paused → `"Click to resume — Mossy will start responding again"`.
+- Header badge updated: now reads `"Paused — click 'Resume Mossy' to continue"`.
+- Chat input `disabled` when `isConversationPaused`; placeholder text changes to
+  `"Mossy is paused — click Resume Mossy to continue"`.
+- Send button `disabled` now includes `isConversationPaused` so it is visually grayed-out.
+- Yellow banner added inside the input row when paused with explicit resume instructions.
+
+**Do not touch:** The `isConversationPaused` state initialization (`false`), the
+`toggleConversationPause` logic, or the mount-time localStorage cleanup.
+
+---
+
 ### 18. Fix: Mossy never responds after first message (persisted pause bug) ✅
 
 **Problem:** `isConversationPaused` state was initialised by reading `localStorage.getItem('mossy_conversation_paused')` on every app launch. If that key was ever set to `'true'` (e.g. the user once clicked the Pause/OFF button), Mossy would silently refuse to respond on every subsequent launch — `handleSend` returns immediately when `isConversationPaused` is `true`.

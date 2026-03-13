@@ -6271,6 +6271,145 @@ function setupIpcHandlers() {
     }
   });
 
+  // ---------------------------------------------------------------------------
+  // Web Search — lets Mossy actually fetch information from the internet.
+  // Renderer cannot make arbitrary cross-origin requests, so the main process
+  // does the HTTPS fetch and returns plain text to the renderer/AI context.
+  // ---------------------------------------------------------------------------
+
+  /**
+   * Shared HTTPS GET helper used by web-search and browse-web handlers.
+   * Follows a single redirect and caps the response body at maxBytes.
+   */
+  const httpsGetText = (url: string, maxBytes = 30000): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const doGet = (target: string, hops: number) => {
+        if (hops > 2) { reject(new Error('Too many redirects')); return; }
+        const req = https.get(target, { timeout: 12000 }, (res) => {
+          const loc = res.headers.location;
+          if (res.statusCode && res.statusCode >= 300 && res.statusCode < 400 && typeof loc === 'string') {
+            const next = loc.startsWith('/') ? new URL(loc, target).href : loc;
+            if (!/^https:\/\//i.test(next)) { reject(new Error('Redirect to non-HTTPS URL blocked')); return; }
+            doGet(next, hops + 1);
+            return;
+          }
+          let body = '';
+          res.on('data', (chunk: Buffer) => {
+            body += chunk.toString();
+            if (body.length > maxBytes) { req.destroy(); resolve(body.slice(0, maxBytes)); }
+          });
+          res.on('end', () => resolve(body));
+        });
+        req.on('error', reject);
+        req.on('timeout', () => { req.destroy(); reject(new Error('Request timed out')); });
+      };
+      doGet(url, 0);
+    });
+  };
+
+  /** Strip HTML tags and collapse whitespace for clean text extraction.
+   * The result is plain text used only as AI context — it is never rendered
+   * as HTML so there is no injection risk.  We use a two-pass approach:
+   * first remove entire inline-script / inline-style blocks (content between
+   * the element's opening and closing markers), then strip all remaining tags
+   * by deleting everything between '<' and '>'. */
+  const stripHtml = (html: string): string => {
+    // Pass 1 — remove <script … </script> and <style … </style> blocks.
+    // The closing-tag pattern allows any whitespace between the tag name and '>'.
+    // eslint-disable-next-line no-control-regex
+    let text = html.replace(/<script\b[\s\S]*?<\/script[^>]*>/gi, ' ');
+    // eslint-disable-next-line no-control-regex
+    text = text.replace(/<style\b[\s\S]*?<\/style[^>]*>/gi, ' ');
+    // Pass 2 — strip all remaining tags (anything from '<' to matching '>').
+    text = text.replace(/<[^>]*>/g, ' ');
+    // Collapse whitespace
+    text = text.replace(/\s{2,}/g, ' ');
+    return text.trim();
+  };
+
+  /**
+   * web-search — Query DuckDuckGo Instant Answer API or the Fallout 4 Fandom
+   * wiki depending on the query topic. Returns plain-text results so they can
+   * be injected directly into Mossy's AI context.
+   */
+  registerHandler('web-search', async (_event, query: string, type?: string) => {
+    try {
+      if (!query || typeof query !== 'string') {
+        return { success: false, error: 'Invalid query' };
+      }
+      const sanitized = query.trim().slice(0, 300);
+
+      // Decide whether to hit the Fallout 4 wiki or DuckDuckGo
+      const fo4Terms = /fallout\s*4|fallout4|fo4|papyrus|bethesda|creation\s*kit|creation\s*engine|vault|wasteland|commonwealth|nexus\s*mod|xedit|nifskope|bodyslide/i;
+      const useWiki = type === 'wiki' || fo4Terms.test(sanitized);
+
+      if (useWiki) {
+        // ---- Fallout 4 Fandom MediaWiki search ----
+        const wikiSearchUrl = `https://fallout.fandom.com/api.php?action=query&list=search&srsearch=${encodeURIComponent(sanitized)}&format=json&srlimit=3&srwhat=text`;
+        const raw = await httpsGetText(wikiSearchUrl, 20000);
+        const json = JSON.parse(raw);
+        const results: Array<{ title: string; snippet: string }> = json?.query?.search || [];
+        if (results.length === 0) {
+          return { success: true, text: 'No Fallout 4 Wiki results found.', source: 'Fallout 4 Wiki' };
+        }
+        const text = results
+          .map((r) => `**${r.title}**: ${stripHtml(r.snippet || '')}`)
+          .join('\n\n');
+        return {
+          success: true,
+          text,
+          source: 'Fallout 4 Wiki',
+          heading: results[0]?.title || '',
+          url: `https://fallout.fandom.com/wiki/${encodeURIComponent((results[0]?.title || '').replace(/ /g, '_'))}`,
+        };
+      }
+
+      // ---- DuckDuckGo Instant Answer API (no API key required) ----
+      const ddgUrl = `https://api.duckduckgo.com/?q=${encodeURIComponent(sanitized)}&format=json&no_html=1&skip_disambig=1`;
+      const raw = await httpsGetText(ddgUrl, 20000);
+      const json = JSON.parse(raw);
+      let text = '';
+      if (json.AbstractText) text += json.AbstractText + '\n\n';
+      else if (json.Abstract) text += json.Abstract + '\n\n';
+      const topics: string[] = (json.RelatedTopics || [])
+        .slice(0, 4)
+        .map((t: any) => (typeof t.Text === 'string' ? t.Text : (Array.isArray(t.Topics) ? t.Topics[0]?.Text : '')) || '')
+        .filter(Boolean);
+      if (topics.length) text += 'Related: ' + topics.join(' | ');
+      return {
+        success: true,
+        text: text.trim() || 'No instant answer found. Try searching with more specific Fallout 4 terms.',
+        source: json.AbstractSource || 'DuckDuckGo',
+        heading: json.Heading || '',
+        url: json.AbstractURL || '',
+      };
+    } catch (error: any) {
+      console.error('[Web Search] Error:', error);
+      return { success: false, error: error.message || 'Web search failed' };
+    }
+  });
+
+  /**
+   * browse-web — Fetch raw text content from an HTTPS URL.
+   * Used by the browse_web tool so Mossy can read a specific page.
+   */
+  registerHandler('browse-web', async (_event, url: string) => {
+    try {
+      if (!url || typeof url !== 'string') {
+        return { success: false, error: 'Invalid URL' };
+      }
+      if (!/^https:\/\//i.test(url)) {
+        return { success: false, error: 'Only HTTPS URLs are supported' };
+      }
+      const raw = await httpsGetText(url, 50000);
+      const text = stripHtml(raw).slice(0, 6000);
+      return { success: true, text, url };
+    } catch (error: any) {
+      console.error('[Browse Web] Error:', error);
+      return { success: false, error: error.message || 'Failed to fetch URL' };
+    }
+  });
+
   // Mark handlers as registered
   (global as any).__ipcHandlersRegistered = true;
   console.log('[Main] IPC handlers registration complete');

@@ -1883,7 +1883,7 @@ export const ChatInterface: React.FC = () => {
                     {isConversationPaused && (
                         <div className="hidden md:flex items-center gap-1.5 px-3 py-1 rounded-full border text-xs animate-fade-in bg-yellow-900/20 border-yellow-500/30 text-yellow-300">
                             <PauseCircle className="w-3 h-3" />
-                            Mossy: OFF
+                            Paused — click &quot;Resume Mossy&quot; to continue
                         </div>
                     )}
 
@@ -1942,13 +1942,13 @@ export const ChatInterface: React.FC = () => {
                     <button
                         onClick={toggleConversationPause}
                         className={`flex items-center gap-2 px-3 py-1.5 rounded-lg border text-xs font-bold transition-all ${isConversationPaused
-                            ? 'bg-slate-800 border-slate-700 text-slate-300 hover:text-white'
-                            : 'bg-emerald-900/20 border-emerald-500/40 text-emerald-300'
+                            ? 'bg-emerald-900/20 border-emerald-500/40 text-emerald-300 hover:bg-emerald-900/40'
+                            : 'bg-slate-800 border-slate-700 text-slate-300 hover:text-white hover:border-slate-500'
                             }`}
-                        title={isConversationPaused ? 'Turn Mossy back on' : 'Turn Mossy off (she will stop responding)'}
+                        title={isConversationPaused ? 'Click to resume — Mossy will start responding again' : 'Click to pause — Mossy will stop responding until you resume'}
                     >
-                        {isConversationPaused ? <BotOff className="w-4 h-4" /> : <Bot className="w-4 h-4" />}
-                        <span className="hidden sm:inline">{isConversationPaused ? 'Mossy: OFF' : 'Mossy: ON'}</span>
+                        {isConversationPaused ? <Bot className="w-4 h-4" /> : <BotOff className="w-4 h-4" />}
+                        <span className="hidden sm:inline">{isConversationPaused ? 'Resume Mossy' : 'Pause Mossy'}</span>
                     </button>
 
                     {isLiveActive ? (
@@ -2182,8 +2182,48 @@ export const ChatInterface: React.FC = () => {
                                         </div>
                                     )}
 
-                                    <input type="text" data-testid="chat-input" className="flex-1 bg-slate-900 border border-slate-700 rounded-xl px-4 py-2 focus:outline-none focus:border-emerald-500 transition-colors text-slate-100 placeholder-slate-500" placeholder="Message Mossy..." value={inputText} onChange={(e) => setInputText(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && handleSend()} />
-                                    <button data-testid="send-button" onClick={() => handleSend()} disabled={isLoading || isStreaming || (!inputText && !selectedFile)} className="p-3 bg-emerald-600 text-white rounded-xl hover:bg-emerald-500 disabled:opacity-50 disabled:cursor-not-allowed font-medium transition-colors shadow-lg shadow-emerald-900/20"><Send className="w-5 h-5" /></button>
+                                    {isConversationPaused && (
+                                        <div
+                                            role="alert"
+                                            aria-live="polite"
+                                            className="flex items-center gap-2 px-4 py-2 bg-yellow-900/20 border border-yellow-500/30 rounded-xl text-xs text-yellow-300 w-full"
+                                        >
+                                            <PauseCircle className="w-4 h-4 flex-shrink-0" />
+                                            <span>Mossy is paused. Click <strong>Resume Mossy</strong> in the toolbar above to start chatting again.</span>
+                                        </div>
+                                    )}
+
+                                    {(() => {
+                                        const inputClass = [
+                                            'flex-1 bg-slate-900 border border-slate-700 rounded-xl px-4 py-2',
+                                            'focus:outline-none focus:border-emerald-500 transition-colors',
+                                            'text-slate-100 placeholder-slate-500',
+                                            isConversationPaused ? 'opacity-40 cursor-not-allowed' : '',
+                                        ].join(' ');
+                                        const inputPlaceholder = isConversationPaused
+                                            ? 'Mossy is paused — click Resume Mossy to continue'
+                                            : 'Message Mossy...';
+                                        return (
+                                            <input
+                                                type="text"
+                                                data-testid="chat-input"
+                                                className={inputClass}
+                                                placeholder={inputPlaceholder}
+                                                value={inputText}
+                                                onChange={(e) => setInputText(e.target.value)}
+                                                onKeyDown={(e) => e.key === 'Enter' && handleSend()}
+                                                disabled={isConversationPaused}
+                                            />
+                                        );
+                                    })()}
+                                    <button
+                                        data-testid="send-button"
+                                        onClick={() => handleSend()}
+                                        disabled={isLoading || isStreaming || (!inputText && !selectedFile) || isConversationPaused}
+                                        className="p-3 bg-emerald-600 text-white rounded-xl hover:bg-emerald-500 disabled:opacity-50 disabled:cursor-not-allowed font-medium transition-colors shadow-lg shadow-emerald-900/20"
+                                    >
+                                        <Send className="w-5 h-5" />
+                                    </button>
                                 </div>
                             </>
                         )}
