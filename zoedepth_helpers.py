@@ -21,11 +21,17 @@ import bpy
 import os
 import sys
 import tempfile
+import time
 from pathlib import Path
 
 # Check if ZoeDepth is available
 ZOEDEPTH_AVAILABLE = False
 ZOEDEPTH_ERROR = None
+
+# Cache for check_zoedepth_availability() — avoids repeated filesystem hits on every UI redraw
+_availability_cache = None
+_availability_cache_time = 0.0
+_CACHE_TTL = 5.0  # seconds
 
 try:
     # Try to import the necessary dependencies
@@ -42,10 +48,26 @@ except Exception:
 def check_zoedepth_availability():
     """
     Check if ZoeDepth is installed and available.
+
+    Results are cached for _CACHE_TTL seconds so that repeated calls from
+    Blender's UI draw() loop do not hammer the filesystem on every redraw.
     
     Returns:
         tuple: (available: bool, message: str)
     """
+    global _availability_cache, _availability_cache_time
+    now = time.monotonic()
+    if _availability_cache is not None and (now - _availability_cache_time) < _CACHE_TTL:
+        return _availability_cache
+
+    result = _check_zoedepth_availability_uncached()
+    _availability_cache = result
+    _availability_cache_time = now
+    return result
+
+
+def _check_zoedepth_availability_uncached():
+    """Perform the actual (uncached) ZoeDepth availability check."""
     if not TORCH_AVAILABLE:
         return False, "PyTorch not installed. Install with: pip install torch torchvision"
     

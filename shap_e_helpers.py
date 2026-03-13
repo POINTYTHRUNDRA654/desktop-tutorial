@@ -4,14 +4,33 @@ Text-to-3D and Image-to-3D generation using OpenAI's Shap-E
 """
 
 import bpy
+import time
 from bpy.props import StringProperty, EnumProperty, IntProperty, FloatProperty, BoolProperty
 
 class ShapEHelpers:
     """Helper functions for Shap-E integration"""
 
+    # Cache for is_shap_e_installed() — avoids repeated torch/shap_e import attempts
+    # on every Blender UI redraw.
+    _cache = None
+    _cache_time = 0.0
+    _CACHE_TTL = 5.0  # seconds
+
     @staticmethod
     def is_shap_e_installed():
-        """Check if Shap-E is installed"""
+        """Check if Shap-E is installed (result cached for 5 s)."""
+        now = time.monotonic()
+        if (ShapEHelpers._cache is not None and
+                (now - ShapEHelpers._cache_time) < ShapEHelpers._CACHE_TTL):
+            return ShapEHelpers._cache
+        result = ShapEHelpers._is_shap_e_installed_uncached()
+        ShapEHelpers._cache = result
+        ShapEHelpers._cache_time = now
+        return result
+
+    @staticmethod
+    def _is_shap_e_installed_uncached():
+        """Perform the actual (uncached) Shap-E installation check."""
         try:
             # Try to use TorchPathManager if available
             try:

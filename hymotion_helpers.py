@@ -17,6 +17,7 @@ import os
 import platform
 import sys
 import subprocess
+import time
 from pathlib import Path
 
 # Check if HY-Motion-1.0 is available
@@ -121,13 +122,37 @@ def check_git_lfs():
         return False, f"Error checking git-lfs: {str(e)}"
 
 
+# Cache for check_hymotion_availability() — avoids subprocess.run (git lfs version)
+# and filesystem hits on every Blender UI redraw.
+_hymotion_availability_cache = None
+_hymotion_availability_cache_time = 0.0
+_CACHE_TTL = 5.0  # seconds
+
+
 def check_hymotion_availability():
     """
     Check if HY-Motion-1.0 is installed and available.
+
+    Results are cached for _CACHE_TTL seconds so that repeated calls from
+    Blender's UI draw() loop do not trigger a subprocess (git lfs version)
+    on every redraw.
     
     Returns:
         tuple: (available: bool, message: str)
     """
+    global _hymotion_availability_cache, _hymotion_availability_cache_time
+    now = time.monotonic()
+    if (_hymotion_availability_cache is not None and
+            (now - _hymotion_availability_cache_time) < _CACHE_TTL):
+        return _hymotion_availability_cache
+    result = _check_hymotion_availability_uncached()
+    _hymotion_availability_cache = result
+    _hymotion_availability_cache_time = now
+    return result
+
+
+def _check_hymotion_availability_uncached():
+    """Perform the actual (uncached) HY-Motion availability check."""
     if not TORCH_AVAILABLE:
         return False, "PyTorch not installed. Install with: pip install torch"
     

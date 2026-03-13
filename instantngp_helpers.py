@@ -7,14 +7,33 @@ import bpy
 import os
 import subprocess
 import shutil
+import time
 from pathlib import Path
 
 class InstantNGPHelpers:
     """Helper functions for Instant-NGP integration"""
-    
+
+    # Cache for is_instantngp_available() — avoids shutil.which + filesystem hits
+    # on every Blender UI redraw.
+    _cache = None
+    _cache_time = 0.0
+    _CACHE_TTL = 5.0  # seconds
+
     @staticmethod
     def is_instantngp_available():
-        """Check if Instant-NGP is available"""
+        """Check if Instant-NGP is available (result cached for 5 s)."""
+        now = time.monotonic()
+        if (InstantNGPHelpers._cache is not None and
+                (now - InstantNGPHelpers._cache_time) < InstantNGPHelpers._CACHE_TTL):
+            return InstantNGPHelpers._cache
+        result = InstantNGPHelpers._is_instantngp_available_uncached()
+        InstantNGPHelpers._cache = result
+        InstantNGPHelpers._cache_time = now
+        return result
+
+    @staticmethod
+    def _is_instantngp_available_uncached():
+        """Perform the actual (uncached) Instant-NGP availability check."""
         # Check if instant-ngp executable is in PATH
         if shutil.which('instant-ngp'):
             return True

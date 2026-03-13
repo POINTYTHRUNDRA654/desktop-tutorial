@@ -7,16 +7,35 @@ import bpy
 import os
 import subprocess
 import shutil
+import time
 from pathlib import Path
 
 class ImageTo3DHelpers:
     """Helper functions for various image-to-3D solutions"""
+
+    # Cache for is_triposr_available() — avoids repeated torch import / filesystem
+    # hits on every Blender UI redraw.
+    _triposr_cache = None
+    _triposr_cache_time = 0.0
+    _CACHE_TTL = 5.0  # seconds
     
     # ==================== TripoSR ====================
     
     @staticmethod
     def is_triposr_available():
-        """Check if TripoSR is available"""
+        """Check if TripoSR is available (result cached for 5 s)."""
+        now = time.monotonic()
+        if (ImageTo3DHelpers._triposr_cache is not None and
+                (now - ImageTo3DHelpers._triposr_cache_time) < ImageTo3DHelpers._CACHE_TTL):
+            return ImageTo3DHelpers._triposr_cache
+        result = ImageTo3DHelpers._is_triposr_available_uncached()
+        ImageTo3DHelpers._triposr_cache = result
+        ImageTo3DHelpers._triposr_cache_time = now
+        return result
+
+    @staticmethod
+    def _is_triposr_available_uncached():
+        """Perform the actual (uncached) TripoSR availability check."""
         try:
             import torch
             # Check for TripoSR installation
