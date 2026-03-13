@@ -1287,7 +1287,9 @@ class FO4_PT_ToolsLinks(Panel):
             box.label(text=f"Path: {ue_importer_helpers.importer_path()}", icon='FILE_FOLDER')
         else:
             box.label(text="Status unavailable", icon='ERROR')
-        box.operator("fo4.check_ue_importer", text="Check/Install UE Importer", icon='FILE_REFRESH')
+        row = box.row(align=True)
+        row.operator("fo4.install_ue_importer", text="Auto-Install UE Importer", icon='IMPORT')
+        row.operator("fo4.check_ue_importer", text="", icon='FILE_REFRESH')
 
         box = layout.box()
         box.label(text="UModel Tools", icon='IMPORT')
@@ -1298,7 +1300,9 @@ class FO4_PT_ToolsLinks(Panel):
             box.label(text=f"Path: {umodel_tools_helpers.addon_path()}", icon='FILE_FOLDER')
         else:
             box.label(text="Status unavailable", icon='ERROR')
-        box.operator("fo4.check_umodel_tools", text="Check/Install UModel Tools", icon='FILE_REFRESH')
+        row = box.row(align=True)
+        row.operator("fo4.install_umodel_tools", text="Auto-Install UModel Tools", icon='IMPORT')
+        row.operator("fo4.check_umodel_tools", text="", icon='FILE_REFRESH')
 
         # Automated installers for external utilities
         box = layout.box()
@@ -3036,7 +3040,7 @@ class FO4_PT_AddonIntegrationPanel(Panel):
             # Status indicator
             if addon['is_enabled']:
                 status_icon = 'CHECKMARK'
-                status_text = "Enabled"
+                status_text = "Enabled ✓"
             elif addon['is_installed']:
                 status_icon = 'DOT'
                 status_text = "Installed (not enabled)"
@@ -3055,9 +3059,74 @@ class FO4_PT_AddonIntegrationPanel(Panel):
             use_box.label(text="FO4 Use:", icon='INFO')
             use_box.label(text=addon['fo4_use_cases'])
             
-            # Download link if not installed
-            if not addon['is_installed']:
-                addon_box.label(text=f"Get it: {addon.get('download_url', 'Search online')}")
+            # ── Action buttons ──────────────────────────────────────────────
+            addon_id    = addon['addon_id']
+            is_builtin  = addon.get('builtin', False)
+            dl_url      = addon.get('download_url', '')
+
+            if addon['is_enabled']:
+                # Already active — nothing to do
+                pass
+
+            elif addon['is_installed']:
+                # On disk but not yet active → one-click enable is safe
+                op = addon_box.operator(
+                    "fo4.enable_addon",
+                    text="Enable Now",
+                    icon='CHECKMARK',
+                )
+                op.addon_id = addon_id
+
+            else:
+                # Not installed / not found on disk
+                if is_builtin:
+                    # These ship with every Blender but may be disabled or renamed
+                    # in some builds.  Guide the user to Preferences rather than
+                    # trying to call addon_enable on a module that isn't on disk.
+                    addon_box.label(
+                        text="Built-in — enable via Edit > Preferences > Add-ons",
+                        icon='INFO',
+                    )
+                    op = addon_box.operator(
+                        "fo4.enable_addon",
+                        text="Try Enable",
+                        icon='CHECKMARK',
+                    )
+                    op.addon_id = addon_id
+
+                elif addon_id == 'io_scene_niftools':
+                    # Dedicated installer already exists
+                    addon_box.operator(
+                        "fo4.install_niftools",
+                        text="Auto-Install Niftools",
+                        icon='IMPORT',
+                    )
+                    op = addon_box.operator(
+                        "wm.url_open",
+                        text="Open GitHub Releases",
+                        icon='URL',
+                    )
+                    op.url = dl_url
+
+                elif dl_url.startswith('http'):
+                    op = addon_box.operator(
+                        "wm.url_open",
+                        text="Open Download Page",
+                        icon='URL',
+                    )
+                    op.url = dl_url
+
+                else:
+                    op = addon_box.operator(
+                        "wm.url_open",
+                        text=f"Search for '{addon['name']}' online",
+                        icon='URL',
+                    )
+                    op.url = (
+                        "https://github.com/search?q="
+                        + addon['name'].replace(' ', '+')
+                        + "+blender+addon"
+                    )
         
         # Integration tutorials
         integrations_box = layout.box()

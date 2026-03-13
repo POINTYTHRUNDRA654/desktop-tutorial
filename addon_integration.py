@@ -6,6 +6,7 @@ Allows loading tutorials and integrations for other Blender add-ons
 import bpy
 import json
 import os
+import time
 from pathlib import Path
 from bpy.props import StringProperty, BoolProperty, CollectionProperty
 from bpy.types import PropertyGroup
@@ -63,7 +64,13 @@ class ThirdPartyAddon(PropertyGroup):
 
 class AddonIntegrationSystem:
     """System for integrating with third-party add-ons"""
-    
+
+    # Cache for scan_for_known_addons() — filesystem scans on every Blender
+    # redraw (mouse moves, etc.) cause noticeable UI lag when the panel is open.
+    _scan_cache = None
+    _scan_cache_time: float = 0.0
+    _SCAN_CACHE_TTL: float = 5.0  # seconds
+
     @staticmethod
     def get_integrations_path():
         """Get path to third-party integrations directory"""
@@ -172,58 +179,78 @@ class AddonIntegrationSystem:
     
     @staticmethod
     def scan_for_known_addons():
-        """Scan for known useful add-ons for FO4 modding"""
+        """Scan for known useful add-ons for FO4 modding (result cached for 5 s)."""
+        now = time.monotonic()
+        if (AddonIntegrationSystem._scan_cache is not None and
+                (now - AddonIntegrationSystem._scan_cache_time)
+                < AddonIntegrationSystem._SCAN_CACHE_TTL):
+            return AddonIntegrationSystem._scan_cache
+        result = AddonIntegrationSystem._scan_for_known_addons_uncached()
+        AddonIntegrationSystem._scan_cache = result
+        AddonIntegrationSystem._scan_cache_time = now
+        return result
+
+    @staticmethod
+    def _scan_for_known_addons_uncached():
+        """Perform the actual (uncached) add-on scan."""
         known_addons = {
             'io_scene_niftools': {
                 'name': 'Blender NIF Plugin',
                 'description': 'Import/export NIF files (Fallout 4 format)',
                 'fo4_use_cases': 'Direct export to NIF format, read vanilla FO4 assets',
-                'download_url': 'https://github.com/niftools/blender_niftools_addon'
+                'download_url': 'https://github.com/niftools/blender_niftools_addon/releases',
+                'builtin': False,
             },
             'object_print3d_utils': {
                 'name': '3D Print Toolbox',
                 'description': 'Check mesh for errors',
                 'fo4_use_cases': 'Validate meshes for errors before export',
-                'download_url': 'Built-in to Blender'
+                'download_url': 'Built-in to Blender',
+                'builtin': True,
             },
             'uv_texture_tools': {
                 'name': 'UV Texture Tools',
                 'description': 'Advanced UV mapping tools',
                 'fo4_use_cases': 'Better UV unwrapping for textures',
-                'download_url': 'Various on Blender Market/GitHub'
+                'download_url': 'https://github.com/search?q=uv+texture+tools+blender+addon',
+                'builtin': False,
             },
             'mesh_f2': {
                 'name': 'F2',
                 'description': 'Quick face creation',
                 'fo4_use_cases': 'Speed up modeling workflow',
-                'download_url': 'Built-in to Blender'
+                'download_url': 'Built-in to Blender',
+                'builtin': True,
             },
             'mesh_looptools': {
                 'name': 'Loop Tools',
                 'description': 'Mesh editing tools',
                 'fo4_use_cases': 'Clean topology for better optimization',
-                'download_url': 'Built-in to Blender'
+                'download_url': 'Built-in to Blender',
+                'builtin': True,
             },
             'rigify': {
                 'name': 'Rigify',
                 'description': 'Advanced rigging system',
                 'fo4_use_cases': 'Create complex character rigs for NPCs',
-                'download_url': 'Built-in to Blender'
+                'download_url': 'Built-in to Blender',
+                'builtin': True,
             },
             'boneweight_copy': {
                 'name': 'Bone Weight Copy',
                 'description': 'Transfer weights between meshes',
                 'fo4_use_cases': 'Transfer weights from vanilla FO4 assets to custom armor',
-                'download_url': 'Various on Blender Market'
-            }
+                'download_url': 'https://github.com/search?q=bone+weight+copy+blender+addon',
+                'builtin': False,
+            },
         }
-        
+
         detected = []
-        
+
         for addon_id, info in known_addons.items():
             is_installed = AddonIntegrationSystem.check_addon_installed(addon_id)
             is_enabled = AddonIntegrationSystem.check_addon_enabled(addon_id)
-            
+
             detected.append({
                 'addon_id': addon_id,
                 'name': info['name'],
@@ -231,9 +258,10 @@ class AddonIntegrationSystem:
                 'is_installed': is_installed,
                 'is_enabled': is_enabled,
                 'fo4_use_cases': info['fo4_use_cases'],
-                'download_url': info.get('download_url', '')
+                'download_url': info.get('download_url', ''),
+                'builtin': info.get('builtin', False),
             })
-        
+
         return detected
     
     @staticmethod

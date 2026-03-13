@@ -106,10 +106,10 @@ def status():
     if _state["status"] == "loaded":
         return True, "UE importer loaded"
     if _state["status"] == "missing":
-        return False, "UE importer repo missing; clone to tools/Blender-UE4-Importer"
+        return False, "UE importer not installed — click Auto-Install to download automatically"
     if _state["status"] == "error":
         return False, f"UE importer error: {_state['error']}"
-    return False, "UE importer not initialized"
+    return False, "UE importer not initialized — click Auto-Install"
 
 
 def importer_path() -> str:

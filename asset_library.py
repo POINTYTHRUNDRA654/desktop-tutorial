@@ -234,7 +234,16 @@ class FO4_OT_SetAssetLibPath(Operator):
     use_filter_folder: BoolProperty(default=True)
 
     def execute(self, context):
-        path = (self.filepath or self.directory).rstrip("/\\")
+        # For directory slots always use self.directory (the folder the user
+        # navigated into when they clicked Accept), regardless of whether they
+        # also clicked a file inside it.  This lets users point the slot at an
+        # entire folder — e.g. their whole "Meshes" tree — so that every asset
+        # inside (including sub-folders) is found by the recursive scan.
+        if self.slot in ('meshes', 'textures', 'materials'):
+            path = self.directory.rstrip("/\\")
+        else:
+            path = (self.filepath or self.directory).rstrip("/\\")
+
         if not path:
             self.report({'ERROR'}, "No path selected")
             return {'CANCELLED'}
@@ -255,6 +264,10 @@ class FO4_OT_SetAssetLibPath(Operator):
         return {'FINISHED'}
 
     def invoke(self, context, event):
+        # For directory-type slots, show only folders in the file browser so
+        # the intent ("pick a whole folder") is visually unambiguous.
+        if self.slot in ('meshes', 'textures', 'materials'):
+            self.filter_glob = "*"
         context.window_manager.fileselect_add(self)
         return {'RUNNING_MODAL'}
 

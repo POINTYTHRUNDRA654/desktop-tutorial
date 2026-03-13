@@ -87,10 +87,13 @@ def status():
     addon_zip = tool_dir / "umodel_tools" / "__init__.py"
 
     if tool_dir.exists() and addon_zip.exists():
-        return True, f"UModel Tools downloaded at {tool_dir}. Install manually in Blender."
+        return True, (
+            f"UModel Tools downloaded to {tool_dir}. "
+            "Install as a Blender addon via Edit > Preferences > Add-ons > Install."
+        )
     if tool_dir.exists():
-        return False, f"UModel Tools at {tool_dir} appears incomplete"
-    return False, f"UModel Tools not installed (will download to {tool_dir})"
+        return False, f"UModel Tools at {tool_dir} appears incomplete — try Auto-Install again"
+    return False, f"UModel Tools not installed — click Auto-Install to download automatically"
 
 
 def addon_path() -> str:

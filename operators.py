@@ -2296,6 +2296,37 @@ class FO4_OT_CheckUEImporter(Operator):
         return {'FINISHED'}
 
 
+class FO4_OT_InstallUEImporter(Operator):
+    """Auto-download and register the Blender-UE4-Importer add-on."""
+    bl_idname = "fo4.install_ue_importer"
+    bl_label = "Auto-Install UE Importer"
+    bl_options = {'REGISTER'}
+
+    def execute(self, context):
+        import threading
+
+        def _run():
+            print("\n" + "=" * 60)
+            print("INSTALLING UE IMPORTER")
+            print("=" * 60)
+            try:
+                ok, msg = ue_importer_helpers.download_latest()
+                print(msg)
+                if ok:
+                    ue_importer_helpers.register()
+                    _, msg = ue_importer_helpers.status()
+            except Exception as exc:
+                ok, msg = False, f"UE Importer install error: {exc}"
+                print(msg)
+            print("=" * 60 + "\n")
+            level = 'INFO' if ok else 'ERROR'
+            notification_system.FO4_NotificationSystem.notify(msg, level)
+
+        threading.Thread(target=_run, daemon=True).start()
+        self.report({'INFO'}, "Installing UE Importer in background — check console")
+        return {'FINISHED'}
+
+
 class FO4_OT_CheckUModelTools(Operator):
     """Check and (if missing) download/register UModel Tools add-on."""
     bl_idname = "fo4.check_umodel_tools"
@@ -2337,6 +2368,61 @@ class FO4_OT_CheckUModelTools(Operator):
         print("UMODEL TOOLS STATUS")
         print(status_text)
         print(f"Path: {umodel_tools_helpers.addon_path()}")
+        return {'FINISHED'}
+
+
+class FO4_OT_InstallUModelTools(Operator):
+    """Auto-download UModel Tools and install its Python dependencies."""
+    bl_idname = "fo4.install_umodel_tools"
+    bl_label = "Auto-Install UModel Tools"
+    bl_options = {'REGISTER'}
+
+    def execute(self, context):
+        import threading
+        from . import tool_installers
+
+        def _run():
+            print("\n" + "=" * 60)
+            print("INSTALLING UMODEL TOOLS")
+            print("=" * 60)
+            try:
+                # 1. Download the repo
+                ok, msg = umodel_tools_helpers.download_latest()
+                print(msg)
+                if not ok:
+                    print("=" * 60 + "\n")
+                    notification_system.FO4_NotificationSystem.notify(msg, 'ERROR')
+                    return
+
+                # 2. Install Python dependencies (ordered_set, tqdm, lark)
+                deps_ok, deps_msg = tool_installers._pip_install(
+                    ["ordered_set", "tqdm", "lark"]
+                )
+                print(deps_msg)
+
+                # 3. Also install from requirements.txt if present
+                req = umodel_tools_helpers.get_tool_dir() / "requirements.txt"
+                req_ok = True
+                if req.exists():
+                    req_ok, req_msg = tool_installers._pip_install_requirements(req)
+                    print(req_msg)
+
+                all_deps_ok = deps_ok and req_ok
+                final_msg = (
+                    f"{msg} — Python deps installed. "
+                    "Now install UModel Tools as a Blender addon via "
+                    "Edit > Preferences > Add-ons > Install."
+                ) if all_deps_ok else (
+                    f"{msg} — Warning: some Python deps failed to install: {deps_msg}"
+                )
+            except Exception as exc:
+                final_msg = f"UModel Tools install error: {exc}"
+                print(final_msg)
+            print("=" * 60 + "\n")
+            notification_system.FO4_NotificationSystem.notify(final_msg, 'INFO')
+
+        threading.Thread(target=_run, daemon=True).start()
+        self.report({'INFO'}, "Installing UModel Tools in background — check console")
         return {'FINISHED'}
 
 
@@ -2830,6 +2916,41 @@ class FO4_OT_InstallNiftools(Operator):
 
         threading.Thread(target=_run, daemon=True).start()
         self.report({'INFO'}, "Niftools installation started in the background. Check the console for progress.")
+        return {'FINISHED'}
+
+
+class FO4_OT_EnableAddon(Operator):
+    """Enable a Blender add-on that is already installed (e.g. a built-in)."""
+    bl_idname = "fo4.enable_addon"
+    bl_label = "Enable Add-on"
+    bl_description = "Enable this add-on in Blender Preferences"
+    bl_options = {'REGISTER', 'INTERNAL'}
+
+    addon_id: bpy.props.StringProperty(
+        name="Add-on Module",
+        description="The Python module name of the add-on to enable",
+        default="",
+        options={'SKIP_SAVE'},
+    )
+
+    def execute(self, context):
+        if not self.addon_id:
+            self.report({'ERROR'}, "No add-on ID specified")
+            return {'CANCELLED'}
+        try:
+            result = bpy.ops.preferences.addon_enable(module=self.addon_id)
+            if 'FINISHED' in result:
+                self.report({'INFO'}, f"Enabled: {self.addon_id}")
+                # Invalidate the scan cache so the panel status updates immediately
+                from . import addon_integration
+                addon_integration.AddonIntegrationSystem._scan_cache = None
+                notification_system.FO4_NotificationSystem.notify(
+                    f"Add-on '{self.addon_id}' enabled ✓", 'INFO'
+                )
+            else:
+                self.report({'WARNING'}, f"Could not enable '{self.addon_id}' — it may not be installed")
+        except Exception as exc:
+            self.report({'ERROR'}, f"Could not enable '{self.addon_id}': {exc}")
         return {'FINISHED'}
 
 
@@ -3544,6 +3665,14 @@ class FO4_OT_InstallShapE(Operator):
             ok, msg = tool_installers.install_shap_e()
             print(msg)
             print("=" * 60 + "\n")
+            if ok:
+                # Invalidate the cached "not installed" result so the UI
+                # reflects the successful install on the next redraw.
+                try:
+                    from . import shap_e_helpers
+                    shap_e_helpers.ShapEHelpers.clear_cache()
+                except Exception:
+                    pass
             level = 'INFO' if ok else 'ERROR'
             notification_system.FO4_NotificationSystem.notify(msg, level)
 
@@ -3569,6 +3698,12 @@ class FO4_OT_InstallPointE(Operator):
             ok, msg = tool_installers.install_point_e()
             print(msg)
             print("=" * 60 + "\n")
+            if ok:
+                try:
+                    from . import point_e_helpers
+                    point_e_helpers.PointEHelpers.clear_cache()
+                except Exception:
+                    pass
             level = 'INFO' if ok else 'ERROR'
             notification_system.FO4_NotificationSystem.notify(msg, level)
 
@@ -3669,6 +3804,12 @@ class FO4_OT_InstallHunyuan3D(Operator):
             ok, msg = tool_installers.install_hunyuan3d()
             print(msg)
             print("=" * 60 + "\n")
+            if ok:
+                try:
+                    from . import hunyuan3d_helpers
+                    hunyuan3d_helpers.clear_availability_cache()
+                except Exception:
+                    pass
             level = 'INFO' if ok else 'ERROR'
             notification_system.FO4_NotificationSystem.notify(msg, level)
 
@@ -11364,7 +11505,9 @@ classes = (
     FO4_OT_AdvisorQuickFix,
     FO4_OT_CheckKBTools,
     FO4_OT_CheckUEImporter,
+    FO4_OT_InstallUEImporter,
     FO4_OT_CheckUModelTools,
+    FO4_OT_InstallUModelTools,
     FO4_OT_CheckUModel,
     FO4_OT_CheckUnityFBXImporter,
     FO4_OT_CheckAssetStudio,
@@ -11376,6 +11519,7 @@ classes = (
     FO4_OT_InstallHavok2FBX,
     FO4_OT_ExportAnimationHavok2FBX,
     FO4_OT_InstallNiftools,
+    FO4_OT_EnableAddon,
     FO4_OT_ConfigureFallout4Settings,
     FO4_OT_InstallPythonDeps,
     FO4_OT_CheckToolPaths,

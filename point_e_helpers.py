@@ -262,6 +262,12 @@ class PointEHelpers:
     _CACHE_TTL = 5.0  # seconds
     
     @staticmethod
+    def clear_cache():
+        """Force the next availability check to re-scan (call after install completes)."""
+        PointEHelpers._cache = None
+        PointEHelpers._cache_time = 0.0
+
+    @staticmethod
     def is_point_e_installed():
         """Check if Point-E is installed (result cached for 5 s)."""
         now = time.monotonic()
