@@ -32,7 +32,7 @@ class StyleGAN2Helpers:
                     return True
             
             return False
-        except ImportError:
+        except (ImportError, OSError):
             return False
     
     @staticmethod
@@ -64,7 +64,7 @@ class StyleGAN2Helpers:
             import torch
             has_torch = True
             cuda_available = torch.cuda.is_available()
-        except ImportError:
+        except (ImportError, OSError):
             has_torch = False
             cuda_available = False
         
@@ -128,7 +128,7 @@ class StyleGAN2Helpers:
 
         try:
             import torch  # noqa: F401 – presence check
-        except ImportError:
+        except (ImportError, OSError):
             return False, "PyTorch not installed", []
 
         # Create output directory

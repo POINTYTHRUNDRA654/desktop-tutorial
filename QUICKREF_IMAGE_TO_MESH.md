@@ -73,7 +73,7 @@ Note: Adjust version numbers to match your Blender installation.
 → Reduce "Subdivisions" or use smaller image
 
 **"Unsupported format"**
-→ Use PNG, JPG, BMP, TIFF, or TGA
+→ Use PNG, JPG, BMP, TIFF, TGA, or EXR
 
 ## Workflow Example
 
@@ -112,6 +112,7 @@ bpy.ops.fo4.export_mesh(filepath="/path/to/output.nif")
 ✓ BMP - Uncompressed format
 ✓ TIFF/TIF - Professional format
 ✓ TGA - Game development standard
+✓ EXR - HDR/linear-light format (loaded via Blender's native importer)
 
 ## More Help
 

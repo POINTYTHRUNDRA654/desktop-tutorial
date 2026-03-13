@@ -4,8 +4,6 @@ Uses free resources: PIL/Pillow for image processing and NumPy for data manipula
 """
 
 import bpy
-import bmesh
-from mathutils import Vector
 import os
 
 def load_image_as_heightmap(filepath):
@@ -19,36 +17,60 @@ def load_image_as_heightmap(filepath):
         tuple: (success, data/error_message, width, height)
     """
     try:
-        # Try importing PIL
-        try:
-            from PIL import Image
-        except ImportError:
-            return False, "PIL/Pillow not installed. Install with: pip install Pillow", 0, 0
-        
         # Try importing numpy
         try:
             import numpy as np
         except ImportError:
             return False, "NumPy not installed. Install with: pip install numpy", 0, 0
-        
+
         # Check if file exists
         if not os.path.exists(filepath):
             return False, f"File not found: {filepath}", 0, 0
-        
+
+        ext = os.path.splitext(filepath)[1].lower()
+
+        # EXR is not supported by PIL — use Blender's native image loader instead
+        if ext == '.exr':
+            try:
+                img = bpy.data.images.load(filepath)
+                width, height = img.size
+                # pixels is a flat [R, G, B, A, ...] array stored bottom-to-top
+                pixels = np.array(img.pixels[:], dtype=np.float32).reshape(height, width, 4)
+                bpy.data.images.remove(img)
+                # Convert to luminance (grayscale)
+                img_array = (0.2126 * pixels[:, :, 0] +
+                             0.7152 * pixels[:, :, 1] +
+                             0.0722 * pixels[:, :, 2])
+                # EXR can contain negative values; clamp before normalising
+                img_array = np.maximum(img_array, 0.0)
+                # Normalize to 0-1
+                max_val = img_array.max()
+                if max_val > 0:
+                    img_array = img_array / max_val
+                return True, img_array, width, height
+            except Exception as e:
+                return False, f"Error loading EXR image: {str(e)}", 0, 0
+
+        # For all other formats use PIL
+        try:
+            from PIL import Image
+        except ImportError:
+            return False, "PIL/Pillow not installed. Install with: pip install Pillow", 0, 0
+
         # Load image
         img = Image.open(filepath)
-        
+
         # Convert to grayscale for height map
         img_gray = img.convert('L')
-        
+
         # Get dimensions
         width, height = img_gray.size
-        
+
         # Convert to numpy array and normalize to 0-1 range
         img_array = np.array(img_gray, dtype=np.float32) / 255.0
-        
+
         return True, img_array, width, height
-        
+
     except Exception as e:
         return False, f"Error loading image: {str(e)}", 0, 0
 
@@ -85,79 +107,59 @@ def create_mesh_from_heightmap(name, heightmap_data, width, height,
         else:
             subdivs_x = subdivisions
             subdivs_y = subdivisions
-        
-        # Sample the height map data
-        sample_x = np.linspace(0, width - 1, subdivs_x, dtype=int)
-        sample_y = np.linspace(0, height - 1, subdivs_y, dtype=int)
-        
+
+        # Sample the heightmap at the target resolution (numpy indexing, no loops)
+        x_indices = np.linspace(0, width - 1, subdivs_x, dtype=int)
+        y_indices = np.linspace(0, height - 1, subdivs_y, dtype=int)
+        sampled = heightmap_data[np.ix_(y_indices, x_indices)]  # (subdivs_y, subdivs_x)
+
+        # Build all vertex positions with numpy (no Python loops)
+        x_coords = np.linspace(-mesh_width / 2, mesh_width / 2, subdivs_x, dtype=np.float32)
+        y_coords = np.linspace(-mesh_height / 2, mesh_height / 2, subdivs_y, dtype=np.float32)
+        xx, yy = np.meshgrid(x_coords, y_coords)       # each (subdivs_y, subdivs_x)
+        zz = (sampled * displacement_strength).astype(np.float32)
+        verts = np.stack([xx.ravel(), yy.ravel(), zz.ravel()], axis=1)  # (N, 3)
+
+        # Build quad face indices with numpy (no Python loops)
+        row = np.arange(subdivs_y - 1, dtype=np.int32)
+        col = np.arange(subdivs_x - 1, dtype=np.int32)
+        rr, cc = np.meshgrid(row, col, indexing='ij')   # (subdivs_y-1, subdivs_x-1)
+        v0 = (rr * subdivs_x + cc).ravel()
+        faces = np.stack([v0, v0 + 1, v0 + subdivs_x + 1, v0 + subdivs_x], axis=1)  # (F, 4)
+
         # Create mesh and object
         mesh = bpy.data.meshes.new(name=f"{name}_mesh")
         obj = bpy.data.objects.new(name, mesh)
-        
-        # Link to scene
         bpy.context.collection.objects.link(obj)
         bpy.context.view_layer.objects.active = obj
         obj.select_set(True)
-        
-        # Create bmesh
-        bm = bmesh.new()
-        
-        # Create vertices
-        verts = []
-        for y_idx, y in enumerate(sample_y):
-            for x_idx, x in enumerate(sample_x):
-                # Calculate position
-                x_pos = (x_idx / (subdivs_x - 1)) * mesh_width - (mesh_width / 2)
-                y_pos = (y_idx / (subdivs_y - 1)) * mesh_height - (mesh_height / 2)
-                
-                # Get height value
-                z_pos = heightmap_data[y, x] * displacement_strength
-                
-                # Create vertex
-                vert = bm.verts.new((x_pos, y_pos, z_pos))
-                verts.append(vert)
-        
-        bm.verts.ensure_lookup_table()
-        
-        # Create faces
-        for y in range(subdivs_y - 1):
-            for x in range(subdivs_x - 1):
-                # Get vertex indices
-                v1 = y * subdivs_x + x
-                v2 = y * subdivs_x + (x + 1)
-                v3 = (y + 1) * subdivs_x + (x + 1)
-                v4 = (y + 1) * subdivs_x + x
-                
-                # Create face
-                bm.faces.new([verts[v1], verts[v2], verts[v3], verts[v4]])
-        
-        # Update mesh
-        bm.to_mesh(mesh)
-        bm.free()
-        
-        # Create UV map
+
+        # from_pydata is far faster than bmesh for static geometry
+        mesh.from_pydata(verts.tolist(), [], faces.tolist())
+        mesh.update()
+
+        # Create UV map and write all UVs in one batch (foreach_set avoids per-loop Python)
         mesh.uv_layers.new(name="UVMap")
-        
-        # Generate UV coordinates
         uv_layer = mesh.uv_layers[0]
-        for face in mesh.polygons:
-            for vert_idx, loop_idx in zip(face.vertices, face.loop_indices):
-                # Calculate UV based on vertex position
-                x = vert_idx % subdivs_x
-                y = vert_idx // subdivs_x
-                u = x / (subdivs_x - 1)
-                v = y / (subdivs_y - 1)
-                uv_layer.data[loop_idx].uv = (u, v)
-        
-        # Recalculate normals
-        bpy.ops.object.mode_set(mode='EDIT')
-        bpy.ops.mesh.select_all(action='SELECT')
-        bpy.ops.mesh.normals_make_consistent(inside=False)
-        bpy.ops.object.mode_set(mode='OBJECT')
-        
-        # Apply scale
-        bpy.ops.object.transform_apply(location=False, rotation=False, scale=True)
-        
+
+        col_f = cc.ravel().astype(np.float32)
+        row_f = rr.ravel().astype(np.float32)
+        u0 = col_f / (subdivs_x - 1)
+        v0_uv = row_f / (subdivs_y - 1)
+        u1 = (col_f + 1) / (subdivs_x - 1)
+        v1_uv = (row_f + 1) / (subdivs_y - 1)
+
+        # Loops per face: [v0, v1, v2, v3] = bottom-left, bottom-right, top-right, top-left
+        uvs = np.empty((len(faces) * 4, 2), dtype=np.float32)
+        uvs[0::4] = np.stack([u0,  v0_uv], axis=1)
+        uvs[1::4] = np.stack([u1,  v0_uv], axis=1)
+        uvs[2::4] = np.stack([u1,  v1_uv], axis=1)
+        uvs[3::4] = np.stack([u0,  v1_uv], axis=1)
+        uv_layer.data.foreach_set("uv", uvs.ravel())
+
+        # Recalculate normals without switching modes (avoids slow bpy.ops round-trips)
+        mesh.calc_normals()
+
         return True, obj
         
     except Exception as e:
@@ -238,7 +240,7 @@ class ImageToMeshHelpers:
     @staticmethod
     def validate_image_file(filepath):
         """Validate if the file is a supported image format"""
-        supported_formats = {'.png', '.jpg', '.jpeg', '.bmp', '.tiff', '.tif', '.tga'}
+        supported_formats = {'.png', '.jpg', '.jpeg', '.bmp', '.tiff', '.tif', '.tga', '.exr'}
         ext = os.path.splitext(filepath)[1].lower()
         return ext in supported_formats
     

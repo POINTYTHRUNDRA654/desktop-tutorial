@@ -1067,7 +1067,12 @@ class FO4_OT_ImageToMesh(Operator):
     bl_options = {'REGISTER', 'UNDO'}
     
     filepath: StringProperty(subtype='FILE_PATH')
-    
+
+    filter_glob: StringProperty(
+        default="*.png;*.jpg;*.jpeg;*.bmp;*.tiff;*.tif;*.tga;*.exr",
+        options={'HIDDEN'}
+    )
+
     mesh_width: bpy.props.FloatProperty(
         name="Mesh Width",
         description="Physical width of the mesh",
@@ -1103,7 +1108,7 @@ class FO4_OT_ImageToMesh(Operator):
     def execute(self, context):
         # Validate file
         if not image_to_mesh_helpers.ImageToMeshHelpers.validate_image_file(self.filepath):
-            self.report({'ERROR'}, "Unsupported image format. Use PNG, JPG, BMP, TIFF, or TGA")
+            self.report({'ERROR'}, "Unsupported image format. Use PNG, JPG, BMP, TIFF, TGA, or EXR")
             return {'CANCELLED'}
         
         # Load image as height map
@@ -1156,7 +1161,12 @@ class FO4_OT_ApplyDisplacementMap(Operator):
     bl_options = {'REGISTER', 'UNDO'}
     
     filepath: StringProperty(subtype='FILE_PATH')
-    
+
+    filter_glob: StringProperty(
+        default="*.png;*.jpg;*.jpeg;*.bmp;*.tiff;*.tif;*.tga;*.exr",
+        options={'HIDDEN'}
+    )
+
     strength: bpy.props.FloatProperty(
         name="Strength",
         description="Displacement strength",
@@ -1174,7 +1184,7 @@ class FO4_OT_ApplyDisplacementMap(Operator):
         
         # Validate file
         if not image_to_mesh_helpers.ImageToMeshHelpers.validate_image_file(self.filepath):
-            self.report({'ERROR'}, "Unsupported image format. Use PNG, JPG, BMP, TIFF, or TGA")
+            self.report({'ERROR'}, "Unsupported image format. Use PNG, JPG, BMP, TIFF, TGA, or EXR")
             return {'CANCELLED'}
         
         # Apply displacement
@@ -3688,7 +3698,7 @@ class FO4_OT_ImportStyleGAN2Texture(Operator):
     )
     
     filter_glob: StringProperty(
-        default="*.png;*.jpg;*.jpeg",
+        default="*.png;*.jpg;*.jpeg;*.exr",
         options={'HIDDEN'}
     )
     
@@ -5606,7 +5616,7 @@ class FO4_OT_SetupUVWithTexture(Operator):
     )
 
     filter_glob: StringProperty(
-        default="*.png;*.jpg;*.jpeg;*.tga;*.tiff;*.bmp;*.dds",
+        default="*.png;*.jpg;*.jpeg;*.tga;*.tiff;*.bmp;*.dds;*.exr",
         options={'HIDDEN'},
     )
 
