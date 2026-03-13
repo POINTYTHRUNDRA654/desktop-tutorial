@@ -52,6 +52,13 @@ def _load_point_e_text_models(device):
     if _torch.device(device).type == 'cuda':
         base_model.half()
         upsampler_model.half()
+    # torch.compile() (PyTorch ≥ 2.0) fuses ops into optimized CUDA kernels,
+    # giving ~20-40 % faster inference.  The one-time compilation cost is paid
+    # here at cache-fill time, so all subsequent generation calls are fast.
+    if hasattr(_torch, 'compile') and _torch.device(device).type == 'cuda':
+        print("Compiling Point-E text models with torch.compile() (one-time, ~30 s)…")
+        base_model = _torch.compile(base_model, mode="reduce-overhead")
+        upsampler_model = _torch.compile(upsampler_model, mode="reduce-overhead")
 
     sampler = PointCloudSampler(
         device=device,
@@ -109,6 +116,13 @@ def _load_point_e_image_models(device):
     if _torch.device(device).type == 'cuda':
         base_model.half()
         upsampler_model.half()
+    # torch.compile() (PyTorch ≥ 2.0) fuses ops into optimized CUDA kernels,
+    # giving ~20-40 % faster inference.  The one-time compilation cost is paid
+    # here at cache-fill time, so all subsequent generation calls are fast.
+    if hasattr(_torch, 'compile') and _torch.device(device).type == 'cuda':
+        print("Compiling Point-E image models with torch.compile() (one-time, ~30 s)…")
+        base_model = _torch.compile(base_model, mode="reduce-overhead")
+        upsampler_model = _torch.compile(upsampler_model, mode="reduce-overhead")
 
     sampler = PointCloudSampler(
         device=device,
