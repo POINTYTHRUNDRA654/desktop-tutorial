@@ -1241,22 +1241,41 @@ class FO4_OT_GenerateMeshFromText(Operator):
         if not self.prompt.strip():
             self.report({'ERROR'}, "Please enter a description")
             return {'CANCELLED'}
-        
-        # Generate mesh from text
-        success, result = hunyuan3d_helpers.generate_mesh_from_text(
-            self.prompt,
-            resolution=self.resolution
-        )
-        
-        if success:
-            self.report({'INFO'}, f"Generated mesh: {result.name}")
-            notification_system.FO4_NotificationSystem.notify(
-                f"AI generated: {result.name}", 'INFO'
+
+        prompt = self.prompt
+        resolution = self.resolution
+
+        def _run():
+            success, path_or_error = hunyuan3d_helpers.run_text_inference(
+                prompt, resolution=resolution
             )
-        else:
-            self.report({'WARNING'}, result)  # result contains error message
-            notification_system.FO4_NotificationSystem.notify(result, 'WARNING')
-        
+
+            def _finish():
+                if success:
+                    ok, obj_or_msg = hunyuan3d_helpers.import_mesh_file(
+                        path_or_error,
+                        mesh_name=f"Hunyuan3D_{prompt[:20].replace(' ', '_')}",
+                    )
+                    if ok:
+                        notification_system.FO4_NotificationSystem.notify(
+                            f"AI generated: {obj_or_msg.name}", 'INFO'
+                        )
+                    else:
+                        notification_system.FO4_NotificationSystem.notify(
+                            obj_or_msg, 'WARNING'
+                        )
+                else:
+                    notification_system.FO4_NotificationSystem.notify(
+                        path_or_error, 'WARNING'
+                    )
+
+            bpy.app.timers.register(_finish, first_interval=0.0)
+
+        threading.Thread(target=_run, daemon=True).start()
+        self.report({'INFO'}, "AI generation started in background — Blender stays responsive")
+        notification_system.FO4_NotificationSystem.notify(
+            "AI generation started…", 'INFO'
+        )
         return {'FINISHED'}
     
     def invoke(self, context, event):
@@ -1275,7 +1294,12 @@ class FO4_OT_GenerateMeshFromImageAI(Operator):
     bl_options = {'REGISTER', 'UNDO'}
     
     filepath: StringProperty(subtype='FILE_PATH')
-    
+
+    filter_glob: StringProperty(
+        default="*.png;*.jpg;*.jpeg;*.bmp;*.tiff;*.tif;*.tga;*.exr",
+        options={'HIDDEN'}
+    )
+
     resolution: IntProperty(
         name="Resolution",
         description="Resolution of the generated mesh",
@@ -1293,22 +1317,41 @@ class FO4_OT_GenerateMeshFromImageAI(Operator):
                 "Hunyuan3D-2 not installed. See documentation.", 'ERROR'
             )
             return {'CANCELLED'}
-        
-        # Generate full 3D mesh from image
-        success, result = hunyuan3d_helpers.generate_mesh_from_image(
-            self.filepath,
-            resolution=self.resolution
-        )
-        
-        if success:
-            self.report({'INFO'}, f"Generated 3D model: {result.name}")
-            notification_system.FO4_NotificationSystem.notify(
-                f"AI generated 3D model from image", 'INFO'
+
+        filepath = self.filepath
+        resolution = self.resolution
+
+        def _run():
+            success, path_or_error = hunyuan3d_helpers.run_image_inference(
+                filepath, resolution=resolution
             )
-        else:
-            self.report({'WARNING'}, result)  # result contains error message
-            notification_system.FO4_NotificationSystem.notify(result, 'WARNING')
-        
+
+            def _finish():
+                if success:
+                    ok, obj_or_msg = hunyuan3d_helpers.import_mesh_file(
+                        path_or_error,
+                        mesh_name=f"Hunyuan3D_{os.path.splitext(os.path.basename(filepath))[0]}",
+                    )
+                    if ok:
+                        notification_system.FO4_NotificationSystem.notify(
+                            f"AI generated 3D model: {obj_or_msg.name}", 'INFO'
+                        )
+                    else:
+                        notification_system.FO4_NotificationSystem.notify(
+                            obj_or_msg, 'WARNING'
+                        )
+                else:
+                    notification_system.FO4_NotificationSystem.notify(
+                        path_or_error, 'WARNING'
+                    )
+
+            bpy.app.timers.register(_finish, first_interval=0.0)
+
+        threading.Thread(target=_run, daemon=True).start()
+        self.report({'INFO'}, "AI generation started in background — Blender stays responsive")
+        notification_system.FO4_NotificationSystem.notify(
+            "AI generation started…", 'INFO'
+        )
         return {'FINISHED'}
     
     def invoke(self, context, event):
@@ -2555,7 +2598,6 @@ class FO4_OT_ExportAnimationHavok2FBX(Operator):
 
     def execute(self, context):
         import os
-        import subprocess
         import tempfile
 
         scene = context.scene
@@ -2676,7 +2718,8 @@ class FO4_OT_ExportAnimationHavok2FBX(Operator):
 
         self.report({'INFO'}, f"FBX exported: {fbx_path}")
 
-        # Attempt Havok2FBX conversion if configured
+        # Attempt Havok2FBX conversion if configured — run in background so
+        # Blender's UI stays responsive during the conversion (can take ~2 min).
         havok_dir = preferences.get_havok2fbx_path()
         if havok_dir:
             from . import tool_installers
@@ -2691,30 +2734,40 @@ class FO4_OT_ExportAnimationHavok2FBX(Operator):
                 if root_motion:
                     cmd += ["--rootmotion"]
                 cmd += ["--fps", str(fps)]
-                try:
-                    result = subprocess.run(
-                        cmd,
-                        capture_output=True,
-                        text=True,
-                        timeout=120,
-                    )
-                    if result.returncode == 0:
-                        self.report({'INFO'}, f"HKX created: {hkx_path}")
-                        notification_system.FO4_NotificationSystem.notify(
-                            f"Animation exported: {hkx_path}", 'INFO'
+
+                def _convert(cmd=cmd, exe=exe, fbx_path=fbx_path, hkx_path=hkx_path):
+                    import subprocess
+                    try:
+                        result = subprocess.run(
+                            cmd,
+                            capture_output=True,
+                            text=True,
+                            timeout=120,
                         )
-                    else:
-                        err = (result.stderr or result.stdout or "unknown error").strip()
-                        self.report({'WARNING'}, f"havok2fbx conversion failed: {err}. FBX saved at {fbx_path}")
-                        notification_system.FO4_NotificationSystem.notify(
-                            f"havok2fbx failed — FBX saved at {fbx_path}", 'WARNING'
-                        )
-                except FileNotFoundError:
-                    self.report({'WARNING'}, f"havok2fbx.exe not found at {exe}. FBX saved at {fbx_path}")
-                except subprocess.TimeoutExpired:
-                    self.report({'WARNING'}, f"havok2fbx timed out. FBX saved at {fbx_path}")
-                except Exception as exc:
-                    self.report({'WARNING'}, f"havok2fbx error: {exc}. FBX saved at {fbx_path}")
+                        if result.returncode == 0:
+                            msg, level = f"HKX created: {hkx_path}", 'INFO'
+                        else:
+                            err = (result.stderr or result.stdout or "unknown error").strip()
+                            msg = f"havok2fbx conversion failed: {err}. FBX saved at {fbx_path}"
+                            level = 'WARNING'
+                    except FileNotFoundError:
+                        msg = f"havok2fbx.exe not found at {exe}. FBX saved at {fbx_path}"
+                        level = 'WARNING'
+                    except subprocess.TimeoutExpired:
+                        msg = f"havok2fbx timed out. FBX saved at {fbx_path}"
+                        level = 'WARNING'
+                    except Exception as exc:
+                        msg = f"havok2fbx error: {exc}. FBX saved at {fbx_path}"
+                        level = 'WARNING'
+
+                    def _notify(msg=msg, level=level):
+                        notification_system.FO4_NotificationSystem.notify(msg, level)
+                        print(f"HAVOK2FBX [{level}]", msg)
+
+                    bpy.app.timers.register(_notify, first_interval=0.0)
+
+                threading.Thread(target=_convert, daemon=True).start()
+                self.report({'INFO'}, "HKX conversion started in background — Blender stays responsive")
             else:
                 self.report({'WARNING'}, f"Havok2FBX binaries missing from {havok_dir}. FBX saved at {fbx_path}")
         else:
