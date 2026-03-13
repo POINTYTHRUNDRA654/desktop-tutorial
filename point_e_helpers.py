@@ -8,6 +8,116 @@ import bpy
 import time
 from bpy.props import StringProperty, EnumProperty, IntProperty, FloatProperty, BoolProperty
 
+# ---------------------------------------------------------------------------
+# Module-level model cache — Point-E models take significant time to load
+# from disk and to download checkpoints, so we cache them between calls and
+# only reload when the active compute device changes.
+# ---------------------------------------------------------------------------
+_point_e_text_models = None   # dict: {base_model, upsampler_model, base_diffusion, upsampler_diffusion, sampler, device}
+_point_e_image_models = None  # dict: {base_model, upsampler_model, base_diffusion, upsampler_diffusion, sampler, device}
+
+
+def _load_point_e_text_models(device):
+    """Load (or return cached) Point-E text-to-3D models.
+
+    Models are cached by device string.  If the user switches between CPU and
+    GPU the cache is invalidated and models are reloaded on the new device.
+    """
+    global _point_e_text_models
+    import torch as _torch
+    device_str = str(_torch.device(device))
+    if _point_e_text_models is not None and _point_e_text_models['device'] == device_str:
+        return _point_e_text_models
+
+    from point_e.diffusion.configs import DIFFUSION_CONFIGS, diffusion_from_config
+    from point_e.diffusion.sampler import PointCloudSampler
+    from point_e.models.download import load_checkpoint
+    from point_e.models.configs import MODEL_CONFIGS, model_from_config
+
+    print("Loading Point-E text models (first use or device change)…")
+    base_name = 'base40M-textvec'
+    base_model = model_from_config(MODEL_CONFIGS[base_name], device)
+    base_model.eval()
+    base_diffusion = diffusion_from_config(DIFFUSION_CONFIGS[base_name])
+
+    upsampler_model = model_from_config(MODEL_CONFIGS['upsample'], device)
+    upsampler_model.eval()
+    upsampler_diffusion = diffusion_from_config(DIFFUSION_CONFIGS['upsample'])
+
+    base_model.load_state_dict(load_checkpoint(base_name, device))
+    upsampler_model.load_state_dict(load_checkpoint('upsample', device))
+
+    sampler = PointCloudSampler(
+        device=device,
+        models=[base_model, upsampler_model],
+        diffusions=[base_diffusion, upsampler_diffusion],
+        num_points=[1024, 4096],
+        aux_channels=['R', 'G', 'B'],
+        guidance_scale=[3.0, 0.0],
+        model_kwargs_key_filter=('texts', ''),
+    )
+    _point_e_text_models = {
+        'base_model': base_model,
+        'upsampler_model': upsampler_model,
+        'base_diffusion': base_diffusion,
+        'upsampler_diffusion': upsampler_diffusion,
+        'sampler': sampler,
+        'device': device_str,
+    }
+    print("Point-E text models loaded and cached.")
+    return _point_e_text_models
+
+
+def _load_point_e_image_models(device):
+    """Load (or return cached) Point-E image-to-3D models.
+
+    Models are cached by device string.  If the user switches between CPU and
+    GPU the cache is invalidated and models are reloaded on the new device.
+    """
+    global _point_e_image_models
+    import torch as _torch
+    device_str = str(_torch.device(device))
+    if _point_e_image_models is not None and _point_e_image_models['device'] == device_str:
+        return _point_e_image_models
+
+    from point_e.diffusion.configs import DIFFUSION_CONFIGS, diffusion_from_config
+    from point_e.diffusion.sampler import PointCloudSampler
+    from point_e.models.download import load_checkpoint
+    from point_e.models.configs import MODEL_CONFIGS, model_from_config
+
+    print("Loading Point-E image models (first use or device change)…")
+    base_name = 'base40M'
+    base_model = model_from_config(MODEL_CONFIGS[base_name], device)
+    base_model.eval()
+    base_diffusion = diffusion_from_config(DIFFUSION_CONFIGS[base_name])
+
+    upsampler_model = model_from_config(MODEL_CONFIGS['upsample'], device)
+    upsampler_model.eval()
+    upsampler_diffusion = diffusion_from_config(DIFFUSION_CONFIGS['upsample'])
+
+    base_model.load_state_dict(load_checkpoint(base_name, device))
+    upsampler_model.load_state_dict(load_checkpoint('upsample', device))
+
+    sampler = PointCloudSampler(
+        device=device,
+        models=[base_model, upsampler_model],
+        diffusions=[base_diffusion, upsampler_diffusion],
+        num_points=[1024, 4096],
+        aux_channels=['R', 'G', 'B'],
+        guidance_scale=[3.0, 0.0],
+    )
+    _point_e_image_models = {
+        'base_model': base_model,
+        'upsampler_model': upsampler_model,
+        'base_diffusion': base_diffusion,
+        'upsampler_diffusion': upsampler_diffusion,
+        'sampler': sampler,
+        'device': device_str,
+    }
+    print("Point-E image models loaded and cached.")
+    return _point_e_image_models
+
+
 class PointEHelpers:
     """Helper functions for Point-E integration"""
 
@@ -125,54 +235,25 @@ For more info: https://github.com/openai/point-e
                 # TorchPathManager not available, use regular import
                 import torch
 
-            from PIL import Image
-            from point_e.diffusion.configs import DIFFUSION_CONFIGS, diffusion_from_config
-            from point_e.diffusion.sampler import PointCloudSampler
-            from point_e.models.download import load_checkpoint
-            from point_e.models.configs import MODEL_CONFIGS, model_from_config
-            
             print(f"Generating 3D point cloud from text: '{prompt}'")
             
             # Set device
             device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
             print(f"Using device: {device}")
             
-            # Load models
-            print("Loading Point-E base model...")
-            base_name = 'base40M-textvec'
-            base_model = model_from_config(MODEL_CONFIGS[base_name], device)
-            base_model.eval()
-            base_diffusion = diffusion_from_config(DIFFUSION_CONFIGS[base_name])
-            
-            print("Loading Point-E upsample model...")
-            upsampler_model = model_from_config(MODEL_CONFIGS['upsample'], device)
-            upsampler_model.eval()
-            upsampler_diffusion = diffusion_from_config(DIFFUSION_CONFIGS['upsample'])
-            
-            # Load checkpoints
-            print("Loading model checkpoints...")
-            base_model.load_state_dict(load_checkpoint(base_name, device))
-            upsampler_model.load_state_dict(load_checkpoint('upsample', device))
-            
-            # Create samplers
-            sampler = PointCloudSampler(
-                device=device,
-                models=[base_model, upsampler_model],
-                diffusions=[base_diffusion, upsampler_diffusion],
-                num_points=[1024, 4096],
-                aux_channels=['R', 'G', 'B'],
-                guidance_scale=[3.0, 0.0],
-                model_kwargs_key_filter=('texts', ''),
-            )
+            # Load models (cached after first call — avoids expensive reload each time)
+            cached = _load_point_e_text_models(device)
+            sampler = cached['sampler']
             
             # Generate
             print(f"Generating point cloud...")
             samples = None
-            for x in sampler.sample_batch_progressive(
-                batch_size=num_samples,
-                model_kwargs=dict(texts=[prompt] * num_samples),
-            ):
-                samples = x
+            with torch.no_grad():
+                for x in sampler.sample_batch_progressive(
+                    batch_size=num_samples,
+                    model_kwargs=dict(texts=[prompt] * num_samples),
+                ):
+                    samples = x
             
             # Extract point cloud
             pc = samples[0]  # First sample
@@ -226,10 +307,6 @@ For more info: https://github.com/openai/point-e
                 import torch
 
             from PIL import Image
-            from point_e.diffusion.configs import DIFFUSION_CONFIGS, diffusion_from_config
-            from point_e.diffusion.sampler import PointCloudSampler
-            from point_e.models.download import load_checkpoint
-            from point_e.models.configs import MODEL_CONFIGS, model_from_config
             
             print(f"Generating 3D point cloud from image: '{image_path}'")
             
@@ -240,41 +317,19 @@ For more info: https://github.com/openai/point-e
             # Load image
             image = Image.open(image_path)
             
-            # Load models
-            print("Loading Point-E base model...")
-            base_name = 'base40M'  # Image model
-            base_model = model_from_config(MODEL_CONFIGS[base_name], device)
-            base_model.eval()
-            base_diffusion = diffusion_from_config(DIFFUSION_CONFIGS[base_name])
-            
-            print("Loading Point-E upsample model...")
-            upsampler_model = model_from_config(MODEL_CONFIGS['upsample'], device)
-            upsampler_model.eval()
-            upsampler_diffusion = diffusion_from_config(DIFFUSION_CONFIGS['upsample'])
-            
-            # Load checkpoints
-            print("Loading model checkpoints...")
-            base_model.load_state_dict(load_checkpoint(base_name, device))
-            upsampler_model.load_state_dict(load_checkpoint('upsample', device))
-            
-            # Create samplers
-            sampler = PointCloudSampler(
-                device=device,
-                models=[base_model, upsampler_model],
-                diffusions=[base_diffusion, upsampler_diffusion],
-                num_points=[1024, 4096],
-                aux_channels=['R', 'G', 'B'],
-                guidance_scale=[3.0, 0.0],
-            )
+            # Load models (cached after first call — avoids expensive reload each time)
+            cached = _load_point_e_image_models(device)
+            sampler = cached['sampler']
             
             # Generate
             print(f"Generating point cloud...")
             samples = None
-            for x in sampler.sample_batch_progressive(
-                batch_size=num_samples,
-                model_kwargs=dict(images=[image] * num_samples),
-            ):
-                samples = x
+            with torch.no_grad():
+                for x in sampler.sample_batch_progressive(
+                    batch_size=num_samples,
+                    model_kwargs=dict(images=[image] * num_samples),
+                ):
+                    samples = x
             
             # Extract point cloud
             pc = samples[0]

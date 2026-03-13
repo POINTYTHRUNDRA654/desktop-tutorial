@@ -7,6 +7,63 @@ import bpy
 import time
 from bpy.props import StringProperty, EnumProperty, IntProperty, FloatProperty, BoolProperty
 
+# ---------------------------------------------------------------------------
+# Module-level model cache — models are expensive to load (several seconds),
+# so we keep them alive between generation calls and only reload when the
+# active compute device changes.
+# ---------------------------------------------------------------------------
+_shap_e_text_models = None   # dict: {xm, model, diffusion, device}
+_shap_e_image_models = None  # dict: {xm, model, diffusion, device}
+
+
+def _load_shap_e_text_models(device):
+    """Load (or return cached) Shap-E text-to-3D models.
+
+    Models are cached by device string.  If the user switches between CPU and
+    GPU the cache is invalidated and models are reloaded on the new device.
+    """
+    global _shap_e_text_models
+    import torch as _torch
+    device_str = str(_torch.device(device))
+    if _shap_e_text_models is not None and _shap_e_text_models['device'] == device_str:
+        return _shap_e_text_models
+
+    from shap_e.diffusion.gaussian_diffusion import diffusion_from_config
+    from shap_e.models.download import load_model, load_config
+
+    print("Loading Shap-E text models (first use or device change)…")
+    xm = load_model('transmitter', device=device)
+    model = load_model('text300M', device=device)
+    diffusion = diffusion_from_config(load_config('diffusion'))
+    _shap_e_text_models = {'xm': xm, 'model': model, 'diffusion': diffusion, 'device': device_str}
+    print("Shap-E text models loaded and cached.")
+    return _shap_e_text_models
+
+
+def _load_shap_e_image_models(device):
+    """Load (or return cached) Shap-E image-to-3D models.
+
+    Models are cached by device string.  If the user switches between CPU and
+    GPU the cache is invalidated and models are reloaded on the new device.
+    """
+    global _shap_e_image_models
+    import torch as _torch
+    device_str = str(_torch.device(device))
+    if _shap_e_image_models is not None and _shap_e_image_models['device'] == device_str:
+        return _shap_e_image_models
+
+    from shap_e.diffusion.gaussian_diffusion import diffusion_from_config
+    from shap_e.models.download import load_model, load_config
+
+    print("Loading Shap-E image models (first use or device change)…")
+    xm = load_model('transmitter', device=device)
+    model = load_model('image300M', device=device)
+    diffusion = diffusion_from_config(load_config('diffusion'))
+    _shap_e_image_models = {'xm': xm, 'model': model, 'diffusion': diffusion, 'device': device_str}
+    print("Shap-E image models loaded and cached.")
+    return _shap_e_image_models
+
+
 class ShapEHelpers:
     """Helper functions for Shap-E integration"""
 
@@ -113,8 +170,6 @@ For more info: https://github.com/openai/shap-e
         try:
             import torch
             from shap_e.diffusion.sample import sample_latents
-            from shap_e.diffusion.gaussian_diffusion import diffusion_from_config
-            from shap_e.models.download import load_model, load_config
             from shap_e.util.notebooks import decode_latent_mesh
             
             print(f"Generating 3D mesh from text: '{prompt}'")
@@ -123,30 +178,31 @@ For more info: https://github.com/openai/shap-e
             device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
             print(f"Using device: {device}")
             
-            # Load models
-            print("Loading Shap-E models...")
-            xm = load_model('transmitter', device=device)
-            model = load_model('text300M', device=device)
-            diffusion = diffusion_from_config(load_config('diffusion'))
+            # Load models (cached after first call — avoids expensive reload each time)
+            cached = _load_shap_e_text_models(device)
+            xm = cached['xm']
+            model = cached['model']
+            diffusion = cached['diffusion']
             
             # Generate latents
             print(f"Generating with guidance_scale={guidance_scale}, steps={num_inference_steps}")
             batch_size = 1
-            latents = sample_latents(
-                batch_size=batch_size,
-                model=model,
-                diffusion=diffusion,
-                guidance_scale=guidance_scale,
-                model_kwargs=dict(texts=[prompt] * batch_size),
-                progress=True,
-                clip_denoised=True,
-                use_fp16=True,
-                use_karras=True,
-                karras_steps=num_inference_steps,
-                sigma_min=1e-3,
-                sigma_max=160,
-                s_churn=0,
-            )
+            with torch.no_grad():
+                latents = sample_latents(
+                    batch_size=batch_size,
+                    model=model,
+                    diffusion=diffusion,
+                    guidance_scale=guidance_scale,
+                    model_kwargs=dict(texts=[prompt] * batch_size),
+                    progress=True,
+                    clip_denoised=True,
+                    use_fp16=True,
+                    use_karras=True,
+                    karras_steps=num_inference_steps,
+                    sigma_min=1e-3,
+                    sigma_max=160,
+                    s_churn=0,
+                )
             
             # Decode to mesh
             print("Decoding latent to mesh...")
@@ -190,8 +246,6 @@ For more info: https://github.com/openai/shap-e
             import torch
             from PIL import Image
             from shap_e.diffusion.sample import sample_latents
-            from shap_e.diffusion.gaussian_diffusion import diffusion_from_config
-            from shap_e.models.download import load_model, load_config
             from shap_e.util.notebooks import decode_latent_mesh
             
             print(f"Generating 3D mesh from image: '{image_path}'")
@@ -203,30 +257,31 @@ For more info: https://github.com/openai/shap-e
             # Load image
             image = Image.open(image_path)
             
-            # Load models
-            print("Loading Shap-E models...")
-            xm = load_model('transmitter', device=device)
-            model = load_model('image300M', device=device)
-            diffusion = diffusion_from_config(load_config('diffusion'))
+            # Load models (cached after first call — avoids expensive reload each time)
+            cached = _load_shap_e_image_models(device)
+            xm = cached['xm']
+            model = cached['model']
+            diffusion = cached['diffusion']
             
             # Generate latents
             print(f"Generating with guidance_scale={guidance_scale}, steps={num_inference_steps}")
             batch_size = 1
-            latents = sample_latents(
-                batch_size=batch_size,
-                model=model,
-                diffusion=diffusion,
-                guidance_scale=guidance_scale,
-                model_kwargs=dict(images=[image] * batch_size),
-                progress=True,
-                clip_denoised=True,
-                use_fp16=True,
-                use_karras=True,
-                karras_steps=num_inference_steps,
-                sigma_min=1e-3,
-                sigma_max=160,
-                s_churn=0,
-            )
+            with torch.no_grad():
+                latents = sample_latents(
+                    batch_size=batch_size,
+                    model=model,
+                    diffusion=diffusion,
+                    guidance_scale=guidance_scale,
+                    model_kwargs=dict(images=[image] * batch_size),
+                    progress=True,
+                    clip_denoised=True,
+                    use_fp16=True,
+                    use_karras=True,
+                    karras_steps=num_inference_steps,
+                    sigma_min=1e-3,
+                    sigma_max=160,
+                    s_churn=0,
+                )
             
             # Decode to mesh
             print("Decoding latent to mesh...")
