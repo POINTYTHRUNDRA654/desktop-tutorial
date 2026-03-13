@@ -1,10 +1,14 @@
 # Niftools setup (Fallout 4 NIF export)
 
-The add-on calls the Blender Niftools exporter when it is installed.
+The add-on exports NIF files via three methods, tried in order:
+
+1. **Niftools v0.1.1 Blender operator** — direct, highest fidelity (skinning, morphs, collision)
+2. **Native NIF writer** (built-in, no Niftools needed) — pure-Python BSTriShape exporter for static meshes
+3. **FBX fallback** — for external conversion with Cathedral Assets Optimizer
 
 ## Version
 
-**Latest release: v0.1.1** (2023-11-03) — this is the version used by this add-on.
+**Latest release: v0.1.1** (2023-11-03) — this is the version used for method 1.
 
 - Officially compatible with Blender 2.8 – 3.6.
 - **Blender 4.x** — niftools v0.1.1 was not originally designed for Blender 4.x,
@@ -14,24 +18,40 @@ The add-on calls the Blender Niftools exporter when it is installed.
     (`get_polygon_parts` and `export_skin_partition` patched at runtime).
   - The patches are applied transparently before every export — no user action
     required.
-- If you still encounter NIF export issues on Blender 4.x, the add-on
-  automatically falls back to FBX export in the same location.
+- **Blender 4.2 / 5.x** — Niftools installs as a **Legacy Add-on** (not an
+  Extension).  After running the installer you must enable "Allow Legacy
+  Add-ons" in Edit → Preferences → Add-ons, then enable the add-on.
+  Two additional API patches are applied automatically:
+  - `calc_normals_split()` / `free_normals_split()` removed in Blender 5.0 →
+    `Mesh.get_geom_data` is wrapped with a transparent proxy that provides
+    no-op versions of those methods; loop normals are auto-computed.
+  - `normals_split_custom_set_from_vertices` removed in Blender 5.0 →
+    `Vertex.map_normals` (NIF import path) is replaced to use
+    `normals_split_custom_set` with per-loop normals.
+- If Niftools is not installed or the operator fails, the **native NIF writer**
+  (`native_nif_writer.py`) handles static mesh export automatically — no
+  additional tools required.
 
 ## Quick install on Windows (PowerShell)
 
 ```powershell
-# From repo root
+# Blender 3.x (standard)
 pwsh -File tools/install_niftools.ps1 -BlenderVersion 3.6
+
+# Blender 5.x (legacy add-on path — same scripts\addons directory)
+pwsh -File tools/install_niftools.ps1 -BlenderVersion 5.0
 ```
 
 This downloads and extracts the Niftools add-on into:
 
 ```
-%APPDATA%\Blender Foundation\Blender\3.6\scripts\addons
+%APPDATA%\Blender Foundation\Blender\{version}\scripts\addons
 ```
 
-Then open Blender 3.6 → Edit → Preferences → Add-ons → search **"NetImmerse"**
-and enable **"NetImmerse/Gamebryo (.nif)"**.
+**For Blender 4.2 and later**, after running the installer:
+1. Open Blender → Edit → Preferences → Add-ons
+2. Check **"Allow Legacy Add-ons"** (checkbox at the top of the list)
+3. Search for **"NetImmerse"** and enable **"NetImmerse/Gamebryo (.nif)"**
 
 ## Manual install
 

@@ -2789,6 +2789,22 @@ class FO4_OT_InstallNiftools(Operator):
     def execute(self, context):
         import threading
         from . import tool_installers
+
+        # On Blender 4.2+ / 5.x, Niftools v0.1.1 is a legacy add-on and must
+        # be installed to the scripts/addons directory (not the extensions path).
+        # The PowerShell installer already targets scripts/addons.  After
+        # installation the user must enable "Allow Legacy Add-ons" in
+        # Edit → Preferences → Add-ons and then enable the add-on.
+        # Runtime API incompatibilities (calc_normals_split removal, etc.) are
+        # patched automatically before every NIF export by this add-on.
+        if bpy.app.version >= (4, 2, 0):
+            self.report(
+                {'INFO'},
+                "Niftools will be installed as a Legacy Add-on. "
+                "After install: Edit → Preferences → Add-ons → enable "
+                "'Allow Legacy Add-ons', then enable 'NetImmerse/Gamebryo (.nif)'.",
+            )
+
         blender_version = self.blender_version
 
         def _run():
@@ -9493,6 +9509,16 @@ class FO4_OT_GenerateShapEImage(Operator):
 
 # Point-E AI Generation Operators
 
+def _get_point_e_cls():
+    """Return the PointEHelpers class, or None if the module is unavailable.
+
+    Guards against the Blender 5 extension-reload edge-case where the
+    point_e_helpers module is present in sys.modules but was only partially
+    initialised (so the PointEHelpers class is missing from its namespace).
+    """
+    return getattr(point_e_helpers, 'PointEHelpers', None)
+
+
 class FO4_OT_CheckPointEInstallation(Operator):
     """Check if Point-E is installed"""
     bl_idname = "fo4.check_point_e_installation"
@@ -9500,7 +9526,11 @@ class FO4_OT_CheckPointEInstallation(Operator):
     bl_options = {'REGISTER'}
     
     def execute(self, context):
-        is_installed, message = point_e_helpers.PointEHelpers.is_point_e_installed()
+        _pe = _get_point_e_cls()
+        if _pe is None:
+            self.report({'ERROR'}, "Point-E helpers not available — try restarting Blender")
+            return {'CANCELLED'}
+        is_installed, message = _pe.is_point_e_installed()
         
         if is_installed:
             self.report({'INFO'}, message)
@@ -9523,7 +9553,11 @@ class FO4_OT_ShowPointEInfo(Operator):
     bl_options = {'REGISTER'}
     
     def execute(self, context):
-        instructions = point_e_helpers.PointEHelpers.get_installation_instructions()
+        _pe = _get_point_e_cls()
+        if _pe is None:
+            self.report({'ERROR'}, "Point-E helpers not available — try restarting Blender")
+            return {'CANCELLED'}
+        instructions = _pe.get_installation_instructions()
         
         self.report({'INFO'}, "See console for Point-E installation instructions")
         print("\n" + "="*60)
@@ -9545,7 +9579,11 @@ class FO4_OT_GeneratePointEText(Operator):
         scene = context.scene
         
         # Check if Point-E is installed
-        is_installed, message = point_e_helpers.PointEHelpers.is_point_e_installed()
+        _pe = _get_point_e_cls()
+        if _pe is None:
+            self.report({'ERROR'}, "Point-E helpers not available — try restarting Blender")
+            return {'CANCELLED'}
+        is_installed, message = _pe.is_point_e_installed()
         if not is_installed:
             self.report({'ERROR'}, "Point-E not installed. Click 'Show Info' for instructions.")
             notification_system.FO4_NotificationSystem.notify(
@@ -9564,7 +9602,7 @@ class FO4_OT_GeneratePointEText(Operator):
         num_steps = scene.fo4_point_e_inference_steps
 
         def _run():
-            success, result = point_e_helpers.PointEHelpers.generate_from_text(
+            success, result = _pe.generate_from_text(
                 prompt,
                 num_samples=num_samples,
                 grid_size=grid_size,
@@ -9573,7 +9611,7 @@ class FO4_OT_GeneratePointEText(Operator):
 
             def _finish():
                 if success:
-                    obj = point_e_helpers.PointEHelpers.point_cloud_to_mesh(
+                    obj = _pe.point_cloud_to_mesh(
                         result,
                         method=method,
                         name=f"PointE_{prompt[:20]}"
@@ -9611,7 +9649,11 @@ class FO4_OT_GeneratePointEImage(Operator):
         scene = context.scene
         
         # Check if Point-E is installed
-        is_installed, message = point_e_helpers.PointEHelpers.is_point_e_installed()
+        _pe = _get_point_e_cls()
+        if _pe is None:
+            self.report({'ERROR'}, "Point-E helpers not available — try restarting Blender")
+            return {'CANCELLED'}
+        is_installed, message = _pe.is_point_e_installed()
         if not is_installed:
             self.report({'ERROR'}, "Point-E not installed. Click 'Show Info' for instructions.")
             notification_system.FO4_NotificationSystem.notify(
@@ -9635,7 +9677,7 @@ class FO4_OT_GeneratePointEImage(Operator):
         num_steps = scene.fo4_point_e_inference_steps
 
         def _run():
-            success, result = point_e_helpers.PointEHelpers.generate_from_image(
+            success, result = _pe.generate_from_image(
                 image_path,
                 num_samples=num_samples,
                 grid_size=grid_size,
@@ -9644,7 +9686,7 @@ class FO4_OT_GeneratePointEImage(Operator):
 
             def _finish():
                 if success:
-                    obj = point_e_helpers.PointEHelpers.point_cloud_to_mesh(
+                    obj = _pe.point_cloud_to_mesh(
                         result,
                         method=method,
                         name="PointE_FromImage"

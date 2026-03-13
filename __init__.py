@@ -16,13 +16,14 @@ bl_info = {
         "is unavailable. Includes mesh optimisation, DDS texture conversion (NVTT/texconv), "
         "wind animation, AI rigging (RigNet), quest/NPC/item helpers, and smart presets."
     ),
-    "warning": "NIF export requires Niftools v0.1.1 on Blender 3.6 LTS (not compatible with Blender 4.x)",
+    "warning": "NIF export: install Niftools v0.1.1 as a legacy add-on; enable 'Allow Legacy Add-ons' on Blender 4.2+/5.x",
     "doc_url": "https://github.com/POINTYTHRUNDRA654/Blender-add-on",
     "category": "Import-Export",
 }
 
 import bpy
 import importlib
+import sys
 
 # helper for resilient imports – some modules may fail under untested Blender
 # releases (e.g. Blender 5.x during early testing).  We log failures but
@@ -42,6 +43,10 @@ def _try_import(name: str):
         print(f"⚠ Failed to import {name} ({full}): {exc}")
         import traceback
         traceback.print_exc()
+        # Remove any partially-initialised entry from sys.modules so that a
+        # subsequent retry (e.g. Blender 5 extension reload) performs a fresh
+        # import rather than returning the stale, incomplete module object.
+        sys.modules.pop(full, None)
         return None
 
 # import core submodules; missing components will be skipped but reported.
@@ -316,15 +321,28 @@ def register():
             "  • All other features (mesh, collision, textures, animation) work normally."
         )
     else:
-        # 4.1+ removed use_auto_smooth; handled in advisor_helpers and export_helpers.
-        print(
-            f"  Note: Blender {blender_version[0]}.{blender_version[1]} detected.\n"
-            "  • NIF export: use the FBX fallback + Cathedral Assets Optimizer "
-            "(Niftools v0.1.1 requires Blender ≤3.6).\n"
-            "  • Shade-smooth-by-angle replaces the old Auto Smooth checkbox "
-            "– the add-on handles this automatically.\n"
-            "  • All other features work normally.  Please report any issues."
-        )
+        # 4.1+: use_auto_smooth removed; handled in advisor_helpers and export_helpers.
+        if blender_version >= (5, 0, 0):
+            print(
+                f"  Note: Blender {blender_version[0]}.{blender_version[1]} detected.\n"
+                "  • NIF export (primary): Install Niftools v0.1.1 as a legacy add-on;\n"
+                "    enable 'Allow Legacy Add-ons' in Edit → Preferences → Add-ons.\n"
+                "    Blender 5.x API patches (calc_normals_split removal etc.) are applied\n"
+                "    automatically before every export.\n"
+                "  • NIF export (fallback): built-in native NIF writer — no Niftools needed.\n"
+                "    Produces a game-ready BSTriShape NIF for static meshes.\n"
+                "  • All other features work normally.  Please report any issues."
+            )
+        else:
+            print(
+                f"  Note: Blender {blender_version[0]}.{blender_version[1]} detected.\n"
+                "  • NIF export: Install Niftools v0.1.1 (legacy add-on) and enable\n"
+                "    'Allow Legacy Add-ons' in Blender Preferences, or use the built-in\n"
+                "    native NIF writer (no Niftools required).\n"
+                "  • Shade-smooth-by-angle replaces the old Auto Smooth checkbox "
+                "– the add-on handles this automatically.\n"
+                "  • All other features work normally.  Please report any issues."
+            )
 
 def unregister():
     """Unregister all add-on classes and handlers"""

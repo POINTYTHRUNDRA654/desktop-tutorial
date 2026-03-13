@@ -11,6 +11,10 @@ def _safe_import(name):
     try:
         return importlib.import_module(f".{name}", package=__package__)
     except Exception as exc:
+        # Remove any partially-initialised entry from sys.modules so that a
+        # subsequent retry (e.g. on Blender 5 extension reload) gets a fresh
+        # import attempt rather than the stale, incomplete module object.
+        sys.modules.pop(f"{__package__}.{name}", None)
         print(f"ui_panels: Skipped module {name} due to error: {exc}")
         return None
 
@@ -71,10 +75,15 @@ class FO4_PT_MainPanel(Panel):
         elif bv < (4, 1, 0):
             compat_box.label(text="✓ NIF export: FBX fallback (Niftools needs Blender 3.6)", icon='INFO')
             compat_box.label(text="  Export .fbx and convert with Cathedral Assets Optimizer.")
-        else:
-            # 4.1+ — use_auto_smooth removed; FBX-only NIF path
+        elif bv < (5, 0, 0):
+            # 4.1–4.x — use_auto_smooth removed; FBX-only NIF path
             compat_box.label(text="✓ NIF export: FBX fallback (Niftools needs Blender 3.6)", icon='INFO')
             compat_box.label(text="  Shade-by-angle is automatic in Blender 4.1+.")
+        else:
+            # 5.0+ — Niftools works with runtime patches applied by this add-on
+            compat_box.label(text="✓ NIF export: Niftools works with runtime patches", icon='CHECKMARK')
+            compat_box.label(text="  Install Niftools (legacy add-on) + enable 'Allow Legacy Add-ons'.")
+            compat_box.label(text="  API patches applied automatically before every export.")
 
         # ── Tutorial section ─────────────────────────────────────────────────
         box = layout.box()
@@ -87,8 +96,13 @@ class FO4_PT_MainPanel(Panel):
         hint.label(text="Setup / First-time Use", icon='INFO')
         hint.label(text="1. Open the 'Setup & Status' tab below.")
         hint.label(text="2. Install missing Python packages if prompted.")
-        hint.label(text="3. Install Niftools v0.1.1 (Blender 3.6 LTS only).")
-        hint.label(text="   OR use FBX export + Cathedral Assets Optimizer.")
+        if bv >= (5, 0, 0):
+            hint.label(text="3. Install Niftools v0.1.1 via 'Install Niftools Add-on' below.")
+            hint.label(text="   Enable 'Allow Legacy Add-ons' in Edit → Preferences → Add-ons.")
+            hint.label(text="   Runtime API patches are applied automatically before export.")
+        else:
+            hint.label(text="3. Install Niftools v0.1.1 (Blender 3.6 LTS only).")
+            hint.label(text="   OR use FBX export + Cathedral Assets Optimizer.")
         hint.label(text="4. Restart Blender after installing add-ons/tools.")
         
         # Notifications
@@ -707,7 +721,7 @@ class FO4_PT_AIGenerationPanel(Panel):
         shap_e_box = layout.box()
         shap_e_box.label(text="Shap-E (Text/Image to 3D)", icon='MESH_ICOSPHERE')
 
-        shap_e_installed, shap_e_msg = shap_e_helpers.ShapEHelpers.is_shap_e_installed() if shap_e_helpers else (False, "")
+        shap_e_installed, shap_e_msg = shap_e_helpers.ShapEHelpers.is_shap_e_installed() if (shap_e_helpers and hasattr(shap_e_helpers, 'ShapEHelpers')) else (False, "")
 
         if shap_e_installed:
             shap_e_box.label(text="Status: Installed ✓", icon='CHECKMARK')
@@ -742,7 +756,7 @@ class FO4_PT_AIGenerationPanel(Panel):
         point_e_box = layout.box()
         point_e_box.label(text="Point-E (Text/Image to Point Cloud)", icon='OUTLINER_OB_POINTCLOUD')
 
-        point_e_installed, point_e_msg = point_e_helpers.PointEHelpers.is_point_e_installed() if point_e_helpers else (False, "")
+        point_e_installed, point_e_msg = point_e_helpers.PointEHelpers.is_point_e_installed() if (point_e_helpers and hasattr(point_e_helpers, 'PointEHelpers')) else (False, "")
 
         if point_e_installed:
             point_e_box.label(text="Status: Installed ✓", icon='CHECKMARK')
@@ -1268,6 +1282,14 @@ class FO4_PT_ToolsLinks(Panel):
         box.operator("fo4.install_texconv", text="Install texconv", icon='FILE_REFRESH')
         box.operator("fo4.install_whisper", text="Install Whisper CLI", icon='FILE_REFRESH')
         box.operator("fo4.install_niftools", text="Install Niftools Add-on", icon='FILE_REFRESH')
+        if bpy.app.version >= (4, 2, 0):
+            nif_note = box.box()
+            nif_note.scale_y = 0.75
+            nif_note.label(text="After install: Edit → Preferences → Add-ons", icon='INFO')
+            nif_note.label(text="→ enable 'Allow Legacy Add-ons'")
+            nif_note.label(text="→ enable 'NetImmerse/Gamebryo (.nif)'")
+            if bpy.app.version >= (5, 0, 0):
+                nif_note.label(text="Blender 5.x API patches applied automatically.", icon='CHECKMARK')
         # Python requirements
         op = box.operator("fo4.install_python_deps", text="Install Python Requirements", icon='FILE_REFRESH')
         if op is not None:
