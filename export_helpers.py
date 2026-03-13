@@ -1534,7 +1534,7 @@ class ExportHelpers:
                     return True, f"Exported NIF: {filepath}{note}"
 
                 # If operator returns without FINISHED, fall back to FBX
-                fallback_msg = f"NIF export did not finish ({result}); falling back to FBX."
+                fallback_msg = f"NIF export did not finish ({result}); trying native writer."
             except Exception as e:
                 # Print full traceback to the Blender console so the user can
                 # see the root cause when they open the system console.
@@ -1543,7 +1543,7 @@ class ExportHelpers:
                     file=sys.stderr,
                 )
                 traceback.print_exc(file=sys.stderr)
-                fallback_msg = f"NIF export failed ({e}); falling back to FBX."
+                fallback_msg = f"NIF export failed ({e}); trying native writer."
             finally:
                 # Always remove the temporary triangulate modifier so the
                 # user's mesh is not permanently altered.
@@ -1552,11 +1552,37 @@ class ExportHelpers:
                     if mod:
                         obj.modifiers.remove(mod)
         else:
-            # NIF exporter not available – validate before FBX fallback
+            # NIF exporter not available – validate before attempting native writer
             success, issues = ExportHelpers.validate_before_export(obj)
             if not success:
                 return False, f"Validation failed: {', '.join(issues)}"
-            fallback_msg = f"{nif_message}; exporting FBX for external conversion."
+            fallback_msg = f"{nif_message}; trying native NIF writer."
+
+        # ── Native NIF writer (second attempt) ───────────────────────────────
+        # The native writer is a pure-Python Fallout 4 NIF serialiser that
+        # bypasses the Niftools Blender operator entirely.  It handles the
+        # common static-mesh case (BSFadeNode → BSTriShape → shader + textures)
+        # and produces a .nif that both FO4 and NifSkope can read.
+        try:
+            from . import native_nif_writer
+            native_ok, native_msg = native_nif_writer.export_fo4_nif(obj, filepath)
+            if native_ok:
+                print(f"[FO4 Add-on] {native_msg}")
+                return True, native_msg
+            # Native writer failed — fall through to FBX
+            print(
+                f"[FO4 Add-on] Native NIF writer failed: {native_msg}; "
+                "falling back to FBX.",
+                file=sys.stderr,
+            )
+            fallback_msg = f"Native NIF writer: {native_msg}; falling back to FBX."
+        except Exception as _native_exc:
+            print(
+                f"[FO4 Add-on] Native NIF writer exception: {_native_exc}; "
+                "falling back to FBX.",
+                file=sys.stderr,
+            )
+            fallback_msg = f"Native NIF writer unavailable ({_native_exc}); falling back to FBX."
 
         # Export to FBX as a compatibility fallback
         try:
