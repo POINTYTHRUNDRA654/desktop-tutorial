@@ -57,8 +57,8 @@ def _load_module():
 def download_latest():
     """Download the upstream importer zip and place it in the expected folder."""
 
-    if IMPORTER_DIR.exists():
-        return True, "Importer directory already exists; skipping download"
+    if IMPORTER_INIT.exists():
+        return True, "Importer already present; skipping download"
 
     parent = IMPORTER_DIR.parent
     parent.mkdir(parents=True, exist_ok=True)
@@ -84,6 +84,10 @@ def download_latest():
                     raise RuntimeError("Downloaded zip contained no directories")
 
                 src = extracted_dirs[0]
+                # Remove a pre-existing (empty) directory so shutil.move
+                # places the source at exactly IMPORTER_DIR, not inside it.
+                if IMPORTER_DIR.exists():
+                    shutil.rmtree(IMPORTER_DIR)
                 shutil.move(str(src), str(IMPORTER_DIR))
 
             return True, f"Downloaded UE importer from {url}"

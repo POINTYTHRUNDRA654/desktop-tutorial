@@ -1111,6 +1111,7 @@ class FO4_PT_ToolsLinks(Panel):
     bl_category = 'Fallout 4'
     bl_parent_id = "FO4_PT_main_panel"
     bl_options = {'DEFAULT_CLOSED'}
+    bl_order = -10  # Second: install external tools before starting work
 
     def draw(self, context):
         layout = self.layout
@@ -2997,6 +2998,7 @@ class FO4_PT_SetupPanel(Panel):
     bl_region_type = 'UI'
     bl_category = 'Fallout 4'
     bl_parent_id = "FO4_PT_main_panel"
+    bl_order = -20  # Always first: install dependencies before anything else
 
     def draw(self, context):
         import sys as _sys

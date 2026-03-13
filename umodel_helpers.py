@@ -44,14 +44,14 @@ def status() -> tuple[bool, str]:
     """Return (ready, message) tuple for UI display."""
     tool_dir = get_tool_dir()
 
-    # Check for umodel.exe
-    umodel_exe = tool_dir / "umodel.exe"
-    if umodel_exe.exists():
-        return True, f"UModel ready at {tool_dir}"
+    # Accept either the 64-bit or 32-bit executable (both ship in the official zip)
+    for name in ("umodel_64.exe", "umodel.exe"):
+        if (tool_dir / name).exists():
+            return True, f"UModel ready at {tool_dir}"
 
     # Check if directory exists but exe is missing
-    if tool_dir.exists():
-        return False, f"UModel at {tool_dir} appears incomplete (missing umodel.exe)"
+    if tool_dir.exists() and any(tool_dir.iterdir()):
+        return False, f"UModel at {tool_dir} appears incomplete (missing umodel executable)"
 
     return False, f"UModel not installed (will download to {tool_dir})"
 
@@ -62,12 +62,16 @@ def tool_path() -> str:
 
 
 def executable_path() -> str | None:
-    """Return path to umodel.exe if it exists, None otherwise."""
-    tool_dir = get_tool_dir()
-    umodel_exe = tool_dir / "umodel.exe"
+    """Return path to the best available umodel executable, or None.
 
-    if umodel_exe.exists():
-        return str(umodel_exe)
+    The official win32 zip ships both ``umodel.exe`` (32-bit) and
+    ``umodel_64.exe`` (64-bit).  Prefer the 64-bit build when present.
+    """
+    tool_dir = get_tool_dir()
+    for name in ("umodel_64.exe", "umodel.exe"):
+        exe = tool_dir / name
+        if exe.exists():
+            return str(exe)
     return None
 
 
@@ -82,7 +86,9 @@ def download_latest() -> tuple[bool, str]:
     """
     tool_dir = get_tool_dir()
 
-    if tool_dir.exists() and (tool_dir / "umodel.exe").exists():
+    if tool_dir.exists() and (
+        (tool_dir / "umodel.exe").exists() or (tool_dir / "umodel_64.exe").exists()
+    ):
         return True, f"UModel already exists at {tool_dir}"
 
     tool_dir.parent.mkdir(parents=True, exist_ok=True)
@@ -94,21 +100,11 @@ def download_latest() -> tuple[bool, str]:
     # Note: Users can manually download from https://www.gildor.org/en/projects/umodel
     # and extract to the tool directory
 
+    # Direct download from the official host.  The win32 archive bundles
+    # both the 32-bit (umodel.exe) and 64-bit (umodel_64.exe) executables.
     candidates = [
-        # These URLs would need to be actual stable download links
-        # For now, we'll provide manual download instructions
+        "https://www.gildor.org/downloads/umodel_win32.zip",
     ]
-
-    # If we have no automated download URLs, provide manual download instructions
-    if not candidates:
-        return False, (
-            f"UModel requires manual download. Please:\n"
-            f"1. Visit https://www.gildor.org/en/projects/umodel\n"
-            f"2. Download the latest UModel build for Windows\n"
-            f"3. Extract the ZIP to: {tool_dir}\n"
-            f"4. Ensure umodel.exe is in the directory\n\n"
-            f"Credit: UModel by Konstantin Nosov (Gildor)"
-        )
 
     last_error = None
     for url in candidates:
@@ -122,15 +118,19 @@ def download_latest() -> tuple[bool, str]:
                     # Extract directly to tool directory
                     zf.extractall(tool_dir)
 
-                # Verify umodel.exe exists
+                # Verify at least one umodel executable is present
                 umodel_exe = tool_dir / "umodel.exe"
-                if not umodel_exe.exists():
-                    # Maybe it's in a subdirectory
-                    for exe in tool_dir.rglob("umodel.exe"):
-                        # Move contents to root of tool_dir
+                umodel_64_exe = tool_dir / "umodel_64.exe"
+                if not umodel_exe.exists() and not umodel_64_exe.exists():
+                    # Maybe everything landed in a subdirectory — flatten it
+                    found = list(tool_dir.rglob("umodel.exe")) + list(tool_dir.rglob("umodel_64.exe"))
+                    for exe in found:
                         parent = exe.parent
-                        for item in parent.iterdir():
-                            shutil.move(str(item), str(tool_dir / item.name))
+                        if parent != tool_dir:
+                            for item in parent.iterdir():
+                                dest = tool_dir / item.name
+                                if not dest.exists():
+                                    shutil.move(str(item), str(dest))
                         break
 
                 return True, f"Downloaded UModel to {tool_dir}. Credit: Konstantin Nosov (Gildor)"

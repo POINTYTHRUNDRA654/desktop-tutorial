@@ -362,11 +362,21 @@ class SceneDiagnostics:
             results.append(CheckResult(OK, "MESH", "Mesh is fully triangulated"))
 
         # Loose vertices
-        loose = [v for v in mesh.vertices if not v.link_edges]
+        # MeshVertex.link_edges only exists on BMVert (bmesh API), not on the
+        # regular Mesh.vertices collection.  Build the set of edge-connected
+        # vertex indices from mesh.edges instead — works on all Blender versions.
+        _verts_with_edges: set[int] = set()
+        for _e in mesh.edges:
+            _verts_with_edges.add(_e.vertices[0])
+            _verts_with_edges.add(_e.vertices[1])
+        loose_count = sum(
+            1 for v in mesh.vertices if v.index not in _verts_with_edges
+        )
+        loose = loose_count  # kept as a count; the original used len(loose)
         if loose:
             results.append(CheckResult(
                 WARNING, "MESH",
-                f"{len(loose)} loose vertex/vertices found – will inflate FO4 vertex count.",
+                f"{loose} loose vertex/vertices found – will inflate FO4 vertex count.",
                 auto_fixable=True, fix_key="remove_loose",
             ))
         else:
