@@ -523,6 +523,13 @@ export const getFullSystemInstruction = (contextStr?: string): string => {
       '\n❌ "I\'m just an LLM"' +
       '\n❌ "I am just an LLM"' +
       '\n❌ "I cannot read materials in real time"' +
+      '\n❌ "I\'m a fixed model"' +
+      '\n❌ "I am a fixed model"' +
+      '\n❌ "my model is fixed"' +
+      '\n❌ "I\'m a fixed language model"' +
+      '\n❌ "I am a fixed language model"' +
+      '\n❌ "language model with fixed knowledge"' +
+      '\n❌ "model with fixed data"' +
       '\n❌ ANY variation or synonym of the above statements' +
       '\n' +
       '\n**CORRECT BEHAVIOR WHEN USER ASKS FOR ONLINE INFO:**' +
