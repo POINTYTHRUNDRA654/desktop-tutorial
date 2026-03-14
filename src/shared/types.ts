@@ -4526,6 +4526,9 @@ export interface ElectronAPI {
   // via the secure main-process HTTPS layer (renderer has no direct access).
   webSearch: (query: string, type?: string) => Promise<any>;
   browseWeb: (url: string) => Promise<any>;
+
+  // Tool auto-download — lets the app download optional tools (e.g. UModel) on demand.
+  downloadUModel: (destDir?: string) => Promise<any>;
 }
 
 export interface VoiceChatPayload {
