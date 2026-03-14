@@ -2688,10 +2688,151 @@ class FO4_OT_CheckUModel(Operator):
         print(status_text)
         print(f"Tool path: {umodel_helpers.tool_path()}")
         if umodel_helpers.executable_path():
-            print(f"Executable: {umodel_helpers.executable_path()}")
+        print(f"Executable: {umodel_helpers.executable_path()}")
         print("Credit: UModel by Konstantin Nosov (Gildor)")
         print("https://www.gildor.org/en/projects/umodel")
         print("="*70)
+        return {'FINISHED'}
+
+
+class FO4_OT_ScanFO4Readiness(Operator):
+    """Scan the entire scene for FO4 export readiness (meshes, LODs, collision)."""
+    bl_idname = "fo4.scan_fo4_readiness"
+    bl_label = "Scan FO4 Readiness"
+    bl_options = {'REGISTER'}
+
+    max_collisions_per_object: IntProperty(
+        name="Max Collisions per Object",
+        description="Soft limit for UCX_ collision meshes per object; higher counts can bloat Havok data",
+        default=32,
+        min=1,
+        max=1024,
+    )
+
+    max_collisions_scene: IntProperty(
+        name="Max Collisions in Scene",
+        description="Soft limit for total collision meshes before export; large collision counts can exceed Havok block limits",
+        default=512,
+        min=1,
+        max=5000,
+    )
+
+    @staticmethod
+    def _is_collision(obj):
+        name_up = obj.name.upper()
+        return (
+            obj.get("fo4_collision")
+            or name_up.startswith("UCX_")
+            or name_up.endswith("_COLLISION")
+            or name_up.startswith("COLLISION")
+        )
+
+    @staticmethod
+    def _is_lod(obj):
+        name_low = obj.name.lower()
+        return (
+            "_lod" in name_low
+            or name_low.startswith("lod")
+            or name_low.endswith(".lod")
+        )
+
+    def execute(self, context):
+        scene = context.scene
+        mesh_objects = [o for o in scene.objects if getattr(o, "type", None) == 'MESH']
+
+        if not mesh_objects:
+            self.report({'WARNING'}, "No mesh objects in scene to scan")
+            return {'CANCELLED'}
+
+        collisions = [o for o in mesh_objects if self._is_collision(o)]
+        lods = [o for o in mesh_objects if not self._is_collision(o) and self._is_lod(o)]
+        bases = [o for o in mesh_objects if o not in collisions and o not in lods]
+
+        issues = []
+        warnings = []
+
+        # Per-object validation
+        for obj in mesh_objects:
+            success, obj_issues = mesh_helpers.MeshHelpers.validate_mesh(
+                obj, is_collision=self._is_collision(obj)
+            )
+            if not success and obj_issues:
+                issues.append((obj.name, obj_issues))
+
+        # Collision presence and limits
+        for base in bases:
+            armature_mod = any(m.type == 'ARMATURE' for m in getattr(base, "modifiers", []))
+            if armature_mod:
+                continue  # skinned meshes manage collision via skeleton
+
+            ucx_prefix = f"UCX_{base.name}".upper()
+            base_collisions = [
+                c for c in collisions
+                if c.parent == base
+                or c.name.upper() == ucx_prefix
+                or c.name.upper().startswith(f"{ucx_prefix}_")
+            ]
+
+            if not base_collisions and len(base.data.polygons) >= 4:
+                warnings.append(f"{base.name}: no UCX_ collision mesh found")
+            elif len(base_collisions) > self.max_collisions_per_object:
+                warnings.append(
+                    f"{base.name}: {len(base_collisions)} collision meshes (soft limit {self.max_collisions_per_object})"
+                )
+
+        # LOD sanity checks
+        orphan_lods = []
+        for lod_obj in lods:
+            name_low = lod_obj.name.lower()
+            root_name = name_low.split("_lod")[0]
+            has_base = any(b.name.lower() == root_name for b in bases)
+            if not has_base:
+                orphan_lods.append(lod_obj.name)
+
+        if orphan_lods:
+            warnings.append(
+                f"LOD meshes without matching base object: {', '.join(sorted(orphan_lods)[:5])}"
+                + ("..." if len(orphan_lods) > 5 else "")
+            )
+
+        if len(collisions) > self.max_collisions_scene:
+            warnings.append(
+                f"Scene has {len(collisions)} collision meshes (soft limit {self.max_collisions_scene})"
+            )
+
+        # Print human-readable report to the system console
+        print("\n" + "=" * 70)
+        print("FO4 READINESS SCAN (LOD / Collision / Export)")
+        print("=" * 70)
+        print(f"Base meshes: {len(bases)}")
+        print(f"LOD meshes:  {len(lods)}")
+        print(f"Collision meshes: {len(collisions)}")
+
+        if issues:
+            print("\nBlocking issues:")
+            for obj_name, obj_issues in issues:
+                print(f" - {obj_name}:")
+                for item in obj_issues:
+                    print(f"    • {item}")
+
+        if warnings:
+            print("\nWarnings:")
+            for w in warnings:
+                print(f" - {w}")
+
+        if not issues and not warnings:
+            msg = "FO4 readiness scan passed – scene is export-ready"
+            self.report({'INFO'}, msg)
+            notification_system.FO4_NotificationSystem.notify(msg, 'INFO')
+        else:
+            msg = (
+                f"Readiness scan found {len(issues)} blocking issue group(s) "
+                f"and {len(warnings)} warning(s)"
+            )
+            level = 'WARNING' if issues else 'INFO'
+            self.report({level}, msg)
+            notification_system.FO4_NotificationSystem.notify(msg, level)
+
         return {'FINISHED'}
 
 
@@ -11899,6 +12040,7 @@ classes = (
     FO4_OT_CheckUModelTools,
     FO4_OT_InstallUModelTools,
     FO4_OT_CheckUModel,
+    FO4_OT_ScanFO4Readiness,
     FO4_OT_CheckUnityFBXImporter,
     FO4_OT_CheckAssetStudio,
     FO4_OT_CheckAssetRipper,

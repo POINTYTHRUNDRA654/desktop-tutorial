@@ -2767,6 +2767,8 @@ class FO4_PT_SceneDiagnosticsPanel(Panel):
                          text="Run Diagnostics", icon='VIEWZOOM')
         btn_row.operator("fo4.auto_fix_diagnostics",
                          text="Auto-Fix", icon='TOOL_SETTINGS')
+        layout.operator("fo4.scan_fo4_readiness",
+                        text="Scan FO4 Readiness", icon='CHECKBOX_HLT')
 
         # ── Per-object results (from stored report) ──────────────────────────
         if fo4_scene_diagnostics:

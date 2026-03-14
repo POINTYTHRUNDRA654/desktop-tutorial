@@ -2364,6 +2364,47 @@ def test_tool_root_preferences():
     return True
 
 
+def test_fo4_readiness_scan_operator():
+    """Verify the FO4 readiness scan operator and UI hook exist."""
+    print("\n" + "="*70)
+    print("TEST 19: FO4 Readiness Scan Operator")
+    print("="*70)
+
+    failed = []
+
+    def ck(label, cond, detail=""):
+        sym = "✅" if cond else "❌"
+        print(f"{sym} {label}{(': ' + detail) if detail else ''}")
+        if not cond:
+            failed.append(label + ((" — " + detail) if detail else ""))
+
+    addon_dir = Path(__file__).parent
+    try:
+        ops_src = (addon_dir / "operators.py").read_text(encoding="utf-8")
+        ui_src = (addon_dir / "ui_panels.py").read_text(encoding="utf-8")
+    except Exception as exc:
+        ck("read operators/ui sources", False, str(exc))
+        return False
+
+    ck("FO4_OT_ScanFO4Readiness class defined",
+       "class FO4_OT_ScanFO4Readiness" in ops_src)
+    ck("fo4.scan_fo4_readiness idname present",
+       'bl_idname = "fo4.scan_fo4_readiness"' in ops_src)
+    ck("Readiness scan registered in classes tuple",
+       "FO4_OT_ScanFO4Readiness," in ops_src)
+    ck("UI includes readiness scan button",
+       "fo4.scan_fo4_readiness" in ui_src)
+
+    if failed:
+        print(f"\n❌ FAILED: {len(failed)} check(s) failed")
+        for f in failed:
+            print(f"   • {f}")
+        return False
+
+    print("\n✅ PASSED: FO4 readiness scan operator is wired into UI")
+    return True
+
+
 def run_all_tests():
     """Run all test suites"""
     print("\n" + "="*70)
@@ -2395,6 +2436,7 @@ def run_all_tests():
         ("Missing-PyTorch Error Messages",            test_torch_missing_messages),
         ("Blender 5.0.1 Access-Violation Fix",        test_blender5_access_violation_fix),
         ("Tool Root Preferences",                     test_tool_root_preferences),
+        ("FO4 Readiness Scan Operator",               test_fo4_readiness_scan_operator),
     ]
 
     passed = 0
