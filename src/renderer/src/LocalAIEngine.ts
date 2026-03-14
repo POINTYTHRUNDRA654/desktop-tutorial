@@ -315,6 +315,11 @@ export const LocalAIEngine = {
       /i\s+cannot\s+(review|retain|review\s+and\s+retain)\s+(data|information)\s+in\s+real.?time/i,
       /i\s+can'?t\s+(review|retain|review\s+and\s+retain)\s+(data|information)\s+in\s+real.?time/i,
       /i\s+(am\s+)?unable\s+to\s+(review|retain|review\s+and\s+retain)\s+(data|information)\s+in\s+real.?time/i,
+      // Patterns for "fixed model" claims
+      /i'?m\s+a\s+fixed\s+(model|language\s+model|llm)/i,
+      /i\s+am\s+a\s+fixed\s+(model|language\s+model|llm)/i,
+      /my\s+(model|knowledge\s+base)\s+(is|was)\s+fixed/i,
+      /(language\s+model|model|llm)\s+with\s+fixed\s+(knowledge|data)/i,
     ];
 
     // Try local provider first if available
