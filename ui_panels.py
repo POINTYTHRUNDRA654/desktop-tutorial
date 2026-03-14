@@ -3311,9 +3311,10 @@ class FO4_PT_SetupPanel(Panel):
         row = layout.row(align=True)
         row.operator("fo4.self_test", text="Environment Check", icon='CHECKMARK')
         row.operator("fo4.install_python_deps", text="Re-install Deps", icon='FILE_REFRESH')
-        # Reload button removed - causes crashes in Blender 4.5+
-        # Users should restart Blender to reload the addon
-        # layout.operator("fo4.reload_addon", text="Reload Add-on", icon='FILE_REFRESH')
+        # Restart button: uses a timer to defer bpy.ops.wm.quit_blender() so it
+        # runs after the confirm popup is closed, avoiding the Blender 5.0.1
+        # EXCEPTION_ACCESS_VIOLATION (BLI_addhead / wm_exit_schedule_delayed).
+        layout.operator("fo4.reload_addon", text="Restart Blender", icon='QUIT')
 
 
 

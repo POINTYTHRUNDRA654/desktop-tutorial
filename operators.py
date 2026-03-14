@@ -10561,24 +10561,36 @@ class FO4_OT_ClearOperationLog(Operator):
 
 
 class FO4_OT_ReloadAddon(Operator):
-    """Reload the add-on in-place without restarting Blender.
+    """Restart Blender so installed add-on updates take effect.
 
-    Use this after installing an updated zip (or after pulling new source files)
-    so your changes take effect immediately.  The operator disables and
-    re-enables the add-on, which re-imports all its modules from disk.
+    Calling bpy.ops.wm.quit_blender() directly from inside an invoke_confirm
+    popup handler crashes Blender 5.0.1 (EXCEPTION_ACCESS_VIOLATION in
+    BLI_addhead / WM_event_add_ui_handler / wm_exit_schedule_delayed) because
+    the window-manager handler list is invalid while the popup is still active.
+
+    The fix is to schedule the quit via bpy.app.timers so it runs after the
+    popup has been fully torn down, when the window context is valid again.
     """
     bl_idname = "fo4.reload_addon"
-    bl_label = "Reload Add-on"
+    bl_label = "Restart Blender"
     bl_description = (
-        "Disable and re-enable the add-on so updated files take effect "
-        "without restarting Blender"
+        "Quit Blender so any installed add-on updates take effect on next launch. "
+        "A confirmation dialog will appear first."
     )
     bl_options = {'REGISTER'}
 
     def execute(self, context):
-        # Reloading disabled - just show message
-        self.report({'WARNING'}, "Reload disabled. Please restart Blender to apply changes.")
+        # Defer the quit until after the current popup/event has been processed.
+        # Calling bpy.ops.wm.quit_blender() *directly* here would crash Blender
+        # 5.0.1 with an EXCEPTION_ACCESS_VIOLATION (null-pointer in BLI_addhead)
+        # because wm_exit_schedule_delayed tries to add a UI handler while the
+        # window-manager is still inside the popup confirm handler.
+        self.report({'INFO'}, "Blender will quit momentarily…")
+        bpy.app.timers.register(lambda: bpy.ops.wm.quit_blender(), first_interval=0.0)
         return {'FINISHED'}
+
+    def invoke(self, context, event):
+        return context.window_manager.invoke_confirm(self, event)
 
 
 class FO4_OT_ImportModFolder(Operator):
