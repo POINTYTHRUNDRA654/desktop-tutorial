@@ -422,6 +422,8 @@ def test_tool_helpers():
     test_cases = [
         ("asset_ripper_helpers",    ["status", "download_latest", "repo_path"]),
         ("asset_studio_helpers",    ["status", "download_latest", "repo_path"]),
+        ("umodel_helpers",          ["status", "download_latest", "tool_path",
+                                     "executable_path", "open_download_page"]),
         ("umodel_tools_helpers",    ["status", "download_latest", "addon_path"]),
         ("unity_fbx_importer_helpers", ["status", "download_latest", "repo_path"]),
         ("nvtt_helpers",    ["convert_to_dds", "convert_object_textures"]),
@@ -1980,6 +1982,92 @@ def test_ai_generation():
     return True
 
 
+def test_umodel_download():
+    """Verify umodel_helpers download configuration and fallback behaviour.
+
+    Checks that:
+    - The module exposes the expected constants and functions.
+    - DOWNLOAD_CANDIDATES contains at least two URLs (primary + fallback).
+    - A browser-like User-Agent is configured so servers do not reject the
+      request with a spurious 404.
+    - When every URL fails, download_latest() returns False with an
+      actionable manual-download message (not a raw HTTP error string).
+    """
+    print("\n" + "="*70)
+    print("TEST 14: UModel Download Configuration")
+    print("="*70)
+
+    addon_dir = Path(__file__).parent
+    failed = []
+
+    def ck(label, cond, detail=""):
+        sym = "✅" if cond else "❌"
+        print(f"{sym} {label}{(': ' + detail) if detail else ''}")
+        if not cond:
+            failed.append(label + ((" — " + detail) if detail else ""))
+
+    mod, err = _load_module(addon_dir, "umodel_helpers")
+    ck("umodel_helpers loads without error", mod is not None, err or "")
+    if mod is None:
+        return False
+
+    # ── Module-level constants ────────────────────────────────────────────────
+    ck("DOWNLOAD_CANDIDATES defined", hasattr(mod, "DOWNLOAD_CANDIDATES"))
+    ck("_DOWNLOAD_HEADERS defined",   hasattr(mod, "_DOWNLOAD_HEADERS"))
+    ck("DOWNLOAD_PAGE_URL defined",   hasattr(mod, "DOWNLOAD_PAGE_URL"))
+
+    candidates = getattr(mod, "DOWNLOAD_CANDIDATES", [])
+    ck("At least two download candidates (primary + fallback)",
+       len(candidates) >= 2, f"got {len(candidates)}")
+    ck("Primary candidate is gildor.org",
+       bool(candidates) and "gildor.org" in candidates[0])
+    ck("Fallback candidate present",
+       len(candidates) >= 2 and candidates[1].startswith("https://"))
+
+    headers = getattr(mod, "_DOWNLOAD_HEADERS", {})
+    ua = headers.get("User-Agent", "")
+    ck("User-Agent header is set",        bool(ua))
+    ck("User-Agent does not contain 'python'", "python" not in ua.lower(), ua)
+    ck("User-Agent looks like a browser",  "Mozilla" in ua, ua)
+
+    # ── Functions present ─────────────────────────────────────────────────────
+    for fn in ("status", "download_latest", "tool_path",
+               "executable_path", "open_download_page"):
+        ck(f"{fn}() callable", callable(getattr(mod, fn, None)))
+
+    # ── Failure message is actionable ─────────────────────────────────────────
+    # Patch urlopen to always raise a 404 so we exercise the fallback path.
+    import urllib.error as _ue
+    import unittest.mock as _mock
+
+    tool_dir = mod.get_tool_dir()
+
+    fake_404 = _ue.HTTPError(
+        url="https://example.com", code=404,
+        msg="Not Found", hdrs=None, fp=None,
+    )
+
+    with _mock.patch.object(mod.urllib.request, "urlopen", side_effect=fake_404):
+        ok, msg = mod.download_latest()
+
+    ck("download_latest returns False when all URLs fail", not ok)
+    ck("Failure message mentions DOWNLOAD_PAGE_URL",
+       mod.DOWNLOAD_PAGE_URL in msg, repr(msg))
+    ck("Failure message includes manual download instruction",
+       "manually" in msg.lower() or "visit" in msg.lower(), repr(msg))
+    ck("Failure message tells user where to extract the zip",
+       "extract" in msg.lower() or str(tool_dir) in msg, repr(msg))
+
+    if failed:
+        print(f"\n❌ FAILED: {len(failed)} check(s) failed")
+        for f in failed:
+            print(f"   • {f}")
+        return False
+
+    print("\n✅ PASSED: UModel download configuration is correct")
+    return True
+
+
 def test_torch_missing_messages():
     """Verify that a missing PyTorch installation yields a helpful message.
 
@@ -1989,7 +2077,7 @@ def test_torch_missing_messages():
     "Point-E not installed: No module named 'torch'".
     """
     print("\n" + "="*70)
-    print("TEST 14: Missing-PyTorch Error Messages (Shap-E & Point-E)")
+    print("TEST 15: Missing-PyTorch Error Messages (Shap-E & Point-E)")
     print("="*70)
 
     addon_dir = Path(__file__).parent
@@ -2088,6 +2176,7 @@ def run_all_tests():
         ("Preferences Migration", test_preferences_migration),
         ("New Features (Papyrus/Physics/Packaging)", test_new_features),
         ("AI Generation (Shap-E & Point-E)",         test_ai_generation),
+        ("UModel Download Configuration",             test_umodel_download),
         ("Missing-PyTorch Error Messages",            test_torch_missing_messages),
     ]
 
