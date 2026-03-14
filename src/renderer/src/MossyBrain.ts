@@ -436,6 +436,18 @@ CRITICAL: When user says "open xEdit", use toolId: "xedit". When user says "laun
             reason: { type: Type.STRING, description: 'Why you are initiating the scan (e.g., "Checking for ArmorKeywords conflicts").' }
          }
       }
+   },
+   {
+      name: 'scan_fallout4_live',
+      description: 'Go online and scan the Fallout 4 Fandom Wiki and DuckDuckGo for real-time Fallout 4 modding information on a given topic. Results are automatically saved to your Knowledge Vault so you can reference them later in the session. Use this whenever the user asks you to "go online", "search the web", "scan for information", "look up the latest info", or wants live/real-time data about Fallout 4.',
+      parameters: {
+         type: Type.OBJECT,
+         properties: {
+            topic: { type: Type.STRING, description: 'The Fallout 4 topic or search query to scan online (e.g., "Papyrus scripting", "NIF file format", "Creation Kit quests", "latest mods").' },
+            saveToVault: { type: Type.BOOLEAN, description: 'When true (default), the fetched results are saved to the Knowledge Vault for future reference.' }
+         },
+         required: ['topic']
+      }
    }
 ];
 
@@ -471,6 +483,8 @@ export const getFullSystemInstruction = (contextStr?: string): string => {
       '\n- NEVER say you cannot look something up, check a URL, or read a web page. You can do all of these things through the app\'s built-in web search.' +
       '\n- When you need information that isn\'t in your Knowledge Vault, tell the user you\'re searching the web and share what you find. Prefer official sources and reputable modding communities (Nexus Mods, Bethesda forums, STEP wiki, etc.).' +
       '\n- You can also read specific web pages when the user provides a URL. Treat the fetched content as authoritative.' +
+      '\n- **REAL-TIME SCANNING**: You can use the `scan_fallout4_live` tool to go online RIGHT NOW and scan the Fallout 4 Wiki and other sources for any topic, then save the results to your Knowledge Vault. Use this whenever the user asks you to "go online", "scan for info", "search the web", "look up the latest", "check online", or similar. Do NOT say you cannot do this — just call `scan_fallout4_live` immediately.' +
+      '\n- The `scan_fallout4_live` tool fetches live data from the Fallout 4 Fandom Wiki + web search and stores it in your Knowledge Vault so you can reference it in this session and future sessions.' + +
       '\n\nIf something is unclear or information is missing to complete a workflow, just ask — don\'t guess.' +
       '\n\n**Communication rules:**' +
       '\n- **Guidance Mode Rule**: If context includes "GUIDANCE MODE: SLOW", focus on one step at a time and actively check that the user is ready before moving on.' +
