@@ -237,9 +237,16 @@ def _ensure_tools_dir(name: str) -> Path:
     return path
 
 
+_HTTP_TIMEOUT = 30  # seconds – applied to every urlopen call
+
+
 def _download(url: str, target: Path) -> None:
     target.parent.mkdir(parents=True, exist_ok=True)
-    with urllib.request.urlopen(url) as resp, open(target, "wb") as out:
+    req = urllib.request.Request(
+        url,
+        headers={"User-Agent": "Blender-FO4-Addon/1.0"},
+    )
+    with urllib.request.urlopen(req, timeout=_HTTP_TIMEOUT) as resp, open(target, "wb") as out:
         shutil.copyfileobj(resp, out)
 
 
@@ -249,10 +256,18 @@ def _extract_zip(zip_path: Path, dest: Path) -> None:
 
 
 def _get_github_release_asset(repo: str, keyword: str) -> str | None:
-    """Return browser_download_url for first asset whose name contains keyword."""
+    """Return browser_download_url for first release asset whose name contains *keyword*.
+
+    Uses a 30-second timeout and a User-Agent header so GitHub does not
+    rate-limit unauthenticated requests from the default Python urlopen agent.
+    """
     api = f"https://api.github.com/repos/{repo}/releases/latest"
+    req = urllib.request.Request(
+        api,
+        headers={"User-Agent": "Blender-FO4-Addon/1.0"},
+    )
     try:
-        with urllib.request.urlopen(api) as resp:
+        with urllib.request.urlopen(req, timeout=_HTTP_TIMEOUT) as resp:
             data = json.load(resp)
     except Exception:
         return None
@@ -369,6 +384,25 @@ def _realesrgan_ncnn_platform_keyword() -> str:
     return "ubuntu"
 
 
+# Pinned direct download URLs for Real-ESRGAN NCNN Vulkan v0.2.0.
+# Used as a fallback when the GitHub Releases API is rate-limited or
+# unreachable, so the one-click installer always has a chance to succeed.
+_REALESRGAN_NCNN_FALLBACK_URLS: dict[str, str] = {
+    "windows": (
+        "https://github.com/xinntao/Real-ESRGAN/releases/download/"
+        "v0.2.5.0/realesrgan-ncnn-vulkan-20220424-windows.zip"
+    ),
+    "ubuntu": (
+        "https://github.com/xinntao/Real-ESRGAN/releases/download/"
+        "v0.2.5.0/realesrgan-ncnn-vulkan-20220424-ubuntu.zip"
+    ),
+    "macos": (
+        "https://github.com/xinntao/Real-ESRGAN/releases/download/"
+        "v0.2.5.0/realesrgan-ncnn-vulkan-20220424-macos.zip"
+    ),
+}
+
+
 def install_realesrgan_ncnn() -> tuple[bool, str]:
     """Download the Real-ESRGAN NCNN Vulkan binary from GitHub automatically.
 
@@ -380,6 +414,10 @@ def install_realesrgan_ncnn() -> tuple[bool, str]:
 
     The binary is extracted to ``tools/realesrgan/bin/`` and the add-on
     will find it there without needing it to be on PATH.
+
+    The GitHub Releases API is tried first; if it is unavailable (rate-limited
+    or no network access to the API endpoint), pinned fallback URLs for the
+    last known release are used automatically.
     """
     bin_dir = get_realesrgan_bin_dir()
     bin_dir.mkdir(parents=True, exist_ok=True)
@@ -389,10 +427,15 @@ def install_realesrgan_ncnn() -> tuple[bool, str]:
         return True, f"Real-ESRGAN NCNN Vulkan already installed in {bin_dir}"
 
     keyword = _realesrgan_ncnn_platform_keyword()
+
+    # Try the GitHub Releases API first so we always get the newest build.
     url = _get_github_release_asset("xinntao/Real-ESRGAN", keyword)
     if not url:
+        # API unavailable (rate-limit, no DNS, …). Fall back to a pinned URL.
+        url = _REALESRGAN_NCNN_FALLBACK_URLS.get(keyword)
+    if not url:
         return False, (
-            "Could not resolve Real-ESRGAN NCNN Vulkan download URL from GitHub. "
+            "Could not resolve Real-ESRGAN NCNN Vulkan download URL. "
             "Check your internet connection or download manually from "
             "https://github.com/xinntao/Real-ESRGAN/releases"
         )
@@ -497,6 +540,108 @@ def install_realesrgan() -> tuple[bool, str]:
         return True, f"[Python] {msg2}"
 
     return False, f"Both install methods failed.\nNCNN: {msg}\nPython: {msg2}"
+
+
+# ---------------------------------------------------------------------------
+# Instant-NGP – NeRF-based 3D reconstruction
+# ---------------------------------------------------------------------------
+
+def get_instantngp_dir() -> Path:
+    """Return the directory where Instant-NGP should be cloned/installed."""
+    d = TOOLS_ROOT / "instant-ngp"
+    return d
+
+
+def find_instantngp_exe(root: Path | None = None) -> Path | None:
+    """Return the Instant-NGP executable inside *root* (or the default dir).
+
+    Looks for ``build/instant-ngp`` (Linux/macOS) and
+    ``build/RelWithDebInfo/instant-ngp.exe`` (Windows) as produced by the
+    standard CMake build.
+    """
+    search_root = root or get_instantngp_dir()
+    candidates = [
+        search_root / "build" / "instant-ngp",
+        search_root / "build" / "instant-ngp.exe",
+        search_root / "build" / "RelWithDebInfo" / "instant-ngp.exe",
+        search_root / "build" / "Release" / "instant-ngp.exe",
+    ]
+    for c in candidates:
+        if c.is_file():
+            return c
+    return None
+
+
+def install_instantngp() -> tuple[bool, str]:
+    """Clone the Instant-NGP repository into the tools directory.
+
+    This function downloads the source code only — building requires a local
+    NVIDIA GPU + CUDA + CMake toolchain which cannot be automated here.
+
+    Install strategy:
+      1. Use ``git`` to clone NVlabs/instant-ngp (with submodules) into
+         ``tools/instant-ngp/``.
+      2. If git is not available, return instructions for a manual download.
+
+    After cloning, the add-on will detect the cloned directory and show
+    build instructions in the panel.  Once the user builds (``cmake . -B
+    build && cmake --build build --config RelWithDebInfo -j``) the
+    executable is found automatically.
+
+    Returns: (bool success, str message)
+    """
+    dest = get_instantngp_dir()
+
+    # Already cloned / present?
+    if (dest / ".git").exists() or find_instantngp_exe(dest):
+        return True, f"Instant-NGP already present at {dest}"
+
+    # Check for git
+    git_exe = shutil.which("git")
+    if not git_exe:
+        return False, (
+            "git not found on PATH — cannot clone Instant-NGP automatically.\n\n"
+            "Manual install:\n"
+            "  1. Install git from https://git-scm.com/\n"
+            "  2. Run: git clone --recursive "
+            "https://github.com/NVlabs/instant-ngp.git\n"
+            "  3. Build with CMake (CUDA required).\n"
+            "  4. Set the install path in the add-on settings."
+        )
+
+    dest.mkdir(parents=True, exist_ok=True)
+
+    try:
+        print(f"[Instant-NGP] Cloning NVlabs/instant-ngp to {dest} …")
+        subprocess.check_call(
+            [
+                git_exe, "clone", "--recursive",
+                "https://github.com/NVlabs/instant-ngp.git",
+                str(dest),
+            ],
+            timeout=600,
+        )
+    except subprocess.TimeoutExpired:
+        return False, "git clone timed out (10 min). Check your internet connection."
+    except subprocess.CalledProcessError as e:
+        return False, f"git clone failed (exit {e.returncode}): {e}"
+    except Exception as e:
+        return False, f"git clone error: {e}"
+
+    # Confirm source is present
+    if not (dest / "CMakeLists.txt").exists():
+        return False, "Clone finished but CMakeLists.txt not found — unexpected repo layout."
+
+    build_hint = (
+        "Instant-NGP source cloned successfully!\n\n"
+        "Next step — build (requires NVIDIA GPU + CUDA 11.3+):\n"
+        f"  cd \"{dest}\"\n"
+        "  cmake . -B build\n"
+        "  cmake --build build --config RelWithDebInfo -j\n\n"
+        "After the build completes the add-on will detect the executable "
+        "automatically.  See https://github.com/NVlabs/instant-ngp for details."
+    )
+    return True, build_hint
 
 
 def install_python_requirements(include_optional: bool = False) -> tuple[bool, str]:

@@ -3632,6 +3632,12 @@ class FO4_OT_InstallUpscalerDeps(Operator):
             print(f"{status}\n{msg}")
             print("=" * 60 + "\n")
 
+            # Expire the availability cache so the panel refreshes immediately.
+            try:
+                realesrgan_helpers.RealESRGANHelpers.clear_cache()
+            except Exception:
+                pass
+
             def _notify():
                 notification_system.FO4_NotificationSystem.notify(
                     f"AI Upscaler: {msg[:120]}", level
@@ -3644,6 +3650,44 @@ class FO4_OT_InstallUpscalerDeps(Operator):
             "Installing AI upscaler in the background. "
             "Check the Blender console for progress. "
             "You will be notified when complete."
+        )
+        return {'FINISHED'}
+
+
+class FO4_OT_InstallInstantNGP(Operator):
+    """Clone the Instant-NGP repository into the add-on tools directory.
+
+    Requires git on PATH. After cloning, the user must build the project
+    with CMake + CUDA (see console output for exact commands). Once built
+    the add-on detects the executable automatically."""
+    bl_idname = "fo4.install_instantngp"
+    bl_label = "Auto-Install Instant-NGP"
+    bl_options = {'REGISTER'}
+
+    def execute(self, context):
+        import threading
+        from . import tool_installers
+
+        def _run():
+            print("\n" + "=" * 60)
+            print("INSTANT-NGP INSTALLATION")
+            print("=" * 60)
+            ok, msg = tool_installers.install_instantngp()
+            print(msg)
+            print("=" * 60 + "\n")
+            # Expire the availability cache so the UI picks up the new state.
+            try:
+                instantngp_helpers.InstantNGPHelpers.clear_cache()
+            except Exception:
+                pass
+            level = 'INFO' if ok else 'ERROR'
+            notification_system.FO4_NotificationSystem.notify(msg[:200], level)
+
+        threading.Thread(target=_run, daemon=True).start()
+        self.report(
+            {'INFO'},
+            "Cloning Instant-NGP in the background — check the Blender console "
+            "(Window > Toggle System Console) for progress."
         )
         return {'FINISHED'}
 
@@ -7542,8 +7586,11 @@ class FO4_OT_BrowseUnrealAssets(Operator):
 
 # Shown to the user whenever FO4 assets are not found as loose files.
 _FALLBACK_MSG = (
-    "FO4 game files not found as loose NIFs — using placeholder mesh. "
-    "Extract BA2 archives first to enable game-mesh import."
+    "FO4 game meshes not found — placeholder created.\n"
+    "Fix: open the 'Game Asset Import' panel (Fallout 4 → Game Asset Import) "
+    "and set your 'Meshes' path to the extracted Data folder "
+    "(e.g. D:/FO4/Data or D:/FO4/Data/meshes). "
+    "Then click this button again to import the real game mesh."
 )
 
 # Stem keywords used when picking the 'best' NIF in a folder.
@@ -7646,7 +7693,8 @@ def _resolve_game_nif(key: str) -> str | None:
     Looks up *key* in ``_NIF_CATALOG`` → (folder, candidates), then searches
     the FO4 Data directory.  If no candidate name matches, returns the first
     ``.nif`` found in the folder (skipping ``_lod`` variants).  Returns
-    ``None`` when FO4 is not detected or the folder contains no NIFs.
+    ``None`` when FO4 is not detected or the folder contains no NIFs, and
+    prints a console message explaining why so the user knows what to fix.
     """
     from pathlib import Path as _P
     entry = _NIF_CATALOG.get(key)
@@ -7655,9 +7703,23 @@ def _resolve_game_nif(key: str) -> str | None:
     folder_rel, candidates = entry
     data_dir = fo4_game_assets.FO4GameAssets.get_data_dir()
     if not data_dir:
+        print(
+            "[FO4 Add-on] Smart Preset: FO4 data directory not found.\n"
+            "  → Open the 'Game Asset Import' panel and set the 'Meshes' path\n"
+            "    to your extracted FO4 Data folder (e.g. D:/FO4/Data).\n"
+            "  → If you set the path, click the preset button again."
+        )
         return None
     folder = _P(data_dir) / folder_rel
     if not folder.exists():
+        print(
+            f"[FO4 Add-on] Smart Preset: folder not found: {folder}\n"
+            f"  Data dir: {data_dir}\n"
+            f"  Expected sub-path: {folder_rel}\n"
+            "  → Make sure you pointed the 'Meshes' path at the Data root\n"
+            "    (the folder that contains the 'meshes/' sub-folder),\n"
+            "    not at the 'meshes/' folder itself."
+        )
         return None
     for name in candidates:
         p = folder / name
@@ -7673,6 +7735,11 @@ def _resolve_game_nif(key: str) -> str | None:
             if any(kw in nif.stem.lower() for kw in _NIF_PRIORITY_KEYWORDS):
                 return str(nif)
         return str(nifs[0])
+    print(
+        f"[FO4 Add-on] Smart Preset: no NIFs found in {folder}\n"
+        "  → BA2 archives may still be packed. Extract them with\n"
+        "    Archive2.exe (Creation Kit) or BAE (Bethesda Archive Extractor)."
+    )
     return None
 
 
@@ -11678,6 +11745,7 @@ classes = (
     # AI upscaler one-click installer
     FO4_OT_InstallUpscalerDeps,
     # One-click installers for AI tools
+    FO4_OT_InstallInstantNGP,
     FO4_OT_InstallShapE,
     FO4_OT_InstallPointE,
     FO4_OT_InstallDiffusers,

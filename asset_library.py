@@ -517,6 +517,20 @@ _CLASSES = [
     FO4_OT_ClearAssetLibrary,
 ]
 
+def _invalidate_game_asset_cache(self, context):
+    """Called whenever an asset-path property changes.
+
+    Clears the FO4GameAssets._game_dir cache so the next Smart Preset or
+    asset-library scan picks up the new path immediately — no Blender restart
+    needed.
+    """
+    try:
+        from . import fo4_game_assets
+        fo4_game_assets.FO4GameAssets.invalidate_cache()
+    except Exception:
+        pass
+
+
 _SCENE_PROPS: list[tuple[str, object]] = [
     # ── Paths ────────────────────────────────────────────────────────────────
     ("fo4_asset_lib_path", StringProperty(
@@ -527,18 +541,21 @@ _SCENE_PROPS: list[tuple[str, object]] = [
         ),
         default="",
         subtype='FILE_PATH',
+        update=_invalidate_game_asset_cache,
     )),
     ("fo4_asset_lib_mesh_path", StringProperty(
         name="Meshes Path",
         description="Dedicated folder for mesh files (FBX, OBJ, NIF, glTF …)",
         default="",
         subtype='DIR_PATH',
+        update=_invalidate_game_asset_cache,
     )),
     ("fo4_asset_lib_tex_path", StringProperty(
         name="Textures Path",
         description="Dedicated folder for texture files (DDS, PNG, TGA, EXR …)",
         default="",
         subtype='DIR_PATH',
+        update=_invalidate_game_asset_cache,
     )),
     ("fo4_asset_lib_mat_path", StringProperty(
         name="Materials Path",
@@ -548,6 +565,7 @@ _SCENE_PROPS: list[tuple[str, object]] = [
         ),
         default="",
         subtype='DIR_PATH',
+        update=_invalidate_game_asset_cache,
     )),
     # ── List state ───────────────────────────────────────────────────────────
     ("fo4_asset_lib_items", CollectionProperty(type=FO4_AssetLibraryItem)),

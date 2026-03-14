@@ -32,12 +32,51 @@ class InstantNGPHelpers:
         return result
 
     @staticmethod
+    def clear_cache() -> None:
+        """Force-expire the availability TTL cache.
+
+        Call this after a successful install or after the user sets the manual
+        path in preferences so the next UI redraw reflects the new state
+        without waiting for the 5-second TTL to expire.
+        """
+        InstantNGPHelpers._cache = None
+        InstantNGPHelpers._cache_time = 0.0
+
+    @staticmethod
     def _is_instantngp_available_uncached():
         """Perform the actual (uncached) Instant-NGP availability check."""
         # Check if instant-ngp executable is in PATH
         if shutil.which('instant-ngp'):
             return True
-        
+
+        # Check the tool_installers managed directory first
+        try:
+            from . import tool_installers
+            if tool_installers.find_instantngp_exe():
+                return True
+            # Source cloned but not yet built — still counts as "found" so the
+            # UI can show the build instructions instead of "Not Installed".
+            dest = tool_installers.get_instantngp_dir()
+            if (dest / "CMakeLists.txt").exists():
+                return True
+        except Exception:
+            pass
+
+        # Check user-supplied path from preferences
+        try:
+            import bpy
+            scene = bpy.context.scene
+            prefs_path = getattr(scene, "fo4_instantngp_path", "").strip()
+            if prefs_path and os.path.isdir(prefs_path):
+                if (
+                    os.path.exists(os.path.join(prefs_path, "build"))
+                    or os.path.exists(os.path.join(prefs_path, "CMakeLists.txt"))
+                    or os.path.exists(os.path.join(prefs_path, "instant-ngp"))
+                ):
+                    return True
+        except Exception:
+            pass
+
         # Check for installation in common locations
         possible_paths = [
             os.path.expanduser('~/instant-ngp'),
@@ -45,23 +84,50 @@ class InstantNGPHelpers:
             '/opt/instant-ngp',
             'C:/Projects/instant-ngp',
         ]
-        
+
         for path in possible_paths:
             if os.path.exists(os.path.join(path, 'instant-ngp')):
                 return True
             if os.path.exists(os.path.join(path, 'build')):
                 return True
-        
+
         return False
     
     @staticmethod
     def find_instantngp_path():
-        """Find Instant-NGP installation path"""
-        # Check PATH first
+        """Find the Instant-NGP installation / source directory.
+
+        Search order:
+          1. User-set preference path (``fo4_instantngp_path`` scene property).
+          2. The ``tools/instant-ngp/`` directory managed by the add-on.
+          3. The system PATH (``instant-ngp`` executable).
+          4. Common manual install locations.
+        """
+        # 1. Preference path set by the user
+        try:
+            import bpy
+            scene = bpy.context.scene
+            prefs_path = getattr(scene, "fo4_instantngp_path", "").strip()
+            if prefs_path and os.path.isdir(prefs_path):
+                return prefs_path
+        except Exception:
+            pass
+
+        # 2. Tool-installer managed directory
+        try:
+            from . import tool_installers
+            dest = tool_installers.get_instantngp_dir()
+            if (dest / "CMakeLists.txt").exists() or tool_installers.find_instantngp_exe(dest):
+                return str(dest)
+        except Exception:
+            pass
+
+        # 3. Check PATH first
         exe_path = shutil.which('instant-ngp')
         if exe_path:
             return os.path.dirname(exe_path)
-        
+
+        # 4. Common manual install locations
         possible_paths = [
             os.path.expanduser('~/instant-ngp'),
             os.path.expanduser('~/Projects/instant-ngp'),
@@ -70,65 +136,75 @@ class InstantNGPHelpers:
             'C:/Projects/instant-ngp',
             'C:/Users/' + os.environ.get('USERNAME', '') + '/instant-ngp',
         ]
-        
+
         for path in possible_paths:
-            # Check for build directory (contains executable after compilation)
             if os.path.exists(os.path.join(path, 'build')):
                 return path
-            # Check for scripts directory
             if os.path.exists(os.path.join(path, 'scripts')):
                 return path
-        
+
         return None
     
     @staticmethod
     def check_instantngp_installation():
         """
-        Check Instant-NGP installation and return status message
+        Check Instant-NGP installation and return status message.
         Returns: (bool success, str message)
         """
         instantngp_path = InstantNGPHelpers.find_instantngp_path()
-        
+
         if instantngp_path:
-            msg = f"Instant-NGP found at: {instantngp_path}\n"
-            
+            # Check whether the executable has been built yet
+            try:
+                from . import tool_installers
+                exe = tool_installers.find_instantngp_exe(Path(instantngp_path))
+            except Exception:
+                exe = None
+
+            if exe:
+                msg = f"Instant-NGP ready at: {exe}\n"
+            else:
+                msg = (
+                    f"Instant-NGP source found at: {instantngp_path}\n"
+                    "Executable not yet built. To build (NVIDIA GPU + CUDA required):\n"
+                    f"  cd \"{instantngp_path}\"\n"
+                    "  cmake . -B build\n"
+                    "  cmake --build build --config RelWithDebInfo -j\n\n"
+                )
+
             # Check for CUDA
             try:
                 import torch
                 if torch.cuda.is_available():
                     msg += "CUDA: Available ✓\n"
-                    msg += "Ready for 3D reconstruction!"
+                    if exe:
+                        msg += "Ready for 3D reconstruction!"
                 else:
                     msg += "CUDA: Not available\n"
-                    msg += "⚠️ Instant-NGP requires NVIDIA GPU with CUDA"
+                    msg += "⚠️ Instant-NGP requires an NVIDIA GPU with CUDA"
             except (ImportError, OSError):
-                msg += "PyTorch: Not installed (optional for checking CUDA)\n"
-            
-            return True, msg
-        else:
-            install_msg = (
-                "Instant-NGP not found. To install:\n\n"
-                "REQUIREMENTS:\n"
-                "- NVIDIA GPU with CUDA support (RTX recommended)\n"
-                "- CMake 3.21+\n"
-                "- CUDA 11.3+ or 12.x\n"
-                "- Python 3.7+\n\n"
-                "INSTALLATION:\n"
-                "1. Clone repository:\n"
-                "   gh repo clone NVlabs/instant-ngp\n"
-                "   (or: git clone --recursive https://github.com/NVlabs/instant-ngp.git)\n\n"
-                "2. Build with CMake:\n"
-                "   cd instant-ngp\n"
-                "   cmake . -B build\n"
-                "   cmake --build build --config RelWithDebInfo -j\n\n"
-                "3. (Optional) Install Python bindings:\n"
-                "   pip install -e .\n\n"
-                "4. Test installation:\n"
-                "   ./build/instant-ngp data/nerf/fox\n\n"
-                "See: https://github.com/NVlabs/instant-ngp for details\n"
-                "See NVIDIA_RESOURCES.md for integration guide"
-            )
-            return False, install_msg
+                msg += "PyTorch: Not installed (optional — used to check CUDA availability)"
+
+            return bool(exe), msg
+
+        install_msg = (
+            "Instant-NGP not found.\n\n"
+            "Click 'Auto-Install Instant-NGP' in the panel to clone the\n"
+            "source repository automatically (requires git on PATH).\n\n"
+            "REQUIREMENTS TO BUILD:\n"
+            "  • NVIDIA GPU with CUDA support (RTX recommended)\n"
+            "  • CMake 3.21+\n"
+            "  • CUDA 11.3+ or 12.x\n\n"
+            "MANUAL INSTALL:\n"
+            "  git clone --recursive https://github.com/NVlabs/instant-ngp.git\n"
+            "  cd instant-ngp\n"
+            "  cmake . -B build\n"
+            "  cmake --build build --config RelWithDebInfo -j\n\n"
+            "Then set the path under 'Instant-NGP Path' in the panel,\n"
+            "or place the folder at ~/instant-ngp.\n\n"
+            "See: https://github.com/NVlabs/instant-ngp"
+        )
+        return False, install_msg
     
     @staticmethod
     def reconstruct_from_images(images_dir, output_path, transforms_json=None):

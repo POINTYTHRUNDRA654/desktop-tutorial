@@ -67,6 +67,18 @@ class RealESRGANHelpers:
         return shutil.which('realesrgan-ncnn-vulkan')
 
     @staticmethod
+    def clear_cache() -> None:
+        """Force-expire the availability TTL cache.
+
+        Call this after a successful install so the next UI redraw
+        immediately reflects the new installation instead of waiting
+        up to *_CACHE_TTL* seconds for the automatic expiry.
+        """
+        _avail_cache["ts"] = 0.0
+        _avail_cache["result"] = None
+        _avail_cache["status"] = None
+
+    @staticmethod
     def is_realesrgan_available() -> bool:
         """Return True if any Real-ESRGAN method is ready to run.
 

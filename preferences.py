@@ -67,6 +67,7 @@ _PERSISTENT = (
     "fo4_assets_path",
     "fo4_unity_assets_path",
     "fo4_unreal_assets_path",
+    "fo4_instantngp_path",
     "fo4_llm_enabled",
     "fo4_llm_endpoint",
     "fo4_llm_model",
@@ -138,6 +139,7 @@ _ATTR_MAP: dict[str, str] = {
     "fo4_assets_path":                 "fo4_assets_path",
     "unity_assets_path":               "fo4_unity_assets_path",
     "unreal_assets_path":              "fo4_unreal_assets_path",
+    "instantngp_path":                 "fo4_instantngp_path",
     "llm_enabled":                     "fo4_llm_enabled",
     "llm_endpoint":                    "fo4_llm_endpoint",
     "llm_model":                       "fo4_llm_model",
@@ -173,6 +175,7 @@ _DEFAULTS: dict[str, object] = {
     "fo4_assets_path":                 "",
     "unity_assets_path":               "",
     "unreal_assets_path":              "",
+    "instantngp_path":                 "",
     "llm_enabled":                     False,
     "llm_endpoint":                    "",
     "llm_model":                       "gpt-4o",
@@ -406,6 +409,20 @@ def _on_change(self, context):
         pass
 
 
+def _on_asset_path_change(self, context):
+    """Auto-save and invalidate the FO4GameAssets detection cache.
+
+    Called when fo4_assets_path changes so that Smart Presets and the asset
+    browser pick up the new location on the very next call.
+    """
+    _on_change(self, context)
+    try:
+        from . import fo4_game_assets
+        fo4_game_assets.FO4GameAssets.invalidate_cache()
+    except Exception:
+        pass
+
+
 # (name, bpy.props.*) pairs – registered onto bpy.types.Scene
 _PROPS: list[tuple[str, object]] = [
     # ── Tool paths ────────────────────────────────────────────────────────────
@@ -428,7 +445,7 @@ _PROPS: list[tuple[str, object]] = [
     ("fo4_assets_path", bpy.props.StringProperty(
         name="Fallout 4 Assets",
         description="Path to Fallout 4 extracted assets (meshes, textures …)",
-        subtype="DIR_PATH", default="", update=_on_change)),
+        subtype="DIR_PATH", default="", update=_on_asset_path_change)),
     ("fo4_unity_assets_path", bpy.props.StringProperty(
         name="Unity Assets",
         description="Path to Unity project assets folder",
@@ -436,6 +453,13 @@ _PROPS: list[tuple[str, object]] = [
     ("fo4_unreal_assets_path", bpy.props.StringProperty(
         name="Unreal Assets",
         description="Path to Unreal Engine project content folder",
+        subtype="DIR_PATH", default="", update=_on_change)),
+    ("fo4_instantngp_path", bpy.props.StringProperty(
+        name="Instant-NGP Path",
+        description=(
+            "Path to the Instant-NGP install/source directory. "
+            "Leave blank to use the auto-installed location or common defaults."
+        ),
         subtype="DIR_PATH", default="", update=_on_change)),
 
     # ── LLM Advisor ───────────────────────────────────────────────────────────
