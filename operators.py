@@ -3823,6 +3823,13 @@ class FO4_OT_InstallZoeDepth(Operator):
             ok, msg = tool_installers.install_zoedepth()
             print(msg)
             print("=" * 60 + "\n")
+            # Expire the availability cache so the UI picks up the new state.
+            if ok:
+                try:
+                    from . import zoedepth_helpers
+                    zoedepth_helpers.clear_availability_cache()
+                except Exception:
+                    pass
             level = 'INFO' if ok else 'ERROR'
             notification_system.FO4_NotificationSystem.notify(msg, level)
 
