@@ -1456,6 +1456,13 @@ def test_preferences_migration():
         ("persistent decorator on handler",  "@bpy.app.handlers.persistent" in prefs_src),
         ("JSON config file name defined",    "_CONFIG_FILE" in prefs_src),
         ("_PERSISTENT tuple defined",        "_PERSISTENT" in prefs_src),
+        # Settings must survive scene switches (new scene created / active scene changed)
+        ("scene_change handler defined",     "_scene_change_handler" in prefs_src),
+        ("scene_change uses depsgraph_update_post",
+            "depsgraph_update_post" in prefs_src),
+        # Settings must be applied at addon-enable / Blender startup time
+        ("restore_settings called at register",
+            "restore_settings()" in prefs_src.split("def register(")[1].split("def unregister(")[0]),
     ]
 
     # ── FO4Settings wrapper ───────────────────────────────────────────────────

@@ -615,11 +615,40 @@ _PROPS: list[tuple[str, object]] = [
 
 _registered_props: list[str] = []
 
+# Tracks the last seen active-scene name so _scene_change_handler can detect
+# switches without running restore_settings() on every depsgraph update.
+_last_active_scene: str = ""
+
 
 @bpy.app.handlers.persistent
 def _load_post_handler(scene, *args):
     """Restore persisted settings whenever a blend file is loaded."""
+    global _last_active_scene
     restore_settings()
+    try:
+        _last_active_scene = bpy.context.scene.name if bpy.context.scene else ""
+    except Exception:
+        pass
+
+
+@bpy.app.handlers.persistent
+def _scene_change_handler(scene, depsgraph):
+    """Restore persisted settings whenever the active scene changes.
+
+    ``depsgraph_update_post`` is the correct modern Blender API for this purpose
+    — ``scene_update_post`` was removed in Blender 2.91.  Although the handler
+    fires after every depsgraph evaluation, the actual restore work only runs
+    when the active-scene name changes (a single string comparison), so the
+    per-frame overhead is negligible.
+    """
+    global _last_active_scene
+    try:
+        current = bpy.context.scene.name if bpy.context.scene else ""
+    except Exception:
+        return
+    if current and current != _last_active_scene:
+        _last_active_scene = current
+        restore_settings()
 
 
 def register():
@@ -635,10 +664,24 @@ def register():
     if _load_post_handler not in bpy.app.handlers.load_post:
         bpy.app.handlers.load_post.append(_load_post_handler)
 
+    if _scene_change_handler not in bpy.app.handlers.depsgraph_update_post:
+        bpy.app.handlers.depsgraph_update_post.append(_scene_change_handler)
+
+    # Populate the current scene immediately so settings are available as soon
+    # as the add-on is enabled (before any load_post event fires).
+    restore_settings()
+    try:
+        _last_active_scene = bpy.context.scene.name if bpy.context.scene else ""
+    except Exception:
+        pass
+
 
 def unregister():
     if _load_post_handler in bpy.app.handlers.load_post:
         bpy.app.handlers.load_post.remove(_load_post_handler)
+
+    if _scene_change_handler in bpy.app.handlers.depsgraph_update_post:
+        bpy.app.handlers.depsgraph_update_post.remove(_scene_change_handler)
 
     for name in list(_registered_props):
         if hasattr(bpy.types.Scene, name):
