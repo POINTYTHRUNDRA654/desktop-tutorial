@@ -242,6 +242,12 @@ export const LocalAIEngine = {
       'check the web', 'check web', 'check internet', 'check the internet',
       'from the web', 'from the internet', 'from online', 'on the web',
       'on the internet', 'on nexus', 'on fandom',
+      // Additional explicit triggers based on user feedback
+      'can you search', 'can you look', 'can you find', 'can you check',
+      'are you able to search', 'are you able to look up', 'are you able to find',
+      'access the internet', 'get online', 'web search', 'internet search',
+      'look for', 'search for', 'find me', 'get me', 'fetch me',
+      'up to date', 'up-to-date', 'most recent', 'newest', 'new information',
     ];
     // NOTE: this regex is intentionally kept in sync with the fo4Terms pattern
     // in src/electron/main.ts (web-search handler). Update both if you change it.
@@ -249,18 +255,25 @@ export const LocalAIEngine = {
     const lowerQuery = query.toLowerCase();
     const needsWebSearch = webSearchTriggers.some((kw) => lowerQuery.includes(kw));
     if (needsWebSearch) {
+      console.log('[LocalAIEngine] 🌐 Web search triggered for query:', query.substring(0, 100));
       try {
         const webApi = (window.electron?.api || window.electronAPI) as any;
         if (typeof webApi?.webSearch === 'function') {
           const searchType = fo4TermsRenderer.test(query) ? 'wiki' : undefined;
+          console.log('[LocalAIEngine] Calling webSearch with type:', searchType || 'general');
           const searchResult = await webApi.webSearch(query, searchType);
           if (searchResult?.success && searchResult?.text) {
+            console.log('[LocalAIEngine] ✅ Web search successful, injecting results');
             injectedContext += '\n### LIVE WEB SEARCH RESULTS (use this to answer the user):\n';
             injectedContext += searchResult.text + '\n';
             if (searchResult.url) {
               injectedContext += `Source: ${searchResult.source || 'Web'} — ${searchResult.url}\n`;
             }
+          } else {
+            console.warn('[LocalAIEngine] Web search returned no results:', searchResult);
           }
+        } else {
+          console.warn('[LocalAIEngine] webSearch API not available');
         }
       } catch (webErr) {
         console.warn('[LocalAIEngine] Web search failed (non-critical):', webErr);
@@ -286,6 +299,13 @@ export const LocalAIEngine = {
       /i\s+can'?t\s+access\s+online\s+resources/i,
       /i\s+don'?t\s+have\s+the\s+ability\s+to\s+(browse|access\s+the\s+(web|internet))/i,
       /i\s+am\s+not\s+able\s+to\s+(browse|access\s+the\s+(web|internet)|go\s+online)/i,
+      // Additional patterns based on user feedback
+      /i\s+can'?t\s+(search|look\s+up|find)\s+(online|on\s+the\s+web|on\s+the\s+internet)/i,
+      /i\s+cannot\s+(search|look\s+up|find)\s+(online|on\s+the\s+web|on\s+the\s+internet)/i,
+      /i\s+(do\s+not|don'?t)\s+have\s+(the\s+ability|capability)\s+to\s+(access|browse|search)/i,
+      /i\s+(am\s+)?not\s+able\s+to\s+(search|look\s+up|fetch|get)\s+(online|web|internet)/i,
+      /as\s+an?\s+(ai|language\s+model|llm).*(cannot|can'?t|unable).*(internet|web|online|browse)/i,
+      /my\s+(knowledge|training\s+data).*(cutoff|limited\s+to|goes\s+up\s+to)/i,
     ];
 
     // Try local provider first if available
@@ -366,11 +386,15 @@ export const LocalAIEngine = {
         // the user receives real information instead of a false refusal.
         const responseRefusesInternet = !needsWebSearch && INTERNET_REFUSAL_PATTERNS.some((p) => p.test(responseContent));
         if (responseRefusesInternet) {
+          console.warn('[LocalAIEngine] ⚠️ RESPONSE GUARD TRIGGERED - AI falsely refused internet access');
+          console.warn('[LocalAIEngine] Response snippet:', responseContent.substring(0, 200));
           try {
             const guardWebApi = (window.electron?.api || window.electronAPI) as any;
             if (typeof guardWebApi?.webSearch === 'function') {
+              console.log('[LocalAIEngine] Fetching web results for retry...');
               const guardSearch = await guardWebApi.webSearch(query);
               if (guardSearch?.success && guardSearch?.text) {
+                console.log('[LocalAIEngine] ✅ Web search successful, retrying with injected results');
                 let enrichedContext = injectedContext +
                   '\n### LIVE WEB SEARCH RESULTS (already fetched — use this to answer the user):\n' +
                   guardSearch.text + '\n';
@@ -381,8 +405,13 @@ export const LocalAIEngine = {
                 const retryResp = await api.aiChatGroq(query, guardSystemPrompt, 'llama-3.3-70b-versatile', conversationHistory);
                 if (retryResp?.success && retryResp.content) {
                   responseContent = String(retryResp.content);
+                  console.log('[LocalAIEngine] ✅ Retry successful with web results');
                 }
+              } else {
+                console.warn('[LocalAIEngine] Guard web search returned no results');
               }
+            } else {
+              console.warn('[LocalAIEngine] webSearch API not available for guard retry');
             }
           } catch (guardErr) {
             console.warn('[LocalAIEngine] Response-guard web retry failed (non-critical):', guardErr);
