@@ -11196,7 +11196,8 @@ class FO4_OT_ReloadAddon(Operator):
                 bpy.ops.wm.quit_blender()
 
         self.report({'INFO'}, "Restarting Blender…")
-        bpy.app.timers.register(lambda: _restart_and_quit(), first_interval=0.0)
+        # Use a small delay so the confirm popup fully tears down before quitting.
+        bpy.app.timers.register(lambda: _restart_and_quit(), first_interval=0.01)
         return {'FINISHED'}
 
     def invoke(self, context, event):
