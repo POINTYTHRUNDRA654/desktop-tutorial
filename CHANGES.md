@@ -27,6 +27,37 @@ All changes in this PR live on this branch. The branch name reflects its origin 
 
 ## Done ✅  (DO NOT redo, revert, or override these)
 
+### 21. Fix: Mossy says "I cannot go online" + real-time Fallout 4 database scanning ✅
+
+**Problems addressed:**
+1. Despite the system prompt saying she has internet access, Mossy still told users she "cannot go online" or "cannot scan Fallout 4 information in real time."
+2. There was no tool to actively scan multiple online Fallout 4 sources and save results to the Knowledge Vault.
+3. Web-search auto-trigger keywords were too narrow — phrases like "go online", "scan", "real-time", "internet", "check online" did not trigger the automatic web search.
+
+**Fix A — Broader web-search triggers (`src/renderer/src/LocalAIEngine.ts`):**
+- Expanded `webSearchTriggers` array with ~27 new phrases:
+  `go online`, `online`, `internet`, `check online`, `look it up online`, `look online`, `fetch`, `pull up`, `scan`, `scan for`, `real-time`, `real time`, `realtime`, `live data`, `live info`, `live information`, `check the web`, `check web`, `check internet`, `check the internet`, `from the web`, `from the internet`, `from online`, `on the web`, `on the internet`, `on nexus`, `on fandom`.
+- These ensure the automatic background web-search fires whenever the user uses natural "go online" language.
+
+**Fix B — New `scan_fallout4_live` tool (`src/renderer/src/MossyBrain.ts` + `src/renderer/src/MossyTools.ts`):**
+- Added `scan_fallout4_live` to `toolDeclarations` in `MossyBrain.ts`. The AI is now explicitly told to call this tool whenever the user says "go online", "scan for info", "look up the latest", etc.
+- Implemented handler in `MossyTools.ts`:
+  1. Calls `api.webSearch(topic, 'wiki')` to fetch from the Fallout 4 Fandom MediaWiki.
+  2. Calls `api.webSearch('Fallout 4 ' + topic)` to fetch broader DuckDuckGo web results.
+  3. Both results are saved to `localStorage` `mossy_knowledge_vault` with `trustLevel: 'community'` and `tags: ['live-scan']`.
+  4. Returns a formatted message with both sets of results plus a "✅ Saved to Knowledge Vault" confirmation.
+
+**Fix C — System prompt update (`src/renderer/src/MossyBrain.ts`):**
+- Under **INTERNET ACCESS — CRITICAL**, added two new bullet points explicitly describing `scan_fallout4_live` and instructing Mossy to call it immediately (never say "I cannot") when asked to go online or scan for information.
+
+Files changed:
+- `src/renderer/src/LocalAIEngine.ts`
+- `src/renderer/src/MossyBrain.ts`
+- `src/renderer/src/MossyTools.ts`
+- `CHANGES.md`
+
+---
+
 ### 20. Web search + Pause/Resume UX fix ✅
 
 **Problems addressed:**
