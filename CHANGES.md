@@ -27,6 +27,45 @@ All changes in this PR live on this branch. The branch name reflects its origin 
 
 ## Done ✅  (DO NOT redo, revert, or override these)
 
+### 23. Fix: Mossy still says she can't access the internet (response-guard interceptor) ✅
+
+**Problems addressed:**
+1. Despite fixes #20–22, Mossy still occasionally told users she cannot access the internet.
+   Root cause: LLMs may ignore "NEVER say" system-prompt instructions and fall back to
+   trained behaviour when the user asks about her capabilities rather than asking her to
+   search something specific.
+
+**Fix A — Response-guard interceptor (`src/renderer/src/LocalAIEngine.ts`):**
+- Added `INTERNET_REFUSAL_PATTERNS` — 15 regex patterns covering every known internet-refusal
+  phrase: `"I cannot access the internet"`, `"I can't access the internet"`,
+  `"I am unable to access the internet"`, `"I don't have internet access"`,
+  `"I cannot browse the web"`, `"I can't go online"`, `"I don't have real-time access"`, etc.
+- After the Groq cloud response is received, the patterns are tested against the response text.
+- If a match is found AND no web search was already injected for that query, the interceptor:
+  1. Immediately calls `api.webSearch(query)` to fetch live results.
+  2. Rebuilds the system prompt with those live results injected.
+  3. Retries the Groq call **once** with the enriched context so Mossy answers
+     with real data rather than a false refusal.
+- One-retry-only guard prevents infinite loops; errors in the retry path are non-fatal
+  (the original response is returned as a fallback).
+
+**Fix B — Broader INTERNET ACCESS block (`src/renderer/src/MossyBrain.ts`):**
+- Added more explicit phrase variants to the first NEVER bullet:
+  `"I'm unable to access the internet"`, `"I am unable to access the internet"`,
+  `"I can't access the internet"`, `"I cannot connect to the internet"`,
+  `"I can't go online"`, `"I cannot go online"`.
+- Added more variants to the second NEVER bullet:
+  `"I don't have access to real-time data"`, `"I'm not able to browse"`.
+- Ensures the system-prompt instruction covers all known phrases before the response guard
+  is even needed (defence in depth).
+
+Files changed:
+- `src/renderer/src/LocalAIEngine.ts`
+- `src/renderer/src/MossyBrain.ts`
+- `CHANGES.md`
+
+---
+
 ### 22. Fix: Mossy still says "my knowledge base is fixed" / "I'm an LLM" after fix #21 ✅
 
 **Problems addressed:**
