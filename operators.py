@@ -7587,10 +7587,8 @@ class FO4_OT_BrowseUnrealAssets(Operator):
 # Shown to the user whenever FO4 assets are not found as loose files.
 _FALLBACK_MSG = (
     "FO4 game meshes not found — placeholder created.\n"
-    "Fix: open the 'Game Asset Import' panel (Fallout 4 → Game Asset Import) "
-    "and set your 'Meshes' path to the extracted Data folder "
-    "(e.g. D:/FO4/Data or D:/FO4/Data/meshes). "
-    "Then click this button again to import the real game mesh."
+    "Set your FO4 Data folder in the Vegetation panel (or any Fallout 4 panel) "
+    "then click this button again to import the real game mesh."
 )
 
 # Stem keywords used when picking the 'best' NIF in a folder.
@@ -7644,7 +7642,7 @@ _NIF_CATALOG: dict[str, tuple[str, list[str]]] = {
     # ── Vegetation ────────────────────────────────────────────────────────
     'VEG_PINE':       ('meshes/landscape/trees/', ['treepine01.nif']),
     'VEG_DEAD_TREE':  ('meshes/landscape/trees/', ['treedead01.nif', 'treedeadbark01.nif']),
-    'VEG_SHRUB':      ('meshes/plants/',           ['shrub01.nif', 'shrubdead01.nif']),
+    'VEG_BUSH':       ('meshes/plants/',           ['bush01.nif', 'shrub01.nif', 'shrubdead01.nif']),
     'VEG_GRASS':      ('meshes/landscape/grass/',  ['grass01.nif']),
     'VEG_FERN':       ('meshes/plants/',           ['fern01.nif', 'plantfern01.nif']),
     'VEG_ROCK':       ('meshes/landscape/rocks/',  ['rock01.nif', 'boulder01.nif']),
@@ -8183,7 +8181,7 @@ class FO4_OT_CreateVegetationPreset(Operator):
         items=[
             ('VEG_PINE',      "Pine Tree",    "Living pine tree (landscape/trees)"),
             ('VEG_DEAD_TREE', "Dead Tree",    "Dead/wasteland tree"),
-            ('VEG_SHRUB',     "Shrub/Bush",   "Bush or shrub plant"),
+            ('VEG_BUSH',      "Bush/Shrub",   "Bush or shrub plant"),
             ('VEG_GRASS',     "Grass Clump",  "Ground-cover grass"),
             ('VEG_FERN',      "Fern/Plant",   "Fern or leafy plant"),
             ('VEG_ROCK',      "Rock",         "Decorative landscape rock"),
@@ -8205,7 +8203,7 @@ class FO4_OT_CreateVegetationPreset(Operator):
                     return {'FINISHED'}
                 self.report({'WARNING'}, f"{msg} — using placeholder mesh")
             else:
-                self.report({'INFO'}, _FALLBACK_MSG)
+                self.report({'WARNING'}, _FALLBACK_MSG)
 
             # Fallback: procedural placeholder (kept from original)
             import bmesh as _bm
@@ -8227,7 +8225,7 @@ class FO4_OT_CreateVegetationPreset(Operator):
                 obj = context.active_object
                 obj.name = "FO4_DeadTree"
                 obj.rotation_euler[1] = 0.2
-            elif self.vegetation_type == 'VEG_SHRUB':
+            elif self.vegetation_type == 'VEG_BUSH':
                 bpy.ops.mesh.primitive_ico_sphere_add(subdivisions=2, radius=1, location=(0, 0, 0.5))
                 obj = context.active_object
                 obj.name = "FO4_Bush"
@@ -8266,8 +8264,35 @@ class FO4_OT_CreateVegetationPreset(Operator):
             self.report({'ERROR'}, f"Failed to create vegetation: {e}")
             return {'CANCELLED'}
 
+    def draw(self, context):
+        layout = self.layout
+        layout.prop(self, "vegetation_type")
+
+        # Show current FO4 data-path status so the user knows whether
+        # the real game mesh will be imported or a placeholder created.
+        box = layout.box()
+        try:
+            ready, _ = fo4_game_assets.FO4GameAssets.get_status()
+            if ready:
+                box.label(text="Game files found — real mesh will be imported",
+                          icon='CHECKMARK')
+            else:
+                box.label(text="Game files not found — placeholder will be created",
+                          icon='INFO')
+                sub = box.column(align=True)
+                sub.scale_y = 0.8
+                sub.label(text="Set FO4 Data Folder in any Fallout 4 panel,",
+                          icon='DOT')
+                sub.label(text="then click Create again to import the real mesh.",
+                          icon='DOT')
+                sub.prop(context.scene, "fo4_assets_path", text="Data Folder")
+                sub.operator("fo4.set_fo4_assets_path", text="Browse…",
+                             icon='FILE_FOLDER')
+        except Exception:
+            pass
+
     def invoke(self, context, event):
-        return context.window_manager.invoke_props_dialog(self)
+        return context.window_manager.invoke_props_dialog(self, width=400)
 
 
 class FO4_OT_CombineVegetationMeshes(Operator):

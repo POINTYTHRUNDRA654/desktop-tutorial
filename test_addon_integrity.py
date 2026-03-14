@@ -2019,8 +2019,12 @@ def test_umodel_download():
     candidates = getattr(mod, "DOWNLOAD_CANDIDATES", [])
     ck("At least two download candidates (primary + fallback)",
        len(candidates) >= 2, f"got {len(candidates)}")
+
+    # Use urlparse to check the hostname precisely, not a substring match.
+    from urllib.parse import urlparse as _urlparse
+    primary_host = _urlparse(candidates[0]).hostname if candidates else ""
     ck("Primary candidate is gildor.org",
-       bool(candidates) and "gildor.org" in candidates[0])
+       primary_host in ("www.gildor.org", "gildor.org"))
     ck("Fallback candidate present",
        len(candidates) >= 2 and candidates[1].startswith("https://"))
 

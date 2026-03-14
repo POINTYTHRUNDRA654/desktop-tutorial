@@ -45,6 +45,67 @@ fo4_scene_diagnostics = _safe_import("fo4_scene_diagnostics")
 fo4_reference_helpers = _safe_import("fo4_reference_helpers")
 asset_library         = _safe_import("asset_library")
 
+
+# ---------------------------------------------------------------------------
+# Shared helper – drawn identically in every panel that needs game-asset paths
+# ---------------------------------------------------------------------------
+
+def _draw_game_path_box(layout, context):
+    """Draw the unified FO4 Data Folder row.
+
+    A single *Data Folder* field (``fo4_assets_path``) acts as the one source
+    of truth.  Setting it auto-populates the meshes/textures/materials
+    sub-paths via the ``_on_asset_path_change`` callback in preferences.py.
+    The same box is reused in every panel so the user always sees and edits
+    the same field – no more scattered, out-of-sync path inputs.
+    """
+    from . import fo4_game_assets as _fga
+    import os
+
+    scene = context.scene
+    ready, _ = _fga.FO4GameAssets.get_status()
+
+    box = layout.box()
+    hdr = box.row()
+    hdr.label(
+        text="FO4 Data Folder",
+        icon='CHECKMARK' if ready else 'ERROR',
+    )
+
+    # ── Single path field + browse button ────────────────────────────────────
+    path_row = box.row(align=True)
+    path_row.prop(scene, "fo4_assets_path", text="")
+    path_row.operator("fo4.set_fo4_assets_path", text="", icon='FILE_FOLDER')
+
+    # ── Status feedback ───────────────────────────────────────────────────────
+    sub = box.column(align=True)
+    sub.scale_y = 0.75
+    if ready:
+        try:
+            from pathlib import Path as _P
+            raw = scene.fo4_assets_path or ''
+            try:
+                raw = bpy.path.abspath(raw)
+            except Exception:
+                pass
+            data_root = _P(raw.strip())
+            for label, subdir in (
+                ("Meshes",    "meshes"),
+                ("Textures",  "textures"),
+                ("Materials", "materials"),
+            ):
+                found = (data_root / subdir).is_dir()
+                sub.label(
+                    text=f"{label}: {'found' if found else 'not found'}",
+                    icon='CHECKMARK' if found else 'DOT',
+                )
+        except Exception:
+            pass
+    else:
+        sub.label(text="Point this at your extracted FO4 Data folder", icon='INFO')
+        sub.label(text="e.g.  D:\\FO4\\Data", icon='DOT')
+        sub.label(text="Meshes, textures & materials auto-detected inside", icon='DOT')
+
 class FO4_PT_MainPanel(Panel):
     """Main tutorial panel in the 3D View sidebar"""
     bl_label = "Fallout 4 Tutorial"
@@ -148,40 +209,13 @@ class FO4_PT_MeshPanel(Panel):
         )
 
     @staticmethod
-    def _draw_asset_paths_box(layout, has_mesh, scene):
+    def _draw_asset_paths_box(layout, has_mesh, scene, context):
         """Draw the shared Game Asset Paths section inside the Mesh panel."""
-        from . import fo4_game_assets as _fga
-
-        paths_box = layout.box()
-        paths_box.label(text="Game Asset Paths", icon='FILEBROWSER')
-
-        # ── FO4 assets path status ────────────────────────────────────────
-        ready, status_msg = _fga.FO4GameAssets.get_status()
-        status_icon = 'CHECKMARK' if ready else 'ERROR'
-        info_col = paths_box.column(align=True)
-        info_col.scale_y = 0.8
-        info_col.label(text=status_msg, icon=status_icon)
-
-        # ── Three separate path pickers ───────────────────────────────────
-        sub = paths_box.column(align=True)
-
-        row = sub.row(align=True)
-        row.prop(scene, "fo4_asset_lib_mesh_path", text="Meshes")
-        op = row.operator("fo4.set_asset_folder_path", text="", icon='FILE_FOLDER')
-        op.slot = 'meshes'
-
-        row = sub.row(align=True)
-        row.prop(scene, "fo4_asset_lib_tex_path", text="Textures")
-        op = row.operator("fo4.set_asset_folder_path", text="", icon='FILE_FOLDER')
-        op.slot = 'textures'
-
-        row = sub.row(align=True)
-        row.prop(scene, "fo4_asset_lib_mat_path", text="Materials")
-        op = row.operator("fo4.set_asset_folder_path", text="", icon='FILE_FOLDER')
-        op.slot = 'materials'
+        _draw_game_path_box(layout, context)
 
         # ── Scan + Import buttons ─────────────────────────────────────────
-        action_row = paths_box.row(align=True)
+        action_box = layout.box()
+        action_row = action_box.row(align=True)
         action_row.operator(
             "fo4.scan_asset_library",
             text="Scan / Refresh",
@@ -194,8 +228,8 @@ class FO4_PT_MeshPanel(Panel):
         )
 
         # ── Third-party mesh conversion ───────────────────────────────────
-        paths_box.separator()
-        conv_row = paths_box.row()
+        action_box.separator()
+        conv_row = action_box.row()
         conv_row.enabled = has_mesh
         conv_row.operator(
             "fo4.prepare_third_party_mesh",
@@ -214,7 +248,7 @@ class FO4_PT_MeshPanel(Panel):
         prefs = preferences.get_preferences() if preferences else None
 
         # ── Game Asset Paths – always shown at the top of the Mesh panel ──
-        self._draw_asset_paths_box(layout, has_mesh, scene)
+        self._draw_asset_paths_box(layout, has_mesh, scene, context)
 
         if unified:
             # ── Full FO4 Pipeline (one-click) ────────────────────────────
@@ -1425,31 +1459,7 @@ class FO4_PT_GameAssetsPanel(Panel):
         fo4_box = layout.box()
         fo4_box.label(text="Fallout 4 Assets", icon='BLENDER')
 
-        from . import fo4_game_assets
-        ready, message = fo4_game_assets.FO4GameAssets.get_status()
-        status_icon = 'CHECKMARK' if ready else 'ERROR'
-
-        info_col = fo4_box.column(align=True)
-        info_col.scale_y = 0.8
-        info_col.label(text=message, icon=status_icon)
-
-        # Three separate path pickers (meshes / textures / materials)
-        paths_sub = fo4_box.column(align=True)
-
-        row = paths_sub.row(align=True)
-        row.prop(scene, "fo4_asset_lib_mesh_path", text="Meshes")
-        op = row.operator("fo4.set_asset_folder_path", text="", icon='FILE_FOLDER')
-        op.slot = 'meshes'
-
-        row = paths_sub.row(align=True)
-        row.prop(scene, "fo4_asset_lib_tex_path", text="Textures")
-        op = row.operator("fo4.set_asset_folder_path", text="", icon='FILE_FOLDER')
-        op.slot = 'textures'
-
-        row = paths_sub.row(align=True)
-        row.prop(scene, "fo4_asset_lib_mat_path", text="Materials")
-        op = row.operator("fo4.set_asset_folder_path", text="", icon='FILE_FOLDER')
-        op.slot = 'materials'
+        _draw_game_path_box(fo4_box, context)
 
         action_row = fo4_box.row(align=True)
         action_row.operator(
@@ -1458,7 +1468,8 @@ class FO4_PT_GameAssetsPanel(Panel):
             icon='FILE_REFRESH',
         )
         action_row.operator("fo4.import_fo4_asset_file", text="Import Asset", icon='IMPORT')
-        if ready:
+        from . import fo4_game_assets
+        if fo4_game_assets.FO4GameAssets.get_status()[0]:
             fo4_box.operator("fo4.browse_fo4_assets", text="Browse FO4 Assets", icon='VIEWZOOM')
 
         # Unity Assets
@@ -1897,20 +1908,7 @@ class FO4_PT_PresetsPanel(Panel):
         scene  = context.scene
 
         # ── Asset-path status banner ─────────────────────────────────────────
-        from . import fo4_game_assets as _fga
-        assets_ready, assets_msg = _fga.FO4GameAssets.get_status()
-        status_box = layout.box()
-        if assets_ready:
-            status_box.label(text=f"FO4 assets: ready", icon='CHECKMARK')
-        else:
-            status_box.label(text="FO4 assets: path not set — presets will use placeholders", icon='ERROR')
-            sub = status_box.column(align=True)
-            sub.scale_y = 0.8
-            sub.label(text="Set the path to your extracted Data folder:", icon='INFO')
-            row = sub.row(align=True)
-            row.prop(scene, "fo4_asset_lib_mesh_path", text="Meshes")
-            row.operator("fo4.set_asset_folder_path", text="", icon='FILE_FOLDER').slot = 'meshes'
-            sub.label(text="Then click the preset button — it imports the real game mesh.", icon='DOT')
+        _draw_game_path_box(layout, context)
 
         # Weapon presets
         box = layout.box()
@@ -2105,20 +2103,7 @@ class FO4_PT_VegetationPanel(Panel):
         selected_meshes = [o for o in context.selected_objects if o.type == 'MESH']
 
         # ── Asset-path status banner ─────────────────────────────────────────
-        from . import fo4_game_assets as _fga
-        assets_ready, _ = _fga.FO4GameAssets.get_status()
-        status_box = layout.box()
-        if assets_ready:
-            status_box.label(text="FO4 assets: ready — will import real game mesh", icon='CHECKMARK')
-        else:
-            status_box.label(text="FO4 assets: path not set — will create placeholder", icon='ERROR')
-            sub = status_box.column(align=True)
-            sub.scale_y = 0.8
-            sub.label(text="Point 'Meshes' at your extracted FO4 Data folder:", icon='INFO')
-            row = sub.row(align=True)
-            row.prop(scene, "fo4_asset_lib_mesh_path", text="Meshes")
-            row.operator("fo4.set_asset_folder_path", text="", icon='FILE_FOLDER').slot = 'meshes'
-            sub.label(text="e.g. D:/FO4/Data  or  D:/FO4/Data/meshes", icon='DOT')
+        _draw_game_path_box(layout, context)
 
         # Create vegetation
         box = layout.box()
@@ -3358,11 +3343,12 @@ class FO4_PT_SettingsPanel(Panel):
         )
 
         # ── Asset Paths ───────────────────────────────────────────────────────
-        paths_box = layout.box()
-        paths_box.label(text="Asset Paths", icon="FILE_FOLDER")
-        paths_box.prop(scene, "fo4_assets_path",         text="Fallout 4 Assets")
-        paths_box.prop(scene, "fo4_unity_assets_path",   text="Unity Assets")
-        paths_box.prop(scene, "fo4_unreal_assets_path",  text="Unreal Assets")
+        _draw_game_path_box(layout, context)
+
+        other_paths = layout.box()
+        other_paths.label(text="Other Asset Paths", icon="FILE_FOLDER")
+        other_paths.prop(scene, "fo4_unity_assets_path",   text="Unity Assets")
+        other_paths.prop(scene, "fo4_unreal_assets_path",  text="Unreal Assets")
 
         # ── Tool Paths ────────────────────────────────────────────────────────
         tools_box = layout.box()

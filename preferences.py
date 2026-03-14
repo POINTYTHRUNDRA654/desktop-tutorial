@@ -65,6 +65,12 @@ _PERSISTENT = (
     "fo4_ffmpeg_path",
     "fo4_texconv_path",
     "fo4_assets_path",
+    # Asset-library sub-paths — persisted so they survive restarts and
+    # blend-file changes alongside the main fo4_assets_path.
+    "fo4_asset_lib_mesh_path",
+    "fo4_asset_lib_tex_path",
+    "fo4_asset_lib_mat_path",
+    "fo4_asset_lib_path",
     "fo4_unity_assets_path",
     "fo4_unreal_assets_path",
     "fo4_instantngp_path",
@@ -137,6 +143,10 @@ _ATTR_MAP: dict[str, str] = {
     "ffmpeg_path":                     "fo4_ffmpeg_path",
     "texconv_path":                    "fo4_texconv_path",
     "fo4_assets_path":                 "fo4_assets_path",
+    "fo4_asset_lib_mesh_path":         "fo4_asset_lib_mesh_path",
+    "fo4_asset_lib_tex_path":          "fo4_asset_lib_tex_path",
+    "fo4_asset_lib_mat_path":          "fo4_asset_lib_mat_path",
+    "fo4_asset_lib_path":              "fo4_asset_lib_path",
     "unity_assets_path":               "fo4_unity_assets_path",
     "unreal_assets_path":              "fo4_unreal_assets_path",
     "instantngp_path":                 "fo4_instantngp_path",
@@ -173,6 +183,10 @@ _DEFAULTS: dict[str, object] = {
     "ffmpeg_path":                     "",
     "texconv_path":                    "",
     "fo4_assets_path":                 "",
+    "fo4_asset_lib_mesh_path":         "",
+    "fo4_asset_lib_tex_path":          "",
+    "fo4_asset_lib_mat_path":          "",
+    "fo4_asset_lib_path":              "",
     "unity_assets_path":               "",
     "unreal_assets_path":              "",
     "instantngp_path":                 "",
@@ -414,11 +428,42 @@ def _on_asset_path_change(self, context):
 
     Called when fo4_assets_path changes so that Smart Presets and the asset
     browser pick up the new location on the very next call.
+
+    Also auto-populates fo4_asset_lib_mesh_path / fo4_asset_lib_tex_path /
+    fo4_asset_lib_mat_path from the standard sub-folders of the Data directory
+    so every panel in the add-on immediately sees the correct paths without the
+    user having to fill in each field individually.
     """
     _on_change(self, context)
     try:
         from . import fo4_game_assets
         fo4_game_assets.FO4GameAssets.invalidate_cache()
+    except Exception:
+        pass
+    # Auto-populate sub-path scene properties from the Data root.
+    # self == bpy.context.scene here (the scene property update callback).
+    try:
+        import os
+        from pathlib import Path as _P
+        raw = getattr(self, 'fo4_assets_path', '') or ''
+        try:
+            import bpy as _bpy
+            raw = _bpy.path.abspath(raw)
+        except Exception:
+            pass
+        data_root = _P(raw.strip())
+        if data_root.is_dir():
+            for scene_attr, subdir in (
+                ('fo4_asset_lib_mesh_path', 'meshes'),
+                ('fo4_asset_lib_tex_path',  'textures'),
+                ('fo4_asset_lib_mat_path',  'materials'),
+            ):
+                sub = data_root / subdir
+                if sub.is_dir():
+                    try:
+                        setattr(self, scene_attr, str(sub))
+                    except Exception:
+                        pass
     except Exception:
         pass
 

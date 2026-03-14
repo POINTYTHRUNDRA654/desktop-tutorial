@@ -523,10 +523,32 @@ def _invalidate_game_asset_cache(self, context):
     Clears the FO4GameAssets._game_dir cache so the next Smart Preset or
     asset-library scan picks up the new path immediately — no Blender restart
     needed.
+
+    Also performs reverse-sync: when the user sets the meshes sub-folder
+    (fo4_asset_lib_mesh_path) and it looks like a standard FO4 'meshes/'
+    sub-directory, we infer the Data root and populate fo4_assets_path so
+    that all other panels immediately reflect the same location.
     """
     try:
         from . import fo4_game_assets
         fo4_game_assets.FO4GameAssets.invalidate_cache()
+    except Exception:
+        pass
+
+    # Reverse-sync: mesh sub-path → Data root → fo4_assets_path
+    try:
+        from pathlib import Path as _P
+        mesh_path = getattr(self, 'fo4_asset_lib_mesh_path', '').strip()
+        if mesh_path:
+            p = _P(mesh_path)
+            if p.is_dir() and p.name.lower() == 'meshes':
+                parent = p.parent
+                if parent.is_dir():
+                    current = getattr(self, 'fo4_assets_path', '').strip()
+                    if not current:
+                        # Set the root path; its own update callback will
+                        # populate the other sub-paths (tex, mat).
+                        self.fo4_assets_path = str(parent)
     except Exception:
         pass
 
