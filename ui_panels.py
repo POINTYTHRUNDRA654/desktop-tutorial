@@ -44,6 +44,7 @@ fo4_material_browser  = _safe_import("fo4_material_browser")
 fo4_scene_diagnostics = _safe_import("fo4_scene_diagnostics")
 fo4_reference_helpers = _safe_import("fo4_reference_helpers")
 asset_library         = _safe_import("asset_library")
+tutorial_system      = _safe_import("tutorial_system")
 
 
 # ---------------------------------------------------------------------------
@@ -180,6 +181,29 @@ class FO4_PT_MainPanel(Panel):
         box.label(text="Tutorial System", icon='HELP')
         box.operator("fo4.start_tutorial", text="Start Tutorial", icon='PLAY')
         box.operator("fo4.show_help", text="Show Help", icon='QUESTION')
+        if tutorial_system and not tutorial_system.TUTORIALS:
+            tutorial_system.initialize_tutorials()
+        tutorial = tutorial_system.get_current_tutorial(context) if tutorial_system else None
+        if tutorial:
+            step = tutorial.get_current_step()
+            active = box.box()
+            active.label(text=tutorial.name, icon='BOOKMARKS')
+            if step:
+                active.label(
+                    text=f"Step {tutorial.current_step + 1} of {len(tutorial.steps)}: {step.title}",
+                    icon='FORWARD',
+                )
+                desc = active.column(align=True)
+                desc.scale_y = 0.8
+                for line in step.description.split("\n"):
+                    desc.label(text=line, icon='DOT')
+
+            nav = active.row(align=True)
+            nav.operator("fo4.previous_tutorial_step", text="", icon='TRIA_LEFT')
+            nav.operator("fo4.show_help", text="Show Guide", icon='INFO')
+            nav.operator("fo4.next_tutorial_step", text="", icon='TRIA_RIGHT')
+        else:
+            box.label(text="Click 'Start Tutorial' to load a guided workflow", icon='INFO')
         
         # Notifications
         if hasattr(scene, 'fo4_notifications') and scene.fo4_notifications:

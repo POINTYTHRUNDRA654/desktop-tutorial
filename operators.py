@@ -32,6 +32,9 @@ class FO4_OT_StartTutorial(Operator):
     )
     
     def execute(self, context):
+        if not tutorial_system.TUTORIALS:
+            tutorial_system.initialize_tutorials()
+
         context.scene.fo4_current_tutorial = self.tutorial_type
         context.scene.fo4_tutorial_step = 0
         
@@ -52,8 +55,120 @@ class FO4_OT_ShowHelp(Operator):
     bl_label = "Show Help"
 
     def execute(self, context):
-        self.report({'INFO'}, "Fallout 4 Tutorial Add-on Help")
-        self.report({'INFO'}, "Use the tutorial buttons to learn mod creation")
+        try:
+            if not tutorial_system.TUTORIALS:
+                tutorial_system.initialize_tutorials()
+        except Exception:
+            pass
+
+        print("\n" + "=" * 70)
+        print("FALLOUT 4 ADD-ON - HELP & TUTORIALS")
+        print("=" * 70)
+        print("How to use the tutorial system:")
+        print(" 1) Click 'Start Tutorial' and pick a workflow.")
+        print(" 2) Follow the step description shown in the sidebar.")
+        print(" 3) Use the arrow buttons to move between steps.")
+        print(" 4) Run 'Show Detailed Setup Guide' if you are new.")
+        print("")
+
+        active = tutorial_system.get_current_tutorial(context)
+        if active:
+            step = active.get_current_step()
+            print(f"Active tutorial: {active.name}")
+            print(f"Step {active.current_step + 1}/{len(active.steps)}: {step.title}")
+            if step and step.description:
+                for line in step.description.splitlines():
+                    print(f"  - {line}")
+        else:
+            print("No active tutorial. Click 'Start Tutorial' to begin.")
+
+        if getattr(tutorial_system, "TUTORIALS", None):
+            print("")
+            print("Available tutorials:")
+            for tut in tutorial_system.TUTORIALS.values():
+                print(f" - {tut.name}: {tut.description} ({len(tut.steps)} steps)")
+
+        print("")
+        print("More resources: README.md, TUTORIALS.md, HELP_SYSTEM.md")
+        print("=" * 70 + "\n")
+
+        msg = "Help printed to the system console (Window -> Toggle System Console)"
+        self.report({'INFO'}, msg)
+        notification_system.FO4_NotificationSystem.notify(msg, 'INFO')
+        return {'FINISHED'}
+
+
+class FO4_OT_NextTutorialStep(Operator):
+    """Advance to the next tutorial step"""
+    bl_idname = "fo4.next_tutorial_step"
+    bl_label = "Next Tutorial Step"
+    bl_options = {'REGISTER'}
+
+    def execute(self, context):
+        if not tutorial_system.TUTORIALS:
+            tutorial_system.initialize_tutorials()
+
+        tutorial = tutorial_system.get_current_tutorial(context)
+        if not tutorial:
+            self.report({'ERROR'}, "No active tutorial. Click Start Tutorial first.")
+            return {'CANCELLED'}
+
+        if not tutorial.next_step():
+            self.report({'INFO'}, "Already at the final step.")
+            return {'CANCELLED'}
+
+        context.scene.fo4_tutorial_step = tutorial.current_step
+        step = tutorial.get_current_step()
+
+        print("\n" + "-" * 50)
+        print(f"TUTORIAL: {tutorial.name}")
+        print(f"Step {tutorial.current_step + 1}/{len(tutorial.steps)} - {step.title}")
+        if step and step.description:
+            print(f"-> {step.description}")
+        print("-" * 50 + "\n")
+
+        self.report({'INFO'}, f"Step {tutorial.current_step + 1}: {step.title}")
+        notification_system.FO4_NotificationSystem.notify(
+            f"Step {tutorial.current_step + 1}: {step.title}",
+            'INFO'
+        )
+        return {'FINISHED'}
+
+
+class FO4_OT_PreviousTutorialStep(Operator):
+    """Go back to the previous tutorial step"""
+    bl_idname = "fo4.previous_tutorial_step"
+    bl_label = "Previous Tutorial Step"
+    bl_options = {'REGISTER'}
+
+    def execute(self, context):
+        if not tutorial_system.TUTORIALS:
+            tutorial_system.initialize_tutorials()
+
+        tutorial = tutorial_system.get_current_tutorial(context)
+        if not tutorial:
+            self.report({'ERROR'}, "No active tutorial. Click Start Tutorial first.")
+            return {'CANCELLED'}
+
+        if not tutorial.previous_step():
+            self.report({'INFO'}, "Already at the first step.")
+            return {'CANCELLED'}
+
+        context.scene.fo4_tutorial_step = tutorial.current_step
+        step = tutorial.get_current_step()
+
+        print("\n" + "-" * 50)
+        print(f"TUTORIAL: {tutorial.name}")
+        print(f"Step {tutorial.current_step + 1}/{len(tutorial.steps)} - {step.title}")
+        if step and step.description:
+            print(f"-> {step.description}")
+        print("-" * 50 + "\n")
+
+        self.report({'INFO'}, f"Step {tutorial.current_step + 1}: {step.title}")
+        notification_system.FO4_NotificationSystem.notify(
+            f"Step {tutorial.current_step + 1}: {step.title}",
+            'INFO'
+        )
         return {'FINISHED'}
 
 
@@ -10734,13 +10849,27 @@ class FO4_OT_ReloadAddon(Operator):
     bl_options = {'REGISTER'}
 
     def execute(self, context):
-        # Defer the quit until after the current popup/event has been processed.
-        # Calling bpy.ops.wm.quit_blender() *directly* here would crash Blender
-        # 5.0.1 with an EXCEPTION_ACCESS_VIOLATION (null-pointer in BLI_addhead)
-        # because wm_exit_schedule_delayed tries to add a UI handler while the
-        # window-manager is still inside the popup confirm handler.
-        self.report({'INFO'}, "Blender will quit momentarily…")
-        bpy.app.timers.register(lambda: bpy.ops.wm.quit_blender(), first_interval=0.0)
+        # Defer quit + relaunch until after the current popup/event has been processed.
+        # Direct quit from the confirm handler can crash Blender; use a timer instead.
+        import subprocess
+        from pathlib import Path
+
+        def _restart():
+            try:
+                exe = Path(bpy.app.binary_path)
+                cmd = [str(exe)]
+                blend_path = bpy.data.filepath
+                if blend_path:
+                    cmd.append(blend_path)
+                subprocess.Popen(cmd)
+            except Exception as exc:  # pragma: no cover - best-effort relaunch
+                print(f"Restart launch failed: {exc}")
+            finally:
+                bpy.ops.wm.quit_blender()
+            return None
+
+        self.report({'INFO'}, "Restarting Blender…")
+        bpy.app.timers.register(_restart, first_interval=0.0)
         return {'FINISHED'}
 
     def invoke(self, context, event):
@@ -11710,6 +11839,8 @@ class FO4_OT_ExportModManifest(Operator):
 classes = (
     FO4_OT_StartTutorial,
     FO4_OT_ShowHelp,
+    FO4_OT_NextTutorialStep,
+    FO4_OT_PreviousTutorialStep,
     FO4_OT_ShowDetailedSetup,
     FO4_OT_ShowMessage,
     FO4_OT_CreateBaseMesh,

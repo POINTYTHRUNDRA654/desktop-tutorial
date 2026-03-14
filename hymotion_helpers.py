@@ -166,6 +166,15 @@ def _check_hymotion_availability_uncached():
         "/opt/HY-Motion-1.0",
         os.path.join(os.path.dirname(__file__), "..", "HY-Motion-1.0"),
     ]
+
+    try:
+        from . import tool_installers
+        for candidate in tool_installers.candidate_tool_paths("HY-Motion-1.0"):
+            cand_str = str(candidate)
+            if cand_str not in possible_paths:
+                possible_paths.insert(0, cand_str)
+    except Exception:
+        pass
     
     hymotion_path = None
     for path in possible_paths:

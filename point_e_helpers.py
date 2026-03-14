@@ -6,6 +6,7 @@ Generates 3D point clouds that can be converted to meshes
 
 import bpy
 import time
+from pathlib import Path
 from bpy.props import StringProperty, EnumProperty, IntProperty, FloatProperty, BoolProperty
 
 # ---------------------------------------------------------------------------
@@ -296,6 +297,22 @@ class PointEHelpers:
     def _is_point_e_installed_uncached():
         """Perform the actual (uncached) Point-E installation check."""
         try:
+            # Prefer locally managed tool paths if the user has a repo clone.
+            try:
+                from . import tool_installers
+                import sys as _sys
+                for candidate in (
+                    *tool_installers.candidate_tool_paths("point-e"),
+                    *tool_installers.candidate_tool_paths("point_e"),
+                ):
+                    repo_pkg = Path(candidate) / "point_e"
+                    if repo_pkg.exists():
+                        cand_str = str(candidate)
+                        if cand_str not in _sys.path:
+                            _sys.path.insert(0, cand_str)
+            except Exception:
+                pass
+
             # Try to use TorchPathManager if available
             try:
                 from . import torch_path_manager

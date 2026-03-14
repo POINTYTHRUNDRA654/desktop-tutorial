@@ -65,6 +65,60 @@ def get_tools_root():
 TOOLS_ROOT = get_tools_root()
 
 
+def candidate_tool_paths(tool_name: str) -> list[Path]:
+    """Return likely install locations for a tool folder.
+
+    Includes managed tools root, addon tools, and directories adjacent to the
+    Blender executable (covers portable installs such as \"Blender 2\" on D:).
+    """
+    candidates: list[Path] = []
+
+    # Managed tools root
+    try:
+        candidates.append(TOOLS_ROOT / tool_name)
+    except Exception:
+        pass
+
+    # Add-on packaged tools
+    try:
+        candidates.append(ADDON_ROOT / "tools" / tool_name)
+    except Exception:
+        pass
+
+    # Paths next to the Blender binary (portable installs)
+    try:
+        import bpy  # type: ignore
+
+        bin_path = Path(bpy.app.binary_path).resolve()
+        blender_dir = bin_path.parent
+        for base in (
+            blender_dir / "tools",
+            blender_dir.parent / "tools",
+            blender_dir,
+            blender_dir.parent,
+        ):
+            candidates.append(base / tool_name)
+    except Exception:
+        # bpy not available (e.g., during static analysis) — ignore
+        pass
+
+    # Deduplicate while preserving order
+    unique: list[Path] = []
+    seen = set()
+    for path in candidates:
+        if path is None:
+            continue
+        try:
+            key = path.resolve()
+        except Exception:
+            key = path
+        if key not in seen:
+            unique.append(path)
+            seen.add(key)
+
+    return unique
+
+
 # ---------------------------------------------------------------------------
 # Internal pip helpers
 # ---------------------------------------------------------------------------
