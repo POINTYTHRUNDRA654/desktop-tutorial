@@ -267,6 +267,26 @@ export const LocalAIEngine = {
       }
     }
     // ---------------------------
+    // RESPONSE GUARD: patterns that indicate Mossy falsely claimed she can't access the
+    // internet.  Checked after the AI responds; if matched we retry once with live web
+    // results injected so the user gets real information instead of a false refusal.
+    const INTERNET_REFUSAL_PATTERNS = [
+      /i\s+cannot\s+access\s+the\s+internet/i,
+      /i\s+can'?t\s+access\s+the\s+internet/i,
+      /i\s+(am\s+)?unable\s+to\s+access\s+the\s+internet/i,
+      /i\s+don'?t\s+have\s+(internet\s+access|access\s+to\s+the\s+internet)/i,
+      /i\s+do\s+not\s+have\s+(internet\s+access|access\s+to\s+the\s+internet)/i,
+      /i\s+cannot\s+(browse|connect\s+to)\s+the\s+(web|internet)/i,
+      /i\s+can'?t\s+(browse|connect\s+to)\s+the\s+(web|internet)/i,
+      /i\s+(am\s+)?unable\s+to\s+(browse|connect\s+to)\s+the\s+(web|internet)/i,
+      /i\s+cannot\s+go\s+online/i,
+      /i\s+can'?t\s+go\s+online/i,
+      /i\s+don'?t\s+have\s+real.?time\s+(access|data|information)/i,
+      /i\s+cannot\s+access\s+online\s+resources/i,
+      /i\s+can'?t\s+access\s+online\s+resources/i,
+      /i\s+don'?t\s+have\s+the\s+ability\s+to\s+(browse|access\s+the\s+(web|internet))/i,
+      /i\s+am\s+not\s+able\s+to\s+(browse|access\s+the\s+(web|internet)|go\s+online)/i,
+    ];
 
     // Try local provider first if available
     if (localStatus.ok) {
@@ -338,11 +358,41 @@ export const LocalAIEngine = {
       const systemPrompt = systemInstruction + injectedContext;
       const resp = await api.aiChatGroq(query, systemPrompt, 'llama-3.3-70b-versatile', conversationHistory);
       if (resp?.success) {
-        const responseContent = String(resp.content || '');
-        
+        let responseContent = String(resp.content || '');
+
+        // --- RESPONSE GUARD ---
+        // If the model falsely claimed it cannot access the internet and we haven't
+        // already injected web results, perform a web search now and retry once so
+        // the user receives real information instead of a false refusal.
+        const responseRefusesInternet = !needsWebSearch && INTERNET_REFUSAL_PATTERNS.some((p) => p.test(responseContent));
+        if (responseRefusesInternet) {
+          try {
+            const guardWebApi = (window.electron?.api || window.electronAPI) as any;
+            if (typeof guardWebApi?.webSearch === 'function') {
+              const guardSearch = await guardWebApi.webSearch(query);
+              if (guardSearch?.success && guardSearch?.text) {
+                let enrichedContext = injectedContext +
+                  '\n### LIVE WEB SEARCH RESULTS (already fetched — use this to answer the user):\n' +
+                  guardSearch.text + '\n';
+                if (guardSearch.url) {
+                  enrichedContext += `Source: ${guardSearch.source || 'Web'} — ${guardSearch.url}\n`;
+                }
+                const guardSystemPrompt = systemInstruction + enrichedContext;
+                const retryResp = await api.aiChatGroq(query, guardSystemPrompt, 'llama-3.3-70b-versatile', conversationHistory);
+                if (retryResp?.success && retryResp.content) {
+                  responseContent = String(retryResp.content);
+                }
+              }
+            }
+          } catch (guardErr) {
+            console.warn('[LocalAIEngine] Response-guard web retry failed (non-critical):', guardErr);
+          }
+        }
+        // ----------------------
+
         // Record interaction for self-improvement
         selfImprovementEngine.recordInteraction(query, responseContent, [], 'success');
-        
+
         return { content: responseContent, context: { citations } };
       }
 
