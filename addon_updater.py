@@ -31,6 +31,7 @@ _update_status: str = ""   # "" | "checking" | "up_to_date" | "available" | "err
 _latest_version: str = ""  # e.g. "2.4.0"
 _download_url: str = ""    # direct zip download URL from the GitHub release
 _error_message: str = ""   # last human-readable error
+_needs_restart: bool = False  # True after a successful in-place update install
 
 GITHUB_RELEASES_API = (
     "https://api.github.com/repos/POINTYTHRUNDRA654/Blender-add-on./releases/latest"
@@ -65,12 +66,15 @@ class FO4_OT_CheckForUpdate(Operator):
     bl_description = "Check GitHub for a newer version of this add-on"
 
     def execute(self, context):
-        global _update_status, _latest_version, _download_url, _error_message
+        global _update_status, _latest_version, _download_url, _error_message, _needs_restart
 
         _update_status = "checking"
         _latest_version = ""
         _download_url = ""
         _error_message = ""
+        # Clear the restart-needed flag when the user initiates a new check so
+        # a stale "Restart Blender Now" prompt doesn't linger after a fresh look.
+        _needs_restart = False
 
         try:
             req = urllib.request.Request(
@@ -127,7 +131,7 @@ class FO4_OT_InstallUpdate(Operator):
     )
 
     def execute(self, context):
-        global _update_status, _error_message
+        global _update_status, _error_message, _needs_restart
 
         if not _download_url:
             self.report({"ERROR"}, "No download URL – run Check for Update first.")
@@ -156,6 +160,7 @@ class FO4_OT_InstallUpdate(Operator):
             bpy.ops.wm.save_userpref()
 
             _update_status = "up_to_date"
+            _needs_restart = True
             self.report(
                 {"INFO"},
                 "Update installed successfully. Please restart Blender for all "
@@ -204,6 +209,13 @@ def draw_update_ui(layout):
 
     elif _update_status == "up_to_date":
         col.label(text=f"Installed: v{current} — up to date", icon="CHECKMARK")
+        if _needs_restart:
+            col.label(
+                text="Restart Blender for the update to take effect.", icon="ERROR"
+            )
+            # fo4.reload_addon defers the quit via bpy.app.timers so it runs
+            # after the current UI event is processed — safe in Blender 5.0.1.
+            col.operator("fo4.reload_addon", text="Restart Blender Now", icon="QUIT")
         col.operator("fo4.check_for_update", text="Check Again", icon="URL")
 
     elif _update_status == "available":

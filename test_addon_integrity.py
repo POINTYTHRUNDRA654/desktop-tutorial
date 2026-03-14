@@ -2154,6 +2154,95 @@ def test_torch_missing_messages():
     return True
 
 
+def test_blender5_access_violation_fix():
+    """Verify the Blender 5.0.1 EXCEPTION_ACCESS_VIOLATION fix.
+
+    Calling bpy.ops.wm.quit_blender() directly from within an invoke_confirm
+    popup handler crashes Blender 5.0.1 (BLI_addhead / WM_event_add_ui_handler
+    / wm_exit_schedule_delayed null-dereference).  The fix is:
+
+    1. FO4_OT_ReloadAddon.execute() must schedule the quit via
+       bpy.app.timers.register() so it runs *after* the popup is closed.
+    2. FO4_OT_ReloadAddon must have an invoke() that shows invoke_confirm.
+    3. The UI panel must expose the restart button (not commented out).
+    4. addon_updater must track _needs_restart and show a restart button after
+       a successful update.
+    """
+    print("\n" + "="*70)
+    print("TEST 16: Blender 5.0.1 Access-Violation Fix (timer-based quit)")
+    print("="*70)
+
+    addon_dir = Path(__file__).parent
+    failed = []
+
+    def ck(label, cond, detail=""):
+        sym = "✅" if cond else "❌"
+        print(f"{sym} {label}{(': ' + detail) if detail else ''}")
+        if not cond:
+            failed.append(label + ((" — " + detail) if detail else ""))
+
+    ops_src     = (addon_dir / "operators.py").read_text()
+    ui_src      = (addon_dir / "ui_panels.py").read_text()
+    updater_src = (addon_dir / "addon_updater.py").read_text()
+
+    # ── operators.py checks ───────────────────────────────────────────────────
+
+    ck("FO4_OT_ReloadAddon class present",
+       "class FO4_OT_ReloadAddon" in ops_src)
+
+    # Extract just the FO4_OT_ReloadAddon execute() body to verify the timer
+    # and quit_blender call are co-located in that method (not elsewhere).
+    reload_class_start = ops_src.find("class FO4_OT_ReloadAddon")
+    next_class_start   = ops_src.find("\nclass ", reload_class_start + 1)
+    reload_class_body  = ops_src[reload_class_start:next_class_start]
+
+    ck("execute() defers quit via bpy.app.timers.register",
+       "bpy.app.timers.register" in reload_class_body)
+
+    ck("quit_blender() is inside a lambda passed to timers.register in FO4_OT_ReloadAddon",
+       "lambda" in reload_class_body and "quit_blender" in reload_class_body)
+
+    ck("FO4_OT_ReloadAddon has invoke() using invoke_confirm",
+       "invoke_confirm" in reload_class_body)
+
+    ck("FO4_OT_ReloadAddon registered in classes tuple",
+       "FO4_OT_ReloadAddon," in ops_src)
+
+    # ── ui_panels.py checks ───────────────────────────────────────────────────
+
+    ck("fo4.reload_addon button present in UI (not commented out)",
+       'layout.operator("fo4.reload_addon"' in ui_src
+       or 'row.operator("fo4.reload_addon"' in ui_src
+       or 'col.operator("fo4.reload_addon"' in ui_src)
+
+    # The old crash-causing comment must be gone.
+    ck("'causes crashes' comment removed from UI",
+       "causes crashes" not in ui_src)
+
+    # ── addon_updater.py checks ───────────────────────────────────────────────
+
+    ck("_needs_restart flag defined in addon_updater",
+       "_needs_restart" in updater_src)
+
+    ck("_needs_restart set to True after successful install",
+       "_needs_restart = True" in updater_src)
+
+    ck("_needs_restart reset to False when a new update check starts",
+       "_needs_restart = False" in updater_src)
+
+    ck("draw_update_ui shows restart button when _needs_restart",
+       "_needs_restart" in updater_src and "fo4.reload_addon" in updater_src)
+
+    if failed:
+        print(f"\n❌ FAILED: {len(failed)} check(s) failed")
+        for f in failed:
+            print(f"   • {f}")
+        return False
+
+    print("\n✅ PASSED: Blender 5.0.1 access-violation fix is in place")
+    return True
+
+
 def run_all_tests():
     """Run all test suites"""
     print("\n" + "="*70)
@@ -2182,6 +2271,7 @@ def run_all_tests():
         ("AI Generation (Shap-E & Point-E)",         test_ai_generation),
         ("UModel Download Configuration",             test_umodel_download),
         ("Missing-PyTorch Error Messages",            test_torch_missing_messages),
+        ("Blender 5.0.1 Access-Violation Fix",        test_blender5_access_violation_fix),
     ]
 
     passed = 0
