@@ -13,6 +13,8 @@ const ExternalToolsSettings: React.FC<ExternalToolsSettingsProps> = ({ embedded 
   const [settings, setSettings] = useState<Settings | null>(null);
   const [draft, setDraft] = useState<Partial<Settings>>({});
   const [saving, setSaving] = useState(false);
+  const [downloadingUModel, setDownloadingUModel] = useState(false);
+  const [umodelDownloadStatus, setUmodelDownloadStatus] = useState<string>('');
 
   useEffect(() => {
     const init = async () => {
@@ -54,6 +56,7 @@ const ExternalToolsSettings: React.FC<ExternalToolsSettingsProps> = ({ embedded 
           nvidiaOmniversePath: s.nvidiaOmniversePath || '',
           spin3dPath: s.spin3dPath || '',
           nvidiaCanvasPath: s.nvidiaCanvasPath || '',
+          umodelPath: s.umodelPath || '',
         });
       } catch (e) {
         console.warn('[ExternalToolsSettings] Failed to load settings', e);
@@ -254,6 +257,42 @@ const ExternalToolsSettings: React.FC<ExternalToolsSettingsProps> = ({ embedded 
       if (manual && manual.trim()) {
         handleChange(toolKey, manual.trim());
       }
+    }
+  };
+
+  const handleDownloadUModel = async () => {
+    const api = (window as any).electron?.api || (window as any).electronAPI;
+    if (!api?.downloadUModel) {
+      // Fallback: open the official download page
+      const url = 'https://www.gildor.org/en/projects/umodel';
+      if (api?.openExternal) {
+        api.openExternal(url);
+      } else {
+        window.open(url, '_blank');
+      }
+      setUmodelDownloadStatus('Opened the official UModel download page in your browser.');
+      return;
+    }
+
+    const destDir = (draft.umodelPath && !draft.umodelPath.endsWith('.exe'))
+      ? draft.umodelPath
+      : 'D:\\blender_tools\\umodel';
+
+    setDownloadingUModel(true);
+    setUmodelDownloadStatus('Downloading UModel from gildor.org…');
+    try {
+      const result: any = await api.downloadUModel(destDir);
+      if (result?.success) {
+        const exePath = result.exePath || destDir;
+        handleChange('umodelPath', exePath);
+        setUmodelDownloadStatus(`✅ UModel downloaded to ${exePath}`);
+      } else {
+        setUmodelDownloadStatus(`❌ ${result?.error || 'Download failed'}`);
+      }
+    } catch (e) {
+      setUmodelDownloadStatus(`❌ Download error: ${String(e)}`);
+    } finally {
+      setDownloadingUModel(false);
     }
   };
 
@@ -1202,6 +1241,43 @@ const ExternalToolsSettings: React.FC<ExternalToolsSettingsProps> = ({ embedded 
             <button onClick={() => browsePath('pjmScriptPath', 'PJM Scripts')} className="px-3 py-1 bg-slate-700 hover:bg-slate-600 border border-slate-600 rounded text-[11px] font-bold flex items-center gap-1"><FolderOpen className="w-3 h-3" /> Browse</button>
             <button onClick={() => testLaunch(draft.pjmScriptPath, 'PJM Scripts')} className="px-3 py-1 bg-emerald-700 hover:bg-emerald-600 border border-emerald-500 rounded text-[11px] font-bold flex items-center gap-1"><Play className="w-3 h-3" /> Folder Open</button>
           </div>
+        </div>
+
+        {/* UModel (UEViewer) */}
+        <div className="bg-slate-900 border border-slate-800 rounded-xl p-4">
+          <div className="flex items-center gap-2 mb-2">
+            <Archive className="w-5 h-5 text-orange-400" />
+            <div>
+              <div className="text-sm font-bold text-white">UModel <span className="text-slate-500 text-xs">(UEViewer)</span></div>
+              <a href="https://www.gildor.org/en/projects/umodel" target="_blank" rel="noreferrer" className="text-[11px] text-blue-400 hover:text-blue-300 inline-flex items-center gap-1"><ExternalLink className="w-3 h-3" /> Official site (gildor.org)</a>
+            </div>
+          </div>
+          <div className="text-[11px] text-slate-400 mb-2">
+            Asset viewer and extractor for Unreal Engine games. Used for viewing textures, meshes, and animations. Default install path: <code className="text-slate-300">D:\blender_tools\umodel</code>
+          </div>
+          <input
+            value={draft.umodelPath || ''}
+            onChange={(e) => handleChange('umodelPath', e.target.value)}
+            placeholder="D:\\blender_tools\\umodel\\umodel.exe"
+            className="w-full bg-slate-800 border border-slate-700 rounded px-3 py-2 text-sm text-white"
+          />
+          <div className="mt-2 flex flex-wrap gap-2">
+            <button onClick={() => browsePath('umodelPath', 'UModel')} className="px-3 py-1 bg-slate-700 hover:bg-slate-600 border border-slate-600 rounded text-[11px] font-bold flex items-center gap-1"><FolderOpen className="w-3 h-3" /> Browse</button>
+            <button onClick={() => testLaunch(draft.umodelPath, 'UModel')} className="px-3 py-1 bg-emerald-700 hover:bg-emerald-600 border border-emerald-500 rounded text-[11px] font-bold flex items-center gap-1"><Play className="w-3 h-3" /> Test Launch</button>
+            <button
+              onClick={handleDownloadUModel}
+              disabled={downloadingUModel}
+              className="px-3 py-1 bg-blue-700 hover:bg-blue-600 border border-blue-500 rounded text-[11px] font-bold flex items-center gap-1 disabled:opacity-50"
+              title="Download UModel automatically from gildor.org"
+            >
+              <Archive className="w-3 h-3" /> {downloadingUModel ? 'Downloading…' : 'Auto-Download'}
+            </button>
+          </div>
+          {umodelDownloadStatus && (
+            <div className={`mt-2 text-[11px] rounded p-2 ${umodelDownloadStatus.startsWith('✅') ? 'bg-emerald-900/30 text-emerald-300' : umodelDownloadStatus.startsWith('❌') ? 'bg-red-900/30 text-red-300' : 'bg-slate-800 text-slate-300'}`}>
+              {umodelDownloadStatus}
+            </div>
+          )}
         </div>
         </div>
       </div>

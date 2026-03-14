@@ -6410,6 +6410,133 @@ function setupIpcHandlers() {
     }
   });
 
+  /**
+   * download-umodel — Download UModel (UEViewer) by Gildor to a local directory.
+   *
+   * UModel is a free tool for viewing and extracting assets from Unreal Engine games.
+   * Official site: https://www.gildor.org/en/projects/umodel
+   * Official downloads: https://www.gildor.org/downloads
+   *
+   * UModel is a Windows-only tool; the default destination path reflects this.
+   *
+   * Returns: { success: boolean; exePath?: string; error?: string }
+   */
+  registerHandler('download-umodel', async (_event, destDir?: string) => {
+    // Timeout for download and extraction operations (ms)
+    const UMODEL_TIMEOUT_MS = 60_000;
+    // Official UModel (UEViewer) Win64 download — gildor.org
+    const UMODEL_DOWNLOAD_URL = 'https://www.gildor.org/downloads/gildor.org/files/umodel_win64.zip';
+    // Trusted domains for redirect-following (gildor.org only)
+    const TRUSTED_HOSTS = ['www.gildor.org', 'gildor.org'];
+
+    try {
+      // Default Windows path — UModel is a Windows-only tool
+      const DEFAULT_DEST = path.join('D:\\', 'blender_tools', 'umodel');
+
+      // Sanitize destDir: must be an absolute path with no shell-special characters.
+      // Only allow alphanumeric, spaces, underscores, hyphens, dots, colons, and backslashes.
+      const sanitizeDir = (raw: string): string => {
+        if (!/^[a-zA-Z0-9 _.:\\/\-]+$/.test(raw)) {
+          throw new Error('Destination path contains invalid characters. Use a simple path like D:\\blender_tools\\umodel');
+        }
+        return raw.trim();
+      };
+
+      const targetDir = (typeof destDir === 'string' && destDir.trim())
+        ? sanitizeDir(destDir)
+        : DEFAULT_DEST;
+      const zipPath = path.join(os.tmpdir(), 'umodel_win64.zip');
+
+      console.log(`[UModel] Downloading UModel to ${targetDir}...`);
+      console.log(`[UModel] Source: ${UMODEL_DOWNLOAD_URL}`);
+
+      // Helper: download a file via HTTPS (follows up to 3 redirects, trusted domains only)
+      const downloadFile = (url: string, dest: string): Promise<void> => {
+        return new Promise((resolve, reject) => {
+          const doDownload = (target: string, hops: number) => {
+            if (hops > 3) { reject(new Error('Too many redirects')); return; }
+            const req = https.get(target, { timeout: UMODEL_TIMEOUT_MS }, (res) => {
+              // Follow HTTP 3xx redirects — but only to trusted domains
+              if (res.statusCode && res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
+                const next = res.headers.location.startsWith('/')
+                  ? new URL(res.headers.location, target).href
+                  : res.headers.location;
+                if (!/^https:\/\//i.test(next)) { reject(new Error('Redirect to non-HTTPS URL blocked')); return; }
+                try {
+                  const redirectHost = new URL(next).hostname;
+                  if (!TRUSTED_HOSTS.includes(redirectHost)) {
+                    reject(new Error(`Redirect to untrusted host blocked: ${redirectHost}`));
+                    return;
+                  }
+                } catch { reject(new Error('Invalid redirect URL')); return; }
+                res.resume(); // drain so the connection closes
+                doDownload(next, hops + 1);
+                return;
+              }
+              if (res.statusCode && res.statusCode !== 200) {
+                reject(new Error(`HTTP ${res.statusCode}: ${res.statusMessage}`));
+                return;
+              }
+              const out = fs.createWriteStream(dest);
+              res.pipe(out);
+              out.on('finish', () => out.close(() => resolve()));
+              out.on('error', reject);
+            });
+            req.on('error', reject);
+            req.on('timeout', () => { req.destroy(); reject(new Error('Download timed out')); });
+          };
+          doDownload(url, 0);
+        });
+      };
+
+      // 1. Download the ZIP
+      await downloadFile(UMODEL_DOWNLOAD_URL, zipPath);
+      console.log('[UModel] Download complete, extracting...');
+
+      // 2. Ensure destination directory exists
+      if (!fs.existsSync(targetDir)) {
+        fs.mkdirSync(targetDir, { recursive: true });
+      }
+
+      // 3. Extract using PowerShell with spawn() to avoid shell injection.
+      //    PowerShell's Expand-Archive is available on Windows 5.0+ (Win10+).
+      await new Promise<void>((resolve, reject) => {
+        const ps = spawn('powershell', [
+          '-NoProfile',
+          '-Command',
+          `Expand-Archive -Path '${zipPath}' -DestinationPath '${targetDir}' -Force`,
+        ], { timeout: UMODEL_TIMEOUT_MS });
+        ps.on('close', (code) => {
+          if (code === 0) resolve();
+          else reject(new Error(`PowerShell extraction exited with code ${code}`));
+        });
+        ps.on('error', reject);
+      });
+
+      // 4. Clean up temp ZIP
+      try { fs.unlinkSync(zipPath); } catch { /* non-critical */ }
+
+      // 5. Find the umodel.exe in the extracted directory
+      const exePath = path.join(targetDir, 'umodel.exe');
+      const exeExists = fs.existsSync(exePath);
+
+      console.log(`[UModel] Extraction complete. exe path: ${exePath} (exists: ${exeExists})`);
+
+      return {
+        success: true,
+        exePath: exeExists ? exePath : targetDir,
+        message: `UModel downloaded and extracted to ${targetDir}`,
+      };
+    } catch (error: any) {
+      const msg = error?.message || String(error);
+      console.error('[UModel] Download failed:', msg);
+      return {
+        success: false,
+        error: `Failed to download UModel: ${msg}. Visit https://www.gildor.org/en/projects/umodel to download manually.`,
+      };
+    }
+  });
+
   // Mark handlers as registered
   (global as any).__ipcHandlersRegistered = true;
   console.log('[Main] IPC handlers registration complete');
