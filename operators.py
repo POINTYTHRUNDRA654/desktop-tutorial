@@ -4,6 +4,7 @@ Operators for the Fallout 4 Tutorial Add-on
 
 import bpy
 import threading
+import os as _os
 from bpy.types import Operator
 from bpy.props import StringProperty, EnumProperty, IntProperty, FloatProperty, BoolProperty
 from . import preferences, tutorial_system, mesh_helpers, texture_helpers, animation_helpers, export_helpers, notification_system, image_to_mesh_helpers, hunyuan3d_helpers, gradio_helpers, hymotion_helpers, nvtt_helpers, realesrgan_helpers, get3d_helpers, stylegan2_helpers, instantngp_helpers, imageto3d_helpers, advanced_mesh_helpers, rignet_helpers, motion_generation_helpers, quest_helpers, npc_helpers, world_building_helpers, item_helpers, preset_library, automation_system, desktop_tutorial_client, shap_e_helpers, point_e_helpers, advisor_helpers, ue_importer_helpers, umodel_tools_helpers, umodel_helpers, unity_fbx_importer_helpers, asset_studio_helpers, asset_ripper_helpers, fo4_game_assets, unity_game_assets, unreal_game_assets, post_processing_helpers, fo4_material_browser, fo4_scene_diagnostics, fo4_reference_helpers, asset_library
@@ -8031,14 +8032,12 @@ class FO4_OT_ImportUnityAsset(Operator):
         self.report({level}, f"{asset['name']}: {msg}")
         notification_system.FO4_NotificationSystem.notify(f"Unity import: {msg}", level)
 
-        # Record textures for user reference
+        # Apply textures when available
         textures = asset.get("texture_paths") or []
         if textures:
-            print("Imported Unity asset textures:")
-            for t in textures[:10]:
-                print(f" - {t}")
-            if len(textures) > 10:
-                print(f" ... {len(textures) - 10} more")
+            from . import unity_game_assets
+            root = unity_game_assets.UnityAssets.detect_unity_assets()
+            _apply_textures_to_active(textures, str(root) if root else None)
 
         return {'FINISHED'}
 
@@ -8178,11 +8177,9 @@ class FO4_OT_ImportUnrealAsset(Operator):
 
         textures = asset.get("texture_paths") or []
         if textures:
-            print("Imported Unreal asset textures:")
-            for t in textures[:10]:
-                print(f" - {t}")
-            if len(textures) > 10:
-                print(f" ... {len(textures) - 10} more")
+            from . import unreal_game_assets
+            root = unreal_game_assets.UnrealAssets.detect_unreal_assets()
+            _apply_textures_to_active(textures, str(root) if root else None)
 
         return {'FINISHED'}
 
@@ -8371,6 +8368,62 @@ def _import_game_nif(filepath: str) -> tuple[bool, str]:
     return False, "Niftools add-on not installed — install it to import .nif files directly"
 
 
+def _auto_apply_textures_from_game_asset(nif_path: str):
+    """Attempt to locate FO4 textures matching the imported NIF and apply to the active object."""
+    from pathlib import Path as _P
+    obj = bpy.context.active_object
+    if not obj or obj.type != 'MESH':
+        return
+
+    nif = _P(nif_path)
+    # Find Data root by locating the 'meshes' folder in the path
+    parts = nif.parts
+    if "meshes" in (p.lower() for p in parts):
+        try:
+            meshes_idx = [i for i, p in enumerate(parts) if p.lower() == "meshes"][-1]
+            data_root = _P(*parts[:meshes_idx])
+        except Exception:
+            data_root = nif.parent.parent
+    else:
+        data_root = nif.parent.parent
+
+    textures_root = data_root / "textures"
+    if not textures_root.exists():
+        return
+
+    # Collect candidate textures based on stem
+    stem = nif.stem.split("_lod")[0].lower()
+    candidates = list(textures_root.rglob(f"{stem}*.dds"))
+    if not candidates:
+        return
+
+    mat = texture_helpers.TextureHelpers.setup_fo4_material(obj)
+    for tex in candidates:
+        tex_type = texture_helpers.TextureHelpers.detect_fo4_texture_type(str(tex))
+        texture_helpers.TextureHelpers.install_texture(obj, str(tex), tex_type)
+    return mat
+
+
+def _apply_textures_to_active(texture_paths: list[str], root: str | None):
+    """Apply provided texture paths (relative to root) to the active mesh."""
+    obj = bpy.context.active_object
+    if not obj or obj.type != 'MESH' or not texture_paths:
+        return
+
+    abs_paths = []
+    for t in texture_paths:
+        p = _os.path.join(root, t) if root else t
+        if _os.path.exists(p):
+            abs_paths.append(p)
+    if not abs_paths:
+        return
+
+    mat = texture_helpers.TextureHelpers.setup_fo4_material(obj)
+    for tex in abs_paths:
+        tex_type = texture_helpers.TextureHelpers.detect_fo4_texture_type(tex)
+        texture_helpers.TextureHelpers.install_texture(obj, tex, tex_type)
+
+
 # Smart Preset Operators
 
 class FO4_OT_CreateWeaponPreset(Operator):
@@ -8412,6 +8465,7 @@ class FO4_OT_CreateWeaponPreset(Operator):
                 if ok:
                     if context.active_object:
                         context.active_object.name = f"FO4_Weapon_{self.weapon_type}"
+                    _auto_apply_textures_from_game_asset(nif_path)
                     self.report({'INFO'}, msg)
                     notification_system.FO4_NotificationSystem.notify(msg, 'INFO')
                     return {'FINISHED'}
@@ -8458,6 +8512,7 @@ class FO4_OT_CreateArmorPreset(Operator):
                 if ok:
                     if context.active_object:
                         context.active_object.name = f"FO4_Armor_{self.armor_type}"
+                    _auto_apply_textures_from_game_asset(nif_path)
                     self.report({'INFO'}, msg)
                     notification_system.FO4_NotificationSystem.notify(msg, 'INFO')
                     return {'FINISHED'}
@@ -8503,6 +8558,7 @@ class FO4_OT_CreatePropPreset(Operator):
                 if ok:
                     if context.active_object:
                         context.active_object.name = f"FO4_Prop_{self.prop_type}"
+                    _auto_apply_textures_from_game_asset(nif_path)
                     self.report({'INFO'}, msg)
                     notification_system.FO4_NotificationSystem.notify(msg, 'INFO')
                     return {'FINISHED'}
@@ -8792,6 +8848,7 @@ class FO4_OT_CreateVegetationPreset(Operator):
                 if ok:
                     if context.active_object:
                         context.active_object.name = f"FO4_Veg_{self.vegetation_type}"
+                    _auto_apply_textures_from_game_asset(nif_path)
                     self.report({'INFO'}, msg)
                     notification_system.FO4_NotificationSystem.notify(msg, 'INFO')
                     return {'FINISHED'}

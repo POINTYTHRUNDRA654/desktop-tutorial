@@ -2522,6 +2522,43 @@ def test_presets_do_not_create_placeholders_for_game_meshes():
     return True
 
 
+def test_game_imports_apply_textures():
+    """Verify game/unity/unreal imports attempt to apply textures/materials."""
+    print("\n" + "="*70)
+    print("TEST 23: Game Imports Apply Textures")
+    print("="*70)
+
+    failed = []
+
+    def ck(label, cond, detail=""):
+        sym = "✅" if cond else "❌"
+        print(f"{sym} {label}{(': ' + detail) if detail else ''}")
+        if not cond:
+            failed.append(label + ((" — " + detail) if detail else ""))
+
+    ops_src = Path(__file__).parent.joinpath("operators.py").read_text(encoding="utf-8")
+
+    ck("_auto_apply_textures_from_game_asset helper exists",
+       "_auto_apply_textures_from_game_asset" in ops_src)
+    ck("_apply_textures_to_active helper exists",
+       "_apply_textures_to_active" in ops_src)
+    ck("Unity import calls _apply_textures_to_active",
+       "Unity import: {msg}" in ops_src and "_apply_textures_to_active(textures" in ops_src)
+    ck("Unreal import calls _apply_textures_to_active",
+       "Unreal import: {msg}" in ops_src and "_apply_textures_to_active(textures" in ops_src)
+    ck("Game preset import calls auto texture apply",
+       "_auto_apply_textures_from_game_asset(nif_path)" in ops_src)
+
+    if failed:
+        print(f"\n❌ FAILED: {len(failed)} check(s) failed")
+        for f in failed:
+            print(f"   • {f}")
+        return False
+
+    print("\n✅ PASSED: Imports attempt to apply materials/textures")
+    return True
+
+
 def run_all_tests():
     """Run all test suites"""
     print("\n" + "="*70)
@@ -2557,6 +2594,7 @@ def run_all_tests():
         ("Unity Asset Import Operator",               test_unity_asset_import_operator),
         ("Unreal Asset Import Operator",              test_unreal_asset_import_operator),
         ("Presets Avoid Placeholder Meshes",          test_presets_do_not_create_placeholders_for_game_meshes),
+        ("Game Imports Apply Textures",               test_game_imports_apply_textures),
     ]
 
     passed = 0
