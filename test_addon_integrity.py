@@ -422,6 +422,8 @@ def test_tool_helpers():
     test_cases = [
         ("asset_ripper_helpers",    ["status", "download_latest", "repo_path"]),
         ("asset_studio_helpers",    ["status", "download_latest", "repo_path"]),
+        ("umodel_helpers",          ["status", "download_latest", "tool_path",
+                                     "executable_path", "open_download_page"]),
         ("umodel_tools_helpers",    ["status", "download_latest", "addon_path"]),
         ("unity_fbx_importer_helpers", ["status", "download_latest", "repo_path"]),
         ("nvtt_helpers",    ["convert_to_dds", "convert_object_textures"]),
@@ -1980,6 +1982,178 @@ def test_ai_generation():
     return True
 
 
+def test_umodel_download():
+    """Verify umodel_helpers download configuration and fallback behaviour.
+
+    Checks that:
+    - The module exposes the expected constants and functions.
+    - DOWNLOAD_CANDIDATES contains at least two URLs (primary + fallback).
+    - A browser-like User-Agent is configured so servers do not reject the
+      request with a spurious 404.
+    - When every URL fails, download_latest() returns False with an
+      actionable manual-download message (not a raw HTTP error string).
+    """
+    print("\n" + "="*70)
+    print("TEST 14: UModel Download Configuration")
+    print("="*70)
+
+    addon_dir = Path(__file__).parent
+    failed = []
+
+    def ck(label, cond, detail=""):
+        sym = "✅" if cond else "❌"
+        print(f"{sym} {label}{(': ' + detail) if detail else ''}")
+        if not cond:
+            failed.append(label + ((" — " + detail) if detail else ""))
+
+    mod, err = _load_module(addon_dir, "umodel_helpers")
+    ck("umodel_helpers loads without error", mod is not None, err or "")
+    if mod is None:
+        return False
+
+    # ── Module-level constants ────────────────────────────────────────────────
+    ck("DOWNLOAD_CANDIDATES defined", hasattr(mod, "DOWNLOAD_CANDIDATES"))
+    ck("_DOWNLOAD_HEADERS defined",   hasattr(mod, "_DOWNLOAD_HEADERS"))
+    ck("DOWNLOAD_PAGE_URL defined",   hasattr(mod, "DOWNLOAD_PAGE_URL"))
+
+    candidates = getattr(mod, "DOWNLOAD_CANDIDATES", [])
+    ck("At least two download candidates (primary + fallback)",
+       len(candidates) >= 2, f"got {len(candidates)}")
+
+    # Use urlparse to check the hostname precisely, not a substring match.
+    from urllib.parse import urlparse as _urlparse
+    primary_host = _urlparse(candidates[0]).hostname if candidates else ""
+    ck("Primary candidate is gildor.org",
+       primary_host in ("www.gildor.org", "gildor.org"))
+    ck("Fallback candidate present",
+       len(candidates) >= 2 and candidates[1].startswith("https://"))
+
+    headers = getattr(mod, "_DOWNLOAD_HEADERS", {})
+    ua = headers.get("User-Agent", "")
+    ck("User-Agent header is set",        bool(ua))
+    ck("User-Agent does not contain 'python'", "python" not in ua.lower(), ua)
+    ck("User-Agent looks like a browser",  "Mozilla" in ua, ua)
+
+    # ── Functions present ─────────────────────────────────────────────────────
+    for fn in ("status", "download_latest", "tool_path",
+               "executable_path", "open_download_page"):
+        ck(f"{fn}() callable", callable(getattr(mod, fn, None)))
+
+    # ── Failure message is actionable ─────────────────────────────────────────
+    # Patch urlopen to always raise a 404 so we exercise the fallback path.
+    import urllib.error as _ue
+    import unittest.mock as _mock
+
+    tool_dir = mod.get_tool_dir()
+
+    fake_404 = _ue.HTTPError(
+        url="https://example.com", code=404,
+        msg="Not Found", hdrs=None, fp=None,
+    )
+
+    with _mock.patch.object(mod.urllib.request, "urlopen", side_effect=fake_404):
+        ok, msg = mod.download_latest()
+
+    ck("download_latest returns False when all URLs fail", not ok)
+    ck("Failure message mentions DOWNLOAD_PAGE_URL",
+       mod.DOWNLOAD_PAGE_URL in msg, repr(msg))
+    ck("Failure message includes manual download instruction",
+       "manually" in msg.lower() or "visit" in msg.lower(), repr(msg))
+    ck("Failure message tells user where to extract the zip",
+       "extract" in msg.lower() or str(tool_dir) in msg, repr(msg))
+
+    if failed:
+        print(f"\n❌ FAILED: {len(failed)} check(s) failed")
+        for f in failed:
+            print(f"   • {f}")
+        return False
+
+    print("\n✅ PASSED: UModel download configuration is correct")
+    return True
+
+
+def test_torch_missing_messages():
+    """Verify that a missing PyTorch installation yields a helpful message.
+
+    When torch is absent, is_shap_e_installed() and is_point_e_installed()
+    must return a message that clearly says PyTorch needs to be installed,
+    not the misleading "Shap-E not installed: No module named 'torch'" or
+    "Point-E not installed: No module named 'torch'".
+    """
+    print("\n" + "="*70)
+    print("TEST 15: Missing-PyTorch Error Messages (Shap-E & Point-E)")
+    print("="*70)
+
+    addon_dir = Path(__file__).parent
+    failed = []
+
+    def ck(label, cond, detail=""):
+        sym = "✅" if cond else "❌"
+        print(f"{sym} {label}{(': ' + detail) if detail else ''}")
+        if not cond:
+            failed.append(label + ((" — " + detail) if detail else ""))
+
+    # Stash every torch / shap_e / point_e entry so we can restore them later.
+    stashed = {k: v for k, v in sys.modules.items()
+               if (k == "torch" or k.startswith("torch.")
+                   or k.startswith("shap_e") or k.startswith("point_e"))}
+    for k in stashed:
+        sys.modules.pop(k)
+
+    # Also evict any previously loaded helper modules so the checks run fresh.
+    helper_keys = [k for k in sys.modules
+                   if "shap_e_helpers" in k or "point_e_helpers" in k]
+    stashed_helpers = {k: sys.modules.pop(k) for k in helper_keys}
+
+    try:
+        se_mod, se_err = _load_module(addon_dir, "shap_e_helpers")
+        ck("shap_e_helpers loads without error (no torch)", se_mod is not None, se_err or "")
+
+        pe_mod, pe_err = _load_module(addon_dir, "point_e_helpers")
+        ck("point_e_helpers loads without error (no torch)", pe_mod is not None, pe_err or "")
+
+        if se_mod is None or pe_mod is None:
+            return False
+
+        SE = se_mod.ShapEHelpers
+        PE = pe_mod.PointEHelpers
+
+        # Clear any availability cache left from earlier tests.
+        SE.clear_cache()
+        PE.clear_cache()
+
+        ok_se, msg_se = SE.is_shap_e_installed()
+        ck("Shap-E availability returns False when torch missing", not ok_se)
+        ck("Shap-E message mentions PyTorch", "PyTorch" in msg_se, repr(msg_se))
+        ck("Shap-E message does not say 'Shap-E not installed: No module'",
+           "Shap-E not installed: No module" not in msg_se, repr(msg_se))
+
+        ok_pe, msg_pe = PE.is_point_e_installed()
+        ck("Point-E availability returns False when torch missing", not ok_pe)
+        ck("Point-E message mentions PyTorch", "PyTorch" in msg_pe, repr(msg_pe))
+        ck("Point-E message does not say 'Point-E not installed: No module'",
+           "Point-E not installed: No module" not in msg_pe, repr(msg_pe))
+
+    finally:
+        # Remove the freshly loaded (no-torch) helper modules.
+        for k in ["fallout4_tutorial_helper.shap_e_helpers",
+                  "fallout4_tutorial_helper.point_e_helpers",
+                  "shap_e_helpers", "point_e_helpers"]:
+            sys.modules.pop(k, None)
+        # Restore torch/shap_e/point_e stubs and original helper modules.
+        sys.modules.update(stashed)
+        sys.modules.update(stashed_helpers)
+
+    if failed:
+        print(f"\n❌ FAILED: {len(failed)} check(s) failed")
+        for f in failed:
+            print(f"   • {f}")
+        return False
+
+    print("\n✅ PASSED: Missing-PyTorch messages are correct")
+    return True
+
+
 def run_all_tests():
     """Run all test suites"""
     print("\n" + "="*70)
@@ -2006,6 +2180,8 @@ def run_all_tests():
         ("Preferences Migration", test_preferences_migration),
         ("New Features (Papyrus/Physics/Packaging)", test_new_features),
         ("AI Generation (Shap-E & Point-E)",         test_ai_generation),
+        ("UModel Download Configuration",             test_umodel_download),
+        ("Missing-PyTorch Error Messages",            test_torch_missing_messages),
     ]
 
     passed = 0

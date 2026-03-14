@@ -21,6 +21,19 @@ _shap_e_text_models = None   # dict: {model, diffusion, device}
 _shap_e_image_models = None  # dict: {model, diffusion, device}
 
 
+def _pytorch_required_message(detail=""):
+    """Return a user-friendly message explaining that PyTorch must be installed."""
+    msg = (
+        "PyTorch (torch) is required but not installed.\n\n"
+        "To install PyTorch, run in Blender's Python:\n"
+        "   pip install torch torchvision\n\n"
+        "For GPU (CUDA) support, see: https://pytorch.org/get-started/locally/"
+    )
+    if detail:
+        msg += f"\n\nError: {detail}"
+    return msg
+
+
 def _load_shap_e_transmitter(device, torch_module):
     """Load (or return cached) the shared Shap-E transmitter (xm).
 
@@ -176,10 +189,13 @@ class ShapEHelpers:
                             "   - Install PyTorch there"
                         )
                     else:
-                        raise ImportError(msg)
+                        return False, _pytorch_required_message(msg)
             except ImportError:
                 # TorchPathManager not available, use regular import
-                import torch
+                try:
+                    import torch
+                except ImportError as torch_err:
+                    return False, _pytorch_required_message(str(torch_err))
 
             import shap_e
             return True, "Shap-E is installed"

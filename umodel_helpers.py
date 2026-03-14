@@ -24,6 +24,28 @@ DEFAULT_TOOL_DIR = Path("D:/blender_tools/umodel")
 ADDON_ROOT = Path(__file__).resolve().parent
 FALLBACK_TOOL_DIR = ADDON_ROOT / "tools" / "umodel"
 
+# Official download page — shown to the user when automated download fails.
+DOWNLOAD_PAGE_URL = "https://www.gildor.org/en/projects/umodel"
+
+# Candidate download URLs tried in order.
+# The gildor.org URL is authoritative; the SourceForge mirror is a fallback
+# for cases where the primary URL is temporarily unreachable.
+DOWNLOAD_CANDIDATES = [
+    "https://www.gildor.org/downloads/umodel_win32.zip",
+    "https://sourceforge.net/projects/ue-viewer.mirror/files/latest/download",
+]
+
+# Browser-like User-Agent so download servers don't reject the request.
+# Python's default "python-urllib/3.x" UA is blocked by some file hosts,
+# causing spurious 404 responses even when the file exists.
+_DOWNLOAD_HEADERS = {
+    "User-Agent": (
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+        "AppleWebKit/537.36 (KHTML, like Gecko) "
+        "Chrome/120.0.0.0 Safari/537.36"
+    )
+}
+
 
 def get_tool_dir():
     """Get the tool directory, creating parent if needed."""
@@ -78,11 +100,12 @@ def executable_path() -> str | None:
 def download_latest() -> tuple[bool, str]:
     """Download UModel from a known stable source to D:/blender_tools/ or fallback location.
 
-    Note: UModel by Konstantin Nosov (Gildor) - https://www.gildor.org/en/projects/umodel
+    Tries each URL in DOWNLOAD_CANDIDATES in order, using a browser-like
+    User-Agent so the download server does not reject the request.
+    If every URL fails, returns a failure message with manual-download
+    instructions so the user knows exactly what to do next.
 
-    UModel doesn't have an official GitHub repository with automated releases.
-    This function will attempt to download from a known stable mirror or provide
-    instructions for manual download.
+    Credit: UModel by Konstantin Nosov (Gildor) — https://www.gildor.org/en/projects/umodel
     """
     tool_dir = get_tool_dir()
 
@@ -93,28 +116,15 @@ def download_latest() -> tuple[bool, str]:
 
     tool_dir.parent.mkdir(parents=True, exist_ok=True)
 
-    # UModel download locations (these may need to be updated periodically)
-    # Since gildor.org doesn't provide direct stable download URLs for automation,
-    # we'll try known stable versions or mirrors
-
-    # Note: Users can manually download from https://www.gildor.org/en/projects/umodel
-    # and extract to the tool directory
-
-    # Direct download from the official host.  The win32 archive bundles
-    # both the 32-bit (umodel.exe) and 64-bit (umodel_64.exe) executables.
-    # Correct URL verified via https://www.gildor.org/downloads — the zip
-    # lives at the root of the /downloads/ path, not in a /umodel/ subfolder.
-    candidates = [
-        "https://www.gildor.org/downloads/umodel_win32.zip",
-    ]
-
     last_error = None
-    for url in candidates:
+    for url in DOWNLOAD_CANDIDATES:
         try:
             with tempfile.TemporaryDirectory() as tmpdir:
                 zip_path = Path(tmpdir) / "umodel.zip"
                 print(f"Downloading UModel from {url}...")
-                urllib.request.urlretrieve(url, zip_path)
+                req = urllib.request.Request(url, headers=_DOWNLOAD_HEADERS)
+                with urllib.request.urlopen(req) as response:
+                    zip_path.write_bytes(response.read())
 
                 with zipfile.ZipFile(zip_path) as zf:
                     # Extract directly to tool directory
@@ -125,7 +135,10 @@ def download_latest() -> tuple[bool, str]:
                 umodel_64_exe = tool_dir / "umodel_64.exe"
                 if not umodel_exe.exists() and not umodel_64_exe.exists():
                     # Maybe everything landed in a subdirectory — flatten it
-                    found = list(tool_dir.rglob("umodel.exe")) + list(tool_dir.rglob("umodel_64.exe"))
+                    found = (
+                        list(tool_dir.rglob("umodel.exe"))
+                        + list(tool_dir.rglob("umodel_64.exe"))
+                    )
                     for exe in found:
                         parent = exe.parent
                         if parent != tool_dir:
@@ -138,9 +151,16 @@ def download_latest() -> tuple[bool, str]:
                 return True, f"Downloaded UModel to {tool_dir}. Credit: Konstantin Nosov (Gildor)"
         except Exception as exc:  # noqa: BLE001
             last_error = str(exc)
+            print(f"UModel download failed for {url}: {exc}")
             continue
 
-    return False, f"Failed to download UModel: {last_error or 'unknown error'}"
+    return False, (
+        f"Failed to download UModel automatically ({last_error or 'unknown error'}).\n\n"
+        "Please download manually:\n"
+        f"  1. Visit {DOWNLOAD_PAGE_URL}\n"
+        f"  2. Download the win32 zip and extract it to:\n"
+        f"     {tool_dir}"
+    )
 
 
 def open_download_page() -> tuple[bool, str]:
