@@ -8200,8 +8200,7 @@ class FO4_OT_ImportUnrealAsset(Operator):
 
 # Shown to the user whenever FO4 assets are not found as loose files.
 _FALLBACK_MSG = (
-    "FO4 game meshes not found — placeholder created.\n"
-    "Set your FO4 Data folder in the Vegetation panel (or any Fallout 4 panel) "
+    "FO4 game meshes not found. Set your FO4 Data folder in any Fallout 4 panel "
     "then click this button again to import the real game mesh."
 )
 
@@ -8416,18 +8415,11 @@ class FO4_OT_CreateWeaponPreset(Operator):
                     self.report({'INFO'}, msg)
                     notification_system.FO4_NotificationSystem.notify(msg, 'INFO')
                     return {'FINISHED'}
-                self.report({'WARNING'}, f"{msg} — using placeholder mesh")
-            else:
-                self.report({'INFO'}, _FALLBACK_MSG)
+                self.report({'ERROR'}, f"{msg} — preset cancelled (no game mesh)")
+                return {'CANCELLED'}
 
-            # Fallback: placeholder mesh
-            obj = mesh_helpers.MeshHelpers.create_base_mesh()
-            obj.name = f"FO4_Weapon_{self.weapon_type}"
-            texture_helpers.TextureHelpers.setup_fo4_material(obj)
-            self.report({'INFO'}, f"Created placeholder for {self.weapon_type} weapon")
-            notification_system.FO4_NotificationSystem.notify(
-                f"Created {self.weapon_type} weapon preset", 'INFO')
-            return {'FINISHED'}
+            self.report({'ERROR'}, f"No game mesh found for {self.weapon_type}. {_FALLBACK_MSG}")
+            return {'CANCELLED'}
         except Exception as e:
             self.report({'ERROR'}, f"Failed to create preset: {e}")
             return {'CANCELLED'}
@@ -8469,17 +8461,11 @@ class FO4_OT_CreateArmorPreset(Operator):
                     self.report({'INFO'}, msg)
                     notification_system.FO4_NotificationSystem.notify(msg, 'INFO')
                     return {'FINISHED'}
-                self.report({'WARNING'}, f"{msg} — using placeholder mesh")
-            else:
-                self.report({'INFO'}, _FALLBACK_MSG)
+                self.report({'ERROR'}, f"{msg} — preset cancelled (no game mesh)")
+                return {'CANCELLED'}
 
-            obj = mesh_helpers.MeshHelpers.create_base_mesh()
-            obj.name = f"FO4_Armor_{self.armor_type}"
-            texture_helpers.TextureHelpers.setup_fo4_material(obj)
-            self.report({'INFO'}, f"Created placeholder for {self.armor_type} armor")
-            notification_system.FO4_NotificationSystem.notify(
-                f"Created {self.armor_type} armor preset", 'INFO')
-            return {'FINISHED'}
+            self.report({'ERROR'}, f"No game mesh found for {self.armor_type}. {_FALLBACK_MSG}")
+            return {'CANCELLED'}
         except Exception as e:
             self.report({'ERROR'}, f"Failed to create preset: {e}")
             return {'CANCELLED'}
@@ -8520,17 +8506,11 @@ class FO4_OT_CreatePropPreset(Operator):
                     self.report({'INFO'}, msg)
                     notification_system.FO4_NotificationSystem.notify(msg, 'INFO')
                     return {'FINISHED'}
-                self.report({'WARNING'}, f"{msg} — using placeholder mesh")
-            else:
-                self.report({'INFO'}, _FALLBACK_MSG)
+                self.report({'ERROR'}, f"{msg} — preset cancelled (no game mesh)")
+                return {'CANCELLED'}
 
-            obj = mesh_helpers.MeshHelpers.create_base_mesh()
-            obj.name = f"FO4_Prop_{self.prop_type}"
-            texture_helpers.TextureHelpers.setup_fo4_material(obj)
-            self.report({'INFO'}, f"Created placeholder for {self.prop_type} prop")
-            notification_system.FO4_NotificationSystem.notify(
-                f"Created {self.prop_type} prop preset", 'INFO')
-            return {'FINISHED'}
+            self.report({'ERROR'}, f"No game mesh found for {self.prop_type}. {_FALLBACK_MSG}")
+            return {'CANCELLED'}
         except Exception as e:
             self.report({'ERROR'}, f"Failed to create preset: {e}")
             return {'CANCELLED'}
@@ -8815,65 +8795,11 @@ class FO4_OT_CreateVegetationPreset(Operator):
                     self.report({'INFO'}, msg)
                     notification_system.FO4_NotificationSystem.notify(msg, 'INFO')
                     return {'FINISHED'}
-                self.report({'WARNING'}, f"{msg} — using placeholder mesh")
-            else:
-                self.report({'WARNING'}, _FALLBACK_MSG)
+                self.report({'ERROR'}, f"{msg} — preset cancelled (no game mesh)")
+                return {'CANCELLED'}
 
-            # Fallback: procedural placeholder (kept from original)
-            import bmesh as _bm
-            if self.vegetation_type in ('VEG_PINE',):
-                bpy.ops.mesh.primitive_cylinder_add(radius=0.3, depth=4, location=(0, 0, 2))
-                trunk = context.active_object
-                trunk.name = "FO4_Tree_Trunk"
-                bpy.ops.mesh.primitive_ico_sphere_add(subdivisions=2, radius=2, location=(0, 0, 4.5))
-                canopy = context.active_object
-                canopy.name = "FO4_Tree_Canopy"
-                context.view_layer.objects.active = trunk
-                trunk.select_set(True)
-                canopy.select_set(True)
-                bpy.ops.object.join()
-                obj = context.active_object
-                obj.name = "FO4_Tree"
-            elif self.vegetation_type == 'VEG_DEAD_TREE':
-                bpy.ops.mesh.primitive_cylinder_add(radius=0.25, depth=3.5, location=(0, 0, 1.75))
-                obj = context.active_object
-                obj.name = "FO4_DeadTree"
-                obj.rotation_euler[1] = 0.2
-            elif self.vegetation_type == 'VEG_BUSH':
-                bpy.ops.mesh.primitive_ico_sphere_add(subdivisions=2, radius=1, location=(0, 0, 0.5))
-                obj = context.active_object
-                obj.name = "FO4_Bush"
-                obj.scale = (1.2, 1.0, 0.8)
-            elif self.vegetation_type == 'VEG_GRASS':
-                bpy.ops.mesh.primitive_plane_add(size=0.5, location=(0, 0, 0.25))
-                obj = context.active_object
-                obj.name = "FO4_Grass"
-                obj.rotation_euler[0] = 0.3
-            elif self.vegetation_type == 'VEG_FERN':
-                bpy.ops.mesh.primitive_cone_add(radius1=0.5, depth=1, location=(0, 0, 0.5))
-                obj = context.active_object
-                obj.name = "FO4_Fern"
-                obj.scale = (1.0, 1.0, 0.6)
-            elif self.vegetation_type == 'VEG_ROCK':
-                bpy.ops.mesh.primitive_ico_sphere_add(subdivisions=1, radius=0.8, location=(0, 0, 0.4))
-                obj = context.active_object
-                obj.name = "FO4_Rock"
-                obj.scale = (1.2, 0.9, 0.7)
-            else:
-                bpy.ops.mesh.primitive_ico_sphere_add(subdivisions=2, radius=0.5, location=(0, 0, 0.25))
-                obj = context.active_object
-                obj.name = f"FO4_Veg_{self.vegetation_type}"
-
-            bpy.ops.object.transform_apply(location=False, rotation=False, scale=True)
-            if self.vegetation_type != 'VEG_ROCK':
-                texture_helpers.TextureHelpers.setup_vegetation_material(obj)
-            else:
-                texture_helpers.TextureHelpers.setup_fo4_material(obj)
-
-            self.report({'INFO'}, f"Created placeholder {self.vegetation_type} vegetation")
-            notification_system.FO4_NotificationSystem.notify(
-                f"Created {self.vegetation_type} preset", 'INFO')
-            return {'FINISHED'}
+            self.report({'ERROR'}, f"No game mesh found for {self.vegetation_type}. {_FALLBACK_MSG}")
+            return {'CANCELLED'}
         except Exception as e:
             self.report({'ERROR'}, f"Failed to create vegetation: {e}")
             return {'CANCELLED'}
@@ -8883,7 +8809,7 @@ class FO4_OT_CreateVegetationPreset(Operator):
         layout.prop(self, "vegetation_type")
 
         # Show current FO4 data-path status so the user knows whether
-        # the real game mesh will be imported or a placeholder created.
+        # the real game mesh will be imported.
         box = layout.box()
         try:
             ready, _ = fo4_game_assets.FO4GameAssets.get_status()
@@ -8891,7 +8817,7 @@ class FO4_OT_CreateVegetationPreset(Operator):
                 box.label(text="Game files found — real mesh will be imported",
                           icon='CHECKMARK')
             else:
-                box.label(text="Game files not found — placeholder will be created",
+                box.label(text="Game files not found — set path to import real mesh",
                           icon='INFO')
                 sub = box.column(align=True)
                 sub.scale_y = 0.8

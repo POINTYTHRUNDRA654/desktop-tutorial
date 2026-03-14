@@ -2487,6 +2487,41 @@ def test_unreal_asset_import_operator():
     return True
 
 
+def test_presets_do_not_create_placeholders_for_game_meshes():
+    """Weapon/armor/prop/vegetation presets should not spawn placeholder cubes."""
+    print("\n" + "="*70)
+    print("TEST 22: Presets Avoid Placeholder Meshes")
+    print("="*70)
+
+    failed = []
+
+    def ck(label, cond, detail=""):
+        sym = "✅" if cond else "❌"
+        print(f"{sym} {label}{(': ' + detail) if detail else ''}")
+        if not cond:
+            failed.append(label + ((" — " + detail) if detail else ""))
+
+    ops_src = Path(__file__).parent.joinpath("operators.py").read_text(encoding="utf-8")
+
+    ck("Weapon preset no placeholder string",
+       "Created placeholder for {self.weapon_type} weapon" not in ops_src)
+    ck("Armor preset no placeholder string",
+       "Created placeholder for {self.armor_type} armor" not in ops_src)
+    ck("Prop preset no placeholder string",
+       "Created placeholder for {self.prop_type} prop" not in ops_src)
+    ck("Vegetation preset no placeholder string",
+       "Created placeholder {self.vegetation_type} vegetation" not in ops_src)
+
+    if failed:
+        print(f"\n❌ FAILED: {len(failed)} check(s) failed")
+        for f in failed:
+            print(f"   • {f}")
+        return False
+
+    print("\n✅ PASSED: Game presets no longer spawn placeholder meshes")
+    return True
+
+
 def run_all_tests():
     """Run all test suites"""
     print("\n" + "="*70)
@@ -2521,6 +2556,7 @@ def run_all_tests():
         ("FO4 Readiness Scan Operator",               test_fo4_readiness_scan_operator),
         ("Unity Asset Import Operator",               test_unity_asset_import_operator),
         ("Unreal Asset Import Operator",              test_unreal_asset_import_operator),
+        ("Presets Avoid Placeholder Meshes",          test_presets_do_not_create_placeholders_for_game_meshes),
     ]
 
     passed = 0
