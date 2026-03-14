@@ -59,6 +59,10 @@ class InstantNGPHelpers:
             dest = tool_installers.get_instantngp_dir()
             if (dest / "CMakeLists.txt").exists():
                 return True
+            # Nearby tool roots (e.g., portable Blender installs)
+            for candidate in tool_installers.candidate_tool_paths("instant-ngp"):
+                if (candidate / "CMakeLists.txt").exists() or (candidate / "build").exists():
+                    return True
         except Exception:
             pass
 
@@ -119,6 +123,9 @@ class InstantNGPHelpers:
             dest = tool_installers.get_instantngp_dir()
             if (dest / "CMakeLists.txt").exists() or tool_installers.find_instantngp_exe(dest):
                 return str(dest)
+            for candidate in tool_installers.candidate_tool_paths("instant-ngp"):
+                if (candidate / "CMakeLists.txt").exists() or (candidate / "build").exists():
+                    return str(candidate)
         except Exception:
             pass
 

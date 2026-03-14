@@ -99,9 +99,10 @@ def _check_zoedepth_availability_uncached():
     # Also check the tool_installers managed directory
     try:
         from . import tool_installers
-        managed_dir = tool_installers.TOOLS_ROOT / "ZoeDepth"
-        if managed_dir not in [Path(p) for p in possible_paths]:
-            possible_paths.insert(0, str(managed_dir))  # Check this first
+        for candidate in tool_installers.candidate_tool_paths("ZoeDepth"):
+            candidate_str = str(candidate)
+            if Path(candidate_str) not in [Path(p) for p in possible_paths]:
+                possible_paths.insert(0, candidate_str)  # Check these first
     except Exception:
         pass
     

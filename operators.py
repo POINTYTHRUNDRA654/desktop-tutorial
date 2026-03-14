@@ -10849,13 +10849,27 @@ class FO4_OT_ReloadAddon(Operator):
     bl_options = {'REGISTER'}
 
     def execute(self, context):
-        # Defer the quit until after the current popup/event has been processed.
-        # Calling bpy.ops.wm.quit_blender() *directly* here would crash Blender
-        # 5.0.1 with an EXCEPTION_ACCESS_VIOLATION (null-pointer in BLI_addhead)
-        # because wm_exit_schedule_delayed tries to add a UI handler while the
-        # window-manager is still inside the popup confirm handler.
-        self.report({'INFO'}, "Blender will quit momentarily…")
-        bpy.app.timers.register(lambda: bpy.ops.wm.quit_blender(), first_interval=0.0)
+        # Defer quit + relaunch until after the current popup/event has been processed.
+        # Direct quit from the confirm handler can crash Blender; use a timer instead.
+        import subprocess
+        from pathlib import Path
+
+        def _restart():
+            try:
+                exe = Path(bpy.app.binary_path)
+                cmd = [str(exe)]
+                blend_path = bpy.data.filepath
+                if blend_path:
+                    cmd.append(blend_path)
+                subprocess.Popen(cmd)
+            except Exception as exc:  # pragma: no cover - best-effort relaunch
+                print(f"Restart launch failed: {exc}")
+            finally:
+                bpy.ops.wm.quit_blender()
+            return None
+
+        self.report({'INFO'}, "Restarting Blender…")
+        bpy.app.timers.register(_restart, first_interval=0.0)
         return {'FINISHED'}
 
     def invoke(self, context, event):

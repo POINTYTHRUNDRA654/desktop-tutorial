@@ -52,6 +52,10 @@ def _build_hunyuan_paths() -> list[str]:
         tools_path = str(_ti.TOOLS_ROOT / "Hunyuan3D-2")
         if tools_path not in paths:
             paths.append(tools_path)
+        for candidate in _ti.candidate_tool_paths("Hunyuan3D-2"):
+            cand = str(candidate)
+            if cand not in paths:
+                paths.append(cand)
     except Exception:
         pass
     return paths
