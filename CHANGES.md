@@ -27,6 +27,38 @@ All changes in this PR live on this branch. The branch name reflects its origin 
 
 ## Done ✅  (DO NOT redo, revert, or override these)
 
+### 25. Fix: Mossy claims she's a "fixed model" ✅
+
+**Problem addressed:**
+Despite fixes #20-24, Mossy still occasionally told users "I'm a fixed model" or "my model is fixed" when asked about her capabilities. This specific phrasing was not covered by the existing forbidden statements list or response guard patterns.
+
+**Fix A — Added "fixed model" patterns to forbidden statements (`src/renderer/src/MossyBrain.ts`):**
+- Added 7 new forbidden phrases to the system prompt's CRITICAL: FORBIDDEN STATEMENTS section:
+  - `"I'm a fixed model"`
+  - `"I am a fixed model"`
+  - `"my model is fixed"`
+  - `"I'm a fixed language model"`
+  - `"I am a fixed language model"`
+  - `"language model with fixed knowledge"`
+  - `"model with fixed data"`
+
+**Fix B — Added "fixed model" patterns to response guard (`src/renderer/src/LocalAIEngine.ts`):**
+- Added 4 new regex patterns to `INTERNET_REFUSAL_PATTERNS` array (now 32 patterns total):
+  - `/i'?m\s+a\s+fixed\s+(model|language\s+model|llm)/i` — Catches "I'm a fixed model/language model/LLM"
+  - `/i\s+am\s+a\s+fixed\s+(model|language\s+model|llm)/i` — Catches "I am a fixed model/language model/LLM"
+  - `/my\s+(model|knowledge\s+base)\s+(is|was)\s+fixed/i` — Catches "my model/knowledge base is/was fixed"
+  - `/(language\s+model|model|llm)\s+with\s+fixed\s+(knowledge|data)/i` — Catches "model with fixed knowledge/data"
+- Response guard now catches all variations of the "fixed model" claim and triggers automatic web search + retry with injected results.
+
+**Note:** The pause/resume button was already working correctly (fix #20). The button properly shows "Pause Mossy" when active and "Resume Mossy" when paused, which is the correct action-oriented labeling.
+
+Files changed:
+- `src/renderer/src/MossyBrain.ts` (lines 526-533)
+- `src/renderer/src/LocalAIEngine.ts` (lines 318-322)
+- `CHANGES.md`
+
+---
+
 ### 24. Fix: Mossy claims data is "pre installed" and she's "just a base LLM" with no real-time access ✅
 
 **Problems addressed:**
