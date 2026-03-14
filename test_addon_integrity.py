@@ -2090,6 +2090,59 @@ def test_umodel_download():
     return True
 
 
+def test_umodel_manual_detection():
+    """Ensure a manually extracted UModel install is detected even when nested."""
+    print("\n" + "="*70)
+    print("TEST 15: UModel Manual Install Detection")
+    print("="*70)
+
+    addon_dir = Path(__file__).parent
+    failed = []
+
+    def ck(label, cond, detail=""):
+        sym = "✅" if cond else "❌"
+        print(f"{sym} {label}{(': ' + detail) if detail else ''}")
+        if not cond:
+            failed.append(label + ((" — " + detail) if detail else ""))
+
+    mod, err = _load_module(addon_dir, "umodel_helpers")
+    ck("umodel_helpers loads without error", mod is not None, err or "")
+    if mod is None:
+        return False
+
+    import tempfile
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        install_root = Path(tmpdir) / "umodel"
+        nested = install_root / "umodel_win32"
+        nested.mkdir(parents=True, exist_ok=True)
+        exe_path = nested / "umodel_64.exe"
+        exe_path.write_bytes(b"")
+
+        orig_default = mod.DEFAULT_TOOL_DIR
+        orig_fallback = mod.FALLBACK_TOOL_DIR
+        try:
+            mod.DEFAULT_TOOL_DIR = install_root
+            mod.FALLBACK_TOOL_DIR = install_root
+
+            ready, message = mod.status()
+            ck("status recognizes nested executable", ready, message)
+            ck("executable_path returns nested exe", mod.executable_path() == str(exe_path))
+            ck("tool_path reports detected folder", mod.tool_path() == str(exe_path.parent))
+        finally:
+            mod.DEFAULT_TOOL_DIR = orig_default
+            mod.FALLBACK_TOOL_DIR = orig_fallback
+
+    if failed:
+        print(f"\n❌ FAILED: {len(failed)} check(s) failed")
+        for f in failed:
+            print(f"   • {f}")
+        return False
+
+    print("\n✅ PASSED: UModel manual install detection works")
+    return True
+
+
 def test_torch_missing_messages():
     """Verify that a missing PyTorch installation yields a helpful message.
 
@@ -2099,7 +2152,7 @@ def test_torch_missing_messages():
     "Point-E not installed: No module named 'torch'".
     """
     print("\n" + "="*70)
-    print("TEST 15: Missing-PyTorch Error Messages (Shap-E & Point-E)")
+    print("TEST 16: Missing-PyTorch Error Messages (Shap-E & Point-E)")
     print("="*70)
 
     addon_dir = Path(__file__).parent
@@ -2187,7 +2240,7 @@ def test_blender5_access_violation_fix():
        a successful update.
     """
     print("\n" + "="*70)
-    print("TEST 16: Blender 5.0.1 Access-Violation Fix (timer-based quit)")
+    print("TEST 17: Blender 5.0.1 Access-Violation Fix (timer-based quit)")
     print("="*70)
 
     addon_dir = Path(__file__).parent
@@ -2288,6 +2341,7 @@ def run_all_tests():
         ("New Features (Papyrus/Physics/Packaging)", test_new_features),
         ("AI Generation (Shap-E & Point-E)",         test_ai_generation),
         ("UModel Download Configuration",             test_umodel_download),
+        ("UModel Manual Install Detection",           test_umodel_manual_detection),
         ("Missing-PyTorch Error Messages",            test_torch_missing_messages),
         ("Blender 5.0.1 Access-Violation Fix",        test_blender5_access_violation_fix),
     ]

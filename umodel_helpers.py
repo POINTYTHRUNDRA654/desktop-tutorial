@@ -36,6 +36,8 @@ DOWNLOAD_CANDIDATES = [
     "https://sourceforge.net/projects/ue-viewer.mirror/files/latest/download",
 ]
 
+EXECUTABLE_NAMES = ("umodel_64.exe", "umodel.exe", "umodel64.exe")
+
 # Browser-like User-Agent and Referer so download servers don't reject the
 # request.  Python's default "python-urllib/3.x" UA is blocked by some file
 # hosts.  gildor.org also checks the Referer header to prevent hot-linking,
@@ -65,12 +67,62 @@ def get_tool_dir():
     return FALLBACK_TOOL_DIR
 
 
+def _candidate_tool_dirs() -> list[Path]:
+    """Return possible install roots to check for an existing manual install."""
+    candidates = []
+    for base in (DEFAULT_TOOL_DIR, FALLBACK_TOOL_DIR):
+        candidates.append(base)
+        candidates.append(base / "umodel_win32")
+        candidates.append(base / "UModel")
+        try:
+            parent = base.parent
+            if parent.exists():
+                for child in parent.iterdir():
+                    if child.is_dir() and "umodel" in child.name.lower():
+                        candidates.append(child)
+        except Exception:
+            pass
+
+    seen = set()
+    unique = []
+    for path in candidates:
+        key = str(path)
+        if key not in seen:
+            seen.add(key)
+            unique.append(path)
+    return unique
+
+
+def _find_existing_installation() -> tuple[Path | None, Path | None]:
+    """Locate an existing UModel installation, even if nested."""
+    for root in _candidate_tool_dirs():
+        try:
+            for name in EXECUTABLE_NAMES:
+                exe = root / name
+                if exe.exists():
+                    return exe.parent, exe
+
+            for child in root.iterdir():
+                if not child.is_dir():
+                    continue
+                for name in EXECUTABLE_NAMES:
+                    exe = child / name
+                    if exe.exists():
+                        return exe.parent, exe
+        except Exception:
+            continue
+
+    return None, None
+
+
 def status() -> tuple[bool, str]:
     """Return (ready, message) tuple for UI display."""
-    tool_dir = get_tool_dir()
+    found_dir, exe = _find_existing_installation()
+    if exe:
+        return True, f"UModel ready at {found_dir}"
 
-    # Accept either the 64-bit or 32-bit executable (both ship in the official zip)
-    for name in ("umodel_64.exe", "umodel.exe"):
+    tool_dir = get_tool_dir()
+    for name in EXECUTABLE_NAMES:
         if (tool_dir / name).exists():
             return True, f"UModel ready at {tool_dir}"
 
@@ -83,7 +135,8 @@ def status() -> tuple[bool, str]:
 
 def tool_path() -> str:
     """Return expected tool directory path for UI display."""
-    return str(get_tool_dir())
+    found_dir, _ = _find_existing_installation()
+    return str(found_dir or get_tool_dir())
 
 
 def executable_path() -> str | None:
@@ -92,12 +145,8 @@ def executable_path() -> str | None:
     The official win32 zip ships both ``umodel.exe`` (32-bit) and
     ``umodel_64.exe`` (64-bit).  Prefer the 64-bit build when present.
     """
-    tool_dir = get_tool_dir()
-    for name in ("umodel_64.exe", "umodel.exe"):
-        exe = tool_dir / name
-        if exe.exists():
-            return str(exe)
-    return None
+    _, exe = _find_existing_installation()
+    return str(exe) if exe else None
 
 
 def download_latest() -> tuple[bool, str]:
@@ -110,11 +159,13 @@ def download_latest() -> tuple[bool, str]:
 
     Credit: UModel by Konstantin Nosov (Gildor) — https://www.gildor.org/en/projects/umodel
     """
+    existing_dir, existing_exe = _find_existing_installation()
+    if existing_exe:
+        return True, f"UModel already exists at {existing_dir}"
+
     tool_dir = get_tool_dir()
 
-    if tool_dir.exists() and (
-        (tool_dir / "umodel.exe").exists() or (tool_dir / "umodel_64.exe").exists()
-    ):
+    if tool_dir.exists() and any((tool_dir / name).exists() for name in EXECUTABLE_NAMES):
         return True, f"UModel already exists at {tool_dir}"
 
     tool_dir.parent.mkdir(parents=True, exist_ok=True)
