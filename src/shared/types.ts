@@ -556,6 +556,7 @@ export interface Settings {
   nvidiaOmniversePath?: string;
   spin3dPath?: string;
   nvidiaCanvasPath?: string;
+  umodelPath?: string;
 
   // Community Sharing
   communityRepo?: string; // GitHub repo in the form "owner/repo"
@@ -779,6 +780,7 @@ export const DEFAULT_SETTINGS: Settings = {
   nvidiaOmniversePath: '',
   spin3dPath: '',
   nvidiaCanvasPath: '',
+  umodelPath: '',
 
   // Papyrus
   papyrusCompilerPath: '',

@@ -987,13 +987,19 @@ export const ChatInterface: React.FC = () => {
     };
 
     const stopAudio = () => {
-        // Stop any pending speech synthesis immediately
+        // Stop all active speech via the shared mossyTts helper.
+        // stopMossySpeech() applies the pause() + cancel() workaround for the
+        // Electron/Chromium bug where cancel() alone sometimes fails to stop TTS,
+        // and also stops any ElevenLabs/cloud audio elements via VoiceService.
         try {
-            if ('speechSynthesis' in window) {
-                window.speechSynthesis.cancel();
-            }
+            stopMossySpeech();
         } catch (e) {
-            // Ignore speech cancel errors
+            // Non-critical — direct speechSynthesis cancel as last resort
+            try {
+                if ('speechSynthesis' in window) {
+                    window.speechSynthesis.cancel();
+                }
+            } catch { /* ignore */ }
         }
 
         if (activeSourceRef.current) {
@@ -1981,6 +1987,17 @@ export const ChatInterface: React.FC = () => {
                         >
                             {isVoiceEnabled ? <Volume2 className="w-4 h-4" /> : <VolumeX className="w-4 h-4" />}
                             {isVoiceEnabled ? 'Voice: ON' : 'Voice: OFF'}
+                        </button>
+                    )}
+
+                    {isPlayingAudio && !isLiveActive && (
+                        <button
+                            onClick={stopAudio}
+                            className="flex items-center gap-2 px-3 py-1.5 rounded-lg border text-xs font-bold transition-all bg-red-900/30 border-red-500/60 text-red-300 hover:bg-red-900/60 animate-pulse"
+                            title="Stop Mossy from speaking"
+                        >
+                            <StopCircle className="w-4 h-4" />
+                            <span className="hidden sm:inline">Stop Speaking</span>
                         </button>
                     )}
 
