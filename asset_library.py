@@ -547,8 +547,16 @@ def _invalidate_game_asset_cache(self, context):
                     current = getattr(self, 'fo4_assets_path', '').strip()
                     if not current:
                         # Set the root path; its own update callback will
-                        # populate the other sub-paths (tex, mat).
+                        # populate the other sub-paths (tex, mat) and save.
                         self.fo4_assets_path = str(parent)
+                        return  # _on_asset_path_change will call save_settings
+    except Exception:
+        pass
+
+    # Persist the changed path so it survives scene switches and restarts.
+    try:
+        from . import preferences as _prefs
+        _prefs.save_settings(self)
     except Exception:
         pass
 

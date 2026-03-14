@@ -91,6 +91,54 @@ def _ensure_pip() -> tuple[bool, str]:
         return False, f"pip bootstrap failed: {e}"
 
 
+def _clean_corrupted_dist_info() -> None:
+    """Remove dist-info directories whose names start with '~' from site-packages.
+
+    On Windows, pip sometimes creates a dist-info directory with a leading '~'
+    character instead of the first letter of the package name (e.g.
+    '~orchvision-0.25.0+cpu.dist-info' instead of
+    'torchvision-0.25.0+cpu.dist-info').  pip then emits:
+
+        WARNING: Skipping ...~orchvision-0.25.0+cpu.dist-info due to invalid
+        metadata entry 'name'
+
+    on every subsequent pip invocation.  Removing these stale artefacts before
+    running pip silences the warning and prevents false "already installed"
+    decisions.
+    """
+    import site
+
+    search_dirs: list[Path] = [Path(p) for p in sys.path]
+    try:
+        search_dirs.extend(Path(d) for d in site.getsitepackages())
+    except AttributeError:
+        pass  # not available in all environments (e.g. virtualenv without site)
+    try:
+        search_dirs.append(Path(site.getusersitepackages()))
+    except (AttributeError, TypeError):
+        pass
+
+    seen: set[str] = set()
+    for sp in search_dirs:
+        key = str(sp)
+        if key in seen or not sp.is_dir():
+            continue
+        seen.add(key)
+        try:
+            for entry in sp.iterdir():
+                if (
+                    entry.is_dir()
+                    and entry.name.startswith("~")
+                    and entry.name.endswith(".dist-info")
+                ):
+                    try:
+                        shutil.rmtree(entry)
+                    except Exception:
+                        pass  # best-effort; ignore permission errors
+        except PermissionError:
+            pass  # can't list this directory; skip silently
+
+
 def _pip_install(packages: list[str]) -> tuple[bool, str]:
     """Install *packages* using the bundled Python's pip.
 
@@ -98,6 +146,7 @@ def _pip_install(packages: list[str]) -> tuple[bool, str]:
       1. ensurepip bootstrap for older Blender builds without pip.
       2. --break-system-packages flag required on Python 3.11+ (PEP 668).
     """
+    _clean_corrupted_dist_info()
     ok, msg = _ensure_pip()
     if not ok:
         return False, msg
@@ -136,6 +185,7 @@ def _pip_install_with_index(packages: list[str], index_url: str) -> tuple[bool, 
     runtime (~2 GB).  The CPU-only wheel is served from a separate index and
     is ~250 MB – far more appropriate for a Blender add-on installer.
     """
+    _clean_corrupted_dist_info()
     ok, msg = _ensure_pip()
     if not ok:
         return False, msg
@@ -169,6 +219,7 @@ def _pip_install_requirements(req_file: Path) -> tuple[bool, str]:
     if not req_file.exists():
         return False, f"Requirements file not found: {req_file}"
 
+    _clean_corrupted_dist_info()
     ok, msg = _ensure_pip()
     if not ok:
         return False, msg
