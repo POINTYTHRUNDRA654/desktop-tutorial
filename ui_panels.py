@@ -147,25 +147,39 @@ class FO4_PT_MainPanel(Panel):
             compat_box.label(text="  Install Niftools (legacy add-on) + enable 'Allow Legacy Add-ons'.")
             compat_box.label(text="  API patches applied automatically before every export.")
 
+        # ── Getting Started Guide (Mossy-First Approach) ────────────────────
+        getting_started = layout.box()
+        getting_started.label(text="🚀 Getting Started - READ THIS FIRST!", icon='INFO')
+
+        # Emphasize Mossy connection as first step
+        mossy_priority = getting_started.box()
+        mossy_priority.label(text="STEP 1: Connect Mossy AI (Recommended First!)", icon='NETWORK_DRIVE')
+        mossy_priority.label(text="→ Switch to 'Mossy' tab in this sidebar")
+        mossy_priority.label(text="→ Launch Mossy desktop app")
+        mossy_priority.label(text="→ Click 'Start Server' in Mossy tab")
+        mossy_priority.label(text="→ Mossy will guide you through setup!")
+
+        # Then other setup steps
+        getting_started.label(text="STEP 2: Install Dependencies", icon='PACKAGE')
+        getting_started.label(text="→ Open 'Setup & Status' tab below")
+        getting_started.label(text="→ Install Python packages if prompted")
+        getting_started.label(text="→ Restart Blender after installing")
+
+        getting_started.label(text="STEP 3: Install Niftools", icon='PLUGIN')
+        if bv >= (5, 0, 0):
+            getting_started.label(text="→ Use 'Install Niftools' in Setup tab")
+            getting_started.label(text="→ Enable 'Allow Legacy Add-ons'")
+        else:
+            getting_started.label(text="→ Install Niftools v0.1.1 (Blender 3.6)")
+            getting_started.label(text="→ OR use FBX export workflow")
+
+        getting_started.operator("fo4.show_detailed_setup", text="Show Detailed Setup Guide", icon='TEXT')
+
         # ── Tutorial section ─────────────────────────────────────────────────
         box = layout.box()
         box.label(text="Tutorial System", icon='HELP')
         box.operator("fo4.start_tutorial", text="Start Tutorial", icon='PLAY')
         box.operator("fo4.show_help", text="Show Help", icon='QUESTION')
-
-        # New-user setup hints
-        hint = layout.box()
-        hint.label(text="Setup / First-time Use", icon='INFO')
-        hint.label(text="1. Open the 'Setup & Status' tab below.")
-        hint.label(text="2. Install missing Python packages if prompted.")
-        if bv >= (5, 0, 0):
-            hint.label(text="3. Install Niftools v0.1.1 via 'Install Niftools Add-on' below.")
-            hint.label(text="   Enable 'Allow Legacy Add-ons' in Edit → Preferences → Add-ons.")
-            hint.label(text="   Runtime API patches are applied automatically before export.")
-        else:
-            hint.label(text="3. Install Niftools v0.1.1 (Blender 3.6 LTS only).")
-            hint.label(text="   OR use FBX export + Cathedral Assets Optimizer.")
-        hint.label(text="4. Restart Blender after installing add-ons/tools.")
         
         # Notifications
         if hasattr(scene, 'fo4_notifications') and scene.fo4_notifications:
