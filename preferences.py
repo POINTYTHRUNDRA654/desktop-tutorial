@@ -434,7 +434,6 @@ def _on_asset_path_change(self, context):
     so every panel in the add-on immediately sees the correct paths without the
     user having to fill in each field individually.
     """
-    _on_change(self, context)
     try:
         from . import fo4_game_assets
         fo4_game_assets.FO4GameAssets.invalidate_cache()
@@ -466,6 +465,8 @@ def _on_asset_path_change(self, context):
                         pass
     except Exception:
         pass
+    # Save AFTER auto-population so the derived sub-paths are also captured.
+    _on_change(self, context)
 
 
 # (name, bpy.props.*) pairs – registered onto bpy.types.Scene

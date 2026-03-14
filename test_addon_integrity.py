@@ -1449,6 +1449,7 @@ def test_preferences_migration():
     ]
 
     # ── JSON persistence ──────────────────────────────────────────────────────
+    asset_lib_src = Path("asset_library.py").read_text()
     persistence_checks = [
         ("save_settings function defined",   "def save_settings(" in prefs_src),
         ("restore_settings function defined","def restore_settings(" in prefs_src),
@@ -1463,6 +1464,16 @@ def test_preferences_migration():
         # Settings must be applied at addon-enable / Blender startup time
         ("restore_settings called at register",
             "restore_settings()" in prefs_src.split("def register(")[1].split("def unregister(")[0]),
+        # _on_asset_path_change must save AFTER auto-populating sub-paths
+        # Verify by checking that the save call (_on_change) appears after
+        # the auto-populate loop in the function body.
+        ("_on_asset_path_change saves after auto-populate", (lambda body:
+            "fo4_asset_lib_mesh_path" in body and
+            body.rfind("_on_change(") > body.index("fo4_asset_lib_mesh_path")
+        )(prefs_src.split("def _on_asset_path_change(")[1].split("\ndef ")[0])),
+        # asset_library path changes must also persist via save_settings
+        ("asset_library._invalidate_game_asset_cache calls save_settings",
+            "save_settings" in asset_lib_src),
     ]
 
     # ── FO4Settings wrapper ───────────────────────────────────────────────────
