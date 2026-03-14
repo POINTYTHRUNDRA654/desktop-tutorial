@@ -96,6 +96,7 @@ def _install_bpy_stub():
     bpy_app.version        = (4, 0, 0)
     bpy_app.version_string = "4.0.0"
     bpy_app.timers         = _Any()
+    bpy_app.handlers       = types.SimpleNamespace(persistent=lambda f: f)
 
     # ------------------------------------------------------------------
     # bpy.path
@@ -2314,6 +2315,55 @@ def test_blender5_access_violation_fix():
     return True
 
 
+def test_tool_root_preferences():
+    """Ensure tool/PyTorch root paths are persisted and default to D: drives."""
+    print("\n" + "="*70)
+    print("TEST 18: Tool Root Preferences")
+    print("="*70)
+
+    failed = []
+
+    def ck(label, cond, detail=""):
+        sym = "✅" if cond else "❌"
+        print(f"{sym} {label}{(': ' + detail) if detail else ''}")
+        if not cond:
+            failed.append(label + ((" — " + detail) if detail else ""))
+
+    addon_dir = Path(__file__).parent
+    stashed = {k: sys.modules.pop(k) for k in list(sys.modules)
+               if k == "preferences" or k.endswith(".preferences")}
+    try:
+        prefs_mod, err = _load_module(addon_dir, "preferences")
+        ck("preferences loads", prefs_mod is not None, err or "")
+        if prefs_mod is None:
+            return False
+
+        prefs = prefs_mod.get_preferences()
+        ck("tools_root default is D:/blender_tools",
+           getattr(prefs, "tools_root", "") == "D:/blender_tools",
+           getattr(prefs, "tools_root", ""))
+        ck("torch_root default is D:/blender_torch",
+           getattr(prefs, "torch_root", "") == "D:/blender_torch",
+           getattr(prefs, "torch_root", ""))
+        ck("fo4_tools_root persisted",
+           "fo4_tools_root" in getattr(prefs_mod, "_PERSISTENT", ()))
+        ck("fo4_torch_root persisted",
+           "fo4_torch_root" in getattr(prefs_mod, "_PERSISTENT", ()))
+    except Exception as exc:
+        ck("preferences access", False, str(exc))
+    finally:
+        sys.modules.update(stashed)
+
+    if failed:
+        print(f"\n❌ FAILED: {len(failed)} check(s) failed")
+        for f in failed:
+            print(f"   • {f}")
+        return False
+
+    print("\n✅ PASSED: Tool root preferences are configured")
+    return True
+
+
 def run_all_tests():
     """Run all test suites"""
     print("\n" + "="*70)
@@ -2344,6 +2394,7 @@ def run_all_tests():
         ("UModel Manual Install Detection",           test_umodel_manual_detection),
         ("Missing-PyTorch Error Messages",            test_torch_missing_messages),
         ("Blender 5.0.1 Access-Violation Fix",        test_blender5_access_violation_fix),
+        ("Tool Root Preferences",                     test_tool_root_preferences),
     ]
 
     passed = 0

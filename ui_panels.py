@@ -3395,6 +3395,13 @@ class FO4_PT_SettingsPanel(Panel):
         # ── Tool Paths ────────────────────────────────────────────────────────
         tools_box = layout.box()
         tools_box.label(text="Tool Paths", icon="TOOL_SETTINGS")
+        tools_box.prop(scene, "fo4_tools_root", text="Tools Root")
+        tools_root = bpy.path.abspath(scene.fo4_tools_root) if scene.fo4_tools_root else ""
+        if tools_root and os.path.isdir(tools_root):
+            tools_box.label(text=f"✓ {tools_root}", icon="CHECKMARK")
+        else:
+            tools_box.label(text="Tool root not found – set to where you keep CLI tools",
+                            icon="ERROR")
 
         tools_box.prop(scene, "fo4_havok2fbx_path", text="Havok2FBX Folder")
         h_path = bpy.path.abspath(scene.fo4_havok2fbx_path) if scene.fo4_havok2fbx_path else ""
@@ -3443,6 +3450,7 @@ class FO4_PT_SettingsPanel(Panel):
         # ── PyTorch ───────────────────────────────────────────────────────────
         torch_box = layout.box()
         torch_box.label(text="PyTorch / AI Features", icon="PLUGIN")
+        torch_box.prop(scene, "fo4_torch_root", text="PyTorch Path")
         try:
             from . import torch_path_manager
             success, msg, _ = torch_path_manager.TorchPathManager.try_import_torch()

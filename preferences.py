@@ -60,6 +60,7 @@ def _save_json(data: dict) -> None:
 
 # Property names that are persisted to JSON (survive blend-file changes)
 _PERSISTENT = (
+    "fo4_tools_root",
     "fo4_havok2fbx_path",
     "fo4_nvtt_path",
     "fo4_ffmpeg_path",
@@ -94,6 +95,7 @@ _PERSISTENT = (
     "fo4_auto_install_tools",
     "fo4_auto_install_python",
     "fo4_auto_register_tools",
+    "fo4_torch_root",
     "fo4_kb_enabled",
     "fo4_kb_path",
 )
@@ -138,6 +140,7 @@ def restore_settings(scene=None) -> None:
 
 # Mapping: old preference attribute name → scene property name
 _ATTR_MAP: dict[str, str] = {
+    "tools_root":                    "fo4_tools_root",
     "havok2fbx_path":                  "fo4_havok2fbx_path",
     "nvtt_path":                       "fo4_nvtt_path",
     "ffmpeg_path":                     "fo4_ffmpeg_path",
@@ -172,12 +175,14 @@ _ATTR_MAP: dict[str, str] = {
     "auto_install_pytorch":            "fo4_auto_install_python",  # alias
     "auto_register_tools":             "fo4_auto_register_tools",
     "torch_install_attempted":         "fo4_auto_install_python",  # alias
+    "torch_root":                      "fo4_torch_root",
     "knowledge_base_enabled":          "fo4_kb_enabled",
     "knowledge_base_path":             "fo4_kb_path",
 }
 
 # Sensible defaults for every attribute (used when the scene prop is absent)
 _DEFAULTS: dict[str, object] = {
+    "tools_root":                      "D:/blender_tools",
     "havok2fbx_path":                  "",
     "nvtt_path":                       "",
     "ffmpeg_path":                     "",
@@ -212,6 +217,7 @@ _DEFAULTS: dict[str, object] = {
     "auto_install_pytorch":            True,
     "auto_register_tools":             False,
     "torch_install_attempted":         False,
+    "torch_root":                      "D:/blender_torch",
     "knowledge_base_enabled":          True,
     "knowledge_base_path":             "",
 }
@@ -264,7 +270,9 @@ class _FallbackSettings:
     def __getattr__(self, name: str):
         key = _ATTR_MAP.get(name, f"fo4_{name}")
         val = self._data.get(key)
-        return val if val is not None else _DEFAULTS.get(name, "")
+        if val not in (None, ""):
+            return val
+        return _DEFAULTS.get(name, "")
 
     def __setattr__(self, name: str, value):
         if name == "_data":
@@ -292,7 +300,9 @@ def get_preferences():
     try:
         scene = bpy.context.scene
         if scene is not None:
-            return FO4Settings(scene)
+            sample = getattr(scene, "fo4_tools_root", None)
+            if isinstance(sample, (str, bool, int, float)):
+                return FO4Settings(scene)
     except Exception:
         pass
     return _FallbackSettings()
@@ -471,6 +481,12 @@ def _on_asset_path_change(self, context):
 
 # (name, bpy.props.*) pairs – registered onto bpy.types.Scene
 _PROPS: list[tuple[str, object]] = [
+    # ── Tool roots ──────────────────────────────────────────────────────────
+    ("fo4_tools_root", bpy.props.StringProperty(
+        name="Tools Root",
+        description="Base folder where external CLI tools will be installed",
+        subtype="DIR_PATH", default="D:/blender_tools", update=_on_change)),
+
     # ── Tool paths ────────────────────────────────────────────────────────────
     ("fo4_havok2fbx_path", bpy.props.StringProperty(
         name="Havok2FBX Folder",
@@ -602,6 +618,10 @@ _PROPS: list[tuple[str, object]] = [
             "Disable to avoid Blender policy warnings."
         ),
         default=False, update=_on_change)),
+    ("fo4_torch_root", bpy.props.StringProperty(
+        name="PyTorch Install Path",
+        description="Folder where PyTorch will be installed if needed",
+        default="D:/blender_torch", subtype="DIR_PATH", update=_on_change)),
 
     # ── Knowledge base ────────────────────────────────────────────────────────
     ("fo4_kb_enabled", bpy.props.BoolProperty(

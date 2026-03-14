@@ -49,6 +49,17 @@ FALLBACK_TOOLS_ROOT = ADDON_ROOT / "tools"
 
 def get_tools_root():
     """Get the tools directory, creating parent if needed."""
+    try:
+        from . import preferences  # local import to avoid circular at module load
+        prefs = preferences.get_preferences()
+        user_root = getattr(prefs, "tools_root", "") or ""
+        if user_root:
+            candidate = Path(user_root)
+            candidate.mkdir(parents=True, exist_ok=True)
+            return candidate
+    except Exception:
+        pass
+
     # Try D: drive first
     try:
         if DEFAULT_TOOLS_ROOT.drive and Path(DEFAULT_TOOLS_ROOT.drive).exists():
