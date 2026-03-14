@@ -566,6 +566,9 @@ const electronAPI: ElectronAPI = {
   // via the secure main-process HTTPS layer (renderer has no direct access).
   webSearch: (query: string, type?: string) => ipcRenderer.invoke('web-search', query, type),
   browseWeb: (url: string) => ipcRenderer.invoke('browse-web', url),
+
+  // Tool auto-download — lets the app download optional tools (e.g. UModel) on demand.
+  downloadUModel: (destDir?: string) => ipcRenderer.invoke('download-umodel', destDir),
 };
 
 /**
