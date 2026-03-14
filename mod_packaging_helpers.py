@@ -552,10 +552,10 @@ echo "Done! Move the .ba2 files into your game Data/ folder."
             try:
                 import importlib
                 _init = importlib.import_module("fallout4_tutorial_helper")
-                _ver_tuple = _init.bl_info.get("version", (2, 3, 0))
+                _ver_tuple = _init.bl_info.get("version", (2, 4, 0))
                 _addon_version = ".".join(str(v) for v in _ver_tuple)
             except Exception:
-                _addon_version = "2.3.0"
+                _addon_version = "2.4.0"
 
             manifest = {
                 "name":          info.get("name", "Unknown"),
