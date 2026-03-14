@@ -16,7 +16,7 @@ from pathlib import Path
 
 # ── Identity ──────────────────────────────────────────────────────────────────
 ADDON_NAME = "fallout4_tutorial_helper"
-VERSION    = "2.1.3"
+VERSION    = "2.4.0"
 ZIP_PATH   = f"{ADDON_NAME}-v{VERSION}.zip"
 
 # ── Add-on Python modules (all must exist in the repo root) ───────────────────
