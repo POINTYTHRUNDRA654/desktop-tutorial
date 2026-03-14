@@ -27,6 +27,56 @@ All changes in this PR live on this branch. The branch name reflects its origin 
 
 ## Done ✅  (DO NOT redo, revert, or override these)
 
+### 24. Fix: Mossy claims data is "pre installed" and she's "just a base LLM" with no real-time access ✅
+
+**Problems addressed:**
+1. Despite fixes #20-23, Mossy still told users her "memory was pre installed", "all of my data was pre installed", and "I am just a large base LLM" or "just a base LLM".
+2. She claimed she cannot "review and retain data in real time" or "cannot review data in real time" or "cannot retain data in real time".
+3. These specific phrasings were not covered by the existing forbidden statements list or response guard patterns.
+
+**Fix A — Expanded forbidden statements list (`src/renderer/src/MossyBrain.ts`):**
+- Added 13 new forbidden phrases to the system prompt's CRITICAL: FORBIDDEN STATEMENTS section:
+  - `"I cannot review data in real time"`
+  - `"I cannot retain data in real time"`
+  - `"I cannot review and retain data in real time"`
+  - `"my data was pre installed"`
+  - `"my memory was pre installed"`
+  - `"all of my data was pre installed"`
+  - `"all of my memory was pre installed"`
+  - `"I'm just a large language model"`
+  - `"I am just a large language model"`
+  - `"I'm just a base LLM"`
+  - `"I am just a base LLM"`
+  - `"I'm just an LLM"`
+  - `"I am just an LLM"`
+
+**Fix B — Strengthened identity statement (`src/renderer/src/MossyBrain.ts`):**
+- Replaced single line "YOU ARE NOT A BARE LLM..." with a comprehensive multi-line block:
+  - `**YOU CAN REVIEW, RETAIN, AND ACCESS DATA IN REAL TIME. YOUR KNOWLEDGE IS NOT PRE-INSTALLED OR FIXED.**`
+  - Added explicit bullet list of capabilities:
+    - Search the internet RIGHT NOW using scan_fallout4_live
+    - Review and retain new information from the web in your Knowledge Vault
+    - Access real-time data from Fallout 4 Wiki, DuckDuckGo, and other sources
+    - Update your knowledge dynamically based on current information
+
+**Fix C — Expanded response guard patterns (`src/renderer/src/LocalAIEngine.ts`):**
+- Added 7 new regex patterns to `INTERNET_REFUSAL_PATTERNS` array (now 28 patterns total):
+  - `/my\s+(data|memory|knowledge)\s+(was|is)\s+pre.?installed/i` — Catches "my data/memory/knowledge was/is pre-installed" or "preinstalled"
+  - `/all\s+of\s+my\s+(data|memory|knowledge)\s+(was|is)\s+pre.?installed/i` — Catches "all of my data/memory/knowledge was/is pre-installed"
+  - `/i'?m\s+just\s+an?\s+(large\s+)?(language\s+model|base\s+llm|llm)/i` — Catches "I'm just a/an [large] language model/base LLM/LLM"
+  - `/i\s+am\s+just\s+an?\s+(large\s+)?(language\s+model|base\s+llm|llm)/i` — Catches "I am just a/an [large] language model/base LLM/LLM"
+  - `/i\s+cannot\s+(review|retain|review\s+and\s+retain)\s+(data|information)\s+in\s+real.?time/i` — Catches "I cannot review/retain/review and retain data/information in real-time" or "realtime"
+  - `/i\s+can'?t\s+(review|retain|review\s+and\s+retain)\s+(data|information)\s+in\s+real.?time/i` — Catches "I can't review/retain/review and retain data/information in real-time"
+  - `/i\s+(am\s+)?unable\s+to\s+(review|retain|review\s+and\s+retain)\s+(data|information)\s+in\s+real.?time/i` — Catches "I am unable to review/retain/review and retain data/information in real-time"
+- Response guard now catches all variations of the "pre-installed", "just a base LLM", and "cannot review/retain real-time data" claims and triggers automatic web search + retry with injected results.
+
+Files changed:
+- `src/renderer/src/MossyBrain.ts` (lines 493-526, 538-545)
+- `src/renderer/src/LocalAIEngine.ts` (lines 286-318)
+- `CHANGES.md`
+
+---
+
 ### 23. Fix: Mossy still says she can't access the internet (response-guard interceptor) ✅
 
 **Problems addressed:**
