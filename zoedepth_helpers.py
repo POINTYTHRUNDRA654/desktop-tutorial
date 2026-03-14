@@ -44,13 +44,25 @@ if not TORCH_AVAILABLE:
 # It will be imported dynamically when needed
 
 
+def clear_availability_cache():
+    """
+    Force-expire the availability cache after successful installation.
+
+    Call this after a successful install so the next UI redraw reflects
+    the new state without waiting for the 5-second TTL to expire.
+    """
+    global _availability_cache, _availability_cache_time
+    _availability_cache = None
+    _availability_cache_time = 0.0
+
+
 def check_zoedepth_availability():
     """
     Check if ZoeDepth is installed and available.
 
     Results are cached for _CACHE_TTL seconds so that repeated calls from
     Blender's UI draw() loop do not hammer the filesystem on every redraw.
-    
+
     Returns:
         tuple: (available: bool, message: str)
     """
@@ -74,15 +86,24 @@ def _check_zoedepth_availability_uncached():
             "(regedit → HKLM\\SYSTEM\\CurrentControlSet\\Control\\FileSystem → "
             "LongPathsEnabled=1) or reinstall PyTorch to a shorter path."
         )
-    
+
     # Check if ZoeDepth repository is cloned
     # Common locations to check
     possible_paths = [
         os.path.expanduser("~/ZoeDepth"),
         os.path.expanduser("~/Projects/ZoeDepth"),
         "/opt/ZoeDepth",
-        os.path.join(os.path.dirname(__file__), "..", "ZoeDepth"),
+        os.path.join(os.path.dirname(__file__), "tools", "ZoeDepth"),  # addon_folder/tools/ZoeDepth
     ]
+
+    # Also check the tool_installers managed directory
+    try:
+        from . import tool_installers
+        managed_dir = tool_installers.TOOLS_ROOT / "ZoeDepth"
+        if managed_dir not in [Path(p) for p in possible_paths]:
+            possible_paths.insert(0, str(managed_dir))  # Check this first
+    except Exception:
+        pass
     
     zoedepth_path = None
     for path in possible_paths:
