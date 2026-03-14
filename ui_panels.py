@@ -1545,6 +1545,7 @@ class FO4_PT_GameAssetsPanel(Panel):
 
         if ready:
             unreal_box.operator("fo4.browse_unreal_assets", text="Browse Unreal Assets", icon='VIEWZOOM')
+            unreal_box.operator("fo4.import_unreal_asset", text="Import Unreal Asset", icon='IMPORT')
         else:
             unreal_box.label(text="Set Unreal path in preferences", icon='PREFERENCES')
 

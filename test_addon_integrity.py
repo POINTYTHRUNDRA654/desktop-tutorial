@@ -2446,6 +2446,47 @@ def test_unity_asset_import_operator():
     return True
 
 
+def test_unreal_asset_import_operator():
+    """Ensure Unreal asset import operator is present and wired to UI."""
+    print("\n" + "="*70)
+    print("TEST 21: Unreal Asset Import Operator")
+    print("="*70)
+
+    failed = []
+
+    def ck(label, cond, detail=""):
+        sym = "✅" if cond else "❌"
+        print(f"{sym} {label}{(': ' + detail) if detail else ''}")
+        if not cond:
+            failed.append(label + ((" — " + detail) if detail else ""))
+
+    addon_dir = Path(__file__).parent
+    try:
+        ops_src = (addon_dir / "operators.py").read_text(encoding="utf-8")
+        ui_src = (addon_dir / "ui_panels.py").read_text(encoding="utf-8")
+    except Exception as exc:
+        ck("read operators/ui sources", False, str(exc))
+        return False
+
+    ck("FO4_OT_ImportUnrealAsset class defined",
+       "class FO4_OT_ImportUnrealAsset" in ops_src)
+    ck("fo4.import_unreal_asset idname present",
+       'bl_idname = "fo4.import_unreal_asset"' in ops_src)
+    ck("Unreal import operator registered in classes tuple",
+       "FO4_OT_ImportUnrealAsset," in ops_src)
+    ck("Unreal panel exposes Import Unreal Asset button",
+       "fo4.import_unreal_asset" in ui_src)
+
+    if failed:
+        print(f"\n❌ FAILED: {len(failed)} check(s) failed")
+        for f in failed:
+            print(f"   • {f}")
+        return False
+
+    print("\n✅ PASSED: Unreal asset import operator is present and wired")
+    return True
+
+
 def run_all_tests():
     """Run all test suites"""
     print("\n" + "="*70)
@@ -2479,6 +2520,7 @@ def run_all_tests():
         ("Tool Root Preferences",                     test_tool_root_preferences),
         ("FO4 Readiness Scan Operator",               test_fo4_readiness_scan_operator),
         ("Unity Asset Import Operator",               test_unity_asset_import_operator),
+        ("Unreal Asset Import Operator",              test_unreal_asset_import_operator),
     ]
 
     passed = 0

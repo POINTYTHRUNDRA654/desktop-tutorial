@@ -8084,6 +8084,112 @@ class FO4_OT_BrowseUnrealAssets(Operator):
         return {'FINISHED'}
 
 
+class FO4_OT_ImportUnrealAsset(Operator):
+    """Deep-scan Unreal assets folder, search, and import into Blender."""
+    bl_idname = "fo4.import_unreal_asset"
+    bl_label = "Import Unreal Asset"
+    bl_options = {'REGISTER', 'UNDO'}
+
+    search_query: StringProperty(
+        name="Search",
+        description="Name fragment to search for in Unreal asset filenames",
+        default="",
+    )
+
+    category: EnumProperty(
+        name="Category",
+        items=[
+            ('ALL', "All", "Search all categories"),
+            ('Characters', "Characters", "Character models"),
+            ('Weapons', "Weapons", "Weapon models"),
+            ('Props', "Props", "Props and items"),
+            ('Environment', "Environment", "Environment pieces"),
+            ('Vehicles', "Vehicles", "Vehicle models"),
+        ],
+        default='ALL',
+    )
+
+    def _pick_asset(self):
+        from . import unreal_game_assets
+
+        ready, msg = unreal_game_assets.UnrealAssets.get_status()
+        if not ready:
+            return None, msg
+
+        # Force index build and search
+        if self.search_query.strip():
+            results = unreal_game_assets.UnrealAssets.search_assets(
+                self.search_query, None if self.category == 'ALL' else self.category
+            )
+        else:
+            index = unreal_game_assets.UnrealAssets.index_assets()
+            cat = self.category if self.category != 'ALL' else next(iter(index), None)
+            results = index.get(cat, []) if cat else []
+
+        if not results:
+            return None, "No Unreal assets matched the search."
+
+        # Prefer shortest path/name combo
+        results.sort(key=lambda r: (len(r.get("name", "")), len(r.get("asset_path", ""))))
+        return results[0], None
+
+    def _import_asset_file(self, path: Path, asset_type: str):
+        ext = path.suffix.lower()
+
+        # Common mesh formats
+        if ext == ".fbx" and hasattr(bpy.ops.import_scene, "fbx"):
+            bpy.ops.import_scene.fbx(filepath=str(path))
+            return True, "Imported FBX via Blender importer"
+        if ext == ".obj" and hasattr(bpy.ops.import_scene, "obj"):
+            bpy.ops.import_scene.obj(filepath=str(path))
+            return True, "Imported OBJ via Blender importer"
+        if ext in (".gltf", ".glb") and hasattr(bpy.ops.import_scene, "gltf"):
+            bpy.ops.import_scene.gltf(filepath=str(path))
+            return True, "Imported GLTF via Blender importer"
+        if ext == ".dae" and hasattr(bpy.ops.wm, "collada_import"):
+            bpy.ops.wm.collada_import(filepath=str(path))
+            return True, "Imported DAE via Blender importer"
+
+        # UE-specific formats: inform user to extract first
+        if ext in (".uasset", ".psk", ".pskx", ".usd"):
+            return False, (
+                f"{ext.upper()} requires UE extraction (UModel/FModel/UE export). "
+                f"Convert to FBX/OBJ/GLTF then re-run import. Source: {path}"
+            )
+
+        return False, f"Unsupported format {ext}; import manually from {path}"
+
+    def execute(self, context):
+        asset, err = self._pick_asset()
+        if err:
+            self.report({'ERROR'}, err)
+            return {'CANCELLED'}
+
+        from pathlib import Path
+        asset_path = Path(asset["full_path"])
+        if not asset_path.exists():
+            self.report({'ERROR'}, f"Asset not found on disk: {asset_path}")
+            return {'CANCELLED'}
+
+        ok, msg = self._import_asset_file(asset_path, asset.get("type"))
+        level = 'INFO' if ok else 'WARNING'
+        self.report({level}, f"{asset['name']}: {msg}")
+        notification_system.FO4_NotificationSystem.notify(f"Unreal import: {msg}", level)
+
+        textures = asset.get("texture_paths") or []
+        if textures:
+            print("Imported Unreal asset textures:")
+            for t in textures[:10]:
+                print(f" - {t}")
+            if len(textures) > 10:
+                print(f" ... {len(textures) - 10} more")
+
+        return {'FINISHED'}
+
+    def invoke(self, context, event):
+        return context.window_manager.invoke_props_dialog(self, width=400)
+
+
 # Smart Preset Operators
 # ---------------------------------------------------------------------------
 # Game-asset catalog and import helpers
@@ -12295,6 +12401,7 @@ classes = (
     FO4_OT_BrowseUnityAssets,
     FO4_OT_ImportUnityAsset,
     FO4_OT_BrowseUnrealAssets,
+    FO4_OT_ImportUnrealAsset,
     # UV + Texture workflow
     FO4_OT_SetupUVWithTexture,
     FO4_OT_ReUnwrapUV,
