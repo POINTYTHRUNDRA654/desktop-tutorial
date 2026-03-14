@@ -1527,6 +1527,7 @@ class FO4_PT_GameAssetsPanel(Panel):
 
         if ready:
             unity_box.operator("fo4.browse_unity_assets", text="Browse Unity Assets", icon='VIEWZOOM')
+            unity_box.operator("fo4.import_unity_asset", text="Import Unity Asset", icon='IMPORT')
         else:
             unity_box.label(text="Set Unity path in preferences", icon='PREFERENCES')
 
@@ -1544,6 +1545,7 @@ class FO4_PT_GameAssetsPanel(Panel):
 
         if ready:
             unreal_box.operator("fo4.browse_unreal_assets", text="Browse Unreal Assets", icon='VIEWZOOM')
+            unreal_box.operator("fo4.import_unreal_asset", text="Import Unreal Asset", icon='IMPORT')
         else:
             unreal_box.label(text="Set Unreal path in preferences", icon='PREFERENCES')
 
@@ -2767,6 +2769,8 @@ class FO4_PT_SceneDiagnosticsPanel(Panel):
                          text="Run Diagnostics", icon='VIEWZOOM')
         btn_row.operator("fo4.auto_fix_diagnostics",
                          text="Auto-Fix", icon='TOOL_SETTINGS')
+        layout.operator("fo4.scan_fo4_readiness",
+                        text="Scan FO4 Readiness", icon='CHECKBOX_HLT')
 
         # ── Per-object results (from stored report) ──────────────────────────
         if fo4_scene_diagnostics:
@@ -3395,6 +3399,13 @@ class FO4_PT_SettingsPanel(Panel):
         # ── Tool Paths ────────────────────────────────────────────────────────
         tools_box = layout.box()
         tools_box.label(text="Tool Paths", icon="TOOL_SETTINGS")
+        tools_box.prop(scene, "fo4_tools_root", text="Tools Root")
+        tools_root = bpy.path.abspath(scene.fo4_tools_root) if scene.fo4_tools_root else ""
+        if tools_root and os.path.isdir(tools_root):
+            tools_box.label(text=f"✓ {tools_root}", icon="CHECKMARK")
+        else:
+            tools_box.label(text="Tool root not found – set to where you keep CLI tools",
+                            icon="ERROR")
 
         tools_box.prop(scene, "fo4_havok2fbx_path", text="Havok2FBX Folder")
         h_path = bpy.path.abspath(scene.fo4_havok2fbx_path) if scene.fo4_havok2fbx_path else ""
@@ -3443,6 +3454,7 @@ class FO4_PT_SettingsPanel(Panel):
         # ── PyTorch ───────────────────────────────────────────────────────────
         torch_box = layout.box()
         torch_box.label(text="PyTorch / AI Features", icon="PLUGIN")
+        torch_box.prop(scene, "fo4_torch_root", text="PyTorch Path")
         try:
             from . import torch_path_manager
             success, msg, _ = torch_path_manager.TorchPathManager.try_import_torch()

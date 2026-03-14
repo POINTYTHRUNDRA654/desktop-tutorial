@@ -96,6 +96,7 @@ def _install_bpy_stub():
     bpy_app.version        = (4, 0, 0)
     bpy_app.version_string = "4.0.0"
     bpy_app.timers         = _Any()
+    bpy_app.handlers       = types.SimpleNamespace(persistent=lambda f: f)
 
     # ------------------------------------------------------------------
     # bpy.path
@@ -2090,6 +2091,59 @@ def test_umodel_download():
     return True
 
 
+def test_umodel_manual_detection():
+    """Ensure a manually extracted UModel install is detected even when nested."""
+    print("\n" + "="*70)
+    print("TEST 15: UModel Manual Install Detection")
+    print("="*70)
+
+    addon_dir = Path(__file__).parent
+    failed = []
+
+    def ck(label, cond, detail=""):
+        sym = "✅" if cond else "❌"
+        print(f"{sym} {label}{(': ' + detail) if detail else ''}")
+        if not cond:
+            failed.append(label + ((" — " + detail) if detail else ""))
+
+    mod, err = _load_module(addon_dir, "umodel_helpers")
+    ck("umodel_helpers loads without error", mod is not None, err or "")
+    if mod is None:
+        return False
+
+    import tempfile
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        install_root = Path(tmpdir) / "umodel"
+        nested = install_root / "umodel_win32"
+        nested.mkdir(parents=True, exist_ok=True)
+        exe_path = nested / "umodel_64.exe"
+        exe_path.write_bytes(b"")
+
+        orig_default = mod.DEFAULT_TOOL_DIR
+        orig_fallback = mod.FALLBACK_TOOL_DIR
+        try:
+            mod.DEFAULT_TOOL_DIR = install_root
+            mod.FALLBACK_TOOL_DIR = install_root
+
+            ready, message = mod.status()
+            ck("status recognizes nested executable", ready, message)
+            ck("executable_path returns nested exe", mod.executable_path() == str(exe_path))
+            ck("tool_path reports detected folder", mod.tool_path() == str(exe_path.parent))
+        finally:
+            mod.DEFAULT_TOOL_DIR = orig_default
+            mod.FALLBACK_TOOL_DIR = orig_fallback
+
+    if failed:
+        print(f"\n❌ FAILED: {len(failed)} check(s) failed")
+        for f in failed:
+            print(f"   • {f}")
+        return False
+
+    print("\n✅ PASSED: UModel manual install detection works")
+    return True
+
+
 def test_torch_missing_messages():
     """Verify that a missing PyTorch installation yields a helpful message.
 
@@ -2099,7 +2153,7 @@ def test_torch_missing_messages():
     "Point-E not installed: No module named 'torch'".
     """
     print("\n" + "="*70)
-    print("TEST 15: Missing-PyTorch Error Messages (Shap-E & Point-E)")
+    print("TEST 16: Missing-PyTorch Error Messages (Shap-E & Point-E)")
     print("="*70)
 
     addon_dir = Path(__file__).parent
@@ -2187,7 +2241,7 @@ def test_blender5_access_violation_fix():
        a successful update.
     """
     print("\n" + "="*70)
-    print("TEST 16: Blender 5.0.1 Access-Violation Fix (timer-based quit)")
+    print("TEST 17: Blender 5.0.1 Access-Violation Fix (timer-based quit)")
     print("="*70)
 
     addon_dir = Path(__file__).parent
@@ -2261,6 +2315,250 @@ def test_blender5_access_violation_fix():
     return True
 
 
+def test_tool_root_preferences():
+    """Ensure tool/PyTorch root paths are persisted and default to D: drives."""
+    print("\n" + "="*70)
+    print("TEST 18: Tool Root Preferences")
+    print("="*70)
+
+    failed = []
+
+    def ck(label, cond, detail=""):
+        sym = "✅" if cond else "❌"
+        print(f"{sym} {label}{(': ' + detail) if detail else ''}")
+        if not cond:
+            failed.append(label + ((" — " + detail) if detail else ""))
+
+    addon_dir = Path(__file__).parent
+    stashed = {k: sys.modules.pop(k) for k in list(sys.modules)
+               if k == "preferences" or k.endswith(".preferences")}
+    try:
+        prefs_mod, err = _load_module(addon_dir, "preferences")
+        ck("preferences loads", prefs_mod is not None, err or "")
+        if prefs_mod is None:
+            return False
+
+        prefs = prefs_mod.get_preferences()
+        ck("tools_root default is D:/blender_tools",
+           getattr(prefs, "tools_root", "") == "D:/blender_tools",
+           getattr(prefs, "tools_root", ""))
+        ck("torch_root default is D:/blender_torch",
+           getattr(prefs, "torch_root", "") == "D:/blender_torch",
+           getattr(prefs, "torch_root", ""))
+        ck("fo4_tools_root persisted",
+           "fo4_tools_root" in getattr(prefs_mod, "_PERSISTENT", ()))
+        ck("fo4_torch_root persisted",
+           "fo4_torch_root" in getattr(prefs_mod, "_PERSISTENT", ()))
+    except Exception as exc:
+        ck("preferences access", False, str(exc))
+    finally:
+        sys.modules.update(stashed)
+
+    if failed:
+        print(f"\n❌ FAILED: {len(failed)} check(s) failed")
+        for f in failed:
+            print(f"   • {f}")
+        return False
+
+    print("\n✅ PASSED: Tool root preferences are configured")
+    return True
+
+
+def test_fo4_readiness_scan_operator():
+    """Verify the FO4 readiness scan operator and UI hook exist."""
+    print("\n" + "="*70)
+    print("TEST 19: FO4 Readiness Scan Operator")
+    print("="*70)
+
+    failed = []
+
+    def ck(label, cond, detail=""):
+        sym = "✅" if cond else "❌"
+        print(f"{sym} {label}{(': ' + detail) if detail else ''}")
+        if not cond:
+            failed.append(label + ((" — " + detail) if detail else ""))
+
+    addon_dir = Path(__file__).parent
+    try:
+        ops_src = (addon_dir / "operators.py").read_text(encoding="utf-8")
+        ui_src = (addon_dir / "ui_panels.py").read_text(encoding="utf-8")
+    except Exception as exc:
+        ck("read operators/ui sources", False, str(exc))
+        return False
+
+    ck("FO4_OT_ScanFO4Readiness class defined",
+       "class FO4_OT_ScanFO4Readiness" in ops_src)
+    ck("fo4.scan_fo4_readiness idname present",
+       'bl_idname = "fo4.scan_fo4_readiness"' in ops_src)
+    ck("Readiness scan registered in classes tuple",
+       "FO4_OT_ScanFO4Readiness," in ops_src)
+    ck("UI includes readiness scan button",
+       "fo4.scan_fo4_readiness" in ui_src)
+
+    if failed:
+        print(f"\n❌ FAILED: {len(failed)} check(s) failed")
+        for f in failed:
+            print(f"   • {f}")
+        return False
+
+    print("\n✅ PASSED: FO4 readiness scan operator is wired into UI")
+    return True
+
+
+def test_unity_asset_import_operator():
+    """Ensure Unity asset import operator is present and wired to UI."""
+    print("\n" + "="*70)
+    print("TEST 20: Unity Asset Import Operator")
+    print("="*70)
+
+    failed = []
+
+    def ck(label, cond, detail=""):
+        sym = "✅" if cond else "❌"
+        print(f"{sym} {label}{(': ' + detail) if detail else ''}")
+        if not cond:
+            failed.append(label + ((" — " + detail) if detail else ""))
+
+    addon_dir = Path(__file__).parent
+    try:
+        ops_src = (addon_dir / "operators.py").read_text(encoding="utf-8")
+        ui_src = (addon_dir / "ui_panels.py").read_text(encoding="utf-8")
+    except Exception as exc:
+        ck("read operators/ui sources", False, str(exc))
+        return False
+
+    ck("FO4_OT_ImportUnityAsset class defined",
+       "class FO4_OT_ImportUnityAsset" in ops_src)
+    ck("fo4.import_unity_asset idname present",
+       'bl_idname = "fo4.import_unity_asset"' in ops_src)
+    ck("Unity import operator registered in classes tuple",
+       "FO4_OT_ImportUnityAsset," in ops_src)
+    ck("Unity panel exposes Import Unity Asset button",
+       "fo4.import_unity_asset" in ui_src)
+
+    if failed:
+        print(f"\n❌ FAILED: {len(failed)} check(s) failed")
+        for f in failed:
+            print(f"   • {f}")
+        return False
+
+    print("\n✅ PASSED: Unity asset import operator is present and wired")
+    return True
+
+
+def test_unreal_asset_import_operator():
+    """Ensure Unreal asset import operator is present and wired to UI."""
+    print("\n" + "="*70)
+    print("TEST 21: Unreal Asset Import Operator")
+    print("="*70)
+
+    failed = []
+
+    def ck(label, cond, detail=""):
+        sym = "✅" if cond else "❌"
+        print(f"{sym} {label}{(': ' + detail) if detail else ''}")
+        if not cond:
+            failed.append(label + ((" — " + detail) if detail else ""))
+
+    addon_dir = Path(__file__).parent
+    try:
+        ops_src = (addon_dir / "operators.py").read_text(encoding="utf-8")
+        ui_src = (addon_dir / "ui_panels.py").read_text(encoding="utf-8")
+    except Exception as exc:
+        ck("read operators/ui sources", False, str(exc))
+        return False
+
+    ck("FO4_OT_ImportUnrealAsset class defined",
+       "class FO4_OT_ImportUnrealAsset" in ops_src)
+    ck("fo4.import_unreal_asset idname present",
+       'bl_idname = "fo4.import_unreal_asset"' in ops_src)
+    ck("Unreal import operator registered in classes tuple",
+       "FO4_OT_ImportUnrealAsset," in ops_src)
+    ck("Unreal panel exposes Import Unreal Asset button",
+       "fo4.import_unreal_asset" in ui_src)
+
+    if failed:
+        print(f"\n❌ FAILED: {len(failed)} check(s) failed")
+        for f in failed:
+            print(f"   • {f}")
+        return False
+
+    print("\n✅ PASSED: Unreal asset import operator is present and wired")
+    return True
+
+
+def test_presets_do_not_create_placeholders_for_game_meshes():
+    """Weapon/armor/prop/vegetation presets should not spawn placeholder cubes."""
+    print("\n" + "="*70)
+    print("TEST 22: Presets Avoid Placeholder Meshes")
+    print("="*70)
+
+    failed = []
+
+    def ck(label, cond, detail=""):
+        sym = "✅" if cond else "❌"
+        print(f"{sym} {label}{(': ' + detail) if detail else ''}")
+        if not cond:
+            failed.append(label + ((" — " + detail) if detail else ""))
+
+    ops_src = Path(__file__).parent.joinpath("operators.py").read_text(encoding="utf-8")
+
+    ck("Weapon preset no placeholder string",
+       "Created placeholder for {self.weapon_type} weapon" not in ops_src)
+    ck("Armor preset no placeholder string",
+       "Created placeholder for {self.armor_type} armor" not in ops_src)
+    ck("Prop preset no placeholder string",
+       "Created placeholder for {self.prop_type} prop" not in ops_src)
+    ck("Vegetation preset no placeholder string",
+       "Created placeholder {self.vegetation_type} vegetation" not in ops_src)
+
+    if failed:
+        print(f"\n❌ FAILED: {len(failed)} check(s) failed")
+        for f in failed:
+            print(f"   • {f}")
+        return False
+
+    print("\n✅ PASSED: Game presets no longer spawn placeholder meshes")
+    return True
+
+
+def test_game_imports_apply_textures():
+    """Verify game/unity/unreal imports attempt to apply textures/materials."""
+    print("\n" + "="*70)
+    print("TEST 23: Game Imports Apply Textures")
+    print("="*70)
+
+    failed = []
+
+    def ck(label, cond, detail=""):
+        sym = "✅" if cond else "❌"
+        print(f"{sym} {label}{(': ' + detail) if detail else ''}")
+        if not cond:
+            failed.append(label + ((" — " + detail) if detail else ""))
+
+    ops_src = Path(__file__).parent.joinpath("operators.py").read_text(encoding="utf-8")
+
+    ck("_auto_apply_textures_from_game_asset helper exists",
+       "_auto_apply_textures_from_game_asset" in ops_src)
+    ck("_apply_textures_to_active helper exists",
+       "_apply_textures_to_active" in ops_src)
+    ck("Unity import calls _apply_textures_to_active",
+       "Unity import: {msg}" in ops_src and "_apply_textures_to_active(textures" in ops_src)
+    ck("Unreal import calls _apply_textures_to_active",
+       "Unreal import: {msg}" in ops_src and "_apply_textures_to_active(textures" in ops_src)
+    ck("Game preset import calls auto texture apply",
+       "_auto_apply_textures_from_game_asset(nif_path)" in ops_src)
+
+    if failed:
+        print(f"\n❌ FAILED: {len(failed)} check(s) failed")
+        for f in failed:
+            print(f"   • {f}")
+        return False
+
+    print("\n✅ PASSED: Imports attempt to apply materials/textures")
+    return True
+
+
 def run_all_tests():
     """Run all test suites"""
     print("\n" + "="*70)
@@ -2288,8 +2586,15 @@ def run_all_tests():
         ("New Features (Papyrus/Physics/Packaging)", test_new_features),
         ("AI Generation (Shap-E & Point-E)",         test_ai_generation),
         ("UModel Download Configuration",             test_umodel_download),
+        ("UModel Manual Install Detection",           test_umodel_manual_detection),
         ("Missing-PyTorch Error Messages",            test_torch_missing_messages),
         ("Blender 5.0.1 Access-Violation Fix",        test_blender5_access_violation_fix),
+        ("Tool Root Preferences",                     test_tool_root_preferences),
+        ("FO4 Readiness Scan Operator",               test_fo4_readiness_scan_operator),
+        ("Unity Asset Import Operator",               test_unity_asset_import_operator),
+        ("Unreal Asset Import Operator",              test_unreal_asset_import_operator),
+        ("Presets Avoid Placeholder Meshes",          test_presets_do_not_create_placeholders_for_game_meshes),
+        ("Game Imports Apply Textures",               test_game_imports_apply_textures),
     ]
 
     passed = 0

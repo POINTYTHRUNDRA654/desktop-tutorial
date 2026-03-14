@@ -158,6 +158,21 @@ def _scan_blend(blend_path: str) -> list[dict]:
     return results
 
 
+def _expand_blend_items(entries: list[dict], category: str | None = None) -> list[dict]:
+    """Replace .blend file entries with their contained objects."""
+    expanded: list[dict] = []
+    for d in entries:
+        if d.get("filetype") == "BLEND":
+            blend_items = _scan_blend(d["filepath"])
+            for bi in blend_items:
+                if category:
+                    bi["category"] = category
+                expanded.append(bi)
+        else:
+            expanded.append(d)
+    return expanded
+
+
 # ---------------------------------------------------------------------------
 # Property group — one row in the asset list
 # ---------------------------------------------------------------------------
@@ -331,7 +346,8 @@ class FO4_OT_ScanAssetLibrary(Operator):
             if p.suffix.lower() == '.blend':
                 all_items.extend(_scan_blend(combined_path))
             elif p.is_dir():
-                all_items.extend(_scan_folder(combined_path, _ALL_EXTS))
+                found = _scan_folder(combined_path, _ALL_EXTS)
+                all_items.extend(_expand_blend_items(found, category="Materials"))
 
         # Dedicated mesh path — force category to 'Meshes' for any item
         # that didn't match a more specific keyword (e.g. 'Other' or 'Textures').
@@ -356,16 +372,10 @@ class FO4_OT_ScanAssetLibrary(Operator):
         # Dedicated material (.blend) path
         if mat_path and Path(mat_path).is_dir():
             found = _scan_folder(mat_path, _MATERIAL_EXTS)
-            for d in found:
-                if d['filetype'] == 'BLEND':
-                    # Scan inside each .blend for objects
-                    blend_items = _scan_blend(d['filepath'])
-                    for bi in blend_items:
-                        bi['category'] = 'Materials'
-                    all_items.extend(blend_items)
-                else:
-                    d['category'] = 'Materials'
-                    all_items.append(d)
+            expanded = _expand_blend_items(found, category="Materials")
+            for d in expanded:
+                d["category"] = "Materials"
+            all_items.extend(expanded)
 
         # Deduplicate by filepath + name
         seen: set[tuple[str, str]] = set()

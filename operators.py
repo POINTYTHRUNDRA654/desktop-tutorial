@@ -4,6 +4,7 @@ Operators for the Fallout 4 Tutorial Add-on
 
 import bpy
 import threading
+import os as _os
 from bpy.types import Operator
 from bpy.props import StringProperty, EnumProperty, IntProperty, FloatProperty, BoolProperty
 from . import preferences, tutorial_system, mesh_helpers, texture_helpers, animation_helpers, export_helpers, notification_system, image_to_mesh_helpers, hunyuan3d_helpers, gradio_helpers, hymotion_helpers, nvtt_helpers, realesrgan_helpers, get3d_helpers, stylegan2_helpers, instantngp_helpers, imageto3d_helpers, advanced_mesh_helpers, rignet_helpers, motion_generation_helpers, quest_helpers, npc_helpers, world_building_helpers, item_helpers, preset_library, automation_system, desktop_tutorial_client, shap_e_helpers, point_e_helpers, advisor_helpers, ue_importer_helpers, umodel_tools_helpers, umodel_helpers, unity_fbx_importer_helpers, asset_studio_helpers, asset_ripper_helpers, fo4_game_assets, unity_game_assets, unreal_game_assets, post_processing_helpers, fo4_material_browser, fo4_scene_diagnostics, fo4_reference_helpers, asset_library
@@ -2688,10 +2689,151 @@ class FO4_OT_CheckUModel(Operator):
         print(status_text)
         print(f"Tool path: {umodel_helpers.tool_path()}")
         if umodel_helpers.executable_path():
-            print(f"Executable: {umodel_helpers.executable_path()}")
+        print(f"Executable: {umodel_helpers.executable_path()}")
         print("Credit: UModel by Konstantin Nosov (Gildor)")
         print("https://www.gildor.org/en/projects/umodel")
         print("="*70)
+        return {'FINISHED'}
+
+
+class FO4_OT_ScanFO4Readiness(Operator):
+    """Scan the entire scene for FO4 export readiness (meshes, LODs, collision)."""
+    bl_idname = "fo4.scan_fo4_readiness"
+    bl_label = "Scan FO4 Readiness"
+    bl_options = {'REGISTER'}
+
+    max_collisions_per_object: IntProperty(
+        name="Max Collisions per Object",
+        description="Soft limit for UCX_ collision meshes per object; higher counts can bloat Havok data",
+        default=32,
+        min=1,
+        max=1024,
+    )
+
+    max_collisions_scene: IntProperty(
+        name="Max Collisions in Scene",
+        description="Soft limit for total collision meshes before export; large collision counts can exceed Havok block limits",
+        default=512,
+        min=1,
+        max=5000,
+    )
+
+    @staticmethod
+    def _is_collision(obj):
+        name_up = obj.name.upper()
+        return (
+            obj.get("fo4_collision")
+            or name_up.startswith("UCX_")
+            or name_up.endswith("_COLLISION")
+            or name_up.startswith("COLLISION")
+        )
+
+    @staticmethod
+    def _is_lod(obj):
+        name_low = obj.name.lower()
+        return (
+            "_lod" in name_low
+            or name_low.startswith("lod")
+            or name_low.endswith(".lod")
+        )
+
+    def execute(self, context):
+        scene = context.scene
+        mesh_objects = [o for o in scene.objects if getattr(o, "type", None) == 'MESH']
+
+        if not mesh_objects:
+            self.report({'WARNING'}, "No mesh objects in scene to scan")
+            return {'CANCELLED'}
+
+        collisions = [o for o in mesh_objects if self._is_collision(o)]
+        lods = [o for o in mesh_objects if not self._is_collision(o) and self._is_lod(o)]
+        bases = [o for o in mesh_objects if o not in collisions and o not in lods]
+
+        issues = []
+        warnings = []
+
+        # Per-object validation
+        for obj in mesh_objects:
+            success, obj_issues = mesh_helpers.MeshHelpers.validate_mesh(
+                obj, is_collision=self._is_collision(obj)
+            )
+            if not success and obj_issues:
+                issues.append((obj.name, obj_issues))
+
+        # Collision presence and limits
+        for base in bases:
+            armature_mod = any(m.type == 'ARMATURE' for m in getattr(base, "modifiers", []))
+            if armature_mod:
+                continue  # skinned meshes manage collision via skeleton
+
+            ucx_prefix = f"UCX_{base.name}".upper()
+            base_collisions = [
+                c for c in collisions
+                if c.parent == base
+                or c.name.upper() == ucx_prefix
+                or c.name.upper().startswith(f"{ucx_prefix}_")
+            ]
+
+            if not base_collisions and len(base.data.polygons) >= 4:
+                warnings.append(f"{base.name}: no UCX_ collision mesh found")
+            elif len(base_collisions) > self.max_collisions_per_object:
+                warnings.append(
+                    f"{base.name}: {len(base_collisions)} collision meshes (soft limit {self.max_collisions_per_object})"
+                )
+
+        # LOD sanity checks
+        orphan_lods = []
+        for lod_obj in lods:
+            name_low = lod_obj.name.lower()
+            root_name = name_low.split("_lod")[0]
+            has_base = any(b.name.lower() == root_name for b in bases)
+            if not has_base:
+                orphan_lods.append(lod_obj.name)
+
+        if orphan_lods:
+            warnings.append(
+                f"LOD meshes without matching base object: {', '.join(sorted(orphan_lods)[:5])}"
+                + ("..." if len(orphan_lods) > 5 else "")
+            )
+
+        if len(collisions) > self.max_collisions_scene:
+            warnings.append(
+                f"Scene has {len(collisions)} collision meshes (soft limit {self.max_collisions_scene})"
+            )
+
+        # Print human-readable report to the system console
+        print("\n" + "=" * 70)
+        print("FO4 READINESS SCAN (LOD / Collision / Export)")
+        print("=" * 70)
+        print(f"Base meshes: {len(bases)}")
+        print(f"LOD meshes:  {len(lods)}")
+        print(f"Collision meshes: {len(collisions)}")
+
+        if issues:
+            print("\nBlocking issues:")
+            for obj_name, obj_issues in issues:
+                print(f" - {obj_name}:")
+                for item in obj_issues:
+                    print(f"    • {item}")
+
+        if warnings:
+            print("\nWarnings:")
+            for w in warnings:
+                print(f" - {w}")
+
+        if not issues and not warnings:
+            msg = "FO4 readiness scan passed – scene is export-ready"
+            self.report({'INFO'}, msg)
+            notification_system.FO4_NotificationSystem.notify(msg, 'INFO')
+        else:
+            msg = (
+                f"Readiness scan found {len(issues)} blocking issue group(s) "
+                f"and {len(warnings)} warning(s)"
+            )
+            level = 'WARNING' if issues else 'INFO'
+            self.report({level}, msg)
+            notification_system.FO4_NotificationSystem.notify(msg, level)
+
         return {'FINISHED'}
 
 
@@ -7807,6 +7949,102 @@ class FO4_OT_BrowseUnityAssets(Operator):
         return {'FINISHED'}
 
 
+class FO4_OT_ImportUnityAsset(Operator):
+    """Deep-scan Unity assets folder, search, and import into Blender."""
+    bl_idname = "fo4.import_unity_asset"
+    bl_label = "Import Unity Asset"
+    bl_options = {'REGISTER', 'UNDO'}
+
+    search_query: StringProperty(
+        name="Search",
+        description="Name fragment to search for in Unity asset filenames",
+        default="",
+    )
+
+    category: EnumProperty(
+        name="Category",
+        items=[
+            ('ALL', "All", "Search all categories"),
+            ('Characters', "Characters", "Character models"),
+            ('Weapons', "Weapons", "Weapon models"),
+            ('Props', "Props", "Props and items"),
+            ('Environment', "Environment", "Environment pieces"),
+            ('Vehicles', "Vehicles", "Vehicle models"),
+        ],
+        default='ALL',
+    )
+
+    def _pick_asset(self):
+        from . import unity_game_assets
+
+        ready, msg = unity_game_assets.UnityAssets.get_status()
+        if not ready:
+            return None, msg
+
+        # Force index build and search
+        if self.search_query.strip():
+            results = unity_game_assets.UnityAssets.search_assets(
+                self.search_query, None if self.category == 'ALL' else self.category
+            )
+        else:
+            # Default: take the first indexed asset in category
+            index = unity_game_assets.UnityAssets.index_assets()
+            cat = self.category if self.category != 'ALL' else next(iter(index), None)
+            results = index.get(cat, []) if cat else []
+
+        if not results:
+            return None, "No Unity assets matched the search."
+
+        # Prefer shortest path/name combo as a simple tie-breaker
+        results.sort(key=lambda r: (len(r.get("name", "")), len(r.get("asset_path", ""))))
+        return results[0], None
+
+    def _import_asset_file(self, path: Path):
+        ext = path.suffix.lower()
+        if ext == ".fbx" and hasattr(bpy.ops.import_scene, "fbx"):
+            bpy.ops.import_scene.fbx(filepath=str(path))
+            return True, "Imported FBX via Blender importer"
+        if ext == ".obj" and hasattr(bpy.ops.import_scene, "obj"):
+            bpy.ops.import_scene.obj(filepath=str(path))
+            return True, "Imported OBJ via Blender importer"
+        if ext in (".gltf", ".glb") and hasattr(bpy.ops.import_scene, "gltf"):
+            bpy.ops.import_scene.gltf(filepath=str(path))
+            return True, "Imported GLTF via Blender importer"
+        if ext == ".dae" and hasattr(bpy.ops.wm, "collada_import"):
+            bpy.ops.wm.collada_import(filepath=str(path))
+            return True, "Imported DAE via Blender importer"
+        return False, f"Unsupported format {ext}; import manually from {path}"
+
+    def execute(self, context):
+        asset, err = self._pick_asset()
+        if err:
+            self.report({'ERROR'}, err)
+            return {'CANCELLED'}
+
+        from pathlib import Path
+        asset_path = Path(asset["full_path"])
+        if not asset_path.exists():
+            self.report({'ERROR'}, f"Asset not found on disk: {asset_path}")
+            return {'CANCELLED'}
+
+        ok, msg = self._import_asset_file(asset_path)
+        level = 'INFO' if ok else 'WARNING'
+        self.report({level}, f"{asset['name']}: {msg}")
+        notification_system.FO4_NotificationSystem.notify(f"Unity import: {msg}", level)
+
+        # Apply textures when available
+        textures = asset.get("texture_paths") or []
+        if textures:
+            from . import unity_game_assets
+            root = unity_game_assets.UnityAssets.detect_unity_assets()
+            _apply_textures_to_active(textures, str(root) if root else None)
+
+        return {'FINISHED'}
+
+    def invoke(self, context, event):
+        return context.window_manager.invoke_props_dialog(self, width=400)
+
+
 class FO4_OT_BrowseUnrealAssets(Operator):
     """Browse and import Unreal Engine assets"""
     bl_idname = "fo4.browse_unreal_assets"
@@ -7845,6 +8083,110 @@ class FO4_OT_BrowseUnrealAssets(Operator):
         return {'FINISHED'}
 
 
+class FO4_OT_ImportUnrealAsset(Operator):
+    """Deep-scan Unreal assets folder, search, and import into Blender."""
+    bl_idname = "fo4.import_unreal_asset"
+    bl_label = "Import Unreal Asset"
+    bl_options = {'REGISTER', 'UNDO'}
+
+    search_query: StringProperty(
+        name="Search",
+        description="Name fragment to search for in Unreal asset filenames",
+        default="",
+    )
+
+    category: EnumProperty(
+        name="Category",
+        items=[
+            ('ALL', "All", "Search all categories"),
+            ('Characters', "Characters", "Character models"),
+            ('Weapons', "Weapons", "Weapon models"),
+            ('Props', "Props", "Props and items"),
+            ('Environment', "Environment", "Environment pieces"),
+            ('Vehicles', "Vehicles", "Vehicle models"),
+        ],
+        default='ALL',
+    )
+
+    def _pick_asset(self):
+        from . import unreal_game_assets
+
+        ready, msg = unreal_game_assets.UnrealAssets.get_status()
+        if not ready:
+            return None, msg
+
+        # Force index build and search
+        if self.search_query.strip():
+            results = unreal_game_assets.UnrealAssets.search_assets(
+                self.search_query, None if self.category == 'ALL' else self.category
+            )
+        else:
+            index = unreal_game_assets.UnrealAssets.index_assets()
+            cat = self.category if self.category != 'ALL' else next(iter(index), None)
+            results = index.get(cat, []) if cat else []
+
+        if not results:
+            return None, "No Unreal assets matched the search."
+
+        # Prefer shortest path/name combo
+        results.sort(key=lambda r: (len(r.get("name", "")), len(r.get("asset_path", ""))))
+        return results[0], None
+
+    def _import_asset_file(self, path: Path, asset_type: str):
+        ext = path.suffix.lower()
+
+        # Common mesh formats
+        if ext == ".fbx" and hasattr(bpy.ops.import_scene, "fbx"):
+            bpy.ops.import_scene.fbx(filepath=str(path))
+            return True, "Imported FBX via Blender importer"
+        if ext == ".obj" and hasattr(bpy.ops.import_scene, "obj"):
+            bpy.ops.import_scene.obj(filepath=str(path))
+            return True, "Imported OBJ via Blender importer"
+        if ext in (".gltf", ".glb") and hasattr(bpy.ops.import_scene, "gltf"):
+            bpy.ops.import_scene.gltf(filepath=str(path))
+            return True, "Imported GLTF via Blender importer"
+        if ext == ".dae" and hasattr(bpy.ops.wm, "collada_import"):
+            bpy.ops.wm.collada_import(filepath=str(path))
+            return True, "Imported DAE via Blender importer"
+
+        # UE-specific formats: inform user to extract first
+        if ext in (".uasset", ".psk", ".pskx", ".usd"):
+            return False, (
+                f"{ext.upper()} requires UE extraction (UModel/FModel/UE export). "
+                f"Convert to FBX/OBJ/GLTF then re-run import. Source: {path}"
+            )
+
+        return False, f"Unsupported format {ext}; import manually from {path}"
+
+    def execute(self, context):
+        asset, err = self._pick_asset()
+        if err:
+            self.report({'ERROR'}, err)
+            return {'CANCELLED'}
+
+        from pathlib import Path
+        asset_path = Path(asset["full_path"])
+        if not asset_path.exists():
+            self.report({'ERROR'}, f"Asset not found on disk: {asset_path}")
+            return {'CANCELLED'}
+
+        ok, msg = self._import_asset_file(asset_path, asset.get("type"))
+        level = 'INFO' if ok else 'WARNING'
+        self.report({level}, f"{asset['name']}: {msg}")
+        notification_system.FO4_NotificationSystem.notify(f"Unreal import: {msg}", level)
+
+        textures = asset.get("texture_paths") or []
+        if textures:
+            from . import unreal_game_assets
+            root = unreal_game_assets.UnrealAssets.detect_unreal_assets()
+            _apply_textures_to_active(textures, str(root) if root else None)
+
+        return {'FINISHED'}
+
+    def invoke(self, context, event):
+        return context.window_manager.invoke_props_dialog(self, width=400)
+
+
 # Smart Preset Operators
 # ---------------------------------------------------------------------------
 # Game-asset catalog and import helpers
@@ -7855,8 +8197,7 @@ class FO4_OT_BrowseUnrealAssets(Operator):
 
 # Shown to the user whenever FO4 assets are not found as loose files.
 _FALLBACK_MSG = (
-    "FO4 game meshes not found — placeholder created.\n"
-    "Set your FO4 Data folder in the Vegetation panel (or any Fallout 4 panel) "
+    "FO4 game meshes not found. Set your FO4 Data folder in any Fallout 4 panel "
     "then click this button again to import the real game mesh."
 )
 
@@ -8027,6 +8368,62 @@ def _import_game_nif(filepath: str) -> tuple[bool, str]:
     return False, "Niftools add-on not installed — install it to import .nif files directly"
 
 
+def _auto_apply_textures_from_game_asset(nif_path: str):
+    """Attempt to locate FO4 textures matching the imported NIF and apply to the active object."""
+    from pathlib import Path as _P
+    obj = bpy.context.active_object
+    if not obj or obj.type != 'MESH':
+        return
+
+    nif = _P(nif_path)
+    # Find Data root by locating the 'meshes' folder in the path
+    parts = nif.parts
+    if "meshes" in (p.lower() for p in parts):
+        try:
+            meshes_idx = [i for i, p in enumerate(parts) if p.lower() == "meshes"][-1]
+            data_root = _P(*parts[:meshes_idx])
+        except Exception:
+            data_root = nif.parent.parent
+    else:
+        data_root = nif.parent.parent
+
+    textures_root = data_root / "textures"
+    if not textures_root.exists():
+        return
+
+    # Collect candidate textures based on stem
+    stem = nif.stem.split("_lod")[0].lower()
+    candidates = list(textures_root.rglob(f"{stem}*.dds"))
+    if not candidates:
+        return
+
+    mat = texture_helpers.TextureHelpers.setup_fo4_material(obj)
+    for tex in candidates:
+        tex_type = texture_helpers.TextureHelpers.detect_fo4_texture_type(str(tex))
+        texture_helpers.TextureHelpers.install_texture(obj, str(tex), tex_type)
+    return mat
+
+
+def _apply_textures_to_active(texture_paths: list[str], root: str | None):
+    """Apply provided texture paths (relative to root) to the active mesh."""
+    obj = bpy.context.active_object
+    if not obj or obj.type != 'MESH' or not texture_paths:
+        return
+
+    abs_paths = []
+    for t in texture_paths:
+        p = _os.path.join(root, t) if root else t
+        if _os.path.exists(p):
+            abs_paths.append(p)
+    if not abs_paths:
+        return
+
+    mat = texture_helpers.TextureHelpers.setup_fo4_material(obj)
+    for tex in abs_paths:
+        tex_type = texture_helpers.TextureHelpers.detect_fo4_texture_type(tex)
+        texture_helpers.TextureHelpers.install_texture(obj, tex, tex_type)
+
+
 # Smart Preset Operators
 
 class FO4_OT_CreateWeaponPreset(Operator):
@@ -8068,21 +8465,15 @@ class FO4_OT_CreateWeaponPreset(Operator):
                 if ok:
                     if context.active_object:
                         context.active_object.name = f"FO4_Weapon_{self.weapon_type}"
+                    _auto_apply_textures_from_game_asset(nif_path)
                     self.report({'INFO'}, msg)
                     notification_system.FO4_NotificationSystem.notify(msg, 'INFO')
                     return {'FINISHED'}
-                self.report({'WARNING'}, f"{msg} — using placeholder mesh")
-            else:
-                self.report({'INFO'}, _FALLBACK_MSG)
+                self.report({'ERROR'}, f"{msg} — preset cancelled (no game mesh)")
+                return {'CANCELLED'}
 
-            # Fallback: placeholder mesh
-            obj = mesh_helpers.MeshHelpers.create_base_mesh()
-            obj.name = f"FO4_Weapon_{self.weapon_type}"
-            texture_helpers.TextureHelpers.setup_fo4_material(obj)
-            self.report({'INFO'}, f"Created placeholder for {self.weapon_type} weapon")
-            notification_system.FO4_NotificationSystem.notify(
-                f"Created {self.weapon_type} weapon preset", 'INFO')
-            return {'FINISHED'}
+            self.report({'ERROR'}, f"No game mesh found for {self.weapon_type}. {_FALLBACK_MSG}")
+            return {'CANCELLED'}
         except Exception as e:
             self.report({'ERROR'}, f"Failed to create preset: {e}")
             return {'CANCELLED'}
@@ -8121,20 +8512,15 @@ class FO4_OT_CreateArmorPreset(Operator):
                 if ok:
                     if context.active_object:
                         context.active_object.name = f"FO4_Armor_{self.armor_type}"
+                    _auto_apply_textures_from_game_asset(nif_path)
                     self.report({'INFO'}, msg)
                     notification_system.FO4_NotificationSystem.notify(msg, 'INFO')
                     return {'FINISHED'}
-                self.report({'WARNING'}, f"{msg} — using placeholder mesh")
-            else:
-                self.report({'INFO'}, _FALLBACK_MSG)
+                self.report({'ERROR'}, f"{msg} — preset cancelled (no game mesh)")
+                return {'CANCELLED'}
 
-            obj = mesh_helpers.MeshHelpers.create_base_mesh()
-            obj.name = f"FO4_Armor_{self.armor_type}"
-            texture_helpers.TextureHelpers.setup_fo4_material(obj)
-            self.report({'INFO'}, f"Created placeholder for {self.armor_type} armor")
-            notification_system.FO4_NotificationSystem.notify(
-                f"Created {self.armor_type} armor preset", 'INFO')
-            return {'FINISHED'}
+            self.report({'ERROR'}, f"No game mesh found for {self.armor_type}. {_FALLBACK_MSG}")
+            return {'CANCELLED'}
         except Exception as e:
             self.report({'ERROR'}, f"Failed to create preset: {e}")
             return {'CANCELLED'}
@@ -8172,20 +8558,15 @@ class FO4_OT_CreatePropPreset(Operator):
                 if ok:
                     if context.active_object:
                         context.active_object.name = f"FO4_Prop_{self.prop_type}"
+                    _auto_apply_textures_from_game_asset(nif_path)
                     self.report({'INFO'}, msg)
                     notification_system.FO4_NotificationSystem.notify(msg, 'INFO')
                     return {'FINISHED'}
-                self.report({'WARNING'}, f"{msg} — using placeholder mesh")
-            else:
-                self.report({'INFO'}, _FALLBACK_MSG)
+                self.report({'ERROR'}, f"{msg} — preset cancelled (no game mesh)")
+                return {'CANCELLED'}
 
-            obj = mesh_helpers.MeshHelpers.create_base_mesh()
-            obj.name = f"FO4_Prop_{self.prop_type}"
-            texture_helpers.TextureHelpers.setup_fo4_material(obj)
-            self.report({'INFO'}, f"Created placeholder for {self.prop_type} prop")
-            notification_system.FO4_NotificationSystem.notify(
-                f"Created {self.prop_type} prop preset", 'INFO')
-            return {'FINISHED'}
+            self.report({'ERROR'}, f"No game mesh found for {self.prop_type}. {_FALLBACK_MSG}")
+            return {'CANCELLED'}
         except Exception as e:
             self.report({'ERROR'}, f"Failed to create preset: {e}")
             return {'CANCELLED'}
@@ -8467,68 +8848,15 @@ class FO4_OT_CreateVegetationPreset(Operator):
                 if ok:
                     if context.active_object:
                         context.active_object.name = f"FO4_Veg_{self.vegetation_type}"
+                    _auto_apply_textures_from_game_asset(nif_path)
                     self.report({'INFO'}, msg)
                     notification_system.FO4_NotificationSystem.notify(msg, 'INFO')
                     return {'FINISHED'}
-                self.report({'WARNING'}, f"{msg} — using placeholder mesh")
-            else:
-                self.report({'WARNING'}, _FALLBACK_MSG)
+                self.report({'ERROR'}, f"{msg} — preset cancelled (no game mesh)")
+                return {'CANCELLED'}
 
-            # Fallback: procedural placeholder (kept from original)
-            import bmesh as _bm
-            if self.vegetation_type in ('VEG_PINE',):
-                bpy.ops.mesh.primitive_cylinder_add(radius=0.3, depth=4, location=(0, 0, 2))
-                trunk = context.active_object
-                trunk.name = "FO4_Tree_Trunk"
-                bpy.ops.mesh.primitive_ico_sphere_add(subdivisions=2, radius=2, location=(0, 0, 4.5))
-                canopy = context.active_object
-                canopy.name = "FO4_Tree_Canopy"
-                context.view_layer.objects.active = trunk
-                trunk.select_set(True)
-                canopy.select_set(True)
-                bpy.ops.object.join()
-                obj = context.active_object
-                obj.name = "FO4_Tree"
-            elif self.vegetation_type == 'VEG_DEAD_TREE':
-                bpy.ops.mesh.primitive_cylinder_add(radius=0.25, depth=3.5, location=(0, 0, 1.75))
-                obj = context.active_object
-                obj.name = "FO4_DeadTree"
-                obj.rotation_euler[1] = 0.2
-            elif self.vegetation_type == 'VEG_BUSH':
-                bpy.ops.mesh.primitive_ico_sphere_add(subdivisions=2, radius=1, location=(0, 0, 0.5))
-                obj = context.active_object
-                obj.name = "FO4_Bush"
-                obj.scale = (1.2, 1.0, 0.8)
-            elif self.vegetation_type == 'VEG_GRASS':
-                bpy.ops.mesh.primitive_plane_add(size=0.5, location=(0, 0, 0.25))
-                obj = context.active_object
-                obj.name = "FO4_Grass"
-                obj.rotation_euler[0] = 0.3
-            elif self.vegetation_type == 'VEG_FERN':
-                bpy.ops.mesh.primitive_cone_add(radius1=0.5, depth=1, location=(0, 0, 0.5))
-                obj = context.active_object
-                obj.name = "FO4_Fern"
-                obj.scale = (1.0, 1.0, 0.6)
-            elif self.vegetation_type == 'VEG_ROCK':
-                bpy.ops.mesh.primitive_ico_sphere_add(subdivisions=1, radius=0.8, location=(0, 0, 0.4))
-                obj = context.active_object
-                obj.name = "FO4_Rock"
-                obj.scale = (1.2, 0.9, 0.7)
-            else:
-                bpy.ops.mesh.primitive_ico_sphere_add(subdivisions=2, radius=0.5, location=(0, 0, 0.25))
-                obj = context.active_object
-                obj.name = f"FO4_Veg_{self.vegetation_type}"
-
-            bpy.ops.object.transform_apply(location=False, rotation=False, scale=True)
-            if self.vegetation_type != 'VEG_ROCK':
-                texture_helpers.TextureHelpers.setup_vegetation_material(obj)
-            else:
-                texture_helpers.TextureHelpers.setup_fo4_material(obj)
-
-            self.report({'INFO'}, f"Created placeholder {self.vegetation_type} vegetation")
-            notification_system.FO4_NotificationSystem.notify(
-                f"Created {self.vegetation_type} preset", 'INFO')
-            return {'FINISHED'}
+            self.report({'ERROR'}, f"No game mesh found for {self.vegetation_type}. {_FALLBACK_MSG}")
+            return {'CANCELLED'}
         except Exception as e:
             self.report({'ERROR'}, f"Failed to create vegetation: {e}")
             return {'CANCELLED'}
@@ -8538,7 +8866,7 @@ class FO4_OT_CreateVegetationPreset(Operator):
         layout.prop(self, "vegetation_type")
 
         # Show current FO4 data-path status so the user knows whether
-        # the real game mesh will be imported or a placeholder created.
+        # the real game mesh will be imported.
         box = layout.box()
         try:
             ready, _ = fo4_game_assets.FO4GameAssets.get_status()
@@ -8546,7 +8874,7 @@ class FO4_OT_CreateVegetationPreset(Operator):
                 box.label(text="Game files found — real mesh will be imported",
                           icon='CHECKMARK')
             else:
-                box.label(text="Game files not found — placeholder will be created",
+                box.label(text="Game files not found — set path to import real mesh",
                           icon='INFO')
                 sub = box.column(align=True)
                 sub.scale_y = 0.8
@@ -10854,7 +11182,7 @@ class FO4_OT_ReloadAddon(Operator):
         import subprocess
         from pathlib import Path
 
-        def _restart():
+        def _restart_and_quit():
             try:
                 exe = Path(bpy.app.binary_path)
                 cmd = [str(exe)]
@@ -10866,10 +11194,9 @@ class FO4_OT_ReloadAddon(Operator):
                 print(f"Restart launch failed: {exc}")
             finally:
                 bpy.ops.wm.quit_blender()
-            return None
 
         self.report({'INFO'}, "Restarting Blender…")
-        bpy.app.timers.register(_restart, first_interval=0.0)
+        bpy.app.timers.register(lambda: _restart_and_quit(), first_interval=0.0)
         return {'FINISHED'}
 
     def invoke(self, context, event):
@@ -11900,6 +12227,7 @@ classes = (
     FO4_OT_CheckUModelTools,
     FO4_OT_InstallUModelTools,
     FO4_OT_CheckUModel,
+    FO4_OT_ScanFO4Readiness,
     FO4_OT_CheckUnityFBXImporter,
     FO4_OT_CheckAssetStudio,
     FO4_OT_CheckAssetRipper,
@@ -12054,7 +12382,9 @@ classes = (
     FO4_OT_PrepareThirdPartyMesh,
     FO4_OT_BrowseFO4Assets,
     FO4_OT_BrowseUnityAssets,
+    FO4_OT_ImportUnityAsset,
     FO4_OT_BrowseUnrealAssets,
+    FO4_OT_ImportUnrealAsset,
     # UV + Texture workflow
     FO4_OT_SetupUVWithTexture,
     FO4_OT_ReUnwrapUV,

@@ -28,6 +28,16 @@ FALLBACK_TOOL_DIR = ADDON_ROOT / "tools" / "umodel_tools"
 
 def get_tool_dir():
     """Get the tool directory, creating parent if needed."""
+    try:
+        from . import preferences  # type: ignore
+        tools_root = getattr(preferences.get_preferences(), "tools_root", "") or ""
+        if tools_root:
+            base = Path(tools_root)
+            base.mkdir(parents=True, exist_ok=True)
+            return base / "umodel_tools"
+    except Exception:
+        pass
+
     # Try D: drive first
     try:
         if DEFAULT_TOOL_DIR.drive and Path(DEFAULT_TOOL_DIR.drive).exists():

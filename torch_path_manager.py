@@ -12,25 +12,38 @@ from pathlib import Path
 class TorchPathManager:
     """Manages PyTorch installation in custom short paths"""
 
-    # Default short path on D: drive - use minimal length!
-    DEFAULT_TORCH_PATH = Path("D:/t")
+    # Default path on D: drive, aligned with user-provided location.
+    DEFAULT_TORCH_PATH = Path("D:/blender_torch")
 
     @staticmethod
     def get_custom_torch_paths():
         """Get list of potential custom torch installation paths"""
+        pref_path = None
+        try:
+            from . import preferences  # type: ignore
+            pref_path = getattr(preferences.get_preferences(), "torch_root", "") or None
+        except Exception:
+            pref_path = None
+
         return [
-            Path("D:/t"),
-            Path("C:/t"),
+            Path(pref_path) if pref_path else None,
+            Path("D:/blender_torch"),
+            Path("D:/blender_tools/blender_torch"),
+            Path("D:/blender_tools/torch"),
             Path("D:/torch"),
-            Path("C:/torch"),
             Path("D:/t"),
             Path("C:/blender_torch"),
+            Path("C:/blender_tools/blender_torch"),
+            Path("C:/torch"),
+            Path("C:/t"),
         ]
 
     @staticmethod
     def find_existing_torch_install():
         """Check if torch is already installed in a custom path"""
         for path in TorchPathManager.get_custom_torch_paths():
+            if path is None:
+                continue
             if (path / "torch" / "__init__.py").exists():
                 return path
         return None
@@ -169,7 +182,7 @@ class TORCH_OT_install_custom_path(bpy.types.Operator):
 
     target_path: bpy.props.StringProperty(
         name="Installation Path",
-        default="D:/t",
+        default="D:/blender_torch",
         description="Path where PyTorch will be installed"
     )
 
