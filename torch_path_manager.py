@@ -12,19 +12,22 @@ from pathlib import Path
 class TorchPathManager:
     """Manages PyTorch installation in custom short paths"""
 
-    # Default short path on D: drive - use minimal length!
-    DEFAULT_TORCH_PATH = Path("D:/t")
+    # Default path on D: drive, aligned with user-provided location.
+    DEFAULT_TORCH_PATH = Path("D:/blender_torch")
 
     @staticmethod
     def get_custom_torch_paths():
         """Get list of potential custom torch installation paths"""
         return [
-            Path("D:/t"),
-            Path("C:/t"),
+            Path("D:/blender_torch"),
+            Path("D:/blender_tools/blender_torch"),
+            Path("D:/blender_tools/torch"),
             Path("D:/torch"),
-            Path("C:/torch"),
             Path("D:/t"),
             Path("C:/blender_torch"),
+            Path("C:/blender_tools/blender_torch"),
+            Path("C:/torch"),
+            Path("C:/t"),
         ]
 
     @staticmethod

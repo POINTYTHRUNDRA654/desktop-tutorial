@@ -10854,7 +10854,7 @@ class FO4_OT_ReloadAddon(Operator):
         import subprocess
         from pathlib import Path
 
-        def _restart():
+        def _restart_and_quit():
             try:
                 exe = Path(bpy.app.binary_path)
                 cmd = [str(exe)]
@@ -10866,10 +10866,9 @@ class FO4_OT_ReloadAddon(Operator):
                 print(f"Restart launch failed: {exc}")
             finally:
                 bpy.ops.wm.quit_blender()
-            return None
 
         self.report({'INFO'}, "Restarting Blender…")
-        bpy.app.timers.register(_restart, first_interval=0.0)
+        bpy.app.timers.register(lambda: _restart_and_quit(), first_interval=0.0)
         return {'FINISHED'}
 
     def invoke(self, context, event):
