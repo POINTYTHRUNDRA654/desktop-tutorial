@@ -7,7 +7,7 @@ schema_version = "1.0.0"
 # directly from the GitHub source download whose folder is named
 # 'Blender-add-on.' (an illegal Python identifier).
 id = "fallout4_tutorial_helper"
-version = "2.3.0"
+version = "2.4.0"
 name = "Fallout 4 Mod Assistant"
 tagline = "Professional Fallout 4 modding assistant with correct NIF export settings for Niftools v0.1.1"
 maintainer = "Tutorial Team"
