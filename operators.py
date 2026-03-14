@@ -3838,6 +3838,38 @@ class FO4_OT_InstallZoeDepth(Operator):
         return {'FINISHED'}
 
 
+class FO4_OT_InstallTripoSR(Operator):
+    """Install TripoSR (image → 3D). Clones repo + pip deps."""
+    bl_idname = "fo4.install_triposr"
+    bl_label = "Auto-Install TripoSR"
+    bl_options = {'REGISTER'}
+
+    def execute(self, context):
+        import threading
+        from . import tool_installers
+
+        def _run():
+            print("\n" + "=" * 60)
+            print("INSTALLING TRIPOSR")
+            print("=" * 60)
+            ok, msg = tool_installers.install_triposr()
+            print(msg)
+            print("=" * 60 + "\n")
+            # Expire the availability cache so the UI picks up the new state.
+            if ok:
+                try:
+                    from . import imageto3d_helpers
+                    imageto3d_helpers.ImageTo3DHelpers.clear_triposr_cache()
+                except Exception:
+                    pass
+            level = 'INFO' if ok else 'ERROR'
+            notification_system.FO4_NotificationSystem.notify(msg, level)
+
+        threading.Thread(target=_run, daemon=True).start()
+        self.report({'INFO'}, "Installing TripoSR in background — check console")
+        return {'FINISHED'}
+
+
 class FO4_OT_InstallHunyuan3D(Operator):
     """Install Hunyuan3D-2 (image → 3D). Clones repo + pip deps."""
     bl_idname = "fo4.install_hunyuan3d"
@@ -11795,6 +11827,7 @@ classes = (
     FO4_OT_InstallDiffusers,
     FO4_OT_InstallLibigl,
     FO4_OT_InstallZoeDepth,
+    FO4_OT_InstallTripoSR,
     FO4_OT_InstallHunyuan3D,
     FO4_OT_InstallHyMotion,
     FO4_OT_InstallMotionGeneration,

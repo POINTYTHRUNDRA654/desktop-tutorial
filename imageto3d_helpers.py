@@ -19,9 +19,20 @@ class ImageTo3DHelpers:
     _triposr_cache = None
     _triposr_cache_time = 0.0
     _CACHE_TTL = 5.0  # seconds
-    
+
     # ==================== TripoSR ====================
-    
+
+    @staticmethod
+    def clear_triposr_cache():
+        """
+        Force-expire the TripoSR availability cache after successful installation.
+
+        Call this after a successful install so the next UI redraw reflects
+        the new state without waiting for the 5-second TTL to expire.
+        """
+        ImageTo3DHelpers._triposr_cache = None
+        ImageTo3DHelpers._triposr_cache_time = 0.0
+
     @staticmethod
     def is_triposr_available():
         """Check if TripoSR is available (result cached for 5 s)."""
@@ -52,11 +63,20 @@ class ImageTo3DHelpers:
                 '/opt/TripoSR',
                 'C:/Projects/TripoSR',
             ]
-            
+
+            # Also check the tool_installers managed directory
+            try:
+                from . import tool_installers
+                managed_dir = tool_installers.TOOLS_ROOT / "TripoSR"
+                if managed_dir not in [Path(p) for p in possible_paths]:
+                    possible_paths.insert(0, str(managed_dir))  # Check this first
+            except Exception:
+                pass
+
             for path in possible_paths:
                 if os.path.exists(path):
                     return True
-            
+
             # Check if installed as package
             try:
                 spec = importlib.util.find_spec('tsr')
@@ -64,7 +84,7 @@ class ImageTo3DHelpers:
                     return True
             except Exception:
                 pass
-            
+
             return False
         except (ImportError, OSError):
             return False
@@ -80,11 +100,20 @@ class ImageTo3DHelpers:
             'C:/Projects/TripoSR',
             'C:/Users/' + os.environ.get('USERNAME', '') + '/TripoSR',
         ]
-        
+
+        # Also check the tool_installers managed directory
+        try:
+            from . import tool_installers
+            managed_dir = tool_installers.TOOLS_ROOT / "TripoSR"
+            if managed_dir not in [Path(p) for p in possible_paths]:
+                possible_paths.insert(0, str(managed_dir))  # Check this first
+        except Exception:
+            pass
+
         for path in possible_paths:
             if os.path.exists(os.path.join(path, 'run.py')):
                 return path
-        
+
         return None
     
     @staticmethod

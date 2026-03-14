@@ -616,6 +616,9 @@ class FO4_PT_ImageToMeshPanel(Panel):
         else:
             triposr_box.label(text="Status: Not Installed ✗", icon='ERROR')
 
+        # Install button (always shown, like ZoeDepth)
+        triposr_box.operator("fo4.install_triposr", text="Auto-Install TripoSR", icon='IMPORT')
+
         # Generation buttons (enabled when available)
         row = triposr_box.row()
         row.enabled = triposr_available
