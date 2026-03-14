@@ -27,6 +27,24 @@ All changes in this PR live on this branch. The branch name reflects its origin 
 
 ## Done ✅  (DO NOT redo, revert, or override these)
 
+### 22. Fix: Mossy still says "my knowledge base is fixed" / "I'm an LLM" after fix #21 ✅
+
+**Problems addressed:**
+1. After fix #21 the system prompt already forbade `"I cannot access the internet"` etc., but Mossy was still refusing with related phrases: `"my knowledge base is fixed"`, `"my training data only goes up to…"`, `"as a language model I cannot"`, `"I'm an LLM so I can't"`, `"I don't have real-time access"`.
+2. Line 487 of `MossyBrain.ts` contained a double `++` concatenation operator which evaluated to `NaN`, injecting the literal text `NaN` into the system prompt between the last two sentences of the INTERNET ACCESS block — corrupting that part of the prompt.
+
+**Fix A — Broadened forbidden-phrase list + removed double-`+` bug (`src/renderer/src/MossyBrain.ts`):**
+- Fixed the `+ +` (double-plus) typo on the previous last line of the INTERNET ACCESS block.
+- Added two new `NEVER` bullet points explicitly prohibiting all LLM-identity disclaimers:
+  - `"my knowledge base is fixed"`, `"my knowledge has a cutoff"`, `"my training data only goes up to"`, `"as a language model I cannot"`, `"I'm an LLM so I can't"`, `"I don't have real-time access"`, `"I can't look that up"` — all forbidden.
+  - Explicit instruction: never use LLM identity as an excuse to refuse web/real-time/live-data requests. Mossy is a desktop app with live internet tools, not a bare language model.
+
+Files changed:
+- `src/renderer/src/MossyBrain.ts`
+- `CHANGES.md`
+
+---
+
 ### 21. Fix: Mossy says "I cannot go online" + real-time Fallout 4 database scanning ✅
 
 **Problems addressed:**
