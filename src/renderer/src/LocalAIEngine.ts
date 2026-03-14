@@ -306,6 +306,15 @@ export const LocalAIEngine = {
       /i\s+(am\s+)?not\s+able\s+to\s+(search|look\s+up|fetch|get)\s+(online|web|internet)/i,
       /as\s+an?\s+(ai|language\s+model|llm).*(cannot|can'?t|unable).*(internet|web|online|browse)/i,
       /my\s+(knowledge|training\s+data).*(cutoff|limited\s+to|goes\s+up\s+to)/i,
+      // New patterns for "pre-installed data" and "just a base LLM" claims
+      /my\s+(data|memory|knowledge)\s+(was|is)\s+pre.?installed/i,
+      /all\s+of\s+my\s+(data|memory|knowledge)\s+(was|is)\s+pre.?installed/i,
+      /i'?m\s+just\s+an?\s+(large\s+)?(language\s+model|base\s+llm|llm)/i,
+      /i\s+am\s+just\s+an?\s+(large\s+)?(language\s+model|base\s+llm|llm)/i,
+      // Patterns for "cannot review/retain data in real time"
+      /i\s+cannot\s+(review|retain|review\s+and\s+retain)\s+(data|information)\s+in\s+real.?time/i,
+      /i\s+can'?t\s+(review|retain|review\s+and\s+retain)\s+(data|information)\s+in\s+real.?time/i,
+      /i\s+(am\s+)?unable\s+to\s+(review|retain|review\s+and\s+retain)\s+(data|information)\s+in\s+real.?time/i,
     ];
 
     // Try local provider first if available
