@@ -50,11 +50,81 @@ class FO4_OT_ShowHelp(Operator):
     """Show help information"""
     bl_idname = "fo4.show_help"
     bl_label = "Show Help"
-    
+
     def execute(self, context):
         self.report({'INFO'}, "Fallout 4 Tutorial Add-on Help")
         self.report({'INFO'}, "Use the tutorial buttons to learn mod creation")
         return {'FINISHED'}
+
+
+class FO4_OT_ShowDetailedSetup(Operator):
+    """Show detailed setup guide for first-time users"""
+    bl_idname = "fo4.show_detailed_setup"
+    bl_label = "Detailed Setup Guide"
+
+    def execute(self, context):
+        # Display comprehensive setup instructions
+        self.report({'INFO'}, "=" * 60)
+        self.report({'INFO'}, "FALLOUT 4 ADD-ON - COMPLETE SETUP GUIDE")
+        self.report({'INFO'}, "=" * 60)
+        self.report({'INFO'}, "")
+        self.report({'INFO'}, "STEP 1: CONNECT MOSSY AI (RECOMMENDED FIRST!)")
+        self.report({'INFO'}, "  Why first? Mossy can guide you through the entire setup process!")
+        self.report({'INFO'}, "  1. Download & launch Mossy desktop app")
+        self.report({'INFO'}, "  2. Switch to 'Mossy' tab in Blender sidebar (press N)")
+        self.report({'INFO'}, "  3. Click 'Start Server' in Mossy Link panel")
+        self.report({'INFO'}, "  4. Mossy will auto-connect and help with remaining setup")
+        self.report({'INFO'}, "  5. Go to Fallout 4 → Advisor tab to ask Mossy questions")
+        self.report({'INFO'}, "")
+        self.report({'INFO'}, "STEP 2: INSTALL PYTHON DEPENDENCIES")
+        self.report({'INFO'}, "  1. Open 'Setup & Status' tab below main panel")
+        self.report({'INFO'}, "  2. Check for any red X marks next to packages")
+        self.report({'INFO'}, "  3. Click 'Install Core Dependencies' if prompted")
+        self.report({'INFO'}, "  4. Wait for installation to complete (check console)")
+        self.report({'INFO'}, "  5. Click 'Restart Blender' button when done")
+        self.report({'INFO'}, "")
+        self.report({'INFO'}, "STEP 3: INSTALL NIFTOOLS")
+        bv = bpy.app.version
+        if bv >= (5, 0, 0):
+            self.report({'INFO'}, "  For Blender 5.0+:")
+            self.report({'INFO'}, "  1. In Setup tab, click 'Install Niftools Add-on'")
+            self.report({'INFO'}, "  2. Edit → Preferences → Add-ons")
+            self.report({'INFO'}, "  3. Enable 'Allow Legacy Add-ons' checkbox")
+            self.report({'INFO'}, "  4. Enable 'NetImmerse/Gamebryo' add-on")
+            self.report({'INFO'}, "  5. Restart Blender")
+        else:
+            self.report({'INFO'}, "  For Blender 3.6 LTS:")
+            self.report({'INFO'}, "  1. Download Niftools v0.1.1 for Blender 3.6")
+            self.report({'INFO'}, "  2. Edit → Preferences → Add-ons → Install")
+            self.report({'INFO'}, "  3. Select the .zip file and enable the add-on")
+            self.report({'INFO'}, "  Alternative: Use FBX export + Cathedral Assets Optimizer")
+        self.report({'INFO'}, "")
+        self.report({'INFO'}, "STEP 4: VERIFY SETUP")
+        self.report({'INFO'}, "  1. Open 'Setup & Status' tab")
+        self.report({'INFO'}, "  2. Click 'Environment Check' button")
+        self.report({'INFO'}, "  3. All items should show green checkmarks")
+        self.report({'INFO'}, "  4. If anything fails, ask Mossy for help!")
+        self.report({'INFO'}, "")
+        self.report({'INFO'}, "STEP 5: START CREATING!")
+        self.report({'INFO'}, "  1. Try the Tutorial System in main panel")
+        self.report({'INFO'}, "  2. Explore Mesh Helpers for asset creation")
+        self.report({'INFO'}, "  3. Use AI features like ZoeDepth, TripoSR")
+        self.report({'INFO'}, "  4. Export to .nif and test in Creation Kit")
+        self.report({'INFO'}, "")
+        self.report({'INFO'}, "NEED HELP?")
+        self.report({'INFO'}, "  → Ask Mossy! (Fallout 4 → Advisor → Ask Mossy)")
+        self.report({'INFO'}, "  → Check tutorials (Main panel → Start Tutorial)")
+        self.report({'INFO'}, "  → Read README.md in add-on directory")
+        self.report({'INFO'}, "")
+        self.report({'INFO'}, "=" * 60)
+
+        # Also show as notification
+        notification_system.FO4_NotificationSystem.notify(
+            "Detailed setup guide displayed in system console (Window → Toggle System Console)",
+            'INFO'
+        )
+        return {'FINISHED'}
+
 
 class FO4_OT_ShowMessage(Operator):
     """Show a message to the user"""
@@ -2236,6 +2306,51 @@ class FO4_OT_AdvisorQuickFix(Operator):
         return {'FINISHED'}
 
 
+class FO4_OT_AskMossyForSetupHelp(Operator):
+    """Ask Mossy AI to explain the setup process for first-time users"""
+    bl_idname = "fo4.ask_mossy_setup_help"
+    bl_label = "Ask Mossy: How Do I Set This Up?"
+
+    def execute(self, context):
+        self.report({'INFO'}, "Asking Mossy for setup guidance...")
+        notification_system.FO4_NotificationSystem.notify(
+            "Contacting Mossy AI for setup help...", 'INFO'
+        )
+
+        # Get guidance from Mossy
+        response = advisor_helpers.AdvisorHelpers.get_setup_guidance_from_mossy()
+
+        if response:
+            # Display in console
+            print("\n" + "=" * 70)
+            print("MOSSY'S SETUP GUIDANCE")
+            print("=" * 70)
+            print(response)
+            print("=" * 70 + "\n")
+
+            # Also show in info reports
+            lines = response.split('\n')
+            for line in lines[:20]:  # First 20 lines in reports
+                if line.strip():
+                    self.report({'INFO'}, line)
+
+            notification_system.FO4_NotificationSystem.notify(
+                "Mossy's setup guide displayed in system console (Window → Toggle System Console)",
+                'INFO'
+            )
+        else:
+            error_msg = (
+                "Could not connect to Mossy. "
+                "Make sure: 1) Mossy app is running, "
+                "2) Server is started in Mossy tab, "
+                "3) Mossy HTTP is available on port 8080"
+            )
+            self.report({'ERROR'}, error_msg)
+            notification_system.FO4_NotificationSystem.notify(error_msg, 'ERROR')
+
+        return {'FINISHED'}
+
+
 class FO4_OT_CheckKBTools(Operator):
     """Check knowledge-base tooling (PyPDF2, ffmpeg, whisper)"""
     bl_idname = "fo4.check_kb_tools"
@@ -3835,6 +3950,38 @@ class FO4_OT_InstallZoeDepth(Operator):
 
         threading.Thread(target=_run, daemon=True).start()
         self.report({'INFO'}, "Installing ZoeDepth in background — check console")
+        return {'FINISHED'}
+
+
+class FO4_OT_InstallTripoSR(Operator):
+    """Install TripoSR (image → 3D). Clones repo + pip deps."""
+    bl_idname = "fo4.install_triposr"
+    bl_label = "Auto-Install TripoSR"
+    bl_options = {'REGISTER'}
+
+    def execute(self, context):
+        import threading
+        from . import tool_installers
+
+        def _run():
+            print("\n" + "=" * 60)
+            print("INSTALLING TRIPOSR")
+            print("=" * 60)
+            ok, msg = tool_installers.install_triposr()
+            print(msg)
+            print("=" * 60 + "\n")
+            # Expire the availability cache so the UI picks up the new state.
+            if ok:
+                try:
+                    from . import imageto3d_helpers
+                    imageto3d_helpers.ImageTo3DHelpers.clear_triposr_cache()
+                except Exception:
+                    pass
+            level = 'INFO' if ok else 'ERROR'
+            notification_system.FO4_NotificationSystem.notify(msg, level)
+
+        threading.Thread(target=_run, daemon=True).start()
+        self.report({'INFO'}, "Installing TripoSR in background — check console")
         return {'FINISHED'}
 
 
@@ -11563,6 +11710,7 @@ class FO4_OT_ExportModManifest(Operator):
 classes = (
     FO4_OT_StartTutorial,
     FO4_OT_ShowHelp,
+    FO4_OT_ShowDetailedSetup,
     FO4_OT_ShowMessage,
     FO4_OT_CreateBaseMesh,
     FO4_OT_OptimizeMesh,
@@ -11614,6 +11762,7 @@ classes = (
     FO4_OT_CheckNVTTInstallation,
     FO4_OT_AdvisorAnalyze,
     FO4_OT_AdvisorQuickFix,
+    FO4_OT_AskMossyForSetupHelp,
     FO4_OT_CheckKBTools,
     FO4_OT_CheckUEImporter,
     FO4_OT_InstallUEImporter,
@@ -11795,6 +11944,7 @@ classes = (
     FO4_OT_InstallDiffusers,
     FO4_OT_InstallLibigl,
     FO4_OT_InstallZoeDepth,
+    FO4_OT_InstallTripoSR,
     FO4_OT_InstallHunyuan3D,
     FO4_OT_InstallHyMotion,
     FO4_OT_InstallMotionGeneration,

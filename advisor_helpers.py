@@ -158,6 +158,33 @@ class AdvisorHelpers:
             return None
 
     @staticmethod
+    def get_setup_guidance_from_mossy():
+        """Ask Mossy for help with addon setup (for first-time users)."""
+        query = (
+            "I just installed the Fallout 4 Blender add-on and I'm a first-time user. "
+            "Can you explain what I need to do to set everything up? "
+            "Please give me a clear, step-by-step guide covering:\n"
+            "1. Python dependencies\n"
+            "2. Niftools installation\n"
+            "3. Any other important setup steps\n"
+            "4. How to verify everything is working\n"
+            "Make it beginner-friendly and explain WHY each step matters."
+        )
+
+        context_data = {
+            "blender_version": ".".join(str(v) for v in bpy.app.version),
+            "addon_name": "Fallout 4 Mod Creation Add-on",
+            "query_type": "first_time_setup"
+        }
+
+        try:
+            from . import mossy_link as _ml
+            response = _ml.ask_mossy(query, context_data=context_data, timeout=15)
+            return response  # str with content, or None
+        except Exception as e:
+            return f"Could not connect to Mossy: {e}\nMake sure Mossy is running and server is started."
+
+    @staticmethod
     def query_llm(meta_report):
         """Optional LLM call using user-configured endpoint. Sends only summary strings."""
         cfg = preferences.get_llm_config()

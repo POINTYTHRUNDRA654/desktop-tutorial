@@ -842,6 +842,34 @@ def install_zoedepth() -> tuple[bool, str]:
     return True, f"ZoeDepth installed at {repo_dir}"
 
 
+def install_triposr() -> tuple[bool, str]:
+    """Install TripoSR dependencies via pip and clone the repo."""
+    ok, msg = _pip_install_with_index(
+        ["torch", "torchvision"],
+        index_url="https://download.pytorch.org/whl/cpu",
+    )
+    if not ok:
+        return False, f"PyTorch install failed: {msg}"
+    repo_dir = TOOLS_ROOT / "TripoSR"
+    if not repo_dir.exists():
+        try:
+            subprocess.check_call(
+                ["git", "clone", "--depth=1",
+                 "https://github.com/VAST-AI-Research/TripoSR.git",
+                 str(repo_dir)],
+                timeout=300,
+            )
+        except Exception as e:
+            return False, f"TripoSR clone failed: {e}"
+    # Install the repo's own requirements so run.py works correctly
+    req = repo_dir / "requirements.txt"
+    if req.exists():
+        requirements_ok, requirements_msg = _pip_install_requirements(req)
+        if not requirements_ok:
+            return False, f"TripoSR requirements.txt install failed: {requirements_msg}"
+    return True, f"TripoSR installed at {repo_dir}"
+
+
 def install_hunyuan3d() -> tuple[bool, str]:
     """Install Hunyuan3D-2 dependencies via pip, clone the repo, and install its requirements.txt."""
     ok, msg = _pip_install_with_index(

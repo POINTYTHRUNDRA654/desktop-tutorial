@@ -519,6 +519,12 @@ class MOSSY_PT_LinkPanel(bpy.types.Panel):
         port = prefs.port if prefs else 9999
         http_port = getattr(prefs, 'mossy_http_port', 8080) if prefs else 8080
 
+        # ── First-Time User Priority Message ─────────────────────────────
+        priority_box = layout.box()
+        priority_box.label(text="⭐ FIRST-TIME USERS: START HERE! ⭐", icon='ERROR')
+        priority_box.label(text="Connect Mossy BEFORE other setup steps")
+        priority_box.label(text="Mossy can guide you through everything!")
+
         # ── TCP server (Mossy → Blender) ─────────────────────────────────
         tcp_box = layout.box()
         tcp_box.label(text="Blender ← Mossy  (TCP control)", icon='NETWORK_DRIVE')
@@ -544,7 +550,22 @@ class MOSSY_PT_LinkPanel(bpy.types.Panel):
         info_box.label(text="1. Launch Mossy on your desktop")
         info_box.label(text="2. Click 'Start Server' above")
         info_box.label(text="3. Mossy will auto-connect to Blender")
-        info_box.label(text="4. Go to Fallout 4 → Advisor → Ask Mossy")
+        info_box.label(text="4. Ask Mossy: 'How do I set up this add-on?'")
+        info_box.label(text="   (Go to Fallout 4 → Advisor → Ask Mossy)")
+        info_box.label(text="")
+
+        # Button to get automated setup help from Mossy
+        if wm.mossy_link_active:
+            help_button = info_box.box()
+            help_button.label(text="✨ Get Personalized Setup Help:", icon='HELP')
+            help_button.operator(
+                "fo4.ask_mossy_setup_help",
+                text="Ask Mossy: How Do I Set Up This Add-on?",
+                icon='QUESTION'
+            )
+        else:
+            info_box.label(text="(Start server to enable Mossy setup help)")
+
         info_box.label(text="Set port/token in Add-on Preferences")
 
 
