@@ -1527,6 +1527,7 @@ class FO4_PT_GameAssetsPanel(Panel):
 
         if ready:
             unity_box.operator("fo4.browse_unity_assets", text="Browse Unity Assets", icon='VIEWZOOM')
+            unity_box.operator("fo4.import_unity_asset", text="Import Unity Asset", icon='IMPORT')
         else:
             unity_box.label(text="Set Unity path in preferences", icon='PREFERENCES')
 
