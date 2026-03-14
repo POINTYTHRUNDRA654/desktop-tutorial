@@ -2689,7 +2689,7 @@ class FO4_OT_CheckUModel(Operator):
         print(status_text)
         print(f"Tool path: {umodel_helpers.tool_path()}")
         if umodel_helpers.executable_path():
-        print(f"Executable: {umodel_helpers.executable_path()}")
+            print(f"Executable: {umodel_helpers.executable_path()}")
         print("Credit: UModel by Konstantin Nosov (Gildor)")
         print("https://www.gildor.org/en/projects/umodel")
         print("="*70)
