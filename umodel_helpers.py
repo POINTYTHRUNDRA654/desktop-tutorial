@@ -28,22 +28,25 @@ FALLBACK_TOOL_DIR = ADDON_ROOT / "tools" / "umodel"
 DOWNLOAD_PAGE_URL = "https://www.gildor.org/en/projects/umodel"
 
 # Candidate download URLs tried in order.
-# The gildor.org URL is authoritative; the SourceForge mirror is a fallback
-# for cases where the primary URL is temporarily unreachable.
+# The gildor.org URL is authoritative; the old path and SourceForge mirror
+# are kept as fallbacks for cases where the primary URL is temporarily unreachable.
 DOWNLOAD_CANDIDATES = [
+    "https://www.gildor.org/downloads/umodel/umodel_win32.zip",
     "https://www.gildor.org/downloads/umodel_win32.zip",
     "https://sourceforge.net/projects/ue-viewer.mirror/files/latest/download",
 ]
 
-# Browser-like User-Agent so download servers don't reject the request.
-# Python's default "python-urllib/3.x" UA is blocked by some file hosts,
-# causing spurious 404 responses even when the file exists.
+# Browser-like User-Agent and Referer so download servers don't reject the
+# request.  Python's default "python-urllib/3.x" UA is blocked by some file
+# hosts.  gildor.org also checks the Referer header to prevent hot-linking,
+# so we supply the project page as the referrer.
 _DOWNLOAD_HEADERS = {
     "User-Agent": (
         "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
         "AppleWebKit/537.36 (KHTML, like Gecko) "
         "Chrome/120.0.0.0 Safari/537.36"
-    )
+    ),
+    "Referer": "https://www.gildor.org/en/projects/umodel",
 }
 
 
