@@ -2246,6 +2246,7 @@ def test_blender5_access_violation_fix():
 
     addon_dir = Path(__file__).parent
     failed = []
+    import re
 
     def ck(label, cond, detail=""):
         sym = "✅" if cond else "❌"
@@ -2273,6 +2274,17 @@ def test_blender5_access_violation_fix():
 
     ck("quit_blender() is inside a lambda passed to timers.register in FO4_OT_ReloadAddon",
        "lambda" in reload_class_body and "quit_blender" in reload_class_body)
+
+    _interval_match = re.search(r"first_interval\s*=\s*([0-9.]+)", reload_class_body)
+    _interval_val = None
+    if _interval_match:
+        try:
+            _interval_val = float(_interval_match.group(1))
+        except ValueError:
+            _interval_val = None
+    ck("quit timer uses a non-zero first_interval delay",
+       _interval_val is not None and _interval_val > 0.0,
+       f"first_interval={_interval_val!r}")
 
     ck("FO4_OT_ReloadAddon has invoke() using invoke_confirm",
        "invoke_confirm" in reload_class_body)
