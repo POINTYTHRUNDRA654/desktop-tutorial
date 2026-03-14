@@ -234,6 +234,14 @@ export const LocalAIEngine = {
       'search internet', 'browse', 'google', "what's new", 'recent', 'current',
       'latest', 'news', 'update', 'wiki', 'fandom', 'nexus', 'mod page',
       'find information', 'find info',
+      // Additional natural-language phrases users commonly say when they want
+      // Mossy to go online and fetch live data.
+      'go online', 'online', 'internet', 'check online', 'look it up online',
+      'look online', 'fetch', 'pull up', 'scan', 'scan for', 'real-time',
+      'real time', 'realtime', 'live data', 'live info', 'live information',
+      'check the web', 'check web', 'check internet', 'check the internet',
+      'from the web', 'from the internet', 'from online', 'on the web',
+      'on the internet', 'on nexus', 'on fandom',
     ];
     // NOTE: this regex is intentionally kept in sync with the fo4Terms pattern
     // in src/electron/main.ts (web-search handler). Update both if you change it.
