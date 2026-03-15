@@ -63,35 +63,11 @@ temp/
 *.tmp
 *.bak
 
-# -----------------------------------------------------------------------
-# External tool binaries — downloaded at runtime, never committed.
-# Both the root-level convenience dirs (ffmpeg/, whisper/) and the
-# tools/ sub-directories are covered so that users on any platform can
-# download tools locally without accidentally staging 100MB+ binaries.
-# -----------------------------------------------------------------------
-
-# Root-level convenience directories (populated by tool_installers.py)
-/ffmpeg/
-/whisper/
-
-# tools/ sub-directories with downloaded binaries
+# External tool repositories/downloads
 /tools/ffmpeg/
 /tools/whisper/
+/tools/umodel_tools/
+/tools/Blender-UE4-Importer/
+/tools/UnityFBX-To-Blender-Importer/
 /tools/nvtt/
 /tools/texconv/
-/tools/umodel_tools/
-/tools/UnityFBX-To-Blender-Importer/
-/tools/intellicode/
-
-# The GitHub Actions local runner (act) — binary + embedded .git repo
-/tools/act/
-/act/
-
-# -----------------------------------------------------------------------
-# Built add-on ZIPs — These are built by makezip.py and included in the
-# repository so users can download the ready-to-install zip directly from
-# GitHub.  makezip.py now correctly excludes binary tool directories so
-# the zip stays small (< 1 MB).  Old large zips from before this fix
-# should be deleted from any local clone before pushing.
-# -----------------------------------------------------------------------
-# fallout4_tutorial_helper-*.zip   ← NOT ignored; tracked intentionally

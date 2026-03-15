@@ -4,7 +4,7 @@ UI Panels for the Fallout 4 Tutorial Add-on
 
 import bpy
 from bpy.types import Panel
-from . import hunyuan3d_helpers, gradio_helpers, hymotion_helpers, nvtt_helpers, rignet_helpers, preferences, ue_importer_helpers, umodel_tools_helpers, unity_fbx_importer_helpers, knowledge_helpers, export_helpers
+from . import hunyuan3d_helpers, gradio_helpers, hymotion_helpers, nvtt_helpers, rignet_helpers, preferences, ue_importer_helpers, umodel_tools_helpers, unity_fbx_importer_helpers, knowledge_helpers
 
 class FO4_PT_MainPanel(Panel):
     """Main tutorial panel in the 3D View sidebar"""
@@ -619,8 +619,6 @@ class FO4_PT_ExportPanel(Panel):
     
     def draw(self, context):
         layout = self.layout
-        obj = context.active_object
-        has_mesh = obj is not None and obj.type == 'MESH'
         
         status_box = layout.box()
         available, message = export_helpers.ExportHelpers.nif_exporter_available()
@@ -632,11 +630,9 @@ class FO4_PT_ExportPanel(Panel):
         
         box = layout.box()
         box.label(text="Export Options", icon='EXPORT')
-        col = box.column()
-        col.enabled = has_mesh
-        col.operator("fo4.export_mesh", text="Export Mesh (.nif)", icon='MESH_DATA')
-        col.operator("fo4.export_all", text="Export Complete Mod", icon='PACKAGE')
-        col.operator("fo4.validate_export", text="Validate Before Export", icon='CHECKMARK')
+        box.operator("fo4.export_mesh", text="Export Mesh (.nif)", icon='MESH_DATA')
+        box.operator("fo4.export_all", text="Export Complete Mod", icon='PACKAGE')
+        box.operator("fo4.validate_export", text="Validate Before Export", icon='CHECKMARK')
 
 
 class FO4_PT_BatchProcessingPanel(Panel):
@@ -771,6 +767,23 @@ class FO4_PT_AutomationQuickPanel(Panel):
         info_box.label(text="4. Texture validation")
 
 
+class FO4_PT_BatchProcessingPanel(Panel):
+    """Placeholder batch processing panel to keep registration stable."""
+    bl_label = "Batch Processing"
+    bl_idname = "FO4_PT_batch_processing_panel"
+    bl_space_type = 'VIEW_3D'
+    bl_region_type = 'UI'
+    bl_category = 'Fallout 4'
+    bl_parent_id = "FO4_PT_main_panel"
+    bl_options = {'DEFAULT_CLOSED'}
+
+    def draw(self, context):
+        layout = self.layout
+        box = layout.box()
+        box.label(text="Batch actions coming soon", icon='TIME')
+        box.label(text="You can queue exports once available.")
+
+
 class FO4_PT_Havok2FBXPanel(Panel):
     """Expose Havok2FBX path from add-on preferences."""
     bl_label = "Havok2FBX"
@@ -799,6 +812,30 @@ class FO4_PT_Havok2FBXPanel(Panel):
             status_box.label(text=f"Configured: {path}", icon='CHECKMARK')
         else:
             status_box.label(text="Path not found. Set the folder above.", icon='ERROR')
+
+
+class FO4_PT_ExportPanel(Panel):
+    """Export helpers and Havok2FBX status."""
+    bl_label = "Export Helpers"
+    bl_idname = "FO4_PT_export_panel"
+    bl_space_type = 'VIEW_3D'
+    bl_region_type = 'UI'
+    bl_category = 'Fallout 4'
+    bl_parent_id = "FO4_PT_main_panel"
+    bl_options = {'DEFAULT_CLOSED'}
+
+    def draw(self, context):
+        layout = self.layout
+        path = preferences.get_havok2fbx_path()
+
+        box = layout.box()
+        box.label(text="Havok2FBX Path", icon='FILE_FOLDER')
+        box.label(text=path if path else "Not configured", icon='CHECKMARK' if path else 'ERROR')
+
+        info = layout.box()
+        info.label(text="Exports currently route through FBX.", icon='INFO')
+        info.label(text="Use Havok2FBX externally to convert FBX to HKX.")
+
 
 
 class FO4_PT_VegetationPanel(Panel):
@@ -1110,7 +1147,7 @@ class FO4_PT_AutomationMacrosPanel(Panel):
             from . import automation_system
             action_count = len(automation_system.AutomationSystem.recorded_actions)
             box.label(text=f"Actions recorded: {action_count}")
-            box.operator("fo4.stop_recording", text="Stop Recording", icon='UV_FACESEL')
+            box.operator("fo4.stop_recording", text="Stop Recording", icon='SNAP_FACE')
         else:
             box.operator("fo4.start_recording", text="Start Recording", icon='REC')
             box.label(text="Record your actions to create macros")

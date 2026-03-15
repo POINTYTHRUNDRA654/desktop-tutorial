@@ -6,7 +6,6 @@ Provides AI-powered 3D mesh generation functionality for Fallout 4 modding
 import bpy
 import os
 import subprocess
-import sys
 import shutil
 from pathlib import Path
 
@@ -37,7 +36,7 @@ class GET3DHelpers:
                     return True
             
             return False
-        except (ImportError, OSError):
+        except ImportError:
             return False
     
     @staticmethod
@@ -68,7 +67,7 @@ class GET3DHelpers:
             import torch
             has_torch = True
             cuda_available = torch.cuda.is_available()
-        except (ImportError, OSError):
+        except ImportError:
             has_torch = False
             cuda_available = False
         
@@ -111,68 +110,45 @@ class GET3DHelpers:
     def generate_mesh_from_latent(output_path, model_path=None, seed=None, num_samples=1):
         """
         Generate 3D mesh using GET3D
-
+        
         Args:
             output_path: Directory to save generated meshes
             model_path: Path to pre-trained model checkpoint
             seed: Random seed for generation
             num_samples: Number of meshes to generate
-
+        
         Returns: (bool success, str message, list mesh_files)
         """
         get3d_path = GET3DHelpers.find_get3d_path()
-
+        
         if not get3d_path:
             return False, "GET3D not found", []
-
+        
         try:
-            import torch  # noqa: F401 – presence check
-        except (ImportError, OSError):
+            import torch
+        except ImportError:
             return False, "PyTorch not installed", []
-
+        
         # Create output directory
         os.makedirs(output_path, exist_ok=True)
-
-        # Identify the generation script (varies across GET3D forks)
-        for script_name in ("generate.py", "inference.py", "run_generate.py"):
-            if os.path.exists(os.path.join(get3d_path, script_name)):
-                break
-        else:
-            return False, "GET3D generation script not found (tried generate.py / inference.py).", []
-
-        cmd = [
-            sys.executable, script_name,
-            f"--output_dir={output_path}",
-            f"--num_samples={num_samples}",
-        ]
-        if model_path:
-            cmd.append(f"--checkpoint={model_path}")
-        if seed is not None:
-            cmd.append(f"--seed={seed}")
-
-        try:
-            result = subprocess.run(
-                cmd, cwd=get3d_path,
-                capture_output=True, text=True, timeout=600
-            )
-        except subprocess.TimeoutExpired:
-            return False, "GET3D generation timed out (10 min).", []
-
-        if result.returncode != 0:
-            return False, f"GET3D generation failed:\n{result.stderr}", []
-
-        # Collect generated mesh files
-        import glob as _glob
-        mesh_files = (
-            _glob.glob(os.path.join(output_path, "*.obj"))
-            + _glob.glob(os.path.join(output_path, "*.glb"))
-            + _glob.glob(os.path.join(output_path, "*.ply"))
+        
+        # For now, return instruction message
+        # Full implementation requires loading model and running inference
+        msg = (
+            "GET3D mesh generation requires manual execution:\n\n"
+            f"1. Navigate to: {get3d_path}\n"
+            "2. Run inference script:\n"
+            "   python generate.py --checkpoint=<model_path> \\\n"
+            f"     --output_dir={output_path} \\\n"
+            f"     --num_samples={num_samples}\n"
         )
-
-        if not mesh_files:
-            return False, f"Generation finished but no mesh files found in {output_path}", []
-
-        return True, f"Generated {len(mesh_files)} mesh(es) in {output_path}", mesh_files
+        
+        if seed:
+            msg += f"     --seed={seed}\n"
+        
+        msg += "\n3. Import generated .obj files into Blender"
+        
+        return False, msg, []
     
     @staticmethod
     def import_get3d_mesh(obj_path):

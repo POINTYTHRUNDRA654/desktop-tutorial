@@ -6,7 +6,6 @@ Provides AI-powered texture generation functionality for Fallout 4 modding
 import bpy
 import os
 import subprocess
-import sys
 import shutil
 from pathlib import Path
 
@@ -32,7 +31,7 @@ class StyleGAN2Helpers:
                     return True
             
             return False
-        except (ImportError, OSError):
+        except ImportError:
             return False
     
     @staticmethod
@@ -64,7 +63,7 @@ class StyleGAN2Helpers:
             import torch
             has_torch = True
             cuda_available = torch.cuda.is_available()
-        except (ImportError, OSError):
+        except ImportError:
             has_torch = False
             cuda_available = False
         
@@ -111,67 +110,46 @@ class StyleGAN2Helpers:
     def generate_texture(output_path, model_path=None, seed=None, resolution=1024, num_images=1):
         """
         Generate texture using StyleGAN2
-
+        
         Args:
             output_path: Directory to save generated textures
             model_path: Path to pre-trained model (.pkl or .pt)
             seed: Random seed for generation
             resolution: Output resolution (512, 1024, etc.)
             num_images: Number of textures to generate
-
+        
         Returns: (bool success, str message, list texture_files)
         """
         stylegan2_path = StyleGAN2Helpers.find_stylegan2_path()
-
+        
         if not stylegan2_path:
             return False, "StyleGAN2 not found", []
-
+        
         try:
-            import torch  # noqa: F401 – presence check
-        except (ImportError, OSError):
+            import torch
+        except ImportError:
             return False, "PyTorch not installed", []
-
+        
         # Create output directory
         os.makedirs(output_path, exist_ok=True)
-
-        if model_path is None:
-            return False, "model_path is required for StyleGAN2 generation (provide a .pkl or .pt checkpoint).", []
-
-        # Build seed range string: "0" for a single seed or "0-N" for a range
-        if seed is not None:
-            seeds_arg = str(seed)
-        else:
-            seeds_arg = f"0-{num_images - 1}"
-
-        cmd = [
-            sys.executable, "generate.py",
-            f"--network={model_path}",
-            f"--outdir={output_path}",
-            f"--seeds={seeds_arg}",
-        ]
-
-        try:
-            result = subprocess.run(
-                cmd, cwd=stylegan2_path,
-                capture_output=True, text=True, timeout=600
-            )
-        except subprocess.TimeoutExpired:
-            return False, "StyleGAN2 generation timed out (10 min).", []
-
-        if result.returncode != 0:
-            return False, f"StyleGAN2 generation failed:\n{result.stderr}", []
-
-        # Collect generated image files
-        import glob as _glob
-        texture_files = (
-            _glob.glob(os.path.join(output_path, "*.png"))
-            + _glob.glob(os.path.join(output_path, "*.jpg"))
+        
+        # For now, return instruction message
+        # Full implementation requires loading model and running inference
+        msg = (
+            "StyleGAN2 texture generation requires manual execution:\n\n"
+            f"1. Navigate to: {stylegan2_path}\n"
+            "2. Run generation script:\n"
+            "   python generate.py --network=<model.pkl> \\\n"
+            f"     --outdir={output_path} \\\n"
+            f"     --seeds={seed if seed else '0-9'} \\\n"
+            f"     --resolution={resolution}\n"
+            "\n3. Import generated textures into Blender materials\n"
+            "\nFor batch generation:\n"
+            f"   python generate.py --network=<model.pkl> --outdir={output_path} \\\n"
+            f"     --seeds=0-{num_images-1}\n"
         )
-
-        if not texture_files:
-            return False, f"Generation finished but no image files found in {output_path}", []
-
-        return True, f"Generated {len(texture_files)} texture(s) in {output_path}", texture_files
+        
+        return False, msg, []
     
     @staticmethod
     def import_texture_to_material(texture_path, obj, texture_type='DIFFUSE'):

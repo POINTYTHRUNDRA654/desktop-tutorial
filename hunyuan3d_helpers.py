@@ -12,224 +12,64 @@ Installation:
 """
 
 import bpy
-import importlib.util
 import os
 import sys
 import tempfile
-import time
 from pathlib import Path
 
 # Check if Hunyuan3D-2 is available
 HUNYUAN3D_AVAILABLE = False
 HUNYUAN3D_ERROR = None
 
-# NOTE: torch availability is checked dynamically inside
-# _check_hunyuan3d_availability_uncached() rather than as a frozen module-level
-# constant, so that installing torch via Auto-Install during the same Blender
-# session is detected correctly without a restart.
+try:
+    # Try to import the necessary dependencies
+    import torch
+    TORCH_AVAILABLE = True
+except ImportError:
+    TORCH_AVAILABLE = False
+    HUNYUAN3D_ERROR = "PyTorch not installed"
 
-
-# Single source of truth for Hunyuan3D-2 installation locations.
-# This list must include every path that tool_installers.install_hunyuan3d()
-# may clone the repo to (TOOLS_ROOT / "Hunyuan3D-2"), as well as common
-# manual installation locations.
-def _build_hunyuan_paths() -> list[str]:
-    paths = [
-        os.path.expanduser("~/Hunyuan3D-2"),
-        os.path.expanduser("~/Projects/Hunyuan3D-2"),
-        "/opt/Hunyuan3D-2",
-        os.path.join(os.path.dirname(__file__), "..", "Hunyuan3D-2"),
-        # addon/tools/Hunyuan3D-2 — the fallback tools root used by the installer
-        os.path.join(os.path.dirname(__file__), "tools", "Hunyuan3D-2"),
-        # D:/blender_tools/Hunyuan3D-2 — the preferred Windows tools root
-        # (only added on Windows to avoid polluting the list on other platforms)
-        *([os.path.join("D:\\", "blender_tools", "Hunyuan3D-2")]
-          if os.name == 'nt' else []),
-    ]
-    # Also pick up the live TOOLS_ROOT from tool_installers (handles custom roots)
-    try:
-        from . import tool_installers as _ti
-        tools_path = str(_ti.TOOLS_ROOT / "Hunyuan3D-2")
-        if tools_path not in paths:
-            paths.append(tools_path)
-        for candidate in _ti.candidate_tool_paths("Hunyuan3D-2"):
-            cand = str(candidate)
-            if cand not in paths:
-                paths.append(cand)
-    except Exception:
-        pass
-    return paths
-
-_HUNYUAN_PATHS = _build_hunyuan_paths()
-
-# Cache for check_hunyuan3d_availability() — avoids filesystem hits on every UI redraw.
-_hunyuan_availability_cache = None
-_hunyuan_availability_cache_time = 0.0
-_CACHE_TTL = 5.0  # seconds
-
-
-def clear_availability_cache():
-    """Force the next availability check to re-scan (call after install completes)."""
-    global _hunyuan_availability_cache, _hunyuan_availability_cache_time
-    _hunyuan_availability_cache = None
-    _hunyuan_availability_cache_time = 0.0
-
-
-def get_cached_availability() -> tuple[bool | None, str]:
-    """Return cached availability without performing filesystem/torch checks."""
-    if _hunyuan_availability_cache is None:
-        return None, "Status not checked (click Check Status)"
-    return _hunyuan_availability_cache
+# We don't actually import Hunyuan3D here to keep the add-on lightweight
+# It will be imported dynamically when needed
 
 
 def check_hunyuan3d_availability():
     """
     Check if Hunyuan3D-2 is installed and available.
-
-    Results are cached for _CACHE_TTL seconds so that repeated calls from
-    Blender's UI draw() loop do not hammer the filesystem on every redraw.
     
     Returns:
         tuple: (available: bool, message: str)
     """
-    global _hunyuan_availability_cache, _hunyuan_availability_cache_time
-    now = time.monotonic()
-    if (_hunyuan_availability_cache is not None and
-            (now - _hunyuan_availability_cache_time) < _CACHE_TTL):
-        return _hunyuan_availability_cache
-    result = _check_hunyuan3d_availability_uncached()
-    _hunyuan_availability_cache = result
-    _hunyuan_availability_cache_time = now
-    return result
-
-
-def _check_hunyuan3d_availability_uncached():
-    """Perform the actual (uncached) Hunyuan3D-2 availability check."""
-    # Re-check torch availability dynamically so that installing torch during
-    # the same Blender session (via Auto-Install) is picked up immediately.
-    if importlib.util.find_spec('torch') is None:
-        return False, (
-            "PyTorch not installed. Install with: pip install torch torchvision\n"
-            "Windows users: if PyTorch is installed but fails to load, enable long paths "
-            "(regedit → HKLM\\SYSTEM\\CurrentControlSet\\Control\\FileSystem → "
-            "LongPathsEnabled=1) or reinstall PyTorch to a shorter path."
-        )
-
-    hunyuan_path = next(
-        (p for p in _HUNYUAN_PATHS if os.path.exists(p) and os.path.isdir(p)),
-        None,
-    )
-
+    if not TORCH_AVAILABLE:
+        return False, "PyTorch not installed. Install with: pip install torch torchvision"
+    
+    # Check if Hunyuan3D-2 repository is cloned
+    # Common locations to check
+    possible_paths = [
+        os.path.expanduser("~/Hunyuan3D-2"),
+        os.path.expanduser("~/Projects/Hunyuan3D-2"),
+        "/opt/Hunyuan3D-2",
+        os.path.join(os.path.dirname(__file__), "..", "Hunyuan3D-2"),
+    ]
+    
+    hunyuan_path = None
+    for path in possible_paths:
+        if os.path.exists(path) and os.path.isdir(path):
+            hunyuan_path = path
+            break
+    
     if hunyuan_path is None:
         return False, (
             "Hunyuan3D-2 not found. Clone it with:\n"
             "gh repo clone Tencent-Hunyuan/Hunyuan3D-2\n"
             "Or: git clone https://github.com/Tencent-Hunyuan/Hunyuan3D-2.git"
         )
-
+    
     # Check if the main module exists
     if not os.path.exists(os.path.join(hunyuan_path, "infer.py")):
         return False, f"Hunyuan3D-2 found at {hunyuan_path} but infer.py not found"
-
+    
     return True, f"Hunyuan3D-2 available at: {hunyuan_path}"
-
-
-
-def run_text_inference(prompt, output_path=None, resolution=256):
-    """
-    Run Hunyuan3D-2 text-to-3D inference in a subprocess.
-    Safe to call from a background thread — makes no Blender API calls.
-
-    Returns:
-        tuple: (success, mesh_file_path or error_message)
-    """
-    available, message = check_hunyuan3d_availability()
-    if not available:
-        return False, f"Hunyuan3D-2 not available: {message}"
-
-    import subprocess
-    import glob
-
-    hunyuan_path = next((p for p in _HUNYUAN_PATHS if os.path.isdir(p)), None)
-    if output_path is None:
-        output_path = tempfile.mkdtemp(prefix="hunyuan3d_text_")
-    os.makedirs(output_path, exist_ok=True)
-
-    try:
-        cmd = [
-            sys.executable, "infer.py",
-            "--prompt", prompt,
-            "--output_dir", output_path,
-            "--resolution", str(resolution),
-        ]
-        result = subprocess.run(
-            cmd, cwd=hunyuan_path,
-            capture_output=True, text=True, timeout=600,
-        )
-        if result.returncode != 0:
-            return False, f"Hunyuan3D-2 inference failed:\n{result.stderr}"
-
-        for ext in ("*.glb", "*.obj", "*.ply"):
-            matches = glob.glob(os.path.join(output_path, ext))
-            if matches:
-                return True, matches[0]
-
-        return False, f"Inference finished but no mesh file found in {output_path}"
-
-    except subprocess.TimeoutExpired:
-        return False, "Hunyuan3D-2 inference timed out (10 min). The model may be downloading weights on first run."
-    except Exception as e:
-        return False, f"Error during text inference: {str(e)}"
-
-
-def run_image_inference(image_path, output_path=None, resolution=256):
-    """
-    Run Hunyuan3D-2 image-to-3D inference in a subprocess.
-    Safe to call from a background thread — makes no Blender API calls.
-
-    Returns:
-        tuple: (success, mesh_file_path or error_message)
-    """
-    available, message = check_hunyuan3d_availability()
-    if not available:
-        return False, f"Hunyuan3D-2 not available: {message}"
-
-    if not os.path.exists(image_path):
-        return False, f"Image file not found: {image_path}"
-
-    import subprocess
-    import glob
-
-    hunyuan_path = next((p for p in _HUNYUAN_PATHS if os.path.isdir(p)), None)
-    if output_path is None:
-        output_path = tempfile.mkdtemp(prefix="hunyuan3d_img_")
-    os.makedirs(output_path, exist_ok=True)
-
-    try:
-        cmd = [
-            sys.executable, "infer.py",
-            "--image", image_path,
-            "--output_dir", output_path,
-            "--resolution", str(resolution),
-        ]
-        result = subprocess.run(
-            cmd, cwd=hunyuan_path,
-            capture_output=True, text=True, timeout=600,
-        )
-        if result.returncode != 0:
-            return False, f"Hunyuan3D-2 inference failed:\n{result.stderr}"
-
-        for ext in ("*.glb", "*.obj", "*.ply"):
-            matches = glob.glob(os.path.join(output_path, ext))
-            if matches:
-                return True, matches[0]
-
-        return False, f"Inference finished but no mesh file found in {output_path}"
-
-    except subprocess.TimeoutExpired:
-        return False, "Hunyuan3D-2 inference timed out (10 min). The model may be downloading weights on first run."
-    except Exception as e:
-        return False, f"Error during image inference: {str(e)}"
 
 
 def generate_mesh_from_text(prompt, output_path=None, resolution=256):
@@ -247,51 +87,29 @@ def generate_mesh_from_text(prompt, output_path=None, resolution=256):
     available, message = check_hunyuan3d_availability()
     if not available:
         return False, f"Hunyuan3D-2 not available: {message}"
-
+    
     try:
-        import subprocess
-        import glob
-
-        # Locate the Hunyuan3D-2 installation directory using the module-level
-        # canonical path list (avoids duplicating it here).
-        hunyuan_path = next(
-            (p for p in _HUNYUAN_PATHS if os.path.isdir(p)), None
+        # PLACEHOLDER IMPLEMENTATION
+        # This is a stub that requires actual integration with Hunyuan3D-2's inference code.
+        # To integrate:
+        #   1. Import Hunyuan3D-2's inference modules
+        #   2. Load the model weights
+        #   3. Call their text-to-3D inference API
+        #   4. Save/import the generated mesh
+        # See: https://github.com/Tencent-Hunyuan/Hunyuan3D-2 for API documentation
+        
+        return False, (
+            "Text-to-3D generation is a PLACEHOLDER - requires manual integration.\n"
+            "This feature needs Hunyuan3D-2's inference code to be integrated.\n"
+            f"Prompt: '{prompt}'\n\n"
+            "To use now:\n"
+            "1. Open terminal in Hunyuan3D-2 directory\n"
+            "2. Run: python infer.py --prompt \"your text\" --output model.obj\n"
+            "   (Check their docs for exact arguments)\n"
+            "3. Import the generated .obj file in Blender\n\n"
+            "See HUNYUAN3D_GUIDE.md for detailed instructions."
         )
-
-        # Choose / create an output directory
-        if output_path is None:
-            output_path = tempfile.mkdtemp(prefix="hunyuan3d_text_")
-        os.makedirs(output_path, exist_ok=True)
-
-        # Run Hunyuan3D-2 text-to-3D inference
-        cmd = [
-            sys.executable, "infer.py",
-            "--prompt", prompt,
-            "--output_dir", output_path,
-            "--resolution", str(resolution),
-        ]
-        result = subprocess.run(
-            cmd, cwd=hunyuan_path,
-            capture_output=True, text=True, timeout=600
-        )
-        if result.returncode != 0:
-            return False, f"Hunyuan3D-2 inference failed:\n{result.stderr}"
-
-        # Find the generated mesh (OBJ / GLB preferred)
-        for ext in ("*.glb", "*.obj", "*.ply"):
-            matches = glob.glob(os.path.join(output_path, ext))
-            if matches:
-                mesh_path = matches[0]
-                success, obj_or_msg = import_mesh_file(
-                    mesh_path,
-                    mesh_name=f"Hunyuan3D_{prompt[:20].replace(' ', '_')}",
-                )
-                return success, obj_or_msg
-
-        return False, f"Inference finished but no mesh file found in {output_path}"
-
-    except subprocess.TimeoutExpired:
-        return False, "Hunyuan3D-2 inference timed out (10 min). The model may be downloading weights on first run."
+        
     except Exception as e:
         return False, f"Error generating mesh from text: {str(e)}"
 
@@ -312,51 +130,32 @@ def generate_mesh_from_image(image_path, output_path=None, resolution=256):
     available, message = check_hunyuan3d_availability()
     if not available:
         return False, f"Hunyuan3D-2 not available: {message}"
-
+    
     if not os.path.exists(image_path):
         return False, f"Image file not found: {image_path}"
-
+    
     try:
-        import subprocess
-        import glob
-
-        # Locate the Hunyuan3D-2 installation directory using the module-level
-        # canonical path list (avoids duplicating it here).
-        hunyuan_path = next(
-            (p for p in _HUNYUAN_PATHS if os.path.isdir(p)), None
+        # PLACEHOLDER IMPLEMENTATION
+        # This is a stub that requires actual integration with Hunyuan3D-2's inference code.
+        # To integrate:
+        #   1. Import Hunyuan3D-2's inference modules
+        #   2. Load the model weights
+        #   3. Call their image-to-3D inference API
+        #   4. Save/import the generated mesh
+        # See: https://github.com/Tencent-Hunyuan/Hunyuan3D-2 for API documentation
+        
+        return False, (
+            "Image-to-3D generation is a PLACEHOLDER - requires manual integration.\n"
+            "This feature needs Hunyuan3D-2's inference code to be integrated.\n"
+            f"Image: '{image_path}'\n\n"
+            "To use now:\n"
+            "1. Open terminal in Hunyuan3D-2 directory\n"
+            "2. Run: python infer.py --image \"your_image.jpg\" --output model.obj\n"
+            "   (Check their docs for exact arguments)\n"
+            "3. Import the generated .obj file in Blender\n\n"
+            "See HUNYUAN3D_GUIDE.md for detailed instructions."
         )
-
-        if output_path is None:
-            output_path = tempfile.mkdtemp(prefix="hunyuan3d_img_")
-        os.makedirs(output_path, exist_ok=True)
-
-        cmd = [
-            sys.executable, "infer.py",
-            "--image", image_path,
-            "--output_dir", output_path,
-            "--resolution", str(resolution),
-        ]
-        result = subprocess.run(
-            cmd, cwd=hunyuan_path,
-            capture_output=True, text=True, timeout=600
-        )
-        if result.returncode != 0:
-            return False, f"Hunyuan3D-2 inference failed:\n{result.stderr}"
-
-        for ext in ("*.glb", "*.obj", "*.ply"):
-            matches = glob.glob(os.path.join(output_path, ext))
-            if matches:
-                img_stem = os.path.splitext(os.path.basename(image_path))[0]
-                success, obj_or_msg = import_mesh_file(
-                    matches[0],
-                    mesh_name=f"Hunyuan3D_{img_stem}",
-                )
-                return success, obj_or_msg
-
-        return False, f"Inference finished but no mesh file found in {output_path}"
-
-    except subprocess.TimeoutExpired:
-        return False, "Hunyuan3D-2 inference timed out (10 min). The model may be downloading weights on first run."
+        
     except Exception as e:
         return False, f"Error generating mesh from image: {str(e)}"
 

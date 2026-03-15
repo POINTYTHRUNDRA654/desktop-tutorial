@@ -1,75 +1,73 @@
 """Integration wrapper for skarndev/umodel_tools Blender add-on.
 
-UModel Tools is a full Blender addon for working with Unreal Engine assets.
-We provide a downloader to get it from GitHub to D:/blender_tools/.
-
-NOTE: UModel Tools must be installed as a SEPARATE addon in Blender.
-This helper only downloads it - it does NOT auto-load/register it to avoid conflicts.
-
-Auto-downloads to D:/blender_tools/ to keep it separate from the addon.
+Loads and registers the upstream add-on from tools/umodel_tools/ so we can
+expose its operators without a separate install. Provides a downloader to
+bootstrap the repository when missing.
 """
 
 from __future__ import annotations
 
+import importlib.util
 import shutil
+import sys
 import tempfile
 import urllib.request
 import zipfile
 from pathlib import Path
 
 
-# Download to D: drive by default to keep separate from addon
-DEFAULT_TOOL_DIR = Path("D:/blender_tools/umodel_tools")
-
-# Fallback to addon folder if D: drive not available
 ADDON_ROOT = Path(__file__).resolve().parent
-FALLBACK_TOOL_DIR = ADDON_ROOT / "tools" / "umodel_tools"
+TOOL_DIR = ADDON_ROOT / "tools" / "umodel_tools"
+PACKAGE_DIR = TOOL_DIR / "umodel_tools"
+INIT_FILE = PACKAGE_DIR / "__init__.py"
+
+_state: dict[str, object | None] = {
+    "module": None,
+    "status": "uninitialized",
+    "error": None,
+}
 
 
-def get_tool_dir():
-    """Get the tool directory, creating parent if needed."""
+def _load_module():
+    """Load the upstream umodel_tools package from disk."""
+
+    if not INIT_FILE.exists():
+        _state["status"] = "missing"
+        _state["error"] = f"Missing umodel_tools at {TOOL_DIR}"
+        return False, _state["error"]
+
     try:
-        from . import preferences  # type: ignore
-        tools_root = getattr(preferences.get_preferences(), "tools_root", "") or ""
-        if tools_root:
-            base = Path(tools_root)
-            base.mkdir(parents=True, exist_ok=True)
-            return base / "umodel_tools"
-    except Exception:
-        pass
+        spec = importlib.util.spec_from_file_location(
+            "umodel_tools",
+            str(INIT_FILE),
+            submodule_search_locations=[str(PACKAGE_DIR)],
+        )
+        if not spec or not spec.loader:
+            raise ImportError("Unable to create spec for umodel_tools")
 
-    # Try D: drive first
-    try:
-        if DEFAULT_TOOL_DIR.drive and Path(DEFAULT_TOOL_DIR.drive).exists():
-            DEFAULT_TOOL_DIR.parent.mkdir(parents=True, exist_ok=True)
-            return DEFAULT_TOOL_DIR
-    except Exception:
-        pass
+        module = importlib.util.module_from_spec(spec)
+        sys.modules["umodel_tools"] = module
+        sys.modules["fo4_umodel_tools"] = module
+        spec.loader.exec_module(module)
 
-    # Fallback to addon folder
-    FALLBACK_TOOL_DIR.parent.mkdir(parents=True, exist_ok=True)
-    return FALLBACK_TOOL_DIR
+        _state["module"] = module
+        _state["status"] = "loaded"
+        _state["error"] = None
+        return True, "Loaded UModel Tools"
+    except Exception as exc:  # noqa: BLE001 - raw message is useful in UI
+        _state["module"] = None
+        _state["status"] = "error"
+        _state["error"] = str(exc)
+        return False, f"Failed to load UModel Tools: {exc}"
 
 
 def download_latest():
-    """Download the upstream repo zip to D:/blender_tools/ or fallback location."""
-    tool_dir = get_tool_dir()
-    addon_init = tool_dir / "umodel_tools" / "__init__.py"
+    """Download the upstream repo zip to tools/umodel_tools if missing."""
 
-    if addon_init.exists():
-        return True, f"UModel Tools already exists at {tool_dir}"
+    if TOOL_DIR.exists():
+        return True, "UModel Tools directory already exists; skipping download"
 
-    # If a previous attempt left an incomplete directory, clear it so we can retry.
-    if tool_dir.exists():
-        try:
-            shutil.rmtree(tool_dir)
-        except Exception as exc:  # noqa: BLE001
-            return False, (
-                f"Existing UModel Tools folder at {tool_dir} is incomplete and "
-                f"could not be cleaned: {exc}"
-            )
-
-    tool_dir.parent.mkdir(parents=True, exist_ok=True)
+    TOOL_DIR.parent.mkdir(parents=True, exist_ok=True)
 
     candidates = [
         "https://github.com/skarndev/umodel_tools/archive/refs/heads/main.zip",
@@ -81,7 +79,6 @@ def download_latest():
         try:
             with tempfile.TemporaryDirectory() as tmpdir:
                 zip_path = Path(tmpdir) / "umodel_tools.zip"
-                print(f"Downloading UModel Tools from {url}...")
                 urllib.request.urlretrieve(url, zip_path)
 
                 with zipfile.ZipFile(zip_path) as zf:
@@ -92,72 +89,66 @@ def download_latest():
                     raise RuntimeError("Downloaded zip contained no directories")
 
                 src = extracted_dirs[0]
-                shutil.move(str(src), str(tool_dir))
+                shutil.move(str(src), str(TOOL_DIR))
 
-            return True, (
-                f"Downloaded UModel Tools to {tool_dir}. "
-                "Install it manually as a separate Blender addon."
-            )
+            return True, f"Downloaded UModel Tools from {url}"
         except Exception as exc:  # noqa: BLE001
             last_error = str(exc)
             continue
 
-    return False, (
-        f"Manual download required: failed to download UModel Tools automatically "
-        f"({last_error or 'unknown error'}). "
-        "Download the ZIP from https://github.com/skarndev/umodel_tools "
-        f"and extract it so that {tool_dir}/umodel_tools/__init__.py exists."
-    )
+    return False, f"Failed to download UModel Tools: {last_error or 'unknown error'}"
 
 
 def status():
     """Return (ready, message) tuple for UI display."""
-    tool_dir = get_tool_dir()
-    addon_zip = tool_dir / "umodel_tools" / "__init__.py"
 
-    if tool_dir.exists() and addon_zip.exists():
-        return True, (
-            f"UModel Tools downloaded to {tool_dir}. "
-            "Install as a Blender addon via Edit > Preferences > Add-ons > Install."
-        )
-    if tool_dir.exists():
-        return False, (
-            f"UModel Tools at {tool_dir} appears incomplete — click Auto-Install "
-            "again or download manually to this folder"
-        )
-    return False, f"UModel Tools not installed — click Auto-Install to download automatically"
+    if _state["status"] == "registered":
+        return True, "UModel Tools ready (operators available)"
+    if _state["status"] == "loaded":
+        return True, "UModel Tools loaded"
+    if _state["status"] == "missing":
+        return False, "UModel Tools repo missing; clone or download into tools/umodel_tools"
+    if _state["status"] == "error":
+        return False, f"UModel Tools error: {_state['error']}"
+    return False, "UModel Tools not initialized"
 
 
 def addon_path() -> str:
     """Return the expected path as a string for display."""
-    return str(get_tool_dir())
 
-
-def open_download_page() -> tuple[bool, str]:
-    """Open the UModel Tools GitHub page so the user can download manually."""
-    import webbrowser
-
-    url = "https://github.com/skarndev/umodel_tools"
-    try:
-        webbrowser.open(url)
-        return True, (
-            f"Opened UModel Tools page. Download the ZIP and extract to: {get_tool_dir()}"
-        )
-    except Exception as exc:  # noqa: BLE001
-        return False, f"Failed to open browser: {exc}"
+    return str(TOOL_DIR)
 
 
 def register():
-    """No-op - UModel Tools must be installed as a separate Blender addon.
+    """Load and register the upstream add-on if present."""
 
-    We do NOT auto-load/register it here because:
-    1. It's a full Blender addon that needs its own preferences
-    2. Auto-loading causes KeyError conflicts with Blender's addon system
-    3. Users should install it manually via Blender's addon preferences
-    """
-    pass
+    ok, _ = _load_module()
+    if not ok:
+        return
+
+    module = _state.get("module")
+    try:
+        if module and hasattr(module, "register"):
+            module.register()
+            _state["status"] = "registered"
+        else:
+            _state["status"] = "error"
+            _state["error"] = "umodel_tools module missing register()"
+    except Exception as exc:  # noqa: BLE001
+        _state["status"] = "error"
+        _state["error"] = str(exc)
 
 
 def unregister():
-    """No-op - UModel Tools is managed separately."""
-    pass
+    """Unregister the upstream add-on when we unload."""
+
+    module = _state.get("module")
+    try:
+        if module and hasattr(module, "unregister"):
+            module.unregister()
+    except Exception:
+        pass
+    finally:
+        _state["module"] = None
+        _state["status"] = "uninitialized"
+        _state["error"] = None

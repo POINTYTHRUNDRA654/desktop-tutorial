@@ -13,94 +13,37 @@ Installation:
 """
 
 import bpy
-import importlib.util
 import os
-import platform
 import sys
 import subprocess
-import time
 from pathlib import Path
 
 # Check if HY-Motion-1.0 is available
 HYMOTION_AVAILABLE = False
 HYMOTION_ERROR = None
 
-# Use find_spec to detect torch without loading it — a full `import torch`
-# blocks the UI for several seconds on first load and is unnecessary here.
-TORCH_AVAILABLE = importlib.util.find_spec('torch') is not None
-if not TORCH_AVAILABLE:
-    HYMOTION_ERROR = "PyTorch not available (not installed)"
-
-
-def _find_git_lfs_env():
-    """
-    Return an environment dict suitable for running git-lfs commands.
-
-    On Windows, git-lfs may be installed to a non-standard drive (e.g. D:).
-    If ``git lfs version`` fails via the current PATH, this function tries a
-    set of common D-drive locations and, when one is found *and verified to
-    work*, returns a copy of ``os.environ`` with that directory prepended to
-    PATH.  If nothing extra is needed (or we are not on Windows), the current
-    environment is returned unchanged.
-
-    Returns:
-        dict: Environment mapping to pass to subprocess.
-    """
-    env = os.environ.copy()
-
-    if platform.system() != "Windows":
-        return env
-
-    # Common D-drive locations when Git for Windows is installed there
-    candidate_dirs = [
-        r"D:\Program Files\Git\cmd",
-        r"D:\Program Files\Git LFS",
-        r"D:\Programs\Git\cmd",
-        r"D:\Programs\Git LFS",
-    ]
-
-    for candidate in candidate_dirs:
-        exe = os.path.join(candidate, "git-lfs.exe")
-        if not os.path.isfile(exe):
-            continue
-        # Verify the executable actually works before using it
-        test_env = os.environ.copy()
-        test_env["PATH"] = candidate + os.pathsep + test_env.get("PATH", "")
-        try:
-            result = subprocess.run(
-                ["git", "lfs", "version"],
-                capture_output=True,
-                text=True,
-                timeout=5,
-                env=test_env,
-            )
-            if result.returncode == 0:
-                return test_env
-        except Exception:
-            pass  # this candidate is broken; try the next one
-
-    return env
+try:
+    # Check if PyTorch is available (required for motion model)
+    import torch
+    TORCH_AVAILABLE = True
+except ImportError:
+    TORCH_AVAILABLE = False
+    HYMOTION_ERROR = "PyTorch not installed"
 
 
 def check_git_lfs():
     """
     Check if git-lfs is installed and available.
-
-    On Windows the function also searches common D-drive installation paths
-    (e.g. 'D:\\Program Files\\Git\\cmd') so that a non-default drive
-    installation is detected correctly.
-
+    
     Returns:
         tuple: (available: bool, message: str)
     """
-    env = _find_git_lfs_env()
     try:
         result = subprocess.run(
             ['git', 'lfs', 'version'],
             capture_output=True,
             text=True,
-            timeout=5,
-            env=env,
+            timeout=5
         )
         if result.returncode == 0:
             version = result.stdout.strip()
@@ -115,44 +58,15 @@ def check_git_lfs():
         return False, f"Error checking git-lfs: {str(e)}"
 
 
-# Cache for check_hymotion_availability() — avoids subprocess.run (git lfs version)
-# and filesystem hits on every Blender UI redraw.
-_hymotion_availability_cache = None
-_hymotion_availability_cache_time = 0.0
-_CACHE_TTL = 5.0  # seconds
-
-
 def check_hymotion_availability():
     """
     Check if HY-Motion-1.0 is installed and available.
-
-    Results are cached for _CACHE_TTL seconds so that repeated calls from
-    Blender's UI draw() loop do not trigger a subprocess (git lfs version)
-    on every redraw.
     
     Returns:
         tuple: (available: bool, message: str)
     """
-    global _hymotion_availability_cache, _hymotion_availability_cache_time
-    now = time.monotonic()
-    if (_hymotion_availability_cache is not None and
-            (now - _hymotion_availability_cache_time) < _CACHE_TTL):
-        return _hymotion_availability_cache
-    result = _check_hymotion_availability_uncached()
-    _hymotion_availability_cache = result
-    _hymotion_availability_cache_time = now
-    return result
-
-
-def _check_hymotion_availability_uncached():
-    """Perform the actual (uncached) HY-Motion availability check."""
     if not TORCH_AVAILABLE:
-        return False, (
-            "PyTorch not installed. Install with: pip install torch\n"
-            "Windows users: if PyTorch is installed but fails to load, enable long paths "
-            "(regedit → HKLM\\SYSTEM\\CurrentControlSet\\Control\\FileSystem → "
-            "LongPathsEnabled=1) or reinstall PyTorch to a shorter path."
-        )
+        return False, "PyTorch not installed. Install with: pip install torch"
     
     # Check if git-lfs is available
     lfs_available, lfs_message = check_git_lfs()
@@ -166,15 +80,6 @@ def _check_hymotion_availability_uncached():
         "/opt/HY-Motion-1.0",
         os.path.join(os.path.dirname(__file__), "..", "HY-Motion-1.0"),
     ]
-
-    try:
-        from . import tool_installers
-        for candidate in tool_installers.candidate_tool_paths("HY-Motion-1.0"):
-            cand_str = str(candidate)
-            if cand_str not in possible_paths:
-                possible_paths.insert(0, cand_str)
-    except Exception:
-        pass
     
     hymotion_path = None
     for path in possible_paths:
@@ -202,72 +107,42 @@ def _check_hymotion_availability_uncached():
 def generate_motion_from_text(prompt, duration=5.0, fps=30):
     """
     Generate motion/animation from a text prompt using HY-Motion-1.0.
-
+    
     Args:
         prompt (str): Text description of the motion (e.g., "character walking forward")
         duration (float): Duration of the animation in seconds
         fps (int): Frames per second for the animation
-
+        
     Returns:
         tuple: (success: bool, result/error_message)
     """
     available, message = check_hymotion_availability()
     if not available:
         return False, f"HY-Motion-1.0 not available: {message}"
-
+    
     try:
-        import glob as _glob
-        import tempfile
-
-        possible_paths = [
-            os.path.expanduser("~/HY-Motion-1.0"),
-            os.path.expanduser("~/Projects/HY-Motion-1.0"),
-            "/opt/HY-Motion-1.0",
-            os.path.join(os.path.dirname(__file__), "..", "HY-Motion-1.0"),
-        ]
-        hymotion_path = next(
-            (p for p in possible_paths if os.path.isdir(p)), None
+        # PLACEHOLDER IMPLEMENTATION
+        # This is a stub that requires actual integration with HY-Motion-1.0's inference code.
+        # To integrate:
+        #   1. Import HY-Motion-1.0's inference modules
+        #   2. Load the motion model weights
+        #   3. Call their text-to-motion inference API
+        #   4. Convert output to Blender animation keyframes
+        # See: https://github.com/Tencent-Hunyuan/HY-Motion-1.0 for API documentation
+        
+        return False, (
+            "Motion generation is a PLACEHOLDER - requires manual integration.\n"
+            "This feature needs HY-Motion-1.0's inference code to be integrated.\n"
+            f"Prompt: '{prompt}'\n"
+            f"Duration: {duration}s @ {fps} FPS\n\n"
+            "To use now:\n"
+            "1. Open terminal in HY-Motion-1.0 directory\n"
+            "2. Run their inference script with your prompt\n"
+            "3. Export animation data\n"
+            "4. Import to Blender manually\n\n"
+            "See documentation for detailed instructions."
         )
-
-        output_dir = tempfile.mkdtemp(prefix="hymotion_")
-
-        # Prefer a dedicated inference entry-point if one exists; fall back to
-        # common naming conventions used across forks of the repo.
-        for script_name in ("infer.py", "inference.py", "run_inference.py", "demo.py"):
-            script_path = os.path.join(hymotion_path, script_name)
-            if os.path.exists(script_path):
-                break
-        else:
-            return False, "HY-Motion-1.0 inference script not found (tried infer.py / inference.py)."
-
-        cmd = [
-            sys.executable, script_name,
-            "--prompt", prompt,
-            "--output_dir", output_dir,
-            "--duration", str(duration),
-            "--fps", str(fps),
-        ]
-        result = subprocess.run(
-            cmd, cwd=hymotion_path,
-            capture_output=True, text=True, timeout=600
-        )
-        if result.returncode != 0:
-            return False, f"HY-Motion-1.0 inference failed:\n{result.stderr}"
-
-        # Look for BVH or FBX output to auto-import
-        for ext in ("*.bvh", "*.fbx", "*.npy"):
-            matches = _glob.glob(os.path.join(output_dir, ext))
-            if matches:
-                motion_path = matches[0]
-                ok, msg = import_motion_file(motion_path)
-                if ok:
-                    return True, f"Motion generated and imported: {motion_path}"
-                return False, f"Motion generated at {motion_path} but import failed: {msg}"
-
-        return True, f"Motion generation finished. Output in: {output_dir}"
-
-    except subprocess.TimeoutExpired:
-        return False, "HY-Motion-1.0 inference timed out (10 min)."
+        
     except Exception as e:
         return False, f"Error generating motion: {str(e)}"
 
@@ -275,88 +150,32 @@ def generate_motion_from_text(prompt, duration=5.0, fps=30):
 def apply_motion_to_armature(armature, motion_data):
     """
     Apply generated motion data to a Blender armature.
-
-    motion_data is expected to be a dict with the structure produced by
-    HY-Motion-1.0 (or any compatible loader):
-
-        {
-            'fps': <int>,
-            'bones': {
-                '<bone_name>': [
-                    {'frame': <int>, 'location': [x, y, z],
-                     'rotation_euler': [rx, ry, rz],      # values in DEGREES
-                     'rotation_quaternion': [w, x, y, z]},  # optional alternative
-                    ...
-                ],
-                ...
-            }
-        }
-
-    Note: ``rotation_euler`` values must be provided in degrees; they are
-    converted to radians internally before being written as Blender keyframes.
-
+    
     Args:
         armature: Blender armature object
-        motion_data: dict — motion data as described above
-
+        motion_data: Motion data from HY-Motion-1.0
+        
     Returns:
         tuple: (success: bool, message)
     """
     if armature is None or armature.type != 'ARMATURE':
         return False, "No valid armature object provided"
-
-    if not isinstance(motion_data, dict) or 'bones' not in motion_data:
-        return False, "Invalid motion_data: expected dict with 'bones' key"
-
+    
     try:
-        import math
-
-        scene = bpy.context.scene
-        motion_fps = motion_data.get('fps', 30)
-        scene.render.fps = motion_fps
-
-        # Create a new action for this motion
-        action = bpy.data.actions.new(name="HyMotion_Action")
-        armature.animation_data_create()
-        armature.animation_data.action = action
-
-        bones_data = motion_data['bones']
-        for bone_name, keyframes in bones_data.items():
-            pose_bone = armature.pose.bones.get(bone_name)
-            if pose_bone is None:
-                continue  # skip bones not present in this rig
-
-            for kf in keyframes:
-                frame = kf.get('frame', 0)
-                scene.frame_set(frame)
-
-                loc = kf.get('location')
-                if loc and len(loc) == 3:
-                    pose_bone.location = loc
-                    pose_bone.keyframe_insert(data_path='location', frame=frame)
-
-                rot = kf.get('rotation_euler')
-                if rot and len(rot) == 3:
-                    pose_bone.rotation_mode = 'XYZ'
-                    pose_bone.rotation_euler = [math.radians(a) for a in rot]
-                    pose_bone.keyframe_insert(
-                        data_path='rotation_euler', frame=frame
-                    )
-
-                rot_q = kf.get('rotation_quaternion')
-                if rot_q and len(rot_q) == 4:
-                    pose_bone.rotation_mode = 'QUATERNION'
-                    pose_bone.rotation_quaternion = rot_q
-                    pose_bone.keyframe_insert(
-                        data_path='rotation_quaternion', frame=frame
-                    )
-
-        # Reset to frame 1
-        scene.frame_set(1)
-
-        bone_count = len(bones_data)
-        return True, f"Motion applied: {bone_count} bones, action '{action.name}'"
-
+        # PLACEHOLDER IMPLEMENTATION
+        # Real implementation would:
+        #   1. Parse motion data format
+        #   2. Map bone names to armature bones
+        #   3. Create animation action
+        #   4. Set keyframes for each bone
+        #   5. Set interpolation modes
+        
+        return False, (
+            "Motion application is a PLACEHOLDER.\n"
+            "Requires integration with HY-Motion-1.0 output format.\n"
+            "Manual import of motion data needed."
+        )
+        
     except Exception as e:
         return False, f"Error applying motion: {str(e)}"
 

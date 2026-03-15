@@ -117,11 +117,6 @@ Create custom weapons with modification systems.
 4. Add mod slots
 5. Setup textures
 6. Generate collision mesh
-
-   - Select your mesh, choose a **Collision Type** (rock, tree, grass, etc.) from the
-     dropdown, then click **Generate Collision**.  Types such as *Grass* or *Mushroom*
-     will simply skip generation.  You can also use the **Generate + Export NIF**
-     button to perform collision generation and NIF export in one go.
 7. Optimize and export
 
 ### 6. Armor & Clothing Mods ⭐

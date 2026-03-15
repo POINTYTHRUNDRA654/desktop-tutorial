@@ -8,22 +8,6 @@
 - **NVTT (NVIDIA Texture Tools)**: https://github.com/castano/nvidia-texture-tools (BCn compression). Build or download a release; point the add-on to the binary if you prefer NVTT over texconv.
 - **Unity asset extraction**: AssetRipper (GUI/CLI) https://github.com/AssetRipper/AssetRipper or AssetStudio https://github.com/Perfare/AssetStudio to unpack .unitypackage / project assets to FBX + textures. Respect asset licenses.
 - **Unreal asset extraction**: UModel (UE Viewer) https://www.gildor.org/en/projects/umodel or Unreal Editor command-line exporters to FBX/GLTF. Respect project licenses.
-- **UE5‑asset importer**: the add-on bundles the community-maintained
-  [Blender‑UE4‑Importer](https://github.com/Waffle1434/Blender-UE4-Importer) as a
-  **git submodule** at `tools/Blender-UE4-Importer`.  After cloning this repository,
-  initialise the submodule once with:
-
-  ```
-  git submodule update --init --recursive
-  ```
-
-  The “Check/Install UE Importer” button in the Tools panel can also download the
-  latest copy automatically when network access is available.
-
-- **Local dependency cache:** the add-on can install Python packages such as
-  `libigl` automatically when needed.  To support fully offline setups you can
-  drop a wheel file (e.g. `libigl‑0.?.?.whl`) into `tools/`; the auto-weight
-  helper will prefer that file over downloading from PyPI.
 
 ## Usage tips
 - Install the Niftools add-on per Blender version you plan to export with; on Blender 4.x use a compatible fork or export via Blender 3.6 LTS.

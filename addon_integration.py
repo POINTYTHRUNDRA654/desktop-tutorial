@@ -6,7 +6,6 @@ Allows loading tutorials and integrations for other Blender add-ons
 import bpy
 import json
 import os
-import time
 from pathlib import Path
 from bpy.props import StringProperty, BoolProperty, CollectionProperty
 from bpy.types import PropertyGroup
@@ -64,13 +63,7 @@ class ThirdPartyAddon(PropertyGroup):
 
 class AddonIntegrationSystem:
     """System for integrating with third-party add-ons"""
-
-    # Cache for scan_for_known_addons() — filesystem scans on every Blender
-    # redraw (mouse moves, etc.) cause noticeable UI lag when the panel is open.
-    _scan_cache = None
-    _scan_cache_time: float = 0.0
-    _SCAN_CACHE_TTL: float = 5.0  # seconds
-
+    
     @staticmethod
     def get_integrations_path():
         """Get path to third-party integrations directory"""
@@ -115,61 +108,14 @@ class AddonIntegrationSystem:
     
     @staticmethod
     def check_addon_installed(addon_id):
-        """Check if a Blender add-on is installed (without importing it).
-
-        Importing an add-on module to check presence is unsafe: it fully
-        executes the add-on's ``__init__.py``, which in Blender 5.0 can crash
-        (e.g. Rigify tries to register WindowManager properties in a readonly
-        phase → ``AttributeError: pyrna_struct_meta_idprop_setattro() cannot
-        set in readonly state``).
-
-        Safe alternatives (in priority order):
-          1. ``bpy.context.preferences.addons`` — already-enabled add-ons.
-          2. ``bpy.utils.script_paths`` — scan all add-on directories for the
-             module folder or ``.py`` file without importing.
-          3. ``importlib.util.find_spec`` — locates the module file on sys.path
-             without executing it.
-        """
-        # 1. Already enabled → definitely installed.
+        """Check if a Blender add-on is installed"""
         try:
-            if addon_id in bpy.context.preferences.addons:
-                return True
-        except Exception:
-            pass
-
-        # 2. Filesystem scan across all Blender script / add-on directories.
-        #    bpy.utils.script_paths() returns the directories Blender searches
-        #    for add-ons; each may contain an ``addons`` or ``addons_contrib``
-        #    sub-folder.
-        try:
-            import os
-            script_dirs = bpy.utils.script_paths()
-            for script_dir in script_dirs:
-                for sub in ("addons", "addons_contrib", "extensions"):
-                    addon_root = os.path.join(script_dir, sub)
-                    if not os.path.isdir(addon_root):
-                        continue
-                    # Package add-on (folder with __init__.py)
-                    if os.path.isdir(os.path.join(addon_root, addon_id)):
-                        return True
-                    # Single-file add-on (.py)
-                    if os.path.isfile(os.path.join(addon_root, addon_id + ".py")):
-                        return True
-        except Exception:
-            pass
-
-        # 3. importlib.util.find_spec: locates the module on sys.path WITHOUT
-        #    executing it — safe even for add-ons that crash on import.
-        try:
-            import importlib.util
-            if importlib.util.find_spec(addon_id) is not None:
-                return True
-        except (ModuleNotFoundError, ValueError):
-            pass
-        except Exception:
-            pass
-
-        return False
+            import importlib
+            # Try to import the module
+            importlib.import_module(addon_id)
+            return True
+        except ImportError:
+            return False
     
     @staticmethod
     def check_addon_enabled(addon_id):
@@ -179,78 +125,58 @@ class AddonIntegrationSystem:
     
     @staticmethod
     def scan_for_known_addons():
-        """Scan for known useful add-ons for FO4 modding (result cached for 5 s)."""
-        now = time.monotonic()
-        if (AddonIntegrationSystem._scan_cache is not None and
-                (now - AddonIntegrationSystem._scan_cache_time)
-                < AddonIntegrationSystem._SCAN_CACHE_TTL):
-            return AddonIntegrationSystem._scan_cache
-        result = AddonIntegrationSystem._scan_for_known_addons_uncached()
-        AddonIntegrationSystem._scan_cache = result
-        AddonIntegrationSystem._scan_cache_time = now
-        return result
-
-    @staticmethod
-    def _scan_for_known_addons_uncached():
-        """Perform the actual (uncached) add-on scan."""
+        """Scan for known useful add-ons for FO4 modding"""
         known_addons = {
             'io_scene_niftools': {
                 'name': 'Blender NIF Plugin',
                 'description': 'Import/export NIF files (Fallout 4 format)',
                 'fo4_use_cases': 'Direct export to NIF format, read vanilla FO4 assets',
-                'download_url': 'https://github.com/niftools/blender_niftools_addon/releases',
-                'builtin': False,
+                'download_url': 'https://github.com/niftools/blender_niftools_addon'
             },
             'object_print3d_utils': {
                 'name': '3D Print Toolbox',
                 'description': 'Check mesh for errors',
                 'fo4_use_cases': 'Validate meshes for errors before export',
-                'download_url': 'Built-in to Blender',
-                'builtin': True,
+                'download_url': 'Built-in to Blender'
             },
             'uv_texture_tools': {
                 'name': 'UV Texture Tools',
                 'description': 'Advanced UV mapping tools',
                 'fo4_use_cases': 'Better UV unwrapping for textures',
-                'download_url': 'https://github.com/search?q=uv+texture+tools+blender+addon',
-                'builtin': False,
+                'download_url': 'Various on Blender Market/GitHub'
             },
             'mesh_f2': {
                 'name': 'F2',
                 'description': 'Quick face creation',
                 'fo4_use_cases': 'Speed up modeling workflow',
-                'download_url': 'Built-in to Blender',
-                'builtin': True,
+                'download_url': 'Built-in to Blender'
             },
             'mesh_looptools': {
                 'name': 'Loop Tools',
                 'description': 'Mesh editing tools',
                 'fo4_use_cases': 'Clean topology for better optimization',
-                'download_url': 'Built-in to Blender',
-                'builtin': True,
+                'download_url': 'Built-in to Blender'
             },
             'rigify': {
                 'name': 'Rigify',
                 'description': 'Advanced rigging system',
                 'fo4_use_cases': 'Create complex character rigs for NPCs',
-                'download_url': 'Built-in to Blender',
-                'builtin': True,
+                'download_url': 'Built-in to Blender'
             },
             'boneweight_copy': {
                 'name': 'Bone Weight Copy',
                 'description': 'Transfer weights between meshes',
                 'fo4_use_cases': 'Transfer weights from vanilla FO4 assets to custom armor',
-                'download_url': 'https://github.com/search?q=bone+weight+copy+blender+addon',
-                'builtin': False,
-            },
+                'download_url': 'Various on Blender Market'
+            }
         }
-
+        
         detected = []
-
+        
         for addon_id, info in known_addons.items():
             is_installed = AddonIntegrationSystem.check_addon_installed(addon_id)
             is_enabled = AddonIntegrationSystem.check_addon_enabled(addon_id)
-
+            
             detected.append({
                 'addon_id': addon_id,
                 'name': info['name'],
@@ -258,10 +184,9 @@ class AddonIntegrationSystem:
                 'is_installed': is_installed,
                 'is_enabled': is_enabled,
                 'fo4_use_cases': info['fo4_use_cases'],
-                'download_url': info.get('download_url', ''),
-                'builtin': info.get('builtin', False),
+                'download_url': info.get('download_url', '')
             })
-
+        
         return detected
     
     @staticmethod
@@ -451,69 +376,11 @@ def register():
         default=True
     )
 
-    # per-object collision category used by our collision utilities
-    from . import mesh_helpers
-    bpy.types.Object.fo4_collision_type = bpy.props.EnumProperty(
-        name="Collision Type",
-        description="Category used when generating/exporting collision meshes",
-        items=mesh_helpers.MeshHelpers.COLLISION_TYPES,
-        default='DEFAULT'
-    )
-
-    # per-object mesh type – controls NIF export settings (root node class,
-    # BSXFlags, shader flags, skinning path).  'AUTO' (empty string) means the
-    # export pipeline classifies the type automatically from armature, name, and
-    # material settings.
-    from . import export_helpers
-    bpy.types.Object.fo4_mesh_type = bpy.props.EnumProperty(
-        name="Mesh Type",
-        description=(
-            "Fallout 4 mesh category.  Controls which NIF export settings are "
-            "applied (root node class, BSXFlags, shader flags, skinning). "
-            "Leave on 'Auto-detect' to let the add-on classify the mesh "
-            "automatically from its armature, name, and material."
-        ),
-        items=[('AUTO', "Auto-detect",
-                "Classify automatically (armature → Skinned, _LODn → LOD, "
-                "Alpha Clip material → Vegetation, else Static)")] +
-              export_helpers.FO4_MESH_TYPE_ITEMS,
-        default='AUTO',
-    )
-
-    # per-scene target Fallout 4 game version (drives NIF version numbers)
-    bpy.types.Scene.fo4_game_version = bpy.props.EnumProperty(
-        name="Game Version",
-        description=(
-            "Target Fallout 4 edition.  All three editions share the same NIF "
-            "version (20.2.0.7 / user 12 / bsver 130) and BSTriShape geometry, "
-            "so this setting helps document intent and may influence future "
-            "per-edition tweaks"
-        ),
-        items=[
-            ('FALLOUT_4',
-             "OG  (Original 2015)",
-             "Fallout 4 – original 2015 release"),
-            ('FALLOUT_4_NG',
-             "NG  (Next Gen – Apr 2024)",
-             "Fallout 4 Next Gen update (April 2024)"),
-            ('FALLOUT_4_AE',
-             "AE  (Anniversary Edition 2025)",
-             "Fallout 4 Anniversary Edition (November 2025)"),
-        ],
-        default='FALLOUT_4',
-    )
-
 def unregister():
     """Unregister third-party integration classes"""
     if hasattr(bpy.types.Scene, 'fo4_third_party_addons'):
         del bpy.types.Scene.fo4_third_party_addons
     if hasattr(bpy.types.Scene, 'fo4_show_addon_tutorials'):
         del bpy.types.Scene.fo4_show_addon_tutorials
-    if hasattr(bpy.types.Object, 'fo4_collision_type'):
-        del bpy.types.Object.fo4_collision_type
-    if hasattr(bpy.types.Object, 'fo4_mesh_type'):
-        del bpy.types.Object.fo4_mesh_type
-    if hasattr(bpy.types.Scene, 'fo4_game_version'):
-        del bpy.types.Scene.fo4_game_version
     
     bpy.utils.unregister_class(ThirdPartyAddon)

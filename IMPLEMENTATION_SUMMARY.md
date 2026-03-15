@@ -16,7 +16,7 @@ A new module containing all image processing and mesh generation functions:
 - `ImageToMeshHelpers.get_recommended_subdivisions(width, height)` - Calculates optimal subdivisions
 
 **Supported Image Formats:**
-- PNG, JPG, JPEG, BMP, TIFF, TIF, TGA, EXR
+- PNG, JPG, JPEG, BMP, TIFF, TIF, TGA
 
 ### 2. User Interface Additions
 

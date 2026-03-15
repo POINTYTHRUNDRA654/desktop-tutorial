@@ -2,11 +2,7 @@
 
 **A comprehensive, user-friendly, and highly automated Blender add-on for creating Fallout 4 mods with desktop tutorial integration.**
 
-**✅ Compatible with Blender 2.80 through 5.x+** (All modern versions!)
-
-> ⚠ Blender 5.0 users: initial reports of errors have surfaced.  Toss your
-> system console output into an issue and the add-on will gracefully
-> continue loading thanks to new import/registration safeguards.
+**✅ Compatible with Blender 2.80 through 4.5.5+** (All modern versions!)
 
 ## 🆕 What's New - Enhanced Features!
 
@@ -42,48 +38,14 @@ See [NEW_FEATURES.md](NEW_FEATURES.md) for detailed information about all enhanc
 
 ## Installation
 
-> ⚠️ **GitHub Desktop / Windows users — cannot clone directly**
->
-> The repository is named `Blender-add-on.` (with a trailing period).  Windows does
-> not allow folder names that end with a period, so **GitHub Desktop and
-> `git clone` on Windows will fail** with an error such as *"could not create
-> directory"* or *"invalid path"*.
->
-> **Workaround — use the prebuilt zip instead (recommended for all platforms):**
->
-> 1. Open the repository on GitHub in your browser.
-> 2. Click the green **`<> Code`** button → **Download ZIP**.
-> 3. Extract the ZIP anywhere you like — Windows handles this without issues.
-> 4. Follow the [Blender installation steps](#recommended-prebuilt-zip) below.
->
-> If you specifically need a git clone (e.g. to contribute), use **Git Bash**,
-> **WSL**, **macOS**, or **Linux** and clone to a path that does not already have a
-> trailing-period component, then work from there.
-
-> **Note:** The repository directory name (`Blender-add-on.`) is not a valid Python
-> identifier, so you **must** install via a properly packaged zip — not by pointing
-> Blender at the raw `__init__.py` file from a GitHub download.
-
-### Recommended: prebuilt zip
-
-1. Download **`fallout4_tutorial_helper-v2.1.2.zip`** from the repository (or the
-   GitHub Releases page).
-2. In Blender go to `Edit > Preferences > Add-ons` and click `Install...`.
-3. Select the downloaded zip and click `Install Add-on`.
-4. Enable the add-on by checking the checkbox next to **"Fallout 4 Tutorial Helper"**.
-5. For Fallout 4 NIF export, install the Blender Niftools add-on (see
-   [NIFTOOLS_SETUP.md](NIFTOOLS_SETUP.md) and [TOOLS_SETUP.md](TOOLS_SETUP.md) for
-   automated and manual steps).
-
-### Alternative: build the zip yourself
-
-Clone or download this repository, then from the repository root run:
-```
-python makezip.py
-```
-This creates `fallout4_tutorial_helper-v<version>.zip` with the add-on files inside a
-`fallout4_tutorial_helper/` folder (a valid Python package name). Install that zip as
-described above.
+1. Download or clone this repository
+2. Open Blender
+3. Go to `Edit > Preferences > Add-ons`
+4. Click `Install...` button
+5. Navigate to the `__init__.py` file in this repository
+6. Select it and click `Install Add-on`
+7. Enable the add-on by checking the checkbox next to "Desktop Tutorial Integration"
+8. For Fallout 4 NIF export, install the Blender Niftools add-on (see [NIFTOOLS_SETUP.md](NIFTOOLS_SETUP.md) and [TOOLS_SETUP.md](TOOLS_SETUP.md) for automated and manual steps)
 
 ## Configuration
 
@@ -167,7 +129,7 @@ Blender-add-on/
 ## Troubleshooting
 
 ### Add-on won't enable
-- Make sure you're using Blender 2.80 or higher (Blender 5.x supported)
+- Make sure you're using Blender 2.80 or higher
 - Check the Blender console for error messages
 
 ### Cannot connect to tutorial app

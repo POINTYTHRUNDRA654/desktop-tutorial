@@ -5,20 +5,6 @@ All notable changes to the Fallout 4 Tutorial Add-on will be documented in this 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [2.1.3] - 2026-03-03
-
-### Added
-- `AnimationHelpers.apply_wind_animation()` operator/UI; one-click creation of
-  a wind armature and looping, noise-based bone animation for vegetation.
-  This automates the full wind setup when combined with wind-weight helper.- Added **Toggle Wind Preview** operator that starts/stops a lightweight handler
-  to rotate any Wind bone each frame, providing immediate in‑viewport feedback.- `AnimationHelpers.generate_wind_weights()` and corresponding operator/UI
-  button for creating wind/vortex weight groups on vegetation meshes.
-- `AnimationHelpers.auto_weight_paint()` operator with button; uses Blender
-  auto weights by default but will install and employ `libigl` for BBW
-  weights if available.
-
-## [2.1.2] - 2026-03-03
-
 ## [2.1.1] - 2026-02-19
 
 ### Added
@@ -52,18 +38,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - `optimize_mesh()` - Optimizes meshes for Fallout 4 (triangulation, cleanup)
   - `validate_mesh()` - Validates mesh compatibility with FO4
   - `add_collision_mesh()` - Creates simplified collision meshes
-  - collision meshes are now marked and automatically skipped during export; active
-    object is restored after generation to avoid accidental exports
-  - added "Export Mesh + Collision" operator and corresponding
-    ``export_mesh_with_collision`` helper to perform one‑click collision generation
-    and NIF export (simplify ratio can be specified)
-  - added per-object **Collision Type** property (none/default/rock/tree/building/grass/mushroom/creature);
-    generation skips or auto-adjusts simplification and records appropriate
-    sound/weight presets on both source and collision meshes
-  - new **Set Collision Type** operator with "Apply to Selected" checkbox for batch
-    tagging
-  - automatic inference expanded to recognise buildings and creatures by name,
-    creatures now get a special type that skips mesh generation
   - Automatic UV map creation
   - Poly count checking (65,535 limit)
   - Loose vertex detection

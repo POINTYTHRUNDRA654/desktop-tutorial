@@ -16,7 +16,6 @@ https://github.com/AIGODLIKE/ComfyUI-BlenderAI-node
 
 import bpy
 import os
-import subprocess
 import sys
 from pathlib import Path
 
@@ -358,7 +357,7 @@ gh repo clone AIGODLIKE/EasyBakeNode
 
 ```bash
 # Windows
-cd %USERPROFILE%\\AppData\\Roaming\\Blender Foundation\\blender\\%version%\\scripts\\addons
+cd %USERPROFILE%\AppData\Roaming\Blender Foundation\blender\%version%\scripts\addons
 git clone https://github.com/AIGODLIKE/ComfyUI-BlenderAI-node.git --recursive
 
 # Linux
@@ -497,22 +496,20 @@ For more details:
     @staticmethod
     def generate_motion_from_text(prompt, system="auto", duration=5.0, fps=30):
         """
-        Generate motion from text using the best available motion generation system.
-
-        Auto-selection order: MotionDiffuse → HY-Motion-1.0 → ComfyUI-MotionDiff
-
+        Generate motion from text using available motion generation system
+        
         Args:
             prompt: Text description of motion
             system: "auto", "hymotion", "motiondiffuse", or "comfyui"
             duration: Duration in seconds
             fps: Frames per second
-
+        
         Returns:
             tuple: (success, message, motion_data)
-              motion_data is the path of the generated file on success, or None on failure.
         """
-        # --- Resolve "auto" to a concrete system ---
+        # Check which systems are available
         if system == "auto":
+            # Try systems in order of preference
             md_avail, _ = MotionGenerationHelpers.check_motiondiffuse_available()
             if md_avail:
                 system = "motiondiffuse"
@@ -525,134 +522,10 @@ For more details:
                     if cf_avail:
                         system = "comfyui"
                     else:
-                        return (
-                            False,
-                            "No motion generation system available. "
-                            "Install MotionDiffuse, HY-Motion-1.0, or ComfyUI-MotionDiff "
-                            "and restart Blender.",
-                            None,
-                        )
-
-        import tempfile
-        import glob as _glob
-
-        output_dir = tempfile.mkdtemp(prefix=f"motion_{system}_")
-
-        # ------------------------------------------------------------------ #
-        # MotionDiffuse                                                        #
-        # ------------------------------------------------------------------ #
-        if system == "motiondiffuse":
-            avail, msg = MotionGenerationHelpers.check_motiondiffuse_available()
-            if not avail:
-                return False, f"MotionDiffuse not available: {msg}", None
-
-            # Locate the repo
-            for path in [
-                os.path.expanduser("~/MotionDiffuse"),
-                os.path.expanduser("~/Projects/MotionDiffuse"),
-                os.path.join(os.path.dirname(__file__), "MotionDiffuse"),
-            ]:
-                if os.path.isdir(path):
-                    motiondiffuse_path = path
-                    break
-            else:
-                return False, "MotionDiffuse directory not found", None
-
-            text2motion = os.path.join(motiondiffuse_path, "text2motion")
-            for script in ("generate.py", "infer.py", "inference.py", "run.py"):
-                if os.path.exists(os.path.join(text2motion, script)):
-                    script_path = os.path.join(text2motion, script)
-                    break
-            else:
-                # Fall back to repo root
-                for script in ("generate.py", "infer.py", "inference.py"):
-                    if os.path.exists(os.path.join(motiondiffuse_path, script)):
-                        script_path = os.path.join(motiondiffuse_path, script)
-                        break
-                else:
-                    return False, "MotionDiffuse inference script not found", None
-
-            cmd = [
-                sys.executable, script_path,
-                "--text", prompt,
-                "--output_dir", output_dir,
-                "--motion_length", str(int(duration * fps)),
-            ]
-            try:
-                result = subprocess.run(
-                    cmd, cwd=motiondiffuse_path,
-                    capture_output=True, text=True, timeout=600
-                )
-            except subprocess.TimeoutExpired:
-                return False, "MotionDiffuse timed out (10 min).", None
-
-            if result.returncode != 0:
-                return False, f"MotionDiffuse failed:\n{result.stderr}", None
-
-            for ext in ("*.bvh", "*.npy", "*.npz", "*.fbx"):
-                hits = _glob.glob(os.path.join(output_dir, ext))
-                if hits:
-                    return True, f"Motion generated at {hits[0]}", hits[0]
-            return True, f"Motion generated in {output_dir}", output_dir
-
-        # ------------------------------------------------------------------ #
-        # HY-Motion-1.0 (delegates to hymotion_helpers)                       #
-        # ------------------------------------------------------------------ #
-        if system == "hymotion":
-            from . import hymotion_helpers
-            ok, msg = hymotion_helpers.generate_motion_from_text(prompt, duration, fps)
-            # hymotion_helpers returns the file path as part of its message; pass None
-            # for motion_data since the import has already happened inside that call.
-            return ok, msg, None
-
-        # ------------------------------------------------------------------ #
-        # ComfyUI-MotionDiff                                                   #
-        # ------------------------------------------------------------------ #
-        if system == "comfyui":
-            avail, msg = MotionGenerationHelpers.check_comfyui_motiondiff_available()
-            if not avail:
-                return False, f"ComfyUI-MotionDiff not available: {msg}", None
-
-            for path in [
-                os.path.expanduser("~/ComfyUI-MotionDiff"),
-                os.path.expanduser("~/Projects/ComfyUI-MotionDiff"),
-                os.path.join(os.path.dirname(__file__), "ComfyUI-MotionDiff"),
-            ]:
-                if os.path.isdir(path):
-                    comfyui_md_path = path
-                    break
-            else:
-                return False, "ComfyUI-MotionDiff directory not found", None
-
-            for script in ("generate.py", "infer.py", "run.py"):
-                if os.path.exists(os.path.join(comfyui_md_path, script)):
-                    break
-            else:
-                return False, "ComfyUI-MotionDiff inference script not found", None
-
-            cmd = [
-                sys.executable, script,
-                "--text", prompt,
-                "--output_dir", output_dir,
-            ]
-            try:
-                result = subprocess.run(
-                    cmd, cwd=comfyui_md_path,
-                    capture_output=True, text=True, timeout=600
-                )
-            except subprocess.TimeoutExpired:
-                return False, "ComfyUI-MotionDiff timed out (10 min).", None
-
-            if result.returncode != 0:
-                return False, f"ComfyUI-MotionDiff failed:\n{result.stderr}", None
-
-            for ext in ("*.bvh", "*.npy", "*.npz", "*.fbx"):
-                hits = _glob.glob(os.path.join(output_dir, ext))
-                if hits:
-                    return True, f"Motion generated at {hits[0]}", hits[0]
-            return True, f"Motion generated in {output_dir}", output_dir
-
-        return False, f"Unknown motion generation system: {system}", None
+                        return False, "No motion generation system available. Install one using 'Show Installation Info'", None
+        
+        # This is a placeholder for actual integration
+        return False, f"Motion generation integration in progress for {system}. Use external tools for now.", None
 
 def register():
     """Register motion generation helper functions"""
