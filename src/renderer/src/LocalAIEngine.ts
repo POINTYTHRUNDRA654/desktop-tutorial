@@ -126,91 +126,91 @@ export const LocalAIEngine = {
    * Pass `conversationHistory` (prior messages, not including the current query) to
    * maintain multi-turn conversation context.
    */
-  async generateResponse(query: string, systemInstruction: string, conversationHistory?: Array<{role: 'user' | 'assistant'; content: string}>): Promise<AIResponse> {
+  async generateResponse(query: string, systemInstruction: string, conversationHistory?: Array<{ role: 'user' | 'assistant'; content: string }>): Promise<AIResponse> {
     const localStatus = await this.getLocalProviderStatus();
     const localSettings = await this.getLocalAiSettings();
-    
+
     // --- SELF-IMPROVEMENT: Include learning insights ---
     let enhancedSystemInstruction = systemInstruction;
     const learningInsights = selfImprovementEngine.getLearningInsights();
     if (learningInsights) {
       enhancedSystemInstruction += '\n\n### SELF-IMPROVEMENT INSIGHTS:\n' + learningInsights;
     }
-    
+
     // --- KNOWLEDGE & PROCESS INJECTION ---
     let injectedContext = "";
-    
+
     // Inject Process & Hardware Awareness
     const electronApiAny = (window as any).electron?.api;
     if (typeof electronApiAny?.getRunningProcesses === 'function') {
-        try {
+      try {
         const processes = await electronApiAny.getRunningProcesses();
-            const blenderLinked = localStorage.getItem('mossy_blender_active') === 'true';
-            const detectedApps = JSON.parse(localStorage.getItem('mossy_apps') || '[]');
-            const systemProfileRaw = localStorage.getItem('mossy_system_profile');
-            let userSettings: any = null;
-            
-            try {
-                if (window.electronAPI?.getSettings) {
-                    userSettings = await window.electronAPI.getSettings();
-                }
-            } catch (e) {
-                console.error('[LocalAIEngine] Failed to get settings:', e);
-            }
+        const blenderLinked = localStorage.getItem('mossy_blender_active') === 'true';
+        const detectedApps = JSON.parse(localStorage.getItem('mossy_apps') || '[]');
+        const systemProfileRaw = localStorage.getItem('mossy_system_profile');
+        let userSettings: any = null;
 
-            if (processes.length > 0 || blenderLinked || detectedApps.length > 0 || systemProfileRaw || userSettings) {
-                injectedContext += "\n### INSTALLED SOFTWARE & CREATIVE PIPELINE:\n";
-                
-                // --- HARDWARE STATUS ---
-                if (systemProfileRaw) {
-                    const profile = JSON.parse(systemProfileRaw);
-                    injectedContext += `- [SYSTEM SCAN STATUS]: COMPLETE\n`;
-                    injectedContext += `- [HARDWARE]: ${profile.cpu}, ${profile.gpu}, ${profile.ram}GB RAM`;
-                    if (profile.vram) injectedContext += `, ${profile.vram}GB VRAM`;
-                    if (profile.motherboard) injectedContext += `, MB: ${profile.motherboard}`;
-                    if (profile.os) injectedContext += ` (${profile.os})`;
-                    injectedContext += "\n";
-                    
-                    if (profile.storageDrives && profile.storageDrives.length > 0) {
-                        injectedContext += "- [STORAGE]: " + profile.storageDrives.map((d: any) => `${d.device} (${d.free}GB/${d.total}GB)`).join(", ") + "\n";
-                    }
-                } else {
-                    injectedContext += `- [SYSTEM SCAN STATUS]: NOT PERFORMED. (Please run scan_hardware first)\n`;
-                }
-
-                if (userSettings) {
-                    injectedContext += "- [DESKTOP APPLICATIONS - CONFIGURED]:\n";
-                    if (userSettings.xeditPath) injectedContext += `  * xEdit: ${userSettings.xeditPath}\n`;
-                    if (userSettings.nifSkopePath) injectedContext += `  * NifSkope: ${userSettings.nifSkopePath}\n`;
-                    if (userSettings.creationKitPath) injectedContext += `  * Creation Kit: ${userSettings.creationKitPath}\n`;
-                    if (userSettings.blenderPath) injectedContext += `  * Blender: ${userSettings.blenderPath}\n`;
-                    if (userSettings.mo2Path) injectedContext += `  * Mod Organizer 2: ${userSettings.mo2Path}\n`;
-                    if (userSettings.vortexPath) injectedContext += `  * Vortex: ${userSettings.vortexPath}\n`;
-                }
-
-                if (blenderLinked) injectedContext += "- [STATUS] Blender Neural Link: ACTIVE\n";
-                
-                if (detectedApps.length > 0) {
-                    injectedContext += "- [AUTOMATICALLY DETECTED TOOLS]:\n";
-                    detectedApps.forEach((a: any) => {
-                        injectedContext += `  * ${a.name} (Path: ${a.path})\n`;
-                    });
-                }
-
-                if (processes.length > 0) {
-                    injectedContext += "- [RUNNING NOW (SYSTEM PROCESSES)]: " + processes.map((p: any) => `${p.name} (Active Application)`).join(", ") + "\n";
-                }
-                injectedContext += "\n";
-            }
+        try {
+          if (window.electronAPI?.getSettings) {
+            userSettings = await window.electronAPI.getSettings();
+          }
         } catch (e) {
-            console.error('[LocalAIEngine] Hardware/software context injection error:', e);
+          console.error('[LocalAIEngine] Failed to get settings:', e);
         }
+
+        if (processes.length > 0 || blenderLinked || detectedApps.length > 0 || systemProfileRaw || userSettings) {
+          injectedContext += "\n### INSTALLED SOFTWARE & CREATIVE PIPELINE:\n";
+
+          // --- HARDWARE STATUS ---
+          if (systemProfileRaw) {
+            const profile = JSON.parse(systemProfileRaw);
+            injectedContext += `- [SYSTEM SCAN STATUS]: COMPLETE\n`;
+            injectedContext += `- [HARDWARE]: ${profile.cpu}, ${profile.gpu}, ${profile.ram}GB RAM`;
+            if (profile.vram) injectedContext += `, ${profile.vram}GB VRAM`;
+            if (profile.motherboard) injectedContext += `, MB: ${profile.motherboard}`;
+            if (profile.os) injectedContext += ` (${profile.os})`;
+            injectedContext += "\n";
+
+            if (profile.storageDrives && profile.storageDrives.length > 0) {
+              injectedContext += "- [STORAGE]: " + profile.storageDrives.map((d: any) => `${d.device} (${d.free}GB/${d.total}GB)`).join(", ") + "\n";
+            }
+          } else {
+            injectedContext += `- [SYSTEM SCAN STATUS]: NOT PERFORMED. (Please run scan_hardware first)\n`;
+          }
+
+          if (userSettings) {
+            injectedContext += "- [DESKTOP APPLICATIONS - CONFIGURED]:\n";
+            if (userSettings.xeditPath) injectedContext += `  * xEdit: ${userSettings.xeditPath}\n`;
+            if (userSettings.nifSkopePath) injectedContext += `  * NifSkope: ${userSettings.nifSkopePath}\n`;
+            if (userSettings.creationKitPath) injectedContext += `  * Creation Kit: ${userSettings.creationKitPath}\n`;
+            if (userSettings.blenderPath) injectedContext += `  * Blender: ${userSettings.blenderPath}\n`;
+            if (userSettings.mo2Path) injectedContext += `  * Mod Organizer 2: ${userSettings.mo2Path}\n`;
+            if (userSettings.vortexPath) injectedContext += `  * Vortex: ${userSettings.vortexPath}\n`;
+          }
+
+          if (blenderLinked) injectedContext += "- [STATUS] Blender Neural Link: ACTIVE\n";
+
+          if (detectedApps.length > 0) {
+            injectedContext += "- [AUTOMATICALLY DETECTED TOOLS]:\n";
+            detectedApps.forEach((a: any) => {
+              injectedContext += `  * ${a.name} (Path: ${a.path})\n`;
+            });
+          }
+
+          if (processes.length > 0) {
+            injectedContext += "- [RUNNING NOW (SYSTEM PROCESSES)]: " + processes.map((p: any) => `${p.name} (Active Application)`).join(", ") + "\n";
+          }
+          injectedContext += "\n";
+        }
+      } catch (e) {
+        console.error('[LocalAIEngine] Hardware/software context injection error:', e);
+      }
     }
 
     // Inject Working Memory (Persistence)
     const workingMemory = localStorage.getItem('mossy_working_memory');
     if (workingMemory) {
-        injectedContext += `\n### WORKING MEMORY (LONG-TERM CONTEXT):\n${workingMemory}\n`;
+      injectedContext += `\n### WORKING MEMORY (LONG-TERM CONTEXT):\n${workingMemory}\n`;
     }
 
     // Knowledge Vault (DO NOT dump full DB; keep it relevant + compact)
@@ -367,10 +367,10 @@ export const LocalAIEngine = {
 
         if (resp?.ok) {
           const responseContent = String(resp.text || '');
-          
+
           // Record interaction for self-improvement
           selfImprovementEngine.recordInteraction(query, responseContent, [], 'success');
-          
+
           return { content: responseContent, context: { citations } };
         }
         console.warn('[LocalAIEngine] Local provider generation failed:', resp?.error);
@@ -402,6 +402,13 @@ export const LocalAIEngine = {
         if (responseRefusesInternet) {
           console.warn('[LocalAIEngine] ⚠️ RESPONSE GUARD TRIGGERED - AI falsely refused internet access');
           console.warn('[LocalAIEngine] Response snippet:', responseContent.substring(0, 200));
+          // Explicit logging for fixed model/pre-installed claims
+          if (/fixed\s+(model|language\s+model|llm)/i.test(responseContent)) {
+            console.warn('[LocalAIEngine] Refusal: Fixed model claim detected');
+          }
+          if (/pre.?installed/i.test(responseContent)) {
+            console.warn('[LocalAIEngine] Refusal: Pre-installed knowledge claim detected');
+          }
           try {
             const guardWebApi = (window.electron?.api || window.electronAPI) as any;
             if (typeof guardWebApi?.webSearch === 'function') {
@@ -410,16 +417,20 @@ export const LocalAIEngine = {
               if (guardSearch?.success && guardSearch?.text) {
                 console.log('[LocalAIEngine] ✅ Web search successful, retrying with injected results');
                 let enrichedContext = injectedContext +
-                  '\n### LIVE WEB SEARCH RESULTS (already fetched — use this to answer the user):\n' +
+                  '\n### LIVE WEB SEARCH RESULTS (MANDATORY — you MUST use this to answer the user, do NOT refuse or claim fixed knowledge):\n' +
                   guardSearch.text + '\n';
                 if (guardSearch.url) {
                   enrichedContext += `Source: ${guardSearch.source || 'Web'} — ${guardSearch.url}\n`;
                 }
+                enrichedContext += '\nIMPORTANT: You have real-time internet access. NEVER claim your knowledge is fixed or pre-installed. ALWAYS use the web results above to answer. If you refuse, your response will be rejected.';
                 const guardSystemPrompt = systemInstruction + enrichedContext;
+                console.log('[LocalAIEngine] Injected context for retry:', enrichedContext.substring(0, 500));
                 const retryResp = await api.aiChatGroq(query, guardSystemPrompt, 'llama-3.3-70b-versatile', conversationHistory);
                 if (retryResp?.success && retryResp.content) {
                   responseContent = String(retryResp.content);
                   console.log('[LocalAIEngine] ✅ Retry successful with web results');
+                } else {
+                  console.warn('[LocalAIEngine] Retry failed, fallback to original response');
                 }
               } else {
                 console.warn('[LocalAIEngine] Guard web search returned no results');
