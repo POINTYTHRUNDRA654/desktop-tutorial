@@ -42,6 +42,13 @@ ADDON_FILES = [
     "advisor_helpers.py",
     "mossy_link.py",
     "knowledge_helpers.py",
+    "post_processing_helpers.py",
+    "fo4_material_browser.py",
+    "fo4_scene_diagnostics.py",
+    "fo4_reference_helpers.py",
+    "papyrus_helpers.py",
+    "fo4_physics_helpers.py",
+    "mod_packaging_helpers.py",
 
     # Asset browsers / importers
     "asset_ripper_helpers.py",

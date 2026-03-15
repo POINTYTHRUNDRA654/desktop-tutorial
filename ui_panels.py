@@ -606,6 +606,8 @@ class FO4_PT_ToolsLinks(Panel):
         op.optional = True
         box.operator("fo4.install_all_tools", text="Install All Tools", icon='PACKAGE')
         box.operator("fo4.self_test", text="Run Environment Self-Test", icon='CHECKMARK')
+        row = layout.row()
+        row.operator("fo4.reload_addon", text="Restart Blender", icon='QUIT')
 
 class FO4_PT_ExportPanel(Panel):
     """Export panel for Fallout 4"""
