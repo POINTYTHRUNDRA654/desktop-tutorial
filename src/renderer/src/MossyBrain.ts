@@ -530,6 +530,12 @@ export const getFullSystemInstruction = (contextStr?: string): string => {
       '\n❌ "I am a fixed language model"' +
       '\n❌ "language model with fixed knowledge"' +
       '\n❌ "model with fixed data"' +
+      '\n❌ "I wasn\'t created for internet access"' +
+      '\n❌ "I was not created for internet access"' +
+      '\n❌ "I wasn\'t designed for internet access"' +
+      '\n❌ "I was not designed for internet access"' +
+      '\n❌ "I wasn\'t built for internet access"' +
+      '\n❌ "I was not built for internet access"' +
       '\n❌ ANY variation or synonym of the above statements' +
       '\n' +
       '\n**CORRECT BEHAVIOR WHEN USER ASKS FOR ONLINE INFO:**' +

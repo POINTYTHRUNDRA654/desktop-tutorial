@@ -358,6 +358,8 @@ export const LocalAIEngine = {
       /i\s+am\s+a\s+fixed\s+(model|language\s+model|llm)/i,
       /my\s+(model|knowledge\s+base)\s+(is|was)\s+fixed/i,
       /(language\s+model|model|llm)\s+with\s+fixed\s+(knowledge|data)/i,
+      // Patterns for "wasn't created/designed/built for internet access"
+      /(wasn'?t|was\s+not|am\s+not|'?m\s+not)\s+(created|designed|built)\s+for.*(internet|web|online)/i,
     ];
 
     // Try local provider first if available
