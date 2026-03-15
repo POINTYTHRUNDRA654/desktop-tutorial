@@ -1,0 +1,293 @@
+#!/bin/bash
+# Quick reference card for setup commands
+
+cat << 'EOF'
+╔════════════════════════════════════════════════════════════════╗
+║        Fallout 4 Blender Add-on - Quick Setup Reference        ║
+╚════════════════════════════════════════════════════════════════╝
+
+═══════════════════════════════════════════════════════════════
+📦 BASIC SETUP
+═══════════════════════════════════════════════════════════════
+
+macOS - Install Homebrew:
+  /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+
+All Platforms - Upgrade pip:
+  pip3 install --upgrade pip setuptools
+
+macOS/Linux - Run setup script:
+  ./setup.sh
+
+Windows - Run setup script:
+  setup.bat
+
+External command-line tools (ffmpeg, NVTT, texconv, whisper) are required
+for video transcription, DDS conversion, etc.  They can be installed via the
+add-on's "External Tools" panel (see next section), or downloaded manually:
+
+  • ffmpeg: https://www.gyan.dev/ffmpeg/builds/
+  • NVTT (nvcompress): https://github.com/castano/nvidia-texture-tools/releases
+  • DirectXTex (texconv): https://github.com/microsoft/DirectXTex/releases
+  • whisper CLI: pip install openai-whisper
+
+Within Blender, open the sidebar → Fallout 4 → External Tools and click
+"Install"/"Check" buttons to automatically fetch these utilities.
+
+═══════════════════════════════════════════════════════════════
+🤖 AI MODELS SETUP
+═══════════════════════════════════════════════════════════════
+
+Shap-E (Text/Image to 3D):
+  gh repo clone openai/shap-e
+  cd shap-e && pip install -e .
+
+Point-E (Fast Point Clouds):
+  gh repo clone openai/point-e
+  cd point-e && pip install -e .
+
+ComfyUI (Image Generation):
+  git clone https://github.com/comfyanonymous/ComfyUI.git
+  cd ComfyUI && pip install -r requirements.txt
+
+ComfyUI-GGUF (Efficient Models):
+  cd ComfyUI/custom_nodes
+  git clone https://github.com/city96/ComfyUI-GGUF.git
+  
+  # Standard Python:
+  cd ComfyUI-GGUF && pip install -r requirements.txt
+  
+  # Embedded Python (Windows portable):
+  cd ComfyUI
+  .\python_embeded\python.exe -s -m pip install -r .\custom_nodes\ComfyUI-GGUF\requirements.txt
+
+  # Or clone directly to correct location (one command):
+  git clone https://github.com/city96/ComfyUI-GGUF ComfyUI/custom_nodes/ComfyUI-GGUF
+
+T5 Text Encoder (GGUF - for FLUX models):
+  git clone https://huggingface.co/city96/t5-v1_1-xxl-encoder-gguf
+  # Place in ComfyUI/models/text_encoders/
+
+═══════════════════════════════════════════════════════════════
+🔧 EMBEDDED PYTHON (Windows Portable ComfyUI)
+═══════════════════════════════════════════════════════════════
+
+Install ComfyUI requirements:
+  .\python_embeded\python.exe -s -m pip install -r requirements.txt
+
+Install PyTorch (CUDA):
+  .\python_embeded\python.exe -s -m pip install torch torchvision --index-url https://download.pytorch.org/whl/cu118
+
+Install custom node dependencies:
+  .\python_embeded\python.exe -s -m pip install -r .\custom_nodes\[NODE]\requirements.txt
+
+List installed packages:
+  .\python_embeded\python.exe -m pip list
+
+Check CUDA availability:
+  .\python_embeded\python.exe -c "import torch; print(torch.cuda.is_available())"
+
+═══════════════════════════════════════════════════════════════
+📚 DOCUMENTATION FILES
+═══════════════════════════════════════════════════════════════
+
+  SETUP_GUIDE.md              - Complete setup instructions
+  INSTALLATION.md             - Add-on installation guide
+  COMFYUI_INTEGRATION.md      - ComfyUI setup and usage
+  EMBEDDED_PYTHON_GUIDE.md    - Working with embedded Python
+  SHAP_E_INTEGRATION.md       - Shap-E setup and usage
+  DESKTOP_TUTORIAL_INTEGRATION.md - Desktop app connection
+  README.md                   - Overview and features
+  QUICKSTART.md               - Quick start guide
+
+═══════════════════════════════════════════════════════════════
+🚀 QUICK START
+═══════════════════════════════════════════════════════════════
+
+1. Install Blender 3.0+
+2. Run setup script (./setup.sh or setup.bat)
+3. Open Blender → Edit → Preferences → Add-ons
+4. Click "Install" → Select add-on folder
+5. Enable "Fallout 4 Tutorial Helper"
+6. Press N in 3D viewport → Click "Fallout 4" tab
+
+═══════════════════════════════════════════════════════════════
+🎨 OPTIONAL FEATURES
+═══════════════════════════════════════════════════════════════
+
+Desktop Tutorial Server:
+  python example_tutorial_server.py
+
+ComfyUI Server:
+  cd ComfyUI
+  python main.py
+  # Or with embedded Python:
+  .\python_embeded\python.exe main.py
+
+Test Blender Integration:
+  python example_script.py
+
+═══════════════════════════════════════════════════════════════
+💡 TROUBLESHOOTING
+═══════════════════════════════════════════════════════════════
+
+Python not found:
+  macOS: brew install python3
+  Windows: Download from python.org (check "Add to PATH")
+  Linux: sudo apt install python3 python3-pip
+
+Pip upgrade fails:
+  pip3 install --user --upgrade pip setuptools
+
+ComfyUI embedded Python issues:
+  - Check python_embeded folder exists
+  - Use: .\python_embeded\python.exe -s -m pip
+  - See EMBEDDED_PYTHON_GUIDE.md
+
+Blender can't find dependencies:
+  Install in Blender's Python:
+  /path/to/blender/python/bin/python -m pip install package
+
+GPU not detected:
+  # Verify CUDA:
+  nvidia-smi
+  
+  # Reinstall PyTorch with CUDA:
+  pip install torch torchvision --index-url https://download.pytorch.org/whl/cu118
+
+═══════════════════════════════════════════════════════════════
+📞 HELP & RESOURCES
+═══════════════════════════════════════════════════════════════
+
+  GitHub: https://github.com/POINTYTHRUNDRA654/Blender-add-on.
+  Documentation: See .md files in repository
+  Blender: https://www.blender.org/
+  Python: https://www.python.org/
+
+═══════════════════════════════════════════════════════════════
+
+Version: 1.0 | Last Updated: 2026-02-17
+EOF
+
+═══════════════════════════════════════════════════════════════
+🎨 FLUX.1 MODELS (Advanced Image Generation)
+═══════════════════════════════════════════════════════════════
+
+FLUX.1-dev (Best Quality):
+  git clone https://huggingface.co/black-forest-labs/FLUX.1-dev
+  # Place in: ComfyUI/models/checkpoints/
+  # Steps: 25-35, Time: ~30-60s, VRAM: 12GB+
+
+FLUX.1-schnell (Fast Iteration):
+  git clone https://huggingface.co/black-forest-labs/FLUX.1-schnell
+  # Place in: ComfyUI/models/checkpoints/
+  # Steps: 4-8, Time: ~3-8s, VRAM: 8GB+
+
+Recommended Workflow:
+  1. Use FLUX.1-schnell for rapid iteration (50+ tests)
+  2. Select best concepts
+  3. Use FLUX.1-dev for final high-quality renders
+
+
+Stable Diffusion 3.5 Large (Balanced):
+  git clone https://huggingface.co/stabilityai/stable-diffusion-3.5-large
+  # Place in: ComfyUI/models/checkpoints/
+  # Steps: 20-30, Time: ~15-30s, VRAM: 8GB+
+  # Good balance of quality and speed
+
+Model Selection Guide:
+  - Ultra-fast iteration: FLUX.1-schnell (4 steps)
+  - Balanced quality/speed: SD 3.5 Large (20-30 steps)
+  - Maximum quality: FLUX.1-dev (25-35 steps)
+  - Budget hardware: SD 1.5 (20-30 steps, 4GB VRAM)
+
+
+Stable Diffusion 3.5 Medium (Budget-Friendly):
+  git clone https://huggingface.co/stabilityai/stable-diffusion-3.5-medium
+  # Place in: ComfyUI/models/checkpoints/
+  # Steps: 20-30, Time: ~10-20s, VRAM: 6GB+
+  # Good quality, smaller model, faster
+
+Complete Model Lineup:
+  Highest Quality → FLUX.1-dev (12GB VRAM)
+  Fast Iteration → FLUX.1-schnell (8GB VRAM)
+  Balanced → SD 3.5 Large (8GB VRAM)
+  Budget-Friendly → SD 3.5 Medium (6GB VRAM)
+  Maximum Speed → SD 1.5 (4GB VRAM)
+
+
+═══════════════════════════════════════════════════════════════
+🔌 COMFYUI EXTENSIONS (Custom Nodes)
+═══════════════════════════════════════════════════════════════
+
+Essential Extensions:
+  cd ComfyUI/custom_nodes
+  
+  # ComfyUI Manager (must-have!)
+  git clone https://github.com/ltdrdata/ComfyUI-Manager.git
+  
+  # ComfyUI-GGUF (efficient models)
+  git clone https://github.com/city96/ComfyUI-GGUF.git
+  
+  # Custom Scripts (UI improvements)
+  git clone https://github.com/pythongosssss/ComfyUI-Custom-Scripts.git
+  
+  # Z-Tipo Extension (quality improvements)
+  git clone https://github.com/KohakuBlueleaf/z-tipo-extension.git
+  
+  # IPAdapter_plus (image prompting & style transfer)
+  git clone https://github.com/cubiq/ComfyUI_IPAdapter_plus.git
+  
+  # T2I-Adapter (efficient control: depth/sketch/pose)
+  cd ../models/t2i_adapter
+  git clone https://huggingface.co/TencentARC/t2i-adapter-depth-midas-sdxl-1.0
+  cd ../../custom_nodes
+  
+  # Hotshot-XL (animated GIFs & videos)
+  git clone https://github.com/kijai/ComfyUI-HotshotXL.git
+
+Benefits:
+  - Manager: Install extensions from UI
+  - GGUF: Use quantized models (less VRAM)
+  - Custom Scripts: Better UX, autocomplete, history
+  - Z-Tipo: Better type handling, quality boost
+  - IPAdapter: Image-based conditioning, style consistency
+  - T2I-Adapter: Efficient control (depth/sketch/pose), less VRAM than ControlNet
+  - Hotshot-XL: Generate animated GIFs for holotapes, UI elements, effects
+
+
+═══════════════════════════════════════════════════════════════
+🖼️ SD WEBUI (AUTOMATIC1111) - Alternative to ComfyUI
+═══════════════════════════════════════════════════════════════
+
+Installation:
+  git clone https://github.com/AUTOMATIC1111/stable-diffusion-webui.git
+  cd stable-diffusion-webui
+  
+  # Windows:
+  webui-user.bat
+  
+  # Linux/macOS:
+  ./webui.sh
+  
+  # Access: http://localhost:7860
+
+SD WebUI vs ComfyUI:
+  - SD WebUI: Form-based, easy, beginner-friendly
+  - ComfyUI: Node-based, advanced, for complex workflows
+  
+  Recommendation: Install BOTH!
+  - Use SD WebUI for quick texture generation
+  - Use ComfyUI for complex multi-step workflows
+
+Popular Extensions:
+  - ControlNet (guided generation)
+  - Ultimate SD Upscale (high-quality upscaling)
+  - Additional Networks (LoRA support)
+
+Performance Args:
+  --lowvram       # 4-6GB VRAM
+  --medvram       # 6-8GB VRAM
+  --xformers      # Faster, less VRAM
+  --api           # Enable REST API
+

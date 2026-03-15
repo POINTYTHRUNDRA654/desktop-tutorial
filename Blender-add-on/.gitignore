@@ -1,0 +1,73 @@
+# Python
+# Blender files
+*.blend1
+*.blend2
+*.blend@
+
+# Python cache
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# Distribution / packaging
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Virtual Environment
+venv/
+ENV/
+env/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Blender
+*.blend1
+*.blend2
+*.blend@
+
+# OS
+# OS files
+.DS_Store
+Thumbs.db
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+/tmp/
+*.tmp
+*.bak
+
+# External tool repositories/downloads
+/tools/ffmpeg/
+/tools/whisper/
+/tools/umodel_tools/
+/tools/Blender-UE4-Importer/
+/tools/UnityFBX-To-Blender-Importer/
+/tools/nvtt/
+/tools/texconv/

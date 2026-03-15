@@ -1,0 +1,29 @@
+# Optional Dependencies for AI/ML Features
+# Install these only if you want to use AI-powered 3D generation features
+
+# PyTorch - Required for most AI models
+torch>=2.0.0
+torchvision>=0.15.0
+
+# Image processing for AI models
+Pillow>=9.0.0
+
+# Numerical operations
+numpy>=1.21.0
+
+# 3D processing
+trimesh>=3.20.0
+
+# HTTP/API interactions
+requests>=2.27.0
+
+# PDF parsing for advisor knowledge ingestion (optional)
+PyPDF2>=3.0.0
+
+# Gradio for web interfaces (optional)
+gradio>=3.35.0
+
+# Note: For specific AI models, additional installation is needed:
+# - Shap-E: gh repo clone openai/shap-e && cd shap-e && pip install -e .
+# - Point-E: gh repo clone openai/point-e && cd point-e && pip install -e .
+# - Other models: See RECOMMENDED_RESOURCES.md for installation instructions

@@ -1,0 +1,17 @@
+# Core Python Dependencies for Fallout 4 Blender Add-on
+# These are the minimal dependencies needed for basic functionality
+
+# Image processing
+Pillow>=9.0.0
+
+# Numerical operations
+numpy>=1.21.0
+
+# HTTP requests (for desktop tutorial app integration)
+requests>=2.27.0
+
+# JSON handling (usually built-in, but good to specify)
+# json (built-in)
+
+# Note: Blender includes many Python packages by default
+# This file lists external dependencies that may need installation
