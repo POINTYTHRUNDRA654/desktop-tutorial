@@ -8050,7 +8050,7 @@ class FO4_OT_ImportUnityAsset(Operator):
         results.sort(key=lambda r: (len(r.get("name", "")), len(r.get("asset_path", ""))))
         return results[0], None
 
-    def _import_asset_file(self, path: Path):
+    def _import_asset_file(self, path):
         ext = path.suffix.lower()
         if ext == ".fbx" and hasattr(bpy.ops.import_scene, "fbx"):
             bpy.ops.import_scene.fbx(filepath=str(path))
@@ -8186,7 +8186,7 @@ class FO4_OT_ImportUnrealAsset(Operator):
         results.sort(key=lambda r: (len(r.get("name", "")), len(r.get("asset_path", ""))))
         return results[0], None
 
-    def _import_asset_file(self, path: Path, asset_type: str):
+    def _import_asset_file(self, path, asset_type: str):
         ext = path.suffix.lower()
 
         # Common mesh formats
