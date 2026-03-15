@@ -116,10 +116,12 @@ are registered. No structural issues remain.
 
 Three bugs caused buttons to be missing or show as "solid black with caution symbol":
 
-1. **`FACE_MAPS` icon** (ui_panels.py, 2 occurrences): This icon was removed in
-   Blender 4.0. Its use in `layout.operator()` raised a `ValueError` mid-draw,
-   crashing the panel and making all buttons below that point disappear.
-   → Fixed: replaced with `icon='SNAP_FACE'`.
+1. **`FACE_MAPS` / `SNAP_FACE` icons** (ui_panels.py, 3 occurrences): Both icon
+   identifiers are missing in Blender 4.x/5.x. Using them in `layout.operator()`
+   raises a `ValueError` mid-draw, crashing the panel and making all buttons
+   below that point disappear.  → Fixed: replaced with safe, built-in icons
+   (`UV_FACESEL` for face-picking, `FILE_3D` for Unity assets header,
+   `CANCEL` for Stop Recording).
 
 2. **`MOD_VERTEX_WEIGHT` icon** (ui_panels.py, 1 occurrence): Replaced with the
    more reliable `icon='WPAINT_HLT'` for the Generate Wind Weights button.

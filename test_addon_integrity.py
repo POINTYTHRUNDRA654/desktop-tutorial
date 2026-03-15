@@ -2593,9 +2593,9 @@ def test_panel_draw_correctness():
     tree = ast.parse(ui_src)
 
     # 1. Check for invalid/removed Blender icons
-    # FACE_MAPS was removed in Blender 4.0 when the Face Maps feature was removed.
-    # Using it in layout.operator() raises ValueError and crashes the panel draw.
-    removed_icons = ['FACE_MAPS']
+    # These icon identifiers are missing on Blender 4.x/5.x. Using them in
+    # layout.operator()/label raises ValueError and crashes the panel draw.
+    removed_icons = ['FACE_MAPS', 'SNAP_FACE', 'SNAP_FACE_CENTER']
     for icon in removed_icons:
         ck(
             f"No removed icon '{icon}' in ui_panels.py",

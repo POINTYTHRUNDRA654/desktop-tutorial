@@ -176,14 +176,15 @@ Allowed actions (same set as `apply_quick_fix`):
 Three bugs caused the "buttons missing or solid-black with caution symbol" problem
 the user reported:
 
-### Fix A — `FACE_MAPS` icon removed in Blender 4.0 (ui_panels.py)
-- **Problem:** The `FACE_MAPS` icon is used twice in `ui_panels.py` (lines for
-  "Pick Faces to Unwrap" in both the unified and non-unified mesh panel layouts).
-  In Blender 4.0, the Face Maps feature was removed entirely, and the `FACE_MAPS`
-  icon was removed with it.  Calling `layout.operator(…, icon='FACE_MAPS')` raises
-  a `ValueError` at draw time, which **crashes the panel mid-draw** — every button
-  after that line is never rendered and appears "missing" to the user.
-- **Fix:** Replaced `icon='FACE_MAPS'` with `icon='SNAP_FACE'` in both occurrences.
+### Fix A — `FACE_MAPS` / `SNAP_FACE` icons invalid on Blender 4.x/5.x (ui_panels.py)
+- **Problem:** The `FACE_MAPS` icon (used in the UV face-pick buttons) was removed
+  in Blender 4.0. The attempted replacement `SNAP_FACE` is also absent on Blender
+  4.x/5.x. Using either icon in `layout.operator()` raises a `ValueError` at draw
+  time, which **crashes the panel mid-draw** — every button after that line is
+  never rendered and appears "missing" to the user.
+- **Fix:** Replaced all affected icons with built-in, version-stable options:
+  `UV_FACESEL` for the face-pick buttons, `FILE_3D` for the Unity Assets header,
+  and `CANCEL` for the Stop Recording button.
 
 ### Fix B — `MOD_VERTEX_WEIGHT` icon replaced for safety (ui_panels.py)
 - **Problem:** The "Generate Wind Weights" button used `icon='MOD_VERTEX_WEIGHT'`.
