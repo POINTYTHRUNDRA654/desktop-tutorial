@@ -294,6 +294,13 @@ class PointEHelpers:
         return result
 
     @staticmethod
+    def peek_cached_installation():
+        """Return cached installation status without performing a new check."""
+        if PointEHelpers._cache is None:
+            return None, "Status not checked (click Check Installation)"
+        return PointEHelpers._cache
+
+    @staticmethod
     def _is_point_e_installed_uncached():
         """Perform the actual (uncached) Point-E installation check."""
         try:

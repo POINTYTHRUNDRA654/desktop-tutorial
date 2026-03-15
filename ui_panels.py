@@ -799,30 +799,38 @@ class FO4_PT_AIGenerationPanel(Panel):
         layout = self.layout
         scene = context.scene
 
-        # Check if Hunyuan3D is available
-        is_available = hunyuan3d_helpers.Hunyuan3DHelpers.is_available() if hunyuan3d_helpers else False
+        # Check cached Hunyuan3D status (avoid heavy imports in draw)
+        if hunyuan3d_helpers and hasattr(hunyuan3d_helpers, "get_cached_availability"):
+            hun_status, hun_msg = hunyuan3d_helpers.get_cached_availability()
+        else:
+            hun_status, hun_msg = None, "Hunyuan3D-2 status unavailable"
         
         # Status box
         status_box = layout.box()
-        if is_available:
+        if hun_status is True:
             status_box.label(text="Status: Available ✓", icon='CHECKMARK')
-        else:
+        elif hun_status is False:
             status_box.label(text="Status: Not Installed ✗", icon='ERROR')
+        else:
+            status_box.label(text="Status: Not checked", icon='INFO')
+            status_box.label(text="Click Check Status to refresh", icon='DOT')
         
+        status_box.label(text=hun_msg, icon='INFO')
         status_box.operator("fo4.install_hunyuan3d", text="Auto-Install Hunyuan3D-2", icon='IMPORT')
+        status_box.operator("fo4.check_hunyuan3d_status", text="Check Status", icon='FILE_REFRESH')
         status_box.operator("fo4.show_hunyuan3d_info", text="Manual Instructions", icon='INFO')
         
         # AI Generation operators (enabled only if available)
         box = layout.box()
         box.label(text="Text to 3D", icon='FILE_TEXT')
         row = box.row()
-        row.enabled = is_available
+        row.enabled = hun_status is True
         row.operator("fo4.generate_mesh_from_text", text="Generate from Text", icon='OUTLINER_OB_FONT')
         
         box = layout.box()
         box.label(text="Image to 3D (Full Model)", icon='IMAGE_DATA')
         row = box.row()
-        row.enabled = is_available
+        row.enabled = hun_status is True
         row.operator("fo4.generate_mesh_from_image_ai", text="Generate from Image (AI)", icon='MESH_ICOSPHERE')
         
         # Info box
@@ -878,7 +886,7 @@ class FO4_PT_AIGenerationPanel(Panel):
         shap_e_box = layout.box()
         shap_e_box.label(text="Shap-E (Text/Image to 3D)", icon='MESH_ICOSPHERE')
 
-        shap_e_installed, shap_e_msg = shap_e_helpers.ShapEHelpers.is_shap_e_installed() if (shap_e_helpers and hasattr(shap_e_helpers, 'ShapEHelpers')) else (False, "")
+        shap_e_installed, shap_e_msg = shap_e_helpers.ShapEHelpers.peek_cached_installation() if (shap_e_helpers and hasattr(shap_e_helpers, 'ShapEHelpers')) else (None, "Status unavailable")
 
         if shap_e_installed:
             shap_e_box.label(text="Status: Installed ✓", icon='CHECKMARK')
@@ -896,7 +904,7 @@ class FO4_PT_AIGenerationPanel(Panel):
             image_box.label(text="Image to 3D:", icon='IMAGE_DATA')
             image_box.prop(scene, "fo4_shap_e_image_path", text="")
             image_box.operator("fo4.generate_shap_e_image", text="Generate from Image", icon='TEXTURE')
-        else:
+        elif shap_e_installed is False:
             shap_e_box.label(text="Status: Not Installed ✗", icon='ERROR')
 
             if "Windows path length error" in shap_e_msg:
@@ -905,6 +913,9 @@ class FO4_PT_AIGenerationPanel(Panel):
             else:
                 shap_e_box.operator("fo4.install_shap_e", text="Auto-Install Shap-E", icon='IMPORT')
                 shap_e_box.operator("fo4.show_shap_e_info", text="Manual Instructions", icon='INFO')
+        else:
+            shap_e_box.label(text="Status: Not checked", icon='INFO')
+            shap_e_box.label(text="Click Check Installation to refresh", icon='DOT')
 
         shap_e_box.operator("fo4.check_shap_e_installation", text="Check Installation", icon='SYSTEM')
 
@@ -913,7 +924,7 @@ class FO4_PT_AIGenerationPanel(Panel):
         point_e_box = layout.box()
         point_e_box.label(text="Point-E (Text/Image to Point Cloud)", icon='OUTLINER_OB_POINTCLOUD')
 
-        point_e_installed, point_e_msg = point_e_helpers.PointEHelpers.is_point_e_installed() if (point_e_helpers and hasattr(point_e_helpers, 'PointEHelpers')) else (False, "")
+        point_e_installed, point_e_msg = point_e_helpers.PointEHelpers.peek_cached_installation() if (point_e_helpers and hasattr(point_e_helpers, 'PointEHelpers')) else (None, "Status unavailable")
 
         if point_e_installed:
             point_e_box.label(text="Status: Installed ✓", icon='CHECKMARK')
@@ -935,7 +946,7 @@ class FO4_PT_AIGenerationPanel(Panel):
             image_box.prop(scene, "fo4_point_e_grid_size")
             image_box.prop(scene, "fo4_point_e_inference_steps")
             image_box.operator("fo4.generate_point_e_image", text="Generate from Image", icon='TEXTURE')
-        else:
+        elif point_e_installed is False:
             point_e_box.label(text="Status: Not Installed ✗", icon='ERROR')
 
             if "Windows path length error" in point_e_msg:
@@ -944,6 +955,9 @@ class FO4_PT_AIGenerationPanel(Panel):
             else:
                 point_e_box.operator("fo4.install_point_e", text="Auto-Install Point-E", icon='IMPORT')
                 point_e_box.operator("fo4.show_point_e_info", text="Manual Instructions", icon='INFO')
+        else:
+            point_e_box.label(text="Status: Not checked", icon='INFO')
+            point_e_box.label(text="Click Check Installation to refresh", icon='DOT')
 
         point_e_box.operator("fo4.check_point_e_installation", text="Check Installation", icon='SYSTEM')
 

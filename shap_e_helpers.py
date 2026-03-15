@@ -169,6 +169,13 @@ class ShapEHelpers:
         return result
 
     @staticmethod
+    def peek_cached_installation():
+        """Return cached installation status without performing a new check."""
+        if ShapEHelpers._cache is None:
+            return None, "Status not checked (click Check Installation)"
+        return ShapEHelpers._cache
+
+    @staticmethod
     def _is_shap_e_installed_uncached():
         """Perform the actual (uncached) Shap-E installation check."""
         try:

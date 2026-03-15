@@ -75,6 +75,13 @@ def clear_availability_cache():
     _hunyuan_availability_cache_time = 0.0
 
 
+def get_cached_availability() -> tuple[bool | None, str]:
+    """Return cached availability without performing filesystem/torch checks."""
+    if _hunyuan_availability_cache is None:
+        return None, "Status not checked (click Check Status)"
+    return _hunyuan_availability_cache
+
+
 def check_hunyuan3d_availability():
     """
     Check if Hunyuan3D-2 is installed and available.
