@@ -98,6 +98,8 @@ _PERSISTENT = (
     "fo4_torch_root",
     "fo4_kb_enabled",
     "fo4_kb_path",
+    "fo4_auto_check_updates",
+    "fo4_auto_install_updates",
 )
 
 
@@ -632,6 +634,19 @@ _PROPS: list[tuple[str, object]] = [
         name="KB Folder",
         description="Custom folder of .txt / .md files to feed the advisor",
         default="", subtype='DIR_PATH', update=_on_change)),
+
+    # ── Auto-update ───────────────────────────────────────────────────────────
+    ("fo4_auto_check_updates", bpy.props.BoolProperty(
+        name="Auto-check for Updates",
+        description="Automatically check GitHub for a newer add-on version on Blender startup",
+        default=True, update=_on_change)),
+    ("fo4_auto_install_updates", bpy.props.BoolProperty(
+        name="Auto-install Updates",
+        description=(
+            "Automatically download and install updates when found. "
+            "Blender must be restarted for the update to take effect."
+        ),
+        default=False, update=_on_change)),
 ]
 
 _registered_props: list[str] = []
