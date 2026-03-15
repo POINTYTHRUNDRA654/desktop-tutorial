@@ -221,7 +221,7 @@ class ModPackager:
         xsi:noNamespaceSchemaLocation="http://qconsulting.ca/fo3/ModConfig5.0.xsd">
 
     <moduleName>{_xml_esc(name)}</moduleName>
-    {f'<moduleImage path="fomod\\{_xml_esc(image)}" />' if image else '<!-- <moduleImage path="fomod\\screenshot.png" /> -->'}
+    {f'<moduleImage path="fomod/{_xml_esc(image)}" />' if image else '<!-- <moduleImage path="fomod/screenshot.png" /> -->'}
 
     <requiredInstallFiles>
         <!--

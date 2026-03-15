@@ -664,11 +664,10 @@ class FO4_OT_ImageToMesh(Operator):
             data,
             width,
             height,
-            self.mesh_width,
-            self.mesh_height,
-            self.displacement_strength,
-            subdivs
-        )
+            import bpy
+            from bpy.types import Operator
+            from bpy.props import StringProperty, EnumProperty, IntProperty, FloatProperty, BoolProperty
+            from . import mesh_helpers, texture_helpers, export_helpers, notification_system
         
         if success:
             self.report({'INFO'}, f"Created mesh from image: {result.name}")
@@ -2703,6 +2702,7 @@ class FO4_OT_ShowInstantNGPInfo(Operator):
         
         if success:
             self.report({'INFO'}, "Instant-NGP is available")
+            pass
             print("\n" + "="*70)
             print("INSTANT-NGP STATUS")
             print("="*70)

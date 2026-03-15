@@ -125,9 +125,9 @@ class FO4_PT_ImageToMeshPanel(Panel):
         
         depth_box.operator("fo4.show_zoedepth_info", text="Installation Info", icon='INFO')
         
-        # Info box
-        info_box = layout.box()
-        info_box.label(text="Quick Guide:", icon='INFO')
+        import bpy
+        from bpy.types import Panel
+        from . import preferences
         info_box.label(text="• Height Map: Grayscale images")
         info_box.label(text="• ZoeDepth: RGB images (AI depth)")
         info_box.label(text="• Formats: PNG, JPG, BMP, TIFF, TGA")
