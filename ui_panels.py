@@ -125,9 +125,9 @@ class FO4_PT_ImageToMeshPanel(Panel):
         
         depth_box.operator("fo4.show_zoedepth_info", text="Installation Info", icon='INFO')
         
-        import bpy
-        from bpy.types import Panel
-        from . import preferences
+        # Info box
+        info_box = layout.box()
+        info_box.label(text="Quick Guide:", icon='INFO')
         info_box.label(text="• Height Map: Grayscale images")
         info_box.label(text="• ZoeDepth: RGB images (AI depth)")
         info_box.label(text="• Formats: PNG, JPG, BMP, TIFF, TGA")
@@ -606,6 +606,8 @@ class FO4_PT_ToolsLinks(Panel):
         op.optional = True
         box.operator("fo4.install_all_tools", text="Install All Tools", icon='PACKAGE')
         box.operator("fo4.self_test", text="Run Environment Self-Test", icon='CHECKMARK')
+        row = layout.row()
+        row.operator("fo4.reload_addon", text="Restart Blender", icon='QUIT')
 
 class FO4_PT_ExportPanel(Panel):
     """Export panel for Fallout 4"""

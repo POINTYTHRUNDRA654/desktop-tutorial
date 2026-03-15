@@ -4,17 +4,15 @@
 
 **✅ Compatible with Blender 2.80 through 4.5.5+** (All modern versions!)
 
-## 🆕 What's New - Enhanced Features
+## 🆕 What's New - Enhanced Features!
 
 This add-on has been significantly enhanced to be more:
-
 - **Comprehensive**: Complete workflows for weapons, armor, and props
 - **Advanced**: 70+ operators including AI/ML integrations
 - **User-Friendly**: Smart presets, batch processing, and automation tools
 - **Automated**: One-click preparation, auto-fixing, and smart material setup
 
-### Key New Features
-
+### Key New Features:
 - ✅ **Batch Processing**: Process multiple meshes at once
 - ✅ **Smart Presets**: Quick-start templates for weapons, armor, and props
 - ✅ **One-Click Automation**: Quick prepare for export, auto-fix issues
@@ -39,26 +37,6 @@ See [NEW_FEATURES.md](NEW_FEATURES.md) for detailed information about all enhanc
 - **UI Panel**: Easy-to-use sidebar panel in Blender's 3D viewport
 
 ## Installation
-
-### PyNifly V25.5 (HKX Animation Support)
-
-This add-on supports both the legacy and new PyNifly versions. To use the latest features (including native HKX animation import/export):
-
-1. Download PyNifly V25.5: <https://github.com/BadDogSkyrim/PyNifly/releases/tag/V25.5>
-2. Extract and rename the folder to `pynifly_v255` in your add-on directory.
-3. In your scripts, use:
-
-   ```python
-   import pynifly_v255 as pynifly_new
-   # Use pynifly_new.import_hkx(), pynifly_new.export_hkx(), etc.
-   ```
-
-4. The old version remains available as `pynifly` for legacy workflows.
-
-#### Credits
-
-- **HKX Animation Support:** Major credit to DagobaKing and PredatorCZ for their work on the HKX format.
-- See the [PyNifly V25.5 release](https://github.com/BadDogSkyrim/PyNifly/releases/tag/V25.5) for full details and documentation.
 
 1. Download or clone this repository
 2. Open Blender
@@ -151,18 +129,15 @@ Blender-add-on/
 ## Troubleshooting
 
 ### Add-on won't enable
-
 - Make sure you're using Blender 2.80 or higher
 - Check the Blender console for error messages
 
 ### Cannot connect to tutorial app
-
 - Verify the tutorial app is running
 - Check the host and port settings in add-on preferences
 - Ensure no firewall is blocking the connection
 
 ### Panel not visible
-
 - Press `N` in the 3D Viewport to show the sidebar
 - Look for the "Tutorial" tab
 
@@ -177,7 +152,6 @@ Contributions are welcome! Please feel free to submit pull requests or open issu
 ## Support
 
 For issues or questions, please open an issue on the GitHub repository.
-
 # Blender Fallout 4 Tutorial Add-on
 
 A comprehensive Blender add-on that provides a desktop tutorial system and helper tools for creating Fallout 4 mods. This add-on guides you through every step of the mod creation process, from mesh creation to final export.
@@ -187,7 +161,6 @@ A comprehensive Blender add-on that provides a desktop tutorial system and helpe
 ## Features
 
 ### 🎓 Tutorial System
-
 - Interactive step-by-step tutorials for:
   - Basic mesh creation
   - Texture setup
@@ -196,14 +169,12 @@ A comprehensive Blender add-on that provides a desktop tutorial system and helpe
 - Progress tracking
 
 ### 🔔 Error Notification System
-
 - Real-time error detection
 - Automatic validation checks
 - Clear, actionable warnings
 - Helps you avoid common mistakes
 
 ### 🎨 Mesh Creation Helpers
-
 - Create FO4-optimized base meshes
 - Automatic mesh optimization
 - Poly count validation
@@ -211,7 +182,6 @@ A comprehensive Blender add-on that provides a desktop tutorial system and helpe
 - Collision mesh generation (basic geometry for Havok physics)
 
 ### 🖼️ Image to Mesh Conversion
-
 - Convert images to 3D meshes using height maps
 - **NEW**: AI-powered depth estimation with ZoeDepth (optional)
 - Support for common image formats (PNG, JPG, BMP, TIFF, TGA)
@@ -220,7 +190,6 @@ A comprehensive Blender add-on that provides a desktop tutorial system and helpe
 - Uses free resources: PIL/Pillow and NumPy
 
 ### 🤖 AI-Powered Generation (Optional)
-
 - **NEW**: Generate 3D meshes from text descriptions using AI
 - **NEW**: Create full 3D models from 2D images (not just height maps)
 - Powered by Tencent's Hunyuan3D-2 model
@@ -229,7 +198,6 @@ A comprehensive Blender add-on that provides a desktop tutorial system and helpe
 - See installation guide for setup instructions
 
 ### 🎬 Motion Generation (Optional)
-
 - **NEW**: Generate character animations from text descriptions
 - **NEW**: Create motion sequences using AI
 - **NEW**: Complete ComfyUI integration in Blender
@@ -246,7 +214,6 @@ A comprehensive Blender add-on that provides a desktop tutorial system and helpe
 - Completely optional feature
 
 ### 🌐 Web Interface (Optional)
-
 - **NEW**: Browser-based UI for AI generation powered by Gradio
 - Easy-to-use interface (no command-line knowledge needed)
 - Start/stop web server from Blender
@@ -255,21 +222,18 @@ A comprehensive Blender add-on that provides a desktop tutorial system and helpe
 - Completely optional - install with `pip install gradio`
 
 ### 🎨 Texture Installation
-
 - FO4-compatible material setup
 - Easy texture loading (diffuse, normal, specular)
 - Texture validation
 - Power-of-2 dimension checking
 
 ### 🎭 Animation Tools
-
 - FO4-compatible armature generation
 - Automatic weight painting
 - Animation validation
 - Bone count checking
 
 ### 🤖 Auto-Rigging with RigNet & libigl (Optional)
-
 - **NEW**: AI-powered automatic rigging for characters
 - **RigNet**: Automatically predicts skeleton structure and skinning weights
 - **libigl**: Bounded Biharmonic Weights (BBW) for automatic skinning
@@ -284,7 +248,7 @@ A comprehensive Blender add-on that provides a desktop tutorial system and helpe
 - MediaPipe enables motion capture from images/video
 - BlendArMocap integrates MediaPipe mocap into Blender workflow
 - Alternative: Use existing Blender add-ons (brignet, Rignet_blender_addon, BlendArMocap)
-- Requires:
+- Requires: 
   - RigNet: PyTorch, PyTorch Geometric, and RigNet repository
   - libigl: Python bindings (pip install libigl)
   - MediaPipe: pip install mediapipe
@@ -292,7 +256,6 @@ A comprehensive Blender add-on that provides a desktop tutorial system and helpe
 - Completely optional feature
 
 ### 📦 Export Functionality
-
 - Export to FBX (convertible to NIF)
 - Complete mod package export
 - Pre-export validation
@@ -308,7 +271,6 @@ To use the Image to Mesh functionality, you need to install the following free P
 ### Installing Dependencies
 
 **On Windows:**
-
 ```bash
 # Open command prompt as administrator
 cd "C:\Program Files\Blender Foundation\Blender X.X\X.X\python\bin"
@@ -316,7 +278,6 @@ python.exe -m pip install Pillow numpy
 ```
 
 **On macOS:**
-
 ```bash
 # Open terminal
 cd /Applications/Blender.app/Contents/Resources/X.X/python/bin
@@ -324,7 +285,6 @@ cd /Applications/Blender.app/Contents/Resources/X.X/python/bin
 ```
 
 **On Linux:**
-
 ```bash
 # Open terminal
 cd /path/to/blender/X.X/python/bin
@@ -340,7 +300,6 @@ The add-on supports AI-powered 3D generation using Tencent's Hunyuan3D-2 model. 
 ### What is Hunyuan3D-2?
 
 Hunyuan3D-2 is a powerful AI model that can:
-
 - Generate 3D meshes from text descriptions
 - Convert 2D images into full 3D models (not just height maps)
 - Create textured, game-ready assets
@@ -348,20 +307,17 @@ Hunyuan3D-2 is a powerful AI model that can:
 ### Prerequisites for AI Features
 
 **Hardware Requirements:**
-
 - NVIDIA GPU with CUDA support (8GB+ VRAM recommended)
 - 20GB+ free disk space (for models and dependencies)
 - 16GB+ RAM recommended
 
 **Software Requirements:**
-
 - PyTorch with CUDA support
 - Hunyuan3D-2 repository and model weights
 
 ### Installation Steps
 
 1. **Install PyTorch** (in Blender's Python environment):
-
 ```bash
 # Windows
 cd "C:\Program Files\Blender Foundation\Blender X.X\X.X\python\bin"
@@ -372,8 +328,7 @@ cd /path/to/blender/X.X/python/bin
 ./python3.xx -m pip install torch torchvision
 ```
 
-1. **Clone Hunyuan3D-2 repository**:
-
+2. **Clone Hunyuan3D-2 repository**:
 ```bash
 # Using GitHub CLI (recommended)
 gh repo clone Tencent-Hunyuan/Hunyuan3D-2
@@ -382,17 +337,16 @@ gh repo clone Tencent-Hunyuan/Hunyuan3D-2
 git clone https://github.com/Tencent-Hunyuan/Hunyuan3D-2.git
 ```
 
-1. **Install Hunyuan3D-2 dependencies**:
-
+3. **Install Hunyuan3D-2 dependencies**:
 ```bash
 cd Hunyuan3D-2
 pip install -r requirements.txt
 ```
 
-1. **Download model weights**:
+4. **Download model weights**:
 Follow the instructions in the Hunyuan3D-2 README to download the model weights.
 
-2. **Restart Blender**
+5. **Restart Blender**
 
 The add-on will automatically detect if Hunyuan3D-2 is installed and enable the AI features.
 
@@ -421,14 +375,12 @@ pip install gradio
 ```
 
 Then in Blender:
-
 1. Go to "AI Generation (Optional)" panel
 2. Click "Start Web UI"
-3. Open your browser to <http://localhost:7860>
+3. Open your browser to http://localhost:7860
 4. Use the web interface for AI generation
 
 **Benefits:**
-
 - No command-line knowledge required
 - User-friendly interface
 - Works on any device with a browser
@@ -441,7 +393,6 @@ For AI-powered depth estimation from RGB images, install ZoeDepth:
 ### What is ZoeDepth?
 
 ZoeDepth is a state-of-the-art monocular depth estimation model from Intel ISL that can:
-
 - Estimate depth from any RGB image without requiring stereo cameras
 - Generate high-quality depth maps for image-to-mesh conversion
 - Provide better results than simple height map extraction
@@ -450,20 +401,17 @@ ZoeDepth is a state-of-the-art monocular depth estimation model from Intel ISL t
 ### Prerequisites
 
 **Hardware Requirements:**
-
 - GPU recommended for faster inference (CPU supported)
 - 4GB+ free disk space
 - 8GB+ RAM recommended
 
 **Software Requirements:**
-
 - PyTorch
 - ZoeDepth repository
 
 ### Installation Steps
 
 1. **Install PyTorch** (in Blender's Python environment):
-
 ```bash
 # Windows
 cd "C:\Program Files\Blender Foundation\Blender X.X\X.X\python\bin"
@@ -474,8 +422,7 @@ cd /path/to/blender/X.X/python/bin
 ./python3.xx -m pip install torch torchvision
 ```
 
-1. **Clone ZoeDepth repository**:
-
+2. **Clone ZoeDepth repository**:
 ```bash
 # Using GitHub CLI (recommended)
 gh repo clone isl-org/ZoeDepth
@@ -484,14 +431,13 @@ gh repo clone isl-org/ZoeDepth
 git clone https://github.com/isl-org/ZoeDepth.git
 ```
 
-1. **Install ZoeDepth dependencies**:
-
+3. **Install ZoeDepth dependencies**:
 ```bash
 cd ZoeDepth
 pip install -r requirements.txt
 ```
 
-1. **Restart Blender**
+4. **Restart Blender**
 
 The add-on will automatically detect if ZoeDepth is installed and enable depth estimation features.
 
@@ -527,7 +473,6 @@ For state-of-the-art AI image generation, use Stable Diffusion 3.5 Large:
 ### What is Stable Diffusion 3.5 Large?
 
 Stable Diffusion 3.5 Large is Stability AI's latest and most advanced text-to-image model:
-
 - State-of-the-art image quality and prompt adherence
 - Superior text rendering and composition
 - Better understanding of complex prompts
@@ -537,13 +482,11 @@ Stable Diffusion 3.5 Large is Stability AI's latest and most advanced text-to-im
 ### Prerequisites
 
 **Hardware Requirements:**
-
 - NVIDIA GPU with 16GB+ VRAM (24GB+ recommended)
 - 30GB+ free disk space (for model weights)
 - 16GB+ system RAM
 
 **Software Requirements:**
-
 - PyTorch with CUDA support
 - Hugging Face diffusers library
 - transformers, accelerate, safetensors
@@ -553,7 +496,6 @@ Stable Diffusion 3.5 Large is Stability AI's latest and most advanced text-to-im
 **Option 1: Use via Diffusers (Recommended)**
 
 1. **Install dependencies** (in Blender's Python environment):
-
 ```bash
 # Windows
 cd "C:\Program Files\Blender Foundation\Blender X.X\X.X\python\bin"
@@ -564,8 +506,7 @@ cd /path/to/blender/X.X/python/bin
 ./python3.xx -m pip install diffusers[torch] transformers accelerate safetensors
 ```
 
-1. **Use in Python** (model downloads automatically on first use):
-
+2. **Use in Python** (model downloads automatically on first use):
 ```python
 from diffusers import StableDiffusion3Pipeline
 import torch
@@ -592,7 +533,7 @@ git clone https://huggingface.co/stabilityai/stable-diffusion-3.5-large
 huggingface-cli download stabilityai/stable-diffusion-3.5-large
 ```
 
-1. **Restart Blender**
+3. **Restart Blender**
 
 ### Using SD3.5 Large
 
@@ -640,7 +581,6 @@ huggingface-cli download stabilityai/stable-diffusion-3.5-large
 For AI-powered animation and motion generation, install HY-Motion-1.0:
 
 ### Prerequisites
-
 - git-lfs (Large File Storage)
 - PyTorch
 - Several GB of disk space
@@ -648,7 +588,6 @@ For AI-powered animation and motion generation, install HY-Motion-1.0:
 ### Installation Steps
 
 1. **Install git-lfs**:
-
 ```bash
 # Windows (with Chocolatey)
 choco install git-lfs
@@ -663,31 +602,27 @@ sudo apt-get install git-lfs
 git lfs install
 ```
 
-1. **Clone HY-Motion-1.0**:
-
+2. **Clone HY-Motion-1.0**:
 ```bash
 git clone https://github.com/Tencent-Hunyuan/HY-Motion-1.0.git
 cd HY-Motion-1.0/
 ```
 
-1. **Pull model weights with git-lfs**:
-
+3. **Pull model weights with git-lfs**:
 ```bash
 git lfs pull
 ```
 
-1. **Install dependencies**:
-
+4. **Install dependencies**:
 ```bash
 pip install -r requirements.txt
 ```
 
-1. **Restart Blender**
+5. **Restart Blender**
 
 The add-on will automatically detect HY-Motion-1.0 and enable motion features.
 
 **Features:**
-
 - Generate animations from text descriptions
 - Import motion files (.bvh, .fbx)
 - Apply motion to Blender armatures
@@ -700,14 +635,12 @@ For AI-powered automatic rigging of characters, install RigNet:
 ### What is RigNet?
 
 RigNet is a deep learning system that automatically creates character rigs from 3D meshes:
-
 - Predicts skeleton joint positions
 - Determines bone connectivity and hierarchy
 - Calculates skinning weights automatically
 - Based on SIGGRAPH 2020 paper by Xu et al.
 
 ### Prerequisites
-
 - PyTorch with CUDA support
 - PyTorch Geometric
 - 8GB+ VRAM recommended
@@ -718,7 +651,6 @@ RigNet is a deep learning system that automatically creates character rigs from 
 **OPTION 1: rignet-gj (Recommended for learning)**
 
 1. **Install PyTorch** (in Blender's Python environment):
-
 ```bash
 # Windows
 cd "C:\Program Files\Blender Foundation\Blender X.X\X.X\python\bin"
@@ -729,8 +661,7 @@ cd /path/to/blender/X.X/python/bin
 ./python3.xx -m pip install torch torchvision
 ```
 
-1. **Clone rignet-gj repository**:
-
+2. **Clone rignet-gj repository**:
 ```bash
 # Using GitHub CLI (recommended)
 gh repo clone govindjoshi12/rignet-gj
@@ -739,8 +670,7 @@ gh repo clone govindjoshi12/rignet-gj
 git clone https://github.com/govindjoshi12/rignet-gj.git
 ```
 
-1. **Install dependencies**:
-
+3. **Install dependencies**:
 ```bash
 cd rignet-gj
 pip install numpy scipy matplotlib tensorboard trimesh open3d jupyter
@@ -748,7 +678,7 @@ pip install torch-geometric
 pip install pyg_lib torch_scatter torch_sparse torch_cluster
 ```
 
-1. **Restart Blender**
+4. **Restart Blender**
 
 The add-on will automatically detect rignet-gj and enable auto-rigging features.
 
@@ -757,15 +687,13 @@ The add-on will automatically detect rignet-gj and enable auto-rigging features.
 1. **Install PyTorch** (same as above)
 
 2. **Clone original RigNet**:
-
 ```bash
 gh repo clone zhan-xu/RigNet
 # OR
 git clone https://github.com/zhan-xu/RigNet.git
 ```
 
-1. **Install RigNet dependencies**:
-
+3. **Install RigNet dependencies**:
 ```bash
 cd RigNet
 pip install numpy scipy matplotlib tensorboard open3d==0.9.0 opencv-python "rtree>=0.8,<0.9" trimesh
@@ -773,19 +701,17 @@ pip install torch-geometric==1.7.2
 pip install pyg_lib torch_scatter torch_sparse torch_cluster torch_spline_conv -f https://data.pyg.org/whl/torch-1.12.0+cu113.html
 ```
 
-1. **Download pre-trained models**:
-
-- Download from: <https://drive.google.com/file/d/1gM2Lerk7a2R0g9DwlK3IvCfp8c2aFVXs/view?usp=sharing>
+4. **Download pre-trained models**:
+- Download from: https://drive.google.com/file/d/1gM2Lerk7a2R0g9DwlK3IvCfp8c2aFVXs/view?usp=sharing
 - Extract checkpoints folder to RigNet/checkpoints/
 
-1. **Restart Blender**
+5. **Restart Blender**
 
 **OPTION 3: Existing Blender Add-ons (Easiest)**
 
 For immediate use without manual integration:
-
-- **brignet**: <https://github.com/pKrime/brignet> (Recommended)
-- **Rignet_blender_addon**: <https://github.com/L-Medici/Rignet_blender_addon>
+- **brignet**: https://github.com/pKrime/brignet (Recommended)
+- **Rignet_blender_addon**: https://github.com/L-Medici/Rignet_blender_addon
 
 These are complete Blender add-ons that integrate RigNet functionality directly.
 
@@ -794,14 +720,12 @@ These are complete Blender add-ons that integrate RigNet functionality directly.
 libigl provides Bounded Biharmonic Weights for automatic skinning weight computation:
 
 1. **Install Python bindings** (easiest):
-
 ```bash
 # In Blender's Python environment
 pip install libigl
 ```
 
-1. **Clone Python bindings repository** (recommended for development):
-
+2. **Clone Python bindings repository** (recommended for development):
 ```bash
 # Using GitHub CLI
 gh repo clone libigl/libigl-python-bindings
@@ -812,18 +736,16 @@ cd libigl-python-bindings
 pip install .
 ```
 
-1. **Clone main repository** (for C++ development):
-
+3. **Clone main repository** (for C++ development):
 ```bash
 gh repo clone libigl/libigl
 # OR
 git clone https://github.com/libigl/libigl.git
 ```
 
-1. **Restart Blender**
+4. **Restart Blender**
 
 **Features:**
-
 - Bounded Biharmonic Weights (BBW) for automatic skinning
 - Works with any existing armature/skeleton
 - Fast C++ implementation with Python interface
@@ -831,7 +753,6 @@ git clone https://github.com/libigl/libigl.git
 - Additional: mesh repair, UV unwrapping, geodesic distances
 
 **When to use:**
-
 - **RigNet**: Full automatic rigging (skeleton + skinning)
 - **libigl**: Automatic skinning for existing skeletons
 - **MediaPipe**: Motion capture from images/video, reference poses
@@ -843,24 +764,21 @@ git clone https://github.com/libigl/libigl.git
 MediaPipe provides real-time pose estimation and tracking:
 
 1. **Install MediaPipe** (easiest):
-
 ```bash
 # In Blender's Python environment
 pip install mediapipe opencv-python
 ```
 
-1. **Clone demo repository** (optional, for examples):
-
+2. **Clone demo repository** (optional, for examples):
 ```bash
 gh repo clone ntu-rris/google-mediapipe
 # OR
 git clone https://github.com/ntu-rris/google-mediapipe.git
 ```
 
-1. **Restart Blender**
+3. **Restart Blender**
 
 **Features:**
-
 - 33 3D body landmarks, 21 hand landmarks, 468 face landmarks
 - Real-time performance on CPU (10-30 FPS)
 - Works with images or video input
@@ -872,27 +790,25 @@ git clone https://github.com/ntu-rris/google-mediapipe.git
 For a complete motion capture workflow in Blender, use BlendArMocap:
 
 1. **Download BlendArMocap**:
-
 ```bash
 gh repo clone cgtinker/BlendArMocap
 # OR
 git clone https://github.com/cgtinker/BlendArMocap.git
 ```
 
-1. **Install as Blender add-on**:
+2. **Install as Blender add-on**:
    - Download ZIP or clone repository
    - In Blender: Edit > Preferences > Add-ons > Install
    - Select the BlendArMocap folder or ZIP
    - Enable "BlendArMocap"
 
-2. **Install dependencies** (via add-on preferences):
+3. **Install dependencies** (via add-on preferences):
    - BlendArMocap will prompt to install mediapipe and dependencies
    - Follow on-screen instructions
 
-3. **Restart Blender**
+4. **Restart Blender**
 
 **BlendArMocap Features:**
-
 - MediaPipe detection within Blender (pose, hand, face, holistic)
 - Automatic transfer to Rigify rigs
 - Import Freemocap session data
@@ -900,7 +816,7 @@ git clone https://github.com/cgtinker/BlendArMocap.git
 - Generate transfer configurations
 
 **Note:** BlendArMocap is discontinued but still functional for Blender 3.x
-Documentation: <https://cgtinker.github.io/BlendArMocap/>
+Documentation: https://cgtinker.github.io/BlendArMocap/
 
 ## Installation
 
@@ -914,20 +830,17 @@ Documentation: <https://cgtinker.github.io/BlendArMocap/>
 ### Accessing the Add-on
 
 After installation, find the add-on in the 3D Viewport sidebar:
-
 1. Press `N` to open the sidebar
 2. Click on the "Fallout 4" tab
 
 ### Quick Start Guide
 
 #### 1. Start a Tutorial
-
 - Click "Start Tutorial" in the main panel
 - Choose a tutorial type (Basic Mesh, Textures, or Animation)
 - Follow the step-by-step instructions
 
 #### 2. Create a Basic Mesh
-
 ```
 1. Click "Create Base Mesh" to start with a FO4-optimized cube
 2. Edit the mesh to your needs
@@ -936,7 +849,6 @@ After installation, find the add-on in the 3D Viewport sidebar:
 ```
 
 #### 3. Setup Materials and Textures
-
 ```
 1. Select your mesh
 2. Click "Setup FO4 Materials" to create a material with proper nodes
@@ -945,16 +857,13 @@ After installation, find the add-on in the 3D Viewport sidebar:
 ```
 
 #### 4. Create Mesh from Image (New!)
-
 ```
 1. Click "Image to Mesh (Height Map)" in the Image to Mesh panel
 2. Select a grayscale image (bright areas = high, dark areas = low)
 3. Adjust mesh width, height, and displacement strength
 4. The mesh will be created automatically with proper UV mapping
 ```
-
 OR
-
 ```
 1. Select an existing mesh
 2. Click "Apply Displacement Map"
@@ -963,7 +872,6 @@ OR
 ```
 
 #### 5. Generate with AI (Optional - Requires Hunyuan3D-2)
-
 ```
 1. Install Hunyuan3D-2 (see AI Generation section below)
 2. Expand "AI Generation (Optional)" panel
@@ -978,7 +886,6 @@ OR
 ```
 
 #### 6. Create Animations (Optional)
-
 ```
 1. Click "Setup FO4 Armature" to create a skeleton
 2. Parent your mesh to the armature
@@ -987,7 +894,6 @@ OR
 ```
 
 #### 6b. Auto-Rig with RigNet & libigl (Optional)
-
 ```
 OPTION A: Full Auto-Rigging with RigNet
 1. Install RigNet (see Auto-Rigging section above)
@@ -1018,18 +924,15 @@ OPTION C: Export for External Processing
 ```
 
 **Comparison:**
-
 - **RigNet**: Predicts skeleton + skinning (1K-5K vertices, AI-powered)
 - **libigl**: Computes skinning for existing skeleton (any size, algorithmic)
 - **Manual**: Full control (use animation_helpers for basic armature)
 
 **Note:** RigNet integration is in beta. For production use, consider:
-
-- brignet Blender add-on (<https://github.com/pKrime/brignet>)
-- Rignet_blender_addon (<https://github.com/L-Medici/Rignet_blender_addon>)
+- brignet Blender add-on (https://github.com/pKrime/brignet)
+- Rignet_blender_addon (https://github.com/L-Medici/Rignet_blender_addon)
 
 #### 7. Export Your Mod
-
 ```
 1. Select your object(s)
 2. Click "Validate Before Export" to check everything
@@ -1043,7 +946,6 @@ OPTION C: Export for External Processing
 The add-on automatically checks for common issues:
 
 ### Mesh Validation
-
 - ✓ Vertex and polygon count
 - ✓ UV mapping presence
 - ✓ Loose vertices
@@ -1051,14 +953,12 @@ The add-on automatically checks for common issues:
 - ✓ Maximum poly count (65535 for FO4)
 
 ### Texture Validation
-
 - ✓ Material node setup
 - ✓ Texture file loading
 - ✓ Power-of-2 dimensions (recommended)
 - ✓ Proper colorspace (Non-Color for normals/specular)
 
 ### Animation Validation
-
 - ✓ Bone count (max 256 for FO4)
 - ✓ Root bone presence
 - ✓ Bone naming conventions
@@ -1067,7 +967,6 @@ The add-on automatically checks for common issues:
 ## Notification System
 
 The add-on provides real-time notifications:
-
 - **INFO** (Blue): Successful operations
 - **WARNING** (Yellow): Potential issues that should be addressed
 - **ERROR** (Red): Critical problems that must be fixed
@@ -1092,18 +991,15 @@ You can also use the add-on's functionality through Python scripts in Blender's 
 ### For Creating/Editing Height Maps
 
 **Image Editors:**
-
 - **GIMP** (gimp.org) - Professional image editor for creating and editing height maps
 - **Blender** - Use Blender's own texture painting to create height maps
 
 **Height Map Generators:**
-
 - **terrain.party** - Generate real-world terrain height maps from any location
 - **tangrams.github.io/heightmapper** - Create height maps from map data
 - **NASA Earth Observatory** - Download real terrain data
 
 **Texture Libraries with Height Maps:**
-
 - **polyhaven.com** - High-quality PBR textures including height maps
 - **cgbookcase.com** - Free PBR textures with displacement maps
 - **3dtextures.me** - Free seamless textures
@@ -1129,13 +1025,11 @@ You can also use the add-on's functionality through Python scripts in Blender's 
 ### What This Add-on Provides
 
 **Collision Mesh Generation:**
-
 - Creates simplified geometry for collision boundaries
 - Exports to FBX/NIF format compatible with Fallout 4
 - Basic collision shapes for static objects
 
 **What This Add-on Does NOT Provide:**
-
 - Full Havok physics simulation (requires Havok Content Tools)
 - Ragdoll physics setup (requires Creation Kit)
 - Dynamic physics properties (requires NifSkope + Creation Kit)
@@ -1144,7 +1038,6 @@ You can also use the add-on's functionality through Python scripts in Blender's 
 ### For Advanced Physics in Fallout 4
 
 If you need advanced physics features, use these tools **in addition to** this add-on:
-
 1. **Havok Content Tools** - For creating physics simulations (available from Bethesda)
 2. **NifSkope** - For editing collision properties in .nif files
 3. **Creation Kit** - For setting up physics properties in-game
@@ -1157,77 +1050,61 @@ If you need advanced physics features, use these tools **in addition to** this a
 ### Common Issues
 
 **"No mesh object selected"**
-
 - Solution: Click on your mesh object in the 3D viewport to select it
 
 **"Poly count too high"**
-
 - Solution: Use the Decimate modifier or manually reduce polygon count
 - FO4 limit: 65,535 polygons per mesh
 
 **"Object scale is not applied"**
-
 - Solution: Press Ctrl+A and select "Scale" to apply the scale
 
 **"No UV map found"**
-
 - Solution: Enter Edit mode (Tab), press U, and select "Unwrap"
 
 ### Image to Mesh Issues
 
 **"PIL/Pillow not installed" or "NumPy not installed"**
-
 - Solution: Install dependencies in Blender's Python (see Prerequisites section above)
 
 **"Mesh looks flat or has no detail"**
-
 - Solution: Increase "Displacement Strength" parameter
 - Ensure your image has good contrast (not all one color)
 
 **"Mesh has too many polygons"**
-
 - Solution: Use smaller "Subdivisions" value or let it auto-calculate (set to 0)
 - Use a smaller resolution image
 
 **"Unsupported image format"**
-
 - Solution: Convert your image to PNG, JPG, BMP, TIFF, or TGA format
 
 ### AI Generation Issues
 
 **"Hunyuan3D-2 not available"**
-
 - Solution: Install Hunyuan3D-2 following the instructions in the "Optional: AI Generation" section
 - Check that PyTorch is installed in Blender's Python environment
 - Verify the Hunyuan3D-2 repository is cloned in a standard location
 
 **"PyTorch not installed"**
-
 - Solution: Install PyTorch in Blender's Python environment:
-
   ```bash
   python -m pip install torch torchvision
   ```
 
 **"Hunyuan3D-2 not found"**
-
 - Solution: Clone the repository:
-
   ```bash
   gh repo clone Tencent-Hunyuan/Hunyuan3D-2
   ```
-
 - Place it in your home directory or Projects folder
 - Restart Blender after installation
 
 **AI features grayed out**
-
 - This is normal if Hunyuan3D-2 is not installed
 - AI features are optional - other features work without it
 - Click "Installation Info" for setup instructions
 
 **"Text-to-3D generation not yet implemented"**
-
 - The AI integration is in beta/placeholder state
 - Manual integration with Hunyuan3D-2 inference code required
 - See their documentation for direct usage
@@ -1236,14 +1113,12 @@ If you need advanced physics features, use these tools **in addition to** this a
 ### Motion Generation Issues
 
 **"HY-Motion-1.0 not available"**
-
 - Solution: Install HY-Motion-1.0 following the instructions above
 - Check that git-lfs is installed: `git lfs version`
 - Verify PyTorch is installed in Blender's Python
 - Check the repository is cloned and lfs files pulled
 
 **"git-lfs not installed"**
-
 - Solution: Install git-lfs for your platform
   - Windows: `choco install git-lfs` or download from git-lfs.github.com
   - macOS: `brew install git-lfs`
@@ -1251,14 +1126,12 @@ If you need advanced physics features, use these tools **in addition to** this a
 - Run `git lfs install` after installation
 
 **"Motion generation not yet implemented"**
-
 - The motion integration is in placeholder state
 - Manual integration with HY-Motion-1.0's inference code required
 - See their documentation for direct usage
 - Generated animations can be imported as .bvh or .fbx files
 
 **"Import motion file failed"**
-
 - Check file format (.bvh or .fbx supported)
 - Verify file path is correct
 - Try importing manually: File → Import → Motion Capture (.bvh)
@@ -1266,42 +1139,35 @@ If you need advanced physics features, use these tools **in addition to** this a
 ### Auto-Rigging Issues
 
 **"RigNet not available"**
-
 - Solution: Install RigNet following the instructions in the "Optional: RigNet for Auto-Rigging" section
 - Check that PyTorch is installed in Blender's Python environment
 - Verify rignet-gj or RigNet repository is cloned in a standard location
 - Restart Blender after installation
 
 **"PyTorch not installed"**
-
 - Solution: Install PyTorch in Blender's Python environment:
-
   ```bash
   python -m pip install torch torchvision
   ```
 
 **"RigNet found but required files not present"**
-
 - For rignet-gj: Check that utilities/ folder exists
 - For original RigNet: Check that checkpoints/ folder exists and contains model weights
 - Download pre-trained models if using original RigNet
 
 **"RigNet integration is in beta"**
-
 - This is expected - full integration is work in progress
 - Use existing Blender add-ons for production work:
-  - brignet: <https://github.com/pKrime/brignet> (Recommended)
-  - Rignet_blender_addon: <https://github.com/L-Medici/Rignet_blender_addon>
+  - brignet: https://github.com/pKrime/brignet (Recommended)
+  - Rignet_blender_addon: https://github.com/L-Medici/Rignet_blender_addon
 - Or export mesh and use RigNet CLI directly
 
 **"Mesh has too many/few vertices"**
-
 - Solution: Use "Prepare for Auto-Rig" operator first
 - RigNet works best with 1K-5K vertices
 - The prepare function will automatically simplify or subdivide
 
 **Auto-rigging grayed out**
-
 - This is normal if RigNet is not installed
 - Auto-rigging is optional - manual rigging works without it
 - Click "Installation Guide" for setup instructions
@@ -1324,7 +1190,6 @@ This add-on comes with comprehensive documentation:
 ## Version History
 
 ### 1.0.0 (Initial Release)
-
 - Tutorial system with three tutorials
 - Error notification system
 - Mesh creation and optimization tools
