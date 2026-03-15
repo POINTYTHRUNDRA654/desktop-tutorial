@@ -4,7 +4,36 @@ UI Panels for the Fallout 4 Tutorial Add-on
 
 import bpy
 from bpy.types import Panel
-from . import hunyuan3d_helpers, gradio_helpers, hymotion_helpers, nvtt_helpers, rignet_helpers, preferences, ue_importer_helpers, umodel_tools_helpers, unity_fbx_importer_helpers, knowledge_helpers, export_helpers, zoedepth_helpers, shap_e_helpers, point_e_helpers
+import sys
+import importlib
+
+def _safe_import(name):
+    """Import a helper module safely, returning None if it fails."""
+    try:
+        return importlib.import_module(f".{name}", package=__package__)
+    except Exception as exc:
+        # Remove any partially-initialised entry from sys.modules so that a
+        # subsequent retry (e.g. on Blender 5 extension reload) gets a fresh
+        # import attempt rather than the stale, incomplete module object.
+        sys.modules.pop(f"{__package__}.{name}", None)
+        print(f"ui_panels: Skipped module {name} due to error: {exc}")
+        return None
+
+# Import helper modules safely - if any fail, panels will still load
+hunyuan3d_helpers = _safe_import("hunyuan3d_helpers")
+gradio_helpers = _safe_import("gradio_helpers")
+hymotion_helpers = _safe_import("hymotion_helpers")
+nvtt_helpers = _safe_import("nvtt_helpers")
+rignet_helpers = _safe_import("rignet_helpers")
+preferences = _safe_import("preferences")
+ue_importer_helpers = _safe_import("ue_importer_helpers")
+umodel_tools_helpers = _safe_import("umodel_tools_helpers")
+unity_fbx_importer_helpers = _safe_import("unity_fbx_importer_helpers")
+knowledge_helpers = _safe_import("knowledge_helpers")
+export_helpers = _safe_import("export_helpers")
+zoedepth_helpers = _safe_import("zoedepth_helpers")
+shap_e_helpers = _safe_import("shap_e_helpers")
+point_e_helpers = _safe_import("point_e_helpers")
 
 class FO4_PT_MainPanel(Panel):
     """Main tutorial panel in the 3D View sidebar"""
