@@ -1483,19 +1483,19 @@ class FO4_PT_ToolsLinks(Panel):
         man_box.label(text="Manual Path Override", icon='FILE_FOLDER')
         man_box.label(text="Already have a tool? Point to it here.", icon='INFO')
         man_box.prop(scene, "fo4_ffmpeg_path", text="FFmpeg")
-        ffmpeg_ok = preferences.get_configured_ffmpeg_path()
+        ffmpeg_ok = preferences.get_configured_ffmpeg_path() if preferences else None
         man_box.label(
             text=f"FFmpeg: {'OK ✔' if ffmpeg_ok else 'not found'}",
             icon='CHECKMARK' if ffmpeg_ok else 'ERROR',
         )
         man_box.prop(scene, "fo4_nvtt_path", text="nvcompress")
-        nvcompress_ok = preferences.get_configured_nvcompress_path()
+        nvcompress_ok = preferences.get_configured_nvcompress_path() if preferences else None
         man_box.label(
             text=f"nvcompress: {'OK ✔' if nvcompress_ok else 'not found'}",
             icon='CHECKMARK' if nvcompress_ok else 'ERROR',
         )
         man_box.prop(scene, "fo4_texconv_path", text="texconv")
-        texconv_ok = preferences.get_configured_texconv_path()
+        texconv_ok = preferences.get_configured_texconv_path() if preferences else None
         man_box.label(
             text=f"texconv: {'OK ✔' if texconv_ok else 'not found'}",
             icon='CHECKMARK' if texconv_ok else 'ERROR',
@@ -2114,8 +2114,8 @@ class FO4_PT_Havok2FBXPanel(Panel):
     def draw(self, context):
         layout = self.layout
         scene = context.scene
-        prefs = preferences.get_preferences()
-        path = preferences.get_havok2fbx_path()
+        prefs = preferences.get_preferences() if preferences else None
+        path = preferences.get_havok2fbx_path() if preferences else None
         obj = context.active_object
 
         # ── Tool path ──────────────────────────────────────────────────────
@@ -3478,8 +3478,8 @@ class FO4_PT_SettingsPanel(Panel):
         tools_box.prop(scene, "fo4_nvtt_path",    text="nvcompress / NVTT folder")
         tools_box.prop(scene, "fo4_texconv_path", text="texconv / DirectXTex folder")
 
-        nvcompress = preferences.get_configured_nvcompress_path()
-        texconv    = preferences.get_configured_texconv_path()
+        nvcompress = preferences.get_configured_nvcompress_path() if preferences else None
+        texconv    = preferences.get_configured_texconv_path() if preferences else None
         if nvcompress:
             tools_box.label(text=f"✓ nvcompress: {nvcompress}", icon="CHECKMARK")
         else:
