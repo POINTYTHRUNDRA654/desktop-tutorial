@@ -863,7 +863,7 @@ class FO4_OT_ExportForRigNet(Operator):
             return {'CANCELLED'}
         
         # Use provided filepath or generate one
-        output_path = self.filepath if self.filepath else None
+        output_path = self.filepath or None
         
         success, message, file_path = rignet_helpers.RigNetHelpers.export_for_rignet(
             obj, output_path
@@ -2131,7 +2131,7 @@ class FO4_OT_ConvertTextureToDDS(Operator):
             return {'CANCELLED'}
         
         # Convert texture
-        output = self.output_path if self.output_path else None
+        output = self.output_path or None
         success, message = nvtt_helpers.NVTTHelpers.convert_to_dds(
             self.filepath,
             output,
@@ -2357,8 +2357,7 @@ class FO4_OT_AdvisorAnalyze(Operator):
         if event.type != 'TIMER':
             return {'PASS_THROUGH'}
         import time
-        if self._thread and self._thread.is_alive():
-            if time.monotonic() < self._deadline:
+        if self._thread and self._thread.is_alive() and time.monotonic() < self._deadline:
                 return {'PASS_THROUGH'}
             # Hard timeout reached — stop waiting and report what we have
         context.window_manager.event_timer_remove(self._timer)
@@ -3769,7 +3768,7 @@ class FO4_OT_UpscaleTexture(Operator):
             return {'CANCELLED'}
         
         # Upscale texture
-        output = self.output_path if self.output_path else None
+        output = self.output_path or None
         scale_int = int(self.scale)
         
         success, message = realesrgan_helpers.RealESRGANHelpers.upscale_texture(
@@ -3945,7 +3944,7 @@ class FO4_OT_UpscaleKREALegacy(Operator):
             self.report({'ERROR'}, "No texture file selected")
             return {'CANCELLED'}
 
-        output = self.output_path if self.output_path else None
+        output = self.output_path or None
         scale_int = int(self.scale)
 
         success, message = realesrgan_helpers.RealESRGANHelpers.upscale_krea_legacy_style(
@@ -6833,8 +6832,7 @@ class FO4_OT_AskMossyForUVAdvice(Operator):
         if event.type != 'TIMER':
             return {'PASS_THROUGH'}
         import time
-        if self._thread and self._thread.is_alive():
-            if time.monotonic() < self._deadline:
+        if self._thread and self._thread.is_alive() and time.monotonic() < self._deadline:
                 return {'PASS_THROUGH'}
             # Hard timeout reached — stop waiting and use whatever result we have
         context.window_manager.event_timer_remove(self._timer)
@@ -6946,8 +6944,7 @@ class FO4_OT_MossyAutoFix(Operator):
         if event.type != 'TIMER':
             return {'PASS_THROUGH'}
         import time
-        if self._thread and self._thread.is_alive():
-            if time.monotonic() < self._deadline:
+        if self._thread and self._thread.is_alive() and time.monotonic() < self._deadline:
                 return {'PASS_THROUGH'}
             # Hard timeout reached — stop waiting and use whatever result we have
         context.window_manager.event_timer_remove(self._timer)
@@ -7812,8 +7809,7 @@ class FO4_OT_PrepareThirdPartyMesh(Operator):
                 steps.append(f"✓ Removed {removed} vertex color layer(s)")
 
         # ── Step 4: Clear custom split normals ───────────────────────────────
-        if self.clear_custom_normals:
-            if mesh.has_custom_normals:
+        if self.clear_custom_normals and mesh.has_custom_normals:
                 bpy.ops.object.mode_set(mode='EDIT')
                 bpy.ops.mesh.customdata_custom_splitnormals_clear()
                 bpy.ops.object.mode_set(mode='OBJECT')
