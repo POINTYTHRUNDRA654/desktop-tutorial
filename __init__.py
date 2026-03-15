@@ -282,6 +282,14 @@ def register():
 
     print(f"✓ Fallout 4 Tutorial Helper registered successfully (Blender {version_string})")
 
+    # Schedule a lightweight background update check after Blender finishes
+    # loading.  This runs in a daemon thread so it never blocks the UI.
+    try:
+        if addon_updater:
+            addon_updater.schedule_startup_check()
+    except Exception as exc:
+        print(f"[FO4] Auto-update scheduler skipped: {exc}")
+
     # schedule a quick environment check once Blender is ready
     # DISABLED: This causes severe performance issues during startup
     # The post-register callback does too much heavy work (checking tools,

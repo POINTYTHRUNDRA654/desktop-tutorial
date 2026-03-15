@@ -21,6 +21,7 @@ import os
 import re
 import sys
 import tempfile
+import threading
 import urllib.error
 import urllib.request
 
@@ -32,6 +33,8 @@ _latest_version: str = ""  # e.g. "2.4.0"
 _download_url: str = ""    # direct zip download URL from the GitHub release
 _error_message: str = ""   # last human-readable error
 _needs_restart: bool = False  # True after a successful in-place update install
+_auto_checked: bool = False   # prevents multiple auto-checks per session
+_check_cancelled: bool = False  # set on unregister to abort in-flight background checks
 
 GITHUB_RELEASES_API = (
     "https://api.github.com/repos/POINTYTHRUNDRA654/Blender-add-on./releases/latest"
@@ -56,6 +59,129 @@ def _parse_version(tag: str) -> tuple:
 
 def _version_str(version_tuple: tuple) -> str:
     return ".".join(str(n) for n in version_tuple)
+
+
+# ── Background auto-update helpers ───────────────────────────────────────────
+
+def _redraw_all():
+    """Trigger a UI redraw from the main thread after a background check."""
+    try:
+        for window in bpy.context.window_manager.windows:
+            for area in window.screen.areas:
+                area.tag_redraw()
+    except Exception:
+        pass
+    return None  # one-shot timer
+
+
+def _auto_install_if_enabled():
+    """Trigger the install operator when auto-install preference is set."""
+    try:
+        scene = bpy.context.scene
+        if scene and getattr(scene, "fo4_auto_install_updates", False):
+            if _update_status == "available" and _download_url:
+                bpy.ops.fo4.install_update()
+    except Exception:
+        pass
+    return None  # one-shot timer
+
+
+def _background_check_thread():
+    """Run in a daemon thread: query GitHub and update module-level state."""
+    global _update_status, _latest_version, _download_url, _error_message
+
+    # Bail out early if the add-on was unregistered while we were waiting
+    if _check_cancelled:
+        return
+
+    try:
+        req = urllib.request.Request(
+            GITHUB_RELEASES_API,
+            headers={
+                "Accept": "application/vnd.github+json",
+                "User-Agent": "fallout4_tutorial_helper",
+            },
+        )
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            data = json.loads(resp.read().decode())
+
+        tag = data.get("tag_name", "")
+        latest = _parse_version(tag)
+        current = _current_version()
+
+        for asset in data.get("assets", []):
+            name = asset.get("name", "")
+            if name.startswith("fallout4_tutorial_helper") and name.endswith(".zip"):
+                _download_url = asset.get("browser_download_url", "")
+                break
+
+        _latest_version = _version_str(latest)
+
+        if latest > current:
+            _update_status = "available"
+            print(
+                f"[FO4 Updater] Update available: v{_latest_version} "
+                f"(installed: v{_version_str(current)})"
+            )
+        else:
+            _update_status = "up_to_date"
+            print(f"[FO4 Updater] Add-on is up to date (v{_version_str(current)}).")
+
+    except urllib.error.URLError as exc:
+        _update_status = "error"
+        _error_message = f"Network error: {exc.reason}"
+        print(f"[FO4 Updater] Auto-check failed: {exc.reason}")
+    except Exception as exc:
+        _update_status = "error"
+        _error_message = str(exc)
+        print(f"[FO4 Updater] Auto-check failed: {exc}")
+
+    # Schedule UI work back on the main thread; skip if the add-on was
+    # disabled while we were running.
+    if _check_cancelled:
+        return
+    try:
+        bpy.app.timers.register(_redraw_all, first_interval=0.1)
+        if _update_status == "available":
+            bpy.app.timers.register(_auto_install_if_enabled, first_interval=0.2)
+    except Exception as exc:
+        print(f"[FO4 Updater] Could not schedule post-check UI update: {exc}")
+
+
+def schedule_startup_check():
+    """Schedule a background update check ~5 s after Blender finishes loading.
+
+    The delay keeps startup snappy; the thread-based check avoids blocking the
+    main thread even for slow connections.  Calling this more than once is safe
+    – the ``_auto_checked`` flag prevents duplicate checks.
+    """
+    global _auto_checked
+
+    if _auto_checked:
+        return
+
+    def _deferred():
+        global _auto_checked
+        if _auto_checked:
+            return None
+        _auto_checked = True
+
+        # Respect the user's preference (default: check enabled).
+        try:
+            scene = bpy.context.scene
+            if scene and not getattr(scene, "fo4_auto_check_updates", True):
+                return None
+        except Exception:
+            pass
+
+        t = threading.Thread(target=_background_check_thread, daemon=True)
+        t.start()
+        return None  # one-shot timer
+
+    try:
+        bpy.app.timers.register(_deferred, first_interval=5.0)
+    except Exception as exc:
+        print(f"[FO4 Updater] Could not schedule auto-check: {exc}")
 
 
 # ── Operators ─────────────────────────────────────────────────────────────────
@@ -233,6 +359,18 @@ def draw_update_ui(layout):
         col.label(text=f"Error: {_error_message}", icon="ERROR")
         col.operator("fo4.check_for_update", text="Retry", icon="URL")
 
+    # Auto-update preference toggles
+    col.separator()
+    try:
+        scene = bpy.context.scene
+        if scene:
+            col.prop(scene, "fo4_auto_check_updates")
+            row = col.row()
+            row.enabled = getattr(scene, "fo4_auto_check_updates", True)
+            row.prop(scene, "fo4_auto_install_updates")
+    except Exception:
+        pass
+
 
 # ── Registration ──────────────────────────────────────────────────────────────
 
@@ -245,6 +383,8 @@ def register():
 
 
 def unregister():
+    global _check_cancelled
+    _check_cancelled = True
     for cls in reversed(_classes):
         try:
             bpy.utils.unregister_class(cls)
