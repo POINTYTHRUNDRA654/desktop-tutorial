@@ -6,7 +6,7 @@ A comprehensive tutorial and helper system for creating Fallout 4 mods in Blende
 bl_info = {
     "name": "Fallout 4 Tutorial Helper",
     "author": "Tutorial Team",
-    "version": (2, 1, 2),
+    "version": (2, 4, 0),
     "blender": (2, 80, 0),  # Compatible with Blender 2.80+ (all modern versions)
     "location": "View3D > Sidebar > Fallout 4",
     "description": "Comprehensive tutorial system and helpers for creating Fallout 4 mods including quests, NPCs, items, and world building. Compatible with Blender 2.80 through 4.x+",
