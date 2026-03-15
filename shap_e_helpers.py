@@ -48,6 +48,39 @@ def _pytorch_required_message(detail=""):
     return msg
 
 
+def _dll_init_error_message(detail=""):
+    """Return a user-friendly message for WinError 1114 DLL initialisation failures.
+
+    WinError 1114 means a DLL (e.g. D:\\blender_torch\\torch\\lib\\c10.dll)
+    failed to initialise, almost always because the installed PyTorch was built
+    for a different CUDA toolkit version, or because the Microsoft Visual C++
+    Redistributable is missing.
+    """
+    msg = (
+        "PyTorch DLL initialisation failed (WinError 1114).\n\n"
+        "The file D:\\blender_torch\\torch\\lib\\c10.dll (or one of its\n"
+        "dependencies) could not be loaded.  This almost always means the\n"
+        "installed PyTorch was built for a different CUDA version than the\n"
+        "one on this machine, or the Microsoft Visual C++ Redistributable\n"
+        "is missing.\n\n"
+        "To fix:\n"
+        "1. Check your CUDA version — run  nvidia-smi  in a terminal and\n"
+        "   look at the top-right corner.\n\n"
+        "2. Reinstall PyTorch to match your CUDA version, e.g.:\n"
+        "   pip install torch torchvision "
+        "--index-url https://download.pytorch.org/whl/cu118\n"
+        "   (replace cu118 with your version: cu121, cu124, etc.)\n\n"
+        "3. For a system without an NVIDIA GPU use the CPU-only build:\n"
+        "   pip install torch torchvision "
+        "--index-url https://download.pytorch.org/whl/cpu\n\n"
+        "4. Install Microsoft Visual C++ Redistributable 2019+:\n"
+        "   https://aka.ms/vs/17/release/vc_redist.x64.exe"
+    )
+    if detail:
+        msg += f"\n\nOriginal error: {detail}"
+    return msg
+
+
 def _stop_shap_e_worker():
     """Terminate the Shap-E worker process and clean up its connection."""
     global _SHAP_E_WORKER_PROC, _SHAP_E_WORKER_CONN
@@ -331,6 +364,8 @@ class ShapEHelpers:
                             "   - Create venv in C:\\t\n"
                             "   - Install PyTorch there"
                         )
+                    elif msg == "dll_init_error":
+                        return False, _dll_init_error_message()
                     else:
                         return False, _pytorch_required_message(msg)
             except ImportError:
@@ -357,6 +392,10 @@ class ShapEHelpers:
                     f"Original error: {str(e)}"
                 )
             return False, f"File error loading Shap-E: {str(e)}"
+        except OSError as e:
+            if getattr(e, 'winerror', None) == 1114 or "WinError 1114" in str(e):
+                return False, _dll_init_error_message(str(e))
+            return False, f"OS error loading Shap-E: {str(e)}"
         except ImportError as e:
             return False, f"Shap-E not installed: {str(e)}"
 
@@ -488,6 +527,10 @@ For more info: https://github.com/openai/shap-e
             if "WinError 206" in str(e) or "filename or extension is too long" in str(e):
                 return False, "Windows path length error. Enable long paths in Windows or reinstall PyTorch in a shorter path (see Shap-E installation check for details)."
             return False, f"File error: {str(e)}"
+        except OSError as e:
+            if getattr(e, 'winerror', None) == 1114 or "WinError 1114" in str(e):
+                return False, _dll_init_error_message(str(e))
+            return False, f"OS error: {str(e)}"
         except ImportError as e:
             return False, f"Shap-E not installed: {str(e)}"
         except Exception as e:
@@ -577,6 +620,10 @@ For more info: https://github.com/openai/shap-e
             if "WinError 206" in str(e) or "filename or extension is too long" in str(e):
                 return False, "Windows path length error. Enable long paths in Windows or reinstall PyTorch in a shorter path (see Shap-E installation check for details)."
             return False, f"File error: {str(e)}"
+        except OSError as e:
+            if getattr(e, 'winerror', None) == 1114 or "WinError 1114" in str(e):
+                return False, _dll_init_error_message(str(e))
+            return False, f"OS error: {str(e)}"
         except ImportError as e:
             return False, f"Shap-E not installed: {str(e)}"
         except Exception as e:

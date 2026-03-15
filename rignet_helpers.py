@@ -84,7 +84,15 @@ class RigNetHelpers:
                 
             return False, f"File error: {str(e)}"
 
-                
+        except OSError as e:
+            if getattr(e, 'winerror', None) == 1114 or "WinError 1114" in str(e):
+                return False, (
+                    "PyTorch DLL initialisation failed (WinError 1114). "
+                    "Reinstall PyTorch matching your CUDA version or use the CPU-only build. "
+                    "See D:\\blender_torch\\torch\\lib\\c10.dll error for details."
+                )
+            return False, f"OS error checking RigNet: {str(e)}"
+
         except ImportError as e:
             return False, f"PyTorch not installed: {str(e)}"
         except Exception as e:
