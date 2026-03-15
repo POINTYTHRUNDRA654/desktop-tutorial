@@ -235,12 +235,16 @@ class FO4_PT_MeshPanel(Panel):
             text="Convert to Fallout 4 (Full Pipeline)",
             icon='ARROW_LEFTRIGHT',
         )
-        pipe_box.operator(
+        row = pipe_box.row()
+        row.enabled = has_mesh
+        row.operator(
             "fo4.quick_prepare_export",
             text="Quick Prepare for Export",
             icon='CHECKMARK',
         )
-        pipe_box.operator(
+        row = pipe_box.row()
+        row.enabled = has_mesh
+        row.operator(
             "fo4.auto_fix_issues",
             text="Auto-Fix Common Issues",
             icon='TOOL_SETTINGS',
@@ -296,15 +300,21 @@ class FO4_PT_MeshPanel(Panel):
             box = layout.box()
             box.label(text="Mesh Helpers", icon='MESH_CUBE')
             box.operator("fo4.create_base_mesh", text="Create Base Mesh", icon='MESH_DATA')
-            box.operator("fo4.optimize_mesh", text="Optimize for FO4", icon='MOD_DECIM')
+            row = box.row()
+            row.enabled = has_mesh
+            row.operator("fo4.optimize_mesh", text="Optimize for FO4", icon='MOD_DECIM')
             if scene:
                 opt_sub = box.box()
                 opt_sub.label(text="Optimize Settings:", icon='PREFERENCES')
                 opt_sub.prop(scene, "fo4_opt_apply_transforms")
                 opt_sub.prop(scene, "fo4_opt_doubles")
                 opt_sub.prop(scene, "fo4_opt_preserve_uvs")
-            box.operator("fo4.validate_mesh", text="Validate Mesh", icon='CHECKMARK')
-            box.operator("fo4.validate_export", text="Validate Before Export", icon='CHECKMARK')
+            row = box.row()
+            row.enabled = has_mesh
+            row.operator("fo4.validate_mesh", text="Validate Mesh", icon='CHECKMARK')
+            row = box.row()
+            row.enabled = has_mesh
+            row.operator("fo4.validate_export", text="Validate Before Export", icon='CHECKMARK')
             box.separator()
 
             # ── Collision ───────────────────────────────────────────────
@@ -312,11 +322,13 @@ class FO4_PT_MeshPanel(Panel):
             if has_mesh:
                 box.prop(obj, "fo4_collision_type", text="Type")
             row = box.row()
+            row.enabled = has_mesh
             row.operator("fo4.set_collision_type", text="Change Type", icon='PRESET')
             row = box.row()
             row.enabled = has_mesh and getattr(obj, 'fo4_collision_type', 'DEFAULT') not in ('NONE', 'GRASS', 'MUSHROOM')
             row.operator("fo4.generate_collision_mesh", text="Generate Collision", icon='MESH_DATA')
             row = box.row()
+            row.enabled = has_mesh
             row.operator("fo4.export_mesh_with_collision", text="Generate + Export NIF", icon='EXPORT')
             box.separator()
 
@@ -341,11 +353,21 @@ class FO4_PT_MeshPanel(Panel):
 
             # ── Advanced Mesh Tools ─────────────────────────────────────
             box.label(text="Advanced Mesh Tools", icon='MODIFIER')
-            box.operator("fo4.analyze_mesh_quality", text="Analyze Quality", icon='INFO')
-            box.operator("fo4.auto_repair_mesh", text="Auto-Repair", icon='TOOL_SETTINGS')
-            box.operator("fo4.mossy_auto_fix", text="AI Auto-Fix (Mossy)", icon='LIGHT_HEMI')
-            box.operator("fo4.smart_decimate", text="Smart Decimate", icon='MOD_DECIM')
-            box.operator("fo4.split_mesh_poly_limit", text="Split at Poly Limit", icon='MOD_BOOLEAN')
+            row = box.row()
+            row.enabled = has_mesh
+            row.operator("fo4.analyze_mesh_quality", text="Analyze Quality", icon='INFO')
+            row = box.row()
+            row.enabled = has_mesh
+            row.operator("fo4.auto_repair_mesh", text="Auto-Repair", icon='TOOL_SETTINGS')
+            row = box.row()
+            row.enabled = has_mesh
+            row.operator("fo4.mossy_auto_fix", text="AI Auto-Fix (Mossy)", icon='LIGHT_HEMI')
+            row = box.row()
+            row.enabled = has_mesh
+            row.operator("fo4.smart_decimate", text="Smart Decimate", icon='MOD_DECIM')
+            row = box.row()
+            row.enabled = has_mesh
+            row.operator("fo4.split_mesh_poly_limit", text="Split at Poly Limit", icon='MOD_BOOLEAN')
 
             # ── UV & Texture Workflow ────────────────────────────────────
             uv_box = layout.box()
@@ -458,26 +480,34 @@ class FO4_PT_MeshPanel(Panel):
             box = layout.box()
             box.label(text="Mesh Creation", icon='MESH_CUBE')
             box.operator("fo4.create_base_mesh", text="Create Base Mesh", icon='MESH_DATA')
-            box.operator("fo4.optimize_mesh", text="Optimize for FO4", icon='MOD_DECIM')
+            row = box.row()
+            row.enabled = has_mesh
+            row.operator("fo4.optimize_mesh", text="Optimize for FO4", icon='MOD_DECIM')
             if scene:
                 opt_sub = box.box()
                 opt_sub.label(text="Optimize Settings:", icon='PREFERENCES')
                 opt_sub.prop(scene, "fo4_opt_apply_transforms")
                 opt_sub.prop(scene, "fo4_opt_doubles")
                 opt_sub.prop(scene, "fo4_opt_preserve_uvs")
-            box.operator("fo4.validate_mesh", text="Validate Mesh", icon='CHECKMARK')
-            box.operator("fo4.validate_export", text="Validate Before Export", icon='CHECKMARK')
+            row = box.row()
+            row.enabled = has_mesh
+            row.operator("fo4.validate_mesh", text="Validate Mesh", icon='CHECKMARK')
+            row = box.row()
+            row.enabled = has_mesh
+            row.operator("fo4.validate_export", text="Validate Before Export", icon='CHECKMARK')
 
             col_box = layout.box()
             col_box.label(text="Collision", icon='MESH_ICOSPHERE')
             if has_mesh:
                 col_box.prop(obj, "fo4_collision_type", text="Type")
             row = col_box.row()
+            row.enabled = has_mesh
             row.operator("fo4.set_collision_type", text="Change Type", icon='PRESET')
             row = col_box.row()
             row.enabled = has_mesh and getattr(obj, 'fo4_collision_type', 'DEFAULT') not in ('NONE', 'GRASS', 'MUSHROOM')
             row.operator("fo4.generate_collision_mesh", text="Generate Collision", icon='MESH_DATA')
             row = col_box.row()
+            row.enabled = has_mesh
             row.operator("fo4.export_mesh_with_collision", text="Generate + Export NIF", icon='EXPORT')
 
             lod_box = layout.box()
@@ -500,11 +530,21 @@ class FO4_PT_MeshPanel(Panel):
 
             adv_box = layout.box()
             adv_box.label(text="Advanced Mesh Tools", icon='MODIFIER')
-            adv_box.operator("fo4.analyze_mesh_quality", text="Analyze Quality", icon='INFO')
-            adv_box.operator("fo4.auto_repair_mesh", text="Auto-Repair", icon='TOOL_SETTINGS')
-            adv_box.operator("fo4.mossy_auto_fix", text="AI Auto-Fix (Mossy)", icon='LIGHT_HEMI')
-            adv_box.operator("fo4.smart_decimate", text="Smart Decimate", icon='MOD_DECIM')
-            adv_box.operator("fo4.split_mesh_poly_limit", text="Split at Poly Limit", icon='MOD_BOOLEAN')
+            row = adv_box.row()
+            row.enabled = has_mesh
+            row.operator("fo4.analyze_mesh_quality", text="Analyze Quality", icon='INFO')
+            row = adv_box.row()
+            row.enabled = has_mesh
+            row.operator("fo4.auto_repair_mesh", text="Auto-Repair", icon='TOOL_SETTINGS')
+            row = adv_box.row()
+            row.enabled = has_mesh
+            row.operator("fo4.mossy_auto_fix", text="AI Auto-Fix (Mossy)", icon='LIGHT_HEMI')
+            row = adv_box.row()
+            row.enabled = has_mesh
+            row.operator("fo4.smart_decimate", text="Smart Decimate", icon='MOD_DECIM')
+            row = adv_box.row()
+            row.enabled = has_mesh
+            row.operator("fo4.split_mesh_poly_limit", text="Split at Poly Limit", icon='MOD_BOOLEAN')
 
             uv_box = layout.box()
             uv_box.label(text="UV & Texture Workflow", icon='UV')
@@ -550,10 +590,14 @@ class FO4_PT_TexturePanel(Panel):
     
     def draw(self, context):
         layout = self.layout
-        
+        obj = context.active_object
+        has_mesh = obj and obj.type == 'MESH'
+
         box = layout.box()
         box.label(text="Texture Setup", icon='TEXTURE')
-        box.operator("fo4.setup_textures", text="Setup FO4 Materials", icon='MATERIAL')
+        row = box.row()
+        row.enabled = has_mesh
+        row.operator("fo4.setup_textures", text="Setup FO4 Materials", icon='MATERIAL')
 
         install_box = box.box()
         install_box.label(text="Install Texture", icon='FILE_IMAGE')
@@ -925,14 +969,22 @@ class FO4_PT_AnimationPanel(Panel):
     
     def draw(self, context):
         layout = self.layout
-        
+        obj = context.active_object
+        has_mesh = obj and obj.type == 'MESH'
+
         box = layout.box()
         box.label(text="Animation Setup", icon='ANIM')
         box.operator("fo4.setup_armature", text="Setup FO4 Armature", icon='ARMATURE_DATA')
-        box.operator("fo4.auto_weight_paint", text="Auto Weight Paint", icon='AUTO')
+        row = box.row()
+        row.enabled = has_mesh
+        row.operator("fo4.auto_weight_paint", text="Auto Weight Paint", icon='AUTO')
         box.operator("fo4.validate_animation", text="Validate Animation", icon='CHECKMARK')
-        box.operator("fo4.generate_wind_weights", text="Generate Wind Weights", icon='FORCE_WIND')
-        box.operator("fo4.apply_wind_animation", text="Apply Wind Animation", icon='ANIM')
+        row = box.row()
+        row.enabled = has_mesh
+        row.operator("fo4.generate_wind_weights", text="Generate Wind Weights", icon='FORCE_WIND')
+        row = box.row()
+        row.enabled = has_mesh
+        row.operator("fo4.apply_wind_animation", text="Apply Wind Animation", icon='ANIM')
         box.separator()
         box.label(text="Batch Operations", icon='SEQ_SEQUENCER')
         row = box.row()
@@ -1833,10 +1885,12 @@ class FO4_PT_ExportPanel(Panel):
         act_box.label(text="Export", icon='EXPORT')
 
         row = act_box.row(align=True)
+        row.enabled = has_mesh
         row.scale_y = 1.4
         row.operator("fo4.export_mesh", text="Export Mesh  (.nif)", icon='MESH_DATA')
 
         row2 = act_box.row(align=True)
+        row2.enabled = has_mesh
         row2.scale_y = 1.2
         row2.operator(
             "fo4.export_mesh_with_collision",
@@ -1845,7 +1899,9 @@ class FO4_PT_ExportPanel(Panel):
         )
 
         act_box.separator(factor=0.5)
-        act_box.operator("fo4.validate_export", text="Validate Mesh Before Export", icon='CHECKMARK')
+        row = act_box.row()
+        row.enabled = has_mesh
+        row.operator("fo4.validate_export", text="Validate Mesh Before Export", icon='CHECKMARK')
 
         row3 = act_box.row(align=True)
         row3.scale_y = 1.4
