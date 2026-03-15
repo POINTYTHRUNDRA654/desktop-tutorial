@@ -2714,7 +2714,8 @@ class FO4_OT_CheckUModel(Operator):
             actions.append(msg)
 
             # If download provides manual instructions, also open browser
-            if not ok and "manual download" in msg.lower():
+            lower_msg = msg.lower()
+            if not ok and ("manual download" in lower_msg or "download manually" in lower_msg):
                 _, browser_msg = umodel_helpers.open_download_page()
                 actions.append(browser_msg)
 

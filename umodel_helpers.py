@@ -10,8 +10,10 @@ Auto-downloads to D:/blender_tools/ to keep it separate from the addon.
 
 from __future__ import annotations
 
+import http.cookiejar
 import shutil
 import tempfile
+import urllib.error
 import urllib.request
 import zipfile
 from pathlib import Path
@@ -48,8 +50,31 @@ _DOWNLOAD_HEADERS = {
         "AppleWebKit/537.36 (KHTML, like Gecko) "
         "Chrome/120.0.0.0 Safari/537.36"
     ),
-    "Referer": "https://www.gildor.org/en/projects/umodel",
+    "Referer": DOWNLOAD_PAGE_URL,
+    "Accept": "*/*",
+    "Accept-Language": "en-US,en;q=0.9",
 }
+
+
+def _build_http_opener():
+    """Return an opener with cookie support and browser-like headers.
+
+    Some download mirrors block Python's default opener (403/404) unless
+    cookies from the project page are present.  This opener first visits
+    the project page to seed the cookie jar, then reuses it for downloads.
+    """
+    jar = http.cookiejar.CookieJar()
+    opener = urllib.request.build_opener(urllib.request.HTTPCookieProcessor(jar))
+    opener.addheaders = list(_DOWNLOAD_HEADERS.items())
+
+    try:
+        opener.open(urllib.request.Request(DOWNLOAD_PAGE_URL, headers=_DOWNLOAD_HEADERS), timeout=15)
+    except Exception:
+        # Warm-up failure is non-fatal; download attempts will still proceed.
+        pass
+
+    urllib.request.install_opener(opener)
+    return opener
 
 
 def get_tool_dir():
@@ -179,6 +204,7 @@ def download_latest() -> tuple[bool, str]:
         return True, f"UModel already exists at {tool_dir}"
 
     tool_dir.parent.mkdir(parents=True, exist_ok=True)
+    _build_http_opener()
 
     last_error = None
     for url in DOWNLOAD_CANDIDATES:
@@ -187,8 +213,22 @@ def download_latest() -> tuple[bool, str]:
                 zip_path = Path(tmpdir) / "umodel.zip"
                 print(f"Downloading UModel from {url}...")
                 req = urllib.request.Request(url, headers=_DOWNLOAD_HEADERS)
-                with urllib.request.urlopen(req) as response:
-                    zip_path.write_bytes(response.read())
+                try:
+                    with urllib.request.urlopen(req, timeout=60) as response:
+                        zip_path.write_bytes(response.read())
+                except urllib.error.HTTPError as http_exc:
+                    last_error = f"HTTP {http_exc.code}: {http_exc.reason or http_exc.msg}"
+                    print(f"UModel download failed for {url}: {http_exc}")
+                    if http_exc.code == 403:
+                        # Some mirrors require cookie-backed opener; fall back to urlretrieve using same opener.
+                        try:
+                            urllib.request.urlretrieve(url, zip_path)  # type: ignore[arg-type]
+                        except Exception as retry_exc:  # noqa: BLE001
+                            last_error = str(retry_exc)
+                            print(f"UModel 403 retry failed for {url}: {retry_exc}")
+                            continue
+                    else:
+                        continue
 
                 with zipfile.ZipFile(zip_path) as zf:
                     # Extract directly to tool directory
@@ -219,7 +259,7 @@ def download_latest() -> tuple[bool, str]:
             continue
 
     return False, (
-        f"Failed to download UModel automatically ({last_error or 'unknown error'}).\n\n"
+        f"Manual download required: failed to download UModel automatically ({last_error or 'unknown error'}).\n\n"
         "Please download manually:\n"
         f"  1. Visit {DOWNLOAD_PAGE_URL}\n"
         f"  2. Download the win32 zip and extract it to:\n"
