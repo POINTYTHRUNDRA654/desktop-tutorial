@@ -34,6 +34,10 @@ export_helpers = _safe_import("export_helpers")
 zoedepth_helpers = _safe_import("zoedepth_helpers")
 shap_e_helpers = _safe_import("shap_e_helpers")
 point_e_helpers = _safe_import("point_e_helpers")
+preset_library = _safe_import("preset_library")
+automation_system = _safe_import("automation_system")
+addon_integration = _safe_import("addon_integration")
+desktop_tutorial_client = _safe_import("desktop_tutorial_client")
 
 class FO4_PT_MainPanel(Panel):
     """Main tutorial panel in the 3D View sidebar"""
@@ -137,8 +141,11 @@ class FO4_PT_ImageToMeshPanel(Panel):
         box.operator("fo4.apply_displacement_map", text="Apply Displacement Map", icon='TEXTURE')
         
         # ZoeDepth section
-        from . import zoedepth_helpers
-        available, _ = zoedepth_helpers.check_zoedepth_availability()
+        available = False
+        if zoedepth_helpers:
+            available, _ = zoedepth_helpers.check_zoedepth_availability()
+        else:
+            available = False
         
         depth_box = layout.box()
         depth_box.label(text="Depth Estimation (ZoeDepth)", icon='CAMERA_DATA')
@@ -177,7 +184,9 @@ class FO4_PT_AIGenerationPanel(Panel):
         layout = self.layout
         
         # Check if Hunyuan3D is available
-        is_available = hunyuan3d_helpers.Hunyuan3DHelpers.is_available()
+        is_available = False
+        if hunyuan3d_helpers:
+            is_available = hunyuan3d_helpers.Hunyuan3DHelpers.is_available()
         
         # Status box
         status_box = layout.box()
@@ -210,8 +219,11 @@ class FO4_PT_AIGenerationPanel(Panel):
         info_box.label(text="• Completely optional feature")
         
         # Gradio Web UI section
-        gradio_available = gradio_helpers.GradioHelpers.is_available()
-        server_running = gradio_helpers.GradioHelpers.is_server_running()
+        gradio_available = False
+        server_running = False
+        if gradio_helpers:
+            gradio_available = gradio_helpers.GradioHelpers.is_available()
+            server_running = gradio_helpers.GradioHelpers.is_server_running()
         
         layout.separator()
         web_box = layout.box()
@@ -233,7 +245,9 @@ class FO4_PT_AIGenerationPanel(Panel):
             web_box.label(text="Open: http://localhost:7860")
         
         # HY-Motion-1.0 section
-        hymotion_available = hymotion_helpers.HyMotionHelpers.is_available()
+        hymotion_available = False
+        if hymotion_helpers:
+            hymotion_available = hymotion_helpers.HyMotionHelpers.is_available()
         
         layout.separator()
         motion_box = layout.box()
@@ -253,8 +267,9 @@ class FO4_PT_AIGenerationPanel(Panel):
         shap_e_box = layout.box()
         shap_e_box.label(text="Shap-E (Text/Image to 3D)", icon='MESH_ICOSPHERE')
         
-        from . import shap_e_helpers
-        shap_e_installed, _ = shap_e_helpers.ShapEHelpers.is_shap_e_installed()
+        shap_e_installed = False
+        if shap_e_helpers:
+            shap_e_installed, _ = shap_e_helpers.ShapEHelpers.is_shap_e_installed()
         
         if shap_e_installed:
             shap_e_box.label(text="Status: Installed ✓", icon='CHECKMARK')
@@ -283,8 +298,9 @@ class FO4_PT_AIGenerationPanel(Panel):
         point_e_box = layout.box()
         point_e_box.label(text="Point-E (Text/Image to Point Cloud)", icon='OUTLINER_OB_POINTCLOUD')
         
-        from . import point_e_helpers
-        point_e_installed, _ = point_e_helpers.PointEHelpers.is_point_e_installed()
+        point_e_installed = False
+        if point_e_helpers:
+            point_e_installed, _ = point_e_helpers.PointEHelpers.is_point_e_installed()
         
         if point_e_installed:
             point_e_box.label(text="Status: Installed ✓", icon='CHECKMARK')
@@ -342,10 +358,15 @@ class FO4_PT_RigNetPanel(Panel):
         layout = self.layout
         
         # Check if RigNet is available
-        is_available, message = rignet_helpers.RigNetHelpers.check_rignet_available()
-        
-        # Check if libigl is available
-        libigl_available, libigl_message = rignet_helpers.RigNetHelpers.check_libigl_available()
+        is_available = False
+        message = "rignet_helpers module not available"
+        libigl_available = False
+        libigl_message = "rignet_helpers module not available"
+
+        if rignet_helpers:
+            is_available, message = rignet_helpers.RigNetHelpers.check_rignet_available()
+            # Check if libigl is available
+            libigl_available, libigl_message = rignet_helpers.RigNetHelpers.check_libigl_available()
         
         # Status box for RigNet
         status_box = layout.box()
@@ -438,10 +459,16 @@ class FO4_PT_NVTTPanel(Panel):
         layout = self.layout
         
         # Check converters
-        nvtt_available = nvtt_helpers.NVTTHelpers.is_nvtt_available()
-        texconv_available = nvtt_helpers.NVTTHelpers.is_texconv_available()
-        nvtt_path = nvtt_helpers.NVTTHelpers.get_nvtt_path()
-        texconv_path = nvtt_helpers.NVTTHelpers.get_texconv_path()
+        nvtt_available = False
+        texconv_available = False
+        nvtt_path = None
+        texconv_path = None
+
+        if nvtt_helpers:
+            nvtt_available = nvtt_helpers.NVTTHelpers.is_nvtt_available()
+            texconv_available = nvtt_helpers.NVTTHelpers.is_texconv_available()
+            nvtt_path = nvtt_helpers.NVTTHelpers.get_nvtt_path()
+            texconv_path = nvtt_helpers.NVTTHelpers.get_texconv_path()
         
         # Status box
         status_box = layout.box()
@@ -650,7 +677,10 @@ class FO4_PT_ExportPanel(Panel):
         layout = self.layout
         
         status_box = layout.box()
-        available, message = export_helpers.ExportHelpers.nif_exporter_available()
+        available = False
+        message = "export_helpers module not available"
+        if export_helpers:
+            available, message = export_helpers.ExportHelpers.nif_exporter_available()
         icon = 'CHECKMARK' if available else 'ERROR'
         status_box.label(text=f"NIF Exporter: {'Available' if available else 'Not detected'}", icon=icon)
         status_box.label(text=message, icon='INFO')
@@ -1079,8 +1109,9 @@ class FO4_PT_PresetLibraryPanel(Panel):
         box.operator("fo4.refresh_preset_library", text="Refresh", icon='FILE_REFRESH')
         
         # Recent presets
-        from . import preset_library
-        recent = preset_library.PresetLibrary.get_recent_presets(5)
+        recent = []
+        if preset_library:
+            recent = preset_library.PresetLibrary.get_recent_presets(5)
         
         if recent:
             recent_box = layout.box()
@@ -1094,7 +1125,9 @@ class FO4_PT_PresetLibraryPanel(Panel):
                 op.filepath = preset['filepath']
         
         # Popular presets
-        popular = preset_library.PresetLibrary.get_popular_presets(5)
+        popular = []
+        if preset_library:
+            popular = preset_library.PresetLibrary.get_popular_presets(5)
         if popular:
             pop_box = layout.box()
             pop_box.label(text="Most Used", icon='SOLO_ON')
@@ -1134,8 +1167,9 @@ class FO4_PT_AutomationMacrosPanel(Panel):
         
         if scene.fo4_is_recording:
             box.label(text="● RECORDING", icon='RADIOBUT_ON')
-            from . import automation_system
-            action_count = len(automation_system.AutomationSystem.recorded_actions)
+            action_count = 0
+            if automation_system:
+                action_count = len(automation_system.AutomationSystem.recorded_actions)
             box.label(text=f"Actions recorded: {action_count}")
             box.operator("fo4.stop_recording", text="Stop Recording", icon='SNAP_FACE')
         else:
@@ -1144,8 +1178,7 @@ class FO4_PT_AutomationMacrosPanel(Panel):
         
         # Save macro
         if not scene.fo4_is_recording:
-            from . import automation_system
-            if automation_system.AutomationSystem.recorded_actions:
+            if automation_system and automation_system.AutomationSystem.recorded_actions:
                 save_box = layout.box()
                 save_box.label(text="Save Recorded Macro", icon='FILE_NEW')
                 save_box.operator("fo4.save_macro", text="Save as Macro", icon='FILE_TICK')
@@ -1156,8 +1189,9 @@ class FO4_PT_AutomationMacrosPanel(Panel):
         template_box.operator("fo4.execute_workflow_template", text="Execute Template", icon='PLAY')
         
         # Saved macros
-        from . import automation_system
-        macros = automation_system.AutomationSystem.get_all_macros()
+        macros = []
+        if automation_system:
+            macros = automation_system.AutomationSystem.get_all_macros()
         
         if macros:
             macro_box = layout.box()
@@ -1196,9 +1230,10 @@ class FO4_PT_AddonIntegrationPanel(Panel):
         # Scan for add-ons
         box = layout.box()
         box.label(text="Useful Add-ons for FO4", icon='PLUGIN')
-        
-        from . import addon_integration
-        detected = addon_integration.AddonIntegrationSystem.scan_for_known_addons()
+
+        detected = []
+        if addon_integration:
+            detected = addon_integration.AddonIntegrationSystem.scan_for_known_addons()
         
         for addon in detected:
             addon_box = layout.box()
@@ -1264,11 +1299,11 @@ class FO4_PT_DesktopTutorialPanel(Panel):
         
         if scene.fo4_desktop_connected:
             status_box.label(text="✓ Connected", icon='CHECKMARK')
-            
+
             # Server info
-            from . import desktop_tutorial_client
-            status = desktop_tutorial_client.DesktopTutorialClient.get_connection_status()
-            status_box.label(text=f"Server: {status['server_url']}")
+            if desktop_tutorial_client:
+                status = desktop_tutorial_client.DesktopTutorialClient.get_connection_status()
+                status_box.label(text=f"Server: {status['server_url']}")
             
             # Disconnect button
             status_box.operator("fo4.disconnect_desktop_app", text="Disconnect", icon='UNLINKED')
