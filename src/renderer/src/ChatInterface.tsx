@@ -984,6 +984,28 @@ export const ChatInterface: React.FC = () => {
             enabled: newVoiceEnabled,
             wasLiveActive: isLiveActive
         });
+
+        // Voice button fix: check TTS settings and available voices
+        const browserTtsSettings = window.localStorage.getItem('mossy_voice_enabled') === 'true';
+        const preferredVoice = window.localStorage.getItem('mossy_preferred_voice');
+        if (!browserTtsSettings) {
+            console.warn('[ChatInterface] TTS is not enabled. Enable TTS in Voice Settings.');
+            return;
+        }
+        if (!preferredVoice) {
+            console.warn('[ChatInterface] No preferred voice selected. Select a voice in Voice Settings.');
+            return;
+        }
+        if ('speechSynthesis' in window) {
+            const voices = window.speechSynthesis.getVoices();
+            if (!voices.length) {
+                console.warn('[ChatInterface] No voices available. Install Windows voices and restart app.');
+                return;
+            }
+        } else {
+            console.warn('[ChatInterface] Browser TTS not available.');
+            return;
+        }
     };
 
     const stopAudio = () => {
