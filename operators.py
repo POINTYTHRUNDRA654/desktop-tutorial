@@ -2628,13 +2628,22 @@ class FO4_OT_CheckUModelTools(Operator):
             except ImportError:
                 missing_modules.append(mod_name)
 
-        if not ready and "missing" in message.lower():
+        needs_download = (
+            not ready and (
+                "missing" in message.lower() or "incomplete" in message.lower()
+            )
+        )
+
+        if needs_download:
             ok, msg = umodel_tools_helpers.download_latest()
             actions.append(msg)
+            if not ok and ("manual download" in msg.lower() or "download manually" in msg.lower()):
+                _, browser_msg = umodel_tools_helpers.open_download_page()
+                if browser_msg:
+                    actions.append(browser_msg)
             if ok:
                 umodel_tools_helpers.register()
                 ready, message = umodel_tools_helpers.status()
-
         elif not ready:
             umodel_tools_helpers.register()
             ready, message = umodel_tools_helpers.status()
@@ -2652,6 +2661,19 @@ class FO4_OT_CheckUModelTools(Operator):
         print("UMODEL TOOLS STATUS")
         print(status_text)
         print(f"Path: {umodel_tools_helpers.addon_path()}")
+        return {'FINISHED'}
+
+
+class FO4_OT_OpenUModelToolsPage(Operator):
+    """Open the UModel Tools GitHub page for manual download."""
+    bl_idname = "fo4.open_umodel_tools_page"
+    bl_label = "Manual Download (UModel Tools)"
+
+    def execute(self, context):
+        ok, msg = umodel_tools_helpers.open_download_page()
+        level = 'INFO' if ok else 'ERROR'
+        self.report({level}, msg)
+        notification_system.FO4_NotificationSystem.notify(msg, level)
         return {'FINISHED'}
 
 
@@ -12305,6 +12327,7 @@ classes = (
     FO4_OT_CheckUEImporter,
     FO4_OT_InstallUEImporter,
     FO4_OT_CheckUModelTools,
+    FO4_OT_OpenUModelToolsPage,
     FO4_OT_InstallUModelTools,
     FO4_OT_CheckUModel,
     FO4_OT_ScanFO4Readiness,

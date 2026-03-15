@@ -1460,6 +1460,7 @@ class FO4_PT_ToolsLinks(Panel):
         row = box.row(align=True)
         row.operator("fo4.install_umodel_tools", text="Auto-Install UModel Tools", icon='IMPORT')
         row.operator("fo4.check_umodel_tools", text="", icon='FILE_REFRESH')
+        box.operator("fo4.open_umodel_tools_page", text="Manual Download Instructions", icon='URL')
 
         # Automated installers for external utilities
         box = layout.box()

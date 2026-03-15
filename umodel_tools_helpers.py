@@ -54,9 +54,20 @@ def get_tool_dir():
 def download_latest():
     """Download the upstream repo zip to D:/blender_tools/ or fallback location."""
     tool_dir = get_tool_dir()
+    addon_init = tool_dir / "umodel_tools" / "__init__.py"
 
+    if addon_init.exists():
+        return True, f"UModel Tools already exists at {tool_dir}"
+
+    # If a previous attempt left an incomplete directory, clear it so we can retry.
     if tool_dir.exists():
-        return True, f"UModel Tools directory already exists at {tool_dir}"
+        try:
+            shutil.rmtree(tool_dir)
+        except Exception as exc:  # noqa: BLE001
+            return False, (
+                f"Existing UModel Tools folder at {tool_dir} is incomplete and "
+                f"could not be cleaned: {exc}"
+            )
 
     tool_dir.parent.mkdir(parents=True, exist_ok=True)
 
@@ -83,12 +94,20 @@ def download_latest():
                 src = extracted_dirs[0]
                 shutil.move(str(src), str(tool_dir))
 
-            return True, f"Downloaded UModel Tools to {tool_dir}. Install it manually as a separate Blender addon."
+            return True, (
+                f"Downloaded UModel Tools to {tool_dir}. "
+                "Install it manually as a separate Blender addon."
+            )
         except Exception as exc:  # noqa: BLE001
             last_error = str(exc)
             continue
 
-    return False, f"Failed to download UModel Tools: {last_error or 'unknown error'}"
+    return False, (
+        f"Manual download required: failed to download UModel Tools automatically "
+        f"({last_error or 'unknown error'}). "
+        "Download the ZIP from https://github.com/skarndev/umodel_tools "
+        f"and extract it so that {tool_dir}/umodel_tools/__init__.py exists."
+    )
 
 
 def status():
@@ -102,13 +121,30 @@ def status():
             "Install as a Blender addon via Edit > Preferences > Add-ons > Install."
         )
     if tool_dir.exists():
-        return False, f"UModel Tools at {tool_dir} appears incomplete — try Auto-Install again"
+        return False, (
+            f"UModel Tools at {tool_dir} appears incomplete — click Auto-Install "
+            "again or download manually to this folder"
+        )
     return False, f"UModel Tools not installed — click Auto-Install to download automatically"
 
 
 def addon_path() -> str:
     """Return the expected path as a string for display."""
     return str(get_tool_dir())
+
+
+def open_download_page() -> tuple[bool, str]:
+    """Open the UModel Tools GitHub page so the user can download manually."""
+    import webbrowser
+
+    url = "https://github.com/skarndev/umodel_tools"
+    try:
+        webbrowser.open(url)
+        return True, (
+            f"Opened UModel Tools page. Download the ZIP and extract to: {get_tool_dir()}"
+        )
+    except Exception as exc:  # noqa: BLE001
+        return False, f"Failed to open browser: {exc}"
 
 
 def register():
