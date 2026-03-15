@@ -2226,6 +2226,120 @@ def test_torch_missing_messages():
     return True
 
 
+def test_torch_dll_init_error():
+    """Verify that WinError 1114 (DLL init failure) is handled gracefully.
+
+    When ``import torch`` raises an OSError with winerror 1114
+    (e.g. D:\\blender_torch\\torch\\lib\\c10.dll failed to load), the
+    TorchPathManager must return the sentinel ``"dll_init_error"`` and the
+    Shap-E / Point-E helpers must surface a helpful CUDA-mismatch message
+    rather than a raw "Unknown error: [WinError 1114]..." string.
+    """
+    print("\n" + "="*70)
+    print("TEST 17: PyTorch DLL Init Error (WinError 1114) Handling")
+    print("="*70)
+
+    addon_dir = Path(__file__).parent
+    failed = []
+
+    def ck(label, cond, detail=""):
+        sym = "✅" if cond else "❌"
+        print(f"{sym} {label}{(': ' + detail) if detail else ''}")
+        if not cond:
+            failed.append(label + ((" — " + detail) if detail else ""))
+
+    # ------------------------------------------------------------------
+    # 1. torch_path_manager.try_import_torch() must return "dll_init_error"
+    #    when importing torch raises OSError with winerror == 1114.
+    # ------------------------------------------------------------------
+    stashed_torch = {k: sys.modules.pop(k) for k in list(sys.modules)
+                     if k == "torch" or k.startswith("torch.")}
+    stashed_tpm = {k: sys.modules.pop(k) for k in list(sys.modules)
+                   if "torch_path_manager" in k}
+    try:
+        tpm_mod, tpm_err = _load_module(addon_dir, "torch_path_manager")
+        ck("torch_path_manager loads", tpm_mod is not None, tpm_err or "")
+        if tpm_mod is not None:
+            # Build a fake OSError that looks like WinError 1114.
+            dll_err = OSError("[WinError 1114] A dynamic link library (DLL) "
+                              "initialization routine failed.")
+            dll_err.winerror = 1114
+
+            # Use the modern find_spec / exec_module importer protocol so
+            # this works on Python 3.4+ (find_module is deprecated in 3.12+).
+            class _DllErrFinder:
+                def find_spec(self, fullname, path, target=None):
+                    if fullname == "torch":
+                        import importlib.machinery as _m
+                        return _m.ModuleSpec(fullname, self, is_package=False)
+                    return None
+
+                def create_module(self, spec):
+                    return None
+
+                def exec_module(self, module):
+                    raise dll_err
+
+            sys.meta_path.insert(0, _DllErrFinder())
+            try:
+                ok, msg, mod = tpm_mod.TorchPathManager.try_import_torch()
+                ck("try_import_torch returns False on WinError 1114", not ok)
+                ck("try_import_torch returns 'dll_init_error' sentinel",
+                   msg == "dll_init_error", repr(msg))
+                ck("try_import_torch returns None module on WinError 1114",
+                   mod is None)
+            finally:
+                sys.meta_path.pop(0)
+    finally:
+        sys.modules.update(stashed_torch)
+        sys.modules.update(stashed_tpm)
+
+    # ------------------------------------------------------------------
+    # 2+3. Inspect source of shap_e_helpers and point_e_helpers to verify
+    #      _dll_init_error_message() is defined and contains the required
+    #      information (WinError 1114, c10.dll / blender_torch, CUDA fix).
+    #      Using source inspection avoids multiprocessing stub issues that
+    #      can occur when re-loading these worker-heavy modules in tests.
+    # ------------------------------------------------------------------
+    for fname, label_prefix in (
+        ("shap_e_helpers.py", "Shap-E"),
+        ("point_e_helpers.py", "Point-E"),
+    ):
+        src = (addon_dir / fname).read_text(encoding="utf-8")
+        ck(f"{label_prefix}: _dll_init_error_message defined in source",
+           "def _dll_init_error_message" in src)
+        ck(f"{label_prefix}: DLL message mentions WinError 1114",
+           "1114" in src)
+        ck(f"{label_prefix}: DLL message mentions c10.dll or blender_torch",
+           "c10.dll" in src or "blender_torch" in src)
+        ck(f"{label_prefix}: DLL message mentions CUDA reinstall",
+           "cuda" in src.lower() or "CUDA" in src)
+        ck(f"{label_prefix}: DLL message mentions Visual C++ / Redistributable",
+           "Redistributable" in src or "Visual C++" in src)
+        ck(f"{label_prefix}: dll_init_error handled in try_import_torch caller",
+           '"dll_init_error"' in src)
+
+    # ------------------------------------------------------------------
+    # 4. Source-level checks: all "WinError 206" inline guards in the
+    #    generation helpers must be accompanied by a "WinError 1114" /
+    #    winerror guard in the same file.
+    # ------------------------------------------------------------------
+    for fname in ("shap_e_helpers.py", "point_e_helpers.py", "rignet_helpers.py"):
+        src = (addon_dir / fname).read_text(encoding="utf-8")
+        ck(f"{fname} handles WinError 1114 alongside WinError 206",
+           "WinError 1114" in src or "winerror" in src,
+           f"No WinError 1114 / winerror handler found in {fname}")
+
+    if failed:
+        print(f"\n❌ FAILED: {len(failed)} check(s) failed")
+        for f in failed:
+            print(f"   • {f}")
+        return False
+
+    print("\n✅ PASSED: WinError 1114 DLL init error is handled correctly")
+    return True
+
+
 def test_blender5_access_violation_fix():
     """Verify the Blender 5.0.1 EXCEPTION_ACCESS_VIOLATION fix.
 
@@ -2241,7 +2355,7 @@ def test_blender5_access_violation_fix():
        a successful update.
     """
     print("\n" + "="*70)
-    print("TEST 17: Blender 5.0.1 Access-Violation Fix (timer-based quit)")
+    print("TEST 18: Blender 5.0.1 Access-Violation Fix (timer-based quit)")
     print("="*70)
 
     addon_dir = Path(__file__).parent
@@ -2330,7 +2444,7 @@ def test_blender5_access_violation_fix():
 def test_tool_root_preferences():
     """Ensure tool/PyTorch root paths are persisted and default to D: drives."""
     print("\n" + "="*70)
-    print("TEST 18: Tool Root Preferences")
+    print("TEST 19: Tool Root Preferences")
     print("="*70)
 
     failed = []
@@ -2379,7 +2493,7 @@ def test_tool_root_preferences():
 def test_fo4_readiness_scan_operator():
     """Verify the FO4 readiness scan operator and UI hook exist."""
     print("\n" + "="*70)
-    print("TEST 19: FO4 Readiness Scan Operator")
+    print("TEST 20: FO4 Readiness Scan Operator")
     print("="*70)
 
     failed = []
@@ -2420,7 +2534,7 @@ def test_fo4_readiness_scan_operator():
 def test_unity_asset_import_operator():
     """Ensure Unity asset import operator is present and wired to UI."""
     print("\n" + "="*70)
-    print("TEST 20: Unity Asset Import Operator")
+    print("TEST 21: Unity Asset Import Operator")
     print("="*70)
 
     failed = []
@@ -2461,7 +2575,7 @@ def test_unity_asset_import_operator():
 def test_unreal_asset_import_operator():
     """Ensure Unreal asset import operator is present and wired to UI."""
     print("\n" + "="*70)
-    print("TEST 21: Unreal Asset Import Operator")
+    print("TEST 22: Unreal Asset Import Operator")
     print("="*70)
 
     failed = []
@@ -2502,7 +2616,7 @@ def test_unreal_asset_import_operator():
 def test_presets_do_not_create_placeholders_for_game_meshes():
     """Weapon/armor/prop/vegetation presets should not spawn placeholder cubes."""
     print("\n" + "="*70)
-    print("TEST 22: Presets Avoid Placeholder Meshes")
+    print("TEST 23: Presets Avoid Placeholder Meshes")
     print("="*70)
 
     failed = []
@@ -2537,7 +2651,7 @@ def test_presets_do_not_create_placeholders_for_game_meshes():
 def test_game_imports_apply_textures():
     """Verify game/unity/unreal imports attempt to apply textures/materials."""
     print("\n" + "="*70)
-    print("TEST 23: Game Imports Apply Textures")
+    print("TEST 24: Game Imports Apply Textures")
     print("="*70)
 
     failed = []
@@ -2576,7 +2690,7 @@ def test_panel_draw_correctness():
     or invalid icons that would crash panels in Blender 4.x+.
     """
     print("\n" + "="*70)
-    print("TEST 24: Panel Draw Correctness")
+    print("TEST 25: Panel Draw Correctness")
     print("="*70)
 
     import ast
@@ -2686,6 +2800,7 @@ def run_all_tests():
         ("UModel Download Configuration",             test_umodel_download),
         ("UModel Manual Install Detection",           test_umodel_manual_detection),
         ("Missing-PyTorch Error Messages",            test_torch_missing_messages),
+        ("PyTorch DLL Init Error (WinError 1114)",     test_torch_dll_init_error),
         ("Blender 5.0.1 Access-Violation Fix",        test_blender5_access_violation_fix),
         ("Tool Root Preferences",                     test_tool_root_preferences),
         ("FO4 Readiness Scan Operator",               test_fo4_readiness_scan_operator),

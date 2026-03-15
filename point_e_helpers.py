@@ -46,6 +46,39 @@ def _pytorch_required_message(detail=""):
         msg += f"\n\nError: {detail}"
     return msg
 
+
+def _dll_init_error_message(detail=""):
+    """Return a user-friendly message for WinError 1114 DLL initialisation failures.
+
+    WinError 1114 means a DLL (e.g. D:\\blender_torch\\torch\\lib\\c10.dll)
+    failed to initialise, almost always because the installed PyTorch was built
+    for a different CUDA toolkit version, or because the Microsoft Visual C++
+    Redistributable is missing.
+    """
+    msg = (
+        "PyTorch DLL initialisation failed (WinError 1114).\n\n"
+        "The file D:\\blender_torch\\torch\\lib\\c10.dll (or one of its\n"
+        "dependencies) could not be loaded.  This almost always means the\n"
+        "installed PyTorch was built for a different CUDA version than the\n"
+        "one on this machine, or the Microsoft Visual C++ Redistributable\n"
+        "is missing.\n\n"
+        "To fix:\n"
+        "1. Check your CUDA version — run  nvidia-smi  in a terminal and\n"
+        "   look at the top-right corner.\n\n"
+        "2. Reinstall PyTorch to match your CUDA version, e.g.:\n"
+        "   pip install torch torchvision "
+        "--index-url https://download.pytorch.org/whl/cu118\n"
+        "   (replace cu118 with your version: cu121, cu124, etc.)\n\n"
+        "3. For a system without an NVIDIA GPU use the CPU-only build:\n"
+        "   pip install torch torchvision "
+        "--index-url https://download.pytorch.org/whl/cpu\n\n"
+        "4. Install Microsoft Visual C++ Redistributable 2019+:\n"
+        "   https://aka.ms/vs/17/release/vc_redist.x64.exe"
+    )
+    if detail:
+        msg += f"\n\nOriginal error: {detail}"
+    return msg
+
 # Sampler caches — keyed by (device_str, grid_size, num_steps) so that users
 # can freely change quality settings without the per-call overhead of
 # re-building diffusion schedules and PointCloudSampler objects.
@@ -455,6 +488,8 @@ class PointEHelpers:
                             "   - Create venv in C:\\t\n"
                             "   - Install PyTorch there"
                         )
+                    elif msg == "dll_init_error":
+                        return False, _dll_init_error_message()
                     else:
                         return False, _pytorch_required_message(msg)
             except ImportError:
@@ -481,6 +516,10 @@ class PointEHelpers:
                     f"Original error: {str(e)}"
                 )
             return False, f"File error loading Point-E: {str(e)}"
+        except OSError as e:
+            if getattr(e, 'winerror', None) == 1114 or "WinError 1114" in str(e):
+                return False, _dll_init_error_message(str(e))
+            return False, f"OS error loading Point-E: {str(e)}"
         except ImportError as e:
             return False, f"Point-E not installed: {str(e)}"
     
@@ -559,6 +598,8 @@ For more info: https://github.com/openai/point-e
                 if not success:
                     if msg == "windows_path_error":
                         return False, "Windows path length error. Use the 'Install PyTorch to Short Path' button to install to D:/t"
+                    elif msg == "dll_init_error":
+                        return False, _dll_init_error_message()
                     else:
                         return False, msg
             except ImportError:
@@ -566,7 +607,6 @@ For more info: https://github.com/openai/point-e
                 import torch
 
             t_total = time.monotonic()
-            print(f"[Point-E] Generating 3D point cloud from text: '{prompt}'")
 
             # Set device
             device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
@@ -623,6 +663,10 @@ For more info: https://github.com/openai/point-e
             if "WinError 206" in str(e) or "filename or extension is too long" in str(e):
                 return False, "Windows path length error. Enable long paths in Windows or reinstall PyTorch in a shorter path (see Point-E installation check for details.)"
             return False, f"File error: {str(e)}"
+        except OSError as e:
+            if getattr(e, 'winerror', None) == 1114 or "WinError 1114" in str(e):
+                return False, _dll_init_error_message(str(e))
+            return False, f"OS error: {str(e)}"
         except ImportError as e:
             return False, f"Point-E not installed: {str(e)}"
         except Exception as e:
@@ -653,6 +697,8 @@ For more info: https://github.com/openai/point-e
                 if not success:
                     if msg == "windows_path_error":
                         return False, "Windows path length error. Use the 'Install PyTorch to Short Path' button to install to D:/t"
+                    elif msg == "dll_init_error":
+                        return False, _dll_init_error_message()
                     else:
                         return False, msg
             except ImportError:
@@ -724,6 +770,10 @@ For more info: https://github.com/openai/point-e
             if "WinError 206" in str(e) or "filename or extension is too long" in str(e):
                 return False, "Windows path length error. Enable long paths in Windows or reinstall PyTorch in a shorter path (see Point-E installation check for details.)"
             return False, f"File error: {str(e)}"
+        except OSError as e:
+            if getattr(e, 'winerror', None) == 1114 or "WinError 1114" in str(e):
+                return False, _dll_init_error_message(str(e))
+            return False, f"OS error: {str(e)}"
         except ImportError as e:
             return False, f"Point-E not installed: {str(e)}"
         except Exception as e:

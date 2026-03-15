@@ -168,6 +168,10 @@ class TorchPathManager:
 
                 return False, "windows_path_error", None
             return False, f"File error: {str(e)}", None
+        except OSError as e:
+            if getattr(e, 'winerror', None) == 1114 or "WinError 1114" in str(e):
+                return False, "dll_init_error", None
+            return False, f"OS error loading PyTorch: {str(e)}", None
         except ImportError as e:
             return False, f"PyTorch not installed: {str(e)}", None
         except Exception as e:
