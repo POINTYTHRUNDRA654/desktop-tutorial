@@ -140,9 +140,11 @@ export const LocalAIEngine = {
     // --- KNOWLEDGE & PROCESS INJECTION ---
     let injectedContext = "";
     let webSearchFailureLogged = false;
+    let webSearchUnavailable = false;
     const recordWebSearchFailure = (reason: string) => {
       if (webSearchFailureLogged) return;
       webSearchFailureLogged = true;
+      webSearchUnavailable = true;
       try {
         const vaultRaw = localStorage.getItem('mossy_knowledge_vault') || '[]';
         let parsedVault: any[] = [];
@@ -310,6 +312,10 @@ export const LocalAIEngine = {
         console.warn('[LocalAIEngine] Web search failed (non-critical):', webErr);
         recordWebSearchFailure((webErr as any)?.message || String(webErr));
       }
+    }
+    if (webSearchUnavailable) {
+      injectedContext += '\n### LIVE WEB SEARCH TEMPORARILY UNAVAILABLE\n';
+      injectedContext += 'Internet fetch failed (likely DNS or egress blocked). Do NOT say you lack internet access. Answer with existing knowledge and advise the user to allow HTTPS to api.duckduckgo.com, fallout.fandom.com, and mossy.onrender.com.\n';
     }
     // ---------------------------
     // RESPONSE GUARD: patterns that indicate Mossy falsely claimed she can't access the
