@@ -6879,21 +6879,7 @@ class FO4_OT_AskMossyForUVAdvice(Operator):
     _obj_name: str = ""
     _deadline = None
 
-    def _run_mossy(self):
-        """Run in background thread: POST analysis to Mossy's HTTP /ask endpoint."""
-        try:
-            from . import mossy_link as _ml
-            query = (
-                "I am setting up a Fallout 4 mod mesh in Blender and need help with "
-                "UV mapping and textures for NIF export. "
-                "Review the analysis below and give me clear, numbered, "
-                "beginner-friendly steps to fix any issues and get this ready for export."
-            )
-            self._result = _ml.ask_mossy(query, context_data=self._analysis, timeout=15)
-        except Exception:
-            self._result = None
-
-    def invoke(self, context, event):
+    def _start(self, context):
         obj = context.active_object
         if not obj or obj.type != 'MESH':
             self.report({'ERROR'}, "Select a mesh object first")
@@ -6914,13 +6900,33 @@ class FO4_OT_AskMossyForUVAdvice(Operator):
         self.report({'INFO'}, "Asking Mossy for UV/texture advice…")
         return {'RUNNING_MODAL'}
 
+    def _run_mossy(self):
+        """Run in background thread: POST analysis to Mossy's HTTP /ask endpoint."""
+        try:
+            from . import mossy_link as _ml
+            query = (
+                "I am setting up a Fallout 4 mod mesh in Blender and need help with "
+                "UV mapping and textures for NIF export. "
+                "Review the analysis below and give me clear, numbered, "
+                "beginner-friendly steps to fix any issues and get this ready for export."
+            )
+            self._result = _ml.ask_mossy(query, context_data=self._analysis, timeout=15)
+        except Exception:
+            self._result = None
+
+    def invoke(self, context, event):
+        return self._start(context)
+
+    def execute(self, context):
+        return self._start(context)
+
     def modal(self, context, event):
         if event.type != 'TIMER':
             return {'PASS_THROUGH'}
         import time
         if self._thread and self._thread.is_alive() and time.monotonic() < self._deadline:
-                return {'PASS_THROUGH'}
-            # Hard timeout reached — stop waiting and use whatever result we have
+            return {'PASS_THROUGH'}
+        # Hard timeout reached — stop waiting and use whatever result we have
         context.window_manager.event_timer_remove(self._timer)
         self._timer = None
         self._display_result()
@@ -6982,26 +6988,7 @@ class FO4_OT_MossyAutoFix(Operator):
     _issues = None
     _deadline = None
 
-    def _run_mossy(self):
-        """Run in background thread: send issues to Mossy, get back action list."""
-        try:
-            from . import mossy_link as _ml
-            import json as _json
-            query = (
-                "You are an expert AI fixing Blender meshes for Fallout 4 NIF export. "
-                "The following issues were found during validation of the mesh:\n"
-                f"{_json.dumps(self._issues, indent=2)}\n\n"
-                "Respond ONLY with a valid JSON array of action strings to fix these issues. "
-                "Allowed actions: ['REMOVE_DOUBLES', 'DELETE_LOOSE', 'MAKE_MANIFOLD', "
-                "'APPLY_TRANSFORMS', 'TRIANGULATE', 'SHADE_SMOOTH_AUTOSMOOTH']. "
-                "Example response: [\"APPLY_TRANSFORMS\", \"DELETE_LOOSE\"]"
-            )
-            context_data = {"issues": self._issues}
-            self._result = _ml.ask_mossy(query, context_data=context_data, timeout=15)
-        except Exception:
-            self._result = None
-
-    def invoke(self, context, event):
+    def _start(self, context):
         obj = context.active_object
         if not obj or obj.type != 'MESH':
             self.report({'ERROR'}, "Select a mesh object first")
@@ -7026,13 +7013,38 @@ class FO4_OT_MossyAutoFix(Operator):
         self.report({'INFO'}, "Asking Mossy for auto-fix instructions…")
         return {'RUNNING_MODAL'}
 
+    def _run_mossy(self):
+        """Run in background thread: send issues to Mossy, get back action list."""
+        try:
+            from . import mossy_link as _ml
+            import json as _json
+            query = (
+                "You are an expert AI fixing Blender meshes for Fallout 4 NIF export. "
+                "The following issues were found during validation of the mesh:\n"
+                f"{_json.dumps(self._issues, indent=2)}\n\n"
+                "Respond ONLY with a valid JSON array of action strings to fix these issues. "
+                "Allowed actions: ['REMOVE_DOUBLES', 'DELETE_LOOSE', 'MAKE_MANIFOLD', "
+                "'APPLY_TRANSFORMS', 'TRIANGULATE', 'SHADE_SMOOTH_AUTOSMOOTH']. "
+                "Example response: [\"APPLY_TRANSFORMS\", \"DELETE_LOOSE\"]"
+            )
+            context_data = {"issues": self._issues}
+            self._result = _ml.ask_mossy(query, context_data=context_data, timeout=15)
+        except Exception:
+            self._result = None
+
+    def invoke(self, context, event):
+        return self._start(context)
+
+    def execute(self, context):
+        return self._start(context)
+
     def modal(self, context, event):
         if event.type != 'TIMER':
             return {'PASS_THROUGH'}
         import time
         if self._thread and self._thread.is_alive() and time.monotonic() < self._deadline:
-                return {'PASS_THROUGH'}
-            # Hard timeout reached — stop waiting and use whatever result we have
+            return {'PASS_THROUGH'}
+        # Hard timeout reached — stop waiting and use whatever result we have
         context.window_manager.event_timer_remove(self._timer)
         self._timer = None
 
