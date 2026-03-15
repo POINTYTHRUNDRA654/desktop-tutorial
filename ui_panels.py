@@ -4,7 +4,7 @@ UI Panels for the Fallout 4 Tutorial Add-on
 
 import bpy
 from bpy.types import Panel
-from . import hunyuan3d_helpers, gradio_helpers, hymotion_helpers, nvtt_helpers, rignet_helpers, preferences, ue_importer_helpers, umodel_tools_helpers, unity_fbx_importer_helpers, knowledge_helpers
+from . import hunyuan3d_helpers, gradio_helpers, hymotion_helpers, nvtt_helpers, rignet_helpers, preferences, ue_importer_helpers, umodel_tools_helpers, unity_fbx_importer_helpers, knowledge_helpers, export_helpers
 
 class FO4_PT_MainPanel(Panel):
     """Main tutorial panel in the 3D View sidebar"""
@@ -619,6 +619,8 @@ class FO4_PT_ExportPanel(Panel):
     
     def draw(self, context):
         layout = self.layout
+        obj = context.active_object
+        has_mesh = obj is not None and obj.type == 'MESH'
         
         status_box = layout.box()
         available, message = export_helpers.ExportHelpers.nif_exporter_available()
@@ -630,9 +632,11 @@ class FO4_PT_ExportPanel(Panel):
         
         box = layout.box()
         box.label(text="Export Options", icon='EXPORT')
-        box.operator("fo4.export_mesh", text="Export Mesh (.nif)", icon='MESH_DATA')
-        box.operator("fo4.export_all", text="Export Complete Mod", icon='PACKAGE')
-        box.operator("fo4.validate_export", text="Validate Before Export", icon='CHECKMARK')
+        col = box.column()
+        col.enabled = has_mesh
+        col.operator("fo4.export_mesh", text="Export Mesh (.nif)", icon='MESH_DATA')
+        col.operator("fo4.export_all", text="Export Complete Mod", icon='PACKAGE')
+        col.operator("fo4.validate_export", text="Validate Before Export", icon='CHECKMARK')
 
 
 class FO4_PT_BatchProcessingPanel(Panel):
@@ -1106,7 +1110,7 @@ class FO4_PT_AutomationMacrosPanel(Panel):
             from . import automation_system
             action_count = len(automation_system.AutomationSystem.recorded_actions)
             box.label(text=f"Actions recorded: {action_count}")
-            box.operator("fo4.stop_recording", text="Stop Recording", icon='SNAP_FACE')
+            box.operator("fo4.stop_recording", text="Stop Recording", icon='UV_FACESEL')
         else:
             box.operator("fo4.start_recording", text="Start Recording", icon='REC')
             box.label(text="Record your actions to create macros")
