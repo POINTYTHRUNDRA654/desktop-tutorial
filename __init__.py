@@ -148,17 +148,15 @@ modules = list(filter(_filter, [
     point_e_helpers,
     advisor_helpers,
     knowledge_helpers,
-    # the external integration helpers are intentionally omitted from the
-    # automatic registration list.  They are heavy and may trigger policy
-    # violations when the wrapped upstream add‑ons are loaded at import time.
-    # Users can enable each integration manually via the sidebar buttons or
-    # the "Check ..." operators.
-    # ue_importer_helpers,
-    # umodel_tools_helpers,
-    # unity_fbx_importer_helpers,
-    # asset_studio_helpers,
-    # asset_ripper_helpers,
-    # tool_installers,
+    # external integrations — register by default so their buttons/operators
+    # are available without a separate manual load step; any missing module is
+    # filtered out by _filter to avoid crashes on platforms without the tools.
+    ue_importer_helpers,
+    umodel_tools_helpers,
+    unity_fbx_importer_helpers,
+    asset_studio_helpers,
+    asset_ripper_helpers,
+    tool_installers,
     mossy_link,
     post_processing_helpers,
     fo4_material_browser,
