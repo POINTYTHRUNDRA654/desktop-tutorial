@@ -10900,7 +10900,7 @@ class FO4_OT_GenerateShapEText(Operator):
         inference_steps = scene.fo4_shap_e_inference_steps
         
         def _run():
-            success, result = shap_e_helpers.ShapEHelpers.generate_from_text(
+            success, result = shap_e_helpers.ShapEHelpers.generate_from_text_background(
                 prompt,
                 guidance_scale=guidance_scale,
                 num_inference_steps=inference_steps
@@ -10967,7 +10967,7 @@ class FO4_OT_GenerateShapEImage(Operator):
         inference_steps = scene.fo4_shap_e_inference_steps
         
         def _run():
-            success, result = shap_e_helpers.ShapEHelpers.generate_from_image(
+            success, result = shap_e_helpers.ShapEHelpers.generate_from_image_background(
                 image_path,
                 guidance_scale=guidance_scale,
                 num_inference_steps=inference_steps
@@ -11097,7 +11097,7 @@ class FO4_OT_GeneratePointEText(Operator):
         num_steps = scene.fo4_point_e_inference_steps
 
         def _run():
-            success, result = _pe.generate_from_text(
+            success, result = _pe.generate_from_text_background(
                 prompt,
                 num_samples=num_samples,
                 grid_size=grid_size,
@@ -11172,7 +11172,7 @@ class FO4_OT_GeneratePointEImage(Operator):
         num_steps = scene.fo4_point_e_inference_steps
 
         def _run():
-            success, result = _pe.generate_from_image(
+            success, result = _pe.generate_from_image_background(
                 image_path,
                 num_samples=num_samples,
                 grid_size=grid_size,

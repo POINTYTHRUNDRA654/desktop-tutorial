@@ -3,9 +3,17 @@ Shap-E Integration for Fallout 4 Add-on
 Text-to-3D and Image-to-3D generation using OpenAI's Shap-E
 """
 
-import bpy
+import atexit
+import multiprocessing
+import threading
 import time
 from pathlib import Path
+from typing import Any, Dict
+
+try:
+    import bpy  # type: ignore
+except ImportError:  # pragma: no cover - worker processes run without Blender
+    bpy = None
 from bpy.props import StringProperty, EnumProperty, IntProperty, FloatProperty, BoolProperty
 
 # ---------------------------------------------------------------------------
@@ -21,6 +29,11 @@ _shap_e_transmitter = None   # dict: {xm, device}  -- shared between text & imag
 _shap_e_text_models = None   # dict: {model, diffusion, device}
 _shap_e_image_models = None  # dict: {model, diffusion, device}
 
+# Background worker state (keeps heavy models out of the UI thread)
+_SHAP_E_WORKER_PROC: multiprocessing.Process | None = None
+_SHAP_E_WORKER_CONN: multiprocessing.connection.Connection | None = None
+_SHAP_E_WORKER_LOCK = threading.Lock()
+
 
 def _pytorch_required_message(detail=""):
     """Return a user-friendly message explaining that PyTorch must be installed."""
@@ -33,6 +46,112 @@ def _pytorch_required_message(detail=""):
     if detail:
         msg += f"\n\nError: {detail}"
     return msg
+
+
+def _stop_shap_e_worker():
+    """Terminate the Shap-E worker process and clean up its connection."""
+    global _SHAP_E_WORKER_PROC, _SHAP_E_WORKER_CONN
+    if _SHAP_E_WORKER_CONN is not None:
+        try:
+            _SHAP_E_WORKER_CONN.send({"cmd": "stop"})
+        except Exception:
+            pass
+        try:
+            _SHAP_E_WORKER_CONN.close()
+        except Exception:
+            pass
+
+    if _SHAP_E_WORKER_PROC is not None:
+        try:
+            _SHAP_E_WORKER_PROC.join(timeout=0.2)
+            if _SHAP_E_WORKER_PROC.is_alive():
+                _SHAP_E_WORKER_PROC.kill()
+        except Exception:
+            pass
+
+    _SHAP_E_WORKER_PROC = None
+    _SHAP_E_WORKER_CONN = None
+
+
+def _shap_e_worker_main(conn: multiprocessing.connection.Connection):
+    """Background worker loop that keeps heavy models off the UI thread."""
+    while True:
+        try:
+            message = conn.recv()
+        except EOFError:
+            break
+
+        if not isinstance(message, dict):
+            continue
+
+        cmd = message.get("cmd")
+        payload: Dict[str, Any] = message.get("payload", {}) or {}
+
+        if cmd == "stop":
+            break
+
+        try:
+            if cmd == "text":
+                result = ShapEHelpers.generate_from_text(**payload)
+            elif cmd == "image":
+                result = ShapEHelpers.generate_from_image(**payload)
+            else:
+                result = (False, f"Unknown Shap-E command: {cmd}")
+        except Exception as exc:  # pragma: no cover - defensive against torch failures
+            result = (False, f"Shap-E worker error: {exc}")
+
+        try:
+            conn.send(result)
+        except Exception:
+            break
+
+    try:
+        conn.close()
+    except Exception:
+        pass
+
+
+def _ensure_shap_e_worker() -> bool:
+    """Start the Shap-E worker if needed."""
+    global _SHAP_E_WORKER_PROC, _SHAP_E_WORKER_CONN
+    if _SHAP_E_WORKER_PROC is not None and _SHAP_E_WORKER_PROC.is_alive():
+        return True
+
+    _stop_shap_e_worker()
+
+    try:
+        ctx = multiprocessing.get_context("spawn")
+        parent_conn, child_conn = ctx.Pipe()
+        proc = ctx.Process(target=_shap_e_worker_main, args=(child_conn,))
+        proc.daemon = True
+        proc.start()
+        child_conn.close()
+        _SHAP_E_WORKER_PROC = proc
+        _SHAP_E_WORKER_CONN = parent_conn
+        return True
+    except Exception:
+        _stop_shap_e_worker()
+        return False
+
+
+def _dispatch_shap_e_job(cmd: str, payload: Dict[str, Any]):
+    """Send a generation request to the background worker."""
+    with _SHAP_E_WORKER_LOCK:
+        if not _ensure_shap_e_worker() or _SHAP_E_WORKER_CONN is None:
+            return False, "Shap-E worker unavailable. Check installation and retry."
+
+        try:
+            _SHAP_E_WORKER_CONN.send({"cmd": cmd, "payload": payload})
+            return _SHAP_E_WORKER_CONN.recv()
+        except EOFError:
+            _stop_shap_e_worker()
+            return False, "Shap-E worker crashed during generation. Please retry."
+        except Exception as exc:
+            _stop_shap_e_worker()
+            return False, f"Shap-E worker communication failed: {exc}"
+
+
+atexit.register(_stop_shap_e_worker)
 
 
 def _load_shap_e_transmitter(device, torch_module):
@@ -262,6 +381,34 @@ To install Shap-E:
 
 For more info: https://github.com/openai/shap-e
 """
+
+    @staticmethod
+    def generate_from_text_background(prompt, guidance_scale=15.0, num_inference_steps=32):
+        """
+        Run text-to-3D generation in a dedicated worker process to keep the UI responsive.
+        """
+        return _dispatch_shap_e_job(
+            "text",
+            {
+                "prompt": prompt,
+                "guidance_scale": guidance_scale,
+                "num_inference_steps": num_inference_steps,
+            },
+        )
+
+    @staticmethod
+    def generate_from_image_background(image_path, guidance_scale=3.0, num_inference_steps=32):
+        """
+        Run image-to-3D generation in a dedicated worker process to keep the UI responsive.
+        """
+        return _dispatch_shap_e_job(
+            "image",
+            {
+                "image_path": image_path,
+                "guidance_scale": guidance_scale,
+                "num_inference_steps": num_inference_steps,
+            },
+        )
     
     @staticmethod
     def generate_from_text(prompt, guidance_scale=15.0, num_inference_steps=32):
@@ -448,6 +595,8 @@ For more info: https://github.com/openai/shap-e
             Created mesh object or None
         """
         try:
+            if bpy is None:
+                raise RuntimeError("Blender context unavailable (bpy not importable).")
             import numpy as np
             
             vertices = mesh_data['vertices']
@@ -487,6 +636,8 @@ For more info: https://github.com/openai/shap-e
 
 def register():
     """Register Shap-E properties"""
+    if bpy is None:  # pragma: no cover - only runs inside Blender
+        raise RuntimeError("Blender context unavailable; cannot register Shap-E properties.")
     
     # Add Shap-E properties to scene
     bpy.types.Scene.fo4_shap_e_prompt = StringProperty(
@@ -527,6 +678,8 @@ def register():
 
 def unregister():
     """Unregister Shap-E properties"""
+    if bpy is None:  # pragma: no cover - only runs inside Blender
+        return
     
     if hasattr(bpy.types.Scene, 'fo4_shap_e_prompt'):
         del bpy.types.Scene.fo4_shap_e_prompt

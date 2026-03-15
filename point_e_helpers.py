@@ -4,9 +4,17 @@ Text-to-3D and Image-to-3D generation using OpenAI's Point-E
 Generates 3D point clouds that can be converted to meshes
 """
 
-import bpy
+import atexit
+import multiprocessing
+import threading
 import time
 from pathlib import Path
+from typing import Any, Dict
+
+try:
+    import bpy  # type: ignore
+except ImportError:  # pragma: no cover - worker processes run without Blender
+    bpy = None
 from bpy.props import StringProperty, EnumProperty, IntProperty, FloatProperty, BoolProperty
 
 # ---------------------------------------------------------------------------
@@ -45,6 +53,116 @@ def _pytorch_required_message(detail=""):
 # on a CPU↔GPU device switch) to keep model references valid.
 _point_e_text_sampler_cache = {}   # key: (device_str, grid_size, num_steps)
 _point_e_image_sampler_cache = {}  # key: (device_str, grid_size, num_steps)
+
+def _stop_point_e_worker():
+    """Terminate the Point-E worker process and clean up its connection."""
+    global _POINT_E_WORKER_PROC, _POINT_E_WORKER_CONN
+    if _POINT_E_WORKER_CONN is not None:
+        try:
+            _POINT_E_WORKER_CONN.send({"cmd": "stop"})
+        except Exception:
+            pass
+        try:
+            _POINT_E_WORKER_CONN.close()
+        except Exception:
+            pass
+
+    if _POINT_E_WORKER_PROC is not None:
+        try:
+            _POINT_E_WORKER_PROC.join(timeout=0.2)
+            if _POINT_E_WORKER_PROC.is_alive():
+                _POINT_E_WORKER_PROC.kill()
+        except Exception:
+            pass
+
+    _POINT_E_WORKER_PROC = None
+    _POINT_E_WORKER_CONN = None
+
+
+def _point_e_worker_main(conn: multiprocessing.connection.Connection):
+    """Background worker loop that keeps heavy Point-E inference off the UI thread."""
+    while True:
+        try:
+            message = conn.recv()
+        except EOFError:
+            break
+
+        if not isinstance(message, dict):
+            continue
+
+        cmd = message.get("cmd")
+        payload: Dict[str, Any] = message.get("payload", {}) or {}
+
+        if cmd == "stop":
+            break
+
+        try:
+            if cmd == "text":
+                result = PointEHelpers.generate_from_text(**payload)
+            elif cmd == "image":
+                result = PointEHelpers.generate_from_image(**payload)
+            else:
+                result = (False, f"Unknown Point-E command: {cmd}")
+        except Exception as exc:  # pragma: no cover - defensive against torch failures
+            result = (False, f"Point-E worker error: {exc}")
+
+        try:
+            conn.send(result)
+        except Exception:
+            break
+
+    try:
+        conn.close()
+    except Exception:
+        pass
+
+
+def _ensure_point_e_worker() -> bool:
+    """Start the Point-E worker if needed."""
+    global _POINT_E_WORKER_PROC, _POINT_E_WORKER_CONN
+    if _POINT_E_WORKER_PROC is not None and _POINT_E_WORKER_PROC.is_alive():
+        return True
+
+    _stop_point_e_worker()
+
+    try:
+        ctx = multiprocessing.get_context("spawn")
+        parent_conn, child_conn = ctx.Pipe()
+        proc = ctx.Process(target=_point_e_worker_main, args=(child_conn,))
+        proc.daemon = True
+        proc.start()
+        child_conn.close()
+        _POINT_E_WORKER_PROC = proc
+        _POINT_E_WORKER_CONN = parent_conn
+        return True
+    except Exception:
+        _stop_point_e_worker()
+        return False
+
+
+def _dispatch_point_e_job(cmd: str, payload: Dict[str, Any]):
+    """Send a generation request to the background worker."""
+    with _POINT_E_WORKER_LOCK:
+        if not _ensure_point_e_worker() or _POINT_E_WORKER_CONN is None:
+            return False, "Point-E worker unavailable. Check installation and retry."
+
+        try:
+            _POINT_E_WORKER_CONN.send({"cmd": cmd, "payload": payload})
+            return _POINT_E_WORKER_CONN.recv()
+        except EOFError:
+            _stop_point_e_worker()
+            return False, "Point-E worker crashed during generation. Please retry."
+        except Exception as exc:
+            _stop_point_e_worker()
+            return False, f"Point-E worker communication failed: {exc}"
+
+
+atexit.register(_stop_point_e_worker)
+
+# Background worker state (keeps heavy Point-E inference off the UI thread)
+_POINT_E_WORKER_PROC: multiprocessing.Process | None = None
+_POINT_E_WORKER_CONN: multiprocessing.connection.Connection | None = None
+_POINT_E_WORKER_LOCK = threading.Lock()
 
 
 def _load_point_e_upsampler(device, torch_module):
@@ -387,6 +505,32 @@ To install Point-E:
 
 For more info: https://github.com/openai/point-e
 """
+
+    @staticmethod
+    def generate_from_text_background(prompt, num_samples=1, grid_size=128, num_steps=64):
+        """Run Point-E text generation in a worker process to keep the UI responsive."""
+        return _dispatch_point_e_job(
+            "text",
+            {
+                "prompt": prompt,
+                "num_samples": num_samples,
+                "grid_size": grid_size,
+                "num_steps": num_steps,
+            },
+        )
+
+    @staticmethod
+    def generate_from_image_background(image_path, num_samples=1, grid_size=128, num_steps=64):
+        """Run Point-E image generation in a worker process to keep the UI responsive."""
+        return _dispatch_point_e_job(
+            "image",
+            {
+                "image_path": image_path,
+                "num_samples": num_samples,
+                "grid_size": grid_size,
+                "num_steps": num_steps,
+            },
+        )
     
     @staticmethod
     def generate_from_text(prompt, num_samples=1, grid_size=128, num_steps=64):
@@ -600,6 +744,8 @@ For more info: https://github.com/openai/point-e
             Created mesh object or None
         """
         try:
+            if bpy is None:
+                raise RuntimeError("Blender context unavailable (bpy not importable).")
             import numpy as np
             
             coords = point_cloud_data['coords']
@@ -626,6 +772,8 @@ For more info: https://github.com/openai/point-e
     def _create_point_cloud_mesh(coords, colors, name):
         """Create a simple point cloud visualization in Blender"""
         try:
+            if bpy is None:
+                raise RuntimeError("Blender context unavailable (bpy not importable).")
             import numpy as np
 
             # Create mesh with vertices only (no faces)
@@ -697,6 +845,8 @@ For more info: https://github.com/openai/point-e
 
 def register():
     """Register Point-E properties"""
+    if bpy is None:  # pragma: no cover - only runs inside Blender
+        raise RuntimeError("Blender context unavailable; cannot register Point-E properties.")
     
     # Add Point-E properties to scene
     bpy.types.Scene.fo4_point_e_prompt = StringProperty(
@@ -765,7 +915,9 @@ def register():
 
 def unregister():
     """Unregister Point-E properties"""
-
+    if bpy is None:  # pragma: no cover - only runs inside Blender
+        return
+    
     if hasattr(bpy.types.Scene, 'fo4_point_e_prompt'):
         del bpy.types.Scene.fo4_point_e_prompt
     if hasattr(bpy.types.Scene, 'fo4_point_e_image_path'):
