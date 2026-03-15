@@ -442,7 +442,7 @@ class FO4_PT_MeshPanel(Panel):
             row.operator(
                 "fo4.pick_faces_for_unwrap",
                 text="Pick Faces to Unwrap",
-                icon='SNAP_FACE',
+                icon='UV_FACESEL',
             )
             row.operator(
                 "fo4.unwrap_selected_faces",
@@ -571,7 +571,7 @@ class FO4_PT_MeshPanel(Panel):
             # Face-selective unwrap
             row = uv_box.row(align=True)
             row.enabled = has_mesh
-            row.operator("fo4.pick_faces_for_unwrap", text="Pick Faces", icon='SNAP_FACE')
+            row.operator("fo4.pick_faces_for_unwrap", text="Pick Faces", icon='UV_FACESEL')
             row.operator("fo4.unwrap_selected_faces", text="Unwrap Selected", icon='UV_SYNC_SELECT')
             row = uv_box.row(align=True)
             row.enabled = has_mesh
@@ -1593,7 +1593,7 @@ class FO4_PT_GameAssetsPanel(Panel):
 
         # Unity Assets
         unity_box = layout.box()
-        unity_box.label(text="Unity Assets", icon='SNAP_FACE_CENTER')
+        unity_box.label(text="Unity Assets", icon='FILE_3D')
 
         if unity_game_assets:
             ready, message = unity_game_assets.UnityAssets.get_status()
@@ -2596,7 +2596,7 @@ class FO4_PT_AutomationMacrosPanel(Panel):
             from . import automation_system
             action_count = len(automation_system.AutomationSystem.recorded_actions)
             box.label(text=f"Actions recorded: {action_count}")
-            box.operator("fo4.stop_recording", text="Stop Recording", icon='SNAP_FACE')
+            box.operator("fo4.stop_recording", text="Stop Recording", icon='CANCEL')
         else:
             box.operator("fo4.start_recording", text="Start Recording", icon='REC')
             box.label(text="Record your actions to create macros")
