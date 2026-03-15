@@ -171,6 +171,53 @@ Allowed actions (same set as `apply_quick_fix`):
   survives new scenes; the helper UI still offers a manual toggle for
   debugging.
 
+## Session 3 — Broken/Missing Buttons Fixed (Mar 2026)
+
+Three bugs caused the "buttons missing or solid-black with caution symbol" problem
+the user reported:
+
+### Fix A — `FACE_MAPS` icon removed in Blender 4.0 (ui_panels.py)
+- **Problem:** The `FACE_MAPS` icon is used twice in `ui_panels.py` (lines for
+  "Pick Faces to Unwrap" in both the unified and non-unified mesh panel layouts).
+  In Blender 4.0, the Face Maps feature was removed entirely, and the `FACE_MAPS`
+  icon was removed with it.  Calling `layout.operator(…, icon='FACE_MAPS')` raises
+  a `ValueError` at draw time, which **crashes the panel mid-draw** — every button
+  after that line is never rendered and appears "missing" to the user.
+- **Fix:** Replaced `icon='FACE_MAPS'` with `icon='SNAP_FACE'` in both occurrences.
+
+### Fix B — `MOD_VERTEX_WEIGHT` icon replaced for safety (ui_panels.py)
+- **Problem:** The "Generate Wind Weights" button used `icon='MOD_VERTEX_WEIGHT'`.
+  While this icon may still be valid in some Blender versions, `WPAINT_HLT` is a
+  more semantically appropriate and reliably valid substitute for a weight-painting
+  operation.
+- **Fix:** Replaced `icon='MOD_VERTEX_WEIGHT'` with `icon='WPAINT_HLT'`.
+
+### Fix C — `has_mesh` undefined in `FO4_PT_ExportPanel.draw()` (ui_panels.py)
+- **Problem:** The Export panel's `draw()` method used the variable `has_mesh` in
+  three places (`row.enabled = has_mesh` for Export Mesh, Export with Collision,
+  and Validate buttons) but **never defined it**.  This causes a `NameError` the
+  first time Blender tries to draw the Export Actions box, crashing that part of
+  the panel and making all three primary export buttons completely invisible.
+- **Fix:** Added `has_mesh = obj and obj.type == 'MESH'` immediately after
+  `obj = context.active_object` in `FO4_PT_ExportPanel.draw()`.
+
+### Fix D — "Export Entire Scene as NIF" button missing `row.enabled` guard
+- **Problem:** `FO4_OT_ExportSceneAsNif` has a `poll()` that requires at least
+  one non-collision mesh to be present in the scene.  The button in the Export
+  panel had no `row.enabled` condition, so when the scene was empty Blender
+  rendered it using the poll result alone — showing a button with a warning
+  "caution" indicator instead of the expected disabled/grey state.
+- **Fix:** Added `row3.enabled = any(o.type == 'MESH' for o in context.scene.objects)`
+  to match the button's visual state to the operator's requirements.
+
+### Test coverage added (test_addon_integrity.py)
+- New **Test 24 — Panel Draw Correctness** verifies that:
+  - No removed Blender 4.0+ icons (`FACE_MAPS`) are used in `ui_panels.py`
+  - No panel `draw()` method references `has_mesh` without first defining it
+  - `FO4_PT_ExportPanel.draw()` specifically defines `has_mesh`
+
+---
+
 ## Session 2 — Four Structurally Broken Operators Fixed (Mar 2026)
 
 Four operator classes had their bodies accidentally merged together.  This

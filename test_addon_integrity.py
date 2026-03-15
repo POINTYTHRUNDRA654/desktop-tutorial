@@ -2571,6 +2571,92 @@ def test_game_imports_apply_textures():
     return True
 
 
+def test_panel_draw_correctness():
+    """Test that ui_panels.py draw() methods don't use undefined variables
+    or invalid icons that would crash panels in Blender 4.x+.
+    """
+    print("\n" + "="*70)
+    print("TEST 24: Panel Draw Correctness")
+    print("="*70)
+
+    import ast
+
+    failed = []
+
+    def ck(label, cond, detail=""):
+        sym = "✅" if cond else "❌"
+        print(f"{sym} {label}{(': ' + detail) if detail else ''}")
+        if not cond:
+            failed.append(label + ((" — " + detail) if detail else ""))
+
+    ui_src = Path(__file__).parent.joinpath("ui_panels.py").read_text(encoding="utf-8")
+    tree = ast.parse(ui_src)
+
+    # 1. Check for invalid/removed Blender icons
+    # FACE_MAPS was removed in Blender 4.0 when the Face Maps feature was removed.
+    # Using it in layout.operator() raises ValueError and crashes the panel draw.
+    removed_icons = ['FACE_MAPS']
+    for icon in removed_icons:
+        ck(
+            f"No removed icon '{icon}' in ui_panels.py",
+            f"icon='{icon}'" not in ui_src,
+            f"'{icon}' was removed in Blender 4.0; causes ValueError and panel crash",
+        )
+
+    # 2. Check each panel draw() for undefined 'has_mesh' variable
+    panels_with_has_mesh_bug = []
+    for node in ast.walk(tree):
+        if isinstance(node, ast.ClassDef) and node.name.startswith('FO4_PT_'):
+            for item in node.body:
+                if isinstance(item, ast.FunctionDef) and item.name == 'draw':
+                    # Collect all variable names assigned in this function
+                    assigned = set()
+                    for inner in ast.walk(item):
+                        if isinstance(inner, ast.Assign):
+                            for target in inner.targets:
+                                if isinstance(target, ast.Name):
+                                    assigned.add(target.id)
+                        elif isinstance(inner, ast.AugAssign):
+                            if isinstance(inner.target, ast.Name):
+                                assigned.add(inner.target.id)
+
+                    # Check if 'has_mesh' is used without being assigned first
+                    uses_has_mesh = any(
+                        isinstance(inner, ast.Name) and inner.id == 'has_mesh'
+                        for inner in ast.walk(item)
+                    )
+                    if uses_has_mesh and 'has_mesh' not in assigned:
+                        panels_with_has_mesh_bug.append(node.name)
+
+    ck(
+        "No panel draw() uses 'has_mesh' without defining it",
+        len(panels_with_has_mesh_bug) == 0,
+        ", ".join(panels_with_has_mesh_bug) if panels_with_has_mesh_bug else "",
+    )
+
+    # 3. Ensure Export panel defines has_mesh before using it
+    export_has_mesh_defined = False
+    for node in ast.walk(tree):
+        if isinstance(node, ast.ClassDef) and node.name == 'FO4_PT_ExportPanel':
+            for item in node.body:
+                if isinstance(item, ast.FunctionDef) and item.name == 'draw':
+                    for inner in ast.walk(item):
+                        if isinstance(inner, ast.Assign):
+                            for target in inner.targets:
+                                if isinstance(target, ast.Name) and target.id == 'has_mesh':
+                                    export_has_mesh_defined = True
+    ck("FO4_PT_ExportPanel.draw() defines 'has_mesh'", export_has_mesh_defined)
+
+    if failed:
+        print(f"\n❌ FAILED: {len(failed)} check(s) failed")
+        for f in failed:
+            print(f"   • {f}")
+        return False
+
+    print("\n✅ PASSED: Panel draw methods are correct")
+    return True
+
+
 def run_all_tests():
     """Run all test suites"""
     print("\n" + "="*70)
@@ -2607,6 +2693,7 @@ def run_all_tests():
         ("Unreal Asset Import Operator",              test_unreal_asset_import_operator),
         ("Presets Avoid Placeholder Meshes",          test_presets_do_not_create_placeholders_for_game_meshes),
         ("Game Imports Apply Textures",               test_game_imports_apply_textures),
+        ("Panel Draw Correctness",                    test_panel_draw_correctness),
     ]
 
     passed = 0
