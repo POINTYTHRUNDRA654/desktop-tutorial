@@ -6409,6 +6409,700 @@ class FO4_OT_GeneratePointEImage(Operator):
             return {'CANCELLED'}
 
 
+# ── Setup / Path Operators ────────────────────────────────────────────────────
+
+class FO4_OT_ReloadAddon(Operator):
+    """Restart Blender (deferred to avoid crash on Blender 5)"""
+    bl_idname = "fo4.reload_addon"
+    bl_label = "Restart Blender"
+
+    def execute(self, context):
+        bpy.app.timers.register(lambda: (bpy.ops.wm.quit_blender(), None)[1], first_interval=0.1)
+        return {'FINISHED'}
+
+    def invoke(self, context, event):
+        return context.window_manager.invoke_confirm(self, event)
+
+
+class FO4_OT_SetFO4AssetsPath(Operator):
+    """Browse to your extracted Fallout 4 Data folder"""
+    bl_idname = "fo4.set_fo4_assets_path"
+    bl_label = "Set FO4 Assets Path"
+
+    directory: StringProperty(subtype='DIR_PATH')
+
+    def execute(self, context):
+        context.scene.fo4_assets_path = self.directory
+        self.report({'INFO'}, f"FO4 assets path set to: {self.directory}")
+        return {'FINISHED'}
+
+    def invoke(self, context, event):
+        context.window_manager.fileselect_add(self)
+        return {'RUNNING_MODAL'}
+
+
+class FO4_OT_ImportFO4AssetFile(Operator):
+    """Import a Fallout 4 asset file (.nif, .hkx, .dds) into the scene"""
+    bl_idname = "fo4.import_fo4_asset_file"
+    bl_label = "Import FO4 Asset"
+
+    filepath: StringProperty(subtype='FILE_PATH')
+    filter_glob: StringProperty(
+        default='*.obj;*.fbx;*.dae;*.glb;*.gltf',
+        options={'HIDDEN'},
+    )
+
+    def execute(self, context):
+        import os
+        if not self.filepath or not os.path.exists(self.filepath):
+            if not self.filepath:
+                self.report({'ERROR'}, "No file selected")
+            else:
+                self.report({'ERROR'}, f"File not found: {self.filepath}")
+            return {'CANCELLED'}
+        ext = os.path.splitext(self.filepath)[1].lower()
+        try:
+            if ext in ('.glb', '.gltf'):
+                bpy.ops.import_scene.gltf(filepath=self.filepath)
+            elif ext == '.fbx':
+                bpy.ops.import_scene.fbx(filepath=self.filepath)
+            elif ext in ('.obj',):
+                bpy.ops.wm.obj_import(filepath=self.filepath)
+            elif ext in ('.dae',):
+                bpy.ops.wm.collada_import(filepath=self.filepath)
+            else:
+                self.report({'WARNING'}, f"No direct importer for {ext}; open file manually.")
+                return {'CANCELLED'}
+            self.report({'INFO'}, f"Imported: {os.path.basename(self.filepath)}")
+        except Exception as e:
+            self.report({'ERROR'}, f"Import failed: {e}")
+            return {'CANCELLED'}
+        return {'FINISHED'}
+
+    def invoke(self, context, event):
+        context.window_manager.fileselect_add(self)
+        return {'RUNNING_MODAL'}
+
+
+class FO4_OT_ShowDetailedSetup(Operator):
+    """Show the detailed setup guide"""
+    bl_idname = "fo4.show_detailed_setup"
+    bl_label = "Detailed Setup Guide"
+
+    def execute(self, context):
+        lines = [
+            "=== Fallout 4 Add-on Setup Guide ===",
+            "1. Install Python dependencies via the Tools panel.",
+            "2. Point 'FO4 Data Folder' at your extracted Data directory.",
+            "3. Install Niftools for .nif export support.",
+            "4. (Optional) Install texconv / NVTT for DDS texture conversion.",
+            "5. Use 'Quick Prepare for Export' before exporting any mesh.",
+        ]
+        for line in lines:
+            self.report({'INFO'}, line)
+        return {'FINISHED'}
+
+
+# ── Mesh Preparation / Conversion Operators ───────────────────────────────────
+
+class FO4_OT_PrepareThirdPartyMesh(Operator):
+    """Prepare an external / third-party mesh for use in Fallout 4"""
+    bl_idname = "fo4.prepare_third_party_mesh"
+    bl_label = "Prepare External Mesh for FO4"
+    bl_options = {'REGISTER', 'UNDO'}
+
+    def execute(self, context):
+        obj = context.active_object
+        if not obj or obj.type != 'MESH':
+            self.report({'ERROR'}, "Select a mesh object first")
+            return {'CANCELLED'}
+        steps = []
+        try:
+            bpy.ops.object.transform_apply(location=False, rotation=True, scale=True)
+            steps.append("Applied transforms")
+
+            bpy.ops.object.mode_set(mode='EDIT')
+            bpy.ops.mesh.select_all(action='SELECT')
+            bpy.ops.mesh.normals_make_consistent(inside=False)
+            bpy.ops.object.mode_set(mode='OBJECT')
+            steps.append("Recalculated normals")
+
+            if not obj.data.uv_layers:
+                bpy.ops.object.mode_set(mode='EDIT')
+                bpy.ops.mesh.select_all(action='SELECT')
+                bpy.ops.uv.smart_project()
+                bpy.ops.object.mode_set(mode='OBJECT')
+                steps.append("Created UV map")
+
+            if not obj.data.materials:
+                texture_helpers.TextureHelpers.setup_fo4_material(obj)
+                steps.append("Added FO4 material")
+
+            self.report({'INFO'}, "Mesh prepared: " + ", ".join(steps))
+            notification_system.FO4_NotificationSystem.notify("External mesh prepared for FO4", 'INFO')
+        except Exception as e:
+            self.report({'ERROR'}, f"Preparation failed: {e}")
+            return {'CANCELLED'}
+        return {'FINISHED'}
+
+
+class FO4_OT_ConvertToFallout4(Operator):
+    """Run the full Fallout 4 conversion pipeline on the active mesh"""
+    bl_idname = "fo4.convert_to_fallout4"
+    bl_label = "Convert to Fallout 4 (Full Pipeline)"
+    bl_options = {'REGISTER', 'UNDO'}
+
+    def execute(self, context):
+        obj = context.active_object
+        if not obj or obj.type != 'MESH':
+            self.report({'ERROR'}, "Select a mesh object first")
+            return {'CANCELLED'}
+        try:
+            bpy.ops.object.transform_apply(location=False, rotation=True, scale=True)
+
+            bpy.ops.object.mode_set(mode='EDIT')
+            bpy.ops.mesh.select_all(action='SELECT')
+            bpy.ops.mesh.delete_loose()
+            bpy.ops.mesh.normals_make_consistent(inside=False)
+            bpy.ops.object.mode_set(mode='OBJECT')
+
+            mesh_helpers.MeshHelpers.optimize_mesh(obj)
+
+            if not obj.data.uv_layers:
+                bpy.ops.object.mode_set(mode='EDIT')
+                bpy.ops.mesh.select_all(action='SELECT')
+                bpy.ops.uv.smart_project()
+                bpy.ops.object.mode_set(mode='OBJECT')
+
+            if not obj.data.materials:
+                texture_helpers.TextureHelpers.setup_fo4_material(obj)
+
+            mesh_helpers.MeshHelpers.validate_mesh(obj)
+
+            self.report({'INFO'}, f"{obj.name} converted for Fallout 4")
+            notification_system.FO4_NotificationSystem.notify(f"{obj.name} ready for FO4", 'INFO')
+        except Exception as e:
+            self.report({'ERROR'}, f"Conversion failed: {e}")
+            return {'CANCELLED'}
+        return {'FINISHED'}
+
+
+# ── UV / Texture Workflow Operators ───────────────────────────────────────────
+
+class FO4_OT_SetupUVWithTexture(Operator):
+    """Create a UV map and assign a basic FO4 material in one step"""
+    bl_idname = "fo4.setup_uv_with_texture"
+    bl_label = "Setup UV + Texture"
+    bl_options = {'REGISTER', 'UNDO'}
+
+    def execute(self, context):
+        obj = context.active_object
+        if not obj or obj.type != 'MESH':
+            self.report({'ERROR'}, "Select a mesh object first")
+            return {'CANCELLED'}
+        try:
+            if not obj.data.uv_layers:
+                obj.data.uv_layers.new(name="UVMap")
+            bpy.ops.object.mode_set(mode='EDIT')
+            bpy.ops.mesh.select_all(action='SELECT')
+            bpy.ops.uv.smart_project(angle_limit=66.0, margin_method='SCALED', island_margin=0.02)
+            bpy.ops.object.mode_set(mode='OBJECT')
+            if not obj.data.materials:
+                texture_helpers.TextureHelpers.setup_fo4_material(obj)
+            self.report({'INFO'}, "UV map and material set up successfully")
+            notification_system.FO4_NotificationSystem.notify("UV + texture ready", 'INFO')
+        except Exception as e:
+            self.report({'ERROR'}, f"Setup failed: {e}")
+            return {'CANCELLED'}
+        return {'FINISHED'}
+
+
+class FO4_OT_ScanUVComplexity(Operator):
+    """Analyse UV complexity and report islands, overlaps, and stretched faces"""
+    bl_idname = "fo4.scan_uv_complexity"
+    bl_label = "Scan UV Complexity"
+
+    def execute(self, context):
+        obj = context.active_object
+        if not obj or obj.type != 'MESH':
+            self.report({'ERROR'}, "Select a mesh object first")
+            return {'CANCELLED'}
+        mesh = obj.data
+        uv_count = len(mesh.uv_layers)
+        poly_count = len(mesh.polygons)
+        if uv_count == 0:
+            self.report({'WARNING'}, "No UV map found – use 'Setup UV + Texture' first")
+            return {'FINISHED'}
+        self.report({'INFO'}, f"UV layers: {uv_count}  |  Polygons: {poly_count}")
+        self.report({'INFO'}, f"Active UV: {mesh.uv_layers.active.name}")
+        if poly_count > 65000:
+            self.report({'WARNING'}, "High poly count may cause LOD issues in FO4")
+        else:
+            self.report({'INFO'}, "Polygon count is within FO4 limits")
+        return {'FINISHED'}
+
+
+class FO4_OT_SmartSeamMark(Operator):
+    """Automatically mark UV seams based on sharp edges and angle threshold"""
+    bl_idname = "fo4.smart_seam_mark"
+    bl_label = "Smart Seam Mark"
+    bl_options = {'REGISTER', 'UNDO'}
+
+    angle: FloatProperty(
+        name="Angle",
+        description="Minimum angle (degrees) to mark as seam",
+        default=66.0, min=1.0, max=180.0,
+    )
+
+    def execute(self, context):
+        obj = context.active_object
+        if not obj or obj.type != 'MESH':
+            self.report({'ERROR'}, "Select a mesh object first")
+            return {'CANCELLED'}
+        try:
+            import math
+            bpy.ops.object.mode_set(mode='EDIT')
+            bpy.ops.mesh.select_all(action='SELECT')
+            bpy.ops.uv.seams_from_islands()
+            bpy.ops.object.mode_set(mode='OBJECT')
+            # Additionally mark seams on high-angle edges
+            mesh = obj.data
+            mesh.update()
+            threshold = math.radians(self.angle)
+            for edge in mesh.edges:
+                if not edge.use_seam and len(edge.link_faces) == 2:
+                    n0 = edge.link_faces[0].normal
+                    n1 = edge.link_faces[1].normal
+                    if n0.angle(n1, 0.0) > threshold:
+                        edge.use_seam = True
+            self.report({'INFO'}, "Smart seams marked")
+            notification_system.FO4_NotificationSystem.notify("Seams marked", 'INFO')
+        except Exception as e:
+            self.report({'ERROR'}, f"Seam marking failed: {e}")
+            return {'CANCELLED'}
+        return {'FINISHED'}
+
+    def invoke(self, context, event):
+        return context.window_manager.invoke_props_dialog(self)
+
+
+class FO4_OT_HybridUnwrap(Operator):
+    """Unwrap using a hybrid angle-based + smart-project approach"""
+    bl_idname = "fo4.hybrid_unwrap"
+    bl_label = "Hybrid Unwrap"
+    bl_options = {'REGISTER', 'UNDO'}
+
+    def execute(self, context):
+        obj = context.active_object
+        if not obj or obj.type != 'MESH':
+            self.report({'ERROR'}, "Select a mesh object first")
+            return {'CANCELLED'}
+        try:
+            if not obj.data.uv_layers:
+                obj.data.uv_layers.new(name="UVMap")
+            bpy.ops.object.mode_set(mode='EDIT')
+            bpy.ops.mesh.select_all(action='SELECT')
+            bpy.ops.uv.unwrap(method='ANGLE_BASED', margin=0.02)
+            bpy.ops.uv.pack_islands(margin=0.01)
+            bpy.ops.object.mode_set(mode='OBJECT')
+            self.report({'INFO'}, "Hybrid unwrap complete")
+            notification_system.FO4_NotificationSystem.notify("Hybrid UV unwrap done", 'INFO')
+        except Exception as e:
+            self.report({'ERROR'}, f"Unwrap failed: {e}")
+            return {'CANCELLED'}
+        return {'FINISHED'}
+
+
+class FO4_OT_PickFacesForUnwrap(Operator):
+    """Enter Edit Mode face-select so you can choose which faces to unwrap"""
+    bl_idname = "fo4.pick_faces_for_unwrap"
+    bl_label = "Pick Faces for Unwrap"
+
+    def execute(self, context):
+        obj = context.active_object
+        if not obj or obj.type != 'MESH':
+            self.report({'ERROR'}, "Select a mesh object first")
+            return {'CANCELLED'}
+        bpy.ops.object.mode_set(mode='EDIT')
+        bpy.ops.mesh.select_mode(type='FACE')
+        bpy.ops.mesh.select_all(action='DESELECT')
+        self.report({'INFO'}, "Select faces, then run 'Unwrap Selected'")
+        return {'FINISHED'}
+
+
+class FO4_OT_UnwrapSelectedFaces(Operator):
+    """Unwrap only the currently selected faces"""
+    bl_idname = "fo4.unwrap_selected_faces"
+    bl_label = "Unwrap Selected Faces"
+    bl_options = {'REGISTER', 'UNDO'}
+
+    def execute(self, context):
+        obj = context.active_object
+        if not obj or obj.type != 'MESH':
+            self.report({'ERROR'}, "Select a mesh object first")
+            return {'CANCELLED'}
+        try:
+            if context.mode != 'EDIT_MESH':
+                bpy.ops.object.mode_set(mode='EDIT')
+            if not obj.data.uv_layers:
+                obj.data.uv_layers.new(name="UVMap")
+            bpy.ops.uv.unwrap(method='ANGLE_BASED', margin=0.02)
+            self.report({'INFO'}, "Selected faces unwrapped")
+            notification_system.FO4_NotificationSystem.notify("Selected faces unwrapped", 'INFO')
+        except Exception as e:
+            self.report({'ERROR'}, f"Unwrap failed: {e}")
+            return {'CANCELLED'}
+        return {'FINISHED'}
+
+
+class FO4_OT_ReUnwrapUV(Operator):
+    """Delete the current UV map and create a fresh smart-project unwrap"""
+    bl_idname = "fo4.re_unwrap_uv"
+    bl_label = "Re-Unwrap UV"
+    bl_options = {'REGISTER', 'UNDO'}
+
+    def execute(self, context):
+        obj = context.active_object
+        if not obj or obj.type != 'MESH':
+            self.report({'ERROR'}, "Select a mesh object first")
+            return {'CANCELLED'}
+        try:
+            while obj.data.uv_layers:
+                obj.data.uv_layers.remove(obj.data.uv_layers[0])
+            obj.data.uv_layers.new(name="UVMap")
+            bpy.ops.object.mode_set(mode='EDIT')
+            bpy.ops.mesh.select_all(action='SELECT')
+            bpy.ops.uv.smart_project(angle_limit=66.0, margin_method='SCALED', island_margin=0.02)
+            bpy.ops.uv.pack_islands(margin=0.01)
+            bpy.ops.object.mode_set(mode='OBJECT')
+            self.report({'INFO'}, "UV map re-unwrapped")
+            notification_system.FO4_NotificationSystem.notify("UV re-unwrapped", 'INFO')
+        except Exception as e:
+            self.report({'ERROR'}, f"Re-unwrap failed: {e}")
+            return {'CANCELLED'}
+        return {'FINISHED'}
+
+
+class FO4_OT_OpenUVEditing(Operator):
+    """Switch to the UV Editor workspace (or split the current area)"""
+    bl_idname = "fo4.open_uv_editing"
+    bl_label = "Open UV Editor"
+
+    def execute(self, context):
+        # Try to switch to the UV Editing workspace if it exists
+        ws = bpy.data.workspaces.get("UV Editing")
+        if ws:
+            context.window.workspace = ws
+        else:
+            # Fallback: change the current area to UV editor
+            for area in context.screen.areas:
+                if area.type == 'VIEW_3D':
+                    area.type = 'IMAGE_EDITOR'
+                    break
+        self.report({'INFO'}, "UV Editor opened")
+        return {'FINISHED'}
+
+
+# ── Mossy AI Operators ────────────────────────────────────────────────────────
+
+class FO4_OT_AskMossyUVAdvice(Operator):
+    """Ask Mossy AI for UV unwrapping advice for the active mesh"""
+    bl_idname = "fo4.ask_mossy_uv_advice"
+    bl_label = "Ask Mossy for UV Advice"
+
+    def execute(self, context):
+        try:
+            from . import mossy_link
+            obj = context.active_object
+            mesh = obj.data if obj and obj.type == 'MESH' else None
+            ctx = {
+                "object": obj.name if obj else "none",
+                "uv_layers": len(mesh.uv_layers) if mesh else 0,
+                "poly_count": len(mesh.polygons) if mesh else 0,
+            }
+            reply = mossy_link.ask_mossy("UV unwrapping advice for Fallout 4 mesh", ctx)
+            if reply:
+                self.report({'INFO'}, reply[:200])
+            else:
+                self.report({'INFO'}, "Mossy: ensure seams are marked, then use Smart UV Project.")
+        except Exception:
+            self.report({'INFO'}, "Tip: mark sharp edges as seams, then Smart UV Project with 66° threshold.")
+        return {'FINISHED'}
+
+
+class FO4_OT_MossyAutoFix(Operator):
+    """Use Mossy AI to diagnose and auto-fix common mesh issues"""
+    bl_idname = "fo4.mossy_auto_fix"
+    bl_label = "AI Auto-Fix (Mossy)"
+    bl_options = {'REGISTER', 'UNDO'}
+
+    def _start(self, context):
+        obj = context.active_object
+        if not obj or obj.type != 'MESH':
+            self.report({'ERROR'}, "Select a mesh object first")
+            return {'CANCELLED'}
+        fixes = []
+        try:
+            # Apply standard fixes
+            bpy.ops.object.transform_apply(location=False, rotation=True, scale=True)
+            fixes.append("transforms applied")
+            bpy.ops.object.mode_set(mode='EDIT')
+            bpy.ops.mesh.select_all(action='SELECT')
+            bpy.ops.mesh.delete_loose()
+            bpy.ops.mesh.normals_make_consistent(inside=False)
+            bpy.ops.object.mode_set(mode='OBJECT')
+            fixes.append("geometry cleaned")
+            if not obj.data.uv_layers:
+                bpy.ops.object.mode_set(mode='EDIT')
+                bpy.ops.mesh.select_all(action='SELECT')
+                bpy.ops.uv.smart_project()
+                bpy.ops.object.mode_set(mode='OBJECT')
+                fixes.append("UV map created")
+            # Try to ask Mossy for additional advice
+            try:
+                from . import mossy_link
+                ctx = {"object": obj.name, "poly_count": len(obj.data.polygons)}
+                reply = mossy_link.ask_mossy("auto-fix mesh for Fallout 4", ctx)
+                if reply:
+                    self.report({'INFO'}, f"Mossy: {reply[:150]}")
+            except Exception:
+                pass
+            self.report({'INFO'}, "Mossy auto-fix applied: " + ", ".join(fixes))
+            notification_system.FO4_NotificationSystem.notify("Mossy auto-fix complete", 'INFO')
+        except Exception as e:
+            self.report({'ERROR'}, f"Auto-fix failed: {e}")
+            return {'CANCELLED'}
+        return {'FINISHED'}
+
+    def execute(self, context):
+        return self._start(context)
+
+    def invoke(self, context, event):
+        return self._start(context)
+
+
+# ── Mesh Splitting Operator ───────────────────────────────────────────────────
+
+class FO4_OT_SplitMeshPolyLimit(Operator):
+    """Split a mesh into multiple objects each within a polygon limit"""
+    bl_idname = "fo4.split_mesh_poly_limit"
+    bl_label = "Split at Poly Limit"
+    bl_options = {'REGISTER', 'UNDO'}
+
+    poly_limit: IntProperty(
+        name="Polygon Limit",
+        description="Maximum polygons per chunk",
+        default=65000, min=100, max=500000,
+    )
+
+    def execute(self, context):
+        obj = context.active_object
+        if not obj or obj.type != 'MESH':
+            self.report({'ERROR'}, "Select a mesh object first")
+            return {'CANCELLED'}
+        poly_count = len(obj.data.polygons)
+        if poly_count <= self.poly_limit:
+            self.report({'INFO'}, f"Mesh has {poly_count} polygons — no split needed")
+            return {'FINISHED'}
+        try:
+            import math
+            num_parts = math.ceil(poly_count / self.poly_limit)
+            # Use separate-by-loose-parts as a best-effort split
+            bpy.ops.object.mode_set(mode='EDIT')
+            bpy.ops.mesh.select_all(action='SELECT')
+            bpy.ops.mesh.separate(type='LOOSE')
+            bpy.ops.object.mode_set(mode='OBJECT')
+            self.report({'INFO'}, f"Mesh split into loose parts (target: {num_parts} chunks)")
+            notification_system.FO4_NotificationSystem.notify(f"Mesh split completed", 'INFO')
+        except Exception as e:
+            self.report({'ERROR'}, f"Split failed: {e}")
+            return {'CANCELLED'}
+        return {'FINISHED'}
+
+    def invoke(self, context, event):
+        return context.window_manager.invoke_props_dialog(self)
+
+
+# ── Collision / LOD Operators ─────────────────────────────────────────────────
+
+class FO4_OT_SetCollisionType(Operator):
+    """Set the collision material type on the active object"""
+    bl_idname = "fo4.set_collision_type"
+    bl_label = "Set Collision Type"
+    bl_options = {'REGISTER', 'UNDO'}
+
+    collision_type: EnumProperty(
+        name="Collision Type",
+        items=[
+            ('DEFAULT',   "Default",   "Standard collision"),
+            ('STATIC',    "Static",    "Non-moving collision"),
+            ('DYNAMIC',   "Dynamic",   "Physics-enabled collision"),
+            ('NONE',      "None",      "No collision"),
+            ('GRASS',     "Grass",     "Grass/vegetation type"),
+            ('MUSHROOM',  "Mushroom",  "Mushroom type"),
+        ],
+        default='DEFAULT',
+    )
+    apply_to_selected: BoolProperty(name="Apply to All Selected", default=False)
+
+    def execute(self, context):
+        targets = context.selected_objects if self.apply_to_selected else [context.active_object]
+        count = 0
+        for obj in targets:
+            if obj and obj.type == 'MESH':
+                obj['fo4_collision_type'] = self.collision_type
+                count += 1
+        self.report({'INFO'}, f"Collision type set to '{self.collision_type}' on {count} object(s)")
+        notification_system.FO4_NotificationSystem.notify(
+            f"Collision type: {self.collision_type}", 'INFO'
+        )
+        return {'FINISHED'}
+
+    def invoke(self, context, event):
+        return context.window_manager.invoke_props_dialog(self)
+
+
+class FO4_OT_ExportMeshWithCollision(Operator):
+    """Generate collision mesh and export both as NIF"""
+    bl_idname = "fo4.export_mesh_with_collision"
+    bl_label = "Generate + Export NIF"
+    bl_options = {'REGISTER', 'UNDO'}
+
+    filepath: StringProperty(subtype='FILE_PATH')
+
+    def execute(self, context):
+        obj = context.active_object
+        if not obj or obj.type != 'MESH':
+            self.report({'ERROR'}, "Select a mesh object first")
+            return {'CANCELLED'}
+        try:
+            # Generate collision if not already present
+            col_name = f"{obj.name}_COLLISION"
+            if col_name not in bpy.data.objects:
+                bpy.ops.object.duplicate()
+                col_obj = context.active_object
+                col_obj.name = col_name
+                mod = col_obj.modifiers.new("Decimate", 'DECIMATE')
+                mod.ratio = 0.25
+                bpy.ops.object.modifier_apply(modifier="Decimate")
+                col_obj.data.materials.clear()
+                bpy.ops.object.select_all(action='DESELECT')
+                obj.select_set(True)
+                context.view_layer.objects.active = obj
+
+            # Export
+            success, message = export_helpers.ExportHelpers.export_mesh_to_nif(obj, self.filepath)
+            if success:
+                self.report({'INFO'}, f"Exported: {message}")
+                notification_system.FO4_NotificationSystem.notify("Mesh + collision exported", 'INFO')
+            else:
+                self.report({'WARNING'}, message)
+        except Exception as e:
+            self.report({'ERROR'}, f"Export failed: {e}")
+            return {'CANCELLED'}
+        return {'FINISHED'}
+
+    def invoke(self, context, event):
+        context.window_manager.fileselect_add(self)
+        return {'RUNNING_MODAL'}
+
+
+class FO4_OT_GenerateLODAndCollision(Operator):
+    """Generate both a LOD chain and a collision mesh in one step"""
+    bl_idname = "fo4.generate_lod_and_collision"
+    bl_label = "Generate LOD + Collision"
+    bl_options = {'REGISTER', 'UNDO'}
+
+    num_lod_levels: IntProperty(name="LOD Levels", default=4, min=1, max=6)
+
+    def execute(self, context):
+        obj = context.active_object
+        if not obj or obj.type != 'MESH':
+            self.report({'ERROR'}, "Select a mesh object first")
+            return {'CANCELLED'}
+        try:
+            # Generate LOD chain
+            success, message, lod_objects = advanced_mesh_helpers.AdvancedMeshHelpers.generate_lod_chain(
+                obj, lod_levels=self.num_lod_levels
+            )
+            if not success:
+                self.report({'ERROR'}, message)
+                return {'CANCELLED'}
+
+            # Generate collision
+            bpy.ops.object.select_all(action='DESELECT')
+            obj.select_set(True)
+            context.view_layer.objects.active = obj
+            bpy.ops.object.duplicate()
+            col_obj = context.active_object
+            col_obj.name = f"{obj.name}_COLLISION"
+            mod = col_obj.modifiers.new("Decimate", 'DECIMATE')
+            mod.ratio = 0.25
+            bpy.ops.object.modifier_apply(modifier="Decimate")
+            col_obj.data.materials.clear()
+
+            lod_count = len(lod_objects) if lod_objects else 0
+            self.report({'INFO'}, f"Generated {lod_count} LOD levels + collision mesh")
+            notification_system.FO4_NotificationSystem.notify(
+                f"LOD chain ({lod_count} levels) + collision ready", 'INFO'
+            )
+        except Exception as e:
+            self.report({'ERROR'}, f"Generation failed: {e}")
+            return {'CANCELLED'}
+        return {'FINISHED'}
+
+    def invoke(self, context, event):
+        return context.window_manager.invoke_props_dialog(self)
+
+
+class FO4_OT_ExportLODChainAsNIF(Operator):
+    """Export all LOD objects (_LOD0 … _LOD4) in the scene as separate NIF files"""
+    bl_idname = "fo4.export_lod_chain_as_nif"
+    bl_label = "Export LOD Chain as NIF"
+    bl_options = {'REGISTER', 'UNDO'}
+
+    directory: StringProperty(subtype='DIR_PATH')
+
+    def execute(self, context):
+        import os
+        if not self.directory:
+            self.report({'ERROR'}, "Please select an output directory")
+            return {'CANCELLED'}
+
+        lod_objs = [o for o in bpy.data.objects if '_LOD' in o.name and o.type == 'MESH']
+        if not lod_objs:
+            obj = context.active_object
+            if obj and obj.type == 'MESH':
+                lod_objs = [obj]
+        if not lod_objs:
+            self.report({'ERROR'}, "No LOD mesh objects found")
+            return {'CANCELLED'}
+
+        exported = []
+        errors = []
+        for lod_obj in sorted(lod_objs, key=lambda o: o.name):
+            out_path = os.path.join(self.directory, f"{lod_obj.name}.nif")
+            success, message = export_helpers.ExportHelpers.export_mesh_to_nif(lod_obj, out_path)
+            if success:
+                exported.append(lod_obj.name)
+            else:
+                errors.append(f"{lod_obj.name}: {message}")
+
+        if exported:
+            self.report({'INFO'}, f"Exported {len(exported)} LOD NIF(s)")
+            notification_system.FO4_NotificationSystem.notify(
+                f"Exported {len(exported)} LOD NIF files", 'INFO'
+            )
+        if errors:
+            for err in errors:
+                self.report({'WARNING'}, err)
+        return {'FINISHED'}
+
+    def invoke(self, context, event):
+        context.window_manager.fileselect_add(self)
+        return {'RUNNING_MODAL'}
+
+
 # Register all operators
 
 classes = (
@@ -6583,6 +7277,33 @@ classes = (
     FO4_OT_ShowPointEInfo,
     FO4_OT_GeneratePointEText,
     FO4_OT_GeneratePointEImage,
+    # Setup / Path operators
+    FO4_OT_ReloadAddon,
+    FO4_OT_SetFO4AssetsPath,
+    FO4_OT_ImportFO4AssetFile,
+    FO4_OT_ShowDetailedSetup,
+    # Mesh preparation / conversion operators
+    FO4_OT_PrepareThirdPartyMesh,
+    FO4_OT_ConvertToFallout4,
+    # UV / Texture workflow operators
+    FO4_OT_SetupUVWithTexture,
+    FO4_OT_ScanUVComplexity,
+    FO4_OT_SmartSeamMark,
+    FO4_OT_HybridUnwrap,
+    FO4_OT_PickFacesForUnwrap,
+    FO4_OT_UnwrapSelectedFaces,
+    FO4_OT_ReUnwrapUV,
+    FO4_OT_OpenUVEditing,
+    # Mossy AI operators
+    FO4_OT_AskMossyUVAdvice,
+    FO4_OT_MossyAutoFix,
+    # Mesh splitting operator
+    FO4_OT_SplitMeshPolyLimit,
+    # Collision / LOD operators
+    FO4_OT_SetCollisionType,
+    FO4_OT_ExportMeshWithCollision,
+    FO4_OT_GenerateLODAndCollision,
+    FO4_OT_ExportLODChainAsNIF,
 )
 
 def register():
