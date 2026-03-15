@@ -43,6 +43,8 @@ Door Frame      |  1.10×1.80  | Standard interior door opening (w × h)
 Settlement Ceil.|     2.20    | Settlement floor-to-ceiling height
 """
 
+from __future__ import annotations
+
 import bpy
 import bmesh
 

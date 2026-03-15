@@ -67,7 +67,7 @@ def should_skip(rel: pathlib.Path) -> bool:
     # ── Version control / CI ────────────────────────────────────────────
     if ".git" in rel.parts:
         return True
-    skip_roots = {".github", "ffmpeg", "whisper"}
+    skip_roots = {".github", "ffmpeg", "whisper", "Blender-add-on"}
     if rel.parts and rel.parts[0] in skip_roots:
         return True
 

@@ -3,12 +3,52 @@ Operators for the Fallout 4 Tutorial Add-on
 """
 
 import bpy
+import sys
+import importlib
 import threading
 import os as _os
 from bpy.types import Operator
 from bpy.props import StringProperty, EnumProperty, IntProperty, FloatProperty, BoolProperty
-from . import preferences, tutorial_system, mesh_helpers, texture_helpers, animation_helpers, export_helpers, notification_system, image_to_mesh_helpers, hunyuan3d_helpers, gradio_helpers, hymotion_helpers, nvtt_helpers, realesrgan_helpers, get3d_helpers, stylegan2_helpers, instantngp_helpers, imageto3d_helpers, advanced_mesh_helpers, rignet_helpers, motion_generation_helpers, quest_helpers, npc_helpers, world_building_helpers, item_helpers, preset_library, automation_system, desktop_tutorial_client, shap_e_helpers, point_e_helpers, advisor_helpers, ue_importer_helpers, umodel_tools_helpers, umodel_helpers, unity_fbx_importer_helpers, asset_studio_helpers, asset_ripper_helpers, fo4_game_assets, unity_game_assets, unreal_game_assets, post_processing_helpers, fo4_material_browser, fo4_scene_diagnostics, fo4_reference_helpers, asset_library
-from . import knowledge_helpers
+
+
+def _safe_import(name):
+    """Import a submodule of this package safely; returns None on failure."""
+    try:
+        return importlib.import_module(f".{name}", package=__package__)
+    except Exception as exc:
+        sys.modules.pop(f"{__package__}.{name}", None)
+        print(f"operators: Skipped module {name} due to error: {exc}")
+        return None
+
+
+# Core modules – always expected to be available inside Blender.
+# If any of these fail the operators module itself fails to load, which is
+# caught by __init__.py's _try_import() so the rest of the addon still works.
+from . import preferences, tutorial_system, mesh_helpers, texture_helpers
+from . import animation_helpers, export_helpers, notification_system
+from . import image_to_mesh_helpers, hunyuan3d_helpers, gradio_helpers
+from . import hymotion_helpers, nvtt_helpers, realesrgan_helpers
+from . import get3d_helpers, stylegan2_helpers, instantngp_helpers
+from . import imageto3d_helpers, advanced_mesh_helpers, rignet_helpers
+from . import motion_generation_helpers, quest_helpers, npc_helpers
+from . import world_building_helpers, item_helpers, preset_library
+from . import automation_system, desktop_tutorial_client
+from . import shap_e_helpers, point_e_helpers, advisor_helpers
+from . import ue_importer_helpers, umodel_tools_helpers, unity_fbx_importer_helpers
+# These modules have class-level property references so must be direct imports
+from . import post_processing_helpers, fo4_material_browser, fo4_reference_helpers
+
+# Optional / extended modules – imported safely so a missing or broken module
+# does NOT prevent the core operators from being registered.
+knowledge_helpers     = _safe_import("knowledge_helpers")
+umodel_helpers        = _safe_import("umodel_helpers")
+asset_studio_helpers  = _safe_import("asset_studio_helpers")
+asset_ripper_helpers  = _safe_import("asset_ripper_helpers")
+fo4_game_assets       = _safe_import("fo4_game_assets")
+unity_game_assets     = _safe_import("unity_game_assets")
+unreal_game_assets    = _safe_import("unreal_game_assets")
+fo4_scene_diagnostics = _safe_import("fo4_scene_diagnostics")
+asset_library         = _safe_import("asset_library")
 
 # Tutorial Operators
 
@@ -2662,6 +2702,9 @@ class FO4_OT_CheckUModel(Operator):
     bl_label = "Check/Install UModel"
 
     def execute(self, context):
+        if not umodel_helpers:
+            self.report({'ERROR'}, "umodel_helpers module unavailable")
+            return {'CANCELLED'}
         ready, message = umodel_helpers.status()
         actions = []
 
@@ -2868,6 +2911,9 @@ class FO4_OT_CheckAssetStudio(Operator):
     bl_label = "Check AssetStudio"
 
     def execute(self, context):
+        if not asset_studio_helpers:
+            self.report({'ERROR'}, "asset_studio_helpers module unavailable")
+            return {'CANCELLED'}
         ready, message = asset_studio_helpers.status()
         actions = []
 
@@ -2893,6 +2939,9 @@ class FO4_OT_CheckAssetRipper(Operator):
     bl_label = "Check AssetRipper"
 
     def execute(self, context):
+        if not asset_ripper_helpers:
+            self.report({'ERROR'}, "asset_ripper_helpers module unavailable")
+            return {'CANCELLED'}
         ready, message = asset_ripper_helpers.status()
         actions = []
 
@@ -7893,6 +7942,9 @@ class FO4_OT_BrowseFO4Assets(Operator):
     )
 
     def execute(self, context):
+        if not fo4_game_assets:
+            self.report({'ERROR'}, "fo4_game_assets module unavailable")
+            return {'CANCELLED'}
         # This will be a modal operator with search UI
         # For now, show status
         ready, message = fo4_game_assets.FO4GameAssets.get_status()
@@ -7933,6 +7985,9 @@ class FO4_OT_BrowseUnityAssets(Operator):
     )
 
     def execute(self, context):
+        if not unity_game_assets:
+            self.report({'ERROR'}, "unity_game_assets module unavailable")
+            return {'CANCELLED'}
         ready, message = unity_game_assets.UnityAssets.get_status()
 
         if not ready:
@@ -7995,7 +8050,7 @@ class FO4_OT_ImportUnityAsset(Operator):
         results.sort(key=lambda r: (len(r.get("name", "")), len(r.get("asset_path", ""))))
         return results[0], None
 
-    def _import_asset_file(self, path: Path):
+    def _import_asset_file(self, path):
         ext = path.suffix.lower()
         if ext == ".fbx" and hasattr(bpy.ops.import_scene, "fbx"):
             bpy.ops.import_scene.fbx(filepath=str(path))
@@ -8067,6 +8122,9 @@ class FO4_OT_BrowseUnrealAssets(Operator):
     )
 
     def execute(self, context):
+        if not unreal_game_assets:
+            self.report({'ERROR'}, "unreal_game_assets module unavailable")
+            return {'CANCELLED'}
         ready, message = unreal_game_assets.UnrealAssets.get_status()
 
         if not ready:
@@ -8128,7 +8186,7 @@ class FO4_OT_ImportUnrealAsset(Operator):
         results.sort(key=lambda r: (len(r.get("name", "")), len(r.get("asset_path", ""))))
         return results[0], None
 
-    def _import_asset_file(self, path: Path, asset_type: str):
+    def _import_asset_file(self, path, asset_type: str):
         ext = path.suffix.lower()
 
         # Common mesh formats
@@ -11665,6 +11723,9 @@ class FO4_OT_RunSceneDiagnostics(Operator):
     bl_options = {'REGISTER'}
 
     def execute(self, context):
+        if not fo4_scene_diagnostics:
+            self.report({'ERROR'}, "Scene diagnostics module unavailable")
+            return {'CANCELLED'}
         scene = context.scene
         report = fo4_scene_diagnostics.SceneDiagnostics.run_full_check(scene)
 
@@ -11711,6 +11772,9 @@ class FO4_OT_AutoFixDiagnostics(Operator):
     bl_options = {'REGISTER', 'UNDO'}
 
     def execute(self, context):
+        if not fo4_scene_diagnostics:
+            self.report({'ERROR'}, "Scene diagnostics module unavailable")
+            return {'CANCELLED'}
         report = fo4_scene_diagnostics.load_report()
         if report is None:
             self.report({'WARNING'},
@@ -11757,6 +11821,9 @@ class FO4_OT_ExportDiagnosticsReport(Operator):
     filter_glob: StringProperty(default="*.txt", options={'HIDDEN'})
 
     def execute(self, context):
+        if not fo4_scene_diagnostics:
+            self.report({'ERROR'}, "Scene diagnostics module unavailable")
+            return {'CANCELLED'}
         report = fo4_scene_diagnostics.load_report()
         if report is None:
             # Run diagnostics first
