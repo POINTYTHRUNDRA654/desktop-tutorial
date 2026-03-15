@@ -112,6 +112,32 @@ inside the previous class. This broke 4 operators silently.
 **Result after Session 2:** All 173 operators are properly defined and all 173
 are registered. No structural issues remain.
 
+### Session 3 — Broken/Missing Buttons Fixed (Mar 2026)
+
+Three bugs caused buttons to be missing or show as "solid black with caution symbol":
+
+1. **`FACE_MAPS` icon** (ui_panels.py, 2 occurrences): This icon was removed in
+   Blender 4.0. Its use in `layout.operator()` raised a `ValueError` mid-draw,
+   crashing the panel and making all buttons below that point disappear.
+   → Fixed: replaced with `icon='SNAP_FACE'`.
+
+2. **`MOD_VERTEX_WEIGHT` icon** (ui_panels.py, 1 occurrence): Replaced with the
+   more reliable `icon='WPAINT_HLT'` for the Generate Wind Weights button.
+
+3. **`has_mesh` undefined in `FO4_PT_ExportPanel.draw()`** (ui_panels.py): The
+   Export panel used `row.enabled = has_mesh` three times but never defined
+   `has_mesh`. This `NameError` crashed the entire Export Actions section,
+   making the main export buttons invisible.
+   → Fixed: added `has_mesh = obj and obj.type == 'MESH'` at top of draw().
+
+4. **"Export Entire Scene" button missing `row.enabled` guard**: Added
+   `row3.enabled = any(o.type == 'MESH' for o in context.scene.objects)` to
+   match the operator's `poll()` condition.
+
+**Result after Session 3:** All 35 panels render correctly. The Export panel,
+Mesh Helpers panel (UV workflow), and Vegetation panel buttons are all visible
+and correctly enabled/disabled based on scene state.
+
 ---
 
 ## Known Requirements & Architecture Notes

@@ -434,7 +434,7 @@ class FO4_PT_MeshPanel(Panel):
             row.operator(
                 "fo4.pick_faces_for_unwrap",
                 text="Pick Faces to Unwrap",
-                icon='FACE_MAPS',
+                icon='SNAP_FACE',
             )
             row.operator(
                 "fo4.unwrap_selected_faces",
@@ -563,7 +563,7 @@ class FO4_PT_MeshPanel(Panel):
             # Face-selective unwrap
             row = uv_box.row(align=True)
             row.enabled = has_mesh
-            row.operator("fo4.pick_faces_for_unwrap", text="Pick Faces", icon='FACE_MAPS')
+            row.operator("fo4.pick_faces_for_unwrap", text="Pick Faces", icon='SNAP_FACE')
             row.operator("fo4.unwrap_selected_faces", text="Unwrap Selected", icon='UV_SYNC_SELECT')
             row = uv_box.row(align=True)
             row.enabled = has_mesh
@@ -1748,6 +1748,7 @@ class FO4_PT_ExportPanel(Panel):
     def draw(self, context):
         layout = self.layout
         obj = context.active_object
+        has_mesh = obj and obj.type == 'MESH'
 
         # ── Fallout 4 game version ────────────────────────────────────────────
         ver_box = layout.box()
@@ -1905,6 +1906,7 @@ class FO4_PT_ExportPanel(Panel):
 
         row3 = act_box.row(align=True)
         row3.scale_y = 1.4
+        row3.enabled = any(o.type == 'MESH' for o in context.scene.objects)
         row3.operator(
             "fo4.export_scene_as_nif",
             text="Export Entire Scene as NIF",
@@ -2274,7 +2276,7 @@ class FO4_PT_VegetationPanel(Panel):
         box.label(text="Wind Animation", icon='FORCE_WIND')
         row = box.row()
         row.enabled = obj and obj.type == 'MESH'
-        row.operator("fo4.generate_wind_weights", text="Generate Wind Weights", icon='MOD_VERTEX_WEIGHT')
+        row.operator("fo4.generate_wind_weights", text="Generate Wind Weights", icon='WPAINT_HLT')
         row2 = box.row()
         row2.enabled = obj and obj.type == 'MESH'
         row2.operator("fo4.apply_wind_animation", text="Apply Wind Animation", icon='ANIM')
