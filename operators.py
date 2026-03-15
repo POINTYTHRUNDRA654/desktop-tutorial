@@ -1617,6 +1617,20 @@ class FO4_OT_ShowHunyuan3DInfo(Operator):
         
         return {'FINISHED'}
 
+
+class FO4_OT_CheckHunyuan3DStatus(Operator):
+    """Refresh Hunyuan3D-2 availability status (avoids automatic checks in UI draw)."""
+    bl_idname = "fo4.check_hunyuan3d_status"
+    bl_label = "Check Hunyuan3D-2 Status"
+    bl_options = {'REGISTER'}
+
+    def execute(self, context):
+        available, message = hunyuan3d_helpers.check_hunyuan3d_availability()
+        level = {'INFO'} if available else {'WARNING'}
+        self.report(level, message)
+        notification_system.FO4_NotificationSystem.notify(message, 'INFO' if available else 'WARNING')
+        return {'FINISHED'}
+
 # ZoeDepth Depth Estimation Operators
 
 class FO4_OT_EstimateDepth(Operator):
@@ -2714,7 +2728,8 @@ class FO4_OT_CheckUModel(Operator):
             actions.append(msg)
 
             # If download provides manual instructions, also open browser
-            if not ok and "manual download" in msg.lower():
+            lower_msg = msg.lower()
+            if not ok and ("manual download" in lower_msg or "download manually" in lower_msg):
                 _, browser_msg = umodel_helpers.open_download_page()
                 actions.append(browser_msg)
 
@@ -12267,6 +12282,7 @@ classes = (
     FO4_OT_GenerateMeshFromText,
     FO4_OT_GenerateMeshFromImageAI,
     FO4_OT_ShowHunyuan3DInfo,
+    FO4_OT_CheckHunyuan3DStatus,
     FO4_OT_EstimateDepth,
     FO4_OT_ShowZoeDepthInfo,
     FO4_OT_StartGradioServer,
