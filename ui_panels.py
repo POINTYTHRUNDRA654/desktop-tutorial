@@ -44,6 +44,9 @@ fo4_material_browser  = _safe_import("fo4_material_browser")
 fo4_scene_diagnostics = _safe_import("fo4_scene_diagnostics")
 fo4_reference_helpers = _safe_import("fo4_reference_helpers")
 asset_library         = _safe_import("asset_library")
+fo4_game_assets       = _safe_import("fo4_game_assets")
+unity_game_assets     = _safe_import("unity_game_assets")
+unreal_game_assets    = _safe_import("unreal_game_assets")
 tutorial_system      = _safe_import("tutorial_system")
 
 
@@ -60,11 +63,16 @@ def _draw_game_path_box(layout, context):
     The same box is reused in every panel so the user always sees and edits
     the same field – no more scattered, out-of-sync path inputs.
     """
-    from . import fo4_game_assets as _fga
     import os
 
+    if not fo4_game_assets:
+        box = layout.box()
+        box.label(text="FO4 Data Folder", icon='ERROR')
+        box.label(text="fo4_game_assets module missing – reinstall the add-on", icon='INFO')
+        return
+
     scene = context.scene
-    ready, _ = _fga.FO4GameAssets.get_status()
+    ready, _ = fo4_game_assets.FO4GameAssets.get_status()
 
     box = layout.box()
     hdr = box.row()
@@ -1561,45 +1569,53 @@ class FO4_PT_GameAssetsPanel(Panel):
             icon='FILE_REFRESH',
         )
         action_row.operator("fo4.import_fo4_asset_file", text="Import Asset", icon='IMPORT')
-        from . import fo4_game_assets
-        if fo4_game_assets.FO4GameAssets.get_status()[0]:
-            fo4_box.operator("fo4.browse_fo4_assets", text="Browse FO4 Assets", icon='VIEWZOOM')
+
+        if fo4_game_assets:
+            ready, _ = fo4_game_assets.FO4GameAssets.get_status()
+            if ready:
+                fo4_box.operator("fo4.browse_fo4_assets", text="Browse FO4 Assets", icon='VIEWZOOM')
+        else:
+            fo4_box.label(text="fo4_game_assets module missing – reinstall add-on", icon='ERROR')
 
         # Unity Assets
         unity_box = layout.box()
         unity_box.label(text="Unity Assets", icon='SNAP_FACE_CENTER')
 
-        from . import unity_game_assets
-        ready, message = unity_game_assets.UnityAssets.get_status()
-        status_icon = 'CHECKMARK' if ready else 'ERROR'
+        if unity_game_assets:
+            ready, message = unity_game_assets.UnityAssets.get_status()
+            status_icon = 'CHECKMARK' if ready else 'ERROR'
 
-        info_col = unity_box.column(align=True)
-        info_col.scale_y = 0.8
-        info_col.label(text=message, icon=status_icon)
+            info_col = unity_box.column(align=True)
+            info_col.scale_y = 0.8
+            info_col.label(text=message, icon=status_icon)
 
-        if ready:
-            unity_box.operator("fo4.browse_unity_assets", text="Browse Unity Assets", icon='VIEWZOOM')
-            unity_box.operator("fo4.import_unity_asset", text="Import Unity Asset", icon='IMPORT')
+            if ready:
+                unity_box.operator("fo4.browse_unity_assets", text="Browse Unity Assets", icon='VIEWZOOM')
+                unity_box.operator("fo4.import_unity_asset", text="Import Unity Asset", icon='IMPORT')
+            else:
+                unity_box.label(text="Set Unity path in preferences", icon='PREFERENCES')
         else:
-            unity_box.label(text="Set Unity path in preferences", icon='PREFERENCES')
+            unity_box.label(text="unity_game_assets module missing – reinstall add-on", icon='ERROR')
 
         # Unreal Engine Assets
         unreal_box = layout.box()
         unreal_box.label(text="Unreal Engine Assets", icon='MESH_CUBE')
 
-        from . import unreal_game_assets
-        ready, message = unreal_game_assets.UnrealAssets.get_status()
-        status_icon = 'CHECKMARK' if ready else 'ERROR'
+        if unreal_game_assets:
+            ready, message = unreal_game_assets.UnrealAssets.get_status()
+            status_icon = 'CHECKMARK' if ready else 'ERROR'
 
-        info_col = unreal_box.column(align=True)
-        info_col.scale_y = 0.8
-        info_col.label(text=message, icon=status_icon)
+            info_col = unreal_box.column(align=True)
+            info_col.scale_y = 0.8
+            info_col.label(text=message, icon=status_icon)
 
-        if ready:
-            unreal_box.operator("fo4.browse_unreal_assets", text="Browse Unreal Assets", icon='VIEWZOOM')
-            unreal_box.operator("fo4.import_unreal_asset", text="Import Unreal Asset", icon='IMPORT')
+            if ready:
+                unreal_box.operator("fo4.browse_unreal_assets", text="Browse Unreal Assets", icon='VIEWZOOM')
+                unreal_box.operator("fo4.import_unreal_asset", text="Import Unreal Asset", icon='IMPORT')
+            else:
+                unreal_box.label(text="Set Unreal path in preferences", icon='PREFERENCES')
         else:
-            unreal_box.label(text="Set Unreal path in preferences", icon='PREFERENCES')
+            unreal_box.label(text="unreal_game_assets module missing – reinstall add-on", icon='ERROR')
 
         layout.separator()
 
