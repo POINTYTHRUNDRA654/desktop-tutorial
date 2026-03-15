@@ -139,6 +139,36 @@ export const LocalAIEngine = {
 
     // --- KNOWLEDGE & PROCESS INJECTION ---
     let injectedContext = "";
+    let webSearchFailureLogged = false;
+    let webSearchUnavailable = false;
+    const recordWebSearchFailure = (reason: string) => {
+      if (webSearchFailureLogged) return;
+      webSearchFailureLogged = true;
+      webSearchUnavailable = true;
+      try {
+        const vaultRaw = localStorage.getItem('mossy_knowledge_vault') || '[]';
+        let parsedVault: any[] = [];
+        try {
+          const candidate = JSON.parse(vaultRaw);
+          parsedVault = Array.isArray(candidate) ? candidate : [];
+        } catch {
+          parsedVault = [];
+        }
+        const vault: any[] = parsedVault;
+        vault.push({
+          id: `web-access-failure-${Date.now()}`,
+          title: 'Web access failure detected',
+          content: `Mossy could not reach the internet while handling "${query}". Reason: ${reason}. This usually means DNS or outbound HTTPS is blocked. Verify external domains (api.duckduckgo.com, fallout.fandom.com, mossy.onrender.com) resolve and allow HTTPS connections.`,
+          source: 'system:web-search',
+          trustLevel: 'system',
+          tags: ['web-access', 'diagnostic', 'network'],
+          date: new Date().toISOString(),
+        });
+        localStorage.setItem('mossy_knowledge_vault', JSON.stringify(vault.slice(-50)));
+      } catch (storageErr) {
+        console.warn('[LocalAIEngine] Failed to record web access failure:', storageErr);
+      }
+    };
 
     // Inject Process & Hardware Awareness
     const electronApiAny = (window as any).electron?.api;
@@ -271,13 +301,21 @@ export const LocalAIEngine = {
             }
           } else {
             console.warn('[LocalAIEngine] Web search returned no results:', searchResult);
+            const reason = searchResult?.error || 'No search result text returned';
+            recordWebSearchFailure(String(reason));
           }
         } else {
           console.warn('[LocalAIEngine] webSearch API not available');
+          recordWebSearchFailure('webSearch API not available in preload');
         }
       } catch (webErr) {
         console.warn('[LocalAIEngine] Web search failed (non-critical):', webErr);
+        recordWebSearchFailure((webErr as any)?.message || String(webErr));
       }
+    }
+    if (webSearchUnavailable) {
+      injectedContext += '\n### LIVE WEB SEARCH TEMPORARILY UNAVAILABLE\n';
+      injectedContext += 'Internet fetch failed (likely DNS or egress blocked). Do NOT say you lack internet access. Answer with existing knowledge and advise the user to allow HTTPS to api.duckduckgo.com, fallout.fandom.com, and mossy.onrender.com.\n';
     }
     // ---------------------------
     // RESPONSE GUARD: patterns that indicate Mossy falsely claimed she can't access the
