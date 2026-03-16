@@ -145,29 +145,11 @@ export const LocalAIEngine = {
       if (webSearchFailureLogged) return;
       webSearchFailureLogged = true;
       webSearchUnavailable = true;
-      try {
-        const vaultRaw = localStorage.getItem('mossy_knowledge_vault') || '[]';
-        let parsedVault: any[] = [];
-        try {
-          const candidate = JSON.parse(vaultRaw);
-          parsedVault = Array.isArray(candidate) ? candidate : [];
-        } catch {
-          parsedVault = [];
-        }
-        const vault: any[] = parsedVault;
-        vault.push({
-          id: `web-access-failure-${Date.now()}`,
-          title: 'Web access failure detected',
-          content: `Mossy could not reach the internet while handling "${query}". Reason: ${reason}. This usually means DNS or outbound HTTPS is blocked. Verify external domains (api.duckduckgo.com, fallout.fandom.com, mossy.onrender.com) resolve and allow HTTPS connections.`,
-          source: 'system:web-search',
-          trustLevel: 'system',
-          tags: ['web-access', 'diagnostic', 'network'],
-          date: new Date().toISOString(),
-        });
-        localStorage.setItem('mossy_knowledge_vault', JSON.stringify(vault.slice(-50)));
-      } catch (storageErr) {
-        console.warn('[LocalAIEngine] Failed to record web access failure:', storageErr);
-      }
+      // Log diagnostically to console only — do NOT write to the Knowledge Vault.
+      // Vault entries persist across sessions and would pollute future AI contexts
+      // with "Mossy could not reach the internet" messages, causing the AI to
+      // report network failures even when connectivity is restored.
+      console.warn('[LocalAIEngine] Web search unavailable:', reason);
     };
 
     // Inject Process & Hardware Awareness
@@ -314,8 +296,10 @@ export const LocalAIEngine = {
       }
     }
     if (webSearchUnavailable) {
-      injectedContext += '\n### LIVE WEB SEARCH TEMPORARILY UNAVAILABLE\n';
-      injectedContext += 'Internet fetch failed (likely DNS or egress blocked). Do NOT say you lack internet access. Answer with existing knowledge and advise the user to allow HTTPS to api.duckduckgo.com, fallout.fandom.com, and mossy.onrender.com.\n';
+      // Web search could not reach the network this turn. Do NOT inject a failure
+      // message that would cause the AI to tell the user about network problems.
+      // The response guard below will retry the search if the AI falsely refuses.
+      // Just continue — the AI will use its system prompt and vault knowledge.
     }
     // ---------------------------
     // RESPONSE GUARD: patterns that indicate Mossy falsely claimed she can't access the
@@ -438,7 +422,9 @@ export const LocalAIEngine = {
         // If the model falsely claimed it cannot access the internet and we haven't
         // already injected web results, perform a web search now and retry once so
         // the user receives real information instead of a false refusal.
-        const responseRefusesInternet = !needsWebSearch && INTERNET_REFUSAL_PATTERNS.some((p) => p.test(responseContent));
+        // Also trigger when web search was attempted but failed (webSearchUnavailable)
+        // so the guard can retry the search in case connectivity has recovered.
+        const responseRefusesInternet = (!needsWebSearch || webSearchUnavailable) && INTERNET_REFUSAL_PATTERNS.some((p) => p.test(responseContent));
         if (responseRefusesInternet) {
           console.warn('[LocalAIEngine] ⚠️ RESPONSE GUARD TRIGGERED - AI falsely refused internet access');
           console.warn('[LocalAIEngine] Response snippet:', responseContent.substring(0, 200));

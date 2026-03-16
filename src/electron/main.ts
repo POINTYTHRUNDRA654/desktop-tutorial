@@ -5,7 +5,7 @@
  * Handles window creation, IPC communication for program detection and launching.
  */
 
-import { app, BrowserWindow, ipcMain, dialog, shell, safeStorage, screen } from 'electron';
+import { app, BrowserWindow, ipcMain, dialog, shell, safeStorage, screen, net } from 'electron';
 import path from 'path';
 import os from 'os';
 import { IPC_CHANNELS } from './types';
@@ -6279,32 +6279,27 @@ function setupIpcHandlers() {
 
   /**
    * Shared HTTPS GET helper used by web-search and browse-web handlers.
-   * Follows a single redirect and caps the response body at maxBytes.
+   * Uses Electron's net.fetch() which is backed by Chromium's network stack and
+   * respects OS proxy settings, system certificate stores, and VPN routes.
+   * This is the correct approach in Electron — Node's built-in https module bypasses
+   * these system-level settings and can fail behind corporate firewalls or VPNs.
    */
-  const httpsGetText = (url: string, maxBytes = 30000): Promise<string> => {
-    return new Promise((resolve, reject) => {
-      const doGet = (target: string, hops: number) => {
-        if (hops > 2) { reject(new Error('Too many redirects')); return; }
-        const req = https.get(target, { timeout: 12000 }, (res) => {
-          const loc = res.headers.location;
-          if (res.statusCode && res.statusCode >= 300 && res.statusCode < 400 && typeof loc === 'string') {
-            const next = loc.startsWith('/') ? new URL(loc, target).href : loc;
-            if (!/^https:\/\//i.test(next)) { reject(new Error('Redirect to non-HTTPS URL blocked')); return; }
-            doGet(next, hops + 1);
-            return;
-          }
-          let body = '';
-          res.on('data', (chunk: Buffer) => {
-            body += chunk.toString();
-            if (body.length > maxBytes) { req.destroy(); resolve(body.slice(0, maxBytes)); }
-          });
-          res.on('end', () => resolve(body));
-        });
-        req.on('error', reject);
-        req.on('timeout', () => { req.destroy(); reject(new Error('Request timed out')); });
-      };
-      doGet(url, 0);
-    });
+  const httpsGetText = async (url: string, maxBytes = 30000): Promise<string> => {
+    if (!/^https:\/\//i.test(url)) {
+      throw new Error('Only HTTPS URLs are supported');
+    }
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 12000);
+    try {
+      const resp = await net.fetch(url, { signal: controller.signal });
+      if (!resp.ok) {
+        throw new Error(`HTTP ${resp.status} ${resp.statusText}`);
+      }
+      const text = await resp.text();
+      return text.length > maxBytes ? text.slice(0, maxBytes) : text;
+    } finally {
+      clearTimeout(timer);
+    }
   };
 
   /** Strip HTML tags and collapse whitespace for clean text extraction.
