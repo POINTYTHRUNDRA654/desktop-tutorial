@@ -134,7 +134,6 @@ def register():
 
     # schedule a quick environment check once Blender is ready
     try:
-        import bpy
         def _post_register():
             try:
                 bpy.ops.fo4.check_kb_tools()
