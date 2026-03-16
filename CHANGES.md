@@ -27,6 +27,53 @@ All changes in this PR live on this branch. The branch name reflects its origin 
 
 ## Done ✅  (DO NOT redo, revert, or override these)
 
+### 26. Fix: Mossy says she can't access the Internet after a recent update ✅
+
+**Problem addressed:**
+After a series of recent agent commits, Mossy started telling users she couldn't access the internet. Three compounding bugs were found:
+
+1. **Vault pollution** (`recordWebSearchFailure` in `src/renderer/src/LocalAIEngine.ts`): A previous Codex agent added code that permanently stores "Mossy could not reach the internet" entries in the Knowledge Vault (localStorage) whenever a web search fails. These entries persist across sessions and are included in future AI contexts, causing the AI to report internet failures even when connectivity is restored.
+
+2. **Misleading fallback message** (`webSearchUnavailable` context in `LocalAIEngine.ts`): The same Codex agent added a context injection that told the AI "Internet fetch failed (likely DNS or egress blocked). Do NOT say you lack internet access. Answer with existing knowledge and **advise the user to allow HTTPS to api.duckduckgo.com...**" — this message directly caused Mossy to tell users about network failures.
+
+3. **Response guard disabled for web-search queries** (`LocalAIEngine.ts` line ~441): The response guard used `!needsWebSearch` as its condition, meaning it was DISABLED for any query that had already triggered a web search attempt. When web search failed (DNS error, network issue), the guard never fired to catch the AI's false refusal.
+
+4. **Node `https` module bypassing system network settings** (`src/electron/main.ts`): The `httpsGetText` helper used Node's native `https` module which bypasses OS proxy settings, system certificate stores, and VPN configurations. Switching to Electron's `net.fetch()` (Chromium-backed) respects these settings.
+
+**Fix A — Remove vault pollution (`src/renderer/src/LocalAIEngine.ts`):**
+- `recordWebSearchFailure` now only logs to console; it no longer writes failure entries to the Knowledge Vault
+- Web search failures are ephemeral diagnostic info, not knowledge to retain
+
+**Fix B — Remove misleading fallback message (`src/renderer/src/LocalAIEngine.ts`):**
+- Removed the `### LIVE WEB SEARCH TEMPORARILY UNAVAILABLE` injected context that told the AI to "advise the user to allow HTTPS to api.duckduckgo.com..."
+- When web search fails, the AI simply answers from its existing knowledge without being told about the failure
+
+**Fix C — Fix response guard condition (`src/renderer/src/LocalAIEngine.ts`):**
+- Changed guard condition from `!needsWebSearch` to `(!needsWebSearch || webSearchUnavailable)`
+- The guard now fires when web search was attempted but failed, allowing it to retry once and potentially recover if connectivity is restored
+
+**Fix D — Use Electron net module for web search (`src/electron/main.ts`):**
+- Replaced Node's `https.get()` with `net.fetch()` (Electron's Chromium-backed fetch) in `httpsGetText`
+- Added `net` to the electron import
+- Electron's `net.fetch()` respects OS proxy settings, system certificate stores, and VPN routes — the previous Node `https` module bypassed all of these
+
+**Fix E — Clean up existing vault pollution on startup (`src/renderer/src/ChatInterface.tsx`):**
+- Added cleanup in the mount `useEffect` to remove any existing `web-access-failure-*` vault entries from previous sessions
+- One-time removal ensures users who already have the polluted vault get cleaned up automatically
+
+**Fix F — Improve scan_fallout4_live no-results message (`src/renderer/src/MossyTools.ts`):**
+- Changed "check your network connection" message to one that doesn't imply network failure
+- Now suggests rephrasing the topic and offers to answer from existing knowledge
+
+Files changed:
+- `src/renderer/src/LocalAIEngine.ts` — fixes A, B, C
+- `src/electron/main.ts` — fix D (net.fetch + net import)
+- `src/renderer/src/ChatInterface.tsx` — fix E (vault cleanup on mount)
+- `src/renderer/src/MossyTools.ts` — fix F (better no-results message)
+- `CHANGES.md`
+
+---
+
 ### 25. Fix: Mossy claims she's a "fixed model" ✅
 
 **Problem addressed:**
