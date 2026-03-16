@@ -473,8 +473,8 @@ class FO4_PT_AdvisorPanel(Panel):
 
     def draw(self, context):
         layout = self.layout
-        prefs = context.preferences.addons.get(__package__.split('.')[0]).preferences if context.preferences else None
-        llm_enabled = prefs.llm_enabled if prefs else False
+        scene = context.scene
+        llm_enabled = getattr(scene, "fo4_llm_enabled", False) if scene else False
 
         box = layout.box()
         box.label(text="Analyze", icon='INFO')
@@ -486,7 +486,7 @@ class FO4_PT_AdvisorPanel(Panel):
         op = row.operator("fo4.advisor_analyze", text="Analyze (LLM)", icon='LIGHT_HEMI')
         op.use_llm = True
         if not llm_enabled:
-            box.label(text="LLM disabled (set in Preferences)", icon='ERROR')
+            box.label(text="LLM disabled (enable in Settings)", icon='ERROR')
 
         fixes = layout.box()
         fixes.label(text="Quick Fixes", icon='MODIFIER')
@@ -1330,6 +1330,43 @@ class FO4_PT_DesktopTutorialPanel(Panel):
             info_box.label(text="python example_tutorial_server.py")
 
 
+class FO4_PT_SettingsPanel(Panel):
+    """Add-on settings stored as scene properties."""
+    bl_label = "Settings"
+    bl_idname = "FO4_PT_settings_panel"
+    bl_space_type = 'VIEW_3D'
+    bl_region_type = 'UI'
+    bl_category = 'Fallout 4'
+    bl_parent_id = "FO4_PT_main_panel"
+    bl_options = {'DEFAULT_CLOSED'}
+
+    def draw(self, context):
+        layout = self.layout
+        scene = context.scene
+        if scene is None:
+            layout.label(text="No active scene", icon='ERROR')
+            return
+
+        mesh_box = layout.box()
+        mesh_box.label(text="Mesh Panel", icon='MESH_DATA')
+        mesh_box.prop(scene, "fo4_mesh_panel_unified", text="Unified view")
+
+        tools_box = layout.box()
+        tools_box.label(text="Tool Paths", icon='FILE_FOLDER')
+        tools_box.prop(scene, "fo4_havok2fbx_path", text="Havok2FBX")
+        tools_box.prop(scene, "fo4_nvtt_path", text="nvcompress/NVTT")
+        tools_box.prop(scene, "fo4_texconv_path", text="texconv")
+
+        llm_box = layout.box()
+        llm_box.label(text="LLM Advisor", icon='INFO')
+        llm_box.prop(scene, "fo4_llm_enabled", text="Enable LLM")
+
+        mossy_box = layout.box()
+        mossy_box.label(text="Mossy Link", icon='LINKED')
+        mossy_box.prop(scene, "fo4_mossy_port", text="Port")
+        mossy_box.prop(scene, "fo4_use_mossy_ai", text="Use Mossy AI")
+
+
 classes = (
     FO4_PT_MainPanel,
     FO4_PT_MeshPanel,
@@ -1358,6 +1395,7 @@ classes = (
     FO4_PT_AutomationMacrosPanel,
     FO4_PT_AddonIntegrationPanel,
     FO4_PT_DesktopTutorialPanel,
+    FO4_PT_SettingsPanel,
 )
 
 def register():
