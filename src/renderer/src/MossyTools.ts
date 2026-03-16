@@ -1551,7 +1551,7 @@ Check your Downloads folder or the location where files are saved.`;
                 } catch { /* non-critical */ }
 
                 if (results.length === 0) {
-                    result = `**Online Scan:** No results found for "${topic}". The wiki or web search may be temporarily unavailable. Try a more specific term or check your network connection.`;
+                    result = `**Online Scan:** No results found for "${topic}" right now. The Fallout 4 Wiki and DuckDuckGo didn't return a match for that exact term. Try rephrasing the topic (e.g., "Papyrus script event" instead of just "Papyrus"), or I can answer from my existing knowledge if you'd like.`;
                 } else {
                     const vaultNote = savedItems.length > 0
                         ? `\n\n✅ **Saved to Knowledge Vault:** ${savedItems.join(', ')} — I'll remember this for the rest of our session.`

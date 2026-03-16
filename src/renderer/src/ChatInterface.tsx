@@ -605,6 +605,27 @@ export const ChatInterface: React.FC = () => {
         } catch {
             // ignore storage errors
         }
+        // Remove any "web-access-failure" entries that a previous agent session
+        // incorrectly wrote to the Knowledge Vault. These entries say "Mossy could not
+        // reach the internet" and persist across sessions, polluting the AI's context
+        // and causing it to report network failures even when connectivity is fine.
+        try {
+            const raw = localStorage.getItem('mossy_knowledge_vault');
+            if (raw) {
+                const vault = JSON.parse(raw);
+                if (Array.isArray(vault)) {
+                    const cleaned = vault.filter(
+                        (item: any) => item?.id?.startsWith?.('web-access-failure-') === false
+                    );
+                    if (cleaned.length !== vault.length) {
+                        localStorage.setItem('mossy_knowledge_vault', JSON.stringify(cleaned));
+                        console.log('[ChatInterface] Removed stale web-access-failure vault entries');
+                    }
+                }
+            }
+        } catch {
+            // ignore storage errors — vault cleanup is best-effort
+        }
     }, []);
 
     // Accept a one-time prefill (Install Wizard → Chat handoff, etc.)
