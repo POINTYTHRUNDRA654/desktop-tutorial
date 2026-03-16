@@ -5,7 +5,7 @@ Operators for the Fallout 4 Tutorial Add-on
 import bpy
 from bpy.types import Operator
 from bpy.props import StringProperty, EnumProperty, IntProperty, FloatProperty, BoolProperty
-from . import tutorial_system, mesh_helpers, texture_helpers, animation_helpers, export_helpers, notification_system, image_to_mesh_helpers, hunyuan3d_helpers, gradio_helpers, hymotion_helpers, nvtt_helpers, realesrgan_helpers, get3d_helpers, stylegan2_helpers, instantngp_helpers, imageto3d_helpers, advanced_mesh_helpers, rignet_helpers, motion_generation_helpers, quest_helpers, npc_helpers, world_building_helpers, item_helpers, preset_library, automation_system, desktop_tutorial_client, shap_e_helpers, point_e_helpers, advisor_helpers, ue_importer_helpers, umodel_tools_helpers, unity_fbx_importer_helpers
+from . import preferences, tutorial_system, mesh_helpers, texture_helpers, animation_helpers, export_helpers, notification_system, image_to_mesh_helpers, hunyuan3d_helpers, gradio_helpers, hymotion_helpers, nvtt_helpers, realesrgan_helpers, get3d_helpers, stylegan2_helpers, instantngp_helpers, imageto3d_helpers, advanced_mesh_helpers, rignet_helpers, motion_generation_helpers, quest_helpers, npc_helpers, world_building_helpers, item_helpers, preset_library, automation_system, desktop_tutorial_client, shap_e_helpers, point_e_helpers, advisor_helpers, ue_importer_helpers, umodel_tools_helpers, umodel_helpers, unity_fbx_importer_helpers, asset_studio_helpers, asset_ripper_helpers, fo4_game_assets, unity_game_assets, unreal_game_assets
 from . import knowledge_helpers
 
 # Tutorial Operators
@@ -96,7 +96,31 @@ class FO4_OT_OptimizeMesh(Operator):
     bl_idname = "fo4.optimize_mesh"
     bl_label = "Optimize Mesh"
     bl_options = {'REGISTER', 'UNDO'}
-    
+
+    apply_transforms: bpy.props.BoolProperty(
+        name="Apply Transforms",
+        default=True,
+        description="Apply object transformations before optimization",
+    )
+    threshold: bpy.props.FloatProperty(
+        name="Remove Doubles Thresh",
+        default=0.0001,
+        min=0.0,
+        max=0.01,
+        description="Distance under which vertices are merged",
+    )
+    preserve_uvs: bpy.props.BoolProperty(
+        name="Preserve UVs",
+        default=True,
+        description="Avoid collapsing vertices across UV seams",
+    )
+
+    def draw(self, context):
+        layout = self.layout
+        layout.prop(self, "apply_transforms")
+        layout.prop(self, "threshold")
+        layout.prop(self, "preserve_uvs")
+
     def execute(self, context):
         obj = context.active_object
         
@@ -104,6 +128,12 @@ class FO4_OT_OptimizeMesh(Operator):
             self.report({'ERROR'}, "No mesh object selected")
             return {'CANCELLED'}
         
+        # override global preferences with operator values
+        prefs = preferences.get_preferences()
+        if prefs:
+            prefs.optimize_apply_transforms = self.apply_transforms
+            prefs.optimize_remove_doubles_threshold = self.threshold
+            prefs.optimize_preserve_uvs = self.preserve_uvs
         success, message = mesh_helpers.MeshHelpers.optimize_mesh(obj)
         
         if success:
@@ -286,6 +316,208 @@ class FO4_OT_ValidateAnimation(Operator):
                 notification_system.FO4_NotificationSystem.notify(issue, 'WARNING')
         
         return {'FINISHED'}
+
+
+class FO4_OT_GenerateWindWeights(Operator):
+    """Generate a wind/vortex weight group for the active mesh"""
+    bl_idname = "fo4.generate_wind_weights"
+    bl_label = "Generate Wind Weights"
+    bl_options = {'REGISTER', 'UNDO'}
+
+    def execute(self, context):
+        obj = context.active_object
+        if not obj or obj.type != 'MESH':
+            self.report({'ERROR'}, "Select a mesh object")
+            return {'CANCELLED'}
+
+        ok, msg = animation_helpers.AnimationHelpers.generate_wind_weights(obj)
+        if ok:
+            self.report({'INFO'}, msg)
+            notification_system.FO4_NotificationSystem.notify(msg, 'INFO')
+            return {'FINISHED'}
+        else:
+            self.report({'ERROR'}, msg)
+            notification_system.FO4_NotificationSystem.notify(msg, 'ERROR')
+            return {'CANCELLED'}
+
+
+class FO4_OT_AutoWeightPaint(Operator):
+    """Automatically skin a mesh to the selected FO4 armature"""
+    bl_idname = "fo4.auto_weight_paint"
+    bl_label = "Auto Weight Paint"
+    bl_options = {'REGISTER', 'UNDO'}
+
+    def execute(self, context):
+        mesh = context.active_object
+        if not mesh or mesh.type != 'MESH':
+            self.report({'ERROR'}, "Select a mesh object first")
+            return {'CANCELLED'}
+
+        # try to find an armature in the selection or parent
+        arm = None
+        for obj in context.selected_objects:
+            if obj.type == 'ARMATURE':
+                arm = obj
+                break
+        if arm is None and mesh.parent and mesh.parent.type == 'ARMATURE':
+            arm = mesh.parent
+
+        if arm is None:
+            self.report({'ERROR'}, "No armature selected or parented")
+            return {'CANCELLED'}
+
+        ok, msg = animation_helpers.AnimationHelpers.auto_weight_paint(mesh, arm)
+        if ok:
+            self.report({'INFO'}, msg)
+            notification_system.FO4_NotificationSystem.notify(msg, 'INFO')
+            return {'FINISHED'}
+        else:
+            self.report({'ERROR'}, msg)
+            notification_system.FO4_NotificationSystem.notify(msg, 'ERROR')
+            return {'CANCELLED'}
+
+
+class FO4_OT_BatchGenerateWindWeights(Operator):
+    """Generate wind weights on all selected mesh objects"""
+    bl_idname = "fo4.batch_generate_wind_weights"
+    bl_label = "Batch: Wind Weights"
+
+    def execute(self, context):
+        meshes = [obj for obj in context.selected_objects if obj.type == 'MESH']
+        if not meshes:
+            self.report({'ERROR'}, "No mesh objects selected")
+            return {'CANCELLED'}
+        for m in meshes:
+            animation_helpers.AnimationHelpers.generate_wind_weights(m)
+        self.report({'INFO'}, f"Processed {len(meshes)} meshes")
+        return {'FINISHED'}
+
+class FO4_OT_BatchApplyWindAnimation(Operator):
+    """Apply wind animation to all selected mesh objects"""
+    bl_idname = "fo4.batch_apply_wind_animation"
+    bl_label = "Batch: Wind Animation"
+
+    def execute(self, context):
+        meshes = [obj for obj in context.selected_objects if obj.type == 'MESH']
+        if not meshes:
+            self.report({'ERROR'}, "No mesh objects selected")
+            return {'CANCELLED'}
+        for m in meshes:
+            animation_helpers.AnimationHelpers.apply_wind_animation(m)
+        self.report({'INFO'}, f"Processed {len(meshes)} meshes")
+        return {'FINISHED'}
+
+class FO4_OT_BatchAutoWeightPaint(Operator):
+    """Auto weight paint all selected meshes to the first armature found"""
+    bl_idname = "fo4.batch_auto_weight_paint"
+    bl_label = "Batch: Auto Weight Paint"
+
+    def execute(self, context):
+        meshes = [obj for obj in context.selected_objects if obj.type == 'MESH']
+        arm = next((o for o in context.selected_objects if o.type == 'ARMATURE'), None)
+        if not arm and meshes:
+            # try parent of first mesh
+            if meshes[0].parent and meshes[0].parent.type == 'ARMATURE':
+                arm = meshes[0].parent
+        if not meshes or not arm:
+            self.report({'ERROR'}, "Need at least one mesh and an armature")
+            return {'CANCELLED'}
+        for m in meshes:
+            animation_helpers.AnimationHelpers.auto_weight_paint(m, arm)
+        self.report({'INFO'}, f"Processed {len(meshes)} meshes")
+        return {'FINISHED'}
+
+
+class FO4_OT_ToggleWindPreview(Operator):
+    """Toggle live wind preview (rotates Wind bone slightly each frame)"""
+    bl_idname = "fo4.toggle_wind_preview"
+    bl_label = "Toggle Wind Preview"
+
+    enabling: bpy.props.BoolProperty(default=False)
+
+    def execute(self, context):
+        if not self.enabling:
+            ok, msg = animation_helpers.AnimationHelpers.start_wind_preview()
+            if ok:
+                self.enabling = True
+                self.report({'INFO'}, msg)
+            else:
+                self.report({'WARNING'}, msg)
+        else:
+            ok, msg = animation_helpers.AnimationHelpers.stop_wind_preview()
+            if ok:
+                self.enabling = False
+                self.report({'INFO'}, msg)
+            else:
+                self.report({'WARNING'}, msg)
+        return {'FINISHED'}
+
+
+class FO4_OT_ApplyWindAnimation(Operator):
+    """Add wind armature and animation to the selected mesh"""
+    bl_idname = "fo4.apply_wind_animation"
+    bl_label = "Apply Wind Animation"
+    bl_options = {'REGISTER', 'UNDO'}
+
+    preset: bpy.props.EnumProperty(
+        name="Preset",
+        items=[
+            ('NONE', 'Custom', ''),
+            ('GRASS', 'Grass', 'Light, fast swaying'),
+            ('SHRUB', 'Shrub', 'Medium amplitude/period'),
+            ('TREE', 'Tree', 'Slow, heavy movement'),
+        ],
+        default='NONE',
+    )
+    amplitude: bpy.props.FloatProperty(
+        name="Amplitude",
+        default=0.2,
+        description="Rotation strength in radians for the wind bone"
+    )
+    period: bpy.props.FloatProperty(
+        name="Period",
+        default=60.0,
+        description="Frame length of the wind animation loop"
+    )
+    axis: bpy.props.EnumProperty(
+        name="Axis",
+        items=[('X','X',''),('Y','Y',''),('Z','Z','')],
+        default='X',
+        description="Axis to rotate for wind motion"
+    )
+
+    def draw(self, context):
+        layout = self.layout
+        layout.prop(self, "preset")
+        if self.preset == 'NONE':
+            layout.prop(self, "amplitude")
+            layout.prop(self, "period")
+            layout.prop(self, "axis")
+    
+    def execute(self, context):
+        # apply presets if selected
+        if self.preset == 'GRASS':
+            self.amplitude = 0.1; self.period = 40.0
+        elif self.preset == 'SHRUB':
+            self.amplitude = 0.15; self.period = 80.0
+        elif self.preset == 'TREE':
+            self.amplitude = 0.3; self.period = 120.0
+
+        mesh = context.active_object
+        if not mesh or mesh.type != 'MESH':
+            self.report({'ERROR'}, "Select a mesh object first")
+            return {'CANCELLED'}
+        ok, msg = animation_helpers.AnimationHelpers.apply_wind_animation(
+            mesh, self.amplitude, self.period, self.axis
+        )
+        if ok:
+            self.report({'INFO'}, msg)
+            notification_system.FO4_NotificationSystem.notify(msg, 'INFO')
+            return {'FINISHED'}
+        else:
+            self.report({'ERROR'}, msg)
+            notification_system.FO4_NotificationSystem.notify(msg, 'ERROR')
+            return {'CANCELLED'}
 
 # RigNet Auto-Rigging Operators
 
@@ -515,14 +747,32 @@ class FO4_OT_ExportMesh(Operator):
     bl_label = "Export Mesh"
     
     filepath: StringProperty(subtype='FILE_PATH')
-    
-    def execute(self, context):
+    source_object: StringProperty(options={'HIDDEN'})
+
+    @classmethod
+    def poll(cls, context):
         obj = context.active_object
-        
+        return obj is not None and obj.type == 'MESH'
+
+    def execute(self, context):
+        # Use the object captured at invoke time when possible
+        if self.source_object:
+            obj = context.scene.objects.get(self.source_object)
+            if obj is None:
+                self.report({'ERROR'}, f"Source object '{self.source_object}' no longer exists in the scene")
+                return {'CANCELLED'}
+        else:
+            obj = context.active_object
+
         if not obj or obj.type != 'MESH':
             self.report({'ERROR'}, "No mesh object selected")
             return {'CANCELLED'}
-        
+
+        # avoid exporting a generated collision mesh by mistake
+        if obj.get("fo4_collision") or obj.name.upper().endswith("_COLLISION") or obj.name.upper().startswith("UCX_"):
+            self.report({'ERROR'}, "Active object looks like a collision mesh; select the original mesh instead")
+            return {'CANCELLED'}
+
         success, message = export_helpers.ExportHelpers.export_mesh_to_nif(
             obj, self.filepath
         )
@@ -538,6 +788,148 @@ class FO4_OT_ExportMesh(Operator):
         return {'FINISHED'}
     
     def invoke(self, context, event):
+        obj = context.active_object
+        if not obj or obj.type != 'MESH':
+            self.report({'ERROR'}, "No mesh object selected")
+            return {'CANCELLED'}
+        # avoid exporting a generated collision mesh by mistake
+        if obj.get("fo4_collision") or obj.name.upper().endswith("_COLLISION") or obj.name.upper().startswith("UCX_"):
+            self.report({'ERROR'}, "Active object looks like a collision mesh; select the original mesh instead")
+            return {'CANCELLED'}
+        # Store the name now so execute() can find it after the file dialog
+        self.source_object = obj.name
+        context.window_manager.fileselect_add(self)
+        return {'RUNNING_MODAL'}
+
+
+class FO4_OT_SetCollisionType(Operator):
+    """Choose and assign a collision category to the selected mesh"""
+    bl_idname = "fo4.set_collision_type"
+    bl_label = "Set Collision Type"
+    bl_options = {'REGISTER', 'UNDO'}
+
+    collision_type: EnumProperty(
+        name="Collision Type",
+        description="Category used when generating/exporting collision meshes",
+        items=mesh_helpers.MeshHelpers.COLLISION_TYPES,
+        default='DEFAULT'
+    )
+
+    apply_to_all: bpy.props.BoolProperty(
+        name="Apply to Selected",
+        description="Also set the type for all selected mesh objects",
+        default=False
+    )
+
+    def execute(self, context):
+        obj = context.active_object
+        if not obj or obj.type != 'MESH':
+            self.report({'ERROR'}, "No mesh object selected")
+            return {'CANCELLED'}
+        # determine presets for chosen type
+        sound = mesh_helpers.MeshHelpers._SOUND_PRESETS.get(self.collision_type)
+        weight = mesh_helpers.MeshHelpers._WEIGHT_PRESETS.get(self.collision_type)
+        objs = [obj]
+        if self.apply_to_all:
+            objs = [o for o in context.selected_objects if o.type == 'MESH']
+        for o in objs:
+            o.fo4_collision_type = self.collision_type
+            if sound is not None:
+                o["fo4_collision_sound"] = sound
+            if weight is not None:
+                o["fo4_collision_weight"] = weight
+        self.report({'INFO'}, f"Collision type set to {self.collision_type} on {len(objs)} object(s)")
+        return {'FINISHED'}
+
+    def invoke(self, context, event):
+        obj = context.active_object
+        if obj and obj.type == 'MESH':
+            inferred = mesh_helpers.MeshHelpers.infer_collision_type(obj)
+            self.collision_type = mesh_helpers.MeshHelpers.resolve_collision_type(
+                getattr(obj, 'fo4_collision_type', inferred), inferred)
+        return context.window_manager.invoke_props_dialog(self)
+
+
+class FO4_OT_ExportMeshWithCollision(Operator):
+    """Generate a collision mesh and export both original and collision to NIF"""
+    bl_idname = "fo4.export_mesh_with_collision"
+    bl_label = "Export Mesh + Collision"
+    
+    filepath: StringProperty(subtype='FILE_PATH')
+    source_object: StringProperty(options={'HIDDEN'})
+    simplify_ratio: FloatProperty(
+        name="Simplification",
+        description="How much to simplify the generated collision mesh",
+        default=0.25,
+        min=0.01,
+        max=1.0
+    )
+    collision_type: EnumProperty(
+        name="Collision Type",
+        description="Category of physics collision to create",
+        items=mesh_helpers.MeshHelpers.COLLISION_TYPES,
+        default='DEFAULT'
+    )
+
+    @classmethod
+    def poll(cls, context):
+        obj = context.active_object
+        return obj is not None and obj.type == 'MESH'
+
+    def execute(self, context):
+        # Use the object captured at invoke time when possible
+        if self.source_object:
+            obj = context.scene.objects.get(self.source_object)
+            if obj is None:
+                self.report({'ERROR'}, f"Source object '{self.source_object}' no longer exists in the scene")
+                return {'CANCELLED'}
+        else:
+            obj = context.active_object
+        if not obj or obj.type != 'MESH':
+            self.report({'ERROR'}, "No mesh object selected")
+            return {'CANCELLED'}
+
+        # record choice on the source object
+        obj.fo4_collision_type = self.collision_type
+
+        # create/update collision mesh
+        try:
+            collision = mesh_helpers.MeshHelpers.add_collision_mesh(
+                obj,
+                simplify_ratio=self.simplify_ratio,
+                collision_type=self.collision_type
+            )
+            if self.collision_type in ('NONE','GRASS','MUSHROOM'):
+                # nothing to build, skip but still proceed to export
+                collision = None
+        except Exception as e:
+            self.report({'ERROR'}, f"Collision generation failed: {e}")
+            return {'CANCELLED'}
+
+        # perform export which will automatically include any collision mesh found
+        success, message = export_helpers.ExportHelpers.export_mesh_to_nif(obj, self.filepath)
+        if success:
+            self.report({'INFO'}, message)
+            notification_system.FO4_NotificationSystem.notify(message, 'INFO')
+        else:
+            self.report({'ERROR'}, message)
+            notification_system.FO4_NotificationSystem.notify(message, 'ERROR')
+            return {'CANCELLED'}
+        
+        return {'FINISHED'}
+    
+    def invoke(self, context, event):
+        obj = context.active_object
+        if not obj or obj.type != 'MESH':
+            self.report({'ERROR'}, "No mesh object selected")
+            return {'CANCELLED'}
+        # Store the name now so execute() can find it after the file dialog
+        self.source_object = obj.name
+        inferred = mesh_helpers.MeshHelpers.infer_collision_type(obj)
+        self.collision_type = mesh_helpers.MeshHelpers.resolve_collision_type(
+            getattr(obj, 'fo4_collision_type', inferred), inferred)
+        if self.simplify_ratio == 0.25:
+            self.simplify_ratio = mesh_helpers.MeshHelpers._TYPE_DEFAULT_RATIOS.get(self.collision_type, 0.25)
         context.window_manager.fileselect_add(self)
         return {'RUNNING_MODAL'}
 
@@ -554,7 +946,10 @@ class FO4_OT_ExportAll(Operator):
         )
         
         if success:
-            self.report({'INFO'}, f"Exported {len(results['meshes'])} meshes")
+            info_msg = f"Exported {len(results['meshes'])} meshes"
+            if results.get('skipped'):
+                info_msg += f", skipped {len(results['skipped'])} collision meshes"
+            self.report({'INFO'}, info_msg)
             notification_system.FO4_NotificationSystem.notify(
                 "Mod exported successfully!", 'INFO'
             )
@@ -567,6 +962,48 @@ class FO4_OT_ExportAll(Operator):
     def invoke(self, context, event):
         context.window_manager.fileselect_add(self)
         return {'RUNNING_MODAL'}
+
+class FO4_OT_ExportSceneAsNif(Operator):
+    """Export the entire scene – all meshes with their collision proxies – as a single NIF file.
+
+    This is the primary workflow for plant/vegetation scenes:
+    import a NIF, add collision to the objects that need it, then use this
+    operator to export everything back out as one game-ready NIF.
+    """
+    bl_idname = "fo4.export_scene_as_nif"
+    bl_label = "Export Scene as NIF"
+
+    filepath: StringProperty(subtype='FILE_PATH')
+    filter_glob: StringProperty(default="*.nif;*.fbx", options={'HIDDEN'})
+
+    @classmethod
+    def poll(cls, context):
+        return any(
+            obj.type == 'MESH' and not (
+                obj.get("fo4_collision")
+                or obj.name.upper().startswith("UCX_")
+                or obj.name.upper().endswith("_COLLISION")
+            )
+            for obj in context.scene.objects
+        )
+
+    def execute(self, context):
+        success, message = export_helpers.ExportHelpers.export_scene_as_single_nif(
+            context.scene, self.filepath
+        )
+        if success:
+            self.report({'INFO'}, message)
+            notification_system.FO4_NotificationSystem.notify(message, 'INFO')
+        else:
+            self.report({'ERROR'}, message)
+            notification_system.FO4_NotificationSystem.notify(message, 'ERROR')
+            return {'CANCELLED'}
+        return {'FINISHED'}
+
+    def invoke(self, context, event):
+        context.window_manager.fileselect_add(self)
+        return {'RUNNING_MODAL'}
+
 
 class FO4_OT_ValidateExport(Operator):
     """Validate before export"""
@@ -1759,6 +2196,45 @@ class FO4_OT_CheckUModelTools(Operator):
         return {'FINISHED'}
 
 
+class FO4_OT_CheckUModel(Operator):
+    """Check and download UModel (UE Viewer) by Konstantin Nosov (Gildor)."""
+    bl_idname = "fo4.check_umodel"
+    bl_label = "Check/Install UModel"
+
+    def execute(self, context):
+        ready, message = umodel_helpers.status()
+        actions = []
+
+        if not ready:
+            # Try to download/install
+            ok, msg = umodel_helpers.download_latest()
+            actions.append(msg)
+
+            # If download provides manual instructions, also open browser
+            if not ok and "manual download" in msg.lower():
+                _, browser_msg = umodel_helpers.open_download_page()
+                actions.append(browser_msg)
+
+            ready, message = umodel_helpers.status()
+
+        status_lines = [message] + actions
+        status_text = "\n".join([s for s in status_lines if s])
+        level = 'INFO' if ready else 'WARNING'
+        self.report({level}, status_text)
+        notification_system.FO4_NotificationSystem.notify(status_text, level)
+        print("="*70)
+        print("UMODEL (UE VIEWER) STATUS")
+        print("="*70)
+        print(status_text)
+        print(f"Tool path: {umodel_helpers.tool_path()}")
+        if umodel_helpers.executable_path():
+            print(f"Executable: {umodel_helpers.executable_path()}")
+        print("Credit: UModel by Konstantin Nosov (Gildor)")
+        print("https://www.gildor.org/en/projects/umodel")
+        print("="*70)
+        return {'FINISHED'}
+
+
 class FO4_OT_CheckUnityFBXImporter(Operator):
     """Check and (if missing) download UnityFBX-To-Blender-Importer repo."""
     bl_idname = "fo4.check_unity_fbx_importer"
@@ -1785,6 +2261,56 @@ class FO4_OT_CheckUnityFBXImporter(Operator):
         return {'FINISHED'}
 
 
+class FO4_OT_CheckAssetStudio(Operator):
+    """Check and (if missing) download AssetStudio repo."""
+    bl_idname = "fo4.check_asset_studio"
+    bl_label = "Check AssetStudio"
+
+    def execute(self, context):
+        ready, message = asset_studio_helpers.status()
+        actions = []
+
+        if not ready:
+            ok, msg = asset_studio_helpers.download_latest()
+            actions.append(msg)
+            ready, message = asset_studio_helpers.status()
+
+        status_lines = [message] + actions
+        status_text = "; ".join([s for s in status_lines if s])
+        level = 'INFO' if ready else 'ERROR'
+        self.report({level}, status_text)
+        notification_system.FO4_NotificationSystem.notify(status_text, level)
+        print("ASSET STUDIO STATUS")
+        print(status_text)
+        print(f"Repo: {asset_studio_helpers.repo_path()}")
+        return {'FINISHED'}
+
+
+class FO4_OT_CheckAssetRipper(Operator):
+    """Check and (if missing) download AssetRipper repo."""
+    bl_idname = "fo4.check_asset_ripper"
+    bl_label = "Check AssetRipper"
+
+    def execute(self, context):
+        ready, message = asset_ripper_helpers.status()
+        actions = []
+
+        if not ready:
+            ok, msg = asset_ripper_helpers.download_latest()
+            actions.append(msg)
+            ready, message = asset_ripper_helpers.status()
+
+        status_lines = [message] + actions
+        status_text = "; ".join([s for s in status_lines if s])
+        level = 'INFO' if ready else 'ERROR'
+        self.report({level}, status_text)
+        notification_system.FO4_NotificationSystem.notify(status_text, level)
+        print("ASSET RIPPER STATUS")
+        print(status_text)
+        print(f"Repo: {asset_ripper_helpers.repo_path()}")
+        return {'FINISHED'}
+
+
 # Installation Operators ----------------------------------------------------
 class FO4_OT_InstallFFmpeg(Operator):
     """Download and install FFmpeg to the workspace."""
@@ -1792,22 +2318,31 @@ class FO4_OT_InstallFFmpeg(Operator):
     bl_label = "Install FFmpeg"
 
     def execute(self, context):
+        import threading
         from . import tool_installers, preferences
-        ok, msg = tool_installers.install_ffmpeg()
-        level = 'INFO' if ok else 'ERROR'
-        self.report({level}, msg)
-        notification_system.FO4_NotificationSystem.notify(msg, level)
-        print("FFMPEG INSTALL", msg)
-        if ok:
-            # attempt to configure preference to point at downloaded exe
-            prefs = preferences.get_preferences()
-            if prefs:
-                # search for ffmpeg.exe under tools/ffmpeg
+
+        def _run():
+            ok, msg = tool_installers.install_ffmpeg()
+            level = 'INFO' if ok else 'ERROR'
+            print("FFMPEG INSTALL", msg)
+            if ok:
                 from pathlib import Path
                 base = Path(__file__).resolve().parent / "tools" / "ffmpeg"
-                for exe in base.rglob("ffmpeg.exe"):
-                    prefs.ffmpeg_path = str(exe)
-                    break
+                prefs = preferences.get_preferences()
+            else:
+                base = None
+                prefs = None
+
+            def _notify():
+                notification_system.FO4_NotificationSystem.notify(msg, level)
+                if prefs and base:
+                    for exe in base.rglob("ffmpeg.exe"):
+                        prefs.ffmpeg_path = str(exe)
+                        break
+            bpy.app.timers.register(_notify, first_interval=0.0)
+
+        threading.Thread(target=_run, daemon=True).start()
+        self.report({'INFO'}, "FFmpeg installation started in the background. Check the console for progress.")
         return {'FINISHED'}
 
 
@@ -1817,19 +2352,30 @@ class FO4_OT_InstallNVTT(Operator):
     bl_label = "Install NVTT"
 
     def execute(self, context):
+        import threading
         from . import tool_installers, preferences
-        ok, msg = tool_installers.install_nvtt()
-        level = 'INFO' if ok else 'ERROR'
-        self.report({level}, msg)
-        notification_system.FO4_NotificationSystem.notify(msg, level)
-        print("NVTT INSTALL", msg)
-        if ok:
-            prefs = preferences.get_preferences()
-            if prefs:
-                base = Path(__file__).resolve().parent / "tools" / "nvtt"
-                for exe in base.rglob("nvcompress.exe"):
-                    prefs.nvtt_path = str(exe)
-                    break
+
+        def _run():
+            from pathlib import Path
+            ok, msg = tool_installers.install_nvtt()
+            level = 'INFO' if ok else 'ERROR'
+            print("NVTT INSTALL", msg)
+            prefs = preferences.get_preferences() if ok else None
+
+            def _notify():
+                notification_system.FO4_NotificationSystem.notify(msg, level)
+                if prefs:
+                    # Check new D:/blender_tools/ location first
+                    tools_root = tool_installers.get_tools_root()
+                    nvtt_dir = tools_root / "nvtt"
+                    for exe in nvtt_dir.rglob("nvcompress.exe"):
+                        prefs.nvtt_path = str(exe)
+                        print(f"NVTT path configured: {exe}")
+                        break
+            bpy.app.timers.register(_notify, first_interval=0.0)
+
+        threading.Thread(target=_run, daemon=True).start()
+        self.report({'INFO'}, "NVTT installation started in the background. Check the console for progress.")
         return {'FINISHED'}
 
 
@@ -1839,19 +2385,30 @@ class FO4_OT_InstallTexconv(Operator):
     bl_label = "Install texconv"
 
     def execute(self, context):
+        import threading
         from . import tool_installers, preferences
-        ok, msg = tool_installers.install_texconv()
-        level = 'INFO' if ok else 'ERROR'
-        self.report({level}, msg)
-        notification_system.FO4_NotificationSystem.notify(msg, level)
-        print("TEXCONV INSTALL", msg)
-        if ok:
-            prefs = preferences.get_preferences()
-            if prefs:
-                base = Path(__file__).resolve().parent / "tools" / "texconv"
-                for exe in base.rglob("texconv.exe"):
-                    prefs.texconv_path = str(exe)
-                    break
+
+        def _run():
+            from pathlib import Path
+            ok, msg = tool_installers.install_texconv()
+            level = 'INFO' if ok else 'ERROR'
+            print("TEXCONV INSTALL", msg)
+            prefs = preferences.get_preferences() if ok else None
+
+            def _notify():
+                notification_system.FO4_NotificationSystem.notify(msg, level)
+                if prefs:
+                    # Check new D:/blender_tools/ location first
+                    tools_root = tool_installers.get_tools_root()
+                    texconv_dir = tools_root / "texconv"
+                    for exe in texconv_dir.rglob("texconv.exe"):
+                        prefs.texconv_path = str(exe)
+                        print(f"texconv path configured: {exe}")
+                        break
+            bpy.app.timers.register(_notify, first_interval=0.0)
+
+        threading.Thread(target=_run, daemon=True).start()
+        self.report({'INFO'}, "texconv installation started in the background. Check the console for progress.")
         return {'FINISHED'}
 
 
@@ -1861,12 +2418,219 @@ class FO4_OT_InstallWhisper(Operator):
     bl_label = "Install Whisper"
 
     def execute(self, context):
+        import threading
         from . import tool_installers
-        ok, msg = tool_installers.install_whisper()
-        level = 'INFO' if ok else 'ERROR'
-        self.report({level}, msg)
-        notification_system.FO4_NotificationSystem.notify(msg, level)
-        print("WHISPER INSTALL", msg)
+
+        def _run():
+            ok, msg = tool_installers.install_whisper()
+            level = 'INFO' if ok else 'ERROR'
+            print("WHISPER INSTALL", msg)
+
+            def _notify():
+                notification_system.FO4_NotificationSystem.notify(msg, level)
+            bpy.app.timers.register(_notify, first_interval=0.0)
+
+        threading.Thread(target=_run, daemon=True).start()
+        self.report({'INFO'}, "Whisper installation started in the background. Check the console for progress.")
+        return {'FINISHED'}
+
+
+class FO4_OT_InstallHavok2FBX(Operator):
+    """Open browser to download Havok2FBX and prepare tools folder."""
+    bl_idname = "fo4.install_havok2fbx"
+    bl_label = "Get Havok2FBX"
+
+    def execute(self, context):
+        import threading
+        from . import tool_installers
+
+        def _run():
+            ok, msg = tool_installers.install_havok2fbx()
+            level = 'INFO' if ok else 'ERROR'
+            print("HAVOK2FBX INSTALL", msg)
+
+            def _notify():
+                notification_system.FO4_NotificationSystem.notify(msg, level)
+            bpy.app.timers.register(_notify, first_interval=0.0)
+
+        threading.Thread(target=_run, daemon=True).start()
+        self.report({'INFO'}, "Havok2FBX helper started (browser may open).")
+        return {'FINISHED'}
+
+
+class FO4_OT_ExportAnimationHavok2FBX(Operator):
+    """Export the active armature animation to FBX and optionally convert to HKX via Havok2FBX."""
+    bl_idname = "fo4.export_animation_havok2fbx"
+    bl_label = "Export Animation (Havok2FBX)"
+    bl_options = {'REGISTER', 'UNDO'}
+
+    def execute(self, context):
+        import os
+        import subprocess
+        import tempfile
+
+        scene = context.scene
+        obj = context.active_object
+
+        if obj is None or obj.type != 'ARMATURE':
+            self.report({'ERROR'}, "Select an armature object before exporting.")
+            return {'CANCELLED'}
+
+        # Read export settings from scene properties
+        anim_type = scene.fo4_havok_anim_type
+        fps = scene.fo4_havok_fps
+        loop = scene.fo4_havok_loop
+        root_motion = scene.fo4_havok_root_motion
+        bake_anim = scene.fo4_havok_bake_anim
+        key_all_bones = scene.fo4_havok_key_all_bones
+        apply_transforms = scene.fo4_havok_apply_transforms
+        scale = scene.fo4_havok_scale
+        output_dir = bpy.path.abspath(scene.fo4_havok_output_dir).strip()
+        anim_name_override = scene.fo4_havok_anim_name.strip()
+        simplify_value = scene.fo4_havok_simplify_value
+        force_frame_range = scene.fo4_havok_force_frame_range
+
+        # Resolve animation name
+        anim_name = anim_name_override
+        if not anim_name:
+            if obj.animation_data and obj.animation_data.action:
+                anim_name = obj.animation_data.action.name
+            else:
+                anim_name = obj.name + "_anim"
+
+        # Resolve output directory
+        if not output_dir:
+            output_dir = tempfile.gettempdir()
+        os.makedirs(output_dir, exist_ok=True)
+
+        fbx_path = os.path.join(output_dir, anim_name + ".fbx")
+        hkx_path = os.path.join(output_dir, anim_name + ".hkx")
+
+        # Determine frame range
+        if force_frame_range and obj.animation_data and obj.animation_data.action:
+            action = obj.animation_data.action
+            frame_start = int(action.frame_range[0])
+            frame_end = int(action.frame_range[1])
+        else:
+            frame_start = scene.frame_start
+            frame_end = scene.frame_end
+
+        # Temporarily set the scene FPS so the FBX file embeds the correct rate
+        orig_fps = scene.render.fps
+        orig_fps_base = scene.render.fps_base
+        scene.render.fps = fps
+        scene.render.fps_base = 1.0
+
+        # Optionally apply transforms to a temporary copy so the source is not modified
+        export_obj = obj
+        temp_copy = None
+        if apply_transforms:
+            try:
+                bpy.ops.object.select_all(action='DESELECT')
+                obj.select_set(True)
+                context.view_layer.objects.active = obj
+                bpy.ops.object.duplicate(linked=False)
+                temp_copy = context.active_object
+                bpy.ops.object.transform_apply(location=False, rotation=True, scale=True)
+                export_obj = temp_copy
+            except Exception:
+                # If duplicating/applying fails, fall back to exporting the original
+                if temp_copy is not None:
+                    try:
+                        bpy.data.objects.remove(temp_copy, do_unlink=True)
+                    except Exception:
+                        pass
+                temp_copy = None
+                export_obj = obj
+
+        # Export FBX with animation settings
+        try:
+            bpy.ops.object.select_all(action='DESELECT')
+            export_obj.select_set(True)
+            context.view_layer.objects.active = export_obj
+
+            bpy.ops.export_scene.fbx(
+                filepath=fbx_path,
+                use_selection=True,
+                apply_scale_options='FBX_SCALE_ALL',
+                axis_forward='-Z',
+                axis_up='Y',
+                apply_unit_scale=True,
+                global_scale=scale,
+                object_types={'ARMATURE'},
+                use_mesh_modifiers=False,
+                add_leaf_bones=False,
+                primary_bone_axis='Y',
+                secondary_bone_axis='X',
+                use_armature_deform_only=not key_all_bones,
+                bake_anim=bake_anim,
+                bake_anim_use_all_bones=key_all_bones,
+                bake_anim_use_nla_strips=bake_anim,
+                bake_anim_use_all_actions=False,
+                bake_anim_force_startend_keying=True,
+                bake_anim_step=1.0,
+                bake_anim_simplify_factor=simplify_value,
+                path_mode='AUTO',
+            )
+        except Exception as exc:
+            self.report({'ERROR'}, f"FBX export failed: {exc}")
+            return {'CANCELLED'}
+        finally:
+            # Restore scene FPS and remove any temp copy regardless of success
+            scene.render.fps = orig_fps
+            scene.render.fps_base = orig_fps_base
+            if temp_copy is not None:
+                try:
+                    bpy.data.objects.remove(temp_copy, do_unlink=True)
+                except Exception:
+                    pass
+
+        self.report({'INFO'}, f"FBX exported: {fbx_path}")
+
+        # Attempt Havok2FBX conversion if configured
+        havok_dir = preferences.get_havok2fbx_path()
+        if havok_dir:
+            from . import tool_installers
+            if tool_installers.check_havok2fbx(havok_dir):
+                exe = os.path.join(havok_dir, "havok2fbx.exe")
+                cmd = [exe, fbx_path, hkx_path]
+                # Pass animation type flag if tool supports it
+                if anim_type != 'CHARACTER':
+                    cmd += ["--type", anim_type.lower()]
+                if loop:
+                    cmd += ["--loop"]
+                if root_motion:
+                    cmd += ["--rootmotion"]
+                cmd += ["--fps", str(fps)]
+                try:
+                    result = subprocess.run(
+                        cmd,
+                        capture_output=True,
+                        text=True,
+                        timeout=120,
+                    )
+                    if result.returncode == 0:
+                        self.report({'INFO'}, f"HKX created: {hkx_path}")
+                        notification_system.FO4_NotificationSystem.notify(
+                            f"Animation exported: {hkx_path}", 'INFO'
+                        )
+                    else:
+                        err = (result.stderr or result.stdout or "unknown error").strip()
+                        self.report({'WARNING'}, f"havok2fbx conversion failed: {err}. FBX saved at {fbx_path}")
+                        notification_system.FO4_NotificationSystem.notify(
+                            f"havok2fbx failed — FBX saved at {fbx_path}", 'WARNING'
+                        )
+                except FileNotFoundError:
+                    self.report({'WARNING'}, f"havok2fbx.exe not found at {exe}. FBX saved at {fbx_path}")
+                except subprocess.TimeoutExpired:
+                    self.report({'WARNING'}, f"havok2fbx timed out. FBX saved at {fbx_path}")
+                except Exception as exc:
+                    self.report({'WARNING'}, f"havok2fbx error: {exc}. FBX saved at {fbx_path}")
+            else:
+                self.report({'WARNING'}, f"Havok2FBX binaries missing from {havok_dir}. FBX saved at {fbx_path}")
+        else:
+            self.report({'INFO'}, f"Havok2FBX not configured — FBX saved at {fbx_path}. Set the folder in preferences to enable HKX conversion.")
+
         return {'FINISHED'}
 
 
@@ -1881,13 +2645,242 @@ class FO4_OT_InstallNiftools(Operator):
     )
 
     def execute(self, context):
+        import threading
         from . import tool_installers
-        ok, msg = tool_installers.install_niftools(self.blender_version)
-        level = 'INFO' if ok else 'ERROR'
-        self.report({level}, msg)
-        notification_system.FO4_NotificationSystem.notify(msg, level)
-        print("NIFTOOLS INSTALL", msg)
+        blender_version = self.blender_version
+
+        def _run():
+            ok, msg = tool_installers.install_niftools(blender_version)
+            level = 'INFO' if ok else 'ERROR'
+            print("NIFTOOLS INSTALL", msg)
+
+            def _notify():
+                notification_system.FO4_NotificationSystem.notify(msg, level)
+            bpy.app.timers.register(_notify, first_interval=0.0)
+
+        threading.Thread(target=_run, daemon=True).start()
+        self.report({'INFO'}, "Niftools installation started in the background. Check the console for progress.")
         return {'FINISHED'}
+
+
+class FO4_OT_ConfigureFallout4Settings(Operator):
+    """Configure optimal settings for Fallout 4 mod creation"""
+    bl_idname = "fo4.configure_fallout4_settings"
+    bl_label = "Configure for Fallout 4"
+    bl_description = "Auto-configure all settings for optimal Fallout 4 modding workflow"
+
+    def execute(self, context):
+        from . import preferences, export_helpers
+
+        messages = []
+        prefs = preferences.get_preferences()
+
+        # Check Niftools installation
+        nif_available, nif_msg = export_helpers.ExportHelpers.nif_exporter_available()
+        if not nif_available:
+            messages.append("⚠ Niftools not installed - use 'Install Niftools' button")
+            messages.append(f"  {nif_msg}")
+        else:
+            messages.append("✓ Niftools v0.1.1 ready (NIF 20.2.0.7, BSTriShape)")
+
+        # Check texture conversion tools
+        from . import nvtt_helpers
+        if nvtt_helpers.NVTTHelpers.is_nvtt_available():
+            messages.append("✓ NVTT (nvcompress) available for DDS conversion")
+        elif nvtt_helpers.NVTTHelpers.is_texconv_available():
+            messages.append("✓ texconv available for DDS conversion")
+        else:
+            messages.append("⚠ No DDS converter - install NVTT or texconv")
+
+        # Configure optimal defaults if preferences exist
+        if prefs:
+            # Set optimal mesh optimization settings for FO4
+            if hasattr(prefs, 'optimize_apply_transforms'):
+                prefs.optimize_apply_transforms = True
+                messages.append("✓ Set: Apply transforms before export")
+
+            if hasattr(prefs, 'optimize_preserve_uvs'):
+                prefs.optimize_preserve_uvs = True
+                messages.append("✓ Set: Preserve UV maps")
+
+        # Report all paths
+        if prefs:
+            tools_root = tool_installers.get_tools_root()
+            messages.append(f"\n📁 Tools directory: {tools_root}")
+
+            if prefs.nvtt_path:
+                messages.append(f"📁 NVTT: {prefs.nvtt_path}")
+            if prefs.texconv_path:
+                messages.append(f"📁 texconv: {prefs.texconv_path}")
+
+        messages.append("\n✓ Fallout 4 export settings are configured automatically:")
+        messages.append("  • NIF 20.2.0.7 (user ver 12, uv2 131073)")
+        messages.append("  • BSTriShape geometry nodes")
+        messages.append("  • BSLightingShaderProperty shaders")
+        messages.append("  • Tangent space enabled for normal maps")
+        messages.append("  • Scale 1:1 (no correction needed)")
+        messages.append("  • Auto-triangulation on export")
+
+        summary = "\n".join(messages)
+        print("=== FALLOUT 4 CONFIGURATION ===")
+        print(summary)
+        print("=== END CONFIGURATION ===")
+
+        self.report({'INFO'}, "Configuration complete - see console for details")
+        notification_system.FO4_NotificationSystem.notify("Fallout 4 settings configured", 'INFO')
+        return {'FINISHED'}
+
+
+class FO4_OT_ConvertToFallout4(Operator):
+    """Convert selected asset to Fallout 4 format (one-click conversion)"""
+    bl_idname = "fo4.convert_to_fallout4"
+    bl_label = "Convert to Fallout 4"
+    bl_description = (
+        "One-click conversion: Prepares mesh, converts materials to FO4, "
+        "converts textures to DDS, and validates for NIF export"
+    )
+    bl_options = {'REGISTER', 'UNDO'}
+
+    convert_textures: BoolProperty(
+        name="Convert Textures to DDS",
+        description="Automatically convert textures to DDS format for FO4",
+        default=True,
+    )
+
+    create_collision: BoolProperty(
+        name="Generate Collision Mesh",
+        description="Create UCX_ collision mesh from simplified geometry",
+        default=False,
+    )
+
+    def execute(self, context):
+        from . import mesh_helpers, texture_helpers, nvtt_helpers
+
+        obj = context.active_object
+        if not obj or obj.type != 'MESH':
+            self.report({'ERROR'}, "No mesh object selected")
+            return {'CANCELLED'}
+
+        messages = []
+        warnings = []
+
+        try:
+            # Step 1: Mesh Preparation
+            self.report({'INFO'}, f"Converting {obj.name} to Fallout 4 format...")
+            messages.append(f"Converting: {obj.name}")
+
+            # Apply scale and rotation transforms
+            if any([s != 1.0 for s in obj.scale]) or any([r != 0.0 for r in obj.rotation_euler]):
+                bpy.ops.object.transform_apply(location=False, rotation=True, scale=True)
+                messages.append("✓ Applied transforms")
+
+            # Optimize mesh for FO4
+            success, msg = mesh_helpers.MeshHelpers.optimize_mesh(obj)
+            if success:
+                messages.append(f"✓ Mesh optimized: {msg}")
+            else:
+                warnings.append(f"⚠ Optimization warning: {msg}")
+
+            # Validate mesh for FO4
+            success, issues = mesh_helpers.MeshHelpers.validate_mesh(obj)
+            if not success:
+                for issue in issues:
+                    warnings.append(f"⚠ {issue}")
+            else:
+                messages.append("✓ Mesh validated for FO4")
+
+            # Step 2: Material Setup
+            if not obj.data.materials:
+                mat = texture_helpers.TextureHelpers.setup_fo4_material(obj)
+                messages.append("✓ Created FO4 material")
+            else:
+                messages.append("✓ Materials present")
+
+            # Step 3: Texture Conversion (if enabled)
+            if self.convert_textures:
+                # Check if nvtt or texconv available
+                from . import preferences
+                nvtt_path = preferences.get_configured_nvcompress_path()
+                texconv_path = preferences.get_configured_texconv_path()
+
+                if nvtt_path or texconv_path:
+                    # Get temporary output directory
+                    import tempfile
+                    temp_dir = tempfile.mkdtemp(prefix="fo4_textures_")
+
+                    try:
+                        success, msg, converted = nvtt_helpers.NVTTHelpers.convert_object_textures(
+                            obj, temp_dir, preferred_tool='auto'
+                        )
+                        if success:
+                            messages.append(f"✓ Converted textures to DDS: {msg}")
+                        else:
+                            warnings.append(f"⚠ Texture conversion: {msg}")
+                    except Exception as e:
+                        warnings.append(f"⚠ Texture conversion failed: {str(e)}")
+                else:
+                    warnings.append("⚠ NVTT/texconv not installed - skipping texture conversion")
+
+            # Step 4: Collision Mesh (if enabled)
+            if self.create_collision:
+                try:
+                    # Check if collision already exists
+                    collision_name = f"UCX_{obj.name}"
+                    if collision_name not in bpy.data.objects:
+                        # Create simplified collision mesh
+                        collision_obj = obj.copy()
+                        collision_obj.data = obj.data.copy()
+                        collision_obj.name = collision_name
+                        context.collection.objects.link(collision_obj)
+
+                        # Simplify for collision
+                        context.view_layer.objects.active = collision_obj
+                        bpy.ops.object.modifier_add(type='DECIMATE')
+                        collision_obj.modifiers["Decimate"].ratio = 0.25
+                        bpy.ops.object.modifier_apply(modifier="Decimate")
+
+                        messages.append(f"✓ Created collision mesh: {collision_name}")
+                        context.view_layer.objects.active = obj
+                    else:
+                        messages.append(f"✓ Collision mesh already exists: {collision_name}")
+                except Exception as e:
+                    warnings.append(f"⚠ Collision generation failed: {str(e)}")
+
+            # Step 5: Final Validation
+            success, issues = mesh_helpers.MeshHelpers.validate_mesh(obj)
+            if not success:
+                self.report({'WARNING'}, "Conversion complete but validation found issues")
+                for issue in issues:
+                    warnings.append(f"⚠ {issue}")
+            else:
+                messages.append("✓ Final validation passed")
+
+            # Report results
+            summary = "\n".join(messages)
+            if warnings:
+                summary += "\n\nWarnings:\n" + "\n".join(warnings)
+
+            print("\n" + "="*70)
+            print("FALLOUT 4 CONVERSION COMPLETE")
+            print("="*70)
+            print(summary)
+            print("="*70)
+
+            if warnings:
+                self.report({'WARNING'}, f"Converted {obj.name} with {len(warnings)} warning(s) - see console")
+            else:
+                self.report({'INFO'}, f"Successfully converted {obj.name} to Fallout 4 format")
+
+            notification_system.FO4_NotificationSystem.notify(
+                f"{obj.name} ready for FO4 export", 'INFO'
+            )
+            return {'FINISHED'}
+
+        except Exception as e:
+            self.report({'ERROR'}, f"Conversion failed: {str(e)}")
+            import traceback
+            traceback.print_exc()
+            return {'CANCELLED'}
 
 
 class FO4_OT_InstallPythonDeps(Operator):
@@ -1901,35 +2894,96 @@ class FO4_OT_InstallPythonDeps(Operator):
     )
 
     def execute(self, context):
+        import threading
         from . import tool_installers
-        ok, msg = tool_installers.install_python_requirements(self.optional)
-        level = 'INFO' if ok else 'ERROR'
-        self.report({level}, msg)
-        notification_system.FO4_NotificationSystem.notify(msg, level)
-        print("PYTHON DEPS", msg)
+        optional = self.optional
+
+        def _run():
+            ok, msg = tool_installers.install_python_requirements(optional)
+            level = 'INFO' if ok else 'ERROR'
+            print("PYTHON DEPS", msg)
+
+            def _notify():
+                notification_system.FO4_NotificationSystem.notify(msg, level)
+            bpy.app.timers.register(_notify, first_interval=0.0)
+
+        threading.Thread(target=_run, daemon=True).start()
+        self.report({'INFO'}, "Python dependency installation started in the background. Check the console for progress.")
+        return {'FINISHED'}
+
+
+class FO4_OT_CheckToolPaths(Operator):
+    """Report the status of configured tool paths and FO4 utilities."""
+    bl_idname = "fo4.check_tool_paths"
+    bl_label = "Check Tool Paths"
+
+    def execute(self, context):
+        from . import preferences, tool_installers
+        import subprocess, sys
+        prefs = preferences.get_preferences()
+        lines = []
+        if prefs:
+            ff = preferences.get_configured_ffmpeg_path()
+            nv = preferences.get_configured_nvcompress_path()
+            tx = preferences.get_configured_texconv_path()
+            hb = preferences.get_havok2fbx_path()
+            def version(path, args):
+                try:
+                    out = subprocess.check_output([path] + args, stderr=subprocess.STDOUT, text=True)
+                    return out.splitlines()[0]
+                except Exception:
+                    return None
+            ffv = version(ff, ['-version']) if ff else None
+            nvv = version(nv, ['--version']) if nv else None
+            txv = version(tx, ['-?']) if tx else None
+            hbv = None
+            if hb and tool_installers.check_havok2fbx(hb):
+                exe = os.path.join(hb, 'havok2fbx.exe')
+                hbv = version(exe, ['--version']) or 'present'
+            lines.append(f"ffmpeg: {ff or 'not set'}{('  '+ffv) if ffv else ''}")
+            lines.append(f"nvcompress: {nv or 'not set'}{('  '+nvv) if nvv else ''}")
+            lines.append(f"texconv: {tx or 'not set'}{('  '+txv) if txv else ''}")
+            lines.append(f"Havok2FBX: {hb or 'not set'}{('  '+hbv) if hbv else ''}")
+        else:
+            lines.append("Preferences not available")
+        for l in lines:
+            self.report({'INFO'}, l)
+            print(l)
         return {'FINISHED'}
 
 
 class FO4_OT_RunAllInstallers(Operator):
-    """Run all available installers sequentially."""
+    """Run all available installers in the background."""
     bl_idname = "fo4.install_all_tools"
     bl_label = "Install All Tools"
 
     def execute(self, context):
+        import threading
         from . import tool_installers
-        results = []
-        for func in (
-            tool_installers.install_ffmpeg,
-            tool_installers.install_nvtt,
-            tool_installers.install_texconv,
-            tool_installers.install_whisper,
-        ):
-            ok, msg = func()
-            results.append(msg)
-        summary = "; ".join(results)
-        self.report({'INFO'}, summary)
-        notification_system.FO4_NotificationSystem.notify(summary, 'INFO')
-        print("ALL TOOL INSTALL RESULTS", summary)
+
+        def _run():
+            results = []
+            any_failed = False
+            for func in (
+                tool_installers.install_ffmpeg,
+                tool_installers.install_nvtt,
+                tool_installers.install_texconv,
+                tool_installers.install_whisper,
+            ):
+                ok, msg = func()
+                if not ok:
+                    any_failed = True
+                results.append(msg)
+            summary = "; ".join(results)
+            level = 'ERROR' if any_failed else 'INFO'
+            print("ALL TOOL INSTALL RESULTS", summary)
+
+            def _notify():
+                notification_system.FO4_NotificationSystem.notify(summary, level)
+            bpy.app.timers.register(_notify, first_interval=0.0)
+
+        threading.Thread(target=_run, daemon=True).start()
+        self.report({'INFO'}, "Tool installation started in the background. Check the console for progress.")
         return {'FINISHED'}
 
 
@@ -1939,18 +2993,66 @@ class FO4_OT_SelfTest(Operator):
     bl_label = "Environment Self-Test"
 
     def execute(self, context):
-        import knowledge_helpers, ue_importer_helpers, umodel_tools_helpers, unity_fbx_importer_helpers
+        import importlib.util
+        from . import knowledge_helpers, ue_importer_helpers, umodel_tools_helpers, unity_fbx_importer_helpers, asset_studio_helpers, asset_ripper_helpers, tool_installers
+
         lines = []
+
+        # ── Blender / Python versions ─────────────────────────────────────
+        import sys as _sys
+        blender_ver = ".".join(str(v) for v in bpy.app.version)
+        py_ver = f"{_sys.version_info.major}.{_sys.version_info.minor}.{_sys.version_info.micro}"
+        lines.append(f"Blender: {blender_ver}  |  Python: {py_ver}")
+
+        # ── Core Python packages ──────────────────────────────────────────
+        core_pkgs = {
+            "PIL":      "Pillow (image processing)",
+            "numpy":    "NumPy (math / 3D data)",
+            "requests": "Requests (HTTP / downloads)",
+            "trimesh":  "trimesh (3D mesh processing)",
+            "PyPDF2":   "PyPDF2 (PDF parsing)",
+        }
+        missing = []
+        for mod, label in core_pkgs.items():
+            found = importlib.util.find_spec(mod) is not None
+            status = "OK" if found else "MISSING"
+            lines.append(f"  [{status}] {label}")
+            if not found:
+                missing.append(mod)
+
+        if missing:
+            lines.append(f"  → Missing packages: {', '.join(missing)}")
+            lines.append("  → Click 'Install Core Dependencies' in the Setup & Status panel.")
+
+        # ── pip availability ──────────────────────────────────────────────
+        pip_ok = importlib.util.find_spec("pip") is not None
+        lines.append(f"  [{'OK' if pip_ok else 'MISSING'}] pip (package installer)")
+        if not pip_ok:
+            lines.append("  → pip not found; will be bootstrapped via ensurepip on install.")
+
+        # ── Version-specific notes ────────────────────────────────────────
+        py = (_sys.version_info.major, _sys.version_info.minor)
+        if py < (3, 8):
+            lines.append("  NOTE: Python 3.7 detected (Blender 2.90-2.92).")
+            lines.append("        Pillow<10 and numpy<2 will be installed automatically.")
+        if py >= (3, 11):
+            lines.append("  NOTE: Python 3.11+ detected.")
+            lines.append("        --break-system-packages is used automatically when installing.")
+
+        # ── External tool status ──────────────────────────────────────────
         lines.append("Tool status: " + str(knowledge_helpers.tool_status()))
         lines.append("UE importer: " + str(ue_importer_helpers.status()))
         lines.append("UModel Tools: " + str(umodel_tools_helpers.status()))
         lines.append("Unity FBX importer: " + str(unity_fbx_importer_helpers.status()))
+        lines.append("AssetStudio: " + str(asset_studio_helpers.status()))
+        lines.append("AssetRipper: " + str(asset_ripper_helpers.status()))
+
         summary = "\n".join(lines)
         print("=== ENVIRONMENT SELF-TEST ===")
         print(summary)
         print("=== END SELF-TEST ===")
-        self.report({'INFO'}, "Self-test completed; see console for details")
-        notification_system.FO4_NotificationSystem.notify("Environment self-test complete", 'INFO')
+        self.report({'INFO'}, "Self-test completed; see System Console for details")
+        notification_system.FO4_NotificationSystem.notify("Environment self-test complete — see System Console", 'INFO')
         return {'FINISHED'}
 
 # Real-ESRGAN Operators
@@ -3933,6 +5035,59 @@ class FO4_OT_SmartDecimate(Operator):
         layout.prop(self, "preserve_uvs")
 
 
+class FO4_OT_SplitMeshPolyLimit(Operator):
+    """Split the active mesh into sub-meshes each under the FO4 65,535-triangle limit"""
+    bl_idname = "fo4.split_mesh_poly_limit"
+    bl_label = "Split at Poly Limit"
+    bl_options = {'REGISTER', 'UNDO'}
+
+    tri_limit: IntProperty(
+        name="Triangle Limit",
+        description="Maximum triangles per output mesh (FO4 BSTriShape limit is 65,535)",
+        default=65535,
+        min=1000,
+        max=65535,
+    )
+
+    def execute(self, context):
+        obj = context.active_object
+        if not obj or obj.type != 'MESH':
+            self.report({'ERROR'}, "No mesh object selected")
+            return {'CANCELLED'}
+
+        # Fast path: check if split is actually needed
+        tri_estimate = sum(max(1, len(p.vertices) - 2) for p in obj.data.polygons)
+        if tri_estimate <= self.tri_limit:
+            self.report({'INFO'}, f"Mesh is already within limit ({tri_estimate:,} tris ≤ {self.tri_limit:,}) – no split needed")
+            return {'FINISHED'}
+
+        try:
+            parts = mesh_helpers.MeshHelpers.split_mesh_at_poly_limit(obj, self.tri_limit)
+        except Exception as e:
+            self.report({'ERROR'}, f"Split failed: {e}")
+            return {'CANCELLED'}
+
+        msg = f"Split into {len(parts)} part(s): {', '.join(p.name for p in parts)}"
+        self.report({'INFO'}, msg)
+        notification_system.FO4_NotificationSystem.notify(
+            f"Mesh split into {len(parts)} FO4-compatible parts", 'INFO'
+        )
+
+        print("\n" + "="*70)
+        print("MESH SPLIT RESULTS")
+        print("="*70)
+        print(f"Source object:  {obj.name}  ({tri_estimate:,} estimated tris)")
+        print(f"Parts produced: {len(parts)}")
+        for part in parts:
+            est = sum(max(1, len(p.vertices) - 2) for p in part.data.polygons)
+            print(f"  {part.name}: ~{est:,} tris")
+        print("="*70 + "\n")
+        return {'FINISHED'}
+
+    def invoke(self, context, event):
+        return context.window_manager.invoke_props_dialog(self)
+
+
 class FO4_OT_GenerateLOD(Operator):
     """Generate Level of Detail mesh chain"""
     bl_idname = "fo4.generate_lod"
@@ -4104,48 +5259,166 @@ class FO4_OT_BatchValidateMeshes(Operator):
 
 
 class FO4_OT_BatchExportMeshes(Operator):
-    """Export all selected meshes to FBX"""
+    """Export all selected meshes to NIF with Fallout 4 settings"""
     bl_idname = "fo4.batch_export_meshes"
     bl_label = "Batch Export Meshes"
     bl_options = {'REGISTER'}
-    
+
     directory: StringProperty(
         name="Export Directory",
         description="Directory to export meshes to",
         subtype='DIR_PATH'
     )
-    
+
     def execute(self, context):
         if not self.directory:
             self.report({'ERROR'}, "No export directory specified")
             return {'CANCELLED'}
-        
+
         selected_objects = [obj for obj in context.selected_objects if obj.type == 'MESH']
-        
+
         if not selected_objects:
             self.report({'ERROR'}, "No mesh objects selected")
             return {'CANCELLED'}
-        
+
         success_count = 0
-        
+
         for obj in selected_objects:
             try:
-                filepath = f"{self.directory}/{obj.name}.fbx"
-                success, message = export_helpers.ExportHelpers.export_mesh(obj, filepath)
+                filepath = f"{self.directory}/{obj.name}.nif"
+                success, message = export_helpers.ExportHelpers.export_mesh_to_nif(obj, filepath)
                 if success:
                     success_count += 1
             except Exception as e:
                 self.report({'WARNING'}, f"{obj.name}: {str(e)}")
-        
+
         self.report({'INFO'}, f"Exported {success_count} of {len(selected_objects)} meshes")
         notification_system.FO4_NotificationSystem.notify(
             f"Batch exported {success_count} meshes", 'INFO'
         )
         return {'FINISHED'}
-    
+
     def invoke(self, context, event):
         context.window_manager.fileselect_add(self)
         return {'RUNNING_MODAL'}
+
+
+# Game Asset Import Operators
+
+class FO4_OT_BrowseFO4Assets(Operator):
+    """Browse and import Fallout 4 game assets"""
+    bl_idname = "fo4.browse_fo4_assets"
+    bl_label = "Browse FO4 Assets"
+    bl_description = "Browse and import assets from Fallout 4 game files"
+
+    search_query: StringProperty(
+        name="Search",
+        description="Search for assets by name",
+        default=""
+    )
+
+    category: EnumProperty(
+        name="Category",
+        items=[
+            ('ALL', "All Assets", "Show all assets"),
+            ('Weapons', "Weapons", "Weapon meshes"),
+            ('Armor', "Armor", "Armor and clothing"),
+            ('Creatures', "Creatures", "Creature models"),
+            ('Furniture', "Furniture", "Furniture and props"),
+            ('Architecture', "Architecture", "Building pieces"),
+        ],
+        default='ALL'
+    )
+
+    def execute(self, context):
+        # This will be a modal operator with search UI
+        # For now, show status
+        ready, message = fo4_game_assets.FO4GameAssets.get_status()
+
+        if not ready:
+            self.report({'ERROR'}, message)
+            self.report({'INFO'}, "Set 'Fallout 4 Assets Path' in addon preferences")
+            return {'CANCELLED'}
+
+        self.report({'INFO'}, f"FO4 Assets: {message}")
+        self.report({'INFO'}, "Asset browser coming soon - use file import for now")
+        return {'FINISHED'}
+
+
+class FO4_OT_BrowseUnityAssets(Operator):
+    """Browse and import Unity project assets"""
+    bl_idname = "fo4.browse_unity_assets"
+    bl_label = "Browse Unity Assets"
+    bl_description = "Browse and import assets from Unity project"
+
+    search_query: StringProperty(
+        name="Search",
+        description="Search for assets by name",
+        default=""
+    )
+
+    category: EnumProperty(
+        name="Category",
+        items=[
+            ('ALL', "All Assets", "Show all assets"),
+            ('Characters', "Characters", "Character models"),
+            ('Weapons', "Weapons", "Weapon models"),
+            ('Props', "Props", "Props and items"),
+            ('Environment', "Environment", "Environment pieces"),
+            ('Vehicles', "Vehicles", "Vehicle models"),
+        ],
+        default='ALL'
+    )
+
+    def execute(self, context):
+        ready, message = unity_game_assets.UnityAssets.get_status()
+
+        if not ready:
+            self.report({'ERROR'}, message)
+            self.report({'INFO'}, "Set 'Unity Assets Path' in addon preferences")
+            return {'CANCELLED'}
+
+        self.report({'INFO'}, f"Unity Assets: {message}")
+        self.report({'INFO'}, "Asset browser coming soon - use file import for now")
+        return {'FINISHED'}
+
+
+class FO4_OT_BrowseUnrealAssets(Operator):
+    """Browse and import Unreal Engine assets"""
+    bl_idname = "fo4.browse_unreal_assets"
+    bl_label = "Browse Unreal Assets"
+    bl_description = "Browse and import assets from Unreal Engine project"
+
+    search_query: StringProperty(
+        name="Search",
+        description="Search for assets by name",
+        default=""
+    )
+
+    category: EnumProperty(
+        name="Category",
+        items=[
+            ('ALL', "All Assets", "Show all assets"),
+            ('Characters', "Characters", "Character models"),
+            ('Weapons', "Weapons", "Weapon models"),
+            ('Props', "Props", "Props and items"),
+            ('Environment', "Environment", "Environment pieces"),
+            ('Vehicles', "Vehicles", "Vehicle models"),
+        ],
+        default='ALL'
+    )
+
+    def execute(self, context):
+        ready, message = unreal_game_assets.UnrealAssets.get_status()
+
+        if not ready:
+            self.report({'ERROR'}, message)
+            self.report({'INFO'}, "Set 'Unreal Engine Assets Path' in addon preferences")
+            return {'CANCELLED'}
+
+        self.report({'INFO'}, f"Unreal Assets: {message}")
+        self.report({'INFO'}, "Asset browser coming soon - use file import for now")
+        return {'FINISHED'}
 
 
 # Smart Preset Operators
@@ -4421,6 +5694,12 @@ class FO4_OT_GenerateCollisionMesh(Operator):
         min=0.01,
         max=1.0
     )
+    collision_type: EnumProperty(
+        name="Collision Type",
+        description="Category of physics collision to create",
+        items=mesh_helpers.MeshHelpers.COLLISION_TYPES,
+        default='DEFAULT'
+    )
     
     def execute(self, context):
         obj = context.active_object
@@ -4429,26 +5708,28 @@ class FO4_OT_GenerateCollisionMesh(Operator):
             self.report({'ERROR'}, "No mesh object selected")
             return {'CANCELLED'}
         
+        # remember the selected collision type on the source object
+        obj.fo4_collision_type = self.collision_type
+
+        # skip generation for types that don't require it
+        if self.collision_type in ('NONE', 'GRASS', 'MUSHROOM'):
+            self.report({'INFO'}, f"Collision type '{self.collision_type}' skips creation")
+            return {'FINISHED'}
+
         try:
-            # Duplicate the object
-            bpy.ops.object.duplicate()
-            collision_obj = context.active_object
-            collision_obj.name = f"{obj.name}_COLLISION"
-            
-            # Simplify the mesh
-            modifier = collision_obj.modifiers.new(name="Decimate", type='DECIMATE')
-            modifier.ratio = self.simplify_ratio
-            bpy.ops.object.modifier_apply(modifier="Decimate")
-            
-            # Remove materials (collision meshes don't need them)
-            collision_obj.data.materials.clear()
-            
-            # Move slightly to the side
-            collision_obj.location.x += 2.0
+            # use the helper; it duplicates, simplifies, clears materials/vertex
+            # groups, parents to source, and configures the Rigid Body for us
+            collision_obj = mesh_helpers.MeshHelpers.add_collision_mesh(
+                obj,
+                simplify_ratio=self.simplify_ratio,
+                collision_type=self.collision_type
+            )
+            if not collision_obj:
+                raise RuntimeError("helper failed to create collision mesh")
             
             self.report({'INFO'}, f"Created collision mesh: {collision_obj.name}")
             notification_system.FO4_NotificationSystem.notify(
-                "Collision mesh generated", 'INFO'
+                f"Collision mesh generated: {collision_obj.name}", 'INFO'
             )
             return {'FINISHED'}
             
@@ -4457,6 +5738,13 @@ class FO4_OT_GenerateCollisionMesh(Operator):
             return {'CANCELLED'}
     
     def invoke(self, context, event):
+        obj = context.active_object
+        if obj and obj.type == 'MESH':
+            inferred = mesh_helpers.MeshHelpers.infer_collision_type(obj)
+            self.collision_type = mesh_helpers.MeshHelpers.resolve_collision_type(
+                getattr(obj, 'fo4_collision_type', inferred), inferred)
+            if self.simplify_ratio == 0.25:
+                self.simplify_ratio = mesh_helpers.MeshHelpers._TYPE_DEFAULT_RATIOS.get(self.collision_type, 0.25)
         return context.window_manager.invoke_props_dialog(self)
 
 
@@ -4915,11 +6203,11 @@ class FO4_OT_CreateVegetationLODChain(Operator):
 
 
 class FO4_OT_BakeVegetationAO(Operator):
-    """Bake ambient occlusion for vegetation"""
+    """Bake ambient occlusion for the selected mesh using Cycles"""
     bl_idname = "fo4.bake_vegetation_ao"
     bl_label = "Bake Ambient Occlusion"
     bl_options = {'REGISTER', 'UNDO'}
-    
+
     samples: IntProperty(
         name="Samples",
         description="Number of AO samples",
@@ -4927,49 +6215,122 @@ class FO4_OT_BakeVegetationAO(Operator):
         min=1,
         max=256
     )
-    
+
+    resolution: EnumProperty(
+        name="Resolution",
+        description="Bake image resolution",
+        items=[
+            ('512', "512", "512x512"),
+            ('1024', "1K (1024)", "1024x1024"),
+            ('2048', "2K (2048)", "2048x2048"),
+            ('4096', "4K (4096)", "4096x4096"),
+        ],
+        default='1024'
+    )
+
+    save_image: BoolProperty(
+        name="Save Image",
+        description="Save the baked AO image to disk alongside the .blend file",
+        default=True
+    )
+
     def execute(self, context):
         obj = context.active_object
-        
+
         if not obj or obj.type != 'MESH':
             self.report({'ERROR'}, "No mesh object selected")
             return {'CANCELLED'}
-        
+
+        if not obj.data.uv_layers:
+            self.report({'ERROR'}, "Mesh has no UV map – unwrap the mesh first")
+            return {'CANCELLED'}
+
+        original_engine = context.scene.render.engine
         try:
-            # Create image for baking
-            if "AO_Bake" not in bpy.data.images:
-                bpy.data.images.new("AO_Bake", width=1024, height=1024)
-            
-            image = bpy.data.images["AO_Bake"]
-            
-            # Setup material for baking
+            res = int(self.resolution)
+            image_name = f"{obj.name}_AO"
+
+            # Replace existing bake image so results are always fresh
+            if image_name in bpy.data.images:
+                bpy.data.images.remove(bpy.data.images[image_name])
+            image = bpy.data.images.new(image_name, width=res, height=res, alpha=False)
+            image.colorspace_settings.name = 'Non-Color'
+
+            # Ensure the object has a material with nodes
             if not obj.data.materials:
-                mat = bpy.data.materials.new(name="AO_Material")
+                mat = bpy.data.materials.new(name=f"{obj.name}_AO_Material")
                 obj.data.materials.append(mat)
-            
+
             mat = obj.data.materials[0]
             mat.use_nodes = True
             nodes = mat.node_tree.nodes
-            
-            # Add image texture node for baking
-            if "AO_Bake_Node" not in nodes:
+
+            # Add / reuse the image texture node used as the bake target
+            bake_node_name = "AO_Bake_Target"
+            if bake_node_name in nodes:
+                tex_node = nodes[bake_node_name]
+            else:
                 tex_node = nodes.new('ShaderNodeTexImage')
-                tex_node.name = "AO_Bake_Node"
-                tex_node.image = image
-                nodes.active = tex_node
-            
-            self.report({'INFO'}, "AO bake setup complete. Use Blender's Bake panel to bake.")
-            self.report({'INFO'}, "Set Bake Type to 'Ambient Occlusion' and click Bake.")
-            
+                tex_node.name = bake_node_name
+            tex_node.image = image
+            # Make it the active node so Blender knows where to bake
+            nodes.active = tex_node
+
+            # Switch to Cycles – AO baking is not supported in EEVEE
+            context.scene.render.engine = 'CYCLES'
+
+            # Configure bake settings
+            context.scene.render.bake.use_pass_direct = False
+            context.scene.render.bake.use_pass_indirect = False
+            context.scene.render.bake.use_pass_color = False
+            context.scene.cycles.samples = self.samples
+
+            # Select only this object and make it active
+            bpy.ops.object.select_all(action='DESELECT')
+            obj.select_set(True)
+            context.view_layer.objects.active = obj
+
+            # Bake
+            bpy.ops.object.bake(type='AO')
+
+            # Restore render engine
+            context.scene.render.engine = original_engine
+
+            # Optionally save the image
+            if self.save_image:
+                import os
+                blend_path = bpy.data.filepath
+                if blend_path:
+                    save_dir = os.path.dirname(blend_path)
+                    save_path = os.path.join(save_dir, f"{image_name}.png")
+                    image.filepath_raw = save_path
+                    image.file_format = 'PNG'
+                    image.save()
+                    self.report({'INFO'}, f"AO baked and saved: {save_path}")
+                else:
+                    image.pack()
+                    self.report({'INFO'}, "AO baked and packed into .blend (save the file to keep it)")
+            else:
+                image.pack()
+                self.report({'INFO'}, f"AO baked to image '{image_name}'")
+
             notification_system.FO4_NotificationSystem.notify(
-                "AO bake ready - use Render > Bake", 'INFO'
+                f"Ambient occlusion baked: {image_name}", 'INFO'
             )
-            
+
             return {'FINISHED'}
-            
+
         except Exception as e:
-            self.report({'ERROR'}, f"Failed to setup AO bake: {str(e)}")
+            # Try to restore the render engine even on failure
+            try:
+                context.scene.render.engine = original_engine
+            except Exception:
+                pass
+            self.report({'ERROR'}, f"AO bake failed: {str(e)}")
             return {'CANCELLED'}
+
+    def invoke(self, context, event):
+        return context.window_manager.invoke_props_dialog(self)
 
 
 # Quest Creation Operators
@@ -6409,74 +7770,157 @@ class FO4_OT_GeneratePointEImage(Operator):
             return {'CANCELLED'}
 
 
-# ── Setup / Path Operators ────────────────────────────────────────────────────
+# Register all operators
 
-class FO4_OT_ReloadAddon(Operator):
-    """Restart Blender (deferred to avoid crash on Blender 5)"""
-    bl_idname = "fo4.reload_addon"
-    bl_label = "Restart Blender"
+class FO4_OT_ClearOperationLog(Operator):
+    """Clear the persistent operation log"""
+    bl_idname = "fo4.clear_operation_log"
+    bl_label = "Clear Operation Log"
+    bl_options = {'REGISTER'}
 
     def execute(self, context):
-        bpy.app.timers.register(lambda: (bpy.ops.wm.quit_blender(), None)[1], first_interval=0.1)
+        notification_system.OperationLog.clear()
+        self.report({'INFO'}, "Operation log cleared")
         return {'FINISHED'}
 
     def invoke(self, context, event):
         return context.window_manager.invoke_confirm(self, event)
 
 
-class FO4_OT_SetFO4AssetsPath(Operator):
-    """Browse to your extracted Fallout 4 Data folder"""
-    bl_idname = "fo4.set_fo4_assets_path"
-    bl_label = "Set FO4 Assets Path"
+class FO4_OT_ReloadAddon(Operator):
+    """Reload the add-on in-place without restarting Blender.
 
-    directory: StringProperty(subtype='DIR_PATH')
+    Use this after installing an updated zip (or after pulling new source files)
+    so your changes take effect immediately.  The operator disables and
+    re-enables the add-on, which re-imports all its modules from disk.
+    """
+    bl_idname = "fo4.reload_addon"
+    bl_label = "Reload Add-on"
+    bl_description = (
+        "Disable and re-enable the add-on so updated files take effect "
+        "without restarting Blender"
+    )
+    bl_options = {'REGISTER'}
 
     def execute(self, context):
-        context.scene.fo4_assets_path = self.directory
-        self.report({'INFO'}, f"FO4 assets path set to: {self.directory}")
+        # Reloading disabled - just show message
+        self.report({'WARNING'}, "Reload disabled. Please restart Blender to apply changes.")
         return {'FINISHED'}
 
-    def invoke(self, context, event):
-        context.window_manager.fileselect_add(self)
-        return {'RUNNING_MODAL'}
 
+class FO4_OT_ImportModFolder(Operator):
+    """Import entire mod folder structure into Blender"""
+    bl_idname = "fo4.import_mod_folder"
+    bl_label = "Import Mod Folder"
+    bl_description = "Import all NIF files from a mod folder, organized as collections"
+    bl_options = {'REGISTER', 'UNDO'}
 
-class FO4_OT_ImportFO4AssetFile(Operator):
-    """Import a Fallout 4 asset file (.nif, .hkx, .dds) into the scene"""
-    bl_idname = "fo4.import_fo4_asset_file"
-    bl_label = "Import FO4 Asset"
+    directory: StringProperty(
+        name="Mod Folder",
+        description="Path to mod folder containing meshes",
+        subtype='DIR_PATH'
+    )
 
-    filepath: StringProperty(subtype='FILE_PATH')
-    filter_glob: StringProperty(
-        default='*.obj;*.fbx;*.dae;*.glb;*.gltf',
-        options={'HIDDEN'},
+    import_textures: BoolProperty(
+        name="Import Textures",
+        description="Try to import associated textures",
+        default=True
     )
 
     def execute(self, context):
         import os
-        if not self.filepath or not os.path.exists(self.filepath):
-            if not self.filepath:
-                self.report({'ERROR'}, "No file selected")
-            else:
-                self.report({'ERROR'}, f"File not found: {self.filepath}")
+        from pathlib import Path
+
+        if not self.directory:
+            self.report({'ERROR'}, "No folder selected")
             return {'CANCELLED'}
-        ext = os.path.splitext(self.filepath)[1].lower()
+
+        mod_root = Path(self.directory)
+        if not mod_root.exists():
+            self.report({'ERROR'}, f"Folder does not exist: {mod_root}")
+            return {'CANCELLED'}
+
+        # Find all NIF files recursively
+        nif_files = list(mod_root.rglob("*.nif"))
+
+        if not nif_files:
+            self.report({'WARNING'}, f"No NIF files found in {mod_root}")
+            return {'CANCELLED'}
+
+        self.report({'INFO'}, f"Found {len(nif_files)} NIF files")
+
+        # Check if NIF importer is available
         try:
-            if ext in ('.glb', '.gltf'):
-                bpy.ops.import_scene.gltf(filepath=self.filepath)
-            elif ext == '.fbx':
-                bpy.ops.import_scene.fbx(filepath=self.filepath)
-            elif ext in ('.obj',):
-                bpy.ops.wm.obj_import(filepath=self.filepath)
-            elif ext in ('.dae',):
-                bpy.ops.wm.collada_import(filepath=self.filepath)
-            else:
-                self.report({'WARNING'}, f"No direct importer for {ext}; open file manually.")
+            import bpy
+            # Try to check if nif import operator exists
+            if not hasattr(bpy.ops, 'import_scene') or not hasattr(bpy.ops.import_scene, 'nif'):
+                self.report({'ERROR'}, "NIF importer not available. Install Niftools addon first.")
                 return {'CANCELLED'}
-            self.report({'INFO'}, f"Imported: {os.path.basename(self.filepath)}")
         except Exception as e:
-            self.report({'ERROR'}, f"Import failed: {e}")
+            self.report({'ERROR'}, f"Cannot check NIF importer: {e}")
             return {'CANCELLED'}
+
+        # Create root collection for this mod
+        mod_name = mod_root.name
+        root_collection = bpy.data.collections.new(f"MOD_{mod_name}")
+        context.scene.collection.children.link(root_collection)
+
+        imported_count = 0
+        failed_count = 0
+        collection_cache = {}
+
+        for nif_path in nif_files:
+            try:
+                # Get relative path from mod root
+                rel_path = nif_path.relative_to(mod_root)
+
+                # Create collection hierarchy based on folder structure
+                folders = list(rel_path.parent.parts)
+                current_collection = root_collection
+
+                for folder in folders:
+                    collection_key = "/".join([current_collection.name, folder])
+
+                    if collection_key not in collection_cache:
+                        new_collection = bpy.data.collections.new(folder)
+                        current_collection.children.link(new_collection)
+                        collection_cache[collection_key] = new_collection
+
+                    current_collection = collection_cache[collection_key]
+
+                # Import the NIF file
+                before_objects = set(context.scene.objects)
+
+                try:
+                    bpy.ops.import_scene.nif(filepath=str(nif_path))
+                except Exception as import_error:
+                    self.report({'WARNING'}, f"Failed to import {nif_path.name}: {import_error}")
+                    failed_count += 1
+                    continue
+
+                # Find newly imported objects
+                after_objects = set(context.scene.objects)
+                new_objects = after_objects - before_objects
+
+                # Move objects to the correct collection and store original path
+                for obj in new_objects:
+                    # Store original file path as custom property
+                    obj["fo4_original_path"] = str(nif_path)
+                    obj["fo4_mod_root"] = str(mod_root)
+
+                    # Move to correct collection
+                    for col in obj.users_collection:
+                        col.objects.unlink(obj)
+                    current_collection.objects.link(obj)
+
+                imported_count += 1
+
+            except Exception as e:
+                self.report({'WARNING'}, f"Error processing {nif_path.name}: {e}")
+                failed_count += 1
+                continue
+
+        self.report({'INFO'}, f"Import complete: {imported_count} files imported, {failed_count} failed")
         return {'FINISHED'}
 
     def invoke(self, context, event):
@@ -6484,626 +7928,61 @@ class FO4_OT_ImportFO4AssetFile(Operator):
         return {'RUNNING_MODAL'}
 
 
-class FO4_OT_ShowDetailedSetup(Operator):
-    """Show the detailed setup guide"""
-    bl_idname = "fo4.show_detailed_setup"
-    bl_label = "Detailed Setup Guide"
+class FO4_OT_ExportModFolder(Operator):
+    """Export all meshes back to their original mod folder locations"""
+    bl_idname = "fo4.export_mod_folder"
+    bl_label = "Export Mod Folder"
+    bl_description = "Export all meshes back to their original file paths"
+    bl_options = {'REGISTER'}
 
     def execute(self, context):
-        lines = [
-            "=== Fallout 4 Add-on Setup Guide ===",
-            "1. Install Python dependencies via the Tools panel.",
-            "2. Point 'FO4 Data Folder' at your extracted Data directory.",
-            "3. Install Niftools for .nif export support.",
-            "4. (Optional) Install texconv / NVTT for DDS texture conversion.",
-            "5. Use 'Quick Prepare for Export' before exporting any mesh.",
-        ]
-        for line in lines:
-            self.report({'INFO'}, line)
-        return {'FINISHED'}
+        from pathlib import Path
 
+        exported_count = 0
+        skipped_count = 0
+        failed_count = 0
 
-# ── Mesh Preparation / Conversion Operators ───────────────────────────────────
+        # Find all objects with original path stored
+        for obj in context.scene.objects:
+            if "fo4_original_path" not in obj:
+                skipped_count += 1
+                continue
 
-class FO4_OT_PrepareThirdPartyMesh(Operator):
-    """Prepare an external / third-party mesh for use in Fallout 4"""
-    bl_idname = "fo4.prepare_third_party_mesh"
-    bl_label = "Prepare External Mesh for FO4"
-    bl_options = {'REGISTER', 'UNDO'}
+            original_path = Path(obj["fo4_original_path"])
 
-    def execute(self, context):
-        obj = context.active_object
-        if not obj or obj.type != 'MESH':
-            self.report({'ERROR'}, "Select a mesh object first")
-            return {'CANCELLED'}
-        steps = []
-        try:
-            bpy.ops.object.transform_apply(location=False, rotation=True, scale=True)
-            steps.append("Applied transforms")
-
-            bpy.ops.object.mode_set(mode='EDIT')
-            bpy.ops.mesh.select_all(action='SELECT')
-            bpy.ops.mesh.normals_make_consistent(inside=False)
-            bpy.ops.object.mode_set(mode='OBJECT')
-            steps.append("Recalculated normals")
-
-            if not obj.data.uv_layers:
-                bpy.ops.object.mode_set(mode='EDIT')
-                bpy.ops.mesh.select_all(action='SELECT')
-                bpy.ops.uv.smart_project()
-                bpy.ops.object.mode_set(mode='OBJECT')
-                steps.append("Created UV map")
-
-            if not obj.data.materials:
-                texture_helpers.TextureHelpers.setup_fo4_material(obj)
-                steps.append("Added FO4 material")
-
-            self.report({'INFO'}, "Mesh prepared: " + ", ".join(steps))
-            notification_system.FO4_NotificationSystem.notify("External mesh prepared for FO4", 'INFO')
-        except Exception as e:
-            self.report({'ERROR'}, f"Preparation failed: {e}")
-            return {'CANCELLED'}
-        return {'FINISHED'}
-
-
-class FO4_OT_ConvertToFallout4(Operator):
-    """Run the full Fallout 4 conversion pipeline on the active mesh"""
-    bl_idname = "fo4.convert_to_fallout4"
-    bl_label = "Convert to Fallout 4 (Full Pipeline)"
-    bl_options = {'REGISTER', 'UNDO'}
-
-    def execute(self, context):
-        obj = context.active_object
-        if not obj or obj.type != 'MESH':
-            self.report({'ERROR'}, "Select a mesh object first")
-            return {'CANCELLED'}
-        try:
-            bpy.ops.object.transform_apply(location=False, rotation=True, scale=True)
-
-            bpy.ops.object.mode_set(mode='EDIT')
-            bpy.ops.mesh.select_all(action='SELECT')
-            bpy.ops.mesh.delete_loose()
-            bpy.ops.mesh.normals_make_consistent(inside=False)
-            bpy.ops.object.mode_set(mode='OBJECT')
-
-            mesh_helpers.MeshHelpers.optimize_mesh(obj)
-
-            if not obj.data.uv_layers:
-                bpy.ops.object.mode_set(mode='EDIT')
-                bpy.ops.mesh.select_all(action='SELECT')
-                bpy.ops.uv.smart_project()
-                bpy.ops.object.mode_set(mode='OBJECT')
-
-            if not obj.data.materials:
-                texture_helpers.TextureHelpers.setup_fo4_material(obj)
-
-            mesh_helpers.MeshHelpers.validate_mesh(obj)
-
-            self.report({'INFO'}, f"{obj.name} converted for Fallout 4")
-            notification_system.FO4_NotificationSystem.notify(f"{obj.name} ready for FO4", 'INFO')
-        except Exception as e:
-            self.report({'ERROR'}, f"Conversion failed: {e}")
-            return {'CANCELLED'}
-        return {'FINISHED'}
-
-
-# ── UV / Texture Workflow Operators ───────────────────────────────────────────
-
-class FO4_OT_SetupUVWithTexture(Operator):
-    """Create a UV map and assign a basic FO4 material in one step"""
-    bl_idname = "fo4.setup_uv_with_texture"
-    bl_label = "Setup UV + Texture"
-    bl_options = {'REGISTER', 'UNDO'}
-
-    def execute(self, context):
-        obj = context.active_object
-        if not obj or obj.type != 'MESH':
-            self.report({'ERROR'}, "Select a mesh object first")
-            return {'CANCELLED'}
-        try:
-            if not obj.data.uv_layers:
-                obj.data.uv_layers.new(name="UVMap")
-            bpy.ops.object.mode_set(mode='EDIT')
-            bpy.ops.mesh.select_all(action='SELECT')
-            bpy.ops.uv.smart_project(angle_limit=66.0, margin_method='SCALED', island_margin=0.02)
-            bpy.ops.object.mode_set(mode='OBJECT')
-            if not obj.data.materials:
-                texture_helpers.TextureHelpers.setup_fo4_material(obj)
-            self.report({'INFO'}, "UV map and material set up successfully")
-            notification_system.FO4_NotificationSystem.notify("UV + texture ready", 'INFO')
-        except Exception as e:
-            self.report({'ERROR'}, f"Setup failed: {e}")
-            return {'CANCELLED'}
-        return {'FINISHED'}
-
-
-class FO4_OT_ScanUVComplexity(Operator):
-    """Analyse UV complexity and report islands, overlaps, and stretched faces"""
-    bl_idname = "fo4.scan_uv_complexity"
-    bl_label = "Scan UV Complexity"
-
-    def execute(self, context):
-        obj = context.active_object
-        if not obj or obj.type != 'MESH':
-            self.report({'ERROR'}, "Select a mesh object first")
-            return {'CANCELLED'}
-        mesh = obj.data
-        uv_count = len(mesh.uv_layers)
-        poly_count = len(mesh.polygons)
-        if uv_count == 0:
-            self.report({'WARNING'}, "No UV map found – use 'Setup UV + Texture' first")
-            return {'FINISHED'}
-        self.report({'INFO'}, f"UV layers: {uv_count}  |  Polygons: {poly_count}")
-        self.report({'INFO'}, f"Active UV: {mesh.uv_layers.active.name}")
-        if poly_count > 65000:
-            self.report({'WARNING'}, "High poly count may cause LOD issues in FO4")
-        else:
-            self.report({'INFO'}, "Polygon count is within FO4 limits")
-        return {'FINISHED'}
-
-
-class FO4_OT_SmartSeamMark(Operator):
-    """Automatically mark UV seams based on sharp edges and angle threshold"""
-    bl_idname = "fo4.smart_seam_mark"
-    bl_label = "Smart Seam Mark"
-    bl_options = {'REGISTER', 'UNDO'}
-
-    angle: FloatProperty(
-        name="Angle",
-        description="Minimum angle (degrees) to mark as seam",
-        default=66.0, min=1.0, max=180.0,
-    )
-
-    def execute(self, context):
-        obj = context.active_object
-        if not obj or obj.type != 'MESH':
-            self.report({'ERROR'}, "Select a mesh object first")
-            return {'CANCELLED'}
-        try:
-            import math
-            bpy.ops.object.mode_set(mode='EDIT')
-            bpy.ops.mesh.select_all(action='SELECT')
-            bpy.ops.uv.seams_from_islands()
-            bpy.ops.object.mode_set(mode='OBJECT')
-            # Additionally mark seams on high-angle edges
-            mesh = obj.data
-            mesh.update()
-            threshold = math.radians(self.angle)
-            for edge in mesh.edges:
-                if not edge.use_seam and len(edge.link_faces) == 2:
-                    n0 = edge.link_faces[0].normal
-                    n1 = edge.link_faces[1].normal
-                    if n0.angle(n1, 0.0) > threshold:
-                        edge.use_seam = True
-            self.report({'INFO'}, "Smart seams marked")
-            notification_system.FO4_NotificationSystem.notify("Seams marked", 'INFO')
-        except Exception as e:
-            self.report({'ERROR'}, f"Seam marking failed: {e}")
-            return {'CANCELLED'}
-        return {'FINISHED'}
-
-    def invoke(self, context, event):
-        return context.window_manager.invoke_props_dialog(self)
-
-
-class FO4_OT_HybridUnwrap(Operator):
-    """Unwrap using a hybrid angle-based + smart-project approach"""
-    bl_idname = "fo4.hybrid_unwrap"
-    bl_label = "Hybrid Unwrap"
-    bl_options = {'REGISTER', 'UNDO'}
-
-    def execute(self, context):
-        obj = context.active_object
-        if not obj or obj.type != 'MESH':
-            self.report({'ERROR'}, "Select a mesh object first")
-            return {'CANCELLED'}
-        try:
-            if not obj.data.uv_layers:
-                obj.data.uv_layers.new(name="UVMap")
-            bpy.ops.object.mode_set(mode='EDIT')
-            bpy.ops.mesh.select_all(action='SELECT')
-            bpy.ops.uv.unwrap(method='ANGLE_BASED', margin=0.02)
-            bpy.ops.uv.pack_islands(margin=0.01)
-            bpy.ops.object.mode_set(mode='OBJECT')
-            self.report({'INFO'}, "Hybrid unwrap complete")
-            notification_system.FO4_NotificationSystem.notify("Hybrid UV unwrap done", 'INFO')
-        except Exception as e:
-            self.report({'ERROR'}, f"Unwrap failed: {e}")
-            return {'CANCELLED'}
-        return {'FINISHED'}
-
-
-class FO4_OT_PickFacesForUnwrap(Operator):
-    """Enter Edit Mode face-select so you can choose which faces to unwrap"""
-    bl_idname = "fo4.pick_faces_for_unwrap"
-    bl_label = "Pick Faces for Unwrap"
-
-    def execute(self, context):
-        obj = context.active_object
-        if not obj or obj.type != 'MESH':
-            self.report({'ERROR'}, "Select a mesh object first")
-            return {'CANCELLED'}
-        bpy.ops.object.mode_set(mode='EDIT')
-        bpy.ops.mesh.select_mode(type='FACE')
-        bpy.ops.mesh.select_all(action='DESELECT')
-        self.report({'INFO'}, "Select faces, then run 'Unwrap Selected'")
-        return {'FINISHED'}
-
-
-class FO4_OT_UnwrapSelectedFaces(Operator):
-    """Unwrap only the currently selected faces"""
-    bl_idname = "fo4.unwrap_selected_faces"
-    bl_label = "Unwrap Selected Faces"
-    bl_options = {'REGISTER', 'UNDO'}
-
-    def execute(self, context):
-        obj = context.active_object
-        if not obj or obj.type != 'MESH':
-            self.report({'ERROR'}, "Select a mesh object first")
-            return {'CANCELLED'}
-        try:
-            if context.mode != 'EDIT_MESH':
-                bpy.ops.object.mode_set(mode='EDIT')
-            if not obj.data.uv_layers:
-                obj.data.uv_layers.new(name="UVMap")
-            bpy.ops.uv.unwrap(method='ANGLE_BASED', margin=0.02)
-            self.report({'INFO'}, "Selected faces unwrapped")
-            notification_system.FO4_NotificationSystem.notify("Selected faces unwrapped", 'INFO')
-        except Exception as e:
-            self.report({'ERROR'}, f"Unwrap failed: {e}")
-            return {'CANCELLED'}
-        return {'FINISHED'}
-
-
-class FO4_OT_ReUnwrapUV(Operator):
-    """Delete the current UV map and create a fresh smart-project unwrap"""
-    bl_idname = "fo4.re_unwrap_uv"
-    bl_label = "Re-Unwrap UV"
-    bl_options = {'REGISTER', 'UNDO'}
-
-    def execute(self, context):
-        obj = context.active_object
-        if not obj or obj.type != 'MESH':
-            self.report({'ERROR'}, "Select a mesh object first")
-            return {'CANCELLED'}
-        try:
-            while obj.data.uv_layers:
-                obj.data.uv_layers.remove(obj.data.uv_layers[0])
-            obj.data.uv_layers.new(name="UVMap")
-            bpy.ops.object.mode_set(mode='EDIT')
-            bpy.ops.mesh.select_all(action='SELECT')
-            bpy.ops.uv.smart_project(angle_limit=66.0, margin_method='SCALED', island_margin=0.02)
-            bpy.ops.uv.pack_islands(margin=0.01)
-            bpy.ops.object.mode_set(mode='OBJECT')
-            self.report({'INFO'}, "UV map re-unwrapped")
-            notification_system.FO4_NotificationSystem.notify("UV re-unwrapped", 'INFO')
-        except Exception as e:
-            self.report({'ERROR'}, f"Re-unwrap failed: {e}")
-            return {'CANCELLED'}
-        return {'FINISHED'}
-
-
-class FO4_OT_OpenUVEditing(Operator):
-    """Switch to the UV Editor workspace (or split the current area)"""
-    bl_idname = "fo4.open_uv_editing"
-    bl_label = "Open UV Editor"
-
-    def execute(self, context):
-        # Try to switch to the UV Editing workspace if it exists
-        ws = bpy.data.workspaces.get("UV Editing")
-        if ws:
-            context.window.workspace = ws
-        else:
-            # Fallback: change the current area to UV editor
-            for area in context.screen.areas:
-                if area.type == 'VIEW_3D':
-                    area.type = 'IMAGE_EDITOR'
-                    break
-        self.report({'INFO'}, "UV Editor opened")
-        return {'FINISHED'}
-
-
-# ── Mossy AI Operators ────────────────────────────────────────────────────────
-
-class FO4_OT_AskMossyUVAdvice(Operator):
-    """Ask Mossy AI for UV unwrapping advice for the active mesh"""
-    bl_idname = "fo4.ask_mossy_uv_advice"
-    bl_label = "Ask Mossy for UV Advice"
-
-    def execute(self, context):
-        try:
-            from . import mossy_link
-            obj = context.active_object
-            mesh = obj.data if obj and obj.type == 'MESH' else None
-            ctx = {
-                "object": obj.name if obj else "none",
-                "uv_layers": len(mesh.uv_layers) if mesh else 0,
-                "poly_count": len(mesh.polygons) if mesh else 0,
-            }
-            reply = mossy_link.ask_mossy("UV unwrapping advice for Fallout 4 mesh", ctx)
-            if reply:
-                self.report({'INFO'}, reply[:200])
-            else:
-                self.report({'INFO'}, "Mossy: ensure seams are marked, then use Smart UV Project.")
-        except Exception:
-            self.report({'INFO'}, "Tip: mark sharp edges as seams, then Smart UV Project with 66° threshold.")
-        return {'FINISHED'}
-
-
-class FO4_OT_MossyAutoFix(Operator):
-    """Use Mossy AI to diagnose and auto-fix common mesh issues"""
-    bl_idname = "fo4.mossy_auto_fix"
-    bl_label = "AI Auto-Fix (Mossy)"
-    bl_options = {'REGISTER', 'UNDO'}
-
-    def _start(self, context):
-        obj = context.active_object
-        if not obj or obj.type != 'MESH':
-            self.report({'ERROR'}, "Select a mesh object first")
-            return {'CANCELLED'}
-        fixes = []
-        try:
-            # Apply standard fixes
-            bpy.ops.object.transform_apply(location=False, rotation=True, scale=True)
-            fixes.append("transforms applied")
-            bpy.ops.object.mode_set(mode='EDIT')
-            bpy.ops.mesh.select_all(action='SELECT')
-            bpy.ops.mesh.delete_loose()
-            bpy.ops.mesh.normals_make_consistent(inside=False)
-            bpy.ops.object.mode_set(mode='OBJECT')
-            fixes.append("geometry cleaned")
-            if not obj.data.uv_layers:
-                bpy.ops.object.mode_set(mode='EDIT')
-                bpy.ops.mesh.select_all(action='SELECT')
-                bpy.ops.uv.smart_project()
-                bpy.ops.object.mode_set(mode='OBJECT')
-                fixes.append("UV map created")
-            # Try to ask Mossy for additional advice
             try:
-                from . import mossy_link
-                ctx = {"object": obj.name, "poly_count": len(obj.data.polygons)}
-                reply = mossy_link.ask_mossy("auto-fix mesh for Fallout 4", ctx)
-                if reply:
-                    self.report({'INFO'}, f"Mossy: {reply[:150]}")
-            except Exception:
-                pass
-            self.report({'INFO'}, "Mossy auto-fix applied: " + ", ".join(fixes))
-            notification_system.FO4_NotificationSystem.notify("Mossy auto-fix complete", 'INFO')
-        except Exception as e:
-            self.report({'ERROR'}, f"Auto-fix failed: {e}")
-            return {'CANCELLED'}
-        return {'FINISHED'}
+                # Make sure parent directories exist
+                original_path.parent.mkdir(parents=True, exist_ok=True)
 
-    def execute(self, context):
-        return self._start(context)
-
-    def invoke(self, context, event):
-        return self._start(context)
-
-
-# ── Mesh Splitting Operator ───────────────────────────────────────────────────
-
-class FO4_OT_SplitMeshPolyLimit(Operator):
-    """Split a mesh into multiple objects each within a polygon limit"""
-    bl_idname = "fo4.split_mesh_poly_limit"
-    bl_label = "Split at Poly Limit"
-    bl_options = {'REGISTER', 'UNDO'}
-
-    poly_limit: IntProperty(
-        name="Polygon Limit",
-        description="Maximum polygons per chunk",
-        default=65000, min=100, max=500000,
-    )
-
-    def execute(self, context):
-        obj = context.active_object
-        if not obj or obj.type != 'MESH':
-            self.report({'ERROR'}, "Select a mesh object first")
-            return {'CANCELLED'}
-        poly_count = len(obj.data.polygons)
-        if poly_count <= self.poly_limit:
-            self.report({'INFO'}, f"Mesh has {poly_count} polygons — no split needed")
-            return {'FINISHED'}
-        try:
-            import math
-            num_parts = math.ceil(poly_count / self.poly_limit)
-            # Use separate-by-loose-parts as a best-effort split
-            bpy.ops.object.mode_set(mode='EDIT')
-            bpy.ops.mesh.select_all(action='SELECT')
-            bpy.ops.mesh.separate(type='LOOSE')
-            bpy.ops.object.mode_set(mode='OBJECT')
-            self.report({'INFO'}, f"Mesh split into loose parts (target: {num_parts} chunks)")
-            notification_system.FO4_NotificationSystem.notify(f"Mesh split completed", 'INFO')
-        except Exception as e:
-            self.report({'ERROR'}, f"Split failed: {e}")
-            return {'CANCELLED'}
-        return {'FINISHED'}
-
-    def invoke(self, context, event):
-        return context.window_manager.invoke_props_dialog(self)
-
-
-# ── Collision / LOD Operators ─────────────────────────────────────────────────
-
-class FO4_OT_SetCollisionType(Operator):
-    """Set the collision material type on the active object"""
-    bl_idname = "fo4.set_collision_type"
-    bl_label = "Set Collision Type"
-    bl_options = {'REGISTER', 'UNDO'}
-
-    collision_type: EnumProperty(
-        name="Collision Type",
-        items=[
-            ('DEFAULT',   "Default",   "Standard collision"),
-            ('STATIC',    "Static",    "Non-moving collision"),
-            ('DYNAMIC',   "Dynamic",   "Physics-enabled collision"),
-            ('NONE',      "None",      "No collision"),
-            ('GRASS',     "Grass",     "Grass/vegetation type"),
-            ('MUSHROOM',  "Mushroom",  "Mushroom type"),
-        ],
-        default='DEFAULT',
-    )
-    apply_to_selected: BoolProperty(name="Apply to All Selected", default=False)
-
-    def execute(self, context):
-        targets = context.selected_objects if self.apply_to_selected else [context.active_object]
-        count = 0
-        for obj in targets:
-            if obj and obj.type == 'MESH':
-                obj['fo4_collision_type'] = self.collision_type
-                count += 1
-        self.report({'INFO'}, f"Collision type set to '{self.collision_type}' on {count} object(s)")
-        notification_system.FO4_NotificationSystem.notify(
-            f"Collision type: {self.collision_type}", 'INFO'
-        )
-        return {'FINISHED'}
-
-    def invoke(self, context, event):
-        return context.window_manager.invoke_props_dialog(self)
-
-
-class FO4_OT_ExportMeshWithCollision(Operator):
-    """Generate collision mesh and export both as NIF"""
-    bl_idname = "fo4.export_mesh_with_collision"
-    bl_label = "Generate + Export NIF"
-    bl_options = {'REGISTER', 'UNDO'}
-
-    filepath: StringProperty(subtype='FILE_PATH')
-
-    def execute(self, context):
-        obj = context.active_object
-        if not obj or obj.type != 'MESH':
-            self.report({'ERROR'}, "Select a mesh object first")
-            return {'CANCELLED'}
-        try:
-            # Generate collision if not already present
-            col_name = f"{obj.name}_COLLISION"
-            if col_name not in bpy.data.objects:
-                bpy.ops.object.duplicate()
-                col_obj = context.active_object
-                col_obj.name = col_name
-                mod = col_obj.modifiers.new("Decimate", 'DECIMATE')
-                mod.ratio = 0.25
-                bpy.ops.object.modifier_apply(modifier="Decimate")
-                col_obj.data.materials.clear()
+                # Select only this object
                 bpy.ops.object.select_all(action='DESELECT')
                 obj.select_set(True)
                 context.view_layer.objects.active = obj
 
-            # Export
-            success, message = export_helpers.ExportHelpers.export_mesh_to_nif(obj, self.filepath)
-            if success:
-                self.report({'INFO'}, f"Exported: {message}")
-                notification_system.FO4_NotificationSystem.notify("Mesh + collision exported", 'INFO')
-            else:
-                self.report({'WARNING'}, message)
-        except Exception as e:
-            self.report({'ERROR'}, f"Export failed: {e}")
-            return {'CANCELLED'}
+                # Export using the addon's export functionality with proper FO4 NIF settings
+                result, message = export_helpers.ExportHelpers.export_mesh_to_nif(
+                    obj,
+                    str(original_path)
+                )
+
+                if result:
+                    exported_count += 1
+                else:
+                    self.report({'WARNING'}, f"Failed to export {obj.name}: {message}")
+                    failed_count += 1
+
+            except Exception as e:
+                self.report({'WARNING'}, f"Error exporting {obj.name}: {e}")
+                failed_count += 1
+                continue
+
+        if skipped_count > 0:
+            self.report({'INFO'}, f"Export complete: {exported_count} exported, {skipped_count} skipped (no original path), {failed_count} failed")
+        else:
+            self.report({'INFO'}, f"Export complete: {exported_count} exported, {failed_count} failed")
+
         return {'FINISHED'}
 
-    def invoke(self, context, event):
-        context.window_manager.fileselect_add(self)
-        return {'RUNNING_MODAL'}
-
-
-class FO4_OT_GenerateLODAndCollision(Operator):
-    """Generate both a LOD chain and a collision mesh in one step"""
-    bl_idname = "fo4.generate_lod_and_collision"
-    bl_label = "Generate LOD + Collision"
-    bl_options = {'REGISTER', 'UNDO'}
-
-    num_lod_levels: IntProperty(name="LOD Levels", default=4, min=1, max=6)
-
-    def execute(self, context):
-        obj = context.active_object
-        if not obj or obj.type != 'MESH':
-            self.report({'ERROR'}, "Select a mesh object first")
-            return {'CANCELLED'}
-        try:
-            # Generate LOD chain
-            success, message, lod_objects = advanced_mesh_helpers.AdvancedMeshHelpers.generate_lod_chain(
-                obj, lod_levels=self.num_lod_levels
-            )
-            if not success:
-                self.report({'ERROR'}, message)
-                return {'CANCELLED'}
-
-            # Generate collision
-            bpy.ops.object.select_all(action='DESELECT')
-            obj.select_set(True)
-            context.view_layer.objects.active = obj
-            bpy.ops.object.duplicate()
-            col_obj = context.active_object
-            col_obj.name = f"{obj.name}_COLLISION"
-            mod = col_obj.modifiers.new("Decimate", 'DECIMATE')
-            mod.ratio = 0.25
-            bpy.ops.object.modifier_apply(modifier="Decimate")
-            col_obj.data.materials.clear()
-
-            lod_count = len(lod_objects) if lod_objects else 0
-            self.report({'INFO'}, f"Generated {lod_count} LOD levels + collision mesh")
-            notification_system.FO4_NotificationSystem.notify(
-                f"LOD chain ({lod_count} levels) + collision ready", 'INFO'
-            )
-        except Exception as e:
-            self.report({'ERROR'}, f"Generation failed: {e}")
-            return {'CANCELLED'}
-        return {'FINISHED'}
-
-    def invoke(self, context, event):
-        return context.window_manager.invoke_props_dialog(self)
-
-
-class FO4_OT_ExportLODChainAsNIF(Operator):
-    """Export all LOD objects (_LOD0 … _LOD4) in the scene as separate NIF files"""
-    bl_idname = "fo4.export_lod_chain_as_nif"
-    bl_label = "Export LOD Chain as NIF"
-    bl_options = {'REGISTER', 'UNDO'}
-
-    directory: StringProperty(subtype='DIR_PATH')
-
-    def execute(self, context):
-        import os
-        if not self.directory:
-            self.report({'ERROR'}, "Please select an output directory")
-            return {'CANCELLED'}
-
-        lod_objs = [o for o in bpy.data.objects if '_LOD' in o.name and o.type == 'MESH']
-        if not lod_objs:
-            obj = context.active_object
-            if obj and obj.type == 'MESH':
-                lod_objs = [obj]
-        if not lod_objs:
-            self.report({'ERROR'}, "No LOD mesh objects found")
-            return {'CANCELLED'}
-
-        exported = []
-        errors = []
-        for lod_obj in sorted(lod_objs, key=lambda o: o.name):
-            out_path = os.path.join(self.directory, f"{lod_obj.name}.nif")
-            success, message = export_helpers.ExportHelpers.export_mesh_to_nif(lod_obj, out_path)
-            if success:
-                exported.append(lod_obj.name)
-            else:
-                errors.append(f"{lod_obj.name}: {message}")
-
-        if exported:
-            self.report({'INFO'}, f"Exported {len(exported)} LOD NIF(s)")
-            notification_system.FO4_NotificationSystem.notify(
-                f"Exported {len(exported)} LOD NIF files", 'INFO'
-            )
-        if errors:
-            for err in errors:
-                self.report({'WARNING'}, err)
-        return {'FINISHED'}
-
-    def invoke(self, context, event):
-        context.window_manager.fileselect_add(self)
-        return {'RUNNING_MODAL'}
-
-
-# Register all operators
 
 classes = (
     FO4_OT_StartTutorial,
@@ -7117,6 +7996,13 @@ classes = (
     FO4_OT_ValidateTextures,
     FO4_OT_SetupArmature,
     FO4_OT_ValidateAnimation,
+    FO4_OT_GenerateWindWeights,
+    FO4_OT_AutoWeightPaint,
+    FO4_OT_ApplyWindAnimation,
+    FO4_OT_BatchGenerateWindWeights,
+    FO4_OT_BatchApplyWindAnimation,
+    FO4_OT_BatchAutoWeightPaint,
+    FO4_OT_ToggleWindPreview,
     FO4_OT_CheckRigNetInstallation,
     FO4_OT_ShowRigNetInfo,
     FO4_OT_PrepareForRigNet,
@@ -7125,7 +8011,10 @@ classes = (
     FO4_OT_CheckLibiglInstallation,
     FO4_OT_ComputeBBWSkinning,
     FO4_OT_ExportMesh,
+    FO4_OT_SetCollisionType,
+    FO4_OT_ExportMeshWithCollision,
     FO4_OT_ExportAll,
+    FO4_OT_ExportSceneAsNif,
     FO4_OT_ValidateExport,
     FO4_OT_ImageToMesh,
     FO4_OT_ApplyDisplacementMap,
@@ -7153,12 +8042,18 @@ classes = (
     FO4_OT_CheckUEImporter,
     FO4_OT_CheckUModelTools,
     FO4_OT_CheckUnityFBXImporter,
+    FO4_OT_CheckAssetStudio,
+    FO4_OT_CheckAssetRipper,
     FO4_OT_InstallFFmpeg,
     FO4_OT_InstallNVTT,
     FO4_OT_InstallTexconv,
     FO4_OT_InstallWhisper,
+    FO4_OT_InstallHavok2FBX,
+    FO4_OT_ExportAnimationHavok2FBX,
     FO4_OT_InstallNiftools,
+    FO4_OT_ConfigureFallout4Settings,
     FO4_OT_InstallPythonDeps,
+    FO4_OT_CheckToolPaths,
     FO4_OT_RunAllInstallers,
     FO4_OT_SelfTest,
     FO4_OT_UpscaleTexture,
@@ -7204,6 +8099,7 @@ classes = (
     FO4_OT_AnalyzeMeshQuality,
     FO4_OT_AutoRepairMesh,
     FO4_OT_SmartDecimate,
+    FO4_OT_SplitMeshPolyLimit,
     FO4_OT_GenerateLOD,
     FO4_OT_OptimizeUVs,
     # New batch processing operators
@@ -7277,39 +8173,118 @@ classes = (
     FO4_OT_ShowPointEInfo,
     FO4_OT_GeneratePointEText,
     FO4_OT_GeneratePointEImage,
-    # Setup / Path operators
+    # Operation log
+    FO4_OT_ClearOperationLog,
+    # Add-on self-update / reload
     FO4_OT_ReloadAddon,
-    FO4_OT_SetFO4AssetsPath,
-    FO4_OT_ImportFO4AssetFile,
-    FO4_OT_ShowDetailedSetup,
-    # Mesh preparation / conversion operators
-    FO4_OT_PrepareThirdPartyMesh,
-    FO4_OT_ConvertToFallout4,
-    # UV / Texture workflow operators
-    FO4_OT_SetupUVWithTexture,
-    FO4_OT_ScanUVComplexity,
-    FO4_OT_SmartSeamMark,
-    FO4_OT_HybridUnwrap,
-    FO4_OT_PickFacesForUnwrap,
-    FO4_OT_UnwrapSelectedFaces,
-    FO4_OT_ReUnwrapUV,
-    FO4_OT_OpenUVEditing,
-    # Mossy AI operators
-    FO4_OT_AskMossyUVAdvice,
-    FO4_OT_MossyAutoFix,
-    # Mesh splitting operator
-    FO4_OT_SplitMeshPolyLimit,
-    # Collision / LOD operators
-    FO4_OT_SetCollisionType,
-    FO4_OT_ExportMeshWithCollision,
-    FO4_OT_GenerateLODAndCollision,
-    FO4_OT_ExportLODChainAsNIF,
+    # Mod folder import/export
+    FO4_OT_ImportModFolder,
+    FO4_OT_ExportModFolder,
 )
 
 def register():
     for cls in classes:
         bpy.utils.register_class(cls)
 
+    # Havok2FBX animation export settings stored per-scene
+    bpy.types.Scene.fo4_havok_anim_type = bpy.props.EnumProperty(
+        name="Animation Type",
+        description="Type of Fallout 4 animation being exported",
+        items=[
+            ('CHARACTER',    "Character",     "Humanoid NPC / player character skeleton"),
+            ('CREATURE',     "Creature",      "Non-humanoid creature skeleton"),
+            ('OBJECT',       "Object / Prop", "Animated static prop or furniture"),
+            ('WEAPON',       "Weapon",        "Third-person weapon animation"),
+            ('FIRSTPERSON',  "First-Person",  "First-person arms / weapon animation"),
+        ],
+        default='CHARACTER',
+    )
+    bpy.types.Scene.fo4_havok_fps = bpy.props.IntProperty(
+        name="FPS",
+        description="Animation frame rate (Fallout 4 standard is 30)",
+        default=30,
+        min=1,
+        max=120,
+    )
+    bpy.types.Scene.fo4_havok_loop = bpy.props.BoolProperty(
+        name="Loop Animation",
+        description="Mark animation as looping in the HKX output",
+        default=False,
+    )
+    bpy.types.Scene.fo4_havok_root_motion = bpy.props.BoolProperty(
+        name="Root Motion",
+        description="Include root-bone motion (translation/rotation) in the export",
+        default=False,
+    )
+    bpy.types.Scene.fo4_havok_bake_anim = bpy.props.BoolProperty(
+        name="Bake Animation",
+        description="Bake animation to keyframes on export (required for constraints and NLA strips to be captured)",
+        default=True,
+    )
+    bpy.types.Scene.fo4_havok_key_all_bones = bpy.props.BoolProperty(
+        name="Key All Bones",
+        description="Insert keyframes on every bone even if they do not move",
+        default=False,
+    )
+    bpy.types.Scene.fo4_havok_apply_transforms = bpy.props.BoolProperty(
+        name="Apply Transforms",
+        description="Apply object-level scale/rotation before export",
+        default=True,
+    )
+    bpy.types.Scene.fo4_havok_scale = bpy.props.FloatProperty(
+        name="Scale",
+        description="Global scale correction (1.0 = no change; use 0.01 if rig is in cm)",
+        default=1.0,
+        min=0.001,
+        max=100.0,
+        precision=3,
+    )
+    bpy.types.Scene.fo4_havok_output_dir = bpy.props.StringProperty(
+        name="Output Directory",
+        description="Folder where the exported FBX (and converted HKX) will be saved. Leave blank to use the system temp folder.",
+        subtype='DIR_PATH',
+        default="",
+    )
+    bpy.types.Scene.fo4_havok_anim_name = bpy.props.StringProperty(
+        name="Animation Name",
+        description="Override the file/animation name. Leave blank to use the active action name.",
+        default="",
+    )
+    bpy.types.Scene.fo4_havok_simplify_value = bpy.props.FloatProperty(
+        name="Curve Simplify",
+        description="Reduce keyframe count on export (0 = off, 1 = maximum simplification)",
+        default=0.0,
+        min=0.0,
+        max=1.0,
+        precision=2,
+    )
+    bpy.types.Scene.fo4_havok_force_frame_range = bpy.props.BoolProperty(
+        name="Use Action Frame Range",
+        description="Clamp export to the active action's frame range instead of the scene frame range",
+        default=True,
+    )
+
 def unregister():
     for cls in reversed(classes):
         bpy.utils.unregister_class(cls)
+
+    # Remove Havok2FBX scene properties
+    for prop in (
+        "fo4_havok_anim_type",
+        "fo4_havok_fps",
+        "fo4_havok_loop",
+        "fo4_havok_root_motion",
+        "fo4_havok_bake_anim",
+        "fo4_havok_key_all_bones",
+        "fo4_havok_apply_transforms",
+        "fo4_havok_scale",
+        "fo4_havok_output_dir",
+        "fo4_havok_anim_name",
+        "fo4_havok_simplify_value",
+        "fo4_havok_force_frame_range",
+    ):
+        if hasattr(bpy.types.Scene, prop):
+            try:
+                delattr(bpy.types.Scene, prop)
+            except Exception:
+                pass

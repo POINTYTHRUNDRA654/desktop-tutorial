@@ -24,23 +24,13 @@ MediaPipe: Google's framework for ML pipelines
 
 import bpy
 import os
+import subprocess
 import sys
 from pathlib import Path
 
 class RigNetHelpers:
     """Helper functions for RigNet automatic rigging integration"""
-
-    @staticmethod
-    def _dll_init_error_message():
-        """Return a user-friendly message when WinError 1114 (DLL init failure) occurs."""
-        return (
-            "PyTorch DLL initialisation failed (WinError 1114). "
-            "A file such as c10.dll (e.g. D:\\blender_torch\\torch\\lib\\c10.dll) "
-            "could not be loaded. "
-            "Please reinstall PyTorch matching your CUDA version and install "
-            "the Visual C++ Redistributable: https://aka.ms/vs/17/release/vc_redist.x64.exe"
-        )
-
+    
     @staticmethod
     def check_rignet_available():
         """Check if RigNet is installed and available"""
@@ -83,12 +73,20 @@ class RigNetHelpers:
             else:
                 return False, "RigNet repository not found in common locations"
                 
+        except FileNotFoundError as e:
+
+                
+            if "WinError 206" in str(e) or "filename or extension is too long" in str(e):
+
+                
+                return False, "Windows path length error. Enable long paths in Windows or reinstall PyTorch in a shorter path."
+
+                
+            return False, f"File error: {str(e)}"
+
+                
         except ImportError as e:
             return False, f"PyTorch not installed: {str(e)}"
-        except OSError as e:
-            if getattr(e, 'winerror', None) == 1114 or "WinError 1114" in str(e):
-                return False, RigNetHelpers._dll_init_error_message()
-            return False, f"OS error checking RigNet: {str(e)}"
         except Exception as e:
             return False, f"Error checking RigNet: {str(e)}"
     
@@ -457,37 +455,94 @@ For more details:
         return instructions
     
     @staticmethod
-    def auto_rig_mesh(mesh_obj, simplify_mesh=True, target_faces=2000):
+    def auto_rig_mesh(mesh_obj, simplify_mesh=True, target_vertices=2000):
         """
-        Automatically rig a mesh using RigNet
-        
+        Automatically rig a mesh using RigNet.
+
+        Steps:
+          1. Optionally simplify the mesh to RigNet's recommended vertex range.
+          2. Export the (simplified) mesh to a temporary OBJ file.
+          3. Run RigNet inference via subprocess.
+          4. Parse the generated *_rig.txt output and build an Armature.
+          5. Apply automatic skinning weights.
+
         Args:
             mesh_obj: Blender mesh object to rig
             simplify_mesh: Whether to simplify mesh before rigging (recommended)
-            target_faces: Target face count for simplification (1000-5000)
-        
+            target_vertices: Target vertex count for simplification (1000-5000)
+
         Returns:
             tuple: (success, message, armature_obj)
         """
         if mesh_obj.type != 'MESH':
             return False, "Object is not a mesh", None
-        
-        # Check if RigNet is available
-        available, message = RigNetHelpers.check_rignet_available()
+
+        available, rignet_path = RigNetHelpers.check_rignet_available()
         if not available:
-            return False, f"RigNet not available: {message}", None
-        
+            return False, f"RigNet not available: {rignet_path}", None
+
         try:
-            # This is a placeholder for the actual RigNet integration
-            # The full integration would require:
-            # 1. Export mesh to OBJ format
-            # 2. Run RigNet inference (joint prediction, connectivity, skinning)
-            # 3. Import resulting rig back into Blender
-            # 4. Apply skinning weights
-            
-            # For now, return a message about manual integration
-            return False, "RigNet integration is in beta. Please use brignet or Rignet_blender_addon for full functionality.", None
-            
+            import tempfile
+
+            # --- 1. Optionally simplify ---
+            work_mesh = mesh_obj
+            if simplify_mesh:
+                ok, msg, work_mesh = RigNetHelpers.prepare_mesh_for_rignet(
+                    mesh_obj, target_vertex_count=target_vertices
+                )
+                if not ok:
+                    return False, f"Mesh preparation failed: {msg}", None
+
+            # --- 2. Export to OBJ ---
+            tmp_dir = tempfile.mkdtemp(prefix="rignet_")
+            obj_path = os.path.join(tmp_dir, f"{mesh_obj.name}.obj")
+            ok, msg, obj_path = RigNetHelpers.export_for_rignet(work_mesh, obj_path)
+            if not ok:
+                return False, f"OBJ export failed: {msg}", None
+
+            # --- 3. Run RigNet inference ---
+            # Identify the entry-point script (varies between forks)
+            for script_name in ("predict.py", "infer.py", "run_rignet.py", "inference.py"):
+                if os.path.exists(os.path.join(rignet_path, script_name)):
+                    break
+            else:
+                return False, "RigNet inference script not found (tried predict.py / infer.py).", None
+
+            cmd = [
+                sys.executable, script_name,
+                "--input", obj_path,
+                "--output", tmp_dir,
+            ]
+            result = subprocess.run(
+                cmd, cwd=rignet_path,
+                capture_output=True, text=True, timeout=600
+            )
+            if result.returncode != 0:
+                return False, f"RigNet inference failed:\n{result.stderr}", None
+
+            # --- 4. Find and parse the rig file ---
+            rig_candidates = [
+                f for f in os.listdir(tmp_dir) if f.endswith("_rig.txt")
+            ]
+            if not rig_candidates:
+                return False, f"RigNet finished but no *_rig.txt file found in {tmp_dir}", None
+
+            rig_file = os.path.join(tmp_dir, rig_candidates[0])
+            ok, msg, armature_obj = RigNetHelpers.import_rignet_result(rig_file, mesh_obj)
+            if not ok:
+                return False, f"Rig import failed: {msg}", None
+
+            # --- 5. Auto-skin ---
+            bpy.ops.object.select_all(action='DESELECT')
+            mesh_obj.select_set(True)
+            armature_obj.select_set(True)
+            bpy.context.view_layer.objects.active = armature_obj
+            bpy.ops.object.parent_set(type='ARMATURE_AUTO')
+
+            return True, f"Auto-rigged successfully. Armature: '{armature_obj.name}'", armature_obj
+
+        except subprocess.TimeoutExpired:
+            return False, "RigNet inference timed out (10 min).", None
         except Exception as e:
             return False, f"Error during auto-rigging: {str(e)}", None
     
@@ -603,56 +658,234 @@ For more details:
     @staticmethod
     def import_rignet_result(rig_file_path, mesh_obj):
         """
-        Import RigNet rigging results and apply to mesh
-        
+        Parse a RigNet *_rig.txt output file and create a matching Blender Armature.
+
+        The RigNet rig-file format is::
+
+            joints
+            <joint_name> <x> <y> <z>
+            ...
+            hier
+            <parent_name> <child_name>
+            ...
+            skin
+            <vertex_idx> <joint_name1> <weight1> [<joint_name2> <weight2> ...]
+            ...
+
         Args:
-            rig_file_path: Path to RigNet output rig file (*_rig.txt)
-            mesh_obj: Target mesh object
-        
+            rig_file_path: Path to the RigNet output *_rig.txt file
+            mesh_obj: Target mesh object (used for positioning the armature)
+
         Returns:
             tuple: (success, message, armature_obj)
         """
-        # This would parse the RigNet output format and create armature
-        # For now, this is a placeholder
-        return False, "RigNet result import not yet implemented. Use brignet add-on for full integration.", None
+        if not os.path.exists(rig_file_path):
+            return False, f"Rig file not found: {rig_file_path}", None
+
+        try:
+            # ---- Parse the rig file ----
+            joints = {}       # name -> (x, y, z)
+            hierarchy = []    # [(parent, child), ...]
+            skin = {}         # vertex_idx -> [(joint_name, weight), ...]
+
+            section = None
+            with open(rig_file_path, 'r') as fh:
+                for raw_line in fh:
+                    line = raw_line.strip()
+                    if not line:
+                        continue
+                    if line == 'joints':
+                        section = 'joints'
+                        continue
+                    if line == 'hier':
+                        section = 'hier'
+                        continue
+                    if line == 'skin':
+                        section = 'skin'
+                        continue
+
+                    parts = line.split()
+                    if section == 'joints':
+                        # <name> <x> <y> <z>
+                        name = parts[0]
+                        x, y, z = float(parts[1]), float(parts[2]), float(parts[3])
+                        joints[name] = (x, y, z)
+                    elif section == 'hier':
+                        # <parent> <child>
+                        hierarchy.append((parts[0], parts[1]))
+                    elif section == 'skin':
+                        # <vertex_idx> <joint> <weight> [<joint> <weight> ...]
+                        vidx = int(parts[0])
+                        weights = []
+                        for i in range(1, len(parts), 2):
+                            weights.append((parts[i], float(parts[i + 1])))
+                        skin[vidx] = weights
+
+            if not joints:
+                return False, "No joints found in rig file", None
+
+            # ---- Build the Armature ----
+            arm_data = bpy.data.armatures.new(name=f"{mesh_obj.name}_Rig")
+            arm_obj = bpy.data.objects.new(name=f"{mesh_obj.name}_Rig", object_data=arm_data)
+            bpy.context.collection.objects.link(arm_obj)
+            # Position armature at mesh origin
+            arm_obj.location = mesh_obj.location
+
+            bpy.context.view_layer.objects.active = arm_obj
+            bpy.ops.object.mode_set(mode='EDIT')
+
+            edit_bones = {}
+            # Create all bones first
+            for jname, (x, y, z) in joints.items():
+                bone = arm_data.edit_bones.new(name=jname)
+                bone.head = (x, y, z)
+                # Default tail: slightly above the head (will be corrected by hierarchy)
+                bone.tail = (x, y + 0.05, z)
+                edit_bones[jname] = bone
+
+            # Wire up parent–child relationships and adjust tails
+            children_map = {c: p for p, c in hierarchy}
+            for child_name, parent_name in children_map.items():
+                if child_name in edit_bones and parent_name in edit_bones:
+                    edit_bones[child_name].parent = edit_bones[parent_name]
+                    # Point parent tail toward this child
+                    edit_bones[parent_name].tail = edit_bones[child_name].head
+
+            bpy.ops.object.mode_set(mode='OBJECT')
+
+            # ---- Apply skinning weights ----
+            if skin and mesh_obj.type == 'MESH':
+                # Create vertex groups for each joint
+                for jname in joints:
+                    if jname not in mesh_obj.vertex_groups:
+                        mesh_obj.vertex_groups.new(name=jname)
+
+                for vidx, weights in skin.items():
+                    for jname, weight in weights:
+                        vg = mesh_obj.vertex_groups.get(jname)
+                        if vg:
+                            vg.add([vidx], weight, 'REPLACE')
+
+                # Parent mesh to armature (preserve existing weights)
+                bpy.ops.object.select_all(action='DESELECT')
+                mesh_obj.select_set(True)
+                arm_obj.select_set(True)
+                bpy.context.view_layer.objects.active = arm_obj
+                bpy.ops.object.parent_set(type='ARMATURE')
+
+            return True, f"Armature '{arm_obj.name}' created with {len(joints)} bones.", arm_obj
+
+        except Exception as e:
+            return False, f"Error importing RigNet result: {str(e)}", None
     
     @staticmethod
     def compute_bbw_skinning(mesh_obj, armature_obj):
         """
-        Compute skinning weights using libigl's Bounded Biharmonic Weights (BBW)
-        
-        This provides automatic skinning weight calculation for an existing skeleton.
-        Requires libigl Python bindings to be installed.
-        
+        Compute skinning weights using libigl's Bounded Biharmonic Weights (BBW).
+
+        BBW produces smooth, volume-preserving skinning weights by solving a
+        biharmonic PDE with boundary conditions at each bone handle.
+
+        Requires:
+          - libigl Python bindings: ``pip install libigl``
+          - numpy
+
         Args:
             mesh_obj: Blender mesh object
             armature_obj: Blender armature object
-        
+
         Returns:
             tuple: (success, message)
         """
-        # Check if libigl is available
-        available, message = RigNetHelpers.check_libigl_available()
+        available, msg = RigNetHelpers.check_libigl_available()
         if not available:
-            return False, f"libigl not available: {message}"
-        
+            return False, f"libigl not available: {msg}"
+
+        if mesh_obj.type != 'MESH':
+            return False, "mesh_obj must be a MESH object"
+        if armature_obj.type != 'ARMATURE':
+            return False, "armature_obj must be an ARMATURE object"
+
         try:
             import igl
             import numpy as np
-            
-            # This would:
-            # 1. Extract mesh vertices and faces
-            # 2. Extract bone positions and hierarchy
-            # 3. Compute BBW using igl.bbw()
-            # 4. Apply weights to Blender vertex groups
-            
-            # For now, return a placeholder message
-            return False, "BBW skinning integration in progress. Use manual weight painting or brignet for now.", None
-            
-        except ImportError:
-            return False, "libigl Python bindings not installed. Install with: pip install libigl", None
+
+            mesh = mesh_obj.data
+            # --- Extract vertices and triangulated faces ---
+            verts = np.array([v.co[:] for v in mesh.vertices], dtype=np.float64)
+
+            # Triangulate faces (quads and n-gons → triangles)
+            tris = []
+            for poly in mesh.polygons:
+                vlist = list(poly.vertices)
+                for i in range(1, len(vlist) - 1):
+                    tris.append([vlist[0], vlist[i], vlist[i + 1]])
+            faces = np.array(tris, dtype=np.int32)
+
+            if faces.shape[0] == 0:
+                return False, "Mesh has no triangulatable faces"
+
+            # --- Collect bone handle points (head & tail of each bone) ---
+            handles = []
+            bone_names = []
+            for bone in armature_obj.pose.bones:
+                h = bone.head  # PoseBone.head is in armature local space
+                t = bone.tail
+                # Transform from armature local → world → mesh local
+                arm_mat = armature_obj.matrix_world
+                mesh_mat_inv = mesh_obj.matrix_world.inverted()
+                transform = mesh_mat_inv @ arm_mat
+
+                h_local = transform @ h.to_4d()
+                t_local = transform @ t.to_4d()
+                handles.append(h_local[:3])
+                handles.append(t_local[:3])
+                bone_names.append(bone.name + "_head")
+                bone_names.append(bone.name + "_tail")
+
+            if not handles:
+                return False, "Armature has no bones"
+
+            handle_pts = np.array(handles, dtype=np.float64)
+
+            # --- Compute BBW ---
+            # igl.bbw expects: V (n×3), F (m×3), b (k,) boundary vertex indices, bc (k×p) boundary conditions
+            # We snap each handle to the nearest mesh vertex to form boundary conditions.
+            from scipy.spatial import cKDTree
+            tree = cKDTree(verts)
+            _, boundary_indices = tree.query(handle_pts)
+            boundary_indices = np.unique(boundary_indices)
+
+            num_handles = len(boundary_indices)
+            bc = np.eye(num_handles, dtype=np.float64)
+
+            weights, success_flag = igl.bbw(verts, faces, boundary_indices, bc)
+
+            if success_flag != 0:
+                return False, f"igl.bbw solver returned non-zero flag: {success_flag}"
+
+            # --- Apply computed weights to vertex groups ---
+            # igl.bbw returns weights for *all* vertices (rows = vertices, cols = handles).
+            # Use REPLACE mode so each vertex gets exactly its BBW weight.
+            for vi in range(len(verts)):
+                for j in range(weights.shape[1]):
+                    bone_idx = j // 2
+                    if bone_idx >= len(armature_obj.pose.bones):
+                        continue
+                    bone_name = armature_obj.pose.bones[bone_idx].name
+                    vg = mesh_obj.vertex_groups.get(bone_name)
+                    if vg is None:
+                        vg = mesh_obj.vertex_groups.new(name=bone_name)
+                    w = float(weights[vi, j])
+                    if w > 1e-6:
+                        vg.add([vi], w, 'REPLACE')
+
+            return True, f"BBW skinning applied: {weights.shape[1]} bone handles, {len(verts)} vertices"
+
+        except ImportError as e:
+            return False, f"Required package not installed: {e}. Install with: pip install libigl scipy"
         except Exception as e:
-            return False, f"Error computing BBW skinning: {str(e)}", None
+            return False, f"Error computing BBW skinning: {str(e)}"
 
 def register():
     """Register RigNet helper functions"""

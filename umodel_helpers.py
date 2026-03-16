@@ -10,10 +10,8 @@ Auto-downloads to D:/blender_tools/ to keep it separate from the addon.
 
 from __future__ import annotations
 
-import http.cookiejar
 import shutil
 import tempfile
-import urllib.error
 import urllib.request
 import zipfile
 from pathlib import Path
@@ -26,69 +24,9 @@ DEFAULT_TOOL_DIR = Path("D:/blender_tools/umodel")
 ADDON_ROOT = Path(__file__).resolve().parent
 FALLBACK_TOOL_DIR = ADDON_ROOT / "tools" / "umodel"
 
-# Official download page — shown to the user when automated download fails.
-DOWNLOAD_PAGE_URL = "https://www.gildor.org/en/projects/umodel"
-
-# Candidate download URLs tried in order.
-# The gildor.org URL is authoritative; the old path and SourceForge mirror
-# are kept as fallbacks for cases where the primary URL is temporarily unreachable.
-DOWNLOAD_CANDIDATES = [
-    "https://www.gildor.org/downloads/umodel/umodel_win32.zip",
-    "https://www.gildor.org/downloads/umodel_win32.zip",
-    "https://sourceforge.net/projects/ue-viewer.mirror/files/latest/download",
-]
-
-EXECUTABLE_NAMES = ("umodel_64.exe", "umodel.exe", "umodel64.exe")
-
-# Browser-like User-Agent and Referer so download servers don't reject the
-# request.  Python's default "python-urllib/3.x" UA is blocked by some file
-# hosts.  gildor.org also checks the Referer header to prevent hot-linking,
-# so we supply the project page as the referrer.
-_DOWNLOAD_HEADERS = {
-    "User-Agent": (
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-        "AppleWebKit/537.36 (KHTML, like Gecko) "
-        "Chrome/120.0.0.0 Safari/537.36"
-    ),
-    "Referer": DOWNLOAD_PAGE_URL,
-    "Accept": "*/*",
-    "Accept-Language": "en-US,en;q=0.9",
-}
-
-
-def _build_http_opener():
-    """Return an opener with cookie support and browser-like headers.
-
-    Some download mirrors block Python's default opener (403/404) unless
-    cookies from the project page are present.  This opener first visits
-    the project page to seed the cookie jar, then reuses it for downloads.
-    """
-    jar = http.cookiejar.CookieJar()
-    opener = urllib.request.build_opener(urllib.request.HTTPCookieProcessor(jar))
-    opener.addheaders = list(_DOWNLOAD_HEADERS.items())
-
-    try:
-        opener.open(urllib.request.Request(DOWNLOAD_PAGE_URL, headers=_DOWNLOAD_HEADERS), timeout=15)
-    except Exception:
-        # Warm-up failure is non-fatal; download attempts will still proceed.
-        pass
-
-    urllib.request.install_opener(opener)
-    return opener
-
 
 def get_tool_dir():
     """Get the tool directory, creating parent if needed."""
-    try:
-        from . import preferences  # type: ignore
-        tools_root = getattr(preferences.get_preferences(), "tools_root", "") or ""
-        if tools_root:
-            base = Path(tools_root)
-            base.mkdir(parents=True, exist_ok=True)
-            return base / "umodel"
-    except Exception:
-        pass
-
     # Try D: drive first
     try:
         if DEFAULT_TOOL_DIR.drive and Path(DEFAULT_TOOL_DIR.drive).exists():
@@ -102,169 +40,105 @@ def get_tool_dir():
     return FALLBACK_TOOL_DIR
 
 
-def _candidate_tool_dirs() -> list[Path]:
-    """Return possible install roots to check for an existing manual install."""
-    candidates = []
-    for base in (DEFAULT_TOOL_DIR, FALLBACK_TOOL_DIR):
-        candidates.append(base)
-        candidates.append(base / "umodel_win32")
-        candidates.append(base / "UModel")
-        try:
-            parent = base.parent
-            if parent.exists():
-                for child in parent.iterdir():
-                    if child.is_dir() and "umodel" in child.name.lower():
-                        candidates.append(child)
-        except Exception:
-            pass
-
-    seen = set()
-    unique = []
-    for path in candidates:
-        key = str(path)
-        if key not in seen:
-            seen.add(key)
-            unique.append(path)
-    return unique
-
-
-def _find_existing_installation() -> tuple[Path | None, Path | None]:
-    """Locate an existing UModel installation, even if nested."""
-    for root in _candidate_tool_dirs():
-        try:
-            for name in EXECUTABLE_NAMES:
-                exe = root / name
-                if exe.exists():
-                    return exe.parent, exe
-
-            for child in root.iterdir():
-                if not child.is_dir():
-                    continue
-                for name in EXECUTABLE_NAMES:
-                    exe = child / name
-                    if exe.exists():
-                        return exe.parent, exe
-        except Exception:
-            continue
-
-    return None, None
-
-
 def status() -> tuple[bool, str]:
     """Return (ready, message) tuple for UI display."""
-    found_dir, exe = _find_existing_installation()
-    if exe:
-        return True, f"UModel ready at {found_dir}"
-
     tool_dir = get_tool_dir()
-    for name in EXECUTABLE_NAMES:
-        if (tool_dir / name).exists():
-            return True, f"UModel ready at {tool_dir}"
+
+    # Check for umodel.exe
+    umodel_exe = tool_dir / "umodel.exe"
+    if umodel_exe.exists():
+        return True, f"UModel ready at {tool_dir}"
 
     # Check if directory exists but exe is missing
-    if tool_dir.exists() and any(tool_dir.iterdir()):
-        return False, f"UModel at {tool_dir} appears incomplete (missing umodel executable)"
+    if tool_dir.exists():
+        return False, f"UModel at {tool_dir} appears incomplete (missing umodel.exe)"
 
     return False, f"UModel not installed (will download to {tool_dir})"
 
 
 def tool_path() -> str:
     """Return expected tool directory path for UI display."""
-    found_dir, _ = _find_existing_installation()
-    return str(found_dir or get_tool_dir())
+    return str(get_tool_dir())
 
 
 def executable_path() -> str | None:
-    """Return path to the best available umodel executable, or None.
+    """Return path to umodel.exe if it exists, None otherwise."""
+    tool_dir = get_tool_dir()
+    umodel_exe = tool_dir / "umodel.exe"
 
-    The official win32 zip ships both ``umodel.exe`` (32-bit) and
-    ``umodel_64.exe`` (64-bit).  Prefer the 64-bit build when present.
-    """
-    _, exe = _find_existing_installation()
-    return str(exe) if exe else None
+    if umodel_exe.exists():
+        return str(umodel_exe)
+    return None
 
 
 def download_latest() -> tuple[bool, str]:
     """Download UModel from a known stable source to D:/blender_tools/ or fallback location.
 
-    Tries each URL in DOWNLOAD_CANDIDATES in order, using a browser-like
-    User-Agent so the download server does not reject the request.
-    If every URL fails, returns a failure message with manual-download
-    instructions so the user knows exactly what to do next.
+    Note: UModel by Konstantin Nosov (Gildor) - https://www.gildor.org/en/projects/umodel
 
-    Credit: UModel by Konstantin Nosov (Gildor) — https://www.gildor.org/en/projects/umodel
+    UModel doesn't have an official GitHub repository with automated releases.
+    This function will attempt to download from a known stable mirror or provide
+    instructions for manual download.
     """
-    existing_dir, existing_exe = _find_existing_installation()
-    if existing_exe:
-        return True, f"UModel already exists at {existing_dir}"
-
     tool_dir = get_tool_dir()
 
-    if tool_dir.exists() and any((tool_dir / name).exists() for name in EXECUTABLE_NAMES):
+    if tool_dir.exists() and (tool_dir / "umodel.exe").exists():
         return True, f"UModel already exists at {tool_dir}"
 
     tool_dir.parent.mkdir(parents=True, exist_ok=True)
-    _build_http_opener()
+
+    # UModel download locations (these may need to be updated periodically)
+    # Since gildor.org doesn't provide direct stable download URLs for automation,
+    # we'll try known stable versions or mirrors
+
+    # Note: Users can manually download from https://www.gildor.org/en/projects/umodel
+    # and extract to the tool directory
+
+    candidates = [
+        # These URLs would need to be actual stable download links
+        # For now, we'll provide manual download instructions
+    ]
+
+    # If we have no automated download URLs, provide manual download instructions
+    if not candidates:
+        return False, (
+            f"UModel requires manual download. Please:\n"
+            f"1. Visit https://www.gildor.org/en/projects/umodel\n"
+            f"2. Download the latest UModel build for Windows\n"
+            f"3. Extract the ZIP to: {tool_dir}\n"
+            f"4. Ensure umodel.exe is in the directory\n\n"
+            f"Credit: UModel by Konstantin Nosov (Gildor)"
+        )
 
     last_error = None
-    for url in DOWNLOAD_CANDIDATES:
+    for url in candidates:
         try:
             with tempfile.TemporaryDirectory() as tmpdir:
                 zip_path = Path(tmpdir) / "umodel.zip"
                 print(f"Downloading UModel from {url}...")
-                req = urllib.request.Request(url, headers=_DOWNLOAD_HEADERS)
-                try:
-                    with urllib.request.urlopen(req, timeout=60) as response:
-                        zip_path.write_bytes(response.read())
-                except urllib.error.HTTPError as http_exc:
-                    last_error = f"HTTP {http_exc.code}: {http_exc.reason or http_exc.msg}"
-                    print(f"UModel download failed for {url}: {http_exc}")
-                    if http_exc.code == 403:
-                        # Some mirrors require cookie-backed opener; fall back to urlretrieve using same opener.
-                        try:
-                            urllib.request.urlretrieve(url, zip_path)  # type: ignore[arg-type]
-                        except Exception as retry_exc:  # noqa: BLE001
-                            last_error = str(retry_exc)
-                            print(f"UModel 403 retry failed for {url}: {retry_exc}")
-                            continue
-                    else:
-                        continue
+                urllib.request.urlretrieve(url, zip_path)
 
                 with zipfile.ZipFile(zip_path) as zf:
                     # Extract directly to tool directory
                     zf.extractall(tool_dir)
 
-                # Verify at least one umodel executable is present
+                # Verify umodel.exe exists
                 umodel_exe = tool_dir / "umodel.exe"
-                umodel_64_exe = tool_dir / "umodel_64.exe"
-                if not umodel_exe.exists() and not umodel_64_exe.exists():
-                    # Maybe everything landed in a subdirectory — flatten it
-                    found = (
-                        list(tool_dir.rglob("umodel.exe"))
-                        + list(tool_dir.rglob("umodel_64.exe"))
-                    )
-                    for exe in found:
+                if not umodel_exe.exists():
+                    # Maybe it's in a subdirectory
+                    for exe in tool_dir.rglob("umodel.exe"):
+                        # Move contents to root of tool_dir
                         parent = exe.parent
-                        if parent != tool_dir:
-                            for item in parent.iterdir():
-                                dest = tool_dir / item.name
-                                if not dest.exists():
-                                    shutil.move(str(item), str(dest))
+                        for item in parent.iterdir():
+                            shutil.move(str(item), str(tool_dir / item.name))
                         break
 
                 return True, f"Downloaded UModel to {tool_dir}. Credit: Konstantin Nosov (Gildor)"
         except Exception as exc:  # noqa: BLE001
             last_error = str(exc)
-            print(f"UModel download failed for {url}: {exc}")
             continue
 
-    return False, (
-        f"Manual download required: failed to download UModel automatically ({last_error or 'unknown error'}).\n\n"
-        "Please download manually:\n"
-        f"  1. Visit {DOWNLOAD_PAGE_URL}\n"
-        f"  2. Download the win32 zip and extract it to:\n"
-        f"     {tool_dir}"
-    )
+    return False, f"Failed to download UModel: {last_error or 'unknown error'}"
 
 
 def open_download_page() -> tuple[bool, str]:

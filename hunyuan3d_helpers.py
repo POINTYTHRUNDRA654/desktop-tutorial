@@ -25,9 +25,15 @@ try:
     # Try to import the necessary dependencies
     import torch
     TORCH_AVAILABLE = True
-except ImportError:
+except FileNotFoundError as e:
     TORCH_AVAILABLE = False
-    HUNYUAN3D_ERROR = "PyTorch not installed"
+    if "WinError 206" in str(e) or "filename or extension is too long" in str(e):
+        HUNYUAN3D_ERROR = "Windows path length error: PyTorch cannot load due to Windows MAX_PATH limitation. Enable long paths in Windows or reinstall PyTorch in a shorter path."
+    else:
+        HUNYUAN3D_ERROR = f"PyTorch file error: {str(e)}"
+except Exception:
+    TORCH_AVAILABLE = False
+    HUNYUAN3D_ERROR = "PyTorch not available (import failed or DLL initialization error)"
 
 # We don't actually import Hunyuan3D here to keep the add-on lightweight
 # It will be imported dynamically when needed
@@ -87,29 +93,56 @@ def generate_mesh_from_text(prompt, output_path=None, resolution=256):
     available, message = check_hunyuan3d_availability()
     if not available:
         return False, f"Hunyuan3D-2 not available: {message}"
-    
+
     try:
-        # PLACEHOLDER IMPLEMENTATION
-        # This is a stub that requires actual integration with Hunyuan3D-2's inference code.
-        # To integrate:
-        #   1. Import Hunyuan3D-2's inference modules
-        #   2. Load the model weights
-        #   3. Call their text-to-3D inference API
-        #   4. Save/import the generated mesh
-        # See: https://github.com/Tencent-Hunyuan/Hunyuan3D-2 for API documentation
-        
-        return False, (
-            "Text-to-3D generation is a PLACEHOLDER - requires manual integration.\n"
-            "This feature needs Hunyuan3D-2's inference code to be integrated.\n"
-            f"Prompt: '{prompt}'\n\n"
-            "To use now:\n"
-            "1. Open terminal in Hunyuan3D-2 directory\n"
-            "2. Run: python infer.py --prompt \"your text\" --output model.obj\n"
-            "   (Check their docs for exact arguments)\n"
-            "3. Import the generated .obj file in Blender\n\n"
-            "See HUNYUAN3D_GUIDE.md for detailed instructions."
+        import subprocess
+        import glob as _glob
+
+        # Locate the Hunyuan3D-2 installation directory
+        possible_paths = [
+            os.path.expanduser("~/Hunyuan3D-2"),
+            os.path.expanduser("~/Projects/Hunyuan3D-2"),
+            "/opt/Hunyuan3D-2",
+            os.path.join(os.path.dirname(__file__), "..", "Hunyuan3D-2"),
+        ]
+        hunyuan_path = next(
+            (p for p in possible_paths if os.path.isdir(p)), None
         )
-        
+
+        # Choose / create an output directory
+        if output_path is None:
+            output_path = tempfile.mkdtemp(prefix="hunyuan3d_text_")
+        os.makedirs(output_path, exist_ok=True)
+
+        # Run Hunyuan3D-2 text-to-3D inference
+        cmd = [
+            sys.executable, "infer.py",
+            "--prompt", prompt,
+            "--output_dir", output_path,
+            "--resolution", str(resolution),
+        ]
+        result = subprocess.run(
+            cmd, cwd=hunyuan_path,
+            capture_output=True, text=True, timeout=600
+        )
+        if result.returncode != 0:
+            return False, f"Hunyuan3D-2 inference failed:\n{result.stderr}"
+
+        # Find the generated mesh (OBJ / GLB preferred)
+        for ext in ("*.glb", "*.obj", "*.ply"):
+            matches = _glob.glob(os.path.join(output_path, ext))
+            if matches:
+                mesh_path = matches[0]
+                success, obj_or_msg = import_mesh_file(
+                    mesh_path,
+                    mesh_name=f"Hunyuan3D_{prompt[:20].replace(' ', '_')}",
+                )
+                return success, obj_or_msg
+
+        return False, f"Inference finished but no mesh file found in {output_path}"
+
+    except subprocess.TimeoutExpired:
+        return False, "Hunyuan3D-2 inference timed out (10 min). The model may be downloading weights on first run."
     except Exception as e:
         return False, f"Error generating mesh from text: {str(e)}"
 
@@ -130,32 +163,55 @@ def generate_mesh_from_image(image_path, output_path=None, resolution=256):
     available, message = check_hunyuan3d_availability()
     if not available:
         return False, f"Hunyuan3D-2 not available: {message}"
-    
+
     if not os.path.exists(image_path):
         return False, f"Image file not found: {image_path}"
-    
+
     try:
-        # PLACEHOLDER IMPLEMENTATION
-        # This is a stub that requires actual integration with Hunyuan3D-2's inference code.
-        # To integrate:
-        #   1. Import Hunyuan3D-2's inference modules
-        #   2. Load the model weights
-        #   3. Call their image-to-3D inference API
-        #   4. Save/import the generated mesh
-        # See: https://github.com/Tencent-Hunyuan/Hunyuan3D-2 for API documentation
-        
-        return False, (
-            "Image-to-3D generation is a PLACEHOLDER - requires manual integration.\n"
-            "This feature needs Hunyuan3D-2's inference code to be integrated.\n"
-            f"Image: '{image_path}'\n\n"
-            "To use now:\n"
-            "1. Open terminal in Hunyuan3D-2 directory\n"
-            "2. Run: python infer.py --image \"your_image.jpg\" --output model.obj\n"
-            "   (Check their docs for exact arguments)\n"
-            "3. Import the generated .obj file in Blender\n\n"
-            "See HUNYUAN3D_GUIDE.md for detailed instructions."
+        import subprocess
+        import glob as _glob
+
+        possible_paths = [
+            os.path.expanduser("~/Hunyuan3D-2"),
+            os.path.expanduser("~/Projects/Hunyuan3D-2"),
+            "/opt/Hunyuan3D-2",
+            os.path.join(os.path.dirname(__file__), "..", "Hunyuan3D-2"),
+        ]
+        hunyuan_path = next(
+            (p for p in possible_paths if os.path.isdir(p)), None
         )
-        
+
+        if output_path is None:
+            output_path = tempfile.mkdtemp(prefix="hunyuan3d_img_")
+        os.makedirs(output_path, exist_ok=True)
+
+        cmd = [
+            sys.executable, "infer.py",
+            "--image", image_path,
+            "--output_dir", output_path,
+            "--resolution", str(resolution),
+        ]
+        result = subprocess.run(
+            cmd, cwd=hunyuan_path,
+            capture_output=True, text=True, timeout=600
+        )
+        if result.returncode != 0:
+            return False, f"Hunyuan3D-2 inference failed:\n{result.stderr}"
+
+        for ext in ("*.glb", "*.obj", "*.ply"):
+            matches = _glob.glob(os.path.join(output_path, ext))
+            if matches:
+                img_stem = os.path.splitext(os.path.basename(image_path))[0]
+                success, obj_or_msg = import_mesh_file(
+                    matches[0],
+                    mesh_name=f"Hunyuan3D_{img_stem}",
+                )
+                return success, obj_or_msg
+
+        return False, f"Inference finished but no mesh file found in {output_path}"
+
+    except subprocess.TimeoutExpired:
+        return False, "Hunyuan3D-2 inference timed out (10 min). The model may be downloading weights on first run."
     except Exception as e:
         return False, f"Error generating mesh from image: {str(e)}"
 

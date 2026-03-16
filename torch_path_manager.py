@@ -12,38 +12,25 @@ from pathlib import Path
 class TorchPathManager:
     """Manages PyTorch installation in custom short paths"""
 
-    # Default path on D: drive, aligned with user-provided location.
-    DEFAULT_TORCH_PATH = Path("D:/blender_torch")
+    # Default short path on D: drive - use minimal length!
+    DEFAULT_TORCH_PATH = Path("D:/t")
 
     @staticmethod
     def get_custom_torch_paths():
         """Get list of potential custom torch installation paths"""
-        pref_path = None
-        try:
-            from . import preferences  # type: ignore
-            pref_path = getattr(preferences.get_preferences(), "torch_root", "") or None
-        except Exception:
-            pref_path = None
-
         return [
-            Path(pref_path) if pref_path else None,
-            Path("D:/blender_torch"),
-            Path("D:/blender_tools/blender_torch"),
-            Path("D:/blender_tools/torch"),
+            Path("D:/t"),
+            Path("C:/t"),
             Path("D:/torch"),
+            Path("C:/torch"),
             Path("D:/t"),
             Path("C:/blender_torch"),
-            Path("C:/blender_tools/blender_torch"),
-            Path("C:/torch"),
-            Path("C:/t"),
         ]
 
     @staticmethod
     def find_existing_torch_install():
         """Check if torch is already installed in a custom path"""
         for path in TorchPathManager.get_custom_torch_paths():
-            if path is None:
-                continue
             if (path / "torch" / "__init__.py").exists():
                 return path
         return None
@@ -91,7 +78,6 @@ class TorchPathManager:
                 "install",
                 "--target", str(target_path),
                 "--upgrade",
-                "--no-warn-script-location",
                 "torch",
                 "torchvision",
                 "--index-url", "https://download.pytorch.org/whl/cpu"  # CPU version for smaller download
@@ -168,10 +154,6 @@ class TorchPathManager:
 
                 return False, "windows_path_error", None
             return False, f"File error: {str(e)}", None
-        except OSError as e:
-            if getattr(e, 'winerror', None) == 1114 or "WinError 1114" in str(e):
-                return False, "dll_init_error", None
-            return False, f"OS error loading PyTorch: {str(e)}", None
         except ImportError as e:
             return False, f"PyTorch not installed: {str(e)}", None
         except Exception as e:
@@ -186,7 +168,7 @@ class TORCH_OT_install_custom_path(bpy.types.Operator):
 
     target_path: bpy.props.StringProperty(
         name="Installation Path",
-        default="D:/blender_torch",
+        default="D:/t",
         description="Path where PyTorch will be installed"
     )
 
