@@ -29,7 +29,18 @@ from pathlib import Path
 
 class RigNetHelpers:
     """Helper functions for RigNet automatic rigging integration"""
-    
+
+    @staticmethod
+    def _dll_init_error_message():
+        """Return a user-friendly message when WinError 1114 (DLL init failure) occurs."""
+        return (
+            "PyTorch DLL initialisation failed (WinError 1114). "
+            "A file such as c10.dll (e.g. D:\\blender_torch\\torch\\lib\\c10.dll) "
+            "could not be loaded. "
+            "Please reinstall PyTorch matching your CUDA version and install "
+            "the Visual C++ Redistributable: https://aka.ms/vs/17/release/vc_redist.x64.exe"
+        )
+
     @staticmethod
     def check_rignet_available():
         """Check if RigNet is installed and available"""
@@ -74,6 +85,10 @@ class RigNetHelpers:
                 
         except ImportError as e:
             return False, f"PyTorch not installed: {str(e)}"
+        except OSError as e:
+            if getattr(e, 'winerror', None) == 1114 or "WinError 1114" in str(e):
+                return False, RigNetHelpers._dll_init_error_message()
+            return False, f"OS error checking RigNet: {str(e)}"
         except Exception as e:
             return False, f"Error checking RigNet: {str(e)}"
     
