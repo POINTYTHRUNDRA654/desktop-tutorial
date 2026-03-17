@@ -2002,6 +2002,16 @@ class FO4_PT_DesktopTutorialPanel(Panel):
             info_box.label(text="Start the desktop server first:")
             info_box.label(text="python example_tutorial_server.py")
 
+        # Addon distribution
+        layout.separator()
+        dist_box = layout.box()
+        dist_box.label(text="Addon Distribution", icon='FILE_FOLDER')
+        dist_box.operator(
+            "fo4.pull_original_to_desktop",
+            text="Pull Original to Desktop",
+            icon='EXPORT',
+        )
+
 
 class FO4_PT_SetupPanel(Panel):
     """First-run setup panel: shows dependency status and one-click install."""

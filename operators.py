@@ -7437,6 +7437,29 @@ class FO4_OT_SendEventToDesktop(Operator):
         return {'FINISHED'} if success else {'CANCELLED'}
 
 
+class FO4_OT_PullOriginalToDesktop(Operator):
+    """Copy the addon zip to the user's Desktop folder for easy installation"""
+    bl_idname = "fo4.pull_original_to_desktop"
+    bl_label = "Pull Original to Desktop"
+    bl_options = {'REGISTER'}
+
+    def execute(self, context):
+        if desktop_tutorial_client is None:
+            self.report({'ERROR'}, "Desktop tutorial client module not available")
+            return {'CANCELLED'}
+
+        success, message, dest_path = desktop_tutorial_client.DesktopTutorialClient.pull_original_to_desktop()
+
+        if success:
+            self.report({'INFO'}, message)
+            notification_system.FO4_NotificationSystem.notify(message, 'INFO')
+        else:
+            self.report({'ERROR'}, message)
+            notification_system.FO4_NotificationSystem.notify(message, 'ERROR')
+
+        return {'FINISHED'} if success else {'CANCELLED'}
+
+
 class FO4_OT_GetDesktopProgress(Operator):
     """Get tutorial progress from desktop app"""
     bl_idname = "fo4.get_desktop_progress"
@@ -8209,6 +8232,7 @@ classes = (
     FO4_OT_DesktopPreviousStep,
     FO4_OT_SendEventToDesktop,
     FO4_OT_GetDesktopProgress,
+    FO4_OT_PullOriginalToDesktop,
     # Shap-E AI generation operators
     FO4_OT_CheckShapEInstallation,
     FO4_OT_ShowShapEInfo,

@@ -227,6 +227,89 @@ class DesktopTutorialClient:
             'last_error': DesktopTutorialClient.last_error
         }
 
+    @staticmethod
+    def pull_original_to_desktop():
+        """Copy the addon zip file to the user's Desktop folder.
+
+        Returns:
+            (success: bool, message: str, destination: str)
+        """
+        import glob
+        import os
+        import platform
+        import re
+        import shutil
+
+        # Locate the addon zip next to this file
+        addon_dir = os.path.dirname(os.path.abspath(__file__))
+        pattern = os.path.join(addon_dir, "fallout4_tutorial_helper-v*.zip")
+        matches = glob.glob(pattern)
+
+        if not matches:
+            return False, "Addon zip file not found in addon directory.", ""
+
+        # Sort by parsed version tuple so v10 > v2 (version-aware ordering)
+        def _version_key(path):
+            m = re.search(r"v(\d+)\.(\d+)\.(\d+)", os.path.basename(path))
+            return tuple(int(x) for x in m.groups()) if m else (0, 0, 0)
+
+        src = sorted(matches, key=_version_key)[-1]
+        zip_name = os.path.basename(src)
+
+        # Resolve the Desktop path across platforms
+        home = os.path.expanduser("~")
+        system = platform.system()
+        if system in ("Windows", "Darwin"):
+            desktop = os.path.join(home, "Desktop")
+        else:
+            # Linux/other – try xdg-user-dir, then user-dirs.dirs, then ~/Desktop
+            desktop = ""
+            try:
+                import subprocess
+                result = subprocess.run(
+                    ["xdg-user-dir", "DESKTOP"],
+                    capture_output=True, text=True, timeout=5,
+                    check=False,
+                )
+                candidate = result.stdout.strip() if result.returncode == 0 else ""
+                # Accept the path only if it is inside the user's home directory
+                if candidate and os.path.commonpath([home, candidate]) == home:
+                    desktop = candidate
+            except Exception:
+                pass
+
+            if not desktop:
+                user_dirs_file = os.path.join(home, ".config", "user-dirs.dirs")
+                try:
+                    with open(user_dirs_file, encoding="utf-8", errors="replace") as fh:
+                        for line in fh:
+                            line = line.strip()
+                            if line.startswith("XDG_DESKTOP_DIR="):
+                                value = line.split("=", 1)[1].strip().strip('"')
+                                candidate = os.path.normpath(
+                                    value.replace("$HOME", home)
+                                )
+                                # Safety: must be inside home directory
+                                if os.path.commonpath([home, candidate]) == home:
+                                    desktop = candidate
+                                break
+                except OSError:
+                    pass
+
+            if not desktop:
+                desktop = os.path.join(home, "Desktop")
+
+        if not os.path.isdir(desktop):
+            return False, f"Desktop folder not found: {desktop}", ""
+
+        dest_path = os.path.join(desktop, zip_name)
+        try:
+            shutil.copy2(src, dest_path)
+        except Exception as exc:
+            return False, f"Failed to copy file: {exc}", ""
+
+        return True, f"Addon zip copied to Desktop: {zip_name}", dest_path
+
 
 def register():
     """Register desktop tutorial client properties"""
