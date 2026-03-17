@@ -3,20 +3,20 @@ UI Panels for the Fallout 4 Tutorial Add-on
 """
 
 import bpy
-import importlib
+import sys
 from bpy.types import Panel
+import importlib
 
-
-def _safe_import(name: str):
-    """Import an optional submodule; return None on failure so panels can
-    degrade gracefully when optional AI/tool helper packages are unavailable
-    (e.g. on Blender 5.x where some third-party packages may not yet be
-    compatible)."""
+def _safe_import(name):
     try:
         return importlib.import_module(f".{name}", package=__package__)
-    except Exception:
+    except Exception as exc:
+        # Remove any partially-initialised entry from sys.modules so that a
+        # subsequent retry (e.g. on Blender 5 extension reload) gets a fresh
+        # import attempt rather than the stale, incomplete module object.
+        sys.modules.pop(f"{__package__}.{name}", None)
+        print(f"ui_panels: Skipped module {name} due to error: {exc}")
         return None
-
 
 hunyuan3d_helpers = _safe_import("hunyuan3d_helpers")
 gradio_helpers = _safe_import("gradio_helpers")
@@ -32,12 +32,88 @@ asset_studio_helpers = _safe_import("asset_studio_helpers")
 asset_ripper_helpers = _safe_import("asset_ripper_helpers")
 knowledge_helpers = _safe_import("knowledge_helpers")
 export_helpers = _safe_import("export_helpers")
+addon_updater = _safe_import("addon_updater")
 realesrgan_helpers = _safe_import("realesrgan_helpers")
 instantngp_helpers = _safe_import("instantngp_helpers")
 imageto3d_helpers = _safe_import("imageto3d_helpers")
+zoedepth_helpers = _safe_import("zoedepth_helpers")
+shap_e_helpers = _safe_import("shap_e_helpers")
+point_e_helpers = _safe_import("point_e_helpers")
 motion_generation_helpers = _safe_import("motion_generation_helpers")
-desktop_tutorial_client = _safe_import("desktop_tutorial_client")
-notification_system = _safe_import("notification_system")
+fo4_material_browser  = _safe_import("fo4_material_browser")
+fo4_scene_diagnostics = _safe_import("fo4_scene_diagnostics")
+fo4_reference_helpers = _safe_import("fo4_reference_helpers")
+asset_library         = _safe_import("asset_library")
+fo4_game_assets       = _safe_import("fo4_game_assets")
+unity_game_assets     = _safe_import("unity_game_assets")
+unreal_game_assets    = _safe_import("unreal_game_assets")
+tutorial_system      = _safe_import("tutorial_system")
+
+
+# ---------------------------------------------------------------------------
+# Shared helper – drawn identically in every panel that needs game-asset paths
+# ---------------------------------------------------------------------------
+
+def _draw_game_path_box(layout, context):
+    """Draw the unified FO4 Data Folder row.
+
+    A single *Data Folder* field (``fo4_assets_path``) acts as the one source
+    of truth.  Setting it auto-populates the meshes/textures/materials
+    sub-paths via the ``_on_asset_path_change`` callback in preferences.py.
+    The same box is reused in every panel so the user always sees and edits
+    the same field – no more scattered, out-of-sync path inputs.
+    """
+    import os
+
+    if not fo4_game_assets:
+        box = layout.box()
+        box.label(text="FO4 Data Folder", icon='ERROR')
+        box.label(text="fo4_game_assets module missing – reinstall the add-on", icon='INFO')
+        return
+
+    scene = context.scene
+    ready, _ = fo4_game_assets.FO4GameAssets.get_status()
+
+    box = layout.box()
+    hdr = box.row()
+    hdr.label(
+        text="FO4 Data Folder",
+        icon='CHECKMARK' if ready else 'ERROR',
+    )
+
+    # ── Single path field + browse button ────────────────────────────────────
+    path_row = box.row(align=True)
+    path_row.prop(scene, "fo4_assets_path", text="")
+    path_row.operator("fo4.set_fo4_assets_path", text="", icon='FILE_FOLDER')
+
+    # ── Status feedback ───────────────────────────────────────────────────────
+    sub = box.column(align=True)
+    sub.scale_y = 0.75
+    if ready:
+        try:
+            from pathlib import Path as _P
+            raw = scene.fo4_assets_path or ''
+            try:
+                raw = bpy.path.abspath(raw)
+            except Exception:
+                pass
+            data_root = _P(raw.strip())
+            for label, subdir in (
+                ("Meshes",    "meshes"),
+                ("Textures",  "textures"),
+                ("Materials", "materials"),
+            ):
+                found = (data_root / subdir).is_dir()
+                sub.label(
+                    text=f"{label}: {'found' if found else 'not found'}",
+                    icon='CHECKMARK' if found else 'DOT',
+                )
+        except Exception:
+            pass
+    else:
+        sub.label(text="Point this at your extracted FO4 Data folder", icon='INFO')
+        sub.label(text="e.g.  D:\\FO4\\Data", icon='DOT')
+        sub.label(text="Meshes, textures & materials auto-detected inside", icon='DOT')
 
 class FO4_PT_MainPanel(Panel):
     """Main tutorial panel in the 3D View sidebar"""
@@ -75,24 +151,67 @@ class FO4_PT_MainPanel(Panel):
             compat_box.label(text="✓ NIF export: FBX fallback (Niftools needs Blender 3.6)", icon='INFO')
             compat_box.label(text="  Shade-by-angle is automatic in Blender 4.1+.")
         else:
-            # Blender 5.0+ — all mesh/texture features work; NIF via FBX fallback
-            compat_box.label(text="✓ NIF export: FBX fallback (Niftools needs Blender 3.6)", icon='INFO')
-            compat_box.label(text="  All other features supported on Blender 5.x.")
+            # 5.0+ — Niftools works with runtime patches applied by this add-on
+            compat_box.label(text="✓ NIF export: Niftools works with runtime patches", icon='CHECKMARK')
+            compat_box.label(text="  Install Niftools (legacy add-on) + enable 'Allow Legacy Add-ons'.")
+            compat_box.label(text="  API patches applied automatically before every export.")
+
+        # ── Getting Started Guide (Mossy-First Approach) ────────────────────
+        getting_started = layout.box()
+        getting_started.label(text="🚀 Getting Started - READ THIS FIRST!", icon='INFO')
+
+        # Emphasize Mossy connection as first step
+        mossy_priority = getting_started.box()
+        mossy_priority.label(text="STEP 1: Connect Mossy AI (Recommended First!)", icon='NETWORK_DRIVE')
+        mossy_priority.label(text="→ Switch to 'Mossy' tab in this sidebar")
+        mossy_priority.label(text="→ Launch Mossy desktop app")
+        mossy_priority.label(text="→ Click 'Start Server' in Mossy tab")
+        mossy_priority.label(text="→ Mossy will guide you through setup!")
+
+        # Then other setup steps
+        getting_started.label(text="STEP 2: Install Dependencies", icon='PACKAGE')
+        getting_started.label(text="→ Open 'Setup & Status' tab below")
+        getting_started.label(text="→ Install Python packages if prompted")
+        getting_started.label(text="→ Restart Blender after installing")
+
+        getting_started.label(text="STEP 3: Install Niftools", icon='PLUGIN')
+        if bv >= (5, 0, 0):
+            getting_started.label(text="→ Use 'Install Niftools' in Setup tab")
+            getting_started.label(text="→ Enable 'Allow Legacy Add-ons'")
+        else:
+            getting_started.label(text="→ Install Niftools v0.1.1 (Blender 3.6)")
+            getting_started.label(text="→ OR use FBX export workflow")
+
+        getting_started.operator("fo4.show_detailed_setup", text="Show Detailed Setup Guide", icon='TEXT')
 
         # ── Tutorial section ─────────────────────────────────────────────────
         box = layout.box()
         box.label(text="Tutorial System", icon='HELP')
         box.operator("fo4.start_tutorial", text="Start Tutorial", icon='PLAY')
         box.operator("fo4.show_help", text="Show Help", icon='QUESTION')
+        if tutorial_system and not tutorial_system.TUTORIALS:
+            tutorial_system.initialize_tutorials()
+        tutorial = tutorial_system.get_current_tutorial(context) if tutorial_system else None
+        if tutorial:
+            step = tutorial.get_current_step()
+            active = box.box()
+            active.label(text=tutorial.name, icon='BOOKMARKS')
+            if step:
+                active.label(
+                    text=f"Step {tutorial.current_step + 1} of {len(tutorial.steps)}: {step.title}",
+                    icon='FORWARD',
+                )
+                desc = active.column(align=True)
+                desc.scale_y = 0.8
+                for line in step.description.split("\n"):
+                    desc.label(text=line, icon='DOT')
 
-        # New-user setup hints
-        hint = layout.box()
-        hint.label(text="Setup / First-time Use", icon='INFO')
-        hint.label(text="1. Open the 'Setup & Status' tab below.")
-        hint.label(text="2. Install missing Python packages if prompted.")
-        hint.label(text="3. Install Niftools v0.1.1 (Blender 3.6 LTS only).")
-        hint.label(text="   OR use FBX export + Cathedral Assets Optimizer.")
-        hint.label(text="4. Restart Blender after installing add-ons/tools.")
+            nav = active.row(align=True)
+            nav.operator("fo4.previous_tutorial_step", text="", icon='TRIA_LEFT')
+            nav.operator("fo4.show_help", text="Show Guide", icon='INFO')
+            nav.operator("fo4.next_tutorial_step", text="", icon='TRIA_RIGHT')
+        else:
+            box.label(text="Click 'Start Tutorial' to load a guided workflow", icon='INFO')
         
         # Notifications
         if hasattr(scene, 'fo4_notifications') and scene.fo4_notifications:
@@ -110,69 +229,362 @@ class FO4_PT_MeshPanel(Panel):
     bl_category = 'Fallout 4'
     bl_parent_id = "FO4_PT_main_panel"
     bl_options = {'DEFAULT_CLOSED'}
-    
+
+    @staticmethod
+    def _draw_pipeline_box(layout, has_mesh):
+        """Draw the shared 'Full FO4 Pipeline' one-click section."""
+        pipe_box = layout.box()
+        pipe_box.label(text="Full FO4 Pipeline", icon='SHADERFX')
+        row = pipe_box.row()
+        row.enabled = has_mesh
+        row.scale_y = 1.5
+        row.operator(
+            "fo4.convert_to_fallout4",
+            text="Convert to Fallout 4 (Full Pipeline)",
+            icon='ARROW_LEFTRIGHT',
+        )
+        row = pipe_box.row()
+        row.enabled = has_mesh
+        row.operator(
+            "fo4.quick_prepare_export",
+            text="Quick Prepare for Export",
+            icon='CHECKMARK',
+        )
+        row = pipe_box.row()
+        row.enabled = has_mesh
+        row.operator(
+            "fo4.auto_fix_issues",
+            text="Auto-Fix Common Issues",
+            icon='TOOL_SETTINGS',
+        )
+
+    @staticmethod
+    def _draw_asset_paths_box(layout, has_mesh, scene, context):
+        """Draw the shared Game Asset Paths section inside the Mesh panel."""
+        _draw_game_path_box(layout, context)
+
+        # ── Scan + Import buttons ─────────────────────────────────────────
+        action_box = layout.box()
+        action_row = action_box.row(align=True)
+        action_row.operator(
+            "fo4.scan_asset_library",
+            text="Scan / Refresh",
+            icon='FILE_REFRESH',
+        )
+        action_row.operator(
+            "fo4.import_fo4_asset_file",
+            text="Import Asset",
+            icon='IMPORT',
+        )
+
+        # ── Third-party mesh conversion ───────────────────────────────────
+        action_box.separator()
+        conv_row = action_box.row()
+        conv_row.enabled = has_mesh
+        conv_row.operator(
+            "fo4.prepare_third_party_mesh",
+            text="Prepare External Mesh for FO4",
+            icon='MODIFIER',
+        )
+
     def draw(self, context):
         layout = self.layout
-        
-        prefs = preferences.get_preferences()
-        unified = prefs.mesh_panel_unified if prefs else True
+        scene = context.scene
+
+        unified = getattr(scene, "fo4_mesh_panel_unified", False)
+
+        obj = context.active_object
+        has_mesh = obj and obj.type == 'MESH'
+        prefs = preferences.get_preferences() if preferences else None
+
+        # ── Game Asset Paths – always shown at the top of the Mesh panel ──
+        self._draw_asset_paths_box(layout, has_mesh, scene, context)
+
         if unified:
-            # unified mesh helper section
+            # ── Full FO4 Pipeline (one-click) ────────────────────────────
+            self._draw_pipeline_box(layout, has_mesh)
+
+            # ── Mesh Helpers ────────────────────────────────────────────
             box = layout.box()
             box.label(text="Mesh Helpers", icon='MESH_CUBE')
-            # basic operations
             box.operator("fo4.create_base_mesh", text="Create Base Mesh", icon='MESH_DATA')
-            box.operator("fo4.optimize_mesh", text="Optimize for FO4", icon='MOD_DECIM')
-            box.operator("fo4.validate_mesh", text="Validate Mesh", icon='CHECKMARK')
-            box.separator()
-            # collision controls
-            box.label(text="Collision", icon='MESH_ICOSPHERE')
-            if context.active_object and context.active_object.type == 'MESH':
-                box.prop(context.active_object, "fo4_collision_type", text="Type")
             row = box.row()
+            row.enabled = has_mesh
+            row.operator("fo4.optimize_mesh", text="Optimize for FO4", icon='MOD_DECIM')
+            if scene:
+                opt_sub = box.box()
+                opt_sub.label(text="Optimize Settings:", icon='PREFERENCES')
+                opt_sub.prop(scene, "fo4_opt_apply_transforms")
+                opt_sub.prop(scene, "fo4_opt_doubles")
+                opt_sub.prop(scene, "fo4_opt_preserve_uvs")
+            row = box.row()
+            row.enabled = has_mesh
+            row.operator("fo4.validate_mesh", text="Validate Mesh", icon='CHECKMARK')
+            row = box.row()
+            row.enabled = has_mesh
+            row.operator("fo4.validate_export", text="Validate Before Export", icon='CHECKMARK')
+            box.separator()
+
+            # ── Collision ───────────────────────────────────────────────
+            box.label(text="Collision", icon='MESH_ICOSPHERE')
+            if has_mesh:
+                box.prop(obj, "fo4_collision_type", text="Type")
+            row = box.row()
+            row.enabled = has_mesh
             row.operator("fo4.set_collision_type", text="Change Type", icon='PRESET')
             row = box.row()
-            row.enabled = context.active_object and context.active_object.type == 'MESH' and getattr(context.active_object, 'fo4_collision_type', 'DEFAULT') not in ('NONE','GRASS','MUSHROOM')
+            row.enabled = has_mesh and getattr(obj, 'fo4_collision_type', 'DEFAULT') not in ('NONE', 'GRASS', 'MUSHROOM')
             row.operator("fo4.generate_collision_mesh", text="Generate Collision", icon='MESH_DATA')
             row = box.row()
-            row.operator("fo4.export_mesh_with_collision", text="Generate+Export NIF", icon='EXPORT')
+            row.enabled = has_mesh
+            row.operator("fo4.export_mesh_with_collision", text="Generate + Export NIF", icon='EXPORT')
             box.separator()
-            # advanced operations
+
+            # ── LOD Meshes ─────────────────────────────────────────────
+            box.label(text="LOD Meshes (Level of Detail)", icon='OUTLINER_OB_MESH')
+            sub = box.column(align=True)
+            sub.scale_y = 0.75
+            sub.label(text="FO4 uses LOD0 (close) → LOD4 (far) as separate NIFs", icon='INFO')
+            sub.label(text="Source object = LOD0 · Generates LOD1–LOD4 copies", icon='INFO')
+            box.separator()
+            row = box.row()
+            row.enabled = has_mesh
+            row.scale_y = 1.3
+            row.operator("fo4.generate_lod", text="Generate LOD Chain", icon='OUTLINER_OB_MESH')
+            row = box.row()
+            row.enabled = has_mesh
+            row.operator("fo4.generate_lod_and_collision", text="Generate LOD + Collision", icon='SHADERFX')
+            row = box.row()
+            row.enabled = has_mesh
+            row.operator("fo4.export_lod_chain_as_nif", text="Export LOD Chain as NIF", icon='EXPORT')
+            box.separator()
+
+            # ── Advanced Mesh Tools ─────────────────────────────────────
             box.label(text="Advanced Mesh Tools", icon='MODIFIER')
-            box.operator("fo4.analyze_mesh_quality", text="Analyze Quality", icon='INFO')
-            box.operator("fo4.auto_repair_mesh", text="Auto-Repair", icon='TOOL_SETTINGS')
-            box.operator("fo4.smart_decimate", text="Smart Decimate", icon='MOD_DECIM')
-            box.operator("fo4.split_mesh_poly_limit", text="Split at Poly Limit", icon='MOD_BOOLEAN')
-            box.operator("fo4.generate_lod", text="Generate LOD Chain", icon='OUTLINER_OB_MESH')
-            box.operator("fo4.optimize_uvs", text="Optimize UVs", icon='UV')
+            row = box.row()
+            row.enabled = has_mesh
+            row.operator("fo4.analyze_mesh_quality", text="Analyze Quality", icon='INFO')
+            row = box.row()
+            row.enabled = has_mesh
+            row.operator("fo4.auto_repair_mesh", text="Auto-Repair", icon='TOOL_SETTINGS')
+            row = box.row()
+            row.enabled = has_mesh
+            row.operator("fo4.mossy_auto_fix", text="AI Auto-Fix (Mossy)", icon='LIGHT_HEMI')
+            row = box.row()
+            row.enabled = has_mesh
+            row.operator("fo4.smart_decimate", text="Smart Decimate", icon='MOD_DECIM')
+            row = box.row()
+            row.enabled = has_mesh
+            row.operator("fo4.split_mesh_poly_limit", text="Split at Poly Limit", icon='MOD_BOOLEAN')
+
+            # ── UV & Texture Workflow ────────────────────────────────────
+            uv_box = layout.box()
+            uv_box.label(text="UV & Texture Workflow", icon='UV')
+
+            # Step 1 — status
+            if has_mesh:
+                mesh = obj.data
+                uv_ok = bool(mesh.uv_layers)
+                mat_ok = bool(mesh.materials and mesh.materials[0])
+                uv_icon = 'CHECKMARK' if uv_ok else 'ERROR'
+                mat_icon = 'CHECKMARK' if mat_ok else 'ERROR'
+                uv_box.label(
+                    text=("UV Map: " + mesh.uv_layers[0].name) if uv_ok else "UV Map: None",
+                    icon=uv_icon,
+                )
+                uv_box.label(
+                    text=("Material: " + mesh.materials[0].name) if mat_ok else "Material: None",
+                    icon=mat_icon,
+                )
+                uv_box.separator()
+
+            # Step 1 — one-click setup (UV + texture + material in one go)
+            uv_box.label(text="Step 1 — Setup UV + Bind Texture:", icon='FORWARD')
+            row = uv_box.row()
+            row.enabled = has_mesh
+            row.operator(
+                "fo4.setup_uv_with_texture",
+                text="Setup UV + Texture (All-in-One)",
+                icon='TEXTURE',
+            )
+
+            # Step 1b — Hybrid workflow for complex / organic meshes
+            uv_box.separator()
+            uv_box.label(
+                text="Complex Mesh? (plants, foliage, armor) →",
+                icon='QUESTION',
+            )
+            row = uv_box.row()
+            row.enabled = has_mesh
+            row.operator(
+                "fo4.scan_uv_complexity",
+                text="Scan UV Complexity",
+                icon='VIEWZOOM',
+            )
+            row = uv_box.row(align=True)
+            row.enabled = has_mesh
+            row.operator(
+                "fo4.smart_seam_mark",
+                text="Scan & Mark Seams",
+                icon='MOD_EDGESPLIT',
+            )
+            row.operator(
+                "fo4.hybrid_unwrap",
+                text="Hybrid Unwrap",
+                icon='UV_SYNC_SELECT',
+            )
+            uv_box.separator()
+
+            # Step 2 — face-picking for selective unwrap
+            uv_box.label(text="Step 2 — Select faces to unwrap:", icon='FORWARD')
+            row = uv_box.row(align=True)
+            row.enabled = has_mesh
+            row.operator(
+                "fo4.pick_faces_for_unwrap",
+                text="Pick Faces to Unwrap",
+                icon='UV_FACESEL',
+            )
+            row.operator(
+                "fo4.unwrap_selected_faces",
+                text="Unwrap Selected",
+                icon='UV_SYNC_SELECT',
+            )
+            uv_box.separator()
+
+            # Step 3 — re-unwrap if needed
+            uv_box.label(text="Step 3 — Adjust UV Map if needed:", icon='FORWARD')
+            row = uv_box.row(align=True)
+            row.enabled = has_mesh
+            row.operator("fo4.re_unwrap_uv", text="Re-Unwrap UV", icon='UV_SYNC_SELECT')
+            row.operator("fo4.optimize_uvs",  text="Pack Islands", icon='UV_FACESEL')
+
+            # Step 4 — interactive UV editing
+            uv_box.label(text="Step 4 — Fine-tune in UV Editor:", icon='FORWARD')
+            row = uv_box.row()
+            row.enabled = has_mesh
+            row.operator("fo4.open_uv_editing", text="Edit UV Map", icon='UV_ISLANDSEL')
+
+            # Ask Mossy
+            uv_box.separator()
+            uv_box.operator(
+                "fo4.ask_mossy_uv_advice",
+                text="Ask Mossy for Advice",
+                icon='LIGHT_HEMI',
+            )
+
+            # Step 5 — export
+            uv_box.separator()
+            uv_box.label(text="Step 5 — Export as Fallout 4 NIF:", icon='FORWARD')
+            row = uv_box.row()
+            row.enabled = has_mesh
+            row.operator("fo4.export_mesh", text="Export Mesh (.nif)", icon='EXPORT')
+
         else:
-            # original layout: separate boxes
+            # ── original layout: separate boxes ─────────────────────────
+
+            # ── Full FO4 Pipeline (one-click) ────────────────────────────
+            self._draw_pipeline_box(layout, has_mesh)
+
             box = layout.box()
             box.label(text="Mesh Creation", icon='MESH_CUBE')
             box.operator("fo4.create_base_mesh", text="Create Base Mesh", icon='MESH_DATA')
-            box.operator("fo4.optimize_mesh", text="Optimize for FO4", icon='MOD_DECIM')
-            box.operator("fo4.validate_mesh", text="Validate Mesh", icon='CHECKMARK')
-            
+            row = box.row()
+            row.enabled = has_mesh
+            row.operator("fo4.optimize_mesh", text="Optimize for FO4", icon='MOD_DECIM')
+            if scene:
+                opt_sub = box.box()
+                opt_sub.label(text="Optimize Settings:", icon='PREFERENCES')
+                opt_sub.prop(scene, "fo4_opt_apply_transforms")
+                opt_sub.prop(scene, "fo4_opt_doubles")
+                opt_sub.prop(scene, "fo4_opt_preserve_uvs")
+            row = box.row()
+            row.enabled = has_mesh
+            row.operator("fo4.validate_mesh", text="Validate Mesh", icon='CHECKMARK')
+            row = box.row()
+            row.enabled = has_mesh
+            row.operator("fo4.validate_export", text="Validate Before Export", icon='CHECKMARK')
+
             col_box = layout.box()
             col_box.label(text="Collision", icon='MESH_ICOSPHERE')
-            if context.active_object and context.active_object.type == 'MESH':
-                col_box.prop(context.active_object, "fo4_collision_type", text="Type")
+            if has_mesh:
+                col_box.prop(obj, "fo4_collision_type", text="Type")
             row = col_box.row()
+            row.enabled = has_mesh
             row.operator("fo4.set_collision_type", text="Change Type", icon='PRESET')
             row = col_box.row()
-            row.enabled = context.active_object and context.active_object.type == 'MESH' and getattr(context.active_object, 'fo4_collision_type', 'DEFAULT') not in ('NONE','GRASS','MUSHROOM')
+            row.enabled = has_mesh and getattr(obj, 'fo4_collision_type', 'DEFAULT') not in ('NONE', 'GRASS', 'MUSHROOM')
             row.operator("fo4.generate_collision_mesh", text="Generate Collision", icon='MESH_DATA')
             row = col_box.row()
-            row.operator("fo4.export_mesh_with_collision", text="Generate+Export NIF", icon='EXPORT')
-            
+            row.enabled = has_mesh
+            row.operator("fo4.export_mesh_with_collision", text="Generate + Export NIF", icon='EXPORT')
+
+            lod_box = layout.box()
+            lod_box.label(text="LOD Meshes (Level of Detail)", icon='OUTLINER_OB_MESH')
+            sub = lod_box.column(align=True)
+            sub.scale_y = 0.75
+            sub.label(text="FO4: LOD0 (close) → LOD4 (far), each a separate NIF", icon='INFO')
+            sub.label(text="Source object = LOD0. LOD1–LOD4 copies are created.", icon='INFO')
+            lod_box.separator()
+            row = lod_box.row()
+            row.enabled = has_mesh
+            row.scale_y = 1.3
+            row.operator("fo4.generate_lod", text="Generate LOD Chain", icon='OUTLINER_OB_MESH')
+            row = lod_box.row()
+            row.enabled = has_mesh
+            row.operator("fo4.generate_lod_and_collision", text="Generate LOD + Collision", icon='SHADERFX')
+            row = lod_box.row()
+            row.enabled = has_mesh
+            row.operator("fo4.export_lod_chain_as_nif", text="Export LOD Chain as NIF", icon='EXPORT')
+
             adv_box = layout.box()
             adv_box.label(text="Advanced Mesh Tools", icon='MODIFIER')
-            adv_box.operator("fo4.analyze_mesh_quality", text="Analyze Quality", icon='INFO')
-            adv_box.operator("fo4.auto_repair_mesh", text="Auto-Repair", icon='TOOL_SETTINGS')
-            adv_box.operator("fo4.smart_decimate", text="Smart Decimate", icon='MOD_DECIM')
-            adv_box.operator("fo4.split_mesh_poly_limit", text="Split at Poly Limit", icon='MOD_BOOLEAN')
-            adv_box.operator("fo4.generate_lod", text="Generate LOD Chain", icon='OUTLINER_OB_MESH')
-            adv_box.operator("fo4.optimize_uvs", text="Optimize UVs", icon='UV')
+            row = adv_box.row()
+            row.enabled = has_mesh
+            row.operator("fo4.analyze_mesh_quality", text="Analyze Quality", icon='INFO')
+            row = adv_box.row()
+            row.enabled = has_mesh
+            row.operator("fo4.auto_repair_mesh", text="Auto-Repair", icon='TOOL_SETTINGS')
+            row = adv_box.row()
+            row.enabled = has_mesh
+            row.operator("fo4.mossy_auto_fix", text="AI Auto-Fix (Mossy)", icon='LIGHT_HEMI')
+            row = adv_box.row()
+            row.enabled = has_mesh
+            row.operator("fo4.smart_decimate", text="Smart Decimate", icon='MOD_DECIM')
+            row = adv_box.row()
+            row.enabled = has_mesh
+            row.operator("fo4.split_mesh_poly_limit", text="Split at Poly Limit", icon='MOD_BOOLEAN')
+
+            uv_box = layout.box()
+            uv_box.label(text="UV & Texture Workflow", icon='UV')
+            row = uv_box.row()
+            row.enabled = has_mesh
+            row.operator("fo4.setup_uv_with_texture", text="Setup UV + Texture", icon='TEXTURE')
+            # Hybrid workflow for complex / organic meshes
+            uv_box.label(text="Complex Mesh? (plants, foliage, armor) →", icon='QUESTION')
+            row = uv_box.row()
+            row.enabled = has_mesh
+            row.operator("fo4.scan_uv_complexity", text="Scan Complexity", icon='VIEWZOOM')
+            row = uv_box.row(align=True)
+            row.enabled = has_mesh
+            row.operator("fo4.smart_seam_mark", text="Mark Seams", icon='MOD_EDGESPLIT')
+            row.operator("fo4.hybrid_unwrap",   text="Hybrid Unwrap", icon='UV_SYNC_SELECT')
+            # Face-selective unwrap
+            row = uv_box.row(align=True)
+            row.enabled = has_mesh
+            row.operator("fo4.pick_faces_for_unwrap", text="Pick Faces", icon='UV_FACESEL')
+            row.operator("fo4.unwrap_selected_faces", text="Unwrap Selected", icon='UV_SYNC_SELECT')
+            row = uv_box.row(align=True)
+            row.enabled = has_mesh
+            row.operator("fo4.re_unwrap_uv",  text="Re-Unwrap",     icon='UV_SYNC_SELECT')
+            row.operator("fo4.optimize_uvs",  text="Pack Islands",  icon='UV_FACESEL')
+            row = uv_box.row()
+            row.enabled = has_mesh
+            row.operator("fo4.open_uv_editing", text="Edit UV Map", icon='UV_ISLANDSEL')
+            uv_box.operator("fo4.ask_mossy_uv_advice", text="Ask Mossy", icon='LIGHT_HEMI')
+            uv_box.separator()
+            row = uv_box.row()
+            row.enabled = has_mesh
+            row.operator("fo4.export_mesh", text="Export Mesh (.nif)", icon='EXPORT')
 
 class FO4_PT_TexturePanel(Panel):
     """Texture installation helpers panel"""
@@ -186,31 +598,64 @@ class FO4_PT_TexturePanel(Panel):
     
     def draw(self, context):
         layout = self.layout
-        
+        obj = context.active_object
+        has_mesh = obj and obj.type == 'MESH'
+
         box = layout.box()
         box.label(text="Texture Setup", icon='TEXTURE')
-        box.operator("fo4.setup_textures", text="Setup FO4 Materials", icon='MATERIAL')
-        box.operator("fo4.install_texture", text="Install Texture", icon='FILE_IMAGE')
+        row = box.row()
+        row.enabled = has_mesh
+        row.operator("fo4.setup_textures", text="Setup FO4 Materials", icon='MATERIAL')
+
+        install_box = box.box()
+        install_box.label(text="Install Texture", icon='FILE_IMAGE')
+        op = install_box.operator("fo4.install_texture", text="Install Diffuse", icon='FILE_IMAGE')
+        op.texture_type = 'DIFFUSE'
+        op = install_box.operator("fo4.install_texture", text="Install Normal Map", icon='NORMALS_FACE')
+        op.texture_type = 'NORMAL'
+        op = install_box.operator("fo4.install_texture", text="Install Specular Map", icon='SHADING_RENDERED')
+        op.texture_type = 'SPECULAR'
+
         box.operator("fo4.validate_textures", text="Validate Textures", icon='CHECKMARK')
 
+        # DDS conversion – required for Fallout 4 NIF export
+        dds_box = layout.box()
+        dds_box.label(text="DDS Conversion (FO4 NIF Export)", icon='DISK_DRIVE')
+        dds_box.operator("fo4.convert_texture_to_dds", text="Convert Texture to DDS", icon='FILE_REFRESH')
+        dds_box.operator("fo4.convert_object_textures_to_dds", text="Convert Object Textures to DDS", icon='OBJECT_DATA')
+
         # AI Upscaling (Real-ESRGAN)
-        esrgan_available = (
-            realesrgan_helpers.RealESRGANHelpers.is_realesrgan_available()
-            if realesrgan_helpers else False
-        )
         ai_box = layout.box()
         ai_box.label(text="AI Upscaling (Real-ESRGAN)", icon='RENDER_RESULT')
-        if esrgan_available:
-            ai_box.label(text="Status: Available ✓", icon='CHECKMARK')
+        if realesrgan_helpers:
+            esrgan_available, esrgan_status = realesrgan_helpers.RealESRGANHelpers.get_install_status()
         else:
-            ai_box.label(text="Status: Not Installed ✗", icon='ERROR')
-        ai_box.operator("fo4.check_realesrgan_installation", text="Check Installation", icon='SYSTEM')
+            esrgan_available, esrgan_status = False, "Not available"
+        if esrgan_available:
+            ai_box.label(text=f"Status: {esrgan_status}", icon='CHECKMARK')
+        else:
+            ai_box.label(text="Status: Not Installed — click below to auto-install", icon='ERROR')
+            ai_box.operator(
+                "fo4.install_upscaler_deps",
+                text="Auto-Install Real-ESRGAN (One-Click)",
+                icon='IMPORT',
+            )
+        ai_box.operator("fo4.check_realesrgan_installation", text="Check Status", icon='SYSTEM')
         row = ai_box.row()
         row.enabled = esrgan_available
         row.operator("fo4.upscale_texture", text="Upscale Texture", icon='FULLSCREEN_ENTER')
         row = ai_box.row()
         row.enabled = esrgan_available
         row.operator("fo4.upscale_object_textures", text="Upscale Object Textures", icon='OBJECT_DATA')
+
+        # KREA AI Legacy upscaling — own self-contained upscaler, no subscription
+        krea_box = layout.box()
+        krea_box.label(text="KREA AI Legacy Upscale", icon='SHADERFX')
+        if esrgan_available:
+            krea_box.label(text=f"Engine: {esrgan_status}", icon='CHECKMARK')
+        else:
+            krea_box.label(text="Engine: PIL fallback (install Real-ESRGAN above for best quality)", icon='INFO')
+        krea_box.operator("fo4.upscale_krea_legacy", text="Upscale Texture", icon='FULLSCREEN_ENTER')
 
 class FO4_PT_ImageToMeshPanel(Panel):
     """Image to Mesh helpers panel"""
@@ -234,8 +679,7 @@ class FO4_PT_ImageToMeshPanel(Panel):
         box.operator("fo4.apply_displacement_map", text="Apply Displacement Map", icon='TEXTURE')
         
         # ZoeDepth section
-        from . import zoedepth_helpers
-        available, _ = zoedepth_helpers.check_zoedepth_availability()
+        available, _ = zoedepth_helpers.check_zoedepth_availability() if zoedepth_helpers else (False, "")
         
         depth_box = layout.box()
         depth_box.label(text="Depth Estimation (ZoeDepth)", icon='CAMERA_DATA')
@@ -249,17 +693,21 @@ class FO4_PT_ImageToMeshPanel(Panel):
         row.enabled = available
         row.operator("fo4.estimate_depth", text="Estimate Depth & Create Mesh", icon='MESH_GRID')
         
-        depth_box.operator("fo4.show_zoedepth_info", text="Installation Info", icon='INFO')
+        depth_box.operator("fo4.install_zoedepth", text="Auto-Install ZoeDepth", icon='IMPORT')
+        depth_box.operator("fo4.show_zoedepth_info", text="Manual Instructions", icon='INFO')
 
         # TripoSR section
         layout.separator()
-        triposr_available = imageto3d_helpers.ImageTo3DHelpers.is_triposr_available()
+        triposr_available = imageto3d_helpers.ImageTo3DHelpers.is_triposr_available() if imageto3d_helpers else False
         triposr_box = layout.box()
         triposr_box.label(text="TripoSR (Image to 3D)", icon='MESH_ICOSPHERE')
         if triposr_available:
             triposr_box.label(text="Status: Available ✓", icon='CHECKMARK')
         else:
             triposr_box.label(text="Status: Not Installed ✗", icon='ERROR')
+
+        # Install button (always shown, like ZoeDepth)
+        triposr_box.operator("fo4.install_triposr", text="Auto-Install TripoSR", icon='IMPORT')
 
         # Generation buttons (enabled when available)
         row = triposr_box.row()
@@ -299,16 +747,21 @@ class FO4_PT_ImageToMeshPanel(Panel):
 
         # Instant-NGP section
         layout.separator()
-        ngp_available = (
-            instantngp_helpers.InstantNGPHelpers.is_instantngp_available()
-            if instantngp_helpers else False
-        )
+        ngp_available = instantngp_helpers.InstantNGPHelpers.is_instantngp_available() if instantngp_helpers else False
         ngp_box = layout.box()
         ngp_box.label(text="Instant-NGP / NeRF", icon='CAMERA_DATA')
         if ngp_available:
-            ngp_box.label(text="Status: Available ✓", icon='CHECKMARK')
+            ngp_box.label(text="Status: Found ✓", icon='CHECKMARK')
         else:
-            ngp_box.label(text="Status: Not Installed ✗", icon='ERROR')
+            ngp_box.label(text="Status: Not Found — click below to auto-clone", icon='ERROR')
+            ngp_box.operator(
+                "fo4.install_instantngp",
+                text="Auto-Install Instant-NGP (Clone via git)",
+                icon='IMPORT',
+            )
+        # Manual path override — lets users point to a pre-built install
+        if context.scene:
+            ngp_box.prop(context.scene, "fo4_instantngp_path", text="Path")
         ngp_box.operator("fo4.check_instantngp_installation", text="Check Installation", icon='SYSTEM')
         row = ngp_box.row()
         row.enabled = ngp_available
@@ -344,30 +797,40 @@ class FO4_PT_AIGenerationPanel(Panel):
     
     def draw(self, context):
         layout = self.layout
-        
-        # Check if Hunyuan3D is available
-        is_available = hunyuan3d_helpers.Hunyuan3DHelpers.is_available()
+        scene = context.scene
+
+        # Check cached Hunyuan3D status (avoid heavy imports in draw)
+        if hunyuan3d_helpers and hasattr(hunyuan3d_helpers, "get_cached_availability"):
+            hun_status, hun_msg = hunyuan3d_helpers.get_cached_availability()
+        else:
+            hun_status, hun_msg = None, "Hunyuan3D-2 status unavailable"
         
         # Status box
         status_box = layout.box()
-        if is_available:
+        if hun_status is True:
             status_box.label(text="Status: Available ✓", icon='CHECKMARK')
-        else:
+        elif hun_status is False:
             status_box.label(text="Status: Not Installed ✗", icon='ERROR')
+        else:
+            status_box.label(text="Status: Not checked", icon='INFO')
+            status_box.label(text="Click Check Status to refresh", icon='DOT')
         
-        status_box.operator("fo4.show_hunyuan3d_info", text="Installation Info", icon='INFO')
+        status_box.label(text=hun_msg, icon='INFO')
+        status_box.operator("fo4.install_hunyuan3d", text="Auto-Install Hunyuan3D-2", icon='IMPORT')
+        status_box.operator("fo4.check_hunyuan3d_status", text="Check Status", icon='FILE_REFRESH')
+        status_box.operator("fo4.show_hunyuan3d_info", text="Manual Instructions", icon='INFO')
         
         # AI Generation operators (enabled only if available)
         box = layout.box()
         box.label(text="Text to 3D", icon='FILE_TEXT')
         row = box.row()
-        row.enabled = is_available
+        row.enabled = hun_status is True
         row.operator("fo4.generate_mesh_from_text", text="Generate from Text", icon='OUTLINER_OB_FONT')
         
         box = layout.box()
         box.label(text="Image to 3D (Full Model)", icon='IMAGE_DATA')
         row = box.row()
-        row.enabled = is_available
+        row.enabled = hun_status is True
         row.operator("fo4.generate_mesh_from_image_ai", text="Generate from Image (AI)", icon='MESH_ICOSPHERE')
         
         # Info box
@@ -379,12 +842,8 @@ class FO4_PT_AIGenerationPanel(Panel):
         info_box.label(text="• Completely optional feature")
         
         # Gradio Web UI section
-        gradio_available = (
-            gradio_helpers.GradioHelpers.is_available() if gradio_helpers else False
-        )
-        server_running = (
-            gradio_helpers.GradioHelpers.is_server_running() if gradio_helpers else False
-        )
+        gradio_available = gradio_helpers.GradioHelpers.is_available() if gradio_helpers else False
+        server_running = gradio_helpers.GradioHelpers.is_server_running() if gradio_helpers else False
         
         layout.separator()
         web_box = layout.box()
@@ -406,7 +865,7 @@ class FO4_PT_AIGenerationPanel(Panel):
             web_box.label(text="Open: http://localhost:7860")
         
         # HY-Motion-1.0 section
-        hymotion_available = hymotion_helpers.HyMotionHelpers.is_available()
+        hymotion_available = hymotion_helpers.HyMotionHelpers.is_available() if hymotion_helpers else False
         
         layout.separator()
         motion_box = layout.box()
@@ -418,16 +877,16 @@ class FO4_PT_AIGenerationPanel(Panel):
             motion_box.operator("fo4.import_motion_file", text="Import Motion File", icon='IMPORT')
         else:
             motion_box.label(text="Status: Not Installed ✗", icon='ERROR')
+            motion_box.operator("fo4.install_hymotion", text="Auto-Install HY-Motion", icon='IMPORT')
         
-        motion_box.operator("fo4.show_hymotion_info", text="Motion Info", icon='INFO')
+        motion_box.operator("fo4.show_hymotion_info", text="Manual Instructions", icon='INFO')
         
         # Shap-E section
         layout.separator()
         shap_e_box = layout.box()
         shap_e_box.label(text="Shap-E (Text/Image to 3D)", icon='MESH_ICOSPHERE')
 
-        from . import shap_e_helpers
-        shap_e_installed, shap_e_msg = shap_e_helpers.ShapEHelpers.is_shap_e_installed()
+        shap_e_installed, shap_e_msg = shap_e_helpers.ShapEHelpers.peek_cached_installation() if (shap_e_helpers and hasattr(shap_e_helpers, 'ShapEHelpers')) else (None, "Status unavailable")
 
         if shap_e_installed:
             shap_e_box.label(text="Status: Installed ✓", icon='CHECKMARK')
@@ -445,15 +904,18 @@ class FO4_PT_AIGenerationPanel(Panel):
             image_box.label(text="Image to 3D:", icon='IMAGE_DATA')
             image_box.prop(scene, "fo4_shap_e_image_path", text="")
             image_box.operator("fo4.generate_shap_e_image", text="Generate from Image", icon='TEXTURE')
-        else:
+        elif shap_e_installed is False:
             shap_e_box.label(text="Status: Not Installed ✗", icon='ERROR')
 
-            # Check if it's a Windows path error
             if "Windows path length error" in shap_e_msg:
-                shap_e_box.label(text="⚠ Windows path too long", icon='ERROR')
-                shap_e_box.operator("torch.install_custom_path", text="Install PyTorch to D:/t", icon='IMPORT')
+                shap_e_box.label(text="⚠ Windows path too long — use short path", icon='ERROR')
+                shap_e_box.operator("torch.install_custom_path", text="Fix: Install PyTorch to D:/t", icon='IMPORT')
             else:
-                shap_e_box.operator("fo4.show_shap_e_info", text="Installation Instructions", icon='INFO')
+                shap_e_box.operator("fo4.install_shap_e", text="Auto-Install Shap-E", icon='IMPORT')
+                shap_e_box.operator("fo4.show_shap_e_info", text="Manual Instructions", icon='INFO')
+        else:
+            shap_e_box.label(text="Status: Not checked", icon='INFO')
+            shap_e_box.label(text="Click Check Installation to refresh", icon='DOT')
 
         shap_e_box.operator("fo4.check_shap_e_installation", text="Check Installation", icon='SYSTEM')
 
@@ -462,8 +924,7 @@ class FO4_PT_AIGenerationPanel(Panel):
         point_e_box = layout.box()
         point_e_box.label(text="Point-E (Text/Image to Point Cloud)", icon='OUTLINER_OB_POINTCLOUD')
 
-        from . import point_e_helpers
-        point_e_installed, point_e_msg = point_e_helpers.PointEHelpers.is_point_e_installed()
+        point_e_installed, point_e_msg = point_e_helpers.PointEHelpers.peek_cached_installation() if (point_e_helpers and hasattr(point_e_helpers, 'PointEHelpers')) else (None, "Status unavailable")
 
         if point_e_installed:
             point_e_box.label(text="Status: Installed ✓", icon='CHECKMARK')
@@ -474,6 +935,7 @@ class FO4_PT_AIGenerationPanel(Panel):
             text_box.prop(scene, "fo4_point_e_prompt", text="")
             text_box.prop(scene, "fo4_point_e_num_samples")
             text_box.prop(scene, "fo4_point_e_grid_size")
+            text_box.prop(scene, "fo4_point_e_inference_steps")
             text_box.prop(scene, "fo4_point_e_reconstruction_method")
             text_box.operator("fo4.generate_point_e_text", text="Generate from Text", icon='MESH_CUBE')
 
@@ -481,16 +943,21 @@ class FO4_PT_AIGenerationPanel(Panel):
             image_box = point_e_box.box()
             image_box.label(text="Image to Point Cloud:", icon='IMAGE_DATA')
             image_box.prop(scene, "fo4_point_e_image_path", text="")
+            image_box.prop(scene, "fo4_point_e_grid_size")
+            image_box.prop(scene, "fo4_point_e_inference_steps")
             image_box.operator("fo4.generate_point_e_image", text="Generate from Image", icon='TEXTURE')
-        else:
+        elif point_e_installed is False:
             point_e_box.label(text="Status: Not Installed ✗", icon='ERROR')
 
-            # Check if it's a Windows path error
             if "Windows path length error" in point_e_msg:
-                point_e_box.label(text="⚠ Windows path too long", icon='ERROR')
-                point_e_box.operator("torch.install_custom_path", text="Install PyTorch to D:/t", icon='IMPORT')
+                point_e_box.label(text="⚠ Windows path too long — use short path", icon='ERROR')
+                point_e_box.operator("torch.install_custom_path", text="Fix: Install PyTorch to D:/t", icon='IMPORT')
             else:
-                point_e_box.operator("fo4.show_point_e_info", text="Installation Instructions", icon='INFO')
+                point_e_box.operator("fo4.install_point_e", text="Auto-Install Point-E", icon='IMPORT')
+                point_e_box.operator("fo4.show_point_e_info", text="Manual Instructions", icon='INFO')
+        else:
+            point_e_box.label(text="Status: Not checked", icon='INFO')
+            point_e_box.label(text="Click Check Installation to refresh", icon='DOT')
 
         point_e_box.operator("fo4.check_point_e_installation", text="Check Installation", icon='SYSTEM')
 
@@ -498,6 +965,7 @@ class FO4_PT_AIGenerationPanel(Panel):
         layout.separator()
         diff_box = layout.box()
         diff_box.label(text="Diffusers / LayerDiffuse", icon='TEXTURE_DATA')
+        diff_box.operator("fo4.install_diffusers", text="Auto-Install Diffusers", icon='IMPORT')
         diff_box.operator("fo4.check_diffusers", text="Check Diffusers", icon='SYSTEM')
         diff_box.operator("fo4.check_layerdiffuse", text="Check LayerDiffuse", icon='SYSTEM')
         diff_box.operator("fo4.show_diffusers_workflow", text="Diffusers Workflow Guide", icon='INFO')
@@ -523,14 +991,22 @@ class FO4_PT_AnimationPanel(Panel):
     
     def draw(self, context):
         layout = self.layout
-        
+        obj = context.active_object
+        has_mesh = obj and obj.type == 'MESH'
+
         box = layout.box()
         box.label(text="Animation Setup", icon='ANIM')
         box.operator("fo4.setup_armature", text="Setup FO4 Armature", icon='ARMATURE_DATA')
-        box.operator("fo4.auto_weight_paint", text="Auto Weight Paint", icon='AUTO')
+        row = box.row()
+        row.enabled = has_mesh
+        row.operator("fo4.auto_weight_paint", text="Auto Weight Paint", icon='AUTO')
         box.operator("fo4.validate_animation", text="Validate Animation", icon='CHECKMARK')
-        box.operator("fo4.generate_wind_weights", text="Generate Wind Weights", icon='FORCE_WIND')
-        box.operator("fo4.apply_wind_animation", text="Apply Wind Animation", icon='ANIM')
+        row = box.row()
+        row.enabled = has_mesh
+        row.operator("fo4.generate_wind_weights", text="Generate Wind Weights", icon='FORCE_WIND')
+        row = box.row()
+        row.enabled = has_mesh
+        row.operator("fo4.apply_wind_animation", text="Apply Wind Animation", icon='ANIM')
         box.separator()
         box.label(text="Batch Operations", icon='SEQ_SEQUENCER')
         row = box.row()
@@ -544,8 +1020,9 @@ class FO4_PT_AnimationPanel(Panel):
         motion_box = layout.box()
         motion_box.label(text="Motion Generation", icon='ANIM_DATA')
         motion_box.operator("fo4.check_all_motion_systems", text="Check All Motion Systems", icon='SYSTEM')
+        motion_box.operator("fo4.install_motion_generation", text="Auto-Install MotionDiffuse", icon='IMPORT')
         motion_box.operator("fo4.generate_motion_auto", text="Generate Motion (Auto)", icon='PLAY')
-        motion_box.operator("fo4.show_motion_generation_info", text="Installation Info", icon='INFO')
+        motion_box.operator("fo4.show_motion_generation_info", text="Manual Instructions", icon='INFO')
 
 class FO4_PT_RigNetPanel(Panel):
     """RigNet auto-rigging panel"""
@@ -561,10 +1038,12 @@ class FO4_PT_RigNetPanel(Panel):
         layout = self.layout
         
         # Check if RigNet is available
-        is_available, message = rignet_helpers.RigNetHelpers.check_rignet_available()
-        
-        # Check if libigl is available
-        libigl_available, libigl_message = rignet_helpers.RigNetHelpers.check_libigl_available()
+        if rignet_helpers:
+            is_available, message = rignet_helpers.RigNetHelpers.check_rignet_available()
+            libigl_available, libigl_message = rignet_helpers.RigNetHelpers.check_libigl_available()
+        else:
+            is_available, message = False, "rignet_helpers module unavailable"
+            libigl_available, libigl_message = False, "rignet_helpers module unavailable"
         
         # Status box for RigNet
         status_box = layout.box()
@@ -577,6 +1056,7 @@ class FO4_PT_RigNetPanel(Panel):
             status_box.label(text=f"  {rignet_dir}", icon='FILE_FOLDER')
         else:
             status_box.label(text="✗ RigNet Not Installed", icon='ERROR')
+            status_box.operator("fo4.install_rignet", text="Auto-Install RigNet", icon='IMPORT')
         
         status_box.operator("fo4.check_rignet", text="Check RigNet", icon='INFO')
         
@@ -593,6 +1073,7 @@ class FO4_PT_RigNetPanel(Panel):
                 libigl_box.label(text=f"  {libigl_dir}", icon='FILE_FOLDER')
         else:
             libigl_box.label(text="✗ libigl Not Installed", icon='ERROR')
+            libigl_box.operator("fo4.install_libigl", text="Auto-Install libigl", icon='IMPORT')
         
         libigl_box.operator("fo4.check_libigl", text="Check libigl", icon='INFO')
         
@@ -634,7 +1115,7 @@ class FO4_PT_RigNetPanel(Panel):
         
         if not is_available and not libigl_available:
             info_box.separator()
-            info_box.label(text="Quick Install:", icon='DOWNLOAD')
+            info_box.label(text="Quick Install:", icon='IMPORT')
             info_box.label(text="RigNet:")
             info_box.label(text="  gh repo clone govindjoshi12/")
             info_box.label(text="    rignet-gj")
@@ -657,10 +1138,14 @@ class FO4_PT_NVTTPanel(Panel):
         layout = self.layout
         
         # Check converters
-        nvtt_available = nvtt_helpers.NVTTHelpers.is_nvtt_available()
-        texconv_available = nvtt_helpers.NVTTHelpers.is_texconv_available()
-        nvtt_path = nvtt_helpers.NVTTHelpers.get_nvtt_path()
-        texconv_path = nvtt_helpers.NVTTHelpers.get_texconv_path()
+        if nvtt_helpers:
+            nvtt_available = nvtt_helpers.NVTTHelpers.is_nvtt_available()
+            texconv_available = nvtt_helpers.NVTTHelpers.is_texconv_available()
+            nvtt_path = nvtt_helpers.NVTTHelpers.get_nvtt_path()
+            texconv_path = nvtt_helpers.NVTTHelpers.get_texconv_path()
+        else:
+            nvtt_available = texconv_available = False
+            nvtt_path = texconv_path = None
         
         # Status box
         status_box = layout.box()
@@ -721,15 +1206,9 @@ class FO4_PT_AdvisorPanel(Panel):
 
     def draw(self, context):
         layout = self.layout
-        addon_name = __package__.split('.')[0]
-        addon = context.preferences.addons.get(addon_name) if context.preferences else None
-        prefs = addon.preferences if addon and hasattr(addon, 'preferences') else None
-        if not prefs:
-            layout.label(text=f"⚠ Preferences unavailable for addon '{addon_name}'", icon='ERROR')
-            # Optionally, return early or continue with defaults
-            # return
-        llm_enabled = prefs.llm_enabled if prefs else False
-        use_mossy = getattr(prefs, 'use_mossy_as_ai', False) if prefs else False
+        scene  = context.scene
+        llm_enabled = getattr(scene, "fo4_llm_enabled", False)
+        use_mossy   = getattr(scene, "fo4_use_mossy_ai", False)
 
         # ── Mossy AI status ──────────────────────────────────────────────
         mossy_box = layout.box()
@@ -756,7 +1235,7 @@ class FO4_PT_AdvisorPanel(Panel):
         else:
             mossy_box.label(text="Mossy AI not active", icon='INFO')
             mossy_box.label(text="Enable 'Use Mossy as AI Advisor' in")
-            mossy_box.label(text="Preferences → Mossy Link section")
+            mossy_box.label(text="N panel → Fallout 4 → Settings → Mossy Link")
 
         # ── Local analysis ───────────────────────────────────────────────
         box = layout.box()
@@ -769,7 +1248,7 @@ class FO4_PT_AdvisorPanel(Panel):
         op = row.operator("fo4.advisor_analyze", text="Analyze (Remote LLM)", icon='LIGHT_HEMI')
         op.use_llm = True
         if not llm_enabled and not use_mossy:
-            box.label(text="No AI configured – use Mossy or set LLM in Preferences", icon='ERROR')
+            box.label(text="No AI configured – enable Mossy or set LLM in N-panel Settings", icon='ERROR')
 
         # ── Quick Fixes ──────────────────────────────────────────────────
         fixes = layout.box()
@@ -791,10 +1270,7 @@ class FO4_PT_AdvisorPanel(Panel):
         info.label(text="• Texture prep (DDS BC1/3/5/7)")
         info.label(text="• Mesh limits (65,535 tris/verts)")
 
-        kb_status = (
-            knowledge_helpers.describe_kb() if knowledge_helpers
-            else "Knowledge base: not available"
-        )
+        kb_status = knowledge_helpers.describe_kb() if knowledge_helpers else "Knowledge base unavailable"
         info.label(text=kb_status, icon='BOOKMARKS')
 
         tools = layout.box()
@@ -811,6 +1287,7 @@ class FO4_PT_ToolsLinks(Panel):
     bl_category = 'Fallout 4'
     bl_parent_id = "FO4_PT_main_panel"
     bl_options = {'DEFAULT_CLOSED'}
+    bl_order = -10  # Second: install external tools before starting work
 
     def draw(self, context):
         layout = self.layout
@@ -833,8 +1310,7 @@ class FO4_PT_ToolsLinks(Panel):
         box.label(text="Core", icon='URL')
         op = box.operator("wm.url_open", text="Blender Niftools Add-on")
         op.url = "https://github.com/niftools/blender_niftools_addon/releases"
-        op = box.operator("wm.url_open", text="Quick Reference")
-        op.url = "file://" + bpy.path.abspath('//QUICK_REFERENCE.txt')
+        box.operator("fo4.show_quick_reference", text="Quick Reference", icon='TEXT')
 
         op = box.operator("wm.url_open", text="DirectXTex texconv")
         op.url = "https://github.com/microsoft/DirectXTex/releases"
@@ -855,20 +1331,22 @@ class FO4_PT_ToolsLinks(Panel):
         unity_box = box.box()
         unity_box.label(text="Unity FBX Importer (Editor Extension)", icon='IMPORT')
 
-        ub_ready, ub_message = unity_fbx_importer_helpers.status()
-        ub_icon = 'CHECKMARK' if ub_ready else 'ERROR'
-
-        info_col = unity_box.column(align=True)
-        info_col.scale_y = 0.75
-        info_col.label(text=ub_message, icon=ub_icon)
-        info_col.label(text=f"Location: {unity_fbx_importer_helpers.repo_path()}", icon='FILE_FOLDER')
-
-        if not ub_ready:
-            install_row = unity_box.row()
-            install_row.scale_y = 1.4
-            install_row.operator("fo4.check_unity_fbx_importer", text="Auto-Download to D:/blender_tools/", icon='IMPORT')
+        if unity_fbx_importer_helpers:
+            ub_ready, ub_message = unity_fbx_importer_helpers.status()
+            ub_icon = 'CHECKMARK' if ub_ready else 'ERROR'
+            info_col = unity_box.column(align=True)
+            info_col.scale_y = 0.75
+            info_col.label(text=ub_message, icon=ub_icon)
+            info_col.label(text=f"Location: {unity_fbx_importer_helpers.repo_path()}", icon='FILE_FOLDER')
+            if not ub_ready:
+                install_row = unity_box.row()
+                install_row.scale_y = 1.4
+                install_row.operator("fo4.check_unity_fbx_importer", text="Auto-Download to D:/blender_tools/", icon='IMPORT')
+            else:
+                unity_box.operator("fo4.check_unity_fbx_importer", text="Verify Installation", icon='CHECKMARK')
         else:
-            unity_box.operator("fo4.check_unity_fbx_importer", text="Verify Installation", icon='CHECKMARK')
+            unity_box.label(text="Status unavailable", icon='ERROR')
+            unity_box.operator("fo4.check_unity_fbx_importer", text="Check Unity FBX Importer", icon='FILE_REFRESH')
 
         help_col = unity_box.column(align=True)
         help_col.scale_y = 0.7
@@ -878,20 +1356,22 @@ class FO4_PT_ToolsLinks(Panel):
         as_box = box.box()
         as_box.label(text="AssetStudio (Unity Asset Extractor)", icon='IMPORT')
 
-        as_ready, as_message = asset_studio_helpers.status()
-        as_icon = 'CHECKMARK' if as_ready else 'ERROR'
-
-        as_info_col = as_box.column(align=True)
-        as_info_col.scale_y = 0.75
-        as_info_col.label(text=as_message, icon=as_icon)
-        as_info_col.label(text=f"Location: {asset_studio_helpers.repo_path()}", icon='FILE_FOLDER')
-
-        if not as_ready:
-            as_install_row = as_box.row()
-            as_install_row.scale_y = 1.4
-            as_install_row.operator("fo4.check_asset_studio", text="Auto-Download to D:/blender_tools/", icon='IMPORT')
+        if asset_studio_helpers:
+            as_ready, as_message = asset_studio_helpers.status()
+            as_icon = 'CHECKMARK' if as_ready else 'ERROR'
+            as_info_col = as_box.column(align=True)
+            as_info_col.scale_y = 0.75
+            as_info_col.label(text=as_message, icon=as_icon)
+            as_info_col.label(text=f"Location: {asset_studio_helpers.repo_path()}", icon='FILE_FOLDER')
+            if not as_ready:
+                as_install_row = as_box.row()
+                as_install_row.scale_y = 1.4
+                as_install_row.operator("fo4.check_asset_studio", text="Auto-Download to D:/blender_tools/", icon='IMPORT')
+            else:
+                as_box.operator("fo4.check_asset_studio", text="Verify Installation", icon='CHECKMARK')
         else:
-            as_box.operator("fo4.check_asset_studio", text="Verify Installation", icon='CHECKMARK')
+            as_box.label(text="Status unavailable", icon='ERROR')
+            as_box.operator("fo4.check_asset_studio", text="Check AssetStudio", icon='FILE_REFRESH')
 
         as_help_col = as_box.column(align=True)
         as_help_col.scale_y = 0.7
@@ -901,20 +1381,22 @@ class FO4_PT_ToolsLinks(Panel):
         ar_box = box.box()
         ar_box.label(text="AssetRipper (Unity Asset Extractor)", icon='IMPORT')
 
-        ar_ready, ar_message = asset_ripper_helpers.status()
-        ar_icon = 'CHECKMARK' if ar_ready else 'ERROR'
-
-        ar_info_col = ar_box.column(align=True)
-        ar_info_col.scale_y = 0.75
-        ar_info_col.label(text=ar_message, icon=ar_icon)
-        ar_info_col.label(text=f"Location: {asset_ripper_helpers.repo_path()}", icon='FILE_FOLDER')
-
-        if not ar_ready:
-            ar_install_row = ar_box.row()
-            ar_install_row.scale_y = 1.4
-            ar_install_row.operator("fo4.check_asset_ripper", text="Auto-Download to D:/blender_tools/", icon='IMPORT')
+        if asset_ripper_helpers:
+            ar_ready, ar_message = asset_ripper_helpers.status()
+            ar_icon = 'CHECKMARK' if ar_ready else 'ERROR'
+            ar_info_col = ar_box.column(align=True)
+            ar_info_col.scale_y = 0.75
+            ar_info_col.label(text=ar_message, icon=ar_icon)
+            ar_info_col.label(text=f"Location: {asset_ripper_helpers.repo_path()}", icon='FILE_FOLDER')
+            if not ar_ready:
+                ar_install_row = ar_box.row()
+                ar_install_row.scale_y = 1.4
+                ar_install_row.operator("fo4.check_asset_ripper", text="Auto-Download to D:/blender_tools/", icon='IMPORT')
+            else:
+                ar_box.operator("fo4.check_asset_ripper", text="Verify Installation", icon='CHECKMARK')
         else:
-            ar_box.operator("fo4.check_asset_ripper", text="Verify Installation", icon='CHECKMARK')
+            ar_box.label(text="Status unavailable", icon='ERROR')
+            ar_box.operator("fo4.check_asset_ripper", text="Check AssetRipper", icon='FILE_REFRESH')
 
         ar_help_col = ar_box.column(align=True)
         ar_help_col.scale_y = 0.7
@@ -925,10 +1407,13 @@ class FO4_PT_ToolsLinks(Panel):
 
         # UModel (UE Viewer) - Standalone tool
         box.label(text="UModel (UE Viewer)", icon='IMPORT')
-        umodel_ready, umodel_message = umodel_helpers.status()
-        umodel_icon = 'CHECKMARK' if umodel_ready else 'ERROR'
-        box.label(text=umodel_message, icon=umodel_icon)
-        box.label(text=f"Path: {umodel_helpers.tool_path()}", icon='FILE_FOLDER')
+        if umodel_helpers:
+            umodel_ready, umodel_message = umodel_helpers.status()
+            umodel_icon = 'CHECKMARK' if umodel_ready else 'ERROR'
+            box.label(text=umodel_message, icon=umodel_icon)
+            box.label(text=f"Path: {umodel_helpers.tool_path()}", icon='FILE_FOLDER')
+        else:
+            box.label(text="Status unavailable", icon='ERROR')
 
         # Installation button
         install_row = box.row()
@@ -952,37 +1437,47 @@ class FO4_PT_ToolsLinks(Panel):
 
         box = layout.box()
         box.label(text="UE Importer", icon='IMPORT')
-        ready, message = ue_importer_helpers.status()
-        status_icon = 'CHECKMARK' if ready else 'ERROR'
-        box.label(text=message, icon=status_icon)
-        box.label(text=f"Path: {ue_importer_helpers.importer_path()}", icon='FILE_FOLDER')
-        box.operator("fo4.check_ue_importer", text="Check/Install UE Importer", icon='FILE_REFRESH')
+        if ue_importer_helpers:
+            ready, message = ue_importer_helpers.status()
+            status_icon = 'CHECKMARK' if ready else 'ERROR'
+            box.label(text=message, icon=status_icon)
+            box.label(text=f"Path: {ue_importer_helpers.importer_path()}", icon='FILE_FOLDER')
+        else:
+            box.label(text="Status unavailable", icon='ERROR')
+        row = box.row(align=True)
+        row.operator("fo4.install_ue_importer", text="Auto-Install UE Importer", icon='IMPORT')
+        row.operator("fo4.check_ue_importer", text="", icon='FILE_REFRESH')
 
         box = layout.box()
         box.label(text="UModel Tools", icon='IMPORT')
-        ut_ready, ut_message = umodel_tools_helpers.status()
-        ut_icon = 'CHECKMARK' if ut_ready else 'ERROR'
-        box.label(text=ut_message, icon=ut_icon)
-        box.label(text=f"Path: {umodel_tools_helpers.addon_path()}", icon='FILE_FOLDER')
-        box.operator("fo4.check_umodel_tools", text="Check/Install UModel Tools", icon='FILE_REFRESH')
+        if umodel_tools_helpers:
+            ut_ready, ut_message = umodel_tools_helpers.status()
+            ut_icon = 'CHECKMARK' if ut_ready else 'ERROR'
+            box.label(text=ut_message, icon=ut_icon)
+            box.label(text=f"Path: {umodel_tools_helpers.addon_path()}", icon='FILE_FOLDER')
+        else:
+            box.label(text="Status unavailable", icon='ERROR')
+        row = box.row(align=True)
+        row.operator("fo4.install_umodel_tools", text="Auto-Install UModel Tools", icon='IMPORT')
+        row.operator("fo4.check_umodel_tools", text="", icon='FILE_REFRESH')
+        box.operator("fo4.open_umodel_tools_page", text="Manual Download Instructions", icon='URL')
 
         # Automated installers for external utilities
         box = layout.box()
         box.label(text="Install External Tools", icon='TOOL_SETTINGS')
-        # PyNifly — primary NIF exporter for Blender 4.x / 5.x
-        inst_row = box.row()
-        inst_row.scale_y = 1.3
-        inst_row.operator("fo4.install_pynifly", text="Install PyNifly NIF Exporter  (Blender 4.x/5.x)", icon='FILE_REFRESH')
-        from . import tool_installers as _ti_setup
-        pynifly_sub = box.column(align=True)
-        pynifly_sub.scale_y = 0.7
-        pynifly_sub.label(text=f"Place PyNifly*.zip in {_ti_setup.TOOLS_DIR_DISPLAY} first", icon='INFO')
-        box.separator(factor=0.5)
         box.operator("fo4.install_ffmpeg", text="Install FFmpeg", icon='FILE_REFRESH')
         box.operator("fo4.install_nvtt", text="Install NVTT (nvcompress)", icon='FILE_REFRESH')
         box.operator("fo4.install_texconv", text="Install texconv", icon='FILE_REFRESH')
         box.operator("fo4.install_whisper", text="Install Whisper CLI", icon='FILE_REFRESH')
-        box.operator("fo4.install_niftools", text="Install Niftools (Blender 3.6 LTS legacy)", icon='FILE_REFRESH')
+        box.operator("fo4.install_niftools", text="Install Niftools Add-on", icon='FILE_REFRESH')
+        if bpy.app.version >= (4, 2, 0):
+            nif_note = box.box()
+            nif_note.scale_y = 0.75
+            nif_note.label(text="After install: Edit → Preferences → Add-ons", icon='INFO')
+            nif_note.label(text="→ enable 'Allow Legacy Add-ons'")
+            nif_note.label(text="→ enable 'NetImmerse/Gamebryo (.nif)'")
+            if bpy.app.version >= (5, 0, 0):
+                nif_note.label(text="Blender 5.x API patches applied automatically.", icon='CHECKMARK')
         # Python requirements
         op = box.operator("fo4.install_python_deps", text="Install Python Requirements", icon='FILE_REFRESH')
         if op is not None:
@@ -1006,34 +1501,28 @@ class FO4_PT_ToolsLinks(Panel):
         config_help.label(text="Checks: Niftools, DDS tools, export settings", icon='INFO')
 
         # Manual path override — use existing installations when auto-install fails
-        prefs = preferences.get_preferences()
+        scene = context.scene
         man_box = layout.box()
         man_box.label(text="Manual Path Override", icon='FILE_FOLDER')
         man_box.label(text="Already have a tool? Point to it here.", icon='INFO')
-        if prefs:
-            man_box.prop(prefs, "ffmpeg_path", text="FFmpeg")
-            ffmpeg_ok = preferences.get_configured_ffmpeg_path()
-            ffmpeg_status = "OK \u2714" if ffmpeg_ok else "not found"
-            man_box.label(
-                text=f"FFmpeg: {ffmpeg_status}",
-                icon='CHECKMARK' if ffmpeg_ok else 'ERROR',
-            )
-            man_box.prop(prefs, "nvtt_path", text="nvcompress")
-            nvcompress_ok = preferences.get_configured_nvcompress_path()
-            nvcompress_status = "OK \u2714" if nvcompress_ok else "not found"
-            man_box.label(
-                text=f"nvcompress: {nvcompress_status}",
-                icon='CHECKMARK' if nvcompress_ok else 'ERROR',
-            )
-            man_box.prop(prefs, "texconv_path", text="texconv")
-            texconv_ok = preferences.get_configured_texconv_path()
-            texconv_status = "OK \u2714" if texconv_ok else "not found"
-            man_box.label(
-                text=f"texconv: {texconv_status}",
-                icon='CHECKMARK' if texconv_ok else 'ERROR',
-            )
-        else:
-            man_box.label(text="Enable the add-on to set paths.", icon='ERROR')
+        man_box.prop(scene, "fo4_ffmpeg_path", text="FFmpeg")
+        ffmpeg_ok = preferences.get_configured_ffmpeg_path() if preferences else None
+        man_box.label(
+            text=f"FFmpeg: {'OK ✔' if ffmpeg_ok else 'not found'}",
+            icon='CHECKMARK' if ffmpeg_ok else 'ERROR',
+        )
+        man_box.prop(scene, "fo4_nvtt_path", text="nvcompress")
+        nvcompress_ok = preferences.get_configured_nvcompress_path() if preferences else None
+        man_box.label(
+            text=f"nvcompress: {'OK ✔' if nvcompress_ok else 'not found'}",
+            icon='CHECKMARK' if nvcompress_ok else 'ERROR',
+        )
+        man_box.prop(scene, "fo4_texconv_path", text="texconv")
+        texconv_ok = preferences.get_configured_texconv_path() if preferences else None
+        man_box.label(
+            text=f"texconv: {'OK ✔' if texconv_ok else 'not found'}",
+            icon='CHECKMARK' if texconv_ok else 'ERROR',
+        )
 
 
 class FO4_PT_GameAssetsPanel(Panel):
@@ -1048,10 +1537,12 @@ class FO4_PT_GameAssetsPanel(Panel):
 
     def draw(self, context):
         layout = self.layout
+        scene  = context.scene
         obj = context.active_object
+        has_mesh = obj and obj.type == 'MESH'
 
         # Convert to Fallout 4 Button (prominent)
-        if obj and obj.type == 'MESH':
+        if has_mesh:
             convert_box = layout.box()
             convert_box.label(text="Quick Convert", icon='MODIFIER')
 
@@ -1067,6 +1558,14 @@ class FO4_PT_GameAssetsPanel(Panel):
             help_col.scale_y = 0.7
             help_col.label(text="One-click: Mesh prep + Materials + Textures", icon='INFO')
             help_col.label(text="Works on any imported Unity/Unreal/FO4 asset", icon='DOT')
+
+            # Third-party mesh conversion
+            conv_row = convert_box.row()
+            conv_row.operator(
+                "fo4.prepare_third_party_mesh",
+                text="Prepare External Mesh for FO4",
+                icon='MODIFIER',
+            )
         else:
             layout.label(text="Select a mesh to convert", icon='INFO')
 
@@ -1074,54 +1573,64 @@ class FO4_PT_GameAssetsPanel(Panel):
 
         # Fallout 4 Assets
         fo4_box = layout.box()
-        fo4_box.label(text="Fallout 4 Assets", icon='GAME')
+        fo4_box.label(text="Fallout 4 Assets", icon='BLENDER')
 
-        from . import fo4_game_assets
-        ready, message = fo4_game_assets.FO4GameAssets.get_status()
-        status_icon = 'CHECKMARK' if ready else 'ERROR'
+        _draw_game_path_box(fo4_box, context)
 
-        info_col = fo4_box.column(align=True)
-        info_col.scale_y = 0.8
-        info_col.label(text=message, icon=status_icon)
+        action_row = fo4_box.row(align=True)
+        action_row.operator(
+            "fo4.scan_asset_library",
+            text="Scan / Refresh",
+            icon='FILE_REFRESH',
+        )
+        action_row.operator("fo4.import_fo4_asset_file", text="Import Asset", icon='IMPORT')
 
-        if ready:
-            fo4_box.operator("fo4.browse_fo4_assets", text="Browse FO4 Assets", icon='VIEWZOOM')
+        if fo4_game_assets:
+            ready, _ = fo4_game_assets.FO4GameAssets.get_status()
+            if ready:
+                fo4_box.operator("fo4.browse_fo4_assets", text="Browse FO4 Assets", icon='VIEWZOOM')
         else:
-            fo4_box.label(text="Set path in preferences", icon='PREFERENCES')
+            fo4_box.label(text="fo4_game_assets module missing – reinstall add-on", icon='ERROR')
 
         # Unity Assets
         unity_box = layout.box()
-        unity_box.label(text="Unity Assets", icon='SNAP_FACE_CENTER')
+        unity_box.label(text="Unity Assets", icon='FILE_3D')
 
-        from . import unity_game_assets
-        ready, message = unity_game_assets.UnityAssets.get_status()
-        status_icon = 'CHECKMARK' if ready else 'ERROR'
+        if unity_game_assets:
+            ready, message = unity_game_assets.UnityAssets.get_status()
+            status_icon = 'CHECKMARK' if ready else 'ERROR'
 
-        info_col = unity_box.column(align=True)
-        info_col.scale_y = 0.8
-        info_col.label(text=message, icon=status_icon)
+            info_col = unity_box.column(align=True)
+            info_col.scale_y = 0.8
+            info_col.label(text=message, icon=status_icon)
 
-        if ready:
-            unity_box.operator("fo4.browse_unity_assets", text="Browse Unity Assets", icon='VIEWZOOM')
+            if ready:
+                unity_box.operator("fo4.browse_unity_assets", text="Browse Unity Assets", icon='VIEWZOOM')
+                unity_box.operator("fo4.import_unity_asset", text="Import Unity Asset", icon='IMPORT')
+            else:
+                unity_box.label(text="Set Unity path in preferences", icon='PREFERENCES')
         else:
-            unity_box.label(text="Set path in preferences", icon='PREFERENCES')
+            unity_box.label(text="unity_game_assets module missing – reinstall add-on", icon='ERROR')
 
         # Unreal Engine Assets
         unreal_box = layout.box()
         unreal_box.label(text="Unreal Engine Assets", icon='MESH_CUBE')
 
-        from . import unreal_game_assets
-        ready, message = unreal_game_assets.UnrealAssets.get_status()
-        status_icon = 'CHECKMARK' if ready else 'ERROR'
+        if unreal_game_assets:
+            ready, message = unreal_game_assets.UnrealAssets.get_status()
+            status_icon = 'CHECKMARK' if ready else 'ERROR'
 
-        info_col = unreal_box.column(align=True)
-        info_col.scale_y = 0.8
-        info_col.label(text=message, icon=status_icon)
+            info_col = unreal_box.column(align=True)
+            info_col.scale_y = 0.8
+            info_col.label(text=message, icon=status_icon)
 
-        if ready:
-            unreal_box.operator("fo4.browse_unreal_assets", text="Browse Unreal Assets", icon='VIEWZOOM')
+            if ready:
+                unreal_box.operator("fo4.browse_unreal_assets", text="Browse Unreal Assets", icon='VIEWZOOM')
+                unreal_box.operator("fo4.import_unreal_asset", text="Import Unreal Asset", icon='IMPORT')
+            else:
+                unreal_box.label(text="Set Unreal path in preferences", icon='PREFERENCES')
         else:
-            unreal_box.label(text="Set path in preferences", icon='PREFERENCES')
+            unreal_box.label(text="unreal_game_assets module missing – reinstall add-on", icon='ERROR')
 
         layout.separator()
 
@@ -1130,10 +1639,131 @@ class FO4_PT_GameAssetsPanel(Panel):
         help_box.label(text="How to Use", icon='QUESTION')
         help_col = help_box.column(align=True)
         help_col.scale_y = 0.7
-        help_col.label(text="1. Set asset paths in addon preferences", icon='DOT')
-        help_col.label(text="2. Import asset (FBX/OBJ from browser)", icon='DOT')
-        help_col.label(text="3. Click 'Convert to Fallout 4'", icon='DOT')
-        help_col.label(text="4. Export as NIF", icon='DOT')
+        help_col.label(text="1. Set Meshes, Textures, and Materials paths using the folder buttons", icon='DOT')
+        help_col.label(text="2. Click 'Scan / Refresh' to link all your assets", icon='DOT')
+        help_col.label(text="3. Use 'Import Asset' to bring a specific file into Blender", icon='DOT')
+        help_col.label(text="   or browse the Asset Library panel to pick from the list", icon='DOT')
+        help_col.label(text="4. Click 'Convert to Fallout 4', then Export as NIF", icon='DOT')
+
+
+class FO4_PT_AssetLibraryPanel(Panel):
+    """Browse all meshes, textures, and materials from a folder or .blend library"""
+    bl_label = "Asset Library"
+    bl_idname = "FO4_PT_asset_library_panel"
+    bl_space_type = 'VIEW_3D'
+    bl_region_type = 'UI'
+    bl_category = 'Fallout 4'
+    bl_parent_id = "FO4_PT_main_panel"
+    bl_options = {'DEFAULT_CLOSED'}
+
+    def draw(self, context):
+        layout = self.layout
+        scene  = context.scene
+
+        # ── Path configuration ──────────────────────────────────────────────
+        paths_box = layout.box()
+        paths_box.label(text="Asset Paths", icon='FILE_FOLDER')
+
+        # Combined "all-in-one" path
+        row = paths_box.row(align=True)
+        row.prop(scene, "fo4_asset_lib_path", text="All Assets")
+        op = row.operator("fo4.set_asset_lib_path", text="", icon='FILE_FOLDER')
+        op.slot = 'all'
+
+        # Separator + individual paths (collapsible feel via sub-box)
+        sep_box = paths_box.box()
+        sep_col = sep_box.column(align=True)
+        sep_col.scale_y = 0.85
+        sep_col.label(text="Or set separate paths:", icon='INFO')
+
+        row = sep_col.row(align=True)
+        row.prop(scene, "fo4_asset_lib_mesh_path", text="Meshes")
+        op = row.operator("fo4.set_asset_folder_path", text="", icon='FILE_FOLDER')
+        op.slot = 'meshes'
+
+        row = sep_col.row(align=True)
+        row.prop(scene, "fo4_asset_lib_tex_path", text="Textures")
+        op = row.operator("fo4.set_asset_folder_path", text="", icon='FILE_FOLDER')
+        op.slot = 'textures'
+
+        row = sep_col.row(align=True)
+        row.prop(scene, "fo4_asset_lib_mat_path", text="Materials")
+        op = row.operator("fo4.set_asset_folder_path", text="", icon='FILE_FOLDER')
+        op.slot = 'materials'
+
+        # Scan / clear buttons
+        scan_row = paths_box.row(align=True)
+        scan_row.scale_y = 1.3
+        scan_row.operator("fo4.scan_asset_library", text="Scan / Refresh", icon='FILE_REFRESH')
+        scan_row.operator("fo4.clear_asset_library", text="", icon='X')
+
+        # ── Filter bar ──────────────────────────────────────────────────────
+        lib_items = getattr(scene, 'fo4_asset_lib_items', None)
+        total = len(lib_items) if lib_items else 0
+
+        filter_box = layout.box()
+        hdr = filter_box.row(align=True)
+        hdr.label(text=f"Assets ({total})", icon='VIEWZOOM')
+
+        filter_box.prop(scene, "fo4_asset_lib_search",   text="", icon='VIEWZOOM')
+        filter_box.prop(scene, "fo4_asset_lib_category", text="")
+
+        # ── Asset list ──────────────────────────────────────────────────────
+        if total:
+            filter_box.template_list(
+                "FO4_UL_AssetLibrary",
+                "",
+                scene, "fo4_asset_lib_items",
+                scene, "fo4_asset_lib_active",
+                rows=8,
+            )
+
+            # Show selected item detail
+            idx = getattr(scene, 'fo4_asset_lib_active', -1)
+            if 0 <= idx < total:
+                sel = lib_items[idx]
+                detail = filter_box.box()
+                detail.scale_y = 0.75
+                detail.label(text=sel.name, icon='CHECKMARK')
+                cat_icon = (
+                    asset_library.get_category_icon(sel.category)
+                    if asset_library else 'DOT'
+                )
+                detail.label(text=sel.category, icon=cat_icon)
+                detail.label(text=sel.filepath)
+
+            # Import controls
+            import_row = layout.row(align=True)
+            import_row.scale_y = 1.4
+            import_op = import_row.operator(
+                "fo4.import_library_asset",
+                text="Import Selected",
+                icon='IMPORT',
+            )
+            import_op.use_link = False
+            link_op = import_row.operator(
+                "fo4.import_library_asset",
+                text="Link",
+                icon='LINKED',
+            )
+            link_op.use_link = True
+
+        else:
+            info_col = filter_box.column(align=True)
+            info_col.scale_y = 0.75
+            info_col.label(text="No assets found yet.", icon='INFO')
+            info_col.label(text="Set a path above and click 'Scan / Refresh'.")
+
+        # ── How-to hint ─────────────────────────────────────────────────────
+        help_box = layout.box()
+        help_box.label(text="How to use", icon='QUESTION')
+        col = help_box.column(align=True)
+        col.scale_y = 0.72
+        col.label(text="1. Set 'All Assets' to your folder or .blend file,", icon='DOT')
+        col.label(text="   OR set separate Meshes / Textures / Materials folders.")
+        col.label(text="2. Click 'Scan / Refresh' to list everything inside.", icon='DOT')
+        col.label(text="3. Search or filter by category (Characters, Weapons …).", icon='DOT')
+        col.label(text="4. Click an item, then 'Import Selected'.", icon='DOT')
 
 
 class FO4_PT_ExportPanel(Panel):
@@ -1149,41 +1779,93 @@ class FO4_PT_ExportPanel(Panel):
     def draw(self, context):
         layout = self.layout
         obj = context.active_object
+        has_mesh = obj and obj.type == 'MESH'
 
-        # ── NIF exporter status ──────────────────────────────────────────────
+        # ── Fallout 4 game version ────────────────────────────────────────────
+        ver_box = layout.box()
+        ver_row = ver_box.row(align=True)
+        ver_row.label(text="Game Version:", icon='BLENDER')
+        ver_row.prop(context.scene, "fo4_game_version", text="")
+        ver_hint = ver_box.column(align=True)
+        ver_hint.scale_y = 0.75
+        ver_hint.label(
+            text="OG / NG / AE all use NIF 20.2.0.7 · bsver 130 · BSTriShape",
+            icon='INFO',
+        )
+
+        # ── Per-object mesh type ──────────────────────────────────────────────
+        # The mesh type drives which NIF settings are applied: root node class
+        # (BSFadeNode vs NiNode), BSXFlags, shader flags, and skinning path.
+        # 'Auto-detect' classifies the mesh from armature/name/material
+        # automatically; override it here for unusual setups.
+        if obj and obj.type == 'MESH':
+            mtype_box = layout.box()
+            mtype_row = mtype_box.row(align=True)
+            mtype_row.label(text="Mesh Type:", icon='MESH_DATA')
+            mtype_row.prop(obj, "fo4_mesh_type", text="")
+
+            # Per-type hint row
+            try:
+                from . import export_helpers as _eh
+                mtype_val = getattr(obj, 'fo4_mesh_type', 'AUTO')
+                if mtype_val == 'AUTO':
+                    detected = _eh.ExportHelpers._classify_fo4_mesh_type(obj)
+                    mtype_hint = mtype_box.column(align=True)
+                    mtype_hint.scale_y = 0.75
+                    mtype_hint.label(
+                        text=f"Auto-detected as: {detected}"
+                             " (override above if wrong)",
+                        icon='INFO',
+                    )
+                    mtype_val = detected
+                _MESH_TYPE_NOTES = {
+                    'STATIC':
+                        "BSFadeNode root · BSTriShape · no skinning",
+                    'SKINNED':
+                        "NiNode root · BSSubIndexTriShape · BSSkin::Instance · Skinned SF1 flag",
+                    'ARMOR':
+                        "NiNode root · BSSubIndexTriShape · BSSkin::Instance · Skinned SF1 flag",
+                    'LOD':
+                        "BSFadeNode root · reduced poly count · same settings as Static",
+                    'VEGETATION':
+                        "BSFadeNode root · Two_Sided SF2 · Alpha Clip material required",
+                    'FURNITURE':
+                        "NiNode root · BSXFlags Animated (1) · enable CK furniture markers",
+                    'WEAPON':
+                        "NiNode root · no vertex skinning · attach via named bone",
+                    'ARCHITECTURE':
+                        "BSFadeNode root · BSXFlags Has-Havok (2) · collision required",
+                }
+                note = _MESH_TYPE_NOTES.get(mtype_val, "")
+                if note:
+                    mtype_hint = mtype_box.column(align=True)
+                    mtype_hint.scale_y = 0.75
+                    mtype_hint.label(text=note, icon='INFO')
+            except Exception:
+                pass
+
+        # ── Niftools exporter status ─────────────────────────────────────────
         nif_box = layout.box()
-        exporter, available, nif_msg = export_helpers.ExportHelpers.get_nif_exporter_info()
-        if exporter == "pynifly":
+        if export_helpers:
+            available, nif_msg = export_helpers.ExportHelpers.nif_exporter_available()
+        else:
+            available, nif_msg = False, "export_helpers module unavailable — restart Blender"
+        if available:
             row = nif_box.row()
-            row.label(text="PyNifly  ✓ Ready  (Blender 4.x / 5.x)", icon='CHECKMARK')
+            row.label(text="Niftools v0.1.1  ✓ Ready", icon='CHECKMARK')
             sub = nif_box.column(align=True)
             sub.scale_y = 0.75
-            sub.label(text="BadDogSkyrim/PyNifly — Fallout 4 NIF export", icon='INFO')
-            sub.label(text="Game: FO4  |  Geometry: BSTriShape", icon='INFO')
-        elif exporter == "niftools":
-            row = nif_box.row()
-            row.label(text="Niftools v0.1.1  ✓ Ready  (Blender 3.6 LTS)", icon='CHECKMARK')
-            sub = nif_box.column(align=True)
-            sub.scale_y = 0.75
-            sub.label(text="NIF 20.2.0.7 · user ver 12 · uv2 131073", icon='INFO')
+            sub.label(text="NIF 20.2.0.7 · user ver 12 · uv2 130", icon='INFO')
             sub.label(text="Geometry: BSTriShape  |  Shader: BSLightingShaderProperty", icon='INFO')
             sub.label(text="Tangent space: ON  |  Scale correction: 1.0", icon='INFO')
         else:
             row = nif_box.row()
-            row.label(text="No NIF exporter installed", icon='ERROR')
+            row.label(text="Niftools NOT installed", icon='ERROR')
             sub = nif_box.column(align=True)
             sub.scale_y = 0.75
-            # Truncate long messages to keep the panel tidy.
-            _MAX_MSG = 80
-            sub.label(text=nif_msg[:_MAX_MSG] if len(nif_msg) > _MAX_MSG else nif_msg)
-            sub.label(text="Fallback: FBX export (convert with NifSkope/CAO)", icon='EXPORT')
-            inst_row = nif_box.row()
-            inst_row.scale_y = 1.3
-            inst_row.operator("fo4.install_pynifly", text="Install PyNifly  (Blender 4.x/5.x)", icon='FILE_REFRESH')
-            sub2 = nif_box.column(align=True)
-            sub2.scale_y = 0.7
-            from . import tool_installers as _ti
-            sub2.label(text=f"Place PyNifly*.zip in {_ti.TOOLS_DIR_DISPLAY} first", icon='INFO')
+            sub.label(text=nif_msg)
+            sub.label(text="Fallback: FBX export (convert with NifSkope)", icon='EXPORT')
+            sub.label(text="Install: Blender 3.6 LTS + Niftools v0.1.1 ZIP", icon='URL')
 
         # ── Active object status ─────────────────────────────────────────────
         obj_box = layout.box()
@@ -1235,10 +1917,12 @@ class FO4_PT_ExportPanel(Panel):
         act_box.label(text="Export", icon='EXPORT')
 
         row = act_box.row(align=True)
+        row.enabled = has_mesh
         row.scale_y = 1.4
         row.operator("fo4.export_mesh", text="Export Mesh  (.nif)", icon='MESH_DATA')
 
         row2 = act_box.row(align=True)
+        row2.enabled = has_mesh
         row2.scale_y = 1.2
         row2.operator(
             "fo4.export_mesh_with_collision",
@@ -1247,10 +1931,13 @@ class FO4_PT_ExportPanel(Panel):
         )
 
         act_box.separator(factor=0.5)
-        act_box.operator("fo4.validate_export", text="Validate Mesh Before Export", icon='CHECKMARK')
+        row = act_box.row()
+        row.enabled = has_mesh
+        row.operator("fo4.validate_export", text="Validate Mesh Before Export", icon='CHECKMARK')
 
         row3 = act_box.row(align=True)
         row3.scale_y = 1.4
+        row3.enabled = any(o.type == 'MESH' for o in context.scene.objects)
         row3.operator(
             "fo4.export_scene_as_nif",
             text="Export Entire Scene as NIF",
@@ -1311,6 +1998,24 @@ class FO4_PT_BatchProcessingPanel(Panel):
         row = box.row()
         row.enabled = len(selected_meshes) > 0
         row.operator("fo4.batch_export_meshes", text="Batch Export", icon='EXPORT')
+
+        # Batch LOD & Collision
+        lod_box = layout.box()
+        lod_box.label(text="Batch LOD & Collision", icon='OUTLINER_OB_MESH')
+        sub = lod_box.column(align=True)
+        sub.scale_y = 0.75
+        sub.label(text="Generates LOD1–LOD4 copies for every selected mesh.", icon='INFO')
+        sub.label(text="Collision uses each object's fo4_collision_type (inferred", icon='INFO')
+        sub.label(text="from name if not set). GRASS / MUSHROOM / NONE are skipped.", icon='INFO')
+        lod_box.separator()
+        row = lod_box.row()
+        row.enabled = len(selected_meshes) > 0
+        row.scale_y = 1.2
+        row.operator("fo4.batch_generate_lod", text="Batch Generate LOD", icon='OUTLINER_OB_MESH')
+        row = lod_box.row()
+        row.enabled = len(selected_meshes) > 0
+        row.scale_y = 1.2
+        row.operator("fo4.batch_generate_collision", text="Batch Generate Collision", icon='MESH_ICOSPHERE')
         
         # Tips
         tips_box = layout.box()
@@ -1332,29 +2037,33 @@ class FO4_PT_PresetsPanel(Panel):
     
     def draw(self, context):
         layout = self.layout
-        
+        scene  = context.scene
+
+        # ── Asset-path status banner ─────────────────────────────────────────
+        _draw_game_path_box(layout, context)
+
         # Weapon presets
         box = layout.box()
         box.label(text="Weapon Presets", icon='MOD_ARMATURE')
         box.operator("fo4.create_weapon_preset", text="Create Weapon", icon='MESH_CUBE')
-        
+
         # Armor presets
         box = layout.box()
         box.label(text="Armor Presets", icon='MESH_UVSPHERE')
         box.operator("fo4.create_armor_preset", text="Create Armor", icon='MESH_CUBE')
-        
+
         # Prop presets
         box = layout.box()
         box.label(text="Prop Presets", icon='OBJECT_DATA')
         box.operator("fo4.create_prop_preset", text="Create Prop", icon='MESH_CUBE')
-        
+
         # Info
         info_box = layout.box()
         info_box.label(text="About Presets:", icon='INFO')
-        info_box.label(text="• Pre-configured for FO4")
-        info_box.label(text="• Optimal scale & settings")
-        info_box.label(text="• Materials already setup")
-        info_box.label(text="• Ready to customize")
+        info_box.label(text="• Imports the real game mesh when path is set")
+        info_box.label(text="• Falls back to placeholder if path is not set")
+        info_box.label(text="• Pre-configured FO4 materials & settings")
+        info_box.label(text="• Ready to customize and re-export")
 
 
 class FO4_PT_AutomationQuickPanel(Panel):
@@ -1436,15 +2145,15 @@ class FO4_PT_Havok2FBXPanel(Panel):
     def draw(self, context):
         layout = self.layout
         scene = context.scene
-        prefs = preferences.get_preferences()
-        path = preferences.get_havok2fbx_path()
+        prefs = preferences.get_preferences() if preferences else None
+        path = preferences.get_havok2fbx_path() if preferences else None
         obj = context.active_object
 
         # ── Tool path ──────────────────────────────────────────────────────
         path_box = layout.box()
         path_box.label(text="Configure Havok2FBX", icon='FILE_FOLDER')
-        if prefs:
-            path_box.prop(prefs, "havok2fbx_path", text="Folder")
+        if scene:
+            path_box.prop(scene, "fo4_havok2fbx_path", text="Folder")
             row = path_box.row()
             row.operator("fo4.install_havok2fbx", text="Get Havok2FBX", icon='URL')
             row.operator("fo4.check_tool_paths", text="Check Paths", icon='INFO')
@@ -1521,9 +2230,13 @@ class FO4_PT_VegetationPanel(Panel):
     
     def draw(self, context):
         layout = self.layout
+        scene  = context.scene
         obj = context.active_object
         selected_meshes = [o for o in context.selected_objects if o.type == 'MESH']
-        
+
+        # ── Asset-path status banner ─────────────────────────────────────────
+        _draw_game_path_box(layout, context)
+
         # Create vegetation
         box = layout.box()
         box.label(text="Create Vegetation", icon='OUTLINER_OB_FORCE_FIELD')
@@ -1554,9 +2267,73 @@ class FO4_PT_VegetationPanel(Panel):
         # LOD generation
         box = layout.box()
         box.label(text="LOD System", icon='OUTLINER_OB_MESH')
+        sub = box.column(align=True)
+        sub.scale_y = 0.75
+        sub.label(text="FO4: LOD0 (close) → LOD3 (far) per vegetation asset", icon='INFO')
+        sub.label(text="Source = LOD0. Creates LOD1–LOD3 copies.", icon='INFO')
+        box.separator()
         row = box.row()
         row.enabled = obj and obj.type == 'MESH'
+        row.scale_y = 1.3
         row.operator("fo4.create_vegetation_lod_chain", text="Create LOD Chain", icon='MESH_GRID')
+        row2 = box.row()
+        row2.enabled = obj and obj.type == 'MESH'
+        row2.operator("fo4.export_lod_chain_as_nif", text="Export LOD Chain as NIF", icon='EXPORT')
+
+        # Collision for vegetation
+        box = layout.box()
+        box.label(text="Collision (for trees / large bushes)", icon='MESH_ICOSPHERE')
+        sub = box.column(align=True)
+        sub.scale_y = 0.75
+        sub.label(text="VEGETATION type = simplified convex hull footprint", icon='INFO')
+        sub.label(text="GRASS / MUSHROOM = no collision (thin foliage)", icon='INFO')
+        box.separator()
+        has_mesh = obj and obj.type == 'MESH'
+        if has_mesh:
+            box.prop(obj, "fo4_collision_type", text="Type")
+        row = box.row()
+        row.operator("fo4.set_collision_type", text="Change Type", icon='PRESET')
+        row = box.row()
+        can_collide = has_mesh and getattr(obj, 'fo4_collision_type', 'DEFAULT') not in ('NONE', 'GRASS', 'MUSHROOM')
+        row.enabled = can_collide
+        row.operator("fo4.generate_collision_mesh", text="Generate Collision Mesh", icon='MESH_DATA')
+        row = box.row()
+        row.enabled = has_mesh
+        row.operator("fo4.generate_lod_and_collision",
+                     text="Generate LOD + Collision", icon='SHADERFX')
+
+        # Wind animation
+        box = layout.box()
+        box.label(text="Wind Animation", icon='FORCE_WIND')
+        row = box.row()
+        row.enabled = obj and obj.type == 'MESH'
+        row.operator("fo4.generate_wind_weights", text="Generate Wind Weights", icon='WPAINT_HLT')
+        row2 = box.row()
+        row2.enabled = obj and obj.type == 'MESH'
+        row2.operator("fo4.apply_wind_animation", text="Apply Wind Animation", icon='ANIM')
+        row3 = box.row()
+        row3.enabled = bool([o for o in context.selected_objects if o.type == 'MESH'])
+        row3.operator("fo4.batch_apply_wind_animation", text="Batch: Wind (Selected)", icon='PARTICLES')
+        
+        # Material setup
+        box = layout.box()
+        box.label(text="Vegetation Material", icon='MATERIAL')
+        row = box.row()
+        row.enabled = obj and obj.type == 'MESH'
+        row.operator("fo4.setup_vegetation_material",
+                     text="Setup Vegetation Material", icon='NODE_MATERIAL')
+        sub = box.column(align=True)
+        sub.scale_y = 0.75
+        sub.label(text="Alpha Clip + Two-Sided (for leaves/grass)", icon='INFO')
+        sub.label(text="Requires BC3 (DXT5) diffuse texture with alpha", icon='INFO')
+        
+        # Export
+        box = layout.box()
+        box.label(text="Export", icon='EXPORT')
+        row = box.row()
+        row.enabled = obj and obj.type == 'MESH'
+        row.operator("fo4.export_vegetation_as_nif",
+                     text="Export Vegetation NIF", icon='FILE_BLEND')
         
         # Baking
         box = layout.box()
@@ -1567,12 +2344,14 @@ class FO4_PT_VegetationPanel(Panel):
         
         # Tips
         tips_box = layout.box()
-        tips_box.label(text="Workflow Tips:", icon='INFO')
-        tips_box.label(text="1. Create vegetation types")
-        tips_box.label(text="2. Scatter across area")
-        tips_box.label(text="3. Combine for FPS boost")
-        tips_box.label(text="4. Generate LODs")
-        tips_box.label(text="5. Export as single mesh")
+        tips_box.label(text="Workflow Tips (FO4 Vegetation):", icon='INFO')
+        tips_box.label(text="1. Create vegetation preset")
+        tips_box.label(text="2. Set collision type: VEGETATION or TREE → has collision")
+        tips_box.label(text="   GRASS / MUSHROOM → no collision (thin foliage)")
+        tips_box.label(text="3. Generate LOD + Collision (one click)")
+        tips_box.label(text="4. Setup vegetation material (Alpha Clip)")
+        tips_box.label(text="5. Export LOD Chain as NIF → meshes/ folder")
+        tips_box.label(text="6. Open in Creation Kit as Static/Grass record")
 
 
 class FO4_PT_QuestPanel(Panel):
@@ -1597,7 +2376,7 @@ class FO4_PT_QuestPanel(Panel):
         # Papyrus script
         box = layout.box()
         box.label(text="Scripting", icon='SCRIPT')
-        box.operator("fo4.generate_papyrus_script", text="Generate Papyrus Script", icon='FILE_SCRIPT')
+        box.operator("fo4.quest_generate_papyrus_script", text="Generate Papyrus Script", icon='FILE_SCRIPT')
         
         # Info
         info_box = layout.box()
@@ -1818,7 +2597,7 @@ class FO4_PT_AutomationMacrosPanel(Panel):
             from . import automation_system
             action_count = len(automation_system.AutomationSystem.recorded_actions)
             box.label(text=f"Actions recorded: {action_count}")
-            box.operator("fo4.stop_recording", text="Stop Recording", icon='SNAP_FACE')
+            box.operator("fo4.stop_recording", text="Stop Recording", icon='CANCEL')
         else:
             box.operator("fo4.start_recording", text="Start Recording", icon='REC')
             box.label(text="Record your actions to create macros")
@@ -1861,6 +2640,542 @@ class FO4_PT_AutomationMacrosPanel(Panel):
         info_box.label(text="• Boost productivity 10x")
 
 
+class FO4_PT_PostProcessingPanel(Panel):
+    """Fallout 4 post-processing compositor preview and ImageSpace export"""
+    bl_label = "Post-Processing (FO4)"
+    bl_idname = "FO4_PT_post_processing_panel"
+    bl_space_type = 'VIEW_3D'
+    bl_region_type = 'UI'
+    bl_category = 'Fallout 4'
+    bl_parent_id = "FO4_PT_main_panel"
+    bl_options = {'DEFAULT_CLOSED'}
+
+    def draw(self, context):
+        layout = self.layout
+        scene = context.scene
+
+        # ── Setup & Presets ──────────────────────────────────────────────────
+        setup_box = layout.box()
+        setup_box.label(text="Compositor Setup", icon='NODE_COMPOSITING')
+        row = setup_box.row(align=True)
+        row.operator("fo4.setup_post_processing",
+                     text="Setup Compositor", icon='NODETREE')
+        row.operator("fo4.clear_post_processing",
+                     text="Clear", icon='X')
+
+        preset_box = layout.box()
+        preset_box.label(text="Quick Presets", icon='PRESET')
+        preset_box.prop(scene, "fo4_pp_preset", text="")
+        op = preset_box.operator("fo4.apply_pp_preset",
+                                 text="Apply Preset", icon='CHECKMARK')
+        op.preset = getattr(scene, "fo4_pp_preset", "VANILLA")
+
+        # ── Bloom ────────────────────────────────────────────────────────────
+        bloom_box = layout.box()
+        bloom_box.label(text="Bloom (CK: BloomScale / BloomBlurRadius)",
+                        icon='LIGHT_SUN')
+        col = bloom_box.column(align=True)
+        col.prop(scene, "fo4_pp_bloom_strength",  text="Strength")
+        col.prop(scene, "fo4_pp_bloom_threshold", text="Threshold")
+        col.prop(scene, "fo4_pp_bloom_radius",    text="Radius")
+
+        # ── Colour Grading ───────────────────────────────────────────────────
+        color_box = layout.box()
+        color_box.label(text="Colour Grading (CK: Saturation / Contrast)",
+                        icon='COLOR')
+        col = color_box.column(align=True)
+        col.prop(scene, "fo4_pp_saturation",  text="Saturation")
+        col.prop(scene, "fo4_pp_contrast",    text="Contrast")
+        col.prop(scene, "fo4_pp_brightness",  text="Brightness")
+
+        # ── Tint ─────────────────────────────────────────────────────────────
+        tint_box = layout.box()
+        tint_box.label(text="Screen Tint (CK: TintColor R/G/B/A)", icon='RESTRICT_COLOR_OFF')
+        row = tint_box.row(align=True)
+        row.prop(scene, "fo4_pp_tint_r", text="R")
+        row.prop(scene, "fo4_pp_tint_g", text="G")
+        row.prop(scene, "fo4_pp_tint_b", text="B")
+        tint_box.prop(scene, "fo4_pp_tint_strength", text="Strength")
+
+        # ── Vignette & Cinematic ─────────────────────────────────────────────
+        vfx_box = layout.box()
+        vfx_box.label(text="Vignette & Cinematic", icon='ZOOM_OUT')
+        vfx_box.prop(scene, "fo4_pp_vignette",        text="Vignette")
+        vfx_box.prop(scene, "fo4_pp_cinematic_bars",  text="Cinematic Bars")
+
+        # ── Depth of Field ───────────────────────────────────────────────────
+        dof_box = layout.box()
+        dof_box.label(text="Depth of Field", icon='CAMERA_DATA')
+        dof_box.prop(scene, "fo4_pp_dof_enabled", text="Enable DoF")
+        row = dof_box.row()
+        row.enabled = getattr(scene, "fo4_pp_dof_enabled", False)
+        row.prop(scene, "fo4_pp_dof_fstop", text="f-stop")
+
+        # ── CK-Only Fields ───────────────────────────────────────────────────
+        ck_box = layout.box()
+        ck_box.label(text="Creation Kit Only (no compositor preview)",
+                     icon='EXPORT')
+        col = ck_box.column(align=True)
+        col.prop(scene, "fo4_pp_eye_adapt_speed",    text="Eye Adapt Speed")
+        col.prop(scene, "fo4_pp_eye_adapt_strength", text="Eye Adapt Strength")
+        col.prop(scene, "fo4_pp_white",              text="White Level")
+
+        # ── Export ───────────────────────────────────────────────────────────
+        export_box = layout.box()
+        export_box.label(text="Export for Creation Kit", icon='EXPORT')
+        export_box.operator("fo4.export_imagespace_data",
+                            text="Export ImageSpace JSON", icon='FILE_TEXT')
+        export_box.operator("fo4.sync_pp_props",
+                            text="Sync to Compositor", icon='FILE_REFRESH')
+
+        # ── Info ─────────────────────────────────────────────────────────────
+        info_box = layout.box()
+        info_box.label(text="Workflow:", icon='INFO')
+        sub = info_box.column(align=True)
+        sub.scale_y = 0.75
+        sub.label(text="1. Click 'Setup Compositor'")
+        sub.label(text="2. Set viewport to Rendered mode")
+        sub.label(text="3. Adjust sliders for real-time preview")
+        sub.label(text="4. Export JSON → enter values in CK IMGS record")
+
+
+class FO4_PT_MaterialBrowserPanel(Panel):
+    """FO4 material preset browser – apply pre-built surface materials"""
+    bl_label = "Material Browser (FO4)"
+    bl_idname = "FO4_PT_material_browser_panel"
+    bl_space_type = 'VIEW_3D'
+    bl_region_type = 'UI'
+    bl_category = 'Fallout 4'
+    bl_parent_id = "FO4_PT_main_panel"
+    bl_options = {'DEFAULT_CLOSED'}
+
+    def draw(self, context):
+        layout = self.layout
+        scene = context.scene
+
+        # ── Preset selector ──────────────────────────────────────────────────
+        sel_box = layout.box()
+        sel_box.label(text="Surface Material Preset", icon='MATERIAL')
+        sel_box.prop(scene, "fo4_mat_preset", text="")
+        sel_box.prop(scene, "fo4_mat_apply_all", text="Apply to All Selected")
+        op = sel_box.operator("fo4.apply_material_preset",
+                              text="Apply to Selection", icon='CHECKMARK')
+        op.preset      = getattr(scene, "fo4_mat_preset", "RUSTY_METAL")
+        op.apply_all_selected = getattr(scene, "fo4_mat_apply_all", True)
+
+        # ── Quick-apply buttons by category ─────────────────────────────────
+        if fo4_material_browser:
+            # Metals
+            m_box = layout.box()
+            m_box.label(text="Metals", icon='MATERIAL_DATA')
+            row = m_box.row(align=True)
+            for pid in ("RUSTY_METAL", "CLEAN_METAL", "GALVANIZED_METAL", "VAULT_METAL"):
+                label = fo4_material_browser.PRESETS[pid]["label"].split()[0]
+                r = row.operator("fo4.apply_material_preset", text=label)
+                r.preset = pid
+                r.apply_all_selected = getattr(scene, "fo4_mat_apply_all", True)
+
+            # Stone & Ground
+            s_box = layout.box()
+            s_box.label(text="Stone & Ground", icon='MESH_CUBE')
+            row = s_box.row(align=True)
+            for pid in ("CRACKED_CONCRETE", "SMOOTH_CONCRETE", "STONE", "ASPHALT"):
+                label = fo4_material_browser.PRESETS[pid]["label"].split()[0]
+                r = row.operator("fo4.apply_material_preset", text=label)
+                r.preset = pid
+                r.apply_all_selected = getattr(scene, "fo4_mat_apply_all", True)
+
+            # Organic & Fabric
+            o_box = layout.box()
+            o_box.label(text="Organic & Fabric", icon='MESH_UVSPHERE')
+            row = o_box.row(align=True)
+            for pid in ("WOOD_PLANK", "LEATHER", "FABRIC_CLOTH", "HUMAN_SKIN"):
+                label = fo4_material_browser.PRESETS[pid]["label"].split()[0]
+                r = row.operator("fo4.apply_material_preset", text=label)
+                r.preset = pid
+                r.apply_all_selected = getattr(scene, "fo4_mat_apply_all", True)
+
+            # Special / Emissive
+            e_box = layout.box()
+            e_box.label(text="Special / Emissive", icon='LIGHT_SUN')
+            row = e_box.row(align=True)
+            for pid in ("NEON_LIGHT", "TERMINAL_SCREEN", "POWER_ARMOR_PAINT", "GLASS_CLEAR"):
+                label = fo4_material_browser.PRESETS[pid]["label"].split()[0]
+                r = row.operator("fo4.apply_material_preset", text=label)
+                r.preset = pid
+                r.apply_all_selected = getattr(scene, "fo4_mat_apply_all", True)
+
+        # ── Info ─────────────────────────────────────────────────────────────
+        info_box = layout.box()
+        info_box.label(text="Workflow:", icon='INFO')
+        sub = info_box.column(align=True)
+        sub.scale_y = 0.75
+        sub.label(text="1. Select your mesh object(s)")
+        sub.label(text="2. Pick a surface type")
+        sub.label(text="3. Click 'Apply to Selection'")
+        sub.label(text="4. Connect your texture images to the")
+        sub.label(text="   Diffuse/Normal/Specular nodes")
+        sub.label(text="5. Convert textures to DDS in NVTT panel")
+
+
+class FO4_PT_SceneDiagnosticsPanel(Panel):
+    """Comprehensive FO4 scene health / export-readiness dashboard"""
+    bl_label = "Scene Diagnostics"
+    bl_idname = "FO4_PT_scene_diagnostics_panel"
+    bl_space_type = 'VIEW_3D'
+    bl_region_type = 'UI'
+    bl_category = 'Fallout 4'
+    bl_parent_id = "FO4_PT_main_panel"
+    bl_options = {'DEFAULT_CLOSED'}
+
+    def draw(self, context):
+        layout = self.layout
+        scene  = context.scene
+
+        # ── Score header ────────────────────────────────────────────────────
+        score   = getattr(scene, "fo4_diag_last_score",    -1)
+        errors  = getattr(scene, "fo4_diag_last_errors",    0)
+        warns   = getattr(scene, "fo4_diag_last_warnings",  0)
+        ready   = getattr(scene, "fo4_diag_export_ready",   False)
+
+        score_box = layout.box()
+        if score < 0:
+            score_box.label(text="No diagnostics run yet", icon='QUESTION')
+        else:
+            icon = 'CHECKMARK' if ready else ('ERROR' if errors > 0 else 'INFO')
+            score_box.label(
+                text=f"Score: {score}/100  |  {errors} error(s)  {warns} warning(s)",
+                icon=icon,
+            )
+            if ready:
+                score_box.label(text="✅ Scene is export-ready", icon='CHECKMARK')
+            elif errors > 0:
+                score_box.label(text="❌ Fix errors before exporting", icon='ERROR')
+
+        # ── Action buttons ───────────────────────────────────────────────────
+        btn_row = layout.row(align=True)
+        btn_row.operator("fo4.run_scene_diagnostics",
+                         text="Run Diagnostics", icon='VIEWZOOM')
+        btn_row.operator("fo4.auto_fix_diagnostics",
+                         text="Auto-Fix", icon='TOOL_SETTINGS')
+        layout.operator("fo4.scan_fo4_readiness",
+                        text="Scan FO4 Readiness", icon='CHECKBOX_HLT')
+
+        # ── Per-object results (from stored report) ──────────────────────────
+        if fo4_scene_diagnostics:
+            report = fo4_scene_diagnostics.load_report()
+            if report and report.get("objects"):
+                results_box = layout.box()
+                results_box.label(text="Per-Object Results:", icon='OBJECT_DATA')
+                for obj_r in report["objects"]:
+                    obj_name = obj_r.get("name", "?")
+                    obj_err  = obj_r.get("error_count",   0)
+                    obj_warn = obj_r.get("warning_count", 0)
+                    obj_poly = obj_r.get("poly_count",    0)
+
+                    if obj_err > 0:
+                        icon = 'ERROR'
+                    elif obj_warn > 0:
+                        icon = 'INFO'
+                    else:
+                        icon = 'CHECKMARK'
+
+                    row = results_box.row(align=True)
+                    row.label(
+                        text=f"{obj_name} ({obj_poly:,} polys)",
+                        icon=icon,
+                    )
+                    if obj_err > 0 or obj_warn > 0:
+                        row.label(text=f"E:{obj_err} W:{obj_warn}")
+
+        # ── Export report ────────────────────────────────────────────────────
+        exp_box = layout.box()
+        exp_box.label(text="Export Report", icon='FILE_TEXT')
+        exp_box.prop(scene, "fo4_diag_report_path", text="")
+        exp_box.operator("fo4.export_diagnostics_report",
+                         text="Save Diagnostics Report", icon='EXPORT')
+
+        # ── Info ─────────────────────────────────────────────────────────────
+        info_box = layout.box()
+        info_box.label(text="Checks performed:", icon='INFO')
+        sub = info_box.column(align=True)
+        sub.scale_y = 0.75
+        sub.label(text="• Polygon count (≤ 65,535)")
+        sub.label(text="• UV map, scale applied")
+        sub.label(text="• Triangulation, loose verts")
+        sub.label(text="• Material / texture nodes")
+        sub.label(text="• Collision mesh (UCX_)")
+        sub.label(text="• Rigging: bones, root, VGs")
+        sub.label(text="• Naming (no spaces/non-ASCII)")
+
+
+class FO4_PT_ReferenceObjectsPanel(Panel):
+    """FO4 scale reference objects panel"""
+    bl_label = "Scale References"
+    bl_idname = "FO4_PT_reference_objects_panel"
+    bl_space_type = 'VIEW_3D'
+    bl_region_type = 'UI'
+    bl_category = 'Fallout 4'
+    bl_parent_id = "FO4_PT_main_panel"
+    bl_options = {'DEFAULT_CLOSED'}
+
+    def draw(self, context):
+        layout = self.layout
+        scene  = context.scene
+
+        # ── Add reference ────────────────────────────────────────────────────
+        add_box = layout.box()
+        add_box.label(text="Add Scale Reference", icon='EMPTY_AXIS')
+        add_box.prop(scene, "fo4_ref_type", text="")
+        op = add_box.operator("fo4.add_reference_object",
+                              text="Add to Scene", icon='ADD')
+        op.ref_type = getattr(scene, "fo4_ref_type", "HUMAN_MALE")
+
+        # ── Quick-add buttons ────────────────────────────────────────────────
+        quick_box = layout.box()
+        quick_box.label(text="Quick Add:", icon='OBJECT_DATA')
+
+        row = quick_box.row(align=True)
+        for rid in ("HUMAN_MALE", "HUMAN_FEMALE", "POWER_ARMOR"):
+            r = row.operator("fo4.add_reference_object",
+                             text=fo4_reference_helpers.REFERENCES[rid]["label"].split('(')[0].strip()
+                             if fo4_reference_helpers else rid)
+            r.ref_type = rid
+
+        row2 = quick_box.row(align=True)
+        for rid in ("PRE_WAR_CAR", "DOOR_FRAME", "CUBE_1M"):
+            r = row2.operator("fo4.add_reference_object",
+                              text=fo4_reference_helpers.REFERENCES[rid]["label"].split('(')[0].strip()
+                              if fo4_reference_helpers else rid)
+            r.ref_type = rid
+
+        # ── Clear ────────────────────────────────────────────────────────────
+        layout.operator("fo4.clear_reference_objects",
+                        text="Remove All References", icon='X')
+
+        # ── Info ─────────────────────────────────────────────────────────────
+        info_box = layout.box()
+        info_box.label(text="FO4 Scale Guide:", icon='INFO')
+        sub = info_box.column(align=True)
+        sub.scale_y = 0.75
+        sub.label(text="• Human male:   1.28 BU tall")
+        sub.label(text="• Power Armor:  1.72 BU tall")
+        sub.label(text="• Deathclaw:    2.20 BU tall")
+        sub.label(text="• Door frame:   1.80 BU tall")
+        sub.label(text="• 1 m cube:     0.70 BU")
+        sub.label(text="(1 BU ≈ 100 NIF units ≈ 1.4375 cm)")
+        sub.label(text="References are wire-only, non-renderable,")
+        sub.label(text="non-selectable and export-skipped.")
+
+
+# ── Papyrus Script Templates Panel ────────────────────────────────────────────
+
+class FO4_PT_PapyrusPanel(Panel):
+    """Generate Papyrus scripts for Fallout 4 mods"""
+    bl_label    = "Papyrus Scripts"
+    bl_idname   = "FO4_PT_papyrus_panel"
+    bl_space_type  = 'VIEW_3D'
+    bl_region_type = 'UI'
+    bl_category = 'Fallout 4'
+    bl_parent_id   = "FO4_PT_main_panel"
+    bl_options  = {'DEFAULT_CLOSED'}
+
+    def draw(self, context):
+        layout = self.layout
+        scene  = context.scene
+
+        # ── Script metadata ───────────────────────────────────────────────────
+        meta_box = layout.box()
+        meta_box.label(text="Script Settings", icon='SCRIPT')
+        meta_box.prop(scene, "fo4_papyrus_template",    text="Type")
+        meta_box.prop(scene, "fo4_papyrus_script_name", text="Script Name")
+        meta_box.prop(scene, "fo4_papyrus_mod_name",    text="Mod Prefix")
+
+        # ── Generate / preview ────────────────────────────────────────────────
+        gen_box = layout.box()
+        gen_box.label(text="Generate", icon='FILE_SCRIPT')
+        gen_box.operator("fo4.generate_papyrus_script",
+                         text="Preview in Text Editor", icon='SCRIPT')
+        gen_box.label(text="→ Opens in Blender Text Editor", icon='BLANK1')
+
+        # ── Export ────────────────────────────────────────────────────────────
+        exp_box = layout.box()
+        exp_box.label(text="Export to Disk", icon='EXPORT')
+        exp_box.prop(scene, "fo4_papyrus_output_dir", text="Output Folder")
+        exp_box.operator("fo4.export_papyrus_script",
+                         text="Export .psc File", icon='FILE_TICK')
+
+        # ── Compile guide ─────────────────────────────────────────────────────
+        info_box = layout.box()
+        info_box.label(text="Compilation", icon='INFO')
+        info_box.operator("fo4.papyrus_compile_instructions",
+                          text="Show Compile Instructions", icon='HELP')
+        sub = info_box.column(align=True)
+        sub.scale_y = 0.75
+        sub.label(text="1. Place .psc in Data/Scripts/Source/User/")
+        sub.label(text="2. Compile in Creation Kit (Gameplay → Papyrus)")
+        sub.label(text="   or with PapyrusCompiler.exe from command line")
+        sub.label(text="3. Attach compiled .pex to your form in the CK")
+        sub.label(text="   (form → Scripts tab → Add → script name)")
+
+
+# ── Havok Physics Panel ───────────────────────────────────────────────────────
+
+class FO4_PT_HavokPhysicsPanel(Panel):
+    """Havok rigid-body physics setup for FO4 NIF export"""
+    bl_label    = "Havok Physics"
+    bl_idname   = "FO4_PT_havok_physics_panel"
+    bl_space_type  = 'VIEW_3D'
+    bl_region_type = 'UI'
+    bl_category = 'Fallout 4'
+    bl_parent_id   = "FO4_PT_main_panel"
+    bl_options  = {'DEFAULT_CLOSED'}
+
+    def draw(self, context):
+        layout = self.layout
+        scene  = context.scene
+        obj    = context.active_object
+
+        # ── Preset selector ───────────────────────────────────────────────────
+        preset_box = layout.box()
+        preset_box.label(text="Physics Preset", icon='RIGID_BODY')
+        preset_box.prop(scene, "fo4_physics_preset", text="")
+        preset_box.operator("fo4.apply_physics_preset",
+                            text="Apply to Selected", icon='PHYSICS')
+
+        # ── Active object summary ─────────────────────────────────────────────
+        if obj and obj.type == 'MESH':
+            status_box = layout.box()
+            status_box.label(
+                text=f"Active: {obj.name}", icon='OBJECT_DATA')
+            rb = obj.rigid_body
+            if rb:
+                col = status_box.column(align=True)
+                col.scale_y = 0.85
+                layer  = obj.get("fo4_collision_layer", "–")
+                motion = obj.get("fo4_motion_type",     "–")
+                mass   = obj.get("fo4_havok_mass",      rb.mass)
+                fric   = obj.get("fo4_havok_friction",  rb.friction)
+                rest   = obj.get("fo4_havok_restitution", rb.restitution)
+                qual   = obj.get("fo4_havok_quality",   "–")
+                col.label(text=f"Layer:       {layer}")
+                col.label(text=f"Motion:      {motion}")
+                col.label(text=f"Quality:     {qual}")
+                col.label(text=f"Mass:        {mass:.2f} kg")
+                col.label(text=f"Friction:    {fric:.2f}")
+                col.label(text=f"Restitution: {rest:.2f}")
+            else:
+                status_box.label(text="No rigid body (no physics)", icon='ERROR')
+
+            # ── Validate ─────────────────────────────────────────────────────
+            status_box.operator("fo4.validate_physics",
+                                text="Validate Physics", icon='CHECKMARK')
+
+            # ── Live warnings ─────────────────────────────────────────────────
+            if getattr(scene, "fo4_physics_show_warnings", True):
+                try:
+                    from . import fo4_physics_helpers
+                    warns = fo4_physics_helpers.PhysicsHelpers.validate_physics(obj)
+                    if warns:
+                        warn_box = layout.box()
+                        warn_box.label(text="Warnings:", icon='ERROR')
+                        for w in warns:
+                            warn_box.label(text=w, icon='DOT')
+                except Exception:
+                    pass
+        else:
+            layout.label(text="Select a mesh object", icon='INFO')
+
+        # ── Reference table ───────────────────────────────────────────────────
+        ref_box = layout.box()
+        ref_box.label(text="Common FO4 Layer Guide:", icon='INFO')
+        ref_box.prop(scene, "fo4_physics_show_warnings",
+                     text="Show live warnings")
+        sub = ref_box.column(align=True)
+        sub.scale_y = 0.75
+        sub.label(text="L_STATIC (1)        – immoveable world geo")
+        sub.label(text="L_ANIMSTATIC (2)    – doors, animated statics")
+        sub.label(text="L_PROPS (7)         – moveable physics props")
+        sub.label(text="L_DEBRIS_SMALL (8)  – gibs / small debris")
+        sub.label(text="L_TREES (35)        – trees / foliage")
+        sub.label(text="FIXED: mass = 0  |  DYNAMIC: mass > 0")
+
+
+# ── Mod Packaging Panel ───────────────────────────────────────────────────────
+
+class FO4_PT_ModPackagingPanel(Panel):
+    """Create, document, and validate a complete FO4 mod package"""
+    bl_label    = "Mod Packaging"
+    bl_idname   = "FO4_PT_mod_packaging_panel"
+    bl_space_type  = 'VIEW_3D'
+    bl_region_type = 'UI'
+    bl_category = 'Fallout 4'
+    bl_parent_id   = "FO4_PT_main_panel"
+    bl_options  = {'DEFAULT_CLOSED'}
+
+    def draw(self, context):
+        layout = self.layout
+        scene  = context.scene
+
+        # ── Mod identity ──────────────────────────────────────────────────────
+        id_box = layout.box()
+        id_box.label(text="Mod Identity", icon='INFO')
+        id_box.prop(scene, "fo4_mod_name",        text="Name")
+        id_box.prop(scene, "fo4_mod_author",       text="Author")
+        id_box.prop(scene, "fo4_mod_version",      text="Version")
+        id_box.prop(scene, "fo4_mod_fo4_version",  text="Min FO4 Ver.")
+        id_box.prop(scene, "fo4_mod_plugin_name",  text="Plugin (.esp)")
+        id_box.prop(scene, "fo4_mod_description",  text="Description")
+        id_box.prop(scene, "fo4_mod_website",      text="Nexus URL")
+
+        # ── Root folder ───────────────────────────────────────────────────────
+        root_box = layout.box()
+        root_box.label(text="Mod Root Folder", icon='FILE_FOLDER')
+        root_box.prop(scene, "fo4_mod_root", text="")
+
+        # ── Structure ─────────────────────────────────────────────────────────
+        struct_box = layout.box()
+        struct_box.label(text="1 · Create Directory Structure", icon='FILEBROWSER')
+        struct_box.operator("fo4.create_mod_structure",
+                            text="Create Data/ + FOMOD Folders", icon='ADD')
+        struct_box.label(
+            text="Creates: Data/meshes/, textures/, scripts/, fomod/, …",
+            icon='BLANK1')
+
+        # ── FOMOD ─────────────────────────────────────────────────────────────
+        fomod_box = layout.box()
+        fomod_box.label(text="2 · FOMOD Installer", icon='PACKAGE')
+        fomod_box.operator("fo4.generate_fomod",
+                           text="Generate info.xml + ModuleConfig.xml", icon='FILE_TICK')
+        fomod_box.label(text="Compatible with Vortex, MO2, NMM", icon='BLANK1')
+
+        # ── README ────────────────────────────────────────────────────────────
+        readme_box = layout.box()
+        readme_box.label(text="3 · README", icon='TEXT')
+        readme_box.operator("fo4.generate_readme",
+                            text="Generate README.md", icon='FILE_TICK')
+        readme_box.label(text="Nexus-ready with all standard sections",
+                         icon='BLANK1')
+
+        # ── Validate + manifest ───────────────────────────────────────────────
+        val_box = layout.box()
+        val_box.label(text="4 · Validate & Manifest", icon='CHECKMARK')
+        val_box.operator("fo4.validate_mod_structure",
+                         text="Validate Mod Structure", icon='ZOOM_ALL')
+        val_box.operator("fo4.export_mod_manifest",
+                         text="Export mod_manifest.json", icon='EXPORT')
+
+        # ── BA2 packing guide ─────────────────────────────────────────────────
+        ba2_box = layout.box()
+        ba2_box.label(text="5 · Pack into BA2 Archive", icon='PACKAGE')
+        ba2_box.label(text="pack_ba2.bat / pack_ba2.sh are written to the",
+                      icon='BLANK1')
+        ba2_box.label(text="mod root by 'Create Structure'. Edit paths and",
+                      icon='BLANK1')
+        ba2_box.label(text="run to call Archive2.exe automatically.",
+                      icon='BLANK1')
+
+
 class FO4_PT_AddonIntegrationPanel(Panel):
     """Third-party add-on integration panel"""
     bl_label = "Add-on Integrations"
@@ -1887,7 +3202,7 @@ class FO4_PT_AddonIntegrationPanel(Panel):
             # Status indicator
             if addon['is_enabled']:
                 status_icon = 'CHECKMARK'
-                status_text = "Enabled"
+                status_text = "Enabled ✓"
             elif addon['is_installed']:
                 status_icon = 'DOT'
                 status_text = "Installed (not enabled)"
@@ -1906,9 +3221,74 @@ class FO4_PT_AddonIntegrationPanel(Panel):
             use_box.label(text="FO4 Use:", icon='INFO')
             use_box.label(text=addon['fo4_use_cases'])
             
-            # Download link if not installed
-            if not addon['is_installed']:
-                addon_box.label(text=f"Get it: {addon.get('download_url', 'Search online')}")
+            # ── Action buttons ──────────────────────────────────────────────
+            addon_id    = addon['addon_id']
+            is_builtin  = addon.get('builtin', False)
+            dl_url      = addon.get('download_url', '')
+
+            if addon['is_enabled']:
+                # Already active — nothing to do
+                pass
+
+            elif addon['is_installed']:
+                # On disk but not yet active → one-click enable is safe
+                op = addon_box.operator(
+                    "fo4.enable_addon",
+                    text="Enable Now",
+                    icon='CHECKMARK',
+                )
+                op.addon_id = addon_id
+
+            else:
+                # Not installed / not found on disk
+                if is_builtin:
+                    # These ship with every Blender but may be disabled or renamed
+                    # in some builds.  Guide the user to Preferences rather than
+                    # trying to call addon_enable on a module that isn't on disk.
+                    addon_box.label(
+                        text="Built-in — enable via Edit > Preferences > Add-ons",
+                        icon='INFO',
+                    )
+                    op = addon_box.operator(
+                        "fo4.enable_addon",
+                        text="Try Enable",
+                        icon='CHECKMARK',
+                    )
+                    op.addon_id = addon_id
+
+                elif addon_id == 'io_scene_niftools':
+                    # Dedicated installer already exists
+                    addon_box.operator(
+                        "fo4.install_niftools",
+                        text="Auto-Install Niftools",
+                        icon='IMPORT',
+                    )
+                    op = addon_box.operator(
+                        "wm.url_open",
+                        text="Open GitHub Releases",
+                        icon='URL',
+                    )
+                    op.url = dl_url
+
+                elif dl_url.startswith('http'):
+                    op = addon_box.operator(
+                        "wm.url_open",
+                        text="Open Download Page",
+                        icon='URL',
+                    )
+                    op.url = dl_url
+
+                else:
+                    op = addon_box.operator(
+                        "wm.url_open",
+                        text=f"Search for '{addon['name']}' online",
+                        icon='URL',
+                    )
+                    op.url = (
+                        "https://github.com/search?q="
+                        + addon['name'].replace(' ', '+')
+                        + "+blender+addon"
+                    )
         
         # Integration tutorials
         integrations_box = layout.box()
@@ -1947,9 +3327,9 @@ class FO4_PT_DesktopTutorialPanel(Panel):
             status_box.label(text="✓ Connected", icon='CHECKMARK')
             
             # Server info
-            if desktop_tutorial_client is not None:
-                status = desktop_tutorial_client.DesktopTutorialClient.get_connection_status()
-                status_box.label(text=f"Server: {status['server_url']}")
+            from . import desktop_tutorial_client
+            status = desktop_tutorial_client.DesktopTutorialClient.get_connection_status()
+            status_box.label(text=f"Server: {status['server_url']}")
             
             # Disconnect button
             status_box.operator("fo4.disconnect_desktop_app", text="Disconnect", icon='UNLINKED')
@@ -2002,16 +3382,6 @@ class FO4_PT_DesktopTutorialPanel(Panel):
             info_box.label(text="Start the desktop server first:")
             info_box.label(text="python example_tutorial_server.py")
 
-        # Addon distribution
-        layout.separator()
-        dist_box = layout.box()
-        dist_box.label(text="Addon Distribution", icon='FILE_FOLDER')
-        dist_box.operator(
-            "fo4.pull_original_to_desktop",
-            text="Pull Original to Desktop",
-            icon='EXPORT',
-        )
-
 
 class FO4_PT_SetupPanel(Panel):
     """First-run setup panel: shows dependency status and one-click install."""
@@ -2021,6 +3391,7 @@ class FO4_PT_SetupPanel(Panel):
     bl_region_type = 'UI'
     bl_category = 'Fallout 4'
     bl_parent_id = "FO4_PT_main_panel"
+    bl_order = -20  # Always first: install dependencies before anything else
 
     def draw(self, context):
         import sys as _sys
@@ -2074,10 +3445,195 @@ class FO4_PT_SetupPanel(Panel):
         row = layout.row(align=True)
         row.operator("fo4.self_test", text="Environment Check", icon='CHECKMARK')
         row.operator("fo4.install_python_deps", text="Re-install Deps", icon='FILE_REFRESH')
-        # Reload button removed - causes crashes in Blender 4.5+
-        # Users should restart Blender to reload the addon
-        # layout.operator("fo4.reload_addon", text="Reload Add-on", icon='FILE_REFRESH')
+        # Restart button: uses a timer to defer bpy.ops.wm.quit_blender() so it
+        # runs after the confirm popup is closed, avoiding the Blender 5.0.1
+        # EXCEPTION_ACCESS_VIOLATION (BLI_addhead / wm_exit_schedule_delayed).
+        layout.operator("fo4.reload_addon", text="Restart Blender", icon='QUIT')
 
+
+
+class FO4_PT_SettingsPanel(Panel):
+    """Add-on settings – all in the 3D Viewport (no Blender Preferences needed)"""
+    bl_label = "Settings"
+    bl_idname = "FO4_PT_settings_panel"
+    bl_space_type = 'VIEW_3D'
+    bl_region_type = 'UI'
+    bl_category = 'Fallout 4'
+    bl_parent_id = "FO4_PT_main_panel"
+    bl_options = {'DEFAULT_CLOSED'}
+
+    def draw(self, context):
+        layout = self.layout
+        scene  = context.scene
+        import os
+
+        # ── User Interface ────────────────────────────────────────────────────
+        ui_box = layout.box()
+        ui_box.label(text="User Interface", icon="PREFERENCES")
+        ui_box.prop(scene, "fo4_mesh_panel_unified",
+                    text="Unified Mesh Panel")
+        ui_box.label(
+            text="Show all mesh helpers in one box (vs split basic/advanced)",
+            icon='BLANK1',
+        )
+
+        # ── Asset Paths ───────────────────────────────────────────────────────
+        _draw_game_path_box(layout, context)
+
+        other_paths = layout.box()
+        other_paths.label(text="Other Asset Paths", icon="FILE_FOLDER")
+        other_paths.prop(scene, "fo4_unity_assets_path",   text="Unity Assets")
+        other_paths.prop(scene, "fo4_unreal_assets_path",  text="Unreal Assets")
+
+        # ── Tool Paths ────────────────────────────────────────────────────────
+        tools_box = layout.box()
+        tools_box.label(text="Tool Paths", icon="TOOL_SETTINGS")
+        tools_box.prop(scene, "fo4_tools_root", text="Tools Root")
+        tools_root = bpy.path.abspath(scene.fo4_tools_root) if scene.fo4_tools_root else ""
+        if tools_root and os.path.isdir(tools_root):
+            tools_box.label(text=f"✓ {tools_root}", icon="CHECKMARK")
+        else:
+            tools_box.label(text="Tool root not found – set to where you keep CLI tools",
+                            icon="ERROR")
+
+        tools_box.prop(scene, "fo4_havok2fbx_path", text="Havok2FBX Folder")
+        h_path = bpy.path.abspath(scene.fo4_havok2fbx_path) if scene.fo4_havok2fbx_path else ""
+        if h_path and os.path.isdir(h_path):
+            tools_box.label(text=f"✓ {h_path}", icon="CHECKMARK")
+        else:
+            tools_box.label(text="Path not found – set to your Havok2FBX folder",
+                            icon="ERROR")
+
+        tools_box.separator()
+        tools_box.label(text="Texture Converters:", icon="IMAGE_DATA")
+        tools_box.prop(scene, "fo4_nvtt_path",    text="nvcompress / NVTT folder")
+        tools_box.prop(scene, "fo4_texconv_path", text="texconv / DirectXTex folder")
+
+        nvcompress = preferences.get_configured_nvcompress_path() if preferences else None
+        texconv    = preferences.get_configured_texconv_path() if preferences else None
+        if nvcompress:
+            tools_box.label(text=f"✓ nvcompress: {nvcompress}", icon="CHECKMARK")
+        else:
+            tools_box.label(text="nvcompress not configured", icon="ERROR")
+        if texconv:
+            tools_box.label(text=f"✓ texconv: {texconv}", icon="CHECKMARK")
+        else:
+            tools_box.label(text="texconv not configured", icon="ERROR")
+
+        tools_box.separator()
+        tools_box.label(text="Video & Audio:", icon="SOUND")
+        tools_box.prop(scene, "fo4_ffmpeg_path", text="ffmpeg / folder")
+
+        # ── Auto-installation ─────────────────────────────────────────────────
+        auto_box = layout.box()
+        auto_box.label(text="Automatic Installation", icon="FILE_REFRESH")
+        auto_box.prop(scene, "fo4_auto_install_tools",
+                      text="Auto-install missing CLI tools at startup")
+        auto_box.prop(scene, "fo4_auto_install_python",
+                      text="Auto-install Python packages at startup")
+        auto_box.prop(scene, "fo4_auto_register_tools",
+                      text="Auto-register third-party add-ons")
+        auto_box.operator("fo4.check_tool_paths",
+                          text="Check Tool Paths Now", icon='INFO')
+        auto_box.label(
+            text="Disable auto-register to avoid Blender policy warnings",
+            icon='INFO',
+        )
+
+        # ── PyTorch ───────────────────────────────────────────────────────────
+        torch_box = layout.box()
+        torch_box.label(text="PyTorch / AI Features", icon="PLUGIN")
+        torch_box.prop(scene, "fo4_torch_root", text="PyTorch Path")
+        try:
+            from . import torch_path_manager
+            success, msg, _ = torch_path_manager.TorchPathManager.try_import_torch()
+            if success:
+                torch_box.label(text=f"✓ PyTorch loaded: {msg}", icon="CHECKMARK")
+            else:
+                if msg == "windows_path_error":
+                    torch_box.label(
+                        text="⚠ Windows path-length error detected", icon="ERROR")
+                    torch_box.operator(
+                        "torch.install_custom_path",
+                        text="Install PyTorch to D:/t", icon="IMPORT")
+                else:
+                    torch_box.label(text=f"⚠ {msg}", icon="INFO")
+        except Exception as e:
+            torch_box.label(text=f"PyTorch status unknown: {e}", icon="ERROR")
+
+        # ── Mesh Optimisation ─────────────────────────────────────────────────
+        opt_box = layout.box()
+        opt_box.label(text="Mesh Optimisation Defaults", icon="MOD_DECIM")
+        opt_box.prop(scene, "fo4_opt_apply_transforms",
+                     text="Apply transforms before optimise")
+        opt_box.prop(scene, "fo4_opt_doubles",
+                     text="Remove Doubles threshold")
+        opt_box.prop(scene, "fo4_opt_preserve_uvs",
+                     text="Preserve UVs when removing doubles")
+
+        # ── LLM Advisor ───────────────────────────────────────────────────────
+        llm_box = layout.box()
+        llm_box.label(text="AI Advisor – LLM (optional, opt-in)", icon="INFO")
+        llm_box.prop(scene, "fo4_llm_enabled",       text="Enable LLM Advisor")
+        col = llm_box.column(align=True)
+        col.enabled = scene.fo4_llm_enabled
+        col.prop(scene, "fo4_llm_endpoint",      text="Endpoint URL")
+        col.prop(scene, "fo4_llm_model",         text="Model")
+        col.prop(scene, "fo4_llm_api_key",       text="API Key")
+        col.prop(scene, "fo4_llm_allow_actions", text="Allow action suggestions")
+        col.prop(scene, "fo4_llm_send_stats",    text="Send summary counts only")
+
+        # ── Advisor auto-monitor ──────────────────────────────────────────────
+        mon_box = layout.box()
+        mon_box.label(text="Advisor Auto-Monitor", icon="FILE_REFRESH")
+        mon_box.prop(scene, "fo4_advisor_monitor",  text="Enable background checks")
+        row = mon_box.row()
+        row.enabled = scene.fo4_advisor_monitor
+        row.prop(scene, "fo4_advisor_interval", text="Interval (seconds)")
+
+        # ── Knowledge Base ────────────────────────────────────────────────────
+        kb_box = layout.box()
+        kb_box.label(text="Advisor Knowledge Base", icon="BOOKMARKS")
+        kb_box.prop(scene, "fo4_kb_enabled", text="Use bundled / user KB")
+        kb_box.prop(scene, "fo4_kb_path",    text="Custom KB folder (txt/md)")
+
+        # ── Mossy Link ────────────────────────────────────────────────────────
+        ml_box = layout.box()
+        ml_box.label(text="Mossy Link", icon="LINKED")
+
+        tcp_sub = ml_box.box()
+        tcp_sub.label(text="TCP Server  (Mossy → Blender control)",
+                      icon="NETWORK_DRIVE")
+        tcp_sub.prop(scene, "fo4_mossy_port",     text="Listen Port")
+        tcp_sub.prop(scene, "fo4_mossy_token",    text="Auth Token")
+        tcp_sub.prop(scene, "fo4_mossy_autostart",text="Auto-start on load")
+
+        http_sub = ml_box.box()
+        http_sub.label(text="AI Queries  (Blender → Mossy)", icon="URL")
+        http_sub.prop(scene, "fo4_mossy_http_port", text="Mossy HTTP Port")
+        http_sub.prop(scene, "fo4_use_mossy_ai",    text="Use Mossy as AI Advisor")
+        if scene.fo4_use_mossy_ai:
+            http_sub.label(
+                text="✓ Advisor will ask Mossy instead of remote LLM",
+                icon="CHECKMARK")
+        else:
+            http_sub.label(text="Enable to route AI through Mossy", icon="INFO")
+
+        ml_box.operator("wm.mossy_check_http",
+                        text="Check Mossy HTTP", icon="QUESTION")
+
+        # ── Add-on Update ─────────────────────────────────────────────────────
+        if addon_updater:
+            addon_updater.draw_update_ui(layout)
+        else:
+            update_box = layout.box()
+            update_box.label(text="Add-on Update", icon="FILE_REFRESH")
+            update_box.label(
+                text="Install a new zip via Edit → Preferences → Add-ons → Install",
+                icon='INFO',
+            )
+            update_box.label(
+                text="Then restart Blender to apply changes.", icon='BLANK1')
 
 
 class FO4_PT_OperationLogPanel(Panel):
@@ -2093,10 +3649,9 @@ class FO4_PT_OperationLogPanel(Panel):
     def draw(self, context):
         import textwrap
         layout = self.layout
+        from . import notification_system
 
-        entries = []
-        if notification_system is not None:
-            entries = notification_system.OperationLog.get_entries(limit=50)
+        entries = notification_system.OperationLog.get_entries(limit=50)
 
         if not entries:
             layout.label(text="No operations recorded yet.", icon='INFO')
@@ -2129,6 +3684,8 @@ classes = (
     FO4_PT_NVTTPanel,
     FO4_PT_AdvisorPanel,
     FO4_PT_ToolsLinks,
+    FO4_PT_GameAssetsPanel,
+    FO4_PT_AssetLibraryPanel,
     FO4_PT_ExportPanel,
     # New panels for enhancements
     FO4_PT_BatchProcessingPanel,
@@ -2144,16 +3701,31 @@ classes = (
     # New panels for productivity
     FO4_PT_PresetLibraryPanel,
     FO4_PT_AutomationMacrosPanel,
+    FO4_PT_PostProcessingPanel,
+    FO4_PT_MaterialBrowserPanel,
+    FO4_PT_SceneDiagnosticsPanel,
+    FO4_PT_ReferenceObjectsPanel,
+    FO4_PT_PapyrusPanel,
+    FO4_PT_HavokPhysicsPanel,
+    FO4_PT_ModPackagingPanel,
     FO4_PT_AddonIntegrationPanel,
     FO4_PT_DesktopTutorialPanel,
+    # Settings / Config panel moved from preferences
+    FO4_PT_SettingsPanel,
     # Operation log — records every process for reference
     FO4_PT_OperationLogPanel,
 )
 
 def register():
     for cls in classes:
-        bpy.utils.register_class(cls)
+        try:
+            bpy.utils.register_class(cls)
+        except Exception as e:
+            print(f"⚠ Failed to register {cls.__name__}: {e}")
 
 def unregister():
     for cls in reversed(classes):
-        bpy.utils.unregister_class(cls)
+        try:
+            bpy.utils.unregister_class(cls)
+        except Exception as e:
+            print(f"⚠ Failed to unregister {cls.__name__}: {e}")

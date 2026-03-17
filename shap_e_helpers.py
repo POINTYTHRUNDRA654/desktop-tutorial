@@ -3,11 +3,275 @@ Shap-E Integration for Fallout 4 Add-on
 Text-to-3D and Image-to-3D generation using OpenAI's Shap-E
 """
 
-import bpy
+import atexit
+import multiprocessing
+import threading
+import time
+from pathlib import Path
+from typing import Any, Dict
+
+try:
+    import bpy  # type: ignore
+except ImportError:  # pragma: no cover - worker processes run without Blender
+    bpy = None
 from bpy.props import StringProperty, EnumProperty, IntProperty, FloatProperty, BoolProperty
+
+# ---------------------------------------------------------------------------
+# Module-level model cache — models are expensive to load (several seconds),
+# so we keep them alive between generation calls and only reload when the
+# active compute device changes.
+#
+# The transmitter (xm) is shared between text and image pipelines — loading
+# it twice wastes VRAM and initialization time when both modes are used in
+# the same session.
+# ---------------------------------------------------------------------------
+_shap_e_transmitter = None   # dict: {xm, device}  -- shared between text & image
+_shap_e_text_models = None   # dict: {model, diffusion, device}
+_shap_e_image_models = None  # dict: {model, diffusion, device}
+
+# Background worker state (keeps heavy models out of the UI thread)
+_SHAP_E_WORKER_PROC: multiprocessing.Process | None = None
+_SHAP_E_WORKER_CONN: multiprocessing.connection.Connection | None = None
+_SHAP_E_WORKER_LOCK = threading.Lock()
+
+
+def _pytorch_required_message(detail=""):
+    """Return a user-friendly message explaining that PyTorch must be installed."""
+    msg = (
+        "PyTorch (torch) is required but not installed.\n\n"
+        "To install PyTorch, run in Blender's Python:\n"
+        "   pip install torch torchvision\n\n"
+        "For GPU (CUDA) support, see: https://pytorch.org/get-started/locally/"
+    )
+    if detail:
+        msg += f"\n\nError: {detail}"
+    return msg
+
+
+def _stop_shap_e_worker():
+    """Terminate the Shap-E worker process and clean up its connection."""
+    global _SHAP_E_WORKER_PROC, _SHAP_E_WORKER_CONN
+    if _SHAP_E_WORKER_CONN is not None:
+        try:
+            _SHAP_E_WORKER_CONN.send({"cmd": "stop"})
+        except Exception:
+            pass
+        try:
+            _SHAP_E_WORKER_CONN.close()
+        except Exception:
+            pass
+
+    if _SHAP_E_WORKER_PROC is not None:
+        try:
+            _SHAP_E_WORKER_PROC.join(timeout=0.2)
+            if _SHAP_E_WORKER_PROC.is_alive():
+                _SHAP_E_WORKER_PROC.kill()
+        except Exception:
+            pass
+
+    _SHAP_E_WORKER_PROC = None
+    _SHAP_E_WORKER_CONN = None
+
+
+def _shap_e_worker_main(conn: multiprocessing.connection.Connection):
+    """Background worker loop that keeps heavy models off the UI thread."""
+    while True:
+        try:
+            message = conn.recv()
+        except EOFError:
+            break
+
+        if not isinstance(message, dict):
+            continue
+
+        cmd = message.get("cmd")
+        payload: Dict[str, Any] = message.get("payload", {}) or {}
+
+        if cmd == "stop":
+            break
+
+        try:
+            if cmd == "text":
+                result = ShapEHelpers.generate_from_text(**payload)
+            elif cmd == "image":
+                result = ShapEHelpers.generate_from_image(**payload)
+            else:
+                result = (False, f"Unknown Shap-E command: {cmd}")
+        except Exception as exc:  # pragma: no cover - defensive against torch failures
+            result = (False, f"Shap-E worker error: {exc}")
+
+        try:
+            conn.send(result)
+        except Exception:
+            break
+
+    try:
+        conn.close()
+    except Exception:
+        pass
+
+
+def _ensure_shap_e_worker() -> bool:
+    """Start the Shap-E worker if needed."""
+    global _SHAP_E_WORKER_PROC, _SHAP_E_WORKER_CONN
+    if _SHAP_E_WORKER_PROC is not None and _SHAP_E_WORKER_PROC.is_alive():
+        return True
+
+    _stop_shap_e_worker()
+
+    try:
+        ctx = multiprocessing.get_context("spawn")
+        parent_conn, child_conn = ctx.Pipe()
+        proc = ctx.Process(target=_shap_e_worker_main, args=(child_conn,))
+        proc.daemon = True
+        proc.start()
+        child_conn.close()
+        _SHAP_E_WORKER_PROC = proc
+        _SHAP_E_WORKER_CONN = parent_conn
+        return True
+    except Exception:
+        _stop_shap_e_worker()
+        return False
+
+
+def _dispatch_shap_e_job(cmd: str, payload: Dict[str, Any]):
+    """Send a generation request to the background worker."""
+    with _SHAP_E_WORKER_LOCK:
+        if not _ensure_shap_e_worker() or _SHAP_E_WORKER_CONN is None:
+            return False, "Shap-E worker unavailable. Check installation and retry."
+
+        try:
+            _SHAP_E_WORKER_CONN.send({"cmd": cmd, "payload": payload})
+            return _SHAP_E_WORKER_CONN.recv()
+        except EOFError:
+            _stop_shap_e_worker()
+            return False, "Shap-E worker crashed during generation. Please retry."
+        except Exception as exc:
+            _stop_shap_e_worker()
+            return False, f"Shap-E worker communication failed: {exc}"
+
+
+atexit.register(_stop_shap_e_worker)
+
+
+def _load_shap_e_transmitter(device, torch_module):
+    """Load (or return cached) the shared Shap-E transmitter (xm).
+
+    The transmitter is used by both text-to-3D and image-to-3D for decoding
+    latents into meshes, so it is cached once and reused across both pipelines.
+    """
+    global _shap_e_transmitter
+    device_str = str(torch_module.device(device))
+    if _shap_e_transmitter is not None and _shap_e_transmitter['device'] == device_str:
+        return _shap_e_transmitter
+
+    from shap_e.models.download import load_model
+
+    print("Loading Shap-E transmitter (shared, first use or device change)…")
+    xm = load_model('transmitter', device=device)
+    xm.eval()
+    if torch_module.device(device).type == 'cuda':
+        xm.half()
+        # cudnn auto-tuner picks the fastest convolution algorithm for the
+        # fixed input sizes used during inference — one-time benchmark cost,
+        # then faster on every subsequent forward pass.
+        torch_module.backends.cudnn.benchmark = True
+    if hasattr(torch_module, 'compile') and torch_module.device(device).type == 'cuda':
+        print("Compiling Shap-E transmitter with torch.compile() (one-time, ~15 s)…")
+        xm = torch_module.compile(xm, mode="reduce-overhead")
+    _shap_e_transmitter = {'xm': xm, 'device': device_str}
+    print("Shap-E transmitter loaded and cached.")
+    return _shap_e_transmitter
+
+
+def _load_shap_e_text_models(device):
+    """Load (or return cached) Shap-E text-to-3D models.
+
+    Models are cached by device string.  If the user switches between CPU and
+    GPU the cache is invalidated and models are reloaded on the new device.
+    The transmitter is shared with the image pipeline via _load_shap_e_transmitter.
+    """
+    global _shap_e_text_models
+    import torch as _torch
+    device_str = str(_torch.device(device))
+    if _shap_e_text_models is not None and _shap_e_text_models['device'] == device_str:
+        return _shap_e_text_models
+
+    from shap_e.diffusion.gaussian_diffusion import diffusion_from_config
+    from shap_e.models.download import load_model, load_config
+
+    print("Loading Shap-E text model (first use or device change)…")
+    # Load the shared transmitter first (cached after first call).
+    _load_shap_e_transmitter(device, _torch)
+    model = load_model('text300M', device=device)
+    diffusion = diffusion_from_config(load_config('diffusion'))
+    # Eval mode disables Dropout / BatchNorm training-time overhead.
+    model.eval()
+    # Pre-convert to half precision on CUDA to halve GPU memory bandwidth and
+    # avoid per-step autocast conversion overhead.
+    if _torch.device(device).type == 'cuda':
+        model.half()
+    # torch.compile() (PyTorch ≥ 2.0) fuses ops into optimized CUDA kernels,
+    # giving ~20-40 % faster inference.  The one-time compilation cost is paid
+    # here at cache-fill time, so all subsequent generation calls are fast.
+    if hasattr(_torch, 'compile') and _torch.device(device).type == 'cuda':
+        print("Compiling Shap-E text300M with torch.compile() (one-time, ~20 s)…")
+        model = _torch.compile(model, mode="reduce-overhead")
+    _shap_e_text_models = {'model': model, 'diffusion': diffusion, 'device': device_str}
+    print("Shap-E text model loaded and cached.")
+    return _shap_e_text_models
+
+
+def _load_shap_e_image_models(device):
+    """Load (or return cached) Shap-E image-to-3D models.
+
+    Models are cached by device string.  If the user switches between CPU and
+    GPU the cache is invalidated and models are reloaded on the new device.
+    The transmitter is shared with the text pipeline via _load_shap_e_transmitter.
+    """
+    global _shap_e_image_models
+    import torch as _torch
+    device_str = str(_torch.device(device))
+    if _shap_e_image_models is not None and _shap_e_image_models['device'] == device_str:
+        return _shap_e_image_models
+
+    from shap_e.diffusion.gaussian_diffusion import diffusion_from_config
+    from shap_e.models.download import load_model, load_config
+
+    print("Loading Shap-E image model (first use or device change)…")
+    # Load the shared transmitter first (cached after first call).
+    _load_shap_e_transmitter(device, _torch)
+    model = load_model('image300M', device=device)
+    diffusion = diffusion_from_config(load_config('diffusion'))
+    # Eval mode disables Dropout / BatchNorm training-time overhead.
+    model.eval()
+    # Pre-convert to half precision on CUDA to halve GPU memory bandwidth and
+    # avoid per-step autocast conversion overhead.
+    if _torch.device(device).type == 'cuda':
+        model.half()
+    # torch.compile() (PyTorch ≥ 2.0) fuses ops into optimized CUDA kernels,
+    # giving ~20-40 % faster inference.  The one-time compilation cost is paid
+    # here at cache-fill time, so all subsequent generation calls are fast.
+    if hasattr(_torch, 'compile') and _torch.device(device).type == 'cuda':
+        print("Compiling Shap-E image300M with torch.compile() (one-time, ~20 s)…")
+        model = _torch.compile(model, mode="reduce-overhead")
+    _shap_e_image_models = {'model': model, 'diffusion': diffusion, 'device': device_str}
+    print("Shap-E image model loaded and cached.")
+    return _shap_e_image_models
+
 
 class ShapEHelpers:
     """Helper functions for Shap-E integration"""
+
+    # Cache for is_shap_e_installed() — avoids repeated torch/shap_e import attempts
+    # on every Blender UI redraw.
+    _cache = None
+    _cache_time = 0.0
+    _CACHE_TTL = 5.0  # seconds
+
+    @staticmethod
+    def clear_cache():
+        """Force the next availability check to re-scan (call after install completes)."""
 
     @staticmethod
     def _dll_init_error_message():
@@ -30,10 +294,48 @@ class ShapEHelpers:
             "4. If no GPU is present, install the CPU-only PyTorch build."
         )
 
+        ShapEHelpers._cache = None
+        ShapEHelpers._cache_time = 0.0
+
     @staticmethod
     def is_shap_e_installed():
-        """Check if Shap-E is installed"""
+        """Check if Shap-E is installed (result cached for 5 s)."""
+        now = time.monotonic()
+        if (ShapEHelpers._cache is not None and
+                (now - ShapEHelpers._cache_time) < ShapEHelpers._CACHE_TTL):
+            return ShapEHelpers._cache
+        result = ShapEHelpers._is_shap_e_installed_uncached()
+        ShapEHelpers._cache = result
+        ShapEHelpers._cache_time = now
+        return result
+
+    @staticmethod
+    def peek_cached_installation():
+        """Return cached installation status without performing a new check."""
+        if ShapEHelpers._cache is None:
+            return None, "Status not checked (click Check Installation)"
+        return ShapEHelpers._cache
+
+    @staticmethod
+    def _is_shap_e_installed_uncached():
+        """Perform the actual (uncached) Shap-E installation check."""
         try:
+            # Prefer locally managed tool paths if the user has a repo clone.
+            try:
+                from . import tool_installers
+                import sys as _sys
+                for candidate in (
+                    *tool_installers.candidate_tool_paths("shap-e"),
+                    *tool_installers.candidate_tool_paths("shap_e"),
+                ):
+                    repo_pkg = Path(candidate) / "shap_e"
+                    if repo_pkg.exists():
+                        cand_str = str(candidate)
+                        if cand_str not in _sys.path:
+                            _sys.path.insert(0, cand_str)
+            except Exception:
+                pass
+
             # Try to use TorchPathManager if available
             try:
                 from . import torch_path_manager
@@ -52,10 +354,13 @@ class ShapEHelpers:
                             "   - Install PyTorch there"
                         )
                     else:
-                        raise ImportError(msg)
+                        return False, _pytorch_required_message(msg)
             except ImportError:
                 # TorchPathManager not available, use regular import
-                import torch
+                try:
+                    import torch
+                except ImportError as torch_err:
+                    return False, _pytorch_required_message(str(torch_err))
 
             import shap_e
             return True, "Shap-E is installed"
@@ -76,10 +381,6 @@ class ShapEHelpers:
             return False, f"File error loading Shap-E: {str(e)}"
         except ImportError as e:
             return False, f"Shap-E not installed: {str(e)}"
-        except OSError as e:
-            if getattr(e, 'winerror', None) == 1114 or "WinError 1114" in str(e):
-                return False, ShapEHelpers._dll_init_error_message()
-            return False, f"Shap-E load error: {str(e)}"
 
     @staticmethod
     def get_installation_instructions():
@@ -102,16 +403,44 @@ To install Shap-E:
 
 For more info: https://github.com/openai/shap-e
 """
+
+    @staticmethod
+    def generate_from_text_background(prompt, guidance_scale=15.0, num_inference_steps=32):
+        """
+        Run text-to-3D generation in a dedicated worker process to keep the UI responsive.
+        """
+        return _dispatch_shap_e_job(
+            "text",
+            {
+                "prompt": prompt,
+                "guidance_scale": guidance_scale,
+                "num_inference_steps": num_inference_steps,
+            },
+        )
+
+    @staticmethod
+    def generate_from_image_background(image_path, guidance_scale=3.0, num_inference_steps=32):
+        """
+        Run image-to-3D generation in a dedicated worker process to keep the UI responsive.
+        """
+        return _dispatch_shap_e_job(
+            "image",
+            {
+                "image_path": image_path,
+                "guidance_scale": guidance_scale,
+                "num_inference_steps": num_inference_steps,
+            },
+        )
     
     @staticmethod
-    def generate_from_text(prompt, guidance_scale=15.0, num_inference_steps=64):
+    def generate_from_text(prompt, guidance_scale=15.0, num_inference_steps=16):
         """
         Generate 3D mesh from text prompt using Shap-E
         
         Args:
             prompt: Text description of object to generate
             guidance_scale: How closely to follow the prompt (higher = more faithful)
-            num_inference_steps: Number of generation steps (higher = better quality)
+            num_inference_steps: Number of generation steps (higher = better quality, default 16)
         
         Returns:
             Tuple of (success, mesh_data or error_message)
@@ -119,76 +448,75 @@ For more info: https://github.com/openai/shap-e
         try:
             import torch
             from shap_e.diffusion.sample import sample_latents
-            from shap_e.diffusion.gaussian_diffusion import diffusion_from_config
-            from shap_e.models.download import load_model, load_config
             from shap_e.util.notebooks import decode_latent_mesh
-            
-            print(f"Generating 3D mesh from text: '{prompt}'")
-            
+
+            t_total = time.monotonic()
+            print(f"[Shap-E] Generating 3D mesh from text: '{prompt}'")
+
             # Set device
             device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-            print(f"Using device: {device}")
-            
-            # Load models
-            print("Loading Shap-E models...")
-            xm = load_model('transmitter', device=device)
-            model = load_model('text300M', device=device)
-            diffusion = diffusion_from_config(load_config('diffusion'))
-            
-            # Generate latents
-            print(f"Generating with guidance_scale={guidance_scale}, steps={num_inference_steps}")
+            print(f"[Shap-E] Device: {device}")
+
+            # Load models (cached after first call).
+            t0 = time.monotonic()
+            cached = _load_shap_e_text_models(device)
+            xm = _shap_e_transmitter['xm']
+            model = cached['model']
+            diffusion = cached['diffusion']
+            print(f"[Shap-E] model load: {time.monotonic() - t0:.1f} s")
+
+            # Inference — inference_mode + autocast for maximum throughput.
+            print(f"[Shap-E] inference ({num_inference_steps} steps, guidance={guidance_scale})…")
+            t0 = time.monotonic()
             batch_size = 1
-            latents = sample_latents(
-                batch_size=batch_size,
-                model=model,
-                diffusion=diffusion,
-                guidance_scale=guidance_scale,
-                model_kwargs=dict(texts=[prompt] * batch_size),
-                progress=True,
-                clip_denoised=True,
-                use_fp16=True,
-                use_karras=True,
-                karras_steps=num_inference_steps,
-                sigma_min=1e-3,
-                sigma_max=160,
-                s_churn=0,
-            )
-            
-            # Decode to mesh
-            print("Decoding latent to mesh...")
-            mesh = decode_latent_mesh(xm, latents[0]).tri_mesh()
-            
-            # Convert to format Blender can use
+            use_fp16 = device.type == 'cuda'
+            with torch.inference_mode(), torch.amp.autocast(device.type, enabled=use_fp16):
+                latents = sample_latents(
+                    batch_size=batch_size,
+                    model=model,
+                    diffusion=diffusion,
+                    guidance_scale=guidance_scale,
+                    model_kwargs=dict(texts=[prompt] * batch_size),
+                    progress=True,
+                    clip_denoised=True,
+                    use_fp16=use_fp16,
+                    use_karras=True,
+                    karras_steps=num_inference_steps,
+                    sigma_min=1e-3,
+                    sigma_max=160,
+                    s_churn=0,
+                )
+            print(f"[Shap-E] inference: {time.monotonic() - t0:.1f} s")
+
+            t0 = time.monotonic()
+            with torch.inference_mode(), torch.amp.autocast(device.type, enabled=use_fp16):
+                mesh = decode_latent_mesh(xm, latents[0]).tri_mesh()
+            print(f"[Shap-E] mesh decode: {time.monotonic() - t0:.1f} s")
+
             vertices = mesh.verts
             faces = mesh.faces
-            
-            print(f"Generated mesh: {len(vertices)} vertices, {len(faces)} faces")
-            
+            print(
+                f"[Shap-E] TOTAL: {time.monotonic() - t_total:.1f} s  "
+                f"({len(vertices)} verts, {len(faces)} faces)"
+            )
+
             return True, {
                 'vertices': vertices,
                 'faces': faces,
                 'prompt': prompt
             }
-            
+
         except FileNotFoundError as e:
             if "WinError 206" in str(e) or "filename or extension is too long" in str(e):
                 return False, "Windows path length error. Enable long paths in Windows or reinstall PyTorch in a shorter path (see Shap-E installation check for details)."
             return False, f"File error: {str(e)}"
         except ImportError as e:
             return False, f"Shap-E not installed: {str(e)}"
-        except OSError as e:
-            if getattr(e, 'winerror', None) == 1114 or "WinError 1114" in str(e):
-                return False, ShapEHelpers._dll_init_error_message()
-            return False, f"OS error during generation: {str(e)}"
         except Exception as e:
-            # "dll_init_error" is the sentinel returned by TorchPathManager.try_import_torch()
-            # when WinError 1114 is raised; it may be re-raised as a plain Exception downstream.
-            if "dll_init_error" in str(e):
-                return False, ShapEHelpers._dll_init_error_message()
             return False, f"Generation failed: {str(e)}"
     
     @staticmethod
-    def generate_from_image(image_path, guidance_scale=3.0, num_inference_steps=64):
+    def generate_from_image(image_path, guidance_scale=3.0, num_inference_steps=32):
         """
         Generate 3D mesh from image using Shap-E
         
@@ -204,75 +532,76 @@ For more info: https://github.com/openai/shap-e
             import torch
             from PIL import Image
             from shap_e.diffusion.sample import sample_latents
-            from shap_e.diffusion.gaussian_diffusion import diffusion_from_config
-            from shap_e.models.download import load_model, load_config
             from shap_e.util.notebooks import decode_latent_mesh
-            
-            print(f"Generating 3D mesh from image: '{image_path}'")
-            
+
+            t_total = time.monotonic()
+            print(f"[Shap-E] Generating 3D mesh from image: '{image_path}'")
+
             # Set device
             device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-            print(f"Using device: {device}")
-            
+            print(f"[Shap-E] Device: {device}")
+
             # Load image
+            t0 = time.monotonic()
             image = Image.open(image_path)
-            
-            # Load models
-            print("Loading Shap-E models...")
-            xm = load_model('transmitter', device=device)
-            model = load_model('image300M', device=device)
-            diffusion = diffusion_from_config(load_config('diffusion'))
-            
-            # Generate latents
-            print(f"Generating with guidance_scale={guidance_scale}, steps={num_inference_steps}")
+            print(f"[Shap-E] image load: {time.monotonic() - t0:.1f} s")
+
+            # Load models (cached after first call).
+            t0 = time.monotonic()
+            cached = _load_shap_e_image_models(device)
+            xm = _shap_e_transmitter['xm']
+            model = cached['model']
+            diffusion = cached['diffusion']
+            print(f"[Shap-E] model load: {time.monotonic() - t0:.1f} s")
+
+            # Inference — inference_mode + autocast for maximum throughput.
+            print(f"[Shap-E] inference ({num_inference_steps} steps, guidance={guidance_scale})…")
+            t0 = time.monotonic()
             batch_size = 1
-            latents = sample_latents(
-                batch_size=batch_size,
-                model=model,
-                diffusion=diffusion,
-                guidance_scale=guidance_scale,
-                model_kwargs=dict(images=[image] * batch_size),
-                progress=True,
-                clip_denoised=True,
-                use_fp16=True,
-                use_karras=True,
-                karras_steps=num_inference_steps,
-                sigma_min=1e-3,
-                sigma_max=160,
-                s_churn=0,
-            )
-            
-            # Decode to mesh
-            print("Decoding latent to mesh...")
-            mesh = decode_latent_mesh(xm, latents[0]).tri_mesh()
-            
-            # Convert to format Blender can use
+            use_fp16 = device.type == 'cuda'
+            with torch.inference_mode(), torch.amp.autocast(device.type, enabled=use_fp16):
+                latents = sample_latents(
+                    batch_size=batch_size,
+                    model=model,
+                    diffusion=diffusion,
+                    guidance_scale=guidance_scale,
+                    model_kwargs=dict(images=[image] * batch_size),
+                    progress=True,
+                    clip_denoised=True,
+                    use_fp16=use_fp16,
+                    use_karras=True,
+                    karras_steps=num_inference_steps,
+                    sigma_min=1e-3,
+                    sigma_max=160,
+                    s_churn=0,
+                )
+            print(f"[Shap-E] inference: {time.monotonic() - t0:.1f} s")
+
+            t0 = time.monotonic()
+            with torch.inference_mode(), torch.amp.autocast(device.type, enabled=use_fp16):
+                mesh = decode_latent_mesh(xm, latents[0]).tri_mesh()
+            print(f"[Shap-E] mesh decode: {time.monotonic() - t0:.1f} s")
+
             vertices = mesh.verts
             faces = mesh.faces
-            
-            print(f"Generated mesh: {len(vertices)} vertices, {len(faces)} faces")
-            
+            print(
+                f"[Shap-E] TOTAL: {time.monotonic() - t_total:.1f} s  "
+                f"({len(vertices)} verts, {len(faces)} faces)"
+            )
+
             return True, {
                 'vertices': vertices,
                 'faces': faces,
                 'image_path': image_path
             }
-            
+
         except FileNotFoundError as e:
             if "WinError 206" in str(e) or "filename or extension is too long" in str(e):
                 return False, "Windows path length error. Enable long paths in Windows or reinstall PyTorch in a shorter path (see Shap-E installation check for details)."
             return False, f"File error: {str(e)}"
         except ImportError as e:
             return False, f"Shap-E not installed: {str(e)}"
-        except OSError as e:
-            if getattr(e, 'winerror', None) == 1114 or "WinError 1114" in str(e):
-                return False, ShapEHelpers._dll_init_error_message()
-            return False, f"OS error during generation: {str(e)}"
         except Exception as e:
-            # "dll_init_error" is the sentinel returned by TorchPathManager.try_import_torch()
-            # when WinError 1114 is raised; it may be re-raised as a plain Exception downstream.
-            if "dll_init_error" in str(e):
-                return False, ShapEHelpers._dll_init_error_message()
             return False, f"Generation failed: {str(e)}"
     
     @staticmethod
@@ -288,6 +617,8 @@ For more info: https://github.com/openai/shap-e
             Created mesh object or None
         """
         try:
+            if bpy is None:
+                raise RuntimeError("Blender context unavailable (bpy not importable).")
             import numpy as np
             
             vertices = mesh_data['vertices']
@@ -327,6 +658,8 @@ For more info: https://github.com/openai/shap-e
 
 def register():
     """Register Shap-E properties"""
+    if bpy is None:  # pragma: no cover - only runs inside Blender
+        raise RuntimeError("Blender context unavailable; cannot register Shap-E properties.")
     
     # Add Shap-E properties to scene
     bpy.types.Scene.fo4_shap_e_prompt = StringProperty(
@@ -353,7 +686,7 @@ def register():
     bpy.types.Scene.fo4_shap_e_inference_steps = IntProperty(
         name="Inference Steps",
         description="Number of generation steps (higher = better quality, slower)",
-        default=64,
+        default=16,
         min=16,
         max=256
     )
@@ -367,6 +700,8 @@ def register():
 
 def unregister():
     """Unregister Shap-E properties"""
+    if bpy is None:  # pragma: no cover - only runs inside Blender
+        return
     
     if hasattr(bpy.types.Scene, 'fo4_shap_e_prompt'):
         del bpy.types.Scene.fo4_shap_e_prompt

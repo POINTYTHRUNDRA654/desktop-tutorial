@@ -17,7 +17,8 @@ class MeshHelpers:
         ('ROCK', 'Rock', 'Rough rock-style collision'),
         ('TREE', 'Tree', 'Hollow/branching tree collision'),
         ('BUILDING', 'Building', 'Large static structure collision'),
-        ('GRASS', 'Grass', 'No collision (thin vegetation)'),
+        ('VEGETATION', 'Vegetation', 'Custom collision for trees/bushes that need a collision footprint (simplified convex hull)'),
+        ('GRASS', 'Grass', 'No collision (thin ground-cover vegetation)'),
         ('MUSHROOM', 'Mushroom', 'No collision (small decorative)'),
         ('CREATURE', 'Creature', 'Use Havok tools (capsule/convex)')
     ]
@@ -27,6 +28,7 @@ class MeshHelpers:
         'ROCK': 0.5,
         'TREE': 0.2,
         'BUILDING': 0.15,  # less aggressive simplification for structures
+        'VEGETATION': 0.1, # very aggressive for organic shapes — produces a simple hull footprint
         'GRASS': 1.0,      # no simplification needed since we skip
         'MUSHROOM': 1.0,
         'CREATURE': 1.0,   # creatures typically use external physics shapes
@@ -39,6 +41,7 @@ class MeshHelpers:
         'ROCK': 'stone_hit',
         'TREE': 'wood_hit',
         'BUILDING': 'stone_hit',
+        'VEGETATION': 'wood_hit',
         'GRASS': 'grass_step',
         'MUSHROOM': 'grass_step',
         'CREATURE': 'flesh_hit',
@@ -49,10 +52,29 @@ class MeshHelpers:
         'ROCK': 'heavy',
         'TREE': 'medium',
         'BUILDING': 'heavy',
+        'VEGETATION': 'light',
         'GRASS': 'light',
         'MUSHROOM': 'light',
         'CREATURE': 'variable',
         'NONE': None
+    }
+
+    # Per-type Blender rigid-body physics values that Niftools reads to
+    # populate bhkRigidBody.friction and bhkRigidBody.restitution.
+    # mass is always 0.0 for FO4 static (PASSIVE) bodies; a non-zero mass on
+    # a PASSIVE body confuses Niftools and produces wrong motionSystem flags.
+    _TYPE_PHYSICS_PRESETS = {
+        'DEFAULT':    {'friction': 0.8, 'restitution': 0.1},
+        'ROCK':       {'friction': 0.9, 'restitution': 0.05},
+        'TREE':       {'friction': 0.7, 'restitution': 0.2},
+        'BUILDING':   {'friction': 0.9, 'restitution': 0.05},
+        # VEGETATION: matches FO4 bush/shrub collision feel — low friction so
+        # the player slides past naturally, small bounce for organic give.
+        'VEGETATION': {'friction': 0.6, 'restitution': 0.15},
+        'GRASS':      {'friction': 0.5, 'restitution': 0.05},
+        'MUSHROOM':   {'friction': 0.5, 'restitution': 0.1},
+        'CREATURE':   {'friction': 0.5, 'restitution': 0.2},
+        'NONE':       {'friction': 0.5, 'restitution': 0.1},
     }
 
     @staticmethod
@@ -71,6 +93,8 @@ class MeshHelpers:
             return 'TREE'
         if any(w in name for w in ['house', 'building', 'wall', 'door']):
             return 'BUILDING'
+        if any(w in name for w in ['bush', 'shrub', 'foliage', 'plant', 'vegeta']):
+            return 'VEGETATION'
         if any(w in name for w in ['grass', 'blade', 'fern']):
             return 'GRASS'
         if 'mushroom' in name:
@@ -465,15 +489,18 @@ class MeshHelpers:
             # and BASE are equivalent here, but FINAL is the safer default.
             collision_obj.rigid_body.mesh_source = 'FINAL'
             collision_obj.rigid_body.collision_shape = 'CONVEX_HULL'
-            # FO4 static collision requirements for bhkRigidBody:
-            #   mass = 0       – fixed/keyframed body; non-zero mass in a PASSIVE
-            #                    body confuses Niftools and causes wrong motion-
-            #                    system flags in the emitted bhkRigidBody node.
-            #   friction = 0.8 – hard-surface default used in vanilla FO4 NIFs.
-            #   restitution = 0.1 – minimal bounce; matches FO4 static geometry.
-            collision_obj.rigid_body.mass = 0.0
-            collision_obj.rigid_body.friction = 0.8
-            collision_obj.rigid_body.restitution = 0.1
+            # FO4 static collision: mass must be 0 so Niftools emits the
+            # correct PASSIVE / FIXED motion-system flags.  Friction and
+            # restitution are set per collision type so the in-game surface
+            # feel matches the material (stone = high friction, low bounce;
+            # wood = medium friction, some bounce; etc.).
+            phys = MeshHelpers._TYPE_PHYSICS_PRESETS.get(
+                collision_type,
+                MeshHelpers._TYPE_PHYSICS_PRESETS['DEFAULT'],
+            )
+            collision_obj.rigid_body.mass        = 0.0
+            collision_obj.rigid_body.friction    = phys['friction']
+            collision_obj.rigid_body.restitution = phys['restitution']
         except Exception:
             # Physics operators unavailable in this context; skip silently.
             # The UCX_ naming and parent relationship still enable export.
@@ -556,6 +583,194 @@ class MeshHelpers:
                 part.data.name = part.name
 
         return final_parts
+
+    # ------------------------------------------------------------------
+    # UV + Texture workflow
+    # ------------------------------------------------------------------
+
+    @staticmethod
+    def setup_uv_with_texture(obj, texture_path, texture_type='DIFFUSE',
+                               unwrap_method='MIN_STRETCH', island_margin=0.02):
+        """Complete UV + texture binding pipeline for Fallout 4 NIF export.
+
+        Performs all steps in one call so the mesh is immediately preview-ready
+        and export-ready without any manual node wiring:
+
+          1. Ensures a UV map named ``"UVMap"`` exists (creates one if absent).
+          2. Unwraps the mesh with *unwrap_method* (skipped when ``'EXISTING'``
+             is passed and a UV map already has data).
+          3. Packs UV islands with *island_margin* spacing (required so adjacent
+             UV islands do not bleed into each other in DDS mip-maps).
+          4. Sets up the FO4 PBR material node tree if no suitable material is
+             present (calls :meth:`texture_helpers.TextureHelpers.setup_fo4_material`).
+          5. Loads *texture_path* and binds it to the correct material slot
+             (calls :meth:`texture_helpers.TextureHelpers.install_texture`).
+          6. Switches the active viewport shading to Material Preview so the
+             texture is immediately visible.
+
+        Parameters
+        ----------
+        obj : bpy.types.Object
+            Target mesh object.
+        texture_path : str
+            Absolute path to the texture file (PNG, TGA, DDS, …).
+        texture_type : str
+            ``'DIFFUSE'``, ``'NORMAL'``, ``'SPECULAR'``, or ``'GLOW'``.
+        unwrap_method : str
+            ``'MIN_STRETCH'`` **(default)** — Minimum Stretch: CONFORMAL
+            (LSCM) initial layout followed by ``uv.minimize_stretch`` run to
+            convergence (100 iterations).  Produces the lowest UV distortion
+            of any available method.
+            ``'SMART'``      — Smart UV Project (fast, good general purpose).
+            ``'ANGLE'``      — Angle-Based conformal unwrap with stretch-
+                               minimize refinement pass.
+            ``'CUBE'``       — Cube/box projection.
+            ``'EXISTING'``   — Keep current UV map; only bind the texture.
+        island_margin : float
+            Spacing between UV islands (0.0 - 0.1). Default 0.02 (2 %) gives
+            enough room to prevent mip-map bleed on 1024 x 1024 DDS textures.
+
+        Returns
+        -------
+        (bool success, str message)
+        """
+        import os
+        from . import texture_helpers
+
+        if obj.type != 'MESH':
+            return False, "Object is not a mesh"
+
+        if texture_path and not os.path.exists(texture_path):
+            return False, f"Texture file not found: {texture_path}"
+
+        # ------------------------------------------------------------------
+        # 1 & 2. UV map + unwrap
+        # ------------------------------------------------------------------
+        mesh = obj.data
+        uv_already_exists = bool(mesh.uv_layers)
+
+        if not uv_already_exists:
+            mesh.uv_layers.new(name="UVMap")
+
+        # Make the object active and enter Edit Mode to unwrap.
+        # Use try/finally to guarantee we restore the previous active object
+        # and return to Object Mode even if an exception occurs mid-unwrap.
+        prev_active = bpy.context.view_layer.objects.active
+        bpy.context.view_layer.objects.active = obj
+        try:
+            bpy.ops.object.mode_set(mode='EDIT')
+            bpy.ops.mesh.select_all(action='SELECT')
+
+            skip_unwrap = (unwrap_method == 'EXISTING' and uv_already_exists)
+            if not skip_unwrap:
+                if unwrap_method == 'MIN_STRETCH':
+                    # Best-quality pipeline: CONFORMAL (LSCM) initial layout
+                    # + minimize_stretch convergence pass (100 iterations).
+                    # Smart UV Project seeds the seam boundaries first so
+                    # CONFORMAL has a clean starting topology to work with.
+                    bpy.ops.uv.smart_project(
+                        angle_limit=66.0, island_margin=island_margin
+                    )
+                    bpy.ops.mesh.select_all(action='SELECT')
+                    bpy.ops.uv.unwrap(method='CONFORMAL', margin=island_margin)
+                    bpy.ops.mesh.select_all(action='SELECT')
+                    try:
+                        bpy.ops.uv.minimize_stretch(fill_holes=True, iterations=100)
+                    except Exception:
+                        pass  # unavailable on older Blender builds
+                elif unwrap_method == 'SMART':
+                    bpy.ops.uv.smart_project(
+                        angle_limit=66.0, island_margin=island_margin
+                    )
+                elif unwrap_method == 'ANGLE':
+                    # Angle-based conformal unwrap with a seam-priming pass.
+                    # Running Smart UV Project first populates the UV layer so
+                    # the angle-based solver has a starting layout to refine;
+                    # this prevents the "no UV data" edge case and produces
+                    # significantly better initial island placement.
+                    bpy.ops.uv.smart_project(
+                        angle_limit=66.0, island_margin=island_margin
+                    )
+                    bpy.ops.mesh.select_all(action='SELECT')
+                    bpy.ops.uv.unwrap(method='ANGLE_BASED', margin=island_margin)
+                    # Conformal smoothing pass — reduces rubber-band stretch.
+                    try:
+                        bpy.ops.uv.minimize_stretch(fill_holes=True, iterations=10)
+                    except Exception:
+                        pass  # unavailable on older Blender builds
+                elif unwrap_method == 'CUBE':
+                    bpy.ops.uv.cube_project(cube_size=1.0)
+                else:
+                    # Default to Minimum Stretch for any unknown method
+                    bpy.ops.uv.smart_project(
+                        angle_limit=66.0, island_margin=island_margin
+                    )
+                    bpy.ops.mesh.select_all(action='SELECT')
+                    bpy.ops.uv.unwrap(method='CONFORMAL', margin=island_margin)
+                    bpy.ops.mesh.select_all(action='SELECT')
+                    try:
+                        bpy.ops.uv.minimize_stretch(fill_holes=True, iterations=100)
+                    except Exception:
+                        pass
+
+            # Pack islands so UVs fill the 0-1 tile without overlap.
+            # rotate=True lets the packer spin islands for a tighter fit
+            # (typically 5-15 % more usable texture space).
+            try:
+                bpy.ops.uv.pack_islands(rotate=True, margin=island_margin)
+            except TypeError:
+                bpy.ops.uv.pack_islands(margin=island_margin)
+        finally:
+            try:
+                bpy.ops.object.mode_set(mode='OBJECT')
+            except Exception:
+                pass
+            bpy.context.view_layer.objects.active = prev_active
+
+        # ------------------------------------------------------------------
+        # 4. Ensure the object has a FO4-compatible material
+        # ------------------------------------------------------------------
+        has_fo4_mat = (
+            obj.data.materials
+            and obj.data.materials[0] is not None
+            and obj.data.materials[0].use_nodes
+            and obj.data.materials[0].node_tree.nodes.get("Base")
+        )
+        if not has_fo4_mat:
+            texture_helpers.TextureHelpers.setup_fo4_material(obj)
+
+        # ------------------------------------------------------------------
+        # 5. Bind the texture into the correct material slot
+        # ------------------------------------------------------------------
+        if texture_path:
+            ok, msg = texture_helpers.TextureHelpers.install_texture(
+                obj, texture_path, texture_type
+            )
+            if not ok:
+                return False, f"UV unwrap succeeded but texture binding failed: {msg}"
+
+        # ------------------------------------------------------------------
+        # 6. Switch active viewport shading to Material Preview so the user
+        #    can immediately see the texture on the mesh.
+        # ------------------------------------------------------------------
+        for area in bpy.context.screen.areas:
+            if area.type == 'VIEW_3D':
+                for space in area.spaces:
+                    if space.type == 'VIEW_3D':
+                        space.shading.type = 'MATERIAL'
+                break
+
+        uv_note = "(kept existing UVs)" if skip_unwrap else f"(unwrapped: {unwrap_method})"
+        tex_note = (
+            f", {texture_type} texture bound: {os.path.basename(texture_path)}"
+            if texture_path else ""
+        )
+        return True, (
+            f"UV map ready {uv_note}{tex_note}. "
+            "Viewport switched to Material Preview. "
+            "Use 'Edit UV Map' to adjust islands if needed, "
+            "then export with 'Export Mesh (.nif)'."
+        )
 
 def register():
     """Register mesh helper functions"""
