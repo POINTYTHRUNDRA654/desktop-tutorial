@@ -7,16 +7,18 @@ bl_info = {
     "name": "Fallout 4 Mod Assistant",
     "author": "Tutorial Team",
     "version": (2, 1, 3),
-    "blender": (2, 90, 0),  # Compatible with Blender 2.90+ through 5.x (NIF export requires 3.6 LTS + Niftools v0.1.1)
+    "blender": (2, 90, 0),  # Compatible with Blender 2.90+ through 5.x
     "location": "View3D > Sidebar > Fallout 4",
     "description": (
-        "Professional Fallout 4 modding assistant. Exports to NIF 20.2.0.7 (BSTriShape) "
-        "via Niftools v0.1.1, auto-preps meshes (triangulate/UV/transforms), generates "
-        "UCX_ collision, validates against FO4 limits, and falls back to FBX if Niftools "
-        "is unavailable. Includes mesh optimisation, DDS texture conversion (NVTT/texconv), "
-        "wind animation, AI rigging (RigNet), quest/NPC/item helpers, and smart presets."
+        "Professional Fallout 4 modding assistant. Exports NIF (BSTriShape) via "
+        "PyNifly (Blender 4.x/5.x) or Niftools v0.1.1 (Blender 3.6 LTS), "
+        "auto-preps meshes (triangulate/UV/transforms), generates UCX_ collision, "
+        "validates against FO4 limits, and falls back to FBX when no NIF exporter "
+        "is installed. Includes mesh optimisation, DDS texture conversion "
+        "(NVTT/texconv), wind animation, AI rigging (RigNet), quest/NPC/item "
+        "helpers, and smart presets."
     ),
-    "warning": "NIF export requires Niftools v0.1.1 on Blender 3.6 LTS (use FBX fallback on Blender 4.x / 5.x)",
+    "warning": "NIF export: install PyNifly for Blender 4.x/5.x, or Niftools v0.1.1 for Blender 3.6 LTS",
     "doc_url": "https://github.com/POINTYTHRUNDRA654/Blender-add-on",
     "category": "Import-Export",
 }

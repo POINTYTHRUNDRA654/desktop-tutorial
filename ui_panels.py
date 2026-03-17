@@ -967,11 +967,20 @@ class FO4_PT_ToolsLinks(Panel):
         # Automated installers for external utilities
         box = layout.box()
         box.label(text="Install External Tools", icon='TOOL_SETTINGS')
+        # PyNifly — primary NIF exporter for Blender 4.x / 5.x
+        inst_row = box.row()
+        inst_row.scale_y = 1.3
+        inst_row.operator("fo4.install_pynifly", text="Install PyNifly NIF Exporter  (Blender 4.x/5.x)", icon='FILE_REFRESH')
+        from . import tool_installers as _ti_setup
+        pynifly_sub = box.column(align=True)
+        pynifly_sub.scale_y = 0.7
+        pynifly_sub.label(text=f"Place PyNifly*.zip in {_ti_setup.TOOLS_DIR_DISPLAY} first", icon='INFO')
+        box.separator(factor=0.5)
         box.operator("fo4.install_ffmpeg", text="Install FFmpeg", icon='FILE_REFRESH')
         box.operator("fo4.install_nvtt", text="Install NVTT (nvcompress)", icon='FILE_REFRESH')
         box.operator("fo4.install_texconv", text="Install texconv", icon='FILE_REFRESH')
         box.operator("fo4.install_whisper", text="Install Whisper CLI", icon='FILE_REFRESH')
-        box.operator("fo4.install_niftools", text="Install Niftools Add-on", icon='FILE_REFRESH')
+        box.operator("fo4.install_niftools", text="Install Niftools (Blender 3.6 LTS legacy)", icon='FILE_REFRESH')
         # Python requirements
         op = box.operator("fo4.install_python_deps", text="Install Python Requirements", icon='FILE_REFRESH')
         if op is not None:
@@ -1139,12 +1148,19 @@ class FO4_PT_ExportPanel(Panel):
         layout = self.layout
         obj = context.active_object
 
-        # ── Niftools exporter status ─────────────────────────────────────────
+        # ── NIF exporter status ──────────────────────────────────────────────
         nif_box = layout.box()
-        available, nif_msg = export_helpers.ExportHelpers.nif_exporter_available()
-        if available:
+        exporter, available, nif_msg = export_helpers.ExportHelpers.get_nif_exporter_info()
+        if exporter == "pynifly":
             row = nif_box.row()
-            row.label(text="Niftools v0.1.1  ✓ Ready", icon='CHECKMARK')
+            row.label(text="PyNifly  ✓ Ready  (Blender 4.x / 5.x)", icon='CHECKMARK')
+            sub = nif_box.column(align=True)
+            sub.scale_y = 0.75
+            sub.label(text="BadDogSkyrim/PyNifly — Fallout 4 NIF export", icon='INFO')
+            sub.label(text="Game: FO4  |  Geometry: BSTriShape", icon='INFO')
+        elif exporter == "niftools":
+            row = nif_box.row()
+            row.label(text="Niftools v0.1.1  ✓ Ready  (Blender 3.6 LTS)", icon='CHECKMARK')
             sub = nif_box.column(align=True)
             sub.scale_y = 0.75
             sub.label(text="NIF 20.2.0.7 · user ver 12 · uv2 131073", icon='INFO')
@@ -1152,12 +1168,20 @@ class FO4_PT_ExportPanel(Panel):
             sub.label(text="Tangent space: ON  |  Scale correction: 1.0", icon='INFO')
         else:
             row = nif_box.row()
-            row.label(text="Niftools NOT installed", icon='ERROR')
+            row.label(text="No NIF exporter installed", icon='ERROR')
             sub = nif_box.column(align=True)
             sub.scale_y = 0.75
-            sub.label(text=nif_msg)
-            sub.label(text="Fallback: FBX export (convert with NifSkope)", icon='EXPORT')
-            sub.label(text="Install: Blender 3.6 LTS + Niftools v0.1.1 ZIP", icon='URL')
+            # Truncate long messages to keep the panel tidy.
+            _MAX_MSG = 80
+            sub.label(text=nif_msg[:_MAX_MSG] if len(nif_msg) > _MAX_MSG else nif_msg)
+            sub.label(text="Fallback: FBX export (convert with NifSkope/CAO)", icon='EXPORT')
+            inst_row = nif_box.row()
+            inst_row.scale_y = 1.3
+            inst_row.operator("fo4.install_pynifly", text="Install PyNifly  (Blender 4.x/5.x)", icon='FILE_REFRESH')
+            sub2 = nif_box.column(align=True)
+            sub2.scale_y = 0.7
+            from . import tool_installers as _ti
+            sub2.label(text=f"Place PyNifly*.zip in {_ti.TOOLS_DIR_DISPLAY} first", icon='INFO')
 
         # ── Active object status ─────────────────────────────────────────────
         obj_box = layout.box()

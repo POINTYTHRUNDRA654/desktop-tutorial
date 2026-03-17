@@ -2637,7 +2637,7 @@ class FO4_OT_ExportAnimationHavok2FBX(Operator):
 class FO4_OT_InstallNiftools(Operator):
     """Run the PowerShell script to install Niftools Blender add-on."""
     bl_idname = "fo4.install_niftools"
-    bl_label = "Install Niftools"
+    bl_label = "Install Niftools (Blender 3.6 LTS)"
 
     blender_version: bpy.props.StringProperty(
         name="Blender Version",
@@ -2663,6 +2663,46 @@ class FO4_OT_InstallNiftools(Operator):
         return {'FINISHED'}
 
 
+class FO4_OT_InstallPyNifly(Operator):
+    """Install PyNifly NIF exporter from the tools folder.
+
+    Looks for a PyNifly*.zip in the tools folder (D:\\Blender addon\\tools)
+    and installs it into Blender as an add-on.  If the zip is not present
+    the GitHub releases page is opened so you can download it — place the
+    zip in the tools folder and click this button again.
+
+    PyNifly (BadDogSkyrim/PyNifly) is the recommended NIF exporter for
+    Blender 4.x and 5.x and replaces Niftools v0.1.1 for those versions.
+    """
+    bl_idname = "fo4.install_pynifly"
+    bl_label = "Install PyNifly"
+    bl_description = (
+        "Install PyNifly NIF exporter from the tools folder "
+        "(D:\\Blender addon\\tools). "
+        "Downloads page opens if the zip is not found there."
+    )
+
+    def execute(self, context):
+        import threading
+        from . import tool_installers
+
+        def _run():
+            ok, msg = tool_installers.install_pynifly()
+            level = 'INFO' if ok else 'ERROR'
+            print("PYNIFLY INSTALL", msg)
+
+            def _notify():
+                notification_system.FO4_NotificationSystem.notify(msg, level)
+            bpy.app.timers.register(_notify, first_interval=0.0)
+
+        threading.Thread(target=_run, daemon=True).start()
+        self.report(
+            {'INFO'},
+            "PyNifly installation started. Check the console for progress.",
+        )
+        return {'FINISHED'}
+
+
 class FO4_OT_ConfigureFallout4Settings(Operator):
     """Configure optimal settings for Fallout 4 mod creation"""
     bl_idname = "fo4.configure_fallout4_settings"
@@ -2670,18 +2710,23 @@ class FO4_OT_ConfigureFallout4Settings(Operator):
     bl_description = "Auto-configure all settings for optimal Fallout 4 modding workflow"
 
     def execute(self, context):
-        from . import preferences, export_helpers
+        from . import preferences, export_helpers, tool_installers
 
         messages = []
         prefs = preferences.get_preferences()
 
-        # Check Niftools installation
-        nif_available, nif_msg = export_helpers.ExportHelpers.nif_exporter_available()
-        if not nif_available:
-            messages.append("⚠ Niftools not installed - use 'Install Niftools' button")
-            messages.append(f"  {nif_msg}")
-        else:
+        # Check NIF exporter (PyNifly preferred, Niftools v0.1.1 as legacy fallback)
+        exporter, nif_available, nif_msg = export_helpers.ExportHelpers.get_nif_exporter_info()
+        if exporter == "pynifly":
+            messages.append("✓ PyNifly ready (Blender 4.x/5.x NIF exporter)")
+        elif exporter == "niftools":
             messages.append("✓ Niftools v0.1.1 ready (NIF 20.2.0.7, BSTriShape)")
+        else:
+            messages.append("⚠ No NIF exporter — install PyNifly for Blender 4.x/5.x")
+            messages.append(
+                f"  Place PyNifly*.zip in {tool_installers.TOOLS_DIR_DISPLAY} "
+                "then click Install PyNifly"
+            )
 
         # Check texture conversion tools
         from . import nvtt_helpers
@@ -8051,6 +8096,7 @@ classes = (
     FO4_OT_InstallHavok2FBX,
     FO4_OT_ExportAnimationHavok2FBX,
     FO4_OT_InstallNiftools,
+    FO4_OT_InstallPyNifly,
     FO4_OT_ConfigureFallout4Settings,
     FO4_OT_InstallPythonDeps,
     FO4_OT_CheckToolPaths,

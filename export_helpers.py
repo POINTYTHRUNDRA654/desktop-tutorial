@@ -63,7 +63,7 @@ class ExportHelpers:
 
     @staticmethod
     def nif_exporter_available():
-        """Check if the Niftools exporter operator is registered."""
+        """Check if the Niftools v0.1.1 exporter operator is registered."""
         blender_version = bpy.app.version
         version_str = f"{blender_version[0]}.{blender_version[1]}"
         export_scene = getattr(bpy.ops, "export_scene", None)
@@ -79,6 +79,56 @@ class ExportHelpers:
             return True, "Niftools exporter detected on Blender 4.x (ensure compatibility; experimental)"
 
         return True, "Niftools exporter available"
+
+    @staticmethod
+    def pynifly_exporter_available():
+        """Check if the PyNifly exporter operator (BadDogSkyrim/PyNifly) is registered.
+
+        PyNifly is the recommended NIF exporter for Blender 4.x and 5.x.  It
+        registers ``bpy.ops.export_scene.pynifly`` when installed.
+
+        Returns
+        -------
+        tuple[bool, str]
+            ``(True, message)`` when PyNifly is ready, ``(False, reason)`` otherwise.
+        """
+        export_scene = getattr(bpy.ops, "export_scene", None)
+        if not export_scene:
+            return False, "bpy.ops.export_scene not available"
+        if hasattr(export_scene, "pynifly"):
+            return True, "PyNifly exporter available"
+        return False, (
+            "PyNifly not installed — download zip to D:\\Blender addon\\tools "
+            "and click 'Install PyNifly' in the Setup panel"
+        )
+
+    @staticmethod
+    def get_nif_exporter_info():
+        """Return which NIF exporter is active and whether it is available.
+
+        Priority order (highest to lowest):
+          1. **PyNifly** (BadDogSkyrim) — preferred for Blender 4.x / 5.x
+          2. **Niftools v0.1.1**        — legacy, Blender 3.6 LTS only
+
+        Returns
+        -------
+        tuple[str, bool, str]
+            ``(exporter_name, available, message)`` where *exporter_name* is
+            one of ``"pynifly"``, ``"niftools"``, or ``"none"``.
+        """
+        pynifly_ok, pynifly_msg = ExportHelpers.pynifly_exporter_available()
+        if pynifly_ok:
+            return "pynifly", True, pynifly_msg
+
+        nif_ok, nif_msg = ExportHelpers.nif_exporter_available()
+        if nif_ok:
+            return "niftools", True, nif_msg
+
+        return "none", False, (
+            f"No NIF exporter installed.  "
+            f"PyNifly: {pynifly_msg}.  "
+            f"Niftools v0.1.1: {nif_msg}."
+        )
 
     @staticmethod
     def _safe_enum(props, key, preferred, fallbacks=None):
@@ -188,7 +238,52 @@ class ExportHelpers:
         return kwargs
 
     @staticmethod
-    def _prepare_mesh_for_nif(obj):
+    def _build_pynifly_export_kwargs(filepath):
+        """Assemble kwargs for the PyNifly exporter (BadDogSkyrim/PyNifly) for Fallout 4.
+
+        PyNifly uses a different operator signature from Niftools v0.1.1.  We
+        introspect the operator's RNA properties at runtime so the code is
+        resilient to minor API changes between PyNifly releases.
+
+        Key settings:
+          - ``game = "FO4"``       → Fallout 4 NIF format (BSTriShape geometry)
+          - ``use_selection``      → export only the selected objects
+          - ``scale_factor = 1.0`` → 1 Blender unit = 1 NIF unit
+          - ``apply_modifiers``    → bake the temporary Triangulate modifier
+        """
+        kwargs: dict = {
+            "filepath": filepath,
+            "use_selection": True,
+        }
+        try:
+            props = bpy.ops.export_scene.pynifly.get_rna_type().properties
+            prop_keys = props.keys()
+
+            # Game target – "FO4" selects Fallout 4 BSTriShape format in PyNifly.
+            if "game" in prop_keys:
+                game_val = ExportHelpers._safe_enum(
+                    props, "game", "FO4",
+                    fallbacks=["FALLOUT4", "Fallout4"],
+                )
+                if game_val:
+                    kwargs["game"] = game_val
+
+            # Scale: 1 Blender unit = 1 NIF unit for FO4.
+            for scale_key in ("scale_factor", "scale_correction"):
+                if scale_key in prop_keys:
+                    kwargs[scale_key] = 1.0
+                    break
+
+            # Apply modifiers so the temporary Triangulate modifier is baked.
+            if "apply_modifiers" in prop_keys:
+                kwargs["apply_modifiers"] = True
+
+        except Exception:
+            pass  # fall back to minimal kwargs on any introspection error
+
+        return kwargs
+
+
         """Prepare a mesh object so it meets Fallout 4 / Niftools v0.1.1 requirements.
 
         Performs (in order):
@@ -301,7 +396,13 @@ class ExportHelpers:
 
     @staticmethod
     def export_mesh_to_nif(obj, filepath):
-        """Export mesh to NIF format using Niftools v0.1.1 when available, else fall back to FBX.
+        """Export mesh to NIF format, preferring PyNifly then Niftools v0.1.1,
+        falling back to FBX when neither is installed.
+
+        Exporter priority:
+          1. **PyNifly** (BadDogSkyrim) — preferred for Blender 4.x / 5.x
+          2. **Niftools v0.1.1**        — legacy, Blender 3.6 LTS only
+          3. **FBX fallback**           — when no NIF exporter is available
 
         Pre-export preparation (applied automatically, reversed after export):
           - Scale and rotation transforms are applied so geometry arrives at the
@@ -310,16 +411,16 @@ class ExportHelpers:
           - A temporary Triangulate modifier is added when the mesh has quads /
             n-gons because FO4 BSTriShape nodes require triangles only.
 
-        The Niftools/FBX exporters are notoriously sensitive to stray vertex
-        groups.  If a mesh contains weights but isn't skinned to an armature the
-        export can produce collapsed or otherwise corrupted geometry.  We fail
-        early in that case so the user can clean up the mesh.
+        The NIF/FBX exporters are notoriously sensitive to stray vertex groups.
+        If a mesh contains weights but isn't skinned to an armature the export
+        can produce collapsed or otherwise corrupted geometry.  We fail early in
+        that case so the user can clean up the mesh.
         """
-        
+
         if obj.type != 'MESH':
             return False, "Object is not a mesh"
         # ...existing code...
-        
+
         # Do not export collision meshes created by the addon
         if obj.get("fo4_collision") or obj.name.upper().endswith("_COLLISION") or obj.name.upper().startswith("UCX_"):
             return False, "Collision meshes are not intended for export; select the source mesh instead"
@@ -329,7 +430,7 @@ class ExportHelpers:
         if obj.vertex_groups and not ExportHelpers._has_armature(obj):
             return False, "Mesh has vertex groups but no armature – remove weights or parent to an armature before exporting"
 
-        nif_available, nif_message = ExportHelpers.nif_exporter_available()
+        exporter, nif_available, nif_message = ExportHelpers.get_nif_exporter_info()
         from . import mesh_helpers as _mh
 
         # Try native NIF export first when available
@@ -361,8 +462,15 @@ class ExportHelpers:
                     o.select_set(True)
                 bpy.context.view_layer.objects.active = obj
 
-                kwargs = ExportHelpers._build_nif_export_kwargs(filepath)
-                result = bpy.ops.export_scene.nif(**kwargs)
+                # Dispatch to the appropriate exporter.
+                if exporter == "pynifly":
+                    kwargs = ExportHelpers._build_pynifly_export_kwargs(filepath)
+                    result = bpy.ops.export_scene.pynifly(**kwargs)
+                    exporter_label = "PyNifly"
+                else:
+                    kwargs = ExportHelpers._build_nif_export_kwargs(filepath)
+                    result = bpy.ops.export_scene.nif(**kwargs)
+                    exporter_label = "Niftools v0.1.1"
 
                 if isinstance(result, set) and 'FINISHED' in result:
                     ctype = getattr(obj, 'fo4_collision_type', 'DEFAULT')
@@ -382,12 +490,13 @@ class ExportHelpers:
                         event_data = {
                             'mesh_name': obj.name,
                             'filepath': filepath,
-                            'extras': extras
+                            'extras': extras,
+                            'exporter': exporter_label,
                         }
                         desktop_tutorial_client.DesktopTutorialClient.send_event('mesh_exported', event_data)
                     except Exception as e:
                         print(f"[DesktopTutorialClient] Failed to send mesh export event: {e}")
-                    return True, f"Exported NIF: {filepath}{note}"
+                    return True, f"Exported NIF via {exporter_label}: {filepath}{note}"
 
                 # If operator returns without FINISHED, fall back to FBX
                 fallback_msg = f"NIF export did not finish ({result}); falling back to FBX."
@@ -513,8 +622,7 @@ class ExportHelpers:
         legacy _COLLISION suffix) is also selected so that it travels along in the
         same NIF node hierarchy.
 
-        The Niftools v0.1.1 exporter (or an FBX fallback) is used with the same
-        settings as :func:`export_mesh_to_nif`.
+        Exporter priority: PyNifly > Niftools v0.1.1 > FBX fallback.
 
         Parameters
         ----------
@@ -537,7 +645,7 @@ class ExportHelpers:
         if not meshes:
             return False, "No exportable meshes found in the scene"
 
-        nif_available, nif_message = ExportHelpers.nif_exporter_available()
+        exporter, nif_available, nif_message = ExportHelpers.get_nif_exporter_info()
 
         # Track temporary modifiers added during preparation so we can remove
         # them when we're done, regardless of whether export succeeds or fails.
@@ -564,12 +672,20 @@ class ExportHelpers:
             bpy.context.view_layer.objects.active = meshes[0]
 
             if nif_available:
-                kwargs = ExportHelpers._build_nif_export_kwargs(filepath)
+                # Dispatch to the appropriate exporter.
+                if exporter == "pynifly":
+                    kwargs = ExportHelpers._build_pynifly_export_kwargs(filepath)
+                    exporter_label = "PyNifly"
+                    call = bpy.ops.export_scene.pynifly
+                else:
+                    kwargs = ExportHelpers._build_nif_export_kwargs(filepath)
+                    exporter_label = "Niftools v0.1.1"
+                    call = bpy.ops.export_scene.nif
                 try:
-                    result = bpy.ops.export_scene.nif(**kwargs)
+                    result = call(**kwargs)
                     if isinstance(result, set) and 'FINISHED' in result:
                         mesh_count = len(meshes)
-                        return True, f"Exported {mesh_count} mesh(es) as single NIF: {filepath}"
+                        return True, f"Exported {mesh_count} mesh(es) as single NIF via {exporter_label}: {filepath}"
                     fallback_msg = f"NIF export did not finish ({result}); falling back to FBX."
                 except Exception as e:
                     print(

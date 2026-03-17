@@ -38,8 +38,12 @@ import urllib.request
 import zipfile
 from pathlib import Path
 
-# Download to D: drive by default to keep separate from addon
-DEFAULT_TOOLS_ROOT = Path("D:/blender_tools")
+# Primary tools folder on D: drive — all external tools (including PyNifly)
+# live here, matching the user's local setup.
+DEFAULT_TOOLS_ROOT = Path(r"D:\Blender addon\tools")
+
+# Human-readable string used in UI labels and error messages.
+TOOLS_DIR_DISPLAY = str(DEFAULT_TOOLS_ROOT)
 
 # Fallback to addon folder if D: drive not available
 ADDON_ROOT = Path(__file__).resolve().parent
@@ -338,6 +342,59 @@ def install_niftools(blender_version: str = "3.6") -> tuple[bool, str]:
         return True, "Niftools installer executed"
     except Exception as e:
         return False, f"Failed to run Niftools installer: {e}"
+
+
+def install_pynifly() -> tuple[bool, str]:
+    """Install PyNifly (BadDogSkyrim/PyNifly) NIF exporter into Blender.
+
+    Searches for a ``PyNifly*.zip`` file in ``D:\\Blender addon\\tools`` (the
+    primary tools folder) and, if not found there, in the add-on's own
+    ``tools/`` fallback directory.  Once the zip is located it is installed
+    directly into Blender via ``bpy.ops.preferences.addon_install``.
+
+    If the zip is not present in either location the function opens the
+    GitHub releases page so the user can download it.  After downloading,
+    place the zip in ``D:\\Blender addon\\tools`` and click the button again.
+
+    Returns
+    -------
+    tuple[bool, str]
+        ``(True, message)`` on success, ``(False, reason)`` otherwise.
+    """
+    # Search in the primary tools directory first, then the addon fallback.
+    search_dirs = [DEFAULT_TOOLS_ROOT, FALLBACK_TOOLS_ROOT]
+    zip_path: "Path | None" = None
+    for directory in search_dirs:
+        if not directory.exists():
+            continue
+        for pattern in ("PyNifly*.zip", "pynifly*.zip"):
+            matches = sorted(directory.glob(pattern))
+            if matches:
+                zip_path = matches[-1]  # alphabetically last = newest version
+                break
+        if zip_path:
+            break
+
+    if not zip_path:
+        release_url = "https://github.com/BadDogSkyrim/PyNifly/releases"
+        try:
+            import webbrowser
+            webbrowser.open(release_url)
+        except Exception:
+            pass
+        return False, (
+            f"PyNifly zip not found in {DEFAULT_TOOLS_ROOT} or {FALLBACK_TOOLS_ROOT}. "
+            f"Download PyNifly from {release_url}, place the zip in "
+            f"{DEFAULT_TOOLS_ROOT}, then click Install again."
+        )
+
+    try:
+        import bpy  # available when running inside Blender
+        bpy.ops.preferences.addon_install(filepath=str(zip_path), overwrite=True)
+        bpy.ops.preferences.addon_enable(module="PyNifly")
+        return True, f"PyNifly installed from {zip_path.name}"
+    except Exception as e:
+        return False, f"PyNifly install failed: {e}"
 
 
 def register():
