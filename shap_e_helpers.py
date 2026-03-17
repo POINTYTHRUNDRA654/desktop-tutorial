@@ -10,6 +10,27 @@ class ShapEHelpers:
     """Helper functions for Shap-E integration"""
 
     @staticmethod
+    def _dll_init_error_message():
+        """Return a user-friendly message when WinError 1114 (DLL init failure) occurs.
+
+        This error typically means a CUDA-version mismatch between the installed
+        PyTorch and the system GPU driver, or a missing Visual C++ Redistributable.
+        Example path that fails: D:\\blender_torch\\torch\\lib\\c10.dll
+        """
+        return (
+            "PyTorch DLL initialisation failed (WinError 1114).\n"
+            "This usually means a CUDA/driver version mismatch.\n"
+            "A file such as D:\\blender_torch\\torch\\lib\\c10.dll could not be loaded.\n\n"
+            "Suggested fixes:\n"
+            "1. Reinstall PyTorch matching your CUDA toolkit version:\n"
+            "   https://pytorch.org/get-started/locally/\n"
+            "2. Install the latest Visual C++ Redistributable from Microsoft:\n"
+            "   https://aka.ms/vs/17/release/vc_redist.x64.exe\n"
+            "3. Update your GPU driver to one compatible with your CUDA version.\n"
+            "4. If no GPU is present, install the CPU-only PyTorch build."
+        )
+
+    @staticmethod
     def is_shap_e_installed():
         """Check if Shap-E is installed"""
         try:
@@ -55,6 +76,10 @@ class ShapEHelpers:
             return False, f"File error loading Shap-E: {str(e)}"
         except ImportError as e:
             return False, f"Shap-E not installed: {str(e)}"
+        except OSError as e:
+            if getattr(e, 'winerror', None) == 1114 or "WinError 1114" in str(e):
+                return False, ShapEHelpers._dll_init_error_message()
+            return False, f"Shap-E load error: {str(e)}"
 
     @staticmethod
     def get_installation_instructions():
@@ -151,7 +176,15 @@ For more info: https://github.com/openai/shap-e
             return False, f"File error: {str(e)}"
         except ImportError as e:
             return False, f"Shap-E not installed: {str(e)}"
+        except OSError as e:
+            if getattr(e, 'winerror', None) == 1114 or "WinError 1114" in str(e):
+                return False, ShapEHelpers._dll_init_error_message()
+            return False, f"OS error during generation: {str(e)}"
         except Exception as e:
+            # "dll_init_error" is the sentinel returned by TorchPathManager.try_import_torch()
+            # when WinError 1114 is raised; it may be re-raised as a plain Exception downstream.
+            if "dll_init_error" in str(e):
+                return False, ShapEHelpers._dll_init_error_message()
             return False, f"Generation failed: {str(e)}"
     
     @staticmethod
@@ -231,7 +264,15 @@ For more info: https://github.com/openai/shap-e
             return False, f"File error: {str(e)}"
         except ImportError as e:
             return False, f"Shap-E not installed: {str(e)}"
+        except OSError as e:
+            if getattr(e, 'winerror', None) == 1114 or "WinError 1114" in str(e):
+                return False, ShapEHelpers._dll_init_error_message()
+            return False, f"OS error during generation: {str(e)}"
         except Exception as e:
+            # "dll_init_error" is the sentinel returned by TorchPathManager.try_import_torch()
+            # when WinError 1114 is raised; it may be re-raised as a plain Exception downstream.
+            if "dll_init_error" in str(e):
+                return False, ShapEHelpers._dll_init_error_message()
             return False, f"Generation failed: {str(e)}"
     
     @staticmethod
