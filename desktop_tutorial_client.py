@@ -308,7 +308,44 @@ class DesktopTutorialClient:
         except Exception as exc:
             return False, f"Failed to copy file: {exc}", ""
 
+        DesktopTutorialClient._open_in_file_manager(dest_path)
+
         return True, f"Addon zip copied to Desktop: {zip_name}", dest_path
+
+    @staticmethod
+    def _open_in_file_manager(file_path):
+        """Reveal *file_path* in the system file manager.
+
+        On Windows the file is selected inside Explorer.
+        On macOS the file is revealed in Finder.
+        On Linux (and other POSIX systems) the parent folder is opened with
+        xdg-open so the user can see the file immediately.
+        The call is best-effort: any exception is silently ignored so it never
+        blocks the copy operation that already succeeded.
+        """
+        import os
+        import platform
+        import subprocess
+
+        try:
+            system = platform.system()
+            if system == "Windows":
+                # /select,<path> highlights the file in Explorer (no space before path)
+                subprocess.Popen(
+                    ["explorer", f"/select,{os.path.normpath(file_path)}"],
+                    start_new_session=True,
+                )
+            elif system == "Darwin":
+                # -R reveals (selects) the file in Finder
+                subprocess.Popen(["open", "-R", file_path], start_new_session=True)
+            else:
+                # Linux / other POSIX – open the containing folder
+                subprocess.Popen(
+                    ["xdg-open", os.path.dirname(file_path)],
+                    start_new_session=True,
+                )
+        except Exception:
+            pass
 
 
 def register():
