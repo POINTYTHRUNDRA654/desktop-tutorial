@@ -36,6 +36,8 @@ realesrgan_helpers = _safe_import("realesrgan_helpers")
 instantngp_helpers = _safe_import("instantngp_helpers")
 imageto3d_helpers = _safe_import("imageto3d_helpers")
 motion_generation_helpers = _safe_import("motion_generation_helpers")
+desktop_tutorial_client = _safe_import("desktop_tutorial_client")
+notification_system = _safe_import("notification_system")
 
 class FO4_PT_MainPanel(Panel):
     """Main tutorial panel in the 3D View sidebar"""
@@ -1945,9 +1947,9 @@ class FO4_PT_DesktopTutorialPanel(Panel):
             status_box.label(text="✓ Connected", icon='CHECKMARK')
             
             # Server info
-            from . import desktop_tutorial_client
-            status = desktop_tutorial_client.DesktopTutorialClient.get_connection_status()
-            status_box.label(text=f"Server: {status['server_url']}")
+            if desktop_tutorial_client is not None:
+                status = desktop_tutorial_client.DesktopTutorialClient.get_connection_status()
+                status_box.label(text=f"Server: {status['server_url']}")
             
             # Disconnect button
             status_box.operator("fo4.disconnect_desktop_app", text="Disconnect", icon='UNLINKED')
@@ -2081,9 +2083,10 @@ class FO4_PT_OperationLogPanel(Panel):
     def draw(self, context):
         import textwrap
         layout = self.layout
-        from . import notification_system
 
-        entries = notification_system.OperationLog.get_entries(limit=50)
+        entries = []
+        if notification_system is not None:
+            entries = notification_system.OperationLog.get_entries(limit=50)
 
         if not entries:
             layout.label(text="No operations recorded yet.", icon='INFO')
