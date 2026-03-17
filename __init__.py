@@ -216,7 +216,8 @@ def register():
     #     print(f"Advisor auto-monitor failed to start: {e}")
     
     # Initialize the tutorial system
-    tutorial_system.initialize_tutorials()
+    if tutorial_system:
+        tutorial_system.initialize_tutorials()
     
     # Check for core Python dependencies — install automatically if missing.
     # DISABLED: Auto-installation causes severe performance issues during startup
