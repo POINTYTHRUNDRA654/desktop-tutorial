@@ -1,0 +1,28 @@
+# External tools directories (cloned separately, contain nested git repos)
+tools/
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Build artifacts
+*.zip
+dist/
+build/
+
+# VS Code
+.vscode/
+*.code-workspace
+
+# macOS
+.DS_Store
+
+# Windows
+Thumbs.db
+desktop.ini
+
+# Blender temp files
+*.blend1
+*.blend2
