@@ -25,6 +25,7 @@ bl_info = {
 
 import bpy
 import importlib
+import sys
 
 # helper for resilient imports – some modules may fail under untested Blender
 # releases (e.g. Blender 5.x during early testing).  We log failures but
@@ -44,6 +45,10 @@ def _try_import(name: str):
         print(f"⚠ Failed to import {name} ({full}): {exc}")
         import traceback
         traceback.print_exc()
+        # Remove any partially-initialised entry from sys.modules so that a
+        # subsequent retry (e.g. Blender 5 extension reload) performs a fresh
+        # import rather than returning the stale, incomplete module object.
+        sys.modules.pop(full, None)
         return None
 
 # import core submodules; missing components will be skipped but reported.
@@ -90,7 +95,7 @@ torch_path_manager = _try_import("torch_path_manager")
 # we don't add it to `modules` because it has no register()/unregister().
 tool_installers = _try_import("tool_installers")
 
-# External tool integration helpers (not auto-registered)
+# External tool integration helpers
 ue_importer_helpers = _try_import("ue_importer_helpers")
 umodel_tools_helpers = _try_import("umodel_tools_helpers")
 umodel_helpers = _try_import("umodel_helpers")
@@ -98,10 +103,24 @@ unity_fbx_importer_helpers = _try_import("unity_fbx_importer_helpers")
 asset_studio_helpers = _try_import("asset_studio_helpers")
 asset_ripper_helpers = _try_import("asset_ripper_helpers")
 
-# Game asset browser helpers (not auto-registered)
+# Game asset browser helpers
 fo4_game_assets = _try_import("fo4_game_assets")
 unity_game_assets = _try_import("unity_game_assets")
 unreal_game_assets = _try_import("unreal_game_assets")
+
+# Extended / optional helpers added by the full-file merge
+post_processing_helpers = _try_import("post_processing_helpers")
+fo4_material_browser    = _try_import("fo4_material_browser")
+fo4_scene_diagnostics   = _try_import("fo4_scene_diagnostics")
+fo4_reference_helpers   = _try_import("fo4_reference_helpers")
+papyrus_helpers         = _try_import("papyrus_helpers")
+fo4_physics_helpers     = _try_import("fo4_physics_helpers")
+mod_packaging_helpers   = _try_import("mod_packaging_helpers")
+addon_updater           = _try_import("addon_updater")
+native_nif_writer       = _try_import("native_nif_writer")
+
+# Asset library browser (registers PropertyGroups, UIList, and operators)
+asset_library = _try_import("asset_library")
 
 # core modules that are safe to import and register unconditionally.
 # a few of the optional/external helpers are only added lazily; any module
@@ -134,17 +153,15 @@ modules = list(filter(_filter, [
     point_e_helpers,
     advisor_helpers,
     knowledge_helpers,
-    # the external integration helpers are intentionally omitted from the
-    # automatic registration list.  They are heavy and may trigger policy
-    # violations when the wrapped upstream add‑ons are loaded at import time.
-    # Users can enable each integration manually via the sidebar buttons or
-    # the "Check ..." operators.
-    # ue_importer_helpers,
-    # umodel_tools_helpers,
-    # unity_fbx_importer_helpers,
-    # asset_studio_helpers,
-    # asset_ripper_helpers,
-    # tool_installers,
+    # external integrations — register by default so their buttons/operators
+    # are available without a separate manual load step; any missing module is
+    # filtered out by _filter to avoid crashes on platforms without the tools.
+    ue_importer_helpers,
+    umodel_tools_helpers,
+    unity_fbx_importer_helpers,
+    asset_studio_helpers,
+    asset_ripper_helpers,
+    tool_installers,
     mossy_link,
     export_helpers,
     image_to_mesh_helpers,
@@ -160,6 +177,15 @@ modules = list(filter(_filter, [
     imageto3d_helpers,
     operators,
     ui_panels,
+    post_processing_helpers,
+    fo4_material_browser,
+    fo4_scene_diagnostics,
+    fo4_reference_helpers,
+    papyrus_helpers,
+    fo4_physics_helpers,
+    mod_packaging_helpers,
+    addon_updater,
+    asset_library,
 ]))
 
 def register():
@@ -218,8 +244,11 @@ def register():
     #     print(f"Advisor auto-monitor failed to start: {e}")
     
     # Initialize the tutorial system
-    if tutorial_system:
-        tutorial_system.initialize_tutorials()
+    try:
+        if tutorial_system:
+            tutorial_system.initialize_tutorials()
+    except Exception as e:
+        print(f"⚠ Could not initialize tutorials: {e}")
     
     # Check for core Python dependencies — install automatically if missing.
     # DISABLED: Auto-installation causes severe performance issues during startup

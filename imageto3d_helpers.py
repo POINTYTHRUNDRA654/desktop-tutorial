@@ -4,21 +4,58 @@ Consolidates various image-to-3D solutions for Fallout 4 modding
 """
 
 import bpy
+import importlib.util
 import os
 import subprocess
 import shutil
+import time
 from pathlib import Path
 
 class ImageTo3DHelpers:
     """Helper functions for various image-to-3D solutions"""
-    
+
+    # Cache for is_triposr_available() — avoids repeated torch import / filesystem
+    # hits on every Blender UI redraw.
+    _triposr_cache = None
+    _triposr_cache_time = 0.0
+    _CACHE_TTL = 5.0  # seconds
+
     # ==================== TripoSR ====================
-    
+
+    @staticmethod
+    def clear_triposr_cache():
+        """
+        Force-expire the TripoSR availability cache after successful installation.
+
+        Call this after a successful install so the next UI redraw reflects
+        the new state without waiting for the 5-second TTL to expire.
+        """
+        ImageTo3DHelpers._triposr_cache = None
+        ImageTo3DHelpers._triposr_cache_time = 0.0
+
     @staticmethod
     def is_triposr_available():
-        """Check if TripoSR is available"""
+        """Check if TripoSR is available (result cached for 5 s)."""
+        now = time.monotonic()
+        if (ImageTo3DHelpers._triposr_cache is not None and
+                (now - ImageTo3DHelpers._triposr_cache_time) < ImageTo3DHelpers._CACHE_TTL):
+            return ImageTo3DHelpers._triposr_cache
+        result = ImageTo3DHelpers._is_triposr_available_uncached()
+        ImageTo3DHelpers._triposr_cache = result
+        ImageTo3DHelpers._triposr_cache_time = now
+        return result
+
+    @staticmethod
+    def _is_triposr_available_uncached():
+        """Perform the actual (uncached) TripoSR availability check."""
         try:
-            import torch
+            # Use find_spec to detect torch without actually importing it —
+            # a full `import torch` can block the UI for several seconds on
+            # first load.  TripoSR requires torch at runtime, but we only need
+            # to know whether it is *installed* here.
+            if importlib.util.find_spec('torch') is None:
+                return False
+
             # Check for TripoSR installation
             possible_paths = [
                 os.path.expanduser('~/TripoSR'),
@@ -26,22 +63,31 @@ class ImageTo3DHelpers:
                 '/opt/TripoSR',
                 'C:/Projects/TripoSR',
             ]
-            
+
+            # Also check the tool_installers managed directory and nearby tool roots
+            try:
+                from . import tool_installers
+                for candidate in tool_installers.candidate_tool_paths("TripoSR"):
+                    candidate_str = str(candidate)
+                    if Path(candidate_str) not in [Path(p) for p in possible_paths]:
+                        possible_paths.insert(0, candidate_str)  # Check these first
+            except Exception:
+                pass
+
             for path in possible_paths:
                 if os.path.exists(path):
                     return True
-            
+
             # Check if installed as package
             try:
-                import importlib.util
                 spec = importlib.util.find_spec('tsr')
                 if spec:
                     return True
-            except:
+            except Exception:
                 pass
-            
+
             return False
-        except (ImportError, FileNotFoundError):
+        except (ImportError, OSError):
             return False
     
     @staticmethod
@@ -55,11 +101,21 @@ class ImageTo3DHelpers:
             'C:/Projects/TripoSR',
             'C:/Users/' + os.environ.get('USERNAME', '') + '/TripoSR',
         ]
-        
+
+        # Also check the tool_installers managed directory and nearby tool roots
+        try:
+            from . import tool_installers
+            for candidate in tool_installers.candidate_tool_paths("TripoSR"):
+                candidate_str = str(candidate)
+                if Path(candidate_str) not in [Path(p) for p in possible_paths]:
+                    possible_paths.insert(0, candidate_str)  # Check these first
+        except Exception:
+            pass
+
         for path in possible_paths:
             if os.path.exists(os.path.join(path, 'run.py')):
                 return path
-        
+
         return None
     
     @staticmethod
@@ -69,7 +125,7 @@ class ImageTo3DHelpers:
             import torch
             has_torch = True
             cuda_available = torch.cuda.is_available()
-        except (ImportError, FileNotFoundError):
+        except (ImportError, OSError):
             has_torch = False
             cuda_available = False
         
@@ -197,7 +253,7 @@ class ImageTo3DHelpers:
             import torch
             has_torch = True
             cuda_available = torch.cuda.is_available()
-        except (ImportError, FileNotFoundError):
+        except (ImportError, OSError):
             has_torch = False
             cuda_available = False
         
@@ -520,7 +576,7 @@ See README.md for Fallout 4 modding guide.
                     return True
             
             return False
-        except (ImportError, FileNotFoundError):
+        except (ImportError, OSError):
             return False
     
     @staticmethod
@@ -547,7 +603,7 @@ See README.md for Fallout 4 modding guide.
             import torch
             has_torch = True
             cuda_available = torch.cuda.is_available()
-        except (ImportError, FileNotFoundError):
+        except (ImportError, OSError):
             has_torch = False
             cuda_available = False
         
@@ -596,7 +652,7 @@ See README.md for Fallout 4 modding guide.
         try:
             import shap_e
             return True
-        except (ImportError, FileNotFoundError):
+        except (ImportError, OSError):
             return False
     
     @staticmethod
@@ -800,7 +856,7 @@ See NVIDIA_RESOURCES.md for detailed setup instructions.
             import torch
             has_torch = True
             cuda_available = torch.cuda.is_available()
-        except (ImportError, FileNotFoundError):
+        except (ImportError, OSError):
             has_torch = False
             cuda_available = False
         
@@ -861,7 +917,7 @@ See NVIDIA_RESOURCES.md for detailed setup instructions.
             import torch
             has_torch = True
             cuda_available = torch.cuda.is_available()
-        except (ImportError, FileNotFoundError):
+        except (ImportError, OSError):
             has_torch = False
             cuda_available = False
         
@@ -1311,7 +1367,7 @@ See NVIDIA_RESOURCES.md for more AI tools.
             import torch
             has_torch = True
             cuda_available = torch.cuda.is_available()
-        except (ImportError, FileNotFoundError):
+        except (ImportError, OSError):
             has_torch = False
             cuda_available = False
         
@@ -1793,7 +1849,7 @@ See NVIDIA_RESOURCES.md for all AI tools.
             import torch
             has_torch = True
             cuda_available = torch.cuda.is_available()
-        except (ImportError, FileNotFoundError):
+        except (ImportError, OSError):
             has_torch = False
             cuda_available = False
         
@@ -2419,7 +2475,7 @@ See NVIDIA_RESOURCES.md for all AI tools.
             import torch
             has_torch = True
             cuda_available = torch.cuda.is_available()
-        except (ImportError, FileNotFoundError):
+        except (ImportError, OSError):
             has_torch = False
             cuda_available = False
         
@@ -2476,7 +2532,7 @@ See NVIDIA_RESOURCES.md for all AI tools.
             import diffusers
             has_diffusers = True
             diffusers_version = diffusers.__version__
-        except (ImportError, FileNotFoundError):
+        except (ImportError, OSError):
             has_diffusers = False
             diffusers_version = None
         
@@ -2484,7 +2540,7 @@ See NVIDIA_RESOURCES.md for all AI tools.
             import torch
             has_torch = True
             cuda_available = torch.cuda.is_available()
-        except (ImportError, FileNotFoundError):
+        except (ImportError, OSError):
             has_torch = False
             cuda_available = False
         
@@ -3107,7 +3163,7 @@ See NVIDIA_RESOURCES.md for all AI tools.
             import torch
             has_torch = True
             cuda_available = torch.cuda.is_available()
-        except (ImportError, FileNotFoundError):
+        except (ImportError, OSError):
             has_torch = False
             cuda_available = False
         
@@ -3213,7 +3269,7 @@ See NVIDIA_RESOURCES.md for all AI tools.
             import torch
             has_torch = True
             cuda_available = torch.cuda.is_available()
-        except (ImportError, FileNotFoundError):
+        except (ImportError, OSError):
             has_torch = False
             cuda_available = False
         
