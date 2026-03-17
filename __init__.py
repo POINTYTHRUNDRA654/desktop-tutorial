@@ -16,7 +16,7 @@ bl_info = {
         "is unavailable. Includes mesh optimisation, DDS texture conversion (NVTT/texconv), "
         "wind animation, AI rigging (RigNet), quest/NPC/item helpers, and smart presets."
     ),
-    "warning": "NIF export requires Niftools v0.1.1 on Blender 3.6 LTS (not compatible with Blender 4.x)",
+    "warning": "NIF export requires Niftools v0.1.1 on Blender 3.6 LTS (use FBX fallback on Blender 4.x / 5.x)",
     "doc_url": "https://github.com/POINTYTHRUNDRA654/Blender-add-on",
     "category": "Import-Export",
 }
@@ -297,8 +297,8 @@ def register():
             "fallback and convert with Cathedral Assets Optimizer.\n"
             "  • All other features (mesh, collision, textures, animation) work normally."
         )
-    else:
-        # 4.1+ removed use_auto_smooth; handled in advisor_helpers and export_helpers.
+    elif blender_version < (5, 0, 0):
+        # 4.1–4.x: use_auto_smooth removed; handled automatically.
         print(
             f"  Note: Blender {blender_version[0]}.{blender_version[1]} detected.\n"
             "  • NIF export: use the FBX fallback + Cathedral Assets Optimizer "
@@ -307,11 +307,22 @@ def register():
             "– the add-on handles this automatically.\n"
             "  • All other features work normally.  Please report any issues."
         )
+    else:
+        # Blender 5.0+: vertex_colors removed (color_attributes used instead),
+        # use_auto_smooth long gone.  All mesh/texture/animation features work.
+        print(
+            f"  Note: Blender {blender_version[0]}.{blender_version[1]} detected.\n"
+            "  • NIF export: use the FBX fallback + Cathedral Assets Optimizer "
+            "(Niftools v0.1.1 requires Blender ≤3.6).\n"
+            "  • All other features work normally on Blender 5.x.\n"
+            "  • Please report any issues at the GitHub repository."
+        )
 
 def unregister():
     """Unregister all add-on classes and handlers"""
     try:
-        advisor_helpers.stop_auto_monitor()
+        if advisor_helpers:
+            advisor_helpers.stop_auto_monitor()
     except Exception:
         pass
     for module in reversed(modules):

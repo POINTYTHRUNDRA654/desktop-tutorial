@@ -3,8 +3,39 @@ UI Panels for the Fallout 4 Tutorial Add-on
 """
 
 import bpy
+import importlib
 from bpy.types import Panel
-from . import hunyuan3d_helpers, gradio_helpers, hymotion_helpers, nvtt_helpers, rignet_helpers, preferences, ue_importer_helpers, umodel_tools_helpers, umodel_helpers, unity_fbx_importer_helpers, asset_studio_helpers, asset_ripper_helpers, knowledge_helpers, export_helpers, realesrgan_helpers, instantngp_helpers, imageto3d_helpers, motion_generation_helpers
+
+
+def _safe_import(name: str):
+    """Import an optional submodule; return None on failure so panels can
+    degrade gracefully when optional AI/tool helper packages are unavailable
+    (e.g. on Blender 5.x where some third-party packages may not yet be
+    compatible)."""
+    try:
+        return importlib.import_module(f".{name}", package=__package__)
+    except Exception:
+        return None
+
+
+hunyuan3d_helpers = _safe_import("hunyuan3d_helpers")
+gradio_helpers = _safe_import("gradio_helpers")
+hymotion_helpers = _safe_import("hymotion_helpers")
+nvtt_helpers = _safe_import("nvtt_helpers")
+rignet_helpers = _safe_import("rignet_helpers")
+preferences = _safe_import("preferences")
+ue_importer_helpers = _safe_import("ue_importer_helpers")
+umodel_tools_helpers = _safe_import("umodel_tools_helpers")
+umodel_helpers = _safe_import("umodel_helpers")
+unity_fbx_importer_helpers = _safe_import("unity_fbx_importer_helpers")
+asset_studio_helpers = _safe_import("asset_studio_helpers")
+asset_ripper_helpers = _safe_import("asset_ripper_helpers")
+knowledge_helpers = _safe_import("knowledge_helpers")
+export_helpers = _safe_import("export_helpers")
+realesrgan_helpers = _safe_import("realesrgan_helpers")
+instantngp_helpers = _safe_import("instantngp_helpers")
+imageto3d_helpers = _safe_import("imageto3d_helpers")
+motion_generation_helpers = _safe_import("motion_generation_helpers")
 
 class FO4_PT_MainPanel(Panel):
     """Main tutorial panel in the 3D View sidebar"""
@@ -37,10 +68,14 @@ class FO4_PT_MainPanel(Panel):
         elif bv < (4, 1, 0):
             compat_box.label(text="✓ NIF export: FBX fallback (Niftools needs Blender 3.6)", icon='INFO')
             compat_box.label(text="  Export .fbx and convert with Cathedral Assets Optimizer.")
-        else:
-            # 4.1+ — use_auto_smooth removed; FBX-only NIF path
+        elif bv < (5, 0, 0):
+            # 4.1–4.x — use_auto_smooth removed; FBX-only NIF path
             compat_box.label(text="✓ NIF export: FBX fallback (Niftools needs Blender 3.6)", icon='INFO')
             compat_box.label(text="  Shade-by-angle is automatic in Blender 4.1+.")
+        else:
+            # Blender 5.0+ — all mesh/texture features work; NIF via FBX fallback
+            compat_box.label(text="✓ NIF export: FBX fallback (Niftools needs Blender 3.6)", icon='INFO')
+            compat_box.label(text="  All other features supported on Blender 5.x.")
 
         # ── Tutorial section ─────────────────────────────────────────────────
         box = layout.box()
@@ -157,7 +192,10 @@ class FO4_PT_TexturePanel(Panel):
         box.operator("fo4.validate_textures", text="Validate Textures", icon='CHECKMARK')
 
         # AI Upscaling (Real-ESRGAN)
-        esrgan_available = realesrgan_helpers.RealESRGANHelpers.is_realesrgan_available()
+        esrgan_available = (
+            realesrgan_helpers.RealESRGANHelpers.is_realesrgan_available()
+            if realesrgan_helpers else False
+        )
         ai_box = layout.box()
         ai_box.label(text="AI Upscaling (Real-ESRGAN)", icon='RENDER_RESULT')
         if esrgan_available:
@@ -259,7 +297,10 @@ class FO4_PT_ImageToMeshPanel(Panel):
 
         # Instant-NGP section
         layout.separator()
-        ngp_available = instantngp_helpers.InstantNGPHelpers.is_instantngp_available()
+        ngp_available = (
+            instantngp_helpers.InstantNGPHelpers.is_instantngp_available()
+            if instantngp_helpers else False
+        )
         ngp_box = layout.box()
         ngp_box.label(text="Instant-NGP / NeRF", icon='CAMERA_DATA')
         if ngp_available:
@@ -336,8 +377,12 @@ class FO4_PT_AIGenerationPanel(Panel):
         info_box.label(text="• Completely optional feature")
         
         # Gradio Web UI section
-        gradio_available = gradio_helpers.GradioHelpers.is_available()
-        server_running = gradio_helpers.GradioHelpers.is_server_running()
+        gradio_available = (
+            gradio_helpers.GradioHelpers.is_available() if gradio_helpers else False
+        )
+        server_running = (
+            gradio_helpers.GradioHelpers.is_server_running() if gradio_helpers else False
+        )
         
         layout.separator()
         web_box = layout.box()
@@ -744,7 +789,10 @@ class FO4_PT_AdvisorPanel(Panel):
         info.label(text="• Texture prep (DDS BC1/3/5/7)")
         info.label(text="• Mesh limits (65,535 tris/verts)")
 
-        kb_status = knowledge_helpers.describe_kb()
+        kb_status = (
+            knowledge_helpers.describe_kb() if knowledge_helpers
+            else "Knowledge base: not available"
+        )
         info.label(text=kb_status, icon='BOOKMARKS')
 
         tools = layout.box()
@@ -766,7 +814,7 @@ class FO4_PT_ToolsLinks(Panel):
         layout = self.layout
 
         # quick tool availability summary
-        status = knowledge_helpers.tool_status()
+        status = knowledge_helpers.tool_status() if knowledge_helpers else {}
         sum_box = layout.box()
         sum_box.label(text="Tool Status", icon='INFO')
         for key, label in (
