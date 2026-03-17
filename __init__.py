@@ -7,16 +7,18 @@ bl_info = {
     "name": "Fallout 4 Mod Assistant",
     "author": "Tutorial Team",
     "version": (2, 1, 3),
-    "blender": (2, 90, 0),  # Compatible with Blender 2.90+ through 5.x (NIF export requires 3.6 LTS + Niftools v0.1.1)
+    "blender": (2, 90, 0),  # Compatible with Blender 2.90+ through 5.x
     "location": "View3D > Sidebar > Fallout 4",
     "description": (
-        "Professional Fallout 4 modding assistant. Exports to NIF 20.2.0.7 (BSTriShape) "
-        "via Niftools v0.1.1, auto-preps meshes (triangulate/UV/transforms), generates "
-        "UCX_ collision, validates against FO4 limits, and falls back to FBX if Niftools "
-        "is unavailable. Includes mesh optimisation, DDS texture conversion (NVTT/texconv), "
-        "wind animation, AI rigging (RigNet), quest/NPC/item helpers, and smart presets."
+        "Professional Fallout 4 modding assistant. Exports NIF (BSTriShape) via "
+        "PyNifly (Blender 4.x/5.x) or Niftools v0.1.1 (Blender 3.6 LTS), "
+        "auto-preps meshes (triangulate/UV/transforms), generates UCX_ collision, "
+        "validates against FO4 limits, and falls back to FBX when no NIF exporter "
+        "is installed. Includes mesh optimisation, DDS texture conversion "
+        "(NVTT/texconv), wind animation, AI rigging (RigNet), quest/NPC/item "
+        "helpers, and smart presets."
     ),
-    "warning": "NIF export requires Niftools v0.1.1 on Blender 3.6 LTS (not compatible with Blender 4.x)",
+    "warning": "NIF export: install PyNifly for Blender 4.x/5.x, or Niftools v0.1.1 for Blender 3.6 LTS",
     "doc_url": "https://github.com/POINTYTHRUNDRA654/Blender-add-on",
     "category": "Import-Export",
 }
@@ -216,7 +218,8 @@ def register():
     #     print(f"Advisor auto-monitor failed to start: {e}")
     
     # Initialize the tutorial system
-    tutorial_system.initialize_tutorials()
+    if tutorial_system:
+        tutorial_system.initialize_tutorials()
     
     # Check for core Python dependencies — install automatically if missing.
     # DISABLED: Auto-installation causes severe performance issues during startup
@@ -296,8 +299,8 @@ def register():
             "fallback and convert with Cathedral Assets Optimizer.\n"
             "  • All other features (mesh, collision, textures, animation) work normally."
         )
-    else:
-        # 4.1+ removed use_auto_smooth; handled in advisor_helpers and export_helpers.
+    elif blender_version < (5, 0, 0):
+        # 4.1–4.x: use_auto_smooth removed; handled automatically.
         print(
             f"  Note: Blender {blender_version[0]}.{blender_version[1]} detected.\n"
             "  • NIF export: use the FBX fallback + Cathedral Assets Optimizer "
@@ -306,11 +309,22 @@ def register():
             "– the add-on handles this automatically.\n"
             "  • All other features work normally.  Please report any issues."
         )
+    else:
+        # Blender 5.0+: vertex_colors removed (color_attributes used instead),
+        # use_auto_smooth long gone.  All mesh/texture/animation features work.
+        print(
+            f"  Note: Blender {blender_version[0]}.{blender_version[1]} detected.\n"
+            "  • NIF export: use the FBX fallback + Cathedral Assets Optimizer "
+            "(Niftools v0.1.1 requires Blender ≤3.6).\n"
+            "  • All other features work normally on Blender 5.x.\n"
+            "  • Please report any issues at the GitHub repository."
+        )
 
 def unregister():
     """Unregister all add-on classes and handlers"""
     try:
-        advisor_helpers.stop_auto_monitor()
+        if advisor_helpers:
+            advisor_helpers.stop_auto_monitor()
     except Exception:
         pass
     for module in reversed(modules):
