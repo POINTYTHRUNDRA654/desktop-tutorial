@@ -27,6 +27,99 @@ All changes in this PR live on this branch. The branch name reflects its origin 
 
 ## Done ✅  (DO NOT redo, revert, or override these)
 
+### 30. Fix: Mossy's online Knowledge Vault pipeline reliability ✅
+
+**Question asked:** "Is she actually going to be able to go online for finding information and store it to her database like she is intended to? She is supposed to be a professional Fallout 4 tutor."
+
+**Answer:** The end-to-end pipeline (web search → vault save → vault retrieval → AI context injection) was structurally complete, but four reliability bugs prevented it from working well in practice:
+
+**Bug 1 — Auto-web items were unfindable on follow-up queries (`src/renderer/src/LocalAIEngine.ts`):**
+Items saved by the automatic web-search path had `tags: ['web-search', 'auto-fetch']` — generic tags that contain no Fallout 4 topic words. Since `scoreItem()` in `knowledgeRetrieval.ts` awards +3 per tag keyword match, auto-web items always scored near-zero when the user asked follow-up questions about the same Fallout 4 topic, meaning they were never included in the AI context.
+**Fix:** Extract query words as topic tags (`topicTags`) and include them in the vault item so follow-up queries retrieve the right items.
+
+**Bug 2 — No deduplication (`src/renderer/src/LocalAIEngine.ts` + `src/renderer/src/MossyTools.ts`):**
+Every web search or `scan_fallout4_live` call pushed new items unconditionally. Asking about the same topic twice in a week added two near-identical entries, wasting storage and polluting the AI context with redundant data.
+**Fix:** Added `isDuplicateVaultEntry(vault, title)` exported from `knowledgeRetrieval.ts`. Checks if an item with the same title (first 80 chars) was saved within the last 7 days; if so, the new save is skipped.
+
+**Bug 3 — No vault size cap on auto-fetched items (`src/renderer/src/knowledgeRetrieval.ts`):**
+No code anywhere ever pruned auto-fetched vault entries. Power users could eventually hit the localStorage limit (~5 MB) after extended use, causing silent save failures and data loss.
+**Fix:** Added `pruneAutoFetchedVaultItems(vault)` exported from `knowledgeRetrieval.ts`. Auto-fetched items (IDs starting `auto-web-`, `live-scan-wiki-`, `live-scan-web-`) are capped at **200 total**; the oldest are removed first. User-uploaded / manually-added items are never pruned.
+
+**Bug 4 — Misleading "rest of our session" message (`src/renderer/src/MossyTools.ts`):**
+The `scan_fallout4_live` result message told the user (and Mossy) *"I'll remember this for the rest of our session"* — but the data is stored in `localStorage` and persists permanently across all sessions. This caused confusion about Mossy's memory capabilities.
+**Fix:** Changed to *"I'll remember this permanently across all future sessions."*
+
+**Files changed:**
+- `src/renderer/src/knowledgeRetrieval.ts` — added `isDuplicateVaultEntry()`, `pruneAutoFetchedVaultItems()`, `MAX_AUTO_ITEMS = 200`, `AUTO_ID_PREFIXES`, `isAutoFetched()`
+- `src/renderer/src/LocalAIEngine.ts` — import new helpers; add topic tags to auto-web items; dedup + prune on save
+- `src/renderer/src/MossyTools.ts` — import new helpers; dedup + prune on wiki + DDG vault saves; fix "session" message
+- `CHANGES.md`
+
+---
+
+### 29. Fix: Mossy keeps claiming she's a language model with no internet access ✅
+
+**Problem:**
+Mossy would respond to online-search requests with phrases like "I'm a language model and I don't have access to the internet" or "As a language model, I lack real-time access." Three root-cause bugs:
+
+1. **Response guard disabled when web search succeeded** (`src/renderer/src/LocalAIEngine.ts` line ~454):
+   The guard condition was `(!needsWebSearch || webSearchUnavailable) && PATTERNS.some(...)`.
+   When the user said "search for…" (triggering `needsWebSearch=true`) and the web search call
+   succeeded (`webSearchUnavailable=false`), both halves were `false` → guard was completely
+   disabled. The base LLM could still respond with a refusal and the guard would never fire.
+
+2. **Missing "I'm a language model" refusal patterns (without "just")**:
+   Patterns only caught `"I'm just a language model"` / `"as an AI, I cannot…"` but missed:
+   - `"I'm a language model and I don't…"` / `"I am a language model and I can't…"`
+   - `"as a language model, I don't have access"` / `"as a language model, I lack…"`
+   - `"as an AI, I don't have access"` / `"being a language model…"`
+   - `"I lack real-time access"` / `"I have no internet access"`
+   - `"I don't have the ability/capability to access…"`
+
+3. **Local LLM path (Ollama/LM Studio/Cosmos) had zero response guard**:
+   The local provider branch returned immediately with no refusal check, so any local model
+   that said it was an LLM with no internet access was passed directly to the user.
+
+**Fixes:**
+
+**Fix A — Unconditional response guard (`src/renderer/src/LocalAIEngine.ts`):**
+- Removed `(!needsWebSearch || webSearchUnavailable) &&` from the guard condition.
+- Guard now runs on EVERY Groq response, regardless of whether web search already ran.
+- Comment updated to explain the reasoning.
+
+**Fix B — 7 new refusal patterns added to `INTERNET_REFUSAL_PATTERNS`:**
+- `/(i'm|i am) a(n)? (large language model|language model|llm)[,.] .*(don't|cannot|unable|lack).*(internet|web|online|access|real-time)/i`
+- `/(i'm|i am) an? ai[,.] .*(don't|cannot|unable|lack).*(internet|web|online|access|real-time)/i`
+- `/as an? (ai|language model|llm)[,.] .*(don't|cannot|unable|lack).*(internet|web|online|access|browse|real-time)/i`
+- `/being an? (ai|language model|llm)[,.] .*(don't|cannot|unable|lack).*(internet|web|online|access|browse)/i`
+- `/i (do not|don't) have the (ability|capability|capacity) to (access|browse|search|go online|retrieve|fetch)/i`
+- `/i lack (real-time|internet|web|online|live) (access|data|information)/i`
+- `/i (have|had) no (real-time|internet|web|live) (access|data|information)/i`
+
+**Fix C — Local LLM response guard (`src/renderer/src/LocalAIEngine.ts`):**
+- After `api.mlLlmGenerate()` responds, the same `INTERNET_REFUSAL_PATTERNS` check is applied.
+- If triggered: fetches web results via `guardWebApiLocal.webSearch()`, injects them into an
+  enriched context, and retries with `api.mlLlmGenerate()` using the same local provider/model.
+- Failure is non-critical (falls through to original response rather than erroring out).
+
+**Fix D — System prompt forbidden list expanded (`src/renderer/src/MossyBrain.ts`):**
+- Added explicit `❌` entries for all the new phrase patterns:
+  - `"as a language model, I don't have access"` / `"as a language model, I lack"`
+  - `"as an AI, I don't have access"` / `"as an AI, I cannot"`
+  - `"I'm a language model and I don't/can't"` / `"I am a language model and I don't/can't"`
+  - `"I'm a large language model and"` / `"I am a large language model and"`
+  - `"being a language model"` / `"being an AI"`
+  - `"I lack real-time access"` / `"I have no real-time access"`
+  - `"I lack internet access"` / `"I have no internet access"`
+  - `"I don't have the ability to access"` / `"I don't have the capability to access"`
+
+**Files changed:**
+- `src/renderer/src/LocalAIEngine.ts` — guard condition fix; 8 new patterns; local LLM guard
+- `src/renderer/src/MossyBrain.ts` — 16 new forbidden-statement entries
+- `CHANGES.md`
+
+---
+
 ### 28. Investigation: PR #83 closed without merging ✅
 
 **Question:** "Why did PR #83 close without merging? We need to fix this."

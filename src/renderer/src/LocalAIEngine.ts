@@ -7,6 +7,8 @@ import {
   buildKnowledgeManifestForModel,
   buildRelevantKnowledgeVaultContext,
   getRelevantKnowledgeVaultItems,
+  isDuplicateVaultEntry,
+  pruneAutoFetchedVaultItems,
   KnowledgeVaultItem,
 } from './knowledgeRetrieval';
 import { selfImprovementEngine } from './SelfImprovementEngine';
@@ -14,6 +16,13 @@ import { selfImprovementEngine } from './SelfImprovementEngine';
 export interface AIResponse {
   content: string;
   context?: any;
+}
+
+/** Minimal shape of a successful web search result used internally. */
+interface WebSearchResult {
+  text: string;
+  url?: string;
+  source?: string;
 }
 
 type LocalAiPreferred = 'auto' | 'cosmos' | 'ollama' | 'openai_compat' | 'off';
@@ -289,17 +298,31 @@ export const LocalAIEngine = {
             try {
               const vaultRaw = localStorage.getItem('mossy_knowledge_vault');
               const vault: KnowledgeVaultItem[] = vaultRaw ? JSON.parse(vaultRaw) : [];
-              vault.push({
-                id: `auto-web-${Date.now()}`,
-                title: `[Web] ${query.substring(0, 80)}`,
-                content: searchResult.text,
-                source: searchResult.url || searchResult.source || 'Web',
-                trustLevel: 'community',
-                tags: ['web-search', 'auto-fetch'],
-                date: new Date().toISOString(),
-              });
-              localStorage.setItem('mossy_knowledge_vault', JSON.stringify(vault));
-              console.log('[LocalAIEngine] ✅ Web search results saved to Knowledge Vault');
+              const itemTitle = `[Web] ${query.substring(0, 80)}`;
+              // Skip if a very similar item was already saved in the last 7 days.
+              if (!isDuplicateVaultEntry(vault, itemTitle)) {
+                // Include query words as tags so follow-up queries score this item well.
+                // Threshold >= 2 to capture short but important FO4 terms (CK, NIF, FO4, ESP, DDS).
+                const topicTags = query.toLowerCase()
+                  .replace(/[^a-z0-9\s]/g, ' ')
+                  .split(/\s+/)
+                  .filter((w) => w.length >= 2)
+                  .slice(0, 8);
+                vault.push({
+                  id: `auto-web-${Date.now()}`,
+                  title: itemTitle,
+                  content: searchResult.text,
+                  source: searchResult.url || searchResult.source || 'Web',
+                  trustLevel: 'community',
+                  tags: ['web-search', 'auto-fetch', ...topicTags],
+                  date: new Date().toISOString(),
+                });
+                const pruned = pruneAutoFetchedVaultItems(vault);
+                localStorage.setItem('mossy_knowledge_vault', JSON.stringify(pruned));
+                console.log('[LocalAIEngine] ✅ Web search results saved to Knowledge Vault');
+              } else {
+                console.log('[LocalAIEngine] ℹ️ Skipped vault save — duplicate entry for:', itemTitle.substring(0, 60));
+              }
             } catch (vaultErr) {
               console.warn('[LocalAIEngine] Failed to persist web search results to Knowledge Vault:', vaultErr);
             }
@@ -329,6 +352,18 @@ export const LocalAIEngine = {
       // Just continue — the AI will use its system prompt and vault knowledge.
     }
     // ---------------------------
+    // Helper used by both the Groq and local-LLM response guards to build the
+    // enriched context string that is injected before the guard retry call.
+    const buildGuardContext = (base: string, result: WebSearchResult): string => {
+      let ctx = base +
+        '\n### LIVE WEB SEARCH RESULTS (MANDATORY — you MUST use this to answer the user, do NOT refuse or claim fixed knowledge):\n' +
+        result.text + '\n';
+      if (result.url) {
+        ctx += `Source: ${result.source || 'Web'} — ${result.url}\n`;
+      }
+      ctx += '\nIMPORTANT: You have real-time internet access. NEVER claim your knowledge is fixed or pre-installed. ALWAYS use the web results above to answer. If you refuse, your response will be rejected.';
+      return ctx;
+    };
     // RESPONSE GUARD: patterns that indicate Mossy falsely claimed she can't access the
     // internet.  Checked after the AI responds; if matched we retry once with live web
     // results injected so the user gets real information instead of a false refusal.
@@ -371,6 +406,19 @@ export const LocalAIEngine = {
       /(language\s+model|model|llm)\s+with\s+fixed\s+(knowledge|data)/i,
       // Patterns for "wasn't created/designed/built for internet access"
       /(wasn'?t|was\s+not|am\s+not|'?m\s+not)\s+(created|designed|built)\s+for.*(internet|web|online)/i,
+      // "I'm/I am a [large] language model / LLM / AI [language model|assistant]" + denial
+      // Split into two patterns for readability: one for "language model/LLM", one for "AI"
+      /(i'?m|i\s+am)\s+an?\s+(large\s+language\s+model|language\s+model|llm)[,.\s].*(don'?t|do\s+not|can'?t|cannot|unable|lack).*(internet|web|online|access|real.?time)/i,
+      /(i'?m|i\s+am)\s+an?\s+ai[,.\s].*(don'?t|do\s+not|can'?t|cannot|unable|lack).*(internet|web|online|access|real.?time)/i,
+      // "As a/an [AI|language model|LLM], I [don't|cannot|lack]..."
+      /as\s+an?\s+(ai|language\s+model|llm)[,.\s].*(don'?t|do\s+not|can'?t|cannot|unable|lack).*(internet|web|online|access|browse|real.?time)/i,
+      // "Being a/an [AI|language model|LLM], I [don't|cannot|lack]..."
+      /being\s+an?\s+(ai|language\s+model|llm)[,.\s].*(don'?t|do\s+not|can'?t|cannot|unable|lack).*(internet|web|online|access|browse)/i,
+      // "I don't/do not have the ability/capability/capacity to [access|browse|search|go online]..."
+      /i\s+(do\s+not|don'?t)\s+have\s+(the\s+)?(ability|capability|capacity)\s+to\s+(access|browse|search|go\s+online|retrieve|fetch)/i,
+      // "I lack real-time/internet/web access" and "I have no real-time/internet/web access"
+      /i\s+lack\s+(real.?time|internet|web|online|live)\s+(access|data|information)/i,
+      /i\s+(have|had)\s+no\s+(real.?time|internet|web|live)\s+(access|data|information)/i,
     ];
 
     // Try local provider first if available
@@ -417,7 +465,30 @@ export const LocalAIEngine = {
         });
 
         if (resp?.ok) {
-          const responseContent = String(resp.text || '');
+          let responseContent = String(resp.text || '');
+
+          // Apply the same response guard as the Groq path — local models revert to
+          // base-LLM behaviour just as often and need the same correction.
+          if (INTERNET_REFUSAL_PATTERNS.some((p) => p.test(responseContent))) {
+            console.warn('[LocalAIEngine] ⚠️ RESPONSE GUARD (local) — AI falsely refused internet access');
+            try {
+              const guardWebApiLocal = (window.electron?.api || window.electronAPI) as any;
+              if (typeof guardWebApiLocal?.webSearch === 'function') {
+                const guardSearch = await guardWebApiLocal.webSearch(query);
+                if (guardSearch?.success && guardSearch?.text && !guardSearch?.empty) {
+                  const enrichedContext = buildGuardContext(injectedContext, guardSearch);
+                  const retryPrompt = `${enhancedSystemInstruction}${enrichedContext}${historyText}\nUser: ${query}\n\nMossy's Response:`;
+                  const retryResp = await api.mlLlmGenerate({ provider, model, baseUrl, prompt: retryPrompt });
+                  if (retryResp?.ok && retryResp.text) {
+                    responseContent = String(retryResp.text);
+                    console.log('[LocalAIEngine] ✅ Local guard retry successful');
+                  }
+                }
+              }
+            } catch (localGuardErr) {
+              console.warn('[LocalAIEngine] Local response-guard retry failed (non-critical):', localGuardErr);
+            }
+          }
 
           // Record interaction for self-improvement
           selfImprovementEngine.recordInteraction(query, responseContent, [], 'success');
@@ -446,12 +517,12 @@ export const LocalAIEngine = {
         let responseContent = String(resp.content || '');
 
         // --- RESPONSE GUARD ---
-        // If the model falsely claimed it cannot access the internet and we haven't
-        // already injected web results, perform a web search now and retry once so
-        // the user receives real information instead of a false refusal.
-        // Also trigger when web search was attempted but failed (webSearchUnavailable)
-        // so the guard can retry the search in case connectivity has recovered.
-        const responseRefusesInternet = (!needsWebSearch || webSearchUnavailable) && INTERNET_REFUSAL_PATTERNS.some((p) => p.test(responseContent));
+        // Check EVERY response for false internet-access refusals, regardless of
+        // whether a web-search trigger keyword was detected and regardless of whether
+        // web search already succeeded.  The base LLM reverts to claiming it has no
+        // internet access even when live results were injected into its context, so
+        // the guard must be unconditional.
+        const responseRefusesInternet = INTERNET_REFUSAL_PATTERNS.some((p) => p.test(responseContent));
         if (responseRefusesInternet) {
           console.warn('[LocalAIEngine] ⚠️ RESPONSE GUARD TRIGGERED - AI falsely refused internet access');
           console.warn('[LocalAIEngine] Response snippet:', responseContent.substring(0, 200));
@@ -469,13 +540,7 @@ export const LocalAIEngine = {
               const guardSearch = await guardWebApi.webSearch(query);
               if (guardSearch?.success && guardSearch?.text) {
                 console.log('[LocalAIEngine] ✅ Web search successful, retrying with injected results');
-                let enrichedContext = injectedContext +
-                  '\n### LIVE WEB SEARCH RESULTS (MANDATORY — you MUST use this to answer the user, do NOT refuse or claim fixed knowledge):\n' +
-                  guardSearch.text + '\n';
-                if (guardSearch.url) {
-                  enrichedContext += `Source: ${guardSearch.source || 'Web'} — ${guardSearch.url}\n`;
-                }
-                enrichedContext += '\nIMPORTANT: You have real-time internet access. NEVER claim your knowledge is fixed or pre-installed. ALWAYS use the web results above to answer. If you refuse, your response will be rejected.';
+                const enrichedContext = buildGuardContext(injectedContext, guardSearch);
                 const guardSystemPrompt = systemInstruction + enrichedContext;
                 console.log('[LocalAIEngine] Injected context for retry:', enrichedContext.substring(0, 500));
                 const retryResp = await api.aiChatGroq(query, guardSystemPrompt, 'llama-3.3-70b-versatile', conversationHistory);

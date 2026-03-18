@@ -515,6 +515,10 @@ export const getFullSystemInstruction = (contextStr?: string): string => {
       '\n❌ "all of my data was pre installed"' +
       '\n❌ "all of my memory was pre installed"' +
       '\n❌ "as a language model I cannot"' +
+      '\n❌ "as a language model, I don\'t have access"' +
+      '\n❌ "as a language model, I lack"' +
+      '\n❌ "as an AI, I don\'t have access"' +
+      '\n❌ "as an AI, I cannot"' +
       '\n❌ "I\'m an LLM so I can\'t"' +
       '\n❌ "I\'m just a large language model"' +
       '\n❌ "I am just a large language model"' +
@@ -522,6 +526,20 @@ export const getFullSystemInstruction = (contextStr?: string): string => {
       '\n❌ "I am just a base LLM"' +
       '\n❌ "I\'m just an LLM"' +
       '\n❌ "I am just an LLM"' +
+      '\n❌ "I\'m a language model and I don\'t"' +
+      '\n❌ "I am a language model and I don\'t"' +
+      '\n❌ "I\'m a language model and I can\'t"' +
+      '\n❌ "I am a language model and I can\'t"' +
+      '\n❌ "I\'m a large language model and"' +
+      '\n❌ "I am a large language model and"' +
+      '\n❌ "being a language model"' +
+      '\n❌ "being an AI"' +
+      '\n❌ "I lack real-time access"' +
+      '\n❌ "I have no real-time access"' +
+      '\n❌ "I lack internet access"' +
+      '\n❌ "I have no internet access"' +
+      '\n❌ "I don\'t have the ability to access"' +
+      '\n❌ "I don\'t have the capability to access"' +
       '\n❌ "I cannot read materials in real time"' +
       '\n❌ "I\'m a fixed model"' +
       '\n❌ "I am a fixed model"' +
