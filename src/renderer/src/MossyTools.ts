@@ -1,5 +1,6 @@
 import { logMossyError, getErrorReport } from './MossyErrorReporter';
 import { ModProjectStorage } from './services/ModProjectStorage';
+import { isDuplicateVaultEntry, pruneAutoFetchedVaultItems } from './knowledgeRetrieval';
 
 export const sanitizeBlenderScript = (rawScript: string): string => {
     let safeScript = rawScript;
@@ -1513,17 +1514,20 @@ Check your Downloads folder or the location where files are saved.`;
                         results.push(`**📖 Fallout 4 Wiki — "${topic}":**\n\n${wikiRes.text}${wikiRes.url ? `\n\n*Source: ${wikiRes.url}*` : ''}`);
                         if (saveToVault && wikiRes.text.length > 50) {
                             const vault = getVault();
-                            vault.push({
-                                id: `live-scan-wiki-${Date.now()}`,
-                                title: `[Live Scan] FO4 Wiki: ${topic}`,
-                                content: wikiRes.text,
-                                source: wikiRes.url || 'https://fallout.fandom.com',
-                                trustLevel: 'community',
-                                tags: ['fallout4', 'wiki', 'live-scan', ...topic.toLowerCase().split(/\s+/).slice(0, 4)],
-                                date: new Date().toISOString(),
-                            });
-                            saveVault(vault);
-                            savedItems.push('Fallout 4 Wiki excerpt');
+                            const wikiTitle = `[Live Scan] FO4 Wiki: ${topic}`;
+                            if (!isDuplicateVaultEntry(vault, wikiTitle)) {
+                                vault.push({
+                                    id: `live-scan-wiki-${Date.now()}`,
+                                    title: wikiTitle,
+                                    content: wikiRes.text,
+                                    source: wikiRes.url || 'https://fallout.fandom.com',
+                                    trustLevel: 'community',
+                                    tags: ['fallout4', 'wiki', 'live-scan', ...topic.toLowerCase().split(/\s+/).slice(0, 4)],
+                                    date: new Date().toISOString(),
+                                });
+                                saveVault(pruneAutoFetchedVaultItems(vault));
+                                savedItems.push('Fallout 4 Wiki excerpt');
+                            }
                         }
                     }
                 } catch { /* non-critical */ }
@@ -1535,17 +1539,20 @@ Check your Downloads folder or the location where files are saved.`;
                         results.push(`**🌐 Web — "Fallout 4 ${topic} modding":**\n\n${ddgRes.text}${ddgRes.url ? `\n\n*Source: ${ddgRes.url}*` : ''}`);
                         if (saveToVault && ddgRes.text.length > 50) {
                             const vault = getVault();
-                            vault.push({
-                                id: `live-scan-web-${Date.now()}`,
-                                title: `[Live Scan] Web: Fallout 4 ${topic}`,
-                                content: ddgRes.text,
-                                source: ddgRes.url || 'https://duckduckgo.com',
-                                trustLevel: 'community',
-                                tags: ['fallout4', 'web-search', 'live-scan', ...topic.toLowerCase().split(/\s+/).slice(0, 4)],
-                                date: new Date().toISOString(),
-                            });
-                            saveVault(vault);
-                            savedItems.push('Web search results');
+                            const ddgTitle = `[Live Scan] Web: Fallout 4 ${topic}`;
+                            if (!isDuplicateVaultEntry(vault, ddgTitle)) {
+                                vault.push({
+                                    id: `live-scan-web-${Date.now()}`,
+                                    title: ddgTitle,
+                                    content: ddgRes.text,
+                                    source: ddgRes.url || 'https://duckduckgo.com',
+                                    trustLevel: 'community',
+                                    tags: ['fallout4', 'web-search', 'live-scan', ...topic.toLowerCase().split(/\s+/).slice(0, 4)],
+                                    date: new Date().toISOString(),
+                                });
+                                saveVault(pruneAutoFetchedVaultItems(vault));
+                                savedItems.push('Web search results');
+                            }
                         }
                     }
                 } catch { /* non-critical */ }
@@ -1554,7 +1561,7 @@ Check your Downloads folder or the location where files are saved.`;
                     result = `**Online Scan:** No results found for "${topic}" right now. The Fallout 4 Wiki and DuckDuckGo didn't return a match for that exact term. Try rephrasing the topic (e.g., "Papyrus script event" instead of just "Papyrus"), or I can answer from my existing knowledge if you'd like.`;
                 } else {
                     const vaultNote = savedItems.length > 0
-                        ? `\n\n✅ **Saved to Knowledge Vault:** ${savedItems.join(', ')} — I'll remember this for the rest of our session.`
+                        ? `\n\n✅ **Saved to Knowledge Vault:** ${savedItems.join(', ')} — I'll remember this permanently across all future sessions.`
                         : '';
                     result = `**🔍 Live Scan Results for "${topic}":**\n\n` + results.join('\n\n---\n\n') + vaultNote;
                 }
