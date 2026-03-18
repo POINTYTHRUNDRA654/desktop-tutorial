@@ -1,5 +1,9 @@
 # External tools directories (cloned separately, contain nested git repos)
-tools/
+# Large binaries (ffmpeg, nvtt, texconv, etc.) must NOT be committed to Git.
+# Use Git LFS (see .gitattributes) if any binary absolutely must live in the repo.
+# Download instructions: tools/README.md
+tools/*
+!tools/README.md
 
 # Python cache
 __pycache__/
