@@ -4,29 +4,43 @@ If GitHub Desktop says **"the repository no longer exists"**, **"Sorry, I can't 
 
 ---
 
-## "Sorry, I can't find any repository matching…"
+## "Sorry, I can't find any repository matching…" / "Still can't locate it"
 
-This is the most common error.  GitHub Desktop's **GitHub.com** search tab strips the trailing
-period from the repository name and then can't find it.
+> ⚠️ **IMPORTANT — Read this before trying anything else**
+>
+> The "Clone a repository" dialog has **three tabs** at the top:
+> **GitHub.com** | **GitHub Enterprise** | **URL**
+>
+> **The GitHub.com tab will NEVER work for this repository.**
+> Do NOT type the URL into the GitHub.com tab's search box — it always fails.
+>
+> You must click the word **URL** (the tab on the far right) to switch to the URL tab,
+> and then paste the address into the URL tab's input box.
 
-**You must use the URL tab to clone this repository — the GitHub.com search tab will never work.**
+**Step-by-step — do exactly this:**
 
-Steps:
-
-1. Open **GitHub Desktop** → **File → Clone repository…**
-2. Click the **URL** tab (the third tab, on the right).
-3. Paste this URL exactly into the **Repository URL or GitHub username and repository** box:
+1. Open **GitHub Desktop**.
+2. Click **File → Clone repository…**  (the "Clone a repository" dialog opens).
+3. Look at the three tabs at the very top of the dialog:
+   `GitHub.com` | `GitHub Enterprise` | `URL`
+4. **Click the word `URL`** — the rightmost tab.  The dialog contents will change.
+   *(If the dialog still shows a search box with "Filter your repositories", you are still
+   on the GitHub.com tab — click `URL` again.)*
+5. You should now see a single text field labelled
+   **"Repository URL or GitHub username and repository"**.
+6. Click inside that field and paste this URL:
    ```
-   https://github.com/POINTYTHRUNDRA654/Blender-add-on.
+   https://github.com/POINTYTHRUNDRA654/Blender-add-on..git
    ```
-   *(The period at the very end is part of the repository name — include it.)*
-4. Set **Local path** to wherever you want the folder (e.g. `D:\Blender addon 2`).
-5. Click **Clone**.
+   *(There are two dots before `.git` — that is correct and intentional.)*
+7. Set **Local path** to wherever you want the folder (e.g. `D:\Blender addon 2`).
+8. Click **Clone**.
 
-> **Why does this happen?**  This repository's name ends with a period (`Blender-add-on.`).
-> The GitHub.com search tab calls GitHub's API with a URL-encoded query that drops trailing
-> periods, so the search returns nothing.  The URL tab bypasses the search entirely and clones
-> directly, so the period is preserved and the clone succeeds.
+> **Why does this keep failing?**  This repository's name ends with a period (`Blender-add-on.`).
+> The GitHub.com search tab cannot find it at all.  Even the URL tab sometimes strips the
+> trailing period, which is why we add `.git` at the end — it moves the period away from
+> the very end of the URL so it can never be stripped.  Both URLs point to the same
+> repository; the `.git` form is just more reliable.
 
 ---
 
@@ -39,10 +53,10 @@ Steps for a clean re-clone to your desktop:
 1. **Back up any local changes** you have not yet committed (copy them somewhere safe).
 2. **Delete the broken local folder** on your desktop.
 3. Open **GitHub Desktop** → **File → Clone repository…**
-4. Click the **URL** tab (**not** the GitHub.com tab — see the section above for why).
-5. Paste the URL:
+4. At the top of the dialog, click the **`URL`** tab (the rightmost tab — NOT the GitHub.com tab).
+5. Paste into the URL field (with `.git` at the end — this prevents the trailing period from being stripped):
    ```
-   https://github.com/POINTYTHRUNDRA654/Blender-add-on.
+   https://github.com/POINTYTHRUNDRA654/Blender-add-on..git
    ```
 6. Set the local path to wherever you want it (e.g. your Desktop).
 7. Click **Clone**.
@@ -77,9 +91,9 @@ Windows and some Git clients handle trailing periods inconsistently, which can c
 5. Go to **Repository → Repository settings…**
 6. In the **Remote** tab, set the **Primary remote URL** to:
    ```
-   https://github.com/POINTYTHRUNDRA654/Blender-add-on.
+   https://github.com/POINTYTHRUNDRA654/Blender-add-on..git
    ```
-   *(Make sure the period at the end is included.)*
+   *(The `.git` suffix prevents GitHub Desktop from stripping the trailing period.)*
 7. Click **Save**.
 8. Now click **Fetch origin**. Your local changes will NOT be overwritten — Git will let you merge or keep both.
 
@@ -90,7 +104,7 @@ Windows and some Git clients handle trailing periods inconsistently, which can c
 Open **Git Bash** (or Command Prompt) inside your local repository folder and run:
 
 ```bash
-git remote set-url origin https://github.com/POINTYTHRUNDRA654/Blender-add-on.
+git remote set-url origin https://github.com/POINTYTHRUNDRA654/Blender-add-on..git
 git fetch origin
 git status
 ```
