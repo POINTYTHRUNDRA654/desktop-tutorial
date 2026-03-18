@@ -26,10 +26,10 @@ echo.
 git remote get-url origin >nul 2>&1
 if %errorlevel% neq 0 (
     echo Adding remote origin...
-    git remote add origin https://github.com/POINTYTHRUNDRA654/Blender-add-on.
+    git remote add origin https://github.com/POINTYTHRUNDRA654/Blender-add-on..git
 ) else (
     echo Updating remote origin URL...
-    git remote set-url origin https://github.com/POINTYTHRUNDRA654/Blender-add-on.
+    git remote set-url origin https://github.com/POINTYTHRUNDRA654/Blender-add-on..git
 )
 
 echo.
