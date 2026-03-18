@@ -27,6 +27,36 @@ All changes in this PR live on this branch. The branch name reflects its origin 
 
 ## Done ✅  (DO NOT redo, revert, or override these)
 
+### 30. Fix: Mossy's online Knowledge Vault pipeline reliability ✅
+
+**Question asked:** "Is she actually going to be able to go online for finding information and store it to her database like she is intended to? She is supposed to be a professional Fallout 4 tutor."
+
+**Answer:** The end-to-end pipeline (web search → vault save → vault retrieval → AI context injection) was structurally complete, but four reliability bugs prevented it from working well in practice:
+
+**Bug 1 — Auto-web items were unfindable on follow-up queries (`src/renderer/src/LocalAIEngine.ts`):**
+Items saved by the automatic web-search path had `tags: ['web-search', 'auto-fetch']` — generic tags that contain no Fallout 4 topic words. Since `scoreItem()` in `knowledgeRetrieval.ts` awards +3 per tag keyword match, auto-web items always scored near-zero when the user asked follow-up questions about the same Fallout 4 topic, meaning they were never included in the AI context.
+**Fix:** Extract query words as topic tags (`topicTags`) and include them in the vault item so follow-up queries retrieve the right items.
+
+**Bug 2 — No deduplication (`src/renderer/src/LocalAIEngine.ts` + `src/renderer/src/MossyTools.ts`):**
+Every web search or `scan_fallout4_live` call pushed new items unconditionally. Asking about the same topic twice in a week added two near-identical entries, wasting storage and polluting the AI context with redundant data.
+**Fix:** Added `isDuplicateVaultEntry(vault, title)` exported from `knowledgeRetrieval.ts`. Checks if an item with the same title (first 80 chars) was saved within the last 7 days; if so, the new save is skipped.
+
+**Bug 3 — No vault size cap on auto-fetched items (`src/renderer/src/knowledgeRetrieval.ts`):**
+No code anywhere ever pruned auto-fetched vault entries. Power users could eventually hit the localStorage limit (~5 MB) after extended use, causing silent save failures and data loss.
+**Fix:** Added `pruneAutoFetchedVaultItems(vault)` exported from `knowledgeRetrieval.ts`. Auto-fetched items (IDs starting `auto-web-`, `live-scan-wiki-`, `live-scan-web-`) are capped at **200 total**; the oldest are removed first. User-uploaded / manually-added items are never pruned.
+
+**Bug 4 — Misleading "rest of our session" message (`src/renderer/src/MossyTools.ts`):**
+The `scan_fallout4_live` result message told the user (and Mossy) *"I'll remember this for the rest of our session"* — but the data is stored in `localStorage` and persists permanently across all sessions. This caused confusion about Mossy's memory capabilities.
+**Fix:** Changed to *"I'll remember this permanently across all future sessions."*
+
+**Files changed:**
+- `src/renderer/src/knowledgeRetrieval.ts` — added `isDuplicateVaultEntry()`, `pruneAutoFetchedVaultItems()`, `MAX_AUTO_ITEMS = 200`, `AUTO_ID_PREFIXES`, `isAutoFetched()`
+- `src/renderer/src/LocalAIEngine.ts` — import new helpers; add topic tags to auto-web items; dedup + prune on save
+- `src/renderer/src/MossyTools.ts` — import new helpers; dedup + prune on wiki + DDG vault saves; fix "session" message
+- `CHANGES.md`
+
+---
+
 ### 29. Fix: Mossy keeps claiming she's a language model with no internet access ✅
 
 **Problem:**

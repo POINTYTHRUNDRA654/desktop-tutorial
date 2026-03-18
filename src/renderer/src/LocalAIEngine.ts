@@ -7,6 +7,8 @@ import {
   buildKnowledgeManifestForModel,
   buildRelevantKnowledgeVaultContext,
   getRelevantKnowledgeVaultItems,
+  isDuplicateVaultEntry,
+  pruneAutoFetchedVaultItems,
   KnowledgeVaultItem,
 } from './knowledgeRetrieval';
 import { selfImprovementEngine } from './SelfImprovementEngine';
@@ -14,6 +16,13 @@ import { selfImprovementEngine } from './SelfImprovementEngine';
 export interface AIResponse {
   content: string;
   context?: any;
+}
+
+/** Minimal shape of a successful web search result used internally. */
+interface WebSearchResult {
+  text: string;
+  url?: string;
+  source?: string;
 }
 
 type LocalAiPreferred = 'auto' | 'cosmos' | 'ollama' | 'openai_compat' | 'off';
@@ -289,17 +298,31 @@ export const LocalAIEngine = {
             try {
               const vaultRaw = localStorage.getItem('mossy_knowledge_vault');
               const vault: KnowledgeVaultItem[] = vaultRaw ? JSON.parse(vaultRaw) : [];
-              vault.push({
-                id: `auto-web-${Date.now()}`,
-                title: `[Web] ${query.substring(0, 80)}`,
-                content: searchResult.text,
-                source: searchResult.url || searchResult.source || 'Web',
-                trustLevel: 'community',
-                tags: ['web-search', 'auto-fetch'],
-                date: new Date().toISOString(),
-              });
-              localStorage.setItem('mossy_knowledge_vault', JSON.stringify(vault));
-              console.log('[LocalAIEngine] ✅ Web search results saved to Knowledge Vault');
+              const itemTitle = `[Web] ${query.substring(0, 80)}`;
+              // Skip if a very similar item was already saved in the last 7 days.
+              if (!isDuplicateVaultEntry(vault, itemTitle)) {
+                // Include query words as tags so follow-up queries score this item well.
+                // Threshold >= 2 to capture short but important FO4 terms (CK, NIF, FO4, ESP, DDS).
+                const topicTags = query.toLowerCase()
+                  .replace(/[^a-z0-9\s]/g, ' ')
+                  .split(/\s+/)
+                  .filter((w) => w.length >= 2)
+                  .slice(0, 8);
+                vault.push({
+                  id: `auto-web-${Date.now()}`,
+                  title: itemTitle,
+                  content: searchResult.text,
+                  source: searchResult.url || searchResult.source || 'Web',
+                  trustLevel: 'community',
+                  tags: ['web-search', 'auto-fetch', ...topicTags],
+                  date: new Date().toISOString(),
+                });
+                const pruned = pruneAutoFetchedVaultItems(vault);
+                localStorage.setItem('mossy_knowledge_vault', JSON.stringify(pruned));
+                console.log('[LocalAIEngine] ✅ Web search results saved to Knowledge Vault');
+              } else {
+                console.log('[LocalAIEngine] ℹ️ Skipped vault save — duplicate entry for:', itemTitle.substring(0, 60));
+              }
             } catch (vaultErr) {
               console.warn('[LocalAIEngine] Failed to persist web search results to Knowledge Vault:', vaultErr);
             }
@@ -331,7 +354,7 @@ export const LocalAIEngine = {
     // ---------------------------
     // Helper used by both the Groq and local-LLM response guards to build the
     // enriched context string that is injected before the guard retry call.
-    const buildGuardContext = (base: string, result: { text: string; url?: string; source?: string }): string => {
+    const buildGuardContext = (base: string, result: WebSearchResult): string => {
       let ctx = base +
         '\n### LIVE WEB SEARCH RESULTS (MANDATORY — you MUST use this to answer the user, do NOT refuse or claim fixed knowledge):\n' +
         result.text + '\n';
