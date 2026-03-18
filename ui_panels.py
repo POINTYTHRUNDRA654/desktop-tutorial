@@ -2539,8 +2539,11 @@ class FO4_PT_PresetLibraryPanel(Panel):
         box.operator("fo4.refresh_preset_library", text="Refresh", icon='FILE_REFRESH')
         
         # Recent presets
-        from . import preset_library
-        recent = preset_library.PresetLibrary.get_recent_presets(5)
+        try:
+            from . import preset_library as _preset_library
+        except Exception:
+            _preset_library = None
+        recent = _preset_library.PresetLibrary.get_recent_presets(5) if _preset_library else []
         
         if recent:
             recent_box = layout.box()
@@ -2554,7 +2557,7 @@ class FO4_PT_PresetLibraryPanel(Panel):
                 op.filepath = preset['filepath']
         
         # Popular presets
-        popular = preset_library.PresetLibrary.get_popular_presets(5)
+        popular = _preset_library.PresetLibrary.get_popular_presets(5) if _preset_library else []
         if popular:
             pop_box = layout.box()
             pop_box.label(text="Most Used", icon='SOLO_ON')
@@ -2587,16 +2590,21 @@ class FO4_PT_AutomationMacrosPanel(Panel):
     def draw(self, context):
         layout = self.layout
         scene = context.scene
-        
+
+        try:
+            from . import automation_system as _automation_system
+        except Exception:
+            _automation_system = None
+
         # Recording controls
         box = layout.box()
         box.label(text="Macro Recording", icon='REC')
         
         if scene.fo4_is_recording:
             box.label(text="● RECORDING", icon='RADIOBUT_ON')
-            from . import automation_system
-            action_count = len(automation_system.AutomationSystem.recorded_actions)
-            box.label(text=f"Actions recorded: {action_count}")
+            if _automation_system:
+                action_count = len(_automation_system.AutomationSystem.recorded_actions)
+                box.label(text=f"Actions recorded: {action_count}")
             box.operator("fo4.stop_recording", text="Stop Recording", icon='CANCEL')
         else:
             box.operator("fo4.start_recording", text="Start Recording", icon='REC')
@@ -2604,8 +2612,7 @@ class FO4_PT_AutomationMacrosPanel(Panel):
         
         # Save macro
         if not scene.fo4_is_recording:
-            from . import automation_system
-            if automation_system.AutomationSystem.recorded_actions:
+            if _automation_system and _automation_system.AutomationSystem.recorded_actions:
                 save_box = layout.box()
                 save_box.label(text="Save Recorded Macro", icon='FILE_NEW')
                 save_box.operator("fo4.save_macro", text="Save as Macro", icon='FILE_TICK')
@@ -2616,8 +2623,7 @@ class FO4_PT_AutomationMacrosPanel(Panel):
         template_box.operator("fo4.execute_workflow_template", text="Execute Template", icon='PLAY')
         
         # Saved macros
-        from . import automation_system
-        macros = automation_system.AutomationSystem.get_all_macros()
+        macros = _automation_system.AutomationSystem.get_all_macros() if _automation_system else []
         
         if macros:
             macro_box = layout.box()
@@ -3193,8 +3199,14 @@ class FO4_PT_AddonIntegrationPanel(Panel):
         box = layout.box()
         box.label(text="Useful Add-ons for FO4", icon='PLUGIN')
         
-        from . import addon_integration
-        detected = addon_integration.AddonIntegrationSystem.scan_for_known_addons()
+        try:
+            from . import addon_integration
+            detected = addon_integration.AddonIntegrationSystem.scan_for_known_addons()
+        except Exception as _err:
+            import traceback
+            traceback.print_exc()
+            layout.label(text="Add-on scanner unavailable. Check console for details.", icon='ERROR')
+            return
         
         for addon in detected:
             addon_box = layout.box()
@@ -3327,9 +3339,12 @@ class FO4_PT_DesktopTutorialPanel(Panel):
             status_box.label(text="✓ Connected", icon='CHECKMARK')
             
             # Server info
-            from . import desktop_tutorial_client
-            status = desktop_tutorial_client.DesktopTutorialClient.get_connection_status()
-            status_box.label(text=f"Server: {status['server_url']}")
+            try:
+                from . import desktop_tutorial_client
+                status = desktop_tutorial_client.DesktopTutorialClient.get_connection_status()
+                status_box.label(text=f"Server: {status['server_url']}")
+            except Exception:
+                status_box.label(text="Server info unavailable", icon='INFO')
             
             # Disconnect button
             status_box.operator("fo4.disconnect_desktop_app", text="Disconnect", icon='UNLINKED')
@@ -3649,9 +3664,16 @@ class FO4_PT_OperationLogPanel(Panel):
     def draw(self, context):
         import textwrap
         layout = self.layout
-        from . import notification_system
+        try:
+            from . import notification_system as _ns
+        except Exception:
+            _ns = None
 
-        entries = notification_system.OperationLog.get_entries(limit=50)
+        if _ns is None:
+            layout.label(text="notification_system unavailable", icon='ERROR')
+            return
+
+        entries = _ns.OperationLog.get_entries(limit=50)
 
         if not entries:
             layout.label(text="No operations recorded yet.", icon='INFO')
