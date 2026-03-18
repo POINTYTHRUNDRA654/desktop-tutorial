@@ -4,7 +4,29 @@ If GitHub Desktop says **"the repository no longer exists"** or you can't push/p
 
 ---
 
-## Why This Happens
+## Should I Just Delete Everything and Re-clone?
+
+**Yes — if you can't push at all, a fresh clone is the safest and quickest fix.**
+
+Steps for a clean re-clone to your desktop:
+
+1. **Back up any local changes** you have not yet committed (copy them somewhere safe).
+2. **Delete the broken local folder** on your desktop.
+3. Open **GitHub Desktop** → **File → Clone repository…**
+4. Find `POINTYTHRUNDRA654/Blender-add-on.` in the list (or paste the URL below).
+5. Set the local path to wherever you want it (e.g. your Desktop).
+6. Click **Clone**.
+
+Remote URL — **the period at the very end is part of the repository name, not punctuation.  Copy the whole thing:**
+```
+https://github.com/POINTYTHRUNDRA654/Blender-add-on.
+```
+
+After cloning, re-apply any local edits you backed up in step 1.
+
+---
+
+## Why Can't I Push?
 
 This repository's name ends with a period (`Blender-add-on.`).
 Windows and some Git clients handle trailing periods inconsistently, which can cause GitHub Desktop to lose its connection to the remote.
