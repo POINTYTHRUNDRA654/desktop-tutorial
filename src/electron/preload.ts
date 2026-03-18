@@ -1574,6 +1574,28 @@ const electronAPI = {
   },
 
   /**
+   * Web Search: Query DuckDuckGo or the Fallout 4 Fandom wiki for live information.
+   * The main process performs the HTTPS fetch using Electron's net module (Chromium-backed,
+   * respects OS proxy/VPN settings). Renderer has no direct network access.
+   * @param query - Search query string
+   * @param type - Optional 'wiki' to force Fallout 4 Fandom wiki search; omit for DuckDuckGo
+   * @returns { success, text, source, url, heading, empty? }
+   */
+  webSearch: (query: string, type?: string): Promise<{ success: boolean; text?: string; source?: string; url?: string; heading?: string; empty?: boolean; error?: string }> => {
+    return ipcRenderer.invoke('web-search', query, type);
+  },
+
+  /**
+   * Browse Web: Fetch and return the plain-text content of any HTTPS URL.
+   * Strips HTML tags, limits to 6,000 chars. HTTPS only for security.
+   * @param url - The HTTPS URL to fetch
+   * @returns { success, text, url } or { success: false, error }
+   */
+  browseWeb: (url: string): Promise<{ success: boolean; text?: string; url?: string; error?: string }> => {
+    return ipcRenderer.invoke('browse-web', url);
+  },
+
+  /**
    * Voice chat: send a message to main process
    */
   sendMessage: (message: any): Promise<void> => {

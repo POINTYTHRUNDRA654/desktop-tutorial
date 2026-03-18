@@ -1,4 +1,4 @@
-type KnowledgeVaultItem = {
+export type KnowledgeVaultItem = {
   id?: string;
   title?: string;
   content?: string;
