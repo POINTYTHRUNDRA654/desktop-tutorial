@@ -386,15 +386,25 @@ export const LocalAIEngine = {
       // Additional patterns based on user feedback
       /i\s+can'?t\s+(search|look\s+up|find)\s+(online|on\s+the\s+web|on\s+the\s+internet)/i,
       /i\s+cannot\s+(search|look\s+up|find)\s+(online|on\s+the\s+web|on\s+the\s+internet)/i,
-      /i\s+(do\s+not|don'?t)\s+have\s+(the\s+ability|capability)\s+to\s+(access|browse|search)/i,
-      /i\s+(am\s+)?not\s+able\s+to\s+(search|look\s+up|fetch|get)\s+(online|web|internet)/i,
+      /i\s+(do\s+not|don'?t)\s+have\s+(the\s+)?(ability|capability)\s+(to|of)\s+(access|browse|search|go|retrieve|fetch)/i,
+      /i\s+(am\s+)?not\s+able\s+to\s+(search|look\s+up|fetch|get|go|retrieve)\s+(online|web|internet|on\s+the\s+web)/i,
       /as\s+an?\s+(ai|language\s+model|llm).*(cannot|can'?t|unable).*(internet|web|online|browse)/i,
       /my\s+(knowledge|training\s+data).*(cutoff|limited\s+to|goes\s+up\s+to)/i,
       // New patterns for "pre-installed data" and "just a base LLM" claims
       /my\s+(data|memory|knowledge)\s+(was|is)\s+pre.?installed/i,
       /all\s+of\s+my\s+(data|memory|knowledge)\s+(was|is)\s+pre.?installed/i,
+      // "I'm/I am just a/an [large] language model" or "I'm/I am just a base LLM"
       /i'?m\s+just\s+an?\s+(large\s+)?(language\s+model|base\s+llm|llm)/i,
       /i\s+am\s+just\s+an?\s+(large\s+)?(language\s+model|base\s+llm|llm)/i,
+      // NEW: "I'm/I am a/an [large] language model" WITHOUT "just" - this catches the most common claims
+      /i'?m\s+an?\s+(large\s+)?(language\s+model|base\s+llm)\b/i,
+      /i\s+am\s+an?\s+(large\s+)?(language\s+model|base\s+llm)\b/i,
+      // NEW: "I'm/I am a/an [large] LLM"
+      /i'?m\s+an?\s+llm\b/i,
+      /i\s+am\s+an?\s+llm\b/i,
+      // NEW: "I'm/I am an/a AI" combined with possible denials
+      /i'?m\s+an?\s+ai/i,
+      /i\s+am\s+an?\s+ai/i,
       // Patterns for "cannot review/retain data in real time"
       /i\s+cannot\s+(review|retain|review\s+and\s+retain)\s+(data|information)\s+in\s+real.?time/i,
       /i\s+can'?t\s+(review|retain|review\s+and\s+retain)\s+(data|information)\s+in\s+real.?time/i,
@@ -415,10 +425,16 @@ export const LocalAIEngine = {
       // "Being a/an [AI|language model|LLM], I [don't|cannot|lack]..."
       /being\s+an?\s+(ai|language\s+model|llm)[,.\s].*(don'?t|do\s+not|can'?t|cannot|unable|lack).*(internet|web|online|access|browse)/i,
       // "I don't/do not have the ability/capability/capacity to [access|browse|search|go online]..."
-      /i\s+(do\s+not|don'?t)\s+have\s+(the\s+)?(ability|capability|capacity)\s+to\s+(access|browse|search|go\s+online|retrieve|fetch)/i,
+      /i\s+(do\s+not|don'?t)\s+have\s+(the\s+)?(ability|capability|capacity)\s+(to|of)\s+(access|browse|search|go|retrieve|fetch|retrieve|online|retrieve\s+online)/i,
       // "I lack real-time/internet/web access" and "I have no real-time/internet/web access"
       /i\s+lack\s+(real.?time|internet|web|online|live)\s+(access|data|information)/i,
       /i\s+(have|had)\s+no\s+(real.?time|internet|web|live)\s+(access|data|information)/i,
+      // NEW: "I don't have the ability to go on the internet" or "to go onto the internet"
+      /i\s+(do\s+not|don'?t)\s+have\s+(the\s+)?(ability|capability)\s+(to?\s+)?go\s+(on\s+)?to\s+(the\s+)?internet/i,
+      /i\s+(am\s+)?not\s+(able|capable)\s+(to?\s+)?go\s+(on\s+)?to\s+(the\s+)?internet/i,
+      /i\s+(am\s+)?not\s+(able|capable)\s+to\s+go\s+online/i,
+      // NEW: Broader catch-all for AI models disclaiming capability
+      /(i\s+)?(am\s+|'?m\s+)?(just\s+)?an?\s+(ai|language\s+model|large\s+language\s+model|llm)\s+.*\b(without|lacking|unable|lack|no|cannot|can'?t).*(internet|web|online|access|real.?time|capability)/i,
     ];
 
     // Try local provider first if available
