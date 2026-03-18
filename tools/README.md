@@ -2,7 +2,7 @@
 
 These tools are **not included** in the Git repository because they contain large binary files that would exceed GitHub's file-size limits. They must be downloaded and set up separately.
 
-> **Note:** The `tools/` directory is excluded from Git tracking via `.gitignore`. Do not attempt to commit executables or other large binaries directly into the repository — use Git LFS (already configured for `*.exe`, `*.dll`, `*.zip`, etc.) if a tool absolutely must live inside the repo.
+> **Note:** The `tools/` directory is excluded from Git tracking via `.gitignore`. Do not attempt to commit executables or other large binaries directly into the repository — use Git LFS (already configured for `*.exe`, `*.dll`, `*.pdb`, `*.msi`, `*.zip`, and similar types via `.gitattributes`) if a tool absolutely must live inside the repo.
 
 ---
 
@@ -58,4 +58,4 @@ Binary executables can be very large (the FFmpeg binaries alone are ~95 MB each)
 - Can cause push failures in GitHub Desktop and Visual Studio due to GitHub's 100 MB per-file limit
 - Bloats the repository permanently (Git keeps the full history of every file)
 
-The `.gitattributes` file is configured to route `*.exe`, `*.dll`, `*.zip`, and similar types through **Git LFS** if they are ever added to the repository, which handles large files safely.
+The `.gitattributes` file is configured to route `*.exe`, `*.dll`, `*.pdb`, `*.msi`, `*.zip`, and similar types through **Git LFS** if they are ever added to the repository, which handles large files safely.
