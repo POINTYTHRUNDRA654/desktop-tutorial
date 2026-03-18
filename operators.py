@@ -21,22 +21,61 @@ def _safe_import(name):
         return None
 
 
-# Core modules – always expected to be available inside Blender.
-# If any of these fail the operators module itself fails to load, which is
-# caught by __init__.py's _try_import() so the rest of the addon still works.
-from . import preferences, tutorial_system, mesh_helpers, texture_helpers
-from . import animation_helpers, export_helpers, notification_system
-from . import image_to_mesh_helpers, hunyuan3d_helpers, gradio_helpers
-from . import hymotion_helpers, nvtt_helpers, realesrgan_helpers
-from . import get3d_helpers, stylegan2_helpers, instantngp_helpers
-from . import imageto3d_helpers, advanced_mesh_helpers, rignet_helpers
-from . import motion_generation_helpers, quest_helpers, npc_helpers
-from . import world_building_helpers, item_helpers, preset_library
-from . import automation_system, desktop_tutorial_client
-from . import shap_e_helpers, point_e_helpers, advisor_helpers
-from . import ue_importer_helpers, umodel_tools_helpers, unity_fbx_importer_helpers
-# These modules have class-level property references so must be direct imports
-from . import post_processing_helpers, fo4_material_browser, fo4_reference_helpers
+# Core modules – imported individually with try/except so that a single
+# broken module NEVER prevents the others from registering.  Operators that
+# depend on a failed module will report an error on invoke rather than
+# vanishing from the UI entirely.
+_CORE_MODULE_NAMES = [
+    "preferences", "tutorial_system", "mesh_helpers", "texture_helpers",
+    "animation_helpers", "export_helpers", "notification_system",
+    "image_to_mesh_helpers", "hunyuan3d_helpers", "gradio_helpers",
+    "hymotion_helpers", "nvtt_helpers", "realesrgan_helpers",
+    "get3d_helpers", "stylegan2_helpers", "instantngp_helpers",
+    "imageto3d_helpers", "advanced_mesh_helpers", "rignet_helpers",
+    "motion_generation_helpers", "quest_helpers", "npc_helpers",
+    "world_building_helpers", "item_helpers", "preset_library",
+    "automation_system", "desktop_tutorial_client",
+    "shap_e_helpers", "point_e_helpers", "advisor_helpers",
+    "ue_importer_helpers", "umodel_tools_helpers", "unity_fbx_importer_helpers",
+    "post_processing_helpers", "fo4_material_browser", "fo4_reference_helpers",
+]
+for _mod_name in _CORE_MODULE_NAMES:
+    try:
+        globals()[_mod_name] = importlib.import_module(
+            f".{_mod_name}", package=__package__
+        )
+    except Exception as _e:
+        globals()[_mod_name] = None
+        print(f"operators: Could not import {_mod_name}: {_e}")
+del _mod_name, _CORE_MODULE_NAMES
+
+# ── Class-level EnumProperty fallbacks ───────────────────────────────────────
+# Some Operator classes reference module attributes in their class body (before
+# any method is called).  We define safe fallbacks here so that if a module
+# failed to load the class can still be defined and registered.
+_COLLISION_TYPES = (
+    mesh_helpers.MeshHelpers.COLLISION_TYPES
+    if mesh_helpers
+    else [
+        ('DEFAULT', 'Default', 'Standard collision'),
+        ('NONE',    'None',    'No collision'),
+    ]
+)
+_PP_PRESET_ITEMS = (
+    post_processing_helpers.PRESET_ENUM_ITEMS
+    if post_processing_helpers
+    else [('NONE', 'None', 'No preset')]
+)
+_MAT_PRESET_ITEMS = (
+    fo4_material_browser.PRESET_ENUM_ITEMS
+    if fo4_material_browser
+    else [('NONE', 'None', 'No preset')]
+)
+_REF_ENUM_ITEMS = (
+    fo4_reference_helpers.REFERENCE_ENUM_ITEMS
+    if fo4_reference_helpers
+    else [('NONE', 'None', 'No reference')]
+)
 
 # Optional / extended modules – imported safely so a missing or broken module
 # does NOT prevent the core operators from being registered.
@@ -1063,7 +1102,7 @@ class FO4_OT_SetCollisionType(Operator):
     collision_type: EnumProperty(
         name="Collision Type",
         description="Category used when generating/exporting collision meshes",
-        items=mesh_helpers.MeshHelpers.COLLISION_TYPES,
+        items=_COLLISION_TYPES,
         default='DEFAULT'
     )
 
@@ -1119,7 +1158,7 @@ class FO4_OT_ExportMeshWithCollision(Operator):
     collision_type: EnumProperty(
         name="Collision Type",
         description="Category of physics collision to create",
-        items=mesh_helpers.MeshHelpers.COLLISION_TYPES,
+        items=_COLLISION_TYPES,
         default='DEFAULT'
     )
 
@@ -6400,7 +6439,7 @@ class FO4_OT_GenerateLODAndCollision(Operator):
     collision_type: EnumProperty(
         name="Collision Type",
         description="Category of physics collision to create",
-        items=mesh_helpers.MeshHelpers.COLLISION_TYPES,
+        items=_COLLISION_TYPES,
         default='DEFAULT'
     )
 
@@ -6516,7 +6555,7 @@ class FO4_OT_BatchGenerateCollision(Operator):
     collision_type: EnumProperty(
         name="Collision Type",
         description="Collision type to apply to all selected meshes",
-        items=mesh_helpers.MeshHelpers.COLLISION_TYPES,
+        items=_COLLISION_TYPES,
         default='DEFAULT'
     )
 
@@ -8802,7 +8841,7 @@ class FO4_OT_GenerateCollisionMesh(Operator):
     collision_type: EnumProperty(
         name="Collision Type",
         description="Category of physics collision to create",
-        items=mesh_helpers.MeshHelpers.COLLISION_TYPES,
+        items=_COLLISION_TYPES,
         default='DEFAULT'
     )
     
@@ -11532,7 +11571,7 @@ class FO4_OT_SetupPostProcessingCompositor(Operator):
     preset: bpy.props.EnumProperty(
         name="Preset",
         description="Starting post-processing preset",
-        items=post_processing_helpers.PRESET_ENUM_ITEMS,
+        items=_PP_PRESET_ITEMS,
         default="VANILLA",
     )
 
@@ -11586,7 +11625,7 @@ class FO4_OT_ApplyPostProcessingPreset(Operator):
     preset: bpy.props.EnumProperty(
         name="Preset",
         description="Post-processing preset to apply",
-        items=post_processing_helpers.PRESET_ENUM_ITEMS,
+        items=_PP_PRESET_ITEMS,
         default="VANILLA",
     )
 
@@ -11734,7 +11773,7 @@ class FO4_OT_ApplyMaterialPreset(Operator):
     preset: bpy.props.EnumProperty(
         name="Preset",
         description="Material surface type to apply",
-        items=fo4_material_browser.PRESET_ENUM_ITEMS,
+        items=_MAT_PRESET_ITEMS,
         default="RUSTY_METAL",
     )
     apply_all_selected: BoolProperty(
@@ -11938,7 +11977,7 @@ class FO4_OT_AddReferenceObject(Operator):
     ref_type: bpy.props.EnumProperty(
         name="Reference",
         description="Scale reference to add",
-        items=fo4_reference_helpers.REFERENCE_ENUM_ITEMS,
+        items=_REF_ENUM_ITEMS,
         default="HUMAN_MALE",
     )
 
@@ -12709,6 +12748,90 @@ def register():
         default=True,
     )
 
+    # ── Mesh optimisation settings (per-scene) ────────────────────────────────
+    bpy.types.Scene.fo4_opt_apply_transforms = bpy.props.BoolProperty(
+        name="Apply Transforms",
+        description="Apply object transforms before mesh optimisation",
+        default=True,
+    )
+    bpy.types.Scene.fo4_opt_doubles = bpy.props.FloatProperty(
+        name="Remove Doubles Threshold",
+        description="Distance threshold for merging duplicate vertices (0 = off)",
+        default=0.0001,
+        min=0.0,
+        max=1.0,
+        precision=6,
+    )
+    bpy.types.Scene.fo4_opt_preserve_uvs = bpy.props.BoolProperty(
+        name="Preserve UVs",
+        description="Keep UV seams when removing doubles",
+        default=True,
+    )
+
+    # ── Game / tool paths stored per-scene (not in preferences) ──────────────
+    bpy.types.Scene.fo4_tools_root = bpy.props.StringProperty(
+        name="Tools Root",
+        description="Root folder where FO4 modding CLI tools are installed",
+        default="",
+        subtype='DIR_PATH',
+    )
+    bpy.types.Scene.fo4_torch_root = bpy.props.StringProperty(
+        name="PyTorch Path",
+        description="Custom PyTorch installation folder (leave blank for default)",
+        default="",
+        subtype='DIR_PATH',
+    )
+    bpy.types.Scene.fo4_instantngp_path = bpy.props.StringProperty(
+        name="InstantNGP Path",
+        description="Path to InstantNGP installation",
+        default="",
+        subtype='DIR_PATH',
+    )
+    bpy.types.Scene.fo4_havok2fbx_path = bpy.props.StringProperty(
+        name="Havok2FBX Folder",
+        description="Folder containing the Havok2FBX converter executable",
+        default="",
+        subtype='DIR_PATH',
+    )
+
+    # ── FO4 export version selector ───────────────────────────────────────────
+    bpy.types.Scene.fo4_game_version = bpy.props.EnumProperty(
+        name="Game Version",
+        description="Target Fallout 4 game version (affects NIF flags)",
+        items=[
+            ('FO4',    "Fallout 4 (OG)",     "Original Fallout 4 (pre-Next-Gen)"),
+            ('FO4NG',  "Fallout 4 Next-Gen",  "Next-Gen / Anniversary update"),
+            ('FO76',   "Fallout 76",           "Fallout 76 NIF format"),
+        ],
+        default='FO4',
+    )
+
+    # ── Per-object Fallout 4 properties ───────────────────────────────────────
+    _coll_items = (
+        mesh_helpers.MeshHelpers.COLLISION_TYPES
+        if mesh_helpers
+        else [('DEFAULT', 'Default', 'Default'), ('NONE', 'None', 'No collision')]
+    )
+    bpy.types.Object.fo4_collision_type = bpy.props.EnumProperty(
+        name="Collision Type",
+        description="Fallout 4 collision category for this mesh",
+        items=_coll_items,
+        default='DEFAULT',
+    )
+    bpy.types.Object.fo4_mesh_type = bpy.props.EnumProperty(
+        name="Mesh Type",
+        description="Override how this mesh is classified for NIF export",
+        items=[
+            ('AUTO',     "Auto-detect",   "Classify automatically from armature / name / material"),
+            ('STATIC',   "Static",        "Non-animated world object (BSFadeNode root)"),
+            ('SKINNED',  "Skinned",        "Character / creature mesh with armature (NiNode root)"),
+            ('ANIMATED', "Animated",      "Animated prop (NiNode with NiKeyframeController)"),
+            ('FLORA',    "Flora",          "Tree / bush / plant mesh"),
+            ('DEBRIS',   "Debris",         "Small physics object"),
+        ],
+        default='AUTO',
+    )
+
 def unregister():
     for cls in reversed(classes):
         try:
@@ -12730,9 +12853,25 @@ def unregister():
         "fo4_havok_anim_name",
         "fo4_havok_simplify_value",
         "fo4_havok_force_frame_range",
+        # Mesh optimisation
+        "fo4_opt_apply_transforms",
+        "fo4_opt_doubles",
+        "fo4_opt_preserve_uvs",
+        # Tool / game paths
+        "fo4_tools_root",
+        "fo4_torch_root",
+        "fo4_instantngp_path",
+        "fo4_havok2fbx_path",
+        "fo4_game_version",
     ):
         if hasattr(bpy.types.Scene, prop):
             try:
                 delattr(bpy.types.Scene, prop)
+            except Exception:
+                pass
+    for prop in ("fo4_collision_type", "fo4_mesh_type"):
+        if hasattr(bpy.types.Object, prop):
+            try:
+                delattr(bpy.types.Object, prop)
             except Exception:
                 pass

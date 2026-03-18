@@ -57,13 +57,14 @@ tutorial_system      = _safe_import("tutorial_system")
 def _draw_game_path_box(layout, context):
     """Draw the unified FO4 Data Folder row.
 
-    A single *Data Folder* field (``fo4_assets_path``) acts as the one source
-    of truth.  Setting it auto-populates the meshes/textures/materials
-    sub-paths via the ``_on_asset_path_change`` callback in preferences.py.
-    The same box is reused in every panel so the user always sees and edits
-    the same field – no more scattered, out-of-sync path inputs.
+    Reads and writes ``fo4_assets_path`` from the add-on preferences so the
+    value persists across blend files.  Falls back gracefully when the
+    preferences or fo4_game_assets module are unavailable.
     """
     import os
+
+    # Get prefs for the path field
+    prefs = preferences.get_preferences() if preferences else None
 
     if not fo4_game_assets:
         box = layout.box()
@@ -71,7 +72,6 @@ def _draw_game_path_box(layout, context):
         box.label(text="fo4_game_assets module missing – reinstall the add-on", icon='INFO')
         return
 
-    scene = context.scene
     ready, _ = fo4_game_assets.FO4GameAssets.get_status()
 
     box = layout.box()
@@ -83,7 +83,10 @@ def _draw_game_path_box(layout, context):
 
     # ── Single path field + browse button ────────────────────────────────────
     path_row = box.row(align=True)
-    path_row.prop(scene, "fo4_assets_path", text="")
+    if prefs is not None:
+        path_row.prop(prefs, "fo4_assets_path", text="")
+    else:
+        path_row.label(text="(open Preferences to set path)", icon='INFO')
     path_row.operator("fo4.set_fo4_assets_path", text="", icon='FILE_FOLDER')
 
     # ── Status feedback ───────────────────────────────────────────────────────
@@ -92,7 +95,7 @@ def _draw_game_path_box(layout, context):
     if ready:
         try:
             from pathlib import Path as _P
-            raw = scene.fo4_assets_path or ''
+            raw = (prefs.fo4_assets_path if prefs else '') or ''
             try:
                 raw = bpy.path.abspath(raw)
             except Exception:
@@ -314,9 +317,14 @@ class FO4_PT_MeshPanel(Panel):
             if scene:
                 opt_sub = box.box()
                 opt_sub.label(text="Optimize Settings:", icon='PREFERENCES')
-                opt_sub.prop(scene, "fo4_opt_apply_transforms")
-                opt_sub.prop(scene, "fo4_opt_doubles")
-                opt_sub.prop(scene, "fo4_opt_preserve_uvs")
+                if prefs is not None:
+                    opt_sub.prop(prefs, "optimize_apply_transforms", text="Apply Transforms")
+                    opt_sub.prop(prefs, "optimize_remove_doubles_threshold", text="Remove Doubles Threshold")
+                    opt_sub.prop(prefs, "optimize_preserve_uvs", text="Preserve UVs")
+                else:
+                    opt_sub.prop(scene, "fo4_opt_apply_transforms")
+                    opt_sub.prop(scene, "fo4_opt_doubles")
+                    opt_sub.prop(scene, "fo4_opt_preserve_uvs")
             row = box.row()
             row.enabled = has_mesh
             row.operator("fo4.validate_mesh", text="Validate Mesh", icon='CHECKMARK')
@@ -494,9 +502,14 @@ class FO4_PT_MeshPanel(Panel):
             if scene:
                 opt_sub = box.box()
                 opt_sub.label(text="Optimize Settings:", icon='PREFERENCES')
-                opt_sub.prop(scene, "fo4_opt_apply_transforms")
-                opt_sub.prop(scene, "fo4_opt_doubles")
-                opt_sub.prop(scene, "fo4_opt_preserve_uvs")
+                if prefs is not None:
+                    opt_sub.prop(prefs, "optimize_apply_transforms", text="Apply Transforms")
+                    opt_sub.prop(prefs, "optimize_remove_doubles_threshold", text="Remove Doubles Threshold")
+                    opt_sub.prop(prefs, "optimize_preserve_uvs", text="Preserve UVs")
+                else:
+                    opt_sub.prop(scene, "fo4_opt_apply_transforms")
+                    opt_sub.prop(scene, "fo4_opt_doubles")
+                    opt_sub.prop(scene, "fo4_opt_preserve_uvs")
             row = box.row()
             row.enabled = has_mesh
             row.operator("fo4.validate_mesh", text="Validate Mesh", icon='CHECKMARK')
@@ -1505,19 +1518,29 @@ class FO4_PT_ToolsLinks(Panel):
         man_box = layout.box()
         man_box.label(text="Manual Path Override", icon='FILE_FOLDER')
         man_box.label(text="Already have a tool? Point to it here.", icon='INFO')
-        man_box.prop(scene, "fo4_ffmpeg_path", text="FFmpeg")
+        _prefs = preferences.get_preferences() if preferences else None
+        if _prefs is not None:
+            man_box.prop(_prefs, "ffmpeg_path", text="FFmpeg")
+        else:
+            man_box.prop(scene, "fo4_ffmpeg_path", text="FFmpeg")
         ffmpeg_ok = preferences.get_configured_ffmpeg_path() if preferences else None
         man_box.label(
             text=f"FFmpeg: {'OK ✔' if ffmpeg_ok else 'not found'}",
             icon='CHECKMARK' if ffmpeg_ok else 'ERROR',
         )
-        man_box.prop(scene, "fo4_nvtt_path", text="nvcompress")
+        if _prefs is not None:
+            man_box.prop(_prefs, "nvtt_path", text="nvcompress")
+        else:
+            man_box.prop(scene, "fo4_nvtt_path", text="nvcompress")
         nvcompress_ok = preferences.get_configured_nvcompress_path() if preferences else None
         man_box.label(
             text=f"nvcompress: {'OK ✔' if nvcompress_ok else 'not found'}",
             icon='CHECKMARK' if nvcompress_ok else 'ERROR',
         )
-        man_box.prop(scene, "fo4_texconv_path", text="texconv")
+        if _prefs is not None:
+            man_box.prop(_prefs, "texconv_path", text="texconv")
+        else:
+            man_box.prop(scene, "fo4_texconv_path", text="texconv")
         texconv_ok = preferences.get_configured_texconv_path() if preferences else None
         man_box.label(
             text=f"texconv: {'OK ✔' if texconv_ok else 'not found'}",
@@ -3480,13 +3503,16 @@ class FO4_PT_SettingsPanel(Panel):
     def draw(self, context):
         layout = self.layout
         scene  = context.scene
+        prefs  = preferences.get_preferences() if preferences else None
         import os
 
         # ── User Interface ────────────────────────────────────────────────────
         ui_box = layout.box()
         ui_box.label(text="User Interface", icon="PREFERENCES")
-        ui_box.prop(scene, "fo4_mesh_panel_unified",
-                    text="Unified Mesh Panel")
+        if prefs is not None:
+            ui_box.prop(prefs, "mesh_panel_unified", text="Unified Mesh Panel")
+        else:
+            ui_box.prop(scene, "fo4_mesh_panel_unified", text="Unified Mesh Panel")
         ui_box.label(
             text="Show all mesh helpers in one box (vs split basic/advanced)",
             icon='BLANK1',
@@ -3497,14 +3523,18 @@ class FO4_PT_SettingsPanel(Panel):
 
         other_paths = layout.box()
         other_paths.label(text="Other Asset Paths", icon="FILE_FOLDER")
-        other_paths.prop(scene, "fo4_unity_assets_path",   text="Unity Assets")
-        other_paths.prop(scene, "fo4_unreal_assets_path",  text="Unreal Assets")
+        if prefs is not None:
+            other_paths.prop(prefs, "unity_assets_path",  text="Unity Assets")
+            other_paths.prop(prefs, "unreal_assets_path", text="Unreal Assets")
+        else:
+            other_paths.prop(scene, "fo4_unity_assets_path",  text="Unity Assets")
+            other_paths.prop(scene, "fo4_unreal_assets_path", text="Unreal Assets")
 
         # ── Tool Paths ────────────────────────────────────────────────────────
         tools_box = layout.box()
         tools_box.label(text="Tool Paths", icon="TOOL_SETTINGS")
         tools_box.prop(scene, "fo4_tools_root", text="Tools Root")
-        tools_root = bpy.path.abspath(scene.fo4_tools_root) if scene.fo4_tools_root else ""
+        tools_root = bpy.path.abspath(getattr(scene, "fo4_tools_root", "")) if getattr(scene, "fo4_tools_root", "") else ""
         if tools_root and os.path.isdir(tools_root):
             tools_box.label(text=f"✓ {tools_root}", icon="CHECKMARK")
         else:
@@ -3512,7 +3542,8 @@ class FO4_PT_SettingsPanel(Panel):
                             icon="ERROR")
 
         tools_box.prop(scene, "fo4_havok2fbx_path", text="Havok2FBX Folder")
-        h_path = bpy.path.abspath(scene.fo4_havok2fbx_path) if scene.fo4_havok2fbx_path else ""
+        h_path_raw = getattr(scene, "fo4_havok2fbx_path", "")
+        h_path = bpy.path.abspath(h_path_raw) if h_path_raw else ""
         if h_path and os.path.isdir(h_path):
             tools_box.label(text=f"✓ {h_path}", icon="CHECKMARK")
         else:
@@ -3521,8 +3552,12 @@ class FO4_PT_SettingsPanel(Panel):
 
         tools_box.separator()
         tools_box.label(text="Texture Converters:", icon="IMAGE_DATA")
-        tools_box.prop(scene, "fo4_nvtt_path",    text="nvcompress / NVTT folder")
-        tools_box.prop(scene, "fo4_texconv_path", text="texconv / DirectXTex folder")
+        if prefs is not None:
+            tools_box.prop(prefs, "nvtt_path",    text="nvcompress / NVTT folder")
+            tools_box.prop(prefs, "texconv_path", text="texconv / DirectXTex folder")
+        else:
+            tools_box.prop(scene, "fo4_nvtt_path",    text="nvcompress / NVTT folder")
+            tools_box.prop(scene, "fo4_texconv_path", text="texconv / DirectXTex folder")
 
         nvcompress = preferences.get_configured_nvcompress_path() if preferences else None
         texconv    = preferences.get_configured_texconv_path() if preferences else None
@@ -3537,17 +3572,28 @@ class FO4_PT_SettingsPanel(Panel):
 
         tools_box.separator()
         tools_box.label(text="Video & Audio:", icon="SOUND")
-        tools_box.prop(scene, "fo4_ffmpeg_path", text="ffmpeg / folder")
+        if prefs is not None:
+            tools_box.prop(prefs, "ffmpeg_path", text="ffmpeg / folder")
+        else:
+            tools_box.prop(scene, "fo4_ffmpeg_path", text="ffmpeg / folder")
 
         # ── Auto-installation ─────────────────────────────────────────────────
         auto_box = layout.box()
         auto_box.label(text="Automatic Installation", icon="FILE_REFRESH")
-        auto_box.prop(scene, "fo4_auto_install_tools",
-                      text="Auto-install missing CLI tools at startup")
-        auto_box.prop(scene, "fo4_auto_install_python",
-                      text="Auto-install Python packages at startup")
-        auto_box.prop(scene, "fo4_auto_register_tools",
-                      text="Auto-register third-party add-ons")
+        if prefs is not None:
+            auto_box.prop(prefs, "auto_install_tools",
+                          text="Auto-install missing CLI tools at startup")
+            auto_box.prop(prefs, "auto_install_python",
+                          text="Auto-install Python packages at startup")
+            auto_box.prop(prefs, "auto_register_tools",
+                          text="Auto-register third-party add-ons")
+        else:
+            auto_box.prop(scene, "fo4_auto_install_tools",
+                          text="Auto-install missing CLI tools at startup")
+            auto_box.prop(scene, "fo4_auto_install_python",
+                          text="Auto-install Python packages at startup")
+            auto_box.prop(scene, "fo4_auto_register_tools",
+                          text="Auto-register third-party add-ons")
         auto_box.operator("fo4.check_tool_paths",
                           text="Check Tool Paths Now", icon='INFO')
         auto_box.label(
@@ -3579,38 +3625,59 @@ class FO4_PT_SettingsPanel(Panel):
         # ── Mesh Optimisation ─────────────────────────────────────────────────
         opt_box = layout.box()
         opt_box.label(text="Mesh Optimisation Defaults", icon="MOD_DECIM")
-        opt_box.prop(scene, "fo4_opt_apply_transforms",
-                     text="Apply transforms before optimise")
-        opt_box.prop(scene, "fo4_opt_doubles",
-                     text="Remove Doubles threshold")
-        opt_box.prop(scene, "fo4_opt_preserve_uvs",
-                     text="Preserve UVs when removing doubles")
+        if prefs is not None:
+            opt_box.prop(prefs, "optimize_apply_transforms",
+                         text="Apply transforms before optimise")
+            opt_box.prop(prefs, "optimize_remove_doubles_threshold",
+                         text="Remove Doubles threshold")
+            opt_box.prop(prefs, "optimize_preserve_uvs",
+                         text="Preserve UVs when removing doubles")
+        else:
+            opt_box.prop(scene, "fo4_opt_apply_transforms",
+                         text="Apply transforms before optimise")
+            opt_box.prop(scene, "fo4_opt_doubles",
+                         text="Remove Doubles threshold")
+            opt_box.prop(scene, "fo4_opt_preserve_uvs",
+                         text="Preserve UVs when removing doubles")
 
         # ── LLM Advisor ───────────────────────────────────────────────────────
         llm_box = layout.box()
         llm_box.label(text="AI Advisor – LLM (optional, opt-in)", icon="INFO")
-        llm_box.prop(scene, "fo4_llm_enabled",       text="Enable LLM Advisor")
-        col = llm_box.column(align=True)
-        col.enabled = scene.fo4_llm_enabled
-        col.prop(scene, "fo4_llm_endpoint",      text="Endpoint URL")
-        col.prop(scene, "fo4_llm_model",         text="Model")
-        col.prop(scene, "fo4_llm_api_key",       text="API Key")
-        col.prop(scene, "fo4_llm_allow_actions", text="Allow action suggestions")
-        col.prop(scene, "fo4_llm_send_stats",    text="Send summary counts only")
+        if prefs is not None:
+            llm_box.prop(prefs, "llm_enabled", text="Enable LLM Advisor")
+            col = llm_box.column(align=True)
+            col.enabled = prefs.llm_enabled
+            col.prop(prefs, "llm_endpoint",      text="Endpoint URL")
+            col.prop(prefs, "llm_model",         text="Model")
+            col.prop(prefs, "llm_api_key",       text="API Key")
+            col.prop(prefs, "llm_allow_actions", text="Allow action suggestions")
+            col.prop(prefs, "llm_send_stats",    text="Send summary counts only")
+        else:
+            llm_box.prop(scene, "fo4_llm_enabled", text="Enable LLM Advisor")
 
         # ── Advisor auto-monitor ──────────────────────────────────────────────
         mon_box = layout.box()
         mon_box.label(text="Advisor Auto-Monitor", icon="FILE_REFRESH")
-        mon_box.prop(scene, "fo4_advisor_monitor",  text="Enable background checks")
-        row = mon_box.row()
-        row.enabled = scene.fo4_advisor_monitor
-        row.prop(scene, "fo4_advisor_interval", text="Interval (seconds)")
+        if prefs is not None:
+            mon_box.prop(prefs, "advisor_auto_monitor_enabled",  text="Enable background checks")
+            row = mon_box.row()
+            row.enabled = prefs.advisor_auto_monitor_enabled
+            row.prop(prefs, "advisor_auto_monitor_interval", text="Interval (seconds)")
+        else:
+            mon_box.prop(scene, "fo4_advisor_monitor",  text="Enable background checks")
+            row = mon_box.row()
+            row.enabled = getattr(scene, "fo4_advisor_monitor", False)
+            row.prop(scene, "fo4_advisor_interval", text="Interval (seconds)")
 
         # ── Knowledge Base ────────────────────────────────────────────────────
         kb_box = layout.box()
         kb_box.label(text="Advisor Knowledge Base", icon="BOOKMARKS")
-        kb_box.prop(scene, "fo4_kb_enabled", text="Use bundled / user KB")
-        kb_box.prop(scene, "fo4_kb_path",    text="Custom KB folder (txt/md)")
+        if prefs is not None:
+            kb_box.prop(prefs, "knowledge_base_enabled", text="Use bundled / user KB")
+            kb_box.prop(prefs, "knowledge_base_path",    text="Custom KB folder (txt/md)")
+        else:
+            kb_box.prop(scene, "fo4_kb_enabled", text="Use bundled / user KB")
+            kb_box.prop(scene, "fo4_kb_path",    text="Custom KB folder (txt/md)")
 
         # ── Mossy Link ────────────────────────────────────────────────────────
         ml_box = layout.box()
@@ -3619,20 +3686,29 @@ class FO4_PT_SettingsPanel(Panel):
         tcp_sub = ml_box.box()
         tcp_sub.label(text="TCP Server  (Mossy → Blender control)",
                       icon="NETWORK_DRIVE")
-        tcp_sub.prop(scene, "fo4_mossy_port",     text="Listen Port")
-        tcp_sub.prop(scene, "fo4_mossy_token",    text="Auth Token")
-        tcp_sub.prop(scene, "fo4_mossy_autostart",text="Auto-start on load")
+        if prefs is not None:
+            tcp_sub.prop(prefs, "port",      text="Listen Port")
+            tcp_sub.prop(prefs, "token",     text="Auth Token")
+            tcp_sub.prop(prefs, "autostart", text="Auto-start on load")
+        else:
+            tcp_sub.prop(scene, "fo4_mossy_port",      text="Listen Port")
+            tcp_sub.prop(scene, "fo4_mossy_token",     text="Auth Token")
+            tcp_sub.prop(scene, "fo4_mossy_autostart", text="Auto-start on load")
 
         http_sub = ml_box.box()
         http_sub.label(text="AI Queries  (Blender → Mossy)", icon="URL")
-        http_sub.prop(scene, "fo4_mossy_http_port", text="Mossy HTTP Port")
-        http_sub.prop(scene, "fo4_use_mossy_ai",    text="Use Mossy as AI Advisor")
-        if scene.fo4_use_mossy_ai:
-            http_sub.label(
-                text="✓ Advisor will ask Mossy instead of remote LLM",
-                icon="CHECKMARK")
+        if prefs is not None:
+            http_sub.prop(prefs, "mossy_http_port", text="Mossy HTTP Port")
+            http_sub.prop(prefs, "use_mossy_as_ai",  text="Use Mossy as AI Advisor")
+            if prefs.use_mossy_as_ai:
+                http_sub.label(
+                    text="✓ Advisor will ask Mossy instead of remote LLM",
+                    icon="CHECKMARK")
+            else:
+                http_sub.label(text="Enable to route AI through Mossy", icon="INFO")
         else:
-            http_sub.label(text="Enable to route AI through Mossy", icon="INFO")
+            http_sub.prop(scene, "fo4_mossy_http_port", text="Mossy HTTP Port")
+            http_sub.prop(scene, "fo4_use_mossy_ai",    text="Use Mossy as AI Advisor")
 
         ml_box.operator("wm.mossy_check_http",
                         text="Check Mossy HTTP", icon="QUESTION")

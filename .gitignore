@@ -12,9 +12,11 @@ __pycache__/
 *.pyd
 
 # Build artifacts
-*.zip
+# Note: addon *.zip files ARE tracked (auto-built by CI – see .github/workflows/build.yml).
+# Only exclude other generic zips.
 dist/
 build/
+build_temp/
 
 # VS Code
 .vscode/
