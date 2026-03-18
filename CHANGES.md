@@ -27,6 +27,35 @@ All changes in this PR live on this branch. The branch name reflects its origin 
 
 ## Done ✅  (DO NOT redo, revert, or override these)
 
+### 27. Fix: Mossy cannot go online or store results to memory bank — preload mismatch ✅
+
+**Root cause (the real "fake fix" problem):**
+`webSearch` and `browseWeb` were added to `src/main/preload.ts` — a secondary file that is **never loaded by Electron**. The actual preload loaded by `BrowserWindow` is `src/electron/preload.ts` (built to `preload.js` via `tsconfig.electron.json`). Because `src/electron/preload.ts` did not expose these two IPC methods, every call to `window.electron.api.webSearch()` returned `undefined`, causing `LocalAIEngine.ts` to log "webSearch API not available in preload" and mark web search as unavailable for the entire session.
+
+This means ALL the previous fixes (#20–#26) that improved the response guard, vault pollution, or switched to `net.fetch()` were building on a broken foundation: the web search IPC bridge was never wired up in the real preload.
+
+**Three compounding bugs fixed in this change:**
+
+1. **Wrong preload file** (`src/electron/preload.ts` was missing `webSearch` + `browseWeb`):
+   - `webSearch` and `browseWeb` were only in `src/main/preload.ts` which is NOT loaded by Electron.
+   - Fix: Added both methods to `src/electron/preload.ts` with full JSDoc.
+
+2. **Web search results not saved to memory bank** (`src/renderer/src/LocalAIEngine.ts`):
+   - The automatic web search injection injected results into the AI context for the current session only — it never wrote to `mossy_knowledge_vault` (the memory bank). Users expected fetched info to persist.
+   - Fix: After a successful web search, the result is now also pushed to `mossy_knowledge_vault` in localStorage so it persists across sessions (same pattern as `scan_fallout4_live`).
+
+3. **Empty DuckDuckGo responses polluting context** (`src/electron/main.ts` + `src/renderer/src/LocalAIEngine.ts`):
+   - DuckDuckGo's Instant Answer API often returns `{ success: true, text: '' }` for specific queries. The previous code returned a human-readable "No instant answer found" string with `success: true`, which got injected into the AI context as if it were real search results and sometimes confused the AI.
+   - Fix: The DuckDuckGo handler now includes `empty: true` in the response when there is no real content. `LocalAIEngine.ts` checks this flag; empty results are treated as a search failure (triggering the response guard) instead of being injected as fake context.
+
+**Files changed:**
+- `src/electron/preload.ts` — **THE PRIMARY FIX**: added `webSearch()` and `browseWeb()` IPC wrappers
+- `src/electron/main.ts` — DuckDuckGo handler: add `empty: true` flag to empty responses
+- `src/renderer/src/LocalAIEngine.ts` — respect `empty` flag; save successful results to Knowledge Vault
+- `CHANGES.md`
+
+---
+
 ### 26. Fix: Mossy says she can't access the Internet after a recent update ✅
 
 **Problem addressed:**
