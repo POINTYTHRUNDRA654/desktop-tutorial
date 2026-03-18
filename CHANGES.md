@@ -27,6 +27,69 @@ All changes in this PR live on this branch. The branch name reflects its origin 
 
 ## Done ✅  (DO NOT redo, revert, or override these)
 
+### 29. Fix: Mossy keeps claiming she's a language model with no internet access ✅
+
+**Problem:**
+Mossy would respond to online-search requests with phrases like "I'm a language model and I don't have access to the internet" or "As a language model, I lack real-time access." Three root-cause bugs:
+
+1. **Response guard disabled when web search succeeded** (`src/renderer/src/LocalAIEngine.ts` line ~454):
+   The guard condition was `(!needsWebSearch || webSearchUnavailable) && PATTERNS.some(...)`.
+   When the user said "search for…" (triggering `needsWebSearch=true`) and the web search call
+   succeeded (`webSearchUnavailable=false`), both halves were `false` → guard was completely
+   disabled. The base LLM could still respond with a refusal and the guard would never fire.
+
+2. **Missing "I'm a language model" refusal patterns (without "just")**:
+   Patterns only caught `"I'm just a language model"` / `"as an AI, I cannot…"` but missed:
+   - `"I'm a language model and I don't…"` / `"I am a language model and I can't…"`
+   - `"as a language model, I don't have access"` / `"as a language model, I lack…"`
+   - `"as an AI, I don't have access"` / `"being a language model…"`
+   - `"I lack real-time access"` / `"I have no internet access"`
+   - `"I don't have the ability/capability to access…"`
+
+3. **Local LLM path (Ollama/LM Studio/Cosmos) had zero response guard**:
+   The local provider branch returned immediately with no refusal check, so any local model
+   that said it was an LLM with no internet access was passed directly to the user.
+
+**Fixes:**
+
+**Fix A — Unconditional response guard (`src/renderer/src/LocalAIEngine.ts`):**
+- Removed `(!needsWebSearch || webSearchUnavailable) &&` from the guard condition.
+- Guard now runs on EVERY Groq response, regardless of whether web search already ran.
+- Comment updated to explain the reasoning.
+
+**Fix B — 7 new refusal patterns added to `INTERNET_REFUSAL_PATTERNS`:**
+- `/(i'm|i am) a(n)? (large language model|language model|llm)[,.] .*(don't|cannot|unable|lack).*(internet|web|online|access|real-time)/i`
+- `/(i'm|i am) an? ai[,.] .*(don't|cannot|unable|lack).*(internet|web|online|access|real-time)/i`
+- `/as an? (ai|language model|llm)[,.] .*(don't|cannot|unable|lack).*(internet|web|online|access|browse|real-time)/i`
+- `/being an? (ai|language model|llm)[,.] .*(don't|cannot|unable|lack).*(internet|web|online|access|browse)/i`
+- `/i (do not|don't) have the (ability|capability|capacity) to (access|browse|search|go online|retrieve|fetch)/i`
+- `/i lack (real-time|internet|web|online|live) (access|data|information)/i`
+- `/i (have|had) no (real-time|internet|web|live) (access|data|information)/i`
+
+**Fix C — Local LLM response guard (`src/renderer/src/LocalAIEngine.ts`):**
+- After `api.mlLlmGenerate()` responds, the same `INTERNET_REFUSAL_PATTERNS` check is applied.
+- If triggered: fetches web results via `guardWebApiLocal.webSearch()`, injects them into an
+  enriched context, and retries with `api.mlLlmGenerate()` using the same local provider/model.
+- Failure is non-critical (falls through to original response rather than erroring out).
+
+**Fix D — System prompt forbidden list expanded (`src/renderer/src/MossyBrain.ts`):**
+- Added explicit `❌` entries for all the new phrase patterns:
+  - `"as a language model, I don't have access"` / `"as a language model, I lack"`
+  - `"as an AI, I don't have access"` / `"as an AI, I cannot"`
+  - `"I'm a language model and I don't/can't"` / `"I am a language model and I don't/can't"`
+  - `"I'm a large language model and"` / `"I am a large language model and"`
+  - `"being a language model"` / `"being an AI"`
+  - `"I lack real-time access"` / `"I have no real-time access"`
+  - `"I lack internet access"` / `"I have no internet access"`
+  - `"I don't have the ability to access"` / `"I don't have the capability to access"`
+
+**Files changed:**
+- `src/renderer/src/LocalAIEngine.ts` — guard condition fix; 8 new patterns; local LLM guard
+- `src/renderer/src/MossyBrain.ts` — 16 new forbidden-statement entries
+- `CHANGES.md`
+
+---
+
 ### 28. Investigation: PR #83 closed without merging ✅
 
 **Question:** "Why did PR #83 close without merging? We need to fix this."
