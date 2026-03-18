@@ -1,6 +1,32 @@
 # Git Recovery Guide — Reconnecting GitHub Desktop
 
-If GitHub Desktop says **"the repository no longer exists"** or you can't push/pull, follow these steps.
+If GitHub Desktop says **"the repository no longer exists"**, **"Sorry, I can't find any repository matching…"**, or you can't push/pull, follow these steps.
+
+---
+
+## "Sorry, I can't find any repository matching…"
+
+This is the most common error.  GitHub Desktop's **GitHub.com** search tab strips the trailing
+period from the repository name and then can't find it.
+
+**You must use the URL tab to clone this repository — the GitHub.com search tab will never work.**
+
+Steps:
+
+1. Open **GitHub Desktop** → **File → Clone repository…**
+2. Click the **URL** tab (the third tab, on the right).
+3. Paste this URL exactly into the **Repository URL or GitHub username and repository** box:
+   ```
+   https://github.com/POINTYTHRUNDRA654/Blender-add-on.
+   ```
+   *(The period at the very end is part of the repository name — include it.)*
+4. Set **Local path** to wherever you want the folder (e.g. `D:\Blender addon 2`).
+5. Click **Clone**.
+
+> **Why does this happen?**  This repository's name ends with a period (`Blender-add-on.`).
+> The GitHub.com search tab calls GitHub's API with a URL-encoded query that drops trailing
+> periods, so the search returns nothing.  The URL tab bypasses the search entirely and clones
+> directly, so the period is preserved and the clone succeeds.
 
 ---
 
@@ -13,20 +39,19 @@ Steps for a clean re-clone to your desktop:
 1. **Back up any local changes** you have not yet committed (copy them somewhere safe).
 2. **Delete the broken local folder** on your desktop.
 3. Open **GitHub Desktop** → **File → Clone repository…**
-4. Find `POINTYTHRUNDRA654/Blender-add-on.` in the list (or paste the URL below).
-5. Set the local path to wherever you want it (e.g. your Desktop).
-6. Click **Clone**.
-
-Remote URL — **the period at the very end is part of the repository name, not punctuation.  Copy the whole thing:**
-```
-https://github.com/POINTYTHRUNDRA654/Blender-add-on.
-```
+4. Click the **URL** tab (**not** the GitHub.com tab — see the section above for why).
+5. Paste the URL:
+   ```
+   https://github.com/POINTYTHRUNDRA654/Blender-add-on.
+   ```
+6. Set the local path to wherever you want it (e.g. your Desktop).
+7. Click **Clone**.
 
 After cloning, re-apply any local edits you backed up in step 1.
 
 ---
 
-## Why Can't I Push?
+## Why Does the Trailing Period Cause Problems?
 
 This repository's name ends with a period (`Blender-add-on.`).
 Windows and some Git clients handle trailing periods inconsistently, which can cause GitHub Desktop to lose its connection to the remote.
