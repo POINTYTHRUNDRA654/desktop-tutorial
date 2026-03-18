@@ -7,6 +7,7 @@ import {
   buildKnowledgeManifestForModel,
   buildRelevantKnowledgeVaultContext,
   getRelevantKnowledgeVaultItems,
+  KnowledgeVaultItem,
 } from './knowledgeRetrieval';
 import { selfImprovementEngine } from './SelfImprovementEngine';
 
@@ -274,13 +275,39 @@ export const LocalAIEngine = {
           const searchType = fo4TermsRenderer.test(query) ? 'wiki' : undefined;
           console.log('[LocalAIEngine] Calling webSearch with type:', searchType || 'general');
           const searchResult = await webApi.webSearch(query, searchType);
-          if (searchResult?.success && searchResult?.text) {
+          // Only use the result when it's successful AND has real content
+          // (empty:true means the API had no instant answer — don't inject that noise)
+          if (searchResult?.success && searchResult?.text && !searchResult?.empty) {
             console.log('[LocalAIEngine] ✅ Web search successful, injecting results');
             injectedContext += '\n### LIVE WEB SEARCH RESULTS (use this to answer the user):\n';
             injectedContext += searchResult.text + '\n';
             if (searchResult.url) {
               injectedContext += `Source: ${searchResult.source || 'Web'} — ${searchResult.url}\n`;
             }
+            // Persist the fetched web content to the Knowledge Vault so it is
+            // available in future sessions (this is the "memory bank" write).
+            try {
+              const vaultRaw = localStorage.getItem('mossy_knowledge_vault');
+              const vault: KnowledgeVaultItem[] = vaultRaw ? JSON.parse(vaultRaw) : [];
+              vault.push({
+                id: `auto-web-${Date.now()}`,
+                title: `[Web] ${query.substring(0, 80)}`,
+                content: searchResult.text,
+                source: searchResult.url || searchResult.source || 'Web',
+                trustLevel: 'community',
+                tags: ['web-search', 'auto-fetch'],
+                date: new Date().toISOString(),
+              });
+              localStorage.setItem('mossy_knowledge_vault', JSON.stringify(vault));
+              console.log('[LocalAIEngine] ✅ Web search results saved to Knowledge Vault');
+            } catch (vaultErr) {
+              console.warn('[LocalAIEngine] Failed to persist web search results to Knowledge Vault:', vaultErr);
+            }
+          } else if (searchResult?.empty) {
+            // DuckDuckGo returned no useful instant answer — treat as unavailable
+            // so the response guard can retry with different context.
+            console.warn('[LocalAIEngine] Web search returned empty result (no instant answer)');
+            recordWebSearchFailure('No instant answer available');
           } else {
             console.warn('[LocalAIEngine] Web search returned no results:', searchResult);
             const reason = searchResult?.error || 'No search result text returned';
