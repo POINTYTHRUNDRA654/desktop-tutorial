@@ -5,6 +5,7 @@ Text-to-3D and Image-to-3D generation using OpenAI's Shap-E
 
 import atexit
 import multiprocessing
+import multiprocessing.connection  # explicit sub-module import required for type annotations
 import threading
 import time
 from pathlib import Path
