@@ -6371,9 +6371,13 @@ function setupIpcHandlers() {
         .map((t: any) => (typeof t.Text === 'string' ? t.Text : (Array.isArray(t.Topics) ? t.Topics[0]?.Text : '')) || '')
         .filter(Boolean);
       if (topics.length) text += 'Related: ' + topics.join(' | ');
+      const trimmedText = text.trim();
+      // empty:true signals the renderer that DuckDuckGo had no useful instant answer
+      // so it can avoid injecting "no results" noise into the AI context or vault.
       return {
         success: true,
-        text: text.trim() || 'No instant answer found. Try searching with more specific Fallout 4 terms.',
+        empty: !trimmedText,
+        text: trimmedText || 'No instant answer available for this query.',
         source: json.AbstractSource || 'DuckDuckGo',
         heading: json.Heading || '',
         url: json.AbstractURL || '',
