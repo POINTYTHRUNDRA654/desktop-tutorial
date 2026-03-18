@@ -140,6 +140,49 @@ export const loadKnowledgeVault = (): KnowledgeVaultItem[] => {
   return safeParse(typeof window !== 'undefined' ? window.localStorage.getItem(STORAGE_KEY) : null);
 };
 
+/**
+ * Auto-fetched item prefixes (IDs created by LocalAIEngine or MossyTools web search).
+ * User-added items (uploaded docs, personal notes) are never pruned.
+ */
+const AUTO_ID_PREFIXES = ['auto-web-', 'live-scan-wiki-', 'live-scan-web-'];
+const isAutoFetched = (id?: string) => AUTO_ID_PREFIXES.some((p) => String(id || '').startsWith(p));
+
+/** Maximum number of auto-fetched vault items to retain. Oldest are pruned first. */
+const MAX_AUTO_ITEMS = 200;
+
+/**
+ * Prune auto-fetched Knowledge Vault entries when the count exceeds MAX_AUTO_ITEMS.
+ * User-uploaded / manually-added items are never touched.
+ * Call this after adding a new auto-fetched item.
+ */
+export const pruneAutoFetchedVaultItems = (vault: KnowledgeVaultItem[]): KnowledgeVaultItem[] => {
+  const userItems = vault.filter((it) => !isAutoFetched(it.id));
+  const autoItems = vault.filter((it) => isAutoFetched(it.id));
+  if (autoItems.length <= MAX_AUTO_ITEMS) return vault;
+  // Keep only the most-recent MAX_AUTO_ITEMS auto items (newest at the end of the array)
+  const trimmed = autoItems.slice(-MAX_AUTO_ITEMS);
+  return [...userItems, ...trimmed];
+};
+
+/**
+ * Returns true when a vault already contains a sufficiently similar item for
+ * the same topic so that we can skip adding a duplicate.
+ * Comparison: items with the same first 80 chars of title added within 7 days.
+ * Items with a missing or unparseable date are treated as "now" (conservative).
+ */
+export const isDuplicateVaultEntry = (vault: KnowledgeVaultItem[], title: string): boolean => {
+  const norm = String(title || '').trim().slice(0, 80).toLowerCase();
+  if (!norm) return false;
+  const cutoff = Date.now() - 7 * 24 * 60 * 60 * 1000; // 7 days
+  return vault.some((it) => {
+    const itNorm = String(it.title || '').trim().slice(0, 80).toLowerCase();
+    if (itNorm !== norm) return false;
+    // Treat missing/unparseable date as "now" — conservative: counts as duplicate.
+    const t = it.date ? Date.parse(it.date) : Date.now();
+    return Number.isNaN(t) ? true : t > cutoff;
+  });
+};
+
 export const buildKnowledgeManifestForModel = (): string => {
   const items = loadKnowledgeVault();
   if (items.length === 0) return '';
