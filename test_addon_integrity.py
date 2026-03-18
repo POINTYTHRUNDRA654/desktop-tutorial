@@ -91,7 +91,7 @@ class TestModulesPresent(unittest.TestCase):
     # Modules that are genuinely optional and known to be absent
     # (e.g. third-party Blender extensions registered by the user).
     ALLOWED_MISSING = {
-        "mossy_link",  # optional external Mossy AI extension
+        # mossy_link.py now ships as a stub – no longer in ALLOWED_MISSING
     }
 
     def _module_exists(self, name):
@@ -297,7 +297,7 @@ class TestInitModulesComplete(unittest.TestCase):
     """
 
     ALLOWED_MISSING = {
-        "mossy_link",
+        # mossy_link.py now ships as a stub – no longer in ALLOWED_MISSING
     }
 
     def test_modules_list_files_exist(self):
@@ -419,6 +419,103 @@ class TestAddonIntegrationInterface(unittest.TestCase):
                         "addon_integration.register() not callable")
         self.assertTrue(callable(getattr(mod, "unregister", None)),
                         "addon_integration.unregister() not callable")
+
+
+# ---------------------------------------------------------------------------
+# Test 9 – multiprocessing.connection sub-module explicit import
+# ---------------------------------------------------------------------------
+class TestMultiprocessingConnectionImport(unittest.TestCase):
+    """
+    Any file that uses ``multiprocessing.connection.Connection`` (or other
+    symbols from the ``multiprocessing.connection`` sub-module) must also
+    contain an explicit ``import multiprocessing.connection`` statement.
+
+    Without the explicit import, Blender's embedded Python raises
+    ``AttributeError: module 'multiprocessing' has no attribute 'connection'``
+    at module load time, preventing the entire module from registering.
+    """
+
+    def test_connection_submodule_explicitly_imported(self):
+        errors = []
+        for fname in _py_files():
+            source = _read(fname)
+            if "multiprocessing.connection." not in source:
+                continue
+            # The file references the sub-module — ensure it's explicitly imported
+            if "import multiprocessing.connection" not in source:
+                errors.append(
+                    f"  {fname}: uses 'multiprocessing.connection.*' but "
+                    f"'import multiprocessing.connection' is absent"
+                )
+        if errors:
+            self.fail(
+                "File(s) reference multiprocessing.connection without importing it "
+                "(causes AttributeError in Blender's Python):\n"
+                + "\n".join(errors)
+            )
+
+
+# ---------------------------------------------------------------------------
+# Test 10 – No nested f-string backslash (Python ≤3.11 compatibility)
+# ---------------------------------------------------------------------------
+class TestNoNestedFStringBackslash(unittest.TestCase):
+    """
+    Python ≤3.11 raises SyntaxError when a backslash appears inside an
+    f-string expression block ``{...}``.  This includes nested f-strings
+    that contain backslash escapes in their string literal parts.
+
+    Blender 5.0 ships Python 3.11, so any nested f-string with a backslash
+    inside the outer f-string's ``{...}`` expression will crash the module
+    at import time.  Python 3.12 relaxed this restriction (which is why
+    ``ast.parse()`` on Python 3.12 doesn't catch it).
+
+    We detect this by walking the AST: if a ``JoinedStr`` (f-string) contains
+    a ``FormattedValue`` (expression part) whose sub-tree itself contains
+    another ``JoinedStr`` that has a ``Constant`` string value with a
+    backslash, that is an incompatible pattern.
+    """
+
+    def test_no_nested_fstring_with_backslash(self):
+        errors = []
+        for fname in _py_files():
+            source = _read(fname)
+            try:
+                tree = ast.parse(source, filename=fname)
+            except SyntaxError:
+                continue  # Syntax errors are caught by Test 1
+
+            for node in ast.walk(tree):
+                if not isinstance(node, ast.JoinedStr):
+                    continue
+                # Iterate over the expression parts of this outer f-string
+                for fv in node.values:
+                    if not isinstance(fv, ast.FormattedValue):
+                        continue
+                    # Walk the expression to find nested f-strings
+                    for inner in ast.walk(fv.value):
+                        if not isinstance(inner, ast.JoinedStr):
+                            continue
+                        # Check the string-literal parts of the nested f-string
+                        for inner_val in inner.values:
+                            if (
+                                isinstance(inner_val, ast.Constant)
+                                and isinstance(inner_val.value, str)
+                                and "\\" in inner_val.value
+                            ):
+                                lineno = getattr(inner, "lineno", 0)
+                                errors.append(
+                                    f"  {fname}:{lineno}: nested f-string with "
+                                    f"backslash in string literal "
+                                    f"(SyntaxError on Python ≤3.11 / Blender 5.x)"
+                                )
+                                break  # one report per nested f-string is enough
+
+        if errors:
+            self.fail(
+                "Nested f-string(s) with backslash detected — pre-compute the value "
+                "in a plain variable *before* the outer f-string:\n"
+                + "\n".join(errors)
+            )
 
 
 # ---------------------------------------------------------------------------

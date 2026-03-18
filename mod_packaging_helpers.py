@@ -194,6 +194,17 @@ class ModPackager:
 </fomod>
 """
             # ── ModuleConfig.xml ──────────────────────────────────────────
+            # Pre-compute the optional image tag outside the f-string so that
+            # backslashes never appear inside an f-string expression block.
+            # (Python ≤3.11 raises SyntaxError for backslashes inside f-string
+            #  expressions; Python 3.12 relaxed this restriction.)
+            if image:
+                _image_tag = '<moduleImage path="fomod\\{}" />'.format(
+                    _xml_esc(image)
+                )
+            else:
+                _image_tag = '<!-- <moduleImage path="fomod\\screenshot.png" /> -->'
+
             # Build the file list section
             file_entries = []
             if plugin:
@@ -221,7 +232,7 @@ class ModPackager:
         xsi:noNamespaceSchemaLocation="http://qconsulting.ca/fo3/ModConfig5.0.xsd">
 
     <moduleName>{_xml_esc(name)}</moduleName>
-    {f'<moduleImage path="fomod\\{_xml_esc(image)}" />' if image else '<!-- <moduleImage path="fomod\\screenshot.png" /> -->'}
+    {_image_tag}
 
     <requiredInstallFiles>
         <!--

@@ -6,6 +6,7 @@ Generates 3D point clouds that can be converted to meshes
 
 import atexit
 import multiprocessing
+import multiprocessing.connection  # explicit sub-module import required for type annotations
 import threading
 import time
 from pathlib import Path
