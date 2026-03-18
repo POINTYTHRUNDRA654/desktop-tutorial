@@ -1,0 +1,66 @@
+name: Build Add-on Zips
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Triggers
+# ─────────────────────────────────────────────────────────────────────────────
+on:
+  # Rebuild whenever code lands on main (PR merges or direct pushes)
+  push:
+    branches: [main]
+    paths:
+      - "**.py"
+      - "build_addon.py"
+      - ".github/workflows/build.yml"
+
+  # Also allow a manual trigger from the Actions tab
+  workflow_dispatch:
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Permissions – needed to push the rebuilt zips back to the branch
+# ─────────────────────────────────────────────────────────────────────────────
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Build all Blender version zips
+    runs-on: ubuntu-latest
+
+    steps:
+      # ── 1. Check out the repo (full history so we can push back) ───────────
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          lfs: true        # pull down any Git-LFS objects already tracked
+
+      # ── 2. Run the build script ────────────────────────────────────────────
+      - name: Build zips (all Blender variants)
+        run: python3 build_addon.py --outdir .
+
+      # ── 3. Run the integrity tests to catch regressions ───────────────────
+      - name: Run addon integrity tests
+        run: python3 test_addon_integrity.py
+
+      # ── 4. Commit the freshly built zips back to the branch ───────────────
+      #       Using --force so a re-run always overwrites the previous build.
+      - name: Commit rebuilt zips
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add fallout4_tutorial_helper-v*.zip
+          # Only commit if there is something new
+          if git diff --cached --quiet; then
+            echo "Zips are already up to date – nothing to commit."
+          else
+            git commit -m "chore: auto-rebuild addon zips [skip ci]"
+            git push
+          fi
+
+      # ── 5. Upload as workflow artifacts (always available for download) ────
+      - name: Upload zips as artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: fallout4-addon-zips
+          path: fallout4_tutorial_helper-v*.zip
+          retention-days: 90
