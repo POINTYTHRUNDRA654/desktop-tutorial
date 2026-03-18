@@ -6,30 +6,41 @@ If GitHub Desktop says **"the repository no longer exists"**, **"Sorry, I can't 
 
 ## "Sorry, I can't find any repository matching…" / "Still can't locate it"
 
-This is the most common error.  GitHub Desktop's **GitHub.com** search tab (and sometimes even
-the URL tab) strips the trailing period from the repository name and then can't find it.
+> ⚠️ **IMPORTANT — Read this before trying anything else**
+>
+> The "Clone a repository" dialog has **three tabs** at the top:
+> **GitHub.com** | **GitHub Enterprise** | **URL**
+>
+> **The GitHub.com tab will NEVER work for this repository.**
+> Do NOT type the URL into the GitHub.com tab's search box — it always fails.
+>
+> You must click the word **URL** (the tab on the far right) to switch to the URL tab,
+> and then paste the address into the URL tab's input box.
 
-**Use the URL tab AND add `.git` to the end of the URL — this is the most reliable fix.**
+**Step-by-step — do exactly this:**
 
-Steps:
-
-1. Open **GitHub Desktop** → **File → Clone repository…**
-2. Click the **URL** tab (the third tab, on the right).
-3. Paste this URL exactly into the **Repository URL or GitHub username and repository** box:
+1. Open **GitHub Desktop**.
+2. Click **File → Clone repository…**  (the "Clone a repository" dialog opens).
+3. Look at the three tabs at the very top of the dialog:
+   `GitHub.com` | `GitHub Enterprise` | `URL`
+4. **Click the word `URL`** — the rightmost tab.  The dialog contents will change.
+   *(If the dialog still shows a search box with "Filter your repositories", you are still
+   on the GitHub.com tab — click `URL` again.)*
+5. You should now see a single text field labelled
+   **"Repository URL or GitHub username and repository"**.
+6. Click inside that field and paste this URL:
    ```
    https://github.com/POINTYTHRUNDRA654/Blender-add-on..git
    ```
-   *(Note the two dots before `.git` — that is correct.  The `.git` suffix prevents GitHub
-   Desktop from silently stripping the trailing period that is part of the repository name.)*
-4. Set **Local path** to wherever you want the folder (e.g. `D:\Blender addon 2`).
-5. Click **Clone**.
+   *(There are two dots before `.git` — that is correct and intentional.)*
+7. Set **Local path** to wherever you want the folder (e.g. `D:\Blender addon 2`).
+8. Click **Clone**.
 
-> **Why does the plain URL fail even after copy-paste?**  This repository's name ends with a
-> period (`Blender-add-on.`).  Some versions of GitHub Desktop silently strip trailing periods
-> from URLs before making the network request, so the search or clone request goes to
-> `Blender-add-on` (no period) and GitHub returns "not found".  Adding `.git` to the end of the
-> URL makes the period part of the middle of the URL rather than the end, so it is never
-> stripped.  Both URLs point to the same repository.
+> **Why does this keep failing?**  This repository's name ends with a period (`Blender-add-on.`).
+> The GitHub.com search tab cannot find it at all.  Even the URL tab sometimes strips the
+> trailing period, which is why we add `.git` at the end — it moves the period away from
+> the very end of the URL so it can never be stripped.  Both URLs point to the same
+> repository; the `.git` form is just more reliable.
 
 ---
 
@@ -42,8 +53,8 @@ Steps for a clean re-clone to your desktop:
 1. **Back up any local changes** you have not yet committed (copy them somewhere safe).
 2. **Delete the broken local folder** on your desktop.
 3. Open **GitHub Desktop** → **File → Clone repository…**
-4. Click the **URL** tab (**not** the GitHub.com tab — see the section above for why).
-5. Paste the URL (with `.git` at the end — this prevents the trailing period from being stripped):
+4. At the top of the dialog, click the **`URL`** tab (the rightmost tab — NOT the GitHub.com tab).
+5. Paste into the URL field (with `.git` at the end — this prevents the trailing period from being stripped):
    ```
    https://github.com/POINTYTHRUNDRA654/Blender-add-on..git
    ```
