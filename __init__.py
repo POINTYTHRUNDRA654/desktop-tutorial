@@ -6,7 +6,7 @@ A comprehensive tutorial and helper system for creating Fallout 4 mods in Blende
 bl_info = {
     "name": "Fallout 4 Mod Assistant",
     "author": "Tutorial Team",
-    "version": (2, 3, 0),
+    "version": (5, 0, 0),
     "blender": (2, 90, 0),  # Compatible with Blender 2.90+ through 5.x
     "location": "View3D > Sidebar > Fallout 4",
     "description": (
@@ -32,6 +32,7 @@ import sys
 # allow the addon to initialize so users can still see the error message and
 # report it.
 
+
 def _try_import(name: str):
     """Attempt to import a submodule of this package by name.
 
@@ -44,12 +45,14 @@ def _try_import(name: str):
     except Exception as exc:  # pragma: no cover - safety belt
         print(f"⚠ Failed to import {name} ({full}): {exc}")
         import traceback
+
         traceback.print_exc()
         # Remove any partially-initialised entry from sys.modules so that a
         # subsequent retry (e.g. Blender 5 extension reload) performs a fresh
         # import rather than returning the stale, incomplete module object.
         sys.modules.pop(full, None)
         return None
+
 
 # import core submodules; missing components will be skipped but reported.
 preferences = _try_import("preferences")
@@ -110,17 +113,18 @@ unreal_game_assets = _try_import("unreal_game_assets")
 
 # Extended / optional helpers added by the full-file merge
 post_processing_helpers = _try_import("post_processing_helpers")
-fo4_material_browser    = _try_import("fo4_material_browser")
-fo4_scene_diagnostics   = _try_import("fo4_scene_diagnostics")
-fo4_reference_helpers   = _try_import("fo4_reference_helpers")
-papyrus_helpers         = _try_import("papyrus_helpers")
-fo4_physics_helpers     = _try_import("fo4_physics_helpers")
-mod_packaging_helpers   = _try_import("mod_packaging_helpers")
-addon_updater           = _try_import("addon_updater")
-native_nif_writer       = _try_import("native_nif_writer")
+fo4_material_browser = _try_import("fo4_material_browser")
+fo4_scene_diagnostics = _try_import("fo4_scene_diagnostics")
+fo4_reference_helpers = _try_import("fo4_reference_helpers")
+papyrus_helpers = _try_import("papyrus_helpers")
+fo4_physics_helpers = _try_import("fo4_physics_helpers")
+mod_packaging_helpers = _try_import("mod_packaging_helpers")
+addon_updater = _try_import("addon_updater")
+native_nif_writer = _try_import("native_nif_writer")
 
 # Asset library browser (registers PropertyGroups, UIList, and operators)
 asset_library = _try_import("asset_library")
+
 
 # core modules that are safe to import and register unconditionally.
 # a few of the optional/external helpers are only added lazily; any module
@@ -130,70 +134,79 @@ asset_library = _try_import("asset_library")
 def _filter(mod):
     return mod is not None
 
-modules = list(filter(_filter, [
-    preferences,
-    tutorial_system,
-    notification_system,
-    mesh_helpers,
-    advanced_mesh_helpers,
-    texture_helpers,
-    animation_helpers,
-    rignet_helpers,
-    motion_generation_helpers,
-    quest_helpers,
-    npc_helpers,
-    world_building_helpers,
-    item_helpers,
-    preset_library,
-    automation_system,
-    addon_integration,
-    desktop_tutorial_client,
-    torch_path_manager,
-    shap_e_helpers,
-    point_e_helpers,
-    advisor_helpers,
-    knowledge_helpers,
-    # external integrations — register by default so their buttons/operators
-    # are available without a separate manual load step; any missing module is
-    # filtered out by _filter to avoid crashes on platforms without the tools.
-    ue_importer_helpers,
-    umodel_tools_helpers,
-    unity_fbx_importer_helpers,
-    asset_studio_helpers,
-    asset_ripper_helpers,
-    tool_installers,
-    mossy_link,
-    export_helpers,
-    image_to_mesh_helpers,
-    hunyuan3d_helpers,
-    zoedepth_helpers,
-    gradio_helpers,
-    hymotion_helpers,
-    nvtt_helpers,
-    realesrgan_helpers,
-    get3d_helpers,
-    stylegan2_helpers,
-    instantngp_helpers,
-    imageto3d_helpers,
-    operators,
-    ui_panels,
-    post_processing_helpers,
-    fo4_material_browser,
-    fo4_scene_diagnostics,
-    fo4_reference_helpers,
-    papyrus_helpers,
-    fo4_physics_helpers,
-    mod_packaging_helpers,
-    addon_updater,
-    asset_library,
-]))
+
+modules = list(
+    filter(
+        _filter,
+        [
+            preferences,
+            tutorial_system,
+            notification_system,
+            mesh_helpers,
+            advanced_mesh_helpers,
+            texture_helpers,
+            animation_helpers,
+            rignet_helpers,
+            motion_generation_helpers,
+            quest_helpers,
+            npc_helpers,
+            world_building_helpers,
+            item_helpers,
+            preset_library,
+            automation_system,
+            addon_integration,
+            desktop_tutorial_client,
+            torch_path_manager,
+            shap_e_helpers,
+            point_e_helpers,
+            advisor_helpers,
+            knowledge_helpers,
+            # external integrations — register by default so their buttons/operators
+            # are available without a separate manual load step; any missing module is
+            # filtered out by _filter to avoid crashes on platforms without the tools.
+            ue_importer_helpers,
+            umodel_tools_helpers,
+            unity_fbx_importer_helpers,
+            asset_studio_helpers,
+            asset_ripper_helpers,
+            tool_installers,
+            mossy_link,
+            export_helpers,
+            image_to_mesh_helpers,
+            hunyuan3d_helpers,
+            zoedepth_helpers,
+            gradio_helpers,
+            hymotion_helpers,
+            nvtt_helpers,
+            realesrgan_helpers,
+            get3d_helpers,
+            stylegan2_helpers,
+            instantngp_helpers,
+            imageto3d_helpers,
+            operators,
+            ui_panels,
+            post_processing_helpers,
+            fo4_material_browser,
+            fo4_scene_diagnostics,
+            fo4_reference_helpers,
+            papyrus_helpers,
+            fo4_physics_helpers,
+            mod_packaging_helpers,
+            addon_updater,
+            asset_library,
+        ],
+    )
+)
+
 
 def register():
     """Register all add-on classes and handlers"""
     # Auto-detect and load PyTorch from custom paths on startup
     try:
         if torch_path_manager:
-            existing_torch = torch_path_manager.TorchPathManager.find_existing_torch_install()
+            existing_torch = (
+                torch_path_manager.TorchPathManager.find_existing_torch_install()
+            )
             if existing_torch:
                 torch_path_manager.TorchPathManager.add_torch_to_path(existing_torch)
                 print(f"✓ PyTorch found and loaded from: {existing_torch}")
@@ -210,6 +223,7 @@ def register():
         notes_path = bpy.path.abspath("//DEVELOPMENT_NOTES.md")
         # if running from unpacked directory use workspace file as fallback
         import os
+
         if not os.path.isfile(notes_path):
             notes_path = os.path.join(os.path.dirname(__file__), "DEVELOPMENT_NOTES.md")
         if os.path.isfile(notes_path):
@@ -223,16 +237,17 @@ def register():
             print("------------------------")
     except Exception as e:
         print(f"Could not read DEVELOPMENT_NOTES.md: {e}")
-    
+
     # Register all modules, but continue even if one fails so the
     # user can see the error in the console and report it.
     for module in modules:
         try:
             module.register()
         except Exception as e:  # pragma: no cover
-            name = getattr(module, '__name__', str(module))
+            name = getattr(module, "__name__", str(module))
             print(f"⚠ Error registering module {name}: {e}")
             import traceback
+
             traceback.print_exc()
 
     # Start advisor auto-monitor (opt-out in preferences)
@@ -242,14 +257,14 @@ def register():
     #     advisor_helpers.start_auto_monitor()
     # except Exception as e:
     #     print(f"Advisor auto-monitor failed to start: {e}")
-    
+
     # Initialize the tutorial system
     try:
         if tutorial_system:
             tutorial_system.initialize_tutorials()
     except Exception as e:
         print(f"⚠ Could not initialize tutorials: {e}")
-    
+
     # Check for core Python dependencies — install automatically if missing.
     # DISABLED: Auto-installation causes severe performance issues during startup
     # Users should use the "Install Core Dependencies" button in the Setup panel instead
@@ -284,7 +299,9 @@ def register():
     # else:
     #     print("✓ All core Python dependencies present")
 
-    print(f"✓ Fallout 4 Tutorial Helper registered successfully (Blender {version_string})")
+    print(
+        f"✓ Fallout 4 Tutorial Helper registered successfully (Blender {version_string})"
+    )
 
     # schedule a quick environment check once Blender is ready
     # DISABLED: This causes severe performance issues during startup
@@ -303,7 +320,7 @@ def register():
     #     bpy.app.timers.register(_post_register, first_interval=0.1)
     # except Exception as e:
     #     print(f"Post-register environment check failed: {e}")
-    
+
     # Show version-specific notes if needed.
     if blender_version < (2, 90, 0):
         print(
@@ -349,6 +366,7 @@ def register():
             "  • Please report any issues at the GitHub repository."
         )
 
+
 def unregister():
     """Unregister all add-on classes and handlers"""
     try:
@@ -360,12 +378,14 @@ def unregister():
         try:
             module.unregister()
         except Exception as e:  # pragma: no cover
-            name = getattr(module, '__name__', str(module))
+            name = getattr(module, "__name__", str(module))
             print(f"⚠ Error unregistering module {name}: {e}")
             import traceback
+
             traceback.print_exc()
-    
+
     print("Fallout 4 Tutorial Helper unregistered")
+
 
 if __name__ == "__main__":
     register()
