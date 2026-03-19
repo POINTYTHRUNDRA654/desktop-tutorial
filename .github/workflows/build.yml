@@ -48,7 +48,17 @@ jobs:
         run: |
           git config user.name  "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add fallout4_tutorial_helper-v*.zip
+
+          # Remove any stale zips that don't match the current naming pattern
+          # (old names like fallout4_tutorial_helper-blender-*.zip or the
+          # generic fallout4_tutorial_helper-v<ver>.zip without a variant suffix)
+          git rm --ignore-unmatch \
+            'fallout4_tutorial_helper-blender-*.zip' \
+            'fallout4_tutorial_helper-v[0-9]*.[0-9]*.[0-9]*.zip'
+
+          # Stage the freshly built zips (always named *-blender*.zip)
+          git add fallout4_tutorial_helper-v*-blender*.zip
+
           # Only commit if there is something new
           if git diff --cached --quiet; then
             echo "Zips are already up to date – nothing to commit."
@@ -62,5 +72,5 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: fallout4-addon-zips
-          path: fallout4_tutorial_helper-v*.zip
+          path: fallout4_tutorial_helper-v*-blender*.zip
           retention-days: 90
