@@ -397,6 +397,144 @@ def install_pynifly() -> tuple[bool, str]:
         return False, f"PyNifly install failed: {e}"
 
 
+def install_torch_deps(target_path: "str | Path | None" = None) -> tuple[bool, str]:
+    """Install PyTorch (CPU build) to *target_path* and persist the path.
+
+    Uses the same short-path strategy as TorchPathManager so it works on
+    Windows even when Blender's site-packages path is too long.  After a
+    successful install the path is written to the add-on preferences so that
+    it is automatically added to ``sys.path`` on every subsequent Blender
+    startup (no manual reconnect needed).
+
+    Args:
+        target_path: Installation directory.  Defaults to ``D:/t``.
+
+    Returns:
+        ``(True, message)`` on success, ``(False, reason)`` on failure.
+    """
+    try:
+        from . import torch_path_manager as _tpm
+        _tp = _tpm.TorchPathManager
+    except Exception:
+        # Fallback: call TorchPathManager directly when relative import fails.
+        try:
+            import importlib
+            import sys as _sys
+            _pkg = Path(__file__).resolve().parent.name
+            _tpm = importlib.import_module(f"{_pkg}.torch_path_manager")
+            _tp = _tpm.TorchPathManager
+        except Exception as e:
+            return False, f"torch_path_manager unavailable: {e}"
+
+    return _tp.install_torch_to_custom_path(target_path)
+
+
+# ---------------------------------------------------------------------------
+# Auto-discovery: scan TOOLS_ROOT and update add-on preferences
+# ---------------------------------------------------------------------------
+
+def discover_installed_tools() -> dict[str, "str | None"]:
+    """Scan TOOLS_ROOT for installed binaries and return a path map.
+
+    Searches both DEFAULT_TOOLS_ROOT (D: drive) and FALLBACK_TOOLS_ROOT (addon
+    folder) so that binaries are found regardless of which location was used
+    during installation.
+
+    Returns a dict with keys ``"ffmpeg"``, ``"nvcompress"``, ``"texconv"``,
+    each mapped to the absolute executable path string, or ``None`` if not found.
+    """
+    found: dict[str, "str | None"] = {
+        "ffmpeg": None,
+        "nvcompress": None,
+        "texconv": None,
+    }
+
+    search_roots = [DEFAULT_TOOLS_ROOT, FALLBACK_TOOLS_ROOT]
+
+    binary_map = {
+        "ffmpeg":     ("ffmpeg",     ("ffmpeg.exe",      "ffmpeg")),
+        "nvcompress": ("nvtt",       ("nvcompress.exe",  "nvcompress")),
+        "texconv":    ("texconv",    ("texconv.exe",     "texconv")),
+    }
+
+    for key, (subdir, exe_names) in binary_map.items():
+        for root in search_roots:
+            tool_dir = root / subdir
+            if not tool_dir.is_dir():
+                continue
+            for exe in exe_names:
+                # Direct hit
+                direct = tool_dir / exe
+                if direct.is_file():
+                    found[key] = str(direct)
+                    break
+                # Recursive search (zip may extract a nested folder)
+                matches = sorted(tool_dir.rglob(exe))
+                if matches:
+                    found[key] = str(matches[0])
+                    break
+            if found[key]:
+                break
+
+    return found
+
+
+def auto_configure_preferences() -> list[str]:
+    """Discover installed tools and update add-on preferences automatically.
+
+    Intended to be called once during add-on registration so that any tools
+    already present on disk are immediately wired up — even after a fresh
+    Blender install or if preferences were reset.
+
+    Returns a list of human-readable status strings (one per configured tool).
+    """
+    results: list[str] = []
+
+    try:
+        import bpy as _bpy
+        from . import preferences as _prefs
+    except Exception:
+        try:
+            import bpy as _bpy
+            import importlib
+            _pkg = Path(__file__).resolve().parent.name
+            _prefs = importlib.import_module(f"{_pkg}.preferences")
+        except Exception as e:
+            print(f"auto_configure_preferences: cannot import bpy/preferences: {e}")
+            return results
+
+    prefs = _prefs.get_preferences()
+    if prefs is None:
+        return results
+
+    installed = discover_installed_tools()
+
+    # ffmpeg
+    if installed["ffmpeg"] and not _prefs.get_configured_ffmpeg_path():
+        prefs.ffmpeg_path = installed["ffmpeg"]
+        results.append(f"ffmpeg auto-configured: {installed['ffmpeg']}")
+        print(f"✓ ffmpeg auto-configured: {installed['ffmpeg']}")
+
+    # nvcompress / NVTT
+    if installed["nvcompress"] and not _prefs.get_configured_nvcompress_path():
+        prefs.nvtt_path = installed["nvcompress"]
+        results.append(f"nvcompress auto-configured: {installed['nvcompress']}")
+        print(f"✓ nvcompress auto-configured: {installed['nvcompress']}")
+
+    # texconv
+    if installed["texconv"] and not _prefs.get_configured_texconv_path():
+        prefs.texconv_path = installed["texconv"]
+        results.append(f"texconv auto-configured: {installed['texconv']}")
+        print(f"✓ texconv auto-configured: {installed['texconv']}")
+
+    return results
+
+
+def candidate_tool_paths(name: str) -> list[Path]:
+    """Return candidate install paths for *name* under both tools roots."""
+    return [DEFAULT_TOOLS_ROOT / name, FALLBACK_TOOLS_ROOT / name]
+
+
 def register():
     pass
 

@@ -3051,20 +3051,20 @@ class FO4_OT_InstallFFmpeg(Operator):
             ok, msg = tool_installers.install_ffmpeg()
             level = 'INFO' if ok else 'ERROR'
             print("FFMPEG INSTALL", msg)
-            if ok:
-                from pathlib import Path
-                base = Path(__file__).resolve().parent / "tools" / "ffmpeg"
-                prefs = preferences.get_preferences()
-            else:
-                base = None
-                prefs = None
+            prefs = preferences.get_preferences() if ok else None
 
             def _notify():
                 notification_system.FO4_NotificationSystem.notify(msg, level)
-                if prefs and base:
-                    for exe in base.rglob("ffmpeg.exe"):
-                        prefs.ffmpeg_path = str(exe)
-                        break
+                if prefs:
+                    tools_root = tool_installers.get_tools_root()
+                    ffmpeg_dir = tools_root / "ffmpeg"
+                    for exe_name in ("ffmpeg.exe", "ffmpeg"):
+                        for exe in ffmpeg_dir.rglob(exe_name):
+                            prefs.ffmpeg_path = str(exe)
+                            print(f"ffmpeg path configured: {exe}")
+                            break
+                        if prefs.ffmpeg_path:
+                            break
             bpy.app.timers.register(_notify, first_interval=0.0)
 
         threading.Thread(target=_run, daemon=True).start()
@@ -3746,7 +3746,7 @@ class FO4_OT_RunAllInstallers(Operator):
 
     def execute(self, context):
         import threading
-        from . import tool_installers
+        from . import tool_installers, preferences
 
         def _run():
             results = []
@@ -3756,11 +3756,16 @@ class FO4_OT_RunAllInstallers(Operator):
                 tool_installers.install_nvtt,
                 tool_installers.install_texconv,
                 tool_installers.install_whisper,
+                tool_installers.install_torch_deps,
             ):
                 ok, msg = func()
                 if not ok:
                     any_failed = True
                 results.append(msg)
+
+            # Auto-wire newly installed tool paths into preferences
+            tool_installers.auto_configure_preferences()
+
             summary = "; ".join(results)
             level = 'ERROR' if any_failed else 'INFO'
             print("ALL TOOL INSTALL RESULTS", summary)

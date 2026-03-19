@@ -92,8 +92,17 @@ class TorchPathManager:
             )
 
             if result.returncode == 0:
-                # Add to sys.path
+                # Add to sys.path immediately for this session
                 TorchPathManager.add_torch_to_path(target_path)
+
+                # Persist the installation path so it is restored on every
+                # future Blender startup (no manual reconnect needed).
+                try:
+                    from . import preferences as _prefs
+                    _prefs.set_torch_custom_path(str(target_path))
+                    print(f"✓ PyTorch path saved to preferences: {target_path}")
+                except Exception as _e:
+                    print(f"Warning: PyTorch installed successfully but could not persist path to preferences: {_e}")
 
                 # Verify installation
                 try:
@@ -120,7 +129,19 @@ class TorchPathManager:
         Returns:
             (bool success, str message, object torch_module or None)
         """
-        # First, check if there's an existing custom installation
+        # 1. Check the path saved in preferences (survives Blender restarts)
+        try:
+            from . import preferences as _prefs
+            saved_path = _prefs.get_torch_custom_path()
+            if saved_path:
+                from pathlib import Path as _Path
+                _sp = _Path(saved_path)
+                if _sp.is_dir():
+                    TorchPathManager.add_torch_to_path(_sp)
+        except Exception:
+            pass
+
+        # 2. Fall back to scanning well-known short paths
         existing_path = TorchPathManager.find_existing_torch_install()
         if existing_path:
             TorchPathManager.add_torch_to_path(existing_path)

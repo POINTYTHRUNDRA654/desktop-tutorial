@@ -3493,6 +3493,49 @@ class FO4_PT_SetupPanel(Panel):
             box.separator()
             box.label(text="All core dependencies ready!", icon='CHECKMARK')
 
+        # ── PyTorch status & path persistence ────────────────────────────
+        torch_box = layout.box()
+        torch_box.label(text="PyTorch (AI Features)", icon='PLUGIN')
+        try:
+            import torch as _torch
+            torch_box.label(text=f"✓ PyTorch {_torch.__version__} loaded", icon='CHECKMARK')
+        except ImportError:
+            torch_box.label(text="✗ PyTorch not found", icon='ERROR')
+            torch_box.label(text="Click below to install to D:/t (short path)", icon='INFO')
+            torch_box.operator("torch.install_custom_path", text="Install PyTorch to D:/t", icon='IMPORT')
+
+        # Show/edit the persisted path
+        prefs = preferences.get_preferences() if preferences else None
+        if prefs is not None:
+            saved = prefs.torch_custom_path
+            if saved:
+                torch_box.label(text=f"Saved path: {saved}", icon='FILE_FOLDER')
+            else:
+                torch_box.label(text="No path saved yet — install above to persist it", icon='INFO')
+            torch_box.prop(prefs, "torch_custom_path", text="Custom Path")
+            torch_box.prop(prefs, "extra_python_paths", text="Extra Python Paths")
+
+        # ── Connected tools status ────────────────────────────────────────
+        tools_box = layout.box()
+        tools_box.label(text="Connected External Tools", icon='TOOL_SETTINGS')
+        if preferences:
+            tool_checks = [
+                (preferences.get_configured_ffmpeg_path()     if preferences else None, "ffmpeg"),
+                (preferences.get_configured_nvcompress_path() if preferences else None, "NVTT (nvcompress)"),
+                (preferences.get_configured_texconv_path()    if preferences else None, "texconv"),
+            ]
+            any_missing = False
+            for path, label in tool_checks:
+                if path:
+                    tools_box.label(text=f"✓ {label}: {path}", icon='CHECKMARK')
+                else:
+                    tools_box.label(text=f"✗ {label}: not configured", icon='ERROR')
+                    any_missing = True
+            if any_missing:
+                tools_box.label(text="Install tools below — paths auto-save and persist", icon='INFO')
+        else:
+            tools_box.label(text="Preferences unavailable", icon='ERROR')
+
         # ── Quick actions ─────────────────────────────────────────────────
         row = layout.row(align=True)
         row.operator("fo4.self_test", text="Environment Check", icon='CHECKMARK')

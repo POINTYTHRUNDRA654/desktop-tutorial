@@ -130,6 +130,57 @@ def get_unreal_assets_path() -> str | None:
     return None
 
 
+def get_torch_custom_path() -> str | None:
+    """Return the persisted custom PyTorch installation directory, if set."""
+    prefs = get_preferences()
+    if not prefs:
+        return None
+    path = bpy.path.abspath(prefs.torch_custom_path).strip()
+    return path if path else None
+
+
+def set_torch_custom_path(path: str) -> None:
+    """Persist a custom PyTorch installation path in the add-on preferences."""
+    prefs = get_preferences()
+    if prefs is not None:
+        prefs.torch_custom_path = path
+
+
+def restore_extra_python_paths() -> list[str]:
+    """Add all persisted extra Python paths to sys.path and return added entries.
+
+    This must be called during add-on registration so that packages installed
+    outside Blender's site-packages (e.g. via pip --target) are importable in
+    every Blender session without any manual user action.
+    """
+    import sys as _sys
+
+    prefs = get_preferences()
+    if not prefs:
+        return []
+
+    added: list[str] = []
+
+    # Restore the dedicated torch_custom_path preference
+    torch_path = bpy.path.abspath(prefs.torch_custom_path).strip()
+    if torch_path and os.path.isdir(torch_path) and torch_path not in _sys.path:
+        _sys.path.insert(0, torch_path)
+        added.append(torch_path)
+        print(f"✓ Restored PyTorch path to sys.path: {torch_path}")
+
+    # Restore any extra semicolon-separated paths
+    extra = prefs.extra_python_paths.strip()
+    if extra:
+        for entry in extra.split(";"):
+            entry = bpy.path.abspath(entry.strip())
+            if entry and os.path.isdir(entry) and entry not in _sys.path:
+                _sys.path.insert(0, entry)
+                added.append(entry)
+                print(f"✓ Restored extra Python path to sys.path: {entry}")
+
+    return added
+
+
 class FO4AddonPreferences(bpy.types.AddonPreferences):
     """Stores user-configurable add-on preferences."""
 
@@ -299,6 +350,27 @@ class FO4AddonPreferences(bpy.types.AddonPreferences):
         name="PyTorch Install Attempted",
         default=False,
         description="Internal flag to track if PyTorch auto-install was already attempted",
+    )
+
+    torch_custom_path: bpy.props.StringProperty(
+        name="PyTorch Custom Path",
+        subtype="DIR_PATH",
+        default="",
+        description=(
+            "Directory where PyTorch was installed with --target (e.g. D:/t). "
+            "Set automatically when you click 'Install PyTorch to Short Path'. "
+            "Added to sys.path on every Blender startup so torch stays accessible."
+        ),
+    )
+
+    extra_python_paths: bpy.props.StringProperty(
+        name="Extra Python Paths",
+        default="",
+        description=(
+            "Semicolon-separated list of extra directories to add to sys.path on "
+            "every Blender startup.  Use this to make packages installed outside "
+            "Blender's site-packages (e.g. via pip --target) permanently accessible."
+        ),
     )
 
     # ---- Mesh optimization settings ----
