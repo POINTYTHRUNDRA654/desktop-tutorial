@@ -199,6 +199,22 @@ modules = list(
 )
 
 
+def _on_load_post(*args):
+    """Restore path preferences into all scenes' properties after every file load.
+
+    Blender resets scene properties to their defaults when a new or different
+    .blend file is opened.  By copying the globally-saved addon-preference values
+    back into every scene here, users don't have to re-enter their game-asset paths
+    every time they start Blender or open a fresh file.
+    """
+    try:
+        if preferences:
+            for scene in bpy.data.scenes:
+                preferences.restore_scene_props_from_prefs(scene)
+    except Exception as e:
+        print(f"Could not restore scene properties from preferences: {e}")
+
+
 def register():
     """Register all add-on classes and handlers"""
     # ── Step 1: register modules so Blender classes / preferences exist ──────
@@ -250,6 +266,22 @@ def register():
                 print(f"✓ Restored {len(restored)} extra Python path(s) from preferences")
     except Exception as e:
         print(f"Could not restore extra Python paths: {e}")
+
+    # ── Step 2b: register load_post handler to restore scene paths from prefs ─
+    # This ensures game-asset path settings survive opening a new .blend file or
+    # restarting Blender, by re-populating scene properties from addon preferences.
+    try:
+        if _on_load_post not in bpy.app.handlers.load_post:
+            bpy.app.handlers.load_post.append(_on_load_post)
+        # Also fire for the factory startup file (default new file on fresh start)
+        if hasattr(bpy.app.handlers, 'load_factory_startup_post'):
+            if _on_load_post not in bpy.app.handlers.load_factory_startup_post:
+                bpy.app.handlers.load_factory_startup_post.append(_on_load_post)
+        # Run once immediately so the current session benefits straight away
+        _on_load_post()
+        print("✓ Scene-properties restore handler registered")
+    except Exception as e:
+        print(f"Could not register scene restore handler: {e}")
 
     # ── Step 3: auto-detect PyTorch from well-known short paths ──────────────
     # Supplements Step 2: catches installs that pre-date the path-persistence
@@ -413,6 +445,15 @@ def register():
 
 def unregister():
     """Unregister all add-on classes and handlers"""
+    # Remove the load_post handler that restores scene properties from prefs
+    try:
+        if _on_load_post in bpy.app.handlers.load_post:
+            bpy.app.handlers.load_post.remove(_on_load_post)
+        if hasattr(bpy.app.handlers, 'load_factory_startup_post'):
+            if _on_load_post in bpy.app.handlers.load_factory_startup_post:
+                bpy.app.handlers.load_factory_startup_post.remove(_on_load_post)
+    except Exception:
+        pass
     try:
         if advisor_helpers:
             advisor_helpers.stop_auto_monitor()
