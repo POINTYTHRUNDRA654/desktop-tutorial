@@ -174,6 +174,19 @@ def set_umodel_path(path: str) -> None:
         save_prefs_deferred()
 
 
+def _pref_path_update(self, context):  # noqa: ARG001
+    """Update callback for addon-preference path properties.
+
+    Blender updates the in-memory preference immediately when the user edits a
+    path field that is bound via ``layout.prop(prefs, ...)``, but it does NOT
+    automatically flush those changes to disk.  Attaching this function as the
+    ``update=`` handler ensures that every keystroke (or paste) in a path field
+    schedules a deferred ``save_userpref()`` call so the value is persisted
+    across Blender restarts.
+    """
+    save_prefs_deferred()
+
+
 def save_prefs_deferred() -> None:
     """Schedule an explicit save of Blender user preferences via a timer.
 
@@ -376,6 +389,7 @@ class FO4AddonPreferences(bpy.types.AddonPreferences):
             "Leave blank for auto-detection from game installation. "
             "Example: H:/Fallout 4 working folder"
         ),
+        update=_pref_path_update,
     )
 
     fo4_assets_mesh_path: bpy.props.StringProperty(
@@ -383,6 +397,7 @@ class FO4AddonPreferences(bpy.types.AddonPreferences):
         subtype="DIR_PATH",
         default="",
         description="Path to the Fallout 4 meshes sub-folder (e.g. Data/meshes)",
+        update=_pref_path_update,
     )
 
     fo4_assets_tex_path: bpy.props.StringProperty(
@@ -390,6 +405,7 @@ class FO4AddonPreferences(bpy.types.AddonPreferences):
         subtype="DIR_PATH",
         default="",
         description="Path to the Fallout 4 textures sub-folder (e.g. Data/textures)",
+        update=_pref_path_update,
     )
 
     fo4_assets_mat_path: bpy.props.StringProperty(
@@ -397,6 +413,7 @@ class FO4AddonPreferences(bpy.types.AddonPreferences):
         subtype="DIR_PATH",
         default="",
         description="Path to the Fallout 4 materials sub-folder (e.g. Data/materials)",
+        update=_pref_path_update,
     )
 
     unity_assets_path: bpy.props.StringProperty(
