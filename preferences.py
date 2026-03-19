@@ -180,10 +180,26 @@ def save_prefs_deferred() -> None:
     Safe to call from any context (draw(), modal, plain functions).  The
     actual ``bpy.ops.wm.save_userpref()`` call runs from the main-thread
     timer callback where a proper Blender context is available.
+
+    A window context override is applied so the operator succeeds even when
+    no area/region is active (e.g. inside a load_post handler or a timer
+    fired with no focused panel).  Blender 3.2+ uses ``temp_override``; older
+    builds fall back to a context-dict override.
     """
     def _do_save():
         try:
-            bpy.ops.wm.save_userpref()
+            wm = bpy.context.window_manager
+            wins = getattr(wm, 'windows', ())
+            if hasattr(bpy.context, 'temp_override') and wins:
+                # Blender 3.2+ – guaranteed operator context
+                with bpy.context.temp_override(window=wins[0]):
+                    bpy.ops.wm.save_userpref()
+            elif wins:
+                # Blender < 3.2 – legacy context override dict
+                bpy.ops.wm.save_userpref({'window': wins[0]})
+            else:
+                # No window available yet – attempt bare call as last resort
+                bpy.ops.wm.save_userpref()
             print("✓ Add-on preferences saved to disk")
         except Exception as e:
             print(f"Could not auto-save preferences: {e}")

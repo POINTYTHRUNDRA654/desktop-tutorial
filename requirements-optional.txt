@@ -1,0 +1,12 @@
+# Optional Python packages for the Fallout 4 Tutorial Helper add-on.
+# These are NOT required for core functionality; they enable additional
+# AI-powered or heavy-processing features.
+#
+# Uncomment a line (remove the leading #) to include that package when
+# "Install Python Requirements (including optional)" is run.
+#
+# gradio>=3.50.0
+# diffusers>=0.21.0
+# transformers>=4.30.0
+# accelerate>=0.24.0
+# openai>=1.0.0
