@@ -27,7 +27,7 @@ try:
     # Check if PyTorch is available (required for motion model)
     import torch
     TORCH_AVAILABLE = True
-except FileNotFoundError as e:
+except OSError as e:
     TORCH_AVAILABLE = False
     if "WinError 206" in str(e) or "filename or extension is too long" in str(e):
         HYMOTION_ERROR = "Windows path length error: PyTorch cannot load due to Windows MAX_PATH limitation. Enable long paths in Windows or reinstall PyTorch in a shorter path."
