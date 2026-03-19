@@ -215,11 +215,14 @@ def _on_load_post(*args):
     except Exception as e:
         print(f"Could not restore scene properties from preferences: {e}")
 
-    # Restore asset-library paths from their own JSON config file.
+    # Restore asset-library paths from their own JSON config file,
+    # then immediately re-populate the asset list for every scene so users
+    # never have to click "Scan Asset Library" again after opening a project.
     try:
         if asset_library:
             for scene in bpy.data.scenes:
                 asset_library.load_asset_paths(scene)
+                asset_library.auto_scan_for_scene(scene)
     except Exception as e:
         print(f"Could not restore asset library paths: {e}")
 

@@ -42,6 +42,13 @@ _MATERIAL_EXTS: frozenset[str] = frozenset({
 })
 _ALL_EXTS: frozenset[str] = _MESH_EXTS | _TEXTURE_EXTS | _MATERIAL_EXTS
 
+# Categories inferred from semantic path keywords — kept as a module-level
+# constant so neither _populate_asset_list nor the scan operator recreate it.
+_SEMANTIC_MESH_CATEGORIES: frozenset[str] = frozenset({
+    'Characters', 'Weapons', 'Vegetation',
+    'Architecture', 'Vehicles', 'Props',
+})
+
 # Keywords used to infer an asset's category from its path / name.
 # Checked in order; first match wins.
 _CATEGORY_KEYWORDS: list[tuple[str, list[str]]] = [
@@ -172,6 +179,109 @@ def _expand_blend_items(entries: list[dict], category: str | None = None) -> lis
         else:
             expanded.append(d)
     return expanded
+
+
+# ---------------------------------------------------------------------------
+# Scan helpers (usable outside operator context)
+# ---------------------------------------------------------------------------
+
+def _populate_asset_list(scene) -> int:
+    """Rebuild the asset list for *scene* from its configured paths.
+
+    Returns the number of unique assets found.  The existing list is cleared
+    and rebuilt from scratch, so the result is always fresh.  This is pure
+    Python — no operator context required — making it safe to call from
+    app-handlers and other non-operator contexts.
+    """
+    combined_path = bpy.path.abspath(
+        getattr(scene, 'fo4_asset_lib_path', '').strip()
+    )
+    mesh_path = bpy.path.abspath(
+        getattr(scene, 'fo4_asset_lib_mesh_path', '').strip()
+    )
+    tex_path = bpy.path.abspath(
+        getattr(scene, 'fo4_asset_lib_tex_path', '').strip()
+    )
+    mat_path = bpy.path.abspath(
+        getattr(scene, 'fo4_asset_lib_mat_path', '').strip()
+    )
+
+    if not any([combined_path, mesh_path, tex_path, mat_path]):
+        return 0
+
+    all_items: list[dict] = []
+
+    if combined_path and Path(combined_path).exists():
+        p = Path(combined_path)
+        if p.suffix.lower() == '.blend':
+            all_items.extend(_scan_blend(combined_path))
+        elif p.is_dir():
+            found = _scan_folder(combined_path, _ALL_EXTS)
+            all_items.extend(_expand_blend_items(found, category="Materials"))
+
+    if mesh_path and Path(mesh_path).is_dir():
+        found = _scan_folder(mesh_path, _MESH_EXTS)
+        for d in found:
+            if d['category'] not in _SEMANTIC_MESH_CATEGORIES:
+                d['category'] = 'Meshes'
+        all_items.extend(found)
+
+    if tex_path and Path(tex_path).is_dir():
+        found = _scan_folder(tex_path, _TEXTURE_EXTS)
+        for d in found:
+            d['category'] = 'Textures'
+        all_items.extend(found)
+
+    if mat_path and Path(mat_path).is_dir():
+        found = _scan_folder(mat_path, _MATERIAL_EXTS)
+        expanded = _expand_blend_items(found, category="Materials")
+        for d in expanded:
+            d["category"] = "Materials"
+        all_items.extend(expanded)
+
+    # Deduplicate by filepath + name
+    seen: set[tuple[str, str]] = set()
+    unique: list[dict] = []
+    for d in all_items:
+        key = (d['filepath'], d['name'])
+        if key not in seen:
+            seen.add(key)
+            unique.append(d)
+
+    lib = scene.fo4_asset_lib_items
+    lib.clear()
+    for d in unique:
+        item = lib.add()
+        item.name     = d['name']
+        item.filepath = d['filepath']
+        item.category = d['category']
+        item.filetype = d['filetype']
+
+    scene.fo4_asset_lib_active = 0
+    return len(unique)
+
+
+def auto_scan_for_scene(scene) -> None:
+    """Auto-scan assets for *scene* when paths are configured but the list is empty.
+
+    Called from the ``load_post`` handler so assets are immediately available
+    after Blender starts or a project is opened — without the user having to
+    click "Scan Asset Library" again.
+
+    The scan is skipped when the list already contains items so that a scene
+    whose asset list was saved inside the ``.blend`` file is never clobbered.
+    """
+    try:
+        if len(scene.fo4_asset_lib_items) > 0:
+            return  # Already populated — nothing to do
+        count = _populate_asset_list(scene)
+        if count:
+            print(
+                f"[Asset Library] Auto-scan: found {count} asset(s) "
+                f"for scene '{scene.name}'"
+            )
+    except Exception as exc:
+        print(f"[Asset Library] auto_scan_for_scene failed: {exc}")
 
 
 # ---------------------------------------------------------------------------
@@ -319,85 +429,22 @@ class FO4_OT_ScanAssetLibrary(Operator):
 
     def execute(self, context):
         scene = context.scene
-        combined_path = bpy.path.abspath(
-            getattr(scene, 'fo4_asset_lib_path', '').strip()
-        )
-        mesh_path = bpy.path.abspath(
-            getattr(scene, 'fo4_asset_lib_mesh_path', '').strip()
-        )
-        tex_path  = bpy.path.abspath(
-            getattr(scene, 'fo4_asset_lib_tex_path', '').strip()
-        )
-        mat_path  = bpy.path.abspath(
-            getattr(scene, 'fo4_asset_lib_mat_path', '').strip()
-        )
 
-        if not any([combined_path, mesh_path, tex_path, mat_path]):
+        # Guard: warn early if no paths have been set at all
+        has_path = any([
+            getattr(scene, 'fo4_asset_lib_path',      '').strip(),
+            getattr(scene, 'fo4_asset_lib_mesh_path', '').strip(),
+            getattr(scene, 'fo4_asset_lib_tex_path',  '').strip(),
+            getattr(scene, 'fo4_asset_lib_mat_path',  '').strip(),
+        ])
+        if not has_path:
             self.report(
                 {'WARNING'},
                 "No asset paths configured — use 'Set Path' to choose a folder",
             )
             return {'CANCELLED'}
 
-        all_items: list[dict] = []
-
-        # Combined path (any asset type)
-        if combined_path and Path(combined_path).exists():
-            p = Path(combined_path)
-            if p.suffix.lower() == '.blend':
-                all_items.extend(_scan_blend(combined_path))
-            elif p.is_dir():
-                found = _scan_folder(combined_path, _ALL_EXTS)
-                all_items.extend(_expand_blend_items(found, category="Materials"))
-
-        # Dedicated mesh path — force category to 'Meshes' for any item
-        # that didn't match a more specific keyword (e.g. 'Other' or 'Textures').
-        if mesh_path and Path(mesh_path).is_dir():
-            found = _scan_folder(mesh_path, _MESH_EXTS)
-            _SEMANTIC = {
-                'Characters', 'Weapons', 'Vegetation',
-                'Architecture', 'Vehicles', 'Props',
-            }
-            for d in found:
-                if d['category'] not in _SEMANTIC:
-                    d['category'] = 'Meshes'
-            all_items.extend(found)
-
-        # Dedicated texture path
-        if tex_path and Path(tex_path).is_dir():
-            found = _scan_folder(tex_path, _TEXTURE_EXTS)
-            for d in found:
-                d['category'] = 'Textures'
-            all_items.extend(found)
-
-        # Dedicated material (.blend) path
-        if mat_path and Path(mat_path).is_dir():
-            found = _scan_folder(mat_path, _MATERIAL_EXTS)
-            expanded = _expand_blend_items(found, category="Materials")
-            for d in expanded:
-                d["category"] = "Materials"
-            all_items.extend(expanded)
-
-        # Deduplicate by filepath + name
-        seen: set[tuple[str, str]] = set()
-        unique: list[dict] = []
-        for d in all_items:
-            key = (d['filepath'], d['name'])
-            if key not in seen:
-                seen.add(key)
-                unique.append(d)
-
-        lib = scene.fo4_asset_lib_items
-        lib.clear()
-        for d in unique:
-            item = lib.add()
-            item.name     = d['name']
-            item.filepath = d['filepath']
-            item.category = d['category']
-            item.filetype = d['filetype']
-
-        scene.fo4_asset_lib_active = 0
-        count = len(unique)
+        count = _populate_asset_list(scene)
         msg = f"Found {count} asset{'s' if count != 1 else ''}"
         self.report({'INFO'}, msg)
         return {'FINISHED'}
