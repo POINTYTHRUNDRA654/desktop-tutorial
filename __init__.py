@@ -201,18 +201,7 @@ modules = list(
 
 def register():
     """Register all add-on classes and handlers"""
-    # Auto-detect and load PyTorch from custom paths on startup
-    try:
-        if torch_path_manager:
-            existing_torch = (
-                torch_path_manager.TorchPathManager.find_existing_torch_install()
-            )
-            if existing_torch:
-                torch_path_manager.TorchPathManager.add_torch_to_path(existing_torch)
-                print(f"✓ PyTorch found and loaded from: {existing_torch}")
-    except Exception as e:
-        print(f"PyTorch auto-detection skipped: {e}")
-
+    # ── Step 1: register modules so Blender classes / preferences exist ──────
     # Check Blender version and show compatibility info
     blender_version = bpy.app.version
     version_string = f"{blender_version[0]}.{blender_version[1]}.{blender_version[2]}"
@@ -249,6 +238,42 @@ def register():
             import traceback
 
             traceback.print_exc()
+
+    # ── Step 2: restore persisted sys.path entries ───────────────────────────
+    # Runs AFTER module registration so get_preferences() works.
+    # This ensures PyTorch and any other --target-installed packages are
+    # importable every session without user intervention.
+    try:
+        if preferences:
+            restored = preferences.restore_extra_python_paths()
+            if restored:
+                print(f"✓ Restored {len(restored)} extra Python path(s) from preferences")
+    except Exception as e:
+        print(f"Could not restore extra Python paths: {e}")
+
+    # ── Step 3: auto-detect PyTorch from well-known short paths ──────────────
+    # Supplements Step 2: catches installs that pre-date the path-persistence
+    # feature or were installed by external tools.
+    try:
+        if torch_path_manager:
+            existing_torch = (
+                torch_path_manager.TorchPathManager.find_existing_torch_install()
+            )
+            if existing_torch:
+                torch_path_manager.TorchPathManager.add_torch_to_path(existing_torch)
+                print(f"✓ PyTorch found and loaded from: {existing_torch}")
+    except Exception as e:
+        print(f"PyTorch auto-detection skipped: {e}")
+
+    # ── Step 4: auto-discover installed CLI tools and wire up preferences ─────
+    # If ffmpeg / nvcompress / texconv are present in the tools folder but the
+    # preference paths are blank, fill them in automatically.  This means a
+    # fresh Blender install will pick up tools that were already downloaded.
+    try:
+        if tool_installers:
+            tool_installers.auto_configure_preferences()
+    except Exception as e:
+        print(f"Tool auto-discovery skipped: {e}")
 
     # Start advisor auto-monitor (opt-out in preferences)
     # DISABLED: Causes severe performance issues during startup
