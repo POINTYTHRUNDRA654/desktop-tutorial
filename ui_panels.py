@@ -55,15 +55,17 @@ tutorial_system      = _safe_import("tutorial_system")
 # ---------------------------------------------------------------------------
 
 def _draw_game_path_box(layout, context):
-    """Draw the unified FO4 Data Folder row.
+    """Draw the unified FO4 Data Folder row with individual editable path fields.
 
-    Reads and writes ``fo4_assets_path`` from the add-on preferences so the
-    value persists across blend files.  Falls back gracefully when the
-    preferences or fo4_game_assets module are unavailable.
+    Each path row has a text field and a folder-browse button so users can set
+    the FO4 Data root plus Meshes / Textures / Materials sub-paths directly from
+    the panel without opening Blender's Add-on Preferences.
     """
     import os
 
-    # Get prefs for the path field
+    scene = context.scene
+
+    # Get prefs for the path field — may be None when addon not yet registered
     prefs = preferences.get_preferences() if preferences else None
 
     if not fo4_game_assets:
@@ -81,42 +83,40 @@ def _draw_game_path_box(layout, context):
         icon='CHECKMARK' if ready else 'ERROR',
     )
 
-    # ── Single path field + browse button ────────────────────────────────────
-    path_row = box.row(align=True)
+    # ── Root data-folder row ──────────────────────────────────────────────────
+    root_row = box.row(align=True)
     if prefs is not None:
-        path_row.prop(prefs, "fo4_assets_path", text="")
+        root_row.prop(prefs, "fo4_assets_path", text="Data")
+    elif hasattr(scene, 'fo4_assets_path'):
+        root_row.prop(scene, "fo4_assets_path", text="Data")
     else:
-        path_row.label(text="(open Preferences to set path)", icon='INFO')
-    path_row.operator("fo4.set_fo4_assets_path", text="", icon='FILE_FOLDER')
+        root_row.label(text="(open Preferences to set path)", icon='INFO')
+    root_row.operator("fo4.set_fo4_assets_path", text="", icon='FILE_FOLDER')
 
-    # ── Status feedback ───────────────────────────────────────────────────────
-    sub = box.column(align=True)
-    sub.scale_y = 0.75
-    if ready:
-        try:
-            from pathlib import Path as _P
-            raw = (prefs.fo4_assets_path if prefs else '') or ''
-            try:
-                raw = bpy.path.abspath(raw)
-            except Exception:
-                pass
-            data_root = _P(raw.strip())
-            for label, subdir in (
-                ("Meshes",    "meshes"),
-                ("Textures",  "textures"),
-                ("Materials", "materials"),
-            ):
-                found = (data_root / subdir).is_dir()
-                sub.label(
-                    text=f"{label}: {'found' if found else 'not found'}",
-                    icon='CHECKMARK' if found else 'DOT',
-                )
-        except Exception:
-            pass
-    else:
-        sub.label(text="Point this at your extracted FO4 Data folder", icon='INFO')
-        sub.label(text="e.g.  D:\\FO4\\Data", icon='DOT')
-        sub.label(text="Meshes, textures & materials auto-detected inside", icon='DOT')
+    # ── Individual sub-path rows ──────────────────────────────────────────────
+    sub_box = box.box()
+    col = sub_box.column(align=True)
+    col.scale_y = 0.9
+
+    for label, scene_prop, slot in (
+        ("Meshes",    "fo4_assets_mesh_path", "meshes"),
+        ("Textures",  "fo4_assets_tex_path",  "textures"),
+        ("Materials", "fo4_assets_mat_path",  "materials"),
+    ):
+        row = col.row(align=True)
+        if hasattr(scene, scene_prop):
+            row.prop(scene, scene_prop, text=label)
+        else:
+            row.label(text=f"{label}: (not configured)", icon='DOT')
+        op = row.operator("fo4.set_fo4_sub_path", text="", icon='FILE_FOLDER')
+        op.slot = slot
+
+    if not ready:
+        hint = box.column(align=True)
+        hint.scale_y = 0.75
+        hint.label(text="Point 'Data' at your extracted FO4 Data folder", icon='INFO')
+        hint.label(text="e.g.  D:\\FO4\\Data", icon='DOT')
+        hint.label(text="Sub-paths auto-fill when set; or browse each manually", icon='DOT')
 
 class FO4_PT_MainPanel(Panel):
     """Main tutorial panel in the 3D View sidebar"""
@@ -1627,11 +1627,18 @@ class FO4_PT_GameAssetsPanel(Panel):
             info_col.scale_y = 0.8
             info_col.label(text=message, icon=status_icon)
 
+            # Always show the path row so the user can set / change the folder
+            path_row = unity_box.row(align=True)
+            prefs_u = preferences.get_preferences() if preferences else None
+            if prefs_u is not None:
+                path_row.prop(prefs_u, "unity_assets_path", text="Path")
+            elif hasattr(context.scene, 'fo4_unity_assets_path'):
+                path_row.prop(context.scene, "fo4_unity_assets_path", text="Path")
+            path_row.operator("fo4.set_unity_assets_path", text="", icon='FILE_FOLDER')
+
             if ready:
                 unity_box.operator("fo4.browse_unity_assets", text="Browse Unity Assets", icon='VIEWZOOM')
                 unity_box.operator("fo4.import_unity_asset", text="Import Unity Asset", icon='IMPORT')
-            else:
-                unity_box.label(text="Set Unity path in preferences", icon='PREFERENCES')
         else:
             unity_box.label(text="unity_game_assets module missing – reinstall add-on", icon='ERROR')
 
@@ -1647,11 +1654,18 @@ class FO4_PT_GameAssetsPanel(Panel):
             info_col.scale_y = 0.8
             info_col.label(text=message, icon=status_icon)
 
+            # Always show the path row so the user can set / change the folder
+            path_row = unreal_box.row(align=True)
+            prefs_ue = preferences.get_preferences() if preferences else None
+            if prefs_ue is not None:
+                path_row.prop(prefs_ue, "unreal_assets_path", text="Path")
+            elif hasattr(context.scene, 'fo4_unreal_assets_path'):
+                path_row.prop(context.scene, "fo4_unreal_assets_path", text="Path")
+            path_row.operator("fo4.set_unreal_assets_path", text="", icon='FILE_FOLDER')
+
             if ready:
                 unreal_box.operator("fo4.browse_unreal_assets", text="Browse Unreal Assets", icon='VIEWZOOM')
                 unreal_box.operator("fo4.import_unreal_asset", text="Import Unreal Asset", icon='IMPORT')
-            else:
-                unreal_box.label(text="Set Unreal path in preferences", icon='PREFERENCES')
         else:
             unreal_box.label(text="unreal_game_assets module missing – reinstall add-on", icon='ERROR')
 
@@ -3524,11 +3538,19 @@ class FO4_PT_SettingsPanel(Panel):
         other_paths = layout.box()
         other_paths.label(text="Other Asset Paths", icon="FILE_FOLDER")
         if prefs is not None:
-            other_paths.prop(prefs, "unity_assets_path",  text="Unity Assets")
-            other_paths.prop(prefs, "unreal_assets_path", text="Unreal Assets")
+            row = other_paths.row(align=True)
+            row.prop(prefs, "unity_assets_path",  text="Unity Assets")
+            row.operator("fo4.set_unity_assets_path", text="", icon='FILE_FOLDER')
+            row = other_paths.row(align=True)
+            row.prop(prefs, "unreal_assets_path", text="Unreal Assets")
+            row.operator("fo4.set_unreal_assets_path", text="", icon='FILE_FOLDER')
         else:
-            other_paths.prop(scene, "fo4_unity_assets_path",  text="Unity Assets")
-            other_paths.prop(scene, "fo4_unreal_assets_path", text="Unreal Assets")
+            row = other_paths.row(align=True)
+            row.prop(scene, "fo4_unity_assets_path",  text="Unity Assets")
+            row.operator("fo4.set_unity_assets_path", text="", icon='FILE_FOLDER')
+            row = other_paths.row(align=True)
+            row.prop(scene, "fo4_unreal_assets_path", text="Unreal Assets")
+            row.operator("fo4.set_unreal_assets_path", text="", icon='FILE_FOLDER')
 
         # ── Tool Paths ────────────────────────────────────────────────────────
         tools_box = layout.box()

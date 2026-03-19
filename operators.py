@@ -7671,24 +7671,177 @@ class FO4_OT_SetFO4AssetsPath(Operator):
     def execute(self, context):
         from . import preferences as _prefs
         prefs = _prefs.get_preferences()
-        if prefs is None:
-            self.report({'ERROR'}, "Could not access addon preferences")
-            return {'CANCELLED'}
 
         chosen = self.directory.rstrip("/\\")
         if not chosen:
             self.report({'ERROR'}, "No directory selected")
             return {'CANCELLED'}
 
-        prefs.fo4_assets_path = chosen
+        # Always save to scene property so the panel reflects the choice
+        if hasattr(context.scene, 'fo4_assets_path'):
+            context.scene.fo4_assets_path = chosen
+
+        # Also persist in addon preferences when available
+        if prefs is not None:
+            prefs.fo4_assets_path = chosen
+
+        # Auto-populate sub-paths when they are still empty
+        from pathlib import Path as _Path
+        root = _Path(chosen)
+        for prop, subdir in (
+            ('fo4_assets_mesh_path', 'meshes'),
+            ('fo4_assets_tex_path',  'textures'),
+            ('fo4_assets_mat_path',  'materials'),
+        ):
+            if not getattr(context.scene, prop, '').strip():
+                candidate = root / subdir
+                if candidate.is_dir():
+                    setattr(context.scene, prop, str(candidate))
+
         # Invalidate cached game dir so next detection uses the new path
-        fo4_game_assets.FO4GameAssets._game_dir = None
-        fo4_game_assets.FO4GameAssets._asset_index = None
+        if fo4_game_assets:
+            fo4_game_assets.FO4GameAssets._game_dir = None
+            fo4_game_assets.FO4GameAssets._asset_index = None
 
         self.report({'INFO'}, f"FO4 assets path set to: {chosen}")
-        notification_system.FO4_NotificationSystem.notify(
-            f"FO4 assets path set: {chosen}", 'INFO'
-        )
+        if notification_system:
+            notification_system.FO4_NotificationSystem.notify(
+                f"FO4 assets path set: {chosen}", 'INFO'
+            )
+        return {'FINISHED'}
+
+    def invoke(self, context, event):
+        context.window_manager.fileselect_add(self)
+        return {'RUNNING_MODAL'}
+
+
+class FO4_OT_SetFO4SubPath(Operator):
+    """Open a folder picker to set an individual FO4 asset sub-folder (Meshes, Textures, or Materials)"""
+    bl_idname = "fo4.set_fo4_sub_path"
+    bl_label = "Set FO4 Sub-Folder"
+    bl_description = (
+        "Choose the folder for this asset type — the path is saved directly "
+        "in the scene so you can use it straight away without opening Preferences"
+    )
+
+    slot: StringProperty(
+        name="Slot",
+        description="Which sub-path to set: 'meshes', 'textures', or 'materials'",
+        default='meshes',
+        options={'SKIP_SAVE'},
+    )
+    directory: StringProperty(subtype='DIR_PATH')
+
+    _prop_map = {
+        'meshes':    'fo4_assets_mesh_path',
+        'textures':  'fo4_assets_tex_path',
+        'materials': 'fo4_assets_mat_path',
+    }
+
+    def execute(self, context):
+        chosen = self.directory.rstrip("/\\")
+        if not chosen:
+            self.report({'ERROR'}, "No folder selected")
+            return {'CANCELLED'}
+
+        prop = self._prop_map.get(self.slot, 'fo4_assets_mesh_path')
+        if hasattr(context.scene, prop):
+            setattr(context.scene, prop, chosen)
+
+        if fo4_game_assets:
+            fo4_game_assets.FO4GameAssets._asset_index = None
+
+        self.report({'INFO'}, f"FO4 {self.slot} path set to: {chosen}")
+        return {'FINISHED'}
+
+    def invoke(self, context, event):
+        context.window_manager.fileselect_add(self)
+        return {'RUNNING_MODAL'}
+
+
+class FO4_OT_SetUnityAssetsPath(Operator):
+    """Open a folder picker to set the Unity assets path directly from the panel"""
+    bl_idname = "fo4.set_unity_assets_path"
+    bl_label = "Set Unity Assets Path"
+    bl_description = (
+        "Choose the folder containing your Unity project assets or exported models. "
+        "The path is saved in addon preferences and the scene."
+    )
+
+    directory: StringProperty(
+        name="Unity Assets Directory",
+        description="Path to the Unity assets folder",
+        subtype='DIR_PATH',
+    )
+
+    def execute(self, context):
+        from . import preferences as _prefs
+        prefs = _prefs.get_preferences()
+
+        chosen = self.directory.rstrip("/\\")
+        if not chosen:
+            self.report({'ERROR'}, "No directory selected")
+            return {'CANCELLED'}
+
+        if hasattr(context.scene, 'fo4_unity_assets_path'):
+            context.scene.fo4_unity_assets_path = chosen
+
+        if prefs is not None:
+            prefs.unity_assets_path = chosen
+
+        if unity_game_assets:
+            unity_game_assets.UnityAssets._assets_dir = None
+
+        self.report({'INFO'}, f"Unity assets path set to: {chosen}")
+        if notification_system:
+            notification_system.FO4_NotificationSystem.notify(
+                f"Unity assets path set: {chosen}", 'INFO'
+            )
+        return {'FINISHED'}
+
+    def invoke(self, context, event):
+        context.window_manager.fileselect_add(self)
+        return {'RUNNING_MODAL'}
+
+
+class FO4_OT_SetUnrealAssetsPath(Operator):
+    """Open a folder picker to set the Unreal Engine assets path directly from the panel"""
+    bl_idname = "fo4.set_unreal_assets_path"
+    bl_label = "Set Unreal Assets Path"
+    bl_description = (
+        "Choose the folder containing your Unreal Engine project content or exported assets. "
+        "The path is saved in addon preferences and the scene."
+    )
+
+    directory: StringProperty(
+        name="Unreal Assets Directory",
+        description="Path to the Unreal Engine assets folder",
+        subtype='DIR_PATH',
+    )
+
+    def execute(self, context):
+        from . import preferences as _prefs
+        prefs = _prefs.get_preferences()
+
+        chosen = self.directory.rstrip("/\\")
+        if not chosen:
+            self.report({'ERROR'}, "No directory selected")
+            return {'CANCELLED'}
+
+        if hasattr(context.scene, 'fo4_unreal_assets_path'):
+            context.scene.fo4_unreal_assets_path = chosen
+
+        if prefs is not None:
+            prefs.unreal_assets_path = chosen
+
+        if unreal_game_assets:
+            unreal_game_assets.UnrealAssets._assets_dir = None
+
+        self.report({'INFO'}, f"Unreal assets path set to: {chosen}")
+        if notification_system:
+            notification_system.FO4_NotificationSystem.notify(
+                f"Unreal assets path set: {chosen}", 'INFO'
+            )
         return {'FINISHED'}
 
     def invoke(self, context, event):
@@ -12596,6 +12749,9 @@ classes = (
     FO4_OT_ExportModFolder,
     # Game asset browsers + direct path/import/conversion operators
     FO4_OT_SetFO4AssetsPath,
+    FO4_OT_SetFO4SubPath,
+    FO4_OT_SetUnityAssetsPath,
+    FO4_OT_SetUnrealAssetsPath,
     FO4_OT_ImportFO4AssetFile,
     FO4_OT_PrepareThirdPartyMesh,
     FO4_OT_BrowseFO4Assets,
@@ -12794,6 +12950,54 @@ def register():
         subtype='DIR_PATH',
     )
 
+    # ── Game asset paths stored per-scene (mirror of addon preferences) ───────
+    bpy.types.Scene.fo4_assets_path = bpy.props.StringProperty(
+        name="FO4 Data Folder",
+        description=(
+            "Path to your extracted Fallout 4 Data folder "
+            "(e.g. D:\\FO4\\Data). Mirrors the addon preference so the panel "
+            "always has an editable field even if preferences are unavailable."
+        ),
+        default="",
+        subtype='DIR_PATH',
+    )
+    bpy.types.Scene.fo4_assets_mesh_path = bpy.props.StringProperty(
+        name="Meshes Folder",
+        description="Path to the Meshes sub-folder inside your FO4 Data folder",
+        default="",
+        subtype='DIR_PATH',
+    )
+    bpy.types.Scene.fo4_assets_tex_path = bpy.props.StringProperty(
+        name="Textures Folder",
+        description="Path to the Textures sub-folder inside your FO4 Data folder",
+        default="",
+        subtype='DIR_PATH',
+    )
+    bpy.types.Scene.fo4_assets_mat_path = bpy.props.StringProperty(
+        name="Materials Folder",
+        description="Path to the Materials sub-folder inside your FO4 Data folder",
+        default="",
+        subtype='DIR_PATH',
+    )
+    bpy.types.Scene.fo4_unity_assets_path = bpy.props.StringProperty(
+        name="Unity Assets Folder",
+        description=(
+            "Path to your Unity project assets or exported models folder. "
+            "Mirrors the addon preference."
+        ),
+        default="",
+        subtype='DIR_PATH',
+    )
+    bpy.types.Scene.fo4_unreal_assets_path = bpy.props.StringProperty(
+        name="Unreal Assets Folder",
+        description=(
+            "Path to your Unreal Engine project content or exported assets folder. "
+            "Mirrors the addon preference."
+        ),
+        default="",
+        subtype='DIR_PATH',
+    )
+
     # ── FO4 export version selector ───────────────────────────────────────────
     bpy.types.Scene.fo4_game_version = bpy.props.EnumProperty(
         name="Game Version",
@@ -12863,6 +13067,13 @@ def unregister():
         "fo4_instantngp_path",
         "fo4_havok2fbx_path",
         "fo4_game_version",
+        # Asset folder paths (per-scene mirrors of addon preferences)
+        "fo4_assets_path",
+        "fo4_assets_mesh_path",
+        "fo4_assets_tex_path",
+        "fo4_assets_mat_path",
+        "fo4_unity_assets_path",
+        "fo4_unreal_assets_path",
     ):
         if hasattr(bpy.types.Scene, prop):
             try:
