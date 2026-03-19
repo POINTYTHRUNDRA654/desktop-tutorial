@@ -12,6 +12,7 @@ a single click.
 
 from __future__ import annotations
 
+import json
 import os
 from pathlib import Path
 
@@ -527,7 +528,65 @@ _CLASSES = [
     FO4_OT_ClearAssetLibrary,
 ]
 
-def _invalidate_game_asset_cache(self, context):
+def _config_path() -> str:
+    """Return the absolute path to the asset-library JSON config file.
+
+    Stored next to this module so it survives Blender restarts and is
+    independent of which .blend file is currently open.
+    """
+    return os.path.join(os.path.dirname(__file__), "asset_lib_config.json")
+
+
+_CONFIG_KEYS = (
+    "fo4_asset_lib_path",
+    "fo4_asset_lib_mesh_path",
+    "fo4_asset_lib_tex_path",
+    "fo4_asset_lib_mat_path",
+)
+
+
+def save_asset_paths(scene) -> None:
+    """Persist the four asset-library path scene properties to disk.
+
+    Writes a tiny JSON file next to the addon so the values survive opening
+    a new .blend file or restarting Blender.
+    """
+    data = {key: getattr(scene, key, "") for key in _CONFIG_KEYS}
+    try:
+        with open(_config_path(), "w", encoding="utf-8") as fh:
+            json.dump(data, fh, indent=2)
+    except Exception as exc:
+        print(f"[Asset Library] Could not save config: {exc}")
+
+
+def load_asset_paths(scene) -> None:
+    """Restore asset-library path scene properties from the JSON config file.
+
+    Only populates a scene property when it is currently empty, so a
+    project-specific path already saved inside a .blend file is never
+    clobbered.
+    """
+    cfg = _config_path()
+    if not os.path.isfile(cfg):
+        return
+    try:
+        with open(cfg, "r", encoding="utf-8") as fh:
+            data = json.load(fh)
+    except Exception as exc:
+        print(f"[Asset Library] Could not load config: {exc}")
+        return
+
+    for key in _CONFIG_KEYS:
+        saved = data.get(key, "").strip()
+        current = getattr(scene, key, "").strip()
+        if saved and not current:
+            try:
+                setattr(scene, key, saved)
+            except Exception as exc:
+                print(f"[Asset Library] Could not restore {key}: {exc}")
+
+
+def _invalidate_game_asset_cache(self, context):  # noqa: ARG001
     """Called whenever an asset-path property changes.
 
     Clears the FO4GameAssets._game_dir cache so the next Smart Preset or
@@ -557,18 +616,14 @@ def _invalidate_game_asset_cache(self, context):
                     current = getattr(self, 'fo4_assets_path', '').strip()
                     if not current:
                         # Set the root path; its own update callback will
-                        # populate the other sub-paths (tex, mat) and save.
+                        # populate the other sub-paths (tex, mat).
                         self.fo4_assets_path = str(parent)
-                        return  # _on_asset_path_change will call save_settings
+                        # Fall through so save_asset_paths() is called below.
     except Exception:
         pass
 
     # Persist the changed path so it survives scene switches and restarts.
-    try:
-        from . import preferences as _prefs
-        _prefs.save_settings(self)
-    except Exception:
-        pass
+    save_asset_paths(self)
 
 
 _SCENE_PROPS: list[tuple[str, object]] = [
