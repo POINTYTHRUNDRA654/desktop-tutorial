@@ -3598,17 +3598,25 @@ class FO4_PT_SettingsPanel(Panel):
         # ── Tool Paths ────────────────────────────────────────────────────────
         tools_box = layout.box()
         tools_box.label(text="Tool Paths", icon="TOOL_SETTINGS")
-        tools_box.prop(scene, "fo4_tools_root", text="Tools Root")
-        tools_root = bpy.path.abspath(getattr(scene, "fo4_tools_root", "")) if getattr(scene, "fo4_tools_root", "") else ""
+        if prefs is not None:
+            tools_box.prop(prefs, "tools_root", text="Tools Root")
+            tools_root = bpy.path.abspath(prefs.tools_root) if prefs.tools_root else ""
+        else:
+            tools_box.prop(scene, "fo4_tools_root", text="Tools Root")
+            tools_root = bpy.path.abspath(getattr(scene, "fo4_tools_root", "")) if getattr(scene, "fo4_tools_root", "") else ""
         if tools_root and os.path.isdir(tools_root):
             tools_box.label(text=f"✓ {tools_root}", icon="CHECKMARK")
         else:
             tools_box.label(text="Tool root not found – set to where you keep CLI tools",
                             icon="ERROR")
 
-        tools_box.prop(scene, "fo4_havok2fbx_path", text="Havok2FBX Folder")
-        h_path_raw = getattr(scene, "fo4_havok2fbx_path", "")
-        h_path = bpy.path.abspath(h_path_raw) if h_path_raw else ""
+        if prefs is not None:
+            tools_box.prop(prefs, "havok2fbx_path", text="Havok2FBX Folder")
+            h_path = bpy.path.abspath(prefs.havok2fbx_path) if prefs.havok2fbx_path else ""
+        else:
+            tools_box.prop(scene, "fo4_havok2fbx_path", text="Havok2FBX Folder")
+            h_path_raw = getattr(scene, "fo4_havok2fbx_path", "")
+            h_path = bpy.path.abspath(h_path_raw) if h_path_raw else ""
         if h_path and os.path.isdir(h_path):
             tools_box.label(text=f"✓ {h_path}", icon="CHECKMARK")
         else:

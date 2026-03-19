@@ -196,36 +196,73 @@ def save_prefs_deferred() -> None:
 
 
 def restore_scene_props_from_prefs(scene) -> None:
-    """Copy persisted addon-preference path values into scene properties.
+    """Copy persisted addon-preference values into scene properties.
 
     Scene properties reset to their defaults every time a new .blend file is
     created or opened (unless that file itself saved the values).  Calling this
     from a ``load_post`` / ``load_factory_startup_post`` handler ensures the
-    panels always reflect the globally-saved paths without the user having to
+    panels always reflect the globally-saved settings without the user having to
     re-enter them.
+
+    Path strings are only copied when the scene property is still empty so
+    that project-specific paths saved inside a .blend file are not clobbered.
+    Non-string settings (booleans, ints, floats) are always restored from
+    preferences so they act as persistent global defaults.
     """
     prefs = get_preferences()
     if prefs is None or scene is None:
         return
 
-    _PREF_TO_SCENE = {
+    # ── Path properties: restore only when the scene property is empty ────────
+    _PATH_PREF_TO_SCENE = {
         "fo4_assets_path":      "fo4_assets_path",
         "fo4_assets_mesh_path": "fo4_assets_mesh_path",
         "fo4_assets_tex_path":  "fo4_assets_tex_path",
         "fo4_assets_mat_path":  "fo4_assets_mat_path",
         "unity_assets_path":    "fo4_unity_assets_path",
         "unreal_assets_path":   "fo4_unreal_assets_path",
-        # Tool/runtime paths – these were previously scene-only; now backed by
-        # addon preferences so they survive opening a new .blend file.
+        # Tool/runtime paths – backed by addon preferences so they survive
+        # opening a new .blend file.
         "havok2fbx_path":       "fo4_havok2fbx_path",
         "torch_custom_path":    "fo4_torch_root",
         "tools_root":           "fo4_tools_root",
         "instantngp_path":      "fo4_instantngp_path",
+        # Havok output directory – treat as path (restore only when scene prop is empty)
+        "havok_output_dir":     "fo4_havok_output_dir",
     }
-    for pref_attr, scene_attr in _PREF_TO_SCENE.items():
-        saved = getattr(prefs, pref_attr, "").strip()
-        if saved and hasattr(scene, scene_attr) and not getattr(scene, scene_attr, "").strip():
+    for pref_attr, scene_attr in _PATH_PREF_TO_SCENE.items():
+        if not hasattr(prefs, pref_attr) or not hasattr(scene, scene_attr):
+            continue
+        saved = getattr(prefs, pref_attr, "")
+        if not isinstance(saved, str):
+            continue
+        if saved.strip() and not getattr(scene, scene_attr, "").strip():
             setattr(scene, scene_attr, saved)
+
+    # ── Non-string settings and text fields: always restore as global defaults ─
+    _SETTINGS_PREF_TO_SCENE = {
+        # Mesh optimization
+        "optimize_apply_transforms":          "fo4_opt_apply_transforms",
+        "optimize_remove_doubles_threshold":  "fo4_opt_doubles",
+        "optimize_preserve_uvs":             "fo4_opt_preserve_uvs",
+        # Havok animation export
+        "havok_anim_type":        "fo4_havok_anim_type",
+        "havok_fps":              "fo4_havok_fps",
+        "havok_loop":             "fo4_havok_loop",
+        "havok_root_motion":      "fo4_havok_root_motion",
+        "havok_bake_anim":        "fo4_havok_bake_anim",
+        "havok_key_all_bones":    "fo4_havok_key_all_bones",
+        "havok_apply_transforms": "fo4_havok_apply_transforms",
+        "havok_scale":            "fo4_havok_scale",
+        "havok_simplify_value":   "fo4_havok_simplify_value",
+        "havok_force_frame_range":"fo4_havok_force_frame_range",
+        # Animation name is a text override (not a path) – always restore
+        "havok_anim_name":        "fo4_havok_anim_name",
+    }
+    for pref_attr, scene_attr in _SETTINGS_PREF_TO_SCENE.items():
+        if not hasattr(prefs, pref_attr) or not hasattr(scene, scene_attr):
+            continue
+        setattr(scene, scene_attr, getattr(prefs, pref_attr))
 
 
 def restore_extra_python_paths() -> list[str]:
@@ -530,6 +567,84 @@ class FO4AddonPreferences(bpy.types.AddonPreferences):
         name="Apply Transforms",
         default=True,
         description="Automatically apply object transforms before optimization",
+    )
+
+    # ---- Havok2FBX animation export settings ----
+    havok_anim_type: bpy.props.EnumProperty(
+        name="Animation Type",
+        default='CHARACTER',
+        items=[
+            ('CHARACTER',   "Character",     "Humanoid NPC / player character skeleton"),
+            ('CREATURE',    "Creature",      "Non-humanoid creature skeleton"),
+            ('OBJECT',      "Object / Prop", "Animated static prop or furniture"),
+            ('WEAPON',      "Weapon",        "Third-person weapon animation"),
+            ('FIRSTPERSON', "First-Person",  "First-person arms / weapon animation"),
+        ],
+        description="Default animation type for Havok2FBX export; persisted as global default",
+    )
+    havok_fps: bpy.props.IntProperty(
+        name="FPS",
+        default=30,
+        min=1,
+        max=120,
+        description="Default frame rate for Havok2FBX export",
+    )
+    havok_loop: bpy.props.BoolProperty(
+        name="Loop Animation",
+        default=False,
+        description="Default loop flag for Havok2FBX export",
+    )
+    havok_root_motion: bpy.props.BoolProperty(
+        name="Root Motion",
+        default=False,
+        description="Default root motion flag for Havok2FBX export",
+    )
+    havok_bake_anim: bpy.props.BoolProperty(
+        name="Bake Animation",
+        default=True,
+        description="Default bake animation flag for Havok2FBX export",
+    )
+    havok_key_all_bones: bpy.props.BoolProperty(
+        name="Key All Bones",
+        default=False,
+        description="Default key-all-bones flag for Havok2FBX export",
+    )
+    havok_apply_transforms: bpy.props.BoolProperty(
+        name="Apply Transforms",
+        default=True,
+        description="Default apply-transforms flag for Havok2FBX export",
+    )
+    havok_scale: bpy.props.FloatProperty(
+        name="Scale",
+        default=1.0,
+        min=0.001,
+        max=100.0,
+        precision=3,
+        description="Default scale factor for Havok2FBX export",
+    )
+    havok_output_dir: bpy.props.StringProperty(
+        name="Output Directory",
+        subtype='DIR_PATH',
+        default="",
+        description="Default output directory for Havok2FBX export; persisted globally",
+    )
+    havok_anim_name: bpy.props.StringProperty(
+        name="Animation Name Override",
+        default="",
+        description="Default animation name override for Havok2FBX export",
+    )
+    havok_simplify_value: bpy.props.FloatProperty(
+        name="Simplify Value",
+        default=0.0,
+        min=0.0,
+        max=1.0,
+        precision=2,
+        description="Default animation simplification threshold for Havok2FBX export",
+    )
+    havok_force_frame_range: bpy.props.BoolProperty(
+        name="Force Frame Range",
+        default=True,
+        description="Default force-frame-range flag for Havok2FBX export",
     )
 
     # ---- Mossy Link ----
