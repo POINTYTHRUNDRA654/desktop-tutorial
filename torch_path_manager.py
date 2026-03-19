@@ -1,31 +1,40 @@
 """
-PyTorch Auto-Installation Helper for Windows Path Length Issues
-Automatically installs PyTorch to a short path when Windows MAX_PATH errors occur
+PyTorch Auto-Installation Helper
+Automatically installs PyTorch when it is missing or when Windows MAX_PATH errors occur.
 """
 
 import bpy
 import sys
 import subprocess
 import os
+import platform
 from pathlib import Path
 
 class TorchPathManager:
     """Manages PyTorch installation in custom short paths"""
 
-    # Default short path on D: drive - use minimal length!
-    DEFAULT_TORCH_PATH = Path("D:/t")
+    # Default installation path – keep short on Windows to avoid MAX_PATH issues;
+    # on Linux/macOS a user-level directory is fine.
+    if platform.system() == "Windows":
+        DEFAULT_TORCH_PATH = Path("D:/t")
+    else:
+        DEFAULT_TORCH_PATH = Path.home() / ".blender_torch"
 
     @staticmethod
     def get_custom_torch_paths():
         """Get list of potential custom torch installation paths"""
-        return [
-            Path("D:/t"),
-            Path("C:/t"),
-            Path("D:/torch"),
-            Path("C:/torch"),
-            Path("D:/t"),
-            Path("C:/blender_torch"),
-        ]
+        paths: list[Path] = []
+        if platform.system() == "Windows":
+            paths = [
+                Path("D:/t"),
+                Path("C:/t"),
+                Path("D:/torch"),
+                Path("C:/torch"),
+                Path("C:/blender_torch"),
+            ]
+        # Linux / macOS default
+        paths.append(Path.home() / ".blender_torch")
+        return paths
 
     @staticmethod
     def find_existing_torch_install():
@@ -121,10 +130,38 @@ class TorchPathManager:
             return False, f"Installation error: {str(e)}"
 
     @staticmethod
+    def _try_auto_install(reason: str) -> "tuple[bool, str, object]":
+        """Internal helper: run auto-install when enabled and not yet attempted.
+
+        Returns the same 3-tuple as try_import_torch() on success, or
+        (False, original_reason, None) when auto-install is disabled / already
+        tried / fails.
+        """
+        try:
+            from . import preferences
+            prefs = preferences.get_preferences()
+            if prefs and prefs.auto_install_pytorch and not prefs.torch_install_attempted:
+                print(f"Auto-installing PyTorch ({reason})...")
+                prefs.torch_install_attempted = True
+                success, msg = TorchPathManager.install_torch_to_custom_path()
+                if success:
+                    try:
+                        import torch
+                        return True, f"PyTorch auto-installed successfully: {torch.__version__}", torch
+                    except ImportError as import_err:
+                        print(f"Auto-install succeeded but import still failed: {import_err}")
+                else:
+                    print(f"Auto-install failed: {msg}")
+        except Exception as ex:
+            print(f"Auto-install check failed: {ex}")
+        return False, reason, None
+
+    @staticmethod
     def try_import_torch():
         """
-        Attempt to import torch, trying custom paths first
-        Optionally auto-installs if Windows path error is detected and user has enabled it
+        Attempt to import torch, trying custom paths first.
+        Auto-installs when PyTorch is missing or when a Windows path-length
+        error is detected and the user has enabled auto-install in preferences.
 
         Returns:
             (bool success, str message, object torch_module or None)
@@ -151,45 +188,34 @@ class TorchPathManager:
             return True, f"PyTorch {torch.__version__} loaded successfully", torch
         except FileNotFoundError as e:
             if "WinError 206" in str(e) or "filename or extension is too long" in str(e):
-                # Check if auto-install is enabled and not yet attempted
-                try:
-                    from . import preferences
-                    prefs = preferences.get_preferences()
-                    if prefs and prefs.auto_install_pytorch and not prefs.torch_install_attempted:
-                        print("Auto-installing PyTorch to D:/t due to Windows path error...")
-                        # Mark as attempted before installing
-                        prefs.torch_install_attempted = True
-
-                        success, msg = TorchPathManager.install_torch_to_custom_path()
-                        if success:
-                            # Try importing again
-                            try:
-                                import torch
-                                return True, f"PyTorch auto-installed successfully: {torch.__version__}", torch
-                            except:
-                                pass
-                        else:
-                            print(f"Auto-install failed: {msg}")
-                except Exception as ex:
-                    print(f"Auto-install check failed: {ex}")
-
+                result = TorchPathManager._try_auto_install(
+                    "Windows path length error – installing to short path"
+                )
+                if result[0]:
+                    return result
                 return False, "windows_path_error", None
             return False, f"File error: {str(e)}", None
         except ImportError as e:
+            # PyTorch is simply not installed – attempt auto-install
+            result = TorchPathManager._try_auto_install(
+                f"PyTorch not found ({e})"
+            )
+            if result[0]:
+                return result
             return False, f"PyTorch not installed: {str(e)}", None
         except Exception as e:
             return False, f"Unknown error: {str(e)}", None
 
 
 class TORCH_OT_install_custom_path(bpy.types.Operator):
-    """Install PyTorch to custom short path (D:/t)"""
+    """Install PyTorch to a custom path"""
     bl_idname = "torch.install_custom_path"
-    bl_label = "Install PyTorch to Short Path"
-    bl_description = "Automatically install PyTorch to D:/t to avoid Windows path length issues"
+    bl_label = "Install PyTorch"
+    bl_description = "Automatically install PyTorch (CPU build). On Windows installs to D:/t to avoid MAX_PATH issues; on Linux/macOS to ~/.blender_torch"
 
     target_path: bpy.props.StringProperty(
         name="Installation Path",
-        default="D:/t",
+        default=str(TorchPathManager.DEFAULT_TORCH_PATH),
         description="Path where PyTorch will be installed"
     )
 
@@ -210,9 +236,7 @@ class TORCH_OT_install_custom_path(bpy.types.Operator):
 
     def draw(self, context):
         layout = self.layout
-        layout.label(text="This will install PyTorch to a short path", icon='INFO')
-        layout.label(text="to avoid Windows MAX_PATH limitations.")
-        layout.separator()
+        layout.label(text="PyTorch (CPU build) will be installed to:", icon='INFO')
         layout.prop(self, "target_path")
         layout.label(text="Installation may take several minutes.", icon='TIME')
 

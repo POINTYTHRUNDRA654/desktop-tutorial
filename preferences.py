@@ -343,7 +343,11 @@ class FO4AddonPreferences(bpy.types.AddonPreferences):
     auto_install_pytorch: bpy.props.BoolProperty(
         name="Auto Install PyTorch",
         default=True,
-        description="If enabled, PyTorch will be auto-installed to D:/t when Windows path errors are detected",
+        description=(
+            "If enabled, PyTorch will be auto-installed automatically when it is "
+            "missing or when a Windows path-length error is detected. "
+            "On Windows it installs to D:/t; on Linux/macOS to ~/.blender_torch."
+        ),
     )
 
     torch_install_attempted: bpy.props.BoolProperty(
@@ -517,9 +521,9 @@ class FO4AddonPreferences(bpy.types.AddonPreferences):
                 if msg == "windows_path_error":
                     torch_box.label(text="⚠ Windows path length error detected", icon="ERROR")
                     torch_box.label(text="PyTorch cannot load from default location", icon="INFO")
-                    torch_box.operator("torch.install_custom_path", text="Install to D:/t", icon="IMPORT")
                 else:
-                    torch_box.label(text=f"⚠ {msg}", icon="INFO")
+                    torch_box.label(text=f"⚠ {msg}", icon="ERROR")
+                torch_box.operator("torch.install_custom_path", text="Install PyTorch", icon="IMPORT")
         except Exception as e:
             torch_box.label(text=f"Unable to check PyTorch: {str(e)}", icon="ERROR")
 
