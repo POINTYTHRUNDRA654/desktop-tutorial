@@ -20,8 +20,16 @@ _DEFAULT_KB_PATH = ""
 
 
 def _addon_name() -> str:
-    """Return the add-on module name for preference lookup."""
-    return __package__.split(".")[0]
+    """Return the add-on module name for preference lookup.
+
+    For regular addons this is the top-level package name (e.g.
+    ``blender_game_tools``). For Blender extensions installed via the
+    Extension Platform (Blender 4.2+) the module is prefixed with
+    ``bl_ext.<repo>.`` (e.g. ``bl_ext.blender_org.blender_game_tools``).
+    Returning ``__package__`` directly works correctly in both cases because
+    preferences.py lives at the root of the addon package.
+    """
+    return __package__
 
 
 def get_preferences():
@@ -207,6 +215,12 @@ def restore_scene_props_from_prefs(scene) -> None:
         "fo4_assets_mat_path":  "fo4_assets_mat_path",
         "unity_assets_path":    "fo4_unity_assets_path",
         "unreal_assets_path":   "fo4_unreal_assets_path",
+        # Tool/runtime paths – these were previously scene-only; now backed by
+        # addon preferences so they survive opening a new .blend file.
+        "havok2fbx_path":       "fo4_havok2fbx_path",
+        "torch_custom_path":    "fo4_torch_root",
+        "tools_root":           "fo4_tools_root",
+        "instantngp_path":      "fo4_instantngp_path",
     }
     for pref_attr, scene_attr in _PREF_TO_SCENE.items():
         saved = getattr(prefs, pref_attr, "").strip()
@@ -559,6 +573,26 @@ class FO4AddonPreferences(bpy.types.AddonPreferences):
             "Route advisor AI queries through Mossy instead of a remote LLM endpoint. "
             "Requires Mossy to be running on the desktop. "
             "No API key needed — everything stays on your machine."
+        ),
+    )
+
+    tools_root: bpy.props.StringProperty(
+        name="Tools Root Folder",
+        subtype="DIR_PATH",
+        default="",
+        description=(
+            "Root folder where FO4 modding CLI tools (ffmpeg, nvcompress, texconv, etc.) "
+            "are installed. Persisted globally so you don't have to re-enter it every session."
+        ),
+    )
+
+    instantngp_path: bpy.props.StringProperty(
+        name="InstantNGP Path",
+        subtype="DIR_PATH",
+        default="",
+        description=(
+            "Path to InstantNGP installation folder. "
+            "Persisted globally so you don't need to re-enter it after restarting Blender."
         ),
     )
 
