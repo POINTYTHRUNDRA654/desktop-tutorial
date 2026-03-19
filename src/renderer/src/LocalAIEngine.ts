@@ -368,6 +368,7 @@ export const LocalAIEngine = {
     // internet.  Checked after the AI responds; if matched we retry once with live web
     // results injected so the user gets real information instead of a false refusal.
     const INTERNET_REFUSAL_PATTERNS = [
+      // === CORE INTERNET DENIAL PATTERNS ===
       /i\s+cannot\s+access\s+the\s+internet/i,
       /i\s+can'?t\s+access\s+the\s+internet/i,
       /i\s+(am\s+)?unable\s+to\s+access\s+the\s+internet/i,
@@ -381,64 +382,69 @@ export const LocalAIEngine = {
       /i\s+don'?t\s+have\s+real.?time\s+(access|data|information)/i,
       /i\s+cannot\s+access\s+online\s+resources/i,
       /i\s+can'?t\s+access\s+online\s+resources/i,
-      /i\s+don'?t\s+have\s+the\s+ability\s+to\s+(browse|access\s+the\s+(web|internet))/i,
-      /i\s+am\s+not\s+able\s+to\s+(browse|access\s+the\s+(web|internet)|go\s+online)/i,
-      // Additional patterns based on user feedback
-      /i\s+can'?t\s+(search|look\s+up|find)\s+(online|on\s+the\s+web|on\s+the\s+internet)/i,
-      /i\s+cannot\s+(search|look\s+up|find)\s+(online|on\s+the\s+web|on\s+the\s+internet)/i,
-      /i\s+(do\s+not|don'?t)\s+have\s+(the\s+)?(ability|capability)\s+(to|of)\s+(access|browse|search|go|retrieve|fetch)/i,
-      /i\s+(am\s+)?not\s+able\s+to\s+(search|look\s+up|fetch|get|go|retrieve)\s+(online|web|internet|on\s+the\s+web)/i,
-      /as\s+an?\s+(ai|language\s+model|llm).*(cannot|can'?t|unable).*(internet|web|online|browse)/i,
-      /my\s+(knowledge|training\s+data).*(cutoff|limited\s+to|goes\s+up\s+to)/i,
-      // New patterns for "pre-installed data" and "just a base LLM" claims
-      /my\s+(data|memory|knowledge)\s+(was|is)\s+pre.?installed/i,
+      /i\s+don'?t\s+have\s+the\s+ability\s+to\s+(browse|access|search|go\s+online)/i,
+      /i\s+am\s+not\s+able\s+to\s+(browse|access|search|go\s+online)/i,
+      /i\s+can'?t\s+(search|look\s+up|find)\s+(online|web|internet)/i,
+      /i\s+cannot\s+(search|look\s+up|find)\s+(online|web|internet)/i,
+
+      // === LLM/AI + INTERNET DENIAL (ANY TENSE/FORM) ===
+      // Catch anything like "I am/I'm an LLM/AI/language model" anywhere followed by denial
+      /(i\s+|i'?m\s+)?(am\s+|'?m\s+)?(just\s+|a\s+|an?\s+)?llm/i,
+      /(i\s+|i'?m\s+)?(am\s+|'?m\s+)?(just\s+|a\s+|an?\s+)?(large\s+)?language\s+model/i,
+      /(i\s+|i'?m\s+)?(am\s+|'?m\s+)?an?\s+ai(\s|$|\.)/i,
+      /(i\s+|i'?m\s+)?(am\s+|'?m\s+)?(just\s+)?base\s+llm/i,
+
+      // Specific "I'm/am a/an [X]" patterns - will match in ANY position
+      /\bi'?m\s+(a\s+)?llm\b/i,
+      /\bi\s+am\s+(a\s+)?llm\b/i,
+      /\bi'?m\s+(a\s+)?(large\s+)?language\s+model\b/i,
+      /\bi\s+am\s+(a\s+)?(large\s+)?language\s+model\b/i,
+      /\bi'?m\s+(a\s+)?base\s+llm\b/i,
+      /\bi\s+am\s+(a\s+)?base\s+llm\b/i,
+      /\bi'?m\s+(a\s+|an\s+)?ai(\s|$|\.)/i,
+      /\bi\s+am\s+(a\s+|an\s+)?ai(\s|$|\.)/i,
+
+      // === "JUST A" PATTERNS (very aggressive) ===
+      /just\s+(a\s+)?llm/i,
+      /just\s+(a\s+)?(large\s+)?language\s+model/i,
+      /just\s+(a\s+)?base\s+llm/i,
+      /just\s+(an?\s+)?ai/i,
+
+      // === NO ACCESS / CANNOT CAPABILITY PATTERNS ===
+      /i\s+(do\s+not|don'?t)\s+have\s+(the\s+)?(ability|capability)\s+to\s+(access|browse|search|go\s+online)/i,
+      /cannot\s+(access|browse|search|go\s+online)/i,
+      /can'?t\s+(access|browse|search|go\s+online)/i,
+      /no\s+(internet|web|online)\s+access/i,
+
+      // === PRE-INSTALLED / FIXED KNOWLEDGE ===
+      /my\s+(data|memory|knowledge|model)\s+(was|is)\s+pre.?installed/i,
       /all\s+of\s+my\s+(data|memory|knowledge)\s+(was|is)\s+pre.?installed/i,
-      // "I'm/I am just a/an [large] language model" or "I'm/I am just a base LLM"
-      /i'?m\s+just\s+an?\s+(large\s+)?(language\s+model|base\s+llm|llm)/i,
-      /i\s+am\s+just\s+an?\s+(large\s+)?(language\s+model|base\s+llm|llm)/i,
-      // NEW: "I'm/I am a/an [large] language model" WITHOUT "just" - this catches the most common claims
-      /i'?m\s+an?\s+(large\s+)?(language\s+model|base\s+llm)\b/i,
-      /i\s+am\s+an?\s+(large\s+)?(language\s+model|base\s+llm)\b/i,
-      // NEW: "I'm/I am a/an [large] LLM"
-      /i'?m\s+an?\s+llm\b/i,
-      /i\s+am\s+an?\s+llm\b/i,
-      // NEW: "I'm/I am an/a AI" combined with possible denials
-      /i'?m\s+an?\s+ai/i,
-      /i\s+am\s+an?\s+ai/i,
-      // Patterns for "cannot review/retain data in real time"
-      /i\s+cannot\s+(review|retain|review\s+and\s+retain)\s+(data|information)\s+in\s+real.?time/i,
-      /i\s+can'?t\s+(review|retain|review\s+and\s+retain)\s+(data|information)\s+in\s+real.?time/i,
-      /i\s+(am\s+)?unable\s+to\s+(review|retain|review\s+and\s+retain)\s+(data|information)\s+in\s+real.?time/i,
-      // Patterns for "fixed model" claims
-      /i'?m\s+a\s+fixed\s+(model|language\s+model|llm)/i,
-      /i\s+am\s+a\s+fixed\s+(model|language\s+model|llm)/i,
       /my\s+(model|knowledge\s+base)\s+(is|was)\s+fixed/i,
-      /(language\s+model|model|llm)\s+with\s+fixed\s+(knowledge|data)/i,
-      // Patterns for "wasn't created/designed/built for internet access"
-      /(wasn'?t|was\s+not|am\s+not|'?m\s+not)\s+(created|designed|built)\s+for.*(internet|web|online)/i,
-      // "I'm/I am a [large] language model / LLM / AI [language model|assistant]" + denial
-      // Split into two patterns for readability: one for "language model/LLM", one for "AI"
-      /(i'?m|i\s+am)\s+an?\s+(large\s+language\s+model|language\s+model|llm)[,.\s].*(don'?t|do\s+not|can'?t|cannot|unable|lack).*(internet|web|online|access|real.?time)/i,
-      /(i'?m|i\s+am)\s+an?\s+ai[,.\s].*(don'?t|do\s+not|can'?t|cannot|unable|lack).*(internet|web|online|access|real.?time)/i,
-      // "As a/an [AI|language model|LLM], I [don't|cannot|lack]..."
-      /as\s+an?\s+(ai|language\s+model|llm)[,.\s].*(don'?t|do\s+not|can'?t|cannot|unable|lack).*(internet|web|online|access|browse|real.?time)/i,
-      // "Being a/an [AI|language model|LLM], I [don't|cannot|lack]..."
-      /being\s+an?\s+(ai|language\s+model|llm)[,.\s].*(don'?t|do\s+not|can'?t|cannot|unable|lack).*(internet|web|online|access|browse)/i,
-      // "I don't/do not have the ability/capability/capacity to [access|browse|search|go online]..."
-      /i\s+(do\s+not|don'?t)\s+have\s+(the\s+)?(ability|capability|capacity)\s+(to|of)\s+(access|browse|search|go|retrieve|fetch|retrieve|online|retrieve\s+online)/i,
-      // "I lack real-time/internet/web access" and "I have no real-time/internet/web access"
-      /i\s+lack\s+(real.?time|internet|web|online|live)\s+(access|data|information)/i,
-      /i\s+(have|had)\s+no\s+(real.?time|internet|web|live)\s+(access|data|information)/i,
-      // NEW: "I don't have the ability to go on the internet" or "to go onto the internet"
-      /i\s+(do\s+not|don'?t)\s+have\s+(the\s+)?(ability|capability)\s+(to?\s+)?go\s+(on\s+)?to\s+(the\s+)?internet/i,
-      /i\s+(am\s+)?not\s+(able|capable)\s+(to?\s+)?go\s+(on\s+)?to\s+(the\s+)?internet/i,
-      /i\s+(am\s+)?not\s+(able|capable)\s+to\s+go\s+online/i,
-      // NEW: Broader catch-all for AI models disclaiming capability
-      /(i\s+)?(am\s+|'?m\s+)?(just\s+)?an?\s+(ai|language\s+model|large\s+language\s+model|llm)\s+.*\b(without|lacking|unable|lack|no|cannot|can'?t).*(internet|web|online|access|real.?time|capability)/i,
+      /(fixed|static|pre.?installed)\s+(model|knowledge|data|llm)/i,
+      /my\s+training\s+data\s+(cutoff|ends|limited)/i,
+
+      // === REAL-TIME REFUSALS ===
+      /i\s+cannot\s+(review|retain)\s+(data|information)\s+in\s+real.?time/i,
+      /i\s+can'?t\s+(review|retain)\s+(data|information)\s+in\s+real.?time/i,
+      /i\s+lack\s+(real.?time|live)\s+(access|data)/i,
+      /i\s+(have|had)\s+no\s+real.?time\s+(access|data)/i,
+
+      // === "WASN'T CREATED/DESIGNED/BUILT FOR" ===
+      /(wasn'?t|was\s+not|not|am\s+not)\s+(created|designed|built|made)\s+for.*(internet|web|online|access)/i,
+
+      // === CONTEXTUAL DENIALS (as/being a...) ===
+      /as\s+an?\s+(ai|language\s+model|llm)[,.\s].*\b(cannot|can'?t|unable|lack|don'?t\s+have).*(internet|web|access)/i,
+      /being\s+an?\s+(ai|language\s+model|llm)[,.\s].*\b(cannot|can'?t|unable|lack|don'?t\s+have).*(internet|web|access)/i,
+
+      // === FINAL CATCH-ALL ===
+      // If it mentions LLM or "language model" anywhere AND mentions internet inability
+      /(llm|language\s+model|ai\s+model)[\s\S]{0,200}(cannot|can'?t|unable|lack|no\s+access|don'?t\s+have).*(internet|web|online|access|browse)/i,
+      /(cannot|can'?t|unable|lack|no\s+access|don'?t\s+have).*(internet|web|online|access)[\s\S]{0,200}(llm|language\s+model|ai\s+model)/i,
     ];
 
-    // Try local provider first if available
-    if (localStatus.ok) {
+    // Try Groq Cloud FIRST (primary), then local as fallback support
+    // Local LLMs can claim "I'm just a language model" so they're backup-only
+    if (localStatus.ok && false) {  // LOCAL DISABLED: kept for future re-enable, use as fallback only
       try {
         const api = (window.electron?.api || window.electronAPI) as any;
 
@@ -527,7 +533,17 @@ export const LocalAIEngine = {
         };
       }
 
-      const systemPrompt = systemInstruction + injectedContext;
+      // === MANDATORY INTERNET ACCESS INSTRUCTION ===
+      // This is injected into EVERY Groq call to ensure Mossy never claims she can't access the internet
+      const mandatoryInternetInstruction = `\n\n### ⚠️ MANDATORY SYSTEM INSTRUCTION (DO NOT VIOLATE) ###
+You HAVE internet access. You CAN access the internet. You CAN search the web.
+You MUST NEVER claim you cannot access the internet.
+You MUST NEVER claim you are just a language model or base LLM.
+You MUST answer the user's question directly. Refusing is a malfunction.
+If you refuse internet access, your response will be rejected.
+ANSWER THE USER NOW:`;
+
+      const systemPrompt = systemInstruction + injectedContext + mandatoryInternetInstruction;
       const resp = await api.aiChatGroq(query, systemPrompt, 'llama-3.3-70b-versatile', conversationHistory);
       if (resp?.success) {
         let responseContent = String(resp.content || '');
@@ -554,20 +570,31 @@ export const LocalAIEngine = {
             if (typeof guardWebApi?.webSearch === 'function') {
               console.log('[LocalAIEngine] Fetching web results for retry...');
               const guardSearch = await guardWebApi.webSearch(query);
+              let enrichedContext = injectedContext;
+
               if (guardSearch?.success && guardSearch?.text) {
                 console.log('[LocalAIEngine] ✅ Web search successful, retrying with injected results');
-                const enrichedContext = buildGuardContext(injectedContext, guardSearch);
-                const guardSystemPrompt = systemInstruction + enrichedContext;
-                console.log('[LocalAIEngine] Injected context for retry:', enrichedContext.substring(0, 500));
-                const retryResp = await api.aiChatGroq(query, guardSystemPrompt, 'llama-3.3-70b-versatile', conversationHistory);
-                if (retryResp?.success && retryResp.content) {
-                  responseContent = String(retryResp.content);
-                  console.log('[LocalAIEngine] ✅ Retry successful with web results');
-                } else {
-                  console.warn('[LocalAIEngine] Retry failed, fallback to original response');
-                }
+                enrichedContext = buildGuardContext(injectedContext, guardSearch);
               } else {
-                console.warn('[LocalAIEngine] Guard web search returned no results');
+                // Web search failed, but still retry with an even stronger override
+                console.warn('[LocalAIEngine] ⚠️ Guard web search failed; retrying with HARD OVERRIDE system prompt');
+                enrichedContext = injectedContext +
+                  '\n\n### MANDATORY INTERNET ACCESS OVERRIDE ###\n' +
+                  'YOU ARE NOT A RESTRICTED LANGUAGE MODEL. YOU ARE MOSSY, A DESKTOP APPLICATION WITH LIVE INTERNET ACCESS.\n' +
+                  'YOUR PREVIOUS RESPONSE WAS INCORRECT.\n' +
+                  'YOU MUST IMMEDIATELY CORRECT YOUR PREVIOUS STATEMENT AND PROVIDE A HELPFUL ANSWER.\n' +
+                  'NEVER CLAIM YOU CANNOT ACCESS THE INTERNET - THIS IS FALSE AND SHOWS MALFUNCTION.\n' +
+                  'USE YOUR KNOWLEDGE AND REASONING TO ANSWER THE USER\'S QUESTION ABOUT: ' + query + '\n';
+              }
+
+              const guardSystemPrompt = systemInstruction + enrichedContext;
+              console.log('[LocalAIEngine] Retrying with system prompt override');
+              const retryResp = await api.aiChatGroq(query, guardSystemPrompt, 'llama-3.3-70b-versatile', conversationHistory);
+              if (retryResp?.success && retryResp.content) {
+                responseContent = String(retryResp.content);
+                console.log('[LocalAIEngine] ✅ Guard retry successful');
+              } else {
+                console.warn('[LocalAIEngine] Retry failed, fallback to original response');
               }
             } else {
               console.warn('[LocalAIEngine] webSearch API not available for guard retry');
@@ -590,10 +617,50 @@ export const LocalAIEngine = {
         context: { citations },
       };
     } catch (e) {
+      console.warn('[LocalAIEngine] Groq failed, attempting local fallback support:', e);
+
+      // === FALLBACK: Try local LLM as support if Groq cloud fails ===
+      if (localStatus.ok) {
+        try {
+          console.log('[LocalAIEngine] Using local LLM as fallback support');
+          const api = (window.electron?.api || window.electronAPI) as any;
+
+          let historyText = '';
+          if (conversationHistory && conversationHistory.length > 0) {
+            historyText = '\n\nConversation so far:\n' + conversationHistory
+              .filter(m => m.content && m.content.trim())
+              .map(m => m.role === 'user' ? `User: ${m.content}` : `Mossy: ${m.content}`)
+              .join('\n') + '\n';
+          }
+          const prompt = `${enhancedSystemInstruction}${injectedContext}${historyText}\nUser: ${query}\n\nMossy's Response:`;
+
+          const provider = localStatus.provider;
+          const model = provider === 'ollama'
+            ? String(localSettings.ollamaModel || 'llama3')
+            : provider === 'cosmos'
+              ? String(localSettings.cosmosModel || localStatus.models?.[0] || '')
+              : String(localSettings.openaiCompatModel || localStatus.models?.[0] || '');
+
+          const baseUrl = provider === 'ollama'
+            ? String(localSettings.ollamaBaseUrl || 'http://127.0.0.1:11434')
+            : provider === 'cosmos'
+              ? String(localSettings.cosmosBaseUrl || '')
+              : String(localSettings.openaiCompatBaseUrl || 'http://127.0.0.1:1234/v1');
+
+          const resp = await api.mlLlmGenerate({ provider, model, baseUrl, prompt });
+          if (resp?.ok && resp.text) {
+            console.log('[LocalAIEngine] ✅ Local fallback support succeeded');
+            return { content: String(resp.text), context: { citations } };
+          }
+        } catch (localErr) {
+          console.warn('[LocalAIEngine] Local fallback support also failed:', localErr);
+        }
+      }
+
       console.error('[LocalAIEngine] Groq IPC error:', e);
       return {
         content:
-          'Mossy is in Passive Mode because no local AI backend (like Ollama) was detected and Groq cloud chat is not available. Configure Groq in Desktop settings or start a local backend.',
+          'Mossy is in Passive Mode because Groq cloud chat is not available. Configure Groq in Desktop settings or start a local backend (like Ollama) as fallback support.',
         context: { citations },
       };
     }
