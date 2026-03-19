@@ -297,10 +297,16 @@ def install_python_requirements(include_optional: bool = False) -> tuple[bool, s
     if include_optional:
         addon_dir = Path(__file__).resolve().parent
         opt_file = addon_dir / "requirements-optional.txt"
-        ok2, msg2 = _pip_install_requirements(opt_file)
-        if not ok2:
-            return False, f"Core OK, optional failed: {msg2}"
-        msg = f"{msg}; {msg2}"
+        if not opt_file.exists():
+            # No optional file present – not an error, just nothing extra to install
+            msg = f"{msg}; No optional requirements file found, skipped"
+        else:
+            ok2, msg2 = _pip_install_requirements(opt_file)
+            if not ok2:
+                # Optional failures are non-fatal: core packages already installed.
+                msg = f"{msg}; optional failed (non-fatal): {msg2}"
+            else:
+                msg = f"{msg}; {msg2}"
 
     return True, msg
 
