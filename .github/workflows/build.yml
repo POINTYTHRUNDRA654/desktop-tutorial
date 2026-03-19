@@ -46,6 +46,7 @@ jobs:
       #       Using --force so a re-run always overwrites the previous build.
       - name: Commit rebuilt zips
         run: |
+          git lfs install          # ensure LFS hooks are active for the push
           git config user.name  "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
