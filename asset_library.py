@@ -531,10 +531,13 @@ _CLASSES = [
 def _config_path() -> str:
     """Return the absolute path to the asset-library JSON config file.
 
-    Stored next to this module so it survives Blender restarts and is
-    independent of which .blend file is currently open.
+    Stored in Blender's user config directory (via bpy.utils.user_resource)
+    so it survives add-on reinstalls and is independent of which .blend file
+    is currently open.
     """
-    return os.path.join(os.path.dirname(__file__), "asset_lib_config.json")
+    config_dir = bpy.utils.user_resource('CONFIG')
+    os.makedirs(config_dir, exist_ok=True)
+    return os.path.join(config_dir, "asset_lib_config.json")
 
 
 _CONFIG_KEYS = (
