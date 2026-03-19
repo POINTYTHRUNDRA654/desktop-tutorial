@@ -98,14 +98,16 @@ def _draw_game_path_box(layout, context):
     col = sub_box.column(align=True)
     col.scale_y = 0.9
 
-    for label, scene_prop, slot in (
+    for label, prop_name, slot in (
         ("Meshes",    "fo4_assets_mesh_path", "meshes"),
         ("Textures",  "fo4_assets_tex_path",  "textures"),
         ("Materials", "fo4_assets_mat_path",  "materials"),
     ):
         row = col.row(align=True)
-        if hasattr(scene, scene_prop):
-            row.prop(scene, scene_prop, text=label)
+        if prefs is not None and hasattr(prefs, prop_name):
+            row.prop(prefs, prop_name, text=label)
+        elif hasattr(scene, prop_name):
+            row.prop(scene, prop_name, text=label)
         else:
             row.label(text=f"{label}: (not configured)", icon='DOT')
         op = row.operator("fo4.set_fo4_sub_path", text="", icon='FILE_FOLDER')
