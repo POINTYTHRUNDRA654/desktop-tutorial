@@ -199,6 +199,7 @@ modules = list(
 )
 
 
+@bpy.app.handlers.persistent
 def _on_load_post(*args):
     """Restore path preferences into all scenes' properties after every file load.
 
