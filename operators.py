@@ -7702,6 +7702,13 @@ class FO4_OT_SetFO4AssetsPath(Operator):
                 candidate = root / subdir
                 if candidate.is_dir():
                     setattr(context.scene, prop, str(candidate))
+                    # Persist sub-path in preferences too
+                    if prefs is not None:
+                        setattr(prefs, prop, str(candidate))
+
+        # Persist all path changes to disk
+        if prefs is not None:
+            _prefs.save_prefs_deferred()
 
         # Invalidate cached game dir so next detection uses the new path
         if fo4_game_assets:
@@ -7753,6 +7760,13 @@ class FO4_OT_SetFO4SubPath(Operator):
         if hasattr(context.scene, prop):
             setattr(context.scene, prop, chosen)
 
+        # Persist in addon preferences so the path survives restarts
+        from . import preferences as _prefs
+        prefs = _prefs.get_preferences()
+        if prefs is not None and hasattr(prefs, prop):
+            setattr(prefs, prop, chosen)
+            _prefs.save_prefs_deferred()
+
         if fo4_game_assets:
             fo4_game_assets.FO4GameAssets._asset_index = None
 
@@ -7793,6 +7807,7 @@ class FO4_OT_SetUnityAssetsPath(Operator):
 
         if prefs is not None:
             prefs.unity_assets_path = chosen
+            _prefs.save_prefs_deferred()
 
         if unity_game_assets:
             unity_game_assets.UnityAssets._assets_dir = None
@@ -7838,6 +7853,7 @@ class FO4_OT_SetUnrealAssetsPath(Operator):
 
         if prefs is not None:
             prefs.unreal_assets_path = chosen
+            _prefs.save_prefs_deferred()
 
         if unreal_game_assets:
             unreal_game_assets.UnrealAssets._assets_dir = None

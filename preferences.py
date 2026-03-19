@@ -187,6 +187,33 @@ def save_prefs_deferred() -> None:
         print(f"Could not schedule preference save: {e}")
 
 
+def restore_scene_props_from_prefs(scene) -> None:
+    """Copy persisted addon-preference path values into scene properties.
+
+    Scene properties reset to their defaults every time a new .blend file is
+    created or opened (unless that file itself saved the values).  Calling this
+    from a ``load_post`` / ``load_factory_startup_post`` handler ensures the
+    panels always reflect the globally-saved paths without the user having to
+    re-enter them.
+    """
+    prefs = get_preferences()
+    if prefs is None or scene is None:
+        return
+
+    _PREF_TO_SCENE = {
+        "fo4_assets_path":      "fo4_assets_path",
+        "fo4_assets_mesh_path": "fo4_assets_mesh_path",
+        "fo4_assets_tex_path":  "fo4_assets_tex_path",
+        "fo4_assets_mat_path":  "fo4_assets_mat_path",
+        "unity_assets_path":    "fo4_unity_assets_path",
+        "unreal_assets_path":   "fo4_unreal_assets_path",
+    }
+    for pref_attr, scene_attr in _PREF_TO_SCENE.items():
+        saved = getattr(prefs, pref_attr, "").strip()
+        if saved and hasattr(scene, scene_attr) and not getattr(scene, scene_attr, "").strip():
+            setattr(scene, scene_attr, saved)
+
+
 def restore_extra_python_paths() -> list[str]:
     """Add all persisted extra Python paths to sys.path and return added entries.
 
@@ -282,6 +309,27 @@ class FO4AddonPreferences(bpy.types.AddonPreferences):
             "Leave blank for auto-detection from game installation. "
             "Example: H:/Fallout 4 working folder"
         ),
+    )
+
+    fo4_assets_mesh_path: bpy.props.StringProperty(
+        name="FO4 Meshes Path",
+        subtype="DIR_PATH",
+        default="",
+        description="Path to the Fallout 4 meshes sub-folder (e.g. Data/meshes)",
+    )
+
+    fo4_assets_tex_path: bpy.props.StringProperty(
+        name="FO4 Textures Path",
+        subtype="DIR_PATH",
+        default="",
+        description="Path to the Fallout 4 textures sub-folder (e.g. Data/textures)",
+    )
+
+    fo4_assets_mat_path: bpy.props.StringProperty(
+        name="FO4 Materials Path",
+        subtype="DIR_PATH",
+        default="",
+        description="Path to the Fallout 4 materials sub-folder (e.g. Data/materials)",
     )
 
     unity_assets_path: bpy.props.StringProperty(
