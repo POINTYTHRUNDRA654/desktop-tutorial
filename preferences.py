@@ -144,6 +144,47 @@ def set_torch_custom_path(path: str) -> None:
     prefs = get_preferences()
     if prefs is not None:
         prefs.torch_custom_path = path
+        prefs.torch_install_attempted = True
+        save_prefs_deferred()
+
+
+def get_umodel_path() -> str | None:
+    """Return the persisted UModel installation directory, if set."""
+    prefs = get_preferences()
+    if not prefs:
+        return None
+    path = prefs.umodel_path.strip()
+    return path if path else None
+
+
+def set_umodel_path(path: str) -> None:
+    """Persist the UModel installation directory in the add-on preferences."""
+    prefs = get_preferences()
+    if prefs is not None:
+        prefs.umodel_path = path
+        prefs.umodel_install_attempted = True
+        save_prefs_deferred()
+
+
+def save_prefs_deferred() -> None:
+    """Schedule an explicit save of Blender user preferences via a timer.
+
+    Safe to call from any context (draw(), modal, plain functions).  The
+    actual ``bpy.ops.wm.save_userpref()`` call runs from the main-thread
+    timer callback where a proper Blender context is available.
+    """
+    def _do_save():
+        try:
+            bpy.ops.wm.save_userpref()
+            print("✓ Add-on preferences saved to disk")
+        except Exception as e:
+            print(f"Could not auto-save preferences: {e}")
+        return None  # do not reschedule
+
+    try:
+        bpy.app.timers.register(_do_save, first_interval=0.5)
+    except Exception as e:
+        print(f"Could not schedule preference save: {e}")
 
 
 def restore_extra_python_paths() -> list[str]:
@@ -167,6 +208,11 @@ def restore_extra_python_paths() -> list[str]:
         _sys.path.insert(0, torch_path)
         added.append(torch_path)
         print(f"✓ Restored PyTorch path to sys.path: {torch_path}")
+    elif prefs.torch_install_attempted and not (torch_path and os.path.isdir(torch_path)):
+        # Saved path is gone or was never recorded — clear the flag so the
+        # next call to try_import_torch() can trigger a fresh auto-install.
+        prefs.torch_install_attempted = False
+        print("⚠ PyTorch custom path missing — reset install flag for retry")
 
     # Restore any extra semicolon-separated paths
     extra = prefs.extra_python_paths.strip()
@@ -177,6 +223,13 @@ def restore_extra_python_paths() -> list[str]:
                 _sys.path.insert(0, entry)
                 added.append(entry)
                 print(f"✓ Restored extra Python path to sys.path: {entry}")
+
+    # Reset the UModel install-attempted flag if the recorded path is gone so
+    # the startup hook can re-download it automatically.
+    umodel_p = prefs.umodel_path.strip()
+    if prefs.umodel_install_attempted and umodel_p and not os.path.isdir(umodel_p):
+        prefs.umodel_install_attempted = False
+        print("⚠ UModel path missing — reset install flag for retry")
 
     return added
 
@@ -353,7 +406,11 @@ class FO4AddonPreferences(bpy.types.AddonPreferences):
     torch_install_attempted: bpy.props.BoolProperty(
         name="PyTorch Install Attempted",
         default=False,
-        description="Internal flag to track if PyTorch auto-install was already attempted",
+        description=(
+            "Internal flag: True when PyTorch was successfully installed to the "
+            "saved custom path. Reset automatically on startup if that path is "
+            "missing, so a fresh install attempt is triggered."
+        ),
     )
 
     torch_custom_path: bpy.props.StringProperty(
@@ -365,6 +422,23 @@ class FO4AddonPreferences(bpy.types.AddonPreferences):
             "Set automatically when you click 'Install PyTorch to Short Path'. "
             "Added to sys.path on every Blender startup so torch stays accessible."
         ),
+    )
+
+    umodel_path: bpy.props.StringProperty(
+        name="UModel Path",
+        subtype="DIR_PATH",
+        default="",
+        description=(
+            "Directory where UModel (UE Viewer) was downloaded. "
+            "Set automatically on first download. "
+            "Used to locate umodel.exe on every Blender startup."
+        ),
+    )
+
+    umodel_install_attempted: bpy.props.BoolProperty(
+        name="UModel Install Attempted",
+        default=False,
+        description="Internal flag: True once UModel has been successfully downloaded",
     )
 
     extra_python_paths: bpy.props.StringProperty(
@@ -502,9 +576,9 @@ class FO4AddonPreferences(bpy.types.AddonPreferences):
 
         auto_box = layout.box()
         auto_box.label(text="Automatic Tool Installation", icon="FILE_REFRESH")
-        auto_box.prop(self, "auto_install_tools", text="Auto-install missing CLI tools at startup")
+        auto_box.prop(self, "auto_install_tools", text="Auto-install missing tools at startup (UModel, etc.)")
         auto_box.prop(self, "auto_install_python", text="Auto-install Python deps at startup")
-        auto_box.prop(self, "auto_install_pytorch", text="Auto-install PyTorch to D: drive on path errors")
+        auto_box.prop(self, "auto_install_pytorch", text="Auto-install PyTorch at startup (AI features)")
         auto_box.prop(self, "auto_register_tools", text="Auto-register third-party add-ons")
         auto_box.operator("fo4.check_tool_paths", text="Check Tool Paths", icon='INFO')
         auto_box.label(text="(disable to avoid policy warnings at startup)", icon='INFO')

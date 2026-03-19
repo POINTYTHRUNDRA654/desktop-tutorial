@@ -275,6 +275,25 @@ def register():
     except Exception as e:
         print(f"Tool auto-discovery skipped: {e}")
 
+    # ── Step 5: auto-download UModel if missing and auto-install is enabled ───
+    # Runs only when the user has 'Auto-install missing tools' turned on and
+    # UModel has not been successfully installed before (flag is cleared on
+    # startup if the saved path is gone, allowing re-download).
+    try:
+        _prefs = preferences.get_preferences() if preferences else None
+        if _prefs and _prefs.auto_install_tools and not _prefs.umodel_install_attempted:
+            if umodel_helpers:
+                ready, _ = umodel_helpers.status()
+                if not ready:
+                    print("UModel not found — attempting auto-download...")
+                    ok, msg = umodel_helpers.download_latest()
+                    if ok:
+                        print(f"✓ UModel auto-downloaded: {msg}")
+                    else:
+                        print(f"UModel auto-download skipped: {msg}")
+    except Exception as e:
+        print(f"UModel auto-download skipped: {e}")
+
     # Start advisor auto-monitor (opt-out in preferences)
     # DISABLED: Causes severe performance issues during startup
     # Users can manually enable monitoring if needed

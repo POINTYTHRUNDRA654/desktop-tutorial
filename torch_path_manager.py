@@ -10,6 +10,10 @@ import os
 import platform
 from pathlib import Path
 
+# Module-level guard: prevents concurrent auto-install attempts within one session.
+_auto_install_running = False
+
+
 class TorchPathManager:
     """Manages PyTorch installation in custom short paths"""
 
@@ -133,26 +137,40 @@ class TorchPathManager:
     def _try_auto_install(reason: str) -> "tuple[bool, str, object]":
         """Internal helper: run auto-install when enabled and not yet attempted.
 
+        Uses a module-level flag to prevent re-entrant calls within one
+        Blender session, and only persists ``torch_install_attempted`` after a
+        *successful* install so that failed attempts are retried on the next
+        Blender startup.
+
         Returns the same 3-tuple as try_import_torch() on success, or
         (False, original_reason, None) when auto-install is disabled / already
-        tried / fails.
+        running / fails.
         """
+        global _auto_install_running
+        if _auto_install_running:
+            return False, reason, None
+
         try:
             from . import preferences
             prefs = preferences.get_preferences()
             if prefs and prefs.auto_install_pytorch and not prefs.torch_install_attempted:
+                _auto_install_running = True
                 print(f"Auto-installing PyTorch ({reason})...")
-                prefs.torch_install_attempted = True
-                success, msg = TorchPathManager.install_torch_to_custom_path()
-                if success:
-                    try:
-                        import torch
-                        return True, f"PyTorch auto-installed successfully: {torch.__version__}", torch
-                    except ImportError as import_err:
-                        print(f"Auto-install succeeded but import still failed: {import_err}")
-                else:
-                    print(f"Auto-install failed: {msg}")
+                try:
+                    success, msg = TorchPathManager.install_torch_to_custom_path()
+                    if success:
+                        try:
+                            import torch
+                            return True, f"PyTorch auto-installed successfully: {torch.__version__}", torch
+                        except ImportError as import_err:
+                            print(f"Auto-install succeeded but import still failed: {import_err}")
+                            return False, f"Auto-install succeeded but import failed: {import_err}", None
+                    else:
+                        print(f"Auto-install failed: {msg}")
+                finally:
+                    _auto_install_running = False
         except Exception as ex:
+            _auto_install_running = False
             print(f"Auto-install check failed: {ex}")
         return False, reason, None
 

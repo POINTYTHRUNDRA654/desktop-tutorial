@@ -5,13 +5,17 @@ viewing and extracting assets from Unreal Engine games.
 
 Credit: UModel by Konstantin Nosov (Gildor) - https://www.gildor.org/en/projects/umodel
 
-Auto-downloads to D:/blender_tools/ to keep it separate from the addon.
+Auto-downloads to D:/blender_tools/ (Windows) or the addon tools folder to keep
+it separate from the addon.
 """
 
 from __future__ import annotations
 
+import platform
+import re
 import shutil
 import tempfile
+import urllib.parse
 import urllib.request
 import zipfile
 from pathlib import Path
@@ -24,9 +28,35 @@ DEFAULT_TOOL_DIR = Path("D:/blender_tools/umodel")
 ADDON_ROOT = Path(__file__).resolve().parent
 FALLBACK_TOOL_DIR = ADDON_ROOT / "tools" / "umodel"
 
+# Executable name is platform-dependent
+if platform.system() == "Windows":
+    _EXE_NAME = "umodel.exe"
+else:
+    _EXE_NAME = "umodel"
+
+# Official download page
+_DOWNLOAD_PAGE = "https://www.gildor.org/en/projects/umodel"
+
 
 def get_tool_dir():
-    """Get the tool directory, creating parent if needed."""
+    """Get the tool directory.
+
+    Checks (in order):
+    1. Path saved in add-on preferences (survives restarts).
+    2. Default location on D: drive (Windows).
+    3. Fallback inside the addon's tools/ folder.
+    """
+    # Check preferences first
+    try:
+        from . import preferences as _prefs
+        saved = _prefs.get_umodel_path()
+        if saved:
+            p = Path(saved)
+            if p.is_dir():
+                return p
+    except Exception:
+        pass
+
     # Try D: drive first
     try:
         if DEFAULT_TOOL_DIR.drive and Path(DEFAULT_TOOL_DIR.drive).exists():
@@ -44,14 +74,12 @@ def status() -> tuple[bool, str]:
     """Return (ready, message) tuple for UI display."""
     tool_dir = get_tool_dir()
 
-    # Check for umodel.exe
-    umodel_exe = tool_dir / "umodel.exe"
+    umodel_exe = tool_dir / _EXE_NAME
     if umodel_exe.exists():
         return True, f"UModel ready at {tool_dir}"
 
-    # Check if directory exists but exe is missing
     if tool_dir.exists():
-        return False, f"UModel at {tool_dir} appears incomplete (missing umodel.exe)"
+        return False, f"UModel at {tool_dir} appears incomplete (missing {_EXE_NAME})"
 
     return False, f"UModel not installed (will download to {tool_dir})"
 
@@ -62,51 +90,71 @@ def tool_path() -> str:
 
 
 def executable_path() -> str | None:
-    """Return path to umodel.exe if it exists, None otherwise."""
+    """Return path to the UModel executable if it exists, None otherwise."""
     tool_dir = get_tool_dir()
-    umodel_exe = tool_dir / "umodel.exe"
+    umodel_exe = tool_dir / _EXE_NAME
+    return str(umodel_exe) if umodel_exe.exists() else None
 
-    if umodel_exe.exists():
-        return str(umodel_exe)
+
+def _find_download_url() -> str | None:
+    """Scrape the official UModel project page to find a direct download URL.
+
+    Parses the HTML at gildor.org/en/projects/umodel and looks for href
+    attributes that point to a ZIP or EXE containing "umodel" in the name.
+    Returns an absolute URL string, or None if nothing is found.
+    """
+    try:
+        req = urllib.request.Request(
+            _DOWNLOAD_PAGE,
+            headers={"User-Agent": "Mozilla/5.0"},
+        )
+        with urllib.request.urlopen(req, timeout=15) as resp:
+            html = resp.read().decode("utf-8", errors="replace")
+
+        # Look for download links: href="...umodel...zip" or ...exe
+        patterns = [
+            r'href=["\']([^"\']*umodel[^"\']*\.zip)["\']',
+            r'href=["\']([^"\']*umodel[^"\']*\.exe)["\']',
+            r'href=["\']([^"\']*ueviewer[^"\']*\.zip)["\']',
+        ]
+        for pat in patterns:
+            for m in re.findall(pat, html, re.IGNORECASE):
+                url = m if m.startswith("http") else urllib.parse.urljoin(_DOWNLOAD_PAGE, m)
+                return url
+    except Exception as exc:
+        print(f"UModel: could not scrape download page: {exc}")
     return None
 
 
 def download_latest() -> tuple[bool, str]:
-    """Download UModel from a known stable source to D:/blender_tools/ or fallback location.
+    """Download UModel from gildor.org to the tool directory.
 
-    Note: UModel by Konstantin Nosov (Gildor) - https://www.gildor.org/en/projects/umodel
+    Tries to find the download URL by scraping the official project page.
+    On success, saves the installation directory to add-on preferences so it
+    is remembered across Blender restarts.
 
-    UModel doesn't have an official GitHub repository with automated releases.
-    This function will attempt to download from a known stable mirror or provide
-    instructions for manual download.
+    Credit: UModel by Konstantin Nosov (Gildor) - https://www.gildor.org/en/projects/umodel
     """
     tool_dir = get_tool_dir()
 
-    if tool_dir.exists() and (tool_dir / "umodel.exe").exists():
+    if tool_dir.exists() and (tool_dir / _EXE_NAME).exists():
         return True, f"UModel already exists at {tool_dir}"
 
     tool_dir.parent.mkdir(parents=True, exist_ok=True)
 
-    # UModel download locations (these may need to be updated periodically)
-    # Since gildor.org doesn't provide direct stable download URLs for automation,
-    # we'll try known stable versions or mirrors
+    # Try to discover the download URL from the project page
+    scraped_url = _find_download_url()
+    candidates: list[str] = []
+    if scraped_url:
+        candidates.append(scraped_url)
 
-    # Note: Users can manually download from https://www.gildor.org/en/projects/umodel
-    # and extract to the tool directory
-
-    candidates = [
-        # These URLs would need to be actual stable download links
-        # For now, we'll provide manual download instructions
-    ]
-
-    # If we have no automated download URLs, provide manual download instructions
     if not candidates:
         return False, (
             f"UModel requires manual download. Please:\n"
-            f"1. Visit https://www.gildor.org/en/projects/umodel\n"
-            f"2. Download the latest UModel build for Windows\n"
-            f"3. Extract the ZIP to: {tool_dir}\n"
-            f"4. Ensure umodel.exe is in the directory\n\n"
+            f"1. Visit {_DOWNLOAD_PAGE}\n"
+            f"2. Download the latest UModel build\n"
+            f"3. Extract to: {tool_dir}\n"
+            f"4. Ensure '{_EXE_NAME}' is in that directory\n\n"
             f"Credit: UModel by Konstantin Nosov (Gildor)"
         )
 
@@ -119,22 +167,27 @@ def download_latest() -> tuple[bool, str]:
                 urllib.request.urlretrieve(url, zip_path)
 
                 with zipfile.ZipFile(zip_path) as zf:
-                    # Extract directly to tool directory
                     zf.extractall(tool_dir)
 
-                # Verify umodel.exe exists
-                umodel_exe = tool_dir / "umodel.exe"
+                # Executable may be nested inside a sub-directory
+                umodel_exe = tool_dir / _EXE_NAME
                 if not umodel_exe.exists():
-                    # Maybe it's in a subdirectory
-                    for exe in tool_dir.rglob("umodel.exe"):
-                        # Move contents to root of tool_dir
+                    for exe in tool_dir.rglob(_EXE_NAME):
                         parent = exe.parent
                         for item in parent.iterdir():
                             shutil.move(str(item), str(tool_dir / item.name))
                         break
 
-                return True, f"Downloaded UModel to {tool_dir}. Credit: Konstantin Nosov (Gildor)"
-        except Exception as exc:  # noqa: BLE001
+            # Persist the installation path so it survives restarts
+            try:
+                from . import preferences as _prefs
+                _prefs.set_umodel_path(str(tool_dir))
+                print(f"✓ UModel path saved to preferences: {tool_dir}")
+            except Exception as e:
+                print(f"Warning: UModel downloaded but path not saved to prefs: {e}")
+
+            return True, f"Downloaded UModel to {tool_dir}. Credit: Konstantin Nosov (Gildor)"
+        except Exception as exc:
             last_error = str(exc)
             continue
 
