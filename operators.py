@@ -12840,6 +12840,30 @@ classes = (
     FO4_OT_ExportModManifest,
 )
 
+def _make_scene_to_pref_sync(scene_attr, pref_attr):
+    """Return a Blender property update callback that syncs a scene property to
+    the corresponding addon preference and schedules a deferred preference save.
+
+    This ensures that when a user types directly into a UI text field (rather
+    than using a browse-button operator), the value is still persisted to disk
+    and survives Blender restarts.
+    """
+    _MISSING = object()
+
+    def _update(self, context):
+        try:
+            from . import preferences as _prefs
+            prefs = _prefs.get_preferences()
+            if prefs is not None and hasattr(prefs, pref_attr):
+                val = getattr(self, scene_attr, _MISSING)
+                if val is not _MISSING:
+                    setattr(prefs, pref_attr, val)
+                    _prefs.save_prefs_deferred()
+        except Exception as exc:
+            print(f"⚠ Could not sync scene.{scene_attr} → prefs.{pref_attr}: {exc}")
+    return _update
+
+
 def register():
     for cls in classes:
         try:
@@ -12859,6 +12883,7 @@ def register():
             ('FIRSTPERSON',  "First-Person",  "First-person arms / weapon animation"),
         ],
         default='CHARACTER',
+        update=_make_scene_to_pref_sync("fo4_havok_anim_type", "havok_anim_type"),
     )
     bpy.types.Scene.fo4_havok_fps = bpy.props.IntProperty(
         name="FPS",
@@ -12866,31 +12891,37 @@ def register():
         default=30,
         min=1,
         max=120,
+        update=_make_scene_to_pref_sync("fo4_havok_fps", "havok_fps"),
     )
     bpy.types.Scene.fo4_havok_loop = bpy.props.BoolProperty(
         name="Loop Animation",
         description="Mark animation as looping in the HKX output",
         default=False,
+        update=_make_scene_to_pref_sync("fo4_havok_loop", "havok_loop"),
     )
     bpy.types.Scene.fo4_havok_root_motion = bpy.props.BoolProperty(
         name="Root Motion",
         description="Include root-bone motion (translation/rotation) in the export",
         default=False,
+        update=_make_scene_to_pref_sync("fo4_havok_root_motion", "havok_root_motion"),
     )
     bpy.types.Scene.fo4_havok_bake_anim = bpy.props.BoolProperty(
         name="Bake Animation",
         description="Bake animation to keyframes on export (required for constraints and NLA strips to be captured)",
         default=True,
+        update=_make_scene_to_pref_sync("fo4_havok_bake_anim", "havok_bake_anim"),
     )
     bpy.types.Scene.fo4_havok_key_all_bones = bpy.props.BoolProperty(
         name="Key All Bones",
         description="Insert keyframes on every bone even if they do not move",
         default=False,
+        update=_make_scene_to_pref_sync("fo4_havok_key_all_bones", "havok_key_all_bones"),
     )
     bpy.types.Scene.fo4_havok_apply_transforms = bpy.props.BoolProperty(
         name="Apply Transforms",
         description="Apply object-level scale/rotation before export",
         default=True,
+        update=_make_scene_to_pref_sync("fo4_havok_apply_transforms", "havok_apply_transforms"),
     )
     bpy.types.Scene.fo4_havok_scale = bpy.props.FloatProperty(
         name="Scale",
@@ -12899,17 +12930,20 @@ def register():
         min=0.001,
         max=100.0,
         precision=3,
+        update=_make_scene_to_pref_sync("fo4_havok_scale", "havok_scale"),
     )
     bpy.types.Scene.fo4_havok_output_dir = bpy.props.StringProperty(
         name="Output Directory",
         description="Folder where the exported FBX (and converted HKX) will be saved. Leave blank to use the system temp folder.",
         subtype='DIR_PATH',
         default="",
+        update=_make_scene_to_pref_sync("fo4_havok_output_dir", "havok_output_dir"),
     )
     bpy.types.Scene.fo4_havok_anim_name = bpy.props.StringProperty(
         name="Animation Name",
         description="Override the file/animation name. Leave blank to use the active action name.",
         default="",
+        update=_make_scene_to_pref_sync("fo4_havok_anim_name", "havok_anim_name"),
     )
     bpy.types.Scene.fo4_havok_simplify_value = bpy.props.FloatProperty(
         name="Curve Simplify",
@@ -12918,11 +12952,13 @@ def register():
         min=0.0,
         max=1.0,
         precision=2,
+        update=_make_scene_to_pref_sync("fo4_havok_simplify_value", "havok_simplify_value"),
     )
     bpy.types.Scene.fo4_havok_force_frame_range = bpy.props.BoolProperty(
         name="Use Action Frame Range",
         description="Clamp export to the active action's frame range instead of the scene frame range",
         default=True,
+        update=_make_scene_to_pref_sync("fo4_havok_force_frame_range", "havok_force_frame_range"),
     )
 
     # ── Mesh optimisation settings (per-scene) ────────────────────────────────
@@ -12930,6 +12966,7 @@ def register():
         name="Apply Transforms",
         description="Apply object transforms before mesh optimisation",
         default=True,
+        update=_make_scene_to_pref_sync("fo4_opt_apply_transforms", "optimize_apply_transforms"),
     )
     bpy.types.Scene.fo4_opt_doubles = bpy.props.FloatProperty(
         name="Remove Doubles Threshold",
@@ -12938,11 +12975,13 @@ def register():
         min=0.0,
         max=1.0,
         precision=6,
+        update=_make_scene_to_pref_sync("fo4_opt_doubles", "optimize_remove_doubles_threshold"),
     )
     bpy.types.Scene.fo4_opt_preserve_uvs = bpy.props.BoolProperty(
         name="Preserve UVs",
         description="Keep UV seams when removing doubles",
         default=True,
+        update=_make_scene_to_pref_sync("fo4_opt_preserve_uvs", "optimize_preserve_uvs"),
     )
 
     # ── Game / tool paths stored per-scene (not in preferences) ──────────────
@@ -12951,24 +12990,28 @@ def register():
         description="Root folder where FO4 modding CLI tools are installed",
         default="",
         subtype='DIR_PATH',
+        update=_make_scene_to_pref_sync("fo4_tools_root", "tools_root"),
     )
     bpy.types.Scene.fo4_torch_root = bpy.props.StringProperty(
         name="PyTorch Path",
         description="Custom PyTorch installation folder (leave blank for default)",
         default="",
         subtype='DIR_PATH',
+        update=_make_scene_to_pref_sync("fo4_torch_root", "torch_custom_path"),
     )
     bpy.types.Scene.fo4_instantngp_path = bpy.props.StringProperty(
         name="InstantNGP Path",
         description="Path to InstantNGP installation",
         default="",
         subtype='DIR_PATH',
+        update=_make_scene_to_pref_sync("fo4_instantngp_path", "instantngp_path"),
     )
     bpy.types.Scene.fo4_havok2fbx_path = bpy.props.StringProperty(
         name="Havok2FBX Folder",
         description="Folder containing the Havok2FBX converter executable",
         default="",
         subtype='DIR_PATH',
+        update=_make_scene_to_pref_sync("fo4_havok2fbx_path", "havok2fbx_path"),
     )
 
     # ── Game asset paths stored per-scene (mirror of addon preferences) ───────
@@ -12981,24 +13024,28 @@ def register():
         ),
         default="",
         subtype='DIR_PATH',
+        update=_make_scene_to_pref_sync("fo4_assets_path", "fo4_assets_path"),
     )
     bpy.types.Scene.fo4_assets_mesh_path = bpy.props.StringProperty(
         name="Meshes Folder",
         description="Path to the Meshes sub-folder inside your FO4 Data folder",
         default="",
         subtype='DIR_PATH',
+        update=_make_scene_to_pref_sync("fo4_assets_mesh_path", "fo4_assets_mesh_path"),
     )
     bpy.types.Scene.fo4_assets_tex_path = bpy.props.StringProperty(
         name="Textures Folder",
         description="Path to the Textures sub-folder inside your FO4 Data folder",
         default="",
         subtype='DIR_PATH',
+        update=_make_scene_to_pref_sync("fo4_assets_tex_path", "fo4_assets_tex_path"),
     )
     bpy.types.Scene.fo4_assets_mat_path = bpy.props.StringProperty(
         name="Materials Folder",
         description="Path to the Materials sub-folder inside your FO4 Data folder",
         default="",
         subtype='DIR_PATH',
+        update=_make_scene_to_pref_sync("fo4_assets_mat_path", "fo4_assets_mat_path"),
     )
     bpy.types.Scene.fo4_unity_assets_path = bpy.props.StringProperty(
         name="Unity Assets Folder",
@@ -13008,6 +13055,7 @@ def register():
         ),
         default="",
         subtype='DIR_PATH',
+        update=_make_scene_to_pref_sync("fo4_unity_assets_path", "unity_assets_path"),
     )
     bpy.types.Scene.fo4_unreal_assets_path = bpy.props.StringProperty(
         name="Unreal Assets Folder",
@@ -13017,6 +13065,7 @@ def register():
         ),
         default="",
         subtype='DIR_PATH',
+        update=_make_scene_to_pref_sync("fo4_unreal_assets_path", "unreal_assets_path"),
     )
 
     # ── FO4 export version selector ───────────────────────────────────────────
