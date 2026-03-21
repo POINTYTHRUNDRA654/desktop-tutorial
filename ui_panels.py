@@ -18,6 +18,33 @@ def _safe_import(name):
         print(f"ui_panels: Skipped module {name} due to error: {exc}")
         return None
 
+# ──────────────────────────────────────────────────────────────────────────
+# Module-level caching for torch availability (prevents repeated import 
+# attempts that freeze the UI every frame when torch is broken)
+# ──────────────────────────────────────────────────────────────────────────
+_torch_cache = None  # None = not yet checked, True = available, str = error message
+_torch_version = None
+
+def _get_torch_status():
+    """Get cached torch status to avoid repeated import attempts in draw() loops."""
+    global _torch_cache, _torch_version
+    if _torch_cache is not None:
+        return _torch_cache, _torch_version
+    
+    try:
+        import torch
+        _torch_cache = True
+        _torch_version = torch.__version__
+        return True, _torch_version
+    except OSError as e:
+        # DLL loading error – likely missing Visual C++ Runtime or corrupted install
+        err_msg = str(e)
+        _torch_cache = err_msg
+        return False, err_msg
+    except ImportError as e:
+        _torch_cache = str(e)
+        return False, str(e)
+
 hunyuan3d_helpers = _safe_import("hunyuan3d_helpers")
 gradio_helpers = _safe_import("gradio_helpers")
 hymotion_helpers = _safe_import("hymotion_helpers")
@@ -3498,12 +3525,15 @@ class FO4_PT_SetupPanel(Panel):
         # ── PyTorch status & path persistence ────────────────────────────
         torch_box = layout.box()
         torch_box.label(text="PyTorch (AI Features)", icon='PLUGIN')
-        try:
-            import torch as _torch
-            torch_box.label(text=f"✓ PyTorch {_torch.__version__} loaded", icon='CHECKMARK')
-        except ImportError:
-            torch_box.label(text="✗ PyTorch not found", icon='ERROR')
-            torch_box.label(text="Click below to install to D:/t (short path)", icon='INFO')
+        torch_ok, torch_info = _get_torch_status()
+        if torch_ok:
+            torch_box.label(text=f"✓ PyTorch {torch_info} loaded", icon='CHECKMARK')
+        else:
+            torch_box.label(text="✗ PyTorch not available", icon='ERROR')
+            if "DLL" in str(torch_info) or "WinError" in str(torch_info):
+                torch_box.label(text=f"DLL Error: {torch_info[:60]}...", icon='ERROR')
+            else:
+                torch_box.label(text="Click below to install to D:/t (short path)", icon='INFO')
             torch_box.operator("torch.install_custom_path", text="Install PyTorch to D:/t", icon='IMPORT')
 
         # Show/edit the persisted path
