@@ -253,22 +253,131 @@ export const POPULAR_MODS: PopularMod[] = [
 
   // UI
   {
-    name: 'FallUI - HUD/Workbench/etc',
+    name: 'FallUI Suite (HUD / Inventory / Map)',
     category: 'UI',
-    description: 'Complete UI overhaul. F4SE required.',
+    description: 'Modular UI overhaul: FallUI HUD lets every widget be independently moved/configured in-game. FallUI Inventory overhauls item management. FallUI Map overhauls the Pip-Boy map. Requires F4SE + MCM NG. Must use NG-compatible build (1.10.980+ / 1.11.x).',
     compatibility: {
-      conflicts: ['Other HUD mods', 'DEF_UI without patch'],
-      patches: ['DEF_UI integration'],
-      loadOrder: 'Load order matters for UI',
+      conflicts: ['DEF_UI (alternative — choose one)', 'Other full HUD replacers'],
+      patches: [],
+      loadOrder: 'Any',
       tips: [
-        'If you add HUD elements, test with FallUI',
-        'Follow HUD widget standards',
-        'Many users prefer FallUI over vanilla',
-        'Check widget positioning'
+        'Always use the NG build of FallUI — legacy builds break on 1.10.980+ and 1.11.x',
+        'If you add HUD elements, test with FallUI — widget positions may conflict',
+        'FallUI Inventory changes sorting — document any custom item names your mod adds',
+        'Requires MCM NG — do not use the legacy MCM Framework'
       ]
     },
-    records: ['UI files: HUDMenu.swf, etc'],
-    usage: '40%'
+    records: ['Interface files, F4SE plugin'],
+    usage: '55%'
+  },
+
+  // Stability & Crash Tools (2025+)
+  {
+    name: 'Buffout 4 NG',
+    category: 'Framework',
+    description: 'Engine-level stability fixes and detailed crash logs. Always use the NG fork (Nexus #64880, github.com/alandtse/Buffout4) — v1.37.0+ supports OG + NG + 1.11.x. Do NOT use the original Buffout 4 on NG or 1.11.x. Requires Address Library and F4SE.',
+    compatibility: {
+      conflicts: [],
+      patches: [],
+      loadOrder: 'Loads automatically via F4SE',
+      tips: [
+        'Use Buffout 4 NG (Nexus #64880) — the original is not compatible with NG or 1.11.x',
+        'Pair with Addictol (X-Cell) for complete engine coverage',
+        'Crash logs are at %LOCALAPPDATA%\\Fallout4\\F4SE\\ — run CLASSIC on them',
+        'Requires Address Library (Nexus #47327) — install the All In One Anniversary Edition build'
+      ]
+    },
+    records: ['F4SE plugin (.dll)'],
+    usage: '72%'
+  },
+
+  {
+    name: 'Addictol (formerly X-Cell)',
+    category: 'Framework',
+    description: 'Engine fixes companion to Buffout 4 NG. Handles threading, IO limits, and subtle engine bugs Buffout 4 NG does not address. Rebranded from X-Cell in mid-2025. Install both Buffout 4 NG and Addictol for maximum stability.',
+    compatibility: {
+      conflicts: [],
+      patches: [],
+      loadOrder: 'Loads automatically via F4SE',
+      tips: [
+        'Use alongside Buffout 4 NG — they complement each other',
+        'See The Midnight Ride (themidnightride.moddinglinked.com) for correct install order',
+        'Requires Address Library and F4SE'
+      ]
+    },
+    records: ['F4SE plugin (.dll)'],
+    usage: '48%'
+  },
+
+  {
+    name: 'CLASSIC (Crash Log Auto Scanner)',
+    category: 'Utility',
+    description: 'Scans Buffout 4 NG crash logs and checks setup integrity. Covers 250+ error scenarios with recommended fixes. Validates F4SE, Address Library, and dependency versions. Run it after every CTD. Nexus #56255.',
+    compatibility: {
+      conflicts: [],
+      patches: [],
+      loadOrder: 'External tool',
+      tips: [
+        'Run CLASSIC on every CTD before asking for help — it identifies the root cause automatically',
+        'Validates that Buffout 4 NG, F4SE, and Address Library are correctly installed',
+        'Also checks for corrupt mod files and missing assets'
+      ]
+    },
+    records: ['External tool'],
+    usage: '60%'
+  },
+
+  {
+    name: 'Canary Save Scummer',
+    category: 'Utility',
+    description: 'Save file health checker. Detects corruption and warns when save data references removed/changed mods. Essential for heavily-modded setups where save bloat is a common risk.',
+    compatibility: {
+      conflicts: [],
+      patches: [],
+      loadOrder: 'Any',
+      tips: [
+        'Install before starting a modded playthrough — it needs to be active from the first save',
+        'Warns early when mods are removed mid-playthrough without proper cleanup'
+      ]
+    },
+    records: ['F4SE plugin'],
+    usage: '35%'
+  },
+
+  {
+    name: 'High FPS Physics Fix',
+    category: 'Framework',
+    description: 'Fixes physics bugs, script misfires, and broken game mechanics when running above 60 FPS. v0.8.13+ for NG/1.11.x. Install even if you cap at 60 FPS — it resolves subtle timing edge cases. Nexus #44798.',
+    compatibility: {
+      conflicts: [],
+      patches: [],
+      loadOrder: 'Loads automatically via F4SE',
+      tips: [
+        'Critical for anyone playing above 60 FPS — without it physics breaks, doors misbehave, and scripts misfire',
+        'Requires F4SE and Address Library',
+        'Use v0.8.13+ on NG/1.11.x'
+      ]
+    },
+    records: ['F4SE plugin (.dll)'],
+    usage: '65%'
+  },
+
+  {
+    name: 'BakaMaxPapyrusOps (BakaFramework)',
+    category: 'Framework',
+    description: 'Advanced F4SE Papyrus script function expansions. Required by many NG-era mods including FallUI components and settlement frameworks. Always use the version matching your F4SE build.',
+    compatibility: {
+      conflicts: [],
+      patches: [],
+      loadOrder: 'Any',
+      tips: [
+        'Match version to your F4SE build exactly',
+        'Required by FallUI, MCM NG, and many NG-era settlement mods',
+        'Check the mod page for the correct version for your game runtime'
+      ]
+    },
+    records: ['F4SE plugin'],
+    usage: '42%'
   },
 
   // AI & NPCs
@@ -295,7 +404,7 @@ export const POPULAR_MODS: PopularMod[] = [
   {
     name: 'LOOT (Load Order Optimization Tool)',
     category: 'Utility',
-    description: 'Auto-sorts load order. 95% of users have this.',
+    description: 'Auto-sorts load order. 95% of users have this. Use LOOT 0.21+ for NG/1.11.x support.',
     compatibility: {
       conflicts: [],
       patches: [],
@@ -341,12 +450,12 @@ export function getCompatibilityTips(userModType: string): string[] {
   if (userModType.includes('weapon')) {
     tips.push('⚠️ 45% of users have Modern Firearms - test compatibility');
     tips.push('⚠️ 35% use Weapon Balance Overhaul - consider not changing damage');
-    tips.push('💡 Use AWKCR keywords if adding new weapons');
-    tips.push('💡 Provide leveled list patch or use AWKCR integration');
+    tips.push('💡 AWKCR is legacy (unmaintained 2024+) - do NOT add new AWKCR dependencies');
+    tips.push('💡 Provide leveled list patch for compatibility with weapon overhauls');
   }
   
   if (userModType.includes('armor')) {
-    tips.push('⚠️ 52% have AWKCR - USE their keywords');
+    tips.push('⚠️ AWKCR is legacy/unmaintained — check if target users still need AWKCR support or use a standalone keyword approach');
     tips.push('⚠️ 40% have Armorsmith Extended - make a patch');
     tips.push('💡 Document which armor slots you use');
     tips.push('💡 Test with VIS-G for inventory compatibility');
@@ -355,15 +464,22 @@ export function getCompatibilityTips(userModType: string): string[] {
   if (userModType.includes('settlement')) {
     tips.push('⚠️ 38% use Sim Settlements 2 - test performance');
     tips.push('⚠️ 55% have Place Everywhere - expect unusual placement');
+    tips.push('⚠️ Settlement mods often introduce navmesh — scan your ESP in the Auditor for deleted NAVM records before release');
     tips.push('💡 Provide SS2 plot if adding buildable items');
     tips.push('💡 Make sure objects have proper workshop categories');
   }
   
   if (userModType.includes('script') || userModType.includes('gameplay')) {
     tips.push('⚠️ 75% have F4SE - consider using extended functions');
-    tips.push('⚠️ 70% expect MCM - add config menu');
+    tips.push('⚠️ 70% expect MCM NG (not legacy MCM) - use the NG build');
     tips.push('⚠️ 42% use Survival Options - don\'t force settings');
     tips.push('💡 Test script load with SS2 running');
+    tips.push('💡 Include Buffout 4 NG and Address Library in requirements if using F4SE');
+  }
+
+  if (userModType.includes('physics') || userModType.includes('animation')) {
+    tips.push('⚠️ 65% use High FPS Physics Fix - test at high framerates');
+    tips.push('⚠️ Physics behavior differs above 60 FPS without the fix - document this');
   }
   
   if (userModType.includes('texture') || userModType.includes('visual')) {
@@ -374,15 +490,22 @@ export function getCompatibilityTips(userModType: string): string[] {
   }
   
   if (userModType.includes('ui') || userModType.includes('hud')) {
-    tips.push('⚠️ 40% use FallUI - test HUD positioning');
-    tips.push('⚠️ DEF_UI is common - check compatibility');
-    tips.push('💡 Follow HUD widget standards');
-    tips.push('💡 Provide customization options');
+    tips.push('⚠️ 55% use FallUI Suite (NG build) - test HUD widget positioning');
+    tips.push('⚠️ Always use MCM NG, not the legacy MCM Framework');
+    tips.push('💡 Follow FallUI widget standards for new HUD elements');
+    tips.push('💡 Provide customization options via MCM NG');
+  }
+
+  if (userModType.includes('worldspace') || userModType.includes('location') || userModType.includes('cell')) {
+    tips.push('⚠️ Worldspace mods may break precombines — test with PRP 81.5+ (Nexus #46403)');
+    tips.push('⚠️ Scan your ESP in the Auditor for deleted navmesh (NAVM) records before release');
+    tips.push('💡 Run Check for Errors in xEdit after editing cells — look for [D] NAVM records');
   }
   
   // Universal tips
-  tips.push('✅ 92% have UFO4P - make sure it\'s a master');
-  tips.push('✅ 95% use LOOT - add proper metadata');
+  tips.push('✅ 92% have UFO4P - make sure it\'s compatible');
+  tips.push('✅ 95% use LOOT 0.21+ - add proper metadata');
+  tips.push('✅ Always specify which game version your mod targets: OG (1.10.163), NG (1.10.980+), or 1.11.x (1.11.169+)');
   
   return tips;
 }
