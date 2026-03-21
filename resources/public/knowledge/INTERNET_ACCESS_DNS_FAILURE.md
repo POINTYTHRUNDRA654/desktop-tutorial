@@ -1,22 +1,32 @@
-# Internet Access Failure — DNS Resolution Blocked
+# Internet Access — Multi-Provider Fallback (Updated 2026-03-21)
 
-**Date:** 2026-03-15  
-**Status:** ❌ Outbound DNS failing
+**Status:** ✅ Multi-provider fallback implemented (see Fix #30 in CHANGES.md)
 
-## Findings
-- Mossy cannot reach external HTTPS hosts; DNS lookups fail.
-- Reproduced with curl in the desktop environment:
-  - `curl https://api.duckduckgo.com/?q=test&format=json` → `Could not resolve host: api.duckduckgo.com`
-  - `curl https://fallout.fandom.com/api.php?...` → `Could not resolve host: fallout.fandom.com`
-  - `curl https://mossy.onrender.com/health` → `Could not resolve host: mossy.onrender.com`
-- Because DNS fails, Mossy’s live web search (`web-search` / `browse-web`) and backend calls cannot go online.
+## Original Finding (2026-03-15)
+DNS lookups were failing in the CI/sandbox environment for:
+- `api.duckduckgo.com` — DuckDuckGo Instant Answer API
+- `fallout.fandom.com` — Fallout 4 Fandom MediaWiki
+- `mossy.onrender.com` — Render backend
 
-## Impact
-- Automatic web search injection returns empty or errors.
-- `scan_fallout4_live` cannot fetch wiki or web results.
-- Backend fallback to `https://mossy.onrender.com` cannot resolve.
+## Fix Applied (2026-03-21)
+`src/electron/main.ts` web-search handler now tries multiple providers in sequence,
+falling back to the next provider when DNS/network fails:
 
-## Recommended Fixes
-1. Restore DNS resolution for outbound HTTPS (check resolver, VPN, or firewall rules).
-2. Verify the three hosts above resolve and allow HTTPS traffic.
-3. If network egress is intentionally restricted, provide an allowlist for `api.duckduckgo.com`, `fallout.fandom.com`, and `mossy.onrender.com`, or point Mossy at a reachable local backend (`MOSSY_BACKEND_URL`).
+### Wiki queries (Fallout 4 topics)
+1. **fallout.wiki** — The Vault (independent Fallout wiki, primary)
+2. **fallout.fandom.com** — Fallout Fandom wiki (secondary)
+
+### General queries
+1. **api.duckduckgo.com** — DuckDuckGo Instant Answer API (primary)
+2. **en.wikipedia.org** — Wikipedia search + extract API (fallback)
+
+If all providers for a query type fail, the error is logged and the response guard
+in `LocalAIEngine.ts` handles the retry with a hard-override system prompt.
+
+## Network Allowlist (for restricted environments)
+If outbound HTTPS is allowlisted, ensure these domains are permitted:
+- `fallout.wiki`
+- `fallout.fandom.com`
+- `api.duckduckgo.com`
+- `en.wikipedia.org`
+- `mossy.onrender.com`

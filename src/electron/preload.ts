@@ -1596,7 +1596,20 @@ const electronAPI = {
   },
 
   /**
-   * Voice chat: send a message to main process
+   * Internet Access Test: probe all web search providers (fallout.wiki, fandom,
+   * DuckDuckGo, Wikipedia) and return a structured diagnostic result.
+   * Safe to call from the Settings UI — runs in the main process.
+   */
+  testInternetAccess: (): Promise<{
+    providers: Array<{ name: string; url: string; ok: boolean; result?: string; empty?: boolean; error?: string; ms: number }>;
+    wikiOk: boolean;
+    generalOk: boolean;
+    summary: string;
+  }> => {
+    return ipcRenderer.invoke('test-internet-access');
+  },
+
+  /**
    */
   sendMessage: (message: any): Promise<void> => {
     return ipcRenderer.invoke('sendMessage', message);
