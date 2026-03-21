@@ -535,6 +535,12 @@ export interface ElectronAPI {
   versionControlDeleteBackup: (payload?: any) => Promise<any>;
   webSearch: (query: string, type?: string) => Promise<any>;
   browseWeb: (url: string) => Promise<any>;
+  testInternetAccess: () => Promise<{
+    providers: Array<{ name: string; url: string; ok: boolean; result?: string; empty?: boolean; error?: string; ms: number }>;
+    wikiOk: boolean;
+    generalOk: boolean;
+    summary: string;
+  }>;
 }
 
 export interface VoiceChatPayload {
