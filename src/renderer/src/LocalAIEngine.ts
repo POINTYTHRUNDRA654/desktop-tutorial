@@ -283,7 +283,14 @@ export const LocalAIEngine = {
         if (typeof webApi?.webSearch === 'function') {
           const searchType = fo4TermsRenderer.test(query) ? 'wiki' : undefined;
           console.log('[LocalAIEngine] Calling webSearch with type:', searchType || 'general');
-          const searchResult = await webApi.webSearch(query, searchType);
+
+          // Wrap web search in a 5-second timeout to avoid hanging if DNS is broken
+          const webSearchPromise = webApi.webSearch(query, searchType);
+          const timeoutPromise = new Promise((_, reject) =>
+            setTimeout(() => reject(new Error('Web search timeout (5s)')), 5000)
+          );
+          const searchResult = await Promise.race([webSearchPromise, timeoutPromise]);
+
           // Only use the result when it's successful AND has real content
           // (empty:true means the API had no instant answer — don't inject that noise)
           if (searchResult?.success && searchResult?.text && !searchResult?.empty) {
@@ -496,15 +503,23 @@ export const LocalAIEngine = {
             try {
               const guardWebApiLocal = (window.electron?.api || window.electronAPI) as any;
               if (typeof guardWebApiLocal?.webSearch === 'function') {
-                const guardSearch = await guardWebApiLocal.webSearch(query);
-                if (guardSearch?.success && guardSearch?.text && !guardSearch?.empty) {
-                  const enrichedContext = buildGuardContext(injectedContext, guardSearch);
-                  const retryPrompt = `${enhancedSystemInstruction}${enrichedContext}${historyText}\nUser: ${query}\n\nMossy's Response:`;
-                  const retryResp = await api.mlLlmGenerate({ provider, model, baseUrl, prompt: retryPrompt });
-                  if (retryResp?.ok && retryResp.text) {
-                    responseContent = String(retryResp.text);
-                    console.log('[LocalAIEngine] ✅ Local guard retry successful');
+                try {
+                  const guardSearchPromise = guardWebApiLocal.webSearch(query);
+                  const guardTimeoutPromise = new Promise((_, reject) =>
+                    setTimeout(() => reject(new Error('Guard web search timeout (3s)')), 3000)
+                  );
+                  const guardSearch = await Promise.race([guardSearchPromise, guardTimeoutPromise]);
+                  if (guardSearch?.success && guardSearch?.text && !guardSearch?.empty) {
+                    const enrichedContext = buildGuardContext(injectedContext, guardSearch);
+                    const retryPrompt = `${enhancedSystemInstruction}${enrichedContext}${historyText}\nUser: ${query}\n\nMossy's Response:`;
+                    const retryResp = await api.mlLlmGenerate({ provider, model, baseUrl, prompt: retryPrompt });
+                    if (retryResp?.ok && retryResp.text) {
+                      responseContent = String(retryResp.text);
+                      console.log('[LocalAIEngine] ✅ Local guard retry successful');
+                    }
                   }
+                } catch (guardTimeoutErr) {
+                  console.warn('[LocalAIEngine] Guard web search timeout, skipping retry:', guardTimeoutErr);
                 }
               }
             } catch (localGuardErr) {

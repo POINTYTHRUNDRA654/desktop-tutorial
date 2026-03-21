@@ -8,6 +8,8 @@ import React, { createContext, useState, ReactNode, useRef, useEffect } from 're
 import { VoiceService, VoiceServiceConfig } from './voice-service';
 import { contextAwareAIService } from './ContextAwareAIService';
 import { ModProjectStorage } from './services/ModProjectStorage';
+import { LocalAIEngine } from './LocalAIEngine';
+import { getFullSystemInstruction } from './MossyBrain';
 
 export interface LiveContextType {
   isActive: boolean;
@@ -80,6 +82,9 @@ export const LiveProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   // and therefore closes over a stale isMuted state) sees the live value.
   const isMutedRef = useRef(false);
   useEffect(() => { isMutedRef.current = isMuted; }, [isMuted]);
+
+  // Flag to prevent disconnect during active AI processing
+  const isProcessingResponseRef = useRef(false);
 
   const loadLiveHistory = () => {
     try {
@@ -401,16 +406,29 @@ export const LiveProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     // successful transcription—clear any previous STT error tally
     setSttErrors(0);
 
+    // Capture session ID at START of AI processing so we can validate it hasn't changed
+    // This prevents discarding valid responses if disconnect() gets called during processing
+    const sessionIdAtStart = currentSessionRef.current;
+
+    // Mark that we're processing a response — prevents disconnect from interrupting
+    isProcessingResponseRef.current = true;
+
     try {
       // Add to conversation history
       pushLiveHistory({ role: 'user', content: text });
 
-      // Send to AI for response
-      const response = await sendMessageToMain(text);
+      // Send to LocalAIEngine for response (with web search injection)
+      console.log('[LiveContext] Calling LocalAIEngine.generateResponse for voice');
+      const systemInstruction = getFullSystemInstruction();
+      const priorHistory = conversationHistoryRef.current.slice(-30);
+      const aiResult = await LocalAIEngine.generateResponse(text, systemInstruction, priorHistory);
+      const response = aiResult.content || 'Sorry, I encountered an error processing your request.';
 
-      // Check again if we're still active (user might have disconnected during AI processing)
-      if (currentSessionRef.current === 0) {
-        console.log('[LiveContext] Ignoring AI response - voice session ended during processing');
+      // Check if session ID changed (user disconnected, or session ended for another reason)
+      // Use the captured ID so we don't discard valid responses from disconnect() being called during processing
+      if (currentSessionRef.current === 0 || currentSessionRef.current !== sessionIdAtStart) {
+        console.log('[LiveContext] Ignoring AI response - voice session ended during processing (session was:', sessionIdAtStart, 'now:', currentSessionRef.current + ')');
+        isProcessingResponseRef.current = false;
         return;
       }
 
@@ -451,13 +469,17 @@ export const LiveProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         console.warn('[LiveContext] notification attempt failed', e);
       }
       // if the backend appears hung, restart the voice link
-      if (/timeout|AI/i.test(msg)) {
-        console.warn('[LiveContext] restarting voice link after error');
+      // Only restart if it's a TIMEOUT error, not general AI errors
+      if (/timeout/i.test(msg)) {
+        console.warn('[LiveContext] restarting voice link after timeout error');
         disconnect();
         setTimeout(() => {
           connect().catch(() => { });
         }, 1000);
       }
+    } finally {
+      // Mark processing complete so disconnect can proceed if needed
+      isProcessingResponseRef.current = false;
     }
   };
 
