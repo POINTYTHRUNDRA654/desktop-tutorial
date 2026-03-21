@@ -3978,7 +3978,17 @@ function setupIpcHandlers() {
    */
   registerHandler('ai-chat-groq', async (_event, payload: { prompt: string; systemPrompt?: string; model?: string; conversationHistory?: Array<{ role: string; content: string }> }) => {
     try {
-      const systemPrompt = payload.systemPrompt || 'You are a helpful assistant for Fallout 4 modding.';
+      // Cap system prompt to ~3,000 tokens to keep the total request well within
+      // llama-3.3-70b-versatile's 128,000-token context window.
+      // The full MossyBrain system prompt can exceed 90,000 tokens; once conversation
+      // history and injected context are added this causes a "Request too large" error
+      // even for short messages like "hello".
+      // Assumes ~4 characters per token: 12,000 chars ≈ 3,000 tokens.
+      const MAX_SYSTEM_PROMPT_CHARS = 12000;
+      const rawSystemPrompt = payload.systemPrompt || 'You are a helpful assistant for Fallout 4 modding.';
+      const systemPrompt = rawSystemPrompt.length > MAX_SYSTEM_PROMPT_CHARS
+        ? rawSystemPrompt.slice(0, MAX_SYSTEM_PROMPT_CHARS)
+        : rawSystemPrompt;
       const model = payload.model || 'llama-3.3-70b-versatile';
 
       // Build messages array with conversation history for multi-turn context
