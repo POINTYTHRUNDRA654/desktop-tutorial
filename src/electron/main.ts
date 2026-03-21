@@ -6279,6 +6279,8 @@ function setupIpcHandlers() {
 
   /** Maximum characters to extract from a Wikipedia article intro for AI context. */
   const WIKIPEDIA_INTRO_MAX_LENGTH = 800;
+  /** Maximum characters for per-provider result snippet in the internet access test. */
+  const TEST_SNIPPET_MAX_LENGTH = 120;
 
   /**
    * Shared HTTPS GET helper used by web-search and browse-web handlers.
@@ -6481,6 +6483,115 @@ function setupIpcHandlers() {
       console.error('[Web Search] Error:', error);
       return { success: false, error: error.message || 'Web search failed' };
     }
+  });
+
+  /**
+   * test-internet-access — Run a live connectivity check against every web search
+   * provider Mossy uses, in priority order. Returns a structured result so the
+   * Settings UI can display a human-readable diagnostic report.
+   *
+   * Response shape:
+   *   {
+   *     providers: Array<{ name: string; url: string; ok: boolean; result?: string; error?: string; ms: number }>;
+   *     wikiOk: boolean;
+   *     generalOk: boolean;
+   *     summary: string;
+   *   }
+   */
+  registerHandler('test-internet-access', async () => {
+    const TEST_WIKI_QUERY    = 'Papyrus scripting Fallout 4';
+    const TEST_GENERAL_QUERY = 'Fallout 4 modding guide';
+
+    type ProviderResult = {
+      name: string;
+      url: string;
+      ok: boolean;
+      result?: string;
+      empty?: boolean;
+      error?: string;
+      ms: number;
+    };
+
+    const results: ProviderResult[] = [];
+
+    // Helper: fetch + parse one provider, record timing + outcome
+    const probe = async (name: string, url: string, parse: (body: string) => string | null): Promise<ProviderResult> => {
+      const start = Date.now();
+      try {
+        const resp = await httpsGetText(url, 4000);
+        const parsed = parse(resp);
+        const ms = Date.now() - start;
+        if (parsed) {
+          return { name, url, ok: true, result: parsed.slice(0, 400), ms };
+        }
+        return { name, url, ok: false, empty: true, error: 'No usable content returned', ms };
+      } catch (err: any) {
+        return { name, url, ok: false, error: err?.message || String(err), ms: Date.now() - start };
+      }
+    };
+
+    // Wiki providers
+    const wikiResults: ProviderResult[] = [];
+    const parseWiki = (body: string): string | null => {
+      const json = JSON.parse(body);
+      const hits: Array<{ title: string; snippet: string }> = json?.query?.search || [];
+      if (hits.length === 0) return null;
+      return hits.map((r) => `${r.title}: ${stripHtml(r.snippet || '').slice(0, TEST_SNIPPET_MAX_LENGTH)}`).join(' | ');
+    };
+    wikiResults.push(await probe(
+      'fallout.wiki (The Vault)',
+      `https://fallout.wiki/w/api.php?action=query&list=search&srsearch=${encodeURIComponent(TEST_WIKI_QUERY)}&format=json&srlimit=2&srwhat=text`,
+      parseWiki,
+    ));
+    // Only probe fandom if The Vault failed
+    if (!wikiResults[0].ok) {
+      wikiResults.push(await probe(
+        'fallout.fandom.com',
+        `https://fallout.fandom.com/api.php?action=query&list=search&srsearch=${encodeURIComponent(TEST_WIKI_QUERY)}&format=json&srlimit=2&srwhat=text`,
+        parseWiki,
+      ));
+    }
+    results.push(...wikiResults);
+
+    // General providers
+    const generalResults: ProviderResult[] = [];
+    generalResults.push(await probe(
+      'DuckDuckGo',
+      `https://api.duckduckgo.com/?q=${encodeURIComponent(TEST_GENERAL_QUERY)}&format=json&no_html=1&skip_disambig=1`,
+      (body) => {
+        const json = JSON.parse(body);
+        const text = json.AbstractText || json.Abstract || '';
+        return text.trim() || null;
+      },
+    ));
+    // Only probe Wikipedia if DuckDuckGo failed or was empty
+    if (!generalResults[0].ok || generalResults[0].empty) {
+      generalResults.push(await probe(
+        'Wikipedia',
+        `https://en.wikipedia.org/w/api.php?action=query&list=search&srsearch=${encodeURIComponent(TEST_GENERAL_QUERY)}&format=json&srlimit=2&srwhat=text`,
+        (body) => {
+          const json = JSON.parse(body);
+          const hits: Array<{ title: string; snippet: string }> = json?.query?.search || [];
+          if (hits.length === 0) return null;
+          return hits.map((r) => `${r.title}: ${stripHtml(r.snippet || '').slice(0, TEST_SNIPPET_MAX_LENGTH)}`).join(' | ');
+        },
+      ));
+    }
+    results.push(...generalResults);
+
+    const wikiOk    = wikiResults.some((r) => r.ok && !r.empty);
+    const generalOk = generalResults.some((r) => r.ok && !r.empty);
+
+    let summary: string;
+    if (wikiOk && generalOk) {
+      summary = '✅ Internet access is working — Mossy can search online.';
+    } else if (wikiOk || generalOk) {
+      summary = '⚠️ Partial access — some providers are reachable but others are not.';
+    } else {
+      summary = '❌ All providers failed — outbound DNS or HTTPS is blocked in this environment.';
+    }
+
+    return { providers: results, wikiOk, generalOk, summary };
   });
 
   /**
