@@ -412,6 +412,327 @@ function createWindow() {
 }
 
 /**
+ * Settings management (module-level helpers for accessing API keys and configuration)
+ */
+const settingsPath = (() => {
+  try {
+    return path.join(app.getPath('userData'), 'settings.json');
+  } catch {
+    // If app is not ready, fallback to standard path
+    return path.join(os.homedir(), '.mossy-desktop', 'settings.json');
+  }
+})();
+
+type SecretField = 'elevenLabsApiKey' | 'openaiApiKey' | 'groqApiKey' | 'backendToken';
+const secretEncKey = (k: SecretField) => `${k}Enc` as const;
+const hasOwn = (obj: any, key: string) => Object.prototype.hasOwnProperty.call(obj, key);
+
+const encryptSecretForStorage = (plain: string): string => {
+  const v = String(plain || '').trim();
+  if (!v) return '';
+  try {
+    if (safeStorage.isEncryptionAvailable()) {
+      const buf = safeStorage.encryptString(v);
+      return `enc:${buf.toString('base64')}`;
+    }
+  } catch (e) {
+    console.warn('[Settings] safeStorage encryption failed; storing as plain marker:', e);
+  }
+  return `plain:${v}`;
+};
+
+const decryptSecretFromStorage = (stored: any): string => {
+  const raw = String(stored || '').trim();
+  if (!raw) return '';
+  if (raw.startsWith('plain:')) return raw.slice('plain:'.length);
+  if (!raw.startsWith('enc:')) return '';
+
+  const encrypted = raw.slice('enc:'.length);
+
+  // Try packaged encryption format first (iv:encrypted)
+  if (encrypted.includes(':')) {
+    try {
+      const crypto = require('crypto');
+      const ENCRYPTION_KEY = 'mossy-2026-packaging-key-change-in-production';
+      const parts = encrypted.split(':');
+      if (parts.length === 2) {
+        const iv = Buffer.from(parts[0], 'hex');
+        const encryptedText = parts[1];
+        const key = crypto.scryptSync(ENCRYPTION_KEY, 'salt', 32);
+        const decipher = crypto.createDecipheriv('aes-256-cbc', key, iv);
+        let decrypted = decipher.update(encryptedText, 'hex', 'utf8');
+        decrypted += decipher.final('utf8');
+        return decrypted;
+      }
+    } catch (e) {
+      console.warn('[Settings] packaged decryption failed, trying safeStorage:', e);
+    }
+  }
+
+  // Fall back to safeStorage format (base64 only)
+  const b64 = encrypted;
+  try {
+    if (!safeStorage.isEncryptionAvailable()) return '';
+    return safeStorage.decryptString(Buffer.from(b64, 'base64'));
+  } catch (e) {
+    console.warn('[Settings] safeStorage decryption failed:', e);
+    return '';
+  }
+};
+
+const migratePlainSecretsToEncrypted = (settings: any): { next: any; migrated: boolean } => {
+  if (!settings || typeof settings !== 'object') return { next: settings, migrated: false };
+  const next = { ...settings };
+  let migrated = false;
+
+  const fields: SecretField[] = ['elevenLabsApiKey', 'openaiApiKey', 'groqApiKey', 'backendToken'];
+  for (const field of fields) {
+    const encKey = secretEncKey(field);
+    const plain = String(next?.[field] || '').trim();
+    const enc = String(next?.[encKey] || '').trim();
+
+    if (plain && !enc) {
+      next[encKey] = encryptSecretForStorage(plain);
+      next[field] = '';
+      migrated = true;
+      continue;
+    }
+
+    if (enc && plain) {
+      next[field] = '';
+      migrated = true;
+    }
+  }
+
+  return { next, migrated };
+};
+
+const seedSecretFromEnv = (settings: any, field: SecretField, envName: string): boolean => {
+  const next = settings;
+  const encKey = secretEncKey(field);
+  const hasEnc = String(next?.[encKey] || '').trim();
+  const hasPlain = String(next?.[field] || '').trim();
+  if (hasEnc || hasPlain) return false;
+
+  const envValue = String((process.env as any)?.[envName] || '').trim();
+  if (!envValue) return false;
+
+  const isEnc = envValue.startsWith('enc:');
+  if (!isEnc && !safeStorage.isEncryptionAvailable()) {
+    console.warn(`[Settings] safeStorage unavailable; skipping persist for ${field} (env will be used in-memory).`);
+    return false;
+  }
+
+  next[encKey] = isEnc ? envValue : encryptSecretForStorage(envValue);
+  next[field] = '';
+  return true;
+};
+
+const getSecretValue = (settings: any, field: SecretField, envName?: string): string => {
+  const encKey = secretEncKey(field);
+  const fromEnc = decryptSecretFromStorage(settings?.[encKey]);
+  if (fromEnc) return fromEnc;
+
+  const fromPlain = String(settings?.[field] || '').trim();
+  if (fromPlain) return fromPlain;
+
+  // Check environment variables (now potentially encrypted)
+  if (envName) {
+    const envValue = String((process.env as any)?.[envName] || '').trim();
+    if (envValue) {
+      // If it starts with enc:, decrypt it
+      if (envValue.startsWith('enc:')) {
+        return decryptSecretFromStorage(envValue);
+      }
+      return envValue;
+    }
+  }
+  return '';
+};
+
+const loadSettings = (): any => {
+  try {
+    if (fs.existsSync(settingsPath)) {
+      const data = fs.readFileSync(settingsPath, 'utf-8');
+      const parsed = JSON.parse(data);
+      const { next, migrated } = migratePlainSecretsToEncrypted(parsed);
+      let cleaned = false;
+      if (hasOwn(next, 'deepgramApiKey')) {
+        delete (next as any).deepgramApiKey;
+        cleaned = true;
+      }
+      if (hasOwn(next, 'deepgramApiKeyEnc')) {
+        delete (next as any).deepgramApiKeyEnc;
+        cleaned = true;
+      }
+      const seeded =
+        seedSecretFromEnv(next, 'backendToken', 'MOSSY_BACKEND_TOKEN') ||
+        seedSecretFromEnv(next, 'openaiApiKey', 'OPENAI_API_KEY') ||
+        seedSecretFromEnv(next, 'groqApiKey', 'GROQ_API_KEY') ||
+        seedSecretFromEnv(next, 'elevenLabsApiKey', 'ELEVENLABS_API_KEY');
+
+      if (migrated || seeded || cleaned) {
+        try {
+          fs.writeFileSync(settingsPath, JSON.stringify(next, null, 2), 'utf-8');
+          if (migrated) {
+            console.log('[Settings] Migrated plaintext secrets to encrypted storage');
+          }
+          if (seeded) {
+            console.log('[Settings] Seeded secrets from environment');
+          }
+          if (cleaned) {
+            console.log('[Settings] Removed legacy Deepgram secrets');
+          }
+        } catch (e) {
+          console.warn('[Settings] Failed to persist migrated secrets:', e);
+        }
+      }
+      return next;
+    }
+  } catch (e) {
+    console.error('[Settings] Failed to load settings:', e);
+  }
+  // Return comprehensive default settings with all tool paths
+  const defaultBackendBaseUrl = String(
+    process.env.MOSSY_BACKEND_URL || 'https://mossy.onrender.com'
+  ).trim();
+
+  const defaults: Record<string, unknown> = {
+    // UI + Voice language
+    uiLanguage: 'auto',
+    sttLanguage: 'en-US',
+
+    // Local AI defaults
+    localAiPreferredProvider: 'auto',
+    ollamaBaseUrl: 'http://127.0.0.1:11434',
+    ollamaModel: 'llama3',
+    openaiCompatBaseUrl: 'http://127.0.0.1:1234/v1',
+    openaiCompatModel: '',
+    cosmosBaseUrl: '',
+    cosmosModel: '',
+
+    xeditPath: '',
+    xeditScriptsDirOverride: '',
+    nifSkopePath: '',
+    fomodCreatorPath: '',
+    creationKitPath: '',
+    blenderPath: '',
+    lootPath: '',
+    vortexPath: '',
+    mo2Path: '',
+    fallout4Path: '',
+    wryeBashPath: '',
+    bodySlidePath: '',
+    outfitStudioPath: '',
+    baePath: '',
+    gimpPath: '',
+    archive2Path: '',
+    pjmScriptPath: '',
+    f4sePath: '',
+    upscaylPath: '',
+    photopeaPath: '',
+    shaderMapPath: '',
+    nvidiaTextureToolsPath: '',
+    nvidiaCanvasPath: '',
+    nvidiaOmniversePath: '',
+    autodeskFbxPath: '',
+    nifUtilsSuitePath: '',
+
+    // Papyrus
+    papyrusCompilerPath: '',
+    papyrusFlagsPath: '',
+    papyrusImportPaths: '',
+    papyrusSourcePath: '',
+    papyrusOutputPath: '',
+    papyrusTemplateLibrary: [],
+
+    // Script libraries (The Scribe)
+    xeditScriptLibrary: [],
+    blenderScriptLibrary: [],
+    scriptBundles: [],
+
+    // Load Order Lab (experimental)
+    loadOrderLabXeditPresetId: 'fo4edit-script-quoted',
+    loadOrderLabXeditArgsTemplate: '',
+    loadOrderLabXeditArgsEnabled: false,
+    loadOrderLabPreparedScriptPath: '',
+
+    // Community Sharing
+    communityRepo: '',
+    communityContributorName: '',
+    communityContributorLink: '',
+
+    // Workflow Runner
+    workflowRunnerWorkflows: [],
+    workflowRunnerRunHistory: [],
+
+    // TTS output (optional)
+    ttsOutputProvider: 'browser',
+    elevenLabsApiKey: '',
+    elevenLabsApiKeyEnc: '',
+    elevenLabsVoiceId: '',
+
+    // Optional backend proxy (server holds provider keys)
+    backendBaseUrl: defaultBackendBaseUrl,
+    backendToken: '',
+    backendTokenEnc: '',
+
+    // Cloud API keys (stored locally; never exposed to renderer)
+    openaiApiKey: '',
+    openaiApiKeyEnc: '',
+    groqApiKey: '',
+    groqApiKeyEnc: '',
+  };
+
+  // Seed API keys from .env.encrypted into settings.json on first launch so that
+  // the app works out of the box without any user configuration.
+  const seeded =
+    seedSecretFromEnv(defaults, 'backendToken', 'MOSSY_BACKEND_TOKEN') ||
+    seedSecretFromEnv(defaults, 'openaiApiKey', 'OPENAI_API_KEY') ||
+    seedSecretFromEnv(defaults, 'groqApiKey', 'GROQ_API_KEY') ||
+    seedSecretFromEnv(defaults, 'elevenLabsApiKey', 'ELEVENLABS_API_KEY');
+  if (seeded) {
+    try {
+      fs.writeFileSync(settingsPath, JSON.stringify(defaults, null, 2), 'utf-8');
+      console.log('[Settings] First-run: seeded API keys from environment into settings.json');
+    } catch (e) {
+      console.warn('[Settings] First-run: could not persist seeded settings:', e);
+    }
+  }
+
+  return defaults;
+};
+
+const redactSettingsForRenderer = (settings: any): any => {
+  if (!settings || typeof settings !== 'object') return settings;
+  const clone: any = { ...settings };
+  // Never expose secrets to the renderer.
+  if (clone.backendToken) clone.backendToken = '';
+  if (clone.backendTokenEnc) clone.backendTokenEnc = '';
+  if (clone.elevenLabsApiKey) clone.elevenLabsApiKey = '';
+  if (clone.elevenLabsApiKeyEnc) clone.elevenLabsApiKeyEnc = '';
+  if (clone.openaiApiKey) clone.openaiApiKey = '';
+  if (clone.openaiApiKeyEnc) clone.openaiApiKeyEnc = '';
+  if (clone.groqApiKey) clone.groqApiKey = '';
+  if (clone.groqApiKeyEnc) clone.groqApiKeyEnc = '';
+  return clone;
+};
+
+const saveSettings = (settings: any): void => {
+  try {
+    fs.writeFileSync(settingsPath, JSON.stringify(settings, null, 2), 'utf-8');
+    console.log('[Settings] Settings saved to:', settingsPath);
+    // Notify all renderer windows of settings update
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.send('settings-updated', redactSettingsForRenderer(settings));
+    }
+  } catch (e) {
+    console.error('[Settings] Failed to save settings:', e);
+    throw e;
+  }
+};
+
+/**
  * Setup IPC handlers for renderer communication
  */
 function setupIpcHandlers() {
@@ -1182,318 +1503,6 @@ function setupIpcHandlers() {
       return false;
     }
   });
-
-  // Settings management using JSON file storage
-  const settingsPath = path.join(app.getPath('userData'), 'settings.json');
-
-  type SecretField = 'elevenLabsApiKey' | 'openaiApiKey' | 'groqApiKey' | 'backendToken';
-  const secretEncKey = (k: SecretField) => `${k}Enc` as const;
-  const hasOwn = (obj: any, key: string) => Object.prototype.hasOwnProperty.call(obj, key);
-
-  const encryptSecretForStorage = (plain: string): string => {
-    const v = String(plain || '').trim();
-    if (!v) return '';
-    try {
-      if (safeStorage.isEncryptionAvailable()) {
-        const buf = safeStorage.encryptString(v);
-        return `enc:${buf.toString('base64')}`;
-      }
-    } catch (e) {
-      console.warn('[Settings] safeStorage encryption failed; storing as plain marker:', e);
-    }
-    return `plain:${v}`;
-  };
-
-  const decryptSecretFromStorage = (stored: any): string => {
-    const raw = String(stored || '').trim();
-    if (!raw) return '';
-    if (raw.startsWith('plain:')) return raw.slice('plain:'.length);
-    if (!raw.startsWith('enc:')) return '';
-
-    const encrypted = raw.slice('enc:'.length);
-
-    // Try packaged encryption format first (iv:encrypted)
-    if (encrypted.includes(':')) {
-      try {
-        const crypto = require('crypto');
-        const ENCRYPTION_KEY = 'mossy-2026-packaging-key-change-in-production';
-        const parts = encrypted.split(':');
-        if (parts.length === 2) {
-          const iv = Buffer.from(parts[0], 'hex');
-          const encryptedText = parts[1];
-          const key = crypto.scryptSync(ENCRYPTION_KEY, 'salt', 32);
-          const decipher = crypto.createDecipheriv('aes-256-cbc', key, iv);
-          let decrypted = decipher.update(encryptedText, 'hex', 'utf8');
-          decrypted += decipher.final('utf8');
-          return decrypted;
-        }
-      } catch (e) {
-        console.warn('[Settings] packaged decryption failed, trying safeStorage:', e);
-      }
-    }
-
-    // Fall back to safeStorage format (base64 only)
-    const b64 = encrypted;
-    try {
-      if (!safeStorage.isEncryptionAvailable()) return '';
-      return safeStorage.decryptString(Buffer.from(b64, 'base64'));
-    } catch (e) {
-      console.warn('[Settings] safeStorage decryption failed:', e);
-      return '';
-    }
-  };
-
-  const migratePlainSecretsToEncrypted = (settings: any): { next: any; migrated: boolean } => {
-    if (!settings || typeof settings !== 'object') return { next: settings, migrated: false };
-    const next = { ...settings };
-    let migrated = false;
-
-    const fields: SecretField[] = ['elevenLabsApiKey', 'openaiApiKey', 'groqApiKey', 'backendToken'];
-    for (const field of fields) {
-      const encKey = secretEncKey(field);
-      const plain = String(next?.[field] || '').trim();
-      const enc = String(next?.[encKey] || '').trim();
-
-      if (plain && !enc) {
-        next[encKey] = encryptSecretForStorage(plain);
-        next[field] = '';
-        migrated = true;
-        continue;
-      }
-
-      if (enc && plain) {
-        next[field] = '';
-        migrated = true;
-      }
-    }
-
-    return { next, migrated };
-  };
-
-  const seedSecretFromEnv = (settings: any, field: SecretField, envName: string): boolean => {
-    const next = settings;
-    const encKey = secretEncKey(field);
-    const hasEnc = String(next?.[encKey] || '').trim();
-    const hasPlain = String(next?.[field] || '').trim();
-    if (hasEnc || hasPlain) return false;
-
-    const envValue = String((process.env as any)?.[envName] || '').trim();
-    if (!envValue) return false;
-
-    const isEnc = envValue.startsWith('enc:');
-    if (!isEnc && !safeStorage.isEncryptionAvailable()) {
-      console.warn(`[Settings] safeStorage unavailable; skipping persist for ${field} (env will be used in-memory).`);
-      return false;
-    }
-
-    next[encKey] = isEnc ? envValue : encryptSecretForStorage(envValue);
-    next[field] = '';
-    return true;
-  };
-
-  const getSecretValue = (settings: any, field: SecretField, envName?: string): string => {
-    const encKey = secretEncKey(field);
-    const fromEnc = decryptSecretFromStorage(settings?.[encKey]);
-    if (fromEnc) return fromEnc;
-
-    const fromPlain = String(settings?.[field] || '').trim();
-    if (fromPlain) return fromPlain;
-
-    // Check environment variables (now potentially encrypted)
-    if (envName) {
-      const envValue = String((process.env as any)?.[envName] || '').trim();
-      if (envValue) {
-        // If it starts with enc:, decrypt it
-        if (envValue.startsWith('enc:')) {
-          return decryptSecretFromStorage(envValue);
-        }
-        return envValue;
-      }
-    }
-    return '';
-  };
-
-  const loadSettings = (): any => {
-    try {
-      if (fs.existsSync(settingsPath)) {
-        const data = fs.readFileSync(settingsPath, 'utf-8');
-        const parsed = JSON.parse(data);
-        const { next, migrated } = migratePlainSecretsToEncrypted(parsed);
-        let cleaned = false;
-        if (hasOwn(next, 'deepgramApiKey')) {
-          delete (next as any).deepgramApiKey;
-          cleaned = true;
-        }
-        if (hasOwn(next, 'deepgramApiKeyEnc')) {
-          delete (next as any).deepgramApiKeyEnc;
-          cleaned = true;
-        }
-        const seeded =
-          seedSecretFromEnv(next, 'backendToken', 'MOSSY_BACKEND_TOKEN') ||
-          seedSecretFromEnv(next, 'openaiApiKey', 'OPENAI_API_KEY') ||
-          seedSecretFromEnv(next, 'groqApiKey', 'GROQ_API_KEY') ||
-          seedSecretFromEnv(next, 'elevenLabsApiKey', 'ELEVENLABS_API_KEY');
-
-        if (migrated || seeded || cleaned) {
-          try {
-            fs.writeFileSync(settingsPath, JSON.stringify(next, null, 2), 'utf-8');
-            if (migrated) {
-              console.log('[Settings] Migrated plaintext secrets to encrypted storage');
-            }
-            if (seeded) {
-              console.log('[Settings] Seeded secrets from environment');
-            }
-            if (cleaned) {
-              console.log('[Settings] Removed legacy Deepgram secrets');
-            }
-          } catch (e) {
-            console.warn('[Settings] Failed to persist migrated secrets:', e);
-          }
-        }
-        return next;
-      }
-    } catch (e) {
-      console.error('[Settings] Failed to load settings:', e);
-    }
-    // Return comprehensive default settings with all tool paths
-    const defaultBackendBaseUrl = String(
-      process.env.MOSSY_BACKEND_URL || 'https://mossy.onrender.com'
-    ).trim();
-
-    const defaults: Record<string, unknown> = {
-      // UI + Voice language
-      uiLanguage: 'auto',
-      sttLanguage: 'en-US',
-
-      // Local AI defaults
-      localAiPreferredProvider: 'auto',
-      ollamaBaseUrl: 'http://127.0.0.1:11434',
-      ollamaModel: 'llama3',
-      openaiCompatBaseUrl: 'http://127.0.0.1:1234/v1',
-      openaiCompatModel: '',
-      cosmosBaseUrl: '',
-      cosmosModel: '',
-
-      xeditPath: '',
-      xeditScriptsDirOverride: '',
-      nifSkopePath: '',
-      fomodCreatorPath: '',
-      creationKitPath: '',
-      blenderPath: '',
-      lootPath: '',
-      vortexPath: '',
-      mo2Path: '',
-      fallout4Path: '',
-      wryeBashPath: '',
-      bodySlidePath: '',
-      outfitStudioPath: '',
-      baePath: '',
-      gimpPath: '',
-      archive2Path: '',
-      pjmScriptPath: '',
-      f4sePath: '',
-      upscaylPath: '',
-      photopeaPath: '',
-      shaderMapPath: '',
-      nvidiaTextureToolsPath: '',
-      nvidiaCanvasPath: '',
-      nvidiaOmniversePath: '',
-      autodeskFbxPath: '',
-      nifUtilsSuitePath: '',
-
-      // Papyrus
-      papyrusCompilerPath: '',
-      papyrusFlagsPath: '',
-      papyrusImportPaths: '',
-      papyrusSourcePath: '',
-      papyrusOutputPath: '',
-      papyrusTemplateLibrary: [],
-
-      // Script libraries (The Scribe)
-      xeditScriptLibrary: [],
-      blenderScriptLibrary: [],
-      scriptBundles: [],
-
-      // Load Order Lab (experimental)
-      loadOrderLabXeditPresetId: 'fo4edit-script-quoted',
-      loadOrderLabXeditArgsTemplate: '',
-      loadOrderLabXeditArgsEnabled: false,
-      loadOrderLabPreparedScriptPath: '',
-
-      // Community Sharing
-      communityRepo: '',
-      communityContributorName: '',
-      communityContributorLink: '',
-
-      // Workflow Runner
-      workflowRunnerWorkflows: [],
-      workflowRunnerRunHistory: [],
-
-      // TTS output (optional)
-      ttsOutputProvider: 'browser',
-      elevenLabsApiKey: '',
-      elevenLabsApiKeyEnc: '',
-      elevenLabsVoiceId: '',
-
-      // Optional backend proxy (server holds provider keys)
-      backendBaseUrl: defaultBackendBaseUrl,
-      backendToken: '',
-      backendTokenEnc: '',
-
-      // Cloud API keys (stored locally; never exposed to renderer)
-      openaiApiKey: '',
-      openaiApiKeyEnc: '',
-      groqApiKey: '',
-      groqApiKeyEnc: '',
-    };
-
-    // Seed API keys from .env.encrypted into settings.json on first launch so that
-    // the app works out of the box without any user configuration.
-    const seeded =
-      seedSecretFromEnv(defaults, 'backendToken', 'MOSSY_BACKEND_TOKEN') ||
-      seedSecretFromEnv(defaults, 'openaiApiKey', 'OPENAI_API_KEY') ||
-      seedSecretFromEnv(defaults, 'groqApiKey', 'GROQ_API_KEY') ||
-      seedSecretFromEnv(defaults, 'elevenLabsApiKey', 'ELEVENLABS_API_KEY');
-    if (seeded) {
-      try {
-        fs.writeFileSync(settingsPath, JSON.stringify(defaults, null, 2), 'utf-8');
-        console.log('[Settings] First-run: seeded API keys from environment into settings.json');
-      } catch (e) {
-        console.warn('[Settings] First-run: could not persist seeded settings:', e);
-      }
-    }
-
-    return defaults;
-  };
-
-  const redactSettingsForRenderer = (settings: any): any => {
-    if (!settings || typeof settings !== 'object') return settings;
-    const clone: any = { ...settings };
-    // Never expose secrets to the renderer.
-    if (clone.backendToken) clone.backendToken = '';
-    if (clone.backendTokenEnc) clone.backendTokenEnc = '';
-    if (clone.elevenLabsApiKey) clone.elevenLabsApiKey = '';
-    if (clone.elevenLabsApiKeyEnc) clone.elevenLabsApiKeyEnc = '';
-    if (clone.openaiApiKey) clone.openaiApiKey = '';
-    if (clone.openaiApiKeyEnc) clone.openaiApiKeyEnc = '';
-    if (clone.groqApiKey) clone.groqApiKey = '';
-    if (clone.groqApiKeyEnc) clone.groqApiKeyEnc = '';
-    return clone;
-  };
-
-  const saveSettings = (settings: any): void => {
-    try {
-      fs.writeFileSync(settingsPath, JSON.stringify(settings, null, 2), 'utf-8');
-      console.log('[Settings] Settings saved to:', settingsPath);
-      // Notify all renderer windows of settings update
-      if (mainWindow && !mainWindow.isDestroyed()) {
-        mainWindow.webContents.send('settings-updated', redactSettingsForRenderer(settings));
-      }
-    } catch (e) {
-      console.error('[Settings] Failed to save settings:', e);
-      throw e;
-    }
-  };
 
   registerHandler('get-settings', async () => {
     console.log('[Settings] get-settings called');
@@ -6405,72 +6414,72 @@ function setupIpcHandlers() {
         name: string;
         execute: () => Promise<{ success: boolean; empty?: boolean; text: string; source: string; heading: string; url: string }>;
       }> = [
-        {
-          name: 'DuckDuckGo',
-          execute: async () => {
-            const ddgUrl = `https://api.duckduckgo.com/?q=${encodeURIComponent(sanitized)}&format=json&no_html=1&skip_disambig=1`;
-            const raw = await httpsGetText(ddgUrl, 20000);
-            const json = JSON.parse(raw);
-            let text = '';
-            if (json.AbstractText) text += json.AbstractText + '\n\n';
-            else if (json.Abstract) text += json.Abstract + '\n\n';
-            const topics: string[] = (json.RelatedTopics || [])
-              .slice(0, 4)
-              .map((t: any) => (typeof t.Text === 'string' ? t.Text : (Array.isArray(t.Topics) ? t.Topics[0]?.Text : '')) || '')
-              .filter(Boolean);
-            if (topics.length) text += 'Related: ' + topics.join(' | ');
-            const trimmedText = text.trim();
-            return {
-              success: true,
-              // empty:true signals that DuckDuckGo returned no useful instant answer
-              empty: !trimmedText,
-              text: trimmedText || 'No instant answer available for this query.',
-              source: json.AbstractSource || 'DuckDuckGo',
-              heading: json.Heading || '',
-              url: json.AbstractURL || '',
-            };
+          {
+            name: 'DuckDuckGo',
+            execute: async () => {
+              const ddgUrl = `https://api.duckduckgo.com/?q=${encodeURIComponent(sanitized)}&format=json&no_html=1&skip_disambig=1`;
+              const raw = await httpsGetText(ddgUrl, 20000);
+              const json = JSON.parse(raw);
+              let text = '';
+              if (json.AbstractText) text += json.AbstractText + '\n\n';
+              else if (json.Abstract) text += json.Abstract + '\n\n';
+              const topics: string[] = (json.RelatedTopics || [])
+                .slice(0, 4)
+                .map((t: any) => (typeof t.Text === 'string' ? t.Text : (Array.isArray(t.Topics) ? t.Topics[0]?.Text : '')) || '')
+                .filter(Boolean);
+              if (topics.length) text += 'Related: ' + topics.join(' | ');
+              const trimmedText = text.trim();
+              return {
+                success: true,
+                // empty:true signals that DuckDuckGo returned no useful instant answer
+                empty: !trimmedText,
+                text: trimmedText || 'No instant answer available for this query.',
+                source: json.AbstractSource || 'DuckDuckGo',
+                heading: json.Heading || '',
+                url: json.AbstractURL || '',
+              };
+            },
           },
-        },
-        {
-          name: 'Wikipedia',
-          execute: async () => {
-            const wikiSearchUrl = `https://en.wikipedia.org/w/api.php?action=query&list=search&srsearch=${encodeURIComponent(sanitized)}&format=json&srlimit=3&srwhat=text`;
-            const raw = await httpsGetText(wikiSearchUrl, 20000);
-            const json = JSON.parse(raw);
-            const results: Array<{ title: string; snippet: string }> = json?.query?.search || [];
-            if (results.length === 0) {
-              return { success: true, empty: true, text: 'No Wikipedia results found.', source: 'Wikipedia', heading: '', url: '' };
-            }
-            // Also fetch the intro extract of the top result for richer context
-            let introText = '';
-            try {
-              const firstTitle = encodeURIComponent(results[0].title);
-              const extractUrl = `https://en.wikipedia.org/w/api.php?action=query&titles=${firstTitle}&prop=extracts&exintro=true&format=json&explaintext=true`;
-              const extractRaw = await httpsGetText(extractUrl, 15000);
-              const extractJson = JSON.parse(extractRaw);
-              const pages = extractJson?.query?.pages || {};
-              const pageId = Object.keys(pages)[0];
-              if (pageId && pages[pageId]?.extract) {
-                const rawIntro = (pages[pageId].extract as string).slice(0, WIKIPEDIA_INTRO_MAX_LENGTH);
-                // Snap to the last sentence boundary so the intro ends on a complete sentence
-                const lastPunct = Math.max(rawIntro.lastIndexOf('. '), rawIntro.lastIndexOf('! '), rawIntro.lastIndexOf('? '));
-                introText = lastPunct > 0 ? rawIntro.slice(0, lastPunct + 1) : rawIntro;
+          {
+            name: 'Wikipedia',
+            execute: async () => {
+              const wikiSearchUrl = `https://en.wikipedia.org/w/api.php?action=query&list=search&srsearch=${encodeURIComponent(sanitized)}&format=json&srlimit=3&srwhat=text`;
+              const raw = await httpsGetText(wikiSearchUrl, 20000);
+              const json = JSON.parse(raw);
+              const results: Array<{ title: string; snippet: string }> = json?.query?.search || [];
+              if (results.length === 0) {
+                return { success: true, empty: true, text: 'No Wikipedia results found.', source: 'Wikipedia', heading: '', url: '' };
               }
-            } catch (_introErr) {
-              // intro fetch failed — snippet-only results are still useful
-            }
-            const snippets = results.map((r) => `**${r.title}**: ${stripHtml(r.snippet || '')}`).join('\n\n');
-            const text = introText ? `${introText}\n\n${snippets}` : snippets;
-            return {
-              success: true,
-              text,
-              source: 'Wikipedia',
-              heading: results[0]?.title || '',
-              url: `https://en.wikipedia.org/wiki/${encodeURIComponent((results[0]?.title || '').replace(/ /g, '_'))}`,
-            };
+              // Also fetch the intro extract of the top result for richer context
+              let introText = '';
+              try {
+                const firstTitle = encodeURIComponent(results[0].title);
+                const extractUrl = `https://en.wikipedia.org/w/api.php?action=query&titles=${firstTitle}&prop=extracts&exintro=true&format=json&explaintext=true`;
+                const extractRaw = await httpsGetText(extractUrl, 15000);
+                const extractJson = JSON.parse(extractRaw);
+                const pages = extractJson?.query?.pages || {};
+                const pageId = Object.keys(pages)[0];
+                if (pageId && pages[pageId]?.extract) {
+                  const rawIntro = (pages[pageId].extract as string).slice(0, WIKIPEDIA_INTRO_MAX_LENGTH);
+                  // Snap to the last sentence boundary so the intro ends on a complete sentence
+                  const lastPunct = Math.max(rawIntro.lastIndexOf('. '), rawIntro.lastIndexOf('! '), rawIntro.lastIndexOf('? '));
+                  introText = lastPunct > 0 ? rawIntro.slice(0, lastPunct + 1) : rawIntro;
+                }
+              } catch (_introErr) {
+                // intro fetch failed — snippet-only results are still useful
+              }
+              const snippets = results.map((r) => `**${r.title}**: ${stripHtml(r.snippet || '')}`).join('\n\n');
+              const text = introText ? `${introText}\n\n${snippets}` : snippets;
+              return {
+                success: true,
+                text,
+                source: 'Wikipedia',
+                heading: results[0]?.title || '',
+                url: `https://en.wikipedia.org/wiki/${encodeURIComponent((results[0]?.title || '').replace(/ /g, '_'))}`,
+              };
+            },
           },
-        },
-      ];
+        ];
 
       let generalLastError = '';
       for (const provider of generalProviders) {
@@ -6509,7 +6518,7 @@ function setupIpcHandlers() {
    *   }
    */
   registerHandler('test-internet-access', async () => {
-    const TEST_WIKI_QUERY    = 'Papyrus scripting Fallout 4';
+    const TEST_WIKI_QUERY = 'Papyrus scripting Fallout 4';
     const TEST_GENERAL_QUERY = 'Fallout 4 modding guide';
 
     type ProviderResult = {
@@ -6589,7 +6598,7 @@ function setupIpcHandlers() {
     }
     results.push(...generalResults);
 
-    const wikiOk    = wikiResults.some((r) => r.ok && !r.empty);
+    const wikiOk = wikiResults.some((r) => r.ok && !r.empty);
     const generalOk = generalResults.some((r) => r.ok && !r.empty);
 
     let summary: string;

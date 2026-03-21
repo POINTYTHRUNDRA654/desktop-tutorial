@@ -621,7 +621,7 @@ end.`
       usage: "When answering Creation Kit questions, reference Darkfox127's tutorial library and livestreams. Direct users to his YouTube channel for structured tutorials or Twitch for live learning experiences.",
       credit: "All CK knowledge and tutorials referenced from Darkfox127 (Richard) should include proper credit and direct users to his YouTube channel, Twitch streams, or website."
     }
-  }
+  },
   // === 2025–2026 ESSENTIAL TOOLS & STABILITY STACK ===
   communityTools2025: {
     stabilityStack: [

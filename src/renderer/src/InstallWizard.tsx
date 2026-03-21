@@ -309,14 +309,14 @@ export const InstallWizard: React.FC<InstallWizardProps> = ({ embedded = false }
     const modManagerBlurb = mm === 'mo2'
       ? 'You are using Mod Organizer 2 (MO2). Install mods as separate entries; keep plugins organized; verify with LOOT.'
       : mm === 'vortex'
-      ? 'You are using Vortex. Install/enable mods, deploy, then sort plugins; verify deployment is successful.'
-      : 'You are installing manually. This is riskier; keep backups and be extra careful about overwrites.';
+        ? 'You are using Vortex. Install/enable mods, deploy, then sort plugins; verify deployment is successful.'
+        : 'You are installing manually. This is riskier; keep backups and be extra careful about overwrites.';
 
     const installPathHint = mm === 'mo2'
       ? 'MO2: install via “Install a new mod from an archive” and keep it enabled in the left pane; plugins in right pane.'
       : mm === 'vortex'
-      ? 'Vortex: install from file, enable, deploy, then check Plugins page for enabled state.'
-      : 'Manual: copy into Fallout 4 Data folder only when you know exactly what files are overwriting.';
+        ? 'Vortex: install from file, enable, deploy, then check Plugins page for enabled state.'
+        : 'Manual: copy into Fallout 4 Data folder only when you know exactly what files are overwriting.';
 
     if (state.topic === 'xedit') {
       return [
@@ -653,8 +653,6 @@ export const InstallWizard: React.FC<InstallWizardProps> = ({ embedded = false }
         },
       ];
     }
-
-    ];
   }, [state.modManager, state.topic, t]);
 
   const topicMeta = {
@@ -765,11 +763,10 @@ export const InstallWizard: React.FC<InstallWizardProps> = ({ embedded = false }
                 key={topic.id}
                 type="button"
                 onClick={() => setState((s) => ({ ...s, topic: topic.id }))}
-                className={`w-full text-left px-3 py-2 rounded-lg border text-xs font-bold transition-colors ${
-                  state.topic === topic.id
+                className={`w-full text-left px-3 py-2 rounded-lg border text-xs font-bold transition-colors ${state.topic === topic.id
                     ? 'bg-emerald-900/30 border-emerald-500/40 text-emerald-200'
                     : 'bg-slate-900/40 border-slate-800 text-slate-300 hover:border-slate-600'
-                }`}
+                  }`}
               >
                 {topic.label}
               </button>
@@ -783,11 +780,10 @@ export const InstallWizard: React.FC<InstallWizardProps> = ({ embedded = false }
                     key={m.id}
                     type="button"
                     onClick={() => setState((s) => ({ ...s, modManager: m.id }))}
-                    className={`flex-1 px-2 py-2 rounded-lg border text-[11px] font-black transition-colors ${
-                      state.modManager === m.id
+                    className={`flex-1 px-2 py-2 rounded-lg border text-[11px] font-black transition-colors ${state.modManager === m.id
                         ? 'bg-blue-900/30 border-blue-500/40 text-blue-200'
                         : 'bg-slate-900/40 border-slate-800 text-slate-300 hover:border-slate-600'
-                    }`}
+                      }`}
                   >
                     {m.label}
                   </button>
