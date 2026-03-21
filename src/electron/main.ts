@@ -6277,6 +6277,9 @@ function setupIpcHandlers() {
   // does the HTTPS fetch and returns plain text to the renderer/AI context.
   // ---------------------------------------------------------------------------
 
+  /** Maximum characters to extract from a Wikipedia article intro for AI context. */
+  const WIKIPEDIA_INTRO_MAX_LENGTH = 800;
+
   /**
    * Shared HTTPS GET helper used by web-search and browse-web handlers.
    * Uses Electron's net.fetch() which is backed by Chromium's network stack and
@@ -6381,80 +6384,99 @@ function setupIpcHandlers() {
         console.warn('[Web Search] All wiki providers failed; falling back to general search');
       }
 
-      // ---- General search providers — try in order until one succeeds ----
-      // Primary: DuckDuckGo Instant Answer API (no key required)
-      // Fallback: Wikipedia search API (en.wikipedia.org)
-      const generalProviders: Array<() => Promise<{ success: boolean; empty?: boolean; text: string; source: string; heading: string; url: string }>> = [
-        // DuckDuckGo Instant Answer API
-        async () => {
-          const ddgUrl = `https://api.duckduckgo.com/?q=${encodeURIComponent(sanitized)}&format=json&no_html=1&skip_disambig=1`;
-          const raw = await httpsGetText(ddgUrl, 20000);
-          const json = JSON.parse(raw);
-          let text = '';
-          if (json.AbstractText) text += json.AbstractText + '\n\n';
-          else if (json.Abstract) text += json.Abstract + '\n\n';
-          const topics: string[] = (json.RelatedTopics || [])
-            .slice(0, 4)
-            .map((t: any) => (typeof t.Text === 'string' ? t.Text : (Array.isArray(t.Topics) ? t.Topics[0]?.Text : '')) || '')
-            .filter(Boolean);
-          if (topics.length) text += 'Related: ' + topics.join(' | ');
-          const trimmedText = text.trim();
-          return {
-            success: true,
-            // empty:true signals the renderer that DuckDuckGo had no useful instant answer
-            empty: !trimmedText,
-            text: trimmedText || 'No instant answer available for this query.',
-            source: json.AbstractSource || 'DuckDuckGo',
-            heading: json.Heading || '',
-            url: json.AbstractURL || '',
-          };
+      // ---- General search providers — try in order until one returns usable content ----
+      // Each entry has a `name` for diagnostics and an `execute` fn that returns results.
+      // A result with `empty: true` (e.g. DuckDuckGo had no instant answer) is treated
+      // the same as a provider failure — we continue to the next provider rather than
+      // returning empty content to the AI.
+      const generalProviders: Array<{
+        name: string;
+        execute: () => Promise<{ success: boolean; empty?: boolean; text: string; source: string; heading: string; url: string }>;
+      }> = [
+        {
+          name: 'DuckDuckGo',
+          execute: async () => {
+            const ddgUrl = `https://api.duckduckgo.com/?q=${encodeURIComponent(sanitized)}&format=json&no_html=1&skip_disambig=1`;
+            const raw = await httpsGetText(ddgUrl, 20000);
+            const json = JSON.parse(raw);
+            let text = '';
+            if (json.AbstractText) text += json.AbstractText + '\n\n';
+            else if (json.Abstract) text += json.Abstract + '\n\n';
+            const topics: string[] = (json.RelatedTopics || [])
+              .slice(0, 4)
+              .map((t: any) => (typeof t.Text === 'string' ? t.Text : (Array.isArray(t.Topics) ? t.Topics[0]?.Text : '')) || '')
+              .filter(Boolean);
+            if (topics.length) text += 'Related: ' + topics.join(' | ');
+            const trimmedText = text.trim();
+            return {
+              success: true,
+              // empty:true signals that DuckDuckGo returned no useful instant answer
+              empty: !trimmedText,
+              text: trimmedText || 'No instant answer available for this query.',
+              source: json.AbstractSource || 'DuckDuckGo',
+              heading: json.Heading || '',
+              url: json.AbstractURL || '',
+            };
+          },
         },
-        // Wikipedia search fallback
-        async () => {
-          const wikiSearchUrl = `https://en.wikipedia.org/w/api.php?action=query&list=search&srsearch=${encodeURIComponent(sanitized)}&format=json&srlimit=3&srwhat=text`;
-          const raw = await httpsGetText(wikiSearchUrl, 20000);
-          const json = JSON.parse(raw);
-          const results: Array<{ title: string; snippet: string }> = json?.query?.search || [];
-          if (results.length === 0) {
-            return { success: true, empty: true, text: 'No Wikipedia results found.', source: 'Wikipedia', heading: '', url: '' };
-          }
-          // Also fetch the intro extract of the top result for richer context
-          let introText = '';
-          try {
-            const firstTitle = encodeURIComponent(results[0].title);
-            const extractUrl = `https://en.wikipedia.org/w/api.php?action=query&titles=${firstTitle}&prop=extracts&exintro=true&format=json&explaintext=true`;
-            const extractRaw = await httpsGetText(extractUrl, 15000);
-            const extractJson = JSON.parse(extractRaw);
-            const pages = extractJson?.query?.pages || {};
-            const pageId = Object.keys(pages)[0];
-            if (pageId && pages[pageId]?.extract) {
-              introText = (pages[pageId].extract as string).slice(0, 800);
+        {
+          name: 'Wikipedia',
+          execute: async () => {
+            const wikiSearchUrl = `https://en.wikipedia.org/w/api.php?action=query&list=search&srsearch=${encodeURIComponent(sanitized)}&format=json&srlimit=3&srwhat=text`;
+            const raw = await httpsGetText(wikiSearchUrl, 20000);
+            const json = JSON.parse(raw);
+            const results: Array<{ title: string; snippet: string }> = json?.query?.search || [];
+            if (results.length === 0) {
+              return { success: true, empty: true, text: 'No Wikipedia results found.', source: 'Wikipedia', heading: '', url: '' };
             }
-          } catch (_introErr) {
-            // intro fetch failed — snippet-only results are still useful
-          }
-          const snippets = results.map((r) => `**${r.title}**: ${stripHtml(r.snippet || '')}`).join('\n\n');
-          const text = introText ? `${introText}\n\n${snippets}` : snippets;
-          return {
-            success: true,
-            text,
-            source: 'Wikipedia',
-            heading: results[0]?.title || '',
-            url: `https://en.wikipedia.org/wiki/${encodeURIComponent((results[0]?.title || '').replace(/ /g, '_'))}`,
-          };
+            // Also fetch the intro extract of the top result for richer context
+            let introText = '';
+            try {
+              const firstTitle = encodeURIComponent(results[0].title);
+              const extractUrl = `https://en.wikipedia.org/w/api.php?action=query&titles=${firstTitle}&prop=extracts&exintro=true&format=json&explaintext=true`;
+              const extractRaw = await httpsGetText(extractUrl, 15000);
+              const extractJson = JSON.parse(extractRaw);
+              const pages = extractJson?.query?.pages || {};
+              const pageId = Object.keys(pages)[0];
+              if (pageId && pages[pageId]?.extract) {
+                const rawIntro = (pages[pageId].extract as string).slice(0, WIKIPEDIA_INTRO_MAX_LENGTH);
+                // Snap to the last sentence boundary so the intro ends on a complete sentence
+                const lastPunct = Math.max(rawIntro.lastIndexOf('. '), rawIntro.lastIndexOf('! '), rawIntro.lastIndexOf('? '));
+                introText = lastPunct > 0 ? rawIntro.slice(0, lastPunct + 1) : rawIntro;
+              }
+            } catch (_introErr) {
+              // intro fetch failed — snippet-only results are still useful
+            }
+            const snippets = results.map((r) => `**${r.title}**: ${stripHtml(r.snippet || '')}`).join('\n\n');
+            const text = introText ? `${introText}\n\n${snippets}` : snippets;
+            return {
+              success: true,
+              text,
+              source: 'Wikipedia',
+              heading: results[0]?.title || '',
+              url: `https://en.wikipedia.org/wiki/${encodeURIComponent((results[0]?.title || '').replace(/ /g, '_'))}`,
+            };
+          },
         },
       ];
 
+      let generalLastError = '';
       for (const provider of generalProviders) {
         try {
-          const result = await provider();
+          const result = await provider.execute();
+          // Skip to the next provider when the result has no useful content
+          if (result.empty) {
+            console.warn(`[Web Search] ${provider.name} returned empty result, trying next provider`);
+            continue;
+          }
           return result;
         } catch (providerErr: any) {
-          console.warn('[Web Search] General provider failed, trying next:', providerErr?.message || providerErr);
+          generalLastError = providerErr?.message || String(providerErr);
+          console.warn(`[Web Search] ${provider.name} failed, trying next:`, generalLastError);
         }
       }
 
-      return { success: false, error: 'All search providers failed' };
+      return { success: false, error: `All search providers failed (${generalProviders.map((p) => p.name).join(', ')}). Last error: ${generalLastError || 'no content'}` };
     } catch (error: any) {
       console.error('[Web Search] Error:', error);
       return { success: false, error: error.message || 'Web search failed' };

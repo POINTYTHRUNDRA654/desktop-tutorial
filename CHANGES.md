@@ -27,6 +27,44 @@ All changes in this PR live on this branch. The branch name reflects its origin 
 
 ## Done ✅  (DO NOT redo, revert, or override these)
 
+### 32. Fix: Mossy keeps saying she's a large language model with no internet access ✅
+
+**Problem addressed:**
+Even with the existing response guard and mandatory system prompt override, Mossy would still tell users "I'm a large language model and I'm not capable of accessing the internet." Two root causes:
+
+1. **Guard retry missing `mandatoryInternetInstruction`** (`src/renderer/src/LocalAIEngine.ts`):
+   The initial Groq call correctly appended `mandatoryInternetInstruction` to the system prompt.
+   The guard retry did NOT — it used `systemInstruction + enrichedContext` with no terminal override.
+   This gave the model a weaker instruction on the retry, allowing it to repeat the refusal.
+
+2. **No post-processing of the final response** (`src/renderer/src/LocalAIEngine.ts`):
+   Even when the guard fired and retried, the retry response was returned to the user unchanged.
+   If the retry itself still contained self-identification sentences ("I'm a large language model…"),
+   those sentences appeared in the chat. There was no last-resort text filter to remove them.
+
+**Fix A — Add `mandatoryInternetInstruction` to guard retry:**
+- Changed `guardSystemPrompt = systemInstruction + enrichedContext` to
+  `guardSystemPrompt = systemInstruction + enrichedContext + mandatoryInternetInstruction`
+- The retry now ends with the same strong `ANSWER THE USER NOW:` override as the initial call.
+
+**Fix B — Add `sanitizeFinalResponse()` post-processor:**
+- Added a new helper function `sanitizeFinalResponse(text)` inside `generateResponse`.
+- It splits the response into sentences and filters out any sentence that matches a refusal
+  pattern: "I'm a large language model", "As a language model", "I cannot access the internet",
+  "I don't have internet access", etc. — a targeted list of 12 sentence-level patterns.
+- Unlike the broad `INTERNET_REFUSAL_PATTERNS` used for guard detection, these are
+  **sentence-level** patterns that only match when the harmful claim is the main content of
+  the sentence, avoiding false positives from passing mentions.
+- Applied to the FINAL `responseContent` (after any guard retry) before returning to the user.
+- Safety guard: if sanitisation removes more than 70% of the text, the original is returned
+  unchanged to prevent empty responses.
+
+**Files changed:**
+- `src/renderer/src/LocalAIEngine.ts` — Fix A (mandatoryInternetInstruction in retry) + Fix B (sanitizeFinalResponse helper + application)
+- `CHANGES.md`
+
+---
+
 ### 31. Fix: Restore Mossy's internet access with multi-provider fallback ✅
 
 **Problem addressed:**
