@@ -189,10 +189,15 @@ class FO4_OT_import_cell_refs(Operator):
             self.report({'ERROR'}, f"JSON file not found: {self.filepath}")
             return {'CANCELLED'}
 
-        # Check PyNifly is available
-        if not hasattr(bpy.ops, 'import_scene') or not hasattr(bpy.ops.import_scene, 'pynifly'):
+        # Check PyNifly 25+ is available (Blender 4.4+ Extensions system)
+        has_pynifly = (
+            hasattr(bpy.ops, 'import_scene') and
+            hasattr(bpy.ops.import_scene, 'pynifly')
+        )
+        if not has_pynifly:
             self.report({'ERROR'},
-                "PyNifly not found. Install PyNifly (Nexus #52319 / github.com/BadDogSkyrim/PyNifly) first.")
+                "PyNifly 25+ not found. Install PyNifly from Nexus #52319 "
+                "(requires Blender 4.4+ and the Blender Extensions system).")
             return {'CANCELLED'}
 
         try:
@@ -229,7 +234,7 @@ class FO4_OT_import_cell_refs(Operator):
             try:
                 bpy.ops.import_scene.pynifly(filepath=nif_path, game_type='FO4')
             except Exception as e:
-                self.report({'WARNING'}, f"PyNifly import failed for {model_rel}: {e}")
+                self.report({'WARNING'}, f"PyNifly 25 import failed for {model_rel}: {e}")
                 skipped += 1
                 continue
 

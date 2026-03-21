@@ -22,8 +22,8 @@ There is **no single-click roundtrip** for an entire cell — it is a scripted, 
 
 | Tool | Where to Get | Purpose |
 |---|---|---|
-| **PyNifly** | Nexus #52319 / github.com/BadDogSkyrim/PyNifly | Blender NIF import/export |
-| **Blender 4.2+** | blender.org | 3D editing environment |
+| **PyNifly 25.8** | Nexus #52319 / github.com/BadDogSkyrim/PyNifly | Blender NIF import/export (Blender Extensions) |
+| **Blender 4.4+** | blender.org | Required for PyNifly 25+ Extensions system |
 | **BAE (Bethesda Archive Extractor)** | Nexus search | Extract NIF/texture assets from BA2 |
 | **xEdit 4.0.3+** | tes5edit.github.io | Extract REFR cell data |
 | **NifSkope 2.0** | GitHub: hexabitz/nifskope | Verify exported NIFs |
@@ -143,12 +143,18 @@ end.
 
 ## Part 2 — Import Into Blender
 
-### Step 2A: Install PyNifly in Blender
+### Step 2A: Install PyNifly 25 in Blender 4.4+
 
 ```
-1. Download PyNifly from Nexus #52319 (choose the version for your Blender, 4.2+ recommended)
-2. In Blender: Edit → Preferences → Add-ons → Install → select the PyNifly .zip
-3. Enable the add-on (checkbox). You should now see File → Import → NetImmerse/Gamebryo (.nif)
+1. Download PyNifly 25.8 from Nexus #52319 or github.com/BadDogSkyrim/PyNifly/releases
+2. Blender 4.4+ uses the Extensions system:
+   Edit → Preferences → Extensions → "Install from Disk" → select the PyNifly .zip
+3. Enable the extension. You should now see:
+   File → Import → NIF (PyNifly)
+   File → Export → NIF (PyNifly)
+   
+Note: PyNifly 25 also supports TRI morph files (body morphs, head parts)
+and full MOPP collision round-tripping — new in v25.7+.
 ```
 
 ### Step 2B: Import the Cell Reference Layout (Mossy Script)
@@ -170,9 +176,9 @@ This imports every NIF from the JSON, positions and rotates it exactly as it is 
 For individual NIFs without the helper script:
 
 ```
-File → Import → NetImmerse/Gamebryo (.nif)
+File → Import → NIF (PyNifly)
 → Browse to the extracted NIF file
-→ Ensure "Game" is set to "Fallout 4" in the import options
+→ Ensure "Game Type" is set to "FO4" in the import options
 → Import
 ```
 
@@ -283,8 +289,8 @@ Full option: Regenerate PreCombines and PreVis in CK (slow but exact)
 
 | Resource | Link |
 |---|---|
-| PyNifly GitHub | github.com/BadDogSkyrim/PyNifly |
-| PyNifly Nexus | nexusmods.com/fallout4/mods/52319 |
+| PyNifly 25.8 GitHub | github.com/BadDogSkyrim/PyNifly |
+| PyNifly 25.8 Nexus | nexusmods.com/fallout4/mods/52319 — requires Blender 4.4+ |
 | F4RefToBlender | github.com/6ooflames/F4RefToBlender |
 | NifSkope GitHub | github.com/hexabitz/nifskope |
 | YouTube: Blender → FO4 NIF (constructible objects) | youtube.com/watch?v=UMZMUY08znQ |
