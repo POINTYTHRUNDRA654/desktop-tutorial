@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Mic, MicOff, PhoneOff, AlertCircle, Radio, Power, ChevronDown } from 'lucide-react';
+import { Mic, MicOff, PhoneOff, AlertCircle, Radio, Power, ChevronDown, Send } from 'lucide-react';
 import { useLive } from './LiveContext';
 import AvatarCore from './AvatarCore';
 import { Link } from 'react-router-dom';
@@ -23,23 +23,26 @@ const VoiceChat: React.FC = () => {
   const fallbackLive = {
     isActive: false,
     isMuted: false,
-    toggleMute: () => {},
-    disconnect: () => {},
-    stopSpeaking: () => {},
+    toggleMute: () => { },
+    disconnect: () => { },
+    stopSpeaking: () => { },
     mode: 'disconnected',
-    connect: async () => {},
+    connect: async () => { },
     transcription: '',
     micLevel: 0,
     audioInputs: [],
     selectedInputId: '',
-    setSelectedInputId: () => {},
+    setSelectedInputId: () => { },
+    sendTextMessage: async () => { },
   };
   // eslint-disable-next-line react-hooks/rules-of-hooks
   const liveContext = useLive() || fallbackLive;
-  const { isActive, isMuted, toggleMute, disconnect, stopSpeaking, mode, connect, transcription, micLevel, audioInputs, selectedInputId, setSelectedInputId } = liveContext;
+  const { isActive, isMuted, toggleMute, disconnect, stopSpeaking, mode, connect, transcription, micLevel, audioInputs, selectedInputId, setSelectedInputId, sendTextMessage } = liveContext;
   const [isConnecting, setIsConnecting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [expandedStep, setExpandedStep] = useState<string>('live-session');
+  const [textInput, setTextInput] = useState('');
+  const [isSendingText, setIsSendingText] = useState(false);
   const handleConnect = async () => {
     setIsConnecting(true);
     setError(null);
@@ -50,6 +53,22 @@ const VoiceChat: React.FC = () => {
       const msg = err.message || 'Failed to connect to voice chat';
       setError(msg);
       setIsConnecting(false);
+    }
+  };
+
+  const handleSendText = async () => {
+    if (!textInput.trim()) return;
+
+    setIsSendingText(true);
+    setError(null);
+    try {
+      await sendTextMessage(textInput);
+      setTextInput(''); // Clear input after sending
+    } catch (err: any) {
+      const msg = err.message || 'Failed to send text message';
+      setError(msg);
+    } finally {
+      setIsSendingText(false);
     }
   };
 
@@ -108,9 +127,8 @@ const VoiceChat: React.FC = () => {
             <span className="text-[10px] font-mono uppercase tracking-widest text-blue-200/80">Mic Level</span>
             <div className="flex-1 h-2 bg-slate-900/60 rounded-full overflow-hidden">
               <div
-                className={`h-full rounded-full transition-all ${
-                  micLevel > 40 ? 'bg-emerald-400' : micLevel > 20 ? 'bg-yellow-400' : 'bg-red-400'
-                }`}
+                className={`h-full rounded-full transition-all ${micLevel > 40 ? 'bg-emerald-400' : micLevel > 20 ? 'bg-yellow-400' : 'bg-red-400'
+                  }`}
                 style={{ width: `${micLevel}%` }}
               />
             </div>
@@ -120,9 +138,9 @@ const VoiceChat: React.FC = () => {
 
         {isActive && !transcription && (
           <div className="flex gap-1">
-              <div className="w-1 h-1 bg-blue-400 rounded-full animate-bounce" />
-              <div className="w-1 h-1 bg-blue-400 rounded-full animate-bounce [animation-delay:-0.15s]" />
-              <div className="w-1 h-1 bg-blue-400 rounded-full animate-bounce [animation-delay:-0.3s]" />
+            <div className="w-1 h-1 bg-blue-400 rounded-full animate-bounce" />
+            <div className="w-1 h-1 bg-blue-400 rounded-full animate-bounce [animation-delay:-0.15s]" />
+            <div className="w-1 h-1 bg-blue-400 rounded-full animate-bounce [animation-delay:-0.3s]" />
           </div>
         )}
       </div>
@@ -148,15 +166,14 @@ const VoiceChat: React.FC = () => {
         <button
           onClick={() => isActive ? disconnect() : handleConnect()}
           disabled={isConnecting}
-          className={`group relative flex items-center justify-center w-24 h-24 rounded-full transition-all duration-500 shadow-2xl ${
-            isActive 
-              ? 'bg-red-600 shadow-red-600/40 hover:bg-red-500' 
+          className={`group relative flex items-center justify-center w-24 h-24 rounded-full transition-all duration-500 shadow-2xl ${isActive
+              ? 'bg-red-600 shadow-red-600/40 hover:bg-red-500'
               : 'bg-blue-600 shadow-blue-600/40 hover:bg-blue-500'
-          } ${isConnecting ? 'opacity-50 cursor-wait' : ''}`}
+            } ${isConnecting ? 'opacity-50 cursor-wait' : ''}`}
         >
           {/* Spinning ring for connection */}
           {(isConnecting || isActive) && (
-              <div className={`absolute inset-0 border-2 rounded-full border-white/20 border-t-white animate-spin`} />
+            <div className={`absolute inset-0 border-2 rounded-full border-white/20 border-t-white animate-spin`} />
           )}
 
           {isActive ? (
@@ -174,11 +191,10 @@ const VoiceChat: React.FC = () => {
           <div className="flex gap-3">
             <button
               onClick={toggleMute}
-              className={`p-3 rounded-xl border transition-all flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest ${
-                isMuted
+              className={`p-3 rounded-xl border transition-all flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest ${isMuted
                   ? 'bg-red-500/10 border-red-500/50 text-red-400'
                   : 'bg-blue-500/10 border-blue-500/50 text-blue-400 hover:bg-blue-500/20'
-              }`}
+                }`}
             >
               {isMuted ? <MicOff size={14} /> : <Mic size={14} />}
               {isMuted ? 'Muted' : 'Voice Active'}
@@ -193,6 +209,33 @@ const VoiceChat: React.FC = () => {
                 Stop
               </button>
             )}
+          </div>
+        )}
+
+        {/* Text Input Alternative (for users without microphone) */}
+        {isActive && (
+          <div className="w-full max-w-xs mt-6 border-t border-blue-500/20 pt-6">
+            <label className="text-[10px] font-mono uppercase tracking-[0.2em] text-blue-200/70 block mb-2">Or Type a Message</label>
+            <div className="flex gap-2 items-center">
+              <input
+                type="text"
+                value={textInput}
+                onChange={(e) => setTextInput(e.target.value)}
+                onKeyPress={(e) => e.key === 'Enter' && !isSendingText && handleSendText()}
+                placeholder="Type your question..."
+                disabled={isSendingText || mode === 'processing'}
+                className="flex-1 bg-black/60 text-blue-100 border border-blue-500/40 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-blue-400 disabled:opacity-50 disabled:cursor-not-allowed placeholder-blue-400/40"
+              />
+              <button
+                onClick={handleSendText}
+                disabled={!textInput.trim() || isSendingText || mode === 'processing'}
+                title="Send text message"
+                className="p-3 rounded-lg border transition-all flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest bg-emerald-500/10 border-emerald-500/50 text-emerald-400 hover:bg-emerald-500/20 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-emerald-500/10"
+              >
+                <Send size={14} />
+              </button>
+            </div>
+            <p className="text-[10px] text-blue-200/60 mt-1">Press Enter or click Send to message Mossy</p>
           </div>
         )}
       </div>
@@ -245,7 +288,7 @@ const VoiceChat: React.FC = () => {
   ];
 
   return (
-    <div 
+    <div
       className="h-full w-full flex flex-col relative overflow-y-auto overflow-x-hidden bg-black"
       style={{
         backgroundImage: 'linear-gradient(to bottom, rgba(0, 0, 0, 0.8), rgba(0, 0, 0, 0.6))'
@@ -273,31 +316,31 @@ const VoiceChat: React.FC = () => {
             >
               Help
             </Link>
-          <button
-            onClick={async () => {
-              try {
-                const api = (window as any).electron?.api || (window as any).electronAPI;
-                if (!api?.getVoiceHistoryPath) return;
-                const path = await api.getVoiceHistoryPath();
-                if (api.revealInFolder) {
-                  await api.revealInFolder(path);
-                } else {
-                  console.warn('revealInFolder API not available');
+            <button
+              onClick={async () => {
+                try {
+                  const api = (window as any).electron?.api || (window as any).electronAPI;
+                  if (!api?.getVoiceHistoryPath) return;
+                  const path = await api.getVoiceHistoryPath();
+                  if (api.revealInFolder) {
+                    await api.revealInFolder(path);
+                  } else {
+                    console.warn('revealInFolder API not available');
+                  }
+                } catch (e) {
+                  console.warn('Failed to open voice history:', e);
                 }
-              } catch (e) {
-                console.warn('Failed to open voice history:', e);
-              }
-            }}
-            className="px-3 py-1 text-[10px] font-black uppercase tracking-widest rounded bg-blue-500/10 border border-blue-500/30 text-blue-100 hover:bg-blue-500/20 transition-colors"
-            title="Reveal voice chat history file"
-          >
-            History
-          </button>
+              }}
+              className="px-3 py-1 text-[10px] font-black uppercase tracking-widest rounded bg-blue-500/10 border border-blue-500/30 text-blue-100 hover:bg-blue-500/20 transition-colors"
+              title="Reveal voice chat history file"
+            >
+              History
+            </button>
             {isActive && (
-               <div className="flex items-center gap-2 px-3 py-1 bg-blue-500/20 border border-blue-500/30 rounded text-[10px] text-blue-400 font-mono animate-pulse">
-                    <div className="w-1.5 h-1.5 rounded-full bg-blue-400" />
-                    ENCRYPTED BEAM ACTIVE
-               </div>
+              <div className="flex items-center gap-2 px-3 py-1 bg-blue-500/20 border border-blue-500/30 rounded text-[10px] text-blue-400 font-mono animate-pulse">
+                <div className="w-1.5 h-1.5 rounded-full bg-blue-400" />
+                ENCRYPTED BEAM ACTIVE
+              </div>
             )}
           </div>
         </div>
@@ -343,9 +386,8 @@ const VoiceChat: React.FC = () => {
                   <div className="text-xs text-blue-200/60 mt-1">{step.description}</div>
                 </div>
                 <ChevronDown
-                  className={`w-4 h-4 text-blue-200/60 transition-transform ${
-                    expandedStep === step.id ? 'rotate-180' : ''
-                  }`}
+                  className={`w-4 h-4 text-blue-200/60 transition-transform ${expandedStep === step.id ? 'rotate-180' : ''
+                    }`}
                 />
               </button>
 

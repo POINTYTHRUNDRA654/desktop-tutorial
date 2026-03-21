@@ -10,6 +10,7 @@ import { contextAwareAIService } from './ContextAwareAIService';
 import { ModProjectStorage } from './services/ModProjectStorage';
 import { LocalAIEngine } from './LocalAIEngine';
 import { getFullSystemInstruction } from './MossyBrain';
+import { generateSystemContextFromStorage } from './utils/generateSystemContext';
 
 export interface LiveContextType {
   isActive: boolean;
@@ -40,6 +41,8 @@ export interface LiveContextType {
   isLiveMuted: boolean;
   toggleLiveMute: () => void;
   disconnectLive: (manual?: boolean) => void;
+  /** Send text input to Mossy (alternative to voice) */
+  sendTextMessage: (text: string) => Promise<void>;
   // test-only helper
   __test_handleTranscription?: (text: string, sessionId?: number) => Promise<void>;
   __test_setLastSpeakEnd?: (ts: number) => void;
@@ -417,9 +420,10 @@ export const LiveProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       // Add to conversation history
       pushLiveHistory({ role: 'user', content: text });
 
-      // Send to LocalAIEngine for response (with web search injection)
+      // Send to LocalAIEngine for response (with web search injection and full system context)
       console.log('[LiveContext] Calling LocalAIEngine.generateResponse for voice');
-      const systemInstruction = getFullSystemInstruction();
+      const systemContext = await generateSystemContextFromStorage(text);
+      const systemInstruction = getFullSystemInstruction(systemContext);
       const priorHistory = conversationHistoryRef.current.slice(-30);
       const aiResult = await LocalAIEngine.generateResponse(text, systemInstruction, priorHistory);
       const response = aiResult.content || 'Sorry, I encountered an error processing your request.';
@@ -759,6 +763,25 @@ export const LiveProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const setAvatarFromUrl = async (url: string) => { };
   const clearAvatar = () => setCustomAvatar(null);
 
+  // Text input handler for users without microphone
+  const sendTextMessage = async (text: string) => {
+    if (!text.trim()) return;
+
+    // If not connected, connect first
+    if (!isActive) {
+      await connect();
+    }
+
+    // Process the text message the same way as voice transcription
+    const currentSessionId = currentSessionRef.current;
+    try {
+      await handleTranscription(text, currentSessionId);
+    } catch (err) {
+      console.error('[LiveContext] Text message processing failed:', err);
+      throw err;
+    }
+  };
+
   return (
     <LiveContext.Provider
       value={{
@@ -789,6 +812,7 @@ export const LiveProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         isLiveMuted: isMuted,
         toggleLiveMute: toggleMute,
         disconnectLive: disconnect,
+        sendTextMessage,
         ...(process.env.NODE_ENV === 'test' ? { __test_handleTranscription: handleTranscription, __test_setLastSpeakEnd: (ts: number) => { lastSpeakEndRef.current = ts; } } : {}),
       }}
     >
