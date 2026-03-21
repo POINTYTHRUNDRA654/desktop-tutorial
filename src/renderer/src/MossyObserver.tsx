@@ -20,7 +20,8 @@ const QUIPS: Record<string, string[]> = {
         "Your RAM usage is... ambitious."
     ],
     '/crucible': [
-        "Load your crash logs from Buffout or Crash Logger using the file input.",
+        "Load your crash logs from Buffout 4 NG (Nexus #64880) using the file input — always use the NG fork, not the original.",
+        "Run CLASSIC (Nexus #56255) on your crash log first — it covers 250+ error scenarios and names the exact cause automatically.",
         "I analyze stack traces for common culprits - null pointers, bad references, corrupted meshes.",
         "Look for EXCEPTION_ACCESS_VIOLATION and check which registers are null (RAX/RCX = 0x0).",
         "TESObjectREFR crashes often mean deleted references or bad object calls.",
@@ -28,7 +29,8 @@ const QUIPS: Record<string, string[]> = {
         "The 'File:' lines in the stack tell you which plugin caused the crash.",
         "FormIDs starting with FF are temporary - they can't be saved and often cause issues.",
         "If multiple plugins appear in the stack, the lowest one is usually the culprit.",
-        "Update Buffout 4 regularly - new crash detection gets added all the time."
+        "A [D] NAVM FormID in the crash log means a deleted navmesh — use the xEdit Change FormID fix (see NAVMESH_FIX_GUIDE.md).",
+        "Update Buffout 4 NG regularly — new crash detection gets added with every NG/1.11.x patch."
     ],
     '/reverie': [
         "Ideas Bank is your brainstorm vault - capture quest concepts, settlement designs, NPC backstories before you forget them.",
@@ -212,7 +214,10 @@ const QUIPS: Record<string, string[]> = {
         "Blender is open? Remember: 1.0 scale and 30 FPS.",
         "Creation Kit detected. Don't forget to save frequently—and watch for deleted references.",
         "xEdit link is active. I can help resolve record conflicts in real-time.",
-        "I'm pulse-checking your system resources to ensure stability during asset heavy loads."
+        "I'm pulse-checking your system resources to ensure stability during asset heavy loads.",
+        "Blender add-on connected? I'm listening on http://127.0.0.1:8080 — install the real mossy_link.py (scripts/blender/) to get AI answers inside Blender.",
+        "The Blender add-on sends events to me on /event — I can react to mesh imports, exports, and step completions in real time.",
+        "If Blender shows 'Mossy not available', check that the Mossy desktop app is open and that your Groq API key is set in Settings."
     ],
     '/lorekeeper': [
         "The Lorekeeper manages LOD generation and precombine optimization for large worldspace performance.",

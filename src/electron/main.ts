@@ -6790,6 +6790,211 @@ app.whenReady().then(() => {
   setupIpcHandlers();
   bridge.start();
 
+  // ── Blender Add-on HTTP Bridge (port 8080) ────────────────────────────────
+  // Serves the REST API expected by desktop_tutorial_client.py in the
+  // POINTYTHRUNDRA654/Blender-add-on repository.
+  // Endpoints:  GET  /status  /current_step  /next_step  /previous_step  /progress
+  //             POST /event   /mark_complete  /mossy-ai
+  const _blenderBridgeState = {
+    currentStep: 0,
+    steps: [] as { id: number; title: string; description: string }[],
+    completedSteps: new Set<number>(),
+    server: null as import('http').Server | null,
+  };
+
+  const _startBlenderBridgeServer = async () => {
+    const http = await import('http');
+    const BLENDER_PORT = 8080;
+
+    const respond = (
+      res: import('http').ServerResponse,
+      statusCode: number,
+      body: unknown,
+    ) => {
+      const json = JSON.stringify(body);
+      res.writeHead(statusCode, {
+        'Content-Type': 'application/json',
+        'Content-Length': Buffer.byteLength(json),
+        'Access-Control-Allow-Origin': '*',
+      });
+      res.end(json);
+    };
+
+    const readBody = (req: import('http').IncomingMessage): Promise<string> =>
+      new Promise((resolve) => {
+        let raw = '';
+        req.on('data', (chunk) => { raw += chunk.toString(); });
+        req.on('end', () => resolve(raw));
+        req.on('error', () => resolve(''));
+      });
+
+    const srv = http.createServer(async (req, res) => {
+      // CORS preflight
+      if (req.method === 'OPTIONS') {
+        res.writeHead(204, { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Methods': 'GET,POST', 'Access-Control-Allow-Headers': 'Content-Type' });
+        res.end();
+        return;
+      }
+
+      const url = req.url?.split('?')[0] ?? '/';
+
+      // ── GET /status ──────────────────────────────────────────────────────
+      if (req.method === 'GET' && url === '/status') {
+        respond(res, 200, { status: 'ok', app: 'Mossy', version: app.getVersion(), blenderBridge: true });
+        return;
+      }
+
+      // ── GET /current_step ────────────────────────────────────────────────
+      if (req.method === 'GET' && url === '/current_step') {
+        const step = _blenderBridgeState.steps[_blenderBridgeState.currentStep] ?? null;
+        respond(res, 200, { success: true, step, index: _blenderBridgeState.currentStep, total: _blenderBridgeState.steps.length });
+        return;
+      }
+
+      // ── GET /next_step ───────────────────────────────────────────────────
+      if (req.method === 'GET' && url === '/next_step') {
+        if (_blenderBridgeState.currentStep < _blenderBridgeState.steps.length - 1) {
+          _blenderBridgeState.currentStep++;
+          respond(res, 200, { success: true, message: 'Advanced to next step', index: _blenderBridgeState.currentStep });
+        } else {
+          respond(res, 200, { success: false, message: 'Already at last step' });
+        }
+        mainWindow?.webContents.send('blender-step-changed', { index: _blenderBridgeState.currentStep });
+        return;
+      }
+
+      // ── GET /previous_step ───────────────────────────────────────────────
+      if (req.method === 'GET' && url === '/previous_step') {
+        if (_blenderBridgeState.currentStep > 0) {
+          _blenderBridgeState.currentStep--;
+          respond(res, 200, { success: true, message: 'Moved to previous step', index: _blenderBridgeState.currentStep });
+        } else {
+          respond(res, 200, { success: false, message: 'Already at first step' });
+        }
+        mainWindow?.webContents.send('blender-step-changed', { index: _blenderBridgeState.currentStep });
+        return;
+      }
+
+      // ── GET /progress ────────────────────────────────────────────────────
+      if (req.method === 'GET' && url === '/progress') {
+        const completed = _blenderBridgeState.completedSteps.size;
+        const total = _blenderBridgeState.steps.length;
+        respond(res, 200, { completed, total, percentage: total > 0 ? Math.round((completed / total) * 100) : 0 });
+        return;
+      }
+
+      // ── POST /event ──────────────────────────────────────────────────────
+      if (req.method === 'POST' && url === '/event') {
+        try {
+          const raw = await readBody(req);
+          const payload = JSON.parse(raw);
+          console.log('[BlenderBridge] Event:', payload.type, payload.data);
+          mainWindow?.webContents.send('blender-event', payload);
+          respond(res, 200, { success: true, message: 'Event received' });
+        } catch {
+          respond(res, 400, { success: false, message: 'Invalid JSON' });
+        }
+        return;
+      }
+
+      // ── POST /mark_complete ──────────────────────────────────────────────
+      if (req.method === 'POST' && url === '/mark_complete') {
+        try {
+          const raw = await readBody(req);
+          const { step_id } = JSON.parse(raw);
+          _blenderBridgeState.completedSteps.add(Number(step_id));
+          mainWindow?.webContents.send('blender-step-complete', { step_id });
+          respond(res, 200, { success: true, message: 'Step marked complete' });
+        } catch {
+          respond(res, 400, { success: false, message: 'Invalid JSON' });
+        }
+        return;
+      }
+
+      // ── POST /mossy-ai ───────────────────────────────────────────────────
+      // Called by mossy_link.py in the Blender add-on to get AI answers.
+      if (req.method === 'POST' && url === '/mossy-ai') {
+        try {
+          const raw = await readBody(req);
+          const { query, context_data } = JSON.parse(raw) as { query?: string; context_data?: Record<string, unknown> };
+          if (!query) {
+            respond(res, 400, { success: false, message: 'Missing query field' });
+            return;
+          }
+
+          // Build context string from context_data (optional)
+          const contextStr = context_data ? `\n\nBlender context:\n${JSON.stringify(context_data, null, 2)}` : '';
+          const systemPrompt =
+            'You are Mossy, a Fallout 4 modding AI assistant embedded inside a Blender add-on. ' +
+            'Answer concisely and accurately. Focus on practical Blender and Fallout 4 modding advice. ' +
+            'When discussing NIF export, always recommend PyNifly (Nexus #52319). ' +
+            'For cell roundtrips, reference the CK_CELL_TO_BLENDER_WORKFLOW guide.';
+
+          const s = loadSettings();
+          const apiKey = getSecretValue(s, 'groqApiKey', 'GROQ_API_KEY');
+          if (!apiKey) {
+            respond(res, 503, { success: false, message: 'Mossy AI not configured — set Groq API key in Mossy settings' });
+            return;
+          }
+
+          const { default: Groq } = await import('groq-sdk') as { default: new (opts: { apiKey: string }) => { chat: { completions: { create: (p: { model: string; messages: unknown }) => Promise<{ choices: Array<{ message: { content: string | null } }> }> } } } };
+          const groqClient = new Groq({ apiKey });
+          const aiText = await groqClient.chat.completions.create({
+            model: 'llama-3.3-70b-versatile',
+            messages: [
+              { role: 'system', content: systemPrompt },
+              { role: 'user', content: query + contextStr },
+            ],
+          }).then(r => r.choices[0]?.message?.content ?? 'No response');
+
+          respond(res, 200, { success: true, response: aiText });
+        } catch (e: any) {
+          console.error('[BlenderBridge] /mossy-ai error:', e?.message);
+          respond(res, 500, { success: false, message: String(e?.message || e) });
+        }
+        return;
+      }
+
+      // 404 fallback
+      respond(res, 404, { success: false, message: `Unknown endpoint: ${url}` });
+    });
+
+    srv.on('error', (e: NodeJS.ErrnoException) => {
+      if (e.code === 'EADDRINUSE') {
+        console.warn(`[BlenderBridge] Port ${BLENDER_PORT} already in use — bridge not started`);
+      } else {
+        console.error('[BlenderBridge] Server error:', e.message);
+      }
+    });
+
+    srv.listen(BLENDER_PORT, '127.0.0.1', () => {
+      console.log(`[BlenderBridge] HTTP server listening on http://127.0.0.1:${BLENDER_PORT}`);
+    });
+
+    _blenderBridgeState.server = srv;
+  };
+
+  _startBlenderBridgeServer().catch((e) =>
+    console.error('[BlenderBridge] Failed to start HTTP server:', e?.message),
+  );
+
+  // Register IPC handlers for the renderer to query Blender bridge status
+  ipcMain.handle('blender-bridge-status', () => ({
+    running: _blenderBridgeState.server?.listening ?? false,
+    port: 8080,
+    currentStep: _blenderBridgeState.currentStep,
+    totalSteps: _blenderBridgeState.steps.length,
+    completedSteps: _blenderBridgeState.completedSteps.size,
+  }));
+
+  ipcMain.handle('blender-bridge-set-steps', (_event, steps: { id: number; title: string; description: string }[]) => {
+    _blenderBridgeState.steps = steps;
+    _blenderBridgeState.currentStep = 0;
+    _blenderBridgeState.completedSteps.clear();
+    return { success: true };
+  });
+  // ── End Blender Add-on HTTP Bridge ────────────────────────────────────────
+
   // Initialize auto-updater service
   if (mainWindow) {
     autoUpdaterService.setMainWindow(mainWindow);
