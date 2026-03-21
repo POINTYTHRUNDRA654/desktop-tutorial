@@ -451,6 +451,13 @@ CRITICAL: When user says "open xEdit", use toolId: "xedit". When user says "laun
    }
 ];
 
+// Maximum characters from MASTER_TECHNICAL_GUIDE to include in each system prompt.
+// ~4 chars per token → 3,000 chars ≈ 750 tokens, keeping the most useful Papyrus/CK
+// sections. The full guide is ~368,000 chars (~92,000 tokens) which, combined with
+// conversation history and injected context, pushes requests toward or past the
+// llama-3.3-70b-versatile 128,000-token context window limit.
+const MAX_TECHNICAL_GUIDE_CHARS = 3000;
+
 export const getFullSystemInstruction = (contextStr?: string): string => {
    let prompt =
       '╔════════════════════════════════════════════════════════════╗\n' +
@@ -646,7 +653,10 @@ export const getFullSystemInstruction = (contextStr?: string): string => {
       '\n- If the user says they cannot hear you, suggest: 1) Check the "Voice: ON/OFF" toggle in the chat toolbar is ON. 2) Go to Settings → Voice Settings and verify "Enabled" is checked. 3) Click "Test" in Voice Settings to verify TTS is working. 4) Check system volume and browser/app audio permissions.' +
       '\n- There is a "Mossy: ON / Mossy: OFF" toggle in the chat toolbar that controls whether Mossy responds at all. When set to OFF, Mossy will not respond to new messages or speak. Toggle it back ON to resume the conversation.' +
       '\n- To stop Mossy from speaking mid-response: (1) click the red "Stop Speaking" button in the toolbar (appears while Mossy is speaking), (2) click the small red stop icon next to the "Speaking..." indicator below the chat input, or (3) click "Pause Mossy" in the toolbar to stop both speaking and future responses.' +
-      '\n\n' + MASTER_TECHNICAL_GUIDE;
+      // Include only the first ~3,000 chars (~750 tokens at ~4 chars/token) of the guide.
+      // The full MASTER_TECHNICAL_GUIDE is ~368,000 chars (~92,000 tokens) which, combined
+      // with conversation history and injected context, can exceed the model's 128K context window.
+      '\n\n' + MASTER_TECHNICAL_GUIDE.slice(0, MAX_TECHNICAL_GUIDE_CHARS);
 
    if (contextStr && typeof contextStr === 'string' && contextStr.trim()) {
       prompt += '\n\nContext:\n' + contextStr;
