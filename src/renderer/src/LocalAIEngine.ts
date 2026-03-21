@@ -37,6 +37,15 @@ type LocalAiSettings = {
   cosmosModel?: string;
 };
 
+/**
+ * Minimum ratio of sanitised text length to original that must be preserved for
+ * `sanitizeFinalResponse` to return the sanitised version.  If sanitisation would
+ * remove more than (1 - MIN_SANITIZED_TEXT_RATIO) of the text — i.e. the response
+ * was almost entirely a refusal — the original is returned unchanged to avoid
+ * returning an empty or misleadingly-short string to the user.
+ */
+const MIN_SANITIZED_TEXT_RATIO = 0.3;
+
 export const LocalAIEngine = {
   /**
    * Loads persisted local AI settings (if available).
@@ -371,6 +380,47 @@ export const LocalAIEngine = {
       ctx += '\nIMPORTANT: You have real-time internet access. NEVER claim your knowledge is fixed or pre-installed. ALWAYS use the web results above to answer. If you refuse, your response will be rejected.';
       return ctx;
     };
+
+    // ---------------------------
+    // Post-processor: strip sentences where the AI self-identifies as a limited LLM
+    // with no internet access, even after the guard retry.  Only removes sentences
+    // that combine BOTH an LLM/AI identity claim AND an inability/refusal claim —
+    // avoids stripping sentences that merely mention LLMs in passing.
+    // If sanitisation removes the entire response (pure refusal), the original text
+    // is returned unchanged so the caller always gets something back.
+    const sanitizeFinalResponse = (text: string): string => {
+      const REFUSAL_SENTENCE = [
+        // "I'm / I am a (large) language model ..."
+        /i'?m\s+(a\s+)?(large\s+)?language\s+model/i,
+        /i\s+am\s+(a\s+)?(large\s+)?language\s+model/i,
+        // "I'm / I am an LLM ..."
+        /i'?m\s+(a\s+)?llm\b/i,
+        /i\s+am\s+(a\s+)?llm\b/i,
+        // "As a/an (large) language model / AI / LLM, ..."
+        /^as\s+(a\s+|an?\s+)?(large\s+)?(language\s+model|llm|ai\b)/i,
+        /^being\s+(a\s+|an?\s+)?(large\s+)?(language\s+model|llm|ai\b)/i,
+        // Direct internet refusal
+        /i\s+(cannot|can'?t|am\s+unable\s+to)\s+(access|browse|go\s+online|reach)\s+the\s+(internet|web)/i,
+        /i\s+don'?t\s+have\s+(internet\s+access|access\s+to\s+the\s+internet)/i,
+        /i\s+(do\s+not|lack)\s+(internet\s+access|real.?time\s+access)/i,
+        /i\s+don'?t\s+have\s+real.?time\s+access/i,
+        /i\s+can'?t\s+go\s+online/i,
+        /i\s+cannot\s+go\s+online/i,
+      ];
+      // Split on sentence-ending punctuation followed by whitespace.
+      // The final sentence (no trailing whitespace) is preserved naturally since the
+      // split only occurs where whitespace exists; empty strings are filtered below.
+      const sentences = text.split(/(?<=[.!?])\s+/);
+      const cleaned = sentences.filter((s) => {
+        const trimmed = s.trim();
+        return trimmed.length > 0 && !REFUSAL_SENTENCE.some((p) => p.test(trimmed));
+      });
+      const result = cleaned.join(' ').trim();
+      // Safety: if sanitisation would preserve less than 30% of the original text, the
+      // response was probably an unrecoverable pure-refusal — return the original unchanged
+      // so the caller always receives a non-empty string rather than a misleadingly-short fragment.
+      return result.length >= text.length * MIN_SANITIZED_TEXT_RATIO ? result : text;
+    };
     // RESPONSE GUARD: patterns that indicate Mossy falsely claimed she can't access the
     // internet.  Checked after the AI responds; if matched we retry once with live web
     // results injected so the user gets real information instead of a false refusal.
@@ -602,7 +652,7 @@ ANSWER THE USER NOW:`;
                   'USE YOUR KNOWLEDGE AND REASONING TO ANSWER THE USER\'S QUESTION ABOUT: ' + query + '\n';
               }
 
-              const guardSystemPrompt = systemInstruction + enrichedContext;
+              const guardSystemPrompt = systemInstruction + enrichedContext + mandatoryInternetInstruction;
               console.log('[LocalAIEngine] Retrying with system prompt override');
               const retryResp = await api.aiChatGroq(query, guardSystemPrompt, 'llama-3.3-70b-versatile', conversationHistory);
               if (retryResp?.success && retryResp.content) {
@@ -619,6 +669,9 @@ ANSWER THE USER NOW:`;
           }
         }
         // ----------------------
+        // Final sanitisation: strip any LLM self-identification + internet-refusal
+        // sentences that slipped through the guard, so users never see them.
+        responseContent = sanitizeFinalResponse(responseContent);
 
         // Record interaction for self-improvement
         selfImprovementEngine.recordInteraction(query, responseContent, [], 'success');

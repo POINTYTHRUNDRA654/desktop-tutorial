@@ -37,6 +37,7 @@
     "package:win": "npm run build && electron-builder --win",
     "setup-keys": "node scripts/setup-keys.mjs",
     "check-comms": "node scripts/check-comms.mjs",
+    "test-web-search": "node scripts/test-web-search.mjs",
     "fix-encryption": "node scripts/fix-env-encryption.mjs",
     "verify-build": "node scripts/verify-build.mjs",
     "validate-version": "node scripts/validate-version.mjs",

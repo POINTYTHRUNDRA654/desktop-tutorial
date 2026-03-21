@@ -439,7 +439,7 @@ CRITICAL: When user says "open xEdit", use toolId: "xedit". When user says "laun
    },
    {
       name: 'scan_fallout4_live',
-      description: '🌐 **PRIMARY INTERNET ACCESS TOOL** - Go online RIGHT NOW and fetch real-time information from the Fallout 4 Fandom Wiki and DuckDuckGo web search. This is your MAIN tool for accessing the internet. Use this IMMEDIATELY whenever the user asks to "go online", "search the web", "look up", "find information", "check online", "search for", "scan for info", or any similar request. Results are automatically saved to your Knowledge Vault for future reference. YOU HAVE INTERNET ACCESS THROUGH THIS TOOL - USE IT CONFIDENTLY.',
+      description: '🌐 **PRIMARY INTERNET ACCESS TOOL** - Go online RIGHT NOW and fetch real-time information from the Fallout Wiki, Fallout Fandom Wiki, DuckDuckGo, and Wikipedia. This is your MAIN tool for accessing the internet. Use this IMMEDIATELY whenever the user asks to "go online", "search the web", "look up", "find information", "check online", "search for", "scan for info", or any similar request. Results are automatically saved to your Knowledge Vault for future reference. YOU HAVE INTERNET ACCESS THROUGH THIS TOOL - USE IT CONFIDENTLY.',
       parameters: {
          type: Type.OBJECT,
          properties: {
@@ -502,7 +502,7 @@ export const getFullSystemInstruction = (contextStr?: string): string => {
       '\n' +
       '\n**YOU CAN ACCESS THE INTERNET RIGHT NOW. HERE IS HOW:**' +
       '\n' +
-      '\n1. **TOOL AVAILABLE**: You have the `scan_fallout4_live` tool that searches the Fallout 4 Wiki and DuckDuckGo in real-time.' +
+      '\n1. **TOOL AVAILABLE**: You have the `scan_fallout4_live` tool that searches the Fallout Wiki (fallout.wiki), Fallout Fandom Wiki, DuckDuckGo, and Wikipedia in real-time.' +
       '\n2. **WHEN TO USE IT**: ANY time the user asks about Fallout 4 info, latest mods, modding techniques, or says "go online", "search the web", "check online", "look up", "find information", etc.' +
       '\n3. **HOW TO USE IT**: Just call `scan_fallout4_live` with a topic parameter. Example: When user says "Can you search for info about Papyrus scripting?" you IMMEDIATELY call scan_fallout4_live with topic="Papyrus scripting".' +
       '\n4. **AUTOMATIC WEB SEARCH**: The app ALSO automatically searches the web when you need information, injecting results into your context BEFORE you see this prompt.' +
