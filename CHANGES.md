@@ -27,6 +27,35 @@ All changes in this PR live on this branch. The branch name reflects its origin 
 
 ## Done ✅  (DO NOT redo, revert, or override these)
 
+### 31. Fix: Restore Mossy's internet access with multi-provider fallback ✅
+
+**Problem addressed:**
+Mossy's web search was completely broken when DNS resolution failed for the two primary search providers (`api.duckduckgo.com` and `fallout.fandom.com`). A single DNS failure caused the entire search to return `{ success: false }` with no retry, leaving the AI with no live data to work with.
+
+**Root cause:**
+The `web-search` IPC handler in `src/electron/main.ts` had no fallback providers. One network failure = total failure. Both primary providers were hosted on the same DNS-restricted path.
+
+**Fix — Multi-provider fallback chain (`src/electron/main.ts`):**
+
+For **wiki queries** (Fallout 4 topics), the handler now tries in order:
+1. `fallout.wiki` — The Vault (independent Fallout wiki, primary — moved here from fandom)
+2. `fallout.fandom.com` — Fallout Fandom MediaWiki (secondary)
+
+For **general queries**, the handler now tries in order:
+1. `api.duckduckgo.com` — DuckDuckGo Instant Answer API (no API key, primary)
+2. `en.wikipedia.org` — Wikipedia search + intro-extract API (no API key, fallback)
+
+Each provider is wrapped in try/catch. If one fails (DNS, timeout, HTTP error), the next is tried automatically. Only if all providers fail does the handler return `{ success: false }`.
+
+For wiki queries that exhaust all wiki providers, the handler falls through to the general search providers so some result is always attempted.
+
+**Files changed:**
+- `src/electron/main.ts` — web-search handler rewritten with provider loop
+- `resources/public/knowledge/INTERNET_ACCESS_DNS_FAILURE.md` — updated to reflect fix
+- `CHANGES.md`
+
+---
+
 ### 30. Fix: Mossy's online Knowledge Vault pipeline reliability ✅
 
 **Question asked:** "Is she actually going to be able to go online for finding information and store it to her database like she is intended to? She is supposed to be a professional Fallout 4 tutor."
