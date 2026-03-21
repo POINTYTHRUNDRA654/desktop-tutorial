@@ -19,11 +19,11 @@ Installation (legacy Add-on, Blender ≤4.1):
 bl_info = {
     "name": "Fallout 4 Tutorial Helper",
     "author": "Mossy AI Assistant",
-    "version": (1, 2, 0),
-    "blender": (4, 2, 0),
+    "version": (1, 3, 0),
+    "blender": (4, 4, 0),
     "location": "View3D > Sidebar > FO4 Pipeline",
-    "description": "Complete Fallout 4 asset pipeline helper — FO4 setup, NIF prep, collision & UV checks",
-    "warning": "",
+    "description": "Complete Fallout 4 asset pipeline — FO4 setup, PyNifly 25+ NIF export, CK cell ↔ Blender roundtrip, collision & UV checks",
+    "warning": "Requires PyNifly 25+ (Nexus #52319) installed as a Blender Extension",
     "category": "Import-Export",
 }
 
