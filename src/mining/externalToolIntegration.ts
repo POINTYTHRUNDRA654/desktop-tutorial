@@ -1296,29 +1296,39 @@ print(f"Saved to {blend_path}")
   }
 
   /**
-   * Generate Blender Python script for NIF export
+   * Generate Blender Python script for NIF export using PyNifly 25+
    */
   private generateBlenderExportScript(blendPath: string, outputNifPath: string, settings: ExportSettings): string {
     return `
 import bpy
 
-# Export NIF using Blender NIF plugin
+# Export NIF — prefer PyNifly 25+ (Blender 4.4+), fall back to legacy niftools
 try:
-    # Select all objects if export all
+    # Select all objects if not export-selected
     if ${settings.exportSelected !== true}:
         bpy.ops.object.select_all(action='SELECT')
-    
-    # Export NIF
-    bpy.ops.export_scene.nif(
-        filepath="${outputNifPath.replace(/\\/g, '\\\\')}",
-        scale_correction=${settings.scale},
-        apply_scale=${settings.applyModifiers !== false},
-        game='FALLOUT_4'
-    )
-    print("Export successful")
+
+    if hasattr(bpy.ops, 'export_scene') and hasattr(bpy.ops.export_scene, 'pynifly'):
+        bpy.ops.export_scene.pynifly(
+            filepath="${outputNifPath.replace(/\\/g, '\\\\')}",
+            game_type='FO4',
+            scale_factor=${settings.scale},
+            apply_transforms=${settings.applyModifiers !== false}
+        )
+        print("Export successful (PyNifly 25+)")
+    elif hasattr(bpy.ops, 'export_scene') and hasattr(bpy.ops.export_scene, 'nif'):
+        bpy.ops.export_scene.nif(
+            filepath="${outputNifPath.replace(/\\/g, '\\\\')}",
+            scale_correction=${settings.scale},
+            apply_scale=${settings.applyModifiers !== false},
+            game='FALLOUT_4'
+        )
+        print("Export successful (legacy niftools)")
+    else:
+        print("Export failed: no NIF plugin found. Install PyNifly 25+ (Nexus #52319) for Blender 4.4+.")
+        exit(1)
 except Exception as e:
     print(f"Export error: {e}")
-    print("Note: Blender NIF plugin required (io_scene_niftools)")
     exit(1)
 `;
   }

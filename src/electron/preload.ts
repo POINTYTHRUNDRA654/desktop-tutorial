@@ -314,6 +314,21 @@ const electronAPI = {
   },
 
   /**
+   * Query the Blender add-on HTTP bridge status (port 8080 server).
+   * Returns whether the bridge is running, current step, and progress.
+   */
+  blenderBridgeStatus: (): Promise<{ running: boolean; port: number; currentStep: number; totalSteps: number; completedSteps: number }> => {
+    return ipcRenderer.invoke('blender-bridge-status');
+  },
+
+  /**
+   * Set the tutorial steps that the Blender add-on HTTP bridge will serve.
+   */
+  blenderBridgeSetSteps: (steps: { id: number; title: string; description: string }[]): Promise<{ success: boolean }> => {
+    return ipcRenderer.invoke('blender-bridge-set-steps', steps);
+  },
+
+  /**
    * Open/launch a program by its executable path
    * @param path - Full path to the program executable
    * @returns Promise resolving when program is launched

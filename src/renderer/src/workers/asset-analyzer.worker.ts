@@ -138,6 +138,43 @@ function analyzeESP(buffer: ArrayBuffer, filename: string): ESPAnalysis {
       analysis.warnings.push('File size exceeds recommended limit (100MB)');
     }
 
+    // Scan entire buffer for NAVM (navmesh) records and deleted-flag check.
+    // Record flags are at bytes +8 from the record start; deleted flag = 0x00000020.
+    const bytes = new Uint8Array(buffer);
+    let hasNavmesh = false;
+    let hasDeletedNavmesh = false;
+    // NAVM in ASCII: 78 65 86 77
+    for (let i = 0; i < bytes.length - 11; i++) {
+      if (bytes[i] === 78 && bytes[i + 1] === 65 && bytes[i + 2] === 86 && bytes[i + 3] === 77) {
+        hasNavmesh = true;
+        // Flags field is at record offset +8 (little-endian uint32)
+        const flags =
+          bytes[i + 8] |
+          (bytes[i + 9] << 8) |
+          (bytes[i + 10] << 16) |
+          (bytes[i + 11] << 24);
+        if (flags & 0x20) { // Deleted flag
+          hasDeletedNavmesh = true;
+          break;
+        }
+      }
+    }
+
+    if (hasDeletedNavmesh) {
+      analysis.warnings.push(
+        'Deleted navmesh records detected (NAVM with deleted flag 0x20) — ' +
+        'causes NPC pathfinding CTD. Fix in xEdit: locate [D] NAVM records, ' +
+        'use Change FormID to replace the vanilla FormID with your new navmesh, ' +
+        'then remove the deleted record. See NAVMESH_FIX_GUIDE.md.'
+      );
+    } else if (hasNavmesh) {
+      analysis.warnings.push(
+        'Plugin contains navmesh data (NAVM records). ' +
+        'Edit navmesh carefully in the Creation Kit — never delete triangles outright; ' +
+        'cover with a new triangle first. Finalise cell navmesh before saving.'
+      );
+    }
+
   } catch (error) {
     analysis.warnings.push(`Analysis error: ${error}`);
   }

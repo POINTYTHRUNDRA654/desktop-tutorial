@@ -497,9 +497,12 @@ async function findSpecialPrograms(): Promise<InstalledProgram[]> {
       displayName: 'NVIDIA Omniverse',
       name: 'Omniverse'
     },
-    // Blender (common locations)
+    // Blender (common locations — 4.5/4.4 first for PyNifly 25+ compatibility)
     {
       paths: [
+        'C:\\Program Files\\Blender Foundation\\Blender 4.5\\blender.exe',
+        'C:\\Program Files\\Blender Foundation\\Blender 4.4\\blender.exe',
+        'C:\\Program Files\\Blender Foundation\\Blender 4.3\\blender.exe',
         'C:\\Program Files\\Blender Foundation\\Blender 4.2\\blender.exe',
         'C:\\Program Files\\Blender Foundation\\Blender 4.1\\blender.exe',
         'C:\\Program Files\\Blender Foundation\\Blender 4.0\\blender.exe',
