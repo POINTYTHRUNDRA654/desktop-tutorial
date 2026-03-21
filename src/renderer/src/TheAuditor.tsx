@@ -283,14 +283,23 @@ const TheAuditor: React.FC = () => {
                         console.log('Using cached ESP analysis for:', f.name);
                         fileSize = `${cached.fileSizeMB} MB`;
                         if (cached.warnings && cached.warnings.length > 0) {
-                            newIssues.push(...cached.warnings.map((w: string, i: number) => ({
-                                id: `esp-warning-${i}`,
-                                severity: 'warning' as const,
-                                message: w,
-                                technicalDetails: w,
-                                fixAvailable: false
-                            })));
-                            status = 'warning';
+                            newIssues.push(...cached.warnings.map((w: string, i: number) => {
+                                const isNavmeshDeleted = w.includes('Deleted navmesh');
+                                const isNavmesh = w.includes('navmesh') || w.includes('NAVM');
+                                const isLarge = w.includes('Large ESP file') || w.includes('exceeds recommended limit');
+                                return {
+                                    id: `esp-warning-${i}`,
+                                    severity: (isNavmeshDeleted || isLarge ? 'error' : 'warning') as 'error' | 'warning',
+                                    message: isNavmeshDeleted
+                                        ? 'Deleted Navmesh (CTD Risk)'
+                                        : isNavmesh
+                                            ? 'Navmesh Data Present'
+                                            : isLarge ? 'Large Plugin File' : 'Plugin Warning',
+                                    technicalDetails: w,
+                                    fixAvailable: isNavmeshDeleted || isNavmesh
+                                };
+                            }));
+                            status = cached.warnings.some((w: string) => w.includes('Deleted navmesh') || w.includes('exceeds recommended limit')) ? 'error' : 'warning';
                         } else {
                             status = 'clean';
                         }
@@ -301,14 +310,23 @@ const TheAuditor: React.FC = () => {
 
                         fileSize = `${analysis.fileSizeMB} MB`;
                         if (analysis.warnings && analysis.warnings.length > 0) {
-                            newIssues.push(...analysis.warnings.map((w: string, i: number) => ({
-                                id: `esp-warning-${i}`,
-                                severity: 'warning' as const,
-                                message: w,
-                                technicalDetails: w,
-                                fixAvailable: false
-                            })));
-                            if (analysis.warnings.some((w: string) => w.includes('Large ESP file'))) {
+                            newIssues.push(...analysis.warnings.map((w: string, i: number) => {
+                                const isNavmeshDeleted = w.includes('Deleted navmesh');
+                                const isNavmesh = w.includes('navmesh') || w.includes('NAVM');
+                                const isLarge = w.includes('Large ESP file') || w.includes('exceeds recommended limit');
+                                return {
+                                    id: `esp-warning-${i}`,
+                                    severity: (isNavmeshDeleted || isLarge ? 'error' : 'warning') as 'error' | 'warning',
+                                    message: isNavmeshDeleted
+                                        ? 'Deleted Navmesh (CTD Risk)'
+                                        : isNavmesh
+                                            ? 'Navmesh Data Present'
+                                            : isLarge ? 'Large Plugin File' : 'Plugin Warning',
+                                    technicalDetails: w,
+                                    fixAvailable: isNavmeshDeleted || isNavmesh
+                                };
+                            }));
+                            if (analysis.warnings.some((w: string) => w.includes('Deleted navmesh') || w.includes('Large ESP file') || w.includes('exceeds recommended limit'))) {
                                 status = 'error';
                             } else {
                                 status = 'warning';
@@ -445,18 +463,35 @@ const TheAuditor: React.FC = () => {
         window.dispatchEvent(new Event('mossy-memory-update'));
 
         setMossyAdvice("Audit complete, Architect. I have categorized all discrepancies in the list above.");
+
+        // Proactively surface navmesh errors so the user notices immediately
+        const navmeshErrors = updatedFiles.flatMap(f =>
+            f.issues.filter(i => i.message.includes('Deleted Navmesh') || i.technicalDetails?.includes('Deleted navmesh'))
+        );
+        if (navmeshErrors.length > 0) {
+            setMossyAdvice(
+                `⚠️ CRITICAL: ${navmeshErrors.length} deleted navmesh record(s) detected. ` +
+                `This WILL cause CTD when NPCs try to pathfind. ` +
+                `Open the affected plugin in xEdit → find [D] NAVM records → use Change FormID to replace the vanilla FormID with your new navmesh record. ` +
+                `See NAVMESH_FIX_GUIDE.md for the full step-by-step workflow.`
+            );
+        }
     };
 
     const getMossyAdvice = async (issue: AuditIssue) => {
         setSelectedIssueId(issue.id);
         setMossyAdvice("Analyzing issue...");
         try {
+            const isNavmeshIssue = issue.message.includes('Navmesh') || issue.technicalDetails?.includes('navmesh') || issue.technicalDetails?.includes('NAVM');
+            const navmeshContext = isNavmeshIssue
+                ? '\nThis is a NAVMESH issue. Explain the xEdit "Change FormID" fix: load plugin in xEdit 4.0.3+, find [D] NAVM records, copy the deleted FormID, find the replacement NAVM the mod added, right-click → Change FormID → paste the copied FormID → accept "Update all references", then remove the original deleted record. Also mention the NAVMESH_FIX_GUIDE.md resource.'
+                : '';
             const prompt = `
             Act as an expert Fallout 4 Modder AI assistant named Mossy.
             The user has a file with the following error:
             Error: ${issue.message}
             Details: ${issue.technicalDetails}
-            
+            ${navmeshContext}
             Provide a concise, friendly explanation of why this is bad for Fallout 4 stability, and how to fix it manually if the auto-fix fails.
             Keep it under 3 sentences.
             `;
