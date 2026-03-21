@@ -57,18 +57,18 @@ export const POPULAR_MODS: PopularMod[] = [
   },
 
   {
-    name: 'MCM (Mod Configuration Menu)',
+    name: 'MCM NG (Mod Configuration Menu — Next Gen)',
     category: 'Framework',
-    description: 'In-game settings menu for mods. Requires F4SE.',
+    description: 'In-game settings menu for mods. Required by FallUI, many QoL mods. Use the NG build — the legacy MCM Framework does not work on NG or 1.11.x.',
     compatibility: {
       conflicts: [],
       patches: [],
       loadOrder: 'Mid load order',
       tips: [
-        'Add MCM menu for your mod settings',
-        'Users expect F4SE mods to have MCM',
-        'Document all MCM options in description',
-        'Provide sensible defaults'
+        'Always use MCM NG — the legacy MCM Framework is broken on NG and 1.11.x',
+        'Add MCM menu for your mod settings — users expect it',
+        'Document all MCM options in your mod description',
+        'Provide sensible defaults so users can enable your mod without touching MCM'
       ]
     },
     records: ['MCM_*.pex scripts'],
@@ -116,22 +116,22 @@ export const POPULAR_MODS: PopularMod[] = [
 
   // Armor & Crafting
   {
-    name: 'AWKCR (Armor and Weapon Keywords Community Resource)',
+    name: 'AWKCR (Armor and Weapon Keywords Community Resource) [LEGACY]',
     category: 'Framework',
-    description: 'Standardizes armor/weapon keywords. Required by many mods.',
+    description: '⚠️ LEGACY — No longer actively maintained (2024+). Many mods that required AWKCR now have AWKCR-free versions. New mods should NOT depend on AWKCR; use standalone keywords or ECO instead.',
     compatibility: {
       conflicts: ['Mods using custom keywords without AWKCR'],
       patches: [],
       loadOrder: 'Early, after UFO4P',
       tips: [
-        'USE AWKCR keywords for armor mods',
-        'Check AWKCR wiki for proper keyword usage',
-        'List AWKCR as requirement if you use its keywords',
-        '50% of players have this - consider supporting it'
+        'DO NOT add new AWKCR dependencies — it is no longer maintained',
+        'If your existing mod uses AWKCR, look into releasing an AWKCR-free version',
+        'Check if the mods that require AWKCR have updated standalone versions on Nexus',
+        'For new keyword frameworks, consider ECO (Equipment and Crafting Overhaul) as an alternative'
       ]
     },
     records: ['KYWD:ap_*, KYWD:dn_*'],
-    usage: '52%'
+    usage: '35%'
   },
 
   {
