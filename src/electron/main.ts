@@ -6334,54 +6334,127 @@ function setupIpcHandlers() {
       }
       const sanitized = query.trim().slice(0, 300);
 
-      // Decide whether to hit the Fallout 4 wiki or DuckDuckGo
+      // Decide whether to hit the Fallout 4 wiki or general search
       const fo4Terms = /fallout\s*4|fallout4|fo4|papyrus|bethesda|creation\s*kit|creation\s*engine|vault|wasteland|commonwealth|nexus\s*mod|xedit|nifskope|bodyslide/i;
       const useWiki = type === 'wiki' || fo4Terms.test(sanitized);
 
       if (useWiki) {
-        // ---- Fallout 4 Fandom MediaWiki search ----
-        const wikiSearchUrl = `https://fallout.fandom.com/api.php?action=query&list=search&srsearch=${encodeURIComponent(sanitized)}&format=json&srlimit=3&srwhat=text`;
-        const raw = await httpsGetText(wikiSearchUrl, 20000);
-        const json = JSON.parse(raw);
-        const results: Array<{ title: string; snippet: string }> = json?.query?.search || [];
-        if (results.length === 0) {
-          return { success: true, text: 'No Fallout 4 Wiki results found.', source: 'Fallout 4 Wiki' };
+        // ---- Fallout wiki search — try multiple providers in order ----
+        // Primary: fallout.wiki (The Vault independent wiki)  Fallback: fallout.fandom.com
+        const wikiProviders: Array<{ name: string; searchUrl: string; articleBase: string }> = [
+          {
+            name: 'Fallout Wiki',
+            searchUrl: `https://fallout.wiki/w/api.php?action=query&list=search&srsearch=${encodeURIComponent(sanitized)}&format=json&srlimit=3&srwhat=text`,
+            articleBase: 'https://fallout.wiki/w/',
+          },
+          {
+            name: 'Fallout 4 Fandom Wiki',
+            searchUrl: `https://fallout.fandom.com/api.php?action=query&list=search&srsearch=${encodeURIComponent(sanitized)}&format=json&srlimit=3&srwhat=text`,
+            articleBase: 'https://fallout.fandom.com/wiki/',
+          },
+        ];
+        for (const provider of wikiProviders) {
+          try {
+            const raw = await httpsGetText(provider.searchUrl, 20000);
+            const json = JSON.parse(raw);
+            const results: Array<{ title: string; snippet: string }> = json?.query?.search || [];
+            if (results.length === 0) {
+              // This provider connected but returned no results — try the next one
+              console.warn(`[Web Search] ${provider.name} returned no results, trying next provider`);
+              continue;
+            }
+            const text = results
+              .map((r) => `**${r.title}**: ${stripHtml(r.snippet || '')}`)
+              .join('\n\n');
+            return {
+              success: true,
+              text,
+              source: provider.name,
+              heading: results[0]?.title || '',
+              url: `${provider.articleBase}${encodeURIComponent((results[0]?.title || '').replace(/ /g, '_'))}`,
+            };
+          } catch (providerErr: any) {
+            console.warn(`[Web Search] ${provider.name} failed, trying next provider:`, providerErr?.message || providerErr);
+          }
         }
-        const text = results
-          .map((r) => `**${r.title}**: ${stripHtml(r.snippet || '')}`)
-          .join('\n\n');
-        return {
-          success: true,
-          text,
-          source: 'Fallout 4 Wiki',
-          heading: results[0]?.title || '',
-          url: `https://fallout.fandom.com/wiki/${encodeURIComponent((results[0]?.title || '').replace(/ /g, '_'))}`,
-        };
+        // All wiki providers failed or returned no results — fall through to general search
+        console.warn('[Web Search] All wiki providers failed; falling back to general search');
       }
 
-      // ---- DuckDuckGo Instant Answer API (no API key required) ----
-      const ddgUrl = `https://api.duckduckgo.com/?q=${encodeURIComponent(sanitized)}&format=json&no_html=1&skip_disambig=1`;
-      const raw = await httpsGetText(ddgUrl, 20000);
-      const json = JSON.parse(raw);
-      let text = '';
-      if (json.AbstractText) text += json.AbstractText + '\n\n';
-      else if (json.Abstract) text += json.Abstract + '\n\n';
-      const topics: string[] = (json.RelatedTopics || [])
-        .slice(0, 4)
-        .map((t: any) => (typeof t.Text === 'string' ? t.Text : (Array.isArray(t.Topics) ? t.Topics[0]?.Text : '')) || '')
-        .filter(Boolean);
-      if (topics.length) text += 'Related: ' + topics.join(' | ');
-      const trimmedText = text.trim();
-      // empty:true signals the renderer that DuckDuckGo had no useful instant answer
-      // so it can avoid injecting "no results" noise into the AI context or vault.
-      return {
-        success: true,
-        empty: !trimmedText,
-        text: trimmedText || 'No instant answer available for this query.',
-        source: json.AbstractSource || 'DuckDuckGo',
-        heading: json.Heading || '',
-        url: json.AbstractURL || '',
-      };
+      // ---- General search providers — try in order until one succeeds ----
+      // Primary: DuckDuckGo Instant Answer API (no key required)
+      // Fallback: Wikipedia search API (en.wikipedia.org)
+      const generalProviders: Array<() => Promise<{ success: boolean; empty?: boolean; text: string; source: string; heading: string; url: string }>> = [
+        // DuckDuckGo Instant Answer API
+        async () => {
+          const ddgUrl = `https://api.duckduckgo.com/?q=${encodeURIComponent(sanitized)}&format=json&no_html=1&skip_disambig=1`;
+          const raw = await httpsGetText(ddgUrl, 20000);
+          const json = JSON.parse(raw);
+          let text = '';
+          if (json.AbstractText) text += json.AbstractText + '\n\n';
+          else if (json.Abstract) text += json.Abstract + '\n\n';
+          const topics: string[] = (json.RelatedTopics || [])
+            .slice(0, 4)
+            .map((t: any) => (typeof t.Text === 'string' ? t.Text : (Array.isArray(t.Topics) ? t.Topics[0]?.Text : '')) || '')
+            .filter(Boolean);
+          if (topics.length) text += 'Related: ' + topics.join(' | ');
+          const trimmedText = text.trim();
+          return {
+            success: true,
+            // empty:true signals the renderer that DuckDuckGo had no useful instant answer
+            empty: !trimmedText,
+            text: trimmedText || 'No instant answer available for this query.',
+            source: json.AbstractSource || 'DuckDuckGo',
+            heading: json.Heading || '',
+            url: json.AbstractURL || '',
+          };
+        },
+        // Wikipedia search fallback
+        async () => {
+          const wikiSearchUrl = `https://en.wikipedia.org/w/api.php?action=query&list=search&srsearch=${encodeURIComponent(sanitized)}&format=json&srlimit=3&srwhat=text`;
+          const raw = await httpsGetText(wikiSearchUrl, 20000);
+          const json = JSON.parse(raw);
+          const results: Array<{ title: string; snippet: string }> = json?.query?.search || [];
+          if (results.length === 0) {
+            return { success: true, empty: true, text: 'No Wikipedia results found.', source: 'Wikipedia', heading: '', url: '' };
+          }
+          // Also fetch the intro extract of the top result for richer context
+          let introText = '';
+          try {
+            const firstTitle = encodeURIComponent(results[0].title);
+            const extractUrl = `https://en.wikipedia.org/w/api.php?action=query&titles=${firstTitle}&prop=extracts&exintro=true&format=json&explaintext=true`;
+            const extractRaw = await httpsGetText(extractUrl, 15000);
+            const extractJson = JSON.parse(extractRaw);
+            const pages = extractJson?.query?.pages || {};
+            const pageId = Object.keys(pages)[0];
+            if (pageId && pages[pageId]?.extract) {
+              introText = (pages[pageId].extract as string).slice(0, 800);
+            }
+          } catch (_introErr) {
+            // intro fetch failed — snippet-only results are still useful
+          }
+          const snippets = results.map((r) => `**${r.title}**: ${stripHtml(r.snippet || '')}`).join('\n\n');
+          const text = introText ? `${introText}\n\n${snippets}` : snippets;
+          return {
+            success: true,
+            text,
+            source: 'Wikipedia',
+            heading: results[0]?.title || '',
+            url: `https://en.wikipedia.org/wiki/${encodeURIComponent((results[0]?.title || '').replace(/ /g, '_'))}`,
+          };
+        },
+      ];
+
+      for (const provider of generalProviders) {
+        try {
+          const result = await provider();
+          return result;
+        } catch (providerErr: any) {
+          console.warn('[Web Search] General provider failed, trying next:', providerErr?.message || providerErr);
+        }
+      }
+
+      return { success: false, error: 'All search providers failed' };
     } catch (error: any) {
       console.error('[Web Search] Error:', error);
       return { success: false, error: error.message || 'Web search failed' };
