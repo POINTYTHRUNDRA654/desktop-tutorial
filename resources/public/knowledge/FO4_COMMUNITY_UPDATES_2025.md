@@ -49,8 +49,8 @@ Bethesda released this update on **November 10, 2025**. It is the largest change
 |---|---|---|
 | F4SE | **0.7.7** | For runtime 1.11.191; download from f4se.silverlock.org |
 | Address Library | **1.11.191** | "All In One (Anniversary Edition)" build; Nexus #47327 |
-| Buffout 4 NG | **1.37.0+** | Check GitHub for newer builds |
-| Addictol (X-Cell) | Latest | See below |
+| Buffout 4 NG | **1.37.0+** | Crash logger only — memory management removed in NG version |
+| X-Cell / Addictol | **Latest** | **PRIMARY stability tool** — memory, stutter, FaceGen fix |
 | High FPS Physics Fix | **0.8.13+** | Nexus #44798 |
 | PRP | **81.5** | Nexus #46403; March 2026 release |
 | UFO4P | Latest | Always use latest |
@@ -81,18 +81,27 @@ Bethesda released this update on **November 10, 2025**. It is the largest change
 - Use **4.0.3+** for all cleaning and conflict resolution — older guides referencing 3.x cleaning procedures are no longer valid with xEdit 4.x.
 - Required for navmesh repair workflows (see `NAVMESH_FIX_GUIDE.md`).
 
-### Buffout 4 NG
+### X-Cell / Addictol — PRIMARY Stability Tool
+- **Nexus mod ID: 84214** | Rebranded from X-Cell to Addictol in mid-2025
+- **X-Cell is the new Buffout for memory.** Buffout 4 NG lost its memory management features in the NG update — X-Cell fills that entire gap.
+- Handles: memory allocation and fragmentation, micro-stutter (especially in NPC-heavy/scripted scenes), FaceGen (missing head) bugs in modded setups.
+- **Replaces** (do not use alongside X-Cell): Baka ScrapHeap, Fallout Priority, Private Profile Redirector.
+- **CRITICAL TOML config** when using Buffout 4 NG + X-Cell together — disable these in `Buffout4.toml`:
+  ```
+  MemoryManager = false
+  HavokMemorySystem = false
+  BSTextureStreamerLocalHeap = false
+  ```
+- Community TOML configs: nexusmods.com/fallout4/articles/5976
+- Great for Fallout: London, Sim Settlements 2, and any overhaul with large settlement builds — community reports X-Cell eliminated crashes where Buffout 4 NG alone did not.
+
+### Buffout 4 NG — Crash Logger
 - **Nexus mod ID: 64880** | **GitHub: alandtse/Buffout4**
 - Version **1.37.0** (March 2025) — unified DLL for OG + NG, PDB support for readable crash logs.
+- **Role**: Crash logging and engine bugfixes ONLY — memory management was removed from the NG version. X-Cell handles memory.
 - Requires: Address Library, F4SE, Microsoft Visual C++ Redistributables (2022 x64).
 - Crash logs written to `%LOCALAPPDATA%\Fallout4\F4SE\` — share logs in the Collective Modding Discord for help.
 - **Pair with CLASSIC** for automated crash log scanning.
-
-### Addictol (formerly X-Cell)
-- X-Cell was rebranded as **Addictol** in mid-2025.
-- Handles threading, IO limits, and many subtle engine bugs that Buffout 4 NG does not address.
-- Recommended to use **both** Buffout 4 NG (crash logging) **and** Addictol (engine fixes) for maximum stability.
-- See The Midnight Ride guide (themidnightride.moddinglinked.com) for latest installation order.
 
 ### High FPS Physics Fix
 - **Nexus mod ID: 44798**
@@ -217,9 +226,14 @@ Bethesda released this update on **November 10, 2025**. It is the largest change
 - If a mod requires AWKCR, check for an updated "AWKCR-free" version on its Nexus page.
 - New mods should **not** depend on AWKCR — use standalone keywords or ECO instead.
 
+### Baka ScrapHeap / Fallout Priority / Private Profile Redirector
+- **All three are superseded by X-Cell / Addictol** — do NOT install them alongside X-Cell.
+- If you have any of these installed, remove them before adding X-Cell.
+
 ### Old Buffout 4 (pre-NG)
 - The original Buffout 4 (pre-alandtse fork) is **not fully compatible with NG or 1.11.x**.
 - Always use **Buffout 4 NG** (Nexus #64880) — this is the maintained fork.
+- Even Buffout 4 NG's memory manager is disabled when using X-Cell — X-Cell is the memory solution.
 
 ### Pre-2024 F4SE Plugins
 - Any `.dll` mod compiled for 1.10.163 will crash the game on NG or 1.11.x.
@@ -234,8 +248,10 @@ Install these in order for a stable foundation before adding any content mods:
 ```
 1. F4SE 0.7.7+ (from f4se.silverlock.org)
 2. Address Library for F4SE — All In One (Nexus #47327)
-3. Buffout 4 NG v1.37.0+ (Nexus #64880)
-4. Addictol / X-Cell (latest — see The Midnight Ride)
+3. Buffout 4 NG v1.37.0+ (Nexus #64880) — crash logger
+4. X-Cell / Addictol (Nexus #84214) — PRIMARY memory/stability tool
+   → After installing both: set MemoryManager=false, HavokMemorySystem=false,
+     BSTextureStreamerLocalHeap=false in Buffout4.toml
 5. High FPS Physics Fix 0.8.13+ (Nexus #44798)
 6. BakaMaxPapyrusOps (matching F4SE version)
 7. Unofficial Fallout 4 Patch (UFO4P) — latest
@@ -245,7 +261,8 @@ Install these in order for a stable foundation before adding any content mods:
 11. Canary Save Scummer
 ```
 
-Load order for stability mods: **Buffout 4 / Addictol** load via F4SE automatically; **PRP loads late** (after worldspace mods); **UFO4P loads after all DLC**.
+Load order for stability mods: **Buffout 4 NG → X-Cell** load via F4SE automatically; **PRP loads late** (after worldspace mods); **UFO4P loads after all DLC**.
+Community TOML reference: nexusmods.com/fallout4/articles/5976
 
 ---
 

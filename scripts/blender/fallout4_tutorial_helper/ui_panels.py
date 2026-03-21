@@ -56,7 +56,9 @@ class FO4_PT_pipeline_help(Panel):
     def draw(self, context):
         layout = self.layout
         col = layout.column(align=True)
-        col.label(text="PyNifly: nexusmods.com/fallout4/mods/52319", icon='URL')
+        col.label(text="PyNifly 25.8 (Blender 4.4+):", icon='URL')
+        col.label(text="  nexusmods.com/fallout4/mods/52319", icon='BLANK1')
+        col.label(text="  github.com/BadDogSkyrim/PyNifly", icon='BLANK1')
         col.label(text="F4RefToBlender: github.com/6ooflames/F4RefToBlender", icon='URL')
         col.label(text="xEdit script: ExportCellRefsToJSON.pas", icon='TEXT')
         col.label(text="Full guide: CK_CELL_TO_BLENDER_WORKFLOW.md", icon='HELP')

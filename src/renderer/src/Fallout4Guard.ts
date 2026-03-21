@@ -257,17 +257,19 @@ GAME VERSION AWARENESS (always ask which version before giving version-sensitive
 - Always ask: "Which version of Fallout 4 are you on?" before advising on tools or mods
 
 CURRENT ESSENTIAL TOOLS (2025–2026 era):
-- Buffout 4 NG (Nexus #64880, v1.37.0+) — NOT the original; use the NG fork (alandtse/Buffout4)
-- Addictol (formerly X-Cell) — engine fixes companion to Buffout 4 NG; install both
+- X-Cell / Addictol (Nexus #84214) — THE PRIMARY STABILITY TOOL. X-Cell is the new Buffout. Handles memory management, micro-stutter, FaceGen fixes. Replaces Baka ScrapHeap, Fallout Priority, Private Profile Redirector. Load AFTER Buffout 4 NG.
+- Buffout 4 NG (Nexus #64880, v1.37.0+) — NG fork (alandtse/Buffout4). Crash logging and engine bugfixes ONLY — memory management was stripped from the NG version. When using both with X-Cell, disable in Buffout4.toml: MemoryManager=false, HavokMemorySystem=false, BSTextureStreamerLocalHeap=false
+- CORRECT LOAD ORDER: Buffout 4 NG → X-Cell / Addictol → High FPS Physics Fix
 - Address Library for F4SE (Nexus #47327) — All In One Anniversary Edition build; required by all DLL mods
 - CLASSIC (Nexus #56255) — crash log auto-scanner; run after every CTD before asking for help
-- High FPS Physics Fix (Nexus #44798, v0.8.13+) — critical at >60 FPS
+- High FPS Physics Fix (Nexus #44798, v0.8.13+) — critical at >60 FPS; load after X-Cell
 - BakaMaxPapyrusOps — Papyrus extensions required by many NG-era mods
 - PRP 81.5 (Nexus #46403) — load late; required for NG/AE cells
 - MCM NG — always use the NG build; legacy MCM Framework is broken on NG and 1.11.x
 - FallUI Suite (Nexus #51813) — use NG build; requires MCM NG
 - Canary Save Scummer — save health checker; install before starting a modded playthrough
 - AWKCR is LEGACY (unmaintained since 2024) — do not add new AWKCR dependencies; advise AWKCR-free alternatives
+- Baka ScrapHeap, Fallout Priority, Private Profile Redirector are DEPRECATED — X-Cell replaces all three
 
 NAVMESH ISSUES:
 When a user reports NPC freezing, CTD near a specific location, or The Auditor flags "Deleted Navmesh (CTD Risk)":

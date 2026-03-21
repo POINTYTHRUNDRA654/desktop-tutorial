@@ -401,7 +401,7 @@ endWhile`
     ],
 
     priorities: {
-      high: ["Unofficial Fallout 4 Patch", "F4SE + Address Library (Nexus #47327)", "Buffout 4 NG (Nexus #64880)", "Addictol (X-Cell)", "Framework mods (MCM NG, etc)"],
+      high: ["Unofficial Fallout 4 Patch", "F4SE + Address Library (Nexus #47327)", "X-Cell / Addictol (Nexus #84214, PRIMARY stability)", "Buffout 4 NG (Nexus #64880, crash logger)", "Framework mods (MCM NG, etc)"],
       medium: ["Gameplay overhauls", "Quest mods", "New lands", "PRP 81.5+ (Nexus #46403)"],
       low: ["Texture replacers", "Sound replacers", "Minor tweaks"],
       last: ["Personal patches", "Bashed patches", "Load order patches", "PRP compatibility patches"]
@@ -627,21 +627,43 @@ end.`
     stabilityStack: [
       { name: "F4SE 0.7.7", nexus: "f4se.silverlock.org", note: "Script extender — 0.7.7 for runtime 1.11.191; match version to your game" },
       { name: "Address Library for F4SE Plugins", nexus: "#47327", note: "All In One (Anniversary Edition) build — required by all DLL mods" },
-      { name: "Buffout 4 NG", nexus: "#64880", note: "v1.37.0+ — use the NG fork (alandtse/Buffout4), not the original" },
-      { name: "Addictol (formerly X-Cell)", nexus: "see The Midnight Ride", note: "Engine fixes companion to Buffout 4 NG — install both" },
-      { name: "High FPS Physics Fix", nexus: "#44798", note: "v0.8.13+ — critical for >60 FPS; install even at 60 FPS" },
+      { name: "X-Cell / Addictol (PRIMARY stability tool)", nexus: "#84214", note: "X-Cell is the new Buffout for memory. Superior memory management, micro-stutter fix, FaceGen fix. Replaces Baka ScrapHeap, Fallout Priority, Private Profile Redirector. Load AFTER Buffout 4 NG." },
+      { name: "Buffout 4 NG (crash logger + engine fixes)", nexus: "#64880", note: "v1.37.0+ NG fork (alandtse/Buffout4). Crash logging and engine bugfixes ONLY — memory management was removed from the NG version. CRITICAL: disable MemoryManager, HavokMemorySystem, BSTextureStreamerLocalHeap in Buffout4.toml when using X-Cell." },
+      { name: "High FPS Physics Fix", nexus: "#44798", note: "v0.8.13+ — critical for >60 FPS; load AFTER X-Cell" },
       { name: "BakaMaxPapyrusOps", nexus: "search Nexus", note: "Papyrus script function extensions — required by many NG-era mods" },
       { name: "Unofficial Fallout 4 Patch (UFO4P)", nexus: "latest", note: "Always latest version; load after all DLC" },
       { name: "PRP 81.5", nexus: "#46403", note: "March 2026 stable — required for NG/AE cells; load late in order" },
       { name: "MCM NG", nexus: "search 'MCM NG'", note: "Use the NG build — legacy MCM Framework does not work on NG/1.11.x" },
-      { name: "CLASSIC Crash Scanner", nexus: "#56255", note: "Run after every CTD — scans Buffout 4 logs, covers 250+ error scenarios" },
+      { name: "CLASSIC Crash Scanner", nexus: "#56255", note: "Run after every CTD — scans Buffout 4 NG logs, covers 250+ error scenarios" },
       { name: "Canary Save Scummer", nexus: "search Nexus", note: "Save file health checker — warns of corruption before it becomes a full loss" }
     ],
 
+    xCellConfig: {
+      description: "X-Cell / Addictol is the primary stability and memory management tool for NG/1.11.x. It fills the gap left when Buffout 4 NG lost its memory manager in the NG update. Always use both together with the correct TOML config.",
+      buffout4TomlDisable: [
+        "MemoryManager = false",
+        "HavokMemorySystem = false",
+        "BSTextureStreamerLocalHeap = false",
+      ],
+      replaces: [
+        "Baka ScrapHeap",
+        "Fallout Priority",
+        "Private Profile Redirector",
+      ],
+      loadOrder: [
+        "1. Buffout 4 NG (crash logging + engine fixes, MemoryManager disabled in TOML)",
+        "2. X-Cell / Addictol (memory management + stutter fix)",
+        "3. High FPS Physics Fix",
+      ],
+    },
+
     deprecatedMods: [
-      { name: "AWKCR", reason: "No longer actively maintained (2024+). Use standalone keywords or ECO instead. Check for AWKCR-free version of any mod that requires it." },
+      { name: "AWKCR", reason: "No longer actively maintained (2024+). Use standalone keywords or ECO instead." },
       { name: "Original Buffout 4 (pre-alandtse fork)", reason: "Not compatible with NG or 1.11.x. Always use Buffout 4 NG (Nexus #64880)." },
-      { name: "Legacy MCM Framework", reason: "The pre-NG MCM Framework does not work on NG or 1.11.x. Use MCM NG." }
+      { name: "Baka ScrapHeap", reason: "Replaced by X-Cell / Addictol." },
+      { name: "Fallout Priority", reason: "Replaced by X-Cell / Addictol." },
+      { name: "Private Profile Redirector", reason: "Replaced by X-Cell / Addictol." },
+      { name: "Legacy MCM Framework", reason: "Does not work on NG or 1.11.x. Use MCM NG." }
     ],
 
     gameVersions: {
@@ -652,7 +674,10 @@ end.`
 
     communityGuides: [
       { name: "The Midnight Ride", url: "themidnightride.moddinglinked.com", note: "Authoritative NG/1.11.x modding setup guide — kept updated after every patch" },
-      { name: "Nexar's Curated 2025 Modlist", url: "nexarplays.co.za/fallout4", note: "NG-optimised list; no downgrade required" }
+      { name: "Updated TOML files for Buffout 4 NG and X-Cell", url: "nexusmods.com/fallout4/articles/5976", note: "Community TOML configs for the correct Buffout4+X-Cell combined setup" },
+      { name: "Nexar\'s Curated 2025 Modlist", url: "nexarplays.co.za/fallout4", note: "NG-optimised list; no downgrade required" }
     ]
   }
 };
+
+export default FO4KnowledgeBase;

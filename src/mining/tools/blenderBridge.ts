@@ -118,7 +118,8 @@ export class BlenderBridge {
   }
 
   /**
-   * Convert FBX to NIF using Blender NIF plugin
+   * Convert FBX to NIF using PyNifly 25+ (Blender 4.4+)
+   * Falls back to legacy io_scene_niftools if PyNifly is not available.
    */
   async convertFBXToNIF(
     fbxPath: string,
@@ -170,11 +171,18 @@ for obj in bpy.data.objects:
                 pass
 ` : ''}
 
-# Export NIF
+# Export NIF — prefer PyNifly 25+ (bpy.ops.export_scene.pynifly), fall back to niftools
 print("Exporting NIF: ${nifPath.replace(/\\/g, '\\\\')}")
 try:
-    # Check if NIF plugin is available
-    if hasattr(bpy.ops, 'export_scene') and hasattr(bpy.ops.export_scene, 'nif'):
+    if hasattr(bpy.ops, 'export_scene') and hasattr(bpy.ops.export_scene, 'pynifly'):
+        bpy.ops.export_scene.pynifly(
+            filepath="${nifPath.replace(/\\/g, '\\\\')}",
+            game_type='FO4',
+            scale_factor=${scale},
+            apply_transforms=${applyModifiers ? 'True' : 'False'}
+        )
+        print("NIF export successful (PyNifly 25+)")
+    elif hasattr(bpy.ops, 'export_scene') and hasattr(bpy.ops.export_scene, 'nif'):
         bpy.ops.export_scene.nif(
             filepath="${nifPath.replace(/\\/g, '\\\\')}",
             scale_correction=${scale},
@@ -182,10 +190,10 @@ try:
             game='FALLOUT_4',
             nif_version='${targetVersion}'
         )
-        print("NIF export successful")
+        print("NIF export successful (legacy niftools)")
     else:
-        print("ERROR: Blender NIF plugin not installed!")
-        print("Please install io_scene_niftools addon")
+        print("ERROR: No NIF export plugin found!")
+        print("Install PyNifly 25+ (Nexus #52319) for Blender 4.4+ — requires Blender Extensions.")
         exit(1)
 except Exception as e:
     print(f"NIF export error: {e}")
@@ -203,7 +211,8 @@ print("Conversion complete")
   }
 
   /**
-   * Convert NIF to FBX using Blender NIF plugin
+   * Convert NIF to FBX using PyNifly 25+ (Blender 4.4+)
+   * Falls back to legacy io_scene_niftools if PyNifly is not available.
    */
   async convertNIFToFBX(
     nifPath: string,
@@ -226,17 +235,25 @@ import os
 # Clear scene
 bpy.ops.wm.read_factory_settings(use_empty=True)
 
-# Import NIF
+# Import NIF — prefer PyNifly 25+ (bpy.ops.import_scene.pynifly)
 print("Importing NIF: ${nifPath.replace(/\\/g, '\\\\')}")
 try:
-    if hasattr(bpy.ops, 'import_scene') and hasattr(bpy.ops.import_scene, 'nif'):
+    if hasattr(bpy.ops, 'import_scene') and hasattr(bpy.ops.import_scene, 'pynifly'):
+        bpy.ops.import_scene.pynifly(
+            filepath="${nifPath.replace(/\\/g, '\\\\')}",
+            game_type='FO4',
+            scale_factor=${scale}
+        )
+        print("NIF import successful (PyNifly 25+)")
+    elif hasattr(bpy.ops, 'import_scene') and hasattr(bpy.ops.import_scene, 'nif'):
         bpy.ops.import_scene.nif(
             filepath="${nifPath.replace(/\\/g, '\\\\')}",
             scale_correction=${scale}
         )
-        print("NIF import successful")
+        print("NIF import successful (legacy niftools)")
     else:
-        print("ERROR: Blender NIF plugin not installed!")
+        print("ERROR: No NIF import plugin found!")
+        print("Install PyNifly 25+ (Nexus #52319) for Blender 4.4+.")
         exit(1)
 except Exception as e:
     print(f"NIF import error: {e}")
@@ -349,43 +366,68 @@ print("Conversion complete")
   }
 
   /**
-   * Check if Blender NIF plugin is installed
+   * Check if PyNifly 25+ (or legacy niftools) is installed
    */
   async checkNIFPlugin(): Promise<PluginStatus> {
     const script = `
 import bpy
 
-# Check for NIF plugin
-has_nif = hasattr(bpy.ops, 'export_scene') and hasattr(bpy.ops.export_scene, 'nif')
-has_import = hasattr(bpy.ops, 'import_scene') and hasattr(bpy.ops.import_scene, 'nif')
+# Check for PyNifly 25+ first (preferred for Blender 4.4+)
+has_pynifly_export = hasattr(bpy.ops, 'export_scene') and hasattr(bpy.ops.export_scene, 'pynifly')
+has_pynifly_import = hasattr(bpy.ops, 'import_scene') and hasattr(bpy.ops.import_scene, 'pynifly')
 
-if has_nif and has_import:
+# Fall back to legacy niftools check
+has_niftools_export = hasattr(bpy.ops, 'export_scene') and hasattr(bpy.ops.export_scene, 'nif')
+has_niftools_import = hasattr(bpy.ops, 'import_scene') and hasattr(bpy.ops.import_scene, 'nif')
+
+if has_pynifly_export and has_pynifly_import:
     print("STATUS:INSTALLED")
-    
-    # Try to get version
+    print("PLUGIN:PyNifly")
+    try:
+        import pynifly
+        version = getattr(pynifly, 'bl_info', {}).get('version', 'Unknown')
+        print(f"VERSION:{version}")
+    except Exception:
+        # Try addon_utils for version
+        try:
+            import addon_utils
+            for mod in addon_utils.modules():
+                if 'pynifly' in mod.__name__.lower():
+                    v = getattr(mod, 'bl_info', {}).get('version', 'Unknown')
+                    print(f"VERSION:{v}")
+                    break
+        except Exception:
+            print("VERSION:25+ (detected via operator)")
+elif has_niftools_export and has_niftools_import:
+    print("STATUS:INSTALLED")
+    print("PLUGIN:niftools-legacy")
     try:
         import io_scene_niftools
         version = io_scene_niftools.bl_info.get('version', 'Unknown')
         print(f"VERSION:{version}")
-    except:
+    except Exception:
         print("VERSION:Unknown")
 else:
     print("STATUS:NOT_INSTALLED")
+    print("PLUGIN:none")
 `;
 
     try {
       const result = await this.runScript(script, {}, { background: true });
-      
+
       if (result.output && result.output.includes('STATUS:INSTALLED')) {
         const versionMatch = result.output.match(/VERSION:(.+)/);
+        const pluginMatch  = result.output.match(/PLUGIN:(.+)/);
+        const pluginName   = pluginMatch ? pluginMatch[1].trim() : 'Unknown';
         return {
           installed: true,
-          version: versionMatch ? versionMatch[1].trim() : 'Unknown'
+          version: versionMatch ? versionMatch[1].trim() : 'Unknown',
+          ...(pluginName !== 'Unknown' && { pluginName }),
         };
       } else {
         return {
           installed: false,
-          error: 'Blender NIF plugin (io_scene_niftools) not found'
+          error: 'No NIF plugin found. Install PyNifly 25+ (Nexus #52319) for Blender 4.4+.'
         };
       }
     } catch (error: any) {
