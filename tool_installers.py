@@ -414,12 +414,12 @@ _PYNIFLY_RELEASE_API = (
 
 
 def _download_pynifly_zip(dest_dir: "Path") -> "Path | None":
-    """Download the PyNifly {ver} zip from GitHub to *dest_dir*.
+    """Download the PyNifly v25 zip from GitHub to *dest_dir*.
 
-    Queries the GitHub Releases API for {ver}, finds the first ``.zip``
+    Queries the GitHub Releases API for v25, finds the first ``.zip``
     asset, downloads it, and returns the local path.  Returns ``None`` if
     the download fails for any reason.
-    """.format(ver=PYNIFLY_TARGET_VERSION)
+    """
     try:
         req = urllib.request.Request(
             _PYNIFLY_RELEASE_API,
@@ -453,27 +453,27 @@ def _download_pynifly_zip(dest_dir: "Path") -> "Path | None":
 
 
 def install_pynifly() -> tuple[bool, str]:
-    """Install PyNifly {ver} (by BadDog / BadDogSkyrim) NIF exporter into Blender.
+    """Install PyNifly v25 (by BadDog / BadDogSkyrim) NIF exporter into Blender.
 
     Steps (in order):
     1. Search ``D:\\Blender addon\\tools`` and the add-on's ``tools/`` folder
-       for any ``PyNifly*.zip``.  Prefer the file whose name matches
-       ``PYNIFLY_TARGET_VERSION`` ({ver}); fall back to any PyNifly zip found.
-    2. If no local zip is present, auto-download {ver} from the GitHub
+       for any ``PyNifly*.zip``.  Prefer a file whose name contains ``v25``;
+       fall back to any PyNifly zip found.
+    2. If no local zip is present, auto-download v25 from the GitHub
        Releases API (BadDogSkyrim/PyNifly) into the tools folder.
     3. Install the zip into Blender via ``bpy.ops.preferences.addon_install``
        and enable the add-on.
 
     Credit
     ------
-    PyNifly is developed and maintained by BadDog (BadDogSkyrim).
+    PyNifly v25 is developed and maintained by BadDog (BadDogSkyrim).
     https://github.com/BadDogSkyrim/PyNifly
 
     Returns
     -------
     tuple[bool, str]
         ``(True, message)`` on success, ``(False, reason)`` otherwise.
-    """.format(ver=PYNIFLY_TARGET_VERSION)
+    """
     # ── 1. Look for an existing local zip ────────────────────────────────────
     search_dirs = [DEFAULT_TOOLS_ROOT, FALLBACK_TOOLS_ROOT]
     zip_path: "Path | None" = None

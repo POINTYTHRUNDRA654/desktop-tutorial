@@ -239,44 +239,79 @@ class ExportHelpers:
 
     @staticmethod
     def _build_pynifly_export_kwargs(filepath):
-        """Assemble kwargs for the PyNifly exporter (BadDogSkyrim/PyNifly) for Fallout 4.
+        """Assemble kwargs for PyNifly v25 (by BadDog) for Fallout 4 NIF export.
 
-        PyNifly uses a different operator signature from Niftools v0.1.1.  We
-        introspect the operator's RNA properties at runtime so the code is
-        resilient to minor API changes between PyNifly releases.
+        Based on the official PyNifly v25 IMPORT_EXPORT_OPTIONS.md:
+          - ``target_game = "FO4"``    → Fallout 4 BSTriShape / BSSubIndexTriShape format
+          - ``export_modifiers``       → apply modifiers (renamed from apply_modifiers in v25)
+          - ``export_collision``       → include collision meshes (new in v25)
+          - ``export_colors``          → write vertex colours (default True, explicit for CK)
+          - ``blender_xf = False``     → use NIF coordinates directly (correct for FO4)
+          - ``rename_bones = True``    → convert Blender .L/.R names back to NIF names
 
-        Key settings:
-          - ``game = "FO4"``       → Fallout 4 NIF format (BSTriShape geometry)
-          - ``use_selection``      → export only the selected objects
-          - ``scale_factor = 1.0`` → 1 Blender unit = 1 NIF unit
-          - ``apply_modifiers``    → bake the temporary Triangulate modifier
+        We introspect the operator's RNA properties at runtime so the code
+        remains resilient to minor API differences between installs.
+
+        Credit: PyNifly by BadDog (BadDogSkyrim) — https://github.com/BadDogSkyrim/PyNifly
         """
         kwargs: dict = {
             "filepath": filepath,
-            "use_selection": True,
         }
         try:
             props = bpy.ops.export_scene.pynifly.get_rna_type().properties
             prop_keys = props.keys()
 
-            # Game target – "FO4" selects Fallout 4 BSTriShape format in PyNifly.
-            if "game" in prop_keys:
-                game_val = ExportHelpers._safe_enum(
-                    props, "game", "FO4",
-                    fallbacks=["FALLOUT4", "Fallout4"],
-                )
-                if game_val:
-                    kwargs["game"] = game_val
+            # ── Target game ──────────────────────────────────────────────────
+            # v25 uses "target_game"; older builds used "game".
+            # "FO4" selects Fallout 4 BSTriShape / BSSubIndexTriShape format.
+            for game_key in ("target_game", "game"):
+                if game_key in prop_keys:
+                    game_val = ExportHelpers._safe_enum(
+                        props, game_key, "FO4",
+                        fallbacks=["FALLOUT4", "Fallout4", "FALLOUT_4"],
+                    )
+                    if game_val:
+                        kwargs[game_key] = game_val
+                    break
 
-            # Scale: 1 Blender unit = 1 NIF unit for FO4.
+            # ── Apply modifiers ───────────────────────────────────────────────
+            # v25 renames apply_modifiers → export_modifiers; probe both.
+            for mod_key in ("export_modifiers", "apply_modifiers"):
+                if mod_key in prop_keys:
+                    kwargs[mod_key] = True
+                    break
+
+            # ── Collision export (v25+) ───────────────────────────────────────
+            # export_collision tells PyNifly v25 to include bhkCollisionObject
+            # blocks, which are required for physics-enabled FO4 objects in CK.
+            if "export_collision" in prop_keys:
+                kwargs["export_collision"] = True
+
+            # ── Vertex colours ────────────────────────────────────────────────
+            # export_colors is True by default in v25, but be explicit so CK
+            # gets the vertex-colour data it needs for LOD and alpha blending.
+            if "export_colors" in prop_keys:
+                kwargs["export_colors"] = True
+
+            # ── Coordinate system ─────────────────────────────────────────────
+            # blender_xf applies a 90° rotation + scale when True.  For FO4 we
+            # leave it False (NIF-native coordinates) — matching vanilla files.
+            if "blender_xf" in prop_keys:
+                kwargs["blender_xf"] = False
+
+            # ── Bone naming ───────────────────────────────────────────────────
+            # rename_bones converts Blender .L/.R names back to NIF convention.
+            # Must match the setting used during import.
+            if "rename_bones" in prop_keys:
+                kwargs["rename_bones"] = True
+
+            # ── Scale (legacy pre-v25 builds) ─────────────────────────────────
+            # v25 dropped scale_factor; set it only if the property still exists
+            # so we stay compatible with users on older PyNifly builds.
             for scale_key in ("scale_factor", "scale_correction"):
                 if scale_key in prop_keys:
                     kwargs[scale_key] = 1.0
                     break
-
-            # Apply modifiers so the temporary Triangulate modifier is baked.
-            if "apply_modifiers" in prop_keys:
-                kwargs["apply_modifiers"] = True
 
         except Exception:
             pass  # fall back to minimal kwargs on any introspection error

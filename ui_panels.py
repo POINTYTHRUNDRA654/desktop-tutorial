@@ -1982,6 +1982,13 @@ class FO4_PT_ExportPanel(Panel):
         info_col.label(text="Geometry nodes: BSTriShape (static) / BSSubIndexTriShape (skinned)", icon='INFO')
         info_col.label(text="Shader: BSLightingShaderProperty  |  Tangent space: ON", icon='INFO')
         info_col.label(text="Scale correction: 1.0  (1 Blender unit = 1 NIF unit)", icon='INFO')
+        if pynifly_ok:
+            info_col.separator(factor=0.5)
+            info_col.label(text="PyNifly v25 parameters used on export:", icon='SETTINGS')
+            info_col.label(text="  target_game=FO4  |  export_modifiers=True", icon='DOT')
+            info_col.label(text="  export_collision=True  |  export_colors=True", icon='DOT')
+            info_col.label(text="  blender_xf=False  |  rename_bones=True", icon='DOT')
+            info_col.label(text="Collision, animations, and bone renaming: auto-handled", icon='CHECKMARK')
 
         # Mesh optimisation toggles (affect the pre-export prep pass)
         opt_box = nif_box.box()

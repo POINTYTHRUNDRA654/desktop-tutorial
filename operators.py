@@ -456,7 +456,7 @@ class FO4_OT_ShowCredits(Operator):
         layout.label(text="All trademarks belong to their respective owners.", icon='INFO')
 
 
-
+class FO4_OT_ShowMessage(Operator):
     """Show a message to the user"""
     bl_idname = "fo4.show_message"
     bl_label = "Message"
