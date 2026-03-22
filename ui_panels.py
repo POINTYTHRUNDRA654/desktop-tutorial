@@ -2020,7 +2020,7 @@ class FO4_PT_ExportPanel(Panel):
         # Fixed CK-required values shown as informational labels
         info_col = settings_box.column(align=True)
         info_col.scale_y = 0.75
-        info_col.label(text="NIF version: 20.2.0.7  |  User ver: 12  |  UV2: 130 / 131073", icon='INFO')
+        info_col.label(text="NIF version: 20.2.0.7  |  User ver: 12  |  UV2: 130", icon='INFO')
         info_col.label(text="Geometry nodes: BSTriShape (static) / BSSubIndexTriShape (skinned)", icon='INFO')
         info_col.label(text="Shader: BSLightingShaderProperty  |  Tangent space: ON", icon='INFO')
         info_col.label(text="Scale correction: 1.0  (1 Blender unit = 1 NIF unit)", icon='INFO')

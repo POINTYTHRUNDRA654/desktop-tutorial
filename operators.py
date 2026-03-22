@@ -1171,8 +1171,9 @@ class FO4_OT_ExportMesh(Operator):
     """Export mesh to NIF format"""
     bl_idname = "fo4.export_mesh"
     bl_label = "Export Mesh"
-    
+
     filepath: StringProperty(subtype='FILE_PATH')
+    filter_glob: StringProperty(default="*.nif", options={'HIDDEN'})
     source_object: StringProperty(options={'HIDDEN'})
 
     @classmethod
@@ -1280,8 +1281,9 @@ class FO4_OT_ExportMeshWithCollision(Operator):
     """Generate a collision mesh and export both original and collision to NIF"""
     bl_idname = "fo4.export_mesh_with_collision"
     bl_label = "Export Mesh + Collision"
-    
+
     filepath: StringProperty(subtype='FILE_PATH')
+    filter_glob: StringProperty(default="*.nif", options={'HIDDEN'})
     source_object: StringProperty(options={'HIDDEN'})
     simplify_ratio: FloatProperty(
         name="Simplification",
@@ -1400,7 +1402,7 @@ class FO4_OT_ExportSceneAsNif(Operator):
     bl_label = "Export Scene as NIF"
 
     filepath: StringProperty(subtype='FILE_PATH')
-    filter_glob: StringProperty(default="*.nif;*.fbx", options={'HIDDEN'})
+    filter_glob: StringProperty(default="*.nif", options={'HIDDEN'})
 
     @classmethod
     def poll(cls, context):

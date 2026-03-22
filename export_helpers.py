@@ -96,10 +96,10 @@ class ExportHelpers:
         if not export_scene:
             return False, "bpy.ops.export_scene not available"
         if hasattr(export_scene, "pynifly"):
-            return True, "PyNifly exporter available"
+            return True, "PyNifly v25 exporter available (BadDog / BadDogSkyrim)"
         return False, (
-            "PyNifly not installed — download zip to D:\\Blender addon\\tools "
-            "and click 'Install PyNifly' in the Setup panel"
+            "PyNifly v25 not installed — click 'Install PyNifly v25' in the Setup & Status panel "
+            "to auto-download and install it"
         )
 
     @staticmethod
@@ -159,7 +159,7 @@ class ExportHelpers:
         """Assemble kwargs for the NIF exporter (Niftools v0.1.1) for Fallout 4.
 
         Fallout 4 NIF format requirements enforced by these settings:
-          - NIF version 20.2.0.7 / user version 12 / user_version_2 131073
+          - NIF version 20.2.0.7 / user version 12 / user_version_2 130
             (automatically selected by game="FALLOUT_4")
           - BSTriShape geometry nodes – selected by the FALLOUT_4 game profile;
             do NOT use NiTriShape for FO4 or meshes will be invisible in-game.
@@ -181,7 +181,7 @@ class ExportHelpers:
 
             # ----------------------------------------------------------------
             # Game profile – FALLOUT_4 sets NIF 20.2.0.7 with user version 12
-            # and user_version_2 131073, and forces BSTriShape geometry nodes
+            # and user_version_2 130, and forces BSTriShape geometry nodes
             # which are required by Fallout 4's renderer.
             # Niftools v0.1.1 valid identifier: 'FALLOUT_4'.
             # ----------------------------------------------------------------
@@ -318,21 +318,23 @@ class ExportHelpers:
 
         return kwargs
 
-
-        """Prepare a mesh object so it meets Fallout 4 / Niftools v0.1.1 requirements.
+    @staticmethod
+    def _prepare_mesh_for_nif(obj):
+        """Prepare a mesh object so it meets Fallout 4 / PyNifly v25 / Niftools v0.1.1 requirements.
 
         Performs (in order):
           1. Apply pending scale and rotation transforms – unapplied transforms
              are the single most common cause of distorted geometry in-game.
-          2. Ensure at least one UV map exists – the Niftools exporter requires
-             UV coordinates on every exported mesh.
+          2. Ensure at least one UV map exists – both exporters require UV
+             coordinates on every exported mesh.
           3. Add a temporary ``_FO4_Triangulate`` modifier when the mesh
              contains quads or n-gons, because FO4 BSTriShape only stores
-             triangles and the exporter does NOT auto-triangulate.
+             triangles.  PyNifly v25 can handle quads internally, but the
+             modifier guarantees a clean result for both exporters.
           4. Enable Auto Smooth for consistent tangent/normal export (skipped
              silently on Blender 4.x where the attribute was removed).
 
-        Returns a list of modifier names that were added.  The caller must
+        Returns a list of modifier names that were added.  The caller MUST
         remove them after export so the user's mesh is not permanently altered.
         """
         added_modifiers = []
@@ -359,7 +361,8 @@ class ExportHelpers:
                 pass  # context may not support transform_apply; continue anyway
 
         # 2. Ensure UV map -------------------------------------------------------
-        #    Niftools v0.1.1 raises an error if no UV map is present.
+        #    Both Niftools v0.1.1 and PyNifly v25 require at least one UV map;
+        #    auto-create one (smart-unwrapped) when the mesh has none.
         if not obj.data.uv_layers:
             obj.data.uv_layers.new(name="UVMap")
             try:
@@ -374,8 +377,9 @@ class ExportHelpers:
                     pass
 
         # 3. Triangulate ---------------------------------------------------------
-        #    Fallout 4 BSTriShape nodes only store triangles.  If the mesh has
-        #    quads or n-gons, add a Triangulate modifier (removed after export).
+        #    FO4 BSTriShape / BSSubIndexTriShape nodes only store triangles.
+        #    Add a temporary Triangulate modifier (removed after export) to
+        #    guarantee a clean tri-only mesh reaches the exporter.
         has_non_tris = any(len(p.vertices) > 3 for p in obj.data.polygons)
         if has_non_tris:
             mod = obj.modifiers.new(name="_FO4_Triangulate", type='TRIANGULATE')
@@ -388,8 +392,8 @@ class ExportHelpers:
             added_modifiers.append(mod.name)
 
         # 4. Auto Smooth ---------------------------------------------------------
-        #    Ensures the exported tangent vectors are coherent with the mesh
-        #    normals.  Removed in Blender 4.x (use_auto_smooth no longer exists).
+        #    Ensures exported tangent vectors are coherent with mesh normals.
+        #    The attribute was removed in Blender 4.x; skip silently.
         try:
             obj.data.use_auto_smooth = True
             obj.data.auto_smooth_angle = 3.14159265358979  # 180° – smooth all
