@@ -13070,12 +13070,22 @@ def register():
         subtype='DIR_PATH',
         update=_make_scene_to_pref_sync("fo4_torch_root", "torch_custom_path"),
     )
+    _ngp_sync = _make_scene_to_pref_sync("fo4_instantngp_path", "instantngp_path")
+
+    def _ngp_path_update(self, context):
+        _ngp_sync(self, context)
+        try:
+            if instantngp_helpers:
+                instantngp_helpers.InstantNGPHelpers.clear_cache()
+        except Exception:
+            pass
+
     bpy.types.Scene.fo4_instantngp_path = bpy.props.StringProperty(
         name="InstantNGP Path",
         description="Path to InstantNGP installation",
         default="",
         subtype='DIR_PATH',
-        update=_make_scene_to_pref_sync("fo4_instantngp_path", "instantngp_path"),
+        update=_ngp_path_update,
     )
     bpy.types.Scene.fo4_havok2fbx_path = bpy.props.StringProperty(
         name="Havok2FBX Folder",
