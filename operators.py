@@ -6059,7 +6059,7 @@ class FO4_OT_GenerateWithTripoSRLight(Operator):
     
     def execute(self, context):
         success, message = imageto3d_helpers.ImageTo3DHelpers.check_triposr_light_installation()
-        
+
         if not success:
             self.report({'ERROR'}, "TripoSR Light not installed")
             print("\n" + "="*70)
@@ -6068,36 +6068,64 @@ class FO4_OT_GenerateWithTripoSRLight(Operator):
             print(message)
             print("="*70 + "\n")
             return {'CANCELLED'}
-        
+
         if not self.image_path:
             self.report({'ERROR'}, "Image file required")
             return {'CANCELLED'}
-        
+
+        # Map scene quality enum → TripoSR quality mode
+        quality_map = {'DRAFT': 'fast', 'BALANCED': 'fast', 'HIGH': 'balanced'}
+        scene_quality = getattr(context.scene, 'fo4_imageto3d_quality', 'BALANCED')
+        effective_mode = quality_map.get(scene_quality, self.quality_mode)
+
         success, msg, output = imageto3d_helpers.ImageTo3DHelpers.generate_3d_light(
-            self.image_path, self.output_path, self.quality_mode
+            self.image_path, self.output_path, effective_mode
         )
-        
+
         print("\n" + "="*70)
         print("TRIPOSR LIGHT GENERATION")
         print("="*70)
         print(msg)
         print("="*70 + "\n")
-        
+
         self.report({'INFO'}, "See console for instructions")
         notification_system.FO4_NotificationSystem.notify(
-            f"TripoSR Light {self.quality_mode} mode", 'INFO'
+            f"TripoSR Light {effective_mode} mode (quality: {scene_quality})", 'INFO'
         )
-        
+
+        # Auto-decimate if the user has enabled it
+        if getattr(context.scene, 'fo4_imageto3d_auto_decimate', False):
+            obj = context.active_object
+            if obj and obj.type == 'MESH' and advanced_mesh_helpers:
+                target = getattr(context.scene, 'fo4_imageto3d_target_poly', 16000)
+                current = len(obj.data.polygons)
+                if current > target:
+                    adv_ok, adv_msg, adv_stats = (
+                        advanced_mesh_helpers.AdvancedMeshHelpers.smart_decimate(
+                            obj, target_poly_count=target, preserve_uvs=True
+                        )
+                    )
+                    after = adv_stats.get('poly_count_after', '?') if adv_ok else '?'
+                    print(f"Auto-decimate: {current:,} → {after} tris  ({adv_msg})")
+                    notification_system.FO4_NotificationSystem.notify(
+                        f"Auto-decimated to {after} tris for FO4", 'INFO'
+                    )
+
         return {'FINISHED'}
-    
+
     def invoke(self, context, event):
         return context.window_manager.invoke_props_dialog(self, width=450)
-    
+
     def draw(self, context):
         layout = self.layout
         layout.prop(self, "image_path")
         layout.prop(self, "output_path")
-        layout.prop(self, "quality_mode")
+        # Show scene quality setting alongside the per-operator mode
+        layout.prop(context.scene, "fo4_imageto3d_quality", text="Quality (scene)")
+        layout.prop(self, "quality_mode", text="Quality (override)")
+        layout.separator()
+        layout.prop(context.scene, "fo4_imageto3d_auto_decimate")
+        layout.prop(context.scene, "fo4_imageto3d_target_poly")
 
 
 class FO4_OT_ShowTripoSRComparison(Operator):
@@ -6464,7 +6492,77 @@ class FO4_OT_SmartDecimate(Operator):
         layout.prop(self, "preserve_uvs")
 
 
-class FO4_OT_SplitMeshPolyLimit(Operator):
+class FO4_OT_DecimateToFO4(Operator):
+    """Reduce the active mesh to the FO4 target poly count set in the Image-to-3D panel.
+
+    Shows the current triangle count alongside the target so you can judge
+    how much reduction will happen before confirming.  Uses Smart Decimate
+    with UV-seam preservation enabled.
+    """
+    bl_idname = "fo4.decimate_to_fo4"
+    bl_label = "Decimate to FO4 Target"
+    bl_options = {'REGISTER', 'UNDO'}
+
+    def execute(self, context):
+        obj = context.active_object
+        if not obj or obj.type != 'MESH':
+            self.report({'ERROR'}, "Select a mesh object first")
+            return {'CANCELLED'}
+
+        target = context.scene.fo4_imageto3d_target_poly
+
+        if not advanced_mesh_helpers:
+            self.report({'ERROR'}, "advanced_mesh_helpers unavailable — restart Blender")
+            return {'CANCELLED'}
+
+        current = len(obj.data.polygons)
+        if current <= target:
+            self.report({'INFO'}, f"Already at or below target ({current:,} tris ≤ {target:,})")
+            return {'FINISHED'}
+
+        success, message, stats = advanced_mesh_helpers.AdvancedMeshHelpers.smart_decimate(
+            obj, target_poly_count=target, preserve_uvs=True
+        )
+        if success:
+            after = stats.get('poly_count_after', '?')
+            pct = stats.get('reduction_percent', 0)
+            self.report(
+                {'INFO'},
+                f"Decimated: {current:,} → {after:,} tris ({pct:.1f}% reduction)",
+            )
+            notification_system.FO4_NotificationSystem.notify(
+                f"Mesh ready for FO4: {after:,} tris", 'INFO'
+            )
+        else:
+            self.report({'ERROR'}, message)
+            return {'CANCELLED'}
+        return {'FINISHED'}
+
+    def invoke(self, context, event):
+        return context.window_manager.invoke_props_dialog(self, width=360)
+
+    def draw(self, context):
+        layout = self.layout
+        obj = context.active_object
+        col = layout.column(align=True)
+
+        if obj and obj.type == 'MESH':
+            current = len(obj.data.polygons)
+            target = context.scene.fo4_imageto3d_target_poly
+            budget_ok = current <= 65535
+            col.label(
+                text=f"Current:  {current:,} tris",
+                icon='CHECKMARK' if budget_ok else 'ERROR',
+            )
+            col.label(text=f"Target:   {target:,} tris  (FO4 hard limit: 65,535)", icon='INFO')
+            if current > target:
+                pct = 100.0 * (1.0 - target / current)
+                col.label(text=f"Will remove ~{pct:.0f}% of faces", icon='MOD_DECIM')
+        else:
+            col.label(text="No mesh selected", icon='ERROR')
+
+        layout.separator()
+        layout.prop(context.scene, "fo4_imageto3d_target_poly")
     """Split the active mesh into sub-meshes each under the FO4 65,535-triangle limit"""
     bl_idname = "fo4.split_mesh_poly_limit"
     bl_label = "Split at Poly Limit"
@@ -12886,6 +12984,7 @@ classes = (
     FO4_OT_AnalyzeMeshQuality,
     FO4_OT_AutoRepairMesh,
     FO4_OT_SmartDecimate,
+    FO4_OT_DecimateToFO4,
     FO4_OT_SplitMeshPolyLimit,
     FO4_OT_GenerateLOD,
     FO4_OT_GenerateLODAndCollision,
@@ -13377,7 +13476,51 @@ def register():
         default="",
     )
 
-def unregister():
+    # ── Image-to-3D mesh quality settings ────────────────────────────────────
+    # These settings are shown in the Image to Mesh panel and read by all
+    # AI generation operators so users can tune output quality before generating.
+    bpy.types.Scene.fo4_imageto3d_quality = bpy.props.EnumProperty(
+        name="Generation Quality",
+        description="Trade-off between speed and mesh detail for AI generation",
+        items=[
+            ('DRAFT',    "Draft  (fastest)",   "Lowest resolution — use for quick previews"),
+            ('BALANCED', "Balanced",            "Good quality / reasonable time — recommended starting point"),
+            ('HIGH',     "High  (slower)",      "Best detail — use when the mesh looks too blobby"),
+        ],
+        default='BALANCED',
+    )
+    bpy.types.Scene.fo4_imageto3d_target_poly = bpy.props.IntProperty(
+        name="FO4 Target Poly Count",
+        description=(
+            "Target triangle count after decimation.  "
+            "Fallout 4 hard limit is 65,535; "
+            "practical LOD0 budget is 10,000–20,000 for most props"
+        ),
+        default=16000,
+        min=500,
+        max=65535,
+        step=500,
+    )
+    bpy.types.Scene.fo4_imageto3d_auto_decimate = bpy.props.BoolProperty(
+        name="Auto-Decimate After Generation",
+        description=(
+            "Automatically run Smart Decimate to 'FO4 Target Poly Count' "
+            "after each AI generation completes"
+        ),
+        default=True,
+    )
+    bpy.types.Scene.fo4_triposr_mc_resolution = bpy.props.IntProperty(
+        name="Marching-Cubes Resolution",
+        description=(
+            "Grid resolution used by TripoSR's marching-cubes step. "
+            "Lower = fewer polygons (try 128 or 64 for FO4); "
+            "higher = more detail but extreme poly count (256+ often unusable for FO4)"
+        ),
+        default=128,
+        min=32,
+        max=512,
+        step=32,
+    )
     for cls in reversed(classes):
         try:
             bpy.utils.unregister_class(cls)
@@ -13421,6 +13564,11 @@ def unregister():
         "fo4_mossy_autostart",
         "fo4_mossy_http_port",
         "fo4_use_mossy_ai",
+        # Image-to-3D quality
+        "fo4_imageto3d_quality",
+        "fo4_imageto3d_target_poly",
+        "fo4_imageto3d_auto_decimate",
+        "fo4_triposr_mc_resolution",
     ):
         if hasattr(bpy.types.Scene, prop):
             try:

@@ -729,8 +729,50 @@ class FO4_PT_ImageToMeshPanel(Panel):
     
     def draw(self, context):
         layout = self.layout
-        
-        box = layout.box()
+        scene = context.scene
+
+        # ── FO4 Mesh Quality Settings ─────────────────────────────────────────
+        # These settings apply to every AI generation tool in this panel.
+        # Change them BEFORE clicking a generation button.
+        q_box = layout.box()
+        q_box.label(text="FO4 Mesh Quality Settings", icon='SETTINGS')
+
+        # Show current active-object poly count as context
+        obj = context.active_object
+        if obj and obj.type == 'MESH':
+            current = len(obj.data.polygons)
+            target = scene.fo4_imageto3d_target_poly
+            over_limit = current > 65535
+            at_target  = current <= target
+            count_row = q_box.row(align=True)
+            count_row.label(
+                text=f"Active mesh: {current:,} tris",
+                icon='ERROR' if over_limit else ('CHECKMARK' if at_target else 'INFO'),
+            )
+            if over_limit:
+                q_box.label(text="⚠ Over 65,535 — cannot export to FO4 until decimated", icon='ERROR')
+            elif not at_target:
+                q_box.label(text=f"Above target ({target:,}) — click Decimate below", icon='INFO')
+
+        col = q_box.column(align=True)
+        col.prop(scene, "fo4_imageto3d_quality")
+        col.prop(scene, "fo4_triposr_mc_resolution")
+        col.prop(scene, "fo4_imageto3d_target_poly")
+        col.prop(scene, "fo4_imageto3d_auto_decimate")
+
+        hint = q_box.column(align=True)
+        hint.scale_y = 0.75
+        hint.label(text="FO4 hard limit: 65,535 tris  |  Good budget: 10k–20k", icon='INFO')
+        hint.label(text="MC Resolution ↓ = fewer polys  |  ↑ = more detail (slower)", icon='DOT')
+        hint.label(text="Auto-Decimate runs Smart Decimate after every generation", icon='DOT')
+
+        # One-click decimate button — always visible so users can fix any mesh
+        dec_row = q_box.row(align=True)
+        dec_row.enabled = bool(obj and obj.type == 'MESH')
+        dec_row.scale_y = 1.3
+        dec_row.operator("fo4.decimate_to_fo4", text="Decimate to FO4 Target", icon='MOD_DECIM')
+
+        layout.separator()
         box.label(text="Create Mesh from Image", icon='IMAGE_DATA')
         box.operator("fo4.image_to_mesh", text="Image to Mesh (Height Map)", icon='MESH_GRID')
         
