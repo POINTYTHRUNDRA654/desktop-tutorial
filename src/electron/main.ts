@@ -3910,7 +3910,7 @@ function setupIpcHandlers() {
       const backend = getBackendConfig();
       if (backend) {
         const controller = new AbortController();
-        const timeout = setTimeout(() => controller.abort(), 20000);
+        const timeout = setTimeout(() => controller.abort(), 8000);
         try {
           const res = await fetch(backendJoin(backend, '/v1/chat'), {
             method: 'POST',
@@ -3964,18 +3964,19 @@ function setupIpcHandlers() {
   const GROQ_FALLBACK_MODEL = 'llama-3.1-8b-instant';
 
   const callGroqWithFallback = async (
-    client: { chat: { completions: { create: (params: { model: string; messages: unknown }) => Promise<{ choices: Array<{ message: { content: string | null } }> }> } } },
+    client: { chat: { completions: { create: (params: { model: string; messages: unknown; max_tokens?: number }) => Promise<{ choices: Array<{ message: { content: string | null } }> }> } } },
     preferredModel: string,
     messages: Array<{ role: 'system' | 'user' | 'assistant'; content: string }>,
+    maxTokens = 1024,
   ): Promise<string> => {
     const { RateLimitError } = await import('groq-sdk');
     try {
-      const response = await client.chat.completions.create({ model: preferredModel, messages });
+      const response = await client.chat.completions.create({ model: preferredModel, messages, max_tokens: maxTokens });
       return response.choices[0]?.message?.content || '';
     } catch (e) {
       if (e instanceof RateLimitError && preferredModel !== GROQ_FALLBACK_MODEL) {
         console.warn(`[Groq] Rate-limited on ${preferredModel}, retrying with ${GROQ_FALLBACK_MODEL}`);
-        const response = await client.chat.completions.create({ model: GROQ_FALLBACK_MODEL, messages });
+        const response = await client.chat.completions.create({ model: GROQ_FALLBACK_MODEL, messages, max_tokens: maxTokens });
         return response.choices[0]?.message?.content || '';
       }
       throw e;
@@ -4016,12 +4017,14 @@ function setupIpcHandlers() {
         { role: 'user', content: String(payload.prompt || '') },
       ];
 
-      // Try backend proxy first (Render or self-hosted)
+      // Try backend proxy first (Render or self-hosted).
+      // Use a shorter 8-second timeout so cold-start Render instances fail fast
+      // and we fall through to the direct Groq SDK path without making the user wait.
       let content = '';
       const backend = getBackendConfig();
       if (backend) {
         const controller = new AbortController();
-        const timeout = setTimeout(() => controller.abort(), 20000);
+        const timeout = setTimeout(() => controller.abort(), 8000);
         try {
           const res = await fetch(backendJoin(backend, '/v1/chat'), {
             method: 'POST',
@@ -4029,7 +4032,7 @@ function setupIpcHandlers() {
               'Content-Type': 'application/json',
               ...(backend.token ? { Authorization: `Bearer ${backend.token}` } : {}),
             },
-            body: JSON.stringify({ provider: 'groq', model, messages }),
+            body: JSON.stringify({ provider: 'groq', model, messages, maxTokens: 1024 }),
             signal: controller.signal,
           });
 
@@ -4206,7 +4209,7 @@ function setupIpcHandlers() {
       let content = '';
       if (backend) {
         const controller = new AbortController();
-        const timeout = setTimeout(() => controller.abort(), 30000); // Increased to 30s
+        const timeout = setTimeout(() => controller.abort(), 8000); // Fast fail so direct Groq path is used sooner
         try {
           console.log('[sendMessage] Calling backend with correlation ID:', correlationId);
           const res = await fetch(backendJoin(backend, '/v1/chat'), {
@@ -4219,6 +4222,7 @@ function setupIpcHandlers() {
               provider: 'groq',
               model,
               messages,
+              maxTokens: 512,
             }),
             signal: controller.signal,
           });
