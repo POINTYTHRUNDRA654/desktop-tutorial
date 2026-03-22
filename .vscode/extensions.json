@@ -1,0 +1,23 @@
+{
+  // Extensions recommended for everyone working on this add-on.
+  // VS Code will prompt to install any that are not already present.
+  "recommendations": [
+    // ── Git / LFS ────────────────────────────────────────────────────────
+    // GitLens — rich Git history, blame, and diff views.
+    "eamodio.gitlens",
+    // GitHub Pull Requests — review and manage PRs without leaving VS Code.
+    "github.vscode-pull-request-github",
+
+    // ── Python ───────────────────────────────────────────────────────────
+    // Python language support (linting, IntelliSense, debugging).
+    "ms-python.python",
+    // Pylance — fast static type checker / IntelliSense engine.
+    "ms-python.vscode-pylance",
+
+    // ── File format helpers ───────────────────────────────────────────────
+    // TOML syntax highlighting (blender_manifest.toml).
+    "tamasfe.even-better-toml",
+    // EditorConfig support (consistent indentation across editors).
+    "editorconfig.editorconfig"
+  ]
+}

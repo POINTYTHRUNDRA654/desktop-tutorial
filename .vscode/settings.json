@@ -1,0 +1,67 @@
+{
+  // ── Git ──────────────────────────────────────────────────────────────────
+  // Always confirm before syncing so accidental pushes of large files are caught.
+  "git.confirmSync": true,
+  // Keep the local repo up to date automatically.
+  "git.autofetch": true,
+  "git.autofetchPeriod": 180,
+  // Never silently stage-all and commit — require explicit staging.
+  "git.enableSmartCommit": false,
+  // Show the push/pull button in the status bar.
+  "git.showPushSuccessNotification": true,
+  // Rebase instead of merge when pulling so the history stays linear.
+  "git.rebaseWhenSync": false,
+
+  // ── Git LFS ──────────────────────────────────────────────────────────────
+  // Tell VS Code's built-in Git to honour LFS pointer files instead of
+  // treating them as binary blobs.  This prevents VS Code from offering
+  // to stage/push the 400+ MB raw binary content of an LFS-tracked zip.
+  "git.lfs.enabled": true,
+
+  // ── Files: exclude large binaries from the explorer & search ─────────────
+  // These are either gitignored or LFS-tracked; cluttering the file tree
+  // with them makes navigation harder and increases the chance of an
+  // accidental commit.
+  "files.exclude": {
+    "**/__pycache__": true,
+    "**/*.pyc": true,
+    "**/*.pyo": true,
+    // AI model weight files (can be many GB each)
+    "**/*.pt": true,
+    "**/*.pth": true,
+    "**/*.ckpt": true,
+    "**/*.safetensors": true,
+    "**/*.onnx": true,
+    // Large media
+    "**/*.blend": true,
+    "**/*.blend1": true,
+    "**/*.blend2": true
+  },
+
+  // ── Search: skip the same heavy paths ────────────────────────────────────
+  "search.exclude": {
+    "**/__pycache__": true,
+    "tools/**": true,
+    "build_temp/**": true,
+    "dist/**": true
+  },
+
+  // ── Python ───────────────────────────────────────────────────────────────
+  "python.analysis.extraPaths": [],
+  "python.languageServer": "Pylance",
+  "[python]": {
+    "editor.formatOnSave": false,
+    "editor.rulers": [120]
+  },
+
+  // ── Editor ───────────────────────────────────────────────────────────────
+  "editor.trimAutoWhitespace": true,
+  "files.trimTrailingWhitespace": true,
+  "files.insertFinalNewline": true,
+
+  // ── File associations ─────────────────────────────────────────────────────
+  "files.associations": {
+    "*.toml": "toml",
+    "*.bat": "bat"
+  }
+}

@@ -19,7 +19,11 @@ build/
 build_temp/
 
 # VS Code
-.vscode/
+# Share project-level settings and recommended extensions so everyone on the
+# team gets the same Git-LFS-aware configuration automatically.
+.vscode/*
+!.vscode/settings.json
+!.vscode/extensions.json
 *.code-workspace
 
 # macOS

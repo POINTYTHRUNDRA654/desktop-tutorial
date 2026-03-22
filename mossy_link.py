@@ -437,7 +437,7 @@ def generate_mesh(
 
     :param prompt:       Natural-language description of the desired object.
     :param image_base64: Optional base-64 encoded reference image (PNG/JPEG).
-    :param style:        Generation style: ``"realistic"``, ``"stylised"``,
+    :param style:        Generation style: ``"realistic"``, ``"stylized"``,
                          ``"lowpoly"``, or ``"armor"``.
     :param timeout:      Seconds to wait (AI generation can take a while).
     :returns:            On success a dict ``{"status": "success",
