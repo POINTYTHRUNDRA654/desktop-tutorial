@@ -357,12 +357,15 @@ class FO4_OT_ShowCredits(Operator):
         # ── NIF / Fallout 4 format tools ──────────────────────────────────
         _section('PLUGIN', "Niftools Blender Plugin (NIF export)", [
             "NifTools Team — https://github.com/niftools/blender_nif_plugin",
-            "Enables direct .nif export for Fallout 4 / Skyrim",
+            "Enables direct .nif export for Fallout 4 / Skyrim (Blender 3.6 LTS)",
         ])
 
-        _section('PLUGIN', "PyNifly (NIF import / export)", [
-            "BadDogSkyrim — https://github.com/BadDogSkyrim/PyNifly",
-            "Alternative NIF I/O with body-morph support",
+        _section('STAR', "PyNifly v25  ★  PRIMARY NIF EXPORTER", [
+            "BadDog (BadDogSkyrim) — https://github.com/BadDogSkyrim/PyNifly",
+            "The recommended NIF exporter for Blender 4.x and 5.x.",
+            "Supports Fallout 4, Skyrim SE, and Starfield with full",
+            "body-morph and material path support.",
+            "Huge thanks to BadDog for maintaining this essential tool!",
         ])
 
         # ── Unreal asset extraction ────────────────────────────────────────
@@ -12657,22 +12660,23 @@ class FO4_OT_ExportModManifest(Operator):
 
 
 class FO4_OT_InstallPyNifly(Operator):
-    """Install PyNifly NIF exporter from the tools folder.
+    """Install PyNifly v25 NIF exporter (by BadDog / BadDogSkyrim).
 
-    Looks for a PyNifly*.zip in the tools folder (D:\\Blender addon\\tools)
-    and installs it into Blender as an add-on.  If the zip is not present
-    the GitHub releases page is opened so you can download it — place the
-    zip in the tools folder and click this button again.
+    Automatically downloads PyNifly v25 from GitHub if no local zip is found
+    in the tools folder (D:\\Blender addon\\tools).  The zip is then installed
+    directly into Blender as an add-on.
 
-    PyNifly (BadDogSkyrim/PyNifly) is the recommended NIF exporter for
-    Blender 4.x and 5.x and replaces Niftools v0.1.1 for those versions.
+    PyNifly (by BadDog) is the recommended NIF exporter for Blender 4.x and
+    5.x — it supports Fallout 4, Skyrim SE, and Starfield with full body-morph
+    and material path support.
+
+    Credit: BadDog (BadDogSkyrim) — https://github.com/BadDogSkyrim/PyNifly
     """
     bl_idname = "fo4.install_pynifly"
-    bl_label = "Install PyNifly"
+    bl_label = "Install PyNifly v25"
     bl_description = (
-        "Install PyNifly NIF exporter from the tools folder "
-        "(D:\\Blender addon\\tools). "
-        "Downloads page opens if the zip is not found there."
+        "Auto-download and install PyNifly v25 by BadDog (BadDogSkyrim). "
+        "Downloads from GitHub if not already in the tools folder."
     )
 
     def execute(self, context):
@@ -12755,6 +12759,7 @@ class WM_OT_MossyCheckHttp(Operator):
 classes = (
     FO4_OT_StartTutorial,
     FO4_OT_ShowHelp,
+    FO4_OT_ShowCredits,
     FO4_OT_NextTutorialStep,
     FO4_OT_PreviousTutorialStep,
     FO4_OT_ShowDetailedSetup,

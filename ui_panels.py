@@ -235,7 +235,10 @@ class FO4_PT_MainPanel(Panel):
         box = layout.box()
         box.label(text="Tutorial System", icon='HELP')
         box.operator("fo4.start_tutorial", text="Start Tutorial", icon='PLAY')
-        box.operator("fo4.show_help", text="Show Help", icon='QUESTION')
+        # Help and Credits sit side by side for quick access
+        help_row = box.row(align=True)
+        help_row.operator("fo4.show_help", text="Show Help", icon='QUESTION')
+        help_row.operator("fo4.show_credits", text="Credits", icon='FUND')
         if tutorial_system and not tutorial_system.TUTORIALS:
             tutorial_system.initialize_tutorials()
         tutorial = tutorial_system.get_current_tutorial(context) if tutorial_system else None

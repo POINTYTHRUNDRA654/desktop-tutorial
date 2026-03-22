@@ -350,36 +350,106 @@ def install_niftools(blender_version: str = "3.6") -> tuple[bool, str]:
         return False, f"Failed to run Niftools installer: {e}"
 
 
+
+# The target PyNifly release tag.  Update this constant when a new version
+# should be picked up automatically.
+PYNIFLY_TARGET_VERSION = "v25"
+
+# GitHub API endpoint for the target release.
+_PYNIFLY_RELEASE_API = (
+    f"https://api.github.com/repos/BadDogSkyrim/PyNifly/releases/tags/{PYNIFLY_TARGET_VERSION}"
+)
+
+
+def _download_pynifly_zip(dest_dir: "Path") -> "Path | None":
+    """Download the PyNifly {ver} zip from GitHub to *dest_dir*.
+
+    Queries the GitHub Releases API for {ver}, finds the first ``.zip``
+    asset, downloads it, and returns the local path.  Returns ``None`` if
+    the download fails for any reason.
+    """.format(ver=PYNIFLY_TARGET_VERSION)
+    try:
+        req = urllib.request.Request(
+            _PYNIFLY_RELEASE_API,
+            headers={"User-Agent": "Mozilla/5.0", "Accept": "application/vnd.github+json"},
+        )
+        with urllib.request.urlopen(req, timeout=20) as resp:
+            data = json.loads(resp.read().decode())
+
+        zip_url: "str | None" = None
+        zip_name: "str | None" = None
+        for asset in data.get("assets", []):
+            name = asset.get("name", "")
+            if name.lower().endswith(".zip"):
+                zip_url = asset.get("browser_download_url")
+                zip_name = name
+                break
+
+        if not zip_url:
+            print(f"PyNifly: no .zip asset found in release {PYNIFLY_TARGET_VERSION}")
+            return None
+
+        dest_dir.mkdir(parents=True, exist_ok=True)
+        dest_path = dest_dir / zip_name
+        print(f"PyNifly: downloading {zip_name} from {zip_url} …")
+        urllib.request.urlretrieve(zip_url, dest_path)
+        print(f"PyNifly: saved to {dest_path}")
+        return dest_path
+    except Exception as exc:
+        print(f"PyNifly: auto-download failed: {exc}")
+        return None
+
+
 def install_pynifly() -> tuple[bool, str]:
-    """Install PyNifly (BadDogSkyrim/PyNifly) NIF exporter into Blender.
+    """Install PyNifly {ver} (by BadDog / BadDogSkyrim) NIF exporter into Blender.
 
-    Searches for a ``PyNifly*.zip`` file in ``D:\\Blender addon\\tools`` (the
-    primary tools folder) and, if not found there, in the add-on's own
-    ``tools/`` fallback directory.  Once the zip is located it is installed
-    directly into Blender via ``bpy.ops.preferences.addon_install``.
+    Steps (in order):
+    1. Search ``D:\\Blender addon\\tools`` and the add-on's ``tools/`` folder
+       for any ``PyNifly*.zip``.  Prefer the file whose name matches
+       ``PYNIFLY_TARGET_VERSION`` ({ver}); fall back to any PyNifly zip found.
+    2. If no local zip is present, auto-download {ver} from the GitHub
+       Releases API (BadDogSkyrim/PyNifly) into the tools folder.
+    3. Install the zip into Blender via ``bpy.ops.preferences.addon_install``
+       and enable the add-on.
 
-    If the zip is not present in either location the function opens the
-    GitHub releases page so the user can download it.  After downloading,
-    place the zip in ``D:\\Blender addon\\tools`` and click the button again.
+    Credit
+    ------
+    PyNifly is developed and maintained by BadDog (BadDogSkyrim).
+    https://github.com/BadDogSkyrim/PyNifly
 
     Returns
     -------
     tuple[bool, str]
         ``(True, message)`` on success, ``(False, reason)`` otherwise.
-    """
-    # Search in the primary tools directory first, then the addon fallback.
+    """.format(ver=PYNIFLY_TARGET_VERSION)
+    # ── 1. Look for an existing local zip ────────────────────────────────────
     search_dirs = [DEFAULT_TOOLS_ROOT, FALLBACK_TOOLS_ROOT]
     zip_path: "Path | None" = None
     for directory in search_dirs:
         if not directory.exists():
             continue
-        for pattern in ("PyNifly*.zip", "pynifly*.zip"):
+        # Prefer the target version zip; accept any PyNifly zip as fallback.
+        for pattern in (
+            f"PyNifly{PYNIFLY_TARGET_VERSION}*.zip",
+            f"pynifly{PYNIFLY_TARGET_VERSION}*.zip",
+            "PyNifly*.zip",
+            "pynifly*.zip",
+        ):
             matches = sorted(directory.glob(pattern))
             if matches:
-                zip_path = matches[-1]  # alphabetically last = newest version
+                zip_path = matches[-1]  # alphabetically last = newest
                 break
         if zip_path:
             break
+
+    # ── 2. Auto-download v25 from GitHub if not found locally ─────────────
+    if not zip_path:
+        tools_root = get_tools_root()
+        print(
+            f"PyNifly: no local zip found — auto-downloading "
+            f"{PYNIFLY_TARGET_VERSION} from GitHub …"
+        )
+        zip_path = _download_pynifly_zip(tools_root)
 
     if not zip_path:
         release_url = "https://github.com/BadDogSkyrim/PyNifly/releases"
@@ -389,16 +459,21 @@ def install_pynifly() -> tuple[bool, str]:
         except Exception:
             pass
         return False, (
-            f"PyNifly zip not found in {DEFAULT_TOOLS_ROOT} or {FALLBACK_TOOLS_ROOT}. "
-            f"Download PyNifly from {release_url}, place the zip in "
-            f"{DEFAULT_TOOLS_ROOT}, then click Install again."
+            f"Could not auto-download PyNifly {PYNIFLY_TARGET_VERSION}. "
+            f"Please download it manually from {release_url}, "
+            f"place the zip in {DEFAULT_TOOLS_ROOT}, and click Install again.\n"
+            f"Credit: BadDog (BadDogSkyrim) — {release_url}"
         )
 
+    # ── 3. Install into Blender ───────────────────────────────────────────
     try:
         import bpy  # available when running inside Blender
         bpy.ops.preferences.addon_install(filepath=str(zip_path), overwrite=True)
         bpy.ops.preferences.addon_enable(module="PyNifly")
-        return True, f"PyNifly installed from {zip_path.name}"
+        return True, (
+            f"PyNifly {PYNIFLY_TARGET_VERSION} installed from {zip_path.name}. "
+            f"Credit: BadDog (BadDogSkyrim) — https://github.com/BadDogSkyrim/PyNifly"
+        )
     except Exception as e:
         return False, f"PyNifly install failed: {e}"
 
