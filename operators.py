@@ -321,7 +321,139 @@ class FO4_OT_ShowDetailedSetup(Operator):
         return {'FINISHED'}
 
 
-class FO4_OT_ShowMessage(Operator):
+class FO4_OT_ShowCredits(Operator):
+    """Show credits for all third-party tools used by this add-on"""
+    bl_idname = "fo4.show_credits"
+    bl_label = "Credits"
+
+    def execute(self, context):
+        return {'FINISHED'}
+
+    def invoke(self, context, event):
+        return context.window_manager.invoke_popup(self, width=480)
+
+    def draw(self, context):
+        layout = self.layout
+
+        # ── Title ────────────────────────────────────────────────────────────
+        title_row = layout.row()
+        title_row.label(text="Third-Party Tools & Credits", icon='FUND')
+        layout.separator()
+
+        def _section(icon, heading, lines):
+            box = layout.box()
+            box.label(text=heading, icon=icon)
+            col = box.column(align=True)
+            col.scale_y = 0.85
+            for line in lines:
+                col.label(text=line)
+
+        # ── Core Blender tool ─────────────────────────────────────────────
+        _section('BLENDER', "Blender (3D platform)", [
+            "Blender Foundation — https://www.blender.org",
+            "GNU GPL v2+ license",
+        ])
+
+        # ── NIF / Fallout 4 format tools ──────────────────────────────────
+        _section('PLUGIN', "Niftools Blender Plugin (NIF export)", [
+            "NifTools Team — https://github.com/niftools/blender_nif_plugin",
+            "Enables direct .nif export for Fallout 4 / Skyrim",
+        ])
+
+        _section('PLUGIN', "PyNifly (NIF import / export)", [
+            "BadDogSkyrim — https://github.com/BadDogSkyrim/PyNifly",
+            "Alternative NIF I/O with body-morph support",
+        ])
+
+        # ── Unreal asset extraction ────────────────────────────────────────
+        _section('IMPORT', "UModel / UE Viewer (Unreal asset extraction)", [
+            "Konstantin Nosov (Gildor) — https://www.gildor.org/en/projects/umodel",
+            "Extracts meshes, textures, and animations from UE games",
+        ])
+
+        # ── Texture tools ─────────────────────────────────────────────────
+        _section('IMAGE_DATA', "NVIDIA Texture Tools (NVTT / nvcompress)", [
+            "NVIDIA Corporation — https://github.com/castano/nvidia-texture-tools",
+            "GPU-accelerated DDS texture compression",
+        ])
+
+        _section('IMAGE_DATA', "texconv (DirectXTex)", [
+            "Microsoft — https://github.com/microsoft/DirectXTex",
+            "Windows DDS / BC1-BC7 texture conversion",
+        ])
+
+        # ── AI / ML models ────────────────────────────────────────────────
+        _section('LIGHT_HEMI', "PyTorch (AI / ML runtime)", [
+            "Meta AI (PyTorch team) — https://pytorch.org",
+            "Deep-learning framework powering all AI features",
+        ])
+
+        _section('RENDER_RESULT', "Real-ESRGAN (AI texture upscaling)", [
+            "Xintao Wang et al. — https://github.com/xinntao/Real-ESRGAN",
+            "Upscales and enhances textures using GAN models",
+        ])
+
+        _section('MESH_DATA', "TripoSR (image-to-3D)", [
+            "VAST AI Research — https://github.com/VAST-AI-Research/TripoSR",
+            "Single-image 3D mesh reconstruction",
+        ])
+
+        _section('MESH_DATA', "Shap-E (text / image-to-3D)", [
+            "OpenAI — https://github.com/openai/shap-e",
+            "Text and image conditioned 3D shape generation",
+        ])
+
+        _section('MESH_DATA', "Point-E (text-to-3D point cloud)", [
+            "OpenAI — https://github.com/openai/point-e",
+            "Text-guided 3D point cloud and mesh generation",
+        ])
+
+        _section('MESH_DATA', "Hunyuan3D-2 (text / image-to-3D)", [
+            "Tencent — https://github.com/Tencent-Hunyuan/Hunyuan3D-2",
+            "High-quality text and image conditioned 3D generation",
+        ])
+
+        _section('MESH_DATA', "GET3D (text-to-3D)", [
+            "NVIDIA Research — https://github.com/nVlabs/GET3D",
+            "Generative model for high-quality 3D shapes",
+        ])
+
+        _section('MESH_DATA', "Instant-NGP (neural radiance field)", [
+            "NVIDIA Research — https://github.com/NVlabs/instant-ngp",
+            "Real-time NeRF reconstruction from photos",
+        ])
+
+        _section('ARMATURE_DATA', "RigNet (auto-rigging)", [
+            "Zhan Xu et al. — https://github.com/zhan-xu/RigNet",
+            "Automatic skeleton prediction for 3D meshes",
+        ])
+
+        _section('ANIM_DATA', "HY-Motion-1.0 (motion generation)", [
+            "Tencent Hunyuan — https://github.com/Tencent-Hunyuan/HY-Motion-1.0",
+            "AI-powered human motion sequence generation",
+        ])
+
+        _section('IMAGE_RGB', "ZoeDepth (depth estimation)", [
+            "Intel ISL — https://github.com/isl-org/ZoeDepth",
+            "Monocular depth estimation from a single image",
+        ])
+
+        # ── Video / general utilities ──────────────────────────────────────
+        _section('FILE_MOVIE', "FFmpeg (video & audio processing)", [
+            "FFmpeg Team — https://ffmpeg.org",
+            "GNU LGPL v2.1+ / GPL v2+ license",
+        ])
+
+        _section('TOOL_SETTINGS', "Havok2FBX (Havok animation conversion)", [
+            "dfm — https://github.com/dfm/havok2fbx",
+            "Converts Havok .hkx animations to FBX for Blender",
+        ])
+
+        layout.separator()
+        layout.label(text="All trademarks belong to their respective owners.", icon='INFO')
+
+
+
     """Show a message to the user"""
     bl_idname = "fo4.show_message"
     bl_label = "Message"
