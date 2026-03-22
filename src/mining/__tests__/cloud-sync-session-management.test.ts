@@ -349,6 +349,111 @@ describe('CloudSync Session Management', () => {
         uninitializedEngine.endCollaborationSession(sessionId)
       ).rejects.toThrow('Cloud sync engine not initialized');
     });
+
+    it('should not delete session when sync fails', async () => {
+      vi.spyOn(cloudSync, 'syncProject').mockResolvedValue({
+        success: false,
+        filesSync: 0,
+        bytesSync: 0,
+        conflictsDetected: 0,
+        conflictsResolved: 0,
+        duration: 0,
+        timestamp: Date.now(),
+        error: 'network error',
+      });
+
+      vi.spyOn(cloudSync, 'broadcastChange').mockResolvedValue(undefined);
+
+      await expect(
+        cloudSync.endCollaborationSession(sessionId)
+      ).rejects.toThrow('Failed to end collaboration session');
+
+      // Session must still exist because sync did not succeed
+      expect(cloudSync.getCollaborationSession(projectId)).not.toBeNull();
+    });
+
+    it('should not delete session when conflicts remain unresolved', async () => {
+      vi.spyOn(cloudSync, 'syncProject').mockResolvedValue({
+        success: true,
+        filesSync: 3,
+        bytesSync: 512,
+        conflictsDetected: 2,
+        conflictsResolved: 1, // One conflict still unresolved
+        duration: 150,
+        timestamp: Date.now(),
+      });
+
+      vi.spyOn(cloudSync, 'broadcastChange').mockResolvedValue(undefined);
+      vi.spyOn(cloudSync as any, 'createSnapshot').mockResolvedValue({
+        id: 'snapshot-partial',
+        projectId,
+      });
+
+      await expect(
+        cloudSync.endCollaborationSession(sessionId)
+      ).rejects.toThrow('Failed to end collaboration session');
+
+      // Session must still exist because not all conflicts were resolved
+      expect(cloudSync.getCollaborationSession(projectId)).not.toBeNull();
+    });
+
+    it('should ignore a concurrent call for the same session', async () => {
+      let resolveSyncFirst = (): void => {};
+      const firstSyncStarted = new Promise<void>((resolve) => {
+        resolveSyncFirst = resolve;
+      });
+      let releaseFirstSync = (): void => {};
+      const firstSyncGate = new Promise<void>((resolve) => {
+        releaseFirstSync = resolve;
+      });
+
+      // First call: blocks until we manually release it
+      const syncMock = vi
+        .spyOn(cloudSync, 'syncProject')
+        .mockImplementationOnce(async () => {
+          resolveSyncFirst(); // signal that the first call has started
+          await firstSyncGate; // wait until we release it
+          return {
+            success: true,
+            filesSync: 0,
+            bytesSync: 0,
+            conflictsDetected: 0,
+            conflictsResolved: 0,
+            duration: 0,
+            timestamp: Date.now(),
+          };
+        })
+        .mockResolvedValue({
+          success: true,
+          filesSync: 0,
+          bytesSync: 0,
+          conflictsDetected: 0,
+          conflictsResolved: 0,
+          duration: 0,
+          timestamp: Date.now(),
+        });
+
+      vi.spyOn(cloudSync, 'broadcastChange').mockResolvedValue(undefined);
+      vi.spyOn(cloudSync as any, 'createSnapshot').mockResolvedValue({
+        id: 'snapshot-concurrent',
+        projectId,
+      });
+
+      // Start first call (will block at syncProject)
+      const firstCall = cloudSync.endCollaborationSession(sessionId);
+      await firstSyncStarted;
+
+      // While the first call is still running, trigger a second call
+      const secondCall = cloudSync.endCollaborationSession(sessionId);
+      await secondCall; // second call should return immediately (no-op)
+
+      // The second call must not have triggered another syncProject
+      expect(syncMock).toHaveBeenCalledTimes(1);
+
+      // Release the first call and let it finish
+      releaseFirstSync();
+      await firstCall;
+    });
   });
 
   describe('Integration scenarios', () => {
