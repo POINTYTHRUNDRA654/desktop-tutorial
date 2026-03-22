@@ -757,12 +757,6 @@ class FO4AddonPreferences(bpy.types.AddonPreferences):
         ui_box.prop(self, "mesh_panel_unified", text="Unified Mesh Panel")
         ui_box.label(text="Show all mesh helpers in one box (vs split basic/advanced)")
 
-        path = bpy.path.abspath(self.havok2fbx_path)
-        if os.path.isdir(path):
-            box.label(text=f"Configured: {path}", icon="CHECKMARK")
-        else:
-            box.label(text="Path not found. Set to your existing install.", icon="ERROR")
-
         tex_box = layout.box()
         tex_box.label(text="Texture Converters", icon="IMAGE_DATA")
         tex_box.prop(self, "nvtt_path", text="nvcompress or folder")
@@ -771,19 +765,6 @@ class FO4AddonPreferences(bpy.types.AddonPreferences):
         ff_box = layout.box()
         ff_box.label(text="Video & Audio Tools", icon="SOUND")
         ff_box.prop(self, "ffmpeg_path", text="ffmpeg or folder")
-
-        nvcompress = get_configured_nvcompress_path()
-        texconv = get_configured_texconv_path()
-
-        if nvcompress:
-            tex_box.label(text=f"nvcompress: {nvcompress}", icon="CHECKMARK")
-        else:
-            tex_box.label(text="nvcompress not set/found (PATH or set here)", icon="ERROR")
-
-        if texconv:
-            tex_box.label(text=f"texconv: {texconv}", icon="CHECKMARK")
-        else:
-            tex_box.label(text="texconv not set/found (tools/install_texconv.ps1)", icon="ERROR")
 
         llm_box = layout.box()
         llm_box.label(text="Advisor (LLM, optional)", icon="INFO")
@@ -812,25 +793,7 @@ class FO4AddonPreferences(bpy.types.AddonPreferences):
         auto_box.prop(self, "auto_register_tools", text="Auto-register third-party add-ons")
         auto_box.operator("fo4.check_tool_paths", text="Check Tool Paths", icon='INFO')
         auto_box.label(text="(disable to avoid policy warnings at startup)", icon='INFO')
-
-        # PyTorch Installation Helper
-        # Use cached torch status from ui_panels to avoid blocking the UI
-        torch_box = layout.box()
-        torch_box.label(text="PyTorch Installation (AI Features)", icon="PLUGIN")
-        try:
-            from . import ui_panels
-            success, msg = ui_panels._get_torch_status()
-            if success:
-                torch_box.label(text=f"✓ PyTorch loaded: {msg}", icon="CHECKMARK")
-            else:
-                if msg == "windows_path_error":
-                    torch_box.label(text="⚠ Windows path length error detected", icon="ERROR")
-                    torch_box.label(text="PyTorch cannot load from default location", icon="INFO")
-                else:
-                    torch_box.label(text=f"⚠ {msg}", icon="ERROR")
-                torch_box.operator("torch.install_custom_path", text="Install PyTorch", icon="IMPORT")
-        except Exception as e:
-            torch_box.label(text=f"Unable to check PyTorch: {str(e)}", icon="ERROR")
+        auto_box.label(text="See the Settings panel in the N-panel for live tool status.", icon='INFO')
 
         update_box = layout.box()
         update_box.label(text="Add-on Update", icon="FILE_REFRESH")

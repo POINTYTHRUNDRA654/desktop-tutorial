@@ -44,7 +44,9 @@ def _get_torch_status():
     """Get cached torch status to avoid repeated import attempts in draw() loops."""
     global _torch_cache, _torch_version
     if _torch_cache is not None:
-        return _torch_cache, _torch_version
+        if _torch_cache is True:
+            return True, _torch_version
+        return False, _torch_cache
 
     try:
         import torch
@@ -4089,7 +4091,7 @@ class FO4_PT_SettingsPanel(Panel):
             if success:
                 torch_box.label(text=f"✓ PyTorch loaded: {msg}", icon="CHECKMARK")
             else:
-                if msg == "windows_path_error":
+                if msg and ("WinError 206" in msg or "too long" in msg or "windows_path_error" in msg):
                     torch_box.label(
                         text="⚠ Windows path-length error detected", icon="ERROR")
                     torch_box.operator(
