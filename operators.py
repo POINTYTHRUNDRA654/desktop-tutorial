@@ -12564,6 +12564,62 @@ class FO4_OT_InstallPyNifly(Operator):
         return {'FINISHED'}
 
 
+# ── Mossy Link operators ───────────────────────────────────────────────────────
+
+class WM_OT_MossyLinkToggle(Operator):
+    """Start or stop the Mossy Link TCP server so Mossy can control Blender"""
+    bl_idname = "wm.mossy_link_toggle"
+    bl_label  = "Toggle Mossy Link Server"
+
+    def execute(self, context):
+        try:
+            from . import mossy_link as _ml
+        except Exception as exc:
+            self.report({'ERROR'}, f"Could not import mossy_link: {exc}")
+            return {'CANCELLED'}
+
+        if _ml.is_server_running():
+            ok, msg = _ml.stop_server()
+            context.window_manager["mossy_link_active"] = False
+        else:
+            ok, msg = _ml.start_server()
+            context.window_manager["mossy_link_active"] = _ml.is_server_running()
+
+        level = 'INFO' if ok else 'WARNING'
+        self.report({level}, msg)
+        return {'FINISHED'}
+
+
+class WM_OT_MossyCheckHttp(Operator):
+    """Check whether the Mossy Bridge and Nemotron LLM are reachable"""
+    bl_idname = "wm.mossy_check_http"
+    bl_label  = "Check Mossy Connection"
+
+    def execute(self, context):
+        try:
+            from . import mossy_link as _ml
+        except Exception as exc:
+            self.report({'ERROR'}, f"Could not import mossy_link: {exc}")
+            return {'CANCELLED'}
+
+        bridge_ok, bridge_msg = _ml.check_bridge()
+        llm_ok,    llm_msg    = _ml.check_llm()
+
+        # Store statuses on WindowManager for the panel to read.
+        wm = context.window_manager
+        wm["mossy_bridge_status"] = bridge_msg
+        wm["mossy_llm_status"]    = llm_msg
+
+        summary = f"Bridge: {'✓' if bridge_ok else '✗'}  |  LLM: {'✓' if llm_ok else '✗'}"
+        level = 'INFO' if (bridge_ok or llm_ok) else 'WARNING'
+        self.report({level}, summary)
+
+        # Detailed results in the console so users can see the full messages.
+        print(f"[Mossy Link] Bridge check: {bridge_msg}")
+        print(f"[Mossy Link] LLM check:    {llm_msg}")
+        return {'FINISHED'}
+
+
 classes = (
     FO4_OT_StartTutorial,
     FO4_OT_ShowHelp,
@@ -12850,6 +12906,9 @@ classes = (
     FO4_OT_GenerateReadme,
     FO4_OT_ValidateModStructure,
     FO4_OT_ExportModManifest,
+    # Mossy Link operators
+    WM_OT_MossyLinkToggle,
+    WM_OT_MossyCheckHttp,
 )
 
 def _make_scene_to_pref_sync(scene_attr, pref_attr):
@@ -13118,6 +13177,50 @@ def register():
         default='AUTO',
     )
 
+    # ── Mossy Link scene properties ───────────────────────────────────────────
+    bpy.types.Scene.fo4_mossy_port = bpy.props.IntProperty(
+        name="Mossy TCP Port",
+        description="TCP port Blender listens on for commands from Mossy (default 9999)",
+        default=9999, min=1024, max=65535,
+    )
+    bpy.types.Scene.fo4_mossy_token = bpy.props.StringProperty(
+        name="Mossy Auth Token",
+        description="Optional auth token — must match the token set in Mossy",
+        default="", subtype='PASSWORD',
+    )
+    bpy.types.Scene.fo4_mossy_autostart = bpy.props.BoolProperty(
+        name="Auto-start on load",
+        description="Start the Mossy Link TCP server automatically when Blender loads",
+        default=True,
+    )
+    bpy.types.Scene.fo4_mossy_http_port = bpy.props.IntProperty(
+        name="Mossy LLM Port",
+        description="HTTP port for Mossy's Nemotron LLM (default 5000)",
+        default=5000, min=1024, max=65535,
+    )
+    bpy.types.Scene.fo4_use_mossy_ai = bpy.props.BoolProperty(
+        name="Use Mossy as AI Advisor",
+        description="Route advisor AI queries through Mossy's local LLM instead of a remote endpoint",
+        default=False,
+    )
+
+    # ── Mossy Link WindowManager properties (live status) ─────────────────────
+    bpy.types.WindowManager.mossy_link_active = bpy.props.BoolProperty(
+        name="Mossy Link Active",
+        description="True when the Mossy Link TCP server is running inside Blender",
+        default=False,
+    )
+    bpy.types.WindowManager.mossy_bridge_status = bpy.props.StringProperty(
+        name="Mossy Bridge Status",
+        description="Last result of the Mossy Bridge health check",
+        default="",
+    )
+    bpy.types.WindowManager.mossy_llm_status = bpy.props.StringProperty(
+        name="Mossy LLM Status",
+        description="Last result of the Mossy Nemotron LLM health check",
+        default="",
+    )
+
 def unregister():
     for cls in reversed(classes):
         try:
@@ -13156,6 +13259,12 @@ def unregister():
         "fo4_assets_mat_path",
         "fo4_unity_assets_path",
         "fo4_unreal_assets_path",
+        # Mossy Link
+        "fo4_mossy_port",
+        "fo4_mossy_token",
+        "fo4_mossy_autostart",
+        "fo4_mossy_http_port",
+        "fo4_use_mossy_ai",
     ):
         if hasattr(bpy.types.Scene, prop):
             try:
@@ -13166,5 +13275,11 @@ def unregister():
         if hasattr(bpy.types.Object, prop):
             try:
                 delattr(bpy.types.Object, prop)
+            except Exception:
+                pass
+    for prop in ("mossy_link_active", "mossy_bridge_status", "mossy_llm_status"):
+        if hasattr(bpy.types.WindowManager, prop):
+            try:
+                delattr(bpy.types.WindowManager, prop)
             except Exception:
                 pass

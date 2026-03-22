@@ -3875,6 +3875,97 @@ class FO4_PT_OperationLogPanel(Panel):
         layout.operator("fo4.clear_operation_log", text="Clear Log", icon='TRASH')
 
 
+# ── Mossy tab ──────────────────────────────────────────────────────────────────
+
+class FO4_PT_MossyPanel(Panel):
+    """Mossy AI connection panel — dedicated sidebar tab"""
+    bl_label       = "Mossy"
+    bl_idname      = "FO4_PT_mossy_panel"
+    bl_space_type  = 'VIEW_3D'
+    bl_region_type = 'UI'
+    bl_category    = 'Mossy'
+
+    def draw(self, context):
+        layout = self.layout
+        wm     = context.window_manager
+        scene  = context.scene
+
+        # Read live state from WindowManager properties (registered by operators).
+        server_active  = getattr(wm, 'mossy_link_active',    False)
+        bridge_status  = getattr(wm, 'mossy_bridge_status',  "")
+        llm_status     = getattr(wm, 'mossy_llm_status',     "")
+
+        # ── TCP server (Blender → Mossy bridge) ───────────────────────────────
+        srv_box = layout.box()
+        row = srv_box.row()
+        row.label(
+            text="Blender TCP Server",
+            icon='NETWORK_DRIVE',
+        )
+
+        if server_active:
+            srv_box.label(text="✓ Server running — Mossy can control Blender", icon='CHECKMARK')
+        else:
+            srv_box.label(text="Server stopped — Mossy cannot send commands", icon='RADIOBUT_OFF')
+
+        toggle_text = "Stop Mossy Link Server" if server_active else "Start Mossy Link Server"
+        toggle_icon = 'PAUSE' if server_active else 'PLAY'
+        srv_box.operator("wm.mossy_link_toggle", text=toggle_text, icon=toggle_icon)
+
+        # Port / token settings from scene props (mirrors preferences).
+        col = srv_box.column(align=True)
+        col.prop(scene, "fo4_mossy_port",      text="Listen Port")
+        col.prop(scene, "fo4_mossy_token",     text="Auth Token")
+        col.prop(scene, "fo4_mossy_autostart", text="Auto-start on load")
+
+        layout.separator()
+
+        # ── Mossy Bridge health ────────────────────────────────────────────────
+        bridge_box = layout.box()
+        bridge_box.label(text="Mossy Bridge (port 21337)", icon='URL')
+        if bridge_status:
+            icon = 'CHECKMARK' if bridge_status.startswith("Mossy Bridge online") else 'ERROR'
+            bridge_box.label(text=bridge_status, icon=icon)
+        else:
+            bridge_box.label(text="Not checked yet", icon='QUESTION')
+
+        layout.separator()
+
+        # ── Mossy LLM (Nemotron brain) ─────────────────────────────────────────
+        llm_box = layout.box()
+        llm_box.label(text="Mossy AI / Nemotron LLM", icon='LIGHT_HEMI')
+        if llm_status:
+            icon = 'CHECKMARK' if llm_status.startswith("Mossy LLM online") else 'ERROR'
+            llm_box.label(text=llm_status, icon=icon)
+        else:
+            llm_box.label(text="Not checked yet", icon='QUESTION')
+
+        llm_box.prop(scene, "fo4_mossy_http_port", text="Nemotron Port")
+        llm_box.prop(scene, "fo4_use_mossy_ai",   text="Use as AI Advisor")
+        if getattr(scene, 'fo4_use_mossy_ai', False):
+            llm_box.label(text="✓ Advisor will ask Mossy instead of remote LLM", icon='CHECKMARK')
+
+        layout.separator()
+
+        # ── Check both connections ─────────────────────────────────────────────
+        layout.operator(
+            "wm.mossy_check_http",
+            text="Check Mossy Connection",
+            icon='QUESTION',
+        )
+
+        layout.separator()
+
+        # ── Quick link to full settings ────────────────────────────────────────
+        help_box = layout.box()
+        help_box.label(text="How to connect:", icon='INFO')
+        help_box.label(text="1. Launch the Mossy desktop app")
+        help_box.label(text="2. Mossy will auto-start its bridge on port 21337")
+        help_box.label(text="3. Click 'Start Mossy Link Server' above")
+        help_box.label(text="4. Click 'Check Mossy Connection' to verify")
+        help_box.label(text="5. Enable 'Use as AI Advisor' to use Mossy's LLM")
+
+
 classes = (
     FO4_PT_MainPanel,
     FO4_PT_SetupPanel,
@@ -3917,6 +4008,8 @@ classes = (
     FO4_PT_SettingsPanel,
     # Operation log — records every process for reference
     FO4_PT_OperationLogPanel,
+    # Mossy tab — dedicated 'Mossy' category in the sidebar
+    FO4_PT_MossyPanel,
 )
 
 def register():

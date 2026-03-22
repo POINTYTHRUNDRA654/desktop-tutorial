@@ -489,7 +489,9 @@ class PointEHelpers:
 
             import point_e
             return True, "Point-E is installed"
-        except FileNotFoundError as e:
+        except ImportError as e:
+            return False, f"Point-E not installed: {str(e)}"
+        except OSError as e:
             if "WinError 206" in str(e) or "filename or extension is too long" in str(e):
                 return False, (
                     "Windows path length error detected. PyTorch cannot load due to Windows MAX_PATH limitation.\n\n"
@@ -503,10 +505,6 @@ class PointEHelpers:
                     "   - Install PyTorch there\n\n"
                     f"Original error: {str(e)}"
                 )
-            return False, f"File error loading Point-E: {str(e)}"
-        except ImportError as e:
-            return False, f"Point-E not installed: {str(e)}"
-        except OSError as e:
             if getattr(e, 'winerror', None) == 1114 or "WinError 1114" in str(e):
                 return False, PointEHelpers._dll_init_error_message()
             return False, f"Point-E load error: {str(e)}"
@@ -646,7 +644,7 @@ For more info: https://github.com/openai/point-e
                 'num_points': len(coords)
             }
 
-        except FileNotFoundError as e:
+        except OSError as e:
             if "WinError 206" in str(e) or "filename or extension is too long" in str(e):
                 return False, "Windows path length error. Enable long paths in Windows or reinstall PyTorch in a shorter path (see Point-E installation check for details.)"
             return False, f"File error: {str(e)}"
@@ -747,7 +745,7 @@ For more info: https://github.com/openai/point-e
                 'num_points': len(coords)
             }
 
-        except FileNotFoundError as e:
+        except OSError as e:
             if "WinError 206" in str(e) or "filename or extension is too long" in str(e):
                 return False, "Windows path length error. Enable long paths in Windows or reinstall PyTorch in a shorter path (see Point-E installation check for details.)"
             return False, f"File error: {str(e)}"

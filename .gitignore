@@ -32,3 +32,50 @@ desktop.ini
 # Blender temp files
 *.blend1
 *.blend2
+
+# ── AI model weight files ───────────────────────────────────────────────────
+# These can be GIGABYTES in size and must never be committed to Git.
+# Re-download them from their original sources when needed.
+*.pt
+*.pth
+*.ckpt
+*.safetensors
+*.onnx
+*.bin
+*.npz
+*.npy
+*.pkl
+*.pickle
+*.h5
+*.hdf5
+*.pb
+*.tflite
+
+# ── Large media / asset files ───────────────────────────────────────────────
+# Textures, videos, and audio should be kept outside the Git repo.
+# Store them on a network drive, cloud storage, or Git LFS instead.
+# (If you intentionally need a specific image in the repo, use: git add -f file.png)
+*.tga
+*.tif
+*.tiff
+*.dds
+*.exr
+*.hdr
+*.mp4
+*.avi
+*.mov
+*.mkv
+*.wav
+*.mp3
+*.ogg
+
+# ── Blender project files ───────────────────────────────────────────────────
+# .blend files can grow large; keep them out of the source repo.
+# To include a specific blend file intentionally, use: git add -f example.blend
+*.blend
+
+# ── Temporary / log files ───────────────────────────────────────────────────
+*.log
+*.tmp
+*.temp
+*.bak

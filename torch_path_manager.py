@@ -204,7 +204,7 @@ class TorchPathManager:
         try:
             import torch
             return True, f"PyTorch {torch.__version__} loaded successfully", torch
-        except FileNotFoundError as e:
+        except OSError as e:
             if "WinError 206" in str(e) or "filename or extension is too long" in str(e):
                 result = TorchPathManager._try_auto_install(
                     "Windows path length error – installing to short path"

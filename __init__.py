@@ -454,6 +454,17 @@ def register():
             "  • Please report any issues at the GitHub repository."
         )
 
+    # ── Sync Mossy Link active state onto WindowManager ───────────────────────
+    # mossy_link.register() may have started the TCP server above; reflect
+    # that in the WM property so the Mossy panel shows the correct status.
+    try:
+        if mossy_link and mossy_link.is_server_running():
+            import bpy as _bpy
+            _bpy.context.window_manager.mossy_link_active = True
+            print("✓ Mossy Link TCP server is active")
+    except Exception:
+        pass
+
 
 def unregister():
     """Unregister all add-on classes and handlers"""

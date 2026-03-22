@@ -365,7 +365,7 @@ class ShapEHelpers:
 
             import shap_e
             return True, "Shap-E is installed"
-        except FileNotFoundError as e:
+        except OSError as e:
             if "WinError 206" in str(e) or "filename or extension is too long" in str(e):
                 return False, (
                     "Windows path length error detected. PyTorch cannot load due to Windows MAX_PATH limitation.\n\n"
@@ -507,7 +507,7 @@ For more info: https://github.com/openai/shap-e
                 'prompt': prompt
             }
 
-        except FileNotFoundError as e:
+        except OSError as e:
             if "WinError 206" in str(e) or "filename or extension is too long" in str(e):
                 return False, "Windows path length error. Enable long paths in Windows or reinstall PyTorch in a shorter path (see Shap-E installation check for details)."
             return False, f"File error: {str(e)}"
@@ -596,7 +596,7 @@ For more info: https://github.com/openai/shap-e
                 'image_path': image_path
             }
 
-        except FileNotFoundError as e:
+        except OSError as e:
             if "WinError 206" in str(e) or "filename or extension is too long" in str(e):
                 return False, "Windows path length error. Enable long paths in Windows or reinstall PyTorch in a shorter path (see Shap-E installation check for details)."
             return False, f"File error: {str(e)}"

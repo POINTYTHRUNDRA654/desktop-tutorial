@@ -703,14 +703,14 @@ class FO4AddonPreferences(bpy.types.AddonPreferences):
     )
 
     mossy_http_port: bpy.props.IntProperty(
-        name="Mossy HTTP Port",
-        default=8080,
+        name="Mossy LLM Port",
+        default=5000,
         min=1024,
         max=65535,
         description=(
-            "Port where Mossy's HTTP server listens. "
+            "Port where Mossy's Nemotron LLM service listens (default 5000). "
             "Blender connects here to send AI advisor questions to Mossy. "
-            "Must match the port configured in your Mossy desktop app."
+            "Must match the port shown in your Mossy desktop app."
         ),
     )
 
