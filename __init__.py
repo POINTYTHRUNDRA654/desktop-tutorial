@@ -295,48 +295,62 @@ def register():
     except Exception as e:
         print(f"Could not register scene restore handler: {e}")
 
-    # ── Step 3: auto-detect PyTorch from well-known short paths ──────────────
-    # Supplements Step 2: catches installs that pre-date the path-persistence
-    # feature or were installed by external tools.
-    try:
-        if torch_path_manager:
-            existing_torch = (
-                torch_path_manager.TorchPathManager.find_existing_torch_install()
-            )
-            if existing_torch:
-                torch_path_manager.TorchPathManager.add_torch_to_path(existing_torch)
-                print(f"✓ PyTorch found and loaded from: {existing_torch}")
-    except Exception as e:
-        print(f"PyTorch auto-detection skipped: {e}")
+    # ── Steps 3-5: deferred to avoid blocking Blender's UI on startup ─────────
+    # PyTorch detection, tool auto-discovery, and UModel auto-download all
+    # involve filesystem scanning or network I/O.  Running them synchronously
+    # during register() caused a noticeable delay before the Blender UI became
+    # responsive.  A 2-second deferred timer lets the UI finish initializing
+    # first, then the background work runs once without freezing the interface.
+    def _deferred_startup():
+        # ── Step 3: auto-detect PyTorch from well-known short paths ──────────
+        # Supplements Step 2: catches installs that pre-date the path-persistence
+        # feature or were installed by external tools.
+        try:
+            if torch_path_manager:
+                existing_torch = (
+                    torch_path_manager.TorchPathManager.find_existing_torch_install()
+                )
+                if existing_torch:
+                    torch_path_manager.TorchPathManager.add_torch_to_path(existing_torch)
+                    print(f"✓ PyTorch found and loaded from: {existing_torch}")
+        except Exception as e:
+            print(f"PyTorch auto-detection skipped: {e}")
 
-    # ── Step 4: auto-discover installed CLI tools and wire up preferences ─────
-    # If ffmpeg / nvcompress / texconv are present in the tools folder but the
-    # preference paths are blank, fill them in automatically.  This means a
-    # fresh Blender install will pick up tools that were already downloaded.
-    try:
-        if tool_installers:
-            tool_installers.auto_configure_preferences()
-    except Exception as e:
-        print(f"Tool auto-discovery skipped: {e}")
+        # ── Step 4: auto-discover installed CLI tools and wire up preferences ─
+        # If ffmpeg / nvcompress / texconv are present in the tools folder but
+        # the preference paths are blank, fill them in automatically.
+        try:
+            if tool_installers:
+                tool_installers.auto_configure_preferences()
+        except Exception as e:
+            print(f"Tool auto-discovery skipped: {e}")
 
-    # ── Step 5: auto-download UModel if missing and auto-install is enabled ───
-    # Runs only when the user has 'Auto-install missing tools' turned on and
-    # UModel has not been successfully installed before (flag is cleared on
-    # startup if the saved path is gone, allowing re-download).
+        # ── Step 5: auto-download UModel if missing and auto-install enabled ──
+        # Runs only when the user has 'Auto-install missing tools' turned on and
+        # UModel has not been successfully installed before.
+        try:
+            _prefs = preferences.get_preferences() if preferences else None
+            if _prefs and _prefs.auto_install_tools and not _prefs.umodel_install_attempted:
+                if umodel_helpers:
+                    ready, _ = umodel_helpers.status()
+                    if not ready:
+                        print("UModel not found — attempting auto-download...")
+                        ok, msg = umodel_helpers.download_latest()
+                        if ok:
+                            print(f"✓ UModel auto-downloaded: {msg}")
+                        else:
+                            print(f"UModel auto-download skipped: {msg}")
+        except Exception as e:
+            print(f"UModel auto-download skipped: {e}")
+
+        return None  # Do not reschedule
+
     try:
-        _prefs = preferences.get_preferences() if preferences else None
-        if _prefs and _prefs.auto_install_tools and not _prefs.umodel_install_attempted:
-            if umodel_helpers:
-                ready, _ = umodel_helpers.status()
-                if not ready:
-                    print("UModel not found — attempting auto-download...")
-                    ok, msg = umodel_helpers.download_latest()
-                    if ok:
-                        print(f"✓ UModel auto-downloaded: {msg}")
-                    else:
-                        print(f"UModel auto-download skipped: {msg}")
+        bpy.app.timers.register(_deferred_startup, first_interval=2.0)
     except Exception as e:
-        print(f"UModel auto-download skipped: {e}")
+        # Timers unavailable (e.g., headless/CI) — run startup tasks immediately.
+        _deferred_startup()
+        print(f"Timers unavailable, startup tasks ran synchronously: {e}")
 
     # Start advisor auto-monitor (opt-out in preferences)
     # DISABLED: Causes severe performance issues during startup

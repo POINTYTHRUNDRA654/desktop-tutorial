@@ -7,6 +7,7 @@ import bpy
 import os
 import subprocess
 import shutil
+import sys
 import time
 from pathlib import Path
 
@@ -18,6 +19,28 @@ class InstantNGPHelpers:
     _cache = None
     _cache_time = 0.0
     _CACHE_TTL = 5.0  # seconds
+
+    @staticmethod
+    def _get_user_configured_path() -> str:
+        """Return the user-configured Instant-NGP path string (may be empty).
+
+        Reads from addon preferences first (the persisted canonical store),
+        falling back to the per-scene property which mirrors the same value.
+        """
+        try:
+            from . import preferences as _prefs_mod
+            _prefs = _prefs_mod.get_preferences()
+            if _prefs is not None:
+                path = getattr(_prefs, "instantngp_path", "").strip()
+                if path:
+                    return path
+        except Exception:
+            pass
+        try:
+            scene = bpy.context.scene
+            return getattr(scene, "fo4_instantngp_path", "").strip()
+        except Exception:
+            return ""
 
     @staticmethod
     def is_instantngp_available():
@@ -66,16 +89,17 @@ class InstantNGPHelpers:
         except Exception:
             pass
 
-        # Check user-supplied path from preferences
+        # Check user-supplied path from preferences (addon prefs take priority,
+        # fall back to the per-scene property which mirrors the same value).
         try:
-            import bpy
-            scene = bpy.context.scene
-            prefs_path = getattr(scene, "fo4_instantngp_path", "").strip()
+            prefs_path = InstantNGPHelpers._get_user_configured_path()
             if prefs_path and os.path.isdir(prefs_path):
+                exe_name = "instant-ngp.exe" if sys.platform == "win32" else "instant-ngp"
                 if (
                     os.path.exists(os.path.join(prefs_path, "build"))
                     or os.path.exists(os.path.join(prefs_path, "CMakeLists.txt"))
                     or os.path.exists(os.path.join(prefs_path, "instant-ngp"))
+                    or os.path.exists(os.path.join(prefs_path, exe_name))
                 ):
                     return True
         except Exception:
@@ -107,11 +131,9 @@ class InstantNGPHelpers:
           3. The system PATH (``instant-ngp`` executable).
           4. Common manual install locations.
         """
-        # 1. Preference path set by the user
+        # 1. Preference path set by the user (addon prefs take priority over scene prop)
         try:
-            import bpy
-            scene = bpy.context.scene
-            prefs_path = getattr(scene, "fo4_instantngp_path", "").strip()
+            prefs_path = InstantNGPHelpers._get_user_configured_path()
             if prefs_path and os.path.isdir(prefs_path):
                 return prefs_path
         except Exception:
