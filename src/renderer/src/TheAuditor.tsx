@@ -89,10 +89,10 @@ const TheAuditor: React.FC = () => {
         try {
             const info = await bridge.readDdsPreview(path);
             if (info && info.format !== 'invalid' && info.format !== 'error') {
-                setFiles(prev => prev.map(f => 
+                setFiles(prev => prev.map(f =>
                     f.id === fileId ? { ...f, dimensions: { width: info.width, height: info.height, format: info.format } } : f
                 ));
-                
+
                 // If it's a standard image format we can actually show
                 const ext = path.split('.').pop()?.toLowerCase();
                 if (ext === 'png' || ext === 'jpg' || ext === 'jpeg') {
@@ -129,7 +129,7 @@ const TheAuditor: React.FC = () => {
             if (!filePath) return; // User canceled
 
             const fileName = filePath.split(/[\\\/]/).pop() || 'Unknown';
-            
+
             const newFile: ModFile = {
                 id: Date.now().toString(),
                 name: fileName,
@@ -148,7 +148,7 @@ const TheAuditor: React.FC = () => {
         }
     };
 
-    // Handle NIF (mesh) file upload
+    // Handle NIF (mesh) file upload - BATCH
     const handleMeshUpload = async () => {
         try {
             const bridge = (window as any).electron?.api || (window as any).electronAPI;
@@ -157,31 +157,34 @@ const TheAuditor: React.FC = () => {
                 return;
             }
 
-            // Use Electron's file dialog to pick NIF file
-            const filePath = await bridge.pickNifFile();
-            if (!filePath) return; // User canceled
+            // Use Electron's file dialog to pick multiple NIF files
+            const filePaths = await bridge.pickNifFile();
+            if (!filePaths || filePaths.length === 0) return; // User canceled
 
-            const fileName = filePath.split(/[\\\/]/).pop() || 'Unknown';
-            
-            const newFile: ModFile = {
-                id: Date.now().toString(),
-                name: fileName,
-                type: 'mesh',
-                path: filePath,
-                size: 'Analyzing...',
-                issues: [],
-                status: 'pending'
-            };
+            const newFiles = filePaths.map((filePath: string) => {
+                const fileName = filePath.split(/[\\\/]/).pop() || 'Unknown';
+                return {
+                    id: Date.now().toString() + Math.random(),
+                    name: fileName,
+                    type: 'mesh' as const,
+                    path: filePath,
+                    size: 'Analyzing...',
+                    issues: [],
+                    status: 'pending' as const
+                };
+            });
 
-            setFiles(prev => [...prev, newFile]);
-            setSelectedFileId(newFile.id);
+            setFiles(prev => [...prev, ...newFiles]);
+            if (newFiles.length > 0) {
+                setSelectedFileId(newFiles[0].id);
+            }
         } catch (error) {
             console.error('File upload error:', error);
-            alert('Failed to load file. Please try again.');
+            alert('Failed to load file(s). Please try again.');
         }
     };
 
-    // Handle DDS (texture) file upload
+    // Handle DDS (texture) file upload - BATCH
     const handleTextureUpload = async () => {
         try {
             const bridge = (window as any).electron?.api || (window as any).electronAPI;
@@ -190,31 +193,34 @@ const TheAuditor: React.FC = () => {
                 return;
             }
 
-            // Use Electron's file dialog to pick DDS file
-            const filePath = await bridge.pickDdsFile();
-            if (!filePath) return; // User canceled
+            // Use Electron's file dialog to pick multiple DDS files
+            const filePaths = await bridge.pickDdsFile();
+            if (!filePaths || filePaths.length === 0) return; // User canceled
 
-            const fileName = filePath.split(/[\\\/]/).pop() || 'Unknown';
-            
-            const newFile: ModFile = {
-                id: Date.now().toString(),
-                name: fileName,
-                type: 'texture',
-                path: filePath,
-                size: 'Analyzing...',
-                issues: [],
-                status: 'pending'
-            };
+            const newFiles = filePaths.map((filePath: string) => {
+                const fileName = filePath.split(/[\\\/]/).pop() || 'Unknown';
+                return {
+                    id: Date.now().toString() + Math.random(),
+                    name: fileName,
+                    type: 'texture' as const,
+                    path: filePath,
+                    size: 'Analyzing...',
+                    issues: [],
+                    status: 'pending' as const
+                };
+            });
 
-            setFiles(prev => [...prev, newFile]);
-            setSelectedFileId(newFile.id);
+            setFiles(prev => [...prev, ...newFiles]);
+            if (newFiles.length > 0) {
+                setSelectedFileId(newFiles[0].id);
+            }
         } catch (error) {
             console.error('File upload error:', error);
-            alert('Failed to load file. Please try again.');
+            alert('Failed to load file(s). Please try again.');
         }
     };
 
-    // Handle BGSM (material) file upload
+    // Handle BGSM (material) file upload - BATCH
     const handleMaterialUpload = async () => {
         try {
             const bridge = (window as any).electron?.api || (window as any).electronAPI;
@@ -223,53 +229,115 @@ const TheAuditor: React.FC = () => {
                 return;
             }
 
-            // Use Electron's file dialog to pick BGSM file
-            const filePath = await bridge.pickBgsmFile();
-            if (!filePath) return; // User canceled
+            // Use Electron's file dialog to pick multiple BGSM files
+            const filePaths = await bridge.pickBgsmFile();
+            if (!filePaths || filePaths.length === 0) return; // User canceled
 
-            const fileName = filePath.split(/[\\\/]/).pop() || 'Unknown';
-            
-            const newFile: ModFile = {
-                id: Date.now().toString(),
-                name: fileName,
-                type: 'material',
-                path: filePath,
-                size: 'Analyzing...',
-                issues: [],
-                status: 'pending'
-            };
+            const newFiles = filePaths.map((filePath: string) => {
+                const fileName = filePath.split(/[\\\/]/).pop() || 'Unknown';
+                return {
+                    id: Date.now().toString() + Math.random(),
+                    name: fileName,
+                    type: 'material' as const,
+                    path: filePath,
+                    size: 'Analyzing...',
+                    issues: [],
+                    status: 'pending' as const
+                };
+            });
 
-            setFiles(prev => [...prev, newFile]);
-            setSelectedFileId(newFile.id);
+            setFiles(prev => [...prev, ...newFiles]);
+            if (newFiles.length > 0) {
+                setSelectedFileId(newFiles[0].id);
+            }
         } catch (error) {
             console.error('File upload error:', error);
-            alert('Failed to load file. Please try again.');
+            alert('Failed to load file(s). Please try again.');
         }
     };
 
-    // Start Audit Analysis
+    // NEW: Handle batch upload of entire mod directory
+    const handleBatchModDirectoryUpload = async () => {
+        try {
+            const bridge = (window as any).electron?.api || (window as any).electronAPI;
+            if (!bridge) {
+                alert('File browser not available. Please use the desktop app.');
+                return;
+            }
+
+            // Scan directory for all mod files
+            const modFiles = await bridge.scanModDirectory();
+            if (!modFiles || modFiles.length === 0) return; // User canceled
+
+            const newFiles = modFiles.map((file: { path: string; type: string }) => {
+                const fileName = file.path.split(/[\\\/]/).pop() || 'Unknown';
+                let fileType: ModFile['type'] = 'script'; // Default fallback
+
+                // Map file type based on extension
+                if (file.type === 'nif') fileType = 'mesh';
+                else if (file.type === 'dds') fileType = 'texture';
+                else if (file.type === 'bgsm' || file.type === 'bgem') fileType = 'material';
+                else if (file.type === 'esp' || file.type === 'esm' || file.type === 'esl') fileType = 'plugin';
+
+                return {
+                    id: Date.now().toString() + Math.random(),
+                    name: fileName,
+                    type: fileType,
+                    path: file.path,
+                    size: 'Analyzing...',
+                    issues: [],
+                    status: 'pending' as const
+                };
+            });
+
+            if (newFiles.length === 0) {
+                alert('No mod files found in the selected directory.');
+                return;
+            }
+
+            setFiles(prev => [...prev, ...newFiles]);
+            if (newFiles.length > 0) {
+                setSelectedFileId(newFiles[0].id);
+            }
+
+            alert(`Successfully loaded ${newFiles.length} files from the mod directory.`);
+        } catch (error) {
+            console.error('Directory scan error:', error);
+            alert('Failed to scan directory. Please try again.');
+        }
+    };
+
+    // Start Audit Analysis - REAL SCANNING
     const runAudit = () => {
+        // Only scan files that are pending or need re-scan
+        const filesToScan = files.filter(f => f.status === 'pending' || f.status === 'warning' || f.status === 'error');
+
+        if (filesToScan.length === 0) {
+            alert('No files to scan. Please upload files first.');
+            return;
+        }
+
         setIsScanning(true);
         setScanProgress(0);
         setMossyAdvice(null);
 
-        let progress = 0;
-        const interval = setInterval(() => {
-            progress += 5;
-            setScanProgress(progress);
-
-            if (progress >= 100) {
-                clearInterval(interval);
-                setIsScanning(false);
-                performAnalysis();
-            }
-        }, 100);
+        // Start the actual analysis immediately (not fake progress)
+        performAnalysis();
     };
 
     const performAnalysis = async () => {
         console.log('Starting performAnalysis with files:', files);
-        
+
+        const filesToProcess = files.filter(f => f.status === 'pending' || f.status === 'warning' || f.status === 'error');
+        const totalFiles = filesToProcess.length;
+        let processedCount = 0;
+
         const updatedFiles = await Promise.all(files.map(async (f) => {
+            // Skip already clean files unless they're in the pending set
+            if (f.status === 'clean' && !filesToProcess.find(fp => fp.id === f.id)) {
+                return f;
+            }
+
             console.log('Analyzing file:', f.name, 'Type:', f.name.split('.').pop());
             const newIssues: AuditIssue[] = [];
             let status: 'clean' | 'warning' | 'error' | 'pending' = 'clean';
@@ -448,34 +516,81 @@ const TheAuditor: React.FC = () => {
                 }
             }
             else if (f.name.endsWith('.bgsm') || f.name.endsWith('.bgem')) {
-                // Material files - basic check (no parser available yet)
-                status = 'clean';
+                // Material files - basic parsing for now
+                try {
+                    const fileBuffer = await readFileAsArrayBuffer(f.path);
+                    fileSize = `${(fileBuffer.byteLength / 1024).toFixed(2)} KB`;
+                    // Basic BGSM header check
+                    const view = new Uint8Array(fileBuffer.slice(0, 4));
+                    const signature = String.fromCharCode(...view);
+                    if (signature === 'BGSM' || signature === 'BGEM') {
+                        status = 'clean';
+                        newIssues.push({
+                            id: 'bgsm-info',
+                            severity: 'info',
+                            message: 'Material file format valid',
+                            technicalDetails: `${signature} material file loaded successfully`,
+                            fixAvailable: false
+                        });
+                    } else {
+                        status = 'error';
+                        newIssues.push({
+                            id: 'bgsm-error',
+                            severity: 'error',
+                            message: 'Invalid material file signature',
+                            technicalDetails: `Expected BGSM/BGEM, got: ${signature}`,
+                            fixAvailable: false
+                        });
+                    }
+                } catch (error) {
+                    status = 'warning';
+                    newIssues.push({
+                        id: 'bgsm-read-error',
+                        severity: 'warning',
+                        message: 'Could not read material file',
+                        technicalDetails: `Error: ${error instanceof Error ? error.message : 'Unknown error'}`,
+                        fixAvailable: false
+                    });
+                }
             }
+
+            // Update progress
+            processedCount++;
+            const progressPercent = Math.round((processedCount / totalFiles) * 100);
+            setScanProgress(progressPercent);
 
             return { ...f, issues: newIssues, status, size: fileSize };
         }));
 
         console.log('Updated files after analysis:', updatedFiles);
         setFiles(updatedFiles);
-        
+        setIsScanning(false);
+        setScanProgress(0);
+
         // BROADCAST TO SHARED MEMORY
         localStorage.setItem('mossy_scan_auditor', JSON.stringify(updatedFiles));
         window.dispatchEvent(new Event('mossy-memory-update'));
 
-        setMossyAdvice("Audit complete, Architect. I have categorized all discrepancies in the list above.");
+        // Calculate summary stats
+        const totalIssues = updatedFiles.reduce((sum, f) => sum + f.issues.length, 0);
+        const errorCount = updatedFiles.filter(f => f.status === 'error').length;
+        const warningCount = updatedFiles.filter(f => f.status === 'warning').length;
+        const cleanCount = updatedFiles.filter(f => f.status === 'clean').length;
+
+        let adviceMessage = `✅ Audit complete. Scanned ${updatedFiles.length} file(s): ${cleanCount} clean, ${warningCount} warnings, ${errorCount} errors (${totalIssues} total issues).`;
 
         // Proactively surface navmesh errors so the user notices immediately
         const navmeshErrors = updatedFiles.flatMap(f =>
             f.issues.filter(i => i.message.includes('Deleted Navmesh') || i.technicalDetails?.includes('Deleted navmesh'))
         );
         if (navmeshErrors.length > 0) {
-            setMossyAdvice(
+            adviceMessage =
                 `⚠️ CRITICAL: ${navmeshErrors.length} deleted navmesh record(s) detected. ` +
                 `This WILL cause CTD when NPCs try to pathfind. ` +
-                `Open the affected plugin in xEdit → find [D] NAVM records → use Change FormID to replace the vanilla FormID with your new navmesh record. ` +
-                `See NAVMESH_FIX_GUIDE.md for the full step-by-step workflow.`
-            );
+                `Open the affected plugin in xEdit → find [D] NAVM records → use Change FormID to replace the vanilla FormID with your new navmesh record.`;
         }
+
+        setMossyAdvice(adviceMessage);
     };
 
     const getMossyAdvice = async (issue: AuditIssue) => {
@@ -512,8 +627,8 @@ const TheAuditor: React.FC = () => {
                 setMossyAdvice(String(res?.error || 'AI advice failed.'));
             }
         } catch (e) {
-                console.error('Mossy advice error:', e);
-                setMossyAdvice("I cannot reach my knowledge base right now, but this usually requires cleaning the plugin in xEdit.\n\nDon't have xEdit? Download FO4Edit from Nexus Mods:\nhttps://www.nexusmods.com/fallout4/mods/2737");
+            console.error('Mossy advice error:', e);
+            setMossyAdvice("I cannot reach my knowledge base right now, but this usually requires cleaning the plugin in xEdit.\n\nDon't have xEdit? Download FO4Edit from Nexus Mods:\nhttps://www.nexusmods.com/fallout4/mods/2737");
         }
     };
 
@@ -521,9 +636,9 @@ const TheAuditor: React.FC = () => {
         setIsFixing(true);
         const file = files.find(f => f.id === fileId);
         const issue = file?.issues.find(i => i.id === issueId);
-        
+
         let successMessage = "Fixed! I've updated the file header.";
-        
+
         if (issue?.message === 'Path Issue' || issue?.technicalDetails.toLowerCase().includes('absolute path')) {
             successMessage = "Absolute path detected and converted to relative format (e.g., 'textures\\...'). Visual parity maintained.";
         }
@@ -532,17 +647,17 @@ const TheAuditor: React.FC = () => {
             const updatedFiles = files.map(f => {
                 if (f.id === fileId) {
                     const remainingIssues = f.issues.filter(i => i.id !== issueId);
-                    const newStatus: 'clean' | 'warning' | 'error' | 'pending' = remainingIssues.length === 0 ? 'clean' : 
-                                      remainingIssues.some(i => i.severity === 'error') ? 'error' : 'warning';
+                    const newStatus: 'clean' | 'warning' | 'error' | 'pending' = remainingIssues.length === 0 ? 'clean' :
+                        remainingIssues.some(i => i.severity === 'error') ? 'error' : 'warning';
                     return { ...f, issues: remainingIssues, status: newStatus };
                 }
                 return f;
             });
-            
+
             setFiles(updatedFiles);
             localStorage.setItem('mossy_scan_auditor', JSON.stringify(updatedFiles));
             window.dispatchEvent(new Event('mossy-memory-update'));
-            
+
             setIsFixing(false);
             setMossyAdvice(successMessage);
         }, 1200);
@@ -554,7 +669,7 @@ const TheAuditor: React.FC = () => {
             <div className="bg-blue-900/30 border-b border-blue-700/50 px-4 py-2 flex items-center gap-3">
                 <CheckCircle2 className="w-4 h-4 text-blue-400 flex-shrink-0" />
                 <p className="text-xs text-blue-200">
-                    <strong>Real ESP Analysis:</strong> Files are validated and checked for size/record issues. 
+                    <strong>Real ESP Analysis:</strong> Files are validated and checked for size/record issues.
                     Click issues to get AI-powered advice and fixes (requires an AI provider configured in Settings).
                 </p>
             </div>
@@ -594,14 +709,14 @@ const TheAuditor: React.FC = () => {
                     />
 
                     <div className="flex flex-col gap-4">
-                        <ProjectWizard 
-                            wizardId="audit-fixer" 
+                        <ProjectWizard
+                            wizardId="audit-fixer"
                             onActionComplete={(res) => setMossyAdvice(res.message)}
                         />
+                    </div>
                 </div>
             </div>
-        </div>
-            
+
             {/* Header */}
             <div className="p-4 border-b border-slate-700 bg-slate-900 flex justify-between items-center z-10 shadow-md">
                 <div>
@@ -626,12 +741,29 @@ const TheAuditor: React.FC = () => {
                                 <span>{scanProgress}%</span>
                             </div>
                             <div className="w-full h-1 bg-slate-800 rounded-full overflow-hidden">
-                                <div className="h-full bg-emerald-500 transition-all duration-100" style={{ width: `${scanProgress}%` }}></div>
+                                <div
+                                    className="h-full bg-emerald-500 transition-all duration-100"
+                                    role="progressbar"
+                                    aria-label="Scan progress"
+                                    aria-valuenow={Math.round(scanProgress)}
+                                    aria-valuemin={0}
+                                    aria-valuemax={100}
+                                    style={{ width: `${scanProgress}%` }}
+                                />
                             </div>
                         </div>
                     )}
-                    <div className="flex gap-2">
-                        <button 
+                    <div className="flex flex-wrap gap-2">
+                        <button
+                            data-testid="batch-mod-directory"
+                            onClick={handleBatchModDirectoryUpload}
+                            className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-teal-600 to-cyan-600 hover:from-teal-500 hover:to-cyan-500 text-white text-sm font-bold rounded-lg transition-all shadow-[0_0_15px_rgba(20,184,166,0.3)]"
+                            title="Upload entire mod directory (all meshes, textures, materials, plugins)"
+                        >
+                            <ArrowRight className="w-5 h-5" />
+                            Upload Entire Mod
+                        </button>
+                        <button
                             data-testid="esp-analysis"
                             onClick={handleFileUpload}
                             className="flex items-center gap-2 px-3 py-2 bg-blue-600 hover:bg-blue-500 text-white text-sm font-bold rounded-lg transition-all shadow-[0_0_15px_rgba(37,99,235,0.3)]"
@@ -640,34 +772,34 @@ const TheAuditor: React.FC = () => {
                             <FileCode className="w-4 h-4" />
                             ESP
                         </button>
-                        <button 
+                        <button
                             data-testid="nif-analysis"
                             onClick={handleMeshUpload}
+                            title="Upload one or more NIF mesh files (batch)"
                             className="flex items-center gap-2 px-3 py-2 bg-purple-600 hover:bg-purple-500 text-white text-sm font-bold rounded-lg transition-all shadow-[0_0_15px_rgba(147,51,234,0.3)]"
-                            title="Upload NIF mesh"
                         >
                             <Box className="w-4 h-4" />
-                            NIF
+                            NIFs (batch)
                         </button>
-                        <button 
+                        <button
                             data-testid="dds-analysis"
                             onClick={handleTextureUpload}
+                            title="Upload one or more DDS texture files (batch)"
                             className="flex items-center gap-2 px-3 py-2 bg-pink-600 hover:bg-pink-500 text-white text-sm font-bold rounded-lg transition-all shadow-[0_0_15px_rgba(219,39,119,0.3)]"
-                            title="Upload DDS texture"
                         >
                             <FileImage className="w-4 h-4" />
-                            DDS
+                            DDS (batch)
                         </button>
-                        <button 
+                        <button
                             onClick={handleMaterialUpload}
+                            title="Upload one or more BGSM/BGEM material files (batch)"
                             className="flex items-center gap-2 px-3 py-2 bg-orange-600 hover:bg-orange-500 text-white text-sm font-bold rounded-lg transition-all shadow-[0_0_15px_rgba(234,88,12,0.3)]"
-                            title="Upload BGSM/BGEM material"
                         >
                             <Wrench className="w-4 h-4" />
-                            BGSM
+                            BGSM (batch)
                         </button>
                     </div>
-                    <button 
+                    <button
                         onClick={runAudit}
                         disabled={isScanning}
                         className="flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-lg transition-all shadow-[0_0_15px_rgba(5,150,105,0.3)] disabled:opacity-50"
@@ -712,14 +844,14 @@ const TheAuditor: React.FC = () => {
                     </button>
                 </div>
             </div>
-                        {/* Quick access to external tools */}
-                        <div className="px-4 pb-3 bg-slate-900 flex flex-col gap-2">
-                            <ExternalToolNotice toolKey="xeditPath" toolName="xEdit / FO4Edit" nexusUrl="https://www.nexusmods.com/fallout4/mods/2737" description="Clean plugins (ITM/UDR), resolve conflicts, and generate patches." />
-                            <ExternalToolNotice toolKey="nifSkopePath" toolName="NifSkope" nexusUrl="https://github.com/niftools/nifskope/releases" description="Inspect and fix NIFs: materials, collision, texture paths, and more." />
-                        </div>
+            {/* Quick access to external tools */}
+            <div className="px-4 pb-3 bg-slate-900 flex flex-col gap-2">
+                <ExternalToolNotice toolKey="xeditPath" toolName="xEdit / FO4Edit" nexusUrl="https://www.nexusmods.com/fallout4/mods/2737" description="Clean plugins (ITM/UDR), resolve conflicts, and generate patches." />
+                <ExternalToolNotice toolKey="nifSkopePath" toolName="NifSkope" nexusUrl="https://github.com/niftools/nifskope/releases" description="Inspect and fix NIFs: materials, collision, texture paths, and more." />
+            </div>
 
             <div className="flex-1 min-h-0 flex overflow-hidden">
-                
+
                 {/* Left: File Manifest */}
                 <div className="w-80 bg-slate-900/50 border-r border-slate-800 flex flex-col min-h-0">
                     <div className="p-3 border-b border-slate-800 text-xs font-bold text-slate-500 uppercase tracking-widest bg-slate-900">
@@ -727,25 +859,23 @@ const TheAuditor: React.FC = () => {
                     </div>
                     <div ref={fileListScrollRef} className="flex-1 min-h-0 overflow-y-auto p-2 space-y-1">
                         {files.map(file => (
-                            <div 
+                            <div
                                 key={file.id}
                                 onClick={() => { setSelectedFileId(file.id); setMossyAdvice(null); }}
-                                className={`flex items-center gap-3 p-3 rounded-lg cursor-pointer transition-colors border ${
-                                    selectedFileId === file.id 
-                                    ? 'bg-slate-800 border-slate-600' 
+                                className={`flex items-center gap-3 p-3 rounded-lg cursor-pointer transition-colors border ${selectedFileId === file.id
+                                    ? 'bg-slate-800 border-slate-600'
                                     : 'bg-transparent border-transparent hover:bg-slate-800/50'
-                                }`}
+                                    }`}
                             >
-                                <div className={`p-2 rounded-lg ${
-                                    file.status === 'clean' ? 'bg-emerald-900/20 text-emerald-500' :
+                                <div className={`p-2 rounded-lg ${file.status === 'clean' ? 'bg-emerald-900/20 text-emerald-500' :
                                     file.status === 'warning' ? 'bg-yellow-900/20 text-yellow-500' :
-                                    file.status === 'error' ? 'bg-red-900/20 text-red-500' :
-                                    'bg-slate-800 text-slate-500'
-                                }`}>
+                                        file.status === 'error' ? 'bg-red-900/20 text-red-500' :
+                                            'bg-slate-800 text-slate-500'
+                                    }`}>
                                     {file.type === 'mesh' ? <Box className="w-4 h-4" /> :
-                                     file.type === 'texture' ? <FileImage className="w-4 h-4" /> :
-                                     file.type === 'plugin' ? <FileCode className="w-4 h-4" /> :
-                                     <File className="w-4 h-4" />}
+                                        file.type === 'texture' ? <FileImage className="w-4 h-4" /> :
+                                            file.type === 'plugin' ? <FileCode className="w-4 h-4" /> :
+                                                <File className="w-4 h-4" />}
                                 </div>
                                 <div className="flex-1 min-w-0">
                                     <div className="text-sm font-bold text-slate-200 truncate">{file.name}</div>
@@ -779,12 +909,11 @@ const TheAuditor: React.FC = () => {
                                         </div>
                                     </div>
                                     <div className="flex items-center gap-2">
-                                        <div className={`px-4 py-2 rounded-lg font-bold text-sm border ${
-                                            selectedFile.status === 'clean' ? 'bg-emerald-900/20 text-emerald-400 border-emerald-500/30' :
+                                        <div className={`px-4 py-2 rounded-lg font-bold text-sm border ${selectedFile.status === 'clean' ? 'bg-emerald-900/20 text-emerald-400 border-emerald-500/30' :
                                             selectedFile.status === 'error' ? 'bg-red-900/20 text-red-400 border-red-500/30' :
-                                            selectedFile.status === 'warning' ? 'bg-yellow-900/20 text-yellow-400 border-yellow-500/30' :
-                                            'bg-slate-800 text-slate-400 border-slate-700'
-                                        }`}>
+                                                selectedFile.status === 'warning' ? 'bg-yellow-900/20 text-yellow-400 border-yellow-500/30' :
+                                                    'bg-slate-800 text-slate-400 border-slate-700'
+                                            }`}>
                                             STATUS: {selectedFile.status.toUpperCase()}
                                         </div>
                                     </div>
@@ -794,7 +923,7 @@ const TheAuditor: React.FC = () => {
                             {/* Issues List */}
                             <div ref={issuesScrollRef} className="flex-1 min-h-0 overflow-y-auto p-6 space-y-4">
                                 {/* Hidden test elements for E2E testing */}
-                                <div style={{ display: 'none' }}>
+                                <div className="hidden">
                                     <div data-testid="esp-header-validation">ESP Header Validation</div>
                                     <div data-testid="esp-record-counting">ESP Record Counting</div>
                                     <div data-testid="esp-file-size-limits">ESP File Size Limits</div>
@@ -808,7 +937,7 @@ const TheAuditor: React.FC = () => {
                                     <div data-testid="dds-compression-analysis">DDS Compression Analysis</div>
                                     <div data-testid="absolute-path-detection">Absolute Path Detection</div>
                                 </div>
-                                
+
                                 {selectedFile.issues.length === 0 && selectedFile.status === 'clean' && (
                                     <div className="flex flex-col items-center justify-center h-full text-slate-400">
                                         <CheckCircle2 className="w-24 h-24 mb-4 text-emerald-500 opacity-40" />
@@ -852,13 +981,12 @@ const TheAuditor: React.FC = () => {
                                     </div>
                                 )}
                                 {selectedFile.issues.map(issue => (
-                                    <div 
-                                        key={issue.id} 
+                                    <div
+                                        key={issue.id}
                                         onClick={() => getMossyAdvice(issue)}
-                                        className={`group p-4 rounded-xl border transition-all cursor-pointer ${
-                                            issue.severity === 'error' ? 'bg-red-950/10 border-red-500/30 hover:bg-red-900/20' :
+                                        className={`group p-4 rounded-xl border transition-all cursor-pointer ${issue.severity === 'error' ? 'bg-red-950/10 border-red-500/30 hover:bg-red-900/20' :
                                             'bg-yellow-950/10 border-yellow-500/30 hover:bg-yellow-900/20'
-                                        }`}
+                                            }`}
                                     >
                                         <div className="flex justify-between items-start mb-2">
                                             <div className="flex items-center gap-2">
@@ -868,7 +996,7 @@ const TheAuditor: React.FC = () => {
                                                 </h3>
                                             </div>
                                             {issue.fixAvailable && (
-                                                <button 
+                                                <button
                                                     onClick={(e) => { e.stopPropagation(); handleAutoFix(selectedFile.id, issue.id); }}
                                                     disabled={isFixing}
                                                     className="px-3 py-1 bg-slate-800 hover:bg-emerald-600 text-white rounded text-xs font-bold transition-colors flex items-center gap-1 disabled:opacity-50"
@@ -895,7 +1023,7 @@ const TheAuditor: React.FC = () => {
                 {/* Right: Mossy's Desk (Contextual Help) */}
                 <div className="w-80 bg-slate-900 border-l border-slate-800 flex flex-col p-6 shadow-2xl relative overflow-hidden">
                     <div className="absolute bottom-0 right-0 w-48 h-48 bg-emerald-500/5 rounded-full blur-3xl translate-y-1/3 translate-x-1/3 pointer-events-none"></div>
-                    
+
                     <h3 className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-6 flex items-center gap-2 relative z-10">
                         <Scan className="w-4 h-4 text-emerald-400" /> Analysis Log
                     </h3>
@@ -914,7 +1042,7 @@ const TheAuditor: React.FC = () => {
                                     <button className="flex-1 py-2 bg-slate-800 hover:bg-slate-700 rounded text-xs text-slate-400 transition-colors">
                                         Ignore Rule
                                     </button>
-                                    <button 
+                                    <button
                                         onClick={() => {
                                             if (selectedFileId && selectedIssueId) {
                                                 handleAutoFix(selectedFileId, selectedIssueId);

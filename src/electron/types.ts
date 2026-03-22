@@ -32,7 +32,7 @@ export const IPC_CHANNELS = {
   REVEAL_IN_FOLDER: 'reveal-in-folder',
   GET_TOOL_VERSION: 'get-tool-version',
   GET_RUNNING_PROCESSES: 'get-running-processes',
-  
+
   // Vault integration
   VAULT_RUN_TOOL: 'vault-run-tool',
   VAULT_SAVE_MANIFEST: 'vault-save-manifest',
@@ -40,7 +40,7 @@ export const IPC_CHANNELS = {
   VAULT_GET_DDS_DIMENSIONS: 'vault-get-dds-dimensions',
   VAULT_GET_IMAGE_DIMENSIONS: 'vault-get-image-dimensions',
   VAULT_PICK_TOOL_PATH: 'vault-pick-tool-path',
-  
+
   // Workshop integration
   WORKSHOP_BROWSE_DIRECTORY: 'workshop-browse-directory',
   WORKSHOP_READ_FILE: 'workshop-read-file',
@@ -51,7 +51,7 @@ export const IPC_CHANNELS = {
   WORKSHOP_PARSE_SCRIPT_DEPS: 'workshop-parse-script-deps',
   // special helper for blender add-on ZIP (binary data encoded as base64)
   WORKSHOP_READ_BLENDER_ZIP: 'workshop-read-blender-zip',
-  
+
   // Image Suite
   IMAGE_GENERATE_NORMAL_MAP: 'image-generate-normal-map',
   IMAGE_GENERATE_ROUGHNESS_MAP: 'image-generate-roughness-map',
@@ -60,19 +60,20 @@ export const IPC_CHANNELS = {
   IMAGE_GENERATE_AO_MAP: 'image-generate-ao-map',
   IMAGE_GET_INFO: 'image-get-info',
   IMAGE_CONVERT_FORMAT: 'image-convert-format',
-  
+
   // FOMOD Assembler
   FOMOD_SCAN_MOD_FOLDER: 'fomod-scan-mod-folder',
   FOMOD_ANALYZE_STRUCTURE: 'fomod-analyze-structure',
   FOMOD_VALIDATE_XML: 'fomod-validate-xml',
   FOMOD_EXPORT_PACKAGE: 'fomod-export-package',
-  
+
   // Auditor ESP Analysis
   AUDITOR_ANALYZE_ESP: 'auditor-analyze-esp',
   AUDITOR_PICK_ESP_FILE: 'auditor-pick-esp-file',
   AUDITOR_PICK_NIF_FILE: 'auditor-pick-nif-file',
   AUDITOR_PICK_DDS_FILE: 'auditor-pick-dds-file',
   AUDITOR_PICK_BGSM_FILE: 'auditor-pick-bgsm-file',
+  AUDITOR_SCAN_MOD_DIRECTORY: 'auditor-scan-mod-directory',
 
   // Project Management
   PROJECT_LIST: 'project-list',
@@ -236,9 +237,9 @@ export type MlIndexQueryRequest = {
 
 export type MlIndexQueryResponse =
   | {
-      ok: true;
-      results: Array<{ score: number; sourcePath: string; title: string; content: string }>;
-    }
+    ok: true;
+    results: Array<{ score: number; sourcePath: string; title: string; content: string }>;
+  }
   | { ok: false; error: string };
 
 export type MlLlmStatusResponse =
@@ -249,11 +250,11 @@ export type MlCapsStatusResponse = {
   ok: true;
   ollama: MlLlmStatusResponse;
   cosmos:
-    | { ok: true; provider: 'cosmos'; baseUrl: string; models: string[] }
-    | { ok: false; provider: 'cosmos'; baseUrl: string; error: string };
+  | { ok: true; provider: 'cosmos'; baseUrl: string; models: string[] }
+  | { ok: false; provider: 'cosmos'; baseUrl: string; error: string };
   openaiCompat:
-    | { ok: true; provider: 'openai_compat'; baseUrl: string; models: string[] }
-    | { ok: false; provider: 'openai_compat'; baseUrl: string; error: string };
+  | { ok: true; provider: 'openai_compat'; baseUrl: string; models: string[] }
+  | { ok: false; provider: 'openai_compat'; baseUrl: string; error: string };
 };
 
 export type MlLlmGenerateRequest = {
@@ -346,14 +347,14 @@ export interface ElectronAPI {
   >;
   elevenLabsListVoices: () => Promise<
     | {
-        ok: true;
-        voices: Array<{
-          voice_id: string;
-          name: string;
-          category?: string;
-          labels?: Record<string, string>;
-        }>;
-      }
+      ok: true;
+      voices: Array<{
+        voice_id: string;
+        name: string;
+        category?: string;
+        labels?: Record<string, string>;
+      }>;
+    }
     | { ok: false; error: string }
   >;
   elevenLabsSynthesizeSpeech: (args: {
@@ -373,19 +374,19 @@ export interface ElectronAPI {
   saveVoiceHistory: (line: string) => Promise<{ success: boolean; error?: string }>;
   checkBlenderAddon: () => Promise<{ connected: boolean; error?: string }>;
   getSystemInfo: () => Promise<{
-    os: string; 
-    cpu: string; 
-    gpu: string; 
-    ram: number; 
-    cores: number; 
-    arch: string; 
-    vram?: number; 
-    blenderVersion?: string; 
-    storageFreeGB?: number; 
-    storageTotalGB?: number; 
+    os: string;
+    cpu: string;
+    gpu: string;
+    ram: number;
+    cores: number;
+    arch: string;
+    vram?: number;
+    blenderVersion?: string;
+    storageFreeGB?: number;
+    storageTotalGB?: number;
     displayResolution?: string;
     allGpus?: string[];
-    storageDrives?: Array<{device: string, free: number, total: number}>;
+    storageDrives?: Array<{ device: string, free: number, total: number }>;
     motherboard?: string;
     username?: string;
     computerName?: string;
@@ -443,9 +444,9 @@ export interface ElectronAPI {
   // Auditor
   analyzeEsp: (filePath: string) => Promise<{ success: boolean; fileSize?: number; recordCount?: number; issues?: any[]; error?: string }>;
   pickEspFile: () => Promise<string>;
-  pickNifFile: () => Promise<string>;
-  pickDdsFile: () => Promise<string>;
-  pickBgsmFile: () => Promise<string>;
+  pickNifFile: () => Promise<string[]>;
+  pickDdsFile: () => Promise<string[]>;
+  pickBgsmFile: () => Promise<string[]>;
 
   // Generic file helpers
   pickJsonFile: () => Promise<string>;

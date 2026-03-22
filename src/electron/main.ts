@@ -2311,46 +2311,94 @@ function setupIpcHandlers() {
     return result.filePaths[0];
   });
 
-  // --- Auditor: Pick NIF mesh file via native dialog ---
+  // --- Auditor: Pick NIF mesh file(s) via native dialog (batch) ---
   registerHandler(IPC_CHANNELS.AUDITOR_PICK_NIF_FILE, async (_event) => {
     const result = await dialog.showOpenDialog({
-      title: 'Select NIF Mesh File',
-      properties: ['openFile'],
+      title: 'Select NIF Mesh File(s)',
+      properties: ['openFile', 'multiSelections'],
       filters: [
         { name: 'NIF Mesh Files', extensions: ['nif'] },
         { name: 'All Files', extensions: ['*'] },
       ],
     });
-    if (result.canceled || !result.filePaths?.length) return '';
-    return result.filePaths[0];
+    if (result.canceled || !result.filePaths?.length) return [];
+    return result.filePaths;
   });
 
-  // --- Auditor: Pick DDS texture file via native dialog ---
+  // --- Auditor: Pick DDS texture file(s) via native dialog (batch) ---
   registerHandler(IPC_CHANNELS.AUDITOR_PICK_DDS_FILE, async (_event) => {
     const result = await dialog.showOpenDialog({
-      title: 'Select DDS Texture File',
-      properties: ['openFile'],
+      title: 'Select DDS Texture File(s)',
+      properties: ['openFile', 'multiSelections'],
       filters: [
         { name: 'DDS Texture Files', extensions: ['dds'] },
         { name: 'All Files', extensions: ['*'] },
       ],
     });
-    if (result.canceled || !result.filePaths?.length) return '';
-    return result.filePaths[0];
+    if (result.canceled || !result.filePaths?.length) return [];
+    return result.filePaths;
   });
 
-  // --- Auditor: Pick BGSM material file via native dialog ---
+  // --- Auditor: Pick BGSM material file(s) via native dialog (batch) ---
   registerHandler(IPC_CHANNELS.AUDITOR_PICK_BGSM_FILE, async (_event) => {
     const result = await dialog.showOpenDialog({
-      title: 'Select BGSM/BGEM Material File',
-      properties: ['openFile'],
+      title: 'Select BGSM/BGEM Material File(s)',
+      properties: ['openFile', 'multiSelections'],
       filters: [
         { name: 'Material Files', extensions: ['bgsm', 'bgem'] },
         { name: 'All Files', extensions: ['*'] },
       ],
     });
-    if (result.canceled || !result.filePaths?.length) return '';
-    return result.filePaths[0];
+    if (result.canceled || !result.filePaths?.length) return [];
+    return result.filePaths;
+  });
+
+  // --- Auditor: Scan entire mod directory for all asset types ---
+  registerHandler(IPC_CHANNELS.AUDITOR_SCAN_MOD_DIRECTORY, async (_event) => {
+    const result = await dialog.showOpenDialog({
+      title: 'Select Mod Directory to Scan',
+      properties: ['openDirectory'],
+    });
+
+    if (result.canceled || !result.filePaths?.length) return [];
+
+    const modDir = result.filePaths[0];
+    const modFiles: Array<{ path: string; type: string }> = [];
+    const validExtensions = ['nif', 'dds', 'bgsm', 'bgem', 'esp', 'esm', 'esl'];
+
+    /**
+     * Recursively scan directory for mod files
+     */
+    const scanDirectory = (dir: string, depth = 0): void => {
+      // Limit recursion depth to avoid deep directory traversals
+      if (depth > 10) return;
+
+      try {
+        const entries = fs.readdirSync(dir, { withFileTypes: true });
+
+        for (const entry of entries) {
+          const fullPath = path.join(dir, entry.name);
+
+          if (entry.isDirectory()) {
+            // Recursively scan subdirectories
+            scanDirectory(fullPath, depth + 1);
+          } else if (entry.isFile()) {
+            const ext = entry.name.split('.').pop()?.toLowerCase();
+            if (ext && validExtensions.includes(ext)) {
+              modFiles.push({
+                path: fullPath,
+                type: ext
+              });
+            }
+          }
+        }
+      } catch (err) {
+        console.error(`Error scanning directory ${dir}:`, err);
+      }
+    };
+
+    scanDirectory(modDir);
+    return modFiles;
   });
 
   // --- Auditor: Analyze ESP/ESM files ---

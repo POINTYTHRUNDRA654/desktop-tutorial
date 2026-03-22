@@ -92,6 +92,7 @@ const IPC_CHANNELS = {
   AUDITOR_PICK_NIF_FILE: 'auditor-pick-nif-file',
   AUDITOR_PICK_DDS_FILE: 'auditor-pick-dds-file',
   AUDITOR_PICK_BGSM_FILE: 'auditor-pick-bgsm-file',
+  AUDITOR_SCAN_MOD_DIRECTORY: 'auditor-scan-mod-directory',
 
   // Duplicate Finder
   DEDUPE_PICK_FOLDERS: 'dedupe-pick-folders',
@@ -287,9 +288,9 @@ const electronAPI = {
    */
   elevenLabsListVoices: (): Promise<
     | {
-        ok: true;
-        voices: Array<{ voice_id: string; name: string; category?: string; labels?: Record<string, string> }>;
-      }
+      ok: true;
+      voices: Array<{ voice_id: string; name: string; category?: string; labels?: Record<string, string> }>;
+    }
     | { ok: false; error: string }
   > => {
     return ipcRenderer.invoke(IPC_CHANNELS.ELEVENLABS_LIST_VOICES);
@@ -366,19 +367,19 @@ const electronAPI = {
    * @returns Promise resolving to system specs
    */
   getSystemInfo: (): Promise<{
-    os: string; 
-    cpu: string; 
-    gpu: string; 
-    ram: number; 
-    cores: number; 
-    arch: string; 
-    vram?: number; 
-    blenderVersion?: string; 
-    storageFreeGB?: number; 
-    storageTotalGB?: number; 
+    os: string;
+    cpu: string;
+    gpu: string;
+    ram: number;
+    cores: number;
+    arch: string;
+    vram?: number;
+    blenderVersion?: string;
+    storageFreeGB?: number;
+    storageTotalGB?: number;
     displayResolution?: string;
     allGpus?: string[];
-    storageDrives?: Array<{device: string, free: number, total: number}>;
+    storageDrives?: Array<{ device: string, free: number, total: number }>;
     motherboard?: string;
     username?: string;
     computerName?: string;
@@ -478,24 +479,31 @@ const electronAPI = {
   },
 
   /**
-   * Auditor: Pick NIF mesh file via native file dialog
+   * Auditor: Pick NIF mesh file(s) via native file dialog (batch)
    */
-  pickNifFile: (): Promise<string> => {
+  pickNifFile: (): Promise<string[]> => {
     return ipcRenderer.invoke(IPC_CHANNELS.AUDITOR_PICK_NIF_FILE);
   },
 
   /**
-   * Auditor: Pick DDS texture file via native file dialog
+   * Auditor: Pick DDS texture file(s) via native file dialog (batch)
    */
-  pickDdsFile: (): Promise<string> => {
+  pickDdsFile: (): Promise<string[]> => {
     return ipcRenderer.invoke(IPC_CHANNELS.AUDITOR_PICK_DDS_FILE);
   },
 
   /**
-   * Auditor: Pick BGSM material file via native file dialog
+   * Auditor: Pick BGSM material file(s) via native file dialog (batch)
    */
-  pickBgsmFile: (): Promise<string> => {
+  pickBgsmFile: (): Promise<string[]> => {
     return ipcRenderer.invoke(IPC_CHANNELS.AUDITOR_PICK_BGSM_FILE);
+  },
+
+  /**
+   * Auditor: Scan entire mod directory for all asset types (batch)
+   */
+  scanModDirectory: (): Promise<Array<{ path: string; type: string }>> => {
+    return ipcRenderer.invoke(IPC_CHANNELS.AUDITOR_SCAN_MOD_DIRECTORY);
   },
 
   /**
@@ -673,8 +681,8 @@ const electronAPI = {
   /**
    * CK Crash Prevention: Get plugin metadata
    */
-  getPluginMetadata: (pluginPath: string): Promise<{ 
-    success: boolean; 
+  getPluginMetadata: (pluginPath: string): Promise<{
+    success: boolean;
     metadata?: {
       pluginPath: string;
       pluginName: string;
@@ -1584,7 +1592,7 @@ const electronAPI = {
    * AI Chat: Groq-powered chat completion (lower latency, real-time)
    * Main process manages API key; renderer never sees it
    */
-  aiChatGroq: (prompt: string, systemPrompt?: string, model?: string, conversationHistory?: Array<{role: string; content: string}>): Promise<{ success: boolean; content?: string; error?: string }> => {
+  aiChatGroq: (prompt: string, systemPrompt?: string, model?: string, conversationHistory?: Array<{ role: string; content: string }>): Promise<{ success: boolean; content?: string; error?: string }> => {
     return ipcRenderer.invoke('ai-chat-groq', { prompt, systemPrompt, model, conversationHistory });
   },
 
