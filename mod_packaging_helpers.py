@@ -651,12 +651,25 @@ def register():
         default="1.10.163",
     )
 
+    # ── Armor / Clothing properties ──────────────────────────────────────────
+    bpy.types.Scene.fo4_armor_body_slot = bpy.props.IntProperty(
+        name="Body Slot",
+        description=(
+            "FO4 ArmorAddon biped object slot (30=Body, 31=Head, 32=Hair, "
+            "33=Hands, 34=Forearms, 37=Feet, 38=Calves, 39=Back, 44-60=Custom)"
+        ),
+        default=30,
+        min=30,
+        max=61,
+    )
+
 
 def unregister():
     for prop in (
         "fo4_mod_name", "fo4_mod_author", "fo4_mod_version",
         "fo4_mod_description", "fo4_mod_root", "fo4_mod_website",
         "fo4_mod_plugin_name", "fo4_mod_fo4_version",
+        "fo4_armor_body_slot",
     ):
         if hasattr(bpy.types.Scene, prop):
             try:

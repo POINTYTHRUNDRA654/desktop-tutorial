@@ -2742,10 +2742,161 @@ class FO4_PT_ItemCreationPanel(Panel):
         info_box.label(text="2. Model details")
         info_box.label(text="3. Setup textures")
         info_box.label(text="4. Optimize & validate")
-        info_box.label(text="5. Export as FBX")
+        info_box.label(text="5. Export as NIF (via PyNifly v25)")
 
 
-class FO4_PT_PresetLibraryPanel(Panel):
+class FO4_PT_ArmorClothingPanel(Panel):
+    """Armor and clothing creation panel — free-tools workflow (Blender + Outfit Studio)"""
+    bl_label      = "Armor & Clothing"
+    bl_idname     = "FO4_PT_armor_clothing_panel"
+    bl_space_type  = 'VIEW_3D'
+    bl_region_type = 'UI'
+    bl_category   = 'Fallout 4'
+    bl_parent_id  = "FO4_PT_main_panel"
+    bl_options    = {'DEFAULT_CLOSED'}
+
+    def draw(self, context):
+        layout = self.layout
+        scene  = context.scene
+        obj    = context.active_object
+        has_mesh = obj is not None and obj.type == 'MESH'
+
+        # ── Workflow guide + guide mod link ──────────────────────────────────
+        top_box = layout.box()
+        top_box.label(text="Free-Tools Workflow  (Blender + Outfit Studio)", icon='INFO')
+        top_col = top_box.column(align=True)
+        top_col.scale_y = 0.78
+        top_col.label(text="Based on Nexus mod 17785 — skeleton fo4.blend guide.")
+        top_col.label(text="Requirements: Blender · BodySlide+Outfit Studio · CBBE")
+        top_box.operator(
+            "fo4.show_armor_clothing_workflow",
+            text="Full Workflow Guide",
+            icon='QUESTION',
+        )
+        top_box.operator(
+            "fo4.open_fo4_armor_blender_guide",
+            text="Nexus 17785 — Armor/Outfit Blender Guide",
+            icon='URL',
+        )
+
+        # ── Body slot selector ────────────────────────────────────────────────
+        layout.separator()
+        slot_box = layout.box()
+        slot_box.label(text="Body Slot (ArmorAddon Biped Object)", icon='MODIFIER')
+        slot_box.prop(scene, "fo4_armor_body_slot", text="Slot")
+        slot_col = slot_box.column(align=True)
+        slot_col.scale_y = 0.72
+        slot_col.label(text="30=Body  31=Head  32=Hair  33=Hands  34=Forearms")
+        slot_col.label(text="35=Neck  37=Feet  38=Calves  39=Back/Shield")
+        slot_col.label(text="Slots 44-60 = custom accessories")
+        slot_col.label(text="Power Armor pieces: slots 55-60 by convention")
+
+        # ── Step 1 helpers ────────────────────────────────────────────────────
+        layout.separator()
+        s1_box = layout.box()
+        s1_box.label(text="Step 1 — Import & Prepare Reference Body", icon='IMPORT')
+        s1_col = s1_box.column(align=True)
+        s1_col.scale_y = 0.78
+        s1_col.label(text="1. In Outfit Studio: load CBBE body, export as FBX.")
+        s1_col.label(text="2. Open skeleton fo4.blend (from Nexus 17785).")
+        s1_col.label(text="3. Import the FBX — it will look crumpled. That is normal.")
+        s1_col.label(text="4. Click 'Remove Malformed Armature' below to fix it.")
+        row = s1_box.row(align=True)
+        row.enabled = has_mesh
+        row.operator(
+            "fo4.clean_imported_armature",
+            text="Remove Malformed Armature",
+            icon='TRASH',
+        )
+        s1_box.separator(factor=0.3)
+        s1_col2 = s1_box.column(align=True)
+        s1_col2.scale_y = 0.78
+        s1_col2.label(text="5. Set body origin to (0, 0, 120) — required by FO4.")
+        row2 = s1_box.row(align=True)
+        row2.enabled = has_mesh
+        row2.operator("fo4.set_armor_origin", text="Set Origin (0, 0, 120)", icon='OBJECT_ORIGIN')
+
+        # ── Step 2 helpers ────────────────────────────────────────────────────
+        layout.separator()
+        s2_box = layout.box()
+        s2_box.label(text="Step 2 — Weight Paint Armor from Body", icon='WPAINT_FACE')
+        s2_col = s2_box.column(align=True)
+        s2_col.scale_y = 0.78
+        s2_col.label(text="Select your armor (active) + reference body (shift-click).")
+        s2_col.label(text="Then click Transfer Weights to copy bone weights.")
+        row3 = s2_box.row(align=True)
+        row3.enabled = has_mesh
+        row3.operator(
+            "fo4.transfer_armor_weights",
+            text="Transfer Weights from Body",
+            icon='MOD_DATA_TRANSFER',
+        )
+        s2_box.separator(factor=0.3)
+        hint = s2_box.column(align=True)
+        hint.scale_y = 0.72
+        hint.label(text="After transfer: check deformation in Pose mode.")
+        hint.label(text="Clean up tiny weight groups (< 0.01) for performance.")
+
+        # ── Step 3 helpers ────────────────────────────────────────────────────
+        layout.separator()
+        s3_box = layout.box()
+        s3_box.label(text="Step 3 — Prepare for FBX Export to Outfit Studio", icon='EXPORT')
+        s3_col = s3_box.column(align=True)
+        s3_col.scale_y = 0.78
+        s3_col.label(text="IMPORTANT: split UV seam edges before FBX export.")
+        s3_col.label(text="Without this, UV coords are corrupted in Outfit Studio.")
+        row4 = s3_box.row(align=True)
+        row4.enabled = has_mesh
+        row4.operator(
+            "fo4.split_uv_seam_edges",
+            text="Split UV Seam Edges",
+            icon='UV',
+        )
+        s3_box.separator(factor=0.3)
+        exp_col = s3_box.column(align=True)
+        exp_col.scale_y = 0.72
+        exp_col.label(text="FBX export settings:")
+        exp_col.label(text="  Apply transforms  ✓   Scale: 1.0")
+        exp_col.label(text="  Armature: Only Deform Bones  ✓")
+        exp_col.label(text="  Bake Animation: OFF")
+        exp_col.label(text="  Origin: same as reference body (0, 0, 120)")
+        exp_col.label(text="Note: if UV seams must stay joined, export OBJ")
+        exp_col.label(text="for geometry + FBX for weights, then merge in OS.")
+
+        # ── Step 4 — Outfit Studio + NIF ─────────────────────────────────────
+        layout.separator()
+        s4_box = layout.box()
+        s4_box.label(text="Step 4 — Outfit Studio → NIF", icon='MODIFIER')
+        s4_col = s4_box.column(align=True)
+        s4_col.scale_y = 0.78
+        s4_col.label(text="1. Import your FBX in Outfit Studio.")
+        s4_col.label(text="2. Assign a material. Invert the Y UV coordinate.")
+        s4_col.label(text="3. Conform to CBBE body for BodySlide slider support.")
+        s4_col.label(text="4. Export as .nif to Data\\Meshes\\...")
+        s4_box.separator(factor=0.3)
+        s4_box.operator(
+            "fo4.open_bodyslide_outfit_studio",
+            text="Get BodySlide & Outfit Studio  (Nexus 25)",
+            icon='URL',
+        )
+        s4_box.operator("fo4.open_cbbe", text="Get CBBE Body  (Nexus 15)", icon='URL')
+
+        # ── Tool links ────────────────────────────────────────────────────────
+        layout.separator()
+        tools_box = layout.box()
+        tools_box.label(text="Pose & Screenshot Tools", icon='ARMATURE_DATA')
+        tools_box.operator(
+            "fo4.open_story_action_poses",
+            text="Story Action Poses  (1,700+ poses, Nexus 58448)",
+            icon='URL',
+        )
+        tools_box.operator("fo4.open_aaf",           text="AAF Framework  (Nexus 31304)", icon='URL')
+        tools_box.operator("fo4.open_poser_hotkeys", text="Poser Hotkeys  (Nexus 45967)", icon='URL')
+        tools_box.operator(
+            "fo4.show_story_action_poses_guide",
+            text="Story Action Poses Setup Guide",
+            icon='QUESTION',
+        )
     """Preset library panel for saving and loading creations"""
     bl_label = "Preset Library"
     bl_idname = "FO4_PT_preset_library_panel"
@@ -4228,6 +4379,7 @@ classes = (
     FO4_PT_NPCPanel,
     FO4_PT_WorldBuildingPanel,
     FO4_PT_ItemCreationPanel,
+    FO4_PT_ArmorClothingPanel,
     # New panels for productivity
     FO4_PT_PresetLibraryPanel,
     FO4_PT_AutomationMacrosPanel,

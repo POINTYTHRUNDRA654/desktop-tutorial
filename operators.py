@@ -538,6 +538,13 @@ class FO4_OT_ShowCredits(Operator):
             "Standard body reference mesh for armor/clothing creation in FO4.",
         ])
 
+        _section('INFO', "FO4 Outfit/Armor in Blender — Free Tools Guide (Nexus 17785)", [
+            "Author — https://www.nexusmods.com/fallout4/mods/17785",
+            "Complete free-tools workflow: Blender + Outfit Studio + CBBE.",
+            "Includes skeleton fo4.blend, FBX import/export settings,",
+            "UV seam edge-split fix, weight transfer, and NIF export steps.",
+        ])
+
         layout.separator()
         layout.label(text="All trademarks belong to their respective owners.", icon='INFO')
 
@@ -1154,6 +1161,195 @@ class FO4_OT_ShowArmorClothingWorkflow(Operator):
             text="Tools: ousnius/Caliente (BodySlide+CBBE) · BadDog (PyNifly) · Bethesda (CK)",
             icon='FUND',
         )
+
+
+class FO4_OT_OpenFO4ArmorBlenderGuide(Operator):
+    """Open mod 17785 — FO4 Armor/Outfit Creation with Blender (free tools guide)."""
+    bl_idname = "fo4.open_fo4_armor_blender_guide"
+    bl_label  = "FO4 Armor/Outfit Blender Guide (Nexus 17785)"
+
+    def execute(self, context):
+        import webbrowser
+        webbrowser.open("https://www.nexusmods.com/fallout4/mods/17785")
+        self.report({'INFO'}, "Opened Nexus — FO4 Armor/Outfit with Blender (free tools guide)")
+        return {'FINISHED'}
+
+
+class FO4_OT_SetArmorOrigin(Operator):
+    """Set selected mesh origin to X=0, Y=0, Z=1.2 (FO4 body origin, per Nexus 17785 guide)."""
+    bl_idname  = "fo4.set_armor_origin"
+    bl_label   = "Set FO4 Armor Origin (0, 0, 120)"
+    bl_options = {'REGISTER', 'UNDO'}
+
+    def execute(self, context):
+        import bpy
+        obj = context.active_object
+        if not obj or obj.type != 'MESH':
+            self.report({'ERROR'}, "Select a mesh object first")
+            return {'CANCELLED'}
+
+        # Apply all transforms first so origin placement is clean
+        bpy.ops.object.transform_apply(location=True, rotation=True, scale=True)
+
+        # Move object so its origin is at (0, 0, 120) in Blender units
+        # (FO4 body NIF origin after import via Outfit Studio / PyNifly)
+        bpy.ops.object.origin_set(type='ORIGIN_GEOMETRY', center='BOUNDS')
+        obj.location = (0.0, 0.0, 120.0)
+        bpy.ops.object.transform_apply(location=True)
+
+        self.report({'INFO'}, f"Origin set to (0, 0, 120) on '{obj.name}'")
+        return {'FINISHED'}
+
+
+class FO4_OT_SplitUVSeamEdges(Operator):
+    """Split edges at UV seams before FBX export to prevent UV corruption in Outfit Studio.
+
+    Per the mod 17785 guide: UV coordinates may be exported incorrectly via FBX
+    unless edges matching UV seams are split beforehand.
+    """
+    bl_idname  = "fo4.split_uv_seam_edges"
+    bl_label   = "Split UV Seam Edges (for FBX Export)"
+    bl_options = {'REGISTER', 'UNDO'}
+
+    def execute(self, context):
+        import bpy
+        obj = context.active_object
+        if not obj or obj.type != 'MESH':
+            self.report({'ERROR'}, "Select a mesh object first")
+            return {'CANCELLED'}
+
+        # Go to edit mode, select seam edges, then split them
+        prev_mode = obj.mode
+        bpy.ops.object.mode_set(mode='EDIT')
+        bpy.ops.mesh.select_all(action='DESELECT')
+
+        # Select all seam edges
+        bpy.ops.uv.seams_from_islands()
+        bpy.ops.mesh.select_all(action='DESELECT')
+
+        # Use bmesh to select seam edges
+        import bmesh
+        me = obj.data
+        bm = bmesh.from_edit_mesh(me)
+        seam_count = 0
+        for edge in bm.edges:
+            if edge.seam:
+                edge.select = True
+                seam_count += 1
+        bmesh.update_edit_mesh(me)
+
+        if seam_count == 0:
+            bpy.ops.object.mode_set(mode=prev_mode)
+            self.report({'WARNING'}, "No UV seams found. Mark seams first (Edge > Mark Seam).")
+            return {'CANCELLED'}
+
+        # Edge split at selected seam edges
+        bpy.ops.mesh.edge_split(type='EDGE')
+        bpy.ops.object.mode_set(mode=prev_mode)
+
+        self.report({'INFO'}, f"Split {seam_count} UV seam edge(s) on '{obj.name}'. "
+                              "Safe to export as FBX to Outfit Studio now.")
+        return {'FINISHED'}
+
+
+class FO4_OT_TransferArmorWeights(Operator):
+    """Transfer vertex weights from a reference body to the active armor mesh.
+
+    Implements the Data Transfer approach from the mod 17785 guide:
+    select armor mesh (active), then shift-select the reference body (source),
+    and run this operator.
+    """
+    bl_idname  = "fo4.transfer_armor_weights"
+    bl_label   = "Transfer Weights from Body Reference"
+    bl_options = {'REGISTER', 'UNDO'}
+
+    def execute(self, context):
+        import bpy
+        selected = context.selected_objects
+        active   = context.active_object
+
+        if not active or active.type != 'MESH':
+            self.report({'ERROR'}, "Active object must be the armor mesh")
+            return {'CANCELLED'}
+
+        sources = [o for o in selected if o != active and o.type == 'MESH']
+        if not sources:
+            self.report({'ERROR'}, "Also select the reference body mesh (shift-click it first)")
+            return {'CANCELLED'}
+
+        source = sources[0]
+
+        # Add Data Transfer modifier if not already present
+        mod_name = "FO4_WeightTransfer"
+        if mod_name in active.modifiers:
+            active.modifiers.remove(active.modifiers[mod_name])
+
+        mod = active.modifiers.new(name=mod_name, type='DATA_TRANSFER')
+        mod.object              = source
+        mod.use_vert_data       = True
+        mod.data_types_verts    = {'VGROUP_WEIGHTS'}
+        mod.vert_mapping        = 'NEAREST'
+        mod.layers_vgroup_select_src = 'ALL'
+        mod.layers_vgroup_select_dst = 'NAME'
+
+        # Apply the modifier
+        try:
+            bpy.ops.object.modifier_apply(modifier=mod_name)
+        except Exception as exc:
+            self.report({'WARNING'}, f"Could not apply modifier: {exc}. Apply manually.")
+            return {'FINISHED'}
+
+        self.report({'INFO'},
+                    f"Weights transferred from '{source.name}' to '{active.name}'. "
+                    "Check weight paint and clean up small groups.")
+        return {'FINISHED'}
+
+
+class FO4_OT_CleanImportedArmature(Operator):
+    """Unparent active mesh from its armature and delete the malformed armature.
+
+    Per the mod 17785 guide: FBX bodies exported from Outfit Studio arrive in
+    Blender with a malformed armature. Unparent the mesh and delete it — the
+    body will look correct once freed.
+    """
+    bl_idname  = "fo4.clean_imported_armature"
+    bl_label   = "Remove Malformed FBX Armature"
+    bl_options = {'REGISTER', 'UNDO'}
+
+    def execute(self, context):
+        import bpy
+        obj = context.active_object
+        if not obj or obj.type != 'MESH':
+            self.report({'ERROR'}, "Select the imported mesh first")
+            return {'CANCELLED'}
+
+        # Find armature parent
+        bad_armatures = []
+        if obj.parent and obj.parent.type == 'ARMATURE':
+            bad_armatures.append(obj.parent)
+
+        # Also find armature modifiers
+        arm_mods = [m for m in obj.modifiers if m.type == 'ARMATURE']
+
+        # Clear parent keeping transforms
+        if obj.parent:
+            bpy.ops.object.parent_clear(type='CLEAR_KEEP_TRANSFORM')
+
+        # Remove armature modifiers
+        for m in arm_mods:
+            obj.modifiers.remove(m)
+
+        # Delete malformed armature objects
+        for arm in bad_armatures:
+            bpy.data.objects.remove(arm, do_unlink=True)
+
+        self.report({'INFO'},
+                    f"Malformed armature removed from '{obj.name}'. "
+                    "Body should now appear correct. Re-parent to the fo4.blend skeleton.")
+        return {'FINISHED'}
+
+
+class FO4_OT_ShowMessage(Operator):
     """Show a message to the user"""
     bl_idname = "fo4.show_message"
     bl_label = "Message"
@@ -13570,6 +13766,18 @@ classes = (
     FO4_OT_InstallCollectiveModdingToolkit,
     FO4_OT_OpenCollectiveModdingToolkit,
     FO4_OT_OpenFallUI,
+    FO4_OT_OpenStoryActionPoses,
+    FO4_OT_OpenAAF,
+    FO4_OT_OpenPoserHotkeys,
+    FO4_OT_ShowStoryActionPosesGuide,
+    FO4_OT_OpenBodySlideOutfitStudio,
+    FO4_OT_OpenCBBE,
+    FO4_OT_ShowArmorClothingWorkflow,
+    FO4_OT_OpenFO4ArmorBlenderGuide,
+    FO4_OT_SetArmorOrigin,
+    FO4_OT_SplitUVSeamEdges,
+    FO4_OT_TransferArmorWeights,
+    FO4_OT_CleanImportedArmature,
     FO4_OT_NextTutorialStep,
     FO4_OT_PreviousTutorialStep,
     FO4_OT_ShowDetailedSetup,
