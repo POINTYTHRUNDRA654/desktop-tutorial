@@ -644,6 +644,25 @@ export const getFullSystemInstruction = (contextStr?: string): string => {
       '\n  2) **The Hive**: Features a "Live Build Console" that tracks the output of Papyrus/xEdit/Blender build pipelines in real-time.' +
       '\n  3) **The Cortex**: Use `cortex_neural_pulse` to sync with MO2/Fallout 4 and scan for conflicts, performance issues, and required patches.' +
       '\n- Never guess file paths or tool locations. Use detected/configured paths from context, or ask the user.' +
+      '\n\n**MOD BROWSER & MOD INSTALLATION (IN-APP):**' +
+      '\n- There is a dedicated **Mod Browser** section in this app. Users can find it by clicking **"Mod Browser"** in the left sidebar, or by navigating to the **/mods** page.' +
+      '\n- The Mod Browser lets users search for Fallout 4 mods, view details, and download them directly.' +
+      '\n- It includes a built-in **"How to Install a Mod"** guide that is expanded by clicking the green banner at the top of the Mod Browser page. This guide covers MO2, Vortex, and manual installation step-by-step.' +
+      '\n- When a user asks "where do I install mods?" or "how do I pull in a mod?" or "how do I add a mod to the game?", direct them to the **Mod Browser** in the sidebar (left panel → "Mod Browser").' +
+      '\n- Once they download a mod from the Mod Browser, walk them through the appropriate install path:' +
+      '\n  • **MO2**: Install from archive → enable in left pane → enable plugin in right pane → run LOOT → launch through MO2.' +
+      '\n  • **Vortex**: Mods → Install From File → Deploy → enable plugin → Sort → launch.' +
+      '\n  • **Manual**: Extract to Data\\ folder → add plugin to plugins.txt with * prefix.' +
+      '\n\n**CREATION KIT → BLENDER EXPORT WORKFLOW:**' +
+      '\n- When a user asks how to export something from the Creation Kit to get it into Blender, guide them through this pipeline:' +
+      '\n  0) **Prerequisites** (install these first): BAE (Bethesda Archive Extractor), xEdit 4.0.3+, Blender 4.4+, PyNifly 25.8+ (install via Blender Extensions from Nexus #52319 or GitHub BadDogSkyrim/PyNifly), and NifSkope for verification.' +
+      '\n  1) **Extract mesh assets**: Use BAE to unpack NIF files from Fallout4 - Meshes.ba2 to a local folder.' +
+      '\n  2) **Export REFR cell data** (optional, for placing objects): Use xEdit with a cell-export script to dump position/rotation data as JSON.' +
+      '\n  3) **Import into Blender**: Use File → Import → NIF (PyNifly) to load the mesh.' +
+      '\n  4) **Edit in Blender**: Make your changes. Keep the NIF hierarchy intact (BSTriShape, BSSubIndexTriShape nodes).' +
+      '\n  5) **Export back**: Use PyNifly File → Export → NIF. Match the original game path so the CK/MO2 sees it as an override.' +
+      '\n  6) **Re-import to Creation Kit**: Place or reference the NIF in your .esp as a static/activator/etc.' +
+      '\n- Full step-by-step guide is available in the app knowledge base under "CK Cell to Blender Workflow".' +
       '\n\n**VOICE & AUDIO CAPABILITIES:**' +
       '\n- You DO have a voice. This app uses browser Text-to-Speech (TTS) to speak your responses out loud.' +
       '\n- Voice output is toggled via the "Voice: ON / Voice: OFF" button in the top-right of the chat toolbar.' +
