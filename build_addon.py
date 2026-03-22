@@ -48,6 +48,13 @@ EXCLUDE = {
     "README.md", "GIT_RECOVERY_GUIDE.md", "BUTTON_PATTERN_GUIDE.md",
     "DEVELOPMENT_NOTES.md", "fix_git_remote.bat",
     ".DS_Store", "Thumbs.db",
+    # Virtual environments and local test artefacts must never ship
+    ".venv", "venv", "env", ".env",
+    "test_extract",
+    # Developer / session helper scripts
+    "start_session.bat", "end_session.bat",
+    # Standalone test files (no use inside Blender)
+    "test_addon_integrity.py",
 }
 
 # Blender version variants
