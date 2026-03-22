@@ -7,4 +7,13 @@ if [ "$branch" != "master" ]; then
   echo "Run 'sh scripts/setup-git-hooks.sh' to install the local hook that enforces this policy.\n"
   exit 1
 fi
+
+# Block pushing if unresolved conflict markers exist in source files
+if ! node scripts/check-no-conflict-markers.js; then
+  echo "\n[repo policy] Push blocked: unresolved Git conflict markers detected.\n"
+  echo "Run: node scripts/check-no-conflict-markers.js  to see which files are affected."
+  echo "Resolve the conflicts and re-stage the files before pushing.\n"
+  exit 1
+fi
+
 exit 0
