@@ -447,16 +447,187 @@ class FO4_OT_ShowCredits(Operator):
             "GNU LGPL v2.1+ / GPL v2+ license",
         ])
 
-        _section('TOOL_SETTINGS', "Havok2FBX (Havok animation conversion)", [
-            "dfm — https://github.com/dfm/havok2fbx",
-            "Converts Havok .hkx animations to FBX for Blender",
+        _section('ARMATURE_DATA', "Shiagur — Blender Power Armor Animation Rig v2.6.0", [
+            "Shiagur — https://www.nexusmods.com/fallout4/mods/81279",
+            "Blender rig + guide for Fallout 4 Power Armor animations.",
+            "Includes skeleton, Havok settings, and full workflow documentation.",
+        ])
+
+        _section('ARMATURE_DATA', "Shiagur — Blender Animation Rig (1st & 3rd Person) v2.6.0", [
+            "Shiagur — https://www.nexusmods.com/fallout4/mods/82537",
+            "Blender rig for 1st and 3rd person weapon, pose, and interaction",
+            "animations. Includes IK/FK, skeletons, Havok settings, and guide.",
+        ])
+
+        _section('EXPORT', "FBXImporter (FBX → HKT conversion)", [
+            "andrelo1 — https://www.nexusmods.com/fallout4/mods/59849",
+            "GitHub: https://github.com/andrelo1/fbximporter",
+            "Converts Blender FBX exports to Havok HKT files for FO4 pipeline.",
+        ])
+
+        _section('TOOL_SETTINGS', "hkxcmd (Havok HKX command-line tools)", [
+            "figment — https://github.com/figment/hkxcmd",
+            "Command-line conversion for Havok HKX / KF animation files.",
+        ])
+
+        _section('TOOL_SETTINGS', "HKXPack (HKX binary ↔ XML converter)", [
+            "dexesttp — https://dexesttp.github.io/hkxpack/",
+            "Converts binary Havok HKX files to/from XML for editing.",
+        ])
+
+        _section('TOOL_SETTINGS', "NifSkope (NIF file editor)", [
+            "NifTools Team — https://github.com/niftools/nifskope",
+            "View, edit, and inspect Bethesda .nif files.",
+        ])
+
+        _section('TOOL_SETTINGS', "FO4Edit / xEdit (plugin & record editor)", [
+            "Zilav et al. — https://github.com/TES5Edit/TES5Edit",
+            "Edit Fallout 4 plugins (.esp/.esm/.esl) and import animations.",
         ])
 
         layout.separator()
         layout.label(text="All trademarks belong to their respective owners.", icon='INFO')
 
 
-class FO4_OT_ShowMessage(Operator):
+# ---------------------------------------------------------------------------
+# Shiagur Animation Rig operators
+# ---------------------------------------------------------------------------
+
+class FO4_OT_OpenShiagurPowerArmorRig(Operator):
+    """Open Shiagur's Blender Power Armor Animation Rig (Nexus mod 81279) in browser."""
+    bl_idname = "fo4.open_shiagur_power_armor_rig"
+    bl_label  = "Download Power Armor Rig (Nexus)"
+
+    def execute(self, context):
+        import webbrowser
+        webbrowser.open("https://www.nexusmods.com/fallout4/mods/81279")
+        self.report({'INFO'}, "Opened Nexus Mods — Blender Power Armor Animation Rig by Shiagur")
+        return {'FINISHED'}
+
+
+class FO4_OT_OpenShiagurAnimRig(Operator):
+    """Open Shiagur's Blender Animation Rig 1st/3rd Person (Nexus mod 82537) in browser."""
+    bl_idname = "fo4.open_shiagur_anim_rig"
+    bl_label  = "Download 1st/3rd Person Rig (Nexus)"
+
+    def execute(self, context):
+        import webbrowser
+        webbrowser.open("https://www.nexusmods.com/fallout4/mods/82537")
+        self.report({'INFO'}, "Opened Nexus Mods — Blender Animation Rig & Guide by Shiagur")
+        return {'FINISHED'}
+
+
+class FO4_OT_OpenFBXImporter(Operator):
+    """Open the FBXImporter Nexus page (FBX → HKT conversion tool by andrelo1)."""
+    bl_idname = "fo4.open_fbximporter"
+    bl_label  = "Get FBXImporter (Nexus)"
+
+    def execute(self, context):
+        import webbrowser
+        webbrowser.open("https://www.nexusmods.com/fallout4/mods/59849")
+        self.report({'INFO'}, "Opened Nexus Mods — FBXImporter by andrelo1")
+        return {'FINISHED'}
+
+
+class FO4_OT_ShowShiagurWorkflow(Operator):
+    """Show the complete FO4 animation pipeline using Shiagur's rigs."""
+    bl_idname = "fo4.show_shiagur_workflow"
+    bl_label  = "FO4 Animation Workflow Guide"
+
+    def execute(self, context):
+        return {'FINISHED'}
+
+    def invoke(self, context, event):
+        return context.window_manager.invoke_popup(self, width=520)
+
+    def draw(self, context):
+        layout = self.layout
+
+        # ── Title ────────────────────────────────────────────────────────────
+        layout.label(text="Fallout 4 Animation Workflow (Shiagur's Rigs)", icon='ARMATURE_DATA')
+        layout.separator()
+
+        def _box(icon, heading, lines):
+            b = layout.box()
+            b.label(text=heading, icon=icon)
+            col = b.column(align=True)
+            col.scale_y = 0.82
+            for ln in lines:
+                col.label(text=ln)
+
+        # ── Rig downloads ────────────────────────────────────────────────────
+        _box('ARMATURE_DATA', "Step 0 — Download Shiagur's Rig (Nexus Mods — requires free account)", [
+            "Power Armor rig:   nexusmods.com/fallout4/mods/81279",
+            "1st/3rd person:    nexusmods.com/fallout4/mods/82537",
+            "Use the buttons below the guide to open each page.",
+        ])
+
+        # ── Required tools ───────────────────────────────────────────────────
+        _box('TOOL_SETTINGS', "Step 1 — Install Required Tools", [
+            "• Blender 4.1+             — blender.org  (free)",
+            "• PyNifly v25 (in addon)   — BadDog/BadDogSkyrim  ← RECOMMENDED PATH",
+            "  PyNifly v25 exports HKX natively — no extra tools needed!",
+            "",
+            "Traditional pipeline (if not using PyNifly HKX export):",
+            "• FBXImporter              — nexusmods.com/fallout4/mods/59849",
+            "  Converts Blender FBX → Havok HKT intermediate format",
+            "• Havok Content Tools 2014.1.1 64-bit",
+            "  Converts HKT → HKX (community-sourced; no public download)",
+            "• hkxcmd (optional)        — github.com/figment/hkxcmd",
+            "• HKXPack (optional)       — dexesttp.github.io/hkxpack",
+        ])
+
+        # ── Animation workflow ───────────────────────────────────────────────
+        _box('ANIM', "Step 2 — Create Your Animation in Blender", [
+            "1. Open the .blend rig file from Shiagur's download.",
+            "2. Pose and keyframe using Blender's NLA/Action editor.",
+            "   • IK/FK toggle panels are included in the rig.",
+            "   • 1st person: animate arms/hands and weapon.",
+            "   • 3rd person: animate full body motion.",
+            "   • Power Armor: use dedicated PA skeleton included.",
+        ])
+
+        # ── Export paths ─────────────────────────────────────────────────────
+        _box('EXPORT', "Step 3 — Export to HKX", [
+            "PATH A — PyNifly v25 (recommended, simplest):",
+            "  File > Export > HKX Animation (.hkx)",
+            "  Set target_game = FO4, then export directly.",
+            "  No FBX conversion step needed.",
+            "",
+            "PATH B — FBX → HKT → HKX (traditional):",
+            "  1. File > Export > FBX (Blender built-in)",
+            "     Settings: Apply transforms, Bake animation ON",
+            "  2. Run FBXImporter.exe on the exported .fbx",
+            "     → produces a .hkt file",
+            "  3. Open Havok Content Tools 2014.1.1",
+            "     Load .hkt → Preview → Package & Export → .hkx",
+            "     Use 48-bit compression preset (recommended by Shiagur)",
+        ])
+
+        # ── Game integration ─────────────────────────────────────────────────
+        _box('GAME', "Step 4 — Add to Fallout 4", [
+            "1. Place .hkx in Data\\Meshes\\Actors\\Character\\Animations\\",
+            "   (or relevant subfolder for weapon/power armor)",
+            "2. Register the animation in Creation Kit or FO4Edit.",
+            "   CK: Actor > Animation Graph tab > Add animation event",
+            "   FO4Edit: find/create the correct record in your .esp",
+            "3. Test in-game; check Havok compression if animation jitters.",
+        ])
+
+        # ── Resources ────────────────────────────────────────────────────────
+        _box('INFO', "Shiagur's Tutorial Videos (YouTube)", [
+            "Setup & Installation:  youtube.com/watch?v=R9NZraXPVGU",
+            "Rig & Guide overview:  youtube.com/watch?v=E83Iuy8SuyA",
+            "Power Armor rig demo:  youtube.com/watch?v=JkheIassgUY",
+            "Full channel:          youtube.com/@shiagur/videos",
+            "Nexus forum thread:    forums.nexusmods.com/topic/13485163",
+        ])
+
+        layout.separator()
+        layout.label(
+            text="Credit: Shiagur (rig author) · BadDog (PyNifly) · andrelo1 (FBXImporter)",
+            icon='FUND',
+        )
     """Show a message to the user"""
     bl_idname = "fo4.show_message"
     bl_label = "Message"
