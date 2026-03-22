@@ -226,6 +226,24 @@ def _get_github_release_asset(repo: str, keyword: str) -> str | None:
     return None
 
 
+def _configure_tool_paths() -> list[str]:
+    """Wire any newly installed tools into add-on preferences immediately.
+
+    Called automatically by every install function after a successful
+    download so the tools are usable without restarting Blender.
+
+    Returns a list of human-readable strings describing what was configured.
+    """
+    # Use auto_configure_preferences() which already knows how to scan and
+    # update prefs for ffmpeg / nvtt / texconv / umodel / havok2fbx.
+    # It is defined later in this file; call by name to avoid forward-ref issues.
+    try:
+        return auto_configure_preferences()
+    except Exception as exc:
+        print(f"_configure_tool_paths: {exc}")
+        return []
+
+
 def install_ffmpeg() -> tuple[bool, str]:
     """Fetch a Windows static ffmpeg build into tools/ffmpeg."""
     dest = _ensure_tools_dir("ffmpeg")
@@ -235,7 +253,8 @@ def install_ffmpeg() -> tuple[bool, str]:
         _download(url, zip_path)
         _extract_zip(zip_path, dest)
         zip_path.unlink(missing_ok=True)
-        return True, f"FFmpeg downloaded to {dest}"
+        _configure_tool_paths()
+        return True, f"FFmpeg downloaded and configured at {dest}"
     except Exception as e:
         return False, f"FFmpeg install failed: {e}"
 
@@ -246,13 +265,14 @@ def install_nvtt() -> tuple[bool, str]:
     repo = "castano/nvidia-texture-tools"
     url = _get_github_release_asset(repo, "win.zip")
     if not url:
-        return False, "Could not resolve NVTT download URL; please visit GitHub manually."
+        return False, "Could not resolve NVTT download URL; please visit https://github.com/castano/nvidia-texture-tools/releases."
     zip_path = dest / "nvtt.zip"
     try:
         _download(url, zip_path)
         _extract_zip(zip_path, dest)
         zip_path.unlink(missing_ok=True)
-        return True, f"NVTT downloaded to {dest}"
+        _configure_tool_paths()
+        return True, f"NVTT downloaded and configured at {dest}"
     except Exception as e:
         return False, f"NVTT install failed: {e}"
 
@@ -263,11 +283,12 @@ def install_texconv() -> tuple[bool, str]:
     repo = "microsoft/DirectXTex"
     url = _get_github_release_asset(repo, "texconv.exe")
     if not url:
-        return False, "Could not resolve texconv URL; please download manually."
+        return False, "Could not resolve texconv URL; please download manually from https://github.com/microsoft/DirectXTex/releases."
     exe_path = dest / "texconv.exe"
     try:
         _download(url, exe_path)
-        return True, f"texconv downloaded to {exe_path}"
+        _configure_tool_paths()
+        return True, f"texconv downloaded and configured at {exe_path}"
     except Exception as e:
         return False, f"texconv install failed: {e}"
 
@@ -319,19 +340,50 @@ def check_havok2fbx(path: str) -> bool:
 
 
 def install_havok2fbx() -> tuple[bool, str]:
-    """Placeholder for Havok2FBX installation.
+    """Download Havok2FBX from GitHub releases and wire it into preferences.
 
-    Automatic download is not possible due to licensing.  This function
-    simply creates the tools/havok2fbx folder and opens the GitHub release
-    page in the browser so the user can manually obtain the binaries.
+    Queries the GitHub Releases API for dfm/havok2fbx, downloads the first
+    Windows zip asset, extracts it to the tools/havok2fbx folder, and
+    persists the path in add-on preferences so it is usable immediately.
     """
-    folder = _ensure_tools_dir("havok2fbx")
+    dest = _ensure_tools_dir("havok2fbx")
+
+    # Already installed?
+    if check_havok2fbx(str(dest)):
+        _configure_tool_paths()
+        return True, f"Havok2FBX already installed at {dest}"
+
+    url = _get_github_release_asset("dfm/havok2fbx", ".zip")
+    if not url:
+        # Try exe as well (some releases ship just an exe)
+        url = _get_github_release_asset("dfm/havok2fbx", "havok2fbx")
+    if not url:
+        return False, (
+            "Could not resolve Havok2FBX download URL from GitHub. "
+            "Please download manually from https://github.com/dfm/havok2fbx/releases "
+            f"and extract to {dest}."
+        )
+
+    zip_path = dest / "havok2fbx_download.zip"
     try:
-        import webbrowser
-        webbrowser.open("https://github.com/dfm/havok2fbx/releases")
-        return False, f"Please download Havok2FBX manually and place binaries in {folder}"
-    except Exception as e:
-        return False, f"Unable to open download page: {e}" 
+        _download(url, zip_path)
+        _extract_zip(zip_path, dest)
+        zip_path.unlink(missing_ok=True)
+        # Move files out of any sub-folder the zip may have created
+        for sub in dest.iterdir():
+            if sub.is_dir():
+                for item in list(sub.iterdir()):
+                    target = dest / item.name
+                    if not target.exists():
+                        shutil.move(str(item), str(target))
+                try:
+                    sub.rmdir()
+                except OSError:
+                    pass
+        _configure_tool_paths()
+        return True, f"Havok2FBX downloaded and configured at {dest}"
+    except Exception as exc:
+        return False, f"Havok2FBX download failed: {exc}"
 
 def install_niftools(blender_version: str = "3.6") -> tuple[bool, str]:
     """Invoke the PowerShell installer for the niftools add-on if on Windows."""
@@ -470,6 +522,7 @@ def install_pynifly() -> tuple[bool, str]:
         import bpy  # available when running inside Blender
         bpy.ops.preferences.addon_install(filepath=str(zip_path), overwrite=True)
         bpy.ops.preferences.addon_enable(module="PyNifly")
+        _configure_tool_paths()
         return True, (
             f"PyNifly {PYNIFLY_TARGET_VERSION} installed from {zip_path.name}. "
             f"Credit: BadDog (BadDogSkyrim) — https://github.com/BadDogSkyrim/PyNifly"
@@ -522,12 +575,16 @@ def discover_installed_tools() -> dict[str, "str | None"]:
     during installation.
 
     Returns a dict with keys ``"ffmpeg"``, ``"nvcompress"``, ``"texconv"``,
-    each mapped to the absolute executable path string, or ``None`` if not found.
+    ``"umodel"``, and ``"havok2fbx"``, each mapped to the absolute executable
+    path string (or directory string for umodel/havok2fbx), or ``None`` if
+    not found.
     """
     found: dict[str, "str | None"] = {
         "ffmpeg": None,
         "nvcompress": None,
         "texconv": None,
+        "umodel": None,
+        "havok2fbx": None,
     }
 
     search_roots = [DEFAULT_TOOLS_ROOT, FALLBACK_TOOLS_ROOT]
@@ -536,6 +593,8 @@ def discover_installed_tools() -> dict[str, "str | None"]:
         "ffmpeg":     ("ffmpeg",     ("ffmpeg.exe",      "ffmpeg")),
         "nvcompress": ("nvtt",       ("nvcompress.exe",  "nvcompress")),
         "texconv":    ("texconv",    ("texconv.exe",     "texconv")),
+        "umodel":     ("umodel",     ("umodel.exe",      "umodel")),
+        "havok2fbx":  ("havok2fbx",  ("havok2fbx.exe",)),
     }
 
     for key, (subdir, exe_names) in binary_map.items():
@@ -547,12 +606,13 @@ def discover_installed_tools() -> dict[str, "str | None"]:
                 # Direct hit
                 direct = tool_dir / exe
                 if direct.is_file():
-                    found[key] = str(direct)
+                    # For directory-based tools (umodel, havok2fbx) store the folder
+                    found[key] = str(tool_dir) if key in ("umodel", "havok2fbx") else str(direct)
                     break
                 # Recursive search (zip may extract a nested folder)
                 matches = sorted(tool_dir.rglob(exe))
                 if matches:
-                    found[key] = str(matches[0])
+                    found[key] = str(tool_dir) if key in ("umodel", "havok2fbx") else str(matches[0])
                     break
             if found[key]:
                 break
@@ -607,6 +667,24 @@ def auto_configure_preferences() -> list[str]:
         prefs.texconv_path = installed["texconv"]
         results.append(f"texconv auto-configured: {installed['texconv']}")
         print(f"✓ texconv auto-configured: {installed['texconv']}")
+
+    # UModel — persist the folder in preferences so the add-on can locate it
+    if installed["umodel"] and not _prefs.get_umodel_path():
+        try:
+            _prefs.set_umodel_path(installed["umodel"])
+            results.append(f"UModel auto-configured: {installed['umodel']}")
+            print(f"✓ UModel auto-configured: {installed['umodel']}")
+        except Exception as exc:
+            print(f"auto_configure_preferences: UModel path set failed: {exc}")
+
+    # Havok2FBX — persist the folder in preferences
+    if installed["havok2fbx"] and not _prefs.get_havok2fbx_path():
+        try:
+            prefs.havok2fbx_path = installed["havok2fbx"]
+            results.append(f"Havok2FBX auto-configured: {installed['havok2fbx']}")
+            print(f"✓ Havok2FBX auto-configured: {installed['havok2fbx']}")
+        except Exception as exc:
+            print(f"auto_configure_preferences: Havok2FBX path set failed: {exc}")
 
     return results
 

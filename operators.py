@@ -2811,12 +2811,9 @@ class FO4_OT_CheckUModelTools(Operator):
         if needs_download:
             ok, msg = umodel_tools_helpers.download_latest()
             actions.append(msg)
-            if not ok and ("manual download" in msg.lower() or "download manually" in msg.lower()):
-                _, browser_msg = umodel_tools_helpers.open_download_page()
-                if browser_msg:
-                    actions.append(browser_msg)
             if ok:
                 umodel_tools_helpers.register()
+                tool_installers.auto_configure_preferences()
                 ready, message = umodel_tools_helpers.status()
         elif not ready:
             umodel_tools_helpers.register()
@@ -2890,11 +2887,15 @@ class FO4_OT_InstallUModelTools(Operator):
                 all_deps_ok = deps_ok and req_ok
                 final_msg = (
                     f"{msg} — Python deps installed. "
-                    "Now install UModel Tools as a Blender addon via "
+                    "UModel Tools downloaded and ready. "
+                    "Install it as a Blender addon via "
                     "Edit > Preferences > Add-ons > Install."
                 ) if all_deps_ok else (
                     f"{msg} — Warning: some Python deps failed to install: {deps_msg}"
                 )
+
+                # Wire any newly discovered tools into prefs immediately
+                tool_installers.auto_configure_preferences()
             except Exception as exc:
                 final_msg = f"UModel Tools install error: {exc}"
                 print(final_msg)
@@ -2922,13 +2923,6 @@ class FO4_OT_CheckUModel(Operator):
             # Try to download/install
             ok, msg = umodel_helpers.download_latest()
             actions.append(msg)
-
-            # If download provides manual instructions, also open browser
-            lower_msg = msg.lower()
-            if not ok and ("manual download" in lower_msg or "download manually" in lower_msg):
-                _, browser_msg = umodel_helpers.open_download_page()
-                actions.append(browser_msg)
-
             ready, message = umodel_helpers.status()
 
         status_lines = [message] + actions

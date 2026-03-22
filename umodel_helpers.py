@@ -222,6 +222,13 @@ def download_latest() -> tuple[bool, str]:
             except Exception as e:
                 print(f"Warning: UModel downloaded but path not saved to prefs: {e}")
 
+            # Wire into add-on preferences immediately (no Blender restart needed)
+            try:
+                from . import tool_installers as _ti
+                _ti._configure_tool_paths()
+            except Exception:
+                pass
+
             return True, f"Downloaded UModel to {tool_dir}. Credit: Konstantin Nosov (Gildor)"
         except Exception as exc:
             last_error = str(exc)
