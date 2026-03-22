@@ -814,11 +814,12 @@ class FO4AddonPreferences(bpy.types.AddonPreferences):
         auto_box.label(text="(disable to avoid policy warnings at startup)", icon='INFO')
 
         # PyTorch Installation Helper
+        # Use cached torch status from ui_panels to avoid blocking the UI
         torch_box = layout.box()
         torch_box.label(text="PyTorch Installation (AI Features)", icon="PLUGIN")
         try:
-            from . import torch_path_manager
-            success, msg, _ = torch_path_manager.TorchPathManager.try_import_torch()
+            from . import ui_panels
+            success, msg = ui_panels._get_torch_status()
             if success:
                 torch_box.label(text=f"✓ PyTorch loaded: {msg}", icon="CHECKMARK")
             else:

@@ -19,7 +19,7 @@ def _safe_import(name):
         return None
 
 # ──────────────────────────────────────────────────────────────────────────
-# Module-level caching for torch availability (prevents repeated import 
+# Module-level caching for torch availability (prevents repeated import
 # attempts that freeze the UI every frame when torch is broken)
 # ──────────────────────────────────────────────────────────────────────────
 _torch_cache = None  # None = not yet checked, True = available, str = error message
@@ -45,7 +45,7 @@ def _get_torch_status():
     global _torch_cache, _torch_version
     if _torch_cache is not None:
         return _torch_cache, _torch_version
-    
+
     try:
         import torch
         _torch_cache = True
@@ -169,7 +169,7 @@ class FO4_PT_MainPanel(Panel):
     bl_space_type = 'VIEW_3D'
     bl_region_type = 'UI'
     bl_category = 'Fallout 4'
-    
+
     def draw(self, context):
         layout = self.layout
         scene = context.scene
@@ -262,7 +262,7 @@ class FO4_PT_MainPanel(Panel):
             nav.operator("fo4.next_tutorial_step", text="", icon='TRIA_RIGHT')
         else:
             box.label(text="Click 'Start Tutorial' to load a guided workflow", icon='INFO')
-        
+
         # Notifications
         if hasattr(scene, 'fo4_notifications') and scene.fo4_notifications:
             notif_box = layout.box()
@@ -655,7 +655,7 @@ class FO4_PT_TexturePanel(Panel):
     bl_category = 'Fallout 4'
     bl_parent_id = "FO4_PT_main_panel"
     bl_options = {'DEFAULT_CLOSED'}
-    
+
     def draw(self, context):
         layout = self.layout
         obj = context.active_object
@@ -726,7 +726,7 @@ class FO4_PT_ImageToMeshPanel(Panel):
     bl_category = 'Fallout 4'
     bl_parent_id = "FO4_PT_main_panel"
     bl_options = {'DEFAULT_CLOSED'}
-    
+
     def draw(self, context):
         layout = self.layout
         scene = context.scene
@@ -775,26 +775,26 @@ class FO4_PT_ImageToMeshPanel(Panel):
         layout.separator()
         box.label(text="Create Mesh from Image", icon='IMAGE_DATA')
         box.operator("fo4.image_to_mesh", text="Image to Mesh (Height Map)", icon='MESH_GRID')
-        
+
         box = layout.box()
         box.label(text="Displacement Map", icon='MOD_DISPLACE')
         box.operator("fo4.apply_displacement_map", text="Apply Displacement Map", icon='TEXTURE')
-        
+
         # ZoeDepth section
         available, _ = zoedepth_helpers.check_zoedepth_availability() if zoedepth_helpers else (False, "")
-        
+
         depth_box = layout.box()
         depth_box.label(text="Depth Estimation (ZoeDepth)", icon='CAMERA_DATA')
-        
+
         if available:
             depth_box.label(text="Status: Available ✓", icon='CHECKMARK')
         else:
             depth_box.label(text="Status: Not Installed ✗", icon='ERROR')
-        
+
         row = depth_box.row()
         row.enabled = available
         row.operator("fo4.estimate_depth", text="Estimate Depth & Create Mesh", icon='MESH_GRID')
-        
+
         depth_box.operator("fo4.install_zoedepth", text="Auto-Install ZoeDepth", icon='IMPORT')
         depth_box.operator("fo4.show_zoedepth_info", text="Manual Instructions", icon='INFO')
 
@@ -896,7 +896,7 @@ class FO4_PT_AIGenerationPanel(Panel):
     bl_category = 'Fallout 4'
     bl_parent_id = "FO4_PT_main_panel"
     bl_options = {'DEFAULT_CLOSED'}
-    
+
     def draw(self, context):
         layout = self.layout
         scene = context.scene
@@ -906,7 +906,7 @@ class FO4_PT_AIGenerationPanel(Panel):
             hun_status, hun_msg = hunyuan3d_helpers.get_cached_availability()
         else:
             hun_status, hun_msg = None, "Hunyuan3D-2 status unavailable"
-        
+
         # Status box
         status_box = layout.box()
         if hun_status is True:
@@ -916,25 +916,25 @@ class FO4_PT_AIGenerationPanel(Panel):
         else:
             status_box.label(text="Status: Not checked", icon='INFO')
             status_box.label(text="Click Check Status to refresh", icon='DOT')
-        
+
         status_box.label(text=hun_msg, icon='INFO')
         status_box.operator("fo4.install_hunyuan3d", text="Auto-Install Hunyuan3D-2", icon='IMPORT')
         status_box.operator("fo4.check_hunyuan3d_status", text="Check Status", icon='FILE_REFRESH')
         status_box.operator("fo4.show_hunyuan3d_info", text="Manual Instructions", icon='INFO')
-        
+
         # AI Generation operators (enabled only if available)
         box = layout.box()
         box.label(text="Text to 3D", icon='FILE_TEXT')
         row = box.row()
         row.enabled = hun_status is True
         row.operator("fo4.generate_mesh_from_text", text="Generate from Text", icon='OUTLINER_OB_FONT')
-        
+
         box = layout.box()
         box.label(text="Image to 3D (Full Model)", icon='IMAGE_DATA')
         row = box.row()
         row.enabled = hun_status is True
         row.operator("fo4.generate_mesh_from_image_ai", text="Generate from Image (AI)", icon='MESH_ICOSPHERE')
-        
+
         # Info box
         info_box = layout.box()
         info_box.label(text="About AI Generation:", icon='INFO')
@@ -942,15 +942,15 @@ class FO4_PT_AIGenerationPanel(Panel):
         info_box.label(text="• Generates full 3D meshes")
         info_box.label(text="• Requires GPU & model download")
         info_box.label(text="• Completely optional feature")
-        
+
         # Gradio Web UI section
         gradio_available = gradio_helpers.GradioHelpers.is_available() if gradio_helpers else False
         server_running = gradio_helpers.GradioHelpers.is_server_running() if gradio_helpers else False
-        
+
         layout.separator()
         web_box = layout.box()
         web_box.label(text="Web Interface (Gradio)", icon='URL')
-        
+
         if gradio_available:
             if server_running:
                 web_box.label(text="Server: Running ✓", icon='CHECKMARK')
@@ -960,19 +960,19 @@ class FO4_PT_AIGenerationPanel(Panel):
                 web_box.operator("fo4.start_gradio_server", text="Start Web UI", icon='PLAY')
         else:
             web_box.label(text="Gradio: Not Installed ✗", icon='ERROR')
-        
+
         web_box.operator("fo4.show_gradio_info", text="Web UI Info", icon='INFO')
-        
+
         if gradio_available:
             web_box.label(text="Open: http://localhost:7860")
-        
+
         # HY-Motion-1.0 section
         hymotion_available = hymotion_helpers.HyMotionHelpers.is_available() if hymotion_helpers else False
-        
+
         layout.separator()
         motion_box = layout.box()
         motion_box.label(text="Motion Generation (HY-Motion)", icon='ANIM')
-        
+
         if hymotion_available:
             motion_box.label(text="Status: Available ✓", icon='CHECKMARK')
             motion_box.operator("fo4.generate_motion_from_text", text="Generate Motion", icon='ANIM_DATA')
@@ -980,9 +980,9 @@ class FO4_PT_AIGenerationPanel(Panel):
         else:
             motion_box.label(text="Status: Not Installed ✗", icon='ERROR')
             motion_box.operator("fo4.install_hymotion", text="Auto-Install HY-Motion", icon='IMPORT')
-        
+
         motion_box.operator("fo4.show_hymotion_info", text="Manual Instructions", icon='INFO')
-        
+
         # Shap-E section
         layout.separator()
         shap_e_box = layout.box()
@@ -1090,7 +1090,7 @@ class FO4_PT_AnimationPanel(Panel):
     bl_category = 'Fallout 4'
     bl_parent_id = "FO4_PT_main_panel"
     bl_options = {'DEFAULT_CLOSED'}
-    
+
     def draw(self, context):
         layout = self.layout
         obj = context.active_object
@@ -1190,10 +1190,10 @@ class FO4_PT_RigNetPanel(Panel):
     bl_category = 'Fallout 4'
     bl_parent_id = "FO4_PT_main_panel"
     bl_options = {'DEFAULT_CLOSED'}
-    
+
     def draw(self, context):
         layout = self.layout
-        
+
         # Check if RigNet is available
         if rignet_helpers:
             is_available, message = rignet_helpers.RigNetHelpers.check_rignet_available()
@@ -1201,7 +1201,7 @@ class FO4_PT_RigNetPanel(Panel):
         else:
             is_available, message = False, "rignet_helpers module unavailable"
             libigl_available, libigl_message = False, "rignet_helpers module unavailable"
-        
+
         # Status box for RigNet
         status_box = layout.box()
         status_box.label(text="RigNet Status:", icon='INFO')
@@ -1214,9 +1214,9 @@ class FO4_PT_RigNetPanel(Panel):
         else:
             status_box.label(text="✗ RigNet Not Installed", icon='ERROR')
             status_box.operator("fo4.install_rignet", text="Auto-Install RigNet", icon='IMPORT')
-        
+
         status_box.operator("fo4.check_rignet", text="Check RigNet", icon='INFO')
-        
+
         # Status box for libigl
         libigl_box = layout.box()
         libigl_box.label(text="libigl Status:", icon='INFO')
@@ -1231,35 +1231,35 @@ class FO4_PT_RigNetPanel(Panel):
         else:
             libigl_box.label(text="✗ libigl Not Installed", icon='ERROR')
             libigl_box.operator("fo4.install_libigl", text="Auto-Install libigl", icon='IMPORT')
-        
+
         libigl_box.operator("fo4.check_libigl", text="Check libigl", icon='INFO')
-        
+
         layout.operator("fo4.show_rignet_info", text="Installation Guide", icon='QUESTION')
-        
+
         # Auto-rigging operators (RigNet)
         rignet_box = layout.box()
         rignet_box.label(text="RigNet (Full Auto-Rigging)", icon='ARMATURE_DATA')
-        
+
         row = rignet_box.row()
         row.operator("fo4.prepare_for_rignet", text="1. Prepare Mesh", icon='MODIFIER')
-        
+
         row = rignet_box.row()
         row.enabled = is_available
         row.operator("fo4.auto_rig_mesh", text="2. Auto-Rig", icon='ARMATURE_DATA')
-        
+
         row = rignet_box.row()
         row.operator("fo4.export_for_rignet", text="Export for External RigNet", icon='EXPORT')
-        
+
         # BBW skinning operators (libigl)
         libigl_op_box = layout.box()
         libigl_op_box.label(text="libigl (BBW Skinning)", icon='MOD_SKIN')
-        
+
         row = libigl_op_box.row()
         row.enabled = libigl_available
         row.operator("fo4.compute_bbw_skinning", text="Compute BBW Weights", icon='WPAINT_HLT')
-        
+
         libigl_op_box.label(text="(Requires existing armature)", icon='INFO')
-        
+
         # Info box
         info_box = layout.box()
         info_box.label(text="About Auto-Rigging:", icon='INFO')
@@ -1269,7 +1269,7 @@ class FO4_PT_RigNetPanel(Panel):
         info_box.label(text="• libigl: BBW skinning only")
         info_box.label(text="  - Needs existing skeleton")
         info_box.label(text="  - Fast & reliable weights")
-        
+
         if not is_available and not libigl_available:
             info_box.separator()
             info_box.label(text="Quick Install:", icon='IMPORT')
@@ -1290,10 +1290,10 @@ class FO4_PT_NVTTPanel(Panel):
     bl_category = 'Fallout 4'
     bl_parent_id = "FO4_PT_main_panel"
     bl_options = {'DEFAULT_CLOSED'}
-    
+
     def draw(self, context):
         layout = self.layout
-        
+
         # Check converters
         if nvtt_helpers:
             nvtt_available = nvtt_helpers.NVTTHelpers.is_nvtt_available()
@@ -1303,7 +1303,7 @@ class FO4_PT_NVTTPanel(Panel):
         else:
             nvtt_available = texconv_available = False
             nvtt_path = texconv_path = None
-        
+
         # Status box
         status_box = layout.box()
         status_box.label(text="Converters", icon='INFO')
@@ -1323,19 +1323,19 @@ class FO4_PT_NVTTPanel(Panel):
 
         status_box.operator("fo4.check_nvtt_installation", text="Check NVTT", icon='INFO')
         status_box.operator("fo4.test_dds_converters", text="Self-Test Converters", icon='CHECKMARK')
-        
+
         # Conversion operators
         box = layout.box()
         box.label(text="Convert to DDS for FO4", icon='FILE_IMAGE')
-        
+
         row = box.row()
         row.enabled = nvtt_available or texconv_available
         row.operator("fo4.convert_texture_to_dds", text="Convert Single Texture", icon='IMAGE_DATA')
-        
+
         row = box.row()
         row.enabled = nvtt_available or texconv_available
         row.operator("fo4.convert_object_textures_to_dds", text="Convert Object Textures", icon='MATERIAL')
-        
+
         # Info box
         info_box = layout.box()
         info_box.label(text="About DDS Conversion:", icon='INFO')
@@ -1344,7 +1344,7 @@ class FO4_PT_NVTTPanel(Panel):
         info_box.label(text="• BC5 (ATI2): Normal maps")
         info_box.label(text="• BC3 (DXT5): Alpha textures")
         info_box.label(text="• BC7: optional high quality", icon='BLANK1')
-        
+
         if not (nvtt_available or texconv_available):
             info_box.separator()
             info_box.label(text="Install converters:", icon='IMPORT')
@@ -2206,28 +2206,28 @@ class FO4_PT_BatchProcessingPanel(Panel):
     bl_category = 'Fallout 4'
     bl_parent_id = "FO4_PT_main_panel"
     bl_options = {'DEFAULT_CLOSED'}
-    
+
     def draw(self, context):
         layout = self.layout
-        
+
         # Info box
         info_box = layout.box()
         info_box.label(text="Select multiple meshes", icon='INFO')
         selected_meshes = [obj for obj in context.selected_objects if obj.type == 'MESH']
         info_box.label(text=f"Selected: {len(selected_meshes)} meshes")
-        
+
         # Batch operations
         box = layout.box()
         box.label(text="Batch Operations", icon='MODIFIER')
-        
+
         row = box.row()
         row.enabled = len(selected_meshes) > 0
         row.operator("fo4.batch_optimize_meshes", text="Batch Optimize", icon='MOD_DECIM')
-        
+
         row = box.row()
         row.enabled = len(selected_meshes) > 0
         row.operator("fo4.batch_validate_meshes", text="Batch Validate", icon='CHECKMARK')
-        
+
         row = box.row()
         row.enabled = len(selected_meshes) > 0
         row.operator("fo4.batch_export_meshes", text="Batch Export", icon='EXPORT')
@@ -2249,7 +2249,7 @@ class FO4_PT_BatchProcessingPanel(Panel):
         row.enabled = len(selected_meshes) > 0
         row.scale_y = 1.2
         row.operator("fo4.batch_generate_collision", text="Batch Generate Collision", icon='MESH_ICOSPHERE')
-        
+
         # Tips
         tips_box = layout.box()
         tips_box.label(text="Tips:", icon='HELP')
@@ -2267,7 +2267,7 @@ class FO4_PT_PresetsPanel(Panel):
     bl_category = 'Fallout 4'
     bl_parent_id = "FO4_PT_main_panel"
     bl_options = {'DEFAULT_CLOSED'}
-    
+
     def draw(self, context):
         layout = self.layout
         scene  = context.scene
@@ -2308,11 +2308,11 @@ class FO4_PT_AutomationQuickPanel(Panel):
     bl_category = 'Fallout 4'
     bl_parent_id = "FO4_PT_main_panel"
     bl_options = {'DEFAULT_CLOSED'}
-    
+
     def draw(self, context):
         layout = self.layout
         obj = context.active_object
-        
+
         # Quick prepare
         box = layout.box()
         box.label(text="One-Click Preparation", icon='TOOL_SETTINGS')
@@ -2320,14 +2320,14 @@ class FO4_PT_AutomationQuickPanel(Panel):
         row.enabled = obj and obj.type == 'MESH'
         row.operator("fo4.quick_prepare_export", text="Quick Prepare for Export", icon='CHECKMARK')
         row.scale_y = 1.5
-        
+
         # Auto-fix
         box = layout.box()
         box.label(text="Auto-Fix Issues", icon='MODIFIER')
         row = box.row()
         row.enabled = obj and obj.type == 'MESH'
         row.operator("fo4.auto_fix_issues", text="Auto-Fix Common Issues", icon='TOOL_SETTINGS')
-        
+
         # Collision mesh
         box = layout.box()
         box.label(text="Collision Mesh", icon='MESH_ICOSPHERE')
@@ -2347,14 +2347,14 @@ class FO4_PT_AutomationQuickPanel(Panel):
         row = box.row()
         row.enabled = obj and obj.type == 'MESH'
         row.operator("fo4.export_mesh_with_collision", text="Generate + Export NIF", icon='EXPORT')
-        
+
         # Smart material
         box = layout.box()
         box.label(text="Smart Material", icon='MATERIAL')
         row = box.row()
         row.enabled = obj and obj.type == 'MESH'
         row.operator("fo4.smart_material_setup", text="Auto-Load Textures", icon='FILE_FOLDER')
-        
+
         # What it does
         info_box = layout.box()
         info_box.label(text="Quick Prepare includes:", icon='INFO')
@@ -2460,7 +2460,7 @@ class FO4_PT_VegetationPanel(Panel):
     bl_category = 'Fallout 4'
     bl_parent_id = "FO4_PT_main_panel"
     bl_options = {'DEFAULT_CLOSED'}
-    
+
     def draw(self, context):
         layout = self.layout
         scene  = context.scene
@@ -2474,14 +2474,14 @@ class FO4_PT_VegetationPanel(Panel):
         box = layout.box()
         box.label(text="Create Vegetation", icon='OUTLINER_OB_FORCE_FIELD')
         box.operator("fo4.create_vegetation_preset", text="Create Vegetation", icon='ADD')
-        
+
         # Scatter vegetation
         box = layout.box()
         box.label(text="Scatter & Distribute", icon='PARTICLE_DATA')
         row = box.row()
         row.enabled = obj and obj.type == 'MESH'
         row.operator("fo4.scatter_vegetation", text="Scatter Vegetation", icon='PARTICLES')
-        
+
         # Combine meshes
         box = layout.box()
         box.label(text="Combine for Performance", icon='MESH_DATA')
@@ -2489,14 +2489,14 @@ class FO4_PT_VegetationPanel(Panel):
         row = box.row()
         row.enabled = len(selected_meshes) >= 2
         row.operator("fo4.combine_vegetation_meshes", text="Combine Selected", icon='AUTOMERGE_ON')
-        
+
         # Optimization
         box = layout.box()
         box.label(text="FPS Optimization", icon='SORTTIME')
         row = box.row()
         row.enabled = obj and obj.type == 'MESH'
         row.operator("fo4.optimize_vegetation_fps", text="Optimize for FPS", icon='TIME')
-        
+
         # LOD generation
         box = layout.box()
         box.label(text="LOD System", icon='OUTLINER_OB_MESH')
@@ -2547,7 +2547,7 @@ class FO4_PT_VegetationPanel(Panel):
         row3 = box.row()
         row3.enabled = bool([o for o in context.selected_objects if o.type == 'MESH'])
         row3.operator("fo4.batch_apply_wind_animation", text="Batch: Wind (Selected)", icon='PARTICLES')
-        
+
         # Material setup
         box = layout.box()
         box.label(text="Vegetation Material", icon='MATERIAL')
@@ -2559,7 +2559,7 @@ class FO4_PT_VegetationPanel(Panel):
         sub.scale_y = 0.75
         sub.label(text="Alpha Clip + Two-Sided (for leaves/grass)", icon='INFO')
         sub.label(text="Requires BC3 (DXT5) diffuse texture with alpha", icon='INFO')
-        
+
         # Export
         box = layout.box()
         box.label(text="Export", icon='EXPORT')
@@ -2567,14 +2567,14 @@ class FO4_PT_VegetationPanel(Panel):
         row.enabled = obj and obj.type == 'MESH'
         row.operator("fo4.export_vegetation_as_nif",
                      text="Export Vegetation NIF", icon='FILE_BLEND')
-        
+
         # Baking
         box = layout.box()
         box.label(text="Baking", icon='RENDER_STILL')
         row = box.row()
         row.enabled = obj and obj.type == 'MESH'
         row.operator("fo4.bake_vegetation_ao", text="Bake Ambient Occlusion", icon='SHADING_RENDERED')
-        
+
         # Tips
         tips_box = layout.box()
         tips_box.label(text="Workflow Tips (FO4 Vegetation):", icon='INFO')
@@ -2596,21 +2596,21 @@ class FO4_PT_QuestPanel(Panel):
     bl_category = 'Fallout 4'
     bl_parent_id = "FO4_PT_main_panel"
     bl_options = {'DEFAULT_CLOSED'}
-    
+
     def draw(self, context):
         layout = self.layout
-        
+
         # Quest template
         box = layout.box()
         box.label(text="Quest Setup", icon='BOOKMARKS')
         box.operator("fo4.create_quest_template", text="Create Quest Template", icon='ADD')
         box.operator("fo4.export_quest_data", text="Export Quest Data", icon='EXPORT')
-        
+
         # Papyrus script
         box = layout.box()
         box.label(text="Scripting", icon='SCRIPT')
         box.operator("fo4.quest_generate_papyrus_script", text="Generate Papyrus Script", icon='FILE_SCRIPT')
-        
+
         # Info
         info_box = layout.box()
         info_box.label(text="Quest Workflow:", icon='INFO')
@@ -2629,20 +2629,20 @@ class FO4_PT_NPCPanel(Panel):
     bl_category = 'Fallout 4'
     bl_parent_id = "FO4_PT_main_panel"
     bl_options = {'DEFAULT_CLOSED'}
-    
+
     def draw(self, context):
         layout = self.layout
-        
+
         # NPC creation
         box = layout.box()
         box.label(text="Create NPC", icon='ARMATURE_DATA')
         box.operator("fo4.create_npc", text="Create NPC", icon='ADD')
-        
+
         # Creature creation
         box = layout.box()
         box.label(text="Create Creature", icon='MOD_ARMATURE')
         box.operator("fo4.create_creature", text="Create Creature", icon='ADD')
-        
+
         # Tips
         tips_box = layout.box()
         tips_box.label(text="Tips:", icon='INFO')
@@ -2661,31 +2661,31 @@ class FO4_PT_WorldBuildingPanel(Panel):
     bl_category = 'Fallout 4'
     bl_parent_id = "FO4_PT_main_panel"
     bl_options = {'DEFAULT_CLOSED'}
-    
+
     def draw(self, context):
         layout = self.layout
-        
+
         # Interior cells
         box = layout.box()
         box.label(text="Interior Cells", icon='HOME')
         box.operator("fo4.create_interior_cell", text="Create Interior Cell", icon='ADD')
         box.operator("fo4.create_door_frame", text="Add Door Frame", icon='MESH_PLANE')
-        
+
         # Workshop objects
         box = layout.box()
         box.label(text="Workshop/Settlement", icon='TOOL_SETTINGS')
         box.operator("fo4.create_workshop_object", text="Create Workshop Object", icon='ADD')
-        
+
         # Navigation
         box = layout.box()
         box.label(text="Navigation", icon='ORIENTATION_NORMAL')
         box.operator("fo4.create_navmesh", text="Create NavMesh Helper", icon='MESH_GRID')
-        
+
         # Lighting
         box = layout.box()
         box.label(text="Lighting Presets", icon='LIGHT')
         box.operator("fo4.create_lighting_preset", text="Create Lighting Preset", icon='ADD')
-        
+
         # Info
         info_box = layout.box()
         info_box.label(text="World Building:", icon='INFO')
@@ -2705,36 +2705,36 @@ class FO4_PT_ItemCreationPanel(Panel):
     bl_category = 'Fallout 4'
     bl_parent_id = "FO4_PT_main_panel"
     bl_options = {'DEFAULT_CLOSED'}
-    
+
     def draw(self, context):
         layout = self.layout
-        
+
         # Weapons
         box = layout.box()
         box.label(text="Weapons", icon='MOD_ARMATURE')
         box.operator("fo4.create_weapon_item", text="Create Weapon", icon='ADD')
-        
+
         # Armor
         box = layout.box()
         box.label(text="Armor", icon='MESH_UVSPHERE')
         box.operator("fo4.create_armor_item", text="Create Armor", icon='ADD')
         box.operator("fo4.create_power_armor_piece", text="Create Power Armor", icon='ADD')
-        
+
         # Consumables
         box = layout.box()
         box.label(text="Consumables", icon='FORCE_LENNARDJONES')
         box.operator("fo4.create_consumable", text="Create Consumable", icon='ADD')
-        
+
         # Misc items
         box = layout.box()
         box.label(text="Misc Items", icon='OBJECT_DATA')
         box.operator("fo4.create_misc_item", text="Create Misc Item", icon='ADD')
-        
+
         # Clutter
         box = layout.box()
         box.label(text="Clutter/Decoration", icon='PROP_OFF')
         box.operator("fo4.create_clutter_object", text="Create Clutter", icon='ADD')
-        
+
         # Info
         info_box = layout.box()
         info_box.label(text="Item Workflow:", icon='INFO')
@@ -2905,30 +2905,30 @@ class FO4_PT_ArmorClothingPanel(Panel):
     bl_category = 'Fallout 4'
     bl_parent_id = "FO4_PT_main_panel"
     bl_options = {'DEFAULT_CLOSED'}
-    
+
     def draw(self, context):
         layout = self.layout
         scene = context.scene
-        
+
         # Save preset section
         box = layout.box()
         box.label(text="Save Preset", icon='FILE_NEW')
         box.operator("fo4.save_preset", text="Save Current Objects", icon='ADD')
-        
+
         # Category filter
         box = layout.box()
         box.label(text="Browse Library", icon='BOOKMARKS')
         box.prop(scene, "fo4_preset_filter_category", text="Category")
         box.prop(scene, "fo4_preset_search", text="", icon='VIEWZOOM')
         box.operator("fo4.refresh_preset_library", text="Refresh", icon='FILE_REFRESH')
-        
+
         # Recent presets
         try:
             from . import preset_library as _preset_library
         except Exception:
             _preset_library = None
         recent = _preset_library.PresetLibrary.get_recent_presets(5) if _preset_library else []
-        
+
         if recent:
             recent_box = layout.box()
             recent_box.label(text="Recent Presets", icon='TIME')
@@ -2939,7 +2939,7 @@ class FO4_PT_ArmorClothingPanel(Panel):
                 op.filepath = preset['filepath']
                 op = row.operator("fo4.delete_preset", text="", icon='TRASH')
                 op.filepath = preset['filepath']
-        
+
         # Popular presets
         popular = _preset_library.PresetLibrary.get_popular_presets(5) if _preset_library else []
         if popular:
@@ -2951,7 +2951,7 @@ class FO4_PT_ArmorClothingPanel(Panel):
                 row.label(text=f"{preset['name']} ({uses}x)", icon='FILE')
                 op = row.operator("fo4.load_preset", text="", icon='IMPORT')
                 op.filepath = preset['filepath']
-        
+
         # Info
         info_box = layout.box()
         info_box.label(text="Preset Library:", icon='INFO')
@@ -2970,7 +2970,7 @@ class FO4_PT_AutomationMacrosPanel(Panel):
     bl_category = 'Fallout 4'
     bl_parent_id = "FO4_PT_main_panel"
     bl_options = {'DEFAULT_CLOSED'}
-    
+
     def draw(self, context):
         layout = self.layout
         scene = context.scene
@@ -2983,7 +2983,7 @@ class FO4_PT_AutomationMacrosPanel(Panel):
         # Recording controls
         box = layout.box()
         box.label(text="Macro Recording", icon='REC')
-        
+
         if scene.fo4_is_recording:
             box.label(text="● RECORDING", icon='RADIOBUT_ON')
             if _automation_system:
@@ -2993,22 +2993,22 @@ class FO4_PT_AutomationMacrosPanel(Panel):
         else:
             box.operator("fo4.start_recording", text="Start Recording", icon='REC')
             box.label(text="Record your actions to create macros")
-        
+
         # Save macro
         if not scene.fo4_is_recording:
             if _automation_system and _automation_system.AutomationSystem.recorded_actions:
                 save_box = layout.box()
                 save_box.label(text="Save Recorded Macro", icon='FILE_NEW')
                 save_box.operator("fo4.save_macro", text="Save as Macro", icon='FILE_TICK')
-        
+
         # Workflow templates
         template_box = layout.box()
         template_box.label(text="Workflow Templates", icon='SCRIPT')
         template_box.operator("fo4.execute_workflow_template", text="Execute Template", icon='PLAY')
-        
+
         # Saved macros
         macros = _automation_system.AutomationSystem.get_all_macros() if _automation_system else []
-        
+
         if macros:
             macro_box = layout.box()
             macro_box.label(text="Saved Macros", icon='BOOKMARKS')
@@ -3020,7 +3020,7 @@ class FO4_PT_AutomationMacrosPanel(Panel):
                 op.filepath = macro['filepath']
                 op = row.operator("fo4.delete_macro", text="", icon='TRASH')
                 op.filepath = macro['filepath']
-        
+
         # Info
         info_box = layout.box()
         info_box.label(text="Automation Features:", icon='INFO')
@@ -3631,14 +3631,14 @@ class FO4_PT_AddonIntegrationPanel(Panel):
     bl_category = 'Fallout 4'
     bl_parent_id = "FO4_PT_main_panel"
     bl_options = {'DEFAULT_CLOSED'}
-    
+
     def draw(self, context):
         layout = self.layout
-        
+
         # Scan for add-ons
         box = layout.box()
         box.label(text="Useful Add-ons for FO4", icon='PLUGIN')
-        
+
         try:
             from . import addon_integration
             detected = addon_integration.AddonIntegrationSystem.scan_for_known_addons()
@@ -3647,10 +3647,10 @@ class FO4_PT_AddonIntegrationPanel(Panel):
             traceback.print_exc()
             layout.label(text="Add-on scanner unavailable. Check console for details.", icon='ERROR')
             return
-        
+
         for addon in detected:
             addon_box = layout.box()
-            
+
             # Status indicator
             if addon['is_enabled']:
                 status_icon = 'CHECKMARK'
@@ -3661,18 +3661,18 @@ class FO4_PT_AddonIntegrationPanel(Panel):
             else:
                 status_icon = 'X'
                 status_text = "Not installed"
-            
+
             row = addon_box.row()
             row.label(text=addon['name'], icon=status_icon)
             row.label(text=status_text)
-            
+
             addon_box.label(text=addon['description'])
-            
+
             # FO4 use case
             use_box = addon_box.box()
             use_box.label(text="FO4 Use:", icon='INFO')
             use_box.label(text=addon['fo4_use_cases'])
-            
+
             # ── Action buttons ──────────────────────────────────────────────
             addon_id    = addon['addon_id']
             is_builtin  = addon.get('builtin', False)
@@ -3741,13 +3741,13 @@ class FO4_PT_AddonIntegrationPanel(Panel):
                         + addon['name'].replace(' ', '+')
                         + "+blender+addon"
                     )
-        
+
         # Integration tutorials
         integrations_box = layout.box()
         integrations_box.label(text="Integration Tutorials", icon='HELP')
         integrations_box.label(text="Tutorials show how to use these")
         integrations_box.label(text="add-ons with FO4 modding")
-        
+
         # Info
         info_box = layout.box()
         info_box.label(text="Add-on Integration:", icon='INFO')
@@ -3766,18 +3766,18 @@ class FO4_PT_DesktopTutorialPanel(Panel):
     bl_category = 'Fallout 4'
     bl_parent_id = "FO4_PT_main_panel"
     bl_options = {'DEFAULT_CLOSED'}
-    
+
     def draw(self, context):
         layout = self.layout
         scene = context.scene
-        
+
         # Connection status
         status_box = layout.box()
         status_box.label(text="Connection Status", icon='LINKED')
-        
+
         if scene.fo4_desktop_connected:
             status_box.label(text="✓ Connected", icon='CHECKMARK')
-            
+
             # Server info
             try:
                 from . import desktop_tutorial_client
@@ -3785,45 +3785,45 @@ class FO4_PT_DesktopTutorialPanel(Panel):
                 status_box.label(text=f"Server: {status['server_url']}")
             except Exception:
                 status_box.label(text="Server info unavailable", icon='INFO')
-            
+
             # Disconnect button
             status_box.operator("fo4.disconnect_desktop_app", text="Disconnect", icon='UNLINKED')
         else:
             status_box.label(text="✗ Not Connected", icon='X')
-            
+
             # Connection settings
             status_box.prop(scene, "fo4_desktop_server_host", text="Host")
             status_box.prop(scene, "fo4_desktop_server_port", text="Port")
-            
+
             # Connect button
             status_box.operator("fo4.connect_desktop_app", text="Connect", icon='LINKED')
 
         # Check connection (always visible)
         status_box.operator("fo4.check_desktop_connection", text="Check Connection", icon='QUESTION')
-        
+
         # Tutorial sync controls (only when connected)
         if scene.fo4_desktop_connected:
             layout.separator()
-            
+
             sync_box = layout.box()
             sync_box.label(text="Tutorial Synchronization", icon='FILE_REFRESH')
-            
+
             # Current step info
             if scene.fo4_desktop_current_step_title:
                 sync_box.label(text=f"Step: {scene.fo4_desktop_current_step_title}")
                 if scene.fo4_desktop_last_sync:
                     sync_box.label(text=f"Synced: {scene.fo4_desktop_last_sync}")
-            
+
             # Navigation buttons
             row = sync_box.row(align=True)
             row.operator("fo4.desktop_previous_step", text="", icon='TRIA_LEFT')
             row.operator("fo4.sync_desktop_step", text="Sync Step", icon='FILE_REFRESH')
             row.operator("fo4.desktop_next_step", text="", icon='TRIA_RIGHT')
-            
+
             # Progress button
             sync_box.operator("fo4.get_desktop_progress", text="Get Progress", icon='INFO')
             sync_box.operator("fo4.send_event_to_desktop", text="Send Event", icon='EXPORT')
-        
+
         # Info
         info_box = layout.box()
         info_box.label(text="Desktop Tutorial App:", icon='INFO')
@@ -3831,7 +3831,7 @@ class FO4_PT_DesktopTutorialPanel(Panel):
         info_box.label(text="• Synchronize tutorial steps")
         info_box.label(text="• Bi-directional communication")
         info_box.label(text="• Track tutorial progress")
-        
+
         if not scene.fo4_desktop_connected:
             info_box.separator()
             info_box.label(text="Start the desktop server first:")
@@ -4084,8 +4084,8 @@ class FO4_PT_SettingsPanel(Panel):
         torch_box.label(text="PyTorch / AI Features", icon="PLUGIN")
         torch_box.prop(scene, "fo4_torch_root", text="PyTorch Path")
         try:
-            from . import torch_path_manager
-            success, msg, _ = torch_path_manager.TorchPathManager.try_import_torch()
+            # Use cached torch status to avoid blocking the UI on every redraw
+            success, msg = _get_torch_status()
             if success:
                 torch_box.label(text=f"✓ PyTorch loaded: {msg}", icon="CHECKMARK")
             else:
