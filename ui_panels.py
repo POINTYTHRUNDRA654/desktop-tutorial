@@ -25,6 +25,21 @@ def _safe_import(name):
 _torch_cache = None  # None = not yet checked, True = available, str = error message
 _torch_version = None
 
+# ──────────────────────────────────────────────────────────────────────────
+# Module-level cache for core Python dependency checks.
+# importlib.util.find_spec() probes the filesystem every call; caching the
+# results here means the Setup panel draws instantly on subsequent redraws
+# instead of doing 5 filesystem probes per frame.
+# ──────────────────────────────────────────────────────────────────────────
+import importlib.util as _importlib_util
+_dep_cache: dict[str, bool] = {}   # module_name -> bool (True = found)
+
+def _check_dep(module_name: str) -> bool:
+    """Return True if *module_name* is importable; result is cached permanently."""
+    if module_name not in _dep_cache:
+        _dep_cache[module_name] = _importlib_util.find_spec(module_name) is not None
+    return _dep_cache[module_name]
+
 def _get_torch_status():
     """Get cached torch status to avoid repeated import attempts in draw() loops."""
     global _torch_cache, _torch_version
@@ -3473,20 +3488,19 @@ class FO4_PT_SetupPanel(Panel):
     bl_category = 'Fallout 4'
     bl_parent_id = "FO4_PT_main_panel"
     bl_order = -20  # Always first: install dependencies before anything else
+    bl_options = {'DEFAULT_CLOSED'}
 
     def draw(self, context):
-        import sys as _sys
-        import importlib.util
         layout = self.layout
 
         # ── Blender / Python version ──────────────────────────────────────
         ver_box = layout.box()
         ver_box.label(text="Environment", icon='INFO')
         blender_ver = ".".join(str(v) for v in bpy.app.version)
-        py_ver = f"{_sys.version_info.major}.{_sys.version_info.minor}.{_sys.version_info.micro}"
+        py_ver = f"{sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}"
         ver_box.label(text=f"Blender {blender_ver}  |  Python {py_ver}")
 
-        py = (_sys.version_info.major, _sys.version_info.minor)
+        py = (sys.version_info.major, sys.version_info.minor)
         if py < (3, 8):
             ver_box.label(text="⚠ Python 3.7: using Pillow<10, numpy<2", icon='ERROR')
         elif py >= (3, 11):
@@ -3504,7 +3518,7 @@ class FO4_PT_SetupPanel(Panel):
         ]
         all_ok = True
         for mod, label in core_deps:
-            found = importlib.util.find_spec(mod) is not None
+            found = _check_dep(mod)
             icon = 'CHECKMARK' if found else 'ERROR'
             prefix = "✓" if found else "✗"
             box.label(text=f"{prefix}  {label}", icon=icon)

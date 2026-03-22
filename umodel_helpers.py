@@ -124,7 +124,10 @@ def _find_download_url() -> str | None:
                     url = urllib.parse.urljoin(_DOWNLOAD_PAGE, m)
                 else:
                     url = m
-                # Verify URL actually exists before returning it
+                # Verify URL actually exists before returning it.
+                # The scraped page may contain stale versioned paths (e.g.
+                # /down/47/umodel/umodel_win32.zip) that result in HTTP 404.
+                # A HEAD request avoids downloading the file just to detect 404.
                 if url and not url.endswith("#"):
                     try:
                         verify_req = urllib.request.Request(
