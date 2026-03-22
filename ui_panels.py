@@ -44,7 +44,9 @@ def _get_torch_status():
     """Get cached torch status to avoid repeated import attempts in draw() loops."""
     global _torch_cache, _torch_version
     if _torch_cache is not None:
-        return _torch_cache, _torch_version
+        if _torch_cache is True:
+            return True, _torch_version
+        return False, _torch_cache
 
     try:
         import torch
