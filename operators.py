@@ -496,13 +496,6 @@ class FO4_OT_ShowCredits(Operator):
             "Optimizes textures (DDS BC7/BC1), meshes, and BSA/BA2 archives for FO4.",
         ])
 
-        _section('MENU_PANEL', "FallUI Suite — Inventory, Workbench, HUD (UI overhaul)", [
-            "m8r98a4f2 / registrator2000 — https://www.nexusmods.com/fallout4/mods/60005",
-            "Overhauls crafting, inventory, HUD, and workbench menus.",
-            "Mod authors: use proper item keyword tags for FallUI sorting.",
-            "Requires F4SE (Fallout 4 Script Extender) for full functionality.",
-        ])
-
         _section('TOOL_SETTINGS', "Collective Modding Toolkit (mod setup verification)", [
             "wxMichael — https://www.nexusmods.com/fallout4/mods/87441",
             "GitHub: https://github.com/wxMichael/Collective-Modding-Toolkit",
@@ -877,18 +870,6 @@ class FO4_OT_OpenCollectiveModdingToolkit(Operator):
         import webbrowser
         webbrowser.open("https://www.nexusmods.com/fallout4/mods/87441")
         self.report({'INFO'}, "Opened Nexus — Collective Modding Toolkit by wxMichael")
-        return {'FINISHED'}
-
-
-class FO4_OT_OpenFallUI(Operator):
-    """Open the FallUI suite Nexus page (mod 60005) in browser."""
-    bl_idname = "fo4.open_fallui"
-    bl_label  = "Get FallUI Suite (Nexus)"
-
-    def execute(self, context):
-        import webbrowser
-        webbrowser.open("https://www.nexusmods.com/fallout4/mods/60005")
-        self.report({'INFO'}, "Opened Nexus Mods — FallUI (mod 60005)")
         return {'FINISHED'}
 
 
@@ -13765,7 +13746,6 @@ classes = (
     FO4_OT_ShowFOMODGuide,
     FO4_OT_InstallCollectiveModdingToolkit,
     FO4_OT_OpenCollectiveModdingToolkit,
-    FO4_OT_OpenFallUI,
     FO4_OT_OpenStoryActionPoses,
     FO4_OT_OpenAAF,
     FO4_OT_OpenPoserHotkeys,

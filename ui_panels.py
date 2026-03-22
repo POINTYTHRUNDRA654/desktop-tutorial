@@ -3621,20 +3621,6 @@ class FO4_PT_ModPackagingPanel(Panel):
             icon='QUESTION',
         )
 
-        # ── FallUI compatibility note ─────────────────────────────────────────
-        layout.separator()
-        fallui_box = layout.box()
-        fallui_box.label(text="FallUI Suite Compatibility  (m8r98a4f2)", icon='MENU_PANEL')
-        fu_col = fallui_box.column(align=True)
-        fu_col.scale_y = 0.78
-        fu_col.label(text="FallUI overhauls inventory, workbench, and HUD menus.", icon='INFO')
-        fu_col.label(text="If your mod adds items, ensure correct FO4 keyword tags", icon='INFO')
-        fu_col.label(text="so items sort and display properly under FallUI:")
-        fu_col.label(text="  [WEAP] weapon  · [ARMO] armor  · [ALCH] chems/food")
-        fu_col.label(text="  [MISC] misc    · [AMMO] ammo   · [BOOK] notes/mags")
-        fu_col.label(text="Requires F4SE (Fallout 4 Script Extender) for full features.")
-        fallui_box.operator("fo4.open_fallui", text="Get FallUI Suite  (Nexus 60005)", icon='URL')
-
 
 class FO4_PT_AddonIntegrationPanel(Panel):
     """Third-party add-on integration panel"""
