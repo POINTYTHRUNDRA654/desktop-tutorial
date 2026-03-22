@@ -823,8 +823,8 @@ class FO4AddonPreferences(bpy.types.AddonPreferences):
             if success:
                 torch_box.label(text=f"✓ PyTorch loaded: {msg}", icon="CHECKMARK")
             else:
-                if msg == "windows_path_error":
-                    torch_box.label(text="⚠ Windows path length error detected", icon="ERROR")
+                if msg and ("WinError 206" in msg or "too long" in msg or "windows_path_error" in msg):
+                    torch_box.label(text="⚠ Windows path-length error detected", icon="ERROR")
                     torch_box.label(text="PyTorch cannot load from default location", icon="INFO")
                 else:
                     torch_box.label(text=f"⚠ {msg}", icon="ERROR")
