@@ -575,9 +575,9 @@ def discover_installed_tools() -> dict[str, "str | None"]:
     during installation.
 
     Returns a dict with keys ``"ffmpeg"``, ``"nvcompress"``, ``"texconv"``,
-    ``"umodel"``, and ``"havok2fbx"``, each mapped to the absolute executable
-    path string (or directory string for umodel/havok2fbx), or ``None`` if
-    not found.
+    ``"umodel"``, ``"havok2fbx"``, and ``"cm_toolkit"``, each mapped to the
+    absolute executable path string (or directory string for umodel/havok2fbx),
+    or ``None`` if not found.
     """
     found: dict[str, "str | None"] = {
         "ffmpeg": None,
@@ -585,6 +585,7 @@ def discover_installed_tools() -> dict[str, "str | None"]:
         "texconv": None,
         "umodel": None,
         "havok2fbx": None,
+        "cm_toolkit": None,
     }
 
     search_roots = [DEFAULT_TOOLS_ROOT, FALLBACK_TOOLS_ROOT]
@@ -595,6 +596,7 @@ def discover_installed_tools() -> dict[str, "str | None"]:
         "texconv":    ("texconv",    ("texconv.exe",     "texconv")),
         "umodel":     ("umodel",     ("umodel.exe",      "umodel")),
         "havok2fbx":  ("havok2fbx",  ("havok2fbx.exe",)),
+        "cm_toolkit": ("cm_toolkit", ("cm-toolkit.exe",)),
     }
 
     for key, (subdir, exe_names) in binary_map.items():
@@ -815,6 +817,69 @@ def install_instantngp() -> tuple[bool, str]:
         return False, "Clone operation timed out (took more than 5 minutes)"
     except Exception as e:
         return False, f"Failed to clone Instant-NGP: {e}"
+
+
+def install_collective_modding_toolkit() -> tuple[bool, str]:
+    """Download the Collective Modding Toolkit (wxMichael) from GitHub.
+
+    The toolkit (cm-toolkit.exe) helps mod authors:
+      - Downgrade / upgrade FO4 between Old-Gen and Next-Gen with delta patches
+      - Patch BA2 archives to v1 (OG) or v8 (NG) for correct game compatibility
+      - Scan F4SE DLLs for game version support
+      - Count and inspect plugins (Full/Light) and BA2 files (General/Textures)
+      - Scan mod setups for potential issues before distribution
+
+    GitHub: https://github.com/wxMichael/Collective-Modding-Toolkit
+    Nexus:  https://www.nexusmods.com/fallout4/mods/87441
+    """
+    dest = _ensure_tools_dir("cm_toolkit")
+
+    # Already installed?
+    exe = dest / "cm-toolkit.exe"
+    if exe.is_file():
+        _configure_tool_paths()
+        return True, f"Collective Modding Toolkit already installed at {dest}"
+
+    # Direct download URL — always points to the latest release zip.
+    zip_url = (
+        "https://github.com/wxMichael/Collective-Modding-Toolkit"
+        "/releases/latest/download/cm-toolkit.zip"
+    )
+    zip_path = dest / "cm-toolkit.zip"
+
+    try:
+        _download(zip_url, zip_path)
+        _extract_zip(zip_path, dest)
+        zip_path.unlink(missing_ok=True)
+
+        # Flatten any sub-folder the zip may have created
+        for sub in list(dest.iterdir()):
+            if sub.is_dir():
+                for item in list(sub.iterdir()):
+                    target = dest / item.name
+                    if not target.exists():
+                        shutil.move(str(item), str(target))
+                try:
+                    sub.rmdir()
+                except OSError:
+                    pass
+
+        _configure_tool_paths()
+        if (dest / "cm-toolkit.exe").is_file():
+            return True, (
+                f"Collective Modding Toolkit installed at {dest}\n"
+                "Launch cm-toolkit.exe from your mod manager (not from inside MO2's VFS).\n"
+                "Key uses: BA2 patching (OG v1 ↔ NG v8), F4SE DLL scan, mod conflict scan."
+            )
+        return True, (
+            f"Downloaded and extracted to {dest} — look for cm-toolkit.exe"
+        )
+    except Exception as exc:
+        return False, (
+            f"Collective Modding Toolkit download failed: {exc}\n"
+            "Download manually from "
+            "https://github.com/wxMichael/Collective-Modding-Toolkit/releases"
+        )
 
 
 def register():

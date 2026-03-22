@@ -1126,6 +1126,61 @@ class FO4_PT_AnimationPanel(Panel):
         motion_box.operator("fo4.generate_motion_auto", text="Generate Motion (Auto)", icon='PLAY')
         motion_box.operator("fo4.show_motion_generation_info", text="Manual Instructions", icon='INFO')
 
+        # ── Shiagur's FO4 Animation Rigs ─────────────────────────────────────
+        layout.separator()
+        rig_box = layout.box()
+        rig_box.label(text="Shiagur's FO4 Animation Rigs  v2.6.0", icon='ARMATURE_DATA')
+
+        credit_col = rig_box.column(align=True)
+        credit_col.scale_y = 0.75
+        credit_col.label(text="Blender rigs by Shiagur — Nexus Mods (free account required)", icon='FUND')
+        credit_col.label(text="Use the buttons below to open each mod page in your browser.", icon='INFO')
+
+        rig_box.separator(factor=0.5)
+
+        # Power Armor rig
+        pa_col = rig_box.column(align=True)
+        pa_col.label(text="Power Armor Rig (Nexus 81279):", icon='ARMATURE_DATA')
+        pa_col.operator(
+            "fo4.open_shiagur_power_armor_rig",
+            text="Download Power Armor Rig",
+            icon='URL',
+        )
+        pa_col.scale_y = 0.9
+        note = pa_col.column(align=True)
+        note.scale_y = 0.72
+        note.label(text="  Full PA skeleton · Havok settings · workflow guide")
+
+        rig_box.separator(factor=0.4)
+
+        # 1st/3rd person rig
+        fp_col = rig_box.column(align=True)
+        fp_col.label(text="1st & 3rd Person Rig (Nexus 82537):", icon='ARMATURE_DATA')
+        fp_col.operator(
+            "fo4.open_shiagur_anim_rig",
+            text="Download 1st/3rd Person Rig",
+            icon='URL',
+        )
+        note2 = fp_col.column(align=True)
+        note2.scale_y = 0.72
+        note2.label(text="  Weapons · poses · IK/FK · body animations")
+
+        rig_box.separator(factor=0.4)
+
+        # Conversion tool + workflow
+        conv_row = rig_box.row(align=True)
+        conv_row.operator("fo4.open_fbximporter", text="FBXImporter (Nexus 59849)", icon='URL')
+        rig_box.operator(
+            "fo4.show_shiagur_workflow",
+            text="Full Animation Workflow Guide",
+            icon='QUESTION',
+        )
+
+        hint = rig_box.column(align=True)
+        hint.scale_y = 0.72
+        hint.label(text="Pipeline:  Blender rig → FBX export → FBXImporter → Havok Content Tools → .hkx", icon='INFO')
+        hint.label(text="OR:  PyNifly v25 exports .hkx directly — no FBX step needed!", icon='CHECKMARK')
+
 class FO4_PT_RigNetPanel(Panel):
     """RigNet auto-rigging panel"""
     bl_label = "Auto-Rigging (RigNet)"
@@ -3358,6 +3413,76 @@ class FO4_PT_ModPackagingPanel(Panel):
                       icon='BLANK1')
         ba2_box.label(text="run to call Archive2.exe automatically.",
                       icon='BLANK1')
+
+        # ── External tools ────────────────────────────────────────────────────
+        layout.separator()
+        tools_box = layout.box()
+        tools_box.label(text="Required External Tools", icon='TOOL_SETTINGS')
+
+        tools_col = tools_box.column(align=True)
+        tools_col.scale_y = 0.8
+        tools_col.label(text="These tools are needed to complete a release-ready FO4 mod:", icon='INFO')
+
+        tools_box.separator(factor=0.4)
+
+        # FO4Edit
+        fo4e_col = tools_box.column(align=True)
+        fo4e_col.operator("fo4.open_fo4edit", text="FO4Edit / xEdit  (plugin editor)", icon='URL')
+        hint = fo4e_col.column(align=True)
+        hint.scale_y = 0.72
+        hint.label(text="  Edit .esp/.esm, clean masters, ESL-flag plugins · Nexus 2737")
+
+        tools_box.separator(factor=0.3)
+
+        # CAO
+        cao_col = tools_box.column(align=True)
+        cao_col.operator(
+            "fo4.open_cathedral_assets_optimizer",
+            text="Cathedral Assets Optimizer  (textures/meshes)",
+            icon='URL',
+        )
+        hint2 = cao_col.column(align=True)
+        hint2.scale_y = 0.72
+        hint2.label(text="  Compress DDS textures to BC7/BC1, fix mesh headers · SSE Nexus 23316")
+
+        tools_box.separator(factor=0.3)
+
+        # FOMOD Creation Tool
+        fct_box = layout.box()
+        fct_box.label(text="FOMOD Creation Tool  (by Wenderer)", icon='PACKAGE')
+        fct_col = fct_box.column(align=True)
+        fct_col.scale_y = 0.78
+        fct_col.label(text="Use the addon's 'Generate FOMOD' above for simple (no-options) installs.", icon='INFO')
+        fct_col.label(text="For complex multi-option installers use Wenderer's GUI tool:", icon='INFO')
+        fct_col.label(text="  • Add install pages, groups, and options")
+        fct_col.label(text="  • Detect other installed plugins as conditions")
+        fct_col.label(text="  • Set file priorities, add preview screenshots")
+        fct_col.label(text="  • No XML knowledge needed — everything via GUI")
+        fct_box.separator(factor=0.4)
+        fct_box.operator(
+            "fo4.open_fomod_creation_tool",
+            text="Get FOMOD Creation Tool  (Nexus 58448)",
+            icon='URL',
+        )
+        fct_box.operator(
+            "fo4.show_fomod_guide",
+            text="Full Mod Packaging Workflow Guide",
+            icon='QUESTION',
+        )
+
+        # ── FallUI compatibility note ─────────────────────────────────────────
+        layout.separator()
+        fallui_box = layout.box()
+        fallui_box.label(text="FallUI Suite Compatibility  (m8r98a4f2)", icon='MENU_PANEL')
+        fu_col = fallui_box.column(align=True)
+        fu_col.scale_y = 0.78
+        fu_col.label(text="FallUI overhauls inventory, workbench, and HUD menus.", icon='INFO')
+        fu_col.label(text="If your mod adds items, ensure correct FO4 keyword tags", icon='INFO')
+        fu_col.label(text="so items sort and display properly under FallUI:")
+        fu_col.label(text="  [WEAP] weapon  · [ARMO] armor  · [ALCH] chems/food")
+        fu_col.label(text="  [MISC] misc    · [AMMO] ammo   · [BOOK] notes/mags")
+        fu_col.label(text="Requires F4SE (Fallout 4 Script Extender) for full features.")
+        fallui_box.operator("fo4.open_fallui", text="Get FallUI Suite  (Nexus 60005)", icon='URL')
 
 
 class FO4_PT_AddonIntegrationPanel(Panel):

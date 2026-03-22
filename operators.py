@@ -485,6 +485,31 @@ class FO4_OT_ShowCredits(Operator):
             "Edit Fallout 4 plugins (.esp/.esm/.esl) and import animations.",
         ])
 
+        _section('PACKAGE', "FOMOD Creation Tool (mod installer builder)", [
+            "Wenderer — https://www.nexusmods.com/fallout4/mods/58448",
+            "GUI for creating info.xml + ModuleConfig.xml FOMOD installers.",
+            "Supports conditions, flags, images, plugin detection, file priorities.",
+        ])
+
+        _section('IMAGE_DATA', "Cathedral Assets Optimizer (asset optimization)", [
+            "Arthmoor / G_k — https://www.nexusmods.com/skyrimspecialedition/mods/23316",
+            "Optimizes textures (DDS BC7/BC1), meshes, and BSA/BA2 archives for FO4.",
+        ])
+
+        _section('MENU_PANEL', "FallUI Suite — Inventory, Workbench, HUD (UI overhaul)", [
+            "m8r98a4f2 / registrator2000 — https://www.nexusmods.com/fallout4/mods/60005",
+            "Overhauls crafting, inventory, HUD, and workbench menus.",
+            "Mod authors: use proper item keyword tags for FallUI sorting.",
+            "Requires F4SE (Fallout 4 Script Extender) for full functionality.",
+        ])
+
+        _section('TOOL_SETTINGS', "Collective Modding Toolkit (mod setup verification)", [
+            "wxMichael — https://www.nexusmods.com/fallout4/mods/87441",
+            "GitHub: https://github.com/wxMichael/Collective-Modding-Toolkit",
+            "Upgrades/downgrades FO4 OG ↔ NG · patches BA2 v1/v8 · scans F4SE DLLs",
+            "Counts plugins (Full/Light) and BA2s · scans for mod conflicts",
+        ])
+
         layout.separator()
         layout.label(text="All trademarks belong to their respective owners.", icon='INFO')
 
@@ -628,6 +653,211 @@ class FO4_OT_ShowShiagurWorkflow(Operator):
             text="Credit: Shiagur (rig author) · BadDog (PyNifly) · andrelo1 (FBXImporter)",
             icon='FUND',
         )
+
+
+# ---------------------------------------------------------------------------
+# Mod packaging / distribution tool operators
+# ---------------------------------------------------------------------------
+
+class FO4_OT_OpenFOMODCreationTool(Operator):
+    """Open the FOMOD Creation Tool Nexus page (mod 58448) in browser."""
+    bl_idname = "fo4.open_fomod_creation_tool"
+    bl_label  = "Get FOMOD Creation Tool (Nexus)"
+
+    def execute(self, context):
+        import webbrowser
+        webbrowser.open("https://www.nexusmods.com/fallout4/mods/58448")
+        self.report({'INFO'}, "Opened Nexus Mods — FOMOD Creation Tool by Wenderer")
+        return {'FINISHED'}
+
+
+class FO4_OT_OpenCathedralAssetsOptimizer(Operator):
+    """Open the Cathedral Assets Optimizer Nexus page in browser."""
+    bl_idname = "fo4.open_cathedral_assets_optimizer"
+    bl_label  = "Get Cathedral Assets Optimizer (Nexus)"
+
+    def execute(self, context):
+        import webbrowser
+        webbrowser.open("https://www.nexusmods.com/skyrimspecialedition/mods/23316")
+        self.report({'INFO'}, "Opened Nexus Mods — Cathedral Assets Optimizer")
+        return {'FINISHED'}
+
+
+class FO4_OT_OpenFO4Edit(Operator):
+    """Open the FO4Edit / xEdit Nexus page in browser."""
+    bl_idname = "fo4.open_fo4edit"
+    bl_label  = "Get FO4Edit / xEdit (Nexus)"
+
+    def execute(self, context):
+        import webbrowser
+        webbrowser.open("https://www.nexusmods.com/fallout4/mods/2737")
+        self.report({'INFO'}, "Opened Nexus Mods — FO4Edit / xEdit")
+        return {'FINISHED'}
+
+
+class FO4_OT_ShowFOMODGuide(Operator):
+    """Show the complete Fallout 4 mod packaging and distribution workflow."""
+    bl_idname = "fo4.show_fomod_guide"
+    bl_label  = "Mod Packaging & Distribution Guide"
+
+    def execute(self, context):
+        return {'FINISHED'}
+
+    def invoke(self, context, event):
+        return context.window_manager.invoke_popup(self, width=540)
+
+    def draw(self, context):
+        layout = self.layout
+
+        layout.label(text="Fallout 4 Mod Packaging & Distribution Workflow", icon='PACKAGE')
+        layout.separator()
+
+        def _box(icon, heading, lines):
+            b = layout.box()
+            b.label(text=heading, icon=icon)
+            col = b.column(align=True)
+            col.scale_y = 0.82
+            for ln in lines:
+                col.label(text=ln)
+
+        _box('TOOL_SETTINGS', "Required Tools (download all before starting)", [
+            "• FO4Edit / xEdit      nexusmods.com/fallout4/mods/2737",
+            "  Edit .esp/.esm plugins, clean masters, resolve conflicts.",
+            "",
+            "• Creation Kit         Via Steam → Library → Tools → Fallout 4 CK",
+            "  Bethesda's official tool. Also installs Archive2.exe.",
+            "",
+            "• Archive2             Ships with the Creation Kit",
+            "  Path: Fallout4\\Tools\\Archive2\\Archive2.exe",
+            "  Packs loose files into .ba2 archives for distribution.",
+            "",
+            "• Cathedral Assets Optimizer   nexusmods.com/skyrimspecialedition/mods/23316",
+            "  Optimize textures (DDS), meshes, and BSA/BA2 for FO4.",
+            "",
+            "• FOMOD Creation Tool  nexusmods.com/fallout4/mods/58448  (by Wenderer)",
+            "  GUI for building multi-option FOMOD installers.",
+            "  No XML knowledge required. Supports images, conditions,",
+            "  flags, plugin detection, file priorities.",
+            "",
+            "• Mod Organizer 2 / Vortex   Test your FOMOD before upload.",
+        ])
+
+        _box('FILEBROWSER', "Step 1 — Build Your Mod Folder Structure", [
+            "Use 'Create Data/ + FOMOD Folders' button above.",
+            "Expected layout:",
+            "  MyMod/",
+            "    Data/",
+            "      meshes/     ← .nif files",
+            "      textures/   ← .dds files",
+            "      scripts/    ← .pex compiled scripts",
+            "      sound/      ← .wav / .xwm audio",
+            "    fomod/        ← info.xml + ModuleConfig.xml",
+        ])
+
+        _box('TOOL_SETTINGS', "Step 2 — Edit Plugin in FO4Edit / Creation Kit", [
+            "1. Create or edit your .esp / .esm / .esl plugin.",
+            "2. Add records: weapons, armor, NPCs, quests, etc.",
+            "3. Clean with FO4Edit (Quick Auto Clean) before release.",
+            "4. ESL-flag small plugins to save plugin slots (FO4Edit).",
+        ])
+
+        _box('IMAGE_DATA', "Step 3 — Optimize Assets (Cathedral Assets Optimizer)", [
+            "1. Open CAO. Select 'Fallout 4' as target game.",
+            "2. Set input folder to Data/textures/ (and/or meshes/).",
+            "3. Run optimization: compresses textures to BC7/BC1 DDS,",
+            "   fixes mesh headers, and reduces file size.",
+            "4. Optimized files replace originals in-place.",
+        ])
+
+        _box('PACKAGE', "Step 4 — Pack into BA2 (Archive2)", [
+            "  Archive2.exe Data\\textures\\ -root=Data -format=DX10",
+            "    → MyMod - Textures.ba2",
+            "  Archive2.exe Data\\meshes\\   -root=Data -format=GNRL",
+            "    → MyMod - Main.ba2",
+            "pack_ba2.bat / .sh scripts are written by 'Create Structure'.",
+        ])
+
+        _box('FILE_TICK', "Step 5 — Create FOMOD Installer", [
+            "Simple mod (no options):",
+            "  Use 'Generate info.xml + ModuleConfig.xml' above.",
+            "  Result: always-install single-option installer.",
+            "",
+            "Complex mod (multiple options / patches):",
+            "  Download FOMOD Creation Tool (Wenderer, Nexus 58448).",
+            "  Open your fomod/ folder in the tool.",
+            "  Add pages, groups, options, conditions, screenshots.",
+            "  Supports: plugin detection, flag conditions, BA2 choice.",
+            "  Generates correct XML automatically — no hand-coding needed.",
+        ])
+
+        _box('EXPORT', "Step 6 — Package & Upload to Nexus", [
+            "1. Create a .zip or .7z archive of your mod root folder.",
+            "2. Test install in MO2 or Vortex before uploading.",
+            "3. Upload to nexusmods.com/fallout4.",
+            "4. Add screenshots, description, requirements on mod page.",
+        ])
+
+        _box('INFO', "FOMOD XML Reference", [
+            "Schema:     qconsulting.ca/fo3/ModConfig5.0.xsd",
+            "Docs:       fomod-docs.readthedocs.io/en/latest/tutorial.html",
+            "STEP guide: stepmodifications.org/wiki/Guide:FOMOD",
+            "Nexus guide: forums.nexusmods.com/index.php?/forum/4309",
+        ])
+
+        layout.separator()
+        layout.label(
+            text="Tools: Wenderer (FOMOD tool) · Bethesda (CK/Archive2) · xEdit team",
+            icon='FUND',
+        )
+
+
+class FO4_OT_InstallCollectiveModdingToolkit(Operator):
+    """Auto-download the Collective Modding Toolkit (wxMichael) from GitHub."""
+    bl_idname = "fo4.install_collective_modding_toolkit"
+    bl_label  = "Install Collective Modding Toolkit"
+
+    def execute(self, context):
+        try:
+            from . import tool_installers
+        except ImportError:
+            self.report({'ERROR'}, "tool_installers module unavailable")
+            return {'CANCELLED'}
+        ok, msg = tool_installers.install_collective_modding_toolkit()
+        level = 'INFO' if ok else 'ERROR'
+        self.report({level}, msg.split("\n")[0])
+        try:
+            from . import notification_system
+            notification_system.FO4_NotificationSystem.notify(msg.split("\n")[0], level)
+        except Exception:
+            pass
+        return {'FINISHED'} if ok else {'CANCELLED'}
+
+
+class FO4_OT_OpenCollectiveModdingToolkit(Operator):
+    """Open the Collective Modding Toolkit Nexus page (mod 87441) in browser."""
+    bl_idname = "fo4.open_collective_modding_toolkit"
+    bl_label  = "Get Collective Modding Toolkit (Nexus)"
+
+    def execute(self, context):
+        import webbrowser
+        webbrowser.open("https://www.nexusmods.com/fallout4/mods/87441")
+        self.report({'INFO'}, "Opened Nexus — Collective Modding Toolkit by wxMichael")
+        return {'FINISHED'}
+
+
+class FO4_OT_OpenFallUI(Operator):
+    """Open the FallUI suite Nexus page (mod 60005) in browser."""
+    bl_idname = "fo4.open_fallui"
+    bl_label  = "Get FallUI Suite (Nexus)"
+
+    def execute(self, context):
+        import webbrowser
+        webbrowser.open("https://www.nexusmods.com/fallout4/mods/60005")
+        self.report({'INFO'}, "Opened Nexus Mods — FallUI (mod 60005)")
+        return {'FINISHED'}
+
+
+class FO4_OT_ShowMessage(Operator):
     """Show a message to the user"""
     bl_idname = "fo4.show_message"
     bl_label = "Message"
@@ -13033,6 +13263,17 @@ classes = (
     FO4_OT_StartTutorial,
     FO4_OT_ShowHelp,
     FO4_OT_ShowCredits,
+    FO4_OT_OpenShiagurPowerArmorRig,
+    FO4_OT_OpenShiagurAnimRig,
+    FO4_OT_OpenFBXImporter,
+    FO4_OT_ShowShiagurWorkflow,
+    FO4_OT_OpenFOMODCreationTool,
+    FO4_OT_OpenCathedralAssetsOptimizer,
+    FO4_OT_OpenFO4Edit,
+    FO4_OT_ShowFOMODGuide,
+    FO4_OT_InstallCollectiveModdingToolkit,
+    FO4_OT_OpenCollectiveModdingToolkit,
+    FO4_OT_OpenFallUI,
     FO4_OT_NextTutorialStep,
     FO4_OT_PreviousTutorialStep,
     FO4_OT_ShowDetailedSetup,
