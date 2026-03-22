@@ -124,10 +124,22 @@ def _find_download_url() -> str | None:
                     url = urllib.parse.urljoin(_DOWNLOAD_PAGE, m)
                 else:
                     url = m
-                # Verify URL looks valid before returning
+                # Verify URL actually exists before returning it.
+                # The scraped page may contain stale versioned paths (e.g.
+                # /down/47/umodel/umodel_win32.zip) that result in HTTP 404.
+                # A HEAD request avoids downloading the file just to detect 404.
                 if url and not url.endswith("#"):
-                    print(f"UModel: found download URL: {url}")
-                    return url
+                    try:
+                        verify_req = urllib.request.Request(
+                            url, method="HEAD", headers={"User-Agent": "Mozilla/5.0"}
+                        )
+                        with urllib.request.urlopen(verify_req, timeout=10) as vresp:
+                            if vresp.status == 200:
+                                print(f"UModel: verified download URL: {url}")
+                                return url
+                            print(f"UModel: URL returned {vresp.status}, skipping: {url}")
+                    except Exception as verify_exc:
+                        print(f"UModel: URL verification failed for {url}: {verify_exc}")
     except Exception as exc:
         print(f"UModel: could not scrape download page: {exc}")
     
@@ -209,6 +221,13 @@ def download_latest() -> tuple[bool, str]:
                 print(f"✓ UModel path saved to preferences: {tool_dir}")
             except Exception as e:
                 print(f"Warning: UModel downloaded but path not saved to prefs: {e}")
+
+            # Wire into add-on preferences immediately (no Blender restart needed)
+            try:
+                from . import tool_installers as _ti
+                _ti._configure_tool_paths()
+            except Exception:
+                pass
 
             return True, f"Downloaded UModel to {tool_dir}. Credit: Konstantin Nosov (Gildor)"
         except Exception as exc:

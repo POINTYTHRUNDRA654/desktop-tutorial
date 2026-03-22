@@ -96,10 +96,10 @@ class ExportHelpers:
         if not export_scene:
             return False, "bpy.ops.export_scene not available"
         if hasattr(export_scene, "pynifly"):
-            return True, "PyNifly exporter available"
+            return True, "PyNifly v25 exporter available (BadDog / BadDogSkyrim)"
         return False, (
-            "PyNifly not installed — download zip to D:\\Blender addon\\tools "
-            "and click 'Install PyNifly' in the Setup panel"
+            "PyNifly v25 not installed — click 'Install PyNifly v25' in the Setup & Status panel "
+            "to auto-download and install it"
         )
 
     @staticmethod
@@ -159,7 +159,7 @@ class ExportHelpers:
         """Assemble kwargs for the NIF exporter (Niftools v0.1.1) for Fallout 4.
 
         Fallout 4 NIF format requirements enforced by these settings:
-          - NIF version 20.2.0.7 / user version 12 / user_version_2 131073
+          - NIF version 20.2.0.7 / user version 12 / user_version_2 130
             (automatically selected by game="FALLOUT_4")
           - BSTriShape geometry nodes – selected by the FALLOUT_4 game profile;
             do NOT use NiTriShape for FO4 or meshes will be invisible in-game.
@@ -181,7 +181,7 @@ class ExportHelpers:
 
             # ----------------------------------------------------------------
             # Game profile – FALLOUT_4 sets NIF 20.2.0.7 with user version 12
-            # and user_version_2 131073, and forces BSTriShape geometry nodes
+            # and user_version_2 130, and forces BSTriShape geometry nodes
             # which are required by Fallout 4's renderer.
             # Niftools v0.1.1 valid identifier: 'FALLOUT_4'.
             # ----------------------------------------------------------------
@@ -239,65 +239,102 @@ class ExportHelpers:
 
     @staticmethod
     def _build_pynifly_export_kwargs(filepath):
-        """Assemble kwargs for the PyNifly exporter (BadDogSkyrim/PyNifly) for Fallout 4.
+        """Assemble kwargs for PyNifly v25 (by BadDog) for Fallout 4 NIF export.
 
-        PyNifly uses a different operator signature from Niftools v0.1.1.  We
-        introspect the operator's RNA properties at runtime so the code is
-        resilient to minor API changes between PyNifly releases.
+        Based on the official PyNifly v25 IMPORT_EXPORT_OPTIONS.md:
+          - ``target_game = "FO4"``    → Fallout 4 BSTriShape / BSSubIndexTriShape format
+          - ``export_modifiers``       → apply modifiers (renamed from apply_modifiers in v25)
+          - ``export_collision``       → include collision meshes (new in v25)
+          - ``export_colors``          → write vertex colours (default True, explicit for CK)
+          - ``blender_xf = False``     → use NIF coordinates directly (correct for FO4)
+          - ``rename_bones = True``    → convert Blender .L/.R names back to NIF names
 
-        Key settings:
-          - ``game = "FO4"``       → Fallout 4 NIF format (BSTriShape geometry)
-          - ``use_selection``      → export only the selected objects
-          - ``scale_factor = 1.0`` → 1 Blender unit = 1 NIF unit
-          - ``apply_modifiers``    → bake the temporary Triangulate modifier
+        We introspect the operator's RNA properties at runtime so the code
+        remains resilient to minor API differences between installs.
+
+        Credit: PyNifly by BadDog (BadDogSkyrim) — https://github.com/BadDogSkyrim/PyNifly
         """
         kwargs: dict = {
             "filepath": filepath,
-            "use_selection": True,
         }
         try:
             props = bpy.ops.export_scene.pynifly.get_rna_type().properties
             prop_keys = props.keys()
 
-            # Game target – "FO4" selects Fallout 4 BSTriShape format in PyNifly.
-            if "game" in prop_keys:
-                game_val = ExportHelpers._safe_enum(
-                    props, "game", "FO4",
-                    fallbacks=["FALLOUT4", "Fallout4"],
-                )
-                if game_val:
-                    kwargs["game"] = game_val
+            # ── Target game ──────────────────────────────────────────────────
+            # v25 uses "target_game"; older builds used "game".
+            # "FO4" selects Fallout 4 BSTriShape / BSSubIndexTriShape format.
+            for game_key in ("target_game", "game"):
+                if game_key in prop_keys:
+                    game_val = ExportHelpers._safe_enum(
+                        props, game_key, "FO4",
+                        fallbacks=["FALLOUT4", "Fallout4", "FALLOUT_4"],
+                    )
+                    if game_val:
+                        kwargs[game_key] = game_val
+                    break
 
-            # Scale: 1 Blender unit = 1 NIF unit for FO4.
+            # ── Apply modifiers ───────────────────────────────────────────────
+            # v25 renames apply_modifiers → export_modifiers; probe both.
+            for mod_key in ("export_modifiers", "apply_modifiers"):
+                if mod_key in prop_keys:
+                    kwargs[mod_key] = True
+                    break
+
+            # ── Collision export (v25+) ───────────────────────────────────────
+            # export_collision tells PyNifly v25 to include bhkCollisionObject
+            # blocks, which are required for physics-enabled FO4 objects in CK.
+            if "export_collision" in prop_keys:
+                kwargs["export_collision"] = True
+
+            # ── Vertex colours ────────────────────────────────────────────────
+            # export_colors is True by default in v25, but be explicit so CK
+            # gets the vertex-colour data it needs for LOD and alpha blending.
+            if "export_colors" in prop_keys:
+                kwargs["export_colors"] = True
+
+            # ── Coordinate system ─────────────────────────────────────────────
+            # blender_xf applies a 90° rotation + scale when True.  For FO4 we
+            # leave it False (NIF-native coordinates) — matching vanilla files.
+            if "blender_xf" in prop_keys:
+                kwargs["blender_xf"] = False
+
+            # ── Bone naming ───────────────────────────────────────────────────
+            # rename_bones converts Blender .L/.R names back to NIF convention.
+            # Must match the setting used during import.
+            if "rename_bones" in prop_keys:
+                kwargs["rename_bones"] = True
+
+            # ── Scale (legacy pre-v25 builds) ─────────────────────────────────
+            # v25 dropped scale_factor; set it only if the property still exists
+            # so we stay compatible with users on older PyNifly builds.
             for scale_key in ("scale_factor", "scale_correction"):
                 if scale_key in prop_keys:
                     kwargs[scale_key] = 1.0
                     break
-
-            # Apply modifiers so the temporary Triangulate modifier is baked.
-            if "apply_modifiers" in prop_keys:
-                kwargs["apply_modifiers"] = True
 
         except Exception:
             pass  # fall back to minimal kwargs on any introspection error
 
         return kwargs
 
-
-        """Prepare a mesh object so it meets Fallout 4 / Niftools v0.1.1 requirements.
+    @staticmethod
+    def _prepare_mesh_for_nif(obj):
+        """Prepare a mesh object so it meets Fallout 4 / PyNifly v25 / Niftools v0.1.1 requirements.
 
         Performs (in order):
           1. Apply pending scale and rotation transforms – unapplied transforms
              are the single most common cause of distorted geometry in-game.
-          2. Ensure at least one UV map exists – the Niftools exporter requires
-             UV coordinates on every exported mesh.
+          2. Ensure at least one UV map exists – both exporters require UV
+             coordinates on every exported mesh.
           3. Add a temporary ``_FO4_Triangulate`` modifier when the mesh
              contains quads or n-gons, because FO4 BSTriShape only stores
-             triangles and the exporter does NOT auto-triangulate.
+             triangles.  PyNifly v25 can handle quads internally, but the
+             modifier guarantees a clean result for both exporters.
           4. Enable Auto Smooth for consistent tangent/normal export (skipped
              silently on Blender 4.x where the attribute was removed).
 
-        Returns a list of modifier names that were added.  The caller must
+        Returns a list of modifier names that were added.  The caller MUST
         remove them after export so the user's mesh is not permanently altered.
         """
         added_modifiers = []
@@ -324,7 +361,8 @@ class ExportHelpers:
                 pass  # context may not support transform_apply; continue anyway
 
         # 2. Ensure UV map -------------------------------------------------------
-        #    Niftools v0.1.1 raises an error if no UV map is present.
+        #    Both Niftools v0.1.1 and PyNifly v25 require at least one UV map;
+        #    auto-create one (smart-unwrapped) when the mesh has none.
         if not obj.data.uv_layers:
             obj.data.uv_layers.new(name="UVMap")
             try:
@@ -339,8 +377,9 @@ class ExportHelpers:
                     pass
 
         # 3. Triangulate ---------------------------------------------------------
-        #    Fallout 4 BSTriShape nodes only store triangles.  If the mesh has
-        #    quads or n-gons, add a Triangulate modifier (removed after export).
+        #    FO4 BSTriShape / BSSubIndexTriShape nodes only store triangles.
+        #    Add a temporary Triangulate modifier (removed after export) to
+        #    guarantee a clean tri-only mesh reaches the exporter.
         has_non_tris = any(len(p.vertices) > 3 for p in obj.data.polygons)
         if has_non_tris:
             mod = obj.modifiers.new(name="_FO4_Triangulate", type='TRIANGULATE')
@@ -353,8 +392,8 @@ class ExportHelpers:
             added_modifiers.append(mod.name)
 
         # 4. Auto Smooth ---------------------------------------------------------
-        #    Ensures the exported tangent vectors are coherent with the mesh
-        #    normals.  Removed in Blender 4.x (use_auto_smooth no longer exists).
+        #    Ensures exported tangent vectors are coherent with mesh normals.
+        #    The attribute was removed in Blender 4.x; skip silently.
         try:
             obj.data.use_auto_smooth = True
             obj.data.auto_smooth_angle = 3.14159265358979  # 180° – smooth all

@@ -354,6 +354,8 @@ class ShapEHelpers:
                             "   - Create venv in C:\\t\n"
                             "   - Install PyTorch there"
                         )
+                    elif msg == "dll_init_error":
+                        return False, ShapEHelpers._dll_init_error_message()
                     else:
                         return False, _pytorch_required_message(msg)
             except ImportError:
@@ -379,6 +381,10 @@ class ShapEHelpers:
                     "   - Install PyTorch there\n\n"
                     f"Original error: {str(e)}"
                 )
+            # Catches the rare case where the DLL failure bubbles up here instead
+            # of being caught by TorchPathManager (e.g. import shap_e triggers it).
+            if getattr(e, 'winerror', None) == 1114 or "WinError 1114" in str(e):
+                return False, ShapEHelpers._dll_init_error_message()
             return False, f"File error loading Shap-E: {str(e)}"
         except ImportError as e:
             return False, f"Shap-E not installed: {str(e)}"

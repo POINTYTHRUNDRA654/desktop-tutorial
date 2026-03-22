@@ -321,6 +321,1015 @@ class FO4_OT_ShowDetailedSetup(Operator):
         return {'FINISHED'}
 
 
+class FO4_OT_ShowCredits(Operator):
+    """Show credits for all third-party tools used by this add-on"""
+    bl_idname = "fo4.show_credits"
+    bl_label = "Credits"
+
+    def execute(self, context):
+        return {'FINISHED'}
+
+    def invoke(self, context, event):
+        return context.window_manager.invoke_popup(self, width=480)
+
+    def draw(self, context):
+        layout = self.layout
+
+        # ── Title ────────────────────────────────────────────────────────────
+        title_row = layout.row()
+        title_row.label(text="Third-Party Tools & Credits", icon='FUND')
+        layout.separator()
+
+        def _section(icon, heading, lines):
+            box = layout.box()
+            box.label(text=heading, icon=icon)
+            col = box.column(align=True)
+            col.scale_y = 0.85
+            for line in lines:
+                col.label(text=line)
+
+        # ── Core Blender tool ─────────────────────────────────────────────
+        _section('BLENDER', "Blender (3D platform)", [
+            "Blender Foundation — https://www.blender.org",
+            "GNU GPL v2+ license",
+        ])
+
+        # ── NIF / Fallout 4 format tools ──────────────────────────────────
+        _section('PLUGIN', "Niftools Blender Plugin (NIF export)", [
+            "NifTools Team — https://github.com/niftools/blender_nif_plugin",
+            "Enables direct .nif export for Fallout 4 / Skyrim (Blender 3.6 LTS)",
+        ])
+
+        _section('STAR', "PyNifly v25  ★  PRIMARY NIF EXPORTER", [
+            "BadDog (BadDogSkyrim) — https://github.com/BadDogSkyrim/PyNifly",
+            "The recommended NIF exporter for Blender 4.x and 5.x.",
+            "Supports Fallout 4, Skyrim SE, and Starfield with full",
+            "body-morph and material path support.",
+            "Huge thanks to BadDog for maintaining this essential tool!",
+        ])
+
+        # ── Unreal asset extraction ────────────────────────────────────────
+        _section('IMPORT', "UModel / UE Viewer (Unreal asset extraction)", [
+            "Konstantin Nosov (Gildor) — https://www.gildor.org/en/projects/umodel",
+            "Extracts meshes, textures, and animations from UE games",
+        ])
+
+        # ── Texture tools ─────────────────────────────────────────────────
+        _section('IMAGE_DATA', "NVIDIA Texture Tools (NVTT / nvcompress)", [
+            "NVIDIA Corporation — https://github.com/castano/nvidia-texture-tools",
+            "GPU-accelerated DDS texture compression",
+        ])
+
+        _section('IMAGE_DATA', "texconv (DirectXTex)", [
+            "Microsoft — https://github.com/microsoft/DirectXTex",
+            "Windows DDS / BC1-BC7 texture conversion",
+        ])
+
+        # ── AI / ML models ────────────────────────────────────────────────
+        _section('LIGHT_HEMI', "PyTorch (AI / ML runtime)", [
+            "Meta AI (PyTorch team) — https://pytorch.org",
+            "Deep-learning framework powering all AI features",
+        ])
+
+        _section('RENDER_RESULT', "Real-ESRGAN (AI texture upscaling)", [
+            "Xintao Wang et al. — https://github.com/xinntao/Real-ESRGAN",
+            "Upscales and enhances textures using GAN models",
+        ])
+
+        _section('MESH_DATA', "TripoSR (image-to-3D)", [
+            "VAST AI Research — https://github.com/VAST-AI-Research/TripoSR",
+            "Single-image 3D mesh reconstruction",
+        ])
+
+        _section('MESH_DATA', "Shap-E (text / image-to-3D)", [
+            "OpenAI — https://github.com/openai/shap-e",
+            "Text and image conditioned 3D shape generation",
+        ])
+
+        _section('MESH_DATA', "Point-E (text-to-3D point cloud)", [
+            "OpenAI — https://github.com/openai/point-e",
+            "Text-guided 3D point cloud and mesh generation",
+        ])
+
+        _section('MESH_DATA', "Hunyuan3D-2 (text / image-to-3D)", [
+            "Tencent — https://github.com/Tencent-Hunyuan/Hunyuan3D-2",
+            "High-quality text and image conditioned 3D generation",
+        ])
+
+        _section('MESH_DATA', "GET3D (text-to-3D)", [
+            "NVIDIA Research — https://github.com/nVlabs/GET3D",
+            "Generative model for high-quality 3D shapes",
+        ])
+
+        _section('MESH_DATA', "Instant-NGP (neural radiance field)", [
+            "NVIDIA Research — https://github.com/NVlabs/instant-ngp",
+            "Real-time NeRF reconstruction from photos",
+        ])
+
+        _section('ARMATURE_DATA', "RigNet (auto-rigging)", [
+            "Zhan Xu et al. — https://github.com/zhan-xu/RigNet",
+            "Automatic skeleton prediction for 3D meshes",
+        ])
+
+        _section('ANIM_DATA', "HY-Motion-1.0 (motion generation)", [
+            "Tencent Hunyuan — https://github.com/Tencent-Hunyuan/HY-Motion-1.0",
+            "AI-powered human motion sequence generation",
+        ])
+
+        _section('IMAGE_RGB', "ZoeDepth (depth estimation)", [
+            "Intel ISL — https://github.com/isl-org/ZoeDepth",
+            "Monocular depth estimation from a single image",
+        ])
+
+        # ── Video / general utilities ──────────────────────────────────────
+        _section('FILE_MOVIE', "FFmpeg (video & audio processing)", [
+            "FFmpeg Team — https://ffmpeg.org",
+            "GNU LGPL v2.1+ / GPL v2+ license",
+        ])
+
+        _section('ARMATURE_DATA', "Shiagur — Blender Power Armor Animation Rig v2.6.0", [
+            "Shiagur — https://www.nexusmods.com/fallout4/mods/81279",
+            "Blender rig + guide for Fallout 4 Power Armor animations.",
+            "Includes skeleton, Havok settings, and full workflow documentation.",
+        ])
+
+        _section('ARMATURE_DATA', "Shiagur — Blender Animation Rig (1st & 3rd Person) v2.6.0", [
+            "Shiagur — https://www.nexusmods.com/fallout4/mods/82537",
+            "Blender rig for 1st and 3rd person weapon, pose, and interaction",
+            "animations. Includes IK/FK, skeletons, Havok settings, and guide.",
+        ])
+
+        _section('EXPORT', "FBXImporter (FBX → HKT conversion)", [
+            "andrelo1 — https://www.nexusmods.com/fallout4/mods/59849",
+            "GitHub: https://github.com/andrelo1/fbximporter",
+            "Converts Blender FBX exports to Havok HKT files for FO4 pipeline.",
+        ])
+
+        _section('TOOL_SETTINGS', "hkxcmd (Havok HKX command-line tools)", [
+            "figment — https://github.com/figment/hkxcmd",
+            "Command-line conversion for Havok HKX / KF animation files.",
+        ])
+
+        _section('TOOL_SETTINGS', "HKXPack (HKX binary ↔ XML converter)", [
+            "dexesttp — https://dexesttp.github.io/hkxpack/",
+            "Converts binary Havok HKX files to/from XML for editing.",
+        ])
+
+        _section('TOOL_SETTINGS', "NifSkope (NIF file editor)", [
+            "NifTools Team — https://github.com/niftools/nifskope",
+            "View, edit, and inspect Bethesda .nif files.",
+        ])
+
+        _section('TOOL_SETTINGS', "FO4Edit / xEdit (plugin & record editor)", [
+            "Zilav et al. — https://github.com/TES5Edit/TES5Edit",
+            "Edit Fallout 4 plugins (.esp/.esm/.esl) and import animations.",
+        ])
+
+        _section('PACKAGE', "FOMOD Creation Tool (mod installer builder)", [
+            "Wenderer — https://www.nexusmods.com/fallout4/mods/6821",
+            "GUI for creating info.xml + ModuleConfig.xml FOMOD installers.",
+            "Supports conditions, flags, images, plugin detection, file priorities.",
+        ])
+
+        _section('IMAGE_DATA', "Cathedral Assets Optimizer (asset optimization)", [
+            "Arthmoor / G_k — https://www.nexusmods.com/skyrimspecialedition/mods/23316",
+            "Optimizes textures (DDS BC7/BC1), meshes, and BSA/BA2 archives for FO4.",
+        ])
+
+        _section('TOOL_SETTINGS', "Collective Modding Toolkit (mod setup verification)", [
+            "wxMichael — https://www.nexusmods.com/fallout4/mods/87441",
+            "GitHub: https://github.com/wxMichael/Collective-Modding-Toolkit",
+            "Upgrades/downgrades FO4 OG ↔ NG · patches BA2 v1/v8 · scans F4SE DLLs",
+            "Counts plugins (Full/Light) and BA2s · scans for mod conflicts",
+        ])
+
+        _section('ANIM', "Story Action Poses  (1,700+ poses for storytelling/screenshots)", [
+            "EngineGaming — https://www.nexusmods.com/fallout4/mods/58448",
+            "ESL-flagged. Covers standard characters, power armor, and creatures.",
+            "Requires: F4SE, AAF (Advanced Animation Framework), Poser Hotkeys.",
+            "NEXT-GEN v4.0: nexusmods.com/fallout4/mods/68000",
+        ])
+
+        _section('ANIM', "AAF — Advanced Animation Framework (pose/animation manager)", [
+            "dagobaking — https://www.nexusmods.com/fallout4/mods/31304",
+            "Required by Story Action Poses and most pose packs. Needs F4SE.",
+        ])
+
+        _section('ANIM', "Poser Hotkeys (in-game pose trigger via hotkeys)", [
+            "opparco — https://www.nexusmods.com/fallout4/mods/45967",
+            "Arrow keys cycle poses. Compatible with Story Action Poses.",
+        ])
+
+        _section('MODIFIER', "BodySlide and Outfit Studio (body/armor conforming)", [
+            "ousnius / Caliente — https://www.nexusmods.com/fallout4/mods/25",
+            "GitHub: https://github.com/ousnius/BodySlide-and-Outfit-Studio",
+            "Conforms armor meshes to CBBE body, creates morph sliders for users.",
+        ])
+
+        _section('MESH_DATA', "CBBE — Caliente's Beautiful Bodies Enhancer (body mesh)", [
+            "Caliente — https://www.nexusmods.com/fallout4/mods/15",
+            "Standard body reference mesh for armor/clothing creation in FO4.",
+        ])
+
+        _section('INFO', "FO4 Outfit/Armor in Blender — Free Tools Guide (Nexus 17785)", [
+            "Author — https://www.nexusmods.com/fallout4/mods/17785",
+            "Complete free-tools workflow: Blender + Outfit Studio + CBBE.",
+            "Includes skeleton fo4.blend, FBX import/export settings,",
+            "UV seam edge-split fix, weight transfer, and NIF export steps.",
+        ])
+
+        layout.separator()
+        layout.label(text="All trademarks belong to their respective owners.", icon='INFO')
+
+
+# ---------------------------------------------------------------------------
+# Shiagur Animation Rig operators
+# ---------------------------------------------------------------------------
+
+class FO4_OT_OpenShiagurPowerArmorRig(Operator):
+    """Open Shiagur's Blender Power Armor Animation Rig (Nexus mod 81279) in browser."""
+    bl_idname = "fo4.open_shiagur_power_armor_rig"
+    bl_label  = "Download Power Armor Rig (Nexus)"
+
+    def execute(self, context):
+        import webbrowser
+        webbrowser.open("https://www.nexusmods.com/fallout4/mods/81279")
+        self.report({'INFO'}, "Opened Nexus Mods — Blender Power Armor Animation Rig by Shiagur")
+        return {'FINISHED'}
+
+
+class FO4_OT_OpenShiagurAnimRig(Operator):
+    """Open Shiagur's Blender Animation Rig 1st/3rd Person (Nexus mod 82537) in browser."""
+    bl_idname = "fo4.open_shiagur_anim_rig"
+    bl_label  = "Download 1st/3rd Person Rig (Nexus)"
+
+    def execute(self, context):
+        import webbrowser
+        webbrowser.open("https://www.nexusmods.com/fallout4/mods/82537")
+        self.report({'INFO'}, "Opened Nexus Mods — Blender Animation Rig & Guide by Shiagur")
+        return {'FINISHED'}
+
+
+class FO4_OT_OpenFBXImporter(Operator):
+    """Open the FBXImporter Nexus page (FBX → HKT conversion tool by andrelo1)."""
+    bl_idname = "fo4.open_fbximporter"
+    bl_label  = "Get FBXImporter (Nexus)"
+
+    def execute(self, context):
+        import webbrowser
+        webbrowser.open("https://www.nexusmods.com/fallout4/mods/59849")
+        self.report({'INFO'}, "Opened Nexus Mods — FBXImporter by andrelo1")
+        return {'FINISHED'}
+
+
+class FO4_OT_ShowShiagurWorkflow(Operator):
+    """Show the complete FO4 animation pipeline using Shiagur's rigs."""
+    bl_idname = "fo4.show_shiagur_workflow"
+    bl_label  = "FO4 Animation Workflow Guide"
+
+    def execute(self, context):
+        return {'FINISHED'}
+
+    def invoke(self, context, event):
+        return context.window_manager.invoke_popup(self, width=520)
+
+    def draw(self, context):
+        layout = self.layout
+
+        # ── Title ────────────────────────────────────────────────────────────
+        layout.label(text="Fallout 4 Animation Workflow (Shiagur's Rigs)", icon='ARMATURE_DATA')
+        layout.separator()
+
+        def _box(icon, heading, lines):
+            b = layout.box()
+            b.label(text=heading, icon=icon)
+            col = b.column(align=True)
+            col.scale_y = 0.82
+            for ln in lines:
+                col.label(text=ln)
+
+        # ── Rig downloads ────────────────────────────────────────────────────
+        _box('ARMATURE_DATA', "Step 0 — Download Shiagur's Rig (Nexus Mods — requires free account)", [
+            "Power Armor rig:   nexusmods.com/fallout4/mods/81279",
+            "1st/3rd person:    nexusmods.com/fallout4/mods/82537",
+            "Use the buttons below the guide to open each page.",
+        ])
+
+        # ── Required tools ───────────────────────────────────────────────────
+        _box('TOOL_SETTINGS', "Step 1 — Install Required Tools", [
+            "• Blender 4.1+             — blender.org  (free)",
+            "• PyNifly v25 (in addon)   — BadDog/BadDogSkyrim  ← RECOMMENDED PATH",
+            "  PyNifly v25 exports HKX natively — no extra tools needed!",
+            "",
+            "Traditional pipeline (if not using PyNifly HKX export):",
+            "• FBXImporter              — nexusmods.com/fallout4/mods/59849",
+            "  Converts Blender FBX → Havok HKT intermediate format",
+            "• Havok Content Tools 2014.1.1 64-bit",
+            "  Converts HKT → HKX (community-sourced; no public download)",
+            "• hkxcmd (optional)        — github.com/figment/hkxcmd",
+            "• HKXPack (optional)       — dexesttp.github.io/hkxpack",
+        ])
+
+        # ── Animation workflow ───────────────────────────────────────────────
+        _box('ANIM', "Step 2 — Create Your Animation in Blender", [
+            "1. Open the .blend rig file from Shiagur's download.",
+            "2. Pose and keyframe using Blender's NLA/Action editor.",
+            "   • IK/FK toggle panels are included in the rig.",
+            "   • 1st person: animate arms/hands and weapon.",
+            "   • 3rd person: animate full body motion.",
+            "   • Power Armor: use dedicated PA skeleton included.",
+        ])
+
+        # ── Export paths ─────────────────────────────────────────────────────
+        _box('EXPORT', "Step 3 — Export to HKX", [
+            "PATH A — PyNifly v25 (recommended, simplest):",
+            "  File > Export > HKX Animation (.hkx)",
+            "  Set target_game = FO4, then export directly.",
+            "  No FBX conversion step needed.",
+            "",
+            "PATH B — FBX → HKT → HKX (traditional):",
+            "  1. File > Export > FBX (Blender built-in)",
+            "     Settings: Apply transforms, Bake animation ON",
+            "  2. Run FBXImporter.exe on the exported .fbx",
+            "     → produces a .hkt file",
+            "  3. Open Havok Content Tools 2014.1.1",
+            "     Load .hkt → Preview → Package & Export → .hkx",
+            "     Use 48-bit compression preset (recommended by Shiagur)",
+        ])
+
+        # ── Game integration ─────────────────────────────────────────────────
+        _box('GAME', "Step 4 — Add to Fallout 4", [
+            "1. Place .hkx in Data\\Meshes\\Actors\\Character\\Animations\\",
+            "   (or relevant subfolder for weapon/power armor)",
+            "2. Register the animation in Creation Kit or FO4Edit.",
+            "   CK: Actor > Animation Graph tab > Add animation event",
+            "   FO4Edit: find/create the correct record in your .esp",
+            "3. Test in-game; check Havok compression if animation jitters.",
+        ])
+
+        # ── Resources ────────────────────────────────────────────────────────
+        _box('INFO', "Shiagur's Tutorial Videos (YouTube)", [
+            "Setup & Installation:  youtube.com/watch?v=R9NZraXPVGU",
+            "Rig & Guide overview:  youtube.com/watch?v=E83Iuy8SuyA",
+            "Power Armor rig demo:  youtube.com/watch?v=JkheIassgUY",
+            "Full channel:          youtube.com/@shiagur/videos",
+            "Nexus forum thread:    forums.nexusmods.com/topic/13485163",
+        ])
+
+        layout.separator()
+        layout.label(
+            text="Credit: Shiagur (rig author) · BadDog (PyNifly) · andrelo1 (FBXImporter)",
+            icon='FUND',
+        )
+
+
+# ---------------------------------------------------------------------------
+# Mod packaging / distribution tool operators
+# ---------------------------------------------------------------------------
+
+class FO4_OT_OpenFOMODCreationTool(Operator):
+    """Open the FOMOD Creation Tool Nexus page (mod 6821) in browser."""
+    bl_idname = "fo4.open_fomod_creation_tool"
+    bl_label  = "Get FOMOD Creation Tool (Nexus)"
+
+    def execute(self, context):
+        import webbrowser
+        webbrowser.open("https://www.nexusmods.com/fallout4/mods/6821")
+        self.report({'INFO'}, "Opened Nexus Mods — FOMOD Creation Tool by Wenderer")
+        return {'FINISHED'}
+
+
+class FO4_OT_OpenCathedralAssetsOptimizer(Operator):
+    """Open the Cathedral Assets Optimizer Nexus page in browser."""
+    bl_idname = "fo4.open_cathedral_assets_optimizer"
+    bl_label  = "Get Cathedral Assets Optimizer (Nexus)"
+
+    def execute(self, context):
+        import webbrowser
+        webbrowser.open("https://www.nexusmods.com/skyrimspecialedition/mods/23316")
+        self.report({'INFO'}, "Opened Nexus Mods — Cathedral Assets Optimizer")
+        return {'FINISHED'}
+
+
+class FO4_OT_OpenFO4Edit(Operator):
+    """Open the FO4Edit / xEdit Nexus page in browser."""
+    bl_idname = "fo4.open_fo4edit"
+    bl_label  = "Get FO4Edit / xEdit (Nexus)"
+
+    def execute(self, context):
+        import webbrowser
+        webbrowser.open("https://www.nexusmods.com/fallout4/mods/2737")
+        self.report({'INFO'}, "Opened Nexus Mods — FO4Edit / xEdit")
+        return {'FINISHED'}
+
+
+class FO4_OT_ShowFOMODGuide(Operator):
+    """Show the complete Fallout 4 mod packaging and distribution workflow."""
+    bl_idname = "fo4.show_fomod_guide"
+    bl_label  = "Mod Packaging & Distribution Guide"
+
+    def execute(self, context):
+        return {'FINISHED'}
+
+    def invoke(self, context, event):
+        return context.window_manager.invoke_popup(self, width=540)
+
+    def draw(self, context):
+        layout = self.layout
+
+        layout.label(text="Fallout 4 Mod Packaging & Distribution Workflow", icon='PACKAGE')
+        layout.separator()
+
+        def _box(icon, heading, lines):
+            b = layout.box()
+            b.label(text=heading, icon=icon)
+            col = b.column(align=True)
+            col.scale_y = 0.82
+            for ln in lines:
+                col.label(text=ln)
+
+        _box('TOOL_SETTINGS', "Required Tools (download all before starting)", [
+            "• FO4Edit / xEdit      nexusmods.com/fallout4/mods/2737",
+            "  Edit .esp/.esm plugins, clean masters, resolve conflicts.",
+            "",
+            "• Creation Kit         Via Steam → Library → Tools → Fallout 4 CK",
+            "  Bethesda's official tool. Also installs Archive2.exe.",
+            "",
+            "• Archive2             Ships with the Creation Kit",
+            "  Path: Fallout4\\Tools\\Archive2\\Archive2.exe",
+            "  Packs loose files into .ba2 archives for distribution.",
+            "",
+            "• Cathedral Assets Optimizer   nexusmods.com/skyrimspecialedition/mods/23316",
+            "  Optimize textures (DDS), meshes, and BSA/BA2 for FO4.",
+            "",
+            "• FOMOD Creation Tool  nexusmods.com/fallout4/mods/6821  (by Wenderer)",
+            "  GUI for building multi-option FOMOD installers.",
+            "  No XML knowledge required. Supports images, conditions,",
+            "  flags, plugin detection, file priorities.",
+            "",
+            "• Mod Organizer 2 / Vortex   Test your FOMOD before upload.",
+        ])
+
+        _box('FILEBROWSER', "Step 1 — Build Your Mod Folder Structure", [
+            "Use 'Create Data/ + FOMOD Folders' button above.",
+            "Expected layout:",
+            "  MyMod/",
+            "    Data/",
+            "      meshes/     ← .nif files",
+            "      textures/   ← .dds files",
+            "      scripts/    ← .pex compiled scripts",
+            "      sound/      ← .wav / .xwm audio",
+            "    fomod/        ← info.xml + ModuleConfig.xml",
+        ])
+
+        _box('TOOL_SETTINGS', "Step 2 — Edit Plugin in FO4Edit / Creation Kit", [
+            "1. Create or edit your .esp / .esm / .esl plugin.",
+            "2. Add records: weapons, armor, NPCs, quests, etc.",
+            "3. Clean with FO4Edit (Quick Auto Clean) before release.",
+            "4. ESL-flag small plugins to save plugin slots (FO4Edit).",
+        ])
+
+        _box('IMAGE_DATA', "Step 3 — Optimize Assets (Cathedral Assets Optimizer)", [
+            "1. Open CAO. Select 'Fallout 4' as target game.",
+            "2. Set input folder to Data/textures/ (and/or meshes/).",
+            "3. Run optimization: compresses textures to BC7/BC1 DDS,",
+            "   fixes mesh headers, and reduces file size.",
+            "4. Optimized files replace originals in-place.",
+        ])
+
+        _box('PACKAGE', "Step 4 — Pack into BA2 (Archive2)", [
+            "  Archive2.exe Data\\textures\\ -root=Data -format=DX10",
+            "    → MyMod - Textures.ba2",
+            "  Archive2.exe Data\\meshes\\   -root=Data -format=GNRL",
+            "    → MyMod - Main.ba2",
+            "pack_ba2.bat / .sh scripts are written by 'Create Structure'.",
+        ])
+
+        _box('FILE_TICK', "Step 5 — Create FOMOD Installer", [
+            "Simple mod (no options):",
+            "  Use 'Generate info.xml + ModuleConfig.xml' above.",
+            "  Result: always-install single-option installer.",
+            "",
+            "Complex mod (multiple options / patches):",
+            "  Download FOMOD Creation Tool (Wenderer, Nexus 6821).",
+            "  Open your fomod/ folder in the tool.",
+            "  Add pages, groups, options, conditions, screenshots.",
+            "  Supports: plugin detection, flag conditions, BA2 choice.",
+            "  Generates correct XML automatically — no hand-coding needed.",
+        ])
+
+        _box('EXPORT', "Step 6 — Package & Upload to Nexus", [
+            "1. Create a .zip or .7z archive of your mod root folder.",
+            "2. Test install in MO2 or Vortex before uploading.",
+            "3. Upload to nexusmods.com/fallout4.",
+            "4. Add screenshots, description, requirements on mod page.",
+        ])
+
+        _box('INFO', "FOMOD XML Reference", [
+            "Schema:     qconsulting.ca/fo3/ModConfig5.0.xsd",
+            "Docs:       fomod-docs.readthedocs.io/en/latest/tutorial.html",
+            "STEP guide: stepmodifications.org/wiki/Guide:FOMOD",
+            "Nexus guide: forums.nexusmods.com/index.php?/forum/4309",
+        ])
+
+        layout.separator()
+        layout.label(
+            text="Tools: Wenderer (FOMOD tool) · Bethesda (CK/Archive2) · xEdit team",
+            icon='FUND',
+        )
+
+
+class FO4_OT_InstallCollectiveModdingToolkit(Operator):
+    """Auto-download the Collective Modding Toolkit (wxMichael) from GitHub."""
+    bl_idname = "fo4.install_collective_modding_toolkit"
+    bl_label  = "Install Collective Modding Toolkit"
+
+    def execute(self, context):
+        try:
+            from . import tool_installers
+        except ImportError:
+            self.report({'ERROR'}, "tool_installers module unavailable")
+            return {'CANCELLED'}
+        ok, msg = tool_installers.install_collective_modding_toolkit()
+        level = 'INFO' if ok else 'ERROR'
+        self.report({level}, msg.split("\n")[0])
+        try:
+            from . import notification_system
+            notification_system.FO4_NotificationSystem.notify(msg.split("\n")[0], level)
+        except Exception:
+            pass
+        return {'FINISHED'} if ok else {'CANCELLED'}
+
+
+class FO4_OT_OpenCollectiveModdingToolkit(Operator):
+    """Open the Collective Modding Toolkit Nexus page (mod 87441) in browser."""
+    bl_idname = "fo4.open_collective_modding_toolkit"
+    bl_label  = "Get Collective Modding Toolkit (Nexus)"
+
+    def execute(self, context):
+        import webbrowser
+        webbrowser.open("https://www.nexusmods.com/fallout4/mods/87441")
+        self.report({'INFO'}, "Opened Nexus — Collective Modding Toolkit by wxMichael")
+        return {'FINISHED'}
+
+
+# ---------------------------------------------------------------------------
+# Story Action Poses + pose framework operators
+# ---------------------------------------------------------------------------
+
+class FO4_OT_OpenStoryActionPoses(Operator):
+    """Open Story Action Poses Nexus page (mod 58448, EngineGaming) in browser."""
+    bl_idname = "fo4.open_story_action_poses"
+    bl_label  = "Get Story Action Poses (Nexus)"
+
+    def execute(self, context):
+        import webbrowser
+        webbrowser.open("https://www.nexusmods.com/fallout4/mods/58448")
+        self.report({'INFO'}, "Opened Nexus — Story Action Poses by EngineGaming")
+        return {'FINISHED'}
+
+
+class FO4_OT_OpenAAF(Operator):
+    """Open Advanced Animation Framework Nexus page (mod 31304, dagobaking) in browser."""
+    bl_idname = "fo4.open_aaf"
+    bl_label  = "Get AAF — Advanced Animation Framework (Nexus)"
+
+    def execute(self, context):
+        import webbrowser
+        webbrowser.open("https://www.nexusmods.com/fallout4/mods/31304")
+        self.report({'INFO'}, "Opened Nexus — Advanced Animation Framework by dagobaking")
+        return {'FINISHED'}
+
+
+class FO4_OT_OpenPoserHotkeys(Operator):
+    """Open Poser Hotkeys Nexus page (mod 45967, opparco) in browser."""
+    bl_idname = "fo4.open_poser_hotkeys"
+    bl_label  = "Get Poser Hotkeys (Nexus)"
+
+    def execute(self, context):
+        import webbrowser
+        webbrowser.open("https://www.nexusmods.com/fallout4/mods/45967")
+        self.report({'INFO'}, "Opened Nexus — Poser Hotkeys by opparco")
+        return {'FINISHED'}
+
+
+class FO4_OT_ShowStoryActionPosesGuide(Operator):
+    """Show the Story Action Poses setup guide and full requirement list."""
+    bl_idname = "fo4.show_story_action_poses_guide"
+    bl_label  = "Story Action Poses Setup Guide"
+
+    def execute(self, context):
+        return {'FINISHED'}
+
+    def invoke(self, context, event):
+        return context.window_manager.invoke_popup(self, width=500)
+
+    def draw(self, context):
+        layout = self.layout
+        layout.label(text="Story Action Poses  (mod 58448)  by EngineGaming", icon='ARMATURE_DATA')
+        layout.separator()
+
+        def _box(icon, heading, lines):
+            b = layout.box()
+            b.label(text=heading, icon=icon)
+            col = b.column(align=True)
+            col.scale_y = 0.82
+            for ln in lines:
+                col.label(text=ln)
+
+        _box('INFO', "What it is", [
+            "1,700+ action poses for storytelling, screenshots, and machinima.",
+            "Covers standard characters, power armor, and creatures.",
+            "ESL-flagged — consumes no plugin slot in your load order.",
+            "NEXT-GEN version (v4.0) at Nexus mod 68000.",
+        ])
+
+        _box('TOOL_SETTINGS', "Required Tools (install in this order)", [
+            "1. F4SE (Fallout 4 Script Extender)  — f4se.silverlock.org",
+            "   Required by everything below. Launch FO4 via f4se_loader.exe.",
+            "",
+            "2. AAF (Advanced Animation Framework)  — Nexus mod 31304",
+            "   by dagobaking. Core pose/animation manager.",
+            "   Use the buttons below to open each Nexus page.",
+            "",
+            "3. Poser Hotkeys  — Nexus mod 45967  by opparco",
+            "   Trigger poses in-game with arrow keys. Optional but recommended.",
+            "",
+            "4. LooksMenu  — Nexus mod 12631  by expired6978",
+            "   Required for face/expression control in posed scenes.",
+        ])
+
+        _box('ANIM', "Optional / Creature Poses", [
+            "Animal Posing Framework — needed for creature/animal poses.",
+            "Story Action Poses NEXT-GEN (v4.0) — Nexus mod 68000",
+            "  Updated for NG Fallout 4 (post May 2024 patch).",
+        ])
+
+        _box('CHECKMARK', "Using Poses in Blender (for mod authors)", [
+            "To create custom poses for SAP-style distribution:",
+            "1. Use Shiagur's animation rig (Nexus 82537) in Blender.",
+            "2. Create a static key-pose (single frame) animation.",
+            "3. Export via PyNifly v25 or FBX → HKT → HKX pipeline.",
+            "4. Register the .hkx in an AAF XML pose pack.",
+            "5. Distribute with AAF as a dependency in your FOMOD.",
+        ])
+
+        _box('INFO', "Resources", [
+            "Mod page: nexusmods.com/fallout4/mods/58448",
+            "NEXT-GEN: nexusmods.com/fallout4/mods/68000",
+            "YouTube:  youtube.com/watch?v=EFuUMsfAkdc  (showcase)",
+            "AAF docs: nexusmods.com/fallout4/mods/31304",
+        ])
+
+        layout.separator()
+        layout.label(
+            text="Credit: EngineGaming (SAP) · dagobaking (AAF) · opparco (Poser Hotkeys)",
+            icon='FUND',
+        )
+
+
+# ---------------------------------------------------------------------------
+# Armor & Clothing operators
+# ---------------------------------------------------------------------------
+
+class FO4_OT_OpenBodySlideOutfitStudio(Operator):
+    """Open BodySlide and Outfit Studio Nexus page (mod 25) in browser."""
+    bl_idname = "fo4.open_bodyslide_outfit_studio"
+    bl_label  = "Get BodySlide & Outfit Studio (Nexus)"
+
+    def execute(self, context):
+        import webbrowser
+        webbrowser.open("https://www.nexusmods.com/fallout4/mods/25")
+        self.report({'INFO'}, "Opened Nexus — BodySlide and Outfit Studio by ousnius/Caliente")
+        return {'FINISHED'}
+
+
+class FO4_OT_OpenCBBE(Operator):
+    """Open CBBE Nexus page (mod 15, Caliente) in browser."""
+    bl_idname = "fo4.open_cbbe"
+    bl_label  = "Get CBBE Body (Nexus)"
+
+    def execute(self, context):
+        import webbrowser
+        webbrowser.open("https://www.nexusmods.com/fallout4/mods/15")
+        self.report({'INFO'}, "Opened Nexus — CBBE by Caliente")
+        return {'FINISHED'}
+
+
+class FO4_OT_ShowArmorClothingWorkflow(Operator):
+    """Show the complete FO4 armor and clothing creation workflow."""
+    bl_idname = "fo4.show_armor_clothing_workflow"
+    bl_label  = "Armor & Clothing Workflow Guide"
+
+    def execute(self, context):
+        return {'FINISHED'}
+
+    def invoke(self, context, event):
+        return context.window_manager.invoke_popup(self, width=540)
+
+    def draw(self, context):
+        layout = self.layout
+        layout.label(text="FO4 Armor & Clothing Creation Workflow", icon='MESH_DATA')
+        layout.separator()
+
+        def _box(icon, heading, lines):
+            b = layout.box()
+            b.label(text=heading, icon=icon)
+            col = b.column(align=True)
+            col.scale_y = 0.82
+            for ln in lines:
+                col.label(text=ln)
+
+        _box('TOOL_SETTINGS', "Required Tools", [
+            "• Blender 4.1+            — blender.org",
+            "• PyNifly v25             — use 'Install PyNifly v25' in Setup panel",
+            "  Imports/exports NIF meshes with full skeleton support.",
+            "• NifSkope               — github.com/niftools/nifskope",
+            "  Inspect/tweak NIF shader flags and texture paths.",
+            "• BodySlide & Outfit Studio  — Nexus mod 25  (ousnius/Caliente)",
+            "  Conform armor to CBBE body, create morph sliders for users.",
+            "• CBBE body              — Nexus mod 15  (Caliente)",
+            "  Body reference mesh for fitting and weight transfer.",
+            "• Fallout 4 Creation Kit — Steam → Library → Tools",
+            "  Create ArmorAddon + Armor records, set body slots.",
+            "• FO4Edit / xEdit        — Nexus mod 2737",
+            "  Edit plugin records, ESL-flag, clean masters.",
+        ])
+
+        _box('MESH_DATA', "Step 1 — Model Your Armor in Blender", [
+            "1. Import body reference (CBBE or vanilla) via PyNifly v25.",
+            "   File > Import > NetImmerse/Gambryo NIF → pick body NIF.",
+            "2. Model armor/clothing on top of the reference body.",
+            "   Keep polygons reasonable — FO4 runs best under 5,000 tris/piece.",
+            "3. Ensure clean topology: no N-gons, no overlapping UVs.",
+            "4. Scale: match existing FO4 armor scale (1 Blender unit = 1 unit).",
+        ])
+
+        _box('WPAINT_FACE', "Step 2 — Weight Paint", [
+            "Armor must deform with the body skeleton to animate correctly.",
+            "1. Parent armor mesh to the body armature (Ctrl+P > Armature Deform).",
+            "2. Use Data Transfer modifier to copy weights from CBBE body:",
+            "   Source: CBBE body | Vertex Data: Vertex Groups | Nearest face.",
+            "3. Clean up weights: merge very small groups, check deformation.",
+            "4. Required bones for upper body armor: Spine1, Spine2, LUpperArm,",
+            "   RUpperArm, LForeArm, RForeArm, LHand, RHand.",
+            "5. Required bones for lower body / legs: Pelvis, LThigh, RThigh,",
+            "   LCalf, RCalf, LFoot, RFoot.",
+        ])
+
+        _box('UV', "Step 3 — UV Unwrap & Textures", [
+            "1. UV unwrap the armor (Smart UV Project is a good start).",
+            "2. Create textures in 512×512, 1024×1024, or 2048×2048:",
+            "   _d.dds = diffuse/albedo (BC1 or BC7)",
+            "   _n.dds = normal map     (BC5 or BC7)",
+            "   _s.dds = specular       (BC1 or BC7)",
+            "3. Use Cathedral Assets Optimizer to compress textures for FO4.",
+        ])
+
+        _box('EXPORT', "Step 4 — Export as NIF via PyNifly v25", [
+            "1. Select armor mesh + armature.",
+            "2. File > Export > NetImmerse/Gambryo NIF (.nif)",
+            "   target_game = FO4",
+            "   export_modifiers = True  (applies modifiers)",
+            "   rename_bones = True      (uses FO4 bone names)",
+            "   blender_xf = False       (preserves world transform)",
+            "3. Place NIF at: Data\\Meshes\\Actors\\Character\\",
+            "   CharacterAssets\\YourMod\\YourArmor.nif",
+        ])
+
+        _box('MODIFIER', "Step 5 — Outfit Studio (BodySlide Conforming)", [
+            "1. Open Outfit Studio. File > New Project.",
+            "2. Load CBBE body as reference (From Template > CBBE Body).",
+            "3. File > Import > From NIF → import your armor NIF.",
+            "4. Use 'Conform All' to fit armor to CBBE sliders.",
+            "5. Fine-tune skin weights in Outfit Studio if needed.",
+            "6. File > Export > To NIF → export final conformed NIF.",
+            "7. File > Export > Project… → creates BodySlide XML",
+            "   so users can batch-build your armor to their body shape.",
+        ])
+
+        _box('GAME', "Step 6 — Creation Kit (ArmorAddon + Armor Records)", [
+            "1. Open Creation Kit. File > Data > tick your mod .esp.",
+            "2. Create ArmorAddon record:",
+            "   Actors > Armor > ArmorAddon > New",
+            "   Set Male/Female World Model → path to your NIF.",
+            "   Body slots (Biped Object slots) — see slot table below.",
+            "3. Create Armor record:",
+            "   Actors > Armor > Armor > New",
+            "   Link to ArmorAddon. Set keywords (ArmorTypePower etc.).",
+            "4. Save .esp. Test in-game.",
+        ])
+
+        _box('INFO', "FO4 Body Slot Reference", [
+            "Slot 30 = Body/Torso (main clothing, full outfits)",
+            "Slot 31 = Head      (helmets, hats)",
+            "Slot 32 = Hair      (hair-hiding helmets)",
+            "Slot 33 = Hands     (gloves)",
+            "Slot 34 = Forearms",
+            "Slot 35 = Amulet/Neck",
+            "Slot 36 = Ring",
+            "Slot 37 = Feet/Boots",
+            "Slot 38 = Calves/Greaves",
+            "Slot 39 = Shield/Back  (backpacks, back accessories)",
+            "Slot 40 = Tail (unused vanilla)",
+            "Slot 41 = Long Hair / Misc",
+            "Slots 44-60 = Custom/mod-defined accessories",
+            "Power Armor pieces use slots 55-60 by convention.",
+        ])
+
+        layout.separator()
+        layout.label(
+            text="Tools: ousnius/Caliente (BodySlide+CBBE) · BadDog (PyNifly) · Bethesda (CK)",
+            icon='FUND',
+        )
+
+
+class FO4_OT_OpenFO4ArmorBlenderGuide(Operator):
+    """Open mod 17785 — FO4 Armor/Outfit Creation with Blender (free tools guide)."""
+    bl_idname = "fo4.open_fo4_armor_blender_guide"
+    bl_label  = "FO4 Armor/Outfit Blender Guide (Nexus 17785)"
+
+    def execute(self, context):
+        import webbrowser
+        webbrowser.open("https://www.nexusmods.com/fallout4/mods/17785")
+        self.report({'INFO'}, "Opened Nexus — FO4 Armor/Outfit with Blender (free tools guide)")
+        return {'FINISHED'}
+
+
+class FO4_OT_SetArmorOrigin(Operator):
+    """Set selected mesh origin to X=0, Y=0, Z=1.2 (FO4 body origin, per Nexus 17785 guide)."""
+    bl_idname  = "fo4.set_armor_origin"
+    bl_label   = "Set FO4 Armor Origin (0, 0, 120)"
+    bl_options = {'REGISTER', 'UNDO'}
+
+    def execute(self, context):
+        import bpy
+        obj = context.active_object
+        if not obj or obj.type != 'MESH':
+            self.report({'ERROR'}, "Select a mesh object first")
+            return {'CANCELLED'}
+
+        # Apply all transforms first so origin placement is clean
+        bpy.ops.object.transform_apply(location=True, rotation=True, scale=True)
+
+        # Move object so its origin is at (0, 0, 120) in Blender units
+        # (FO4 body NIF origin after import via Outfit Studio / PyNifly)
+        bpy.ops.object.origin_set(type='ORIGIN_GEOMETRY', center='BOUNDS')
+        obj.location = (0.0, 0.0, 120.0)
+        bpy.ops.object.transform_apply(location=True)
+
+        self.report({'INFO'}, f"Origin set to (0, 0, 120) on '{obj.name}'")
+        return {'FINISHED'}
+
+
+class FO4_OT_SplitUVSeamEdges(Operator):
+    """Split edges at UV seams before FBX export to prevent UV corruption in Outfit Studio.
+
+    Per the mod 17785 guide: UV coordinates may be exported incorrectly via FBX
+    unless edges matching UV seams are split beforehand.
+    """
+    bl_idname  = "fo4.split_uv_seam_edges"
+    bl_label   = "Split UV Seam Edges (for FBX Export)"
+    bl_options = {'REGISTER', 'UNDO'}
+
+    def execute(self, context):
+        import bpy
+        obj = context.active_object
+        if not obj or obj.type != 'MESH':
+            self.report({'ERROR'}, "Select a mesh object first")
+            return {'CANCELLED'}
+
+        # Go to edit mode, select seam edges, then split them
+        prev_mode = obj.mode
+        bpy.ops.object.mode_set(mode='EDIT')
+        bpy.ops.mesh.select_all(action='DESELECT')
+
+        # Select all seam edges
+        bpy.ops.uv.seams_from_islands()
+        bpy.ops.mesh.select_all(action='DESELECT')
+
+        # Use bmesh to select seam edges
+        import bmesh
+        me = obj.data
+        bm = bmesh.from_edit_mesh(me)
+        seam_count = 0
+        for edge in bm.edges:
+            if edge.seam:
+                edge.select = True
+                seam_count += 1
+        bmesh.update_edit_mesh(me)
+
+        if seam_count == 0:
+            bpy.ops.object.mode_set(mode=prev_mode)
+            self.report({'WARNING'}, "No UV seams found. Mark seams first (Edge > Mark Seam).")
+            return {'CANCELLED'}
+
+        # Edge split at selected seam edges
+        bpy.ops.mesh.edge_split(type='EDGE')
+        bpy.ops.object.mode_set(mode=prev_mode)
+
+        self.report({'INFO'}, f"Split {seam_count} UV seam edge(s) on '{obj.name}'. "
+                              "Safe to export as FBX to Outfit Studio now.")
+        return {'FINISHED'}
+
+
+class FO4_OT_TransferArmorWeights(Operator):
+    """Transfer vertex weights from a reference body to the active armor mesh.
+
+    Implements the Data Transfer approach from the mod 17785 guide:
+    select armor mesh (active), then shift-select the reference body (source),
+    and run this operator.
+    """
+    bl_idname  = "fo4.transfer_armor_weights"
+    bl_label   = "Transfer Weights from Body Reference"
+    bl_options = {'REGISTER', 'UNDO'}
+
+    def execute(self, context):
+        import bpy
+        selected = context.selected_objects
+        active   = context.active_object
+
+        if not active or active.type != 'MESH':
+            self.report({'ERROR'}, "Active object must be the armor mesh")
+            return {'CANCELLED'}
+
+        sources = [o for o in selected if o != active and o.type == 'MESH']
+        if not sources:
+            self.report({'ERROR'}, "Also select the reference body mesh (shift-click it first)")
+            return {'CANCELLED'}
+
+        source = sources[0]
+
+        # Add Data Transfer modifier if not already present
+        mod_name = "FO4_WeightTransfer"
+        if mod_name in active.modifiers:
+            active.modifiers.remove(active.modifiers[mod_name])
+
+        mod = active.modifiers.new(name=mod_name, type='DATA_TRANSFER')
+        mod.object              = source
+        mod.use_vert_data       = True
+        mod.data_types_verts    = {'VGROUP_WEIGHTS'}
+        mod.vert_mapping        = 'NEAREST'
+        mod.layers_vgroup_select_src = 'ALL'
+        mod.layers_vgroup_select_dst = 'NAME'
+
+        # Apply the modifier
+        try:
+            bpy.ops.object.modifier_apply(modifier=mod_name)
+        except Exception as exc:
+            self.report({'WARNING'}, f"Could not apply modifier: {exc}. Apply manually.")
+            return {'FINISHED'}
+
+        self.report({'INFO'},
+                    f"Weights transferred from '{source.name}' to '{active.name}'. "
+                    "Check weight paint and clean up small groups.")
+        return {'FINISHED'}
+
+
+class FO4_OT_CleanImportedArmature(Operator):
+    """Unparent active mesh from its armature and delete the malformed armature.
+
+    Per the mod 17785 guide: FBX bodies exported from Outfit Studio arrive in
+    Blender with a malformed armature. Unparent the mesh and delete it — the
+    body will look correct once freed.
+    """
+    bl_idname  = "fo4.clean_imported_armature"
+    bl_label   = "Remove Malformed FBX Armature"
+    bl_options = {'REGISTER', 'UNDO'}
+
+    def execute(self, context):
+        import bpy
+        obj = context.active_object
+        if not obj or obj.type != 'MESH':
+            self.report({'ERROR'}, "Select the imported mesh first")
+            return {'CANCELLED'}
+
+        # Find armature parent
+        bad_armatures = []
+        if obj.parent and obj.parent.type == 'ARMATURE':
+            bad_armatures.append(obj.parent)
+
+        # Also find armature modifiers
+        arm_mods = [m for m in obj.modifiers if m.type == 'ARMATURE']
+
+        # Clear parent keeping transforms
+        if obj.parent:
+            bpy.ops.object.parent_clear(type='CLEAR_KEEP_TRANSFORM')
+
+        # Remove armature modifiers
+        for m in arm_mods:
+            obj.modifiers.remove(m)
+
+        # Delete malformed armature objects
+        for arm in bad_armatures:
+            bpy.data.objects.remove(arm, do_unlink=True)
+
+        self.report({'INFO'},
+                    f"Malformed armature removed from '{obj.name}'. "
+                    "Body should now appear correct. Re-parent to the fo4.blend skeleton.")
+        return {'FINISHED'}
+
+
 class FO4_OT_ShowMessage(Operator):
     """Show a message to the user"""
     bl_idname = "fo4.show_message"
@@ -1036,8 +2045,9 @@ class FO4_OT_ExportMesh(Operator):
     """Export mesh to NIF format"""
     bl_idname = "fo4.export_mesh"
     bl_label = "Export Mesh"
-    
+
     filepath: StringProperty(subtype='FILE_PATH')
+    filter_glob: StringProperty(default="*.nif", options={'HIDDEN'})
     source_object: StringProperty(options={'HIDDEN'})
 
     @classmethod
@@ -1145,8 +2155,9 @@ class FO4_OT_ExportMeshWithCollision(Operator):
     """Generate a collision mesh and export both original and collision to NIF"""
     bl_idname = "fo4.export_mesh_with_collision"
     bl_label = "Export Mesh + Collision"
-    
+
     filepath: StringProperty(subtype='FILE_PATH')
+    filter_glob: StringProperty(default="*.nif", options={'HIDDEN'})
     source_object: StringProperty(options={'HIDDEN'})
     simplify_ratio: FloatProperty(
         name="Simplification",
@@ -1265,7 +2276,7 @@ class FO4_OT_ExportSceneAsNif(Operator):
     bl_label = "Export Scene as NIF"
 
     filepath: StringProperty(subtype='FILE_PATH')
-    filter_glob: StringProperty(default="*.nif;*.fbx", options={'HIDDEN'})
+    filter_glob: StringProperty(default="*.nif", options={'HIDDEN'})
 
     @classmethod
     def poll(cls, context):
@@ -2676,12 +3687,9 @@ class FO4_OT_CheckUModelTools(Operator):
         if needs_download:
             ok, msg = umodel_tools_helpers.download_latest()
             actions.append(msg)
-            if not ok and ("manual download" in msg.lower() or "download manually" in msg.lower()):
-                _, browser_msg = umodel_tools_helpers.open_download_page()
-                if browser_msg:
-                    actions.append(browser_msg)
             if ok:
                 umodel_tools_helpers.register()
+                tool_installers.auto_configure_preferences()
                 ready, message = umodel_tools_helpers.status()
         elif not ready:
             umodel_tools_helpers.register()
@@ -2704,15 +3712,23 @@ class FO4_OT_CheckUModelTools(Operator):
 
 
 class FO4_OT_OpenUModelToolsPage(Operator):
-    """Open the UModel Tools GitHub page for manual download."""
+    """Auto-download UModel Tools from GitHub (replaces browser open)."""
     bl_idname = "fo4.open_umodel_tools_page"
-    bl_label = "Manual Download (UModel Tools)"
+    bl_label = "Download UModel Tools"
 
     def execute(self, context):
-        ok, msg = umodel_tools_helpers.open_download_page()
-        level = 'INFO' if ok else 'ERROR'
-        self.report({level}, msg)
-        notification_system.FO4_NotificationSystem.notify(msg, level)
+        import threading
+
+        def _run():
+            ok, msg = umodel_tools_helpers.download_latest()
+            if ok:
+                tool_installers.auto_configure_preferences()
+            level = 'INFO' if ok else 'ERROR'
+            print(f"[UModel Tools] {msg}")
+            notification_system.FO4_NotificationSystem.notify(msg, level)
+
+        threading.Thread(target=_run, daemon=True).start()
+        self.report({'INFO'}, "Downloading UModel Tools in background — check console")
         return {'FINISHED'}
 
 
@@ -2755,11 +3771,15 @@ class FO4_OT_InstallUModelTools(Operator):
                 all_deps_ok = deps_ok and req_ok
                 final_msg = (
                     f"{msg} — Python deps installed. "
-                    "Now install UModel Tools as a Blender addon via "
+                    "UModel Tools downloaded and ready. "
+                    "Install it as a Blender addon via "
                     "Edit > Preferences > Add-ons > Install."
                 ) if all_deps_ok else (
                     f"{msg} — Warning: some Python deps failed to install: {deps_msg}"
                 )
+
+                # Wire any newly discovered tools into prefs immediately
+                tool_installers.auto_configure_preferences()
             except Exception as exc:
                 final_msg = f"UModel Tools install error: {exc}"
                 print(final_msg)
@@ -2787,13 +3807,6 @@ class FO4_OT_CheckUModel(Operator):
             # Try to download/install
             ok, msg = umodel_helpers.download_latest()
             actions.append(msg)
-
-            # If download provides manual instructions, also open browser
-            lower_msg = msg.lower()
-            if not ok and ("manual download" in lower_msg or "download manually" in lower_msg):
-                _, browser_msg = umodel_helpers.open_download_page()
-                actions.append(browser_msg)
-
             ready, message = umodel_helpers.status()
 
         status_lines = [message] + actions
@@ -5922,7 +6935,7 @@ class FO4_OT_GenerateWithTripoSRLight(Operator):
     
     def execute(self, context):
         success, message = imageto3d_helpers.ImageTo3DHelpers.check_triposr_light_installation()
-        
+
         if not success:
             self.report({'ERROR'}, "TripoSR Light not installed")
             print("\n" + "="*70)
@@ -5931,36 +6944,64 @@ class FO4_OT_GenerateWithTripoSRLight(Operator):
             print(message)
             print("="*70 + "\n")
             return {'CANCELLED'}
-        
+
         if not self.image_path:
             self.report({'ERROR'}, "Image file required")
             return {'CANCELLED'}
-        
+
+        # Map scene quality enum → TripoSR quality mode
+        quality_map = {'DRAFT': 'fast', 'BALANCED': 'fast', 'HIGH': 'balanced'}
+        scene_quality = getattr(context.scene, 'fo4_imageto3d_quality', 'BALANCED')
+        effective_mode = quality_map.get(scene_quality, self.quality_mode)
+
         success, msg, output = imageto3d_helpers.ImageTo3DHelpers.generate_3d_light(
-            self.image_path, self.output_path, self.quality_mode
+            self.image_path, self.output_path, effective_mode
         )
-        
+
         print("\n" + "="*70)
         print("TRIPOSR LIGHT GENERATION")
         print("="*70)
         print(msg)
         print("="*70 + "\n")
-        
+
         self.report({'INFO'}, "See console for instructions")
         notification_system.FO4_NotificationSystem.notify(
-            f"TripoSR Light {self.quality_mode} mode", 'INFO'
+            f"TripoSR Light {effective_mode} mode (quality: {scene_quality})", 'INFO'
         )
-        
+
+        # Auto-decimate if the user has enabled it
+        if getattr(context.scene, 'fo4_imageto3d_auto_decimate', False):
+            obj = context.active_object
+            if obj and obj.type == 'MESH' and advanced_mesh_helpers:
+                target = getattr(context.scene, 'fo4_imageto3d_target_poly', 16000)
+                current = len(obj.data.polygons)
+                if current > target:
+                    adv_ok, adv_msg, adv_stats = (
+                        advanced_mesh_helpers.AdvancedMeshHelpers.smart_decimate(
+                            obj, target_poly_count=target, preserve_uvs=True
+                        )
+                    )
+                    after = adv_stats.get('poly_count_after', '?') if adv_ok else '?'
+                    print(f"Auto-decimate: {current:,} → {after} tris  ({adv_msg})")
+                    notification_system.FO4_NotificationSystem.notify(
+                        f"Auto-decimated to {after} tris for FO4", 'INFO'
+                    )
+
         return {'FINISHED'}
-    
+
     def invoke(self, context, event):
         return context.window_manager.invoke_props_dialog(self, width=450)
-    
+
     def draw(self, context):
         layout = self.layout
         layout.prop(self, "image_path")
         layout.prop(self, "output_path")
-        layout.prop(self, "quality_mode")
+        # Show scene quality setting alongside the per-operator mode
+        layout.prop(context.scene, "fo4_imageto3d_quality", text="Quality (scene)")
+        layout.prop(self, "quality_mode", text="Quality (override)")
+        layout.separator()
+        layout.prop(context.scene, "fo4_imageto3d_auto_decimate")
+        layout.prop(context.scene, "fo4_imageto3d_target_poly")
 
 
 class FO4_OT_ShowTripoSRComparison(Operator):
@@ -6327,7 +7368,77 @@ class FO4_OT_SmartDecimate(Operator):
         layout.prop(self, "preserve_uvs")
 
 
-class FO4_OT_SplitMeshPolyLimit(Operator):
+class FO4_OT_DecimateToFO4(Operator):
+    """Reduce the active mesh to the FO4 target poly count set in the Image-to-3D panel.
+
+    Shows the current triangle count alongside the target so you can judge
+    how much reduction will happen before confirming.  Uses Smart Decimate
+    with UV-seam preservation enabled.
+    """
+    bl_idname = "fo4.decimate_to_fo4"
+    bl_label = "Decimate to FO4 Target"
+    bl_options = {'REGISTER', 'UNDO'}
+
+    def execute(self, context):
+        obj = context.active_object
+        if not obj or obj.type != 'MESH':
+            self.report({'ERROR'}, "Select a mesh object first")
+            return {'CANCELLED'}
+
+        target = context.scene.fo4_imageto3d_target_poly
+
+        if not advanced_mesh_helpers:
+            self.report({'ERROR'}, "advanced_mesh_helpers unavailable — restart Blender")
+            return {'CANCELLED'}
+
+        current = len(obj.data.polygons)
+        if current <= target:
+            self.report({'INFO'}, f"Already at or below target ({current:,} tris ≤ {target:,})")
+            return {'FINISHED'}
+
+        success, message, stats = advanced_mesh_helpers.AdvancedMeshHelpers.smart_decimate(
+            obj, target_poly_count=target, preserve_uvs=True
+        )
+        if success:
+            after = stats.get('poly_count_after', '?')
+            pct = stats.get('reduction_percent', 0)
+            self.report(
+                {'INFO'},
+                f"Decimated: {current:,} → {after:,} tris ({pct:.1f}% reduction)",
+            )
+            notification_system.FO4_NotificationSystem.notify(
+                f"Mesh ready for FO4: {after:,} tris", 'INFO'
+            )
+        else:
+            self.report({'ERROR'}, message)
+            return {'CANCELLED'}
+        return {'FINISHED'}
+
+    def invoke(self, context, event):
+        return context.window_manager.invoke_props_dialog(self, width=360)
+
+    def draw(self, context):
+        layout = self.layout
+        obj = context.active_object
+        col = layout.column(align=True)
+
+        if obj and obj.type == 'MESH':
+            current = len(obj.data.polygons)
+            target = context.scene.fo4_imageto3d_target_poly
+            budget_ok = current <= 65535
+            col.label(
+                text=f"Current:  {current:,} tris",
+                icon='CHECKMARK' if budget_ok else 'ERROR',
+            )
+            col.label(text=f"Target:   {target:,} tris  (FO4 hard limit: 65,535)", icon='INFO')
+            if current > target:
+                pct = 100.0 * (1.0 - target / current)
+                col.label(text=f"Will remove ~{pct:.0f}% of faces", icon='MOD_DECIM')
+        else:
+            col.label(text="No mesh selected", icon='ERROR')
+
+        layout.separator()
+        layout.prop(context.scene, "fo4_imageto3d_target_poly")
     """Split the active mesh into sub-meshes each under the FO4 65,535-triangle limit"""
     bl_idname = "fo4.split_mesh_poly_limit"
     bl_label = "Split at Poly Limit"
@@ -12525,22 +13636,23 @@ class FO4_OT_ExportModManifest(Operator):
 
 
 class FO4_OT_InstallPyNifly(Operator):
-    """Install PyNifly NIF exporter from the tools folder.
+    """Install PyNifly v25 NIF exporter (by BadDog / BadDogSkyrim).
 
-    Looks for a PyNifly*.zip in the tools folder (D:\\Blender addon\\tools)
-    and installs it into Blender as an add-on.  If the zip is not present
-    the GitHub releases page is opened so you can download it — place the
-    zip in the tools folder and click this button again.
+    Automatically downloads PyNifly v25 from GitHub if no local zip is found
+    in the tools folder (D:\\Blender addon\\tools).  The zip is then installed
+    directly into Blender as an add-on.
 
-    PyNifly (BadDogSkyrim/PyNifly) is the recommended NIF exporter for
-    Blender 4.x and 5.x and replaces Niftools v0.1.1 for those versions.
+    PyNifly (by BadDog) is the recommended NIF exporter for Blender 4.x and
+    5.x — it supports Fallout 4, Skyrim SE, and Starfield with full body-morph
+    and material path support.
+
+    Credit: BadDog (BadDogSkyrim) — https://github.com/BadDogSkyrim/PyNifly
     """
     bl_idname = "fo4.install_pynifly"
-    bl_label = "Install PyNifly"
+    bl_label = "Install PyNifly v25"
     bl_description = (
-        "Install PyNifly NIF exporter from the tools folder "
-        "(D:\\Blender addon\\tools). "
-        "Downloads page opens if the zip is not found there."
+        "Auto-download and install PyNifly v25 by BadDog (BadDogSkyrim). "
+        "Downloads from GitHub if not already in the tools folder."
     )
 
     def execute(self, context):
@@ -12623,6 +13735,29 @@ class WM_OT_MossyCheckHttp(Operator):
 classes = (
     FO4_OT_StartTutorial,
     FO4_OT_ShowHelp,
+    FO4_OT_ShowCredits,
+    FO4_OT_OpenShiagurPowerArmorRig,
+    FO4_OT_OpenShiagurAnimRig,
+    FO4_OT_OpenFBXImporter,
+    FO4_OT_ShowShiagurWorkflow,
+    FO4_OT_OpenFOMODCreationTool,
+    FO4_OT_OpenCathedralAssetsOptimizer,
+    FO4_OT_OpenFO4Edit,
+    FO4_OT_ShowFOMODGuide,
+    FO4_OT_InstallCollectiveModdingToolkit,
+    FO4_OT_OpenCollectiveModdingToolkit,
+    FO4_OT_OpenStoryActionPoses,
+    FO4_OT_OpenAAF,
+    FO4_OT_OpenPoserHotkeys,
+    FO4_OT_ShowStoryActionPosesGuide,
+    FO4_OT_OpenBodySlideOutfitStudio,
+    FO4_OT_OpenCBBE,
+    FO4_OT_ShowArmorClothingWorkflow,
+    FO4_OT_OpenFO4ArmorBlenderGuide,
+    FO4_OT_SetArmorOrigin,
+    FO4_OT_SplitUVSeamEdges,
+    FO4_OT_TransferArmorWeights,
+    FO4_OT_CleanImportedArmature,
     FO4_OT_NextTutorialStep,
     FO4_OT_PreviousTutorialStep,
     FO4_OT_ShowDetailedSetup,
@@ -12747,6 +13882,7 @@ classes = (
     FO4_OT_AnalyzeMeshQuality,
     FO4_OT_AutoRepairMesh,
     FO4_OT_SmartDecimate,
+    FO4_OT_DecimateToFO4,
     FO4_OT_SplitMeshPolyLimit,
     FO4_OT_GenerateLOD,
     FO4_OT_GenerateLODAndCollision,
@@ -13175,14 +14311,21 @@ def register():
     )
     bpy.types.Object.fo4_mesh_type = bpy.props.EnumProperty(
         name="Mesh Type",
-        description="Override how this mesh is classified for NIF export",
+        description="Override how this mesh is classified for NIF export. "
+                    "Controls root node, BSXFlags, shader flags, and skinning.",
         items=[
-            ('AUTO',     "Auto-detect",   "Classify automatically from armature / name / material"),
-            ('STATIC',   "Static",        "Non-animated world object (BSFadeNode root)"),
-            ('SKINNED',  "Skinned",        "Character / creature mesh with armature (NiNode root)"),
-            ('ANIMATED', "Animated",      "Animated prop (NiNode with NiKeyframeController)"),
-            ('FLORA',    "Flora",          "Tree / bush / plant mesh"),
-            ('DEBRIS',   "Debris",         "Small physics object"),
+            ('AUTO',         "Auto-detect",    "Classify automatically from armature / name / material"),
+            ('STATIC',       "Static",         "Non-animated world object — BSFadeNode root, BSTriShape, no skinning"),
+            ('SKINNED',      "Skinned",        "Character / creature mesh — NiNode root, BSSubIndexTriShape, BSSkin::Instance"),
+            ('ARMOR',        "Armor",          "Wearable armor — NiNode root, BSSubIndexTriShape, BSSkin::Instance, Skinned SF1"),
+            ('ANIMATED',     "Animated",       "Animated prop — NiNode with NiKeyframeController"),
+            ('LOD',          "LOD",            "Level-of-detail mesh — BSFadeNode root, reduced poly, same flags as Static"),
+            ('VEGETATION',   "Vegetation",     "Tree / bush / plant — BSFadeNode root, Two_Sided SF2, Alpha Clip material"),
+            ('FURNITURE',    "Furniture",      "Sit/activate furniture — NiNode root, BSXFlags Animated (1), CK markers"),
+            ('WEAPON',       "Weapon",         "Held weapon — NiNode root, no vertex skinning, attach via named bone"),
+            ('ARCHITECTURE', "Architecture",   "Building / wall — BSFadeNode root, BSXFlags Has-Havok (2), collision required"),
+            ('FLORA',        "Flora",          "Harvestable flora — BSFadeNode root, Alpha Clip, harvest node required"),
+            ('DEBRIS',       "Debris",         "Small physics debris — BSFadeNode root, BSXFlags Has-Havok (2)"),
         ],
         default='AUTO',
     )
@@ -13231,7 +14374,51 @@ def register():
         default="",
     )
 
-def unregister():
+    # ── Image-to-3D mesh quality settings ────────────────────────────────────
+    # These settings are shown in the Image to Mesh panel and read by all
+    # AI generation operators so users can tune output quality before generating.
+    bpy.types.Scene.fo4_imageto3d_quality = bpy.props.EnumProperty(
+        name="Generation Quality",
+        description="Trade-off between speed and mesh detail for AI generation",
+        items=[
+            ('DRAFT',    "Draft  (fastest)",   "Lowest resolution — use for quick previews"),
+            ('BALANCED', "Balanced",            "Good quality / reasonable time — recommended starting point"),
+            ('HIGH',     "High  (slower)",      "Best detail — use when the mesh looks too blobby"),
+        ],
+        default='BALANCED',
+    )
+    bpy.types.Scene.fo4_imageto3d_target_poly = bpy.props.IntProperty(
+        name="FO4 Target Poly Count",
+        description=(
+            "Target triangle count after decimation.  "
+            "Fallout 4 hard limit is 65,535; "
+            "practical LOD0 budget is 10,000–20,000 for most props"
+        ),
+        default=16000,
+        min=500,
+        max=65535,
+        step=500,
+    )
+    bpy.types.Scene.fo4_imageto3d_auto_decimate = bpy.props.BoolProperty(
+        name="Auto-Decimate After Generation",
+        description=(
+            "Automatically run Smart Decimate to 'FO4 Target Poly Count' "
+            "after each AI generation completes"
+        ),
+        default=True,
+    )
+    bpy.types.Scene.fo4_triposr_mc_resolution = bpy.props.IntProperty(
+        name="Marching-Cubes Resolution",
+        description=(
+            "Grid resolution used by TripoSR's marching-cubes step. "
+            "Lower = fewer polygons (try 128 or 64 for FO4); "
+            "higher = more detail but extreme poly count (256+ often unusable for FO4)"
+        ),
+        default=128,
+        min=32,
+        max=512,
+        step=32,
+    )
     for cls in reversed(classes):
         try:
             bpy.utils.unregister_class(cls)
@@ -13275,6 +14462,11 @@ def unregister():
         "fo4_mossy_autostart",
         "fo4_mossy_http_port",
         "fo4_use_mossy_ai",
+        # Image-to-3D quality
+        "fo4_imageto3d_quality",
+        "fo4_imageto3d_target_poly",
+        "fo4_imageto3d_auto_decimate",
+        "fo4_triposr_mc_resolution",
     ):
         if hasattr(bpy.types.Scene, prop):
             try:
