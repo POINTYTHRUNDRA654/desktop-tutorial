@@ -3461,7 +3461,7 @@ class FO4_PT_ModPackagingPanel(Panel):
         fct_box.separator(factor=0.4)
         fct_box.operator(
             "fo4.open_fomod_creation_tool",
-            text="Get FOMOD Creation Tool  (Nexus 58448)",
+            text="Get FOMOD Creation Tool  (Nexus 6821)",
             icon='URL',
         )
         fct_box.operator(

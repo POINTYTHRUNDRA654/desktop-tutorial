@@ -486,7 +486,7 @@ class FO4_OT_ShowCredits(Operator):
         ])
 
         _section('PACKAGE', "FOMOD Creation Tool (mod installer builder)", [
-            "Wenderer — https://www.nexusmods.com/fallout4/mods/58448",
+            "Wenderer — https://www.nexusmods.com/fallout4/mods/6821",
             "GUI for creating info.xml + ModuleConfig.xml FOMOD installers.",
             "Supports conditions, flags, images, plugin detection, file priorities.",
         ])
@@ -508,6 +508,34 @@ class FO4_OT_ShowCredits(Operator):
             "GitHub: https://github.com/wxMichael/Collective-Modding-Toolkit",
             "Upgrades/downgrades FO4 OG ↔ NG · patches BA2 v1/v8 · scans F4SE DLLs",
             "Counts plugins (Full/Light) and BA2s · scans for mod conflicts",
+        ])
+
+        _section('ANIM', "Story Action Poses  (1,700+ poses for storytelling/screenshots)", [
+            "EngineGaming — https://www.nexusmods.com/fallout4/mods/58448",
+            "ESL-flagged. Covers standard characters, power armor, and creatures.",
+            "Requires: F4SE, AAF (Advanced Animation Framework), Poser Hotkeys.",
+            "NEXT-GEN v4.0: nexusmods.com/fallout4/mods/68000",
+        ])
+
+        _section('ANIM', "AAF — Advanced Animation Framework (pose/animation manager)", [
+            "dagobaking — https://www.nexusmods.com/fallout4/mods/31304",
+            "Required by Story Action Poses and most pose packs. Needs F4SE.",
+        ])
+
+        _section('ANIM', "Poser Hotkeys (in-game pose trigger via hotkeys)", [
+            "opparco — https://www.nexusmods.com/fallout4/mods/45967",
+            "Arrow keys cycle poses. Compatible with Story Action Poses.",
+        ])
+
+        _section('MODIFIER', "BodySlide and Outfit Studio (body/armor conforming)", [
+            "ousnius / Caliente — https://www.nexusmods.com/fallout4/mods/25",
+            "GitHub: https://github.com/ousnius/BodySlide-and-Outfit-Studio",
+            "Conforms armor meshes to CBBE body, creates morph sliders for users.",
+        ])
+
+        _section('MESH_DATA', "CBBE — Caliente's Beautiful Bodies Enhancer (body mesh)", [
+            "Caliente — https://www.nexusmods.com/fallout4/mods/15",
+            "Standard body reference mesh for armor/clothing creation in FO4.",
         ])
 
         layout.separator()
@@ -660,13 +688,13 @@ class FO4_OT_ShowShiagurWorkflow(Operator):
 # ---------------------------------------------------------------------------
 
 class FO4_OT_OpenFOMODCreationTool(Operator):
-    """Open the FOMOD Creation Tool Nexus page (mod 58448) in browser."""
+    """Open the FOMOD Creation Tool Nexus page (mod 6821) in browser."""
     bl_idname = "fo4.open_fomod_creation_tool"
     bl_label  = "Get FOMOD Creation Tool (Nexus)"
 
     def execute(self, context):
         import webbrowser
-        webbrowser.open("https://www.nexusmods.com/fallout4/mods/58448")
+        webbrowser.open("https://www.nexusmods.com/fallout4/mods/6821")
         self.report({'INFO'}, "Opened Nexus Mods — FOMOD Creation Tool by Wenderer")
         return {'FINISHED'}
 
@@ -734,7 +762,7 @@ class FO4_OT_ShowFOMODGuide(Operator):
             "• Cathedral Assets Optimizer   nexusmods.com/skyrimspecialedition/mods/23316",
             "  Optimize textures (DDS), meshes, and BSA/BA2 for FO4.",
             "",
-            "• FOMOD Creation Tool  nexusmods.com/fallout4/mods/58448  (by Wenderer)",
+            "• FOMOD Creation Tool  nexusmods.com/fallout4/mods/6821  (by Wenderer)",
             "  GUI for building multi-option FOMOD installers.",
             "  No XML knowledge required. Supports images, conditions,",
             "  flags, plugin detection, file priorities.",
@@ -783,7 +811,7 @@ class FO4_OT_ShowFOMODGuide(Operator):
             "  Result: always-install single-option installer.",
             "",
             "Complex mod (multiple options / patches):",
-            "  Download FOMOD Creation Tool (Wenderer, Nexus 58448).",
+            "  Download FOMOD Creation Tool (Wenderer, Nexus 6821).",
             "  Open your fomod/ folder in the tool.",
             "  Add pages, groups, options, conditions, screenshots.",
             "  Supports: plugin detection, flag conditions, BA2 choice.",
@@ -857,7 +885,275 @@ class FO4_OT_OpenFallUI(Operator):
         return {'FINISHED'}
 
 
-class FO4_OT_ShowMessage(Operator):
+# ---------------------------------------------------------------------------
+# Story Action Poses + pose framework operators
+# ---------------------------------------------------------------------------
+
+class FO4_OT_OpenStoryActionPoses(Operator):
+    """Open Story Action Poses Nexus page (mod 58448, EngineGaming) in browser."""
+    bl_idname = "fo4.open_story_action_poses"
+    bl_label  = "Get Story Action Poses (Nexus)"
+
+    def execute(self, context):
+        import webbrowser
+        webbrowser.open("https://www.nexusmods.com/fallout4/mods/58448")
+        self.report({'INFO'}, "Opened Nexus — Story Action Poses by EngineGaming")
+        return {'FINISHED'}
+
+
+class FO4_OT_OpenAAF(Operator):
+    """Open Advanced Animation Framework Nexus page (mod 31304, dagobaking) in browser."""
+    bl_idname = "fo4.open_aaf"
+    bl_label  = "Get AAF — Advanced Animation Framework (Nexus)"
+
+    def execute(self, context):
+        import webbrowser
+        webbrowser.open("https://www.nexusmods.com/fallout4/mods/31304")
+        self.report({'INFO'}, "Opened Nexus — Advanced Animation Framework by dagobaking")
+        return {'FINISHED'}
+
+
+class FO4_OT_OpenPoserHotkeys(Operator):
+    """Open Poser Hotkeys Nexus page (mod 45967, opparco) in browser."""
+    bl_idname = "fo4.open_poser_hotkeys"
+    bl_label  = "Get Poser Hotkeys (Nexus)"
+
+    def execute(self, context):
+        import webbrowser
+        webbrowser.open("https://www.nexusmods.com/fallout4/mods/45967")
+        self.report({'INFO'}, "Opened Nexus — Poser Hotkeys by opparco")
+        return {'FINISHED'}
+
+
+class FO4_OT_ShowStoryActionPosesGuide(Operator):
+    """Show the Story Action Poses setup guide and full requirement list."""
+    bl_idname = "fo4.show_story_action_poses_guide"
+    bl_label  = "Story Action Poses Setup Guide"
+
+    def execute(self, context):
+        return {'FINISHED'}
+
+    def invoke(self, context, event):
+        return context.window_manager.invoke_popup(self, width=500)
+
+    def draw(self, context):
+        layout = self.layout
+        layout.label(text="Story Action Poses  (mod 58448)  by EngineGaming", icon='ARMATURE_DATA')
+        layout.separator()
+
+        def _box(icon, heading, lines):
+            b = layout.box()
+            b.label(text=heading, icon=icon)
+            col = b.column(align=True)
+            col.scale_y = 0.82
+            for ln in lines:
+                col.label(text=ln)
+
+        _box('INFO', "What it is", [
+            "1,700+ action poses for storytelling, screenshots, and machinima.",
+            "Covers standard characters, power armor, and creatures.",
+            "ESL-flagged — consumes no plugin slot in your load order.",
+            "NEXT-GEN version (v4.0) at Nexus mod 68000.",
+        ])
+
+        _box('TOOL_SETTINGS', "Required Tools (install in this order)", [
+            "1. F4SE (Fallout 4 Script Extender)  — f4se.silverlock.org",
+            "   Required by everything below. Launch FO4 via f4se_loader.exe.",
+            "",
+            "2. AAF (Advanced Animation Framework)  — Nexus mod 31304",
+            "   by dagobaking. Core pose/animation manager.",
+            "   Use the buttons below to open each Nexus page.",
+            "",
+            "3. Poser Hotkeys  — Nexus mod 45967  by opparco",
+            "   Trigger poses in-game with arrow keys. Optional but recommended.",
+            "",
+            "4. LooksMenu  — Nexus mod 12631  by expired6978",
+            "   Required for face/expression control in posed scenes.",
+        ])
+
+        _box('ANIM', "Optional / Creature Poses", [
+            "Animal Posing Framework — needed for creature/animal poses.",
+            "Story Action Poses NEXT-GEN (v4.0) — Nexus mod 68000",
+            "  Updated for NG Fallout 4 (post May 2024 patch).",
+        ])
+
+        _box('CHECKMARK', "Using Poses in Blender (for mod authors)", [
+            "To create custom poses for SAP-style distribution:",
+            "1. Use Shiagur's animation rig (Nexus 82537) in Blender.",
+            "2. Create a static key-pose (single frame) animation.",
+            "3. Export via PyNifly v25 or FBX → HKT → HKX pipeline.",
+            "4. Register the .hkx in an AAF XML pose pack.",
+            "5. Distribute with AAF as a dependency in your FOMOD.",
+        ])
+
+        _box('INFO', "Resources", [
+            "Mod page: nexusmods.com/fallout4/mods/58448",
+            "NEXT-GEN: nexusmods.com/fallout4/mods/68000",
+            "YouTube:  youtube.com/watch?v=EFuUMsfAkdc  (showcase)",
+            "AAF docs: nexusmods.com/fallout4/mods/31304",
+        ])
+
+        layout.separator()
+        layout.label(
+            text="Credit: EngineGaming (SAP) · dagobaking (AAF) · opparco (Poser Hotkeys)",
+            icon='FUND',
+        )
+
+
+# ---------------------------------------------------------------------------
+# Armor & Clothing operators
+# ---------------------------------------------------------------------------
+
+class FO4_OT_OpenBodySlideOutfitStudio(Operator):
+    """Open BodySlide and Outfit Studio Nexus page (mod 25) in browser."""
+    bl_idname = "fo4.open_bodyslide_outfit_studio"
+    bl_label  = "Get BodySlide & Outfit Studio (Nexus)"
+
+    def execute(self, context):
+        import webbrowser
+        webbrowser.open("https://www.nexusmods.com/fallout4/mods/25")
+        self.report({'INFO'}, "Opened Nexus — BodySlide and Outfit Studio by ousnius/Caliente")
+        return {'FINISHED'}
+
+
+class FO4_OT_OpenCBBE(Operator):
+    """Open CBBE Nexus page (mod 15, Caliente) in browser."""
+    bl_idname = "fo4.open_cbbe"
+    bl_label  = "Get CBBE Body (Nexus)"
+
+    def execute(self, context):
+        import webbrowser
+        webbrowser.open("https://www.nexusmods.com/fallout4/mods/15")
+        self.report({'INFO'}, "Opened Nexus — CBBE by Caliente")
+        return {'FINISHED'}
+
+
+class FO4_OT_ShowArmorClothingWorkflow(Operator):
+    """Show the complete FO4 armor and clothing creation workflow."""
+    bl_idname = "fo4.show_armor_clothing_workflow"
+    bl_label  = "Armor & Clothing Workflow Guide"
+
+    def execute(self, context):
+        return {'FINISHED'}
+
+    def invoke(self, context, event):
+        return context.window_manager.invoke_popup(self, width=540)
+
+    def draw(self, context):
+        layout = self.layout
+        layout.label(text="FO4 Armor & Clothing Creation Workflow", icon='MESH_DATA')
+        layout.separator()
+
+        def _box(icon, heading, lines):
+            b = layout.box()
+            b.label(text=heading, icon=icon)
+            col = b.column(align=True)
+            col.scale_y = 0.82
+            for ln in lines:
+                col.label(text=ln)
+
+        _box('TOOL_SETTINGS', "Required Tools", [
+            "• Blender 4.1+            — blender.org",
+            "• PyNifly v25             — use 'Install PyNifly v25' in Setup panel",
+            "  Imports/exports NIF meshes with full skeleton support.",
+            "• NifSkope               — github.com/niftools/nifskope",
+            "  Inspect/tweak NIF shader flags and texture paths.",
+            "• BodySlide & Outfit Studio  — Nexus mod 25  (ousnius/Caliente)",
+            "  Conform armor to CBBE body, create morph sliders for users.",
+            "• CBBE body              — Nexus mod 15  (Caliente)",
+            "  Body reference mesh for fitting and weight transfer.",
+            "• Fallout 4 Creation Kit — Steam → Library → Tools",
+            "  Create ArmorAddon + Armor records, set body slots.",
+            "• FO4Edit / xEdit        — Nexus mod 2737",
+            "  Edit plugin records, ESL-flag, clean masters.",
+        ])
+
+        _box('MESH_DATA', "Step 1 — Model Your Armor in Blender", [
+            "1. Import body reference (CBBE or vanilla) via PyNifly v25.",
+            "   File > Import > NetImmerse/Gambryo NIF → pick body NIF.",
+            "2. Model armor/clothing on top of the reference body.",
+            "   Keep polygons reasonable — FO4 runs best under 5,000 tris/piece.",
+            "3. Ensure clean topology: no N-gons, no overlapping UVs.",
+            "4. Scale: match existing FO4 armor scale (1 Blender unit = 1 unit).",
+        ])
+
+        _box('WPAINT_FACE', "Step 2 — Weight Paint", [
+            "Armor must deform with the body skeleton to animate correctly.",
+            "1. Parent armor mesh to the body armature (Ctrl+P > Armature Deform).",
+            "2. Use Data Transfer modifier to copy weights from CBBE body:",
+            "   Source: CBBE body | Vertex Data: Vertex Groups | Nearest face.",
+            "3. Clean up weights: merge very small groups, check deformation.",
+            "4. Required bones for upper body armor: Spine1, Spine2, LUpperArm,",
+            "   RUpperArm, LForeArm, RForeArm, LHand, RHand.",
+            "5. Required bones for lower body / legs: Pelvis, LThigh, RThigh,",
+            "   LCalf, RCalf, LFoot, RFoot.",
+        ])
+
+        _box('UV', "Step 3 — UV Unwrap & Textures", [
+            "1. UV unwrap the armor (Smart UV Project is a good start).",
+            "2. Create textures in 512×512, 1024×1024, or 2048×2048:",
+            "   _d.dds = diffuse/albedo (BC1 or BC7)",
+            "   _n.dds = normal map     (BC5 or BC7)",
+            "   _s.dds = specular       (BC1 or BC7)",
+            "3. Use Cathedral Assets Optimizer to compress textures for FO4.",
+        ])
+
+        _box('EXPORT', "Step 4 — Export as NIF via PyNifly v25", [
+            "1. Select armor mesh + armature.",
+            "2. File > Export > NetImmerse/Gambryo NIF (.nif)",
+            "   target_game = FO4",
+            "   export_modifiers = True  (applies modifiers)",
+            "   rename_bones = True      (uses FO4 bone names)",
+            "   blender_xf = False       (preserves world transform)",
+            "3. Place NIF at: Data\\Meshes\\Actors\\Character\\",
+            "   CharacterAssets\\YourMod\\YourArmor.nif",
+        ])
+
+        _box('MODIFIER', "Step 5 — Outfit Studio (BodySlide Conforming)", [
+            "1. Open Outfit Studio. File > New Project.",
+            "2. Load CBBE body as reference (From Template > CBBE Body).",
+            "3. File > Import > From NIF → import your armor NIF.",
+            "4. Use 'Conform All' to fit armor to CBBE sliders.",
+            "5. Fine-tune skin weights in Outfit Studio if needed.",
+            "6. File > Export > To NIF → export final conformed NIF.",
+            "7. File > Export > Project… → creates BodySlide XML",
+            "   so users can batch-build your armor to their body shape.",
+        ])
+
+        _box('GAME', "Step 6 — Creation Kit (ArmorAddon + Armor Records)", [
+            "1. Open Creation Kit. File > Data > tick your mod .esp.",
+            "2. Create ArmorAddon record:",
+            "   Actors > Armor > ArmorAddon > New",
+            "   Set Male/Female World Model → path to your NIF.",
+            "   Body slots (Biped Object slots) — see slot table below.",
+            "3. Create Armor record:",
+            "   Actors > Armor > Armor > New",
+            "   Link to ArmorAddon. Set keywords (ArmorTypePower etc.).",
+            "4. Save .esp. Test in-game.",
+        ])
+
+        _box('INFO', "FO4 Body Slot Reference", [
+            "Slot 30 = Body/Torso (main clothing, full outfits)",
+            "Slot 31 = Head      (helmets, hats)",
+            "Slot 32 = Hair      (hair-hiding helmets)",
+            "Slot 33 = Hands     (gloves)",
+            "Slot 34 = Forearms",
+            "Slot 35 = Amulet/Neck",
+            "Slot 36 = Ring",
+            "Slot 37 = Feet/Boots",
+            "Slot 38 = Calves/Greaves",
+            "Slot 39 = Shield/Back  (backpacks, back accessories)",
+            "Slot 40 = Tail (unused vanilla)",
+            "Slot 41 = Long Hair / Misc",
+            "Slots 44-60 = Custom/mod-defined accessories",
+            "Power Armor pieces use slots 55-60 by convention.",
+        ])
+
+        layout.separator()
+        layout.label(
+            text="Tools: ousnius/Caliente (BodySlide+CBBE) · BadDog (PyNifly) · Bethesda (CK)",
+            icon='FUND',
+        )
     """Show a message to the user"""
     bl_idname = "fo4.show_message"
     bl_label = "Message"
