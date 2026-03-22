@@ -1906,11 +1906,13 @@ class FO4_PT_ExportPanel(Panel):
                     'STATIC':
                         "BSFadeNode root · BSTriShape · no skinning",
                     'SKINNED':
-                        "NiNode root · BSSubIndexTriShape · BSSkin::Instance · Skinned SF1 flag",
+                        "NiNode root · BSSubIndexTriShape · BSSkin::Instance · Skinned SF1",
                     'ARMOR':
-                        "NiNode root · BSSubIndexTriShape · BSSkin::Instance · Skinned SF1 flag",
+                        "NiNode root · BSSubIndexTriShape · BSSkin::Instance · Skinned SF1",
+                    'ANIMATED':
+                        "NiNode root · NiKeyframeController · BSXFlags Animated (1)",
                     'LOD':
-                        "BSFadeNode root · reduced poly count · same settings as Static",
+                        "BSFadeNode root · reduced poly count · same flags as Static",
                     'VEGETATION':
                         "BSFadeNode root · Two_Sided SF2 · Alpha Clip material required",
                     'FURNITURE':
@@ -1919,6 +1921,10 @@ class FO4_PT_ExportPanel(Panel):
                         "NiNode root · no vertex skinning · attach via named bone",
                     'ARCHITECTURE':
                         "BSFadeNode root · BSXFlags Has-Havok (2) · collision required",
+                    'FLORA':
+                        "BSFadeNode root · Alpha Clip · harvest node (PO_HarvestNode) required",
+                    'DEBRIS':
+                        "BSFadeNode root · BSXFlags Has-Havok (2) · small physics object",
                 }
                 note = _MESH_TYPE_NOTES.get(mtype_val, "")
                 if note:
@@ -1928,28 +1934,67 @@ class FO4_PT_ExportPanel(Panel):
             except Exception:
                 pass
 
-        # ── Niftools exporter status ─────────────────────────────────────────
+        # ── Exporter status & NIF settings ───────────────────────────────────
+        # Shows which exporter is active and lets users verify / override the
+        # key settings that determine CK compatibility.
         nif_box = layout.box()
+        nif_box.label(text="NIF Exporter & Settings", icon='TOOL_SETTINGS')
+
         if export_helpers:
-            available, nif_msg = export_helpers.ExportHelpers.nif_exporter_available()
+            pynifly_ok, pynifly_msg = export_helpers.ExportHelpers.pynifly_exporter_available()
+            niftools_ok, niftools_msg = export_helpers.ExportHelpers.nif_exporter_available()
         else:
-            available, nif_msg = False, "export_helpers module unavailable — restart Blender"
-        if available:
-            row = nif_box.row()
-            row.label(text="Niftools v0.1.1  ✓ Ready", icon='CHECKMARK')
-            sub = nif_box.column(align=True)
-            sub.scale_y = 0.75
-            sub.label(text="NIF 20.2.0.7 · user ver 12 · uv2 130", icon='INFO')
-            sub.label(text="Geometry: BSTriShape  |  Shader: BSLightingShaderProperty", icon='INFO')
-            sub.label(text="Tangent space: ON  |  Scale correction: 1.0", icon='INFO')
+            pynifly_ok, pynifly_msg = False, "export_helpers unavailable — restart Blender"
+            niftools_ok, niftools_msg = False, "export_helpers unavailable"
+
+        # Which exporter will be used?
+        if pynifly_ok:
+            active_row = nif_box.row()
+            active_row.label(text="✓ PyNifly v25 (BadDog) — active exporter", icon='CHECKMARK')
+        elif niftools_ok:
+            active_row = nif_box.row()
+            active_row.label(text="✓ Niftools v0.1.1 — active exporter", icon='CHECKMARK')
         else:
-            row = nif_box.row()
-            row.label(text="Niftools NOT installed", icon='ERROR')
-            sub = nif_box.column(align=True)
-            sub.scale_y = 0.75
-            sub.label(text=nif_msg)
-            sub.label(text="Fallback: FBX export (convert with NifSkope)", icon='EXPORT')
-            sub.label(text="Install: Blender 3.6 LTS + Niftools v0.1.1 ZIP", icon='URL')
+            active_row = nif_box.row()
+            active_row.label(text="✗ No NIF exporter installed", icon='ERROR')
+            inst_col = nif_box.column(align=True)
+            inst_col.scale_y = 0.8
+            inst_col.label(text="Install PyNifly v25 (recommended for Blender 4/5):", icon='INFO')
+            inst_col.operator("fo4.install_pynifly", text="Auto-Install PyNifly v25", icon='IMPORT')
+            inst_col.separator(factor=0.5)
+            inst_col.label(text="Or for Blender 3.6: install Niftools v0.1.1 ZIP", icon='INFO')
+
+        # ── NIF settings reference (always-visible CK compatibility summary) ─
+        settings_box = nif_box.box()
+        settings_box.label(text="Creation Kit Compatibility Settings", icon='SETTINGS')
+        settings_col = settings_box.column(align=True)
+        settings_col.scale_y = 0.8
+
+        # Game version — editable directly in the panel
+        game_row = settings_col.row(align=True)
+        game_row.label(text="Game target:")
+        game_row.prop(context.scene, "fo4_game_version", text="")
+
+        # Fixed CK-required values shown as informational labels
+        info_col = settings_box.column(align=True)
+        info_col.scale_y = 0.75
+        info_col.label(text="NIF version: 20.2.0.7  |  User ver: 12  |  UV2: 130 / 131073", icon='INFO')
+        info_col.label(text="Geometry nodes: BSTriShape (static) / BSSubIndexTriShape (skinned)", icon='INFO')
+        info_col.label(text="Shader: BSLightingShaderProperty  |  Tangent space: ON", icon='INFO')
+        info_col.label(text="Scale correction: 1.0  (1 Blender unit = 1 NIF unit)", icon='INFO')
+
+        # Mesh optimisation toggles (affect the pre-export prep pass)
+        opt_box = nif_box.box()
+        opt_box.label(text="Pre-Export Mesh Preparation", icon='MODIFIER')
+        opt_col = opt_box.column(align=True)
+        opt_col.prop(context.scene, "fo4_opt_apply_transforms")
+        opt_col.prop(context.scene, "fo4_opt_preserve_uvs")
+        opt_col.prop(context.scene, "fo4_opt_doubles")
+
+        opt_hint = opt_box.column(align=True)
+        opt_hint.scale_y = 0.75
+        opt_hint.label(text="These run automatically before every NIF export.", icon='INFO')
+        opt_hint.label(text="Triangulate modifier is always added then removed.", icon='INFO')
 
         # ── Active object status ─────────────────────────────────────────────
         obj_box = layout.box()

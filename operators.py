@@ -2836,15 +2836,23 @@ class FO4_OT_CheckUModelTools(Operator):
 
 
 class FO4_OT_OpenUModelToolsPage(Operator):
-    """Open the UModel Tools GitHub page for manual download."""
+    """Auto-download UModel Tools from GitHub (replaces browser open)."""
     bl_idname = "fo4.open_umodel_tools_page"
-    bl_label = "Manual Download (UModel Tools)"
+    bl_label = "Download UModel Tools"
 
     def execute(self, context):
-        ok, msg = umodel_tools_helpers.open_download_page()
-        level = 'INFO' if ok else 'ERROR'
-        self.report({level}, msg)
-        notification_system.FO4_NotificationSystem.notify(msg, level)
+        import threading
+
+        def _run():
+            ok, msg = umodel_tools_helpers.download_latest()
+            if ok:
+                tool_installers.auto_configure_preferences()
+            level = 'INFO' if ok else 'ERROR'
+            print(f"[UModel Tools] {msg}")
+            notification_system.FO4_NotificationSystem.notify(msg, level)
+
+        threading.Thread(target=_run, daemon=True).start()
+        self.report({'INFO'}, "Downloading UModel Tools in background — check console")
         return {'FINISHED'}
 
 
@@ -13306,14 +13314,21 @@ def register():
     )
     bpy.types.Object.fo4_mesh_type = bpy.props.EnumProperty(
         name="Mesh Type",
-        description="Override how this mesh is classified for NIF export",
+        description="Override how this mesh is classified for NIF export. "
+                    "Controls root node, BSXFlags, shader flags, and skinning.",
         items=[
-            ('AUTO',     "Auto-detect",   "Classify automatically from armature / name / material"),
-            ('STATIC',   "Static",        "Non-animated world object (BSFadeNode root)"),
-            ('SKINNED',  "Skinned",        "Character / creature mesh with armature (NiNode root)"),
-            ('ANIMATED', "Animated",      "Animated prop (NiNode with NiKeyframeController)"),
-            ('FLORA',    "Flora",          "Tree / bush / plant mesh"),
-            ('DEBRIS',   "Debris",         "Small physics object"),
+            ('AUTO',         "Auto-detect",    "Classify automatically from armature / name / material"),
+            ('STATIC',       "Static",         "Non-animated world object — BSFadeNode root, BSTriShape, no skinning"),
+            ('SKINNED',      "Skinned",        "Character / creature mesh — NiNode root, BSSubIndexTriShape, BSSkin::Instance"),
+            ('ARMOR',        "Armor",          "Wearable armor — NiNode root, BSSubIndexTriShape, BSSkin::Instance, Skinned SF1"),
+            ('ANIMATED',     "Animated",       "Animated prop — NiNode with NiKeyframeController"),
+            ('LOD',          "LOD",            "Level-of-detail mesh — BSFadeNode root, reduced poly, same flags as Static"),
+            ('VEGETATION',   "Vegetation",     "Tree / bush / plant — BSFadeNode root, Two_Sided SF2, Alpha Clip material"),
+            ('FURNITURE',    "Furniture",      "Sit/activate furniture — NiNode root, BSXFlags Animated (1), CK markers"),
+            ('WEAPON',       "Weapon",         "Held weapon — NiNode root, no vertex skinning, attach via named bone"),
+            ('ARCHITECTURE', "Architecture",   "Building / wall — BSFadeNode root, BSXFlags Has-Havok (2), collision required"),
+            ('FLORA',        "Flora",          "Harvestable flora — BSFadeNode root, Alpha Clip, harvest node required"),
+            ('DEBRIS',       "Debris",         "Small physics debris — BSFadeNode root, BSXFlags Has-Havok (2)"),
         ],
         default='AUTO',
     )
