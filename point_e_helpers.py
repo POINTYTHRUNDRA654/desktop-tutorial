@@ -478,6 +478,8 @@ class PointEHelpers:
                             "   - Create venv in C:\\t\n"
                             "   - Install PyTorch there"
                         )
+                    elif msg == "dll_init_error":
+                        return False, PointEHelpers._dll_init_error_message()
                     else:
                         return False, _pytorch_required_message(msg)
             except ImportError:

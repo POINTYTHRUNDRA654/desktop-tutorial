@@ -124,10 +124,19 @@ def _find_download_url() -> str | None:
                     url = urllib.parse.urljoin(_DOWNLOAD_PAGE, m)
                 else:
                     url = m
-                # Verify URL looks valid before returning
+                # Verify URL actually exists before returning it
                 if url and not url.endswith("#"):
-                    print(f"UModel: found download URL: {url}")
-                    return url
+                    try:
+                        verify_req = urllib.request.Request(
+                            url, method="HEAD", headers={"User-Agent": "Mozilla/5.0"}
+                        )
+                        with urllib.request.urlopen(verify_req, timeout=10) as vresp:
+                            if vresp.status == 200:
+                                print(f"UModel: verified download URL: {url}")
+                                return url
+                            print(f"UModel: URL returned {vresp.status}, skipping: {url}")
+                    except Exception as verify_exc:
+                        print(f"UModel: URL verification failed for {url}: {verify_exc}")
     except Exception as exc:
         print(f"UModel: could not scrape download page: {exc}")
     

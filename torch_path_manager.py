@@ -212,6 +212,10 @@ class TorchPathManager:
                 if result[0]:
                     return result
                 return False, "windows_path_error", None
+            # Use both attribute check (set on Windows) and string fallback (cross-platform
+            # compatibility and cases where winerror attribute may not be populated).
+            if getattr(e, 'winerror', None) == 1114 or "WinError 1114" in str(e):
+                return False, "dll_init_error", None
             return False, f"File error: {str(e)}", None
         except ImportError as e:
             # PyTorch is simply not installed – attempt auto-install
