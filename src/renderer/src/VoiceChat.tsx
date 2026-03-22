@@ -213,31 +213,29 @@ const VoiceChat: React.FC = () => {
         )}
 
         {/* Text Input Alternative (for users without microphone) */}
-        {isActive && (
-          <div className="w-full max-w-xs mt-6 border-t border-blue-500/20 pt-6">
-            <label className="text-[10px] font-mono uppercase tracking-[0.2em] text-blue-200/70 block mb-2">Or Type a Message</label>
-            <div className="flex gap-2 items-center">
-              <input
-                type="text"
-                value={textInput}
-                onChange={(e) => setTextInput(e.target.value)}
-                onKeyPress={(e) => e.key === 'Enter' && !isSendingText && handleSendText()}
-                placeholder="Type your question..."
-                disabled={isSendingText || mode === 'processing'}
-                className="flex-1 bg-black/60 text-blue-100 border border-blue-500/40 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-blue-400 disabled:opacity-50 disabled:cursor-not-allowed placeholder-blue-400/40"
-              />
-              <button
-                onClick={handleSendText}
-                disabled={!textInput.trim() || isSendingText || mode === 'processing'}
-                title="Send text message"
-                className="p-3 rounded-lg border transition-all flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest bg-emerald-500/10 border-emerald-500/50 text-emerald-400 hover:bg-emerald-500/20 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-emerald-500/10"
-              >
-                <Send size={14} />
-              </button>
-            </div>
-            <p className="text-[10px] text-blue-200/60 mt-1">Press Enter or click Send to message Mossy</p>
+        <div className="w-full max-w-xs mt-6 border-t border-blue-500/20 pt-6">
+          <label className="text-[10px] font-mono uppercase tracking-[0.2em] text-blue-200/70 block mb-2">Type a Message</label>
+          <div className="flex gap-2 items-center">
+            <input
+              type="text"
+              value={textInput}
+              onChange={(e) => setTextInput(e.target.value)}
+              onKeyPress={(e) => e.key === 'Enter' && !isSendingText && handleSendText()}
+              placeholder="Type your question..."
+              disabled={isSendingText || mode === 'processing'}
+              className="flex-1 bg-black/60 text-blue-100 border border-blue-500/40 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-blue-400 disabled:opacity-50 disabled:cursor-not-allowed placeholder-blue-400/40"
+            />
+            <button
+              onClick={handleSendText}
+              disabled={!textInput.trim() || isSendingText || mode === 'processing'}
+              title="Send text message"
+              className="p-3 rounded-lg border transition-all flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest bg-emerald-500/10 border-emerald-500/50 text-emerald-400 hover:bg-emerald-500/20 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-emerald-500/10"
+            >
+              <Send size={14} />
+            </button>
           </div>
-        )}
+          <p className="text-[10px] text-blue-200/60 mt-1">Press Enter or click Send to message Mossy</p>
+        </div>
       </div>
     </div>
   );
