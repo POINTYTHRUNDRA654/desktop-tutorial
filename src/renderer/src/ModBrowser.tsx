@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Search, Download, Star, Users, ExternalLink } from 'lucide-react';
+import { Search, Download, Star, Users, ExternalLink, BookOpen, ChevronDown, ChevronUp } from 'lucide-react';
 import type { ModListing, ModDetails, SearchFilters, Review, Collection } from '../../shared/types';
 
 // prefer preload API when available, otherwise fall back to in-memory engine for dev
@@ -28,6 +28,7 @@ const ModBrowser: React.FC = () => {
   const [collectionName, setCollectionName] = useState('');
   const [nexusKey, setNexusKey] = useState('');
   const [nexusStatus, setNexusStatus] = useState<string | null>(null);
+  const [installGuideOpen, setInstallGuideOpen] = useState(false);
 
   useEffect(() => {
     doSearch();
@@ -125,6 +126,72 @@ const ModBrowser: React.FC = () => {
   return (
     <div className="min-h-full p-6 bg-[#0b0f0b] text-slate-100">
       <div className="max-w-7xl mx-auto">
+
+        {/* Page Header */}
+        <div className="mb-6">
+          <h1 className="text-2xl font-black text-white tracking-tight mb-1">Mod Browser</h1>
+          <p className="text-sm text-slate-400">Search, browse, and download Fallout 4 mods. Use the Install Guide below to set them up in MO2 or Vortex.</p>
+        </div>
+
+        {/* ── Mod Installation Guide ── */}
+        <div className="mb-6 border border-emerald-800/50 rounded-lg bg-emerald-950/20 overflow-hidden">
+          <button
+            className="w-full flex items-center justify-between px-4 py-3 text-left"
+            onClick={() => setInstallGuideOpen(v => !v)}
+          >
+            <div className="flex items-center gap-2">
+              <BookOpen className="w-4 h-4 text-emerald-400" />
+              <span className="text-sm font-bold text-emerald-300">How to Install a Mod — Step-by-Step Guide</span>
+            </div>
+            {installGuideOpen ? <ChevronUp className="w-4 h-4 text-slate-400" /> : <ChevronDown className="w-4 h-4 text-slate-400" />}
+          </button>
+
+          {installGuideOpen && (
+            <div className="px-4 pb-4 grid grid-cols-3 gap-4 text-[13px] text-slate-300">
+              {/* MO2 */}
+              <div className="bg-black/20 rounded p-3">
+                <div className="font-black text-blue-300 mb-2">Mod Organizer 2 (Recommended)</div>
+                <ol className="space-y-1 list-decimal list-inside text-slate-300">
+                  <li>Open <strong>Mod Organizer 2</strong>.</li>
+                  <li>Click the toolbar button <em>"Install a new mod from an archive"</em> (or drag the mod ZIP onto MO2).</li>
+                  <li>Follow the FOMOD installer if one appears.</li>
+                  <li>The mod appears in the <strong>left pane</strong> — make sure it is checked ✓.</li>
+                  <li>The plugin (.esp/.esm/.esl) appears in the <strong>right pane (Plugins)</strong> — enable it there too.</li>
+                  <li>Run <strong>LOOT</strong> to sort your load order, then launch the game through MO2.</li>
+                </ol>
+              </div>
+
+              {/* Vortex */}
+              <div className="bg-black/20 rounded p-3">
+                <div className="font-black text-purple-300 mb-2">Vortex</div>
+                <ol className="space-y-1 list-decimal list-inside text-slate-300">
+                  <li>Open <strong>Vortex</strong> and ensure Fallout 4 is the active game.</li>
+                  <li>Click <strong>Mods → Install From File</strong> and select the mod archive.</li>
+                  <li>Vortex will install and ask to <strong>Deploy</strong> — click Deploy.</li>
+                  <li>Go to the <strong>Plugins</strong> tab and enable the plugin.</li>
+                  <li>Use the <strong>Sort</strong> button to apply LOOT sorting.</li>
+                  <li>Launch through Vortex's Play button.</li>
+                </ol>
+              </div>
+
+              {/* Manual */}
+              <div className="bg-black/20 rounded p-3">
+                <div className="font-black text-amber-300 mb-2">Manual (No Mod Manager)</div>
+                <ol className="space-y-1 list-decimal list-inside text-slate-300">
+                  <li>Extract the mod archive with 7-Zip or WinRAR.</li>
+                  <li>Copy the extracted <strong>Data\</strong> folder contents into your Fallout 4 <strong>Data\</strong> folder (e.g. <code>C:\...\Fallout 4\Data\</code>).</li>
+                  <li>Open <strong>plugins.txt</strong> (in <code>%LOCALAPPDATA%\Fallout4\</code>) and add the plugin name on a new line, prefixed with <code>*</code>.</li>
+                  <li>Launch the game. Manual installs are harder to remove cleanly — keep backups.</li>
+                </ol>
+              </div>
+
+              <div className="col-span-3 pt-2 border-t border-slate-800 text-xs text-slate-500">
+                💡 Ask Mossy in the <strong>AI Chat</strong> for help with specific mods, load order issues, or FOMOD options. She knows the full MO2/Vortex workflow.
+              </div>
+            </div>
+          )}
+        </div>
+
         <div className="flex items-center gap-4 mb-6">
           <div className="flex items-center bg-[#0f1313] border border-slate-800 rounded px-3 py-2 flex-1">
             <Search className="w-4 h-4 text-slate-400 mr-3" />
