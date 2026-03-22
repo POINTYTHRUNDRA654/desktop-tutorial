@@ -413,6 +413,139 @@ def check_llm(timeout: float = 3.0) -> tuple:
         return False, f"Mossy LLM not reachable on port {llm_port}: {exc}"
     return False, f"Mossy LLM returned unexpected status on port {llm_port}"
 
+# ── Outbound: Mossy AI delegation helpers ─────────────────────────────────────
+#
+# These functions let the Blender add-on offload heavy AI work (mesh
+# generation, texture processing, scene analysis) to the Mossy desktop
+# application so the add-on itself does not need PyTorch or multi-gigabyte
+# model weights installed locally.  Each call posts a JSON payload to a
+# named endpoint on the Mossy LLM/AI service and returns the parsed
+# response dict (or None on any error).
+
+def generate_mesh(
+    prompt: str,
+    image_base64: "str | None" = None,
+    style: str = "realistic",
+    timeout: float = 120,
+) -> "dict | None":
+    """
+    Ask Mossy AI to generate a 3-D mesh from a text description or image.
+
+    Offloads heavy inference (Shape-E, Point-E, Image-to-3D, …) to the
+    Mossy desktop application so the Blender add-on does not need local
+    model weights.
+
+    :param prompt:       Natural-language description of the desired object.
+    :param image_base64: Optional base-64 encoded reference image (PNG/JPEG).
+    :param style:        Generation style: ``"realistic"``, ``"stylized"``,
+                         ``"lowpoly"``, or ``"armor"``.
+    :param timeout:      Seconds to wait (AI generation can take a while).
+    :returns:            On success a dict ``{"status": "success",
+                         "obj_data": "<Wavefront OBJ text>",
+                         "mesh_name": "generated_mesh"}``; ``None`` on error.
+    """
+    _tcp_port, llm_port, _token = _get_ports()
+    payload = json.dumps({
+        "prompt": prompt,
+        "style":  style,
+        "image":  image_base64,
+    }).encode("utf-8")
+    try:
+        req = _url_request.Request(
+            f"http://localhost:{llm_port}/generate_mesh",
+            data=payload,
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
+        with _url_request.urlopen(req, timeout=timeout) as resp:
+            if resp.status == 200:
+                return json.loads(resp.read().decode("utf-8"))
+    except Exception as exc:
+        print(f"[Mossy Link] generate_mesh error: {exc}")
+    return None
+
+
+def process_texture(
+    image_data_base64: str,
+    fmt: str = "dds",
+    quality: str = "high",
+    timeout: float = 60,
+) -> "dict | None":
+    """
+    Ask Mossy AI to convert or compress a texture.
+
+    Offloads DDS/BC7 compression (NVTT, texconv, …) to the Mossy desktop
+    application so the Blender add-on does not need local CLI tools.
+
+    :param image_data_base64: Base-64 encoded source image (PNG/JPEG/TGA).
+    :param fmt:               Target format: ``"dds"``, ``"png"``, ``"tga"``.
+    :param quality:           Compression quality: ``"high"``, ``"medium"``,
+                              ``"fast"``.
+    :param timeout:           Seconds to wait.
+    :returns:                 On success a dict ``{"status": "success",
+                              "texture_data": "<base64 result>",
+                              "format": "dds"}``; ``None`` on error.
+    """
+    _tcp_port, llm_port, _token = _get_ports()
+    payload = json.dumps({
+        "image_data": image_data_base64,
+        "format":     fmt,
+        "quality":    quality,
+    }).encode("utf-8")
+    try:
+        req = _url_request.Request(
+            f"http://localhost:{llm_port}/process_texture",
+            data=payload,
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
+        with _url_request.urlopen(req, timeout=timeout) as resp:
+            if resp.status == 200:
+                return json.loads(resp.read().decode("utf-8"))
+    except Exception as exc:
+        print(f"[Mossy Link] process_texture error: {exc}")
+    return None
+
+
+def analyze_scene(scene_info: dict, timeout: float = 30) -> "str | None":
+    """
+    Send structured scene data to Mossy AI for analysis and advice.
+
+    A richer alternative to :func:`ask_mossy` when you have structured
+    mesh/material/physics data rather than a free-form question.
+
+    :param scene_info: Dict with keys such as ``"mesh_stats"``,
+                       ``"material_count"``, ``"polycount"``,
+                       ``"physics_enabled"``, ``"issues"``.
+    :param timeout:    Seconds to wait.
+    :returns:          Plain-text analysis/advice, or ``None`` on error.
+    """
+    _tcp_port, llm_port, _token = _get_ports()
+    payload = json.dumps({
+        "scene_info":  scene_info,
+        "max_tokens":  800,
+        "temperature": 0.4,
+    }).encode("utf-8")
+    try:
+        req = _url_request.Request(
+            f"http://localhost:{llm_port}/analyze_scene",
+            data=payload,
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
+        with _url_request.urlopen(req, timeout=timeout) as resp:
+            if resp.status == 200:
+                data = json.loads(resp.read().decode("utf-8"))
+                return (
+                    data.get("analysis")
+                    or data.get("response")
+                    or data.get("text")
+                )
+    except Exception as exc:
+        print(f"[Mossy Link] analyze_scene error: {exc}")
+    return None
+
+
 # ── Blender register / unregister ─────────────────────────────────────────────
 
 def register() -> None:
