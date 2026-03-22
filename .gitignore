@@ -54,13 +54,10 @@ desktop.ini
 # ── Large media / asset files ───────────────────────────────────────────────
 # Textures, videos, and audio should be kept outside the Git repo.
 # Store them on a network drive, cloud storage, or Git LFS instead.
-*.png
-*.jpg
-*.jpeg
+# (If you intentionally need a specific image in the repo, use: git add -f file.png)
 *.tga
 *.tif
 *.tiff
-*.bmp
 *.dds
 *.exr
 *.hdr
@@ -71,11 +68,10 @@ desktop.ini
 *.wav
 *.mp3
 *.ogg
-# Allow small icons that are part of the addon source
-!icons/*.png
 
 # ── Blender project files ───────────────────────────────────────────────────
 # .blend files can grow large; keep them out of the source repo.
+# To include a specific blend file intentionally, use: git add -f example.blend
 *.blend
 
 # ── Temporary / log files ───────────────────────────────────────────────────
