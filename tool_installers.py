@@ -541,6 +541,129 @@ def candidate_tool_paths(name: str) -> list[Path]:
     return [DEFAULT_TOOLS_ROOT / name, FALLBACK_TOOLS_ROOT / name]
 
 
+def get_instantngp_dir() -> Path:
+    """Get the Instant-NGP installation directory.
+    
+    Returns the default location (under tools root), creating parent dirs if needed.
+    """
+    dest = TOOLS_ROOT / "instant-ngp"
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    return dest
+
+
+def find_instantngp_exe(search_dir: Path | None = None) -> Path | None:
+    """Find the Instant-NGP executable in a directory.
+    
+    Args:
+        search_dir: Directory to search (or None to use default).
+    
+    Returns:
+        Path to instant-ngp executable, or None if not found.
+    """
+    if search_dir is None:
+        search_dir = get_instantngp_dir()
+    
+    if not search_dir.is_dir():
+        return None
+    
+    # Windows: instant-ngp.exe
+    # Unix: instant-ngp
+    exe_name = "instant-ngp.exe" if sys.platform == "win32" else "instant-ngp"
+    
+    # Check build/Release or build/Debug
+    for subpath in ["build/Release", "build/Debug", "build"]:
+        candidate = search_dir / subpath / exe_name
+        if candidate.is_file():
+            return candidate
+    
+    # Recursive search
+    for exe in search_dir.rglob(exe_name):
+        if exe.is_file():
+            return exe
+    
+    return None
+
+
+def install_instantngp() -> tuple[bool, str]:
+    """Clone Instant-NGP from GitHub.
+    
+    Requires git to be available on PATH.
+    
+    Returns:
+        (success, message)
+    """
+    dest = get_instantngp_dir()
+    
+    # Check if already installed
+    existing_exe = find_instantngp_exe(dest)
+    if existing_exe:
+        return True, f"Instant-NGP already built at: {existing_exe}"
+    
+    # Check if source is already cloned
+    if (dest / "CMakeLists.txt").exists():
+        return True, (
+            f"Instant-NGP source already cloned at: {dest}\n\n"
+            "To build (requires NVIDIA GPU + CUDA 11.3+):\n"
+            f"  cd \"{dest}\"\n"
+            "  cmake . -B build\n"
+            "  cmake --build build --config RelWithDebInfo -j\n"
+        )
+    
+    # Clone from GitHub
+    try:
+        print(f"Cloning Instant-NGP from GitHub to {dest}...")
+        
+        # Check if git is available
+        git_exe = shutil.which("git")
+        if not git_exe:
+            return False, (
+                "git not found on PATH.\n\n"
+                "Please install Git from https://git-scm.com/\n"
+                "Then clone manually:\n"
+                "  git clone --recursive https://github.com/NVlabs/instant-ngp.git \\\n"
+                f"    \"{dest}\"\n"
+            )
+        
+        # Create parent directory
+        dest.mkdir(parents=True, exist_ok=True)
+        
+        # Clone with submodules
+        cmd = [
+            git_exe,
+            "clone",
+            "--recursive",
+            "https://github.com/NVlabs/instant-ngp.git",
+            str(dest),
+        ]
+        
+        result = subprocess.run(
+            cmd,
+            capture_output=True,
+            text=True,
+            timeout=300,  # 5 minutes
+        )
+        
+        if result.returncode != 0:
+            error = result.stderr or result.stdout
+            return False, f"Failed to clone Instant-NGP:\n{error}"
+        
+        print(f"✓ Instant-NGP cloned to {dest}")
+        
+        return True, (
+            f"Instant-NGP source cloned to: {dest}\n\n"
+            "Next, build it (requires NVIDIA GPU + CUDA 11.3+):\n"
+            f"  cd \"{dest}\"\n"
+            "  cmake . -B build\n"
+            "  cmake --build build --config RelWithDebInfo -j\n\n"
+            "See https://github.com/NVlabs/instant-ngp for build instructions."
+        )
+    
+    except subprocess.TimeoutExpired:
+        return False, "Clone operation timed out (took more than 5 minutes)"
+    except Exception as e:
+        return False, f"Failed to clone Instant-NGP: {e}"
+
+
 def register():
     pass
 

@@ -119,10 +119,34 @@ def _find_download_url() -> str | None:
         ]
         for pat in patterns:
             for m in re.findall(pat, html, re.IGNORECASE):
-                url = m if m.startswith("http") else urllib.parse.urljoin(_DOWNLOAD_PAGE, m)
-                return url
+                # Convert relative URLs to absolute
+                if not m.startswith("http"):
+                    url = urllib.parse.urljoin(_DOWNLOAD_PAGE, m)
+                else:
+                    url = m
+                # Verify URL looks valid before returning
+                if url and not url.endswith("#"):
+                    print(f"UModel: found download URL: {url}")
+                    return url
     except Exception as exc:
         print(f"UModel: could not scrape download page: {exc}")
+    
+    # Fallback: try common UModel release URLs
+    fallback_urls = [
+        "https://github.com/gildor2/UModel/releases/download/latest/UModel.zip",
+        "https://www.gildor.org/downloads/umodel/UModel.zip",
+    ]
+    for fallback_url in fallback_urls:
+        try:
+            print(f"UModel: trying fallback URL: {fallback_url}")
+            req = urllib.request.Request(fallback_url, method="HEAD", headers={"User-Agent": "Mozilla/5.0"})
+            with urllib.request.urlopen(req, timeout=10) as resp:
+                if resp.status == 200:
+                    print(f"UModel: fallback URL available: {fallback_url}")
+                    return fallback_url
+        except Exception:
+            continue
+    
     return None
 
 
@@ -189,9 +213,11 @@ def download_latest() -> tuple[bool, str]:
             return True, f"Downloaded UModel to {tool_dir}. Credit: Konstantin Nosov (Gildor)"
         except Exception as exc:
             last_error = str(exc)
+            print(f"  ✗ Failed to download from {url}: {exc}")
             continue
 
-    return False, f"Failed to download UModel: {last_error or 'unknown error'}"
+    error_msg = f"Failed to download UModel: {last_error or 'unknown error'}\n\nPlease manually download from:\n{_DOWNLOAD_PAGE}\n\nExtract to: {tool_dir}"
+    return False, error_msg
 
 
 def open_download_page() -> tuple[bool, str]:
