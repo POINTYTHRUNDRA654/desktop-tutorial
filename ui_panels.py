@@ -4369,7 +4369,6 @@ classes = (
     FO4_PT_ItemCreationPanel,
     FO4_PT_ArmorClothingPanel,
     # New panels for productivity
-    FO4_PT_PresetLibraryPanel,
     FO4_PT_AutomationMacrosPanel,
     FO4_PT_PostProcessingPanel,
     FO4_PT_MaterialBrowserPanel,

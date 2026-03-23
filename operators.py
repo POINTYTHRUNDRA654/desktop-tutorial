@@ -13883,7 +13883,6 @@ classes = (
     FO4_OT_AutoRepairMesh,
     FO4_OT_SmartDecimate,
     FO4_OT_DecimateToFO4,
-    FO4_OT_SplitMeshPolyLimit,
     FO4_OT_GenerateLOD,
     FO4_OT_GenerateLODAndCollision,
     FO4_OT_BatchGenerateLOD,

@@ -747,91 +747,26 @@ class FO4AddonPreferences(bpy.types.AddonPreferences):
     def draw(self, context):
         layout = self.layout
 
-        box = layout.box()
-        box.label(text="Havok2FBX", icon="FILE_FOLDER")
-        box.prop(self, "havok2fbx_path", text="Folder")
-
-        # new preference added
-        ui_box = layout.box()
-        ui_box.label(text="User Interface", icon="PREFERENCES")
-        ui_box.prop(self, "mesh_panel_unified", text="Unified Mesh Panel")
-        ui_box.label(text="Show all mesh helpers in one box (vs split basic/advanced)")
-
-        tex_box = layout.box()
-        tex_box.label(text="Texture Converters", icon="IMAGE_DATA")
-        tex_box.prop(self, "nvtt_path", text="nvcompress or folder")
-        tex_box.prop(self, "texconv_path", text="texconv or folder")
-
-        ff_box = layout.box()
-        ff_box.label(text="Video & Audio Tools", icon="SOUND")
-        ff_box.prop(self, "ffmpeg_path", text="ffmpeg or folder")
-
-        llm_box = layout.box()
-        llm_box.label(text="Advisor (LLM, optional)", icon="INFO")
-        llm_box.prop(self, "llm_enabled", text="Enable LLM Advisor (opt-in)")
-        llm_box.prop(self, "llm_endpoint", text="Endpoint")
-        llm_box.prop(self, "llm_model", text="Model")
-        llm_box.prop(self, "llm_api_key", text="API Key")
-        llm_box.prop(self, "llm_allow_actions", text="Allow Action Suggestions")
-        llm_box.prop(self, "llm_send_stats", text="Send summary only")
-
-        auto_box = layout.box()
-        auto_box.label(text="Advisor Auto-Monitor", icon="FILE_REFRESH")
-        auto_box.prop(self, "advisor_auto_monitor_enabled", text="Enable background checks")
-        auto_box.prop(self, "advisor_auto_monitor_interval", text="Interval (seconds)")
-
-        kb_box = layout.box()
-        kb_box.label(text="Advisor Knowledge Base", icon="BOOKMARKS")
-        kb_box.prop(self, "knowledge_base_enabled", text="Use bundled/user KB")
-        kb_box.prop(self, "knowledge_base_path", text="KB folder (txt/md)")
-
-        auto_box = layout.box()
-        auto_box.label(text="Automatic Tool Installation", icon="FILE_REFRESH")
-        auto_box.prop(self, "auto_install_tools", text="Auto-install missing tools at startup (UModel, etc.)")
-        auto_box.prop(self, "auto_install_python", text="Auto-install Python deps at startup")
-        auto_box.prop(self, "auto_install_pytorch", text="Auto-install PyTorch at startup (AI features)")
-        auto_box.prop(self, "auto_register_tools", text="Auto-register third-party add-ons")
-        auto_box.operator("fo4.check_tool_paths", text="Check Tool Paths", icon='INFO')
-        auto_box.label(text="(disable to avoid policy warnings at startup)", icon='INFO')
-        auto_box.label(text="See the Settings panel in the N-panel for live tool status.", icon='INFO')
+        # This panel is strictly for add-on installation.
+        # All tool configuration lives in the N-panel:
+        #   3D Viewport → press N → Fallout 4 tab → Settings
+        info_box = layout.box()
+        info_box.label(text="Add-on installed successfully.", icon="CHECKMARK")
+        info_box.label(
+            text="All settings are in the N-panel → Fallout 4 → Settings",
+            icon="INFO",
+        )
+        info_box.label(
+            text="(Press N in the 3D Viewport to open the side panel)",
+            icon="BLANK1",
+        )
 
         update_box = layout.box()
-        update_box.label(text="Add-on Update", icon="FILE_REFRESH")
+        update_box.label(text="Updating the add-on", icon="FILE_REFRESH")
         update_box.label(
-            text="After installing a new zip, restart Blender to apply changes.",
-            icon='INFO',
+            text="Install a new zip via Add-ons → Install, then restart Blender.",
+            icon="INFO",
         )
-        # Reload button removed - causes crashes in Blender 4.5+
-        # update_box.operator("fo4.reload_addon", text="Reload Add-on", icon='FILE_REFRESH')
-
-        opt_box = layout.box()
-        opt_box.label(text="Mesh Optimization", icon="MOD_DECIM")
-        opt_box.prop(self, "optimize_apply_transforms")
-        opt_box.prop(self, "optimize_remove_doubles_threshold")
-        opt_box.prop(self, "optimize_preserve_uvs")
-
-        ml_box = layout.box()
-        ml_box.label(text="Mossy Link", icon="LINKED")
-
-        # TCP server (Blender ← Mossy commands)
-        tcp_sub = ml_box.box()
-        tcp_sub.label(text="TCP Server  (Mossy → Blender control)", icon="NETWORK_DRIVE")
-        tcp_sub.prop(self, "port", text="Listen Port")
-        tcp_sub.prop(self, "token", text="Auth Token")
-        tcp_sub.prop(self, "autostart", text="Auto-start on load")
-
-        # HTTP client (Blender → Mossy AI)
-        http_sub = ml_box.box()
-        http_sub.label(text="AI Queries  (Blender → Mossy)", icon="URL")
-        http_sub.prop(self, "mossy_http_port", text="Mossy HTTP Port")
-        http_sub.prop(self, "use_mossy_as_ai", text="Use Mossy as AI Advisor")
-        if self.use_mossy_as_ai:
-            http_sub.label(text="✓ Advisor will ask Mossy instead of remote LLM", icon="CHECKMARK")
-            http_sub.label(text="  Enable LLM Advisor above as fallback", icon="INFO")
-        else:
-            http_sub.label(text="Enable to route advisor AI through Mossy", icon="INFO")
-
-        ml_box.operator("wm.mossy_check_http", text="Check Mossy HTTP", icon="QUESTION")
 
 
 def register():
