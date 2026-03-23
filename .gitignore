@@ -2,10 +2,7 @@
 # Large binaries (ffmpeg, nvtt, texconv, etc.) must NOT be committed to Git.
 # Use Git LFS (see .gitattributes) if any binary absolutely must live in the repo.
 # Download instructions: tools/README.md
-# tools/* ignores direct children; tools/**/* handles nested sub-directories
-# (e.g. tools/ffmpeg/ffmpeg.exe) so downloaded tool binaries never sneak in.
 tools/*
-tools/**
 !tools/README.md
 
 # Python cache
@@ -114,12 +111,6 @@ controlnet/
 *.egg
 site-packages/
 pip-wheel-metadata/
-
-# ── VS Code auto-generated files (not covered by .vscode/* rule) ────────────
-# launch.json and other extension-created config files stay out of the repo.
-# The .vscode/* rule above already handles most of these, but be explicit.
-.vscode/launch.json
-.vscode/*.code-workspace
 
 # ── Windows Explorer artefacts ───────────────────────────────────────────────
 # In addition to Thumbs.db / desktop.ini already listed above.
