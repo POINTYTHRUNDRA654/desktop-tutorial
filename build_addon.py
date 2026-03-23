@@ -42,12 +42,15 @@ ADDON_FOLDER_NAME = "fallout4_tutorial_helper"
 
 # Files and directories to EXCLUDE from every zip
 EXCLUDE = {
-    ".git", ".github", ".gitattributes", ".gitignore", ".vscode",
+    ".git", ".github", ".gitattributes", ".gitignore", ".githooks", ".vscode",
     "build_temp", "build_addon.py", "build.ps1", "build.log",
     "*.zip", "*.pyc", "__pycache__",
     "README.md", "GIT_RECOVERY_GUIDE.md", "BUTTON_PATTERN_GUIDE.md",
-    "DEVELOPMENT_NOTES.md", "fix_git_remote.bat",
+    "DEVELOPMENT_NOTES.md", "fix_git_remote.bat", "resolve_conflicts.bat",
     ".DS_Store", "Thumbs.db",
+    # The repo-root manifest is only used for direct-folder installation;
+    # it is regenerated dynamically for each zip variant.
+    "blender_manifest.toml",
     # Virtual environments and local test artefacts must never ship
     ".venv", "venv", "env", ".env",
     "test_extract",
@@ -156,6 +159,11 @@ def build_variant(root: Path, outdir: Path, addon_version: str,
     blender_min = variant["blender_min"]
     include_manifest = variant["manifest"]
 
+    # Blender 4.2+ Extension format: files sit at the ROOT of the zip so
+    # that blender_manifest.toml is found at the top level.  Legacy add-on
+    # format (3.x / 4.0-4.1): files live inside fallout4_tutorial_helper/.
+    is_extension = include_manifest
+
     with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as zf:
         for item in sorted(root.rglob("*")):
             if _is_excluded(item, root):
@@ -163,7 +171,13 @@ def build_variant(root: Path, outdir: Path, addon_version: str,
             if item.is_dir():
                 continue
             rel = item.relative_to(root)
-            arc_name = f"{ADDON_FOLDER_NAME}/{rel}"
+            # Extension format: all .py files from the repo root land at the
+            # zip root (__init__.py, operators.py, preferences.py, …) alongside
+            # the generated blender_manifest.toml — exactly what Blender's
+            # Get-Extensions → Install-from-Disk expects.
+            # Legacy add-on format: everything goes under fallout4_tutorial_helper/
+            # so Blender's old add-on installer finds the module folder.
+            arc_name = str(rel) if is_extension else f"{ADDON_FOLDER_NAME}/{rel}"
 
             if item.name == "__init__.py":
                 # Patch the minimum Blender version for this variant
@@ -175,8 +189,8 @@ def build_variant(root: Path, outdir: Path, addon_version: str,
 
         if include_manifest:
             manifest_src = _make_manifest(addon_version, blender_min)
-            zf.writestr(f"{ADDON_FOLDER_NAME}/blender_manifest.toml",
-                        manifest_src)
+            # Always at the zip root so Blender's Extension installer finds it
+            zf.writestr("blender_manifest.toml", manifest_src)
 
     size_kb = zip_path.stat().st_size // 1024
     print(f"  ✓  {zip_name}  ({size_kb} KB)  [{variant['label']}]")
