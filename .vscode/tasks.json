@@ -4,7 +4,7 @@
   // ── Session workflow tasks (Terminal → Run Task) ──────────────────────────
   //   "Start Session Sync"   – pull latest from GitHub before you start work
   //   "End Session Sync"     – commit, fetch, rebase, push (same as end_session.bat)
-  //   "Setup git hooks"      – run once per clone to activate .githooks/pre-commit
+  //   "Setup git hooks"      – runs automatically on every folder open (no manual step needed)
   //
   // ── Build tasks (Ctrl+Shift+B) ────────────────────────────────────────────
   //   "Build addon (all variants)"  – builds all four Blender-version zips
@@ -75,17 +75,20 @@
       "problemMatcher": []
     },
     {
-      // Run ONCE after cloning this repo (or use start_session.bat which does this automatically).
-      // Activates the .githooks/pre-commit safety check so VS Code's built-in
-      // Git commit button also blocks large model files from being committed.
-      // This command is idempotent — safe to run multiple times.
+      // Activates .githooks/pre-commit so VS Code's built-in Git commit button
+      // also blocks large model files.  runOn:folderOpen means this runs
+      // automatically every time you open the workspace — no manual step needed
+      // on any machine or after any fresh clone.  The command is idempotent.
       "label": "Setup git hooks",
       "type": "shell",
       "command": "git",
       "args": ["config", "core.hooksPath", ".githooks"],
+      "runOptions": {
+        "runOn": "folderOpen"
+      },
       "group": "none",
       "presentation": {
-        "reveal": "always",
+        "reveal": "silent",
         "panel": "shared"
       },
       "problemMatcher": []
