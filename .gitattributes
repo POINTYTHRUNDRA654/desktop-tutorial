@@ -1,3 +1,32 @@
+# ── Line-ending normalisation ────────────────────────────────────────────────
+# Prevent "phantom" modified-file noise in GitHub Desktop / git status on
+# Windows.  Text files are stored with LF in the repository.  On checkout
+# git applies the platform-appropriate ending unless an explicit rule says
+# otherwise.
+#
+# Rule order matters: more-specific rules below override the catch-all.
+
+# Default: auto-detect text files and normalise to LF in the repository.
+# (Overrides core.autocrlf so behaviour is consistent across all clones.)
+* text=auto
+
+# Windows batch/PowerShell scripts MUST use CRLF on disk or cmd.exe / %WINDIR%
+# will not execute them correctly — force CRLF on checkout everywhere.
+*.bat text eol=crlf
+*.ps1 text eol=crlf
+*.cmd text eol=crlf
+
+# Python, YAML, shell, TOML, and Markdown always store and check out as LF.
+*.py   text eol=lf
+*.yml  text eol=lf
+*.yaml text eol=lf
+*.sh   text eol=lf
+*.toml text eol=lf
+*.md   text eol=lf
+*.json text eol=lf
+*.txt  text eol=lf
+
+# ── Binary / large-file rules ────────────────────────────────────────────────
 # Addon release zips are NOT stored in the repo.
 # They are built by CI and uploaded as workflow artifacts instead.
 # *.zip is excluded via .gitignore.
