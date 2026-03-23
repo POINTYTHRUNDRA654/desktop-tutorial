@@ -4,11 +4,13 @@ name: Build Add-on Zips
 # Triggers
 # ─────────────────────────────────────────────────────────────────────────────
 on:
-  # Rebuild whenever code lands on main (PR merges or direct pushes)
+  # Rebuild on every push to any branch when source files change.
+  # This means fresh zips are available as artifacts after every push —
+  # not only when code lands on main.
   push:
-    branches: [main]
     paths:
       - "**.py"
+      - "blender_manifest.toml"
       - "build_addon.py"
       - ".github/workflows/build.yml"
 

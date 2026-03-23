@@ -56,6 +56,8 @@ EXCLUDE = {
     "test_extract",
     # Developer / session helper scripts
     "start_session.bat", "end_session.bat",
+    # Desktop installer scripts (dev tools, not part of the addon)
+    "install_addon.bat", "install_addon.ps1",
     # Standalone test files (no use inside Blender)
     "test_addon_integrity.py",
 }
