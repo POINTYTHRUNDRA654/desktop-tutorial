@@ -4,7 +4,9 @@
   "git.confirmSync": true,
   // Keep the local repo up to date automatically.
   "git.autofetch": true,
-  "git.autofetchPeriod": 180,
+  // Fetch every 60 s (was 180) — keeps both workstations in sync quickly so
+  // the Source Control badge shows incoming commits before you start editing.
+  "git.autofetchPeriod": 60,
   // Never silently stage-all and commit — require explicit staging.
   "git.enableSmartCommit": false,
   // Show the push/pull button in the status bar.
@@ -12,9 +14,19 @@
   // Rebase instead of merge when pulling, matching end_session.bat behaviour.
   // This keeps the commit history linear and avoids spurious merge commits.
   "git.rebaseWhenSync": true,
+  // Automatically stash uncommitted changes before a pull/rebase and restore
+  // them afterwards.  This prevents the "cannot pull with local changes" error
+  // when you switch between stations mid-session.
+  "git.autoStash": true,
+  // Remove remote-tracking branches that no longer exist on the server
+  // every time we fetch — keeps the branch list clean across stations.
+  "git.pruneOnFetch": true,
+  // Use VS Code's built-in 3-way merge editor when a conflict occurs.
+  // Guides you through each conflict with Incoming / Current / Result panes
+  // instead of dropping raw conflict markers into the file.
+  "git.mergeEditor": true,
   // Use the committed hooks in .githooks/ (large-file safety check, etc.).
-  // Activate once per clone with: git config core.hooksPath .githooks
-  // The "Setup git hooks" task in this workspace does that automatically.
+  // The "Setup git hooks" task activates these automatically on folder open.
   "git.hooks.enabled": true,
 
   // ── Files: hide large binaries from the explorer & Source Control panel ──
