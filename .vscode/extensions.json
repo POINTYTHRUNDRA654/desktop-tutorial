@@ -2,11 +2,14 @@
   // Extensions recommended for everyone working on this add-on.
   // VS Code will prompt to install any that are not already present.
   "recommendations": [
-    // ── Git / LFS ────────────────────────────────────────────────────────
+    // ── Git / GitHub ─────────────────────────────────────────────────────
     // GitLens — rich Git history, blame, and diff views.
     "eamodio.gitlens",
     // GitHub Pull Requests — review and manage PRs without leaving VS Code.
     "github.vscode-pull-request-github",
+    // GitHub Actions — view workflow run status and logs inside VS Code.
+    // Mirrors what GitHub Desktop shows under the Actions tab.
+    "github.vscode-github-actions",
 
     // ── Python ───────────────────────────────────────────────────────────
     // Python language support (linting, IntelliSense, debugging).
@@ -17,7 +20,8 @@
     // ── File format helpers ───────────────────────────────────────────────
     // TOML syntax highlighting (blender_manifest.toml).
     "tamasfe.even-better-toml",
-    // EditorConfig support (consistent indentation across editors).
+    // EditorConfig support — reads .editorconfig so indentation and
+    // line-ending rules are enforced automatically on every save.
     "editorconfig.editorconfig"
   ]
 }

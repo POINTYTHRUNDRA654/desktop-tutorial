@@ -1,0 +1,37 @@
+# EditorConfig — https://editorconfig.org
+# Enforces the same indentation and line-ending rules used in .gitattributes
+# and .vscode/settings.json so every editor stays in sync.
+root = true
+
+# ── Defaults for all text files ──────────────────────────────────────────────
+[*]
+charset = utf-8
+end_of_line = lf
+insert_final_newline = true
+trim_trailing_whitespace = true
+indent_style = space
+indent_size = 4
+
+# ── Python ───────────────────────────────────────────────────────────────────
+[*.py]
+indent_style = space
+indent_size = 4
+max_line_length = 120
+
+# ── JSON / TOML / YAML ────────────────────────────────────────────────────────
+[*.{json,toml,yml,yaml}]
+indent_style = space
+indent_size = 2
+
+# ── Markdown ─────────────────────────────────────────────────────────────────
+[*.md]
+trim_trailing_whitespace = false
+
+# ── Windows batch / PowerShell scripts — must use CRLF ──────────────────────
+# cmd.exe fails to execute batch files that use Unix LF line endings.
+[*.{bat,cmd,ps1}]
+end_of_line = crlf
+
+# ── Shell scripts ─────────────────────────────────────────────────────────────
+[*.sh]
+end_of_line = lf
