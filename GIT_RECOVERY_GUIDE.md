@@ -4,6 +4,27 @@ If GitHub Desktop says **"the repository no longer exists"**, **"Sorry, I can't 
 
 ---
 
+## ⚠️ "GitHub Desktop is stuck — it says there are merge conflicts but I can't click to fix them"
+
+This is a known GitHub Desktop quirk with this repository (its name ends in a period).
+The conflict-resolution UI sometimes freezes instead of opening the files.
+
+**The fix — double-click `resolve_conflicts.bat`** in your repo folder.
+
+It will:
+1. Detect whether a merge or rebase is in progress.
+2. Show you which files have conflicts.
+3. Ask whether you want to **keep your local version**, **accept the remote version**, or **abort the merge entirely**.
+4. Complete the merge/rebase commit automatically.
+
+After running it, double-click **`end_session.bat`** to push your resolved changes to GitHub.
+
+> **If `resolve_conflicts.bat` says "No active merge or rebase detected"** but GitHub Desktop
+> still looks stuck, close GitHub Desktop completely, reopen it, and click **Fetch origin**.
+> The UI sometimes shows a stale conflict state that is already resolved in the repo.
+
+---
+
 ## Working in VS Code — First-time setup
 
 If this is the first time you're opening this repo in VS Code, run this **one-time** command in the VS Code terminal to activate the safety hooks:
@@ -50,10 +71,11 @@ git push origin main
 ```
 
 > **What if I see "CONFLICT" messages?**
-> Git found lines that you and the CI both changed.  Open each conflicting file,
-> look for the `<<<<<<< HEAD` / `>>>>>>> origin/main` markers, pick which version
-> to keep, save the file, then run `git rebase --continue`.  Run `end_session.bat`
-> again after that.
+> Git found lines that you and the CI both changed.  **Double-click `resolve_conflicts.bat`**
+> to resolve them automatically, then run `end_session.bat` again.
+> If you prefer to fix them manually: open each conflicting file, look for the
+> `<<<<<<< HEAD` / `>>>>>>> origin/main` markers, pick which version to keep, save the
+> file, then run `git rebase --continue`.  Run `end_session.bat` again after that.
 
 ---
 
