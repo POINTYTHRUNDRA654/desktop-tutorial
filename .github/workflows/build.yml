@@ -16,10 +16,10 @@ on:
   workflow_dispatch:
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Permissions – needed to push the rebuilt zips back to the branch
+# Permissions – read-only; zips are no longer committed back to the repo
 # ─────────────────────────────────────────────────────────────────────────────
 permissions:
-  contents: write
+  contents: read
 
 jobs:
   build:
@@ -27,12 +27,9 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      # ── 1. Check out the repo (full history so we can push back) ───────────
+      # ── 1. Check out the repo ──────────────────────────────────────────────
       - name: Checkout repository
         uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-          lfs: true        # pull down any Git-LFS objects already tracked
 
       # ── 2. Run the build script ────────────────────────────────────────────
       - name: Build zips (all Blender variants)
@@ -42,33 +39,7 @@ jobs:
       - name: Run addon integrity tests
         run: python3 test_addon_integrity.py
 
-      # ── 4. Commit the freshly built zips back to the branch ───────────────
-      #       Using --force so a re-run always overwrites the previous build.
-      - name: Commit rebuilt zips
-        run: |
-          git lfs install          # ensure LFS hooks are active for the push
-          git config user.name  "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-
-          # Remove any stale zips that don't match the current naming pattern
-          # (old names like fallout4_tutorial_helper-blender-*.zip or the
-          # generic fallout4_tutorial_helper-v<ver>.zip without a variant suffix)
-          git rm --ignore-unmatch \
-            'fallout4_tutorial_helper-blender-*.zip' \
-            'fallout4_tutorial_helper-v[0-9]*.[0-9]*.[0-9]*.zip'
-
-          # Stage the freshly built zips (always named *-blender*.zip)
-          git add fallout4_tutorial_helper-v*-blender*.zip
-
-          # Only commit if there is something new
-          if git diff --cached --quiet; then
-            echo "Zips are already up to date – nothing to commit."
-          else
-            git commit -m "chore: auto-rebuild addon zips [skip ci]"
-            git push
-          fi
-
-      # ── 5. Upload as workflow artifacts (always available for download) ────
+      # ── 4. Upload as workflow artifacts (download from the Actions tab) ────
       - name: Upload zips as artifacts
         uses: actions/upload-artifact@v4
         with:

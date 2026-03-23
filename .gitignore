@@ -12,8 +12,9 @@ __pycache__/
 *.pyd
 
 # Build artifacts
-# Note: addon *.zip files ARE tracked (auto-built by CI – see .github/workflows/build.yml).
-# Only exclude other generic zips.
+# Addon *.zip releases are built by CI and uploaded as workflow artifacts.
+# They are NOT committed to the repo – exclude them here so they stay clean.
+*.zip
 dist/
 build/
 build_temp/
