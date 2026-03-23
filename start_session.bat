@@ -1,7 +1,7 @@
 @echo off
 :: start_session.bat
 :: Run this at the START of every work session.
-:: Pulls the latest code and CI-rebuilt zips from GitHub.
+:: Pulls the latest code from GitHub.
 ::
 :: If you have uncommitted local changes this script will stash them first,
 :: pull the latest commits, then restore your changes on top -- so nothing

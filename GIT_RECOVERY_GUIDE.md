@@ -46,41 +46,33 @@ one of these is the cause:
 
 ### Cause 1 — Large AI model files accidentally staged
 
-Common culprits: `.pt`, `.pth`, `.ckpt`, `.safetensors`, `.onnx`, `.bin` files.
-These can be **gigabytes** each.  Check what git is about to send:
+Common culprits: `.gguf`, `.pt`, `.pth`, `.ckpt`, `.safetensors`, `.onnx`, `.bin`
+files.  The Mossy AI / Nemotron LLM model is typically a `.gguf` file that can be
+**2–8 GB** on its own.  These files must never be committed to Git.
+
+Check what git is about to send:
 
 ```bash
 git diff --cached --stat
 ```
 
-If you see huge files listed, remove them from the commit:
+If you see huge files listed, remove them from the staging area **without deleting them**:
 
 ```bash
+git rm --cached path/to/mossy-model.gguf
 git rm --cached path/to/huge/model.pt
 git commit --amend --no-edit
 ```
 
-These files are now excluded by `.gitignore` so they will not be staged again.
+These file types are now excluded by `.gitignore` so they will not be staged again.
 
-### Cause 2 — Zip files not going through Git LFS
-
-The three addon zips (`fallout4_tutorial_helper-v*-blender*.zip`) are supposed to
-be handled by **Git LFS** (they are stored as tiny pointer files instead of raw blobs).
-If LFS is not installed on your machine, git tries to push the full 400 KB zip
-through the normal channel — which triggers GitHub's 100 MB file-size scanner and
-slows everything down.
-
-Fix: install Git LFS once on your machine, then re-stage the zips:
+If git is already tracking the file (it shows up in `git ls-files`), run:
 
 ```bash
-git lfs install
-git rm --cached fallout4_tutorial_helper-v*-blender*.zip
-git add    fallout4_tutorial_helper-v*-blender*.zip
-git commit -m "chore: re-track zips as LFS pointers"
-git push origin main
+git rm --cached --force path/to/model.gguf
 ```
 
-### Cause 3 — The remote URL is wrong
+### Cause 2 — The remote URL is wrong
 
 Run `fix_git_remote.bat` to reset the remote URL to the correct value, then try
 pushing again.

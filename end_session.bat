@@ -2,7 +2,6 @@
 :: end_session.bat
 :: Run this at the END of every work session.
 :: Commits all local changes and pushes to GitHub.
-:: GitHub Actions will then automatically rebuild the zips and push them back.
 ::
 :: This script safely handles the case where GitHub is AHEAD of you
 :: (e.g. because CI committed rebuilt zips while you were working).
@@ -21,6 +20,38 @@ if %errorlevel% neq 0 (
     pause
     exit /b 1
 )
+
+:: ── Safety check: scan for large files before staging ───────────────────────
+:: AI model files (.gguf, .pt, .pth, .ckpt, etc.) can be gigabytes each and
+:: must NEVER be committed.  If any are found untracked or modified, stop now.
+echo Checking for large model files that should not be committed...
+set LARGE_FILE_FOUND=0
+for %%E in (gguf ggml llamafile pt pth ckpt safetensors onnx bin npz npy pkl pickle h5 hdf5 pb tflite) do (
+    for /f "tokens=*" %%F in ('git ls-files --others --exclude-standard --full-name 2^>nul ^| findstr /i "\.%%E$"') do (
+        echo   WARNING: Large model file found untracked: %%F
+        set LARGE_FILE_FOUND=1
+    )
+    for /f "tokens=*" %%F in ('git diff --cached --name-only --diff-filter=AM 2^>nul ^| findstr /i "\.%%E$"') do (
+        echo   WARNING: Large model file found staged: %%F
+        set LARGE_FILE_FOUND=1
+    )
+)
+if "%LARGE_FILE_FOUND%"=="1" (
+    echo.
+    echo STOPPING: Large AI model file(s) detected above.
+    echo These files must NOT be committed to Git -- they can be gigabytes in size.
+    echo.
+    echo They should already be covered by .gitignore.  If git is tracking them
+    echo anyway, run the following command to un-track without deleting the file:
+    echo.
+    echo   git rm --cached path\to\the\model.gguf
+    echo.
+    echo Then add the file extension to .gitignore if it is not already there.
+    pause
+    exit /b 1
+)
+echo   No large model files detected -- safe to proceed.
+echo.
 
 :: Show what changed
 echo Changed files:
@@ -102,9 +133,12 @@ echo.
 echo  GitHub Actions will now automatically:
 echo    1. Rebuild the addon zips for all Blender versions
 echo    2. Run the integrity tests
-echo    3. Commit the new zips back to main
+echo    3. Upload the zips as downloadable artifacts (Actions tab)
 echo.
-echo  Run start_session.bat next time to pull those rebuilt zips.
+echo  The zips are NOT committed back to the repo -- download them
+echo  from the Actions tab if you need them.
+echo.
+echo  Run start_session.bat next time to pull any remote changes.
 echo ============================================================
 echo.
 pause
