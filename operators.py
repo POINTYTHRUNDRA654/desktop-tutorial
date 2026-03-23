@@ -14418,6 +14418,9 @@ def register():
         max=512,
         step=32,
     )
+
+
+def unregister():
     for cls in reversed(classes):
         try:
             bpy.utils.unregister_class(cls)

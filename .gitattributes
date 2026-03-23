@@ -26,6 +26,10 @@
 *.json text eol=lf
 *.txt  text eol=lf
 
+# Git hooks have no file extension — explicitly force LF so bash can execute
+# them on Linux/WSL/macOS even after a Windows (VS Code) checkout.
+.githooks/pre-commit text eol=lf
+
 # ── Binary / large-file rules ────────────────────────────────────────────────
 # Addon release zips are NOT stored in the repo.
 # They are built by CI and uploaded as workflow artifacts instead.
