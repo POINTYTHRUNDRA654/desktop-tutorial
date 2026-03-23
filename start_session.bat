@@ -1,7 +1,7 @@
 @echo off
 :: start_session.bat
 :: Run this at the START of every work session.
-:: Pulls the latest code and CI-rebuilt zips from GitHub.
+:: Pulls the latest code from GitHub.
 ::
 :: If you have uncommitted local changes this script will stash them first,
 :: pull the latest commits, then restore your changes on top -- so nothing
@@ -29,6 +29,12 @@ if %errorlevel% neq 0 (
     pause
     exit /b 1
 )
+
+:: ── Activate git hooks (safe to run on every session) ───────────────────────
+:: Points git at the committed .githooks/ folder so the pre-commit safety
+:: check (blocks large model files) is active in VS Code and GitHub Desktop.
+git config core.hooksPath .githooks >nul 2>&1
+echo Git hooks activated ^(.githooks/pre-commit^).
 
 :: ── Step 1: stash any uncommitted local changes ─────────────────────────────
 set STASHED=0

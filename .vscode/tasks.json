@@ -1,16 +1,97 @@
 {
-  // VS Code build tasks for the Fallout 4 Tutorial Helper addon.
-  // These tasks always delegate to build_addon.py so the resulting zips
-  // are identical to what the GitHub Actions CI workflow produces:
+  // VS Code tasks for the Fallout 4 Tutorial Helper addon.
   //
-  //   fallout4_tutorial_helper-v{VER}-blender3x.zip
-  //   fallout4_tutorial_helper-v{VER}-blender4x.zip
-  //   fallout4_tutorial_helper-v{VER}-blender42.zip
-  //   fallout4_tutorial_helper-v{VER}-blender5x.zip
+  // ── Session workflow tasks (Terminal → Run Task) ──────────────────────────
+  //   "Start Session Sync"   – pull latest from GitHub before you start work
+  //   "End Session Sync"     – commit, fetch, rebase, push (same as end_session.bat)
+  //   "Setup git hooks"      – run once per clone to activate .githooks/pre-commit
   //
-  // Run via Terminal → Run Task or Ctrl+Shift+B (default build task).
+  // ── Build tasks (Ctrl+Shift+B) ────────────────────────────────────────────
+  //   "Build addon (all variants)"  – builds all four Blender-version zips
+  //   Individual variant tasks also available.
+  //
+  // ── Test task ─────────────────────────────────────────────────────────────
+  //   "Run addon integrity tests"  – runs test_addon_integrity.py
+  //
   "version": "2.0.0",
   "tasks": [
+
+    // ── Session workflow ─────────────────────────────────────────────────────
+    {
+      // Run at the START of every work session.
+      // Stashes any local changes, pulls latest from GitHub, then restores.
+      // Equivalent to: start_session.bat
+      "label": "Start Session Sync",
+      "type": "shell",
+      "command": "${workspaceFolder}/start_session.bat",
+      "windows": {
+        "command": "${workspaceFolder}/start_session.bat"
+      },
+      "linux": {
+        "command": "bash",
+        "args": ["-c", "cd '${workspaceFolder}' && git stash push -m 'vscode-start-session' && git pull --rebase origin main && git stash pop"]
+      },
+      "osx": {
+        "command": "bash",
+        "args": ["-c", "cd '${workspaceFolder}' && git stash push -m 'vscode-start-session' && git pull --rebase origin main && git stash pop"]
+      },
+      "group": "none",
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared",
+        "focus": true
+      },
+      "problemMatcher": []
+    },
+    {
+      // Run at the END of every work session.
+      // Runs the same safety checks as end_session.bat:
+      //   1. Blocks large model files from being committed (via .githooks/pre-commit on Linux/macOS)
+      //   2. Commits all changes
+      //   3. Fetches latest from GitHub
+      //   4. Rebases your commits on top (keeps history linear)
+      //   5. Pushes to GitHub
+      // Equivalent to: end_session.bat
+      "label": "End Session Sync",
+      "type": "shell",
+      "command": "${workspaceFolder}/end_session.bat",
+      "windows": {
+        "command": "${workspaceFolder}/end_session.bat"
+      },
+      "linux": {
+        "command": "bash",
+        "args": ["-c", "cd '${workspaceFolder}' && git add . && git commit -m 'session: save work' && git fetch origin main && git rebase origin/main && git push origin HEAD"]
+      },
+      "osx": {
+        "command": "bash",
+        "args": ["-c", "cd '${workspaceFolder}' && git add . && git commit -m 'session: save work' && git fetch origin main && git rebase origin/main && git push origin HEAD"]
+      },
+      "group": "none",
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared",
+        "focus": true
+      },
+      "problemMatcher": []
+    },
+    {
+      // Run ONCE after cloning this repo (or use start_session.bat which does this automatically).
+      // Activates the .githooks/pre-commit safety check so VS Code's built-in
+      // Git commit button also blocks large model files from being committed.
+      // This command is idempotent — safe to run multiple times.
+      "label": "Setup git hooks",
+      "type": "shell",
+      "command": "git",
+      "args": ["config", "core.hooksPath", ".githooks"],
+      "group": "none",
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared"
+      },
+      "problemMatcher": []
+    },
+
+    // ── Build tasks ───────────────────────────────────────────────────────────
     {
       "label": "Build addon (all variants)",
       "type": "shell",
@@ -74,6 +155,8 @@
       },
       "problemMatcher": []
     },
+
+    // ── Test task ─────────────────────────────────────────────────────────────
     {
       "label": "Run addon integrity tests",
       "type": "shell",

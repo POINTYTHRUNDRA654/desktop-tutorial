@@ -57,6 +57,25 @@ desktop.ini
 *.pb
 *.tflite
 
+# ── LLM / GGUF model files ──────────────────────────────────────────────────
+# Local large-language-model files (Nemotron, Llama, Mistral, etc.) used by
+# Mossy AI and similar tools are typically 2–8 GB each.  They must NEVER be
+# committed to Git — the Mossy AI LLM is an external service that the add-on
+# connects to via HTTP; no model file should live inside this repo.
+*.gguf
+*.ggml
+*.ggmf
+*.llamafile
+
+# Common model/weights directory names that may hold large binaries
+models/
+weights/
+checkpoints/
+loras/
+embeddings/
+vae/
+controlnet/
+
 # ── Large media / asset files ───────────────────────────────────────────────
 # Textures, videos, and audio should be kept outside the Git repo.
 # Store them on a network drive, cloud storage, or Git LFS instead.

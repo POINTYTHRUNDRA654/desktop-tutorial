@@ -4,25 +4,43 @@ If GitHub Desktop says **"the repository no longer exists"**, **"Sorry, I can't 
 
 ---
 
+## Working in VS Code — First-time setup
+
+If this is the first time you're opening this repo in VS Code, run this **one-time** command in the VS Code terminal to activate the safety hooks:
+
+```bash
+git config core.hooksPath .githooks
+```
+
+Or use **Terminal → Run Task → Setup git hooks** (it runs automatically when you open the folder).
+
+Once active, the pre-commit hook will block large model files (`.gguf`, `.pt`, etc.) from being committed, just like `end_session.bat` does.
+
+**Daily workflow in VS Code:**
+
+- **Start of session:** Terminal → Run Task → **Start Session Sync**  
+  (pulls latest from GitHub, same as `start_session.bat`)
+- **End of session:** Terminal → Run Task → **End Session Sync**  
+  (commits, fetches, rebases, pushes — same as `end_session.bat`)
+
+You can also use the Source Control panel to commit individual files as normal — the pre-commit hook will automatically block any large model files before they land in the history.
+
+---
+
 ## "I have lots of changes but I can't push — and I can't pull either"
 
-This is the most common situation.  It happens because:
+This is the most common situation.  It happens because GitHub is ahead of your local copy (someone pushed while you were working).
 
-- GitHub Actions automatically rebuilt the addon zips and committed them while you were working.
-- Now **GitHub is ahead of you** (it has commits you don't have locally).
-- GitHub Desktop refuses to push because your branch is behind.
-- GitHub Desktop refuses to pull because you have uncommitted local changes.
-
-**The fix — run `end_session.bat`.**  It now handles this automatically:
+**The fix — run `end_session.bat` or use the "End Session Sync" task in VS Code.**  It handles this automatically:
 
 1. Commits your local changes.
 2. Fetches the latest commits from GitHub.
 3. Rebases your work on top (no data lost).
 4. Pushes everything.
 
-Just **double-click `end_session.bat`** in your repo folder.  You do not need to do anything else.
+Just **double-click `end_session.bat`** in your repo folder, or in VS Code use **Terminal → Run Task → End Session Sync**.
 
-If you prefer to do it manually in Git Bash, run these three commands:
+If you prefer to do it manually in Git Bash, run:
 
 ```bash
 git add .
@@ -46,41 +64,33 @@ one of these is the cause:
 
 ### Cause 1 — Large AI model files accidentally staged
 
-Common culprits: `.pt`, `.pth`, `.ckpt`, `.safetensors`, `.onnx`, `.bin` files.
-These can be **gigabytes** each.  Check what git is about to send:
+Common culprits: `.gguf`, `.pt`, `.pth`, `.ckpt`, `.safetensors`, `.onnx`, `.bin`
+files.  The Mossy AI / Nemotron LLM model is typically a `.gguf` file that can be
+**2–8 GB** on its own.  These files must never be committed to Git.
+
+Check what git is about to send:
 
 ```bash
 git diff --cached --stat
 ```
 
-If you see huge files listed, remove them from the commit:
+If you see huge files listed, remove them from the staging area **without deleting them**:
 
 ```bash
+git rm --cached path/to/mossy-model.gguf
 git rm --cached path/to/huge/model.pt
 git commit --amend --no-edit
 ```
 
-These files are now excluded by `.gitignore` so they will not be staged again.
+These file types are now excluded by `.gitignore` so they will not be staged again.
 
-### Cause 2 — Zip files not going through Git LFS
-
-The three addon zips (`fallout4_tutorial_helper-v*-blender*.zip`) are supposed to
-be handled by **Git LFS** (they are stored as tiny pointer files instead of raw blobs).
-If LFS is not installed on your machine, git tries to push the full 400 KB zip
-through the normal channel — which triggers GitHub's 100 MB file-size scanner and
-slows everything down.
-
-Fix: install Git LFS once on your machine, then re-stage the zips:
+If git is already tracking the file (it shows up in `git ls-files`), run:
 
 ```bash
-git lfs install
-git rm --cached fallout4_tutorial_helper-v*-blender*.zip
-git add    fallout4_tutorial_helper-v*-blender*.zip
-git commit -m "chore: re-track zips as LFS pointers"
-git push origin main
+git rm --cached --force path/to/model.gguf
 ```
 
-### Cause 3 — The remote URL is wrong
+### Cause 2 — The remote URL is wrong
 
 Run `fix_git_remote.bat` to reset the remote URL to the correct value, then try
 pushing again.
