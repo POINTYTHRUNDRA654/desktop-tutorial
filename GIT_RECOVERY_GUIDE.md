@@ -4,25 +4,43 @@ If GitHub Desktop says **"the repository no longer exists"**, **"Sorry, I can't 
 
 ---
 
+## Working in VS Code — First-time setup
+
+If this is the first time you're opening this repo in VS Code, run this **one-time** command in the VS Code terminal to activate the safety hooks:
+
+```bash
+git config core.hooksPath .githooks
+```
+
+Or use **Terminal → Run Task → Setup git hooks** (it runs automatically when you open the folder).
+
+Once active, the pre-commit hook will block large model files (`.gguf`, `.pt`, etc.) from being committed, just like `end_session.bat` does.
+
+**Daily workflow in VS Code:**
+
+- **Start of session:** Terminal → Run Task → **Start Session Sync**  
+  (pulls latest from GitHub, same as `start_session.bat`)
+- **End of session:** Terminal → Run Task → **End Session Sync**  
+  (commits, fetches, rebases, pushes — same as `end_session.bat`)
+
+You can also use the Source Control panel to commit individual files as normal — the pre-commit hook will automatically block any large model files before they land in the history.
+
+---
+
 ## "I have lots of changes but I can't push — and I can't pull either"
 
-This is the most common situation.  It happens because:
+This is the most common situation.  It happens because GitHub is ahead of your local copy (someone pushed while you were working).
 
-- GitHub Actions automatically rebuilt the addon zips and committed them while you were working.
-- Now **GitHub is ahead of you** (it has commits you don't have locally).
-- GitHub Desktop refuses to push because your branch is behind.
-- GitHub Desktop refuses to pull because you have uncommitted local changes.
-
-**The fix — run `end_session.bat`.**  It now handles this automatically:
+**The fix — run `end_session.bat` or use the "End Session Sync" task in VS Code.**  It handles this automatically:
 
 1. Commits your local changes.
 2. Fetches the latest commits from GitHub.
 3. Rebases your work on top (no data lost).
 4. Pushes everything.
 
-Just **double-click `end_session.bat`** in your repo folder.  You do not need to do anything else.
+Just **double-click `end_session.bat`** in your repo folder, or in VS Code use **Terminal → Run Task → End Session Sync**.
 
-If you prefer to do it manually in Git Bash, run these three commands:
+If you prefer to do it manually in Git Bash, run:
 
 ```bash
 git add .

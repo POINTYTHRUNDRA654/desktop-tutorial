@@ -9,29 +9,38 @@
   "git.enableSmartCommit": false,
   // Show the push/pull button in the status bar.
   "git.showPushSuccessNotification": true,
-  // Rebase instead of merge when pulling so the history stays linear.
-  "git.rebaseWhenSync": false,
+  // Rebase instead of merge when pulling, matching end_session.bat behaviour.
+  // This keeps the commit history linear and avoids spurious merge commits.
+  "git.rebaseWhenSync": true,
+  // Use the committed hooks in .githooks/ (large-file safety check, etc.).
+  // Activate once per clone with: git config core.hooksPath .githooks
+  // The "Setup git hooks" task in this workspace does that automatically.
+  "git.hooks.enabled": true,
 
-  // ── Git LFS ──────────────────────────────────────────────────────────────
-  // Tell VS Code's built-in Git to honour LFS pointer files instead of
-  // treating them as binary blobs.  This prevents VS Code from offering
-  // to stage/push the 400+ MB raw binary content of an LFS-tracked zip.
-  "git.lfs.enabled": true,
-
-  // ── Files: exclude large binaries from the explorer & search ─────────────
-  // These are either gitignored or LFS-tracked; cluttering the file tree
-  // with them makes navigation harder and increases the chance of an
-  // accidental commit.
+  // ── Files: hide large binaries from the explorer & Source Control panel ──
+  // Anything matching .gitignore is already hidden from Source Control, but
+  // explicitly listing the most dangerous types here also removes them from
+  // the file explorer so they can never be accidentally clicked and staged.
   "files.exclude": {
     "**/__pycache__": true,
     "**/*.pyc": true,
     "**/*.pyo": true,
+    // LLM / GGUF model files (Mossy AI is an external HTTP service — no model
+    // file belongs in this repo; these are 2–8 GB each)
+    "**/*.gguf": true,
+    "**/*.ggml": true,
+    "**/*.ggmf": true,
+    "**/*.llamafile": true,
     // AI model weight files (can be many GB each)
     "**/*.pt": true,
     "**/*.pth": true,
     "**/*.ckpt": true,
     "**/*.safetensors": true,
     "**/*.onnx": true,
+    // Common model/weights directories
+    "**/models": true,
+    "**/weights": true,
+    "**/checkpoints": true,
     // Large media
     "**/*.blend": true,
     "**/*.blend1": true,

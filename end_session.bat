@@ -21,9 +21,18 @@ if %errorlevel% neq 0 (
     exit /b 1
 )
 
+:: ── Activate git hooks (safe to run on every session) ───────────────────────
+:: Points git at the committed .githooks/ folder so the pre-commit safety
+:: check (blocks large model files) is active in VS Code and GitHub Desktop.
+git config core.hooksPath .githooks >nul 2>&1
+echo Git hooks activated ^(.githooks/pre-commit^).
+echo.
+
 :: ── Safety check: scan for large files before staging ───────────────────────
 :: AI model files (.gguf, .pt, .pth, .ckpt, etc.) can be gigabytes each and
-:: must NEVER be committed.  If any are found untracked or modified, stop now.
+:: must NEVER be committed.  If any are found untracked or staged, stop now.
+:: NOTE: This extension list is intentionally duplicated in .githooks/pre-commit
+:: (the cross-platform bash equivalent).  Keep both lists in sync.
 echo Checking for large model files that should not be committed...
 set LARGE_FILE_FOUND=0
 for %%E in (gguf ggml llamafile pt pth ckpt safetensors onnx bin npz npy pkl pickle h5 hdf5 pb tflite) do (
