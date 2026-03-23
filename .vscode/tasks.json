@@ -1,0 +1,90 @@
+{
+  // VS Code build tasks for the Fallout 4 Tutorial Helper addon.
+  // These tasks always delegate to build_addon.py so the resulting zips
+  // are identical to what the GitHub Actions CI workflow produces:
+  //
+  //   fallout4_tutorial_helper-v{VER}-blender3x.zip
+  //   fallout4_tutorial_helper-v{VER}-blender4x.zip
+  //   fallout4_tutorial_helper-v{VER}-blender42.zip
+  //   fallout4_tutorial_helper-v{VER}-blender5x.zip
+  //
+  // Run via Terminal → Run Task or Ctrl+Shift+B (default build task).
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "Build addon (all variants)",
+      "type": "shell",
+      "command": "python",
+      "args": ["${workspaceFolder}/build_addon.py", "--outdir", "${workspaceFolder}"],
+      "group": {
+        "kind": "build",
+        "isDefault": true
+      },
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared"
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "Build addon (blender3x)",
+      "type": "shell",
+      "command": "python",
+      "args": ["${workspaceFolder}/build_addon.py", "--version", "blender3x", "--outdir", "${workspaceFolder}"],
+      "group": "build",
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared"
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "Build addon (blender4x)",
+      "type": "shell",
+      "command": "python",
+      "args": ["${workspaceFolder}/build_addon.py", "--version", "blender4x", "--outdir", "${workspaceFolder}"],
+      "group": "build",
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared"
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "Build addon (blender42)",
+      "type": "shell",
+      "command": "python",
+      "args": ["${workspaceFolder}/build_addon.py", "--version", "blender42", "--outdir", "${workspaceFolder}"],
+      "group": "build",
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared"
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "Build addon (blender5x)",
+      "type": "shell",
+      "command": "python",
+      "args": ["${workspaceFolder}/build_addon.py", "--version", "blender5x", "--outdir", "${workspaceFolder}"],
+      "group": "build",
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared"
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "Run addon integrity tests",
+      "type": "shell",
+      "command": "python",
+      "args": ["${workspaceFolder}/test_addon_integrity.py"],
+      "group": "test",
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared"
+      },
+      "problemMatcher": []
+    }
+  ]
+}
