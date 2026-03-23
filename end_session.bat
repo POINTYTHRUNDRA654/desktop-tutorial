@@ -1,4 +1,5 @@
 @echo off
+setlocal EnableDelayedExpansion
 :: end_session.bat
 :: Run this at the END of every work session.
 :: Commits all local changes and pushes to GitHub.
@@ -94,6 +95,33 @@ if %errorlevel% neq 0 (
 echo.
 echo Fetching latest from GitHub...
 git fetch origin main
+:: ── Guard: check for large files in commits already waiting to push ──────────
+:: The staging-area check above only covers uncommitted files.  This catches the
+:: case where large files were committed in a previous session and are now sitting
+:: in local history, inflating the pending push in GitHub Desktop to gigabytes.
+for /f %%n in ('git rev-list origin/main..HEAD --count 2^>nul') do set PENDING_AHEAD=%%n
+if not "!PENDING_AHEAD!"=="0" if not "!PENDING_AHEAD!"=="" (
+    set LARGE_IN_HISTORY=0
+    for %%E in (gguf ggml ggmf llamafile pt pth ckpt safetensors onnx bin npz npy pkl pickle h5 hdf5 pb tflite zip blend exe dll msi) do (
+        for /f "tokens=*" %%F in ('git diff --name-only origin/main HEAD 2^>nul ^| findstr /i "\.%%E$" 2^>nul') do (
+            if "!LARGE_IN_HISTORY!"=="0" (
+                echo.
+                echo WARNING: Large file(s) found in your pending commits:
+            )
+            echo   %%F
+            set LARGE_IN_HISTORY=1
+        )
+    )
+    if "!LARGE_IN_HISTORY!"=="1" (
+        echo.
+        echo Your pending push contains large binary files and would be
+        echo very slow ^(possibly gigabytes^).  Run purge_large_files.bat
+        echo first to remove them from the pending commits, then run
+        echo end_session.bat again.
+        pause
+        exit /b 1
+    )
+)
 if %errorlevel% neq 0 (
     echo.
     echo WARNING: Fetch failed -- check your internet connection.

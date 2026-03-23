@@ -4,6 +4,30 @@ If GitHub Desktop says **"the repository no longer exists"**, **"Sorry, I can't 
 
 ---
 
+## 🚨 "GitHub Desktop is showing gigabytes of data waiting to push"
+
+This happens when large AI model files (`.gguf`, `.pt`, `.pth`, `.safetensors`, etc.) or
+other large binaries were accidentally committed.  A single Nemotron / Llama model file can
+be **2–8 GB**, so even one accidental commit can inflate the pending push to gigabytes.
+
+**The fix — double-click `purge_large_files.bat`** in your repo folder.
+
+It will:
+1. Fetch the latest state of GitHub so comparisons are accurate.
+2. Scan your pending commits for large file types (model weights, zip files, `.blend` files, etc.).
+3. Collapse all pending commits into one clean staging area (**your code changes are kept**).
+4. Remove the large files from that staging area (**files stay on your hard drive**).
+5. Re-commit only the safe files (Python, config, documentation).
+
+After running it, double-click **`end_session.bat`** to push your clean, small commits.
+
+> **Why did this happen?**  The large files were in the same folder as the add-on and you
+> (or GitHub Desktop) ran "Stage all changes".  The `.gitignore` now excludes all common
+> model/binary extensions, and `end_session.bat` checks for them before every commit.
+> To prevent it from happening again, keep AI model files **outside** the repository folder.
+
+---
+
 ## ⚠️ "GitHub Desktop is stuck — it says there are merge conflicts but I can't click to fix them"
 
 This is a known GitHub Desktop quirk with this repository (its name ends in a period).
@@ -82,9 +106,13 @@ git push origin main
 ## "My push is taking forever (estimated an hour)"
 
 A push should complete in seconds for this repo.  If it is taking much longer,
-one of these is the cause:
+one of these is the cause.
 
-### Cause 1 — Large AI model files accidentally staged
+**Quick fix — double-click `purge_large_files.bat`** in your repo folder.  It automatically
+finds and removes large files from your pending commits, then double-click `end_session.bat`
+to push the clean result.
+
+### Cause 1 — Large AI model files accidentally committed
 
 Common culprits: `.gguf`, `.pt`, `.pth`, `.ckpt`, `.safetensors`, `.onnx`, `.bin`
 files.  The Mossy AI / Nemotron LLM model is typically a `.gguf` file that can be
