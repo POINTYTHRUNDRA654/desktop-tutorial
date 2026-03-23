@@ -1,61 +1,44 @@
 # Build script for Fallout 4 Tutorial Helper addon
-# Creates a versioned archive for Blender distribution
+#
+# Delegates all packaging to build_addon.py so that the zips produced here
+# are identical to those created by the GitHub Actions CI workflow:
+#
+#   fallout4_tutorial_helper-v{VER}-blender3x.zip   (Blender 3.6 LTS)
+#   fallout4_tutorial_helper-v{VER}-blender4x.zip   (Blender 4.0-4.1)
+#   fallout4_tutorial_helper-v{VER}-blender42.zip   (Blender 4.2+ Extension)
+#   fallout4_tutorial_helper-v{VER}-blender5x.zip   (Blender 5.x)
+#
+# Each zip contains a single inner folder named fallout4_tutorial_helper/
+# which is required for correct Blender installation and addon import.
+#
+# Usage:
+#   .\build.ps1            # build all four variant zips into the repo root
+#   .\build.ps1 -Variant blender42   # build only one variant
 
 param(
-    [string]$Version = "2.3.0"
+    [string]$Variant = "all",
+    [string]$OutDir  = "."
 )
 
 $RootDir = Split-Path -Parent $MyInvocation.MyCommand.Path
-$BuildDir = Join-Path $RootDir "build_temp"
-$ArchiveName = "fallout4_tutorial_helper-v$Version.zip"
-$ArchivePath = Join-Path $RootDir $ArchiveName
 
-# Clean up any existing build directory
-if (Test-Path $BuildDir) {
-    Remove-Item $BuildDir -Recurse -Force
+# Resolve python – prefer 'python', fall back to 'python3'
+$PythonExe = "python"
+try {
+    & $PythonExe --version 2>&1 | Out-Null
+} catch {
+    $PythonExe = "python3"
 }
 
-# Create build directory structure
-New-Item -ItemType Directory -Path $BuildDir -Force | Out-Null
-$AddonDir = Join-Path $BuildDir "fallout4_addon"
-New-Item -ItemType Directory -Path $AddonDir -Force | Out-Null
+$BuildScript = Join-Path $RootDir "build_addon.py"
 
-# Files to exclude from the archive
-$Exclude = @(
-    ".git",
-    ".gitignore",
-    ".vscode",
-    "build_temp",
-    "build.log",
-    "build.ps1",
-    "*.zip",
-    "README.md",
-    ".DS_Store",
-    "Thumbs.db"
-)
+Write-Host "Building with: $PythonExe $BuildScript --version $Variant --outdir $OutDir"
 
-# Copy addon files
-Write-Host "Copying addon files..."
-Get-ChildItem $RootDir -Exclude $Exclude | ForEach-Object {
-    if ($_.PSIsContainer) {
-        Copy-Item $_.FullName $AddonDir -Recurse -Force
-    } else {
-        Copy-Item $_.FullName $AddonDir -Force
-    }
+& $PythonExe $BuildScript --version $Variant --outdir $OutDir
+
+if ($LASTEXITCODE -ne 0) {
+    Write-Error "build_addon.py failed (exit code $LASTEXITCODE)."
+    exit $LASTEXITCODE
 }
-
-# Create archive
-Write-Host "Creating archive: $ArchivePath"
-if (Test-Path $ArchivePath) {
-    Remove-Item $ArchivePath -Force
-}
-
-Compress-Archive -Path $AddonDir -DestinationPath $ArchivePath -CompressionLevel Optimal
-
-Write-Host "Archive created: $ArchivePath"
-Write-Host "Size: $(Get-Item $ArchivePath | Select-Object -ExpandProperty Length) bytes"
-
-# Clean up build directory
-Remove-Item $BuildDir -Recurse -Force
 
 Write-Host "Build complete!"
