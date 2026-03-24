@@ -13801,7 +13801,7 @@ def register():
         )
 
     except Exception as _e:
-        print(f"\u26a0 Failed to register Havok animation properties: {_e}")
+        print(f"⚠ Failed to register Havok animation properties: {_e}")
     try:
         # ── Mesh optimisation settings (per-scene) ────────────────────────────────
         bpy.types.Scene.fo4_opt_apply_transforms = bpy.props.BoolProperty(
@@ -13827,7 +13827,7 @@ def register():
         )
 
     except Exception as _e:
-        print(f"\u26a0 Failed to register mesh optimisation properties: {_e}")
+        print(f"⚠ Failed to register mesh optimisation properties: {_e}")
     try:
         # ── Game / tool paths stored per-scene (not in preferences) ──────────────
         bpy.types.Scene.fo4_tools_root = bpy.props.StringProperty(
@@ -13870,7 +13870,7 @@ def register():
         )
 
     except Exception as _e:
-        print(f"\u26a0 Failed to register tool paths properties: {_e}")
+        print(f"⚠ Failed to register tool paths properties: {_e}")
     try:
         # ── Game asset paths stored per-scene (mirror of addon preferences) ───────
         bpy.types.Scene.fo4_assets_path = bpy.props.StringProperty(
@@ -13927,7 +13927,7 @@ def register():
         )
 
     except Exception as _e:
-        print(f"\u26a0 Failed to register game asset paths properties: {_e}")
+        print(f"⚠ Failed to register game asset paths properties: {_e}")
     try:
         # ── FO4 export version selector ───────────────────────────────────────────
         bpy.types.Scene.fo4_game_version = bpy.props.EnumProperty(
@@ -13942,7 +13942,7 @@ def register():
         )
 
     except Exception as _e:
-        print(f"\u26a0 Failed to register FO4 export version properties: {_e}")
+        print(f"⚠ Failed to register FO4 export version properties: {_e}")
     try:
         # ── Per-object Fallout 4 properties ───────────────────────────────────────
         _coll_items = (
@@ -13978,7 +13978,7 @@ def register():
         )
 
     except Exception as _e:
-        print(f"\u26a0 Failed to register per-object properties: {_e}")
+        print(f"⚠ Failed to register per-object properties: {_e}")
     try:
         # ── Mossy Link scene properties ───────────────────────────────────────────
         bpy.types.Scene.fo4_mossy_port = bpy.props.IntProperty(
@@ -14008,7 +14008,7 @@ def register():
         )
 
     except Exception as _e:
-        print(f"\u26a0 Failed to register Mossy Link scene properties: {_e}")
+        print(f"⚠ Failed to register Mossy Link scene properties: {_e}")
     try:
         # ── Mossy Link WindowManager properties (live status) ─────────────────────
         bpy.types.WindowManager.mossy_link_active = bpy.props.BoolProperty(
@@ -14028,7 +14028,7 @@ def register():
         )
 
     except Exception as _e:
-        print(f"\u26a0 Failed to register Mossy Link WindowManager properties: {_e}")
+        print(f"⚠ Failed to register Mossy Link WindowManager properties: {_e}")
     try:
         # ── Image-to-3D mesh quality settings ────────────────────────────────────
         # These settings are shown in the Image to Mesh panel and read by all
@@ -14077,7 +14077,99 @@ def register():
         )
 
     except Exception as _e:
-        print(f"\u26a0 Failed to register Image-to-3D quality settings: {_e}")
+        print(f"⚠ Failed to register Image-to-3D quality settings: {_e}")
+
+    try:
+        # ── Advisor / LLM / tool-path / UI-toggle scene properties ───────────
+        # Fallback scene properties for the Settings panel when addon
+        # preferences are unavailable.  Each mirrors a FO4AddonPreferences
+        # attribute; the update= callback keeps them in sync so changes made
+        # via the panel are persisted to preferences and survive Blender
+        # restarts.  restore_scene_props_from_prefs() in preferences.py
+        # copies these back from prefs on every load_post / startup.
+        bpy.types.Scene.fo4_llm_enabled = bpy.props.BoolProperty(
+            name="Enable LLM Advisor",
+            description="Enable the AI LLM advisor feature",
+            default=False,
+            update=_make_scene_to_pref_sync("fo4_llm_enabled", "llm_enabled"),
+        )
+        bpy.types.Scene.fo4_advisor_monitor = bpy.props.BoolProperty(
+            name="Enable Advisor Auto-Monitor",
+            description="Run the advisor analysis automatically in the background",
+            default=False,
+            update=_make_scene_to_pref_sync(
+                "fo4_advisor_monitor", "advisor_auto_monitor_enabled"
+            ),
+        )
+        bpy.types.Scene.fo4_advisor_interval = bpy.props.IntProperty(
+            name="Advisor Interval (seconds)",
+            description="How often the background advisor check runs",
+            default=300, min=10, max=3600,
+            update=_make_scene_to_pref_sync(
+                "fo4_advisor_interval", "advisor_auto_monitor_interval"
+            ),
+        )
+        bpy.types.Scene.fo4_kb_enabled = bpy.props.BoolProperty(
+            name="Use Knowledge Base",
+            description="Include the bundled or custom knowledge base in advisor queries",
+            default=True,
+            update=_make_scene_to_pref_sync("fo4_kb_enabled", "knowledge_base_enabled"),
+        )
+        bpy.types.Scene.fo4_kb_path = bpy.props.StringProperty(
+            name="Custom KB Folder",
+            description="Path to a folder of .txt / .md files used as advisor knowledge",
+            default="",
+            subtype='DIR_PATH',
+            update=_make_scene_to_pref_sync("fo4_kb_path", "knowledge_base_path"),
+        )
+        bpy.types.Scene.fo4_ffmpeg_path = bpy.props.StringProperty(
+            name="FFmpeg Path",
+            description="Path to the ffmpeg executable or its containing folder",
+            default="",
+            subtype='DIR_PATH',
+            update=_make_scene_to_pref_sync("fo4_ffmpeg_path", "ffmpeg_path"),
+        )
+        bpy.types.Scene.fo4_nvtt_path = bpy.props.StringProperty(
+            name="nvcompress / NVTT Path",
+            description="Path to nvcompress executable or its containing folder",
+            default="",
+            subtype='DIR_PATH',
+            update=_make_scene_to_pref_sync("fo4_nvtt_path", "nvtt_path"),
+        )
+        bpy.types.Scene.fo4_texconv_path = bpy.props.StringProperty(
+            name="texconv Path",
+            description="Path to the Microsoft texconv executable or its folder",
+            default="",
+            subtype='DIR_PATH',
+            update=_make_scene_to_pref_sync("fo4_texconv_path", "texconv_path"),
+        )
+        bpy.types.Scene.fo4_auto_install_tools = bpy.props.BoolProperty(
+            name="Auto-install Missing CLI Tools",
+            description="Automatically download missing CLI tools at startup",
+            default=False,
+            update=_make_scene_to_pref_sync("fo4_auto_install_tools", "auto_install_tools"),
+        )
+        bpy.types.Scene.fo4_auto_install_python = bpy.props.BoolProperty(
+            name="Auto-install Python Packages",
+            description="Automatically install required Python packages at startup",
+            default=False,
+            update=_make_scene_to_pref_sync("fo4_auto_install_python", "auto_install_python"),
+        )
+        bpy.types.Scene.fo4_auto_register_tools = bpy.props.BoolProperty(
+            name="Auto-register Third-party Add-ons",
+            description="Automatically register third-party add-ons found in the tools folder",
+            default=False,
+            update=_make_scene_to_pref_sync("fo4_auto_register_tools", "auto_register_tools"),
+        )
+        bpy.types.Scene.fo4_mesh_panel_unified = bpy.props.BoolProperty(
+            name="Unified Mesh Panel",
+            description="Show all mesh helpers in one combined panel",
+            default=True,
+            update=_make_scene_to_pref_sync("fo4_mesh_panel_unified", "mesh_panel_unified"),
+        )
+    except Exception as _e:
+        print(f"⚠ Failed to register advisor/LLM/tool-path/UI properties: {_e}")
+
 
 def unregister():
     for cls in reversed(classes):
@@ -14130,6 +14222,19 @@ def unregister():
         "fo4_imageto3d_target_poly",
         "fo4_imageto3d_auto_decimate",
         "fo4_triposr_mc_resolution",
+        # Advisor / LLM / tool-path / UI-toggle scene mirrors
+        "fo4_llm_enabled",
+        "fo4_advisor_monitor",
+        "fo4_advisor_interval",
+        "fo4_kb_enabled",
+        "fo4_kb_path",
+        "fo4_ffmpeg_path",
+        "fo4_nvtt_path",
+        "fo4_texconv_path",
+        "fo4_auto_install_tools",
+        "fo4_auto_install_python",
+        "fo4_auto_register_tools",
+        "fo4_mesh_panel_unified",
     ):
         if hasattr(bpy.types.Scene, prop):
             try:
