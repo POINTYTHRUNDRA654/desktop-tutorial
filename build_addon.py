@@ -67,21 +67,25 @@ VARIANTS = {
     "blender3x": {
         "label":        "Blender 3.6 LTS",
         "blender_min":  (3, 6, 0),
+        "blender_max":  (3, 6, 99),
         "manifest":     False,
     },
     "blender4x": {
         "label":        "Blender 4.0–4.1",
         "blender_min":  (4, 0, 0),
+        "blender_max":  (4, 1, 99),
         "manifest":     False,
     },
     "blender42": {
         "label":        "Blender 4.2+ (Extension)",
         "blender_min":  (4, 2, 0),
+        "blender_max":  (4, 99, 99),
         "manifest":     True,
     },
     "blender5x": {
         "label":        "Blender 5.x",
         "blender_min":  (5, 0, 0),
+        "blender_max":  None,
         "manifest":     True,
     },
 }
@@ -125,10 +129,11 @@ def _patch_blender_min(src: str, blender_min: tuple) -> str:
     )
 
 
-def _make_manifest(addon_version: str, blender_min: tuple) -> str:
+def _make_manifest(addon_version: str, blender_min: tuple,
+                   blender_max: tuple | None = None) -> str:
     """Generate a blender_manifest.toml for the Extension system."""
     bmin = f"{blender_min[0]}.{blender_min[1]}.{blender_min[2]}"
-    return textwrap.dedent(f"""\
+    lines = textwrap.dedent(f"""\
         schema_version = "1.0.0"
 
         id = "fallout4_tutorial_helper"
@@ -139,6 +144,12 @@ def _make_manifest(addon_version: str, blender_min: tuple) -> str:
         type = "add-on"
 
         blender_version_min = "{bmin}"
+        """)
+    # Append optional upper-bound so the zip is rejected by out-of-range Blender
+    if blender_max is not None:
+        bmax = f"{blender_max[0]}.{blender_max[1]}.{blender_max[2]}"
+        lines += f'blender_version_max = "{bmax}"\n'
+    lines += textwrap.dedent("""\
 
         license = ["SPDX:GPL-3.0-or-later"]
         category = "Import-Export"
@@ -146,7 +157,8 @@ def _make_manifest(addon_version: str, blender_min: tuple) -> str:
         [permissions]
         network = "Download tools and AI models on demand"
         files = "Read / write FO4 data folder and export NIF files"
-    """)
+        """)
+    return lines
 
 
 def build_variant(root: Path, outdir: Path, addon_version: str,
@@ -190,7 +202,8 @@ def build_variant(root: Path, outdir: Path, addon_version: str,
                 zf.write(item, arc_name)
 
         if include_manifest:
-            manifest_src = _make_manifest(addon_version, blender_min)
+            manifest_src = _make_manifest(addon_version, blender_min,
+                                          variant.get("blender_max"))
             # Always at the zip root so Blender's Extension installer finds it
             zf.writestr("blender_manifest.toml", manifest_src)
 

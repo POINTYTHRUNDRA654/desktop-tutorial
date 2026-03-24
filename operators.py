@@ -95,8 +95,8 @@ class FO4_OT_StartTutorial(Operator):
     """Start a tutorial"""
     bl_idname = "fo4.start_tutorial"
     bl_label = "Start Tutorial"
-    bl_options = {'REGISTER', 'UNDO'}
-    
+    bl_options = {'REGISTER'}
+
     tutorial_type: EnumProperty(
         name="Tutorial",
         items=[
@@ -110,22 +110,29 @@ class FO4_OT_StartTutorial(Operator):
             ('vegetation', "Vegetation & Landscaping", "Create optimized vegetation for FO4"),
         ]
     )
-    
-    def execute(self, context):
-        if not tutorial_system.TUTORIALS:
-            tutorial_system.initialize_tutorials()
 
-        context.scene.fo4_current_tutorial = self.tutorial_type
-        context.scene.fo4_tutorial_step = 0
-        
-        tutorial = tutorial_system.get_current_tutorial(context)
-        if tutorial:
-            step = tutorial.get_current_step()
-            self.report({'INFO'}, f"Tutorial started: {tutorial.name}")
-            self.report({'INFO'}, f"Step 1: {step.title}")
-        
+    def execute(self, context):
+        if not tutorial_system:
+            self.report({'WARNING'}, "Tutorial system not available")
+            return {'CANCELLED'}
+        try:
+            if not tutorial_system.TUTORIALS:
+                tutorial_system.initialize_tutorials()
+
+            context.scene.fo4_current_tutorial = self.tutorial_type
+            context.scene.fo4_tutorial_step = 0
+
+            tutorial = tutorial_system.get_current_tutorial(context)
+            if tutorial:
+                step = tutorial.get_current_step()
+                self.report({'INFO'}, f"Tutorial started: {tutorial.name}")
+                if step:
+                    self.report({'INFO'}, f"Step 1: {step.title}")
+        except Exception as e:
+            self.report({'ERROR'}, f"Could not start tutorial: {e}")
+            return {'CANCELLED'}
         return {'FINISHED'}
-    
+
     def invoke(self, context, event):
         return context.window_manager.invoke_props_dialog(self)
 
@@ -133,10 +140,11 @@ class FO4_OT_ShowHelp(Operator):
     """Show help information"""
     bl_idname = "fo4.show_help"
     bl_label = "Show Help"
+    bl_options = {'REGISTER'}
 
     def execute(self, context):
         try:
-            if not tutorial_system.TUTORIALS:
+            if tutorial_system and not tutorial_system.TUTORIALS:
                 tutorial_system.initialize_tutorials()
         except Exception:
             pass
@@ -151,22 +159,26 @@ class FO4_OT_ShowHelp(Operator):
         print(" 4) Run 'Show Detailed Setup Guide' if you are new.")
         print("")
 
-        active = tutorial_system.get_current_tutorial(context)
-        if active:
-            step = active.get_current_step()
-            print(f"Active tutorial: {active.name}")
-            print(f"Step {active.current_step + 1}/{len(active.steps)}: {step.title}")
-            if step and step.description:
-                for line in step.description.splitlines():
-                    print(f"  - {line}")
-        else:
-            print("No active tutorial. Click 'Start Tutorial' to begin.")
+        try:
+            if tutorial_system:
+                active = tutorial_system.get_current_tutorial(context)
+                if active:
+                    step = active.get_current_step()
+                    print(f"Active tutorial: {active.name}")
+                    print(f"Step {active.current_step + 1}/{len(active.steps)}: {step.title}")
+                    if step and step.description:
+                        for line in step.description.splitlines():
+                            print(f"  - {line}")
+                else:
+                    print("No active tutorial. Click 'Start Tutorial' to begin.")
 
-        if getattr(tutorial_system, "TUTORIALS", None):
-            print("")
-            print("Available tutorials:")
-            for tut in tutorial_system.TUTORIALS.values():
-                print(f" - {tut.name}: {tut.description} ({len(tut.steps)} steps)")
+                if getattr(tutorial_system, "TUTORIALS", None):
+                    print("")
+                    print("Available tutorials:")
+                    for tut in tutorial_system.TUTORIALS.values():
+                        print(f" - {tut.name}: {tut.description} ({len(tut.steps)} steps)")
+        except Exception as e:
+            print(f"Could not retrieve tutorial info: {e}")
 
         print("")
         print("More resources: README.md, TUTORIALS.md, HELP_SYSTEM.md")
@@ -174,7 +186,11 @@ class FO4_OT_ShowHelp(Operator):
 
         msg = "Help printed to the system console (Window -> Toggle System Console)"
         self.report({'INFO'}, msg)
-        notification_system.FO4_NotificationSystem.notify(msg, 'INFO')
+        try:
+            if notification_system:
+                notification_system.FO4_NotificationSystem.notify(msg, 'INFO')
+        except Exception:
+            pass
         return {'FINISHED'}
 
 
@@ -185,6 +201,9 @@ class FO4_OT_NextTutorialStep(Operator):
     bl_options = {'REGISTER'}
 
     def execute(self, context):
+        if not tutorial_system:
+            self.report({'WARNING'}, "Tutorial system not available")
+            return {'CANCELLED'}
         if not tutorial_system.TUTORIALS:
             tutorial_system.initialize_tutorials()
 
@@ -208,10 +227,14 @@ class FO4_OT_NextTutorialStep(Operator):
         print("-" * 50 + "\n")
 
         self.report({'INFO'}, f"Step {tutorial.current_step + 1}: {step.title}")
-        notification_system.FO4_NotificationSystem.notify(
-            f"Step {tutorial.current_step + 1}: {step.title}",
-            'INFO'
-        )
+        try:
+            if notification_system:
+                notification_system.FO4_NotificationSystem.notify(
+                    f"Step {tutorial.current_step + 1}: {step.title}",
+                    'INFO'
+                )
+        except Exception:
+            pass
         return {'FINISHED'}
 
 
@@ -222,6 +245,9 @@ class FO4_OT_PreviousTutorialStep(Operator):
     bl_options = {'REGISTER'}
 
     def execute(self, context):
+        if not tutorial_system:
+            self.report({'WARNING'}, "Tutorial system not available")
+            return {'CANCELLED'}
         if not tutorial_system.TUTORIALS:
             tutorial_system.initialize_tutorials()
 
@@ -245,10 +271,14 @@ class FO4_OT_PreviousTutorialStep(Operator):
         print("-" * 50 + "\n")
 
         self.report({'INFO'}, f"Step {tutorial.current_step + 1}: {step.title}")
-        notification_system.FO4_NotificationSystem.notify(
-            f"Step {tutorial.current_step + 1}: {step.title}",
-            'INFO'
-        )
+        try:
+            if notification_system:
+                notification_system.FO4_NotificationSystem.notify(
+                    f"Step {tutorial.current_step + 1}: {step.title}",
+                    'INFO'
+                )
+        except Exception:
+            pass
         return {'FINISHED'}
 
 
@@ -256,6 +286,7 @@ class FO4_OT_ShowDetailedSetup(Operator):
     """Show detailed setup guide for first-time users"""
     bl_idname = "fo4.show_detailed_setup"
     bl_label = "Detailed Setup Guide"
+    bl_options = {'REGISTER'}
 
     def execute(self, context):
         # Display comprehensive setup instructions to system console
@@ -314,10 +345,14 @@ class FO4_OT_ShowDetailedSetup(Operator):
         print("=" * 60 + "\n")
 
         # Also show as notification
-        notification_system.FO4_NotificationSystem.notify(
-            "Detailed setup guide displayed in system console (Window → Toggle System Console)",
-            'INFO'
-        )
+        try:
+            if notification_system:
+                notification_system.FO4_NotificationSystem.notify(
+                    "Detailed setup guide displayed in system console (Window → Toggle System Console)",
+                    'INFO'
+                )
+        except Exception:
+            pass
         return {'FINISHED'}
 
 
@@ -325,6 +360,7 @@ class FO4_OT_ShowCredits(Operator):
     """Show credits for all third-party tools used by this add-on"""
     bl_idname = "fo4.show_credits"
     bl_label = "Credits"
+    bl_options = {'REGISTER'}
 
     def execute(self, context):
         return {'FINISHED'}
