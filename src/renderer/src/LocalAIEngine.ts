@@ -391,9 +391,10 @@ export const LocalAIEngine = {
 
     // ---------------------------
     // Post-processor: strip sentences where the AI self-identifies as a limited LLM
-    // with no internet access, even after the guard retry.  Only removes sentences
-    // that combine BOTH an LLM/AI identity claim AND an inability/refusal claim —
-    // avoids stripping sentences that merely mention LLMs in passing.
+    // with no internet access, or falsely claims a web-search error occurred, even
+    // after the guard retry.  Only removes sentences with a clear first-person claim
+    // combined with an internet/access refusal or error — avoids stripping sentences
+    // that merely mention LLMs or errors in passing (e.g. modding script errors).
     // If sanitisation removes the entire response (pure refusal), the original text
     // is returned unchanged so the caller always gets something back.
     const sanitizeFinalResponse = (text: string): string => {
@@ -414,6 +415,15 @@ export const LocalAIEngine = {
         /i\s+don'?t\s+have\s+real.?time\s+access/i,
         /i\s+can'?t\s+go\s+online/i,
         /i\s+cannot\s+go\s+online/i,
+        // False web-search error claims — the AI says "I encountered an error searching"
+        // even when live results were injected into its context.  These are hallucinated
+        // apologies that mix with real information and confuse the user.
+        /\bi\s+(encountered|ran\s+into)\s+(an?\s+)?(error|issue|problem)\s+(while\s+)?(searching|accessing|retrieving|fetching)/i,
+        /\bi\s+(was\s+unable|wasn'?t\s+able|couldn'?t|could\s+not)\s+to?\s*(successfully\s+)?(retrieve|access|search|fetch|look\s+up)\s+(the\s+)?(latest|real.?time|current|up.?to.?date|live)/i,
+        /\bi\s+had\s+(trouble|difficulty|difficulties)\s+(accessing|searching|retrieving|fetching)\s+(the\s+)?(web|internet|online\s+information|real.?time\s+data)/i,
+        /unfortunately,?\s*i\s+(was\s+unable|couldn'?t|was\s+not\s+able|am\s+unable|am\s+not\s+able)\s+to\s+(access|retriev|search|fetch)/i,
+        /\bi\s+apologize.{0,60}(unable|couldn'?t|could\s+not).{0,60}(search|access|retriev|fetch|internet|web)/i,
+        /\bmy\s+(web\s+search|search\s+attempt|internet\s+access)\s+(failed|timed\s+out|resulted\s+in\s+an?\s+error)/i,
       ];
       // Split on sentence-ending punctuation followed by whitespace.
       // The final sentence (no trailing whitespace) is preserved naturally since the
