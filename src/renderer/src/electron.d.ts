@@ -24,12 +24,7 @@ declare global {
       api: ElectronAPIType;
       invoke: (channel: string, ...args: any[]) => Promise<any>;
     };
-    /**
-     * Preload compatibility alias.
-     * Prefer `window.electron.api`, but many renderer modules still use this.
-     */
-    electronAPI: ElectronAPIType;
-    api: {
+    automationAPI?: {
       automation: {
         getSettings: () => Promise<any>;
         getStatistics: () => Promise<any>;
@@ -43,4 +38,4 @@ declare global {
   }
 }
 
-export {};
+export { };

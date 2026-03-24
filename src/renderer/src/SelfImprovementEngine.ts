@@ -91,10 +91,10 @@ export class SelfImprovementEngine {
    */
   recordFeedback(rating: number, feedbackText: string, context: UserFeedback['context']) {
     const userFeedback: UserFeedback = {
-      interactionId: `feedback_${Date.now()}`,
+      id: `feedback_${Date.now()}`,
       rating,
-      feedback: feedbackText,
-      timestamp: new Date().toISOString(),
+      comments: feedbackText,
+      timestamp: Date.now(),
       context
     };
 
@@ -142,7 +142,7 @@ export class SelfImprovementEngine {
    */
   private analyzeFeedback(feedback: UserFeedback) {
     // Extract insights from feedback
-    const insights = this.extractInsightsFromFeedback(feedback.feedback);
+    const insights = this.extractInsightsFromFeedback(feedback.comments || '');
 
     // Update patterns based on feedback
     insights.forEach(insight => {
@@ -259,14 +259,14 @@ export class SelfImprovementEngine {
 
     // Recent feedback insights
     const recentFeedback = this.feedback
-      .filter(f => new Date(f.timestamp) > new Date(Date.now() - 7 * 24 * 60 * 60 * 1000))
+      .filter(f => typeof f.timestamp === 'number' && f.timestamp > Date.now() - 7 * 24 * 60 * 60 * 1000)
       .sort((a, b) => a.rating - b.rating)
       .slice(0, 2);
 
     if (recentFeedback.length > 0) {
       insights.push('**Recent User Feedback:**');
       recentFeedback.forEach(f => {
-        insights.push(`- Rating: ${f.rating}/5 - "${f.feedback}"`);
+        insights.push(`- Rating: ${f.rating}/5 - "${f.comments}"`);
       });
     }
 
@@ -402,19 +402,12 @@ export class SelfImprovementEngine {
       // Create improvement opportunities based on successful patterns
       const scriptImprovement: ImprovementOpportunity = {
         id: `script_improvement_${Date.now()}`,
-        type: 'script_generation',
-        title: 'Enhance Script Generation Accuracy',
+        type: 'efficiency_gain',
         description: `Improve script generation based on ${successfulScripts.length} successful generations`,
-        priority: 'medium',
         confidence: 0.85,
-        estimatedImpact: 'high',
-        implementationSteps: [
-          'Analyze successful script patterns',
-          'Update generation algorithms',
-          'Add new script templates'
-        ],
-        createdAt: new Date().toISOString(),
-        implemented: false
+        proposedSolution: 'Analyze successful script patterns and update generation algorithms',
+        impact: 'high',
+        createdAt: new Date().toISOString()
       };
 
       this.opportunities.push(scriptImprovement);

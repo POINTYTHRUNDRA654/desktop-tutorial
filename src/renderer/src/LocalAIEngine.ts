@@ -3,6 +3,8 @@
  * Connects Mossy to local AI backends like Ollama or Groq Cloud.
  */
 
+/// <reference path="./electron.d.ts" />
+
 import {
   buildKnowledgeManifestForModel,
   buildRelevantKnowledgeVaultContext,
