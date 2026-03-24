@@ -231,16 +231,35 @@ class FO4_PT_MainPanel(Panel):
             getting_started.label(text="→ Install Niftools v0.1.1 (Blender 3.6)")
             getting_started.label(text="→ OR use FBX export workflow")
 
-        getting_started.operator("fo4.show_detailed_setup", text="Show Detailed Setup Guide", icon='TEXT')
+        if hasattr(bpy.types, 'FO4_OT_ShowDetailedSetup'):
+            getting_started.operator(
+                "fo4.show_detailed_setup",
+                text="Show Detailed Setup Guide",
+                icon='TEXT',
+            )
+        else:
+            getting_started.label(
+                text="(Setup Guide loading...)",
+                icon='TEXT',
+            )
 
         # ── Tutorial section ─────────────────────────────────────────────────
         box = layout.box()
         box.label(text="Tutorial System", icon='HELP')
-        box.operator("fo4.start_tutorial", text="Start Tutorial", icon='PLAY')
+        if hasattr(bpy.types, 'FO4_OT_StartTutorial'):
+            box.operator("fo4.start_tutorial", text="Start Tutorial", icon='PLAY')
+        else:
+            box.label(text="(Tutorial loading...)", icon='PLAY')
         # Help and Credits sit side by side for quick access
         help_row = box.row(align=True)
-        help_row.operator("fo4.show_help", text="Show Help", icon='QUESTION')
-        help_row.operator("fo4.show_credits", text="Credits", icon='FUND')
+        if hasattr(bpy.types, 'FO4_OT_ShowHelp'):
+            help_row.operator("fo4.show_help", text="Show Help", icon='QUESTION')
+        else:
+            help_row.label(text="Help", icon='QUESTION')
+        if hasattr(bpy.types, 'FO4_OT_ShowCredits'):
+            help_row.operator("fo4.show_credits", text="Credits", icon='FUND')
+        else:
+            help_row.label(text="Credits", icon='FUND')
         if tutorial_system and not tutorial_system.TUTORIALS:
             tutorial_system.initialize_tutorials()
         tutorial = tutorial_system.get_current_tutorial(context) if tutorial_system else None
@@ -260,7 +279,8 @@ class FO4_PT_MainPanel(Panel):
 
             nav = active.row(align=True)
             nav.operator("fo4.previous_tutorial_step", text="", icon='TRIA_LEFT')
-            nav.operator("fo4.show_help", text="Show Guide", icon='INFO')
+            if hasattr(bpy.types, 'FO4_OT_ShowHelp'):
+                nav.operator("fo4.show_help", text="Show Guide", icon='INFO')
             nav.operator("fo4.next_tutorial_step", text="", icon='TRIA_RIGHT')
         else:
             box.label(text="Click 'Start Tutorial' to load a guided workflow", icon='INFO')

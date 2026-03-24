@@ -125,6 +125,12 @@ native_nif_writer = _try_import("native_nif_writer")
 # Asset library browser (registers PropertyGroups, UIList, and operators)
 asset_library = _try_import("asset_library")
 
+# Minimal module containing the four tutorial/welcome operators that are
+# referenced unconditionally in FO4_PT_MainPanel.  Registering them before
+# the large operators.py bundle ensures they are always available in the UI
+# even if operators.py fails to load on a particular Blender build.
+tutorial_operators = _try_import("tutorial_operators")
+
 
 # core modules that are safe to import and register unconditionally.
 # a few of the optional/external helpers are only added lazily; any module
@@ -183,6 +189,10 @@ modules = list(
             stylegan2_helpers,
             instantngp_helpers,
             imageto3d_helpers,
+            # tutorial_operators must be registered BEFORE operators.py so that
+            # the four welcome-panel operators are always available even if the
+            # larger operators.py bundle fails to load on a particular build.
+            tutorial_operators,
             operators,
             ui_panels,
             post_processing_helpers,

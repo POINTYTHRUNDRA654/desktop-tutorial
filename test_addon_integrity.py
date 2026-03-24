@@ -189,6 +189,7 @@ class TestOperatorsRegistered(unittest.TestCase):
         # Files that define and register their own operator classes
         files_to_scan = [
             "operators.py",
+            "tutorial_operators.py",
             "asset_library.py",
         ]
         pattern = re.compile(r'bl_idname\s*=\s*["\']([^"\']+)["\']')
@@ -515,6 +516,63 @@ class TestNoNestedFStringBackslash(unittest.TestCase):
                 "Nested f-string(s) with backslash detected — pre-compute the value "
                 "in a plain variable *before* the outer f-string:\n"
                 + "\n".join(errors)
+            )
+
+
+# ---------------------------------------------------------------------------
+# Test 11 – tutorial_operators.py contains the four critical welcome operators
+# ---------------------------------------------------------------------------
+class TestTutorialOperatorsModule(unittest.TestCase):
+    """
+    tutorial_operators.py must exist, parse without errors, and define
+    register()/unregister() callables plus all four operators that are
+    referenced unconditionally in FO4_PT_MainPanel.
+    """
+
+    REQUIRED_IDNAMES = {
+        "fo4.show_detailed_setup",
+        "fo4.start_tutorial",
+        "fo4.show_help",
+        "fo4.show_credits",
+    }
+
+    def test_module_exists(self):
+        self.assertTrue(
+            os.path.isfile(_path("tutorial_operators.py")),
+            "tutorial_operators.py is missing from the repository",
+        )
+
+    def test_module_parses(self):
+        source = _read("tutorial_operators.py")
+        try:
+            ast.parse(source, filename="tutorial_operators.py")
+        except SyntaxError as exc:
+            self.fail(f"tutorial_operators.py has a syntax error: {exc}")
+
+    def test_required_operators_defined(self):
+        source = _read("tutorial_operators.py")
+        pattern = re.compile(r'bl_idname\s*=\s*["\']([^"\']+)["\']')
+        found = set(pattern.findall(source))
+        missing = self.REQUIRED_IDNAMES - found
+        if missing:
+            self.fail(
+                "tutorial_operators.py is missing required operator bl_idnames:\n"
+                + "\n".join(f"  {op}" for op in sorted(missing))
+            )
+
+    def test_register_unregister_callable(self):
+        source = _read("tutorial_operators.py")
+        tree = ast.parse(source, filename="tutorial_operators.py")
+        fn_names = {
+            node.name
+            for node in ast.walk(tree)
+            if isinstance(node, ast.FunctionDef)
+        }
+        for fn in ("register", "unregister"):
+            self.assertIn(
+                fn,
+                fn_names,
+                f"tutorial_operators.py must expose a '{fn}()' function",
             )
 
 
