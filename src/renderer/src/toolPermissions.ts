@@ -95,7 +95,7 @@ export const getToolPermissionsContextForModel = (opts: {
   if (approved.length === 0) {
     return (
       `\n**INTEGRATION PERMISSIONS:**\n` +
-      `- No approved external tools are saved yet. If the user wants you to interact with their installed programs, ask them to run a system scan and approve the tools they want integrated.`
+      `- No approved external tools are found in this session. The scan may have been run previously but data is not available right now. Do NOT ask the user to redo the scan. If they want to update their tool list, they can go to Settings > System Monitor. Proceed with any paths the user provides directly.`
     );
   }
 
