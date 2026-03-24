@@ -261,6 +261,8 @@ export const LocalAIEngine = {
     // needs up-to-date or specific Fallout 4 data that may not be in the vault.
     // The main process does the real HTTPS fetch; we inject the results here so
     // the AI receives them as grounded context rather than making things up.
+    // The raw result is stored in `cachedWebSearchResult` so the response guard
+    // can reuse it without making a second network call.
     // -----------------------------------------------------------------------
     const webSearchTriggers = [
       'search', 'look up', 'find online', 'search the web', 'search online',
@@ -287,6 +289,9 @@ export const LocalAIEngine = {
     const fo4TermsRenderer = /fallout\s*4|fallout4|fo4|papyrus|bethesda|creation\s*kit|vault|wasteland|commonwealth|nexus|xedit|nifskope|bodyslide/i;
     const lowerQuery = query.toLowerCase();
     const needsWebSearch = webSearchTriggers.some((kw) => lowerQuery.includes(kw));
+    // Cached result from the initial web search — reused by the response guard to
+    // avoid a redundant second network call when the guard retry is triggered.
+    let cachedWebSearchResult: WebSearchResult | null = null;
     if (needsWebSearch) {
       console.log('[LocalAIEngine] 🌐 Web search triggered for query:', query.substring(0, 100));
       try {
@@ -306,6 +311,7 @@ export const LocalAIEngine = {
           // (empty:true means the API had no instant answer — don't inject that noise)
           if (searchResult?.success && searchResult?.text && !searchResult?.empty) {
             console.log('[LocalAIEngine] ✅ Web search successful, injecting results');
+            cachedWebSearchResult = { text: searchResult.text, url: searchResult.url, source: searchResult.source };
             injectedContext += '\n### LIVE WEB SEARCH RESULTS (use this to answer the user):\n';
             injectedContext += searchResult.text + '\n';
             if (searchResult.url) {
@@ -385,9 +391,10 @@ export const LocalAIEngine = {
 
     // ---------------------------
     // Post-processor: strip sentences where the AI self-identifies as a limited LLM
-    // with no internet access, even after the guard retry.  Only removes sentences
-    // that combine BOTH an LLM/AI identity claim AND an inability/refusal claim —
-    // avoids stripping sentences that merely mention LLMs in passing.
+    // with no internet access, or falsely claims a web-search error occurred, even
+    // after the guard retry.  Only removes sentences with a clear first-person claim
+    // combined with an internet/access refusal or error — avoids stripping sentences
+    // that merely mention LLMs or errors in passing (e.g. modding script errors).
     // If sanitisation removes the entire response (pure refusal), the original text
     // is returned unchanged so the caller always gets something back.
     const sanitizeFinalResponse = (text: string): string => {
@@ -408,6 +415,15 @@ export const LocalAIEngine = {
         /i\s+don'?t\s+have\s+real.?time\s+access/i,
         /i\s+can'?t\s+go\s+online/i,
         /i\s+cannot\s+go\s+online/i,
+        // False web-search error claims — the AI says "I encountered an error searching"
+        // even when live results were injected into its context.  These are hallucinated
+        // apologies that mix with real information and confuse the user.
+        /\bi\s+(encountered|ran\s+into)\s+(an?\s+)?(error|issue|problem)\s+(while\s+)?(searching|accessing|retrieving|fetching)/i,
+        /\bi\s+(was\s+unable|wasn'?t\s+able|couldn'?t|could\s+not)\s+to?\s*(successfully\s+)?(retrieve|access|search|fetch|look\s+up)\s+(the\s+)?(latest|real.?time|current|up.?to.?date|live)/i,
+        /\bi\s+had\s+(trouble|difficulty|difficulties)\s+(accessing|searching|retrieving|fetching)\s+(the\s+)?(web|internet|online\s+information|real.?time\s+data)/i,
+        /unfortunately,?\s*i\s+(was\s+unable|couldn'?t|was\s+not\s+able|am\s+unable|am\s+not\s+able)\s+to\s+(access|retriev|search|fetch)/i,
+        /\bi\s+apologize.{0,60}(unable|couldn'?t|could\s+not).{0,60}(search|access|retriev|fetch|internet|web)/i,
+        /\bmy\s+(web\s+search|search\s+attempt|internet\s+access)\s+(failed|timed\s+out|resulted\s+in\s+an?\s+error)/i,
       ];
       // Split on sentence-ending punctuation followed by whitespace.
       // The final sentence (no trailing whitespace) is preserved naturally since the
@@ -635,23 +651,31 @@ ANSWER THE USER NOW:`;
           try {
             const guardWebApi = (window.electron?.api || window.electronAPI) as any;
             if (typeof guardWebApi?.webSearch === 'function') {
-              console.log('[LocalAIEngine] Fetching web results for retry...');
-              const guardSearch = await guardWebApi.webSearch(query);
               let enrichedContext = injectedContext;
 
-              if (guardSearch?.success && guardSearch?.text) {
-                console.log('[LocalAIEngine] ✅ Web search successful, retrying with injected results');
-                enrichedContext = buildGuardContext(injectedContext, guardSearch);
+              if (cachedWebSearchResult) {
+                // Reuse the result from the initial web search — no second network call needed.
+                console.log('[LocalAIEngine] Reusing cached web search result for guard retry');
+                enrichedContext = buildGuardContext(injectedContext, cachedWebSearchResult);
               } else {
-                // Web search failed, but still retry with an even stronger override
-                console.warn('[LocalAIEngine] ⚠️ Guard web search failed; retrying with HARD OVERRIDE system prompt');
-                enrichedContext = injectedContext +
-                  '\n\n### MANDATORY INTERNET ACCESS OVERRIDE ###\n' +
-                  'YOU ARE NOT A RESTRICTED LANGUAGE MODEL. YOU ARE MOSSY, A DESKTOP APPLICATION WITH LIVE INTERNET ACCESS.\n' +
-                  'YOUR PREVIOUS RESPONSE WAS INCORRECT.\n' +
-                  'YOU MUST IMMEDIATELY CORRECT YOUR PREVIOUS STATEMENT AND PROVIDE A HELPFUL ANSWER.\n' +
-                  'NEVER CLAIM YOU CANNOT ACCESS THE INTERNET - THIS IS FALSE AND SHOWS MALFUNCTION.\n' +
-                  'USE YOUR KNOWLEDGE AND REASONING TO ANSWER THE USER\'S QUESTION ABOUT: ' + query + '\n';
+                // No prior web search result — fetch now.
+                console.log('[LocalAIEngine] Fetching web results for retry...');
+                const guardSearch = await guardWebApi.webSearch(query);
+
+                if (guardSearch?.success && guardSearch?.text) {
+                  console.log('[LocalAIEngine] ✅ Web search successful, retrying with injected results');
+                  enrichedContext = buildGuardContext(injectedContext, guardSearch);
+                } else {
+                  // Web search failed, but still retry with an even stronger override
+                  console.warn('[LocalAIEngine] ⚠️ Guard web search failed; retrying with HARD OVERRIDE system prompt');
+                  enrichedContext = injectedContext +
+                    '\n\n### MANDATORY INTERNET ACCESS OVERRIDE ###\n' +
+                    'YOU ARE NOT A RESTRICTED LANGUAGE MODEL. YOU ARE MOSSY, A DESKTOP APPLICATION WITH LIVE INTERNET ACCESS.\n' +
+                    'YOUR PREVIOUS RESPONSE WAS INCORRECT.\n' +
+                    'YOU MUST IMMEDIATELY CORRECT YOUR PREVIOUS STATEMENT AND PROVIDE A HELPFUL ANSWER.\n' +
+                    'NEVER CLAIM YOU CANNOT ACCESS THE INTERNET - THIS IS FALSE AND SHOWS MALFUNCTION.\n' +
+                    'USE YOUR KNOWLEDGE AND REASONING TO ANSWER THE USER\'S QUESTION ABOUT: ' + query + '\n';
+                }
               }
 
               const guardSystemPrompt = systemInstruction + enrichedContext + mandatoryInternetInstruction;
