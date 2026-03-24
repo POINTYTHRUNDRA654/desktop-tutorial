@@ -14108,6 +14108,11 @@ def _make_scene_to_pref_sync(scene_attr, pref_attr):
 
 def register():
     for cls in classes:
+        # Skip classes that were already registered by an earlier module
+        # (e.g. tutorial_operators.py registers the four welcome-panel
+        # operators before this bundle to guarantee their availability).
+        if hasattr(bpy.types, cls.__name__):
+            continue
         try:
             bpy.utils.register_class(cls)
         except Exception as e:
@@ -14458,6 +14463,11 @@ def register():
 
 def unregister():
     for cls in reversed(classes):
+        # Skip classes that have already been unregistered by another module
+        # (e.g. tutorial_operators.py unregisters the four welcome operators
+        # before this bundle's unregister() runs).
+        if not hasattr(bpy.types, cls.__name__):
+            continue
         try:
             bpy.utils.unregister_class(cls)
         except Exception as e:
