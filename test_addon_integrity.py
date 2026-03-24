@@ -191,6 +191,7 @@ class TestOperatorsRegistered(unittest.TestCase):
             "operators.py",
             "tutorial_operators.py",
             "asset_library.py",
+            "torch_path_manager.py",
         ]
         pattern = re.compile(r'bl_idname\s*=\s*["\']([^"\']+)["\']')
         for fname in files_to_scan:
@@ -211,6 +212,56 @@ class TestOperatorsRegistered(unittest.TestCase):
         if missing:
             self.fail(
                 f"{len(missing)} operator(s) used in ui_panels.py are NOT registered:\n"
+                + "\n".join(f"  {op}" for op in sorted(missing))
+            )
+
+    def test_own_prefix_operators_registered(self):
+        """Every operator whose prefix we OWN (wm.*, torch.*) that is used in
+        ui_panels.py must also be defined in one of our operator files.
+
+        This complements test_all_used_operators_registered which only checks
+        fo4.* — it closes the gap that lets wm.mossy_link_toggle and
+        torch.install_custom_path silently vanish when their classes are
+        removed or renamed.
+
+        Prefixes checked:
+          fo4.*   — exclusively ours, all must be in our files
+          torch.* — exclusively ours, all must be in our files
+          wm.*    — shared with Blender; only flag ops not in KNOWN_BLENDER_OPERATORS
+                    and not defined in our files
+        """
+        # Blender built-in wm.* operators we call but do NOT define ourselves.
+        # Only add entries here for genuine Blender built-ins (verified in the
+        # Blender Python API docs); anything else must have a bl_idname in one
+        # of our operator files.
+        KNOWN_BLENDER_OPERATORS = {
+            "wm.url_open",   # bpy.ops.wm.url_open() — opens a URL in the OS browser
+        }
+
+        registered = self._collect_registered_ids()
+
+        # Exclusively-ours prefixes (no Blender built-in uses fo4.* or torch.*)
+        EXCLUSIVELY_OURS_PREFIXES = {"fo4.", "torch."}
+
+        source = _read("ui_panels.py")
+        used = set(re.findall(r'\.operator\(\s*["\']([^"\']+)["\']', source))
+
+        missing = set()
+        for op in used:
+            if op in KNOWN_BLENDER_OPERATORS:
+                continue  # explicit Blender built-in, skip
+            prefix = op.split(".")[0] + "."
+            if prefix in EXCLUSIVELY_OURS_PREFIXES and op not in registered:
+                # fo4.* or torch.* that we don't define
+                missing.add(op)
+            elif prefix == "wm." and op not in registered:
+                # wm.* operator that's not a known Blender built-in and not ours
+                missing.add(op)
+
+        if missing:
+            self.fail(
+                f"{len(missing)} operator(s) with our own prefix used in "
+                f"ui_panels.py are NOT registered in any operator file:\n"
                 + "\n".join(f"  {op}" for op in sorted(missing))
             )
 
@@ -573,6 +624,70 @@ class TestTutorialOperatorsModule(unittest.TestCase):
                 fn,
                 fn_names,
                 f"tutorial_operators.py must expose a '{fn}()' function",
+            )
+
+
+
+# ---------------------------------------------------------------------------
+# Test 12 – Scene properties used in .prop(scene, "X") calls are registered
+# ---------------------------------------------------------------------------
+class TestScenePropsRegistered(unittest.TestCase):
+    """Every scene property referenced in a layout.prop(scene, "X") call in
+    ui_panels.py must be registered in at least one .py file via either
+    ``bpy.types.Scene.X = bpy.props.*`` or an equivalent setattr/list pattern.
+
+    This catches the class of bug where a new panel widget references a scene
+    property that was never added to any module's register() function, which
+    Blender silently reports as "property not found: Scene.X" on every redraw.
+    """
+
+    # Files that use a list/setattr pattern to register scene props instead of
+    # the standard ``bpy.types.Scene.X = bpy.props.*`` assignment.
+    # Maps filename → list of prop name strings found via custom logic.
+    _LIST_PATTERN_FILES = {
+        "asset_library.py",
+    }
+
+    def _collect_registered_scene_props(self):
+        """Return the set of Scene property names registered across all .py files."""
+        registered = set()
+
+        # Pattern 1 (most modules): bpy.types.Scene.PROP = bpy.props.*
+        # Also catches: bpy.types.Scene.PROP = SomePropType(  (without bpy.props. prefix)
+        pat1 = re.compile(r'bpy\.types\.Scene\.(\w+)\s*=\s*\w')
+
+        # Pattern 2 (asset_library.py setattr list):
+        # ("prop_name", SomePropType(...))  as items in a list assigned to _SCENE_PROPS
+        pat2 = re.compile(r'["\'](fo4_\w+)["\']\s*,\s*\w+Property\s*\(')
+
+        for fname in _py_files():
+            src = _read(fname)
+            registered.update(pat1.findall(src))
+            if fname in self._LIST_PATTERN_FILES:
+                registered.update(pat2.findall(src))
+
+        return registered
+
+    def test_all_scene_props_registered(self):
+        """Every .prop(scene, "X") call in ui_panels.py must have a registered Scene.X."""
+        source = _read("ui_panels.py")
+
+        # Extract prop names from all layout.prop(scene, "prop_name") calls.
+        # We match any chained attribute owner (col.prop, row.prop, box.prop …)
+        # followed by the variable name 'scene' as the first argument.
+        prop_calls = re.findall(
+            r'\.prop\(\s*scene\s*,\s*["\']([^"\']+)["\']', source
+        )
+        used = set(prop_calls)
+
+        registered = self._collect_registered_scene_props()
+
+        missing = used - registered
+        if missing:
+            self.fail(
+                f"{len(missing)} scene property/ies used in ui_panels.py "
+                f"layout.prop(scene, ...) calls are NOT registered in any .py file:\n"
+                + "\n".join(f"  {p}" for p in sorted(missing))
             )
 
 

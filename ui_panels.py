@@ -1400,8 +1400,9 @@ class FO4_PT_AdvisorPanel(Panel):
             mossy_box.label(text="✓ Mossy Link server running", icon='CHECKMARK')
         else:
             mossy_box.label(text="Mossy Link server stopped", icon='RADIOBUT_OFF')
-            mossy_box.operator("wm.mossy_link_toggle",
-                               text="Start Mossy Link Server", icon='PLAY')
+            if hasattr(bpy.types, 'WM_OT_MossyLinkToggle'):
+                mossy_box.operator("wm.mossy_link_toggle",
+                                   text="Start Mossy Link Server", icon='PLAY')
 
         if use_mossy:
             mossy_box.label(text="✓ Using Mossy as AI Advisor", icon='CHECKMARK')
@@ -1410,7 +1411,8 @@ class FO4_PT_AdvisorPanel(Panel):
             # Mossy first (local), then falls back to remote LLM if needed.
             op = row.operator("fo4.advisor_analyze", text="Ask Mossy for Advice", icon='LIGHT_HEMI')
             op.use_llm = True
-            mossy_box.operator("wm.mossy_check_http", text="Check Mossy HTTP", icon='QUESTION')
+            if hasattr(bpy.types, 'WM_OT_MossyCheckHttp'):
+                mossy_box.operator("wm.mossy_check_http", text="Check Mossy HTTP", icon='QUESTION')
         else:
             mossy_box.label(text="Mossy AI not active", icon='INFO')
             mossy_box.label(text="Enable 'Use Mossy as AI Advisor' in")
@@ -4191,9 +4193,12 @@ class FO4_PT_SettingsPanel(Panel):
             tcp_sub.prop(prefs, "token",     text="Auth Token")
             tcp_sub.prop(prefs, "autostart", text="Auto-start on load")
         else:
-            tcp_sub.prop(scene, "fo4_mossy_port",      text="Listen Port")
-            tcp_sub.prop(scene, "fo4_mossy_token",     text="Auth Token")
-            tcp_sub.prop(scene, "fo4_mossy_autostart", text="Auto-start on load")
+            if hasattr(scene, 'fo4_mossy_port'):
+                tcp_sub.prop(scene, "fo4_mossy_port",      text="Listen Port")
+                tcp_sub.prop(scene, "fo4_mossy_token",     text="Auth Token")
+                tcp_sub.prop(scene, "fo4_mossy_autostart", text="Auto-start on load")
+            else:
+                tcp_sub.label(text="Mossy settings unavailable", icon='INFO')
 
         http_sub = ml_box.box()
         http_sub.label(text="AI Queries  (Blender → Mossy)", icon="URL")
@@ -4207,11 +4212,15 @@ class FO4_PT_SettingsPanel(Panel):
             else:
                 http_sub.label(text="Enable to route AI through Mossy", icon="INFO")
         else:
-            http_sub.prop(scene, "fo4_mossy_http_port", text="Mossy HTTP Port")
-            http_sub.prop(scene, "fo4_use_mossy_ai",    text="Use Mossy as AI Advisor")
+            if hasattr(scene, 'fo4_mossy_http_port'):
+                http_sub.prop(scene, "fo4_mossy_http_port", text="Mossy HTTP Port")
+                http_sub.prop(scene, "fo4_use_mossy_ai",    text="Use Mossy as AI Advisor")
+            else:
+                http_sub.label(text="Mossy HTTP settings unavailable", icon='INFO')
 
-        ml_box.operator("wm.mossy_check_http",
-                        text="Check Mossy HTTP", icon="QUESTION")
+        if hasattr(bpy.types, 'WM_OT_MossyCheckHttp'):
+            ml_box.operator("wm.mossy_check_http",
+                            text="Check Mossy HTTP", icon="QUESTION")
 
         # ── Add-on Update ─────────────────────────────────────────────────────
         if addon_updater:
@@ -4305,13 +4314,19 @@ class FO4_PT_MossyPanel(Panel):
 
         toggle_text = "Stop Mossy Link Server" if server_active else "Start Mossy Link Server"
         toggle_icon = 'PAUSE' if server_active else 'PLAY'
-        srv_box.operator("wm.mossy_link_toggle", text=toggle_text, icon=toggle_icon)
+        if hasattr(bpy.types, 'WM_OT_MossyLinkToggle'):
+            srv_box.operator("wm.mossy_link_toggle", text=toggle_text, icon=toggle_icon)
+        else:
+            srv_box.label(text="(Mossy Link loading...)", icon='TIME')
 
         # Port / token settings from scene props (mirrors preferences).
         col = srv_box.column(align=True)
-        col.prop(scene, "fo4_mossy_port",      text="Listen Port")
-        col.prop(scene, "fo4_mossy_token",     text="Auth Token")
-        col.prop(scene, "fo4_mossy_autostart", text="Auto-start on load")
+        if hasattr(scene, 'fo4_mossy_port'):
+            col.prop(scene, "fo4_mossy_port",      text="Listen Port")
+            col.prop(scene, "fo4_mossy_token",     text="Auth Token")
+            col.prop(scene, "fo4_mossy_autostart", text="Auto-start on load")
+        else:
+            col.label(text="Mossy settings unavailable", icon='INFO')
 
         layout.separator()
 
@@ -4335,19 +4350,21 @@ class FO4_PT_MossyPanel(Panel):
         else:
             llm_box.label(text="Not checked yet", icon='QUESTION')
 
-        llm_box.prop(scene, "fo4_mossy_http_port", text="Nemotron Port")
-        llm_box.prop(scene, "fo4_use_mossy_ai",   text="Use as AI Advisor")
-        if getattr(scene, 'fo4_use_mossy_ai', False):
-            llm_box.label(text="✓ Advisor will ask Mossy instead of remote LLM", icon='CHECKMARK')
+        if hasattr(scene, 'fo4_mossy_http_port'):
+            llm_box.prop(scene, "fo4_mossy_http_port", text="Nemotron Port")
+            llm_box.prop(scene, "fo4_use_mossy_ai",   text="Use as AI Advisor")
+            if getattr(scene, 'fo4_use_mossy_ai', False):
+                llm_box.label(text="✓ Advisor will ask Mossy instead of remote LLM", icon='CHECKMARK')
 
         layout.separator()
 
         # ── Check both connections ─────────────────────────────────────────────
-        layout.operator(
-            "wm.mossy_check_http",
-            text="Check Mossy Connection",
-            icon='QUESTION',
-        )
+        if hasattr(bpy.types, 'WM_OT_MossyCheckHttp'):
+            layout.operator(
+                "wm.mossy_check_http",
+                text="Check Mossy Connection",
+                icon='QUESTION',
+            )
 
         layout.separator()
 

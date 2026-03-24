@@ -13709,347 +13709,466 @@ def register():
         except Exception as e:
             print(f"⚠ Failed to register {cls.__name__}: {e}")
 
-    # Havok2FBX animation export settings stored per-scene
-    bpy.types.Scene.fo4_havok_anim_type = bpy.props.EnumProperty(
-        name="Animation Type",
-        description="Type of Fallout 4 animation being exported",
-        items=[
-            ('CHARACTER',    "Character",     "Humanoid NPC / player character skeleton"),
-            ('CREATURE',     "Creature",      "Non-humanoid creature skeleton"),
-            ('OBJECT',       "Object / Prop", "Animated static prop or furniture"),
-            ('WEAPON',       "Weapon",        "Third-person weapon animation"),
-            ('FIRSTPERSON',  "First-Person",  "First-person arms / weapon animation"),
-        ],
-        default='CHARACTER',
-        update=_make_scene_to_pref_sync("fo4_havok_anim_type", "havok_anim_type"),
-    )
-    bpy.types.Scene.fo4_havok_fps = bpy.props.IntProperty(
-        name="FPS",
-        description="Animation frame rate (Fallout 4 standard is 30)",
-        default=30,
-        min=1,
-        max=120,
-        update=_make_scene_to_pref_sync("fo4_havok_fps", "havok_fps"),
-    )
-    bpy.types.Scene.fo4_havok_loop = bpy.props.BoolProperty(
-        name="Loop Animation",
-        description="Mark animation as looping in the HKX output",
-        default=False,
-        update=_make_scene_to_pref_sync("fo4_havok_loop", "havok_loop"),
-    )
-    bpy.types.Scene.fo4_havok_root_motion = bpy.props.BoolProperty(
-        name="Root Motion",
-        description="Include root-bone motion (translation/rotation) in the export",
-        default=False,
-        update=_make_scene_to_pref_sync("fo4_havok_root_motion", "havok_root_motion"),
-    )
-    bpy.types.Scene.fo4_havok_bake_anim = bpy.props.BoolProperty(
-        name="Bake Animation",
-        description="Bake animation to keyframes on export (required for constraints and NLA strips to be captured)",
-        default=True,
-        update=_make_scene_to_pref_sync("fo4_havok_bake_anim", "havok_bake_anim"),
-    )
-    bpy.types.Scene.fo4_havok_key_all_bones = bpy.props.BoolProperty(
-        name="Key All Bones",
-        description="Insert keyframes on every bone even if they do not move",
-        default=False,
-        update=_make_scene_to_pref_sync("fo4_havok_key_all_bones", "havok_key_all_bones"),
-    )
-    bpy.types.Scene.fo4_havok_apply_transforms = bpy.props.BoolProperty(
-        name="Apply Transforms",
-        description="Apply object-level scale/rotation before export",
-        default=True,
-        update=_make_scene_to_pref_sync("fo4_havok_apply_transforms", "havok_apply_transforms"),
-    )
-    bpy.types.Scene.fo4_havok_scale = bpy.props.FloatProperty(
-        name="Scale",
-        description="Global scale correction (1.0 = no change; use 0.01 if rig is in cm)",
-        default=1.0,
-        min=0.001,
-        max=100.0,
-        precision=3,
-        update=_make_scene_to_pref_sync("fo4_havok_scale", "havok_scale"),
-    )
-    bpy.types.Scene.fo4_havok_output_dir = bpy.props.StringProperty(
-        name="Output Directory",
-        description="Folder where the exported FBX (and converted HKX) will be saved. Leave blank to use the system temp folder.",
-        subtype='DIR_PATH',
-        default="",
-        update=_make_scene_to_pref_sync("fo4_havok_output_dir", "havok_output_dir"),
-    )
-    bpy.types.Scene.fo4_havok_anim_name = bpy.props.StringProperty(
-        name="Animation Name",
-        description="Override the file/animation name. Leave blank to use the active action name.",
-        default="",
-        update=_make_scene_to_pref_sync("fo4_havok_anim_name", "havok_anim_name"),
-    )
-    bpy.types.Scene.fo4_havok_simplify_value = bpy.props.FloatProperty(
-        name="Curve Simplify",
-        description="Reduce keyframe count on export (0 = off, 1 = maximum simplification)",
-        default=0.0,
-        min=0.0,
-        max=1.0,
-        precision=2,
-        update=_make_scene_to_pref_sync("fo4_havok_simplify_value", "havok_simplify_value"),
-    )
-    bpy.types.Scene.fo4_havok_force_frame_range = bpy.props.BoolProperty(
-        name="Use Action Frame Range",
-        description="Clamp export to the active action's frame range instead of the scene frame range",
-        default=True,
-        update=_make_scene_to_pref_sync("fo4_havok_force_frame_range", "havok_force_frame_range"),
-    )
+    try:
+        # Havok2FBX animation export settings stored per-scene
+        bpy.types.Scene.fo4_havok_anim_type = bpy.props.EnumProperty(
+            name="Animation Type",
+            description="Type of Fallout 4 animation being exported",
+            items=[
+                ('CHARACTER',    "Character",     "Humanoid NPC / player character skeleton"),
+                ('CREATURE',     "Creature",      "Non-humanoid creature skeleton"),
+                ('OBJECT',       "Object / Prop", "Animated static prop or furniture"),
+                ('WEAPON',       "Weapon",        "Third-person weapon animation"),
+                ('FIRSTPERSON',  "First-Person",  "First-person arms / weapon animation"),
+            ],
+            default='CHARACTER',
+            update=_make_scene_to_pref_sync("fo4_havok_anim_type", "havok_anim_type"),
+        )
+        bpy.types.Scene.fo4_havok_fps = bpy.props.IntProperty(
+            name="FPS",
+            description="Animation frame rate (Fallout 4 standard is 30)",
+            default=30,
+            min=1,
+            max=120,
+            update=_make_scene_to_pref_sync("fo4_havok_fps", "havok_fps"),
+        )
+        bpy.types.Scene.fo4_havok_loop = bpy.props.BoolProperty(
+            name="Loop Animation",
+            description="Mark animation as looping in the HKX output",
+            default=False,
+            update=_make_scene_to_pref_sync("fo4_havok_loop", "havok_loop"),
+        )
+        bpy.types.Scene.fo4_havok_root_motion = bpy.props.BoolProperty(
+            name="Root Motion",
+            description="Include root-bone motion (translation/rotation) in the export",
+            default=False,
+            update=_make_scene_to_pref_sync("fo4_havok_root_motion", "havok_root_motion"),
+        )
+        bpy.types.Scene.fo4_havok_bake_anim = bpy.props.BoolProperty(
+            name="Bake Animation",
+            description="Bake animation to keyframes on export (required for constraints and NLA strips to be captured)",
+            default=True,
+            update=_make_scene_to_pref_sync("fo4_havok_bake_anim", "havok_bake_anim"),
+        )
+        bpy.types.Scene.fo4_havok_key_all_bones = bpy.props.BoolProperty(
+            name="Key All Bones",
+            description="Insert keyframes on every bone even if they do not move",
+            default=False,
+            update=_make_scene_to_pref_sync("fo4_havok_key_all_bones", "havok_key_all_bones"),
+        )
+        bpy.types.Scene.fo4_havok_apply_transforms = bpy.props.BoolProperty(
+            name="Apply Transforms",
+            description="Apply object-level scale/rotation before export",
+            default=True,
+            update=_make_scene_to_pref_sync("fo4_havok_apply_transforms", "havok_apply_transforms"),
+        )
+        bpy.types.Scene.fo4_havok_scale = bpy.props.FloatProperty(
+            name="Scale",
+            description="Global scale correction (1.0 = no change; use 0.01 if rig is in cm)",
+            default=1.0,
+            min=0.001,
+            max=100.0,
+            precision=3,
+            update=_make_scene_to_pref_sync("fo4_havok_scale", "havok_scale"),
+        )
+        bpy.types.Scene.fo4_havok_output_dir = bpy.props.StringProperty(
+            name="Output Directory",
+            description="Folder where the exported FBX (and converted HKX) will be saved. Leave blank to use the system temp folder.",
+            subtype='DIR_PATH',
+            default="",
+            update=_make_scene_to_pref_sync("fo4_havok_output_dir", "havok_output_dir"),
+        )
+        bpy.types.Scene.fo4_havok_anim_name = bpy.props.StringProperty(
+            name="Animation Name",
+            description="Override the file/animation name. Leave blank to use the active action name.",
+            default="",
+            update=_make_scene_to_pref_sync("fo4_havok_anim_name", "havok_anim_name"),
+        )
+        bpy.types.Scene.fo4_havok_simplify_value = bpy.props.FloatProperty(
+            name="Curve Simplify",
+            description="Reduce keyframe count on export (0 = off, 1 = maximum simplification)",
+            default=0.0,
+            min=0.0,
+            max=1.0,
+            precision=2,
+            update=_make_scene_to_pref_sync("fo4_havok_simplify_value", "havok_simplify_value"),
+        )
+        bpy.types.Scene.fo4_havok_force_frame_range = bpy.props.BoolProperty(
+            name="Use Action Frame Range",
+            description="Clamp export to the active action's frame range instead of the scene frame range",
+            default=True,
+            update=_make_scene_to_pref_sync("fo4_havok_force_frame_range", "havok_force_frame_range"),
+        )
 
-    # ── Mesh optimisation settings (per-scene) ────────────────────────────────
-    bpy.types.Scene.fo4_opt_apply_transforms = bpy.props.BoolProperty(
-        name="Apply Transforms",
-        description="Apply object transforms before mesh optimisation",
-        default=True,
-        update=_make_scene_to_pref_sync("fo4_opt_apply_transforms", "optimize_apply_transforms"),
-    )
-    bpy.types.Scene.fo4_opt_doubles = bpy.props.FloatProperty(
-        name="Remove Doubles Threshold",
-        description="Distance threshold for merging duplicate vertices (0 = off)",
-        default=0.0001,
-        min=0.0,
-        max=1.0,
-        precision=6,
-        update=_make_scene_to_pref_sync("fo4_opt_doubles", "optimize_remove_doubles_threshold"),
-    )
-    bpy.types.Scene.fo4_opt_preserve_uvs = bpy.props.BoolProperty(
-        name="Preserve UVs",
-        description="Keep UV seams when removing doubles",
-        default=True,
-        update=_make_scene_to_pref_sync("fo4_opt_preserve_uvs", "optimize_preserve_uvs"),
-    )
+    except Exception as _e:
+        print(f"⚠ Failed to register Havok animation properties: {_e}")
+    try:
+        # ── Mesh optimisation settings (per-scene) ────────────────────────────────
+        bpy.types.Scene.fo4_opt_apply_transforms = bpy.props.BoolProperty(
+            name="Apply Transforms",
+            description="Apply object transforms before mesh optimisation",
+            default=True,
+            update=_make_scene_to_pref_sync("fo4_opt_apply_transforms", "optimize_apply_transforms"),
+        )
+        bpy.types.Scene.fo4_opt_doubles = bpy.props.FloatProperty(
+            name="Remove Doubles Threshold",
+            description="Distance threshold for merging duplicate vertices (0 = off)",
+            default=0.0001,
+            min=0.0,
+            max=1.0,
+            precision=6,
+            update=_make_scene_to_pref_sync("fo4_opt_doubles", "optimize_remove_doubles_threshold"),
+        )
+        bpy.types.Scene.fo4_opt_preserve_uvs = bpy.props.BoolProperty(
+            name="Preserve UVs",
+            description="Keep UV seams when removing doubles",
+            default=True,
+            update=_make_scene_to_pref_sync("fo4_opt_preserve_uvs", "optimize_preserve_uvs"),
+        )
 
-    # ── Game / tool paths stored per-scene (not in preferences) ──────────────
-    bpy.types.Scene.fo4_tools_root = bpy.props.StringProperty(
-        name="Tools Root",
-        description="Root folder where FO4 modding CLI tools are installed",
-        default="",
-        subtype='DIR_PATH',
-        update=_make_scene_to_pref_sync("fo4_tools_root", "tools_root"),
-    )
-    bpy.types.Scene.fo4_torch_root = bpy.props.StringProperty(
-        name="PyTorch Path",
-        description="Custom PyTorch installation folder (leave blank for default)",
-        default="",
-        subtype='DIR_PATH',
-        update=_make_scene_to_pref_sync("fo4_torch_root", "torch_custom_path"),
-    )
-    _ngp_sync = _make_scene_to_pref_sync("fo4_instantngp_path", "instantngp_path")
+    except Exception as _e:
+        print(f"⚠ Failed to register mesh optimisation properties: {_e}")
+    try:
+        # ── Game / tool paths stored per-scene (not in preferences) ──────────────
+        bpy.types.Scene.fo4_tools_root = bpy.props.StringProperty(
+            name="Tools Root",
+            description="Root folder where FO4 modding CLI tools are installed",
+            default="",
+            subtype='DIR_PATH',
+            update=_make_scene_to_pref_sync("fo4_tools_root", "tools_root"),
+        )
+        bpy.types.Scene.fo4_torch_root = bpy.props.StringProperty(
+            name="PyTorch Path",
+            description="Custom PyTorch installation folder (leave blank for default)",
+            default="",
+            subtype='DIR_PATH',
+            update=_make_scene_to_pref_sync("fo4_torch_root", "torch_custom_path"),
+        )
+        _ngp_sync = _make_scene_to_pref_sync("fo4_instantngp_path", "instantngp_path")
 
-    def _ngp_path_update(self, context):
-        _ngp_sync(self, context)
-        try:
-            if instantngp_helpers:
-                instantngp_helpers.InstantNGPHelpers.clear_cache()
-        except Exception:
-            pass
+        def _ngp_path_update(self, context):
+            _ngp_sync(self, context)
+            try:
+                if instantngp_helpers:
+                    instantngp_helpers.InstantNGPHelpers.clear_cache()
+            except Exception:
+                pass
 
-    bpy.types.Scene.fo4_instantngp_path = bpy.props.StringProperty(
-        name="InstantNGP Path",
-        description="Path to InstantNGP installation",
-        default="",
-        subtype='DIR_PATH',
-        update=_ngp_path_update,
-    )
-    bpy.types.Scene.fo4_havok2fbx_path = bpy.props.StringProperty(
-        name="Havok2FBX Folder",
-        description="Folder containing the Havok2FBX converter executable",
-        default="",
-        subtype='DIR_PATH',
-        update=_make_scene_to_pref_sync("fo4_havok2fbx_path", "havok2fbx_path"),
-    )
+        bpy.types.Scene.fo4_instantngp_path = bpy.props.StringProperty(
+            name="InstantNGP Path",
+            description="Path to InstantNGP installation",
+            default="",
+            subtype='DIR_PATH',
+            update=_ngp_path_update,
+        )
+        bpy.types.Scene.fo4_havok2fbx_path = bpy.props.StringProperty(
+            name="Havok2FBX Folder",
+            description="Folder containing the Havok2FBX converter executable",
+            default="",
+            subtype='DIR_PATH',
+            update=_make_scene_to_pref_sync("fo4_havok2fbx_path", "havok2fbx_path"),
+        )
 
-    # ── Game asset paths stored per-scene (mirror of addon preferences) ───────
-    bpy.types.Scene.fo4_assets_path = bpy.props.StringProperty(
-        name="FO4 Data Folder",
-        description=(
-            "Path to your extracted Fallout 4 Data folder "
-            "(e.g. D:\\FO4\\Data). Mirrors the addon preference so the panel "
-            "always has an editable field even if preferences are unavailable."
-        ),
-        default="",
-        subtype='DIR_PATH',
-        update=_make_scene_to_pref_sync("fo4_assets_path", "fo4_assets_path"),
-    )
-    bpy.types.Scene.fo4_assets_mesh_path = bpy.props.StringProperty(
-        name="Meshes Folder",
-        description="Path to the Meshes sub-folder inside your FO4 Data folder",
-        default="",
-        subtype='DIR_PATH',
-        update=_make_scene_to_pref_sync("fo4_assets_mesh_path", "fo4_assets_mesh_path"),
-    )
-    bpy.types.Scene.fo4_assets_tex_path = bpy.props.StringProperty(
-        name="Textures Folder",
-        description="Path to the Textures sub-folder inside your FO4 Data folder",
-        default="",
-        subtype='DIR_PATH',
-        update=_make_scene_to_pref_sync("fo4_assets_tex_path", "fo4_assets_tex_path"),
-    )
-    bpy.types.Scene.fo4_assets_mat_path = bpy.props.StringProperty(
-        name="Materials Folder",
-        description="Path to the Materials sub-folder inside your FO4 Data folder",
-        default="",
-        subtype='DIR_PATH',
-        update=_make_scene_to_pref_sync("fo4_assets_mat_path", "fo4_assets_mat_path"),
-    )
-    bpy.types.Scene.fo4_unity_assets_path = bpy.props.StringProperty(
-        name="Unity Assets Folder",
-        description=(
-            "Path to your Unity project assets or exported models folder. "
-            "Mirrors the addon preference."
-        ),
-        default="",
-        subtype='DIR_PATH',
-        update=_make_scene_to_pref_sync("fo4_unity_assets_path", "unity_assets_path"),
-    )
-    bpy.types.Scene.fo4_unreal_assets_path = bpy.props.StringProperty(
-        name="Unreal Assets Folder",
-        description=(
-            "Path to your Unreal Engine project content or exported assets folder. "
-            "Mirrors the addon preference."
-        ),
-        default="",
-        subtype='DIR_PATH',
-        update=_make_scene_to_pref_sync("fo4_unreal_assets_path", "unreal_assets_path"),
-    )
+    except Exception as _e:
+        print(f"⚠ Failed to register tool paths properties: {_e}")
+    try:
+        # ── Game asset paths stored per-scene (mirror of addon preferences) ───────
+        bpy.types.Scene.fo4_assets_path = bpy.props.StringProperty(
+            name="FO4 Data Folder",
+            description=(
+                "Path to your extracted Fallout 4 Data folder "
+                "(e.g. D:\\FO4\\Data). Mirrors the addon preference so the panel "
+                "always has an editable field even if preferences are unavailable."
+            ),
+            default="",
+            subtype='DIR_PATH',
+            update=_make_scene_to_pref_sync("fo4_assets_path", "fo4_assets_path"),
+        )
+        bpy.types.Scene.fo4_assets_mesh_path = bpy.props.StringProperty(
+            name="Meshes Folder",
+            description="Path to the Meshes sub-folder inside your FO4 Data folder",
+            default="",
+            subtype='DIR_PATH',
+            update=_make_scene_to_pref_sync("fo4_assets_mesh_path", "fo4_assets_mesh_path"),
+        )
+        bpy.types.Scene.fo4_assets_tex_path = bpy.props.StringProperty(
+            name="Textures Folder",
+            description="Path to the Textures sub-folder inside your FO4 Data folder",
+            default="",
+            subtype='DIR_PATH',
+            update=_make_scene_to_pref_sync("fo4_assets_tex_path", "fo4_assets_tex_path"),
+        )
+        bpy.types.Scene.fo4_assets_mat_path = bpy.props.StringProperty(
+            name="Materials Folder",
+            description="Path to the Materials sub-folder inside your FO4 Data folder",
+            default="",
+            subtype='DIR_PATH',
+            update=_make_scene_to_pref_sync("fo4_assets_mat_path", "fo4_assets_mat_path"),
+        )
+        bpy.types.Scene.fo4_unity_assets_path = bpy.props.StringProperty(
+            name="Unity Assets Folder",
+            description=(
+                "Path to your Unity project assets or exported models folder. "
+                "Mirrors the addon preference."
+            ),
+            default="",
+            subtype='DIR_PATH',
+            update=_make_scene_to_pref_sync("fo4_unity_assets_path", "unity_assets_path"),
+        )
+        bpy.types.Scene.fo4_unreal_assets_path = bpy.props.StringProperty(
+            name="Unreal Assets Folder",
+            description=(
+                "Path to your Unreal Engine project content or exported assets folder. "
+                "Mirrors the addon preference."
+            ),
+            default="",
+            subtype='DIR_PATH',
+            update=_make_scene_to_pref_sync("fo4_unreal_assets_path", "unreal_assets_path"),
+        )
 
-    # ── FO4 export version selector ───────────────────────────────────────────
-    bpy.types.Scene.fo4_game_version = bpy.props.EnumProperty(
-        name="Game Version",
-        description="Target Fallout 4 game version (affects NIF flags)",
-        items=[
-            ('FO4',    "Fallout 4 (OG)",     "Original Fallout 4 (pre-Next-Gen)"),
-            ('FO4NG',  "Fallout 4 Next-Gen",  "Next-Gen / Anniversary update"),
-            ('FO76',   "Fallout 76",           "Fallout 76 NIF format"),
-        ],
-        default='FO4',
-    )
+    except Exception as _e:
+        print(f"⚠ Failed to register game asset paths properties: {_e}")
+    try:
+        # ── FO4 export version selector ───────────────────────────────────────────
+        bpy.types.Scene.fo4_game_version = bpy.props.EnumProperty(
+            name="Game Version",
+            description="Target Fallout 4 game version (affects NIF flags)",
+            items=[
+                ('FO4',    "Fallout 4 (OG)",     "Original Fallout 4 (pre-Next-Gen)"),
+                ('FO4NG',  "Fallout 4 Next-Gen",  "Next-Gen / Anniversary update"),
+                ('FO76',   "Fallout 76",           "Fallout 76 NIF format"),
+            ],
+            default='FO4',
+        )
 
-    # ── Per-object Fallout 4 properties ───────────────────────────────────────
-    _coll_items = (
-        mesh_helpers.MeshHelpers.COLLISION_TYPES
-        if mesh_helpers
-        else [('DEFAULT', 'Default', 'Default'), ('NONE', 'None', 'No collision')]
-    )
-    bpy.types.Object.fo4_collision_type = bpy.props.EnumProperty(
-        name="Collision Type",
-        description="Fallout 4 collision category for this mesh",
-        items=_coll_items,
-        default='DEFAULT',
-    )
-    bpy.types.Object.fo4_mesh_type = bpy.props.EnumProperty(
-        name="Mesh Type",
-        description="Override how this mesh is classified for NIF export. "
-                    "Controls root node, BSXFlags, shader flags, and skinning.",
-        items=[
-            ('AUTO',         "Auto-detect",    "Classify automatically from armature / name / material"),
-            ('STATIC',       "Static",         "Non-animated world object — BSFadeNode root, BSTriShape, no skinning"),
-            ('SKINNED',      "Skinned",        "Character / creature mesh — NiNode root, BSSubIndexTriShape, BSSkin::Instance"),
-            ('ARMOR',        "Armor",          "Wearable armor — NiNode root, BSSubIndexTriShape, BSSkin::Instance, Skinned SF1"),
-            ('ANIMATED',     "Animated",       "Animated prop — NiNode with NiKeyframeController"),
-            ('LOD',          "LOD",            "Level-of-detail mesh — BSFadeNode root, reduced poly, same flags as Static"),
-            ('VEGETATION',   "Vegetation",     "Tree / bush / plant — BSFadeNode root, Two_Sided SF2, Alpha Clip material"),
-            ('FURNITURE',    "Furniture",      "Sit/activate furniture — NiNode root, BSXFlags Animated (1), CK markers"),
-            ('WEAPON',       "Weapon",         "Held weapon — NiNode root, no vertex skinning, attach via named bone"),
-            ('ARCHITECTURE', "Architecture",   "Building / wall — BSFadeNode root, BSXFlags Has-Havok (2), collision required"),
-            ('FLORA',        "Flora",          "Harvestable flora — BSFadeNode root, Alpha Clip, harvest node required"),
-            ('DEBRIS',       "Debris",         "Small physics debris — BSFadeNode root, BSXFlags Has-Havok (2)"),
-        ],
-        default='AUTO',
-    )
+    except Exception as _e:
+        print(f"⚠ Failed to register FO4 export version properties: {_e}")
+    try:
+        # ── Per-object Fallout 4 properties ───────────────────────────────────────
+        _coll_items = (
+            mesh_helpers.MeshHelpers.COLLISION_TYPES
+            if mesh_helpers
+            else [('DEFAULT', 'Default', 'Default'), ('NONE', 'None', 'No collision')]
+        )
+        bpy.types.Object.fo4_collision_type = bpy.props.EnumProperty(
+            name="Collision Type",
+            description="Fallout 4 collision category for this mesh",
+            items=_coll_items,
+            default='DEFAULT',
+        )
+        bpy.types.Object.fo4_mesh_type = bpy.props.EnumProperty(
+            name="Mesh Type",
+            description="Override how this mesh is classified for NIF export. "
+                        "Controls root node, BSXFlags, shader flags, and skinning.",
+            items=[
+                ('AUTO',         "Auto-detect",    "Classify automatically from armature / name / material"),
+                ('STATIC',       "Static",         "Non-animated world object — BSFadeNode root, BSTriShape, no skinning"),
+                ('SKINNED',      "Skinned",        "Character / creature mesh — NiNode root, BSSubIndexTriShape, BSSkin::Instance"),
+                ('ARMOR',        "Armor",          "Wearable armor — NiNode root, BSSubIndexTriShape, BSSkin::Instance, Skinned SF1"),
+                ('ANIMATED',     "Animated",       "Animated prop — NiNode with NiKeyframeController"),
+                ('LOD',          "LOD",            "Level-of-detail mesh — BSFadeNode root, reduced poly, same flags as Static"),
+                ('VEGETATION',   "Vegetation",     "Tree / bush / plant — BSFadeNode root, Two_Sided SF2, Alpha Clip material"),
+                ('FURNITURE',    "Furniture",      "Sit/activate furniture — NiNode root, BSXFlags Animated (1), CK markers"),
+                ('WEAPON',       "Weapon",         "Held weapon — NiNode root, no vertex skinning, attach via named bone"),
+                ('ARCHITECTURE', "Architecture",   "Building / wall — BSFadeNode root, BSXFlags Has-Havok (2), collision required"),
+                ('FLORA',        "Flora",          "Harvestable flora — BSFadeNode root, Alpha Clip, harvest node required"),
+                ('DEBRIS',       "Debris",         "Small physics debris — BSFadeNode root, BSXFlags Has-Havok (2)"),
+            ],
+            default='AUTO',
+        )
 
-    # ── Mossy Link scene properties ───────────────────────────────────────────
-    bpy.types.Scene.fo4_mossy_port = bpy.props.IntProperty(
-        name="Mossy TCP Port",
-        description="TCP port Blender listens on for commands from Mossy (default 9999)",
-        default=9999, min=1024, max=65535,
-    )
-    bpy.types.Scene.fo4_mossy_token = bpy.props.StringProperty(
-        name="Mossy Auth Token",
-        description="Optional auth token — must match the token set in Mossy",
-        default="", subtype='PASSWORD',
-    )
-    bpy.types.Scene.fo4_mossy_autostart = bpy.props.BoolProperty(
-        name="Auto-start on load",
-        description="Start the Mossy Link TCP server automatically when Blender loads",
-        default=True,
-    )
-    bpy.types.Scene.fo4_mossy_http_port = bpy.props.IntProperty(
-        name="Mossy LLM Port",
-        description="HTTP port for Mossy's Nemotron LLM (default 5000)",
-        default=5000, min=1024, max=65535,
-    )
-    bpy.types.Scene.fo4_use_mossy_ai = bpy.props.BoolProperty(
-        name="Use Mossy as AI Advisor",
-        description="Route advisor AI queries through Mossy's local LLM instead of a remote endpoint",
-        default=False,
-    )
+    except Exception as _e:
+        print(f"⚠ Failed to register per-object properties: {_e}")
+    try:
+        # ── Mossy Link scene properties ───────────────────────────────────────────
+        bpy.types.Scene.fo4_mossy_port = bpy.props.IntProperty(
+            name="Mossy TCP Port",
+            description="TCP port Blender listens on for commands from Mossy (default 9999)",
+            default=9999, min=1024, max=65535,
+        )
+        bpy.types.Scene.fo4_mossy_token = bpy.props.StringProperty(
+            name="Mossy Auth Token",
+            description="Optional auth token — must match the token set in Mossy",
+            default="", subtype='PASSWORD',
+        )
+        bpy.types.Scene.fo4_mossy_autostart = bpy.props.BoolProperty(
+            name="Auto-start on load",
+            description="Start the Mossy Link TCP server automatically when Blender loads",
+            default=True,
+        )
+        bpy.types.Scene.fo4_mossy_http_port = bpy.props.IntProperty(
+            name="Mossy LLM Port",
+            description="HTTP port for Mossy's Nemotron LLM (default 5000)",
+            default=5000, min=1024, max=65535,
+        )
+        bpy.types.Scene.fo4_use_mossy_ai = bpy.props.BoolProperty(
+            name="Use Mossy as AI Advisor",
+            description="Route advisor AI queries through Mossy's local LLM instead of a remote endpoint",
+            default=False,
+        )
 
-    # ── Mossy Link WindowManager properties (live status) ─────────────────────
-    bpy.types.WindowManager.mossy_link_active = bpy.props.BoolProperty(
-        name="Mossy Link Active",
-        description="True when the Mossy Link TCP server is running inside Blender",
-        default=False,
-    )
-    bpy.types.WindowManager.mossy_bridge_status = bpy.props.StringProperty(
-        name="Mossy Bridge Status",
-        description="Last result of the Mossy Bridge health check",
-        default="",
-    )
-    bpy.types.WindowManager.mossy_llm_status = bpy.props.StringProperty(
-        name="Mossy LLM Status",
-        description="Last result of the Mossy Nemotron LLM health check",
-        default="",
-    )
+    except Exception as _e:
+        print(f"⚠ Failed to register Mossy Link scene properties: {_e}")
+    try:
+        # ── Mossy Link WindowManager properties (live status) ─────────────────────
+        bpy.types.WindowManager.mossy_link_active = bpy.props.BoolProperty(
+            name="Mossy Link Active",
+            description="True when the Mossy Link TCP server is running inside Blender",
+            default=False,
+        )
+        bpy.types.WindowManager.mossy_bridge_status = bpy.props.StringProperty(
+            name="Mossy Bridge Status",
+            description="Last result of the Mossy Bridge health check",
+            default="",
+        )
+        bpy.types.WindowManager.mossy_llm_status = bpy.props.StringProperty(
+            name="Mossy LLM Status",
+            description="Last result of the Mossy Nemotron LLM health check",
+            default="",
+        )
 
-    # ── Image-to-3D mesh quality settings ────────────────────────────────────
-    # These settings are shown in the Image to Mesh panel and read by all
-    # AI generation operators so users can tune output quality before generating.
-    bpy.types.Scene.fo4_imageto3d_quality = bpy.props.EnumProperty(
-        name="Generation Quality",
-        description="Trade-off between speed and mesh detail for AI generation",
-        items=[
-            ('DRAFT',    "Draft  (fastest)",   "Lowest resolution — use for quick previews"),
-            ('BALANCED', "Balanced",            "Good quality / reasonable time — recommended starting point"),
-            ('HIGH',     "High  (slower)",      "Best detail — use when the mesh looks too blobby"),
-        ],
-        default='BALANCED',
-    )
-    bpy.types.Scene.fo4_imageto3d_target_poly = bpy.props.IntProperty(
-        name="FO4 Target Poly Count",
-        description=(
-            "Target triangle count after decimation.  "
-            "Fallout 4 hard limit is 65,535; "
-            "practical LOD0 budget is 10,000–20,000 for most props"
-        ),
-        default=16000,
-        min=500,
-        max=65535,
-        step=500,
-    )
-    bpy.types.Scene.fo4_imageto3d_auto_decimate = bpy.props.BoolProperty(
-        name="Auto-Decimate After Generation",
-        description=(
-            "Automatically run Smart Decimate to 'FO4 Target Poly Count' "
-            "after each AI generation completes"
-        ),
-        default=True,
-    )
-    bpy.types.Scene.fo4_triposr_mc_resolution = bpy.props.IntProperty(
-        name="Marching-Cubes Resolution",
-        description=(
-            "Grid resolution used by TripoSR's marching-cubes step. "
-            "Lower = fewer polygons (try 128 or 64 for FO4); "
-            "higher = more detail but extreme poly count (256+ often unusable for FO4)"
-        ),
-        default=128,
-        min=32,
-        max=512,
-        step=32,
-    )
+    except Exception as _e:
+        print(f"⚠ Failed to register Mossy Link WindowManager properties: {_e}")
+    try:
+        # ── Image-to-3D mesh quality settings ────────────────────────────────────
+        # These settings are shown in the Image to Mesh panel and read by all
+        # AI generation operators so users can tune output quality before generating.
+        bpy.types.Scene.fo4_imageto3d_quality = bpy.props.EnumProperty(
+            name="Generation Quality",
+            description="Trade-off between speed and mesh detail for AI generation",
+            items=[
+                ('DRAFT',    "Draft  (fastest)",   "Lowest resolution — use for quick previews"),
+                ('BALANCED', "Balanced",            "Good quality / reasonable time — recommended starting point"),
+                ('HIGH',     "High  (slower)",      "Best detail — use when the mesh looks too blobby"),
+            ],
+            default='BALANCED',
+        )
+        bpy.types.Scene.fo4_imageto3d_target_poly = bpy.props.IntProperty(
+            name="FO4 Target Poly Count",
+            description=(
+                "Target triangle count after decimation.  "
+                "Fallout 4 hard limit is 65,535; "
+                "practical LOD0 budget is 10,000–20,000 for most props"
+            ),
+            default=16000,
+            min=500,
+            max=65535,
+            step=500,
+        )
+        bpy.types.Scene.fo4_imageto3d_auto_decimate = bpy.props.BoolProperty(
+            name="Auto-Decimate After Generation",
+            description=(
+                "Automatically run Smart Decimate to 'FO4 Target Poly Count' "
+                "after each AI generation completes"
+            ),
+            default=True,
+        )
+        bpy.types.Scene.fo4_triposr_mc_resolution = bpy.props.IntProperty(
+            name="Marching-Cubes Resolution",
+            description=(
+                "Grid resolution used by TripoSR's marching-cubes step. "
+                "Lower = fewer polygons (try 128 or 64 for FO4); "
+                "higher = more detail but extreme poly count (256+ often unusable for FO4)"
+            ),
+            default=128,
+            min=32,
+            max=512,
+            step=32,
+        )
+
+    except Exception as _e:
+        print(f"⚠ Failed to register Image-to-3D quality settings: {_e}")
+
+    try:
+        # ── Advisor / LLM / tool-path / UI-toggle scene properties ───────────
+        # Fallback scene properties for the Settings panel when addon
+        # preferences are unavailable.  Each mirrors a FO4AddonPreferences
+        # attribute; the update= callback keeps them in sync so changes made
+        # via the panel are persisted to preferences and survive Blender
+        # restarts.  restore_scene_props_from_prefs() in preferences.py
+        # copies these back from prefs on every load_post / startup.
+        bpy.types.Scene.fo4_llm_enabled = bpy.props.BoolProperty(
+            name="Enable LLM Advisor",
+            description="Enable the AI LLM advisor feature",
+            default=False,
+            update=_make_scene_to_pref_sync("fo4_llm_enabled", "llm_enabled"),
+        )
+        bpy.types.Scene.fo4_advisor_monitor = bpy.props.BoolProperty(
+            name="Enable Advisor Auto-Monitor",
+            description="Run the advisor analysis automatically in the background",
+            default=False,
+            update=_make_scene_to_pref_sync(
+                "fo4_advisor_monitor", "advisor_auto_monitor_enabled"
+            ),
+        )
+        bpy.types.Scene.fo4_advisor_interval = bpy.props.IntProperty(
+            name="Advisor Interval (seconds)",
+            description="How often the background advisor check runs",
+            default=300, min=10, max=3600,
+            update=_make_scene_to_pref_sync(
+                "fo4_advisor_interval", "advisor_auto_monitor_interval"
+            ),
+        )
+        bpy.types.Scene.fo4_kb_enabled = bpy.props.BoolProperty(
+            name="Use Knowledge Base",
+            description="Include the bundled or custom knowledge base in advisor queries",
+            default=True,
+            update=_make_scene_to_pref_sync("fo4_kb_enabled", "knowledge_base_enabled"),
+        )
+        bpy.types.Scene.fo4_kb_path = bpy.props.StringProperty(
+            name="Custom KB Folder",
+            description="Path to a folder of .txt / .md files used as advisor knowledge",
+            default="",
+            subtype='DIR_PATH',
+            update=_make_scene_to_pref_sync("fo4_kb_path", "knowledge_base_path"),
+        )
+        bpy.types.Scene.fo4_ffmpeg_path = bpy.props.StringProperty(
+            name="FFmpeg Path",
+            description="Path to the ffmpeg executable or its containing folder",
+            default="",
+            subtype='DIR_PATH',
+            update=_make_scene_to_pref_sync("fo4_ffmpeg_path", "ffmpeg_path"),
+        )
+        bpy.types.Scene.fo4_nvtt_path = bpy.props.StringProperty(
+            name="nvcompress / NVTT Path",
+            description="Path to nvcompress executable or its containing folder",
+            default="",
+            subtype='DIR_PATH',
+            update=_make_scene_to_pref_sync("fo4_nvtt_path", "nvtt_path"),
+        )
+        bpy.types.Scene.fo4_texconv_path = bpy.props.StringProperty(
+            name="texconv Path",
+            description="Path to the Microsoft texconv executable or its folder",
+            default="",
+            subtype='DIR_PATH',
+            update=_make_scene_to_pref_sync("fo4_texconv_path", "texconv_path"),
+        )
+        bpy.types.Scene.fo4_auto_install_tools = bpy.props.BoolProperty(
+            name="Auto-install Missing CLI Tools",
+            description="Automatically download missing CLI tools at startup",
+            default=False,
+            update=_make_scene_to_pref_sync("fo4_auto_install_tools", "auto_install_tools"),
+        )
+        bpy.types.Scene.fo4_auto_install_python = bpy.props.BoolProperty(
+            name="Auto-install Python Packages",
+            description="Automatically install required Python packages at startup",
+            default=False,
+            update=_make_scene_to_pref_sync("fo4_auto_install_python", "auto_install_python"),
+        )
+        bpy.types.Scene.fo4_auto_register_tools = bpy.props.BoolProperty(
+            name="Auto-register Third-party Add-ons",
+            description="Automatically register third-party add-ons found in the tools folder",
+            default=False,
+            update=_make_scene_to_pref_sync("fo4_auto_register_tools", "auto_register_tools"),
+        )
+        bpy.types.Scene.fo4_mesh_panel_unified = bpy.props.BoolProperty(
+            name="Unified Mesh Panel",
+            description="Show all mesh helpers in one combined panel",
+            default=True,
+            update=_make_scene_to_pref_sync("fo4_mesh_panel_unified", "mesh_panel_unified"),
+        )
+    except Exception as _e:
+        print(f"⚠ Failed to register advisor/LLM/tool-path/UI properties: {_e}")
 
 
 def unregister():
@@ -14103,6 +14222,19 @@ def unregister():
         "fo4_imageto3d_target_poly",
         "fo4_imageto3d_auto_decimate",
         "fo4_triposr_mc_resolution",
+        # Advisor / LLM / tool-path / UI-toggle scene mirrors
+        "fo4_llm_enabled",
+        "fo4_advisor_monitor",
+        "fo4_advisor_interval",
+        "fo4_kb_enabled",
+        "fo4_kb_path",
+        "fo4_ffmpeg_path",
+        "fo4_nvtt_path",
+        "fo4_texconv_path",
+        "fo4_auto_install_tools",
+        "fo4_auto_install_python",
+        "fo4_auto_register_tools",
+        "fo4_mesh_panel_unified",
     ):
         if hasattr(bpy.types.Scene, prop):
             try:

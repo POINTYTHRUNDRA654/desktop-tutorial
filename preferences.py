@@ -287,11 +287,36 @@ def restore_scene_props_from_prefs(scene) -> None:
         "havok_force_frame_range":"fo4_havok_force_frame_range",
         # Animation name is a text override (not a path) – always restore
         "havok_anim_name":        "fo4_havok_anim_name",
+        # Advisor / LLM / settings toggles
+        "llm_enabled":                        "fo4_llm_enabled",
+        "advisor_auto_monitor_enabled":       "fo4_advisor_monitor",
+        "advisor_auto_monitor_interval":      "fo4_advisor_interval",
+        "knowledge_base_enabled":             "fo4_kb_enabled",
+        "auto_install_tools":                 "fo4_auto_install_tools",
+        "auto_install_python":                "fo4_auto_install_python",
+        "auto_register_tools":                "fo4_auto_register_tools",
+        "mesh_panel_unified":                 "fo4_mesh_panel_unified",
     }
     for pref_attr, scene_attr in _SETTINGS_PREF_TO_SCENE.items():
         if not hasattr(prefs, pref_attr) or not hasattr(scene, scene_attr):
             continue
         setattr(scene, scene_attr, getattr(prefs, pref_attr))
+
+    # ── Path properties that also need restoration: tool paths ────────────────
+    _TOOL_PATH_PREF_TO_SCENE = {
+        "ffmpeg_path":           "fo4_ffmpeg_path",
+        "nvtt_path":             "fo4_nvtt_path",
+        "texconv_path":          "fo4_texconv_path",
+        "knowledge_base_path":   "fo4_kb_path",
+    }
+    for pref_attr, scene_attr in _TOOL_PATH_PREF_TO_SCENE.items():
+        if not hasattr(prefs, pref_attr) or not hasattr(scene, scene_attr):
+            continue
+        saved = getattr(prefs, pref_attr, "")
+        if not isinstance(saved, str):
+            continue
+        if saved.strip() and not getattr(scene, scene_attr, "").strip():
+            setattr(scene, scene_attr, saved)
 
 
 def restore_extra_python_paths() -> list[str]:
