@@ -27,6 +27,34 @@ All changes in this PR live on this branch. The branch name reflects its origin 
 
 ## Done ✅  (DO NOT redo, revert, or override these)
 
+### 34. Fix: Mossy keeps asking to redo the scan after an app rebuild ✅
+
+**Request:** "She's wanting me to redo the scan, which she should already remember. Because the scans already been ran. And this for some reason we've completely rebuilt her without Remembering that this is just an update."
+
+**Root cause:**
+After an app rebuild or update that clears renderer localStorage, Mossy's context shows missing scan data. Four places in the codebase were explicitly telling Mossy to request a new scan whenever scan data was absent:
+
+1. `LocalAIEngine.ts` — `[SYSTEM SCAN STATUS]: NOT PERFORMED. (Please run scan_hardware first)` 
+2. `toolPermissions.ts` — "ask them to run a system scan" when no tools are saved
+3. `MossyBrain.ts` rule 630 — allowed scan requests "when scan history is missing/unknown"
+4. `MossyBrain.ts` rule 12 (×2) — "ask the user to…run a new scan" for missing paths
+5. `MossyBrain.ts` `scan_hardware` tool description — "Only run this if the [SYSTEM SCAN STATUS] is NOT PERFORMED"
+
+**Fix:**
+- Changed `LocalAIEngine.ts` status message to: "Hardware profile not loaded in this session. The scan may have been run previously. Do NOT ask the user to redo the scan — they can refresh scan data from Settings > System Monitor if needed."
+- Changed `toolPermissions.ts` no-tools message to: "Do NOT ask the user to redo the scan. If they want to update their tool list, they can go to Settings > System Monitor."
+- Updated `MossyBrain.ts` rule 630 to: "Do NOT request a new scan — even if scan history is missing or unknown…Only run scan_hardware if the user explicitly asks you to."
+- Updated both instances of rule 12 in `MossyBrain.ts`: replaced "or run a new scan" with "Do NOT ask the user to run a new scan — the scan may have already been completed."
+- Updated `scan_hardware` tool description: "Only run this tool if the user EXPLICITLY asks you to run a scan or re-scan. Never run this automatically just because scan data is missing from context."
+
+**Files changed:**
+- `src/renderer/src/LocalAIEngine.ts`
+- `src/renderer/src/toolPermissions.ts`
+- `src/renderer/src/MossyBrain.ts`
+- `CHANGES.md`
+
+
+
 ### 33. Feature: Internet Access Test — live diagnostic tool ✅
 
 **Request:** "Is it possible for you to ask her to access the Internet? And see what response you get."

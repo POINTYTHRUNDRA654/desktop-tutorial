@@ -208,7 +208,7 @@ export const LocalAIEngine = {
               injectedContext += "- [STORAGE]: " + profile.storageDrives.map((d: any) => `${d.device} (${d.free}GB/${d.total}GB)`).join(", ") + "\n";
             }
           } else {
-            injectedContext += `- [SYSTEM SCAN STATUS]: NOT PERFORMED. (Please run scan_hardware first)\n`;
+            injectedContext += `- [SYSTEM SCAN STATUS]: Hardware profile not loaded in this session. The scan may have been run previously. Do NOT ask the user to redo the scan — they can refresh scan data from Settings > System Monitor if needed.\n`;
           }
 
           if (userSettings) {
