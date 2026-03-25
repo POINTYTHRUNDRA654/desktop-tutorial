@@ -13707,7 +13707,17 @@ def register():
         try:
             bpy.utils.register_class(cls)
         except Exception as e:
-            print(f"⚠ Failed to register {cls.__name__}: {e}")
+            # A previous installation (e.g. blender_org/blender_game_tools) may have
+            # already registered an older version of this class under the same
+            # bl_idname.  Unregister the stale version and register ours so that
+            # the current code is always what runs when the operator is invoked.
+            try:
+                existing = getattr(bpy.types, cls.__name__, None)
+                if existing is not None:
+                    bpy.utils.unregister_class(existing)
+                bpy.utils.register_class(cls)
+            except Exception as e2:
+                print(f"⚠ Failed to register {cls.__name__}: {e2}")
 
     try:
         # Havok2FBX animation export settings stored per-scene
