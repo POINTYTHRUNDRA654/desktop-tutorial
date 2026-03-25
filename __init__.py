@@ -38,9 +38,21 @@ def _try_import(name: str):
 
     Returns the module object on success or None on failure.  A warning is
     printed to the console so testers know which component raised an exception.
+
+    If the module is already in sys.modules (stale entry from a previous
+    Blender session, addon reload, or dual-install scenario) it is reloaded
+    so that fresh class objects are used.  Skipping this reload is the root
+    cause of RECURRING BUG #1 ('no activation buttons') on extension reload:
+    importlib.import_module() returns the cached old module whose classes
+    were already unregistered, making register() a no-op.
     """
     full = f"{__package__}.{name}"
     try:
+        if full in sys.modules:
+            # Force-reload the cached module to get fresh class objects.
+            # This is critical for tutorial_operators (RECURRING BUG #1) and
+            # generally correct for all submodules during addon reload.
+            return importlib.reload(sys.modules[full])
         return importlib.import_module(full)
     except Exception as exc:  # pragma: no cover - safety belt
         print(f"⚠ Failed to import {name} ({full}): {exc}")
@@ -444,6 +456,12 @@ def register():
                             print(f"✓ UModel auto-downloaded: {msg}")
                         else:
                             print(f"UModel auto-download skipped: {msg}")
+                            # Mark attempted so we don't retry every Blender
+                            # startup when all download URLs are unreachable.
+                            try:
+                                _prefs.umodel_install_attempted = True
+                            except Exception as flag_exc:
+                                print(f"UModel: could not set install_attempted flag: {flag_exc}")
         except Exception as e:
             print(f"UModel auto-download skipped: {e}")
 

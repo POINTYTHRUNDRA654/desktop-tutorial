@@ -35,6 +35,9 @@ the buttons never appear.
 2. **Stale `sys.modules` entry** — An old or partial import from a previous Blender session
    is cached. `importlib.import_module()` returns the stale/broken module object; `register()`
    is called on it but does nothing or raises.
+   **Fixed (permanently):** `_try_import()` in `__init__.py` now calls `importlib.reload()`
+   when the module is already in `sys.modules`, ensuring fresh class objects are always used.
+   Do NOT remove this reload — it is the root-cause fix for the extension-reload scenario.
 
 3. **`tutorial_operators` accidentally removed from `modules` list in `__init__.py`** — Every
    time an agent edits `__init__.py` to add a new module without reading this file first, they
