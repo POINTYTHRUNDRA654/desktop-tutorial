@@ -563,8 +563,12 @@ echo "Done! Move the .ba2 files into your game Data/ folder."
 
             # Read version dynamically so the manifest is always in sync
             try:
-                import importlib
-                _init = importlib.import_module("fallout4_tutorial_helper")
+                import sys as _sys
+                _init = _sys.modules.get(__package__)
+                if _init is None:
+                    import importlib
+                    _pkg = __package__ if __package__ is not None else "blender_game_tools"
+                    _init = importlib.import_module(_pkg)
                 _ver_tuple = _init.bl_info.get("version", (2, 4, 0))
                 _addon_version = ".".join(str(v) for v in _ver_tuple)
             except Exception:

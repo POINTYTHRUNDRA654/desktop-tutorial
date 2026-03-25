@@ -45,7 +45,7 @@ GITHUB_RELEASES_API = (
 
 def _current_version() -> tuple:
     """Return the installed add-on version tuple from bl_info."""
-    pkg = sys.modules.get(__package__ or "fallout4_tutorial_helper")
+    pkg = sys.modules.get(__package__ or "blender_game_tools")
     if pkg and hasattr(pkg, "bl_info"):
         return tuple(pkg.bl_info.get("version", (0, 0, 0)))
     return (0, 0, 0)
@@ -99,7 +99,7 @@ def _background_check_thread():
             GITHUB_RELEASES_API,
             headers={
                 "Accept": "application/vnd.github+json",
-                "User-Agent": "fallout4_tutorial_helper",
+                "User-Agent": "blender_game_tools",
             },
         )
         with urllib.request.urlopen(req, timeout=10) as resp:
@@ -111,7 +111,7 @@ def _background_check_thread():
 
         for asset in data.get("assets", []):
             name = asset.get("name", "")
-            if name.startswith("fallout4_tutorial_helper") and name.endswith(".zip"):
+            if name.startswith("blender_game_tools") and name.endswith(".zip"):
                 _download_url = asset.get("browser_download_url", "")
                 break
 
@@ -207,7 +207,7 @@ class FO4_OT_CheckForUpdate(Operator):
                 GITHUB_RELEASES_API,
                 headers={
                     "Accept": "application/vnd.github+json",
-                    "User-Agent": "fallout4_tutorial_helper",
+                    "User-Agent": "blender_game_tools",
                 },
             )
             with urllib.request.urlopen(req, timeout=10) as resp:
@@ -220,7 +220,7 @@ class FO4_OT_CheckForUpdate(Operator):
             # Find the add-on zip among the release assets
             for asset in data.get("assets", []):
                 name = asset.get("name", "")
-                if name.startswith("fallout4_tutorial_helper") and name.endswith(".zip"):
+                if name.startswith("blender_game_tools") and name.endswith(".zip"):
                     _download_url = asset.get("browser_download_url", "")
                     break
 
@@ -272,7 +272,7 @@ class FO4_OT_InstallUpdate(Operator):
 
             req = urllib.request.Request(
                 _download_url,
-                headers={"User-Agent": "fallout4_tutorial_helper"},
+                headers={"User-Agent": "blender_game_tools"},
             )
             with urllib.request.urlopen(req, timeout=60) as resp:
                 import shutil
@@ -282,7 +282,7 @@ class FO4_OT_InstallUpdate(Operator):
             # overwrite=True replaces the existing version in-place – the user
             # never has to uninstall the old version first.
             bpy.ops.preferences.addon_install(filepath=tmp_path, overwrite=True)
-            bpy.ops.preferences.addon_enable(module="fallout4_tutorial_helper")
+            bpy.ops.preferences.addon_enable(module="blender_game_tools")
             bpy.ops.wm.save_userpref()
 
             _update_status = "up_to_date"
