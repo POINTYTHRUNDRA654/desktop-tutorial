@@ -1661,14 +1661,21 @@ class FO4_PT_ToolsLinks(Panel):
             if bpy.app.version >= (5, 0, 0):
                 nif_note.label(text="Blender 5.x API patches applied automatically.", icon='CHECKMARK')
         # Python requirements
-        op = box.operator("fo4.install_python_deps", text="Install Python Requirements", icon='FILE_REFRESH')
-        if op is not None:
-            op.optional = False
-        op = box.operator("fo4.install_python_deps", text="Install Python Req (optional)", icon='FILE_REFRESH')
-        if op is not None:
-            op.optional = True
+        if hasattr(bpy.types, 'FO4_OT_InstallPythonDeps'):
+            op = box.operator("fo4.install_python_deps", text="Install Python Requirements", icon='FILE_REFRESH')
+            if op is not None:
+                op.optional = False
+            op = box.operator("fo4.install_python_deps", text="Install Python Req (optional)", icon='FILE_REFRESH')
+            if op is not None:
+                op.optional = True
+        else:
+            box.label(text="Install Python Requirements (loading...)", icon='FILE_REFRESH')
+            box.label(text="Install Python Req (optional) (loading...)", icon='FILE_REFRESH')
         box.operator("fo4.install_all_tools", text="Install All Tools", icon='PACKAGE')
-        box.operator("fo4.self_test", text="Run Environment Self-Test", icon='CHECKMARK')
+        if hasattr(bpy.types, 'FO4_OT_SelfTest'):
+            box.operator("fo4.self_test", text="Run Environment Self-Test", icon='CHECKMARK')
+        else:
+            box.label(text="Environment Self-Test (loading...)", icon='CHECKMARK')
 
         # Fallout 4 configuration button
         config_box = layout.box()
@@ -3910,8 +3917,11 @@ class FO4_PT_SetupPanel(Panel):
         if not all_ok:
             box.separator()
             box.label(text="Click below to install missing packages:", icon='INFO')
-            box.operator("fo4.install_python_deps", text="Install Core Dependencies",
-                         icon='PACKAGE')
+            if hasattr(bpy.types, 'FO4_OT_InstallPythonDeps'):
+                box.operator("fo4.install_python_deps", text="Install Core Dependencies",
+                             icon='PACKAGE')
+            else:
+                box.label(text="(Install button loading...)", icon='PACKAGE')
             box.separator()
             box.label(text="Restart Blender after installing.", icon='ERROR')
         else:
@@ -3965,13 +3975,23 @@ class FO4_PT_SetupPanel(Panel):
             tools_box.label(text="Preferences unavailable", icon='ERROR')
 
         # ── Quick actions ─────────────────────────────────────────────────
+        # FO4_OT_SelfTest and FO4_OT_InstallPythonDeps live in operators.py and
+        # register together; a single guard covers both buttons in this row.
+        _core_ops_ready = hasattr(bpy.types, 'FO4_OT_SelfTest')
         row = layout.row(align=True)
-        row.operator("fo4.self_test", text="Environment Check", icon='CHECKMARK')
-        row.operator("fo4.install_python_deps", text="Re-install Deps", icon='FILE_REFRESH')
+        if _core_ops_ready:
+            row.operator("fo4.self_test", text="Environment Check", icon='CHECKMARK')
+            row.operator("fo4.install_python_deps", text="Re-install Deps", icon='FILE_REFRESH')
+        else:
+            row.label(text="Environment Check (loading...)", icon='CHECKMARK')
+            row.label(text="Re-install Deps (loading...)", icon='FILE_REFRESH')
         # Restart button: uses a timer to defer bpy.ops.wm.quit_blender() so it
         # runs after the confirm popup is closed, avoiding the Blender 5.0.1
         # EXCEPTION_ACCESS_VIOLATION (BLI_addhead / wm_exit_schedule_delayed).
-        layout.operator("fo4.reload_addon", text="Restart Blender", icon='QUIT')
+        if hasattr(bpy.types, 'FO4_OT_ReloadAddon'):
+            layout.operator("fo4.reload_addon", text="Restart Blender", icon='QUIT')
+        else:
+            layout.label(text="Restart Blender (loading...)", icon='QUIT')
 
 
 
