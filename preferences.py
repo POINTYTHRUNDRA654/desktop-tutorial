@@ -6,6 +6,7 @@ existing install instead of duplicating binaries.
 
 from __future__ import annotations
 
+import json
 import os
 import bpy
 
@@ -17,6 +18,113 @@ _DEFAULT_LLM_ENDPOINT = ""
 _DEFAULT_LLM_MODEL = "gpt-4o"
 _DEFAULT_ADVISOR_INTERVAL = 30
 _DEFAULT_KB_PATH = ""
+
+# ---------------------------------------------------------------------------
+# Persistent key storage
+# ---------------------------------------------------------------------------
+# Blender stores addon preferences keyed by the addon's module name.  When the
+# addon is renamed (e.g. fallout4_tutorial_helper → blender_game_tools) those
+# saved values are orphaned and users lose their API keys.  We work around this
+# by also writing key-type fields to a small JSON file whose name never changes.
+# ---------------------------------------------------------------------------
+
+_KEYS_FILENAME = ".blender_game_tools_keys.json"
+_OLD_ADDON_NAME = "fallout4_tutorial_helper"
+
+
+def _get_keys_file_path() -> str:
+    """Return the absolute path to the persistent keys JSON file.
+
+    The file lives in the user's home directory so it survives Blender version
+    upgrades, addon reinstalls, and addon renames.
+    """
+    return os.path.join(os.path.expanduser("~"), _KEYS_FILENAME)
+
+
+def save_api_keys() -> None:
+    """Write the current API keys from preferences to the persistent keys file.
+
+    Safe to call from any context; silently swallows I/O errors so a
+    permission problem never crashes the addon.
+    """
+    prefs = get_preferences()
+    if not prefs:
+        return
+    keys: dict = {
+        "llm_api_key": prefs.llm_api_key,
+        "mossy_token": prefs.token,
+    }
+    try:
+        path = _get_keys_file_path()
+        with open(path, "w", encoding="utf-8") as fh:
+            json.dump(keys, fh, indent=2)
+        print(f"✓ API keys persisted to {path}")
+    except Exception as exc:
+        print(f"Could not save API keys: {exc}")
+
+
+def load_api_keys() -> None:
+    """Restore API keys from the persistent keys file into preferences.
+
+    Only populates fields that are currently empty so a manually-entered
+    value in the Preferences UI always wins over the saved file.
+
+    Also attempts a one-time migration from the old addon name
+    ``fallout4_tutorial_helper`` so users who upgraded from that version
+    get their keys back automatically.
+    """
+    prefs = get_preferences()
+    if not prefs:
+        return
+
+    # ── 1. Try migrating from the old addon name ──────────────────────────
+    try:
+        old_addon = bpy.context.preferences.addons.get(_OLD_ADDON_NAME)
+        if old_addon and hasattr(old_addon, "preferences"):
+            old_prefs = old_addon.preferences
+            if (hasattr(old_prefs, "llm_api_key")
+                    and isinstance(old_prefs.llm_api_key, str)
+                    and old_prefs.llm_api_key
+                    and isinstance(prefs.llm_api_key, str)
+                    and not prefs.llm_api_key.strip()):
+                prefs.llm_api_key = old_prefs.llm_api_key
+                print(f"✓ Migrated LLM API key from '{_OLD_ADDON_NAME}'")
+            if (hasattr(old_prefs, "token")
+                    and isinstance(old_prefs.token, str)
+                    and old_prefs.token
+                    and isinstance(prefs.token, str)
+                    and not prefs.token.strip()):
+                prefs.token = old_prefs.token
+                print(f"✓ Migrated Mossy token from '{_OLD_ADDON_NAME}'")
+    except Exception as exc:
+        print(f"Key migration from old addon skipped: {exc}")
+
+    # ── 2. Restore from the persistent keys file ──────────────────────────
+    path = _get_keys_file_path()
+    if not os.path.isfile(path):
+        return
+    try:
+        with open(path, "r", encoding="utf-8") as fh:
+            keys: dict = json.load(fh)
+    except Exception as exc:
+        print(f"Could not read saved API keys from {path}: {exc}")
+        return
+
+    llm_key = keys.get("llm_api_key", "")
+    if llm_key and not prefs.llm_api_key.strip():
+        prefs.llm_api_key = llm_key
+        print("✓ LLM API key restored from keys file")
+
+    mossy_token = keys.get("mossy_token", "")
+    if mossy_token and not prefs.token.strip():
+        prefs.token = mossy_token
+        print("✓ Mossy Link token restored from keys file")
+
+
+def _key_update(self, context) -> None:  # noqa: ARG001
+    """Auto-save API keys to disk whenever a key field is changed."""
+    save_api_keys()
+    save_prefs_deferred()
 
 
 def _addon_name() -> str:
@@ -486,6 +594,7 @@ class FO4AddonPreferences(bpy.types.AddonPreferences):
         default="",
         subtype='PASSWORD',
         description="Bearer token for the LLM endpoint",
+        update=_key_update,
     )
 
     llm_allow_actions: bpy.props.BoolProperty(
@@ -719,6 +828,7 @@ class FO4AddonPreferences(bpy.types.AddonPreferences):
         default="",
         subtype='PASSWORD',
         description="Optional shared secret for the Mossy Link TCP server; leave blank to disable auth",
+        update=_key_update,
     )
 
     autostart: bpy.props.BoolProperty(
