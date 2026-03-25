@@ -5,11 +5,10 @@ These operators are registered as a standalone module *before* the main
 operators.py bundle so they are always available in the UI even if the
 larger operators.py fails to import on a particular Blender build.
 
-The four operators defined here are used in FO4_PT_MainPanel.  Each call
-in the panel is guarded with ``hasattr(bpy.types, 'ClassName')`` so that a
-registration failure degrades gracefully to a label instead of flooding the
-console with "rna_uiItemO: unknown operator" errors (RECURRING BUG #1 –
-see DEVELOPMENT_NOTES.md).
+The four operators defined here are referenced unconditionally in
+FO4_PT_MainPanel (ui_panels.py lines 234, 239, 242, 243); keeping them
+in a separate, minimal module prevents the "rna_uiItemO: unknown operator"
+console spam that appears when operators.py fails to load.
 """
 
 import bpy
@@ -450,16 +449,7 @@ def register():
             bpy.utils.register_class(cls)
             print(f"tutorial_operators: Registered {cls.bl_idname}")
         except Exception as e:
-            # A previous installation may have already registered an older version
-            # of this class. Unregister the stale version and register ours.
-            try:
-                existing = getattr(bpy.types, cls.__name__, None)
-                if existing is not None:
-                    bpy.utils.unregister_class(existing)
-                bpy.utils.register_class(cls)
-                print(f"tutorial_operators: Re-registered {cls.bl_idname}")
-            except Exception as e2:
-                print(f"tutorial_operators: Could not register {cls.__name__}: {e2}")
+            print(f"tutorial_operators: Could not register {cls.__name__}: {e}")
 
 
 def unregister():

@@ -38,21 +38,9 @@ def _try_import(name: str):
 
     Returns the module object on success or None on failure.  A warning is
     printed to the console so testers know which component raised an exception.
-
-    If the module is already in sys.modules (stale entry from a previous
-    Blender session, addon reload, or dual-install scenario) it is reloaded
-    so that fresh class objects are used.  Skipping this reload is the root
-    cause of RECURRING BUG #1 ('no activation buttons') on extension reload:
-    importlib.import_module() returns the cached old module whose classes
-    were already unregistered, making register() a no-op.
     """
     full = f"{__package__}.{name}"
     try:
-        if full in sys.modules:
-            # Force-reload the cached module to get fresh class objects.
-            # This is critical for tutorial_operators (RECURRING BUG #1) and
-            # generally correct for all submodules during addon reload.
-            return importlib.reload(sys.modules[full])
         return importlib.import_module(full)
     except Exception as exc:  # pragma: no cover - safety belt
         print(f"⚠ Failed to import {name} ({full}): {exc}")
@@ -137,11 +125,10 @@ native_nif_writer = _try_import("native_nif_writer")
 # Asset library browser (registers PropertyGroups, UIList, and operators)
 asset_library = _try_import("asset_library")
 
-# Minimal module containing the four tutorial/welcome operators used in
-# FO4_PT_MainPanel.  Each operator call in the panel is guarded with
-# ``hasattr(bpy.types, 'ClassName')`` (RECURRING BUG #1 defence –
-# see DEVELOPMENT_NOTES.md), but registering this module before the large
-# operators.py bundle ensures the buttons are live as early as possible.
+# Minimal module containing the four tutorial/welcome operators that are
+# referenced unconditionally in FO4_PT_MainPanel.  Registering them before
+# the large operators.py bundle ensures they are always available in the UI
+# even if operators.py fails to load on a particular Blender build.
 tutorial_operators = _try_import("tutorial_operators")
 
 
@@ -202,11 +189,9 @@ modules = list(
             stylegan2_helpers,
             instantngp_helpers,
             imageto3d_helpers,
-            # ── CRITICAL – DO NOT REMOVE OR REORDER THESE THREE LINES ──────────
-            # tutorial_operators MUST come before operators and ui_panels.
-            # Removing or reordering this entry is the #1 cause of the
-            # "no activation buttons" / rna_uiItemO: unknown operator bug.
-            # This bug has been fixed 10+ times. See DEVELOPMENT_NOTES.md.
+            # tutorial_operators must be registered BEFORE operators.py so that
+            # the four welcome-panel operators are always available even if the
+            # larger operators.py bundle fails to load on a particular build.
             tutorial_operators,
             operators,
             ui_panels,
@@ -252,82 +237,6 @@ def _on_load_post(*args):
         print(f"Could not restore asset library paths: {e}")
 
 
-# ── Safety net for the 4 critical MainPanel tutorial operators ───────────────
-# These operators (fo4.start_tutorial, fo4.show_help, fo4.show_credits,
-# fo4.show_detailed_setup) are called from FO4_PT_MainPanel.draw() and MUST
-# be registered before any UI is drawn.  If tutorial_operators.register()
-# failed silently (e.g. due to a dual-install conflict or stale sys.modules
-# entry), we register them here as a last resort.
-#
-# THIS IS A RECURRING BUG — see DEVELOPMENT_NOTES.md for the full history.
-_TUTORIAL_OP_NAMES = {
-    "FO4_OT_ShowDetailedSetup",
-    "FO4_OT_StartTutorial",
-    "FO4_OT_ShowHelp",
-    "FO4_OT_ShowCredits",
-}
-
-
-def _ensure_tutorial_operators():
-    """Guarantee the 4 critical tutorial operators are registered.
-
-    Called at the END of register() after every module has had its chance.
-    If any of the operators are missing from bpy.types we attempt a direct
-    registration from the tutorial_operators module.  This handles the
-    dual-install conflict and stale-sys.modules scenarios that have caused
-    the 'no activation buttons' bug repeatedly.
-    """
-    mod = tutorial_operators
-    if mod is None:
-        # Last-ditch attempt: try to (re-)import the module right now.
-        mod = _try_import("tutorial_operators")
-        if mod is None:
-            print(
-                "⚠ _ensure_tutorial_operators: tutorial_operators module could not "
-                "be imported – safety net cannot run.  Check DEVELOPMENT_NOTES.md."
-            )
-            return
-
-    if not hasattr(mod, "classes"):
-        print(
-            "⚠ _ensure_tutorial_operators: tutorial_operators.classes is missing – "
-            "the module may be corrupted.  Check DEVELOPMENT_NOTES.md."
-        )
-        return
-
-    missing = [
-        cls for cls in mod.classes
-        if not hasattr(bpy.types, cls.__name__)
-    ]
-    if not missing:
-        return  # all good – nothing to do
-
-    print(
-        f"⚠ _ensure_tutorial_operators: {len(missing)} operator(s) missing after "
-        f"module registration – applying safety net.  "
-        f"See DEVELOPMENT_NOTES.md for the root-cause history."
-    )
-    for cls in missing:
-        try:
-            bpy.utils.register_class(cls)
-            print(f"  ✓ Safety net registered {cls.bl_idname}")
-        except Exception:
-            # A stale class from a dual-install may be blocking registration.
-            # Unregister the foreign class and try once more.
-            try:
-                existing = getattr(bpy.types, cls.__name__, None)
-                if existing is not None:
-                    bpy.utils.unregister_class(existing)
-                bpy.utils.register_class(cls)
-                print(f"  ✓ Safety net force-registered {cls.bl_idname}")
-            except Exception as e2:
-                print(
-                    f"  ✗ Safety net FAILED for {cls.bl_idname}: {e2}\n"
-                    f"    The main-panel buttons for this operator will not work.\n"
-                    f"    See DEVELOPMENT_NOTES.md – RECURRING BUG #1."
-                )
-
-
 def register():
     """Register all add-on classes and handlers"""
     # ── Step 1: register modules so Blender classes / preferences exist ──────
@@ -336,27 +245,6 @@ def register():
     version_string = f"{blender_version[0]}.{blender_version[1]}.{blender_version[2]}"
 
     print(f"Fallout 4 Tutorial Helper - Initializing for Blender {version_string}")
-
-    # ── Dual-install conflict detection ──────────────────────────────────────
-    # The addon was renamed fallout4_tutorial_helper → blender_game_tools.
-    # If the user still has the old version installed alongside this one, its
-    # unguarded ui_panels.py will flood the Blender console with hundreds of
-    # "rna_uiItemO: unknown operator" errors per second (RECURRING BUG #1).
-    # Print a prominent warning so they know exactly how to fix it.
-    _old_pkg_keys = [k for k in sys.modules if "fallout4_tutorial_helper" in k]
-    if _old_pkg_keys:
-        print("=" * 70)
-        print("⚠ DUAL-INSTALL CONFLICT: old 'fallout4_tutorial_helper' is active!")
-        print("  Detected modules: " + ", ".join(_old_pkg_keys[:3])  # show up to 3 to keep output concise
-              + (" …" if len(_old_pkg_keys) > 3 else ""))
-        print("")
-        print("  The old version lacks 'hasattr' guards in its ui_panels.py,")
-        print("  causing 'rna_uiItemO: unknown operator' spam (RECURRING BUG #1).")
-        print("")
-        print("  FIX:  Edit → Preferences → Add-ons / Extensions")
-        print("        find 'fallout4_tutorial_helper' → Disable → Remove")
-        print("=" * 70)
-
     # show recent development notes to help recall recent changes
     try:
         notes_path = bpy.path.abspath("//DEVELOPMENT_NOTES.md")
@@ -388,11 +276,6 @@ def register():
             import traceback
 
             traceback.print_exc()
-
-    # ── Safety net: guarantee tutorial operators are always registered ────────
-    # Must run AFTER the module loop so all normal registrations have happened.
-    # Fixes the recurring "no activation buttons" bug. See DEVELOPMENT_NOTES.md.
-    _ensure_tutorial_operators()
 
     # ── Step 2: restore persisted sys.path entries ───────────────────────────
     # Runs AFTER module registration so get_preferences() works.
@@ -478,12 +361,6 @@ def register():
                             print(f"✓ UModel auto-downloaded: {msg}")
                         else:
                             print(f"UModel auto-download skipped: {msg}")
-                            # Mark attempted so we don't retry every Blender
-                            # startup when all download URLs are unreachable.
-                            try:
-                                _prefs.umodel_install_attempted = True
-                            except Exception as flag_exc:
-                                print(f"UModel: could not set install_attempted flag: {flag_exc}")
         except Exception as e:
             print(f"UModel auto-download skipped: {e}")
 
