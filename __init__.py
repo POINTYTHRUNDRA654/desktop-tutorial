@@ -305,6 +305,17 @@ def register():
     except Exception as e:
         print(f"Could not register scene restore handler: {e}")
 
+    # ── Step 2c: restore API keys from persistent file ────────────────────────
+    # Blender stores addon preferences keyed by module name.  When the addon is
+    # renamed (fallout4_tutorial_helper → blender_game_tools) those saved values
+    # are orphaned.  load_api_keys() migrates from the old name and falls back
+    # to the persistent JSON file so users never lose their API keys.
+    try:
+        if preferences:
+            preferences.load_api_keys()
+    except Exception as e:
+        print(f"Could not restore API keys: {e}")
+
     # ── Steps 3-5: deferred to avoid blocking Blender's UI on startup ─────────
     # PyTorch detection, tool auto-discovery, and UModel auto-download all
     # involve filesystem scanning or network I/O.  Running them synchronously
