@@ -336,6 +336,27 @@ def register():
     version_string = f"{blender_version[0]}.{blender_version[1]}.{blender_version[2]}"
 
     print(f"Fallout 4 Tutorial Helper - Initializing for Blender {version_string}")
+
+    # ── Dual-install conflict detection ──────────────────────────────────────
+    # The addon was renamed fallout4_tutorial_helper → blender_game_tools.
+    # If the user still has the old version installed alongside this one, its
+    # unguarded ui_panels.py will flood the Blender console with hundreds of
+    # "rna_uiItemO: unknown operator" errors per second (RECURRING BUG #1).
+    # Print a prominent warning so they know exactly how to fix it.
+    _old_pkg_keys = [k for k in sys.modules if "fallout4_tutorial_helper" in k]
+    if _old_pkg_keys:
+        print("=" * 70)
+        print("⚠ DUAL-INSTALL CONFLICT: old 'fallout4_tutorial_helper' is active!")
+        print("  Detected modules: " + ", ".join(_old_pkg_keys[:3])  # show up to 3 to keep output concise
+              + (" …" if len(_old_pkg_keys) > 3 else ""))
+        print("")
+        print("  The old version lacks 'hasattr' guards in its ui_panels.py,")
+        print("  causing 'rna_uiItemO: unknown operator' spam (RECURRING BUG #1).")
+        print("")
+        print("  FIX:  Edit → Preferences → Add-ons / Extensions")
+        print("        find 'fallout4_tutorial_helper' → Disable → Remove")
+        print("=" * 70)
+
     # show recent development notes to help recall recent changes
     try:
         notes_path = bpy.path.abspath("//DEVELOPMENT_NOTES.md")

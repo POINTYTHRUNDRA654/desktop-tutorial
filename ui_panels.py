@@ -7,6 +7,35 @@ import sys
 from bpy.types import Panel
 import importlib
 
+# ──────────────────────────────────────────────────────────────────────────
+# Dual-install conflict detection (RECURRING BUG #1 scenario).
+#
+# The addon was renamed from *fallout4_tutorial_helper* to *blender_game_tools*.
+# If a user has BOTH installed simultaneously, the old version's ui_panels.py
+# lacks hasattr guards and floods the console with hundreds of
+# "rna_uiItemO: unknown operator" errors per second.
+#
+# We detect this once (cached after first panel draw, by which time all
+# Blender extensions have loaded) and show a red alert box at the top of
+# the main panel with explicit uninstall instructions.
+# ──────────────────────────────────────────────────────────────────────────
+_legacy_conflict_cache = None  # None = not yet checked
+
+
+def _check_legacy_conflict():
+    """Return True if the deprecated fallout4_tutorial_helper is also loaded.
+
+    Checked once on first panel draw (cached afterwards) so sys.modules
+    is complete and the lookup never runs more than once.
+    """
+    global _legacy_conflict_cache
+    if _legacy_conflict_cache is None:
+        _legacy_conflict_cache = any(
+            "fallout4_tutorial_helper" in k for k in sys.modules
+        )
+    return _legacy_conflict_cache
+
+
 def _safe_import(name):
     try:
         return importlib.import_module(f".{name}", package=__package__)
@@ -176,6 +205,21 @@ class FO4_PT_MainPanel(Panel):
     def draw(self, context):
         layout = self.layout
         scene = context.scene
+
+        # ── Dual-install conflict warning (RECURRING BUG #1) ─────────────────
+        # If the deprecated 'fallout4_tutorial_helper' addon is still enabled
+        # alongside this 'blender_game_tools' extension, its unguarded
+        # ui_panels.py floods the console with "rna_uiItemO: unknown operator"
+        # errors on every redraw.  Show a prominent red box so users can act.
+        if _check_legacy_conflict():
+            warn = layout.box()
+            warn.alert = True
+            warn.label(text="⚠ OLD ADDON CONFLICT DETECTED", icon='ERROR')
+            warn.label(text="'fallout4_tutorial_helper' is still enabled.")
+            warn.label(text="It causes 'unknown operator' console spam.")
+            warn.label(text="Fix: Edit → Preferences → Add-ons/Extensions")
+            warn.label(text="→ find 'fallout4_tutorial_helper' → Remove it")
+            layout.separator()
 
         # ── Version compatibility banner ─────────────────────────────────────
         # Show users exactly what their Blender version supports so there are
