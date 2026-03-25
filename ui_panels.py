@@ -794,6 +794,7 @@ class FO4_PT_ImageToMeshPanel(Panel):
         dec_row.operator("fo4.decimate_to_fo4", text="Decimate to FO4 Target", icon='MOD_DECIM')
 
         layout.separator()
+        box = layout.box()
         box.label(text="Create Mesh from Image", icon='IMAGE_DATA')
         box.operator("fo4.image_to_mesh", text="Image to Mesh (Height Map)", icon='MESH_GRID')
 
