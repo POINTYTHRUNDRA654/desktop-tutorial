@@ -137,10 +137,11 @@ native_nif_writer = _try_import("native_nif_writer")
 # Asset library browser (registers PropertyGroups, UIList, and operators)
 asset_library = _try_import("asset_library")
 
-# Minimal module containing the four tutorial/welcome operators that are
-# referenced unconditionally in FO4_PT_MainPanel.  Registering them before
-# the large operators.py bundle ensures they are always available in the UI
-# even if operators.py fails to load on a particular Blender build.
+# Minimal module containing the four tutorial/welcome operators used in
+# FO4_PT_MainPanel.  Each operator call in the panel is guarded with
+# ``hasattr(bpy.types, 'ClassName')`` (RECURRING BUG #1 defence –
+# see DEVELOPMENT_NOTES.md), but registering this module before the large
+# operators.py bundle ensures the buttons are live as early as possible.
 tutorial_operators = _try_import("tutorial_operators")
 
 
