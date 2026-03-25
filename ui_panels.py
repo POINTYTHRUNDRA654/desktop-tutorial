@@ -155,7 +155,8 @@ def _draw_game_path_box(layout, context):
         else:
             row.label(text=f"{label}: (not configured)", icon='DOT')
         op = row.operator("fo4.set_fo4_sub_path", text="", icon='FILE_FOLDER')
-        op.slot = slot
+        if op is not None:
+            op.slot = slot
 
     if not ready:
         hint = box.column(align=True)

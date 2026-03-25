@@ -449,7 +449,16 @@ def register():
             bpy.utils.register_class(cls)
             print(f"tutorial_operators: Registered {cls.bl_idname}")
         except Exception as e:
-            print(f"tutorial_operators: Could not register {cls.__name__}: {e}")
+            # A previous installation may have already registered an older version
+            # of this class. Unregister the stale version and register ours.
+            try:
+                existing = getattr(bpy.types, cls.__name__, None)
+                if existing is not None:
+                    bpy.utils.unregister_class(existing)
+                bpy.utils.register_class(cls)
+                print(f"tutorial_operators: Re-registered {cls.bl_idname}")
+            except Exception as e2:
+                print(f"tutorial_operators: Could not register {cls.__name__}: {e2}")
 
 
 def unregister():
