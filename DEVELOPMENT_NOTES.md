@@ -19,12 +19,15 @@ clickable buttons, or the buttons are missing entirely.
 
 ### Root Cause
 
-`FO4_PT_MainPanel.draw()` in `ui_panels.py` calls four operators unconditionally. Those
-operators live in `tutorial_operators.py`. If that module fails to register for **any** reason,
-Blender prints the above errors on every single UI redraw (hundreds of times per second) and
-the buttons never appear.
+`FO4_PT_MainPanel.draw()` in `ui_panels.py` uses the four operators from
+`tutorial_operators.py`.  Each call is guarded with ``hasattr(bpy.types, 'ClassName')``
+so that a missing registration degrades gracefully to a static label; without the guard,
+Blender would print the above errors on every single UI redraw (hundreds of times per
+second) and the buttons would never appear.  **Do NOT remove those guards.**
 
-**Common reasons `tutorial_operators.register()` fails silently:**
+If `tutorial_operators.register()` fails, the `hasattr` guard falls back to labels
+and `_ensure_tutorial_operators()` in `register()` attempts a last-ditch re-registration.
+The most common reasons the operators fail to register:
 
 1. **Dual-install conflict** — The user has both `blender_org/blender_game_tools` AND
    `user_default/fallout4_tutorial_helper` installed. Both try to register
