@@ -189,9 +189,11 @@ modules = list(
             stylegan2_helpers,
             instantngp_helpers,
             imageto3d_helpers,
-            # tutorial_operators must be registered BEFORE operators.py so that
-            # the four welcome-panel operators are always available even if the
-            # larger operators.py bundle fails to load on a particular build.
+            # ── CRITICAL – DO NOT REMOVE OR REORDER THESE THREE LINES ──────────
+            # tutorial_operators MUST come before operators and ui_panels.
+            # Removing or reordering this entry is the #1 cause of the
+            # "no activation buttons" / rna_uiItemO: unknown operator bug.
+            # This bug has been fixed 10+ times. See DEVELOPMENT_NOTES.md.
             tutorial_operators,
             operators,
             ui_panels,
@@ -237,6 +239,82 @@ def _on_load_post(*args):
         print(f"Could not restore asset library paths: {e}")
 
 
+# ── Safety net for the 4 critical MainPanel tutorial operators ───────────────
+# These operators (fo4.start_tutorial, fo4.show_help, fo4.show_credits,
+# fo4.show_detailed_setup) are called from FO4_PT_MainPanel.draw() and MUST
+# be registered before any UI is drawn.  If tutorial_operators.register()
+# failed silently (e.g. due to a dual-install conflict or stale sys.modules
+# entry), we register them here as a last resort.
+#
+# THIS IS A RECURRING BUG — see DEVELOPMENT_NOTES.md for the full history.
+_TUTORIAL_OP_NAMES = {
+    "FO4_OT_ShowDetailedSetup",
+    "FO4_OT_StartTutorial",
+    "FO4_OT_ShowHelp",
+    "FO4_OT_ShowCredits",
+}
+
+
+def _ensure_tutorial_operators():
+    """Guarantee the 4 critical tutorial operators are registered.
+
+    Called at the END of register() after every module has had its chance.
+    If any of the operators are missing from bpy.types we attempt a direct
+    registration from the tutorial_operators module.  This handles the
+    dual-install conflict and stale-sys.modules scenarios that have caused
+    the 'no activation buttons' bug repeatedly.
+    """
+    mod = tutorial_operators
+    if mod is None:
+        # Last-ditch attempt: try to (re-)import the module right now.
+        mod = _try_import("tutorial_operators")
+        if mod is None:
+            print(
+                "⚠ _ensure_tutorial_operators: tutorial_operators module could not "
+                "be imported – safety net cannot run.  Check DEVELOPMENT_NOTES.md."
+            )
+            return
+
+    if not hasattr(mod, "classes"):
+        print(
+            "⚠ _ensure_tutorial_operators: tutorial_operators.classes is missing – "
+            "the module may be corrupted.  Check DEVELOPMENT_NOTES.md."
+        )
+        return
+
+    missing = [
+        cls for cls in mod.classes
+        if not hasattr(bpy.types, cls.__name__)
+    ]
+    if not missing:
+        return  # all good – nothing to do
+
+    print(
+        f"⚠ _ensure_tutorial_operators: {len(missing)} operator(s) missing after "
+        f"module registration – applying safety net.  "
+        f"See DEVELOPMENT_NOTES.md for the root-cause history."
+    )
+    for cls in missing:
+        try:
+            bpy.utils.register_class(cls)
+            print(f"  ✓ Safety net registered {cls.bl_idname}")
+        except Exception:
+            # A stale class from a dual-install may be blocking registration.
+            # Unregister the foreign class and try once more.
+            try:
+                existing = getattr(bpy.types, cls.__name__, None)
+                if existing is not None:
+                    bpy.utils.unregister_class(existing)
+                bpy.utils.register_class(cls)
+                print(f"  ✓ Safety net force-registered {cls.bl_idname}")
+            except Exception as e2:
+                print(
+                    f"  ✗ Safety net FAILED for {cls.bl_idname}: {e2}\n"
+                    f"    The main-panel buttons for this operator will not work.\n"
+                    f"    See DEVELOPMENT_NOTES.md – RECURRING BUG #1."
+                )
+
+
 def register():
     """Register all add-on classes and handlers"""
     # ── Step 1: register modules so Blender classes / preferences exist ──────
@@ -276,6 +354,11 @@ def register():
             import traceback
 
             traceback.print_exc()
+
+    # ── Safety net: guarantee tutorial operators are always registered ────────
+    # Must run AFTER the module loop so all normal registrations have happened.
+    # Fixes the recurring "no activation buttons" bug. See DEVELOPMENT_NOTES.md.
+    _ensure_tutorial_operators()
 
     # ── Step 2: restore persisted sys.path entries ───────────────────────────
     # Runs AFTER module registration so get_preferences() works.
