@@ -8,7 +8,7 @@
 
 schema_version = "1.0.0"
 
-id = "fallout4_tutorial_helper"
+id = "blender_game_tools"
 version = "5.0.0"
 name = "Fallout 4 Mod Assistant"
 tagline = "Professional Fallout 4 modding tools for Blender"

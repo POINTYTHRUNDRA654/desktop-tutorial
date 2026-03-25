@@ -242,7 +242,7 @@ class DesktopTutorialClient:
 
         # Locate the addon zip next to this file
         addon_dir = os.path.dirname(os.path.abspath(__file__))
-        pattern = os.path.join(addon_dir, "fallout4_tutorial_helper-v*.zip")
+        pattern = os.path.join(addon_dir, "blender_game_tools-v*.zip")
         matches = glob.glob(pattern)
 
         if not matches:

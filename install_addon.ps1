@@ -90,14 +90,14 @@ if ($blenderVer -ge [version]"5.0") {
     # Blender 5.x — Extension format, files at zip root
     $variant     = "blender5x"
     $isExtension = $true
-    $destDir     = Join-Path $blenderDir "extensions\user_default\fallout4_tutorial_helper"
+    $destDir     = Join-Path $blenderDir "extensions\user_default\blender_game_tools"
 } elseif ($blenderVer -ge [version]"4.2") {
     # Blender 4.2+ — Extension format, files at zip root
     $variant     = "blender42"
     $isExtension = $true
-    $destDir     = Join-Path $blenderDir "extensions\user_default\fallout4_tutorial_helper"
+    $destDir     = Join-Path $blenderDir "extensions\user_default\blender_game_tools"
 } elseif ($blenderVer -ge [version]"4.0") {
-    # Blender 4.0-4.1 — legacy add-on format, zip has fallout4_tutorial_helper/ subfolder
+    # Blender 4.0-4.1 — legacy add-on format, zip has blender_game_tools/ subfolder
     $variant     = "blender4x"
     $isExtension = $false
     $destDir     = Join-Path $blenderDir "scripts\addons"
@@ -109,7 +109,7 @@ if ($blenderVer -ge [version]"5.0") {
 }
 
 # Locate the built zip
-$zipFile = Get-ChildItem $RepoDir -Filter "fallout4_tutorial_helper-v*-$variant.zip" |
+$zipFile = Get-ChildItem $RepoDir -Filter "blender_game_tools-v*-$variant.zip" |
            Select-Object -First 1
 if (-not $zipFile) {
     throw "Zip not found for variant '$variant' in:`n  $RepoDir"
@@ -127,9 +127,9 @@ if ($isExtension) {
     Expand-Archive -Path $zipFile.FullName -DestinationPath $destDir -Force
 
 } else {
-    # Legacy add-on zips have a fallout4_tutorial_helper/ subfolder inside.
+    # Legacy add-on zips have a blender_game_tools/ subfolder inside.
     # Extract to the addons folder; the subfolder becomes the add-on module.
-    $addonDir = Join-Path $destDir "fallout4_tutorial_helper"
+    $addonDir = Join-Path $destDir "blender_game_tools"
     if (Test-Path $addonDir) { Remove-Item $addonDir -Recurse -Force }
     New-Item $destDir -ItemType Directory -Force | Out-Null
     Expand-Archive -Path $zipFile.FullName -DestinationPath $destDir -Force

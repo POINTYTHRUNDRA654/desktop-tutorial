@@ -3,12 +3,12 @@
 # Delegates all packaging to build_addon.py so that the zips produced here
 # are identical to those created by the GitHub Actions CI workflow:
 #
-#   fallout4_tutorial_helper-v{VER}-blender3x.zip   (Blender 3.6 LTS)
-#   fallout4_tutorial_helper-v{VER}-blender4x.zip   (Blender 4.0-4.1)
-#   fallout4_tutorial_helper-v{VER}-blender42.zip   (Blender 4.2+ Extension)
-#   fallout4_tutorial_helper-v{VER}-blender5x.zip   (Blender 5.x)
+#   blender_game_tools-v{VER}-blender3x.zip   (Blender 3.6 LTS)
+#   blender_game_tools-v{VER}-blender4x.zip   (Blender 4.0-4.1)
+#   blender_game_tools-v{VER}-blender42.zip   (Blender 4.2+ Extension)
+#   blender_game_tools-v{VER}-blender5x.zip   (Blender 5.x)
 #
-# Each zip contains a single inner folder named fallout4_tutorial_helper/
+# Each zip contains a single inner folder named blender_game_tools/
 # which is required for correct Blender installation and addon import.
 #
 # Usage:

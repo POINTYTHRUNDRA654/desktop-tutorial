@@ -6,12 +6,12 @@ Cross-platform build script for the Fallout 4 Tutorial Helper add-on.
 
 Produces one zip per supported Blender version range:
 
-  fallout4_tutorial_helper-v{ADDON_VER}-blender3x.zip   Blender 3.6 LTS
-  fallout4_tutorial_helper-v{ADDON_VER}-blender4x.zip   Blender 4.0–4.1
-  fallout4_tutorial_helper-v{ADDON_VER}-blender42.zip   Blender 4.2+ (Extensions)
-  fallout4_tutorial_helper-v{ADDON_VER}-blender5x.zip   Blender 5.x
+  blender_game_tools-v{ADDON_VER}-blender3x.zip   Blender 3.6 LTS
+  blender_game_tools-v{ADDON_VER}-blender4x.zip   Blender 4.0–4.1
+  blender_game_tools-v{ADDON_VER}-blender42.zip   Blender 4.2+ (Extensions)
+  blender_game_tools-v{ADDON_VER}-blender5x.zip   Blender 5.x
 
-Each zip contains a single folder  ``fallout4_tutorial_helper/``  that Blender
+Each zip contains a single folder  ``blender_game_tools/``  that Blender
 can install directly via Edit → Preferences → Add-ons → Install.
 
 The Blender 4.2+ zip additionally includes a ``blender_manifest.toml`` so it
@@ -38,7 +38,7 @@ from pathlib import Path
 # ---------------------------------------------------------------------------
 # Configuration
 # ---------------------------------------------------------------------------
-ADDON_FOLDER_NAME = "fallout4_tutorial_helper"
+ADDON_FOLDER_NAME = "blender_game_tools"
 
 # Files and directories to EXCLUDE from every zip
 EXCLUDE = {
@@ -136,7 +136,7 @@ def _make_manifest(addon_version: str, blender_min: tuple,
     lines = textwrap.dedent(f"""\
         schema_version = "1.0.0"
 
-        id = "fallout4_tutorial_helper"
+        id = "blender_game_tools"
         version = "{addon_version}"
         name = "Fallout 4 Mod Assistant"
         tagline = "Professional Fallout 4 modding tools for Blender"
@@ -165,7 +165,7 @@ def build_variant(root: Path, outdir: Path, addon_version: str,
                   variant_key: str, variant: dict) -> Path:
     """Build one zip for *variant_key* and return the zip path."""
     zip_name = (
-        f"fallout4_tutorial_helper-v{addon_version}-{variant_key}.zip"
+        f"blender_game_tools-v{addon_version}-{variant_key}.zip"
     )
     zip_path = outdir / zip_name
     zip_path.unlink(missing_ok=True)
@@ -175,7 +175,7 @@ def build_variant(root: Path, outdir: Path, addon_version: str,
 
     # Blender 4.2+ Extension format: files sit at the ROOT of the zip so
     # that blender_manifest.toml is found at the top level.  Legacy add-on
-    # format (3.x / 4.0-4.1): files live inside fallout4_tutorial_helper/.
+    # format (3.x / 4.0-4.1): files live inside blender_game_tools/.
     is_extension = include_manifest
 
     with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as zf:
@@ -189,7 +189,7 @@ def build_variant(root: Path, outdir: Path, addon_version: str,
             # zip root (__init__.py, operators.py, preferences.py, …) alongside
             # the generated blender_manifest.toml — exactly what Blender's
             # Get-Extensions → Install-from-Disk expects.
-            # Legacy add-on format: everything goes under fallout4_tutorial_helper/
+            # Legacy add-on format: everything goes under blender_game_tools/
             # so Blender's old add-on installer finds the module folder.
             arc_name = str(rel) if is_extension else f"{ADDON_FOLDER_NAME}/{rel}"
 
