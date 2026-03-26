@@ -147,6 +147,14 @@ asset_library = _try_import("asset_library")
 # even if operators.py fails to load on a particular Blender build.
 tutorial_operators = _try_import("tutorial_operators")
 
+# Minimal module containing the three setup / environment operators that are
+# referenced in FO4_PT_SetupPanel (ui_panels.py).  Registering them before
+# operators.py mirrors the tutorial_operators.py pattern and guarantees that
+# "Install Core Dependencies", "Environment Check", and "Restart Blender"
+# always appear as real clickable buttons, not "(loading...)" fallback labels.
+# See DEVELOPMENT_NOTES.md — *RECURRING BUG #1* — before removing this.
+setup_operators = _try_import("setup_operators")
+
 
 # core modules that are safe to import and register unconditionally.
 # a few of the optional/external helpers are only added lazily; any module
@@ -205,10 +213,15 @@ modules = list(
             stylegan2_helpers,
             instantngp_helpers,
             imageto3d_helpers,
-            # tutorial_operators must be registered BEFORE operators.py so that
-            # the four welcome-panel operators are always available even if the
-            # larger operators.py bundle fails to load on a particular build.
+            # ── CRITICAL: tutorial_operators and setup_operators MUST be here, BEFORE operators ──
+            # Removing or reordering these lines is the #1 cause of the
+            # "no activation buttons" bug. See DEVELOPMENT_NOTES.md.
             tutorial_operators,
+            # setup_operators registers the three Setup & Status panel buttons
+            # (Install Core Dependencies, Environment Check, Restart Blender)
+            # before operators.py so they always appear as real buttons even
+            # if the larger operators.py bundle fails to load on a particular build.
+            setup_operators,
             operators,
             ui_panels,
             post_processing_helpers,
@@ -275,6 +288,7 @@ def _ensure_tutorial_operators():
     )
     missing = [n for n in required_operators if not hasattr(bpy.types, n)]
     if not missing:
+        print("✓ Tutorial operators confirmed in bpy.types (tutorial panel buttons ready)")
         return  # All operators already registered — nothing to do.
 
     print(
@@ -310,6 +324,68 @@ def _ensure_tutorial_operators():
             # A stale class object may already occupy the type name (e.g. from
             # a dual-install or a previous load that left a dangling entry).
             # Unregister whatever is there and force-register the fresh class.
+            try:
+                existing = getattr(bpy.types, cls_name, None)
+                if existing is not None:
+                    bpy.utils.unregister_class(existing)
+                bpy.utils.register_class(cls)
+                print(f"  ✓ Registered {cls_name} (replaced stale entry)")
+            except Exception as e3:
+                print(f"  ⚠ Failed to register {cls_name} directly: {e3}")
+
+
+def _ensure_setup_operators():
+    """Last-resort registration of the 3 critical setup operators.
+
+    Called at the end of ``register()`` and inside ``_deferred_startup()``
+    to ensure the Setup & Status panel buttons are always present as real
+    clickable buttons, not "(loading...)" fallback labels.
+
+    Mirrors ``_ensure_tutorial_operators()`` — see DEVELOPMENT_NOTES.md
+    (*RECURRING BUG #1*) for full context.
+    Do NOT remove this function or its call at the end of ``register()``.
+    """
+    if setup_operators is None:
+        return
+
+    required_operators = (
+        "FO4_OT_InstallPythonDeps",
+        "FO4_OT_SelfTest",
+        "FO4_OT_ReloadAddon",
+    )
+    missing = [n for n in required_operators if not hasattr(bpy.types, n)]
+    if not missing:
+        print("✓ Setup operators confirmed in bpy.types (Setup panel buttons ready)")
+        return
+
+    print(
+        f"⚠ _ensure_setup_operators: {missing} not in bpy.types; "
+        "attempting re-registration…"
+    )
+    try:
+        setup_operators.unregister()
+    except Exception:
+        pass
+    try:
+        setup_operators.register()
+        still_missing = [n for n in required_operators if not hasattr(bpy.types, n)]
+        if not still_missing:
+            print("  ✓ setup_operators re-registered successfully")
+            return
+    except Exception as e:
+        print(f"  ⚠ Module re-registration failed: {e}")
+
+    # Fall back: register each missing class individually.
+    for cls_name in required_operators:
+        if hasattr(bpy.types, cls_name):
+            continue
+        cls = getattr(setup_operators, cls_name, None)
+        if cls is None:
+            continue
+        try:
+            bpy.utils.register_class(cls)
+            print(f"  ✓ Registered {cls_name} directly")
+        except Exception as e2:
             try:
                 existing = getattr(bpy.types, cls_name, None)
                 if existing is not None:
@@ -366,8 +442,7 @@ def register():
     # stale sys.modules, etc.) this attempts a direct re-registration.
     # See DEVELOPMENT_NOTES.md — RECURRING BUG #1 — before removing this.
     _ensure_tutorial_operators()
-
-    # ── Step 2: restore persisted sys.path entries ───────────────────────────
+    _ensure_setup_operators()
     # Runs AFTER module registration so get_preferences() works.
     # This ensures PyTorch and any other --target-installed packages are
     # importable every session without user intervention.
@@ -451,6 +526,16 @@ def register():
                             print(f"✓ UModel auto-downloaded: {msg}")
                         else:
                             print(f"UModel auto-download skipped: {msg}")
+                            # Mark as attempted so we don't retry every startup.
+                            # UModel requires manual download from gildor.org;
+                            # repeatedly trying on every Blender launch spams the
+                            # console.  The user can reset this flag via Preferences
+                            # if they want to retry after visiting the download page.
+                            # (DEVELOPMENT_NOTES.md — umodel_install_attempted fix)
+                            try:
+                                _prefs.umodel_install_attempted = True
+                            except AttributeError as flag_err:
+                                print(f"UModel: could not set umodel_install_attempted: {flag_err}")
         except Exception as e:
             print(f"UModel auto-download skipped: {e}")
 
@@ -465,6 +550,10 @@ def register():
             _ensure_tutorial_operators()
         except Exception as e:
             print(f"⚠ Deferred tutorial-operator check failed: {e}")
+        try:
+            _ensure_setup_operators()
+        except Exception as e:
+            print(f"⚠ Deferred setup-operator check failed: {e}")
 
         return None  # Do not reschedule
 
