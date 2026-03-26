@@ -449,7 +449,24 @@ def register():
             bpy.utils.register_class(cls)
             print(f"tutorial_operators: Registered {cls.bl_idname}")
         except Exception as e:
-            print(f"tutorial_operators: Could not register {cls.__name__}: {e}")
+            # A stale class object (from a previous load or dual-install) may
+            # already occupy this type name.  Unregister the old object first
+            # then register the fresh one so the UI always runs current code.
+            # This mirrors the pattern used in operators.py register().
+            try:
+                existing = getattr(bpy.types, cls.__name__, None)
+                if existing is not None:
+                    bpy.utils.unregister_class(existing)
+                bpy.utils.register_class(cls)
+                print(
+                    f"tutorial_operators: Registered {cls.bl_idname} "
+                    f"(replaced stale class)"
+                )
+            except Exception as e2:
+                print(
+                    f"tutorial_operators: ⚠ Failed to register "
+                    f"{cls.__name__}: {e2}"
+                )
 
 
 def unregister():
@@ -457,4 +474,19 @@ def unregister():
         try:
             bpy.utils.unregister_class(cls)
         except Exception as e:
-            print(f"tutorial_operators: Could not unregister {cls.__name__}: {e}")
+            # If the class object here is the reloaded (new) version but
+            # Blender still holds the old version, fall back to unregistering
+            # by type name so bpy.types is cleaned up regardless.
+            print(
+                f"tutorial_operators: Unregister by object failed for "
+                f"{cls.__name__}: {e}; trying by type name"
+            )
+            try:
+                existing = getattr(bpy.types, cls.__name__, None)
+                if existing is not None:
+                    bpy.utils.unregister_class(existing)
+            except Exception as e2:
+                print(
+                    f"tutorial_operators: Could not unregister "
+                    f"{cls.__name__}: {e2}"
+                )

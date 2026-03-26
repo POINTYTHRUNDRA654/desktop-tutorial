@@ -67,6 +67,23 @@ All 4 tests must pass. If the file is missing, restore it from git history. It m
 - A `classes` tuple containing all four
 - A `register()` and `unregister()` function
 
+The `register()` function **must** use the unregister-then-register pattern to handle stale
+classes left over from a previous load or dual-install (see operators.py for the same pattern):
+```python
+def register():
+    for cls in classes:
+        try:
+            bpy.utils.register_class(cls)
+        except Exception:
+            try:
+                existing = getattr(bpy.types, cls.__name__, None)
+                if existing is not None:
+                    bpy.utils.unregister_class(existing)
+                bpy.utils.register_class(cls)
+            except Exception as e2:
+                print(f"tutorial_operators: ⚠ Failed to register {cls.__name__}: {e2}")
+```
+
 #### Step 2 — Verify the import in `__init__.py`
 
 Find the line (currently ~132):
@@ -106,8 +123,12 @@ flooding the log. The guard is already present (lines ~235–263); do not remove
 
 After the `for module in modules` registration loop there must be a call to
 `_ensure_tutorial_operators()`. This function checks whether the 4 operators landed in
-`bpy.types` and, if not, registers them directly. It is a last-resort fallback for the
-dual-install / stale-sys.modules scenarios.
+`bpy.types` and, if not, registers them directly using the unregister-then-register
+pattern. It is a last-resort fallback for the dual-install / stale-sys.modules scenarios.
+
+Additionally, `_ensure_tutorial_operators()` is called AGAIN inside `_deferred_startup()`
+(2 seconds after startup) to catch cases where another extension (e.g. Fab, BAC) displaces
+our classes after initial registration.
 
 Search for `_ensure_tutorial_operators` in `__init__.py`. If it is missing, add it
 (see the implementation already present in the file).
@@ -133,6 +154,9 @@ tutorial operators. If any test in that group fails, the code is still broken.
   error lines per second while the addon is still loading.
 - **Do NOT merge a PR that changes `__init__.py` without verifying `tutorial_operators` is
   still in the modules list.**
+- **Do NOT simplify `tutorial_operators.register()` back to a plain `bpy.utils.register_class(cls)`
+  with no fallback** — the unregister-then-register pattern is required to handle the
+  stale-class scenario that occurs on addon reload in Blender 5.0 extensions.
 
 ---
 
