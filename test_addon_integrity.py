@@ -630,20 +630,21 @@ class TestTutorialOperatorsModule(unittest.TestCase):
             )
 
     def test_hasattr_guards_present_in_ui_panels(self):
-        """FO4_PT_MainPanel must guard each tutorial operator call with
-        ``hasattr(bpy.types, 'ClassName')`` before calling
-        ``layout.operator("fo4.xxx")``.
+        """FO4_PT_MainPanel must guard each tutorial operator call with either:
 
-        This is RECURRING BUG #1 – see DEVELOPMENT_NOTES.md.  Without the
-        guard, a registration failure causes ``rna_uiItemO: unknown operator``
-        to be printed on every single UI redraw (hundreds of times per second).
-        The guard degrades gracefully to a label when the operator is not yet
-        registered.  Do NOT remove these guards.
+          (a) an inline ``hasattr(bpy.types, 'ClassName')`` check, OR
+          (b) a call to the ``_op_or_label(layout, 'ClassName', ...)`` helper,
+              which performs the same hasattr check internally.
+
+        Both forms degrade gracefully to a static label when the operator is
+        not yet registered, preventing 'rna_uiItemO: unknown operator' console
+        spam on every UI redraw.
+
+        This is RECURRING BUG #1 – see DEVELOPMENT_NOTES.md.
+        Do NOT remove these guards.
         """
         source = _read("ui_panels.py")
         # Map Blender type-name → bl_idname expected in the operator() call.
-        # Use a regex so the check tolerates minor whitespace / quote style
-        # variations (e.g. double quotes, extra spaces around the comma).
         guard_checks = {
             "FO4_OT_ShowDetailedSetup": "fo4.show_detailed_setup",
             "FO4_OT_StartTutorial": "fo4.start_tutorial",
@@ -652,15 +653,24 @@ class TestTutorialOperatorsModule(unittest.TestCase):
         }
         failures = []
         for type_name, idname in guard_checks.items():
-            pattern = re.compile(
+            # Form (a): inline hasattr(bpy.types, 'FO4_OT_Xxx')
+            inline_pattern = re.compile(
                 r"hasattr\s*\(\s*bpy\.types\s*,\s*['\"]"
                 + re.escape(type_name)
                 + r"['\"]\s*\)"
             )
-            if not pattern.search(source):
+            # Form (b): _op_or_label(layout, 'FO4_OT_Xxx', ...)
+            # The helper calls hasattr(bpy.types, cls_name) internally —
+            # both forms provide the same runtime protection.
+            helper_pattern = re.compile(
+                r"_op_or_label\s*\([^,]+,\s*['\"]"
+                + re.escape(type_name)
+                + r"['\"]\s*,"
+            )
+            if not inline_pattern.search(source) and not helper_pattern.search(source):
                 failures.append(
-                    f"  {idname}: missing hasattr(bpy.types, '{type_name}') "
-                    f"guard in ui_panels.py"
+                    f"  {idname}: missing hasattr guard or _op_or_label() call "
+                    f"for '{type_name}' in ui_panels.py"
                 )
         if failures:
             self.fail(
