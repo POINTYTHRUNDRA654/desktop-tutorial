@@ -162,6 +162,15 @@ tutorial operators. If any test in that group fails, the code is still broken.
   (added in the same PR as this note) so that panel classes are always up-to-date on reload.
   Without this, the old stale `FO4_PT_MainPanel` class stays registered, its draw() method
   may be from an older code version, and the "Fallout 4" N panel tab may behave incorrectly.
+- **Do NOT delete `setup_operators.py`** — it contains the three Setup & Status panel
+  operators (`FO4_OT_InstallPythonDeps`, `FO4_OT_SelfTest`, `FO4_OT_ReloadAddon`) that
+  are registered before operators.py so they appear as real clickable buttons even if
+  the larger operators.py bundle fails. See Step 3 / Step 5 above for the same reasoning
+  that applies to `tutorial_operators.py`.
+- **Do NOT add `FO4_OT_InstallPythonDeps`, `FO4_OT_SelfTest`, or `FO4_OT_ReloadAddon`
+  back to the `classes` tuple in `operators.py`** — they are registered by `setup_operators.py`
+  first; registering them again from `operators.py` would trigger the stale-class error and
+  force the unregister-then-register fallback unnecessarily.
 
 ---
 

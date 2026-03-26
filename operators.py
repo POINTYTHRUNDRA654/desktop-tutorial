@@ -13466,10 +13466,10 @@ classes = (
     FO4_OT_InstallNiftools,
     FO4_OT_EnableAddon,
     FO4_OT_ConfigureFallout4Settings,
-    FO4_OT_InstallPythonDeps,
+    # FO4_OT_InstallPythonDeps — moved to setup_operators.py (registered before this module)
     FO4_OT_CheckToolPaths,
     FO4_OT_RunAllInstallers,
-    FO4_OT_SelfTest,
+    # FO4_OT_SelfTest — moved to setup_operators.py (registered before this module)
     FO4_OT_UpscaleTexture,
     FO4_OT_UpscaleObjectTextures,
     FO4_OT_UpscaleKREALegacy,
@@ -13599,7 +13599,7 @@ classes = (
     # Operation log
     FO4_OT_ClearOperationLog,
     # Add-on self-update / reload
-    FO4_OT_ReloadAddon,
+    # FO4_OT_ReloadAddon — moved to setup_operators.py (registered before this module)
     # Mod folder import/export
     FO4_OT_ImportModFolder,
     FO4_OT_ExportModFolder,
