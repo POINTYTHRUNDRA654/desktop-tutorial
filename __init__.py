@@ -246,24 +246,41 @@ def _on_load_post(*args):
     .blend file is opened.  By copying the globally-saved addon-preference values
     back into every scene here, users don't have to re-enter their game-asset paths
     every time they start Blender or open a fresh file.
+
+    FIX for Blender 5.0: Wrapped in try/except to handle '_RestrictData' object
+    access restrictions gracefully.
     """
     try:
-        if preferences:
-            for scene in bpy.data.scenes:
-                preferences.restore_scene_props_from_prefs(scene)
+        if preferences and hasattr(bpy.data, 'scenes'):
+            scenes = getattr(bpy.data, 'scenes', None)
+            if scenes:
+                for scene in scenes:
+                    try:
+                        preferences.restore_scene_props_from_prefs(scene)
+                    except Exception:
+                        # Skip individual scenes that fail; don't block the rest
+                        pass
     except Exception as e:
-        print(f"Could not restore scene properties from preferences: {e}")
+        # Silently fail rather than spam console; this is non-critical
+        pass
 
     # Restore asset-library paths from their own JSON config file,
     # then immediately re-populate the asset list for every scene so users
     # never have to click "Scan Asset Library" again after opening a project.
     try:
-        if asset_library:
-            for scene in bpy.data.scenes:
-                asset_library.load_asset_paths(scene)
-                asset_library.auto_scan_for_scene(scene)
+        if asset_library and hasattr(bpy.data, 'scenes'):
+            scenes = getattr(bpy.data, 'scenes', None)
+            if scenes:
+                for scene in scenes:
+                    try:
+                        asset_library.load_asset_paths(scene)
+                        asset_library.auto_scan_for_scene(scene)
+                    except Exception:
+                        # Skip individual scenes that fail; don't block the rest
+                        pass
     except Exception as e:
-        print(f"Could not restore asset library paths: {e}")
+        # Silently fail rather than spam console; this is non-critical
+        pass
 
 
 def _ensure_tutorial_operators():

@@ -295,6 +295,9 @@ def _pref_path_update(self, context):  # noqa: ARG001
     save_prefs_deferred()
 
 
+# Global flag to prevent multiple timers from stacking up (fixes Blender 5.0 lag)
+_prefs_save_pending = False
+
 def save_prefs_deferred() -> None:
     """Schedule an explicit save of Blender user preferences via a timer.
 
@@ -306,8 +309,18 @@ def save_prefs_deferred() -> None:
     no area/region is active (e.g. inside a load_post handler or a timer
     fired with no focused panel).  Blender 3.2+ uses ``temp_override``; older
     builds fall back to a context-dict override.
+
+    CRITICAL FIX (Blender 5.0): Only one timer is registered at a time to prevent
+    the preferences panel from thrashing and lagging as timers stack up.
     """
+    global _prefs_save_pending
+
+    # If a save is already scheduled, don't queue another one
+    if _prefs_save_pending:
+        return
+
     def _do_save():
+        global _prefs_save_pending
         try:
             wm = bpy.context.window_manager
             wins = getattr(wm, 'windows', ())
@@ -321,12 +334,15 @@ def save_prefs_deferred() -> None:
             else:
                 # No window available yet – attempt bare call as last resort
                 bpy.ops.wm.save_userpref()
-            print("✓ Add-on preferences saved to disk")
         except Exception as e:
-            print(f"Could not auto-save preferences: {e}")
+            # Silently ignore errors; don't spam console on every preference change
+            pass
+        finally:
+            _prefs_save_pending = False
         return None  # do not reschedule
 
     try:
+        _prefs_save_pending = True
         bpy.app.timers.register(_do_save, first_interval=0.5)
     except Exception as e:
         print(f"Could not schedule preference save: {e}")

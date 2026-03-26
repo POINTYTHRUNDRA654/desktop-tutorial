@@ -42,6 +42,7 @@ class FO4_OT_InstallPythonDeps(Operator):
     def execute(self, context):
         import threading
         import importlib
+        import sys as _sys
 
         optional = self.optional
 
@@ -56,6 +57,7 @@ class FO4_OT_InstallPythonDeps(Operator):
 
             level = 'INFO' if ok else 'ERROR'
             print("PYTHON DEPS", msg)
+            _sys.stdout.flush()
 
             def _notify():
                 try:
@@ -66,11 +68,19 @@ class FO4_OT_InstallPythonDeps(Operator):
                 except Exception:
                     pass
             try:
-                bpy.app.timers.register(_notify, first_interval=0.0)
-            except Exception:
-                pass
+                if bpy.app.timers:
+                    bpy.app.timers.register(_notify, first_interval=0.1)
+            except Exception as e:
+                print(f"Failed to register notification timer: {e}")
 
-        threading.Thread(target=_run, daemon=True).start()
+        # Start the installation in a background thread
+        try:
+            thread = threading.Thread(target=_run, daemon=True)
+            thread.start()
+        except Exception as e:
+            print(f"Failed to start installation thread: {e}")
+            return {'CANCELLED'}
+
         self.report(
             {'INFO'},
             "Python dependency installation started in the background."
