@@ -33,12 +33,21 @@ try {
 # ── 1. Pull latest code from GitHub ──────────────────────────────────────────
 Write-Host "[1/4] Pulling latest code from GitHub..." -ForegroundColor Yellow
 Set-Location $RepoDir
-$pullOut = & git pull --rebase origin main 2>&1
-if ($LASTEXITCODE -ne 0) {
-    Write-Warning "git pull failed — building from current local code instead."
-    Write-Warning ($pullOut -join "`n")
+
+# Use the currently checked-out branch so GitHub Desktop users always get
+# exactly what they pulled — not a hardcoded branch that may be out of date.
+$currentBranch = & git rev-parse --abbrev-ref HEAD 2>&1
+if ($LASTEXITCODE -ne 0 -or $currentBranch -eq "HEAD") {
+    Write-Warning "Could not determine current branch — building from local code as-is."
 } else {
-    Write-Host ($pullOut -join "`n")
+    Write-Host "  Branch: $currentBranch"
+    $pullOut = & git pull --rebase origin $currentBranch 2>&1
+    if ($LASTEXITCODE -ne 0) {
+        Write-Warning "git pull failed — building from current local code instead."
+        Write-Warning ($pullOut -join "`n")
+    } else {
+        Write-Host ($pullOut -join "`n")
+    }
 }
 Write-Host ""
 
@@ -137,8 +146,10 @@ if ($isExtension) {
 
 Write-Host "============================================================" -ForegroundColor Green
 Write-Host " Done!  Addon installed for Blender $blenderVer"             -ForegroundColor Green
-Write-Host " Restart Blender (or reload scripts) to activate the update."-ForegroundColor Green
 Write-Host "============================================================" -ForegroundColor Green
+Write-Host ""
+Write-Host " *** IMPORTANT: You MUST fully close and reopen Blender ***" -ForegroundColor Yellow
+Write-Host " Blender will NOT load the new files until it is restarted." -ForegroundColor Yellow
 Write-Host ""
 
 } catch {
