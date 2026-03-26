@@ -38,9 +38,25 @@ def _try_import(name: str):
 
     Returns the module object on success or None on failure.  A warning is
     printed to the console so testers know which component raised an exception.
+
+    When the module is already present in ``sys.modules`` (e.g. after an
+    extension reload via F8 or enable/disable cycle) we call
+    ``importlib.reload()`` so that the class objects used by Blender's type
+    registry are always up-to-date.  Without the reload, Blender may hold a
+    reference to the *old* class object and fail to find the operators,
+    causing the "no active buttons" symptom.
+    Do NOT remove this reload — it is the permanent root-cause fix for the
+    extension-reload / stale-sys.modules scenario (DEVELOPMENT_NOTES.md).
     """
     full = f"{__package__}.{name}"
     try:
+        if full in sys.modules:
+            try:
+                return importlib.reload(sys.modules[full])
+            except Exception:
+                # Reload failed (e.g. circular import during extension reload).
+                # Fall through to a fresh import_module() attempt.
+                sys.modules.pop(full, None)
         return importlib.import_module(full)
     except Exception as exc:  # pragma: no cover - safety belt
         print(f"⚠ Failed to import {name} ({full}): {exc}")
@@ -237,6 +253,63 @@ def _on_load_post(*args):
         print(f"Could not restore asset library paths: {e}")
 
 
+def _ensure_tutorial_operators():
+    """Last-resort registration of the 4 critical tutorial operators.
+
+    Called at the end of ``register()`` to ensure the welcome/tutorial buttons
+    are always present in ``FO4_PT_MainPanel`` even if
+    ``tutorial_operators.register()`` failed earlier (e.g. due to a dual-install
+    conflict or a stale ``sys.modules`` entry).
+
+    See DEVELOPMENT_NOTES.md — *RECURRING BUG #1* — for full context.
+    Do NOT remove this function or its call at the end of ``register()``.
+    """
+    if tutorial_operators is None:
+        return
+
+    required_operators = (
+        "FO4_OT_ShowDetailedSetup",
+        "FO4_OT_StartTutorial",
+        "FO4_OT_ShowHelp",
+        "FO4_OT_ShowCredits",
+    )
+    missing = [n for n in required_operators if not hasattr(bpy.types, n)]
+    if not missing:
+        return  # All operators already registered — nothing to do.
+
+    print(
+        f"⚠ _ensure_tutorial_operators: {missing} not in bpy.types; "
+        "attempting re-registration…"
+    )
+    # Try re-registering the whole module first so class state is consistent.
+    try:
+        tutorial_operators.unregister()
+    except Exception:
+        pass
+    try:
+        tutorial_operators.register()
+        # If that succeeded, we're done.
+        still_missing = [n for n in required_operators if not hasattr(bpy.types, n)]
+        if not still_missing:
+            print("  ✓ tutorial_operators re-registered successfully")
+            return
+    except Exception as e:
+        print(f"  ⚠ Module re-registration failed: {e}")
+
+    # Fall back: register each missing class individually.
+    for cls_name in required_operators:
+        if hasattr(bpy.types, cls_name):
+            continue
+        cls = getattr(tutorial_operators, cls_name, None)
+        if cls is None:
+            continue
+        try:
+            bpy.utils.register_class(cls)
+            print(f"  ✓ Registered {cls_name} directly")
+        except Exception as e2:
+            print(f"  ⚠ Failed to register {cls_name} directly: {e2}")
+
+
 def register():
     """Register all add-on classes and handlers"""
     # ── Step 1: register modules so Blender classes / preferences exist ──────
@@ -276,6 +349,13 @@ def register():
             import traceback
 
             traceback.print_exc()
+
+    # ── Safety net: ensure the 4 critical tutorial operators are registered ──
+    # Must run AFTER the modules loop so tutorial_operators.register() has had
+    # its chance.  If the operators are still absent (dual-install conflict,
+    # stale sys.modules, etc.) this attempts a direct re-registration.
+    # See DEVELOPMENT_NOTES.md — RECURRING BUG #1 — before removing this.
+    _ensure_tutorial_operators()
 
     # ── Step 2: restore persisted sys.path entries ───────────────────────────
     # Runs AFTER module registration so get_preferences() works.
