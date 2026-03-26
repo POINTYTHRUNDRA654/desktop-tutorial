@@ -68,13 +68,21 @@ class TestSyntax(unittest.TestCase):
             self.fail(f"SyntaxError in {filename}: {exc}")
 
     def test_all_files_parse(self):
+        """Parse each .py file for syntax errors. Prints progress for debugging."""
         errors = []
-        for f in _py_files():
-            source = _read(f)
+        files = _py_files()
+        for i, f in enumerate(files, 1):
+            # Print progress to help debug hangs under debugger
+            print(f"  [{i}/{len(files)}] Parsing: {f}...", flush=True)
             try:
+                source = _read(f)
                 ast.parse(source, filename=f)
             except SyntaxError as exc:
                 errors.append(f"{f}: {exc}")
+            except Exception as exc:
+                # Catch any other exceptions (e.g., file encoding issues)
+                errors.append(f"{f}: {type(exc).__name__}: {exc}")
+
         if errors:
             self.fail(
                 f"{len(errors)} file(s) have syntax errors:\n"

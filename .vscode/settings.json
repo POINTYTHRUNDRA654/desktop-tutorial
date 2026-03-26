@@ -28,7 +28,6 @@
   // Use the committed hooks in .githooks/ (large-file safety check, etc.).
   // The "Setup git hooks" task activates these automatically on folder open.
   "git.hooks.enabled": true,
-
   // ── Files: hide large binaries from the explorer & Source Control panel ──
   // Anything matching .gitignore is already hidden from Source Control, but
   // explicitly listing the most dangerous types here also removes them from
@@ -58,7 +57,6 @@
     "**/*.blend1": true,
     "**/*.blend2": true
   },
-
   // ── Search: skip the same heavy paths ────────────────────────────────────
   "search.exclude": {
     "**/__pycache__": true,
@@ -66,23 +64,25 @@
     "build_temp/**": true,
     "dist/**": true
   },
-
   // ── Python ───────────────────────────────────────────────────────────────
   "python.analysis.extraPaths": [],
   "python.languageServer": "Pylance",
   "[python]": {
     "editor.formatOnSave": false,
-    "editor.rulers": [120]
+    "editor.rulers": [
+      120
+    ]
   },
-
   // ── Editor ───────────────────────────────────────────────────────────────
   "editor.trimAutoWhitespace": true,
   "files.trimTrailingWhitespace": true,
   "files.insertFinalNewline": true,
-
   // ── File associations ─────────────────────────────────────────────────────
   "files.associations": {
     "*.toml": "toml",
     "*.bat": "bat"
+  },
+  "files.readonlyInclude": {
+    "{**/.c4z/.extsrcs/*.PROTSYM.cbl,**/.c4z/.extsrcs/*.PROTSYM.listing}": true
   }
 }
