@@ -1,25 +1,25 @@
-# blender_manifest.toml — Blender Extension manifest for direct source-folder
-# installation (e.g. after `git clone` / `git pull` from main).
+# blender_manifest.toml — Blender 5 Extension manifest
 #
-# Keep the version here in sync with the "version" tuple in __init__.py.
-# The CI build (build_addon.py) generates its own copy with the correct
-# version and blender_version_min for each zip variant; this file is used
-# only when installing straight from the repository folder in Blender 5+.
+# This add-on targets Blender 5.x exclusively.
+# Once the Blender 5 version is complete and tested, builds for
+# earlier Blender versions will be generated separately.
+#
+# Keep version in sync with the "version" tuple in __init__.py.
 
 schema_version = "1.0.0"
 
-id = "blender_game_tools"
-version = "5.0.0"
-name = "Fallout 4 Mod Assistant"
-tagline = "Professional Fallout 4 modding tools for Blender"
-maintainer = "Tutorial Team"
-type = "add-on"
+id          = "blender_game_tools"
+version     = "5.1.0"
+name        = "Fallout 4 Mod Assistant"
+tagline     = "Professional Fallout 4 modding tools for Blender 5"
+maintainer  = "Tutorial Team"
+type        = "add-on"
 
 blender_version_min = "5.0.0"
 
-license = ["SPDX:GPL-3.0-or-later"]
+license  = ["SPDX:GPL-3.0-or-later"]
 category = "Import-Export"
 
 [permissions]
 network = "Download tools and AI models on demand"
-files = "Read / write FO4 data folder and export NIF files"
+files   = "Read / write FO4 data folder and export NIF files"
