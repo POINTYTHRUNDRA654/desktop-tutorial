@@ -1,214 +1,275 @@
 # Development Notes — Fallout 4 Mod Assistant
-# READ THIS FIRST every session before touching any code.
 
 ---
 
-## ⚡ Current Status — Where We Are Right Now
+## 🟢 WORKING BASELINE — Restore to this if anything breaks
 
-| # | Piece | Status | Notes |
-|---|-------|--------|-------|
-| 1 | **Core + Mesh Tools** | ✅ Built · ⏳ Awaiting user test | See Piece 1 section below |
-| 2 | NIF v25 Export (PyNifly) | 🔲 Not started — build after Piece 1 passes | |
-| 3 | Textures / DDS (NVTT / texconv) | 🔲 Not started | |
-| 4 | Animation / Rigging | 🔲 Not started | |
-| 5 | Advanced tools (AI, Quest, NPC…) | 🔲 Not started | |
+**Branch:** `copilot/add-activation-buttons-n-panel-again`
+**Commit:** `b26029915816396e9efcc203a4199ee66c4cdf23`
+**Zip on disk:** `D:\SteamLibrary\Blender-add-on.-copilot-add-activation-buttons-n-panel-again.zip`
 
-**The user will test Piece 1 in Blender 5 first.
-Do NOT start Piece 2 until the user confirms Piece 1 works.**
+This is the last confirmed-working version. All N-panel buttons appear, all 22 tests pass.
 
----
+### How to restore from GitHub
 
-## 🎯 Project Identity
+```
+git fetch origin copilot/add-activation-buttons-n-panel-again
+git checkout origin/copilot/add-activation-buttons-n-panel-again -- __init__.py ui_panels.py operators.py setup_operators.py tutorial_operators.py DEVELOPMENT_NOTES.md
+```
 
-| Item | Value |
+### What makes this version work — the 6 non-negotiable rules
+
+1. **`tutorial_operators.py`** — defines all 4 tutorial classes
+   (`FO4_OT_ShowDetailedSetup`, `FO4_OT_StartTutorial`, `FO4_OT_ShowHelp`, `FO4_OT_ShowCredits`).
+   Its `register()` uses unregister-then-register to survive stale types on reload.
+
+2. **`setup_operators.py`** — defines all 3 setup classes
+   (`FO4_OT_InstallPythonDeps`, `FO4_OT_SelfTest`, `FO4_OT_ReloadAddon`).
+   Same unregister-then-register pattern. **These MUST NOT exist as class bodies in `operators.py`.**
+
+3. **`__init__.py` import order** — `_try_import()` loads with `importlib.reload()` for stale modules.
+   Module list order: `tutorial_operators` → `setup_operators` → `operators` → `ui_panels`.
+   **NEVER reverse or drop these.**
+
+4. **`__init__.py` safety nets** — `_ensure_tutorial_operators()` and `_ensure_setup_operators()`
+   are called at the end of `register()` AND inside `_deferred_startup()` (2s timer).
+   **Do NOT remove these functions.**
+
+5. **`ui_panels.py`** — every call to the 7 activation operators is wrapped in
+   `if hasattr(bpy.types, 'FO4_OT_...')` guards. Removing them floods the console.
+
+6. **`operators.py`** — does NOT contain class bodies for `FO4_OT_InstallPythonDeps`,
+   `FO4_OT_SelfTest`, or `FO4_OT_ReloadAddon`. Duplicate bodies displace `setup_operators.py`
+   registrations via Blender's RNAMeta metaclass at definition time.
+
+### Key file sizes (working baseline)
+
+| File | Lines |
 |------|-------|
-| **What it is** | Professional Blender add-on for modding Fallout 4 |
-| **Blender target** | **5.x only** (Extension format, `blender_manifest.toml`) |
-| **NIF format** | Version 25 (Fallout 4 / Fallout 4 Next-Gen) |
-| **NIF exporter** | **PyNifly v25** by BadDog / BadDogSkyrim |
-| **Key game limits** | BSTriShape: max 65,535 vertices, max 65,535 triangles (16-bit index) |
-| **Collision naming** | `UCX_<meshname>` — convex hull, triangulated, parented to source |
-| **Addon id** | `blender_game_tools` (in `blender_manifest.toml`) |
-| **N-panel tab** | "Fallout 4" |
+| `__init__.py` | 725 |
+| `ui_panels.py` | 4572 |
+| `operators.py` | 14136 |
+| `setup_operators.py` | 284 |
+| `tutorial_operators.py` | 492 |
 
 ---
 
-## 📦 Piece 1 — Core + Mesh Tools
+## ⚠️ RECURRING BUG #1 — "No activation buttons" / `rna_uiItemO: unknown operator`
 
-### What was rewritten (completely)
+**This is the single most common issue. It has been fixed 10+ times. Read this before touching anything.**
 
-| File | Lines | What changed |
-|------|-------|--------------|
-| `__init__.py` | 118 | Full rewrite — clean entry point, simple `_import()`, flat `_MODULES` list |
-| `operators.py` | 322 | Full rewrite — 5 mesh operators only; thin wrappers over `mesh_helpers.py` |
-| `ui_panels.py` | 255 | Full rewrite — 3 panels only; Blender 5 compatible |
-| `blender_manifest.toml` | 18 | `blender_version_min = "5.0.0"`, `version = "5.1.0"` |
-| `DEVELOPMENT_NOTES.md` | this file | Complete rewrite — rebuild roadmap replaces old bug notes |
+### Symptoms
 
-### What was NOT changed
-
-These files are correct and working — do not modify them unless a specific
-bug is found:
-
-| File | Purpose |
-|------|---------|
-| `mesh_helpers.py` | `MeshHelpers.optimize_mesh()`, `validate_mesh()`, `add_collision_mesh()` |
-| `preferences.py` | `FO4AddonPreferences`, `get_preferences()` |
-| `tutorial_operators.py` | `FO4_OT_StartTutorial`, `FO4_OT_ShowHelp`, `FO4_OT_ShowCredits`, `FO4_OT_ShowDetailedSetup` |
-| `setup_operators.py` | `FO4_OT_InstallPythonDeps`, `FO4_OT_SelfTest`, `FO4_OT_ReloadAddon` |
-| All `*_helpers.py` | Contain real business logic — not registered directly by `__init__.py` in Piece 1 |
-
-### Operators in Piece 1 (`operators.py`)
-
-| Class | bl_idname | Function |
-|-------|-----------|----------|
-| `FO4_OT_CreateBaseMesh` | `fo4.create_base_mesh` | New cube with applied scale + UV map |
-| `FO4_OT_OptimizeMesh` | `fo4.optimize_mesh` | Apply transforms, UV-safe doubles removal, normals, triangulate |
-| `FO4_OT_ValidateMesh` | `fo4.validate_mesh` | Check NIF v25 BSTriShape limits (65k verts/tris, UV, non-manifold, scale) |
-| `FO4_OT_GenerateCollision` | `fo4.generate_collision` | UCX_ convex-hull collision mesh (dialog: type + simplify ratio) |
-| `FO4_OT_SetMeshType` | `fo4.set_mesh_type` | Dialog to set NIF classification (STATIC / SKINNED / ARMOR / LOD / etc.) |
-
-### Per-object properties registered in Piece 1
-
-| Property | Type | Purpose |
-|----------|------|---------|
-| `bpy.types.Object.fo4_collision_type` | EnumProperty | Havok collision category |
-| `bpy.types.Object.fo4_mesh_type` | EnumProperty | NIF export classification |
-
-### Panels in Piece 1 (`ui_panels.py`)
-
-| Class | bl_idname | What it shows |
-|-------|-----------|---------------|
-| `FO4_PT_MainPanel` | `FO4_PT_main_panel` | Addon header + Getting Started buttons |
-| `FO4_PT_MeshPanel` | `FO4_PT_mesh_panel` | Mesh info, Prep/Validate/Collision/Type operators, NIF v25 limits box |
-| `FO4_PT_SetupPanel` | `FO4_PT_setup_panel` | Install Core Deps, Environment Check, Restart/Reload |
-
----
-
-## 🧱 Architecture Rules — Follow Every Time
-
-### 1. Registration order (CRITICAL — never change)
-
+Blender console shows (repeatedly, every UI redraw):
 ```
-preferences
-  → tutorial_operators   (MUST be before ui_panels)
-  → setup_operators      (MUST be before ui_panels)
-  → operators
-  → ui_panels
+rna_uiItemO: unknown operator 'fo4.start_tutorial'
+rna_uiItemO: unknown operator 'fo4.show_help'
+rna_uiItemO: unknown operator 'fo4.show_credits'
+rna_uiItemO: unknown operator 'fo4.show_detailed_setup'
 ```
 
-`tutorial_operators` and `setup_operators` must be **first** so their
-operator classes exist in `bpy.types` before any panel `draw()` runs.
-Changing this order re-introduces the "unknown operator" console spam.
+The main panel shows "(Tutorial loading...)" / "(Setup Guide loading...)" labels instead of
+clickable buttons, or the buttons are missing entirely.
 
-### 2. `operators.py` stays thin
+### Root Cause
 
-Each operator's `execute()` calls a `*_helpers.py` function — it does not
-contain business logic itself. This keeps the file manageable and testable.
+`FO4_PT_MainPanel.draw()` in `ui_panels.py` uses the four operators from
+`tutorial_operators.py`.  Each call is guarded with ``hasattr(bpy.types, 'ClassName')``
+so that a missing registration degrades gracefully to a static label; without the guard,
+Blender would print the above errors on every single UI redraw (hundreds of times per
+second) and the buttons would never appear.  **Do NOT remove those guards.**
 
-### 3. `ui_panels.py` is layout only
+If `tutorial_operators.register()` fails, the `hasattr` guard falls back to labels
+and `_ensure_tutorial_operators()` in `register()` attempts a last-ditch re-registration.
+The most common reasons the operators fail to register:
 
-No business logic. No imports of helper classes. Just `bpy.types.Panel`
-subclasses with `draw()` methods that call `_op_or_label()` for buttons.
+1. **Dual-install conflict** — The user has both `blender_org/blender_game_tools` AND
+   `user_default/fallout4_tutorial_helper` installed. Both try to register
+   `FO4_OT_StartTutorial` etc. The second registration raises an exception; the inner
+   fallback also fails if Blender's type ownership check blocks unregistering a class that
+   "belongs" to a different extension.
 
-### 4. Every operator button uses a `hasattr` guard
+2. **Stale `sys.modules` entry** — An old or partial import from a previous Blender session
+   is cached. `importlib.import_module()` returns the stale/broken module object; `register()`
+   is called on it but does nothing or raises.
+   **Fixed (permanently):** `_try_import()` in `__init__.py` now calls `importlib.reload()`
+   when the module is already in `sys.modules`, ensuring fresh class objects are always used.
+   Do NOT remove this reload — it is the root-cause fix for the extension-reload scenario.
 
+3. **`tutorial_operators` accidentally removed from `modules` list in `__init__.py`** — Every
+   time an agent edits `__init__.py` to add a new module without reading this file first, they
+   risk reordering or dropping `tutorial_operators` from the list. It **must** appear in the
+   list **before** `operators` and `ui_panels`.
+
+4. **`tutorial_operators` accidentally removed from the `_try_import` calls at the top of
+   `__init__.py`** — The module must be imported at line ~132 AND be in the `modules` list.
+
+### The Fix (do ALL of these, in order)
+
+#### Step 1 — Verify `tutorial_operators.py` exists and is correct
+
+```
+ls tutorial_operators.py          # must exist
+python3 -m unittest test_addon_integrity.TestTutorialOperatorsModule -v
+```
+
+All 4 tests must pass. If the file is missing, restore it from git history. It must define:
+- `FO4_OT_ShowDetailedSetup` with `bl_idname = "fo4.show_detailed_setup"`
+- `FO4_OT_StartTutorial`     with `bl_idname = "fo4.start_tutorial"`
+- `FO4_OT_ShowHelp`          with `bl_idname = "fo4.show_help"`
+- `FO4_OT_ShowCredits`       with `bl_idname = "fo4.show_credits"`
+- A `classes` tuple containing all four
+- A `register()` and `unregister()` function
+
+The `register()` function **must** use the unregister-then-register pattern to handle stale
+classes left over from a previous load or dual-install (see operators.py for the same pattern):
 ```python
-# ✓ Correct — degrades gracefully if operator not yet registered
-_op_or_label(col, 'FO4_OT_SomeOp', 'fo4.some_op', 'Label', 'ICON')
-
-# ✗ Wrong — floods console with rna_uiItemO errors on every redraw
-col.operator("fo4.some_op", text="Label")
+def register():
+    for cls in classes:
+        try:
+            bpy.utils.register_class(cls)
+        except Exception:
+            try:
+                existing = getattr(bpy.types, cls.__name__, None)
+                if existing is not None:
+                    bpy.utils.unregister_class(existing)
+                bpy.utils.register_class(cls)
+            except Exception as e2:
+                print(f"tutorial_operators: ⚠ Failed to register {cls.__name__}: {e2}")
 ```
 
-`_op_or_label()` is defined at the top of `ui_panels.py`.
+#### Step 2 — Verify the import in `__init__.py`
 
-### 5. `_import()` in `__init__.py` reloads stale sys.modules
+Find the line (currently ~132):
+```python
+tutorial_operators = _try_import("tutorial_operators")
+```
+If it is missing, add it after the other `_try_import` calls near the top.
 
-The `_import()` function calls `importlib.reload()` when a module is
-already in `sys.modules`. **Do not remove this reload** — it is the fix
-for the stale-class / "no active buttons" symptom on F8 or addon disable→enable.
+#### Step 3 — Verify the position in the `modules` list in `__init__.py`
 
-### 6. Blender 5 API only
+The `modules = list(filter(..., [ ... ]))` block **must** contain:
+```python
+            # ── CRITICAL: tutorial_operators MUST be here, BEFORE operators ──
+            # Removing or reordering this line is the #1 cause of the
+            # "no activation buttons" bug. See DEVELOPMENT_NOTES.md.
+            tutorial_operators,
+            operators,
+            ui_panels,
+```
 
-- Do **not** use `use_auto_smooth` (removed in 4.1 — already try/except-guarded in `export_helpers.py`)
-- Do **not** use `vertex_colors` (replaced by `color_attributes` in 4.0+)
-- Do **not** add Blender 3.x / 4.x compatibility branches to new code
+If `tutorial_operators` is missing, add it. If it is AFTER `operators`, move it before.
+
+#### Step 4 — Verify `hasattr` guards in `ui_panels.py`
+
+`FO4_PT_MainPanel.draw()` must guard every call to these 4 operators with `hasattr`:
+```python
+if hasattr(bpy.types, 'FO4_OT_StartTutorial'):
+    box.operator("fo4.start_tutorial", ...)
+else:
+    box.label(text="(Tutorial loading...)", ...)
+```
+
+Blender logs the `rna_uiItemO` error on every redraw (many times per second),
+flooding the log. The guard is already present (lines ~235–263); do not remove it.
+
+#### Step 5 — Verify the safety-net in `__init__.py register()`
+
+After the `for module in modules` registration loop there must be a call to
+`_ensure_tutorial_operators()`. This function checks whether the 4 operators landed in
+`bpy.types` and, if not, registers them directly using the unregister-then-register
+pattern. It is a last-resort fallback for the dual-install / stale-sys.modules scenarios.
+
+Additionally, `_ensure_tutorial_operators()` is called AGAIN inside `_deferred_startup()`
+(2 seconds after startup) to catch cases where another extension (e.g. Fab, BAC) displaces
+our classes after initial registration.
+
+Search for `_ensure_tutorial_operators` in `__init__.py`. If it is missing, add it
+(see the implementation already present in the file).
+
+#### Step 6 — Run the full test suite
+
+```
+python3 -m unittest test_addon_integrity -v
+```
+
+All tests must pass. The `TestTutorialOperatorsModule` group specifically guards the
+tutorial operators. If any test in that group fails, the code is still broken.
+
+### What NOT to Do
+
+- **Do NOT delete `tutorial_operators.py`** — even if you think the operators can live in
+  `operators.py`. They were deliberately extracted to avoid a 14 000-line file failing to
+  load blocking these 4 critical buttons.
+- **Do NOT move `tutorial_operators` after `operators` in the modules list** — `ui_panels`
+  draws buttons on the very first frame; if the operators are not registered before
+  `ui_panels.register()` runs, the first draw will fail.
+- **Do NOT remove the `hasattr` guards from `ui_panels.py`** — they prevent hundreds of
+  error lines per second while the addon is still loading.
+- **Do NOT merge a PR that changes `__init__.py` without verifying `tutorial_operators` is
+  still in the modules list.**
+- **Do NOT simplify `tutorial_operators.register()` back to a plain `bpy.utils.register_class(cls)`
+  with no fallback** — the unregister-then-register pattern is required to handle the
+  stale-class scenario that occurs on addon reload in Blender 5.0 extensions.
+- **Do NOT simplify `ui_panels.register()` back to a plain `bpy.utils.register_class(cls)`
+  with no fallback** — `ui_panels.register()` also uses the unregister-then-register pattern
+  (added in the same PR as this note) so that panel classes are always up-to-date on reload.
+  Without this, the old stale `FO4_PT_MainPanel` class stays registered, its draw() method
+  may be from an older code version, and the "Fallout 4" N panel tab may behave incorrectly.
+- **Do NOT delete `setup_operators.py`** — it contains the three Setup & Status panel
+  operators (`FO4_OT_InstallPythonDeps`, `FO4_OT_SelfTest`, `FO4_OT_ReloadAddon`) that
+  are registered before operators.py so they appear as real clickable buttons even if
+  the larger operators.py bundle fails. See Step 3 / Step 5 above for the same reasoning
+  that applies to `tutorial_operators.py`.
+- **Do NOT add `FO4_OT_InstallPythonDeps`, `FO4_OT_SelfTest`, or `FO4_OT_ReloadAddon`
+  back to the `classes` tuple in `operators.py`** — they are registered by `setup_operators.py`
+  first; registering them again from `operators.py` would trigger the stale-class error and
+  force the unregister-then-register fallback unnecessarily.
+- **CRITICAL — Do NOT redefine `FO4_OT_InstallPythonDeps`, `FO4_OT_SelfTest`, or
+  `FO4_OT_ReloadAddon` as class bodies anywhere in `operators.py`** — this is the permanent
+  root cause that caused the buttons to vanish on every module reload. Blender's `RNAMeta`
+  metaclass processes every `bpy.types.Operator` subclass at definition time. When
+  `operators.py` is reloaded via `importlib.reload()` (which happens on every addon
+  enable/disable cycle or F8 script reload), it creates a **new, unregistered** class object
+  with the same `bl_idname`. This new object silently displaces the correctly-registered class
+  from `setup_operators.py` in Blender's internal type map, making `hasattr(bpy.types,
+  'FO4_OT_InstallPythonDeps')` return `False` and causing the N-panel buttons to disappear.
+  The only correct fix is to have the class body in **exactly one module** (`setup_operators.py`).
+  The stubs in `operators.py` must remain as plain comments only — never as class definitions.
 
 ---
 
-## ✅ Testing Checklist — Piece 1
+## Extension ID / Folder Name Mismatch
 
-Run this in Blender 5 after installing the add-on:
+`blender_manifest.toml` uses `id = "blender_game_tools"`. The user installs the addon into
+a folder named `fallout4_tutorial_helper`. Blender 5.0 uses the **folder name** as the
+package identifier (`bl_ext.user_default.fallout4_tutorial_helper`), not the manifest id.
 
-- [ ] "Fallout 4" tab appears in the 3D Viewport N-panel (press N)
-- [ ] `FO4_PT_MainPanel` shows addon name + version + Getting Started buttons (all clickable, not "loading…")
-- [ ] `FO4_PT_MeshPanel` (expand it) — select a mesh: info box shows vert/poly/UV/tri count
-- [ ] `New FO4 Base Mesh` button — creates cube named "FO4_Mesh" with UV map
-- [ ] `Prep Mesh for FO4` — select a mesh, click: applies transforms, triangulates, cleans normals
-- [ ] `Validate (NIF v25 Limits)` — reports pass or lists specific issues
-- [ ] `Generate UCX_ Collision` — dialog shows inferred type + simplify slider; creates `UCX_<name>`
-- [ ] `Set FO4 Mesh Type` — dialog opens; sets `fo4_mesh_type` on object; dropdown shows in panel
-- [ ] `FO4_PT_SetupPanel` (expand it) — Install/Check/Reload buttons all clickable
-- [ ] Blender **console** shows `[FO4] ✓ <module>` for each module at startup
-- [ ] **No** `rna_uiItemO: unknown operator` errors in the console
+If the user also has `blender_org/blender_game_tools` installed, both extensions will
+define the same Blender type names (e.g. `FO4_OT_StartTutorial`). The dual-registration
+conflict is handled by the safety net and the fallback in `tutorial_operators.register()`,
+but the cleanest fix is to have only one copy installed at a time.
 
 ---
 
-## 🔜 Piece 2 — NIF v25 Export (build after Piece 1 is confirmed working)
+## UModel Auto-Download — `umodel_install_attempted` Flag
 
-### Operators to add to `operators.py`
+UModel cannot be auto-downloaded (no reliable public URL as of Blender 5.0).
+The `umodel_install_attempted` flag in preferences **must** be set to `True` after a
+**failed** download attempt, not only after a successful one.  Without this, the deferred
+startup tries to download UModel on *every* Blender launch, spamming the console with
+network timeout / 404 errors.
 
-| Class | bl_idname | What it does |
-|-------|-----------|--------------|
-| `FO4_OT_ExportMesh` | `fo4.export_mesh` | Export active object as `.nif` via PyNifly v25 |
-| `FO4_OT_ExportAll` | `fo4.export_all` | Export all visible FO4-tagged meshes |
-| `FO4_OT_ValidateBeforeExport` | `fo4.validate_before_export` | Full pre-export check (mesh + UV + scale + collision) |
-| `FO4_OT_CheckPyNifly` | `fo4.check_pynifly` | Detect PyNifly v25 install and print status |
-
-### Panel to add to `ui_panels.py`
-
-```python
-class FO4_PT_ExportPanel(_FO4Panel):
-    bl_idname    = "FO4_PT_export_panel"
-    bl_label     = "Export to Fallout 4"
-    bl_parent_id = "FO4_PT_main_panel"
-    bl_options   = {'DEFAULT_CLOSED'}
-```
-
-### Key PyNifly detection
-
-```python
-# PyNifly v25 registers this operator when installed:
-bpy.ops.export_scene.pynifly   # for NIF export
-# Detection:
-available = hasattr(bpy.ops.export_scene, "pynifly")
-```
-
-### Key export workflow
-
-1. Validate mesh (vert count, UV, non-manifold, scale)
-2. Call `bpy.ops.export_scene.pynifly(filepath=path, game="FO4")`
-3. If PyNifly not installed: export FBX as fallback + instructions
-
-### Scene properties to register in Piece 2
-
-```python
-bpy.types.Scene.fo4_export_path   # StringProperty, subtype='DIR_PATH'
-bpy.types.Scene.fo4_game_version  # EnumProperty: FO4 / FO4NG / FO76
-```
+The fix is in `__init__.py _deferred_startup()` — after a failed `download_latest()` call,
+`_prefs.umodel_install_attempted = True` is set so subsequent startups skip the attempt.
+The user can reset this flag by toggling *Auto-install tools* in preferences if they want
+to retry after manually visiting https://www.gildor.org/en/projects/umodel.
 
 ---
 
-## 📋 How to Start a New Session
+## How to Add a New Module Without Breaking Things
 
-1. **Read this file first** — understand current status before touching any code.
-2. Check the roadmap table at the top — find the first 🔲 piece.
-3. Read that piece's section in this file for the exact plan.
-4. Check with the user: has the previous piece been tested and confirmed?
-5. If confirmed, build the next piece.
-6. After building, update this file:
-   - Change the piece status from 🔲 to `✅ Built · ⏳ Awaiting user test`
-   - Fill in the "What was rewritten" and "What was NOT changed" sections
-   - Add the testing checklist for that piece
-7. Use `report_progress` to commit and push.
+1. Add `new_module = _try_import("new_module")` near the top of `__init__.py`.
+2. Add `new_module,` to the `modules` list. Keep `tutorial_operators` **before** `operators`.
+3. Run `python3 -m unittest test_addon_integrity -v` — all tests must pass.
+4. Do NOT reorder existing entries in the modules list.
