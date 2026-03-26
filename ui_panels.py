@@ -4549,8 +4549,20 @@ def register():
     for cls in classes:
         try:
             bpy.utils.register_class(cls)
-        except Exception as e:
-            print(f"⚠ Failed to register {cls.__name__}: {e}")
+        except Exception:
+            # A stale class object (from a previous load or dual-install) may
+            # already occupy this type name.  Unregister the old object first
+            # then register the fresh one so the UI always runs current code.
+            # This mirrors the pattern used in tutorial_operators.py and
+            # operators.py register() — do NOT simplify back to a plain
+            # bpy.utils.register_class() with no fallback (see DEVELOPMENT_NOTES.md).
+            try:
+                existing = getattr(bpy.types, cls.__name__, None)
+                if existing is not None:
+                    bpy.utils.unregister_class(existing)
+                bpy.utils.register_class(cls)
+            except Exception as e2:
+                print(f"⚠ Failed to register {cls.__name__}: {e2}")
 
 def unregister():
     for cls in reversed(classes):

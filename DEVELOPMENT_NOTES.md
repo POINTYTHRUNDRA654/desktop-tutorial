@@ -157,6 +157,11 @@ tutorial operators. If any test in that group fails, the code is still broken.
 - **Do NOT simplify `tutorial_operators.register()` back to a plain `bpy.utils.register_class(cls)`
   with no fallback** — the unregister-then-register pattern is required to handle the
   stale-class scenario that occurs on addon reload in Blender 5.0 extensions.
+- **Do NOT simplify `ui_panels.register()` back to a plain `bpy.utils.register_class(cls)`
+  with no fallback** — `ui_panels.register()` also uses the unregister-then-register pattern
+  (added in the same PR as this note) so that panel classes are always up-to-date on reload.
+  Without this, the old stale `FO4_PT_MainPanel` class stays registered, its draw() method
+  may be from an older code version, and the "Fallout 4" N panel tab may behave incorrectly.
 
 ---
 
@@ -170,6 +175,21 @@ If the user also has `blender_org/blender_game_tools` installed, both extensions
 define the same Blender type names (e.g. `FO4_OT_StartTutorial`). The dual-registration
 conflict is handled by the safety net and the fallback in `tutorial_operators.register()`,
 but the cleanest fix is to have only one copy installed at a time.
+
+---
+
+## UModel Auto-Download — `umodel_install_attempted` Flag
+
+UModel cannot be auto-downloaded (no reliable public URL as of Blender 5.0).
+The `umodel_install_attempted` flag in preferences **must** be set to `True` after a
+**failed** download attempt, not only after a successful one.  Without this, the deferred
+startup tries to download UModel on *every* Blender launch, spamming the console with
+network timeout / 404 errors.
+
+The fix is in `__init__.py _deferred_startup()` — after a failed `download_latest()` call,
+`_prefs.umodel_install_attempted = True` is set so subsequent startups skip the attempt.
+The user can reset this flag by toggling *Auto-install tools* in preferences if they want
+to retry after manually visiting https://www.gildor.org/en/projects/umodel.
 
 ---
 

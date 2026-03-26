@@ -275,6 +275,7 @@ def _ensure_tutorial_operators():
     )
     missing = [n for n in required_operators if not hasattr(bpy.types, n)]
     if not missing:
+        print("✓ Tutorial operators confirmed in bpy.types (activation buttons ready)")
         return  # All operators already registered — nothing to do.
 
     print(
@@ -451,6 +452,16 @@ def register():
                             print(f"✓ UModel auto-downloaded: {msg}")
                         else:
                             print(f"UModel auto-download skipped: {msg}")
+                            # Mark as attempted so we don't retry every startup.
+                            # UModel requires manual download from gildor.org;
+                            # repeatedly trying on every Blender launch spams the
+                            # console.  The user can reset this flag via Preferences
+                            # if they want to retry after visiting the download page.
+                            # (DEVELOPMENT_NOTES.md — umodel_install_attempted fix)
+                            try:
+                                _prefs.umodel_install_attempted = True
+                            except AttributeError as flag_err:
+                                print(f"UModel: could not set umodel_install_attempted: {flag_err}")
         except Exception as e:
             print(f"UModel auto-download skipped: {e}")
 
