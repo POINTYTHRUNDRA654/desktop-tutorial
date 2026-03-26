@@ -22,18 +22,64 @@ import importlib
 _legacy_conflict_cache = None  # None = not yet checked
 
 
+def _is_running_as_legacy():
+    """Return True when this addon is loaded as the old 'fallout4_tutorial_helper'
+    package (i.e. NOT as the new 'blender_game_tools' extension).
+
+    Used to decide which side of a dual-install conflict we are on:
+    - blender_game_tools side → operators ARE registered, just warn the user.
+    - fallout4_tutorial_helper side → operators may NOT be registered, suppress draws.
+    """
+    own_pkg = __package__ or ""
+    return "fallout4_tutorial_helper" in own_pkg
+
+
 def _check_legacy_conflict():
-    """Return True if the deprecated fallout4_tutorial_helper is also loaded.
+    """Return True when a dual-install conflict exists.
+
+    - If WE are the new 'blender_game_tools' extension: True when the
+      deprecated 'fallout4_tutorial_helper' addon is also loaded.
+    - If WE are the old 'fallout4_tutorial_helper' addon: True when the
+      new 'blender_game_tools' extension is also loaded.
 
     Checked once on first panel draw (cached afterwards) so sys.modules
     is complete and the lookup never runs more than once.
     """
     global _legacy_conflict_cache
     if _legacy_conflict_cache is None:
-        _legacy_conflict_cache = any(
-            "fallout4_tutorial_helper" in k for k in sys.modules
-        )
+        if _is_running_as_legacy():
+            # We ARE the old addon — check whether the new one is also present.
+            _legacy_conflict_cache = any(
+                "blender_game_tools" in k for k in sys.modules
+            )
+        else:
+            # We ARE the new addon — check whether the old one is also present.
+            _legacy_conflict_cache = any(
+                "fallout4_tutorial_helper" in k for k in sys.modules
+            )
     return _legacy_conflict_cache
+
+
+class _FO4SubPanel(Panel):
+    """Base class for every FO4 sub-panel.
+
+    Adds a ``poll()`` that hides the panel entirely when this addon copy is
+    running as the deprecated 'fallout4_tutorial_helper' package alongside
+    'blender_game_tools'.  In that state the operators registered by the new
+    extension are not available under our package's prefix, so attempting to
+    draw any operator button would flood the console with
+    ``rna_uiItemO: unknown operator`` errors on every redraw.
+
+    The main panel (FO4_PT_MainPanel) intentionally does NOT inherit from
+    this class so it can still display the conflict warning message.
+    """
+
+    @classmethod
+    def poll(cls, context):
+        # Hide sub-panels when we are the legacy addon AND the new one is loaded.
+        if _is_running_as_legacy() and _check_legacy_conflict():
+            return False
+        return True
 
 
 def _safe_import(name):
@@ -207,19 +253,31 @@ class FO4_PT_MainPanel(Panel):
         scene = context.scene
 
         # ── Dual-install conflict warning (RECURRING BUG #1) ─────────────────
-        # If the deprecated 'fallout4_tutorial_helper' addon is still enabled
-        # alongside this 'blender_game_tools' extension, its unguarded
-        # ui_panels.py floods the console with "rna_uiItemO: unknown operator"
-        # errors on every redraw.  Show a prominent red box so users can act.
+        # Two scenarios:
+        # A) We ARE the old 'fallout4_tutorial_helper' running alongside the
+        #    new 'blender_game_tools' extension.  Our operators are not
+        #    registered so we must NOT draw any operator buttons — return early
+        #    after showing a "please remove me" message.
+        # B) We ARE the new 'blender_game_tools' extension and the old addon
+        #    is still installed.  Our operators ARE registered so we continue
+        #    rendering normally, but we show a prominent warning.
         if _check_legacy_conflict():
             warn = layout.box()
             warn.alert = True
-            warn.label(text="⚠ OLD ADDON CONFLICT DETECTED", icon='ERROR')
-            warn.label(text="'fallout4_tutorial_helper' is still enabled.")
-            warn.label(text="It causes 'unknown operator' console spam.")
-            warn.label(text="Fix: Edit → Preferences → Add-ons/Extensions")
-            warn.label(text="→ find 'fallout4_tutorial_helper' → Remove it")
-            layout.separator()
+            if _is_running_as_legacy():
+                warn.label(text="⚠ PLEASE REMOVE THIS OLD ADDON", icon='ERROR')
+                warn.label(text="'blender_game_tools' extension is already installed.")
+                warn.label(text="This copy ('fallout4_tutorial_helper') is outdated.")
+                warn.label(text="Fix: Edit → Preferences → Add-ons/Extensions")
+                warn.label(text="→ find 'fallout4_tutorial_helper' → Disable & Remove")
+                return  # Do NOT draw operator buttons — they are unregistered.
+            else:
+                warn.label(text="⚠ OLD ADDON CONFLICT DETECTED", icon='ERROR')
+                warn.label(text="'fallout4_tutorial_helper' is still enabled.")
+                warn.label(text="It causes 'unknown operator' console spam.")
+                warn.label(text="Fix: Edit → Preferences → Add-ons/Extensions")
+                warn.label(text="→ find 'fallout4_tutorial_helper' → Remove it")
+                layout.separator()
 
         # ── Version compatibility banner ─────────────────────────────────────
         # Show users exactly what their Blender version supports so there are
@@ -337,7 +395,7 @@ class FO4_PT_MainPanel(Panel):
             for notif in scene.fo4_notifications[-3:]:  # Show last 3
                 notif_box.label(text=notif.message, icon='DOT')
 
-class FO4_PT_MeshPanel(Panel):
+class FO4_PT_MeshPanel(_FO4SubPanel):
     """Mesh creation helpers panel"""
     bl_label = "Mesh Helpers"
     bl_idname = "FO4_PT_mesh_panel"
@@ -712,7 +770,7 @@ class FO4_PT_MeshPanel(Panel):
             row.enabled = has_mesh
             row.operator("fo4.export_mesh", text="Export Mesh (.nif)", icon='EXPORT')
 
-class FO4_PT_TexturePanel(Panel):
+class FO4_PT_TexturePanel(_FO4SubPanel):
     """Texture installation helpers panel"""
     bl_label = "Texture Helpers"
     bl_idname = "FO4_PT_texture_panel"
@@ -783,7 +841,7 @@ class FO4_PT_TexturePanel(Panel):
             krea_box.label(text="Engine: PIL fallback (install Real-ESRGAN above for best quality)", icon='INFO')
         krea_box.operator("fo4.upscale_krea_legacy", text="Upscale Texture", icon='FULLSCREEN_ENTER')
 
-class FO4_PT_ImageToMeshPanel(Panel):
+class FO4_PT_ImageToMeshPanel(_FO4SubPanel):
     """Image to Mesh helpers panel"""
     bl_label = "Image to Mesh"
     bl_idname = "FO4_PT_image_to_mesh_panel"
@@ -954,7 +1012,7 @@ class FO4_PT_ImageToMeshPanel(Panel):
         info_box.label(text="• Requires: PIL/Pillow & NumPy")
         info_box.label(text="• See README for install instructions")
 
-class FO4_PT_AIGenerationPanel(Panel):
+class FO4_PT_AIGenerationPanel(_FO4SubPanel):
     """AI-powered mesh generation panel (Hunyuan3D-2)"""
     bl_label = "AI Generation (Optional)"
     bl_idname = "FO4_PT_ai_generation_panel"
@@ -1148,7 +1206,7 @@ class FO4_PT_AIGenerationPanel(Panel):
         eco_box.operator("fo4.show_strategic_recommendations", text="Strategic Recommendations", icon='LIGHT')
 
 
-class FO4_PT_AnimationPanel(Panel):
+class FO4_PT_AnimationPanel(_FO4SubPanel):
     """Animation helpers panel"""
     bl_label = "Animation Helpers"
     bl_idname = "FO4_PT_animation_panel"
@@ -1248,7 +1306,7 @@ class FO4_PT_AnimationPanel(Panel):
         hint.label(text="Pipeline:  Blender rig → FBX export → FBXImporter → Havok Content Tools → .hkx", icon='INFO')
         hint.label(text="OR:  PyNifly v25 exports .hkx directly — no FBX step needed!", icon='CHECKMARK')
 
-class FO4_PT_RigNetPanel(Panel):
+class FO4_PT_RigNetPanel(_FO4SubPanel):
     """RigNet auto-rigging panel"""
     bl_label = "Auto-Rigging (RigNet)"
     bl_idname = "FO4_PT_rignet_panel"
@@ -1348,7 +1406,7 @@ class FO4_PT_RigNetPanel(Panel):
             info_box.label(text="OR gh repo clone libigl/")
             info_box.label(text="  libigl-python-bindings")
 
-class FO4_PT_NVTTPanel(Panel):
+class FO4_PT_NVTTPanel(_FO4SubPanel):
     """NVIDIA Texture Tools panel"""
     bl_label = "Texture Conversion (NVTT)"
     bl_idname = "FO4_PT_nvtt_panel"
@@ -1418,7 +1476,7 @@ class FO4_PT_NVTTPanel(Panel):
             info_box.label(text="NVTT (nvcompress) or texconv")
 
 
-class FO4_PT_AdvisorPanel(Panel):
+class FO4_PT_AdvisorPanel(_FO4SubPanel):
     """AI/Advisor panel for export readiness."""
     bl_label = "Advisor"
     bl_idname = "FO4_PT_advisor_panel"
@@ -1504,7 +1562,7 @@ class FO4_PT_AdvisorPanel(Panel):
         tools.operator("fo4.check_kb_tools", text="Check KB Tools", icon='INFO')
 
 
-class FO4_PT_ToolsLinks(Panel):
+class FO4_PT_ToolsLinks(_FO4SubPanel):
     """Quick links to external tools"""
     bl_label = "External Tools"
     bl_idname = "FO4_PT_tools_links"
@@ -1768,7 +1826,7 @@ class FO4_PT_ToolsLinks(Panel):
         )
 
 
-class FO4_PT_GameAssetsPanel(Panel):
+class FO4_PT_GameAssetsPanel(_FO4SubPanel):
     """Import and convert game assets from Unity, Unreal, and Fallout 4"""
     bl_label = "Game Asset Import"
     bl_idname = "FO4_PT_game_assets_panel"
@@ -1903,7 +1961,7 @@ class FO4_PT_GameAssetsPanel(Panel):
         help_col.label(text="4. Click 'Convert to Fallout 4', then Export as NIF", icon='DOT')
 
 
-class FO4_PT_AssetLibraryPanel(Panel):
+class FO4_PT_AssetLibraryPanel(_FO4SubPanel):
     """Browse all meshes, textures, and materials from a folder or .blend library"""
     bl_label = "Asset Library"
     bl_idname = "FO4_PT_asset_library_panel"
@@ -2023,7 +2081,7 @@ class FO4_PT_AssetLibraryPanel(Panel):
         col.label(text="4. Click an item, then 'Import Selected'.", icon='DOT')
 
 
-class FO4_PT_ExportPanel(Panel):
+class FO4_PT_ExportPanel(_FO4SubPanel):
     """Export panel for Fallout 4 – NIF/FBX output with full FO4 settings"""
     bl_label = "Export to Fallout 4"
     bl_idname = "FO4_PT_export_panel"
@@ -2272,7 +2330,7 @@ class FO4_PT_ExportPanel(Panel):
         mod_row2.operator("fo4.export_mod_folder", text="Export Mod Folder", icon='EXPORT')
 
 
-class FO4_PT_BatchProcessingPanel(Panel):
+class FO4_PT_BatchProcessingPanel(_FO4SubPanel):
     """Batch processing panel for multiple objects"""
     bl_label = "Batch Processing"
     bl_idname = "FO4_PT_batch_processing_panel"
@@ -2333,7 +2391,7 @@ class FO4_PT_BatchProcessingPanel(Panel):
         tips_box.label(text="• Processing is sequential")
 
 
-class FO4_PT_PresetsPanel(Panel):
+class FO4_PT_PresetsPanel(_FO4SubPanel):
     """Smart presets panel for quick object creation"""
     bl_label = "Smart Presets"
     bl_idname = "FO4_PT_presets_panel"
@@ -2374,7 +2432,7 @@ class FO4_PT_PresetsPanel(Panel):
         info_box.label(text="• Ready to customize and re-export")
 
 
-class FO4_PT_AutomationQuickPanel(Panel):
+class FO4_PT_AutomationQuickPanel(_FO4SubPanel):
     """Automation and quick tools panel"""
     bl_label = "Automation & Quick Tools"
     bl_idname = "FO4_PT_automation_quick_panel"
@@ -2439,7 +2497,7 @@ class FO4_PT_AutomationQuickPanel(Panel):
 
 
 
-class FO4_PT_Havok2FBXPanel(Panel):
+class FO4_PT_Havok2FBXPanel(_FO4SubPanel):
     """Havok2FBX configuration and animation export settings."""
     bl_label = "Havok2FBX"
     bl_idname = "FO4_PT_havok2fbx_panel"
@@ -2525,7 +2583,7 @@ class FO4_PT_Havok2FBXPanel(Panel):
         )
 
 
-class FO4_PT_VegetationPanel(Panel):
+class FO4_PT_VegetationPanel(_FO4SubPanel):
     """Vegetation and landscaping panel"""
     bl_label = "Vegetation & Landscaping"
     bl_idname = "FO4_PT_vegetation_panel"
@@ -2661,7 +2719,7 @@ class FO4_PT_VegetationPanel(Panel):
         tips_box.label(text="6. Open in Creation Kit as Static/Grass record")
 
 
-class FO4_PT_QuestPanel(Panel):
+class FO4_PT_QuestPanel(_FO4SubPanel):
     """Quest creation panel"""
     bl_label = "Quest Creation"
     bl_idname = "FO4_PT_quest_panel"
@@ -2694,7 +2752,7 @@ class FO4_PT_QuestPanel(Panel):
         info_box.label(text="4. Export for Creation Kit")
 
 
-class FO4_PT_NPCPanel(Panel):
+class FO4_PT_NPCPanel(_FO4SubPanel):
     """NPC and creature creation panel"""
     bl_label = "NPCs & Creatures"
     bl_idname = "FO4_PT_npc_panel"
@@ -2726,7 +2784,7 @@ class FO4_PT_NPCPanel(Panel):
         tips_box.label(text="• Export as FBX for import")
 
 
-class FO4_PT_WorldBuildingPanel(Panel):
+class FO4_PT_WorldBuildingPanel(_FO4SubPanel):
     """World building and cells panel"""
     bl_label = "World Building"
     bl_idname = "FO4_PT_world_building_panel"
@@ -2770,7 +2828,7 @@ class FO4_PT_WorldBuildingPanel(Panel):
         info_box.label(text="• Create navmesh last")
 
 
-class FO4_PT_ItemCreationPanel(Panel):
+class FO4_PT_ItemCreationPanel(_FO4SubPanel):
     """Item creation panel"""
     bl_label = "Item Creation"
     bl_idname = "FO4_PT_item_creation_panel"
@@ -2819,7 +2877,7 @@ class FO4_PT_ItemCreationPanel(Panel):
         info_box.label(text="5. Export as NIF (via PyNifly v25)")
 
 
-class FO4_PT_ArmorClothingPanel(Panel):
+class FO4_PT_ArmorClothingPanel(_FO4SubPanel):
     """Armor and clothing creation panel — free-tools workflow (Blender + Outfit Studio)"""
     bl_label      = "Armor & Clothing"
     bl_idname     = "FO4_PT_armor_clothing_panel"
@@ -3035,7 +3093,7 @@ class FO4_PT_ArmorClothingPanel(Panel):
         info_box.label(text="• Track usage statistics")
 
 
-class FO4_PT_AutomationMacrosPanel(Panel):
+class FO4_PT_AutomationMacrosPanel(_FO4SubPanel):
     """Automation and macro system panel"""
     bl_label = "Automation & Macros"
     bl_idname = "FO4_PT_automation_macros_panel"
@@ -3104,7 +3162,7 @@ class FO4_PT_AutomationMacrosPanel(Panel):
         info_box.label(text="• Boost productivity 10x")
 
 
-class FO4_PT_PostProcessingPanel(Panel):
+class FO4_PT_PostProcessingPanel(_FO4SubPanel):
     """Fallout 4 post-processing compositor preview and ImageSpace export"""
     bl_label = "Post-Processing (FO4)"
     bl_idname = "FO4_PT_post_processing_panel"
@@ -3203,7 +3261,7 @@ class FO4_PT_PostProcessingPanel(Panel):
         sub.label(text="4. Export JSON → enter values in CK IMGS record")
 
 
-class FO4_PT_MaterialBrowserPanel(Panel):
+class FO4_PT_MaterialBrowserPanel(_FO4SubPanel):
     """FO4 material preset browser – apply pre-built surface materials"""
     bl_label = "Material Browser (FO4)"
     bl_idname = "FO4_PT_material_browser_panel"
@@ -3282,7 +3340,7 @@ class FO4_PT_MaterialBrowserPanel(Panel):
         sub.label(text="5. Convert textures to DDS in NVTT panel")
 
 
-class FO4_PT_SceneDiagnosticsPanel(Panel):
+class FO4_PT_SceneDiagnosticsPanel(_FO4SubPanel):
     """Comprehensive FO4 scene health / export-readiness dashboard"""
     bl_label = "Scene Diagnostics"
     bl_idname = "FO4_PT_scene_diagnostics_panel"
@@ -3373,7 +3431,7 @@ class FO4_PT_SceneDiagnosticsPanel(Panel):
         sub.label(text="• Naming (no spaces/non-ASCII)")
 
 
-class FO4_PT_ReferenceObjectsPanel(Panel):
+class FO4_PT_ReferenceObjectsPanel(_FO4SubPanel):
     """FO4 scale reference objects panel"""
     bl_label = "Scale References"
     bl_idname = "FO4_PT_reference_objects_panel"
@@ -3434,7 +3492,7 @@ class FO4_PT_ReferenceObjectsPanel(Panel):
 
 # ── Papyrus Script Templates Panel ────────────────────────────────────────────
 
-class FO4_PT_PapyrusPanel(Panel):
+class FO4_PT_PapyrusPanel(_FO4SubPanel):
     """Generate Papyrus scripts for Fallout 4 mods"""
     bl_label    = "Papyrus Scripts"
     bl_idname   = "FO4_PT_papyrus_panel"
@@ -3485,7 +3543,7 @@ class FO4_PT_PapyrusPanel(Panel):
 
 # ── Havok Physics Panel ───────────────────────────────────────────────────────
 
-class FO4_PT_HavokPhysicsPanel(Panel):
+class FO4_PT_HavokPhysicsPanel(_FO4SubPanel):
     """Havok rigid-body physics setup for FO4 NIF export"""
     bl_label    = "Havok Physics"
     bl_idname   = "FO4_PT_havok_physics_panel"
@@ -3567,7 +3625,7 @@ class FO4_PT_HavokPhysicsPanel(Panel):
 
 # ── Mod Packaging Panel ───────────────────────────────────────────────────────
 
-class FO4_PT_ModPackagingPanel(Panel):
+class FO4_PT_ModPackagingPanel(_FO4SubPanel):
     """Create, document, and validate a complete FO4 mod package"""
     bl_label    = "Mod Packaging"
     bl_idname   = "FO4_PT_mod_packaging_panel"
@@ -3696,7 +3754,7 @@ class FO4_PT_ModPackagingPanel(Panel):
         )
 
 
-class FO4_PT_AddonIntegrationPanel(Panel):
+class FO4_PT_AddonIntegrationPanel(_FO4SubPanel):
     """Third-party add-on integration panel"""
     bl_label = "Add-on Integrations"
     bl_idname = "FO4_PT_addon_integration_panel"
@@ -3831,7 +3889,7 @@ class FO4_PT_AddonIntegrationPanel(Panel):
         info_box.label(text="• Community integration packs")
 
 
-class FO4_PT_DesktopTutorialPanel(Panel):
+class FO4_PT_DesktopTutorialPanel(_FO4SubPanel):
     """Desktop tutorial app connection panel"""
     bl_label = "Desktop Tutorial App"
     bl_idname = "FO4_PT_desktop_tutorial_panel"
@@ -3912,7 +3970,7 @@ class FO4_PT_DesktopTutorialPanel(Panel):
             info_box.label(text="python example_tutorial_server.py")
 
 
-class FO4_PT_SetupPanel(Panel):
+class FO4_PT_SetupPanel(_FO4SubPanel):
     """First-run setup panel: shows dependency status and one-click install."""
     bl_label = "Setup & Status"
     bl_idname = "FO4_PT_setup_panel"
@@ -4039,7 +4097,7 @@ class FO4_PT_SetupPanel(Panel):
 
 
 
-class FO4_PT_SettingsPanel(Panel):
+class FO4_PT_SettingsPanel(_FO4SubPanel):
     """Add-on settings – all in the 3D Viewport (no Blender Preferences needed)"""
     bl_label = "Settings"
     bl_idname = "FO4_PT_settings_panel"
@@ -4299,7 +4357,7 @@ class FO4_PT_SettingsPanel(Panel):
                 text="Then restart Blender to apply changes.", icon='BLANK1')
 
 
-class FO4_PT_OperationLogPanel(Panel):
+class FO4_PT_OperationLogPanel(_FO4SubPanel):
     """Panel that shows every operation recorded by the add-on"""
     bl_label = "Operation Log"
     bl_idname = "FO4_PT_operation_log_panel"
@@ -4344,7 +4402,7 @@ class FO4_PT_OperationLogPanel(Panel):
 
 # ── Mossy tab ──────────────────────────────────────────────────────────────────
 
-class FO4_PT_MossyPanel(Panel):
+class FO4_PT_MossyPanel(_FO4SubPanel):
     """Mossy AI connection panel — dedicated sidebar tab"""
     bl_label       = "Mossy"
     bl_idname      = "FO4_PT_mossy_panel"
