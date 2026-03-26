@@ -46,5 +46,5 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: fallout4-addon-zips
-          path: fallout4_tutorial_helper-v*-blender*.zip
+          path: blender_game_tools-v*-blender*.zip
           retention-days: 90
