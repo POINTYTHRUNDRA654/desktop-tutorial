@@ -190,6 +190,7 @@ class TestOperatorsRegistered(unittest.TestCase):
         files_to_scan = [
             "operators.py",
             "tutorial_operators.py",
+            "setup_operators.py",
             "asset_library.py",
             "torch_path_manager.py",
         ]

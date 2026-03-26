@@ -4318,33 +4318,10 @@ class FO4_OT_ConvertToFallout4(Operator):
             return {'CANCELLED'}
 
 
-class FO4_OT_InstallPythonDeps(Operator):
-    """Install required Python dependencies for the add-on."""
-    bl_idname = "fo4.install_python_deps"
-    bl_label = "Install Python Requirements"
-
-    optional: bpy.props.BoolProperty(
-        name="Include Optional",
-        default=False,
-    )
-
-    def execute(self, context):
-        import threading
-        from . import tool_installers
-        optional = self.optional
-
-        def _run():
-            ok, msg = tool_installers.install_python_requirements(optional)
-            level = 'INFO' if ok else 'ERROR'
-            print("PYTHON DEPS", msg)
-
-            def _notify():
-                notification_system.FO4_NotificationSystem.notify(msg, level)
-            bpy.app.timers.register(_notify, first_interval=0.0)
-
-        threading.Thread(target=_run, daemon=True).start()
-        self.report({'INFO'}, "Python dependency installation started in the background. Check the console for progress.")
-        return {'FINISHED'}
+# FO4_OT_InstallPythonDeps is defined in setup_operators.py and registered
+# before this module.  Do NOT redefine it here — a duplicate class body with
+# the same bl_idname causes Blender's metaclass to displace the already-
+# registered version on every module reload, making the N-panel button vanish.
 
 
 class FO4_OT_CheckToolPaths(Operator):
@@ -4428,73 +4405,9 @@ class FO4_OT_RunAllInstallers(Operator):
         return {'FINISHED'}
 
 
-class FO4_OT_SelfTest(Operator):
-    """Run a comprehensive environment self-test and log results."""
-    bl_idname = "fo4.self_test"
-    bl_label = "Environment Self-Test"
-
-    def execute(self, context):
-        import importlib.util
-        from . import knowledge_helpers, ue_importer_helpers, umodel_tools_helpers, unity_fbx_importer_helpers, asset_studio_helpers, asset_ripper_helpers, tool_installers
-
-        lines = []
-
-        # ── Blender / Python versions ─────────────────────────────────────
-        import sys as _sys
-        blender_ver = ".".join(str(v) for v in bpy.app.version)
-        py_ver = f"{_sys.version_info.major}.{_sys.version_info.minor}.{_sys.version_info.micro}"
-        lines.append(f"Blender: {blender_ver}  |  Python: {py_ver}")
-
-        # ── Core Python packages ──────────────────────────────────────────
-        core_pkgs = {
-            "PIL":      "Pillow (image processing)",
-            "numpy":    "NumPy (math / 3D data)",
-            "requests": "Requests (HTTP / downloads)",
-            "trimesh":  "trimesh (3D mesh processing)",
-            "PyPDF2":   "PyPDF2 (PDF parsing)",
-        }
-        missing = []
-        for mod, label in core_pkgs.items():
-            found = importlib.util.find_spec(mod) is not None
-            status = "OK" if found else "MISSING"
-            lines.append(f"  [{status}] {label}")
-            if not found:
-                missing.append(mod)
-
-        if missing:
-            lines.append(f"  → Missing packages: {', '.join(missing)}")
-            lines.append("  → Click 'Install Core Dependencies' in the Setup & Status panel.")
-
-        # ── pip availability ──────────────────────────────────────────────
-        pip_ok = importlib.util.find_spec("pip") is not None
-        lines.append(f"  [{'OK' if pip_ok else 'MISSING'}] pip (package installer)")
-        if not pip_ok:
-            lines.append("  → pip not found; will be bootstrapped via ensurepip on install.")
-
-        # ── Version-specific notes ────────────────────────────────────────
-        py = (_sys.version_info.major, _sys.version_info.minor)
-        if py < (3, 8):
-            lines.append("  NOTE: Python 3.7 detected (Blender 2.90-2.92).")
-            lines.append("        Pillow<10 and numpy<2 will be installed automatically.")
-        if py >= (3, 11):
-            lines.append("  NOTE: Python 3.11+ detected.")
-            lines.append("        --break-system-packages is used automatically when installing.")
-
-        # ── External tool status ──────────────────────────────────────────
-        lines.append("Tool status: " + str(knowledge_helpers.tool_status()))
-        lines.append("UE importer: " + str(ue_importer_helpers.status()))
-        lines.append("UModel Tools: " + str(umodel_tools_helpers.status()))
-        lines.append("Unity FBX importer: " + str(unity_fbx_importer_helpers.status()))
-        lines.append("AssetStudio: " + str(asset_studio_helpers.status()))
-        lines.append("AssetRipper: " + str(asset_ripper_helpers.status()))
-
-        summary = "\n".join(lines)
-        print("=== ENVIRONMENT SELF-TEST ===")
-        print(summary)
-        print("=== END SELF-TEST ===")
-        self.report({'INFO'}, "Self-test completed; see System Console for details")
-        notification_system.FO4_NotificationSystem.notify("Environment self-test complete — see System Console", 'INFO')
-        return {'FINISHED'}
+# FO4_OT_SelfTest is defined in setup_operators.py and registered before this
+# module.  Do NOT redefine it here — see the FO4_OT_InstallPythonDeps comment
+# above for the same reason.
 
 # Real-ESRGAN Operators
 
@@ -12255,51 +12168,9 @@ class FO4_OT_ClearOperationLog(Operator):
         return context.window_manager.invoke_confirm(self, event)
 
 
-class FO4_OT_ReloadAddon(Operator):
-    """Restart Blender so installed add-on updates take effect.
-
-    Calling bpy.ops.wm.quit_blender() directly from inside an invoke_confirm
-    popup handler crashes Blender 5.0.1 (EXCEPTION_ACCESS_VIOLATION in
-    BLI_addhead / WM_event_add_ui_handler / wm_exit_schedule_delayed) because
-    the window-manager handler list is invalid while the popup is still active.
-
-    The fix is to schedule the quit via bpy.app.timers so it runs after the
-    popup has been fully torn down, when the window context is valid again.
-    """
-    bl_idname = "fo4.reload_addon"
-    bl_label = "Restart Blender"
-    bl_description = (
-        "Quit Blender so any installed add-on updates take effect on next launch. "
-        "A confirmation dialog will appear first."
-    )
-    bl_options = {'REGISTER'}
-
-    def execute(self, context):
-        # Defer quit + relaunch until after the current popup/event has been processed.
-        # Direct quit from the confirm handler can crash Blender; use a timer instead.
-        import subprocess
-        from pathlib import Path
-
-        def _restart_and_quit():
-            try:
-                exe = Path(bpy.app.binary_path)
-                cmd = [str(exe)]
-                blend_path = bpy.data.filepath
-                if blend_path:
-                    cmd.append(blend_path)
-                subprocess.Popen(cmd)
-            except Exception as exc:  # pragma: no cover - best-effort relaunch
-                print(f"Restart launch failed: {exc}")
-            finally:
-                bpy.ops.wm.quit_blender()
-
-        self.report({'INFO'}, "Restarting Blender…")
-        # Use a small delay so the confirm popup fully tears down before quitting.
-        bpy.app.timers.register(lambda: _restart_and_quit(), first_interval=0.01)
-        return {'FINISHED'}
-
-    def invoke(self, context, event):
-        return context.window_manager.invoke_confirm(self, event)
+# FO4_OT_ReloadAddon is defined in setup_operators.py and registered before
+# this module.  Do NOT redefine it here — see the FO4_OT_InstallPythonDeps
+# comment above for the same reason.
 
 
 class FO4_OT_ImportModFolder(Operator):

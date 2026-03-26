@@ -171,6 +171,17 @@ tutorial operators. If any test in that group fails, the code is still broken.
   back to the `classes` tuple in `operators.py`** — they are registered by `setup_operators.py`
   first; registering them again from `operators.py` would trigger the stale-class error and
   force the unregister-then-register fallback unnecessarily.
+- **CRITICAL — Do NOT redefine `FO4_OT_InstallPythonDeps`, `FO4_OT_SelfTest`, or
+  `FO4_OT_ReloadAddon` as class bodies anywhere in `operators.py`** — this is the permanent
+  root cause that caused the buttons to vanish on every module reload. Blender's `RNAMeta`
+  metaclass processes every `bpy.types.Operator` subclass at definition time. When
+  `operators.py` is reloaded via `importlib.reload()` (which happens on every addon
+  enable/disable cycle or F8 script reload), it creates a **new, unregistered** class object
+  with the same `bl_idname`. This new object silently displaces the correctly-registered class
+  from `setup_operators.py` in Blender's internal type map, making `hasattr(bpy.types,
+  'FO4_OT_InstallPythonDeps')` return `False` and causing the N-panel buttons to disappear.
+  The only correct fix is to have the class body in **exactly one module** (`setup_operators.py`).
+  The stubs in `operators.py` must remain as plain comments only — never as class definitions.
 
 ---
 
