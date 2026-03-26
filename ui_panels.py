@@ -239,12 +239,215 @@ class FO4_PT_SetupPanel(_FO4Panel):
 
 
 # ─────────────────────────────────────────────────────────────────────────────
+# Mesh Settings Panel  (shows optimize preferences inline)
+# ─────────────────────────────────────────────────────────────────────────────
+
+class FO4_PT_MeshSettingsPanel(_FO4Panel):
+    """Mesh optimization settings — controls used by Prep Mesh for FO4."""
+    bl_idname    = "FO4_PT_mesh_settings_panel"
+    bl_label     = "Mesh Settings"
+    bl_parent_id = "FO4_PT_main_panel"
+    bl_options   = {'DEFAULT_CLOSED'}
+
+    def draw(self, context):
+        layout = self.layout
+        prefs = None
+        try:
+            addon = context.preferences.addons.get(__package__ or "")
+            if addon:
+                prefs = addon.preferences
+        except Exception:
+            pass
+
+        if prefs is None:
+            layout.label(text="Preferences not available", icon='ERROR')
+            return
+
+        box = layout.box()
+        box.label(text="Optimize (Prep Mesh for FO4)", icon='MODIFIER')
+        col = box.column(align=True)
+        col.prop(prefs, "optimize_apply_transforms")
+        col.prop(prefs, "optimize_preserve_uvs")
+        row = col.row(align=True)
+        row.prop(prefs, "optimize_remove_doubles_threshold")
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Advanced Mesh Tools Panel
+# ─────────────────────────────────────────────────────────────────────────────
+
+class FO4_PT_AdvancedMeshPanel(_FO4Panel):
+    """Advanced mesh analysis, repair, reduction, and smoothing tools."""
+    bl_idname    = "FO4_PT_advanced_mesh_panel"
+    bl_label     = "Advanced Mesh Tools"
+    bl_parent_id = "FO4_PT_main_panel"
+    bl_options   = {'DEFAULT_CLOSED'}
+
+    def draw(self, context):
+        layout = self.layout
+        is_mesh = (context.active_object is not None
+                   and context.active_object.type == 'MESH')
+
+        # ── Analysis ─────────────────────────────────────────────────────────
+        col = layout.column(align=True)
+        col.label(text="Analysis", icon='VIEWZOOM')
+        col.enabled = is_mesh
+        _op_or_label(col, 'FO4_OT_AnalyzeMeshQuality',
+                     'fo4.analyze_mesh_quality',
+                     'Analyze Mesh Quality', 'VIEWZOOM')
+        _op_or_label(col, 'FO4_OT_AutoRepairMesh',
+                     'fo4.auto_repair_mesh',
+                     'Auto Repair Mesh Issues', 'TOOL_SETTINGS')
+
+        layout.separator()
+
+        # ── Reduction ────────────────────────────────────────────────────────
+        col = layout.column(align=True)
+        col.label(text="Polygon Reduction", icon='MOD_DECIM')
+        col.enabled = is_mesh
+        _op_or_label(col, 'FO4_OT_SmartDecimate',
+                     'fo4.smart_decimate',
+                     'Smart Decimate (reduce polys)', 'MOD_DECIM')
+        _op_or_label(col, 'FO4_OT_SplitMeshAtLimit',
+                     'fo4.split_mesh_at_limit',
+                     'Split Mesh at 65k Limit', 'MOD_EXPLODE')
+        _op_or_label(col, 'FO4_OT_RemeshUniform',
+                     'fo4.remesh_uniform',
+                     'Remesh Uniform (Voxel)', 'MOD_REMESH')
+
+        layout.separator()
+
+        # ── Smoothing ────────────────────────────────────────────────────────
+        col = layout.column(align=True)
+        col.label(text="Smoothing", icon='MOD_SMOOTH')
+        col.enabled = is_mesh
+        _op_or_label(col, 'FO4_OT_SmoothMesh',
+                     'fo4.smooth_mesh',
+                     'Smooth Mesh (Laplacian)', 'MOD_SMOOTH')
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Symmetry & Mirror Panel
+# ─────────────────────────────────────────────────────────────────────────────
+
+class FO4_PT_SymmetryPanel(_FO4Panel):
+    """Symmetry check and mirror tools for armour / prop meshes."""
+    bl_idname    = "FO4_PT_symmetry_panel"
+    bl_label     = "Symmetry & Mirror"
+    bl_parent_id = "FO4_PT_main_panel"
+    bl_options   = {'DEFAULT_CLOSED'}
+
+    def draw(self, context):
+        layout = self.layout
+        is_mesh = (context.active_object is not None
+                   and context.active_object.type == 'MESH')
+        col = layout.column(align=True)
+        col.enabled = is_mesh
+        _op_or_label(col, 'FO4_OT_CheckSymmetry',
+                     'fo4.check_symmetry',
+                     'Check Symmetry', 'ARROW_LEFTRIGHT')
+        _op_or_label(col, 'FO4_OT_MirrorMesh',
+                     'fo4.mirror_mesh',
+                     'Mirror Mesh (apply modifier)', 'MOD_MIRROR')
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# LOD Generation Panel
+# ─────────────────────────────────────────────────────────────────────────────
+
+class FO4_PT_LODPanel(_FO4Panel):
+    """Level of Detail (LOD) chain generation for Fallout 4."""
+    bl_idname    = "FO4_PT_lod_panel"
+    bl_label     = "LOD Generation"
+    bl_parent_id = "FO4_PT_main_panel"
+    bl_options   = {'DEFAULT_CLOSED'}
+
+    def draw(self, context):
+        layout = self.layout
+        is_mesh = (context.active_object is not None
+                   and context.active_object.type == 'MESH')
+
+        box = layout.box()
+        col = box.column(align=True)
+        col.scale_y = 0.8
+        col.label(text="Source object = LOD0 (full detail)", icon='INFO')
+        col.label(text="LOD1 75%  •  LOD2 50%  •  LOD3 25%  •  LOD4 10%")
+        col.label(text="Export each LOD as a separate NIF file")
+
+        layout.separator()
+        col = layout.column(align=True)
+        col.enabled = is_mesh
+        _op_or_label(col, 'FO4_OT_GenerateLODChain',
+                     'fo4.generate_lod_chain',
+                     'Generate LOD Chain (LOD1–LOD4)', 'SEQUENCE')
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# UV Tools Panel
+# ─────────────────────────────────────────────────────────────────────────────
+
+class FO4_PT_UVToolsPanel(_FO4Panel):
+    """UV unwrapping, seam marking, complexity scanning, and texture setup tools."""
+    bl_idname    = "FO4_PT_uv_tools_panel"
+    bl_label     = "UV Tools"
+    bl_parent_id = "FO4_PT_main_panel"
+    bl_options   = {'DEFAULT_CLOSED'}
+
+    def draw(self, context):
+        layout = self.layout
+        is_mesh = (context.active_object is not None
+                   and context.active_object.type == 'MESH')
+
+        # ── UV Unwrap ────────────────────────────────────────────────────────
+        col = layout.column(align=True)
+        col.label(text="UV Unwrap", icon='UV')
+        col.enabled = is_mesh
+        _op_or_label(col, 'FO4_OT_ScanUVComplexity',
+                     'fo4.scan_uv_complexity',
+                     'Scan UV Complexity', 'VIEWZOOM')
+        _op_or_label(col, 'FO4_OT_AutoMarkSeams',
+                     'fo4.auto_mark_seams',
+                     'Scan & Mark Seams', 'EDGESEL')
+        _op_or_label(col, 'FO4_OT_OptimizeUVs',
+                     'fo4.optimize_uvs',
+                     'Optimize UVs (Hybrid Unwrap)', 'UV')
+
+        layout.separator()
+
+        # ── All-in-one setup ─────────────────────────────────────────────────
+        col = layout.column(align=True)
+        col.label(text="All-in-One Setup", icon='TEXTURE')
+        col.enabled = is_mesh
+        _op_or_label(col, 'FO4_OT_SetupUVWithTexture',
+                     'fo4.setup_uv_with_texture',
+                     'Setup UV + Texture (All-in-One)', 'TEXTURE')
+
+        layout.separator()
+
+        # ── Quick tip ────────────────────────────────────────────────────────
+        box = layout.box()
+        col = box.column(align=True)
+        col.scale_y = 0.8
+        col.label(text="Recommended Workflow:", icon='INFO')
+        col.label(text="1. Scan UV Complexity")
+        col.label(text="2. Scan & Mark Seams")
+        col.label(text="3. Optimize UVs (Hybrid Unwrap)")
+        col.label(text="   — or —")
+        col.label(text="   Setup UV + Texture (All-in-One)")
+
+
+# ─────────────────────────────────────────────────────────────────────────────
 # Registration
 # ─────────────────────────────────────────────────────────────────────────────
 
 classes = (
     FO4_PT_MainPanel,
     FO4_PT_MeshPanel,
+    FO4_PT_MeshSettingsPanel,
+    FO4_PT_AdvancedMeshPanel,
+    FO4_PT_SymmetryPanel,
+    FO4_PT_LODPanel,
+    FO4_PT_UVToolsPanel,
     FO4_PT_SetupPanel,
 )
 
