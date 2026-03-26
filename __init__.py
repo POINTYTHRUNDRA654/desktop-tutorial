@@ -307,7 +307,17 @@ def _ensure_tutorial_operators():
             bpy.utils.register_class(cls)
             print(f"  ✓ Registered {cls_name} directly")
         except Exception as e2:
-            print(f"  ⚠ Failed to register {cls_name} directly: {e2}")
+            # A stale class object may already occupy the type name (e.g. from
+            # a dual-install or a previous load that left a dangling entry).
+            # Unregister whatever is there and force-register the fresh class.
+            try:
+                existing = getattr(bpy.types, cls_name, None)
+                if existing is not None:
+                    bpy.utils.unregister_class(existing)
+                bpy.utils.register_class(cls)
+                print(f"  ✓ Registered {cls_name} (replaced stale entry)")
+            except Exception as e3:
+                print(f"  ⚠ Failed to register {cls_name} directly: {e3}")
 
 
 def register():
@@ -443,6 +453,18 @@ def register():
                             print(f"UModel auto-download skipped: {msg}")
         except Exception as e:
             print(f"UModel auto-download skipped: {e}")
+
+        # ── Step 6: deferred tutorial-operator safety check ─────────────────
+        # A 2-second window after startup is enough time for other extensions
+        # (e.g. Fab, BAC) to complete their own registrations.  Re-run the
+        # _ensure_tutorial_operators() safety net here so that if any of those
+        # extensions inadvertently displaced our classes (or if the initial
+        # registration ran before Blender's type system was fully ready) the
+        # welcome/tutorial buttons will still appear correctly.
+        try:
+            _ensure_tutorial_operators()
+        except Exception as e:
+            print(f"⚠ Deferred tutorial-operator check failed: {e}")
 
         return None  # Do not reschedule
 
