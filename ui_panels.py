@@ -334,35 +334,23 @@ class FO4_PT_MainPanel(Panel):
             getting_started.label(text="→ Install Niftools v0.1.1 (Blender 3.6)")
             getting_started.label(text="→ OR use FBX export workflow")
 
-        if hasattr(bpy.types, 'FO4_OT_ShowDetailedSetup'):
-            getting_started.operator(
-                "fo4.show_detailed_setup",
-                text="Show Detailed Setup Guide",
-                icon='TEXT',
-            )
-        else:
-            getting_started.label(
-                text="(Setup Guide loading...)",
-                icon='TEXT',
-            )
+        # NOTE: In Blender 5.0, hasattr(bpy.types, ...) doesn't work reliably. Show button directly.
+        getting_started.operator(
+            "fo4.show_detailed_setup",
+            text="Show Detailed Setup Guide",
+            icon='TEXT',
+        )
 
         # ── Tutorial section ─────────────────────────────────────────────────
         box = layout.box()
         box.label(text="Tutorial System", icon='HELP')
-        if hasattr(bpy.types, 'FO4_OT_StartTutorial'):
-            box.operator("fo4.start_tutorial", text="Start Tutorial", icon='PLAY')
-        else:
-            box.label(text="(Tutorial loading...)", icon='PLAY')
+        # NOTE: In Blender 5.0, hasattr(bpy.types, ...) doesn't work reliably. Show button directly.
+        box.operator("fo4.start_tutorial", text="Start Tutorial", icon='PLAY')
         # Help and Credits sit side by side for quick access
         help_row = box.row(align=True)
-        if hasattr(bpy.types, 'FO4_OT_ShowHelp'):
-            help_row.operator("fo4.show_help", text="Show Help", icon='QUESTION')
-        else:
-            help_row.label(text="Help", icon='QUESTION')
-        if hasattr(bpy.types, 'FO4_OT_ShowCredits'):
-            help_row.operator("fo4.show_credits", text="Credits", icon='FUND')
-        else:
-            help_row.label(text="Credits", icon='FUND')
+        # NOTE: In Blender 5.0, hasattr(bpy.types, ...) doesn't work reliably. Show button directly.
+        help_row.operator("fo4.show_help", text="Show Help", icon='QUESTION')
+        help_row.operator("fo4.show_credits", text="Credits", icon='FUND')
         if tutorial_system and not tutorial_system.TUTORIALS:
             tutorial_system.initialize_tutorials()
         tutorial = tutorial_system.get_current_tutorial(context) if tutorial_system else None
@@ -382,8 +370,8 @@ class FO4_PT_MainPanel(Panel):
 
             nav = active.row(align=True)
             nav.operator("fo4.previous_tutorial_step", text="", icon='TRIA_LEFT')
-            if hasattr(bpy.types, 'FO4_OT_ShowHelp'):
-                nav.operator("fo4.show_help", text="Show Guide", icon='INFO')
+            # NOTE: In Blender 5.0, hasattr(bpy.types, ...) doesn't work reliably. Show button directly.
+            nav.operator("fo4.show_help", text="Show Guide", icon='INFO')
             nav.operator("fo4.next_tutorial_step", text="", icon='TRIA_RIGHT')
         else:
             box.label(text="Click 'Start Tutorial' to load a guided workflow", icon='INFO')
@@ -1763,21 +1751,16 @@ class FO4_PT_ToolsLinks(_FO4SubPanel):
             if bpy.app.version >= (5, 0, 0):
                 nif_note.label(text="Blender 5.x API patches applied automatically.", icon='CHECKMARK')
         # Python requirements
-        if hasattr(bpy.types, 'FO4_OT_InstallPythonDeps'):
-            op = box.operator("fo4.install_python_deps", text="Install Python Requirements", icon='FILE_REFRESH')
-            if op is not None:
-                op.optional = False
-            op = box.operator("fo4.install_python_deps", text="Install Python Req (optional)", icon='FILE_REFRESH')
-            if op is not None:
-                op.optional = True
-        else:
-            box.label(text="Install Python Requirements (loading...)", icon='FILE_REFRESH')
-            box.label(text="Install Python Req (optional) (loading...)", icon='FILE_REFRESH')
+        # NOTE: In Blender 5.0, hasattr(bpy.types, ...) doesn't work reliably. Show button directly.
+        op = box.operator("fo4.install_python_deps", text="Install Python Requirements", icon='FILE_REFRESH')
+        if op is not None:
+            op.optional = False
+        op = box.operator("fo4.install_python_deps", text="Install Python Req (optional)", icon='FILE_REFRESH')
+        if op is not None:
+            op.optional = True
         box.operator("fo4.install_all_tools", text="Install All Tools", icon='PACKAGE')
-        if hasattr(bpy.types, 'FO4_OT_SelfTest'):
-            box.operator("fo4.self_test", text="Run Environment Self-Test", icon='CHECKMARK')
-        else:
-            box.label(text="Environment Self-Test (loading...)", icon='CHECKMARK')
+        # NOTE: In Blender 5.0, hasattr(bpy.types, ...) doesn't work reliably. Show button directly.
+        box.operator("fo4.self_test", text="Run Environment Self-Test", icon='CHECKMARK')
 
         # Fallout 4 configuration button
         config_box = layout.box()
@@ -4008,22 +3991,25 @@ class FO4_PT_SetupPanel(_FO4SubPanel):
             ("PyPDF2",   "PyPDF2 (PDF parsing)"),
         ]
         all_ok = True
+        missing_packages = []
         for mod, label in core_deps:
             found = _check_dep(mod)
             icon = 'CHECKMARK' if found else 'ERROR'
             prefix = "✓" if found else "✗"
-            box.label(text=f"{prefix}  {label}", icon=icon)
+            row = box.row(align=True)
+            row.label(text=f"{prefix}  {label}", icon=icon)
             if not found:
                 all_ok = False
+                missing_packages.append(mod)
+                # Individual package install button
+                row.operator("fo4.install_python_deps", text="Install", icon='PACKAGE').optional = False
 
         if not all_ok:
             box.separator()
-            box.label(text="Click below to install missing packages:", icon='INFO')
-            if hasattr(bpy.types, 'FO4_OT_InstallPythonDeps'):
-                box.operator("fo4.install_python_deps", text="Install Core Dependencies",
-                             icon='PACKAGE')
-            else:
-                box.label(text="(Install button loading...)", icon='PACKAGE')
+            box.label(text="Click 'Install' next to each package, or use button below:", icon='INFO')
+            # NOTE: In Blender 5.0, hasattr(bpy.types, ...) doesn't work reliably. Show button directly.
+            box.operator("fo4.install_python_deps", text="Install All Missing",
+                         icon='PACKAGE')
             box.separator()
             box.label(text="Restart Blender after installing.", icon='ERROR')
         else:
@@ -4044,7 +4030,7 @@ class FO4_PT_SetupPanel(_FO4SubPanel):
                 torch_box.label(text="Click below to install to D:/t (short path)", icon='INFO')
             torch_box.operator("torch.install_custom_path", text="Install PyTorch to D:/t", icon='IMPORT')
 
-        # Show/edit the persisted path
+        # Show the persisted path (read-only here to avoid lag; edit in Settings panel)
         prefs = preferences.get_preferences() if preferences else None
         if prefs is not None:
             saved = prefs.torch_custom_path
@@ -4052,8 +4038,7 @@ class FO4_PT_SetupPanel(_FO4SubPanel):
                 torch_box.label(text=f"Saved path: {saved}", icon='FILE_FOLDER')
             else:
                 torch_box.label(text="No path saved yet — install above to persist it", icon='INFO')
-            torch_box.prop(prefs, "torch_custom_path", text="Custom Path")
-            torch_box.prop(prefs, "extra_python_paths", text="Extra Python Paths")
+            torch_box.label(text="(Edit paths in Settings panel below)", icon='INFO')
 
         # ── Connected tools status ────────────────────────────────────────
         tools_box = layout.box()
@@ -4077,23 +4062,14 @@ class FO4_PT_SetupPanel(_FO4SubPanel):
             tools_box.label(text="Preferences unavailable", icon='ERROR')
 
         # ── Quick actions ─────────────────────────────────────────────────
-        # FO4_OT_SelfTest and FO4_OT_InstallPythonDeps live in operators.py and
-        # register together; a single guard covers both buttons in this row.
-        _core_ops_ready = hasattr(bpy.types, 'FO4_OT_SelfTest')
+        # NOTE: In Blender 5.0, hasattr(bpy.types, ...) doesn't work reliably. Show buttons directly.
         row = layout.row(align=True)
-        if _core_ops_ready:
-            row.operator("fo4.self_test", text="Environment Check", icon='CHECKMARK')
-            row.operator("fo4.install_python_deps", text="Re-install Deps", icon='FILE_REFRESH')
-        else:
-            row.label(text="Environment Check (loading...)", icon='CHECKMARK')
-            row.label(text="Re-install Deps (loading...)", icon='FILE_REFRESH')
+        row.operator("fo4.self_test", text="Environment Check", icon='CHECKMARK')
+        row.operator("fo4.install_python_deps", text="Re-install Deps", icon='FILE_REFRESH')
         # Restart button: uses a timer to defer bpy.ops.wm.quit_blender() so it
         # runs after the confirm popup is closed, avoiding the Blender 5.0.1
         # EXCEPTION_ACCESS_VIOLATION (BLI_addhead / wm_exit_schedule_delayed).
-        if hasattr(bpy.types, 'FO4_OT_ReloadAddon'):
-            layout.operator("fo4.reload_addon", text="Restart Blender", icon='QUIT')
-        else:
-            layout.label(text="Restart Blender (loading...)", icon='QUIT')
+        layout.operator("fo4.reload_addon", text="Restart Blender", icon='QUIT')
 
 
 
@@ -4144,6 +4120,16 @@ class FO4_PT_SettingsPanel(_FO4SubPanel):
             row = other_paths.row(align=True)
             row.prop(scene, "fo4_unreal_assets_path", text="Unreal Assets")
             row.operator("fo4.set_unreal_assets_path", text="", icon='FILE_FOLDER')
+
+        # ── PyTorch Settings ──────────────────────────────────────────────────
+        torch_settings_box = layout.box()
+        torch_settings_box.label(text="PyTorch Settings", icon="PREFERENCES")
+        if prefs is not None:
+            torch_settings_box.prop(prefs, "torch_custom_path", text="Custom PyTorch Path")
+            torch_settings_box.prop(prefs, "extra_python_paths", text="Extra Python Paths")
+            torch_settings_box.label(text="Paths set here persist across Blender sessions", icon='INFO')
+        else:
+            torch_settings_box.label(text="(PyTorch settings require add-on preferences)", icon='INFO')
 
         # ── Tool Paths ────────────────────────────────────────────────────────
         tools_box = layout.box()

@@ -154,6 +154,8 @@ tutorial_operators = _try_import("tutorial_operators")
 # always appear as real clickable buttons, not "(loading...)" fallback labels.
 # See DEVELOPMENT_NOTES.md — *RECURRING BUG #1* — before removing this.
 setup_operators = _try_import("setup_operators")
+if setup_operators:
+    print(f"✓ setup_operators imported: {setup_operators}")
 
 
 # core modules that are safe to import and register unconditionally.
@@ -362,7 +364,9 @@ def _ensure_setup_operators():
     (*RECURRING BUG #1*) for full context.
     Do NOT remove this function or its call at the end of ``register()``.
     """
+    print(f"[DEBUG] _ensure_setup_operators called; setup_operators={setup_operators}")
     if setup_operators is None:
+        print("  ⚠ setup_operators is None; cannot register")
         return
 
     required_operators = (
@@ -371,6 +375,7 @@ def _ensure_setup_operators():
         "FO4_OT_ReloadAddon",
     )
     missing = [n for n in required_operators if not hasattr(bpy.types, n)]
+    print(f"  Missing operators before re-register: {missing}")
     if not missing:
         print("✓ Setup operators confirmed in bpy.types (Setup panel buttons ready)")
         return
@@ -381,11 +386,14 @@ def _ensure_setup_operators():
     )
     try:
         setup_operators.unregister()
-    except Exception:
-        pass
+        print("  ✓ unregister() succeeded")
+    except Exception as e:
+        print(f"  ⚠ unregister() failed: {e}")
     try:
         setup_operators.register()
+        print("  ✓ register() succeeded")
         still_missing = [n for n in required_operators if not hasattr(bpy.types, n)]
+        print(f"  Missing operators after re-register: {still_missing}")
         if not still_missing:
             print("  ✓ setup_operators re-registered successfully")
             return
@@ -395,9 +403,11 @@ def _ensure_setup_operators():
     # Fall back: register each missing class individually.
     for cls_name in required_operators:
         if hasattr(bpy.types, cls_name):
+            print(f"  ✓ {cls_name} already in bpy.types")
             continue
         cls = getattr(setup_operators, cls_name, None)
         if cls is None:
+            print(f"  ⚠ {cls_name} not found in setup_operators module")
             continue
         try:
             bpy.utils.register_class(cls)
