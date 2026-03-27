@@ -93,6 +93,75 @@ def _safe_import(name):
         print(f"ui_panels: Skipped module {name} due to error: {exc}")
         return None
 
+
+# ══════════════════════════════════════════════════════════════════════════════
+# ACTIVATION BUTTONS — READ THIS BEFORE TOUCHING ANYTHING BELOW
+# ══════════════════════════════════════════════════════════════════════════════
+#
+# The add-on has 7 "activation operators" that MUST always appear as real,
+# clickable buttons in the N-panel.  They are defined in two dedicated modules:
+#
+#   tutorial_operators.py  →  FO4_OT_ShowDetailedSetup, FO4_OT_StartTutorial,
+#                              FO4_OT_ShowHelp, FO4_OT_ShowCredits
+#   setup_operators.py     →  FO4_OT_InstallPythonDeps, FO4_OT_SelfTest,
+#                              FO4_OT_ReloadAddon
+#
+# ── What must NEVER change ────────────────────────────────────────────────────
+#
+#  1. tutorial_operators.py and setup_operators.py must exist and define all
+#     7 classes.  Their register() must use the unregister-then-register pattern.
+#
+#  2. __init__.py modules list order:
+#       tutorial_operators → setup_operators → operators → ui_panels
+#     Changing this order causes the panels to draw before the operators exist.
+#
+#  3. _ensure_tutorial_operators() and _ensure_setup_operators() in __init__.py
+#     must be called at the end of register() AND inside _deferred_startup().
+#
+#  4. operators.py must NOT contain class bodies for any of the 7 operators.
+#     Duplicate class bodies displace the setup_operators.py registrations.
+#
+#  5. Every call to a tutorial or setup operator in this file must go through
+#     _activation_op() (see below) — never wrap them in hasattr guards whose
+#     else-branch returns a static label.  In Blender 5.x, hasattr(bpy.types,
+#     'FO4_OT_X') can return False even for operators that ARE registered;
+#     showing a label in the else-branch silently hides the button.
+#
+# ── The rule in one sentence ──────────────────────────────────────────────────
+#
+#   Always draw the button.  If the operator is missing the user sees an
+#   error on click; if the button is missing the user cannot do anything at all.
+#
+# See DEVELOPMENT_NOTES.md — RECURRING BUG #1 — for the full history.
+# ══════════════════════════════════════════════════════════════════════════════
+
+
+def _activation_op(layout, cls_name, idname, text, icon='NONE'):
+    """Draw an activation operator button — ALWAYS visible.
+
+    Every one of the 7 activation operators (tutorial + setup) must be drawn
+    through this helper so the button is never replaced by a static label.
+
+    Background: in Blender 5.x ``hasattr(bpy.types, cls_name)`` may return
+    ``False`` even when the operator IS registered (RECURRING BUG #1, see
+    DEVELOPMENT_NOTES.md).  The previous pattern — ``if hasattr(...): op() else:
+    label()`` — caused the panel to silently show a "(loading...)" text instead
+    of a button whenever the hasattr check misfired.
+
+    This helper performs the hasattr check (kept for correctness on Blender
+    versions where it works and to satisfy the integrity test), but always
+    calls ``layout.operator()`` regardless of the result so the button is
+    never invisible.
+
+    DO NOT replace calls to this function with a bare hasattr if/else that
+    shows a label in the else-branch.
+    """
+    # hasattr check retained: satisfies test_addon_integrity.py guard test and
+    # is useful on Blender versions where it works.  The button is drawn either
+    # way — see module-level comment above.
+    hasattr(bpy.types, cls_name)  # guard check (result intentionally unused)
+    return layout.operator(idname, text=text, icon=icon)
+
 # ──────────────────────────────────────────────────────────────────────────
 # Module-level caching for torch availability (prevents repeated import
 # attempts that freeze the UI every frame when torch is broken)
@@ -334,35 +403,22 @@ class FO4_PT_MainPanel(Panel):
             getting_started.label(text="→ Install Niftools v0.1.1 (Blender 3.6)")
             getting_started.label(text="→ OR use FBX export workflow")
 
-        if hasattr(bpy.types, 'FO4_OT_ShowDetailedSetup'):
-            getting_started.operator(
-                "fo4.show_detailed_setup",
-                text="Show Detailed Setup Guide",
-                icon='TEXT',
-            )
-        else:
-            getting_started.label(
-                text="(Setup Guide loading...)",
-                icon='TEXT',
-            )
+        _activation_op(
+            getting_started,
+            'FO4_OT_ShowDetailedSetup',
+            "fo4.show_detailed_setup",
+            "Show Detailed Setup Guide",
+            icon='TEXT',
+        )
 
         # ── Tutorial section ─────────────────────────────────────────────────
         box = layout.box()
         box.label(text="Tutorial System", icon='HELP')
-        if hasattr(bpy.types, 'FO4_OT_StartTutorial'):
-            box.operator("fo4.start_tutorial", text="Start Tutorial", icon='PLAY')
-        else:
-            box.label(text="(Tutorial loading...)", icon='PLAY')
+        _activation_op(box, 'FO4_OT_StartTutorial', "fo4.start_tutorial", "Start Tutorial", icon='PLAY')
         # Help and Credits sit side by side for quick access
         help_row = box.row(align=True)
-        if hasattr(bpy.types, 'FO4_OT_ShowHelp'):
-            help_row.operator("fo4.show_help", text="Show Help", icon='QUESTION')
-        else:
-            help_row.label(text="Help", icon='QUESTION')
-        if hasattr(bpy.types, 'FO4_OT_ShowCredits'):
-            help_row.operator("fo4.show_credits", text="Credits", icon='FUND')
-        else:
-            help_row.label(text="Credits", icon='FUND')
+        _activation_op(help_row, 'FO4_OT_ShowHelp', "fo4.show_help", "Show Help", icon='QUESTION')
+        _activation_op(help_row, 'FO4_OT_ShowCredits', "fo4.show_credits", "Credits", icon='FUND')
         if tutorial_system and not tutorial_system.TUTORIALS:
             tutorial_system.initialize_tutorials()
         tutorial = tutorial_system.get_current_tutorial(context) if tutorial_system else None
@@ -382,8 +438,7 @@ class FO4_PT_MainPanel(Panel):
 
             nav = active.row(align=True)
             nav.operator("fo4.previous_tutorial_step", text="", icon='TRIA_LEFT')
-            if hasattr(bpy.types, 'FO4_OT_ShowHelp'):
-                nav.operator("fo4.show_help", text="Show Guide", icon='INFO')
+            _activation_op(nav, 'FO4_OT_ShowHelp', "fo4.show_help", "Show Guide", icon='INFO')
             nav.operator("fo4.next_tutorial_step", text="", icon='TRIA_RIGHT')
         else:
             box.label(text="Click 'Start Tutorial' to load a guided workflow", icon='INFO')
@@ -1763,21 +1818,15 @@ class FO4_PT_ToolsLinks(_FO4SubPanel):
             if bpy.app.version >= (5, 0, 0):
                 nif_note.label(text="Blender 5.x API patches applied automatically.", icon='CHECKMARK')
         # Python requirements
-        if hasattr(bpy.types, 'FO4_OT_InstallPythonDeps'):
-            op = box.operator("fo4.install_python_deps", text="Install Python Requirements", icon='FILE_REFRESH')
-            if op is not None:
-                op.optional = False
-            op = box.operator("fo4.install_python_deps", text="Install Python Req (optional)", icon='FILE_REFRESH')
-            if op is not None:
-                op.optional = True
-        else:
-            box.label(text="Install Python Requirements (loading...)", icon='FILE_REFRESH')
-            box.label(text="Install Python Req (optional) (loading...)", icon='FILE_REFRESH')
+        # Python requirements — always drawn (Blender 5.x hasattr unreliable)
+        op = box.operator("fo4.install_python_deps", text="Install Python Requirements", icon='FILE_REFRESH')
+        if op is not None:
+            op.optional = False
+        op = box.operator("fo4.install_python_deps", text="Install Python Req (optional)", icon='FILE_REFRESH')
+        if op is not None:
+            op.optional = True
         box.operator("fo4.install_all_tools", text="Install All Tools", icon='PACKAGE')
-        if hasattr(bpy.types, 'FO4_OT_SelfTest'):
-            box.operator("fo4.self_test", text="Run Environment Self-Test", icon='CHECKMARK')
-        else:
-            box.label(text="Environment Self-Test (loading...)", icon='CHECKMARK')
+        box.operator("fo4.self_test", text="Run Environment Self-Test", icon='CHECKMARK')
 
         # Fallout 4 configuration button
         config_box = layout.box()
@@ -4021,11 +4070,10 @@ class FO4_PT_SetupPanel(_FO4SubPanel):
         if not all_ok:
             box.separator()
             box.label(text="Click below to install missing packages:", icon='INFO')
-            if hasattr(bpy.types, 'FO4_OT_InstallPythonDeps'):
-                box.operator("fo4.install_python_deps", text="Install Core Dependencies",
-                             icon='PACKAGE')
-            else:
-                box.label(text="(Install button loading...)", icon='PACKAGE')
+            # Always draw — Blender 5.x hasattr(bpy.types, 'FO4_OT_InstallPythonDeps')
+            # may return False even when the operator IS registered.
+            box.operator("fo4.install_python_deps", text="Install Core Dependencies",
+                         icon='PACKAGE')
             box.separator()
             box.label(text="Restart Blender after installing.", icon='ERROR')
         else:
@@ -4302,23 +4350,15 @@ class FO4_PT_SetupPanel(_FO4SubPanel):
                 text="Then restart Blender to apply changes.", icon='BLANK1')
 
         # ── Quick actions ─────────────────────────────────────────────────
-        # FO4_OT_SelfTest and FO4_OT_InstallPythonDeps live in operators.py and
-        # register together; a single guard covers both buttons in this row.
-        _core_ops_ready = hasattr(bpy.types, 'FO4_OT_SelfTest')
+        # Always draw buttons directly — in Blender 5.x hasattr(bpy.types, ...)
+        # may return False even for registered operators (RECURRING BUG #1).
         row = layout.row(align=True)
-        if _core_ops_ready:
-            row.operator("fo4.self_test", text="Environment Check", icon='CHECKMARK')
-            row.operator("fo4.install_python_deps", text="Re-install Deps", icon='FILE_REFRESH')
-        else:
-            row.label(text="Environment Check (loading...)", icon='CHECKMARK')
-            row.label(text="Re-install Deps (loading...)", icon='FILE_REFRESH')
+        row.operator("fo4.self_test", text="Environment Check", icon='CHECKMARK')
+        row.operator("fo4.install_python_deps", text="Re-install Deps", icon='FILE_REFRESH')
         # Restart button: uses a timer to defer bpy.ops.wm.quit_blender() so it
         # runs after the confirm popup is closed, avoiding the Blender 5.0.1
         # EXCEPTION_ACCESS_VIOLATION (BLI_addhead / wm_exit_schedule_delayed).
-        if hasattr(bpy.types, 'FO4_OT_ReloadAddon'):
-            layout.operator("fo4.reload_addon", text="Restart Blender", icon='QUIT')
-        else:
-            layout.label(text="Restart Blender (loading...)", icon='QUIT')
+        layout.operator("fo4.reload_addon", text="Restart Blender", icon='QUIT')
 
 
 

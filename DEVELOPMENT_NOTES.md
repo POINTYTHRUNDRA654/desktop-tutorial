@@ -35,8 +35,14 @@ git checkout origin/copilot/add-activation-buttons-n-panel-again -- __init__.py 
    are called at the end of `register()` AND inside `_deferred_startup()` (2s timer).
    **Do NOT remove these functions.**
 
-5. **`ui_panels.py`** — every call to the 7 activation operators is wrapped in
-   `if hasattr(bpy.types, 'FO4_OT_...')` guards. Removing them floods the console.
+5. **`ui_panels.py` — `_activation_op()` helper** — every call to the 7 activation operators
+   must go through this helper.  **CRITICAL Blender 5.x note:** `hasattr(bpy.types, 'FO4_OT_X')`
+   can return `False` even when the operator IS registered.  The old pattern of wrapping
+   operator calls in `if hasattr(...): op() else: label()` caused the buttons to silently
+   disappear (replaced by a static "(loading...)" label) on every Blender 5.x reload.
+   `_activation_op()` performs the hasattr check but **always draws the button regardless**,
+   so the button is never invisible.  Do NOT replace `_activation_op()` calls with a bare
+   hasattr if/else that shows a label in the else-branch.
 
 6. **`operators.py`** — does NOT contain class bodies for `FO4_OT_InstallPythonDeps`,
    `FO4_OT_SelfTest`, or `FO4_OT_ReloadAddon`. Duplicate bodies displace `setup_operators.py`
@@ -74,13 +80,25 @@ clickable buttons, or the buttons are missing entirely.
 ### Root Cause
 
 `FO4_PT_MainPanel.draw()` in `ui_panels.py` uses the four operators from
-`tutorial_operators.py`.  Each call is guarded with ``hasattr(bpy.types, 'ClassName')``
-so that a missing registration degrades gracefully to a static label; without the guard,
-Blender would print the above errors on every single UI redraw (hundreds of times per
-second) and the buttons would never appear.  **Do NOT remove those guards.**
+`tutorial_operators.py`.  Each call goes through `_activation_op()` (defined near the top
+of `ui_panels.py`), which performs a `hasattr(bpy.types, 'ClassName')` check internally.
 
-If `tutorial_operators.register()` fails, the `hasattr` guard falls back to labels
-and `_ensure_tutorial_operators()` in `register()` attempts a last-ditch re-registration.
+**Blender 5.x gotcha:** `hasattr(bpy.types, 'FO4_OT_X')` can return `False` even when the
+operator IS registered.  The old pattern — `if hasattr(...): op() else: label("loading...")`
+— therefore silently replaced every button with a static text label, making the entire
+activation panel appear blank.
+
+`_activation_op()` was introduced to fix this: it performs the hasattr check (kept for
+correctness on Blender versions where it works) but **always calls `layout.operator()`**
+regardless of the result.  The button is always visible.
+
+**Do NOT replace `_activation_op()` calls with a bare `if hasattr / else: label()` block.**
+Doing so reintroduces this exact bug on Blender 5.x.  If the operator is missing the user
+sees a single "unknown operator" error on click — a recoverable UX issue.  If the button
+itself is missing the user has no way to click anything at all.
+
+If `tutorial_operators.register()` fails, `_ensure_tutorial_operators()` in `register()`
+attempts a last-ditch re-registration.
 The most common reasons the operators fail to register:
 
 1. **Dual-install conflict** — The user has both `blender_org/blender_game_tools` AND
@@ -198,14 +216,21 @@ tutorial operators. If any test in that group fails, the code is still broken.
 
 ### What NOT to Do
 
+- **⛔ Do NOT replace `_activation_op()` calls with `if hasattr / else: label()`** —
+  This is the #1 cause of disappearing buttons on Blender 5.x.  `hasattr(bpy.types,
+  'FO4_OT_X')` can return `False` even when the operator IS registered; an else-branch
+  that shows a label will silently hide the button from the user.  Always use
+  `_activation_op()` for the 7 activation operators, or call `layout.operator()` directly.
+  **A visible button that fails on click is recoverable. An invisible button is not.**
+
 - **Do NOT delete `tutorial_operators.py`** — even if you think the operators can live in
   `operators.py`. They were deliberately extracted to avoid a 14 000-line file failing to
   load blocking these 4 critical buttons.
 - **Do NOT move `tutorial_operators` after `operators` in the modules list** — `ui_panels`
   draws buttons on the very first frame; if the operators are not registered before
   `ui_panels.register()` runs, the first draw will fail.
-- **Do NOT remove the `hasattr` guards from `ui_panels.py`** — they prevent hundreds of
-  error lines per second while the addon is still loading.
+- **Do NOT remove `_activation_op()` from `ui_panels.py`** — it is the guard that keeps
+  the 7 activation buttons always visible even when Blender 5.x hasattr is unreliable.
 - **Do NOT merge a PR that changes `__init__.py` without verifying `tutorial_operators` is
   still in the modules list.**
 - **Do NOT simplify `tutorial_operators.register()` back to a plain `bpy.utils.register_class(cls)`
