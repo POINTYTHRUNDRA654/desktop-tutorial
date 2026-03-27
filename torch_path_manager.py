@@ -13,6 +13,10 @@ from pathlib import Path
 # Module-level guard: prevents concurrent auto-install attempts within one session.
 _auto_install_running = False
 
+# Incremented after every successful installation so that ui_panels._get_torch_status()
+# can detect a new install and invalidate its cached "not available" result.
+_install_generation = 0
+
 
 class TorchPathManager:
     """Manages PyTorch installation in custom short paths"""
@@ -50,13 +54,35 @@ class TorchPathManager:
 
     @staticmethod
     def add_torch_to_path(torch_base_path):
-        """Add custom torch path to sys.path if not already added"""
+        """Add custom torch path to sys.path and the Windows DLL search path.
+
+        On Windows, ``sys.path`` only controls where Python finds *.py / *.pyd
+        files.  PyTorch's extension module (``torch._C.pyd``) loads additional
+        native DLLs (``torch_cpu.dll``, ``fbgemm.dll``, etc.) from
+        ``<install>/torch/lib/`` at import time.  The Windows DLL loader will
+        not find those DLLs unless their directory is registered via
+        ``os.add_dll_directory()``.  Without this step Blender raises
+        ``OSError: [WinError 1114]`` even when sys.path is correct.
+        """
+        torch_base_path = Path(torch_base_path)
         torch_base_str = str(torch_base_path.resolve())
+        added = False
         if torch_base_str not in sys.path:
             sys.path.insert(0, torch_base_str)
             print(f"Added {torch_base_str} to sys.path")
-            return True
-        return False
+            added = True
+
+        # Register the torch DLL directory with the Windows loader (Python 3.8+).
+        if platform.system() == "Windows" and hasattr(os, "add_dll_directory"):
+            dll_dir = torch_base_path / "torch" / "lib"
+            if dll_dir.is_dir():
+                try:
+                    os.add_dll_directory(str(dll_dir.resolve()))
+                    print(f"Registered Windows DLL directory: {dll_dir}")
+                except OSError as _dll_e:
+                    print(f"Warning: could not register DLL directory {dll_dir}: {_dll_e}")
+
+        return added
 
     @staticmethod
     def install_torch_to_custom_path(target_path=None):
@@ -117,13 +143,23 @@ class TorchPathManager:
                 except Exception as _e:
                     print(f"Warning: PyTorch installed successfully but could not persist path to preferences: {_e}")
 
-                # Verify installation
+                # Bump install generation so ui_panels invalidates its status cache.
+                global _install_generation
+                _install_generation += 1
+
+                # Verify the installation is importable in this session.
                 try:
                     import torch
                     torch_version = torch.__version__
                     return True, f"PyTorch {torch_version} installed successfully to {target_path}"
-                except ImportError as e:
-                    return False, f"Installation completed but import failed: {str(e)}"
+                except (ImportError, OSError) as e:
+                    # DLL dirs were registered by add_torch_to_path() above.
+                    # If the error persists (e.g. corrupted install), a Blender
+                    # restart is required to fully reload native extensions.
+                    return True, (
+                        f"PyTorch installed to {target_path} — please reload Blender to activate"
+                        f" ({type(e).__name__}: {str(e)[:80]})"
+                    )
             else:
                 error_msg = result.stderr if result.stderr else result.stdout
                 return False, f"Installation failed: {error_msg}"
@@ -229,6 +265,23 @@ class TorchPathManager:
             return False, f"Unknown error: {str(e)}", None
 
 
+class TORCH_OT_recheck_status(bpy.types.Operator):
+    """Re-check whether PyTorch is importable (clears the cached status)"""
+    bl_idname = "torch.recheck_status"
+    bl_label = "Re-check PyTorch Status"
+    bl_description = "Discard the cached PyTorch availability result and re-check now"
+
+    def execute(self, context):
+        try:
+            from . import ui_panels as _ui
+            _ui.reset_torch_cache()
+        except Exception as e:
+            self.report({'WARNING'}, f"Could not reset torch cache: {e}")
+            return {'CANCELLED'}
+        self.report({'INFO'}, "PyTorch status re-checked — see Settings panel for result.")
+        return {'FINISHED'}
+
+
 class TORCH_OT_install_custom_path(bpy.types.Operator):
     """Install PyTorch to a custom path"""
     bl_idname = "torch.install_custom_path"
@@ -248,6 +301,13 @@ class TORCH_OT_install_custom_path(bpy.types.Operator):
 
         if success:
             self.report({'INFO'}, message)
+            # Reset the ui_panels torch status cache so the panel reflects the
+            # new installation immediately without requiring a Blender restart.
+            try:
+                from . import ui_panels as _ui
+                _ui.reset_torch_cache()
+            except (ImportError, AttributeError) as _e:
+                print(f"torch_path_manager: could not reset ui_panels torch cache: {_e}")
         else:
             self.report({'ERROR'}, message)
 
@@ -264,11 +324,13 @@ class TORCH_OT_install_custom_path(bpy.types.Operator):
 
 
 def register():
+    bpy.utils.register_class(TORCH_OT_recheck_status)
     bpy.utils.register_class(TORCH_OT_install_custom_path)
 
 
 def unregister():
     bpy.utils.unregister_class(TORCH_OT_install_custom_path)
+    bpy.utils.unregister_class(TORCH_OT_recheck_status)
 
 
 if __name__ == "__main__":

@@ -168,6 +168,75 @@ def _activation_op(layout, cls_name, idname, text, icon='NONE'):
 # ──────────────────────────────────────────────────────────────────────────
 _torch_cache = None  # None = not yet checked, True = available, str = error message
 _torch_version = None
+# Tracks torch_path_manager._install_generation; when it changes we know a
+# fresh installation completed and the cached failure should be discarded.
+_torch_cache_install_gen = -1
+
+
+def reset_torch_cache():
+    """Invalidate the cached torch status so the next panel draw re-checks.
+
+    Called automatically by TORCH_OT_install_custom_path after a successful
+    installation, and can also be triggered by the 'Re-check' button.
+    """
+    global _torch_cache, _torch_version, _torch_cache_install_gen
+    _torch_cache = None
+    _torch_version = None
+    _torch_cache_install_gen = -1
+
+
+def _get_torch_status():
+    """Get cached torch status to avoid repeated import attempts in draw() loops.
+
+    Uses ``TorchPathManager.try_import_torch()`` (when available) so that the
+    custom install path *and* its Windows DLL directory are registered before
+    the import is attempted.  A plain ``import torch`` here would raise
+    ``OSError [WinError 1114]`` because ``sys.path`` alone does not tell the
+    Windows DLL loader where to find ``torch_cpu.dll`` and friends.
+    """
+    global _torch_cache, _torch_version, _torch_cache_install_gen
+
+    # If a new installation completed since we last cached, discard the old result.
+    if torch_path_manager is not None:
+        current_gen = getattr(torch_path_manager, "_install_generation", 0)
+        if current_gen != _torch_cache_install_gen and _torch_cache is not True:
+            _torch_cache = None
+            _torch_cache_install_gen = current_gen
+
+    if _torch_cache is not None:
+        if _torch_cache is True:
+            return True, _torch_version
+        return False, _torch_cache
+
+    # Use TorchPathManager when available – it adds sys.path entries AND
+    # registers os.add_dll_directory() for the torch native DLLs on Windows.
+    if torch_path_manager is not None and hasattr(torch_path_manager, "TorchPathManager"):
+        success, message, _mod = torch_path_manager.TorchPathManager.try_import_torch()
+        if success:
+            try:
+                import torch
+                _torch_cache = True
+                _torch_version = torch.__version__
+                return True, _torch_version
+            except (ImportError, OSError) as _e:
+                print(f"ui_panels: torch import unexpectedly failed after try_import_torch succeeded: {_e}")
+        _torch_cache = message
+        return False, message
+
+    # Fallback when torch_path_manager is unavailable (should not normally happen).
+    try:
+        import torch
+        _torch_cache = True
+        _torch_version = torch.__version__
+        return True, _torch_version
+    except OSError as e:
+        err_msg = str(e)
+        _torch_cache = err_msg
+        return False, err_msg
+    except ImportError as e:
+        _torch_cache = str(e)
+        return False, str(e)
+
 
 # ──────────────────────────────────────────────────────────────────────────
 # Module-level cache for core Python dependency checks.
@@ -178,33 +247,12 @@ _torch_version = None
 import importlib.util as _importlib_util
 _dep_cache: dict[str, bool] = {}   # module_name -> bool (True = found)
 
+
 def _check_dep(module_name: str) -> bool:
     """Return True if *module_name* is importable; result is cached permanently."""
     if module_name not in _dep_cache:
         _dep_cache[module_name] = _importlib_util.find_spec(module_name) is not None
     return _dep_cache[module_name]
-
-def _get_torch_status():
-    """Get cached torch status to avoid repeated import attempts in draw() loops."""
-    global _torch_cache, _torch_version
-    if _torch_cache is not None:
-        if _torch_cache is True:
-            return True, _torch_version
-        return False, _torch_cache
-
-    try:
-        import torch
-        _torch_cache = True
-        _torch_version = torch.__version__
-        return True, _torch_version
-    except OSError as e:
-        # DLL loading error – likely missing Visual C++ Runtime or corrupted install
-        err_msg = str(e)
-        _torch_cache = err_msg
-        return False, err_msg
-    except ImportError as e:
-        _torch_cache = str(e)
-        return False, str(e)
 
 hunyuan3d_helpers = _safe_import("hunyuan3d_helpers")
 gradio_helpers = _safe_import("gradio_helpers")
@@ -236,6 +284,7 @@ fo4_game_assets       = _safe_import("fo4_game_assets")
 unity_game_assets     = _safe_import("unity_game_assets")
 unreal_game_assets    = _safe_import("unreal_game_assets")
 tutorial_system      = _safe_import("tutorial_system")
+torch_path_manager   = _safe_import("torch_path_manager")
 
 
 # ---------------------------------------------------------------------------
@@ -4088,11 +4137,23 @@ class FO4_PT_SetupPanel(_FO4SubPanel):
             torch_box.label(text=f"✓ PyTorch {torch_info} loaded", icon='CHECKMARK')
         else:
             torch_box.label(text="✗ PyTorch not available", icon='ERROR')
-            if "DLL" in str(torch_info) or "WinError" in str(torch_info):
-                torch_box.label(text=f"DLL Error: {torch_info[:60]}...", icon='ERROR')
+            info_str = str(torch_info)
+            # "dll_init_error" is the normalised code returned by try_import_torch()
+            # for WinError 1114; also match raw OSError messages just in case.
+            is_dll_error = (
+                info_str == "dll_init_error"
+                or "DLL" in info_str
+                or "WinError 1114" in info_str
+            )
+            if is_dll_error:
+                torch_box.label(text="DLL init failed — native torch libraries could not load.", icon='ERROR')
+                torch_box.label(text="Ensure Microsoft Visual C++ Redistributable (x64) is installed.", icon='INFO')
+                torch_box.label(text="If on a custom path, Blender may need to be restarted once.", icon='INFO')
             else:
                 torch_box.label(text="Click below to install to D:/t (short path)", icon='INFO')
-            torch_box.operator("torch.install_custom_path", text="Install PyTorch to D:/t", icon='IMPORT')
+            row = torch_box.row(align=True)
+            row.operator("torch.install_custom_path", text="Install PyTorch to D:/t", icon='IMPORT')
+            row.operator("torch.recheck_status", text="", icon='FILE_REFRESH')
 
         # Show/edit the persisted path
         prefs = preferences.get_preferences() if preferences else None
