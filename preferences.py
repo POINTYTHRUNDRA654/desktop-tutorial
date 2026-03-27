@@ -458,10 +458,18 @@ def restore_extra_python_paths() -> list[str]:
 
     added: list[str] = []
 
-    # Restore the dedicated torch_custom_path preference
+    # Restore the dedicated torch_custom_path preference using TorchPathManager
+    # so that both sys.path and the Windows DLL search path are updated together.
     torch_path = bpy.path.abspath(prefs.torch_custom_path).strip()
-    if torch_path and os.path.isdir(torch_path) and torch_path not in _sys.path:
-        _sys.path.insert(0, torch_path)
+    if torch_path and os.path.isdir(torch_path):
+        try:
+            from . import torch_path_manager as _tpm
+            _tpm.TorchPathManager.add_torch_to_path(torch_path)
+        except Exception:
+            # Fallback: at minimum keep sys.path updated
+            import sys as _sys
+            if torch_path not in _sys.path:
+                _sys.path.insert(0, torch_path)
         added.append(torch_path)
         print(f"✓ Restored PyTorch path to sys.path: {torch_path}")
     elif prefs.torch_install_attempted and not (torch_path and os.path.isdir(torch_path)):
