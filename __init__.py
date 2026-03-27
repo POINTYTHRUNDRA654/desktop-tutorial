@@ -496,19 +496,39 @@ def register():
     # responsive.  A 2-second deferred timer lets the UI finish initializing
     # first, then the background work runs once without freezing the interface.
     def _deferred_startup():
-        # ── Step 3: auto-detect PyTorch from well-known short paths ──────────
-        # Supplements Step 2: catches installs that pre-date the path-persistence
-        # feature or were installed by external tools.
+        # ── Step 3: detect PyTorch and trigger background auto-install ────────
+        # try_import_torch() covers all detection paths in priority order:
+        #   1. torch_custom_path saved in preferences
+        #   2. Well-known short paths (D:/t, C:/t, …, ~/.blender_torch)
+        #   3. A plain `import torch` (catches pip system-wide installs)
+        # If torch is still absent and auto_install_pytorch is enabled, a
+        # non-blocking background thread is queued to run pip install.
+        # Running this here (2 s after startup) ensures detection and
+        # auto-install happen at launch, not during the first Settings-panel
+        # draw — which would freeze Blender's UI.
         try:
             if torch_path_manager:
-                existing_torch = (
-                    torch_path_manager.TorchPathManager.find_existing_torch_install()
-                )
-                if existing_torch:
-                    torch_path_manager.TorchPathManager.add_torch_to_path(existing_torch)
-                    print(f"✓ PyTorch found and loaded from: {existing_torch}")
+                ok, msg, _ = torch_path_manager.TorchPathManager.try_import_torch()
+                if ok:
+                    print(f"✓ PyTorch available: {msg}")
+                elif msg == "auto_install_started":
+                    print("PyTorch: background install thread started — check back shortly.")
+                elif msg == "auto_install_in_progress":
+                    print("PyTorch: background install already in progress.")
+                elif msg == "dll_init_error":
+                    print(
+                        "PyTorch: DLL init error — native libraries could not load. "
+                        "Ensure Microsoft Visual C++ Redistributable (x64) is installed."
+                    )
+                elif msg == "windows_path_error":
+                    print(
+                        "PyTorch: Windows path-length error detected. "
+                        "Use the Settings panel to install to a short path (D:/t)."
+                    )
+                else:
+                    print(f"PyTorch not available: {msg}")
         except Exception as e:
-            print(f"PyTorch auto-detection skipped: {e}")
+            print(f"PyTorch detection skipped: {e}")
 
         # ── Step 4: auto-discover installed CLI tools and wire up preferences ─
         # If ffmpeg / nvcompress / texconv are present in the tools folder but

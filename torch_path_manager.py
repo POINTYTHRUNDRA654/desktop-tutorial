@@ -17,6 +17,9 @@ _auto_install_running = False
 # can detect a new install and invalidate its cached "not available" result.
 _install_generation = 0
 
+# Max bytes of pip stderr/stdout shown in the console on install failure.
+_MAX_PIP_ERROR_LEN = 300
+
 
 class TorchPathManager:
     """Manages PyTorch installation in custom short paths"""
@@ -171,40 +174,93 @@ class TorchPathManager:
 
     @staticmethod
     def _try_auto_install(reason: str) -> "tuple[bool, str, object]":
-        """Internal helper: run auto-install when enabled and not yet attempted.
+        """Internal helper: queue a background auto-install when enabled.
 
-        Uses a module-level flag to prevent re-entrant calls within one
-        Blender session, and only persists ``torch_install_attempted`` after a
-        *successful* install so that failed attempts are retried on the next
-        Blender startup.
+        Runs the pip subprocess in a daemon ``threading.Thread`` so the call
+        always returns immediately and **never blocks Blender's UI**.  The bpy
+        preference write (torch_custom_path / torch_install_attempted) is
+        scheduled back on the main thread via ``bpy.app.timers.register()``
+        once the subprocess finishes.
 
-        Returns the same 3-tuple as try_import_torch() on success, or
-        (False, original_reason, None) when auto-install is disabled / already
-        running / fails.
+        Uses ``_auto_install_running`` to prevent concurrent install attempts.
+        Only one install thread runs at a time; subsequent calls while the
+        thread is live return ``(False, "auto_install_in_progress", None)``
+        immediately.
+
+        Returns:
+            ``(False, "auto_install_started", None)``  — thread queued.
+            ``(False, "auto_install_in_progress", None)`` — already running.
+            ``(False, original_reason, None)`` — disabled / not needed.
         """
         global _auto_install_running
         if _auto_install_running:
-            return False, reason, None
+            return False, "auto_install_in_progress", None
 
         try:
             from . import preferences
             prefs = preferences.get_preferences()
-            if prefs and prefs.auto_install_pytorch and not prefs.torch_install_attempted:
-                _auto_install_running = True
-                print(f"Auto-installing PyTorch ({reason})...")
+            if not (prefs and prefs.auto_install_pytorch and not prefs.torch_install_attempted):
+                return False, reason, None
+
+            _auto_install_running = True
+            target_path = TorchPathManager.DEFAULT_TORCH_PATH
+            print(f"PyTorch: queuing background auto-install to {target_path} ({reason})…")
+
+            import threading
+
+            def _install_worker():
+                global _auto_install_running, _install_generation
                 try:
-                    success, msg = TorchPathManager.install_torch_to_custom_path()
-                    if success:
+                    target_path.mkdir(parents=True, exist_ok=True)
+                    cmd = [
+                        sys.executable, "-m", "pip", "install",
+                        "--target", str(target_path),
+                        "--upgrade",
+                        "torch", "torchvision",
+                        "--index-url", "https://download.pytorch.org/whl/cpu",
+                    ]
+                    print(f"PyTorch auto-install: running pip… ({' '.join(cmd[:5])} …)")
+                    result = subprocess.run(
+                        cmd, capture_output=True, text=True, timeout=600, check=False
+                    )
+                    if result.returncode == 0:
+                        # sys.path / DLL dirs — safe from a non-main thread
+                        TorchPathManager.add_torch_to_path(target_path)
+                        _install_generation += 1
+                        print(f"✓ PyTorch background install complete to {target_path}")
+
+                        # bpy preference write must happen on the main thread
+                        def _save_prefs_on_main():
+                            try:
+                                from . import preferences as _p
+                                _p.set_torch_custom_path(str(target_path))
+                                print(f"✓ PyTorch path saved to preferences: {target_path}")
+                            except Exception as _e:
+                                print(f"Warning: could not save PyTorch path: {_e}")
+                            return None  # do not reschedule
                         try:
-                            import torch
-                            return True, f"PyTorch auto-installed successfully: {torch.__version__}", torch
-                        except ImportError as import_err:
-                            print(f"Auto-install succeeded but import still failed: {import_err}")
-                            return False, f"Auto-install succeeded but import failed: {import_err}", None
+                            import bpy as _bpy
+                            _bpy.app.timers.register(_save_prefs_on_main, first_interval=0.0)
+                        except Exception:
+                            pass
                     else:
-                        print(f"Auto-install failed: {msg}")
+                        err = (result.stderr or result.stdout or "")[:_MAX_PIP_ERROR_LEN]
+                        print(f"PyTorch auto-install failed (pip exit {result.returncode}): {err}")
+                except subprocess.TimeoutExpired:
+                    print("PyTorch auto-install timed out (10 minutes).")
+                except Exception as ex:
+                    print(f"PyTorch auto-install error: {ex}")
                 finally:
                     _auto_install_running = False
+
+            t = threading.Thread(
+                target=_install_worker,
+                name="blender_torch_install",
+                daemon=True,
+            )
+            t.start()
+            return False, "auto_install_started", None
+
         except Exception as ex:
             _auto_install_running = False
             print(f"Auto-install check failed: {ex}")
@@ -254,12 +310,14 @@ class TorchPathManager:
                 return False, "dll_init_error", None
             return False, f"File error: {str(e)}", None
         except ImportError as e:
-            # PyTorch is simply not installed – attempt auto-install
+            # PyTorch is simply not installed – queue a background auto-install
             result = TorchPathManager._try_auto_install(
                 f"PyTorch not found ({e})"
             )
             if result[0]:
                 return result
+            if result[1] in ("auto_install_started", "auto_install_in_progress"):
+                return False, result[1], None
             return False, f"PyTorch not installed: {str(e)}", None
         except Exception as e:
             return False, f"Unknown error: {str(e)}", None
