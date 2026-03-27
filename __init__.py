@@ -6,7 +6,7 @@ A comprehensive tutorial and helper system for creating Fallout 4 mods in Blende
 bl_info = {
     "name": "Fallout 4 Mod Assistant",
     "author": "Tutorial Team",
-    "version": (5, 0, 0),
+    "version": (5, 1, 0),
     "blender": (2, 90, 0),  # Compatible with Blender 2.90+ through 5.x
     "location": "View3D > Sidebar > Fallout 4",
     "description": (
@@ -420,26 +420,7 @@ def register():
     blender_version = bpy.app.version
     version_string = f"{blender_version[0]}.{blender_version[1]}.{blender_version[2]}"
 
-    print(f"Fallout 4 Tutorial Helper - Initializing for Blender {version_string}")
-    # show recent development notes to help recall recent changes
-    try:
-        notes_path = bpy.path.abspath("//DEVELOPMENT_NOTES.md")
-        # if running from unpacked directory use workspace file as fallback
-        import os
-
-        if not os.path.isfile(notes_path):
-            notes_path = os.path.join(os.path.dirname(__file__), "DEVELOPMENT_NOTES.md")
-        if os.path.isfile(notes_path):
-            with open(notes_path, "r", encoding="utf-8") as f:
-                lines = f.readlines()
-            # print last 20 non-empty lines
-            print("--- recent dev notes ---")
-            for ln in lines[-40:]:
-                if ln.strip():
-                    print(ln.rstrip())
-            print("------------------------")
-    except Exception as e:
-        print(f"Could not read DEVELOPMENT_NOTES.md: {e}")
+    print(f"Fallout 4 Mod Assistant - Initializing for Blender {version_string}")
 
     # Register all modules, but continue even if one fails so the
     # user can see the error in the console and report it.
@@ -631,7 +612,7 @@ def register():
     #     print("✓ All core Python dependencies present")
 
     print(
-        f"✓ Fallout 4 Tutorial Helper registered successfully (Blender {version_string})"
+        f"✓ Fallout 4 Mod Assistant registered successfully (Blender {version_string})"
     )
 
     # schedule a quick environment check once Blender is ready

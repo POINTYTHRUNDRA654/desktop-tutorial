@@ -96,15 +96,35 @@ Write-Host ""
 Write-Host "[4/4] Installing addon into Blender $blenderVer..." -ForegroundColor Yellow
 
 if ($blenderVer -ge [version]"5.0") {
-    # Blender 5.x — Extension format, files at zip root
+    # Blender 5.x — Extension format, files at zip root.
+    # Install to wherever the addon already lives so we don't create a
+    # second copy in a different extensions repo (which would cause the
+    # dual-install / "buttons vanish" bug).
+    #   blender_org      = installed via Blender's Extension Platform
+    #   user_default     = installed manually / via this script previously
     $variant     = "blender5x"
     $isExtension = $true
-    $destDir     = Join-Path $blenderDir "extensions\user_default\blender_game_tools"
+    $blenderOrgPath  = Join-Path $blenderDir "extensions\blender_org\blender_game_tools"
+    $userDefaultPath = Join-Path $blenderDir "extensions\user_default\blender_game_tools"
+    if (Test-Path $blenderOrgPath) {
+        $destDir = $blenderOrgPath
+        Write-Host "  Detected existing blender_org install — updating in place." -ForegroundColor Cyan
+    } else {
+        $destDir = $userDefaultPath
+    }
 } elseif ($blenderVer -ge [version]"4.2") {
-    # Blender 4.2+ — Extension format, files at zip root
+    # Blender 4.2+ — Extension format, files at zip root.
+    # Same blender_org vs user_default detection as above.
     $variant     = "blender42"
     $isExtension = $true
-    $destDir     = Join-Path $blenderDir "extensions\user_default\blender_game_tools"
+    $blenderOrgPath  = Join-Path $blenderDir "extensions\blender_org\blender_game_tools"
+    $userDefaultPath = Join-Path $blenderDir "extensions\user_default\blender_game_tools"
+    if (Test-Path $blenderOrgPath) {
+        $destDir = $blenderOrgPath
+        Write-Host "  Detected existing blender_org install — updating in place." -ForegroundColor Cyan
+    } else {
+        $destDir = $userDefaultPath
+    }
 } elseif ($blenderVer -ge [version]"4.0") {
     # Blender 4.0-4.1 — legacy add-on format, zip has blender_game_tools/ subfolder
     $variant     = "blender4x"
