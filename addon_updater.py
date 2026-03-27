@@ -380,6 +380,16 @@ _classes = [FO4_OT_CheckForUpdate, FO4_OT_InstallUpdate]
 def register():
     for cls in _classes:
         bpy.utils.register_class(cls)
+    bpy.types.Scene.fo4_auto_check_updates = bpy.props.BoolProperty(
+        name="Auto-check for Updates",
+        description="Automatically check for addon updates on Blender startup",
+        default=True,
+    )
+    bpy.types.Scene.fo4_auto_install_updates = bpy.props.BoolProperty(
+        name="Auto-install Updates",
+        description="Automatically install updates when a new version is found",
+        default=False,
+    )
 
 
 def unregister():
@@ -389,4 +399,9 @@ def unregister():
         try:
             bpy.utils.unregister_class(cls)
         except Exception:
+            pass
+    for prop in ("fo4_auto_check_updates", "fo4_auto_install_updates"):
+        try:
+            delattr(bpy.types.Scene, prop)
+        except AttributeError:
             pass
