@@ -5,6 +5,11 @@
 # Uncomment a line (remove the leading #) to include that package when
 # "Install Python Requirements (including optional)" is run.
 #
+# PyTorch (required for: get3d_helpers, imageto3d_helpers, hunyuan3d_helpers, hymotion_helpers)
+# Use CPU version for smaller download; GPU version available via --index-url
+torch>=2.0.0
+torchvision>=0.15.0
+
 # gradio>=3.50.0
 # diffusers>=0.21.0
 # transformers>=4.30.0
