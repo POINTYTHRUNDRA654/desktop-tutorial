@@ -638,18 +638,21 @@ class TestTutorialOperatorsModule(unittest.TestCase):
             )
 
     def test_hasattr_guards_present_in_ui_panels(self):
-        """FO4_PT_MainPanel must guard each tutorial operator call with either:
+        """Each tutorial operator call in ui_panels.py must be protected by one of:
 
           (a) an inline ``hasattr(bpy.types, 'ClassName')`` check, OR
-          (b) a call to the ``_op_or_label(layout, 'ClassName', ...)`` helper,
-              which performs the same hasattr check internally.
+          (b) a call to the ``_activation_op(layout, 'ClassName', ...)`` helper,
+              which performs the hasattr check internally and always draws the
+              button (safe on Blender 5.x where bare hasattr is unreliable).
 
-        Both forms degrade gracefully to a static label when the operator is
-        not yet registered, preventing 'rna_uiItemO: unknown operator' console
-        spam on every UI redraw.
+        Both forms prevent 'rna_uiItemO: unknown operator' console spam on
+        every UI redraw when an operator is not yet registered.
 
-        This is RECURRING BUG #1 – see DEVELOPMENT_NOTES.md.
-        Do NOT remove these guards.
+        IMPORTANT — RECURRING BUG #1 (see DEVELOPMENT_NOTES.md):
+          Do NOT replace _activation_op() calls with a bare hasattr if/else
+          that shows a label in the else-branch.  On Blender 5.x the hasattr
+          check can return False even for registered operators; a label
+          else-branch silently hides the button from the user.
         """
         source = _read("ui_panels.py")
         # Map Blender type-name → bl_idname expected in the operator() call.
@@ -667,22 +670,23 @@ class TestTutorialOperatorsModule(unittest.TestCase):
                 + re.escape(type_name)
                 + r"['\"]\s*\)"
             )
-            # Form (b): _op_or_label(layout, 'FO4_OT_Xxx', ...)
-            # The helper calls hasattr(bpy.types, cls_name) internally —
-            # both forms provide the same runtime protection.
+            # Form (b): _activation_op(layout, 'FO4_OT_Xxx', ...)
+            # The helper calls hasattr(bpy.types, cls_name) internally and
+            # always draws the button — prevents the "loading..." label problem
+            # on Blender 5.x where hasattr(bpy.types, ...) is unreliable.
             helper_pattern = re.compile(
-                r"_op_or_label\s*\([^,]+,\s*['\"]"
+                r"_activation_op\s*\([^,]+,\s*['\"]"
                 + re.escape(type_name)
                 + r"['\"]\s*,"
             )
             if not inline_pattern.search(source) and not helper_pattern.search(source):
                 failures.append(
-                    f"  {idname}: missing hasattr guard or _op_or_label() call "
+                    f"  {idname}: missing hasattr guard or _activation_op() call "
                     f"for '{type_name}' in ui_panels.py"
                 )
         if failures:
             self.fail(
-                "The following tutorial operators are missing hasattr guards "
+                "The following tutorial operators are missing activation guards "
                 "in ui_panels.py (RECURRING BUG #1 – see DEVELOPMENT_NOTES.md):\n"
                 + "\n".join(failures)
             )

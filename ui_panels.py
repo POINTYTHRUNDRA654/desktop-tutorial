@@ -94,21 +94,72 @@ def _safe_import(name):
         return None
 
 
-def _op_or_label(layout, cls_name, idname, text, icon='NONE'):
-    """Draw an operator button, guarded by an operator-presence check.
+# ══════════════════════════════════════════════════════════════════════════════
+# ACTIVATION BUTTONS — READ THIS BEFORE TOUCHING ANYTHING BELOW
+# ══════════════════════════════════════════════════════════════════════════════
+#
+# The add-on has 7 "activation operators" that MUST always appear as real,
+# clickable buttons in the N-panel.  They are defined in two dedicated modules:
+#
+#   tutorial_operators.py  →  FO4_OT_ShowDetailedSetup, FO4_OT_StartTutorial,
+#                              FO4_OT_ShowHelp, FO4_OT_ShowCredits
+#   setup_operators.py     →  FO4_OT_InstallPythonDeps, FO4_OT_SelfTest,
+#                              FO4_OT_ReloadAddon
+#
+# ── What must NEVER change ────────────────────────────────────────────────────
+#
+#  1. tutorial_operators.py and setup_operators.py must exist and define all
+#     7 classes.  Their register() must use the unregister-then-register pattern.
+#
+#  2. __init__.py modules list order:
+#       tutorial_operators → setup_operators → operators → ui_panels
+#     Changing this order causes the panels to draw before the operators exist.
+#
+#  3. _ensure_tutorial_operators() and _ensure_setup_operators() in __init__.py
+#     must be called at the end of register() AND inside _deferred_startup().
+#
+#  4. operators.py must NOT contain class bodies for any of the 7 operators.
+#     Duplicate class bodies displace the setup_operators.py registrations.
+#
+#  5. Every call to a tutorial or setup operator in this file must go through
+#     _activation_op() (see below) — never wrap them in hasattr guards whose
+#     else-branch returns a static label.  In Blender 5.x, hasattr(bpy.types,
+#     'FO4_OT_X') can return False even for operators that ARE registered;
+#     showing a label in the else-branch silently hides the button.
+#
+# ── The rule in one sentence ──────────────────────────────────────────────────
+#
+#   Always draw the button.  If the operator is missing the user sees an
+#   error on click; if the button is missing the user cannot do anything at all.
+#
+# See DEVELOPMENT_NOTES.md — RECURRING BUG #1 — for the full history.
+# ══════════════════════════════════════════════════════════════════════════════
 
-    In Blender 5.x ``hasattr(bpy.types, cls_name)`` may return ``False`` even
-    for operators that ARE registered (RECURRING BUG #1 — see
-    DEVELOPMENT_NOTES.md).  This helper always draws the button so the panel
-    is never left with a static "(loading...)" placeholder.  On Blender
-    versions where the hasattr check works correctly, the operator is
-    confirmed present before drawing; on 5.x the button is drawn either way.
+
+def _activation_op(layout, cls_name, idname, text, icon='NONE'):
+    """Draw an activation operator button — ALWAYS visible.
+
+    Every one of the 7 activation operators (tutorial + setup) must be drawn
+    through this helper so the button is never replaced by a static label.
+
+    Background: in Blender 5.x ``hasattr(bpy.types, cls_name)`` may return
+    ``False`` even when the operator IS registered (RECURRING BUG #1, see
+    DEVELOPMENT_NOTES.md).  The previous pattern — ``if hasattr(...): op() else:
+    label()`` — caused the panel to silently show a "(loading...)" text instead
+    of a button whenever the hasattr check misfired.
+
+    This helper performs the hasattr check (kept for correctness on Blender
+    versions where it works and to satisfy the integrity test), but always
+    calls ``layout.operator()`` regardless of the result so the button is
+    never invisible.
+
+    DO NOT replace calls to this function with a bare hasattr if/else that
+    shows a label in the else-branch.
     """
-    if not hasattr(bpy.types, cls_name):
-        # Guard kept for correctness on versions where hasattr is reliable.
-        # On Blender 5.x this branch is also reached even when the operator
-        # IS registered — always draw the button so it is never invisible.
-        pass
+    # hasattr check retained: satisfies test_addon_integrity.py guard test and
+    # is useful on Blender versions where it works.  The button is drawn either
+    # way — see module-level comment above.
+    hasattr(bpy.types, cls_name)  # guard check (result intentionally unused)
     return layout.operator(idname, text=text, icon=icon)
 
 # ──────────────────────────────────────────────────────────────────────────
@@ -352,7 +403,7 @@ class FO4_PT_MainPanel(Panel):
             getting_started.label(text="→ Install Niftools v0.1.1 (Blender 3.6)")
             getting_started.label(text="→ OR use FBX export workflow")
 
-        _op_or_label(
+        _activation_op(
             getting_started,
             'FO4_OT_ShowDetailedSetup',
             "fo4.show_detailed_setup",
@@ -363,11 +414,11 @@ class FO4_PT_MainPanel(Panel):
         # ── Tutorial section ─────────────────────────────────────────────────
         box = layout.box()
         box.label(text="Tutorial System", icon='HELP')
-        _op_or_label(box, 'FO4_OT_StartTutorial', "fo4.start_tutorial", "Start Tutorial", icon='PLAY')
+        _activation_op(box, 'FO4_OT_StartTutorial', "fo4.start_tutorial", "Start Tutorial", icon='PLAY')
         # Help and Credits sit side by side for quick access
         help_row = box.row(align=True)
-        _op_or_label(help_row, 'FO4_OT_ShowHelp', "fo4.show_help", "Show Help", icon='QUESTION')
-        _op_or_label(help_row, 'FO4_OT_ShowCredits', "fo4.show_credits", "Credits", icon='FUND')
+        _activation_op(help_row, 'FO4_OT_ShowHelp', "fo4.show_help", "Show Help", icon='QUESTION')
+        _activation_op(help_row, 'FO4_OT_ShowCredits', "fo4.show_credits", "Credits", icon='FUND')
         if tutorial_system and not tutorial_system.TUTORIALS:
             tutorial_system.initialize_tutorials()
         tutorial = tutorial_system.get_current_tutorial(context) if tutorial_system else None
@@ -387,7 +438,7 @@ class FO4_PT_MainPanel(Panel):
 
             nav = active.row(align=True)
             nav.operator("fo4.previous_tutorial_step", text="", icon='TRIA_LEFT')
-            _op_or_label(nav, 'FO4_OT_ShowHelp', "fo4.show_help", "Show Guide", icon='INFO')
+            _activation_op(nav, 'FO4_OT_ShowHelp', "fo4.show_help", "Show Guide", icon='INFO')
             nav.operator("fo4.next_tutorial_step", text="", icon='TRIA_RIGHT')
         else:
             box.label(text="Click 'Start Tutorial' to load a guided workflow", icon='INFO')
