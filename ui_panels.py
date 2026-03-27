@@ -4135,6 +4135,10 @@ class FO4_PT_SetupPanel(_FO4SubPanel):
         torch_ok, torch_info = _get_torch_status()
         if torch_ok:
             torch_box.label(text=f"✓ PyTorch {torch_info} loaded", icon='CHECKMARK')
+        elif torch_info in ("auto_install_started", "auto_install_in_progress"):
+            torch_box.label(text="⏳ PyTorch installing in background…", icon='TIME')
+            torch_box.label(text="Check the Blender console for progress.", icon='INFO')
+            torch_box.operator("torch.recheck_status", text="Re-check Status", icon='FILE_REFRESH')
         else:
             torch_box.label(text="✗ PyTorch not available", icon='ERROR')
             info_str = str(torch_info)
