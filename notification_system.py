@@ -116,13 +116,24 @@ class FO4_NotificationSystem:
         while len(scene.fo4_notifications) > 10:
             scene.fo4_notifications.remove(0)
         
-        # Also show in Blender's UI
-        if notification_type == 'ERROR':
-            bpy.ops.fo4.show_message('INVOKE_DEFAULT', message=message, icon='ERROR')
-        elif notification_type == 'WARNING':
-            bpy.ops.fo4.show_message('INVOKE_DEFAULT', message=message, icon='ERROR')
-        else:
-            bpy.ops.fo4.show_message('INVOKE_DEFAULT', message=message, icon='INFO')
+        # Also show in Blender's UI — must run on the main thread.
+        # Background install threads call notify() after work completes, so
+        # we schedule the popup via bpy.app.timers to avoid the
+        # "Missing 'window' in context" RuntimeError on Blender 5.
+        _icon = 'ERROR' if notification_type in ('ERROR', 'WARNING') else 'INFO'
+        _msg = message  # capture for closure
+
+        def _show_popup():
+            try:
+                bpy.ops.fo4.show_message('INVOKE_DEFAULT', message=_msg, icon=_icon)
+            except Exception:
+                pass
+            return None  # returning None de-registers the timer
+
+        try:
+            bpy.app.timers.register(_show_popup, first_interval=0.0, persistent=False)
+        except Exception:
+            pass
     
     @staticmethod
     def check_common_errors(context):

@@ -102,6 +102,10 @@ def _find_download_url() -> str | None:
     Parses the HTML at gildor.org/en/projects/umodel and looks for href
     attributes that point to a ZIP or EXE containing "umodel" in the name.
     Returns an absolute URL string, or None if nothing is found.
+
+    When a scraped URL returns HTTP 404 (common for 32-bit builds after the
+    site switched to 64-bit only), the function automatically tries a win64
+    variant of the same path before giving up.
     """
     try:
         req = urllib.request.Request(
@@ -120,34 +124,43 @@ def _find_download_url() -> str | None:
         for pat in patterns:
             for m in re.findall(pat, html, re.IGNORECASE):
                 # Convert relative URLs to absolute
-                if not m.startswith("http"):
-                    url = urllib.parse.urljoin(_DOWNLOAD_PAGE, m)
-                else:
-                    url = m
-                # Verify URL actually exists before returning it.
-                # The scraped page may contain stale versioned paths (e.g.
-                # /down/47/umodel/umodel_win32.zip) that result in HTTP 404.
-                # A HEAD request avoids downloading the file just to detect 404.
-                if url and not url.endswith("#"):
+                url = m if m.startswith("http") else urllib.parse.urljoin(_DOWNLOAD_PAGE, m)
+                if not url or url.endswith("#"):
+                    continue
+
+                # Build a list of candidates: the scraped URL first, then
+                # a win64 variant (in case the page still lists a win32 path
+                # that returns HTTP 404 after the site switched to 64-bit).
+                candidates = [url]
+                if "win32" in url.lower():
+                    candidates.append(url.lower().replace("win32", "win64"))
+                    candidates.append(url.lower().replace("win32", "x64"))
+                elif "_32" in url:
+                    candidates.append(url.replace("_32", "_64"))
+
+                for candidate_url in candidates:
                     try:
                         verify_req = urllib.request.Request(
-                            url, method="HEAD", headers={"User-Agent": "Mozilla/5.0"}
+                            candidate_url, method="HEAD",
+                            headers={"User-Agent": "Mozilla/5.0"},
                         )
                         with urllib.request.urlopen(verify_req, timeout=10) as vresp:
                             if vresp.status == 200:
-                                print(f"UModel: verified download URL: {url}")
-                                return url
-                            print(f"UModel: URL returned {vresp.status}, skipping: {url}")
+                                print(f"UModel: verified download URL: {candidate_url}")
+                                return candidate_url
+                            print(f"UModel: URL returned {vresp.status}, skipping: {candidate_url}")
                     except Exception as verify_exc:
-                        print(f"UModel: URL verification failed for {url}: {verify_exc}")
+                        print(f"UModel: URL verification failed for {candidate_url}: {verify_exc}")
     except Exception as exc:
         print(f"UModel: could not scrape download page: {exc}")
-    
+
     # Fallback: try common UModel release URLs.
     # Note: the GitHub gildor2/UModel repo does not publish automated
     # releases, so the GitHub URL is a best-effort attempt.  The correct
     # GitHub format for latest-release assets is /releases/latest/download/.
     fallback_urls = [
+        "https://github.com/gildor2/UModel/releases/latest/download/UModel_Win64.zip",
+        "https://github.com/gildor2/UModel/releases/latest/download/UModel_win64.zip",
         "https://github.com/gildor2/UModel/releases/latest/download/UModel.zip",
     ]
     for fallback_url in fallback_urls:
