@@ -154,8 +154,6 @@ tutorial_operators = _try_import("tutorial_operators")
 # always appear as real clickable buttons, not "(loading...)" fallback labels.
 # See DEVELOPMENT_NOTES.md — *RECURRING BUG #1* — before removing this.
 setup_operators = _try_import("setup_operators")
-if setup_operators:
-    print(f"✓ setup_operators imported: {setup_operators}")
 
 
 # core modules that are safe to import and register unconditionally.
@@ -364,7 +362,6 @@ def _ensure_setup_operators():
     (*RECURRING BUG #1*) for full context.
     Do NOT remove this function or its call at the end of ``register()``.
     """
-    print(f"[DEBUG] _ensure_setup_operators called; setup_operators={setup_operators}")
     if setup_operators is None:
         print("  ⚠ setup_operators is None; cannot register")
         return
@@ -375,7 +372,6 @@ def _ensure_setup_operators():
         "FO4_OT_ReloadAddon",
     )
     missing = [n for n in required_operators if not hasattr(bpy.types, n)]
-    print(f"  Missing operators before re-register: {missing}")
     if not missing:
         print("✓ Setup operators confirmed in bpy.types (Setup panel buttons ready)")
         return
@@ -517,8 +513,10 @@ def register():
                     print("PyTorch: background install already in progress.")
                 elif msg == "dll_init_error":
                     print(
-                        "PyTorch: DLL init error — native libraries could not load. "
-                        "Ensure Microsoft Visual C++ Redistributable (x64) is installed."
+                        "PyTorch: DLL initialisation failed (WinError 1114) — "
+                        "CUDA/driver version mismatch. "
+                        "See the Blender console output above for detailed fix instructions, "
+                        "or open the Settings panel in the Fallout 4 N-panel."
                     )
                 elif msg == "windows_path_error":
                     print(
