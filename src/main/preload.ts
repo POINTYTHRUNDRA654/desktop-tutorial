@@ -573,6 +573,12 @@ const electronAPI: ElectronAPI = {
   // PyTorch — check availability and auto-install a CPU-only build on demand.
   checkPyTorch: () => ipcRenderer.invoke('check-pytorch'),
   installPyTorch: (destDir?: string) => ipcRenderer.invoke('install-pytorch', destDir),
+  onPytorchSetupProgress: (callback: (data: { message: string }) => void) => {
+    const subscription = (_event: Electron.IpcRendererEvent, data: { message: string }) => callback(data);
+    ipcRenderer.on('pytorch-setup-progress', subscription);
+    return () => ipcRenderer.removeListener('pytorch-setup-progress', subscription);
+  },
+  notifyPytorchRendererReady: () => ipcRenderer.send('pytorch-renderer-ready'),
 };
 
 /**

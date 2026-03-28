@@ -1683,6 +1683,27 @@ const electronAPI = {
   },
 
   /**
+   * PyTorch Setup Progress: subscribe to real-time progress events sent by
+   * the auto-install background task on first launch.
+   * @returns unsubscribe function
+   */
+  onPytorchSetupProgress: (callback: (data: { message: string }) => void): (() => void) => {
+    const subscription = (_event: any, data: { message: string }) => callback(data);
+    ipcRenderer.on('pytorch-setup-progress', subscription);
+    return () => ipcRenderer.removeListener('pytorch-setup-progress', subscription);
+  },
+
+  /**
+   * PyTorch: Signal to the main process that the renderer is mounted and
+   * ready to receive pytorch-setup-progress events. This triggers the
+   * background auto-install check immediately rather than waiting for the
+   * safety timeout.
+   */
+  notifyPytorchRendererReady: (): void => {
+    ipcRenderer.send('pytorch-renderer-ready');
+  },
+
+  /**
    */
   sendMessage: (message: any): Promise<void> => {
     return ipcRenderer.invoke('sendMessage', message);
