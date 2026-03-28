@@ -203,6 +203,7 @@ class TestOperatorsRegistered(unittest.TestCase):
             "operators.py",
             "tutorial_operators.py",
             "setup_operators.py",
+            "addon_diagnostics.py",
             "asset_library.py",
             "torch_path_manager.py",
             "texture_helpers/conversion_operators.py",
