@@ -1673,6 +1673,262 @@ class FO4_PT_AdvisorPanel(_FO4SubPanel):
 
 
 
+class FO4_PT_ToolsLinks(_FO4SubPanel):
+    """Quick links and installers for external tools — nested inside Setup & Status."""
+    bl_label = "External Tools"
+    bl_idname = "FO4_PT_tools_links"
+    bl_space_type = 'VIEW_3D'
+    bl_region_type = 'UI'
+    bl_category = 'Fallout 4'
+    bl_parent_id = "FO4_PT_setup_panel"
+    bl_options = {'DEFAULT_CLOSED'}
+
+    def draw(self, context):
+        layout = self.layout
+
+        # quick tool availability summary
+        status = knowledge_helpers.tool_status() if knowledge_helpers else {}
+        sum_box = layout.box()
+        sum_box.label(text="Tool Status", icon='INFO')
+        for key, label in (
+            ("ffmpeg", "ffmpeg"),
+            ("whisper", "whisper CLI"),
+            ("nvcompress", "nvcompress"),
+            ("texconv", "texconv"),
+        ):
+            ok = status.get(key, False)
+            tool_status = "Available" if ok else "Missing"
+            sum_box.label(text=f"{label}: {tool_status}", icon='CHECKMARK' if ok else 'ERROR')
+
+        box = layout.box()
+        box.label(text="Core", icon='URL')
+        op = box.operator("wm.url_open", text="Blender Niftools Add-on")
+        op.url = "https://github.com/niftools/blender_niftools_addon/releases"
+        box.operator("fo4.show_quick_reference", text="Quick Reference", icon='TEXT')
+
+        op = box.operator("wm.url_open", text="DirectXTex texconv")
+        op.url = "https://github.com/microsoft/DirectXTex/releases"
+
+        op = box.operator("wm.url_open", text="NVIDIA Texture Tools")
+        op.url = "https://github.com/castano/nvidia-texture-tools"
+
+        box = layout.box()
+        box.label(text="Unity extraction", icon='URL')
+        op = box.operator("wm.url_open", text="AssetRipper")
+        op.url = "https://github.com/AssetRipper/AssetRipper"
+        op = box.operator("wm.url_open", text="AssetStudio")
+        op.url = "https://github.com/Perfare/AssetStudio"
+        op = box.operator("wm.url_open", text="UnityFBX-To-Blender-Importer")
+        op.url = "https://github.com/Varneon/UnityFBX-To-Blender-Importer"
+
+        # Unity FBX Importer with prominent install button
+        unity_box = box.box()
+        unity_box.label(text="Unity FBX Importer (Editor Extension)", icon='IMPORT')
+
+        if unity_fbx_importer_helpers:
+            ub_ready, ub_message = unity_fbx_importer_helpers.status()
+            ub_icon = 'CHECKMARK' if ub_ready else 'ERROR'
+            info_col = unity_box.column(align=True)
+            info_col.scale_y = 0.75
+            info_col.label(text=ub_message, icon=ub_icon)
+            info_col.label(text=f"Location: {unity_fbx_importer_helpers.repo_path()}", icon='FILE_FOLDER')
+            if not ub_ready:
+                install_row = unity_box.row()
+                install_row.scale_y = 1.4
+                install_row.operator("fo4.check_unity_fbx_importer", text="Auto-Download to D:/blender_tools/", icon='IMPORT')
+            else:
+                unity_box.operator("fo4.check_unity_fbx_importer", text="Verify Installation", icon='CHECKMARK')
+        else:
+            unity_box.label(text="Status unavailable", icon='ERROR')
+            unity_box.operator("fo4.check_unity_fbx_importer", text="Check Unity FBX Importer", icon='FILE_REFRESH')
+
+        help_col = unity_box.column(align=True)
+        help_col.scale_y = 0.7
+        help_col.label(text="Use in Unity: Assets > Import Package > Custom Package", icon='INFO')
+
+        # Asset Studio with prominent install button
+        as_box = box.box()
+        as_box.label(text="AssetStudio (Unity Asset Extractor)", icon='IMPORT')
+
+        if asset_studio_helpers:
+            as_ready, as_message = asset_studio_helpers.status()
+            as_icon = 'CHECKMARK' if as_ready else 'ERROR'
+            as_info_col = as_box.column(align=True)
+            as_info_col.scale_y = 0.75
+            as_info_col.label(text=as_message, icon=as_icon)
+            as_info_col.label(text=f"Location: {asset_studio_helpers.repo_path()}", icon='FILE_FOLDER')
+            if not as_ready:
+                as_install_row = as_box.row()
+                as_install_row.scale_y = 1.4
+                as_install_row.operator("fo4.check_asset_studio", text="Auto-Download to D:/blender_tools/", icon='IMPORT')
+            else:
+                as_box.operator("fo4.check_asset_studio", text="Verify Installation", icon='CHECKMARK')
+        else:
+            as_box.label(text="Status unavailable", icon='ERROR')
+            as_box.operator("fo4.check_asset_studio", text="Check AssetStudio", icon='FILE_REFRESH')
+
+        as_help_col = as_box.column(align=True)
+        as_help_col.scale_y = 0.7
+        as_help_col.label(text="Extract Unity assets to usable formats", icon='INFO')
+
+        # Asset Ripper with prominent install button
+        ar_box = box.box()
+        ar_box.label(text="AssetRipper (Unity Asset Extractor)", icon='IMPORT')
+
+        if asset_ripper_helpers:
+            ar_ready, ar_message = asset_ripper_helpers.status()
+            ar_icon = 'CHECKMARK' if ar_ready else 'ERROR'
+            ar_info_col = ar_box.column(align=True)
+            ar_info_col.scale_y = 0.75
+            ar_info_col.label(text=ar_message, icon=ar_icon)
+            ar_info_col.label(text=f"Location: {asset_ripper_helpers.repo_path()}", icon='FILE_FOLDER')
+            if not ar_ready:
+                ar_install_row = ar_box.row()
+                ar_install_row.scale_y = 1.4
+                ar_install_row.operator("fo4.check_asset_ripper", text="Auto-Download to D:/blender_tools/", icon='IMPORT')
+            else:
+                ar_box.operator("fo4.check_asset_ripper", text="Verify Installation", icon='CHECKMARK')
+        else:
+            ar_box.label(text="Status unavailable", icon='ERROR')
+            ar_box.operator("fo4.check_asset_ripper", text="Check AssetRipper", icon='FILE_REFRESH')
+
+        ar_help_col = ar_box.column(align=True)
+        ar_help_col.scale_y = 0.7
+        ar_help_col.label(text="Advanced Unity asset extraction and conversion", icon='INFO')
+
+        box = layout.box()
+        box.label(text="Unreal Extraction Tools", icon='EXPORT')
+
+        # UModel (UE Viewer) - Standalone tool
+        box.label(text="UModel (UE Viewer)", icon='IMPORT')
+        if umodel_helpers:
+            umodel_ready, umodel_message = umodel_helpers.status()
+            umodel_icon = 'CHECKMARK' if umodel_ready else 'ERROR'
+            box.label(text=umodel_message, icon=umodel_icon)
+            box.label(text=f"Path: {umodel_helpers.tool_path()}", icon='FILE_FOLDER')
+        else:
+            box.label(text="Status unavailable", icon='ERROR')
+
+        # Installation button
+        install_row = box.row()
+        install_row.scale_y = 1.2
+        install_row.operator("fo4.check_umodel", text="Auto-Download to D:/blender_tools/", icon='IMPORT')
+
+        # Help text
+        help_col = box.column(align=True)
+        help_col.scale_y = 0.7
+        help_col.label(text="UModel by Konstantin Nosov (Gildor)", icon='INFO')
+        help_col.label(text="Tool for viewing/extracting Unreal Engine assets", icon='DOT')
+
+        # Verify installation button
+        box.operator("fo4.check_umodel", text="Verify Installation", icon='CHECKMARK')
+
+        # Documentation link for Unreal CLI exporters
+        doc_box = box.box()
+        doc_box.label(text="Documentation", icon='URL')
+        op = doc_box.operator("wm.url_open", text="Unreal CLI Exporters (Epic Docs)")
+        op.url = "https://docs.unrealengine.com/5.0/en-US/command-line-arguments-in-unreal-engine/"
+
+        box = layout.box()
+        box.label(text="UE Importer", icon='IMPORT')
+        if ue_importer_helpers:
+            ready, message = ue_importer_helpers.status()
+            status_icon = 'CHECKMARK' if ready else 'ERROR'
+            box.label(text=message, icon=status_icon)
+            box.label(text=f"Path: {ue_importer_helpers.importer_path()}", icon='FILE_FOLDER')
+        else:
+            box.label(text="Status unavailable", icon='ERROR')
+        row = box.row(align=True)
+        row.operator("fo4.install_ue_importer", text="Auto-Install UE Importer", icon='IMPORT')
+        row.operator("fo4.check_ue_importer", text="", icon='FILE_REFRESH')
+
+        box = layout.box()
+        box.label(text="UModel Tools", icon='IMPORT')
+        if umodel_tools_helpers:
+            ut_ready, ut_message = umodel_tools_helpers.status()
+            ut_icon = 'CHECKMARK' if ut_ready else 'ERROR'
+            box.label(text=ut_message, icon=ut_icon)
+            box.label(text=f"Path: {umodel_tools_helpers.addon_path()}", icon='FILE_FOLDER')
+        else:
+            box.label(text="Status unavailable", icon='ERROR')
+        row = box.row(align=True)
+        row.operator("fo4.install_umodel_tools", text="Auto-Install UModel Tools", icon='IMPORT')
+        row.operator("fo4.check_umodel_tools", text="", icon='FILE_REFRESH')
+        box.operator("fo4.open_umodel_tools_page", text="Manual Download Instructions", icon='URL')
+
+        # Automated installers for external utilities
+        box = layout.box()
+        box.label(text="Install External Tools", icon='TOOL_SETTINGS')
+        box.operator("fo4.install_ffmpeg", text="Install FFmpeg", icon='FILE_REFRESH')
+        box.operator("fo4.install_nvtt", text="Install NVTT (nvcompress)", icon='FILE_REFRESH')
+        box.operator("fo4.install_texconv", text="Install texconv", icon='FILE_REFRESH')
+        box.operator("fo4.install_whisper", text="Install Whisper CLI", icon='FILE_REFRESH')
+        box.operator("fo4.install_niftools", text="Install Niftools Add-on", icon='FILE_REFRESH')
+        if bpy.app.version >= (4, 2, 0):
+            nif_note = box.box()
+            nif_note.scale_y = 0.75
+            nif_note.label(text="After install: Edit → Preferences → Add-ons", icon='INFO')
+            nif_note.label(text="→ enable 'Allow Legacy Add-ons'")
+            nif_note.label(text="→ enable 'NetImmerse/Gamebryo (.nif)'")
+            if bpy.app.version >= (5, 0, 0):
+                nif_note.label(text="Blender 5.x API patches applied automatically.", icon='CHECKMARK')
+        # Python requirements — always drawn (Blender 5.x hasattr unreliable)
+        op = box.operator("fo4.install_python_deps", text="Install Python Requirements", icon='FILE_REFRESH')
+        if op is not None:
+            op.optional = False
+        op = box.operator("fo4.install_python_deps", text="Install Python Req (optional)", icon='FILE_REFRESH')
+        if op is not None:
+            op.optional = True
+        box.operator("fo4.install_all_tools", text="Install All Tools", icon='PACKAGE')
+        box.operator("fo4.self_test", text="Run Environment Self-Test", icon='CHECKMARK')
+
+        # Fallout 4 configuration button
+        config_box = layout.box()
+        config_box.label(text="Fallout 4 Configuration", icon='SETTINGS')
+        config_row = config_box.row()
+        config_row.scale_y = 1.5
+        config_row.operator("fo4.configure_fallout4_settings", text="Configure for Fallout 4", icon='CHECKMARK')
+
+        config_help = config_box.column(align=True)
+        config_help.scale_y = 0.7
+        config_help.label(text="Verify and configure optimal settings for FO4 modding", icon='INFO')
+        config_help.label(text="Checks: Niftools, DDS tools, export settings", icon='INFO')
+
+        # Manual path override — use existing installations when auto-install fails
+        scene = context.scene
+        prefs = preferences.get_preferences() if preferences else None
+        man_box = layout.box()
+        man_box.label(text="Manual Path Override", icon='FILE_FOLDER')
+        man_box.label(text="Already have a tool? Point to it here.", icon='INFO')
+        if prefs is not None:
+            man_box.prop(prefs, "ffmpeg_path", text="FFmpeg")
+        else:
+            man_box.prop(scene, "fo4_ffmpeg_path", text="FFmpeg")
+        ffmpeg_ok = preferences.get_configured_ffmpeg_path() if preferences else None
+        man_box.label(
+            text=f"FFmpeg: {'OK ✔' if ffmpeg_ok else 'not found'}",
+            icon='CHECKMARK' if ffmpeg_ok else 'ERROR',
+        )
+        if prefs is not None:
+            man_box.prop(prefs, "nvtt_path", text="nvcompress")
+        else:
+            man_box.prop(scene, "fo4_nvtt_path", text="nvcompress")
+        nvcompress_ok = preferences.get_configured_nvcompress_path() if preferences else None
+        man_box.label(
+            text=f"nvcompress: {'OK ✔' if nvcompress_ok else 'not found'}",
+            icon='CHECKMARK' if nvcompress_ok else 'ERROR',
+        )
+        if prefs is not None:
+            man_box.prop(prefs, "texconv_path", text="texconv")
+        else:
+            man_box.prop(scene, "fo4_texconv_path", text="texconv")
+        texconv_ok = preferences.get_configured_texconv_path() if preferences else None
+        man_box.label(
+            text=f"texconv: {'OK ✔' if texconv_ok else 'not found'}",
+            icon='CHECKMARK' if texconv_ok else 'ERROR',
+        )
+
+
 class FO4_PT_GameAssetsPanel(_FO4SubPanel):
     """Import and convert game assets from Unity, Unreal, and Fallout 4"""
     bl_label = "Game Asset Import"
@@ -4148,247 +4404,6 @@ class FO4_PT_SetupPanel(_FO4SubPanel):
             update_box.label(
                 text="Then restart Blender to apply changes.", icon='BLANK1')
 
-        # ── External Tools ────────────────────────────────────────────────────
-        # quick tool availability summary
-        ext_status = knowledge_helpers.tool_status() if knowledge_helpers else {}
-        sum_box = layout.box()
-        sum_box.label(text="Tool Status", icon='INFO')
-        for key, label in (
-            ("ffmpeg", "ffmpeg"),
-            ("whisper", "whisper CLI"),
-            ("nvcompress", "nvcompress"),
-            ("texconv", "texconv"),
-        ):
-            ok = ext_status.get(key, False)
-            tool_status = "Available" if ok else "Missing"
-            sum_box.label(text=f"{label}: {tool_status}", icon='CHECKMARK' if ok else 'ERROR')
-
-        ext_box = layout.box()
-        ext_box.label(text="Core", icon='URL')
-        op = ext_box.operator("wm.url_open", text="Blender Niftools Add-on")
-        op.url = "https://github.com/niftools/blender_niftools_addon/releases"
-        ext_box.operator("fo4.show_quick_reference", text="Quick Reference", icon='TEXT')
-
-        op = ext_box.operator("wm.url_open", text="DirectXTex texconv")
-        op.url = "https://github.com/microsoft/DirectXTex/releases"
-
-        op = ext_box.operator("wm.url_open", text="NVIDIA Texture Tools")
-        op.url = "https://github.com/castano/nvidia-texture-tools"
-
-        unity_links_box = layout.box()
-        unity_links_box.label(text="Unity extraction", icon='URL')
-        op = unity_links_box.operator("wm.url_open", text="AssetRipper")
-        op.url = "https://github.com/AssetRipper/AssetRipper"
-        op = unity_links_box.operator("wm.url_open", text="AssetStudio")
-        op.url = "https://github.com/Perfare/AssetStudio"
-        op = unity_links_box.operator("wm.url_open", text="UnityFBX-To-Blender-Importer")
-        op.url = "https://github.com/Varneon/UnityFBX-To-Blender-Importer"
-
-        # Unity FBX Importer with prominent install button
-        unity_box = unity_links_box.box()
-        unity_box.label(text="Unity FBX Importer (Editor Extension)", icon='IMPORT')
-
-        if unity_fbx_importer_helpers:
-            ub_ready, ub_message = unity_fbx_importer_helpers.status()
-            ub_icon = 'CHECKMARK' if ub_ready else 'ERROR'
-            info_col = unity_box.column(align=True)
-            info_col.scale_y = 0.75
-            info_col.label(text=ub_message, icon=ub_icon)
-            info_col.label(text=f"Location: {unity_fbx_importer_helpers.repo_path()}", icon='FILE_FOLDER')
-            if not ub_ready:
-                install_row = unity_box.row()
-                install_row.scale_y = 1.4
-                install_row.operator("fo4.check_unity_fbx_importer", text="Auto-Download to D:/blender_tools/", icon='IMPORT')
-            else:
-                unity_box.operator("fo4.check_unity_fbx_importer", text="Verify Installation", icon='CHECKMARK')
-        else:
-            unity_box.label(text="Status unavailable", icon='ERROR')
-            unity_box.operator("fo4.check_unity_fbx_importer", text="Check Unity FBX Importer", icon='FILE_REFRESH')
-
-        help_col = unity_box.column(align=True)
-        help_col.scale_y = 0.7
-        help_col.label(text="Use in Unity: Assets > Import Package > Custom Package", icon='INFO')
-
-        # Asset Studio with prominent install button
-        as_box = unity_links_box.box()
-        as_box.label(text="AssetStudio (Unity Asset Extractor)", icon='IMPORT')
-
-        if asset_studio_helpers:
-            as_ready, as_message = asset_studio_helpers.status()
-            as_icon = 'CHECKMARK' if as_ready else 'ERROR'
-            as_info_col = as_box.column(align=True)
-            as_info_col.scale_y = 0.75
-            as_info_col.label(text=as_message, icon=as_icon)
-            as_info_col.label(text=f"Location: {asset_studio_helpers.repo_path()}", icon='FILE_FOLDER')
-            if not as_ready:
-                as_install_row = as_box.row()
-                as_install_row.scale_y = 1.4
-                as_install_row.operator("fo4.check_asset_studio", text="Auto-Download to D:/blender_tools/", icon='IMPORT')
-            else:
-                as_box.operator("fo4.check_asset_studio", text="Verify Installation", icon='CHECKMARK')
-        else:
-            as_box.label(text="Status unavailable", icon='ERROR')
-            as_box.operator("fo4.check_asset_studio", text="Check AssetStudio", icon='FILE_REFRESH')
-
-        as_help_col = as_box.column(align=True)
-        as_help_col.scale_y = 0.7
-        as_help_col.label(text="Extract Unity assets to usable formats", icon='INFO')
-
-        # Asset Ripper with prominent install button
-        ar_box = unity_links_box.box()
-        ar_box.label(text="AssetRipper (Unity Asset Extractor)", icon='IMPORT')
-
-        if asset_ripper_helpers:
-            ar_ready, ar_message = asset_ripper_helpers.status()
-            ar_icon = 'CHECKMARK' if ar_ready else 'ERROR'
-            ar_info_col = ar_box.column(align=True)
-            ar_info_col.scale_y = 0.75
-            ar_info_col.label(text=ar_message, icon=ar_icon)
-            ar_info_col.label(text=f"Location: {asset_ripper_helpers.repo_path()}", icon='FILE_FOLDER')
-            if not ar_ready:
-                ar_install_row = ar_box.row()
-                ar_install_row.scale_y = 1.4
-                ar_install_row.operator("fo4.check_asset_ripper", text="Auto-Download to D:/blender_tools/", icon='IMPORT')
-            else:
-                ar_box.operator("fo4.check_asset_ripper", text="Verify Installation", icon='CHECKMARK')
-        else:
-            ar_box.label(text="Status unavailable", icon='ERROR')
-            ar_box.operator("fo4.check_asset_ripper", text="Check AssetRipper", icon='FILE_REFRESH')
-
-        ar_help_col = ar_box.column(align=True)
-        ar_help_col.scale_y = 0.7
-        ar_help_col.label(text="Advanced Unity asset extraction and conversion", icon='INFO')
-
-        ue_box = layout.box()
-        ue_box.label(text="Unreal Extraction Tools", icon='EXPORT')
-
-        # UModel (UE Viewer) - Standalone tool
-        ue_box.label(text="UModel (UE Viewer)", icon='IMPORT')
-        if umodel_helpers:
-            umodel_ready, umodel_message = umodel_helpers.status()
-            umodel_icon = 'CHECKMARK' if umodel_ready else 'ERROR'
-            ue_box.label(text=umodel_message, icon=umodel_icon)
-            ue_box.label(text=f"Path: {umodel_helpers.tool_path()}", icon='FILE_FOLDER')
-        else:
-            ue_box.label(text="Status unavailable", icon='ERROR')
-
-        # Installation button
-        install_row = ue_box.row()
-        install_row.scale_y = 1.2
-        install_row.operator("fo4.check_umodel", text="Auto-Download to D:/blender_tools/", icon='IMPORT')
-
-        # Help text
-        help_col = ue_box.column(align=True)
-        help_col.scale_y = 0.7
-        help_col.label(text="UModel by Konstantin Nosov (Gildor)", icon='INFO')
-        help_col.label(text="Tool for viewing/extracting Unreal Engine assets", icon='DOT')
-
-        # Verify installation button
-        ue_box.operator("fo4.check_umodel", text="Verify Installation", icon='CHECKMARK')
-
-        # Documentation link for Unreal CLI exporters
-        doc_box = ue_box.box()
-        doc_box.label(text="Documentation", icon='URL')
-        op = doc_box.operator("wm.url_open", text="Unreal CLI Exporters (Epic Docs)")
-        op.url = "https://docs.unrealengine.com/5.0/en-US/command-line-arguments-in-unreal-engine/"
-
-        ue_imp_box = layout.box()
-        ue_imp_box.label(text="UE Importer", icon='IMPORT')
-        if ue_importer_helpers:
-            ready, message = ue_importer_helpers.status()
-            status_icon = 'CHECKMARK' if ready else 'ERROR'
-            ue_imp_box.label(text=message, icon=status_icon)
-            ue_imp_box.label(text=f"Path: {ue_importer_helpers.importer_path()}", icon='FILE_FOLDER')
-        else:
-            ue_imp_box.label(text="Status unavailable", icon='ERROR')
-        row = ue_imp_box.row(align=True)
-        row.operator("fo4.install_ue_importer", text="Auto-Install UE Importer", icon='IMPORT')
-        row.operator("fo4.check_ue_importer", text="", icon='FILE_REFRESH')
-
-        umt_box = layout.box()
-        umt_box.label(text="UModel Tools", icon='IMPORT')
-        if umodel_tools_helpers:
-            ut_ready, ut_message = umodel_tools_helpers.status()
-            ut_icon = 'CHECKMARK' if ut_ready else 'ERROR'
-            umt_box.label(text=ut_message, icon=ut_icon)
-            umt_box.label(text=f"Path: {umodel_tools_helpers.addon_path()}", icon='FILE_FOLDER')
-        else:
-            umt_box.label(text="Status unavailable", icon='ERROR')
-        row = umt_box.row(align=True)
-        row.operator("fo4.install_umodel_tools", text="Auto-Install UModel Tools", icon='IMPORT')
-        row.operator("fo4.check_umodel_tools", text="", icon='FILE_REFRESH')
-        umt_box.operator("fo4.open_umodel_tools_page", text="Manual Download Instructions", icon='URL')
-
-        # Automated installers for external utilities
-        inst_box = layout.box()
-        inst_box.label(text="Install External Tools", icon='TOOL_SETTINGS')
-        inst_box.operator("fo4.install_ffmpeg", text="Install FFmpeg", icon='FILE_REFRESH')
-        inst_box.operator("fo4.install_nvtt", text="Install NVTT (nvcompress)", icon='FILE_REFRESH')
-        inst_box.operator("fo4.install_texconv", text="Install texconv", icon='FILE_REFRESH')
-        inst_box.operator("fo4.install_whisper", text="Install Whisper CLI", icon='FILE_REFRESH')
-        inst_box.operator("fo4.install_niftools", text="Install Niftools Add-on", icon='FILE_REFRESH')
-        if bpy.app.version >= (4, 2, 0):
-            nif_note = inst_box.box()
-            nif_note.scale_y = 0.75
-            nif_note.label(text="After install: Edit → Preferences → Add-ons", icon='INFO')
-            nif_note.label(text="→ enable 'Allow Legacy Add-ons'")
-            nif_note.label(text="→ enable 'NetImmerse/Gamebryo (.nif)'")
-            if bpy.app.version >= (5, 0, 0):
-                nif_note.label(text="Blender 5.x API patches applied automatically.", icon='CHECKMARK')
-        # Python requirements — always drawn (Blender 5.x hasattr unreliable)
-        op = inst_box.operator("fo4.install_python_deps", text="Install Python Requirements", icon='FILE_REFRESH')
-        if op is not None:
-            op.optional = False
-        op = inst_box.operator("fo4.install_python_deps", text="Install Python Req (optional)", icon='FILE_REFRESH')
-        if op is not None:
-            op.optional = True
-        inst_box.operator("fo4.install_all_tools", text="Install All Tools", icon='PACKAGE')
-        inst_box.operator("fo4.self_test", text="Run Environment Self-Test", icon='CHECKMARK')
-
-        # Fallout 4 configuration button
-        config_box = layout.box()
-        config_box.label(text="Fallout 4 Configuration", icon='SETTINGS')
-        config_row = config_box.row()
-        config_row.scale_y = 1.5
-        config_row.operator("fo4.configure_fallout4_settings", text="Configure for Fallout 4", icon='CHECKMARK')
-
-        config_help = config_box.column(align=True)
-        config_help.scale_y = 0.7
-        config_help.label(text="Verify and configure optimal settings for FO4 modding", icon='INFO')
-        config_help.label(text="Checks: Niftools, DDS tools, export settings", icon='INFO')
-
-        # Manual path override — use existing installations when auto-install fails
-        man_box = layout.box()
-        man_box.label(text="Manual Path Override", icon='FILE_FOLDER')
-        man_box.label(text="Already have a tool? Point to it here.", icon='INFO')
-        if prefs is not None:
-            man_box.prop(prefs, "ffmpeg_path", text="FFmpeg")
-        else:
-            man_box.prop(scene, "fo4_ffmpeg_path", text="FFmpeg")
-        ffmpeg_ok = preferences.get_configured_ffmpeg_path() if preferences else None
-        man_box.label(
-            text=f"FFmpeg: {'OK ✔' if ffmpeg_ok else 'not found'}",
-            icon='CHECKMARK' if ffmpeg_ok else 'ERROR',
-        )
-        if prefs is not None:
-            man_box.prop(prefs, "nvtt_path", text="nvcompress")
-        else:
-            man_box.prop(scene, "fo4_nvtt_path", text="nvcompress")
-        nvcompress_ok = preferences.get_configured_nvcompress_path() if preferences else None
-        man_box.label(
-            text=f"nvcompress: {'OK ✔' if nvcompress_ok else 'not found'}",
-            icon='CHECKMARK' if nvcompress_ok else 'ERROR',
-        )
-        if prefs is not None:
-            man_box.prop(prefs, "texconv_path", text="texconv")
-        else:
-            man_box.prop(scene, "fo4_texconv_path", text="texconv")
-        texconv_ok = preferences.get_configured_texconv_path() if preferences else None
-        man_box.label(
-            text=f"texconv: {'OK ✔' if texconv_ok else 'not found'}",
-            icon='CHECKMARK' if texconv_ok else 'ERROR',
-        )
-
         # ── Quick actions ─────────────────────────────────────────────────
         # Always draw buttons directly — in Blender 5.x hasattr(bpy.types, ...)
         # may return False even for registered operators (RECURRING BUG #1).
@@ -4561,6 +4576,7 @@ classes = (
     FO4_PT_RigNetPanel,
     FO4_PT_NVTTPanel,
     FO4_PT_AdvisorPanel,
+    FO4_PT_ToolsLinks,
     FO4_PT_GameAssetsPanel,
     FO4_PT_AssetLibraryPanel,
     FO4_PT_ExportPanel,
