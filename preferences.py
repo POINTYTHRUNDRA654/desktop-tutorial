@@ -461,7 +461,16 @@ def restore_extra_python_paths() -> list[str]:
     # Restore the dedicated torch_custom_path preference using TorchPathManager
     # so that both sys.path and the Windows DLL search path are updated together.
     torch_path = bpy.path.abspath(prefs.torch_custom_path).strip()
-    if torch_path and os.path.isdir(torch_path):
+    # Check that torch is *actually* installed in the directory, not just that
+    # the directory exists.  A previous failed or partial install can leave the
+    # parent folder on disk (e.g. D:/t) while torch/__init__.py is absent.
+    # In that case we must reset torch_install_attempted so the next startup can
+    # trigger a fresh auto-install rather than staying blocked forever.
+    torch_init_present = (
+        bool(torch_path)
+        and os.path.isfile(os.path.join(torch_path, "torch", "__init__.py"))
+    )
+    if torch_init_present:
         try:
             from . import torch_path_manager as _tpm
             _tpm.TorchPathManager.add_torch_to_path(torch_path)
@@ -472,11 +481,18 @@ def restore_extra_python_paths() -> list[str]:
                 _sys.path.insert(0, torch_path)
         added.append(torch_path)
         print(f"✓ Restored PyTorch path to sys.path: {torch_path}")
-    elif prefs.torch_install_attempted and not (torch_path and os.path.isdir(torch_path)):
-        # Saved path is gone or was never recorded — clear the flag so the
-        # next call to try_import_torch() can trigger a fresh auto-install.
+    elif prefs.torch_install_attempted:
+        # Saved path is gone, never set, or the directory exists but does not
+        # contain a real torch installation — clear the flag so the next call
+        # to try_import_torch() can trigger a fresh auto-install.
         prefs.torch_install_attempted = False
-        print("⚠ PyTorch custom path missing — reset install flag for retry")
+        if torch_path and os.path.isdir(torch_path):
+            print(
+                f"⚠ PyTorch directory '{torch_path}' exists but torch/ is missing "
+                "— reset install flag for retry"
+            )
+        else:
+            print("⚠ PyTorch custom path missing — reset install flag for retry")
 
     # Restore any extra semicolon-separated paths
     extra = prefs.extra_python_paths.strip()
