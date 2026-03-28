@@ -557,6 +557,7 @@ export interface Settings {
   spin3dPath?: string;
   nvidiaCanvasPath?: string;
   umodelPath?: string;
+  pytorchPath?: string;
 
   // Community Sharing
   communityRepo?: string; // GitHub repo in the form "owner/repo"
@@ -781,6 +782,7 @@ export const DEFAULT_SETTINGS: Settings = {
   spin3dPath: '',
   nvidiaCanvasPath: '',
   umodelPath: '',
+  pytorchPath: '',
 
   // Papyrus
   papyrusCompilerPath: '',
