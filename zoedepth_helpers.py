@@ -34,14 +34,22 @@ _availability_cache = None
 _availability_cache_time = 0.0
 _CACHE_TTL = 5.0  # seconds
 
-# Use find_spec instead of `import torch` so we don't pay the multi-second
-# PyTorch load cost at add-on startup just to know whether it is installed.
-TORCH_AVAILABLE = importlib.util.find_spec('torch') is not None
-if not TORCH_AVAILABLE:
-    ZOEDEPTH_ERROR = "PyTorch not available (not installed)"
+# NOTE: TORCH_AVAILABLE is intentionally NOT evaluated at module-import time.
+# The PyTorch custom path is added to sys.path only during register(), which
+# runs after this module is first imported.  Use _torch_available() instead.
 
 # We don't actually import ZoeDepth here to keep the add-on lightweight
 # It will be imported dynamically when needed
+
+
+def _torch_available() -> bool:
+    """Return True if torch is findable on the current sys.path.
+
+    Uses importlib.util.find_spec (a fast filesystem check, no actual import)
+    so the result correctly reflects any paths added to sys.path after module
+    import (e.g. the PyTorch Custom Path restored during add-on register()).
+    """
+    return importlib.util.find_spec("torch") is not None
 
 
 def clear_availability_cache():
@@ -79,7 +87,7 @@ def check_zoedepth_availability():
 
 def _check_zoedepth_availability_uncached():
     """Perform the actual (uncached) ZoeDepth availability check."""
-    if not TORCH_AVAILABLE:
+    if not _torch_available():
         return False, (
             "PyTorch not installed. Install with: pip install torch torchvision\n"
             "Windows users: if PyTorch is installed but fails to load, enable long paths "

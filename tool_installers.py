@@ -532,35 +532,28 @@ def install_pynifly() -> tuple[bool, str]:
 
 
 def install_torch_deps(target_path: "str | Path | None" = None) -> tuple[bool, str]:
-    """Install PyTorch (CPU build) to *target_path* and persist the path.
+    """Guide the user to install PyTorch externally and register the path.
 
-    Uses the same short-path strategy as TorchPathManager so it works on
-    Windows even when Blender's site-packages path is too long.  After a
-    successful install the path is written to the add-on preferences so that
-    it is automatically added to ``sys.path`` on every subsequent Blender
-    startup (no manual reconnect needed).
+    PyTorch is no longer installed inside Blender's Python environment.
+    This function returns instructions for setting up an external install
+    and pointing Blender at it via the 'PyTorch Custom Path' preference.
 
     Args:
-        target_path: Installation directory.  Defaults to ``D:/t``.
+        target_path: Ignored (kept for API compatibility).
 
     Returns:
-        ``(True, message)`` on success, ``(False, reason)`` on failure.
+        ``(False, instructions)`` always — the user must install externally.
     """
-    try:
-        from . import torch_path_manager as _tpm
-        _tp = _tpm.TorchPathManager
-    except Exception:
-        # Fallback: call TorchPathManager directly when relative import fails.
-        try:
-            import importlib
-            import sys as _sys
-            _pkg = Path(__file__).resolve().parent.name
-            _tpm = importlib.import_module(f"{_pkg}.torch_path_manager")
-            _tp = _tpm.TorchPathManager
-        except Exception as e:
-            return False, f"torch_path_manager unavailable: {e}"
-
-    return _tp.install_torch_to_custom_path(target_path)
+    msg = (
+        "PyTorch is no longer installed inside Blender. "
+        "To use PyTorch-based AI features:\n"
+        "1. Install PyTorch in a normal Python environment: "
+        "https://pytorch.org/get-started/locally/\n"
+        "2. Open the Settings panel (N-panel → Fallout 4 → Settings) and set "
+        "'PyTorch Custom Path' to the directory containing the torch/ folder.\n"
+        "3. Restart Blender."
+    )
+    return False, msg
 
 
 # ---------------------------------------------------------------------------
