@@ -891,7 +891,14 @@ const ExternalToolsSettings: React.FC<ExternalToolsSettingsProps> = ({ embedded 
             <Zap className="w-5 h-5 text-orange-400" />
             <div>
               <div className="text-sm font-bold text-white">PyTorch (Blender Add-on)</div>
-          <div className="text-[11px] text-slate-400">Directory containing the <code className="text-orange-300">torch</code> package — typically the <code className="text-orange-300">Lib\site-packages</code> folder of the Python environment where PyTorch is installed (e.g. <code className="text-orange-300">D:\PyTorch\Lib\site-packages</code>). The Mossy Blender add-on will inject this into sys.path so Blender's Python can import torch without a separate install.</div>
+              <div className="text-[11px] text-slate-400">
+                Directory that contains the <code className="text-orange-300">torch</code> package.
+              </div>
+              <div className="text-[11px] text-slate-500">
+                Typically the <code className="text-orange-300">Lib\site-packages</code> folder of your PyTorch install
+                (e.g. <code className="text-orange-300">D:\PyTorch\Lib\site-packages</code>).
+                The Blender add-on injects this into <code className="text-orange-300">sys.path</code> automatically on load.
+              </div>
             </div>
           </div>
           <input

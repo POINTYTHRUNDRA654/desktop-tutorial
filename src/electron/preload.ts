@@ -330,6 +330,26 @@ const electronAPI = {
   },
 
   /**
+   * Subscribe to log entries sent by the Blender add-on via POST /log.
+   * Returns an unsubscribe function.
+   */
+  onBlenderLog: (callback: (entry: { level: string; message: string; context: Record<string, unknown> | null; timestamp: string }) => void): (() => void) => {
+    const subscription = (_event: any, entry: any) => callback(entry);
+    ipcRenderer.on('blender-log', subscription);
+    return () => ipcRenderer.removeListener('blender-log', subscription);
+  },
+
+  /**
+   * Subscribe to arbitrary events sent by the Blender add-on via POST /event.
+   * Returns an unsubscribe function.
+   */
+  onBlenderEvent: (callback: (payload: { type: string; data: Record<string, unknown> }) => void): (() => void) => {
+    const subscription = (_event: any, payload: any) => callback(payload);
+    ipcRenderer.on('blender-event', subscription);
+    return () => ipcRenderer.removeListener('blender-event', subscription);
+  },
+
+  /**
    * Open/launch a program by its executable path
    * @param path - Full path to the program executable
    * @returns Promise resolving when program is launched
