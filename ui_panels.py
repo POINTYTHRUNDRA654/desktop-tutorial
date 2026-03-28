@@ -1352,6 +1352,9 @@ class FO4_PT_AnimationPanel(_FO4SubPanel):
         row.operator("fo4.auto_weight_paint", text="Auto Weight Paint", icon='AUTO')
         box.operator("fo4.validate_animation", text="Validate Animation", icon='CHECKMARK')
         row = box.row()
+        row.enabled = bool(obj and obj.type == 'ARMATURE')
+        row.operator("fo4.create_idle_animation", text="Create Idle Animation", icon='ACTION')
+        row = box.row()
         row.enabled = has_mesh
         row.operator("fo4.generate_wind_weights", text="Generate Wind Weights", icon='FORCE_WIND')
         row = box.row()
@@ -1436,7 +1439,7 @@ class FO4_PT_RigNetPanel(_FO4SubPanel):
     bl_space_type = 'VIEW_3D'
     bl_region_type = 'UI'
     bl_category = 'Fallout 4'
-    bl_parent_id = "FO4_PT_main_panel"
+    bl_parent_id = "FO4_PT_animation_panel"
     bl_options = {'DEFAULT_CLOSED'}
 
     def draw(self, context):
@@ -2563,7 +2566,7 @@ class FO4_PT_Havok2FBXPanel(_FO4SubPanel):
     bl_space_type = 'VIEW_3D'
     bl_region_type = 'UI'
     bl_category = 'Fallout 4'
-    bl_parent_id = "FO4_PT_main_panel"
+    bl_parent_id = "FO4_PT_animation_panel"
     bl_options = {'DEFAULT_CLOSED'}
 
     def draw(self, context):
