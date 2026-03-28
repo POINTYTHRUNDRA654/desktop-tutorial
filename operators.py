@@ -1257,6 +1257,41 @@ class FO4_OT_ValidateAnimation(Operator):
         return {'FINISHED'}
 
 
+class FO4_OT_CreateIdleAnimation(Operator):
+    """Create a simple idle animation on the selected FO4 armature"""
+    bl_idname = "fo4.create_idle_animation"
+    bl_label = "Create Idle Animation"
+    bl_options = {'REGISTER', 'UNDO'}
+
+    duration: IntProperty(
+        name="Duration (frames)",
+        description="Length of the idle animation in frames (FO4 standard is 30 FPS)",
+        default=60,
+        min=1,
+        max=9999,
+    )
+
+    def draw(self, context):
+        self.layout.prop(self, "duration")
+
+    def execute(self, context):
+        obj = context.active_object
+        if not obj or obj.type != 'ARMATURE':
+            self.report({'ERROR'}, "Select an armature first")
+            return {'CANCELLED'}
+        ok, msg = animation_helpers.AnimationHelpers.create_idle_animation(obj, self.duration)
+        if ok:
+            self.report({'INFO'}, msg)
+            notification_system.FO4_NotificationSystem.notify(msg, 'INFO')
+        else:
+            self.report({'ERROR'}, msg)
+            return {'CANCELLED'}
+        return {'FINISHED'}
+
+    def invoke(self, context, event):
+        return context.window_manager.invoke_props_dialog(self)
+
+
 class FO4_OT_GenerateWindWeights(Operator):
     """Generate a wind/vortex weight group for the active mesh"""
     bl_idname = "fo4.generate_wind_weights"
@@ -12782,6 +12817,7 @@ classes = (
     FO4_OT_ValidateTextures,
     FO4_OT_SetupArmature,
     FO4_OT_ValidateAnimation,
+    FO4_OT_CreateIdleAnimation,
     FO4_OT_GenerateWindWeights,
     FO4_OT_AutoWeightPaint,
     FO4_OT_ApplyWindAnimation,
