@@ -2786,7 +2786,7 @@ class FO4_PT_QuestPanel(_FO4SubPanel):
     bl_space_type = 'VIEW_3D'
     bl_region_type = 'UI'
     bl_category = 'Fallout 4'
-    bl_parent_id = "FO4_PT_main_panel"
+    bl_parent_id = "FO4_PT_mesh_panel"
     bl_options = {'DEFAULT_CLOSED'}
 
     def draw(self, context):
@@ -2851,7 +2851,7 @@ class FO4_PT_WorldBuildingPanel(_FO4SubPanel):
     bl_space_type = 'VIEW_3D'
     bl_region_type = 'UI'
     bl_category = 'Fallout 4'
-    bl_parent_id = "FO4_PT_main_panel"
+    bl_parent_id = "FO4_PT_mesh_panel"
     bl_options = {'DEFAULT_CLOSED'}
 
     def draw(self, context):
@@ -2895,7 +2895,7 @@ class FO4_PT_ItemCreationPanel(_FO4SubPanel):
     bl_space_type = 'VIEW_3D'
     bl_region_type = 'UI'
     bl_category = 'Fallout 4'
-    bl_parent_id = "FO4_PT_main_panel"
+    bl_parent_id = "FO4_PT_mesh_panel"
     bl_options = {'DEFAULT_CLOSED'}
 
     def draw(self, context):
