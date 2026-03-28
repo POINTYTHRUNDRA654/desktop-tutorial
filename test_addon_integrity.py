@@ -755,6 +755,105 @@ class TestScenePropsRegistered(unittest.TestCase):
             )
 
 
+
+# ---------------------------------------------------------------------------
+# Test 13 – torch_path_manager.py defines and registers PyTorch operators
+# ---------------------------------------------------------------------------
+class TestTorchPathManagerOperators(unittest.TestCase):
+    """
+    torch_path_manager.py must define BOTH PyTorch operators used in
+    ui_panels.py (torch.recheck_status and torch.install_custom_path) with
+    matching bl_idname values, and must expose register()/unregister()
+    callables so Blender can activate them.
+
+    This test verifies that:
+      1. torch_path_manager.py exists on disk.
+      2. It parses without syntax errors.
+      3. Both operator bl_idnames are defined.
+      4. register() and unregister() functions are present.
+      5. The bl_idnames used in ui_panels.py all appear in the file, so the
+         operators are genuinely registered by the add-on (not just called
+         from the UI without being defined).
+    """
+
+    REQUIRED_IDNAMES = {
+        "torch.recheck_status",
+        "torch.install_custom_path",
+    }
+
+    def test_module_exists(self):
+        self.assertTrue(
+            os.path.isfile(_path("torch_path_manager.py")),
+            "torch_path_manager.py is missing — PyTorch operators will be unavailable",
+        )
+
+    def test_module_parses(self):
+        source = _read("torch_path_manager.py")
+        try:
+            ast.parse(source, filename="torch_path_manager.py")
+        except SyntaxError as exc:
+            self.fail(f"torch_path_manager.py has a syntax error: {exc}")
+
+    def test_required_operators_defined(self):
+        """Both torch.* bl_idnames must be present in torch_path_manager.py."""
+        source = _read("torch_path_manager.py")
+        pattern = re.compile(r'bl_idname\s*=\s*["\']([^"\']+)["\']')
+        found = set(pattern.findall(source))
+        missing = self.REQUIRED_IDNAMES - found
+        if missing:
+            self.fail(
+                "torch_path_manager.py is missing required operator bl_idnames "
+                "(Blender will show 'unknown operator' for these buttons):\n"
+                + "\n".join(f"  {op}" for op in sorted(missing))
+            )
+
+    def test_register_unregister_callable(self):
+        """torch_path_manager.py must expose register() and unregister()."""
+        source = _read("torch_path_manager.py")
+        tree = ast.parse(source, filename="torch_path_manager.py")
+        fn_names = {
+            node.name
+            for node in ast.walk(tree)
+            if isinstance(node, ast.FunctionDef)
+        }
+        for fn in ("register", "unregister"):
+            self.assertIn(
+                fn,
+                fn_names,
+                f"torch_path_manager.py must expose a '{fn}()' function so "
+                f"Blender can activate the PyTorch operators",
+            )
+
+    def test_torch_operators_used_in_ui_are_defined(self):
+        """Every torch.* operator called in ui_panels.py must be defined in
+        torch_path_manager.py (the only file that registers torch.* operators).
+
+        This is the definitive registration check: if a bl_idname is referenced
+        in the UI but missing from torch_path_manager.py the operator button
+        silently does nothing in Blender and the console shows
+        'rna_uiItemO: unknown operator'.
+        """
+        ui_source = _read("ui_panels.py")
+        used_torch_ops = {
+            op
+            for op in re.findall(r'\.operator\(\s*["\']([^"\']+)["\']', ui_source)
+            if op.startswith("torch.")
+        }
+
+        tpm_source = _read("torch_path_manager.py")
+        registered = set(
+            re.findall(r'bl_idname\s*=\s*["\']([^"\']+)["\']', tpm_source)
+        )
+
+        missing = used_torch_ops - registered
+        if missing:
+            self.fail(
+                f"{len(missing)} torch.* operator(s) are called in ui_panels.py "
+                f"but NOT defined in torch_path_manager.py:\n"
+                + "\n".join(f"  {op}" for op in sorted(missing))
+            )
+
+
 # ---------------------------------------------------------------------------
 # Entry point
 # ---------------------------------------------------------------------------

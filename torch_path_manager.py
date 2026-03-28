@@ -13,9 +13,17 @@ from pathlib import Path
 # Module-level guard: prevents concurrent auto-install attempts within one session.
 _auto_install_running = False
 
-# Incremented after every successful installation so that ui_panels._get_torch_status()
-# can detect a new install and invalidate its cached "not available" result.
+# Incremented after every installation attempt (success OR failure) so that
+# ui_panels._get_torch_status() can detect a state change and invalidate its
+# cached "auto_install_started" result.  Without this, a failed background
+# install leaves the panel stuck showing "⏳ installing…" forever.
 _install_generation = 0
+
+# Non-None after a failed background auto-install during the current Blender
+# session.  Prevents an infinite retry loop: without this guard, clearing the
+# cache after failure would immediately kick off another install attempt on the
+# next panel draw.  Reset to None when the user clicks "Re-check Status".
+_auto_install_last_error: str | None = None
 
 # Max bytes of pip stderr/stdout shown in the console on install failure.
 _MAX_PIP_ERROR_LEN = 300
@@ -190,11 +198,20 @@ class TorchPathManager:
         Returns:
             ``(False, "auto_install_started", None)``  — thread queued.
             ``(False, "auto_install_in_progress", None)`` — already running.
+            ``(False, "auto_install_failed", None)`` — previous attempt failed this session.
             ``(False, original_reason, None)`` — disabled / not needed.
         """
-        global _auto_install_running
+        global _auto_install_running, _auto_install_last_error
         if _auto_install_running:
             return False, "auto_install_in_progress", None
+
+        # A previous auto-install attempt failed during this Blender session.
+        # Return "auto_install_failed" so callers can show a specific error in
+        # the UI rather than starting another background thread and looping
+        # endlessly.  The user can clear this by clicking "Re-check Status",
+        # which calls ui_panels.reset_torch_cache() → resets _auto_install_last_error.
+        if _auto_install_last_error is not None:
+            return False, "auto_install_failed", None
 
         try:
             from . import preferences
@@ -203,13 +220,14 @@ class TorchPathManager:
                 return False, reason, None
 
             _auto_install_running = True
+            _auto_install_last_error = None  # clear any stale failure from a previous attempt
             target_path = TorchPathManager.DEFAULT_TORCH_PATH
             print(f"PyTorch: queuing background auto-install to {target_path} ({reason})…")
 
             import threading
 
             def _install_worker():
-                global _auto_install_running, _install_generation
+                global _auto_install_running, _install_generation, _auto_install_last_error
                 try:
                     target_path.mkdir(parents=True, exist_ok=True)
                     cmd = [
@@ -246,10 +264,22 @@ class TorchPathManager:
                     else:
                         err = (result.stderr or result.stdout or "")[:_MAX_PIP_ERROR_LEN]
                         print(f"PyTorch auto-install failed (pip exit {result.returncode}): {err}")
+                        # Record the failure so _try_auto_install() won't retry
+                        # immediately, and increment _install_generation so the
+                        # ui_panels cache is cleared (stops "⏳ installing…" from
+                        # showing forever after a failed install).
+                        _auto_install_last_error = (
+                            f"pip exited with code {result.returncode}: {err}"
+                        )
+                        _install_generation += 1
                 except subprocess.TimeoutExpired:
                     print("PyTorch auto-install timed out (10 minutes).")
+                    _auto_install_last_error = "auto-install timed out (10 minutes)"
+                    _install_generation += 1
                 except Exception as ex:
                     print(f"PyTorch auto-install error: {ex}")
+                    _auto_install_last_error = str(ex)
+                    _install_generation += 1
                 finally:
                     _auto_install_running = False
 
@@ -303,6 +333,8 @@ class TorchPathManager:
                 )
                 if result[0]:
                     return result
+                if result[1] == "auto_install_failed":
+                    return False, result[1], None
                 return False, "windows_path_error", None
             # Use both attribute check (set on Windows) and string fallback (cross-platform
             # compatibility and cases where winerror attribute may not be populated).
@@ -316,7 +348,8 @@ class TorchPathManager:
             )
             if result[0]:
                 return result
-            if result[1] in ("auto_install_started", "auto_install_in_progress"):
+            if result[1] in ("auto_install_started", "auto_install_in_progress",
+                             "auto_install_failed"):
                 return False, result[1], None
             return False, f"PyTorch not installed: {str(e)}", None
         except Exception as e:
