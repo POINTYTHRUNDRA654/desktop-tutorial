@@ -482,7 +482,7 @@ class PointEHelpers:
                         return False, PointEHelpers._dll_init_error_message()
                     else:
                         return False, _pytorch_required_message(msg)
-            except ImportError:
+            except (ImportError, AttributeError):
                 # TorchPathManager not available, use regular import
                 try:
                     import torch
@@ -588,7 +588,7 @@ For more info: https://github.com/openai/point-e
                         return False, "Windows path length error. Use the 'Install PyTorch to Short Path' button to install to D:/t"
                     else:
                         return False, msg
-            except ImportError:
+            except (ImportError, AttributeError):
                 # TorchPathManager not available, use regular import
                 import torch
 
@@ -682,7 +682,7 @@ For more info: https://github.com/openai/point-e
                         return False, "Windows path length error. Use the 'Install PyTorch to Short Path' button to install to D:/t"
                     else:
                         return False, msg
-            except ImportError:
+            except (ImportError, AttributeError):
                 # TorchPathManager not available, use regular import
                 import torch
 
