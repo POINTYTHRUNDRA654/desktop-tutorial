@@ -500,6 +500,17 @@ class FO4_PT_MeshPanel(_FO4SubPanel):
         )
 
     @staticmethod
+    def _draw_smart_presets_box(layout):
+        """Draw the Smart Presets section inside the Mesh panel."""
+        preset_box = layout.box()
+        preset_box.label(text="Smart Presets", icon='PRESET')
+        preset_box.label(text="Load FO4 game mesh as a starting point:", icon='INFO')
+        row = preset_box.row(align=True)
+        row.operator("fo4.create_weapon_preset", text="Weapon", icon='MOUSE_LMB')
+        row.operator("fo4.create_armor_preset", text="Armor", icon='MATCLOTH')
+        row.operator("fo4.create_prop_preset", text="Prop", icon='OBJECT_DATAMODE')
+
+    @staticmethod
     def _draw_asset_paths_box(layout, has_mesh, scene, context):
         """Draw the shared Game Asset Paths section inside the Mesh panel."""
         _draw_game_path_box(layout, context)
@@ -725,6 +736,9 @@ class FO4_PT_MeshPanel(_FO4SubPanel):
             row.enabled = has_mesh
             row.operator("fo4.export_mesh", text="Export Mesh (.nif)", icon='EXPORT')
 
+            # ── Smart Presets ────────────────────────────────────────────
+            self._draw_smart_presets_box(layout)
+
         else:
             # ── original layout: separate boxes ─────────────────────────
 
@@ -836,6 +850,8 @@ class FO4_PT_MeshPanel(_FO4SubPanel):
             row = uv_box.row()
             row.enabled = has_mesh
             row.operator("fo4.export_mesh", text="Export Mesh (.nif)", icon='EXPORT')
+
+            self._draw_smart_presets_box(layout)
 
 class FO4_PT_TexturePanel(_FO4SubPanel):
     """Texture installation helpers panel"""
