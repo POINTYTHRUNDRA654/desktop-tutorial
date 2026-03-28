@@ -15,6 +15,8 @@ const ExternalToolsSettings: React.FC<ExternalToolsSettingsProps> = ({ embedded 
   const [saving, setSaving] = useState(false);
   const [downloadingUModel, setDownloadingUModel] = useState(false);
   const [umodelDownloadStatus, setUmodelDownloadStatus] = useState<string>('');
+  const [pytorchCheckStatus, setPytorchCheckStatus] = useState<string>('');
+  const [pytorchInstalling, setPytorchInstalling] = useState(false);
 
   useEffect(() => {
     const init = async () => {
@@ -294,6 +296,49 @@ const ExternalToolsSettings: React.FC<ExternalToolsSettingsProps> = ({ embedded 
       setUmodelDownloadStatus(`❌ Download error: ${String(e)}`);
     } finally {
       setDownloadingUModel(false);
+    }
+  };
+
+  /** Check whether PyTorch is available and update the status message. */
+  const handleCheckPyTorch = async () => {
+    const api = (window as any).electron?.api || (window as any).electronAPI;
+    setPytorchCheckStatus('Checking…');
+    try {
+      const result: any = await (api?.checkPyTorch ? api.checkPyTorch() : api?.invoke?.('check-pytorch'));
+      if (result?.available) {
+        setPytorchCheckStatus(`✅ PyTorch ${result.version || ''} found at ${result.path || 'system Python'}`);
+        if (result.path && !draft.pytorchPath) {
+          handleChange('pytorchPath', result.path);
+        }
+      } else {
+        setPytorchCheckStatus(`⚠️ ${result?.error || 'PyTorch not found.'}`);
+      }
+    } catch (e) {
+      setPytorchCheckStatus(`❌ Check error: ${String(e)}`);
+    }
+  };
+
+  /** Auto-install PyTorch (CPU) into a managed venv inside app userData. */
+  const handleInstallPyTorch = async () => {
+    const api = (window as any).electron?.api || (window as any).electronAPI;
+    setPytorchInstalling(true);
+    setPytorchCheckStatus('Installing PyTorch… this may take several minutes. Please wait.');
+    try {
+      const result: any = await (
+        api?.installPyTorch ? api.installPyTorch() : api?.invoke?.('install-pytorch')
+      );
+      if (result?.success) {
+        setPytorchCheckStatus(`✅ ${result.message || `PyTorch ${result.version} installed at ${result.path}`}`);
+        if (result.path) {
+          handleChange('pytorchPath', result.path);
+        }
+      } else {
+        setPytorchCheckStatus(`❌ ${result?.error || 'Installation failed.'}`);
+      }
+    } catch (e) {
+      setPytorchCheckStatus(`❌ Install error: ${String(e)}`);
+    } finally {
+      setPytorchInstalling(false);
     }
   };
 
@@ -892,25 +937,54 @@ const ExternalToolsSettings: React.FC<ExternalToolsSettingsProps> = ({ embedded 
             <div>
               <div className="text-sm font-bold text-white">PyTorch (Blender Add-on)</div>
               <div className="text-[11px] text-slate-400">
-                Directory that contains the <code className="text-orange-300">torch</code> package.
+                Required for AI-powered image enhancement in the Blender add-on.
+                Use <strong>Auto-Install</strong> to set it up automatically, or paste an existing path below.
               </div>
               <div className="text-[11px] text-slate-500">
-                Typically the <code className="text-orange-300">Lib\site-packages</code> folder of your PyTorch install
+                Path should be the <code className="text-orange-300">site-packages</code> directory containing the <code className="text-orange-300">torch</code> package
                 (e.g. <code className="text-orange-300">D:\PyTorch\Lib\site-packages</code>).
-                The Blender add-on injects this into <code className="text-orange-300">sys.path</code> automatically on load.
+                The Blender add-on injects this into <code className="text-orange-300">sys.path</code> automatically.
               </div>
             </div>
           </div>
           <input
             value={draft.pytorchPath || ''}
             onChange={(e) => handleChange('pytorchPath', e.target.value)}
-            placeholder="D:\\PyTorch"
+            placeholder="D:\\PyTorch\\Lib\\site-packages"
             className="w-full bg-slate-800 border border-slate-700 rounded px-3 py-2 text-sm text-white font-mono"
           />
           {draft.pytorchPath && <div className="mt-1 text-[10px] text-slate-500 font-mono break-all">📁 {draft.pytorchPath}</div>}
-          <div className="mt-2 flex gap-2">
-            <button onClick={() => browseFolder('pytorchPath', 'PyTorch installation folder')} className="px-3 py-1 bg-slate-700 hover:bg-slate-600 border border-slate-600 rounded text-[11px] font-bold flex items-center gap-1"><FolderOpen className="w-3 h-3" /> Browse</button>
+          <div className="mt-2 flex flex-wrap gap-2">
+            <button onClick={() => browseFolder('pytorchPath', 'PyTorch site-packages folder')} className="px-3 py-1 bg-slate-700 hover:bg-slate-600 border border-slate-600 rounded text-[11px] font-bold flex items-center gap-1"><FolderOpen className="w-3 h-3" /> Browse</button>
+            <button
+              onClick={handleCheckPyTorch}
+              disabled={pytorchInstalling}
+              className="px-3 py-1 bg-slate-700 hover:bg-slate-600 border border-slate-600 rounded text-[11px] font-bold flex items-center gap-1"
+              title="Check whether PyTorch is already installed"
+              aria-label="Check PyTorch installation"
+            >
+              <TestTube2 className="w-3 h-3" /> Check
+            </button>
+            <button
+              onClick={handleInstallPyTorch}
+              disabled={pytorchInstalling}
+              className="px-3 py-1 bg-orange-700 hover:bg-orange-600 border border-orange-500 rounded text-[11px] font-bold flex items-center gap-1 disabled:opacity-50"
+              title="Automatically install PyTorch (CPU) into a managed virtual environment"
+              aria-label={pytorchInstalling ? 'Installing PyTorch, please wait' : 'Auto-install PyTorch'}
+            >
+              <Archive className="w-3 h-3" /> {pytorchInstalling ? 'Installing…' : 'Auto-Install'}
+            </button>
           </div>
+          {pytorchCheckStatus && (
+            <div className={`mt-2 text-[11px] font-mono px-2 py-1 rounded break-all ${
+              pytorchCheckStatus.startsWith('✅') ? 'bg-emerald-900/40 text-emerald-300' :
+              pytorchCheckStatus.startsWith('⚠️') ? 'bg-yellow-900/40 text-yellow-300' :
+              pytorchCheckStatus.startsWith('❌') ? 'bg-red-900/40 text-red-300' :
+              'bg-slate-800 text-slate-300'
+            }`}>
+              {pytorchCheckStatus}
+            </div>
+          )}
         </div>
 
         {/* LOOT */}

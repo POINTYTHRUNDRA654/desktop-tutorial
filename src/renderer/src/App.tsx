@@ -17,6 +17,7 @@ import TutorialLaunch from './TutorialLaunch';
 import { NotificationProvider } from './NotificationContext';
 import AutoUpdateNotifier from './components/AutoUpdateNotifier';
 import { ensureBrowserTtsSettingsStored } from './browserTts';
+import toast from 'react-hot-toast';
 
 import { Command, Loader2, Radio, Zap } from 'lucide-react';
 import { LiveProvider } from './LiveContext';
@@ -229,6 +230,47 @@ const App: React.FC = () => {
       } catch { /* ignore */ }
     }
   }, [hasBooted]);
+
+  // ── PyTorch auto-setup progress listener ──────────────────────────────────
+  // The main process runs a background PyTorch install on first launch and
+  // sends progress events. We display them as toast notifications so the user
+  // always knows what is happening without needing to open Settings.
+  useEffect(() => {
+    const api = (window as any).electron?.api || (window as any).electronAPI;
+    if (!api?.onPytorchSetupProgress) return;
+
+    let loadingToastId: string | null = null;
+
+    const unsubscribe = api.onPytorchSetupProgress((data: { message: string }) => {
+      const msg = data?.message || '';
+      if (msg.startsWith('✅')) {
+        if (loadingToastId) { toast.dismiss(loadingToastId); loadingToastId = null; }
+        toast.success(msg, { duration: 6000, id: 'pytorch-setup' });
+      } else if (msg.startsWith('❌')) {
+        if (loadingToastId) { toast.dismiss(loadingToastId); loadingToastId = null; }
+        toast.error(msg, { duration: 10000, id: 'pytorch-setup' });
+      } else if (msg.startsWith('⚠️')) {
+        if (loadingToastId) { toast.dismiss(loadingToastId); loadingToastId = null; }
+        toast(msg, { duration: 8000, id: 'pytorch-setup', icon: '⚠️' });
+      } else {
+        // Progress update — show/update a loading toast
+        if (loadingToastId) {
+          toast.loading(msg, { id: loadingToastId });
+        } else {
+          loadingToastId = toast.loading(msg, { id: 'pytorch-setup-loading' });
+        }
+      }
+    });
+
+    // Signal to the main process that the renderer is ready so it can start
+    // the background auto-install immediately (instead of waiting for the fallback timeout).
+    api.notifyPytorchRendererReady?.();
+
+    return () => {
+      unsubscribe?.();
+      if (loadingToastId) toast.dismiss(loadingToastId);
+    };
+  }, []);
   const [showFirstRun, setShowFirstRun] = useState(() => {
     // Check if user has completed first-run onboarding
     return localStorage.getItem('mossy_onboarding_complete') !== 'true';

@@ -1653,6 +1653,57 @@ const electronAPI = {
   },
 
   /**
+   * PyTorch: Check whether torch is importable from the configured path or
+   * from the system Python.
+   */
+  checkPyTorch: (): Promise<{
+    available: boolean;
+    version?: string;
+    path?: string;
+    pythonFound?: boolean;
+    error?: string;
+  }> => {
+    return ipcRenderer.invoke('check-pytorch');
+  },
+
+  /**
+   * PyTorch: Auto-install torch (CPU build) into a managed virtual environment
+   * inside the app's userData folder. Saves the resulting site-packages path
+   * to Mossy settings so Blender and other integrations can use it immediately.
+   * @param destDir – Optional custom directory for the virtual environment.
+   */
+  installPyTorch: (destDir?: string): Promise<{
+    success: boolean;
+    path?: string;
+    version?: string;
+    message?: string;
+    error?: string;
+  }> => {
+    return ipcRenderer.invoke('install-pytorch', destDir);
+  },
+
+  /**
+   * PyTorch Setup Progress: subscribe to real-time progress events sent by
+   * the auto-install background task on first launch.
+   * @returns unsubscribe function
+   */
+  onPytorchSetupProgress: (callback: (data: { message: string }) => void): (() => void) => {
+    const subscription = (_event: any, data: { message: string }) => callback(data);
+    ipcRenderer.on('pytorch-setup-progress', subscription);
+    return () => ipcRenderer.removeListener('pytorch-setup-progress', subscription);
+  },
+
+  /**
+   * PyTorch: Signal to the main process that the renderer is mounted and
+   * ready to receive pytorch-setup-progress events. This triggers the
+   * background auto-install check immediately rather than waiting for the
+   * safety timeout.
+   */
+  notifyPytorchRendererReady: (): void => {
+    ipcRenderer.send('pytorch-renderer-ready');
+  },
+
+  /**
    */
   sendMessage: (message: any): Promise<void> => {
     return ipcRenderer.invoke('sendMessage', message);
