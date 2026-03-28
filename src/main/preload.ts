@@ -569,6 +569,10 @@ const electronAPI: ElectronAPI = {
 
   // Tool auto-download — lets the app download optional tools (e.g. UModel) on demand.
   downloadUModel: (destDir?: string) => ipcRenderer.invoke('download-umodel', destDir),
+
+  // PyTorch — check availability and auto-install a CPU-only build on demand.
+  checkPyTorch: () => ipcRenderer.invoke('check-pytorch'),
+  installPyTorch: (destDir?: string) => ipcRenderer.invoke('install-pytorch', destDir),
 };
 
 /**

@@ -7146,6 +7146,235 @@ Always provide practical, actionable advice focused on Fallout 4 compatibility a
     }
   });
 
+  /**
+   * Handler: check-pytorch
+   *
+   * Checks whether PyTorch is importable from the configured pytorchPath or from
+   * the system/venv Python. Returns availability, version, and the site-packages path.
+   *
+   * Returns: { available: boolean; version?: string; path?: string; pythonFound?: boolean; error?: string }
+   */
+  registerHandler('check-pytorch', async () => {
+    /** Spawn a process with optional env overrides; collects output and times out after 15 s. */
+    const runCmd = (
+      cmd: string,
+      args: string[],
+      extraEnv?: Record<string, string>,
+    ): Promise<{ code: number; stdout: string; stderr: string }> =>
+      new Promise((resolve) => {
+        const child = spawn(cmd, args, {
+          stdio: ['ignore', 'pipe', 'pipe'],
+          timeout: 15_000,
+          windowsHide: true,
+          env: extraEnv ? { ...process.env, ...extraEnv } : process.env,
+        });
+        let stdout = '';
+        let stderr = '';
+        child.stdout?.on('data', (d: Buffer) => { stdout += d.toString(); });
+        child.stderr?.on('data', (d: Buffer) => { stderr += d.toString(); });
+        child.on('close', (code: number | null) => resolve({ code: code ?? -1, stdout, stderr }));
+        child.on('error', (err: Error) => resolve({ code: -1, stdout: '', stderr: err.message }));
+      });
+
+    try {
+      const s = loadSettings();
+      const configuredPath = (s?.pytorchPath as string | undefined) ?? '';
+      const pythonCandidates = process.platform === 'win32' ? ['python', 'python3', 'py'] : ['python3', 'python'];
+
+      // 1. If a site-packages path is already configured, try importing torch from there.
+      //    Pass the path via an environment variable to avoid any command-injection risk.
+      if (configuredPath && fs.existsSync(configuredPath)) {
+        for (const py of pythonCandidates) {
+          const check = await runCmd(
+            py,
+            ['-c', 'import sys, os; p=os.environ.get("MOSSY_TORCH_PATH",""); p and sys.path.insert(0, p); import torch; print(torch.__version__)'],
+            { MOSSY_TORCH_PATH: configuredPath },
+          );
+          if (check.code === 0 && check.stdout.trim()) {
+            return { available: true, version: check.stdout.trim(), path: configuredPath, pythonFound: true };
+          }
+        }
+      }
+
+      // 2. Try importing torch directly from whatever Python is on PATH.
+      for (const py of pythonCandidates) {
+        const check = await runCmd(py, ['-c', 'import torch; print(torch.__version__)']);
+        if (check.code === 0 && check.stdout.trim()) {
+          const spResult = await runCmd(py, [
+            '-c',
+            'import torch, os; print(os.path.dirname(os.path.dirname(torch.__file__)))',
+          ]);
+          return {
+            available: true,
+            version: check.stdout.trim(),
+            path: spResult.code === 0 ? spResult.stdout.trim() : '',
+            pythonFound: true,
+          };
+        }
+      }
+
+      // 3. At least check if Python itself is present.
+      let pythonFound = false;
+      for (const py of pythonCandidates) {
+        const r = await runCmd(py, ['--version']);
+        if (r.code === 0) { pythonFound = true; break; }
+      }
+
+      return {
+        available: false,
+        pythonFound,
+        error: pythonFound
+          ? 'PyTorch is not installed. Click Auto-Install to set it up automatically.'
+          : 'Python not found. Install Python 3.8+ from https://www.python.org/downloads/ first.',
+      };
+    } catch (error: any) {
+      return { available: false, error: `Check failed: ${error?.message || String(error)}` };
+    }
+  });
+
+  /**
+   * Handler: install-pytorch
+   *
+   * Automatically installs PyTorch (CPU build) into a Python virtual environment
+   * inside the app's userData directory. On success, persists the site-packages
+   * path to Mossy settings so Blender and other integrations can use it immediately.
+   *
+   * @param destDir – Optional override for the venv directory.
+   * Returns: { success: boolean; path?: string; version?: string; message?: string; error?: string }
+   */
+  registerHandler('install-pytorch', async (_event, destDir?: string) => {
+    const INSTALL_TIMEOUT_MS = 600_000; // 10 min — PyTorch CPU wheel is ~200 MB
+
+    /** Spawn a process and stream its output; resolves when the process exits. */
+    const runCmd = (
+      cmd: string,
+      args: string[],
+      cwd?: string,
+    ): Promise<{ code: number; stdout: string; stderr: string }> =>
+      new Promise((resolve) => {
+        const child = spawn(cmd, args, {
+          cwd,
+          stdio: ['ignore', 'pipe', 'pipe'],
+          timeout: INSTALL_TIMEOUT_MS,
+          windowsHide: true,
+        });
+        let stdout = '';
+        let stderr = '';
+        child.stdout?.on('data', (d: Buffer) => { stdout += d.toString(); });
+        child.stderr?.on('data', (d: Buffer) => { stderr += d.toString(); });
+        child.on('close', (code: number | null) => resolve({ code: code ?? -1, stdout, stderr }));
+        child.on('error', (err: Error) => resolve({ code: -1, stdout: '', stderr: err.message }));
+      });
+
+    try {
+      // ── Resolve venv directory ──────────────────────────────────────────────
+      const userData = app.getPath('userData');
+      const rawDir = (typeof destDir === 'string' && destDir.trim()) ? destDir.trim() : path.join(userData, 'pytorch-env');
+
+      // Sanitize: only allow filesystem-safe characters and reject path-traversal sequences.
+      if (!/^[a-zA-Z0-9 _.:\\/\-]+$/.test(rawDir) || rawDir.includes('..')) {
+        return { success: false, error: 'Destination path contains invalid characters or path traversal sequences. Use a plain absolute path.' };
+      }
+      const envDir = rawDir;
+
+      console.log(`[PyTorch Install] Target venv: ${envDir}`);
+
+      // ── Find Python ─────────────────────────────────────────────────────────
+      const pythonCandidates = process.platform === 'win32' ? ['python', 'python3', 'py'] : ['python3', 'python'];
+      let pythonExe = '';
+      for (const candidate of pythonCandidates) {
+        const r = await runCmd(candidate, ['--version']);
+        if (r.code === 0) { pythonExe = candidate; break; }
+      }
+      if (!pythonExe) {
+        return {
+          success: false,
+          error: 'Python is not installed or not in PATH. Please install Python 3.8+ from https://www.python.org/downloads/ and try again.',
+        };
+      }
+      console.log(`[PyTorch Install] Using Python: ${pythonExe}`);
+
+      // ── Create virtual environment ──────────────────────────────────────────
+      console.log('[PyTorch Install] Creating virtual environment…');
+      const venvResult = await runCmd(pythonExe, ['-m', 'venv', envDir]);
+      if (venvResult.code !== 0) {
+        return { success: false, error: `Failed to create virtual environment: ${venvResult.stderr || venvResult.stdout}` };
+      }
+
+      // ── Locate pip inside the venv ──────────────────────────────────────────
+      const pipExe = process.platform === 'win32'
+        ? path.join(envDir, 'Scripts', 'pip.exe')
+        : path.join(envDir, 'bin', 'pip');
+      if (!fs.existsSync(pipExe)) {
+        return { success: false, error: `pip not found inside virtual environment (${pipExe}).` };
+      }
+
+      // ── pip install torch (CPU-only) ────────────────────────────────────────
+      console.log('[PyTorch Install] Installing torch (CPU)… this may take several minutes.');
+      const pipArgs = [
+        'install', 'torch', 'torchvision',
+        '--index-url', 'https://download.pytorch.org/whl/cpu',
+        '--timeout', '300',
+        '--no-cache-dir',
+      ];
+      const pipResult = await runCmd(pipExe, pipArgs);
+
+      if (pipResult.code !== 0) {
+        // Retry without torchvision, in case of a transient compatibility issue.
+        console.warn('[PyTorch Install] torch+torchvision failed, retrying without torchvision…');
+        const retry = await runCmd(pipExe, [
+          'install', 'torch',
+          '--index-url', 'https://download.pytorch.org/whl/cpu',
+          '--timeout', '300',
+          '--no-cache-dir',
+        ]);
+        if (retry.code !== 0) {
+          return { success: false, error: `pip install failed:\n${pipResult.stderr || pipResult.stdout}` };
+        }
+      }
+
+      // ── Locate site-packages ────────────────────────────────────────────────
+      const pythonInVenv = process.platform === 'win32'
+        ? path.join(envDir, 'Scripts', 'python.exe')
+        : path.join(envDir, 'bin', 'python');
+
+      const spResult = await runCmd(pythonInVenv, [
+        '-c', 'import site; print(site.getsitepackages()[0])',
+      ]);
+      const sitePackages = spResult.code === 0 && spResult.stdout.trim()
+        ? spResult.stdout.trim()
+        : (process.platform === 'win32'
+          ? path.join(envDir, 'Lib', 'site-packages')
+          : path.join(envDir, 'lib', 'python3', 'site-packages'));
+
+      // ── Verify torch is importable ──────────────────────────────────────────
+      const verifyResult = await runCmd(pythonInVenv, ['-c', 'import torch; print(torch.__version__)']);
+      if (verifyResult.code !== 0) {
+        return {
+          success: false,
+          error: 'PyTorch was installed but cannot be imported. Check the installation manually.',
+        };
+      }
+      const torchVersion = verifyResult.stdout.trim();
+      console.log(`[PyTorch Install] ✅ PyTorch ${torchVersion} ready at ${sitePackages}`);
+
+      // ── Persist path to settings ────────────────────────────────────────────
+      const s = loadSettings();
+      saveSettings({ ...s, pytorchPath: sitePackages });
+
+      return {
+        success: true,
+        path: sitePackages,
+        version: torchVersion,
+        message: `PyTorch ${torchVersion} installed successfully.\nPath: ${sitePackages}`,
+      };
+    } catch (error: any) {
+      const msg = error?.message || String(error);
+      console.error('[PyTorch Install] Unexpected error:', msg);
+      return { success: false, error: `Installation failed: ${msg}` };
+    }
+  });
+
   // Mark handlers as registered
   (global as any).__ipcHandlersRegistered = true;
   console.log('[Main] IPC handlers registration complete');
