@@ -876,20 +876,18 @@ class FO4_PT_TexturePanel(_FO4SubPanel):
 
         install_box = box.box()
         install_box.label(text="Install Texture", icon='FILE_IMAGE')
-        op = install_box.operator("fo4.install_texture", text="Install Diffuse", icon='FILE_IMAGE')
+        op = install_box.operator("fo4.install_texture", text="Install Diffuse (_d)", icon='FILE_IMAGE')
         op.texture_type = 'DIFFUSE'
-        op = install_box.operator("fo4.install_texture", text="Install Normal Map", icon='NORMALS_FACE')
+        op = install_box.operator("fo4.install_texture", text="Install Normal Map (_n)", icon='NORMALS_FACE')
         op.texture_type = 'NORMAL'
-        op = install_box.operator("fo4.install_texture", text="Install Specular Map", icon='SHADING_RENDERED')
+        op = install_box.operator("fo4.install_texture", text="Install Specular Map (_s)", icon='SHADING_RENDERED')
         op.texture_type = 'SPECULAR'
+        op = install_box.operator("fo4.install_texture", text="Install Glow Mask (_g)", icon='LIGHT_SUN')
+        op.texture_type = 'GLOW'
+        op = install_box.operator("fo4.install_texture", text="Install Environment Mask (_e)", icon='WORLD')
+        op.texture_type = 'ENVIRONMENT'
 
         box.operator("fo4.validate_textures", text="Validate Textures", icon='CHECKMARK')
-
-        # DDS conversion – required for Fallout 4 NIF export
-        dds_box = layout.box()
-        dds_box.label(text="DDS Conversion (FO4 NIF Export)", icon='DISK_DRIVE')
-        dds_box.operator("fo4.convert_texture_to_dds", text="Convert Texture to DDS", icon='FILE_REFRESH')
-        dds_box.operator("fo4.convert_object_textures_to_dds", text="Convert Object Textures to DDS", icon='OBJECT_DATA')
 
         # AI Upscaling (Real-ESRGAN)
         ai_box = layout.box()
@@ -1538,7 +1536,7 @@ class FO4_PT_NVTTPanel(_FO4SubPanel):
     bl_space_type = 'VIEW_3D'
     bl_region_type = 'UI'
     bl_category = 'Fallout 4'
-    bl_parent_id = "FO4_PT_main_panel"
+    bl_parent_id = "FO4_PT_texture_panel"
     bl_options = {'DEFAULT_CLOSED'}
 
     def draw(self, context):
@@ -1588,12 +1586,13 @@ class FO4_PT_NVTTPanel(_FO4SubPanel):
 
         # Info box
         info_box = layout.box()
-        info_box.label(text="About DDS Conversion:", icon='INFO')
-        info_box.label(text="• DDS is required for FO4")
-        info_box.label(text="• BC1 (DXT1): Diffuse textures")
-        info_box.label(text="• BC5 (ATI2): Normal maps")
-        info_box.label(text="• BC3 (DXT5): Alpha textures")
-        info_box.label(text="• BC7: optional high quality", icon='BLANK1')
+        info_box.label(text="FO4 DDS Format Reference:", icon='INFO')
+        info_box.label(text="• BC1 (DXT1): Diffuse (_d), Specular (_s), Glow (_g), Env mask (_e)")
+        info_box.label(text="• BC3 (DXT5): Diffuse with alpha (transparency)")
+        info_box.label(text="• BC5 (ATI2): Normal maps (_n) — two-channel R+G")
+        info_box.label(text="• BC7: optional high quality variant", icon='BLANK1')
+        info_box.label(text="• Mipmaps: auto-generated (required by FO4)", icon='BLANK1')
+        info_box.label(text="• Dimensions: must be power of 2 (512/1024/2048)", icon='BLANK1')
 
         if not (nvtt_available or texconv_available):
             info_box.separator()
@@ -4567,10 +4566,11 @@ classes = (
     FO4_PT_SetupAIDiffusers,
     FO4_PT_MeshPanel,
     FO4_PT_TexturePanel,
+    # Texture Conversion sub-panel (child of FO4_PT_texture_panel)
+    FO4_PT_NVTTPanel,
     FO4_PT_ImageToMeshPanel,
     FO4_PT_AnimationPanel,
     FO4_PT_RigNetPanel,
-    FO4_PT_NVTTPanel,
     FO4_PT_AdvisorPanel,
     FO4_PT_ToolsLinks,
     FO4_PT_GameAssetsLibraryPanel,
