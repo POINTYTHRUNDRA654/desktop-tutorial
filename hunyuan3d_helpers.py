@@ -139,7 +139,7 @@ def check_hunyuan3d_availability():
 
     # First pass: find a directory that actually contains infer.py
     for path in candidates:
-        if os.path.isdir(path) and os.path.exists(os.path.join(path, "infer.py")):
+        if _is_valid_hunyuan_install(path):
             return True, f"Hunyuan3D-2 available at: {path}"
 
     # Second pass: report any directory found but missing infer.py
@@ -176,8 +176,7 @@ def generate_mesh_from_text(prompt, output_path=None, resolution=256):
 
         # Locate the Hunyuan3D-2 installation directory
         hunyuan_path = next(
-            (p for p in _build_hunyuan3d_candidates()
-             if os.path.isdir(p) and os.path.exists(os.path.join(p, "infer.py"))),
+            (p for p in _build_hunyuan3d_candidates() if _is_valid_hunyuan_install(p)),
             None,
         )
 
@@ -245,8 +244,7 @@ def generate_mesh_from_image(image_path, output_path=None, resolution=256):
 
         possible_paths = _build_hunyuan3d_candidates()
         hunyuan_path = next(
-            (p for p in possible_paths
-             if os.path.isdir(p) and os.path.exists(os.path.join(p, "infer.py"))),
+            (p for p in possible_paths if _is_valid_hunyuan_install(p)),
             None,
         )
 

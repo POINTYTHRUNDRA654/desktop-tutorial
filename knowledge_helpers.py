@@ -185,6 +185,22 @@ def tool_status() -> dict:
     return status
 
 
+def status() -> tuple[bool, str]:
+    """Return (ready, message) tuple for UI display.
+
+    Consistent with status() in other helper modules so the self-test
+    can call status() uniformly across all helpers.
+    """
+    kb_dir = _kb_root()
+    if not kb_dir.exists():
+        return False, f"Knowledge base directory not found at {kb_dir}"
+    snippets = load_snippets()
+    count = len(snippets)
+    if count == 0:
+        return False, f"Knowledge base empty at {kb_dir}"
+    return True, describe_kb()
+
+
 def register():
     pass
 

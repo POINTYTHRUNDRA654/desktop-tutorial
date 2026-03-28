@@ -124,7 +124,13 @@ def register():
     module = _state.get("module")
     try:
         if module and hasattr(module, "register"):
-            module.register()
+            try:
+                module.register()
+            except Exception as exc:
+                # Blender raises when a class is registered a second time.
+                # That means the classes are already active — treat as success.
+                if "already registered" not in str(exc) and "as a subclass" not in str(exc):
+                    raise
             _state["status"] = "registered"
         else:
             _state["status"] = "error"
