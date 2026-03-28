@@ -634,8 +634,12 @@ class FO4AddonPreferences(bpy.types.AddonPreferences):
 
     auto_install_tools: bpy.props.BoolProperty(
         name="Auto Install Tools",
-        default=True,
-        description="If enabled, missing CLI tools will be downloaded automatically on startup",
+        default=False,
+        description=(
+            "If enabled, missing CLI tools (e.g. UModel) will be downloaded automatically "
+            "on startup. Disabled by default — enable this only if you want the add-on to "
+            "fetch executables from the internet without a manual button click."
+        ),
     )
 
     auto_register_tools: bpy.props.BoolProperty(
