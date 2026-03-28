@@ -283,6 +283,39 @@ def _on_load_post(*args):
         pass
 
 
+def _is_operator_registered(cls_name: str, bl_idname: str) -> bool:
+    """Check whether an operator is actually registered and callable.
+
+    Blender 5.x with the extension system has a known issue where
+    ``hasattr(bpy.types, cls_name)`` returns ``False`` even after
+    ``bpy.utils.register_class()`` succeeds.  The operator IS registered
+    in Blender's internal RNA type map, but the ``bpy.types`` Python
+    attribute lookup misses it under the extension namespace.
+
+    This function adds a secondary check via ``bpy.ops`` so that the
+    ``_ensure_*`` safety nets don't fire spurious warnings every startup.
+
+    Parameters
+    ----------
+    cls_name : str
+        Python class name, e.g. ``"FO4_OT_ShowDetailedSetup"``.
+    bl_idname : str
+        Blender operator id, e.g. ``"fo4.show_detailed_setup"``.
+    """
+    # Fast path — works in Blender 4.x and most Blender 5 builds
+    if hasattr(bpy.types, cls_name):
+        return True
+    # Blender 5 extension fallback: verify via bpy.ops namespace
+    try:
+        prefix, name = bl_idname.split(".", 1)
+        op_ns = getattr(bpy.ops, prefix, None)
+        if op_ns is not None and hasattr(op_ns, name):
+            return True
+    except Exception:
+        pass
+    return False
+
+
 def _ensure_tutorial_operators():
     """Last-resort registration of the 4 critical tutorial operators.
 
@@ -297,19 +330,23 @@ def _ensure_tutorial_operators():
     if tutorial_operators is None:
         return
 
-    required_operators = (
-        "FO4_OT_ShowDetailedSetup",
-        "FO4_OT_StartTutorial",
-        "FO4_OT_ShowHelp",
-        "FO4_OT_ShowCredits",
-    )
-    missing = [n for n in required_operators if not hasattr(bpy.types, n)]
+    # Map class names → bl_idnames for the Blender 5 extension fallback check.
+    required_operators = {
+        "FO4_OT_ShowDetailedSetup": "fo4.show_detailed_setup",
+        "FO4_OT_StartTutorial":     "fo4.start_tutorial",
+        "FO4_OT_ShowHelp":          "fo4.show_help",
+        "FO4_OT_ShowCredits":       "fo4.show_credits",
+    }
+    missing = [
+        n for n, idname in required_operators.items()
+        if not _is_operator_registered(n, idname)
+    ]
     if not missing:
-        print("✓ Tutorial operators confirmed in bpy.types (tutorial panel buttons ready)")
+        print("✓ Tutorial operators confirmed (tutorial panel buttons ready)")
         return  # All operators already registered — nothing to do.
 
     print(
-        f"⚠ _ensure_tutorial_operators: {missing} not in bpy.types; "
+        f"⚠ _ensure_tutorial_operators: {missing} not reachable; "
         "attempting re-registration…"
     )
     # Try re-registering the whole module first so class state is consistent.
@@ -320,7 +357,10 @@ def _ensure_tutorial_operators():
     try:
         tutorial_operators.register()
         # If that succeeded, we're done.
-        still_missing = [n for n in required_operators if not hasattr(bpy.types, n)]
+        still_missing = [
+            n for n, idname in required_operators.items()
+            if not _is_operator_registered(n, idname)
+        ]
         if not still_missing:
             print("  ✓ tutorial_operators re-registered successfully")
             return
@@ -328,8 +368,8 @@ def _ensure_tutorial_operators():
         print(f"  ⚠ Module re-registration failed: {e}")
 
     # Fall back: register each missing class individually.
-    for cls_name in required_operators:
-        if hasattr(bpy.types, cls_name):
+    for cls_name, bl_idname in required_operators.items():
+        if _is_operator_registered(cls_name, bl_idname):
             continue
         cls = getattr(tutorial_operators, cls_name, None)
         if cls is None:
@@ -366,18 +406,21 @@ def _ensure_setup_operators():
         print("  ⚠ setup_operators is None; cannot register")
         return
 
-    required_operators = (
-        "FO4_OT_InstallPythonDeps",
-        "FO4_OT_SelfTest",
-        "FO4_OT_ReloadAddon",
-    )
-    missing = [n for n in required_operators if not hasattr(bpy.types, n)]
+    required_operators = {
+        "FO4_OT_InstallPythonDeps": "fo4.install_python_deps",
+        "FO4_OT_SelfTest":          "fo4.self_test",
+        "FO4_OT_ReloadAddon":       "fo4.reload_addon",
+    }
+    missing = [
+        n for n, idname in required_operators.items()
+        if not _is_operator_registered(n, idname)
+    ]
     if not missing:
-        print("✓ Setup operators confirmed in bpy.types (Setup panel buttons ready)")
+        print("✓ Setup operators confirmed (Setup panel buttons ready)")
         return
 
     print(
-        f"⚠ _ensure_setup_operators: {missing} not in bpy.types; "
+        f"⚠ _ensure_setup_operators: {missing} not reachable; "
         "attempting re-registration…"
     )
     try:
@@ -388,18 +431,21 @@ def _ensure_setup_operators():
     try:
         setup_operators.register()
         print("  ✓ register() succeeded")
-        still_missing = [n for n in required_operators if not hasattr(bpy.types, n)]
-        print(f"  Missing operators after re-register: {still_missing}")
+        still_missing = [
+            n for n, idname in required_operators.items()
+            if not _is_operator_registered(n, idname)
+        ]
         if not still_missing:
             print("  ✓ setup_operators re-registered successfully")
             return
+        print(f"  Missing operators after re-register: {still_missing}")
     except Exception as e:
         print(f"  ⚠ Module re-registration failed: {e}")
 
     # Fall back: register each missing class individually.
-    for cls_name in required_operators:
-        if hasattr(bpy.types, cls_name):
-            print(f"  ✓ {cls_name} already in bpy.types")
+    for cls_name, bl_idname in required_operators.items():
+        if _is_operator_registered(cls_name, bl_idname):
+            print(f"  ✓ {cls_name} already reachable")
             continue
         cls = getattr(setup_operators, cls_name, None)
         if cls is None:

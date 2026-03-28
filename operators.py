@@ -5292,6 +5292,26 @@ class FO4_OT_CheckStyleGAN2Installation(Operator):
 
 # Instant-NGP Operators
 
+def _instantngp_status_report(message: str) -> str:
+    """Return a concise operator-level status string for Instant-NGP.
+
+    ``check_instantngp_installation()`` returns ``(False, msg)`` for two
+    distinct situations that previously both showed as "Instant-NGP not found":
+
+    1. Source cloned but executable not yet built  → actionable build hint
+    2. Not installed at all                        → install hint
+
+    This helper chooses the right summary so the Blender info bar and
+    operator output both make sense.
+    """
+    msg_lower = message.lower()
+    if "source found" in msg_lower or "already cloned" in msg_lower:
+        return "Instant-NGP source found — needs building (see console for cmake instructions)"
+    if "already built" in msg_lower or "instant-ngp ready" in msg_lower:
+        return "Instant-NGP is ready"
+    return "Instant-NGP not found — see console for install instructions"
+
+
 class FO4_OT_ReconstructFromImages(Operator):
     """Reconstruct 3D mesh from images using Instant-NGP (NeRF)"""
     bl_idname = "fo4.reconstruct_from_images"
@@ -5315,15 +5335,14 @@ class FO4_OT_ReconstructFromImages(Operator):
         # Check if Instant-NGP is available
         if not instantngp_helpers.InstantNGPHelpers.is_instantngp_available():
             success, message = instantngp_helpers.InstantNGPHelpers.check_instantngp_installation()
-            self.report({'ERROR'}, "Instant-NGP not found")
+            status_msg = _instantngp_status_report(message)
+            self.report({'ERROR'}, status_msg)
             print("\n" + "="*70)
             print("INSTANT-NGP INSTALLATION")
             print("="*70)
             print(message)
             print("="*70 + "\n")
-            notification_system.FO4_NotificationSystem.notify(
-                "Instant-NGP not installed", 'ERROR'
-            )
+            notification_system.FO4_NotificationSystem.notify(status_msg, 'ERROR')
             return {'CANCELLED'}
         
         if not self.images_dir:
@@ -5484,7 +5503,7 @@ class FO4_OT_ShowInstantNGPInfo(Operator):
             print(f"  100 images without RTX: {instantngp_helpers.InstantNGPHelpers.estimate_training_time(100, False)}")
             print("="*70 + "\n")
         else:
-            self.report({'WARNING'}, "Instant-NGP not found")
+            self.report({'WARNING'}, _instantngp_status_report(message))
             print("\n" + "="*70)
             print("INSTANT-NGP INSTALLATION")
             print("="*70)
@@ -5522,7 +5541,7 @@ class FO4_OT_CheckInstantNGPInstallation(Operator):
             print("Use 'About Instant-NGP' for workflow guide")
             print("="*70 + "\n")
         else:
-            self.report({'WARNING'}, "Instant-NGP not found")
+            self.report({'WARNING'}, _instantngp_status_report(message))
             print("\n" + "="*70)
             print("INSTANT-NGP INSTALLATION")
             print("="*70)

@@ -819,6 +819,246 @@ def install_instantngp() -> tuple[bool, str]:
         return False, f"Failed to clone Instant-NGP: {e}"
 
 
+def install_shap_e() -> tuple[bool, str]:
+    """Install OpenAI Shap-E (text/image → 3D mesh) via pip.
+
+    Installs the ``shap-e`` package (and its dependencies including PyTorch)
+    into Blender's bundled Python environment.
+
+    Returns
+    -------
+    tuple[bool, str]
+        ``(True, message)`` on success, ``(False, reason)`` otherwise.
+    """
+    ok, msg = _pip_install(["shap-e"])
+    if ok:
+        return True, "Shap-E installed successfully. Restart Blender to activate."
+    return False, f"Shap-E install failed: {msg}"
+
+
+def install_point_e() -> tuple[bool, str]:
+    """Install OpenAI Point-E (text/image → point cloud) via pip.
+
+    Installs the ``point-e`` package into Blender's bundled Python environment.
+
+    Returns
+    -------
+    tuple[bool, str]
+        ``(True, message)`` on success, ``(False, reason)`` otherwise.
+    """
+    ok, msg = _pip_install(["point-e"])
+    if ok:
+        return True, "Point-E installed successfully. Restart Blender to activate."
+    return False, f"Point-E install failed: {msg}"
+
+
+def install_zoedepth() -> tuple[bool, str]:
+    """Clone ZoeDepth (isl-org) from GitHub and install its pip dependencies.
+
+    ZoeDepth is a metric depth-estimation model used for image-to-mesh
+    reconstruction.  The repo is cloned to the tools directory; the
+    ``timm`` and ``matplotlib`` packages are also installed via pip.
+
+    Returns
+    -------
+    tuple[bool, str]
+        ``(True, message)`` on success, ``(False, reason)`` otherwise.
+    """
+    dest = _ensure_tools_dir("ZoeDepth")
+
+    if (dest / "README.md").exists():
+        return True, f"ZoeDepth already present at {dest}"
+
+    git_exe = shutil.which("git")
+    if not git_exe:
+        return False, (
+            "git not found on PATH — cannot clone ZoeDepth.\n"
+            "Install Git from https://git-scm.com/ then try again.\n"
+            "Or clone manually:\n"
+            "  git clone https://github.com/isl-org/ZoeDepth.git"
+        )
+
+    try:
+        dest.mkdir(parents=True, exist_ok=True)
+        result = subprocess.run(
+            [git_exe, "clone", "--depth", "1",
+             "https://github.com/isl-org/ZoeDepth.git", str(dest)],
+            capture_output=True, text=True, timeout=300,
+        )
+        if result.returncode != 0:
+            return False, f"ZoeDepth clone failed:\n{result.stderr or result.stdout}"
+    except subprocess.TimeoutExpired:
+        return False, "ZoeDepth clone timed out (> 5 min)"
+    except Exception as exc:
+        return False, f"ZoeDepth clone error: {exc}"
+
+    # Install lightweight runtime deps (torch installed separately by user)
+    _pip_install(["timm", "matplotlib"])
+    return True, (
+        f"ZoeDepth cloned to {dest}.\n"
+        "PyTorch is required at runtime — install via the Settings panel."
+    )
+
+
+def install_triposr() -> tuple[bool, str]:
+    """Clone TripoSR (VAST-AI-Research) from GitHub and install pip deps.
+
+    TripoSR is an image-to-3D model.  Clones the repository to the tools
+    directory and installs ``trimesh`` and ``huggingface_hub`` via pip.
+
+    Returns
+    -------
+    tuple[bool, str]
+        ``(True, message)`` on success, ``(False, reason)`` otherwise.
+    """
+    dest = _ensure_tools_dir("TripoSR")
+
+    if (dest / "README.md").exists():
+        return True, f"TripoSR already present at {dest}"
+
+    git_exe = shutil.which("git")
+    if not git_exe:
+        return False, (
+            "git not found on PATH — cannot clone TripoSR.\n"
+            "Install Git from https://git-scm.com/ then try again.\n"
+            "Or clone manually:\n"
+            "  git clone https://github.com/VAST-AI-Research/TripoSR.git"
+        )
+
+    try:
+        dest.mkdir(parents=True, exist_ok=True)
+        result = subprocess.run(
+            [git_exe, "clone", "--depth", "1",
+             "https://github.com/VAST-AI-Research/TripoSR.git", str(dest)],
+            capture_output=True, text=True, timeout=300,
+        )
+        if result.returncode != 0:
+            return False, f"TripoSR clone failed:\n{result.stderr or result.stdout}"
+    except subprocess.TimeoutExpired:
+        return False, "TripoSR clone timed out (> 5 min)"
+    except Exception as exc:
+        return False, f"TripoSR clone error: {exc}"
+
+    # Install lightweight runtime deps
+    _pip_install(["trimesh", "huggingface_hub", "einops", "omegaconf"])
+    return True, (
+        f"TripoSR cloned to {dest}.\n"
+        "PyTorch is required at runtime — install via the Settings panel."
+    )
+
+
+def install_hunyuan3d() -> tuple[bool, str]:
+    """Clone Hunyuan3D-2 (Tencent) from GitHub and install pip deps.
+
+    Hunyuan3D-2 is Tencent's image-to-3D generation model.  The repo is
+    cloned to the tools directory.
+
+    Returns
+    -------
+    tuple[bool, str]
+        ``(True, message)`` on success, ``(False, reason)`` otherwise.
+    """
+    dest = _ensure_tools_dir("Hunyuan3D-2")
+
+    if (dest / "README.md").exists():
+        return True, f"Hunyuan3D-2 already present at {dest}"
+
+    git_exe = shutil.which("git")
+    if not git_exe:
+        return False, (
+            "git not found on PATH — cannot clone Hunyuan3D-2.\n"
+            "Install Git from https://git-scm.com/ then try again.\n"
+            "Or clone manually:\n"
+            "  git clone https://github.com/Tencent/Hunyuan3D-2.git"
+        )
+
+    try:
+        dest.mkdir(parents=True, exist_ok=True)
+        result = subprocess.run(
+            [git_exe, "clone", "--depth", "1",
+             "https://github.com/Tencent/Hunyuan3D-2.git", str(dest)],
+            capture_output=True, text=True, timeout=600,
+        )
+        if result.returncode != 0:
+            return False, f"Hunyuan3D-2 clone failed:\n{result.stderr or result.stdout}"
+    except subprocess.TimeoutExpired:
+        return False, "Hunyuan3D-2 clone timed out (> 10 min)"
+    except Exception as exc:
+        return False, f"Hunyuan3D-2 clone error: {exc}"
+
+    # Install lightweight runtime deps
+    _pip_install(["einops", "omegaconf", "huggingface_hub"])
+    return True, (
+        f"Hunyuan3D-2 cloned to {dest}.\n"
+        "PyTorch is required at runtime — install via the Settings panel."
+    )
+
+
+def install_hymotion() -> tuple[bool, str]:
+    """Clone HY-Motion-1.0 (Tencent) from GitHub and install pip deps.
+
+    HY-Motion-1.0 is Tencent's text-to-motion generation model.  The repo
+    is cloned to the tools directory.
+
+    Returns
+    -------
+    tuple[bool, str]
+        ``(True, message)`` on success, ``(False, reason)`` otherwise.
+    """
+    dest = _ensure_tools_dir("HY-Motion")
+
+    if (dest / "README.md").exists():
+        return True, f"HY-Motion already present at {dest}"
+
+    git_exe = shutil.which("git")
+    if not git_exe:
+        return False, (
+            "git not found on PATH — cannot clone HY-Motion.\n"
+            "Install Git from https://git-scm.com/ then try again.\n"
+            "Or clone manually:\n"
+            "  git clone https://github.com/Tencent/HunyuanVideo-Avatar.git"
+        )
+
+    # Try the most likely repo name; fall back to a broader search
+    candidates = [
+        "https://github.com/Tencent/HunyuanVideo-Avatar.git",
+        "https://github.com/Tencent/HY-Motion.git",
+    ]
+    last_err = "unknown error"
+    for url in candidates:
+        try:
+            dest.mkdir(parents=True, exist_ok=True)
+            result = subprocess.run(
+                [git_exe, "clone", "--depth", "1", url, str(dest)],
+                capture_output=True, text=True, timeout=600,
+            )
+            if result.returncode == 0:
+                break
+            last_err = result.stderr or result.stdout
+            # Remove partial clone before retrying
+            if dest.exists():
+                shutil.rmtree(dest, ignore_errors=True)
+        except subprocess.TimeoutExpired:
+            last_err = "timed out"
+            break
+        except Exception as exc:
+            last_err = str(exc)
+    else:
+        return False, (
+            f"HY-Motion clone failed from all candidates: {last_err}\n"
+            "Please clone manually from https://github.com/Tencent"
+        )
+
+    if not (dest / "README.md").exists():
+        return False, f"HY-Motion clone failed: {last_err}"
+
+    _pip_install(["einops", "omegaconf"])
+    return True, (
+        f"HY-Motion cloned to {dest}.\n"
+        "PyTorch is required at runtime — install via the Settings panel."
+    )
+
+
 def install_collective_modding_toolkit() -> tuple[bool, str]:
     """Download the Collective Modding Toolkit (wxMichael) from GitHub.
 
