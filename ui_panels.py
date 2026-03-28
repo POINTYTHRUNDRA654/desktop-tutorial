@@ -3379,7 +3379,7 @@ class FO4_PT_MaterialBrowserPanel(_FO4SubPanel):
 
             # Plastic & Rubber
             p_box = layout.box()
-            p_box.label(text="Plastic & Rubber", icon='SNAP_FACE')
+            p_box.label(text="Plastic & Rubber", icon='MOD_SMOOTH')
             _quick_row(p_box, ("HARD_PLASTIC", "RUBBER"))
 
             # Fabric & Leather
