@@ -6838,6 +6838,18 @@ app.whenReady().then(() => {
     server: null as import('http').Server | null,
   };
 
+  // All Settings keys that hold filesystem paths, shared with the Blender add-on
+  // via GET /tool-paths.  Keep in sync with the path fields in src/shared/types.ts.
+  const BRIDGE_PATH_KEYS = [
+    'fallout4Path', 'xeditPath', 'creationKitPath', 'blenderPath',
+    'nifSkopePath', 'fomodCreatorPath', 'lootPath', 'vortexPath',
+    'mo2Path', 'wryeBashPath', 'bodySlidePath', 'outfitStudioPath',
+    'baePath', 'gimpPath', 'archive2Path', 'pjmScriptPath', 'f4sePath',
+    'upscaylPath', 'nvidiaTextureToolsPath', 'autodeskFbxPath',
+    'nifUtilsSuitePath', 'papyrusCompilerPath', 'papyrusFlagsPath',
+    'papyrusSourcePath', 'papyrusOutputPath', 'pytorchPath',
+  ] as const;
+
   const _startBlenderBridgeServer = async () => {
     const http = await import('http');
     const BLENDER_PORT = 8080;
@@ -6890,6 +6902,52 @@ app.whenReady().then(() => {
           respond(res, 200, { success: true, pytorch_path: ptPath });
         } else {
           respond(res, 200, { success: false, message: 'PyTorch path not configured in Mossy settings' });
+        }
+        return;
+      }
+
+      // ── GET /tool-paths ──────────────────────────────────────────────────
+      // Returns all tool and game paths from Mossy settings so the Blender
+      // add-on can resolve assets without duplicating path configuration.
+      if (req.method === 'GET' && url === '/tool-paths') {
+        const s = loadSettings();
+        const paths: Record<string, string> = {};
+        for (const key of BRIDGE_PATH_KEYS) {
+          const val = (s as Record<string, unknown>)[key];
+          if (typeof val === 'string' && val) {
+            paths[key] = val;
+          }
+        }
+        respond(res, 200, { success: true, paths });
+        return;
+      }
+
+      // ── POST /log ────────────────────────────────────────────────────────
+      // Blender add-on POSTs structured log entries here.
+      // Mossy surfaces them in the renderer via the 'blender-log' IPC event.
+      if (req.method === 'POST' && url === '/log') {
+        try {
+          const raw = await readBody(req);
+          const { level = 'info', message, context } = JSON.parse(raw) as {
+            level?: string;
+            message?: string;
+            context?: Record<string, unknown>;
+          };
+          if (!message) {
+            respond(res, 400, { success: false, message: 'Missing message field' });
+            return;
+          }
+          const entry = {
+            level: String(level),
+            message: String(message),
+            context: context ?? null,
+            timestamp: new Date().toISOString(),
+          };
+          console.log(`[BlenderBridge][${entry.level.toUpperCase()}] ${entry.message}`);
+          mainWindow?.webContents.send('blender-log', entry);
+          respond(res, 200, { success: true });
+        } catch {
+          respond(res, 400, { success: false, message: 'Invalid JSON' });
         }
         return;
       }
