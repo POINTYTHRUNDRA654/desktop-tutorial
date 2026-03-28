@@ -1929,14 +1929,14 @@ class FO4_PT_ToolsLinks(_FO4SubPanel):
         )
 
 
-class FO4_PT_GameAssetsPanel(_FO4SubPanel):
-    """Import and convert game assets from Unity, Unreal, and Fallout 4"""
-    bl_label = "Game Asset Import"
-    bl_idname = "FO4_PT_game_assets_panel"
+class FO4_PT_GameAssetsLibraryPanel(_FO4SubPanel):
+    """Game asset import and asset library browser – sub-panel of Setup & Status"""
+    bl_label = "Game Assets & Library"
+    bl_idname = "FO4_PT_game_assets_library_panel"
     bl_space_type = 'VIEW_3D'
     bl_region_type = 'UI'
     bl_category = 'Fallout 4'
-    bl_parent_id = "FO4_PT_main_panel"
+    bl_parent_id = "FO4_PT_setup_panel"
     bl_options = {'DEFAULT_CLOSED'}
 
     def draw(self, context):
@@ -1945,7 +1945,7 @@ class FO4_PT_GameAssetsPanel(_FO4SubPanel):
         obj = context.active_object
         has_mesh = obj and obj.type == 'MESH'
 
-        # Convert to Fallout 4 Button (prominent)
+        # ── Convert to Fallout 4 (prominent) ────────────────────────────────
         if has_mesh:
             convert_box = layout.box()
             convert_box.label(text="Quick Convert", icon='MODIFIER')
@@ -1963,7 +1963,6 @@ class FO4_PT_GameAssetsPanel(_FO4SubPanel):
             help_col.label(text="One-click: Mesh prep + Materials + Textures", icon='INFO')
             help_col.label(text="Works on any imported Unity/Unreal/FO4 asset", icon='DOT')
 
-            # Third-party mesh conversion
             conv_row = convert_box.row()
             conv_row.operator(
                 "fo4.prepare_third_party_mesh",
@@ -1975,7 +1974,7 @@ class FO4_PT_GameAssetsPanel(_FO4SubPanel):
 
         layout.separator()
 
-        # Fallout 4 Assets
+        # ── Fallout 4 Assets ─────────────────────────────────────────────────
         fo4_box = layout.box()
         fo4_box.label(text="Fallout 4 Assets", icon='BLENDER')
 
@@ -1996,7 +1995,7 @@ class FO4_PT_GameAssetsPanel(_FO4SubPanel):
         else:
             fo4_box.label(text="fo4_game_assets module missing – reinstall add-on", icon='ERROR')
 
-        # Unity Assets
+        # ── Unity Assets ─────────────────────────────────────────────────────
         unity_box = layout.box()
         unity_box.label(text="Unity Assets", icon='FILE_3D')
 
@@ -2008,7 +2007,6 @@ class FO4_PT_GameAssetsPanel(_FO4SubPanel):
             info_col.scale_y = 0.8
             info_col.label(text=message, icon=status_icon)
 
-            # Always show the path row so the user can set / change the folder
             path_row = unity_box.row(align=True)
             prefs_u = preferences.get_preferences() if preferences else None
             if prefs_u is not None:
@@ -2023,7 +2021,7 @@ class FO4_PT_GameAssetsPanel(_FO4SubPanel):
         else:
             unity_box.label(text="unity_game_assets module missing – reinstall add-on", icon='ERROR')
 
-        # Unreal Engine Assets
+        # ── Unreal Engine Assets ─────────────────────────────────────────────
         unreal_box = layout.box()
         unreal_box.label(text="Unreal Engine Assets", icon='MESH_CUBE')
 
@@ -2035,7 +2033,6 @@ class FO4_PT_GameAssetsPanel(_FO4SubPanel):
             info_col.scale_y = 0.8
             info_col.label(text=message, icon=status_icon)
 
-            # Always show the path row so the user can set / change the folder
             path_row = unreal_box.row(align=True)
             prefs_ue = preferences.get_preferences() if preferences else None
             if prefs_ue is not None:
@@ -2052,43 +2049,15 @@ class FO4_PT_GameAssetsPanel(_FO4SubPanel):
 
         layout.separator()
 
-        # Quick instructions
-        help_box = layout.box()
-        help_box.label(text="How to Use", icon='QUESTION')
-        help_col = help_box.column(align=True)
-        help_col.scale_y = 0.7
-        help_col.label(text="1. Set Meshes, Textures, and Materials paths using the folder buttons", icon='DOT')
-        help_col.label(text="2. Click 'Scan / Refresh' to link all your assets", icon='DOT')
-        help_col.label(text="3. Use 'Import Asset' to bring a specific file into Blender", icon='DOT')
-        help_col.label(text="   or browse the Asset Library panel to pick from the list", icon='DOT')
-        help_col.label(text="4. Click 'Convert to Fallout 4', then Export as NIF", icon='DOT')
-
-
-class FO4_PT_AssetLibraryPanel(_FO4SubPanel):
-    """Browse all meshes, textures, and materials from a folder or .blend library"""
-    bl_label = "Asset Library"
-    bl_idname = "FO4_PT_asset_library_panel"
-    bl_space_type = 'VIEW_3D'
-    bl_region_type = 'UI'
-    bl_category = 'Fallout 4'
-    bl_parent_id = "FO4_PT_main_panel"
-    bl_options = {'DEFAULT_CLOSED'}
-
-    def draw(self, context):
-        layout = self.layout
-        scene  = context.scene
-
-        # ── Path configuration ──────────────────────────────────────────────
+        # ── Asset Library ────────────────────────────────────────────────────
         paths_box = layout.box()
-        paths_box.label(text="Asset Paths", icon='FILE_FOLDER')
+        paths_box.label(text="Asset Library – Paths", icon='FILE_FOLDER')
 
-        # Combined "all-in-one" path
         row = paths_box.row(align=True)
         row.prop(scene, "fo4_asset_lib_path", text="All Assets")
         op = row.operator("fo4.set_asset_lib_path", text="", icon='FILE_FOLDER')
         op.slot = 'all'
 
-        # Separator + individual paths (collapsible feel via sub-box)
         sep_box = paths_box.box()
         sep_col = sep_box.column(align=True)
         sep_col.scale_y = 0.85
@@ -2109,13 +2078,12 @@ class FO4_PT_AssetLibraryPanel(_FO4SubPanel):
         op = row.operator("fo4.set_asset_folder_path", text="", icon='FILE_FOLDER')
         op.slot = 'materials'
 
-        # Scan / clear buttons
         scan_row = paths_box.row(align=True)
         scan_row.scale_y = 1.3
         scan_row.operator("fo4.scan_asset_library", text="Scan / Refresh", icon='FILE_REFRESH')
         scan_row.operator("fo4.clear_asset_library", text="", icon='X')
 
-        # ── Filter bar ──────────────────────────────────────────────────────
+        # ── Asset list / filter ──────────────────────────────────────────────
         lib_items = getattr(scene, 'fo4_asset_lib_items', None)
         total = len(lib_items) if lib_items else 0
 
@@ -2126,7 +2094,6 @@ class FO4_PT_AssetLibraryPanel(_FO4SubPanel):
         filter_box.prop(scene, "fo4_asset_lib_search",   text="", icon='VIEWZOOM')
         filter_box.prop(scene, "fo4_asset_lib_category", text="")
 
-        # ── Asset list ──────────────────────────────────────────────────────
         if total:
             filter_box.template_list(
                 "FO4_UL_AssetLibrary",
@@ -2136,7 +2103,6 @@ class FO4_PT_AssetLibraryPanel(_FO4SubPanel):
                 rows=8,
             )
 
-            # Show selected item detail
             idx = getattr(scene, 'fo4_asset_lib_active', -1)
             if 0 <= idx < total:
                 sel = lib_items[idx]
@@ -2150,7 +2116,6 @@ class FO4_PT_AssetLibraryPanel(_FO4SubPanel):
                 detail.label(text=sel.category, icon=cat_icon)
                 detail.label(text=sel.filepath)
 
-            # Import controls
             import_row = layout.row(align=True)
             import_row.scale_y = 1.4
             import_op = import_row.operator(
@@ -2172,16 +2137,16 @@ class FO4_PT_AssetLibraryPanel(_FO4SubPanel):
             info_col.label(text="No assets found yet.", icon='INFO')
             info_col.label(text="Set a path above and click 'Scan / Refresh'.")
 
-        # ── How-to hint ─────────────────────────────────────────────────────
+        # ── How-to hint ──────────────────────────────────────────────────────
         help_box = layout.box()
-        help_box.label(text="How to use", icon='QUESTION')
-        col = help_box.column(align=True)
-        col.scale_y = 0.72
-        col.label(text="1. Set 'All Assets' to your folder or .blend file,", icon='DOT')
-        col.label(text="   OR set separate Meshes / Textures / Materials folders.")
-        col.label(text="2. Click 'Scan / Refresh' to list everything inside.", icon='DOT')
-        col.label(text="3. Search or filter by category (Characters, Weapons …).", icon='DOT')
-        col.label(text="4. Click an item, then 'Import Selected'.", icon='DOT')
+        help_box.label(text="How to Use", icon='QUESTION')
+        help_col = help_box.column(align=True)
+        help_col.scale_y = 0.72
+        help_col.label(text="1. Set game / asset paths using the folder buttons", icon='DOT')
+        help_col.label(text="2. Click 'Scan / Refresh' to link all your assets", icon='DOT')
+        help_col.label(text="3. Use 'Import Asset' to bring a specific file into Blender", icon='DOT')
+        help_col.label(text="   or search the list below and click 'Import Selected'", icon='DOT')
+        help_col.label(text="4. Click 'Convert to Fallout 4', then Export as NIF", icon='DOT')
 
 
 class FO4_PT_ExportPanel(_FO4SubPanel):
@@ -4138,11 +4103,18 @@ class FO4_PT_SetupPanel(_FO4SubPanel):
         torch_box = layout.box()
         torch_box.label(text="PyTorch (AI Features)", icon='PLUGIN')
         torch_ok, torch_info = _get_torch_status()
+        # Check whether Mossy bridge is already connected.
+        wm = context.window_manager
+        bridge_status = getattr(wm, 'mossy_bridge_status', "")
+        bridge_online = bridge_status.startswith("Mossy Bridge online") if bridge_status else False
         if torch_ok:
             torch_box.label(text=f"✓ PyTorch {torch_info} available", icon='CHECKMARK')
+        elif bridge_online:
+            torch_box.label(text="✓ PyTorch available via Mossy bridge", icon='CHECKMARK')
+            torch_box.label(text="  AI inference runs inside Mossy — no local install needed", icon='DOT')
         else:
             torch_box.label(text="PyTorch not detected in Blender's Python.", icon='INFO')
-            torch_box.label(text="AI features run via Mossy Link — no local install needed.", icon='INFO')
+            torch_box.label(text="Connect Mossy bridge (Mossy tab) to enable AI features.", icon='INFO')
             torch_box.label(text="To use PyTorch locally: install externally, then set", icon='INFO')
             torch_box.label(text="  the path in 'PyTorch Custom Path' below.", icon='INFO')
             row = torch_box.row(align=True)
@@ -4539,6 +4511,37 @@ class FO4_PT_MossyPanel(_FO4SubPanel):
 
         layout.separator()
 
+        # ── PyTorch / AI Features ──────────────────────────────────────────────
+        # Mossy offloads heavy AI inference (Shape-E, Point-E, Mesh generation,
+        # texture processing) to the desktop app, so PyTorch does NOT need to be
+        # installed inside Blender.  When the bridge is online the full PyTorch
+        # feature set is available through Mossy.
+        torch_box = layout.box()
+        torch_box.label(text="PyTorch / AI Features", icon='PLUGIN')
+
+        torch_ok, torch_info = _get_torch_status()
+        # bridge_status was already fetched from wm at the top of this draw() method.
+        bridge_online = bridge_status.startswith("Mossy Bridge online") if bridge_status else False
+
+        if torch_ok:
+            torch_box.label(text=f"✓ PyTorch {torch_info} available locally", icon='CHECKMARK')
+            torch_box.label(text="✓ AI features active (local + Mossy)", icon='CHECKMARK')
+        elif bridge_online:
+            torch_box.label(text="✓ PyTorch available via Mossy bridge", icon='CHECKMARK')
+            torch_box.label(text="  Heavy AI inference runs inside Mossy desktop app", icon='DOT')
+            torch_box.label(text="  No local PyTorch install required", icon='DOT')
+        else:
+            torch_box.label(text="PyTorch not detected locally", icon='INFO')
+            torch_box.label(text="Connect Mossy bridge above to enable AI features", icon='ERROR')
+
+        row = torch_box.row(align=True)
+        row.operator("torch.recheck_status", text="Re-check PyTorch", icon='FILE_REFRESH')
+        # TORCH_OT_install_custom_path → Blender op ID: torch.install_custom_path
+        if hasattr(bpy.types, 'TORCH_OT_install_custom_path'):
+            row.operator("torch.install_custom_path", text="Local Install Guide", icon='INFO')
+
+        layout.separator()
+
         # ── Check both connections ─────────────────────────────────────────────
         if hasattr(bpy.types, 'WM_OT_MossyCheckHttp'):
             layout.operator(
@@ -4557,6 +4560,7 @@ class FO4_PT_MossyPanel(_FO4SubPanel):
         help_box.label(text="3. Click 'Start Mossy Link Server' above")
         help_box.label(text="4. Click 'Check Mossy Connection' to verify")
         help_box.label(text="5. Enable 'Use as AI Advisor' to use Mossy's LLM")
+        help_box.label(text="6. PyTorch AI features become available via Mossy")
 
 
 classes = (
@@ -4577,8 +4581,7 @@ classes = (
     FO4_PT_NVTTPanel,
     FO4_PT_AdvisorPanel,
     FO4_PT_ToolsLinks,
-    FO4_PT_GameAssetsPanel,
-    FO4_PT_AssetLibraryPanel,
+    FO4_PT_GameAssetsLibraryPanel,
     FO4_PT_ExportPanel,
     # New panels for enhancements
     FO4_PT_BatchProcessingPanel,
