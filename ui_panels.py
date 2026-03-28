@@ -172,17 +172,27 @@ _torch_version = None
 # fresh installation completed and the cached failure should be discarded.
 _torch_cache_install_gen = -1
 
+# Maximum characters of an auto-install error shown in the Settings panel.
+_MAX_TORCH_ERROR_DISPLAY = 80
 
 def reset_torch_cache():
     """Invalidate the cached torch status so the next panel draw re-checks.
 
     Called automatically by TORCH_OT_install_custom_path after a successful
     installation, and can also be triggered by the 'Re-check' button.
+    Also resets the auto-install-failure flag so a fresh auto-install attempt
+    is allowed on the next check.
     """
     global _torch_cache, _torch_version, _torch_cache_install_gen
     _torch_cache = None
     _torch_version = None
     _torch_cache_install_gen = -1
+    # Allow a fresh auto-install attempt after the user explicitly re-checks.
+    if torch_path_manager is not None:
+        try:
+            torch_path_manager._auto_install_last_error = None
+        except Exception:
+            pass
 
 
 def _get_torch_status():
@@ -4139,6 +4149,19 @@ class FO4_PT_SetupPanel(_FO4SubPanel):
             torch_box.label(text="⏳ PyTorch installing in background…", icon='TIME')
             torch_box.label(text="Check the Blender console for progress.", icon='INFO')
             torch_box.operator("torch.recheck_status", text="Re-check Status", icon='FILE_REFRESH')
+        elif torch_info == "auto_install_failed":
+            # Background auto-install ran and failed (network/pip error).
+            # Show the last error detail from the module-level flag when available.
+            last_err = ""
+            if torch_path_manager is not None:
+                last_err = getattr(torch_path_manager, "_auto_install_last_error", "") or ""
+            torch_box.label(text="✗ Auto-install failed", icon='ERROR')
+            if last_err:
+                torch_box.label(text=last_err[:_MAX_TORCH_ERROR_DISPLAY], icon='INFO')
+            torch_box.label(text="Check your internet connection, then click Re-check or install manually.", icon='INFO')
+            row = torch_box.row(align=True)
+            row.operator("torch.install_custom_path", text="Install PyTorch Manually", icon='IMPORT')
+            row.operator("torch.recheck_status", text="Re-check / Retry", icon='FILE_REFRESH')
         else:
             info_str = str(torch_info)
             # "dll_init_error" is the normalised code returned by try_import_torch()
