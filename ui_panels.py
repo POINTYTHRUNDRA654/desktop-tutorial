@@ -4140,7 +4140,6 @@ class FO4_PT_SetupPanel(_FO4SubPanel):
             torch_box.label(text="Check the Blender console for progress.", icon='INFO')
             torch_box.operator("torch.recheck_status", text="Re-check Status", icon='FILE_REFRESH')
         else:
-            torch_box.label(text="✗ PyTorch not available", icon='ERROR')
             info_str = str(torch_info)
             # "dll_init_error" is the normalised code returned by try_import_torch()
             # for WinError 1114; also match raw OSError messages just in case.
@@ -4149,11 +4148,24 @@ class FO4_PT_SetupPanel(_FO4SubPanel):
                 or "DLL" in info_str
                 or "WinError 1114" in info_str
             )
+            is_path_error = (
+                info_str == "windows_path_error"
+                or "windows_path_error" in info_str
+                or "WinError 206" in info_str
+                or "filename or extension is too long" in info_str
+            )
             if is_dll_error:
+                torch_box.label(text="✗ PyTorch not available", icon='ERROR')
                 torch_box.label(text="DLL init failed — native torch libraries could not load.", icon='ERROR')
                 torch_box.label(text="Ensure Microsoft Visual C++ Redistributable (x64) is installed.", icon='INFO')
                 torch_box.label(text="If on a custom path, Blender may need to be restarted once.", icon='INFO')
+            elif is_path_error:
+                torch_box.label(text="✗ PyTorch not available", icon='ERROR')
+                torch_box.label(text="Windows path too long — install to a short path like D:/t", icon='ERROR')
+                torch_box.label(text="Click below to install to D:/t to fix this.", icon='INFO')
+                torch_box.label(text="Restart Blender once after installing.", icon='INFO')
             else:
+                torch_box.label(text="PyTorch not installed (optional — needed for AI features)", icon='INFO')
                 torch_box.label(text="Click below to install to D:/t (short path)", icon='INFO')
             row = torch_box.row(align=True)
             row.operator("torch.install_custom_path", text="Install PyTorch to D:/t", icon='IMPORT')
