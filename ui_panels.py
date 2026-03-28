@@ -4047,6 +4047,95 @@ class FO4_PT_SetupPanel(_FO4SubPanel):
         scene = context.scene
         prefs = preferences.get_preferences() if preferences else None
 
+        # ── First-Time Setup Banner ───────────────────────────────────────
+        # Shown at the very top so new users see it immediately.
+        # Checks whether Python deps and at least one CLI tool path are ready.
+        _deps_ok = all(
+            _check_dep(m) for m in ("PIL", "numpy", "requests", "trimesh", "PyPDF2")
+        )
+        _ffmpeg_ok  = bool(preferences.get_configured_ffmpeg_path()    if preferences else None)
+        _nvtt_ok    = bool(preferences.get_configured_nvcompress_path() if preferences else None)
+        _texconv_ok = bool(preferences.get_configured_texconv_path()    if preferences else None)
+        _any_tool_ok = _ffmpeg_ok or _nvtt_ok or _texconv_ok
+
+        if _deps_ok and _any_tool_ok:
+            # Everything ready — compact green confirmation
+            ready_box = layout.box()
+            ready_col = ready_box.column(align=True)
+            ready_col.label(text="✓  All systems ready!", icon='CHECKMARK')
+            ready_col.label(text="   Dependencies installed  •  Tools configured",
+                            icon='BLANK1')
+        else:
+            # One or more things need attention — show the setup guide
+            guide_box = layout.box()
+            guide_col = guide_box.column(align=True)
+            if not _deps_ok and not _any_tool_ok:
+                guide_col.label(text="FIRST-TIME SETUP", icon='ERROR')
+            else:
+                guide_col.label(text="SETUP INCOMPLETE", icon='ERROR')
+            guide_col.separator()
+
+            # Step 1 — Python deps
+            if not _deps_ok:
+                guide_col.label(
+                    text="Step 1 — Install Core Dependencies:", icon='SCRIPT'
+                )
+                guide_col.operator(
+                    "fo4.install_python_deps",
+                    text="  Install Core Dependencies",
+                    icon='PACKAGE',
+                )
+            else:
+                guide_col.label(text="Step 1 — ✓ Core Dependencies installed",
+                                icon='CHECKMARK')
+
+            guide_col.separator()
+
+            # Step 2 — Tool paths (auto-detected or manual)
+            if not _any_tool_ok:
+                guide_col.label(text="Step 2 — Configure Tools Root:", icon='TOOL_SETTINGS')
+                guide_col.label(
+                    text="  Set the 'Tools Root' field (Tool Paths section below)",
+                    icon='BLANK1',
+                )
+                guide_col.label(
+                    text="  Tools are auto-detected from that folder on next start",
+                    icon='BLANK1',
+                )
+            else:
+                guide_col.label(text="Step 2 — ✓ CLI tool paths configured",
+                                icon='CHECKMARK')
+
+            guide_col.separator()
+
+            # Step 3 — Restart
+            guide_col.label(text="Step 3 — Restart Blender:", icon='FILE_REFRESH')
+            guide_col.label(
+                text="  Required after installing deps so Python can load them",
+                icon='BLANK1',
+            )
+            guide_col.label(
+                text="  Tools are auto-registered on the fresh start",
+                icon='BLANK1',
+            )
+            guide_col.operator(
+                "fo4.reload_addon",
+                text="  Restart Blender Now",
+                icon='QUIT',
+            )
+
+            guide_col.separator()
+
+            # Step 4 — second restart only if needed
+            guide_col.label(text="Step 4 (if tools still show ✗ after restart):",
+                            icon='INFO')
+            guide_col.label(
+                text="  Click Restart Blender one more time — tools will be ready",
+                icon='BLANK1',
+            )
+
+        layout.separator()
+
         # ── Blender / Python version ──────────────────────────────────────
         ver_box = layout.box()
         ver_box.label(text="Environment", icon='INFO')

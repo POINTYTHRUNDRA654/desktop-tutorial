@@ -524,7 +524,7 @@ def install_pynifly() -> tuple[bool, str]:
         ``(True, message)`` on success, ``(False, reason)`` otherwise.
     """
     # ── 1. Look for an existing local zip ────────────────────────────────────
-    search_dirs = [get_tools_root(), DEFAULT_TOOLS_ROOT, FALLBACK_TOOLS_ROOT]
+    search_dirs = [get_tools_root(), SIBLING_TOOLS_ROOT, DEFAULT_TOOLS_ROOT, FALLBACK_TOOLS_ROOT]
     # deduplicate while preserving priority order
     _seen_dirs: set[str] = set()
     _deduped_dirs: list[Path] = []
@@ -756,10 +756,12 @@ def candidate_tool_paths(name: str) -> list[Path]:
 
     Results are deduplicated and ordered by priority:
       1. User-configured ``tools_root`` preference
-      2. ``DEFAULT_TOOLS_ROOT`` (``D:\\blender_tools``)
-      3. ``FALLBACK_TOOLS_ROOT`` (addon ``tools/`` subfolder)
+      2. ``SIBLING_TOOLS_ROOT`` — ``tools/`` folder next to the addon folder
+         (the typical local layout: ``D:\\Blender addon\\tools\\``)
+      3. ``FALLBACK_TOOLS_ROOT`` — ``tools/`` subfolder inside the addon folder
+      4. ``DEFAULT_TOOLS_ROOT`` (``D:\\blender_tools``)
     """
-    roots = [get_tools_root(), DEFAULT_TOOLS_ROOT, FALLBACK_TOOLS_ROOT]
+    roots = [get_tools_root(), SIBLING_TOOLS_ROOT, FALLBACK_TOOLS_ROOT, DEFAULT_TOOLS_ROOT]
     seen: set[str] = set()
     result: list[Path] = []
     for r in roots:
