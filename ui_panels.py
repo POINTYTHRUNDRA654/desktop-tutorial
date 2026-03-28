@@ -4103,11 +4103,18 @@ class FO4_PT_SetupPanel(_FO4SubPanel):
         torch_box = layout.box()
         torch_box.label(text="PyTorch (AI Features)", icon='PLUGIN')
         torch_ok, torch_info = _get_torch_status()
+        # Check whether Mossy bridge is already connected.
+        wm = context.window_manager
+        bridge_status = getattr(wm, 'mossy_bridge_status', "")
+        bridge_online = bridge_status.startswith("Mossy Bridge online") if bridge_status else False
         if torch_ok:
             torch_box.label(text=f"✓ PyTorch {torch_info} available", icon='CHECKMARK')
+        elif bridge_online:
+            torch_box.label(text="✓ PyTorch available via Mossy bridge", icon='CHECKMARK')
+            torch_box.label(text="  AI inference runs inside Mossy — no local install needed", icon='DOT')
         else:
             torch_box.label(text="PyTorch not detected in Blender's Python.", icon='INFO')
-            torch_box.label(text="AI features run via Mossy Link — no local install needed.", icon='INFO')
+            torch_box.label(text="Connect Mossy bridge (Mossy tab) to enable AI features.", icon='INFO')
             torch_box.label(text="To use PyTorch locally: install externally, then set", icon='INFO')
             torch_box.label(text="  the path in 'PyTorch Custom Path' below.", icon='INFO')
             row = torch_box.row(align=True)
@@ -4504,6 +4511,37 @@ class FO4_PT_MossyPanel(_FO4SubPanel):
 
         layout.separator()
 
+        # ── PyTorch / AI Features ──────────────────────────────────────────────
+        # Mossy offloads heavy AI inference (Shape-E, Point-E, Mesh generation,
+        # texture processing) to the desktop app, so PyTorch does NOT need to be
+        # installed inside Blender.  When the bridge is online the full PyTorch
+        # feature set is available through Mossy.
+        torch_box = layout.box()
+        torch_box.label(text="PyTorch / AI Features", icon='PLUGIN')
+
+        torch_ok, torch_info = _get_torch_status()
+        # bridge_status was already fetched from wm at the top of this draw() method.
+        bridge_online = bridge_status.startswith("Mossy Bridge online") if bridge_status else False
+
+        if torch_ok:
+            torch_box.label(text=f"✓ PyTorch {torch_info} available locally", icon='CHECKMARK')
+            torch_box.label(text="✓ AI features active (local + Mossy)", icon='CHECKMARK')
+        elif bridge_online:
+            torch_box.label(text="✓ PyTorch available via Mossy bridge", icon='CHECKMARK')
+            torch_box.label(text="  Heavy AI inference runs inside Mossy desktop app", icon='DOT')
+            torch_box.label(text="  No local PyTorch install required", icon='DOT')
+        else:
+            torch_box.label(text="PyTorch not detected locally", icon='INFO')
+            torch_box.label(text="Connect Mossy bridge above to enable AI features", icon='ERROR')
+
+        row = torch_box.row(align=True)
+        row.operator("torch.recheck_status", text="Re-check PyTorch", icon='FILE_REFRESH')
+        # TORCH_OT_install_custom_path → Blender op ID: torch.install_custom_path
+        if hasattr(bpy.types, 'TORCH_OT_install_custom_path'):
+            row.operator("torch.install_custom_path", text="Local Install Guide", icon='INFO')
+
+        layout.separator()
+
         # ── Check both connections ─────────────────────────────────────────────
         if hasattr(bpy.types, 'WM_OT_MossyCheckHttp'):
             layout.operator(
@@ -4522,6 +4560,7 @@ class FO4_PT_MossyPanel(_FO4SubPanel):
         help_box.label(text="3. Click 'Start Mossy Link Server' above")
         help_box.label(text="4. Click 'Check Mossy Connection' to verify")
         help_box.label(text="5. Enable 'Use as AI Advisor' to use Mossy's LLM")
+        help_box.label(text="6. PyTorch AI features become available via Mossy")
 
 
 classes = (
