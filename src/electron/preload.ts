@@ -1653,6 +1653,36 @@ const electronAPI = {
   },
 
   /**
+   * PyTorch: Check whether torch is importable from the configured path or
+   * from the system Python.
+   */
+  checkPyTorch: (): Promise<{
+    available: boolean;
+    version?: string;
+    path?: string;
+    pythonFound?: boolean;
+    error?: string;
+  }> => {
+    return ipcRenderer.invoke('check-pytorch');
+  },
+
+  /**
+   * PyTorch: Auto-install torch (CPU build) into a managed virtual environment
+   * inside the app's userData folder. Saves the resulting site-packages path
+   * to Mossy settings so Blender and other integrations can use it immediately.
+   * @param destDir – Optional custom directory for the virtual environment.
+   */
+  installPyTorch: (destDir?: string): Promise<{
+    success: boolean;
+    path?: string;
+    version?: string;
+    message?: string;
+    error?: string;
+  }> => {
+    return ipcRenderer.invoke('install-pytorch', destDir);
+  },
+
+  /**
    */
   sendMessage: (message: any): Promise<void> => {
     return ipcRenderer.invoke('sendMessage', message);
