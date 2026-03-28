@@ -45,6 +45,26 @@ def _torch_available() -> bool:
 # It will be imported dynamically when needed
 
 
+def _dll_init_error_message() -> str:
+    """Return a user-friendly message when WinError 1114 (DLL init failure) occurs.
+
+    This error typically means a CUDA-version mismatch between the installed
+    PyTorch and the system GPU driver, or a missing Visual C++ Redistributable.
+    """
+    return (
+        "PyTorch DLL initialisation failed (WinError 1114).\n"
+        "This usually means a CUDA/driver version mismatch.\n"
+        "A file such as D:\\blender_torch\\torch\\lib\\c10.dll could not be loaded.\n\n"
+        "Suggested fixes:\n"
+        "1. Reinstall PyTorch matching your CUDA toolkit version:\n"
+        "   https://pytorch.org/get-started/locally/\n"
+        "2. Install the latest Visual C++ Redistributable from Microsoft:\n"
+        "   https://aka.ms/vs/17/release/vc_redist.x64.exe\n"
+        "3. Update your GPU driver to one compatible with your CUDA version.\n"
+        "4. If no GPU is present, install the CPU-only PyTorch build."
+    )
+
+
 def _build_hunyuan3d_candidates():
     """Return an ordered list of candidate paths to search for Hunyuan3D-2.
 
@@ -103,6 +123,17 @@ def check_hunyuan3d_availability():
     """
     if not _torch_available():
         return False, "PyTorch not installed. Install with: pip install torch torchvision"
+
+    # Probe torch to catch DLL init failures (WinError 1114 — CUDA/driver mismatch).
+    # find_spec only verifies the files exist; it does not load the DLLs.
+    try:
+        importlib.import_module("torch")
+    except OSError as _e:
+        if getattr(_e, 'winerror', None) == 1114 or "WinError 1114" in str(_e):
+            return False, _dll_init_error_message()
+        return False, f"PyTorch failed to load: {_e}"
+    except ImportError as _e:
+        return False, f"PyTorch not available: {_e}"
 
     candidates = _build_hunyuan3d_candidates()
 
