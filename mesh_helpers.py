@@ -1016,6 +1016,167 @@ class SmartPresets:
         return mat
 
     @staticmethod
+    def apply_nif_v25_settings(context, preset_key: str):
+        """Apply the correct NIF v25 (PyNifly v25) export settings to all mesh
+        objects that were just imported by a Smart Preset operator.
+
+        Called immediately after a successful NIF import so that the user can
+        customize the mesh and re-export without having to manually configure
+        any settings.  The following are applied:
+
+        Per-object (bpy.types.Object custom properties):
+          - ``fo4_mesh_type``      → correct type for the preset category so
+                                     PyNifly v25 chooses the right root node
+                                     class, BSXFlags, shader flags, and
+                                     skinning path on export.
+          - ``fo4_collision_type`` → sensible default for the preset category
+                                     (NONE for wearables/items, DEFAULT for
+                                     props/architecture/weapons).
+
+        Per-scene:
+          - ``fo4_game_version``   → left at whatever the user chose; defaulted
+                                     to 'FO4' if not yet set.
+
+        NIF v25 wire-format settings (NIF 20.2.0.7 / user ver 12 / bsver 130 /
+        target_game=FO4) are fixed at export time by
+        ``ExportHelpers._build_pynifly_export_kwargs()`` and do not need to be
+        stored per-object.
+        """
+        # ── Preset key → fo4_mesh_type ────────────────────────────────────────
+        _MESH_TYPE: dict = {
+            # Weapons
+            '10MM': 'WEAPON', '44': 'WEAPON', 'DELIVERER': 'WEAPON',
+            'PIPE': 'WEAPON', 'ASSAULT': 'WEAPON', 'COMBAT_RIFLE': 'WEAPON',
+            'SHOTGUN': 'WEAPON', 'HUNTING': 'WEAPON', 'LASER': 'WEAPON',
+            'PLASMA': 'WEAPON', 'SMG': 'WEAPON', 'MINIGUN': 'WEAPON',
+            'FATMAN': 'WEAPON', 'FLAMER': 'WEAPON', 'MISSILE': 'WEAPON',
+            'GAUSS': 'WEAPON', 'RAILWAY': 'WEAPON',
+            # Armor / wearables
+            'ARMOR_LEATHER': 'ARMOR', 'ARMOR_COMBAT': 'ARMOR',
+            'ARMOR_METAL': 'ARMOR', 'ARMOR_RAIDER': 'ARMOR',
+            'ARMOR_SYNTH': 'ARMOR', 'POWER_T60': 'ARMOR',
+            'POWER_T45': 'ARMOR', 'VAULT_SUIT': 'SKINNED',
+            # Power-armor pieces (each is a separate wearable)
+            'PA_TORSO_T60': 'ARMOR', 'PA_HELMET_T60': 'ARMOR',
+            'PA_LARM_T60': 'ARMOR', 'PA_RARM_T60': 'ARMOR',
+            'PA_LLEG_T60': 'ARMOR', 'PA_RLEG_T60': 'ARMOR',
+            # Props / set-dressing
+            'PROP_CRATE': 'STATIC', 'PROP_METALCRATE': 'STATIC',
+            'PROP_BARREL': 'STATIC', 'PROP_DESK': 'STATIC',
+            'PROP_CHAIR': 'STATIC', 'PROP_SHELF': 'STATIC',
+            'PROP_TABLE': 'STATIC',
+            # Vegetation / landscape
+            'VEG_PINE': 'VEGETATION', 'VEG_DEAD_TREE': 'VEGETATION',
+            'VEG_BUSH': 'VEGETATION', 'VEG_GRASS': 'VEGETATION',
+            'VEG_FERN': 'VEGETATION', 'VEG_ROCK': 'STATIC',
+            'VEG_MUTFRUIT': 'FLORA',
+            # NPCs / actors
+            'NPC_HUMAN': 'SKINNED', 'NPC_GHOUL': 'SKINNED',
+            'NPC_SUPERMUTANT': 'SKINNED', 'NPC_PROTECTRON': 'SKINNED',
+            'NPC_SYNTH': 'SKINNED',
+            # Creatures
+            'CR_RADROACH': 'SKINNED', 'CR_MOLERAT': 'SKINNED',
+            'CR_DEATHCLAW': 'SKINNED', 'CR_MIRELURK': 'SKINNED',
+            'CR_RADSCORPION': 'SKINNED', 'CR_BRAHMIN': 'SKINNED',
+            # Architecture
+            'WB_VAULT_WALL': 'ARCHITECTURE', 'WB_VAULT_FLOOR': 'ARCHITECTURE',
+            'WB_COMM_WALL': 'ARCHITECTURE', 'WB_DOOR': 'ARCHITECTURE',
+            # Workshop / furniture
+            'WB_BED': 'FURNITURE', 'WB_WORKBENCH': 'FURNITURE',
+            'WB_CHAIR': 'FURNITURE', 'WB_GENERATOR': 'FURNITURE',
+            # Consumables / misc / clutter items
+            'ITEM_STIMPAK': 'STATIC', 'ITEM_NUKACOLA': 'STATIC',
+            'ITEM_FOOD': 'STATIC', 'ITEM_CHEM': 'STATIC',
+            'ITEM_HOLOTAPE': 'STATIC', 'ITEM_KEY': 'STATIC',
+            'ITEM_TOOL': 'STATIC', 'ITEM_COMPONENT': 'STATIC',
+            'ITEM_JUNK': 'STATIC', 'ITEM_BOTTLE': 'STATIC',
+            'ITEM_CAN': 'STATIC', 'ITEM_BOX': 'STATIC',
+        }
+
+        # ── Preset key → fo4_collision_type ──────────────────────────────────
+        # Wearables and characters have no collision mesh of their own;
+        # weapons, props, architecture, and furniture use DEFAULT collision.
+        _COLL_TYPE: dict = {
+            'ARMOR_LEATHER': 'NONE', 'ARMOR_COMBAT': 'NONE',
+            'ARMOR_METAL': 'NONE', 'ARMOR_RAIDER': 'NONE',
+            'ARMOR_SYNTH': 'NONE', 'POWER_T60': 'NONE',
+            'POWER_T45': 'NONE', 'VAULT_SUIT': 'NONE',
+            'PA_TORSO_T60': 'NONE', 'PA_HELMET_T60': 'NONE',
+            'PA_LARM_T60': 'NONE', 'PA_RARM_T60': 'NONE',
+            'PA_LLEG_T60': 'NONE', 'PA_RLEG_T60': 'NONE',
+            'NPC_HUMAN': 'NONE', 'NPC_GHOUL': 'NONE',
+            'NPC_SUPERMUTANT': 'NONE', 'NPC_PROTECTRON': 'NONE',
+            'NPC_SYNTH': 'NONE',
+            'CR_RADROACH': 'NONE', 'CR_MOLERAT': 'NONE',
+            'CR_DEATHCLAW': 'NONE', 'CR_MIRELURK': 'NONE',
+            'CR_RADSCORPION': 'NONE', 'CR_BRAHMIN': 'NONE',
+            'VEG_GRASS': 'GRASS',
+            'VEG_MUTFRUIT': 'VEGETATION',
+            'VEG_PINE': 'VEGETATION', 'VEG_DEAD_TREE': 'VEGETATION',
+            'VEG_BUSH': 'VEGETATION', 'VEG_FERN': 'VEGETATION',
+            'ITEM_STIMPAK': 'DEFAULT', 'ITEM_NUKACOLA': 'DEFAULT',
+            'ITEM_FOOD': 'DEFAULT', 'ITEM_CHEM': 'DEFAULT',
+            'ITEM_HOLOTAPE': 'DEFAULT', 'ITEM_KEY': 'DEFAULT',
+            'ITEM_TOOL': 'DEFAULT', 'ITEM_COMPONENT': 'DEFAULT',
+            'ITEM_JUNK': 'DEFAULT', 'ITEM_BOTTLE': 'DEFAULT',
+            'ITEM_CAN': 'DEFAULT', 'ITEM_BOX': 'DEFAULT',
+        }
+
+        mesh_type = _MESH_TYPE.get(preset_key, 'AUTO')
+        coll_type = _COLL_TYPE.get(preset_key, 'DEFAULT')
+
+        # Tag every mesh object that was selected by the import operator.
+        # PyNifly's import selects all newly-created objects and sets the
+        # root as the active object; iterating selected objects catches
+        # multi-mesh NIFs (e.g. separate body parts).
+        try:
+            selected = list(context.selected_objects) if context.selected_objects else []
+        except Exception:
+            selected = []
+
+        # Fall back to active object when nothing is selected
+        try:
+            if not selected and context.active_object:
+                selected = [context.active_object]
+                selected += [
+                    c for c in context.active_object.children_recursive
+                    if c.type == 'MESH'
+                ]
+        except Exception:
+            pass
+
+        for obj in selected:
+            if obj.type != 'MESH':
+                continue
+            try:
+                obj.fo4_mesh_type = mesh_type
+            except Exception:
+                pass
+            try:
+                obj.fo4_collision_type = coll_type
+            except Exception:
+                pass
+            # Store the NIF v25 wire-format constants as informational custom
+            # properties so they're visible in the Properties panel.  These
+            # match what ExportHelpers._build_pynifly_export_kwargs() passes
+            # to PyNifly v25 at export time.
+            obj['nif_version'] = '20.2.0.7'
+            obj['nif_user_version'] = 12
+            obj['nif_bs_version'] = 130
+            obj['nif_target_game'] = 'FO4'
+            obj['nif_export_modifiers'] = True
+            obj['nif_export_collision'] = True
+            obj['nif_rename_bones'] = True
+            obj['nif_blender_xf'] = False
+
+        # Default scene game version to FO4 if not yet set
+        try:
+            if not getattr(context.scene, 'fo4_game_version', None):
+                context.scene.fo4_game_version = 'FO4'
+        except Exception:
+            pass
+
+    @staticmethod
     def apply_textures_to_active(texture_paths: list, root):
         """Apply provided texture paths (relative to root) to the active mesh."""
         import os

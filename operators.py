@@ -9220,6 +9220,7 @@ class FO4_OT_CreateWeaponPreset(Operator):
                 if ok:
                     if context.active_object:
                         context.active_object.name = f"FO4_Weapon_{self.weapon_type}"
+                    mesh_helpers.SmartPresets.apply_nif_v25_settings(context, self.weapon_type)
                     mesh_helpers.SmartPresets.auto_apply_textures_from_game_asset(nif_path)
                     self.report({'INFO'}, msg)
                     notification_system.FO4_NotificationSystem.notify(msg, 'INFO')
@@ -9267,6 +9268,7 @@ class FO4_OT_CreateArmorPreset(Operator):
                 if ok:
                     if context.active_object:
                         context.active_object.name = f"FO4_Armor_{self.armor_type}"
+                    mesh_helpers.SmartPresets.apply_nif_v25_settings(context, self.armor_type)
                     mesh_helpers.SmartPresets.auto_apply_textures_from_game_asset(nif_path)
                     self.report({'INFO'}, msg)
                     notification_system.FO4_NotificationSystem.notify(msg, 'INFO')
@@ -9313,6 +9315,7 @@ class FO4_OT_CreatePropPreset(Operator):
                 if ok:
                     if context.active_object:
                         context.active_object.name = f"FO4_Prop_{self.prop_type}"
+                    mesh_helpers.SmartPresets.apply_nif_v25_settings(context, self.prop_type)
                     mesh_helpers.SmartPresets.auto_apply_textures_from_game_asset(nif_path)
                     self.report({'INFO'}, msg)
                     notification_system.FO4_NotificationSystem.notify(msg, 'INFO')
@@ -9603,6 +9606,7 @@ class FO4_OT_CreateVegetationPreset(Operator):
                 if ok:
                     if context.active_object:
                         context.active_object.name = f"FO4_Veg_{self.vegetation_type}"
+                    mesh_helpers.SmartPresets.apply_nif_v25_settings(context, self.vegetation_type)
                     mesh_helpers.SmartPresets.auto_apply_textures_from_game_asset(nif_path)
                     self.report({'INFO'}, msg)
                     notification_system.FO4_NotificationSystem.notify(msg, 'INFO')
@@ -10436,6 +10440,7 @@ class FO4_OT_CreateNPC(Operator):
                 if ok:
                     if context.active_object:
                         context.active_object.name = f"FO4_NPC_{self.npc_type}"
+                    mesh_helpers.SmartPresets.apply_nif_v25_settings(context, self.npc_type)
                     self.report({'INFO'}, msg)
                     notification_system.FO4_NotificationSystem.notify(msg, 'INFO')
                     return {'FINISHED'}
@@ -10479,6 +10484,7 @@ class FO4_OT_CreateCreature(Operator):
                 if ok:
                     if context.active_object:
                         context.active_object.name = f"FO4_Creature_{self.creature_type}"
+                    mesh_helpers.SmartPresets.apply_nif_v25_settings(context, self.creature_type)
                     self.report({'INFO'}, msg)
                     notification_system.FO4_NotificationSystem.notify(msg, 'INFO')
                     return {'FINISHED'}
@@ -10522,6 +10528,7 @@ class FO4_OT_CreateInteriorCell(Operator):
                 if ok:
                     if context.active_object:
                         context.active_object.name = f"FO4_Arch_{self.cell_type}"
+                    mesh_helpers.SmartPresets.apply_nif_v25_settings(context, self.cell_type)
                     self.report({'INFO'}, msg)
                     notification_system.FO4_NotificationSystem.notify(msg, 'INFO')
                     return {'FINISHED'}
@@ -10605,6 +10612,7 @@ class FO4_OT_CreateWorkshopObject(Operator):
                 if ok:
                     if context.active_object:
                         context.active_object.name = f"FO4_Workshop_{self.object_type}"
+                    mesh_helpers.SmartPresets.apply_nif_v25_settings(context, self.object_type)
                     self.report({'INFO'}, msg)
                     notification_system.FO4_NotificationSystem.notify(msg, 'INFO')
                     return {'FINISHED'}
@@ -10682,6 +10690,7 @@ class FO4_OT_CreateWeaponItem(Operator):
                 if ok:
                     if context.active_object:
                         context.active_object.name = f"FO4_WeaponItem_{self.weapon_category}"
+                    mesh_helpers.SmartPresets.apply_nif_v25_settings(context, self.weapon_category)
                     self.report({'INFO'}, msg)
                     notification_system.FO4_NotificationSystem.notify(msg, 'INFO')
                     return {'FINISHED'}
@@ -10724,6 +10733,7 @@ class FO4_OT_CreateArmorItem(Operator):
                 if ok:
                     if context.active_object:
                         context.active_object.name = f"FO4_ArmorItem_{self.armor_slot}"
+                    mesh_helpers.SmartPresets.apply_nif_v25_settings(context, self.armor_slot)
                     self.report({'INFO'}, msg)
                     notification_system.FO4_NotificationSystem.notify(msg, 'INFO')
                     return {'FINISHED'}
@@ -10767,6 +10777,7 @@ class FO4_OT_CreatePowerArmorPiece(Operator):
                 if ok:
                     if context.active_object:
                         context.active_object.name = f"FO4_PA_{self.piece}"
+                    mesh_helpers.SmartPresets.apply_nif_v25_settings(context, self.piece)
                     self.report({'INFO'}, msg)
                     notification_system.FO4_NotificationSystem.notify(msg, 'INFO')
                     return {'FINISHED'}
@@ -10808,6 +10819,7 @@ class FO4_OT_CreateConsumable(Operator):
                 if ok:
                     if context.active_object:
                         context.active_object.name = f"FO4_Consumable_{self.item_type}"
+                    mesh_helpers.SmartPresets.apply_nif_v25_settings(context, self.item_type)
                     self.report({'INFO'}, msg)
                     notification_system.FO4_NotificationSystem.notify(msg, 'INFO')
                     return {'FINISHED'}
@@ -10850,6 +10862,7 @@ class FO4_OT_CreateMiscItem(Operator):
                 if ok:
                     if context.active_object:
                         context.active_object.name = f"FO4_MiscItem_{self.item_type}"
+                    mesh_helpers.SmartPresets.apply_nif_v25_settings(context, self.item_type)
                     self.report({'INFO'}, msg)
                     notification_system.FO4_NotificationSystem.notify(msg, 'INFO')
                     return {'FINISHED'}
@@ -10891,6 +10904,7 @@ class FO4_OT_CreateClutterObject(Operator):
                 if ok:
                     if context.active_object:
                         context.active_object.name = f"FO4_Clutter_{self.clutter_type}"
+                    mesh_helpers.SmartPresets.apply_nif_v25_settings(context, self.clutter_type)
                     self.report({'INFO'}, msg)
                     notification_system.FO4_NotificationSystem.notify(msg, 'INFO')
                     return {'FINISHED'}
