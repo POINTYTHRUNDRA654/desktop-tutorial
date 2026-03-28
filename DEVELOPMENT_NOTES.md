@@ -292,9 +292,65 @@ to retry after manually visiting https://www.gildor.org/en/projects/umodel.
 
 ---
 
+## `texture_helpers/` — Package Sub-Module Pattern
+
+`texture_helpers` is a **Python package** (a folder with `__init__.py`), not a flat `.py` file.
+This is the same pattern used by `mesh_helpers` sub-panels: related operators live inside the
+package rather than being scattered across the giant `operators.py`.
+
+### Structure
+
+```
+texture_helpers/
+  __init__.py              # TextureHelpers class (setup_fo4_material, install_texture,
+  │                        # validate_textures). register() calls conversion_operators.register().
+  conversion_operators.py  # FO4_OT_ConvertTextureToDDS, FO4_OT_ConvertObjectTexturesToDDS,
+                           # FO4_OT_TestDDSConverters, FO4_OT_CheckNVTTInstallation
+```
+
+### Rules — do NOT break these
+
+- **Do NOT flatten `texture_helpers/` back to `texture_helpers.py`.**  
+  If `texture_helpers/__init__.py` is replaced by a flat `.py` file, the four DDS conversion
+  operators will no longer be registered (their `register()` call lives inside the package's
+  `__init__.py` which calls `conversion_operators.register()`).
+
+- **Do NOT delete `texture_helpers/conversion_operators.py`.**  
+  The four conversion operators (`fo4.convert_texture_to_dds`, `fo4.convert_object_textures_to_dds`,
+  `fo4.test_dds_converters`, `fo4.check_nvtt_installation`) are defined here and registered by
+  `texture_helpers/__init__.py register()`.  Deleting this file removes all DDS conversion
+  buttons from the UI.
+
+- **Do NOT move those four operators back into `operators.py`.**  
+  They were deliberately moved out to keep `operators.py` maintainable and to follow the
+  helpers-subfolder pattern established for mesh sub-panels.
+
+- **`FO4_PT_NVTTPanel` is a child sub-panel of `FO4_PT_texture_panel`** (not a top-level
+  panel).  Its `bl_parent_id = "FO4_PT_texture_panel"`.  Do NOT change this to
+  `"FO4_PT_main_panel"` — that would make it a duplicate top-level panel and break the
+  Texture Helpers hierarchy.
+
+### How the test suite handles packages
+
+`test_addon_integrity.py` has a `_module_exists()` helper that accepts both flat `.py` files
+**and** packages (folders with `__init__.py`).  Both `test_init_try_imports` and
+`test_modules_list_files_exist` use this helper, so `texture_helpers` passes even though
+there is no `texture_helpers.py` on disk.
+
+If you add another module as a package (e.g. `foo_helpers/`), add the `__init__.py` path to
+`_collect_registered_ids`'s `files_to_scan` list in `test_addon_integrity.py` if it defines
+and registers its own operator classes.
+
+---
+
 ## How to Add a New Module Without Breaking Things
 
 1. Add `new_module = _try_import("new_module")` near the top of `__init__.py`.
+   - If it is a **package** (`new_module/__init__.py`), `_try_import("new_module")` still works —
+     Python imports the package's `__init__.py` automatically.
 2. Add `new_module,` to the `modules` list. Keep `tutorial_operators` **before** `operators`.
-3. Run `python3 -m unittest test_addon_integrity -v` — all tests must pass.
-4. Do NOT reorder existing entries in the modules list.
+3. If the package registers its own operator classes, add its sub-module path (e.g.
+   `"new_module/operators.py"`) to `_collect_registered_ids`'s `files_to_scan` list in
+   `test_addon_integrity.py`.
+4. Run `python3 -m unittest test_addon_integrity -v` — all tests must pass.
+5. Do NOT reorder existing entries in the modules list.
