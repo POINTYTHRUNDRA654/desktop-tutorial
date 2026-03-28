@@ -38,6 +38,8 @@ class FO4TutorialHelperPreferences(AddonPreferences):
         layout.label(text="PyNifly must be installed separately:", icon='INFO')
         layout.label(text="  Nexus: nexusmods.com/fallout4/mods/52319")
         layout.label(text="  GitHub: github.com/BadDogSkyrim/PyNifly")
+        layout.separator()
+        layout.operator("fo4.sync_from_mossy", icon='FILE_REFRESH')
 
 
 def register():
