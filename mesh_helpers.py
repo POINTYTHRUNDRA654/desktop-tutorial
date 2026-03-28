@@ -1017,7 +1017,7 @@ class SmartPresets:
 
     @staticmethod
     def apply_nif_v25_settings(context, preset_key: str):
-        """Apply the correct NIF v25 (PyNifly v25) export settings to all mesh
+        """Apply the correct NIF wire-format export settings to all mesh
         objects that were just imported by a Smart Preset operator.
 
         Called immediately after a successful NIF import so that the user can
@@ -1026,7 +1026,7 @@ class SmartPresets:
 
         Per-object (bpy.types.Object custom properties):
           - ``fo4_mesh_type``      → correct type for the preset category so
-                                     PyNifly v25 chooses the right root node
+                                     PyNifly chooses the right root node
                                      class, BSXFlags, shader flags, and
                                      skinning path on export.
           - ``fo4_collision_type`` → sensible default for the preset category
@@ -1037,7 +1037,7 @@ class SmartPresets:
           - ``fo4_game_version``   → left at whatever the user chose; defaulted
                                      to 'FO4' if not yet set.
 
-        NIF v25 wire-format settings (NIF 20.2.0.7 / user ver 12 / bsver 130 /
+        NIF wire-format settings (NIF 20.2.0.7 / user ver 12 / bsver 130 /
         target_game=FO4) are fixed at export time by
         ``ExportHelpers._build_pynifly_export_kwargs()`` and do not need to be
         stored per-object.
@@ -1156,10 +1156,10 @@ class SmartPresets:
                 obj.fo4_collision_type = coll_type
             except Exception:
                 pass
-            # Store the NIF v25 wire-format constants as informational custom
+            # Store the NIF wire-format constants as informational custom
             # properties so they're visible in the Properties panel.  These
             # match what ExportHelpers._build_pynifly_export_kwargs() passes
-            # to PyNifly v25 at export time.
+            # to PyNifly at export time.
             obj['nif_version'] = '20.2.0.7'
             obj['nif_user_version'] = 12
             obj['nif_bs_version'] = 130

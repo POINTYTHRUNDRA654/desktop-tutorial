@@ -5,7 +5,7 @@ Writes a game-ready NIF 20.2.0.7 file for Fallout 4 entirely in Python,
 without requiring the PyNifly or Niftools Blender operators.  Used as a
 fallback when:
 
-  * PyNifly v25 (BadDogSkyrim) is not installed, AND
+  * PyNifly (BadDogSkyrim) is not installed, AND
   * Niftools v0.1.1 is not installed, OR
   * Either operator fails at runtime (unhandled API breakage)
 
@@ -36,7 +36,7 @@ Triangle format: 3 × uint16 (little-endian) per triangle.
 NIF coordinate convention (niftools tangent space):
   nif_tangent   = -blender_bitangent
   nif_bitangent = +blender_tangent
-  This matches the PyNifly v25 and niftools v0.1.1 encoding exactly.
+  This matches the PyNifly and niftools v0.1.1 encoding exactly.
 
 Supported mesh types (BSFadeNode + BSTriShape fallback):
   STATIC, LOD, VEGETATION, FLORA, FURNITURE, WEAPON, ARCHITECTURE,
@@ -734,7 +734,7 @@ def export_fo4_nif(obj, filepath: str, mesh_type: str = 'STATIC') -> tuple:
         return False, (
             f"Native NIF writer does not support {mesh_type} meshes "
             "(requires BSSkin::Instance / BSSubIndexTriShape). "
-            "Install PyNifly v25 (BadDogSkyrim) or Niftools v0.1.1 for "
+            "Install PyNifly (BadDogSkyrim) or Niftools v0.1.1 for "
             "skinned-mesh NIF export."
         )
 

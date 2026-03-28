@@ -1536,7 +1536,7 @@ class FO4_PT_AnimationPanel(_FO4SubPanel):
         hint = rig_box.column(align=True)
         hint.scale_y = 0.72
         hint.label(text="Pipeline:  Blender rig → FBX export → FBXImporter → Havok Content Tools → .hkx", icon='INFO')
-        hint.label(text="OR:  PyNifly v25 exports .hkx directly — no FBX step needed!", icon='CHECKMARK')
+        hint.label(text="OR:  PyNifly (latest) exports .hkx directly — no FBX step needed!", icon='CHECKMARK')
 
 class FO4_PT_RigNetPanel(_FO4SubPanel):
     """RigNet auto-rigging panel"""
@@ -2378,7 +2378,7 @@ class FO4_PT_ExportPanel(_FO4SubPanel):
         # Which exporter will be used?
         if pynifly_ok:
             active_row = nif_box.row()
-            active_row.label(text="✓ PyNifly v25 (BadDog) — active exporter", icon='CHECKMARK')
+            active_row.label(text="✓ PyNifly (BadDog) — active exporter", icon='CHECKMARK')
         elif niftools_ok:
             active_row = nif_box.row()
             active_row.label(text="✓ Niftools v0.1.1 — active exporter", icon='CHECKMARK')
@@ -2387,8 +2387,8 @@ class FO4_PT_ExportPanel(_FO4SubPanel):
             active_row.label(text="✗ No NIF exporter installed", icon='ERROR')
             inst_col = nif_box.column(align=True)
             inst_col.scale_y = 0.8
-            inst_col.label(text="Install PyNifly v25 (recommended for Blender 4/5):", icon='INFO')
-            inst_col.operator("fo4.install_pynifly", text="Auto-Install PyNifly v25", icon='IMPORT')
+            inst_col.label(text="Install PyNifly (latest, recommended for Blender 4/5):", icon='INFO')
+            inst_col.operator("fo4.install_pynifly", text="Auto-Install PyNifly (Latest)", icon='IMPORT')
             inst_col.separator(factor=0.5)
             inst_col.label(text="Or for Blender 3.6: install Niftools v0.1.1 ZIP", icon='INFO')
 
@@ -2423,7 +2423,7 @@ class FO4_PT_ExportPanel(_FO4SubPanel):
         info_col.label(text="Scale correction: 1.0  (1 Blender unit = 1 NIF unit)", icon='INFO')
         if pynifly_ok:
             info_col.separator(factor=0.5)
-            info_col.label(text="PyNifly v25 parameters used on export:", icon='SETTINGS')
+            info_col.label(text="PyNifly parameters used on export:", icon='SETTINGS')
             info_col.label(text="  target_game=FO4  |  export_modifiers=True", icon='DOT')
             info_col.label(text="  export_collision=True  |  export_colors=True", icon='DOT')
             info_col.label(text="  blender_xf=False  |  rename_bones=True", icon='DOT')
@@ -3042,7 +3042,7 @@ class FO4_PT_ItemCreationPanel(_FO4SubPanel):
         info_box.label(text="2. Model details")
         info_box.label(text="3. Setup textures")
         info_box.label(text="4. Optimize & validate")
-        info_box.label(text="5. Export as NIF (via PyNifly v25)")
+        info_box.label(text="5. Export as NIF (via PyNifly)")
 
 
 class FO4_PT_ArmorClothingPanel(_FO4SubPanel):
