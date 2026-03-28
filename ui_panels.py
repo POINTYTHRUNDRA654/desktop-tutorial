@@ -2170,8 +2170,14 @@ class FO4_PT_ExportPanel(_FO4SubPanel):
         ver_row.prop(context.scene, "fo4_game_version", text="")
         ver_hint = ver_box.column(align=True)
         ver_hint.scale_y = 0.75
+        _FO4_VER_NOTES = {
+            'FO4':   "OG: NIF 20.2.0.7 · bsver 130 · BSTriShape · target_game=FO4 · requires F4SE (pre-NG build)",
+            'FO4NG': "Next-Gen: same NIF format as OG · requires updated F4SE (NG build) and NG-compatible mods",
+            'FO4AE': "AE: same NIF 20.2.0.7 / bsver 130 / BSTriShape as OG & NG · ESL plugin support · requires latest F4SE",
+        }
+        ver_val = getattr(context.scene, "fo4_game_version", "FO4")
         ver_hint.label(
-            text="OG / NG / AE all use NIF 20.2.0.7 · bsver 130 · BSTriShape",
+            text=_FO4_VER_NOTES.get(ver_val, "NIF 20.2.0.7 · bsver 130 · BSTriShape · target_game=FO4"),
             icon='INFO',
         )
 
@@ -2272,6 +2278,17 @@ class FO4_PT_ExportPanel(_FO4SubPanel):
         game_row = settings_col.row(align=True)
         game_row.label(text="Game target:")
         game_row.prop(context.scene, "fo4_game_version", text="")
+
+        # Per-version dependency notes
+        _ver_deps = {
+            'FO4':   "Deps: F4SE (pre-NG build) · Creation Kit (Steam Tools) · FO4Edit",
+            'FO4NG': "Deps: F4SE NG build · NG-compatible mods · Creation Kit (NG) · FO4Edit",
+            'FO4AE': "Deps: F4SE (latest build) · AE-compatible mods · CK (AE) · FO4Edit · ESL support",
+        }
+        _cur_ver = getattr(context.scene, "fo4_game_version", "FO4")
+        dep_col = settings_box.column(align=True)
+        dep_col.scale_y = 0.75
+        dep_col.label(text=_ver_deps.get(_cur_ver, ""), icon='LINKED')
 
         # Fixed CK-required values shown as informational labels
         info_col = settings_box.column(align=True)

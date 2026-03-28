@@ -13813,11 +13813,11 @@ def register():
         # ── FO4 export version selector ───────────────────────────────────────────
         bpy.types.Scene.fo4_game_version = bpy.props.EnumProperty(
             name="Game Version",
-            description="Target Fallout 4 game version (affects NIF flags)",
+            description="Target Fallout 4 game version (affects NIF flags and dependencies)",
             items=[
-                ('FO4',    "Fallout 4 (OG)",     "Original Fallout 4 (pre-Next-Gen)"),
-                ('FO4NG',  "Fallout 4 Next-Gen",  "Next-Gen / Anniversary update"),
-                ('FO76',   "Fallout 76",           "Fallout 76 NIF format"),
+                ('FO4',   "Fallout 4 (OG)",                    "Original Fallout 4 (pre-Next-Gen patch) — NIF 20.2.0.7, bsver 130, BSTriShape, target_game=FO4"),
+                ('FO4NG', "Fallout 4 Next-Gen",                 "Next-Gen / free update (May 2024 patch) — same NIF format as OG; requires updated F4SE and mods"),
+                ('FO4AE', "Fallout 4 AE (Anniversary Edition)", "Anniversary Edition — same NIF 20.2.0.7 / bsver 130 / BSTriShape as OG & NG; supports ESL plugins; requires latest F4SE"),
             ],
             default='FO4',
         )
