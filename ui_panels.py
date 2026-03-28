@@ -4377,6 +4377,30 @@ class FO4_PT_SetupPanel(_FO4SubPanel):
         # EXCEPTION_ACCESS_VIOLATION (BLI_addhead / wm_exit_schedule_delayed).
         layout.operator("fo4.reload_addon", text="Restart Blender", icon='QUIT')
 
+        # ── Add-on Diagnostics ────────────────────────────────────────────
+        diag_box = layout.box()
+        diag_box.label(text="Add-on Diagnostics", icon='INFO')
+        diag_box.label(
+            text="Run if buttons are missing or the add-on misbehaves.",
+            icon='BLANK1',
+        )
+        diag_row = diag_box.row(align=True)
+        # Always draw directly — bpy.types hasattr check is unreliable on Blender 5.x
+        diag_row.operator(
+            "fo4.run_addon_diagnostics",
+            text="Run Diagnostics",
+            icon='VIEWZOOM',
+        )
+        diag_row.operator(
+            "fo4.fix_addon_issues",
+            text="Auto-Fix Issues",
+            icon='TOOL_SETTINGS',
+        )
+        diag_box.label(
+            text="Results appear in Window \u25b8 Toggle System Console.",
+            icon='BLANK1',
+        )
+
 
 
 class FO4_PT_OperationLogPanel(_FO4SubPanel):

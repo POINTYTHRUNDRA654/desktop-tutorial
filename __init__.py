@@ -155,6 +155,11 @@ tutorial_operators = _try_import("tutorial_operators")
 # See DEVELOPMENT_NOTES.md — *RECURRING BUG #1* — before removing this.
 setup_operators = _try_import("setup_operators")
 
+# Diagnostics module — adds Run Diagnostics / Auto-Fix buttons to the
+# Setup & Status panel.  Registered before operators so the buttons are
+# always available even if the large operators.py bundle fails to load.
+addon_diagnostics = _try_import("addon_diagnostics")
+
 
 # core modules that are safe to import and register unconditionally.
 # a few of the optional/external helpers are only added lazily; any module
@@ -222,6 +227,7 @@ modules = list(
             # before operators.py so they always appear as real buttons even
             # if the larger operators.py bundle fails to load on a particular build.
             setup_operators,
+            addon_diagnostics,
             operators,
             ui_panels,
             post_processing_helpers,
