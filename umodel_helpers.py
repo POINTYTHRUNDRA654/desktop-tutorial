@@ -177,6 +177,21 @@ def _find_download_url() -> str | None:
     return None
 
 
+def _manual_install_instructions(tool_dir: Path) -> str:
+    """Return the standardised manual-install instructions string.
+
+    Used in every failure path so the message is always consistent.
+    """
+    return (
+        f"UModel requires manual download. Please:\n"
+        f"1. Visit {_DOWNLOAD_PAGE}\n"
+        f"2. Download the latest UModel build\n"
+        f"3. Extract to: {tool_dir}\n"
+        f"4. Ensure '{_EXE_NAME}' is in that directory\n\n"
+        f"Credit: UModel by Konstantin Nosov (Gildor)"
+    )
+
+
 def download_latest() -> tuple[bool, str]:
     """Download UModel from gildor.org to the tool directory.
 
@@ -200,14 +215,7 @@ def download_latest() -> tuple[bool, str]:
         candidates.append(scraped_url)
 
     if not candidates:
-        return False, (
-            f"UModel requires manual download. Please:\n"
-            f"1. Visit {_DOWNLOAD_PAGE}\n"
-            f"2. Download the latest UModel build\n"
-            f"3. Extract to: {tool_dir}\n"
-            f"4. Ensure '{_EXE_NAME}' is in that directory\n\n"
-            f"Credit: UModel by Konstantin Nosov (Gildor)"
-        )
+        return False, _manual_install_instructions(tool_dir)
 
     last_error = None
     for url in candidates:
@@ -250,7 +258,10 @@ def download_latest() -> tuple[bool, str]:
             print(f"  ✗ Failed to download from {url}: {exc}")
             continue
 
-    error_msg = f"Failed to download UModel: {last_error or 'unknown error'}\n\nPlease manually download from:\n{_DOWNLOAD_PAGE}\n\nExtract to: {tool_dir}"
+    error_msg = (
+        f"Failed to download UModel: {last_error or 'unknown error'}\n\n"
+        + _manual_install_instructions(tool_dir)
+    )
     return False, error_msg
 
 
@@ -261,7 +272,10 @@ def open_download_page() -> tuple[bool, str]:
     url = "https://www.gildor.org/en/projects/umodel"
     try:
         webbrowser.open(url)
-        return True, f"Opened UModel download page. After downloading, extract to: {get_tool_dir()}"
+        return True, (
+            f"Opened UModel download page. After downloading, extract to: {get_tool_dir()}\n\n"
+            f"Credit: UModel by Konstantin Nosov (Gildor)"
+        )
     except Exception as e:
         return False, f"Failed to open browser: {str(e)}"
 

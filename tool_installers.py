@@ -40,7 +40,7 @@ from pathlib import Path
 
 # Primary tools folder on D: drive — all external tools (including PyNifly)
 # live here, matching the user's local setup.
-DEFAULT_TOOLS_ROOT = Path(r"D:\Blender addon\tools")
+DEFAULT_TOOLS_ROOT = Path(r"D:\blender_tools")
 
 # Human-readable string used in UI labels and error messages.
 TOOLS_DIR_DISPLAY = str(DEFAULT_TOOLS_ROOT)

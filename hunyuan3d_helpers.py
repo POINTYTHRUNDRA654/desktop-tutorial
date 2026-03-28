@@ -45,6 +45,75 @@ def _torch_available() -> bool:
 # It will be imported dynamically when needed
 
 
+def _dll_init_error_message() -> str:
+    """Return a user-friendly message when WinError 1114 (DLL init failure) occurs.
+
+    This error typically means a CUDA-version mismatch between the installed
+    PyTorch and the system GPU driver, or a missing Visual C++ Redistributable.
+    """
+    return (
+        "PyTorch DLL initialisation failed (WinError 1114).\n"
+        "This usually means a CUDA/driver version mismatch.\n"
+        "A file such as D:\\blender_torch\\torch\\lib\\c10.dll could not be loaded.\n\n"
+        "Suggested fixes:\n"
+        "1. Reinstall PyTorch matching your CUDA toolkit version:\n"
+        "   https://pytorch.org/get-started/locally/\n"
+        "2. Install the latest Visual C++ Redistributable from Microsoft:\n"
+        "   https://aka.ms/vs/17/release/vc_redist.x64.exe\n"
+        "3. Update your GPU driver to one compatible with your CUDA version.\n"
+        "4. If no GPU is present, install the CPU-only PyTorch build."
+    )
+
+
+def _build_hunyuan3d_candidates():
+    """Return an ordered list of candidate paths to search for Hunyuan3D-2.
+
+    The tools-root location (set by the addon installer or the user's
+    ``tools_root`` preference) is checked first so that the auto-installed
+    copy on D:\\blender_tools takes priority over any stray clone in the
+    user's home directory that might be missing infer.py.
+    """
+    import tool_installers as _tli
+
+    candidates = []
+
+    # 1. User-configured tools_root preference (highest priority)
+    try:
+        for addon_id in (
+            "bl_ext.user_default.blender_game_tools",
+            __name__.split(".")[0],
+        ):
+            entry = bpy.context.preferences.addons.get(addon_id)
+            if entry:
+                tr = getattr(entry.preferences, "tools_root", "")
+                if tr:
+                    candidates.append(os.path.join(tr, "Hunyuan3D-2"))
+                break
+    except Exception:
+        pass
+
+    # 2. tool_installers default root (D:\blender_tools\Hunyuan3D-2)
+    try:
+        candidates.append(str(_tli.get_tools_root() / "Hunyuan3D-2"))
+    except Exception:
+        pass
+
+    # 3. Common user-home and system locations (legacy / manual installs)
+    candidates += [
+        os.path.expanduser("~/Hunyuan3D-2"),
+        os.path.expanduser("~/Projects/Hunyuan3D-2"),
+        "/opt/Hunyuan3D-2",
+        os.path.join(os.path.dirname(__file__), "..", "Hunyuan3D-2"),
+    ]
+
+    return candidates
+
+
+def _is_valid_hunyuan_install(path: str) -> bool:
+    """Return True if *path* is a Hunyuan3D-2 directory that contains infer.py."""
+    return os.path.isdir(path) and os.path.exists(os.path.join(path, "infer.py"))
+
+
 def check_hunyuan3d_availability():
     """
     Check if Hunyuan3D-2 is installed and available.
@@ -54,34 +123,35 @@ def check_hunyuan3d_availability():
     """
     if not _torch_available():
         return False, "PyTorch not installed. Install with: pip install torch torchvision"
-    
-    # Check if Hunyuan3D-2 repository is cloned
-    # Common locations to check
-    possible_paths = [
-        os.path.expanduser("~/Hunyuan3D-2"),
-        os.path.expanduser("~/Projects/Hunyuan3D-2"),
-        "/opt/Hunyuan3D-2",
-        os.path.join(os.path.dirname(__file__), "..", "Hunyuan3D-2"),
-    ]
-    
-    hunyuan_path = None
-    for path in possible_paths:
-        if os.path.exists(path) and os.path.isdir(path):
-            hunyuan_path = path
-            break
-    
-    if hunyuan_path is None:
-        return False, (
-            "Hunyuan3D-2 not found. Clone it with:\n"
-            "gh repo clone Tencent-Hunyuan/Hunyuan3D-2\n"
-            "Or: git clone https://github.com/Tencent-Hunyuan/Hunyuan3D-2.git"
-        )
-    
-    # Check if the main module exists
-    if not os.path.exists(os.path.join(hunyuan_path, "infer.py")):
-        return False, f"Hunyuan3D-2 found at {hunyuan_path} but infer.py not found"
-    
-    return True, f"Hunyuan3D-2 available at: {hunyuan_path}"
+
+    # Probe torch to catch DLL init failures (WinError 1114 — CUDA/driver mismatch).
+    # find_spec only verifies the files exist; it does not load the DLLs.
+    try:
+        importlib.import_module("torch")
+    except OSError as _e:
+        if getattr(_e, 'winerror', None) == 1114 or "WinError 1114" in str(_e):
+            return False, _dll_init_error_message()
+        return False, f"PyTorch failed to load: {_e}"
+    except ImportError as _e:
+        return False, f"PyTorch not available: {_e}"
+
+    candidates = _build_hunyuan3d_candidates()
+
+    # First pass: find a directory that actually contains infer.py
+    for path in candidates:
+        if _is_valid_hunyuan_install(path):
+            return True, f"Hunyuan3D-2 available at: {path}"
+
+    # Second pass: report any directory found but missing infer.py
+    for path in candidates:
+        if os.path.isdir(path):
+            return False, f"Hunyuan3D-2 found at {path} but infer.py not found"
+
+    return False, (
+        "Hunyuan3D-2 not found. Clone it with:\n"
+        "gh repo clone Tencent-Hunyuan/Hunyuan3D-2\n"
+        "Or: git clone https://github.com/Tencent-Hunyuan/Hunyuan3D-2.git"
+    )
 
 
 def generate_mesh_from_text(prompt, output_path=None, resolution=256):
@@ -105,14 +175,9 @@ def generate_mesh_from_text(prompt, output_path=None, resolution=256):
         import glob as _glob
 
         # Locate the Hunyuan3D-2 installation directory
-        possible_paths = [
-            os.path.expanduser("~/Hunyuan3D-2"),
-            os.path.expanduser("~/Projects/Hunyuan3D-2"),
-            "/opt/Hunyuan3D-2",
-            os.path.join(os.path.dirname(__file__), "..", "Hunyuan3D-2"),
-        ]
         hunyuan_path = next(
-            (p for p in possible_paths if os.path.isdir(p)), None
+            (p for p in _build_hunyuan3d_candidates() if _is_valid_hunyuan_install(p)),
+            None,
         )
 
         # Choose / create an output directory
@@ -177,14 +242,10 @@ def generate_mesh_from_image(image_path, output_path=None, resolution=256):
         import subprocess
         import glob as _glob
 
-        possible_paths = [
-            os.path.expanduser("~/Hunyuan3D-2"),
-            os.path.expanduser("~/Projects/Hunyuan3D-2"),
-            "/opt/Hunyuan3D-2",
-            os.path.join(os.path.dirname(__file__), "..", "Hunyuan3D-2"),
-        ]
+        possible_paths = _build_hunyuan3d_candidates()
         hunyuan_path = next(
-            (p for p in possible_paths if os.path.isdir(p)), None
+            (p for p in possible_paths if _is_valid_hunyuan_install(p)),
+            None,
         )
 
         if output_path is None:

@@ -675,9 +675,9 @@ class FO4AddonPreferences(bpy.types.AddonPreferences):
     torch_custom_path: bpy.props.StringProperty(
         name="PyTorch Custom Path",
         subtype="DIR_PATH",
-        default="",
+        default=r"D:\blender_torch",
         description=(
-            "Directory of an externally-installed PyTorch (e.g. D:/t or "
+            "Directory of an externally-installed PyTorch (e.g. D:\\blender_torch or "
             "~/.local/lib/python3.12/site-packages). "
             "Added to sys.path on every Blender startup so torch is importable."
         ),
