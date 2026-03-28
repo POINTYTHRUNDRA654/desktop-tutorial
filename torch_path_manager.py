@@ -369,6 +369,27 @@ class TORCH_OT_recheck_status(bpy.types.Operator):
         except Exception as e:
             self.report({'WARNING'}, f"Could not reset torch cache: {e}")
             return {'CANCELLED'}
+
+        # Also reset the torch_install_attempted flag when torch is still not
+        # importable after the re-check.  Without this, a user whose D:/t
+        # directory exists but is empty (partial/failed install) would be stuck:
+        # re-checking clears the error message but auto-install stays blocked
+        # because torch_install_attempted remains True.
+        try:
+            import torch  # noqa: F401 – check only, result discarded
+        except (ImportError, OSError):
+            try:
+                from . import preferences as _prefs
+                _prefs_obj = _prefs.get_preferences()
+                if _prefs_obj is not None and _prefs_obj.torch_install_attempted:
+                    _prefs_obj.torch_install_attempted = False
+                    print(
+                        "torch.recheck_status: torch still unavailable — "
+                        "reset torch_install_attempted so auto-install can retry"
+                    )
+            except Exception as _pe:
+                print(f"torch.recheck_status: could not reset install flag: {_pe}")
+
         self.report({'INFO'}, "PyTorch status re-checked — see Settings panel for result.")
         return {'FINISHED'}
 
