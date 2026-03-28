@@ -3620,88 +3620,6 @@ class FO4_PT_PapyrusPanel(_FO4SubPanel):
         sub.label(text="   (form → Scripts tab → Add → script name)")
 
 
-# ── Havok Physics Panel ───────────────────────────────────────────────────────
-
-class FO4_PT_HavokPhysicsPanel(_FO4SubPanel):
-    """Havok rigid-body physics setup for FO4 NIF export"""
-    bl_label    = "Havok Physics"
-    bl_idname   = "FO4_PT_havok_physics_panel"
-    bl_space_type  = 'VIEW_3D'
-    bl_region_type = 'UI'
-    bl_category = 'Fallout 4'
-    bl_parent_id   = "FO4_PT_main_panel"
-    bl_options  = {'DEFAULT_CLOSED'}
-
-    def draw(self, context):
-        layout = self.layout
-        scene  = context.scene
-        obj    = context.active_object
-
-        # ── Preset selector ───────────────────────────────────────────────────
-        preset_box = layout.box()
-        preset_box.label(text="Physics Preset", icon='RIGID_BODY')
-        preset_box.prop(scene, "fo4_physics_preset", text="")
-        preset_box.operator("fo4.apply_physics_preset",
-                            text="Apply to Selected", icon='PHYSICS')
-
-        # ── Active object summary ─────────────────────────────────────────────
-        if obj and obj.type == 'MESH':
-            status_box = layout.box()
-            status_box.label(
-                text=f"Active: {obj.name}", icon='OBJECT_DATA')
-            rb = obj.rigid_body
-            if rb:
-                col = status_box.column(align=True)
-                col.scale_y = 0.85
-                layer  = obj.get("fo4_collision_layer", "–")
-                motion = obj.get("fo4_motion_type",     "–")
-                mass   = obj.get("fo4_havok_mass",      rb.mass)
-                fric   = obj.get("fo4_havok_friction",  rb.friction)
-                rest   = obj.get("fo4_havok_restitution", rb.restitution)
-                qual   = obj.get("fo4_havok_quality",   "–")
-                col.label(text=f"Layer:       {layer}")
-                col.label(text=f"Motion:      {motion}")
-                col.label(text=f"Quality:     {qual}")
-                col.label(text=f"Mass:        {mass:.2f} kg")
-                col.label(text=f"Friction:    {fric:.2f}")
-                col.label(text=f"Restitution: {rest:.2f}")
-            else:
-                status_box.label(text="No rigid body (no physics)", icon='ERROR')
-
-            # ── Validate ─────────────────────────────────────────────────────
-            status_box.operator("fo4.validate_physics",
-                                text="Validate Physics", icon='CHECKMARK')
-
-            # ── Live warnings ─────────────────────────────────────────────────
-            if getattr(scene, "fo4_physics_show_warnings", True):
-                try:
-                    from . import fo4_physics_helpers
-                    warns = fo4_physics_helpers.PhysicsHelpers.validate_physics(obj)
-                    if warns:
-                        warn_box = layout.box()
-                        warn_box.label(text="Warnings:", icon='ERROR')
-                        for w in warns:
-                            warn_box.label(text=w, icon='DOT')
-                except Exception:
-                    pass
-        else:
-            layout.label(text="Select a mesh object", icon='INFO')
-
-        # ── Reference table ───────────────────────────────────────────────────
-        ref_box = layout.box()
-        ref_box.label(text="Common FO4 Layer Guide:", icon='INFO')
-        ref_box.prop(scene, "fo4_physics_show_warnings",
-                     text="Show live warnings")
-        sub = ref_box.column(align=True)
-        sub.scale_y = 0.75
-        sub.label(text="L_STATIC (1)        – immoveable world geo")
-        sub.label(text="L_ANIMSTATIC (2)    – doors, animated statics")
-        sub.label(text="L_PROPS (7)         – moveable physics props")
-        sub.label(text="L_DEBRIS_SMALL (8)  – gibs / small debris")
-        sub.label(text="L_TREES (35)        – trees / foliage")
-        sub.label(text="FIXED: mass = 0  |  DYNAMIC: mass > 0")
-
-
 # ── Mod Packaging Panel ───────────────────────────────────────────────────────
 
 class FO4_PT_ModPackagingPanel(_FO4SubPanel):
@@ -4613,7 +4531,6 @@ classes = (
     FO4_PT_SceneDiagnosticsPanel,
     FO4_PT_ReferenceObjectsPanel,
     FO4_PT_PapyrusPanel,
-    FO4_PT_HavokPhysicsPanel,
     FO4_PT_ModPackagingPanel,
     FO4_PT_AddonIntegrationPanel,
     FO4_PT_DesktopTutorialPanel,
